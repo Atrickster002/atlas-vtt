@@ -1,5 +1,5 @@
 import type { SystemPreset } from '../../types/systemPresetTypes';
-import { builtInPresetId, conditionsOf } from './presetHelpers';
+import { builtInPresetId, conditionsOf, creatureFiltersOf } from './presetHelpers';
 
 /**
  * Pathfinder Second Edition (Remaster, Player Core): 5-foot squares, and
@@ -58,5 +58,11 @@ export const PATHFINDER_2E: SystemPreset = {
       { name: 'Wounded', color: '#b91c1c', icon: 'bleeding-wound', valued: true },
     ]),
     defaultWidgets: { hpBar: true },
+    creatureFilters: creatureFiltersOf('pathfinder2e', [
+      { label: 'Level', kind: 'range', field: 'level' },
+      // The creature layout keeps traits in one list, the basic layout (and its importers) in numbered fields.
+      { label: 'Traits', kind: 'options', fields: ['traits', 'trait_01', 'trait_02', 'trait_03', 'trait_04', 'trait_05', 'trait_06', 'trait_07'] },
+      { label: 'Rarity', kind: 'options', fields: ['rarity', 'rare_01', 'rare_02', 'rare_03', 'rare_04'] },
+    ]),
   },
 };

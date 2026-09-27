@@ -5,6 +5,7 @@
  * grid defaults, and token conditions.
  */
 
+import type { CreatureFilterDefinition } from './creatureFilterTypes';
 import type { VisionSettings } from './wallTypes';
 import type { AnyWidget } from './widgetTypes';
 import type { WidgetIcon } from './widgetIcons';
@@ -53,4 +54,9 @@ export interface CollectionSettings {
   vision?: VisionSettings;
   /** The game system preset the rules were last taken from or saved to; they may have been edited since. */
   systemPresetId?: string | undefined;
+  /**
+   * The statblock fields the asset manager filters the collection's tokens by.
+   * Unset in collections saved before filters existed: read them with `collectionCreatureFilters`.
+   */
+  creatureFilters?: CreatureFilterDefinition[];
 }

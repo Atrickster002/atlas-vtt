@@ -1,4 +1,5 @@
 import type { ConditionDefinition } from '../../types/collectionSettingsTypes';
+import type { CreatureFilterDefinition, CreatureOptionsFilter, CreatureRangeFilter } from '../../types/creatureFilterTypes';
 import { BUILT_IN_ID_PREFIX } from '../../types/systemPresetTypes';
 
 /** A condition as a built-in preset defines it; the id is derived from the preset and the name. */
@@ -15,4 +16,12 @@ export function conditionsOf(presetKey: string, conditions: readonly BuiltInCond
     id: `${presetKey}-${condition.name.toLowerCase().replace(/\s+/g, '-')}`,
     ...condition,
   }));
+}
+
+/** A creature filter as a built-in preset defines it; the id is derived from the preset and the field. */
+export type BuiltInCreatureFilter = Omit<CreatureRangeFilter, 'id'> | Omit<CreatureOptionsFilter, 'id'>;
+
+/** Creature filters with ids derived from the preset and their (first) field. Never change them: the asset manager remembers picks by id. */
+export function creatureFiltersOf(presetKey: string, filters: readonly BuiltInCreatureFilter[]): CreatureFilterDefinition[] {
+  return filters.map((filter) => ({ id: `${presetKey}-${filter.kind === 'range' ? filter.field : filter.fields[0]}`, ...filter }));
 }

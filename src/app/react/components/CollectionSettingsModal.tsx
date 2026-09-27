@@ -7,10 +7,10 @@
  * Opens after collection creation and via a gear button in the sidebar.
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { motion } from 'framer-motion';
-import { Dices, Grid3X3, LayoutGrid, ShieldAlert, Eye } from 'lucide-react';
+import { Dices, Grid3X3, LayoutGrid, ListFilter, ShieldAlert, Eye } from 'lucide-react';
 import { Button } from '../../packages/components/primitives/button';
 import { useAtlasUI } from '../root/AtlasUIContext';
 import { AssetService } from '../../services/AssetService';
@@ -26,6 +26,9 @@ import { DefaultWidgetsTab } from './collection-settings/DefaultWidgetsTab';
 import { ConditionsTab } from './collection-settings/ConditionsTab';
 import { VisionTab } from './collection-settings/VisionTab';
 import { SystemTab } from './collection-settings/SystemTab';
+import { CreatureFiltersTab } from './collection-settings/CreatureFiltersTab';
+import { useCollectionCreatures } from './collection-settings/useCollectionCreatures';
+import { isCompleteCreatureFilter, parseCreatureFilters } from '../../gameSystems/creatureFilters';
 import { WALLS_AND_LIGHTING_ENABLED } from '../../featureFlags';
 import { areRangeBandsValid, unitLabelFor } from '../../grid/measurementFormat';
 
@@ -40,7 +43,7 @@ interface CollectionSettingsModalProps {
   collectionId: string;
 }
 
-type TabId = 'system' | 'grid' | 'widgets' | 'conditions' | 'vision';
+type TabId = 'system' | 'grid' | 'widgets' | 'conditions' | 'creatureFilters' | 'vision';
 
 interface TabDef {
   id: TabId;
@@ -53,6 +56,7 @@ const TABS: TabDef[] = [
   { id: 'grid', label: 'Grid & Measure', icon: <Grid3X3 size={16} /> },
   { id: 'widgets', label: 'Default Widgets', icon: <LayoutGrid size={16} /> },
   { id: 'conditions', label: 'Conditions', icon: <ShieldAlert size={16} /> },
+  { id: 'creatureFilters', label: 'Creature Filters', icon: <ListFilter size={16} /> },
   ...(WALLS_AND_LIGHTING_ENABLED ? [{ id: 'vision' as const, label: 'Vision', icon: <Eye size={16} /> }] : []),
 ];
 
@@ -73,8 +77,11 @@ export function CollectionSettingsModal({
   const [releaseLine, setReleaseLine] = useState('');
 
   // Local draft of settings — only persisted on Save
-  const draft = useCollectionSettingsDraft(assetService, collectionId, isOpen);
-  const { gridDefaults, conditions } = draft;
+  const draft = useCollectionSettingsDraft(assetService, collectionId, isOpen, systemPresets.presets);
+  const { gridDefaults, conditions, creatureFilters } = draft;
+  // As they will be saved, so the system tab compares them with its presets the same way.
+  const savedCreatureFilters = useMemo(() => parseCreatureFilters(creatureFilters), [creatureFilters]);
+  const collectionCreatures = useCollectionCreatures(app ?? null, assetService, collectionId, isOpen && activeTab === 'creatureFilters');
 
   // Resolve the collection name for the header
   useEffect(() => {
@@ -103,7 +110,7 @@ export function CollectionSettingsModal({
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onClose]);
 
-  const canSave = areRangeBandsValid(gridDefaults.abstractRangeBands);
+  const canSave = areRangeBandsValid(gridDefaults.abstractRangeBands) && creatureFilters.every(isCompleteCreatureFilter);
 
   const handleSave = async (): Promise<void> => {
     if (!app || !assetService || !canSave) return;
@@ -177,7 +184,7 @@ export function CollectionSettingsModal({
               <SystemTab
                 service={systemPresets.service}
                 presets={systemPresets.presets}
-                rules={{ gridDefaults, conditions, defaultWidgets: draft.defaultWidgets }}
+                rules={{ gridDefaults, conditions, defaultWidgets: draft.defaultWidgets, creatureFilters: savedCreatureFilters }}
                 presetId={draft.systemPresetId}
                 onApplyPreset={draft.applyPreset}
                 onPresetIdChange={draft.setSystemPresetId}
@@ -200,6 +207,14 @@ export function CollectionSettingsModal({
               <ConditionsTab
                 conditions={conditions}
                 onChange={draft.setConditions}
+              />
+            )}
+            {activeTab === 'creatureFilters' && (
+              <CreatureFiltersTab
+                filters={creatureFilters}
+                onChange={draft.setCreatureFilters}
+                creatures={collectionCreatures.creatures}
+                pending={collectionCreatures.pending}
               />
             )}
             {activeTab === 'vision' && (

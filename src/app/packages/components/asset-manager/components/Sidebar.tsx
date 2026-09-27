@@ -11,6 +11,8 @@ import { hasAssetTag } from '../../../../services/tagGroups';
 import type { SidebarLayout } from '../hooks/useSidebarLayout';
 import { sidebarContentVariants, sidebarMotionState, sidebarVariants } from './sidebarMotion';
 import { ClearTagsChip } from './ClearTagsChip';
+import { CreatureFilterSection } from './creature-filters/CreatureFilterSection';
+import type { CreatureFilterPanel } from '../hooks/useCreatureFilters';
 
 export interface SidebarProps {
   selectedTagIds: string[];
@@ -28,6 +30,8 @@ export interface SidebarProps {
   onImportCollection?: () => void;
   /** Floating behaviour from `useSidebarLayout`; omitted, the sidebar is docked. */
   layout?: Pick<SidebarLayout, 'isFloating' | 'isPeeking' | 'isNearEdge' | 'panelRef'>;
+  /** Filters on linked statblocks; only on the Characters tab. */
+  creatureFilters?: CreatureFilterPanel | null;
 }
 
 export function Sidebar({
@@ -44,6 +48,7 @@ export function Sidebar({
   onExportCollection,
   onImportCollection,
   layout,
+  creatureFilters,
 }: SidebarProps): React.JSX.Element {
   const [isCollectionDropdownOpen, setIsCollectionDropdownOpen] = useState(false);
   const [collectionSearchQuery, setCollectionSearchQuery] = useState('');
@@ -271,6 +276,8 @@ export function Sidebar({
               )}
             </div>
           </div>
+
+          {creatureFilters && <CreatureFilterSection panel={creatureFilters} />}
 
           <div className="atlas-sidebar-spacer" />
 

@@ -6,8 +6,12 @@ import type { AnyAsset } from '../../src/app/packages/components/asset-manager/t
 
 // Keep the real sidebar, selection state, and AssetManager filtering together.
 // Stub vault loading, unrelated modal actions, and asset card rendering.
+// The asset manager listens to workspace events (collection settings changes).
+const workspaceApp = { workspace: { on: () => ({}), offref: () => {} } };
+
 vi.mock('../../src/app/packages/components/asset-manager/hooks/useAssetData', () => ({
   useAssetData: () => ({
+    app: workspaceApp,
     folders: [], collections: [{ id: 'default', uid: 'u-default', name: 'Default' }],
     availableTags: [{ id: 'testing-tags', name: 'Testing Tags' }, { id: 'forest', name: 'Forest' }],
     assets: [

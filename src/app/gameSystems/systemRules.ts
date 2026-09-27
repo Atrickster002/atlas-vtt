@@ -9,8 +9,10 @@ import type {
   ConditionDefinition,
   GridUnitType,
 } from '../types/collectionSettingsTypes';
+import type { CreatureFilterDefinition } from '../types/creatureFilterTypes';
 import type { SystemPreset, SystemRules } from '../types/systemPresetTypes';
 import type { AnyWidget } from '../types/widgetTypes';
+import { parseCreatureFilters, sameCreatureFilters } from './creatureFilters';
 
 /** Measurement of a collection that never set any: 5-foot squares, every diagonal counts 1. */
 export const DEFAULT_GRID_DEFAULTS: Readonly<CollectionGridDefaults> = {
@@ -22,29 +24,32 @@ export const DEFAULT_GRID_DEFAULTS: Readonly<CollectionGridDefaults> = {
 };
 
 /** What a game system sets in a collection's settings. */
-export type SystemSettings = Required<Pick<CollectionSettings, 'gridDefaults' | 'conditions' | 'defaultWidgets'>>
+export type SystemSettings = Required<Pick<CollectionSettings, 'gridDefaults' | 'conditions' | 'defaultWidgets' | 'creatureFilters'>>
   & Pick<CollectionSettings, 'systemPresetId'>;
 
-/** A collection without a game system: default measurement, no conditions, no default widgets. */
+/** A collection without a game system: default measurement, no conditions, no default widgets, no creature filters. */
 export function vanillaSystemSettings(): SystemSettings {
   return {
     gridDefaults: structuredClone(DEFAULT_GRID_DEFAULTS),
     conditions: [],
     defaultWidgets: {},
+    creatureFilters: [],
     systemPresetId: undefined,
   };
 }
 
 /**
- * The rules a collection gets from a preset: a copy of its measurement and of its
- * conditions with their own ids. Conditions from the previous system never carry
- * over; the ones tokens still have are removed when the collection is saved.
+ * The rules a collection gets from a preset: a copy of its measurement, of its
+ * conditions with their own ids and of its creature filters. Conditions from the
+ * previous system never carry over; the ones tokens still have are removed when
+ * the collection is saved.
  */
-export function rulesOfPreset(preset: SystemPreset): Required<Pick<SystemRules, 'gridDefaults' | 'conditions' | 'defaultWidgets'>> {
+export function rulesOfPreset(preset: SystemPreset): Required<Pick<SystemRules, 'gridDefaults' | 'conditions' | 'defaultWidgets' | 'creatureFilters'>> {
   return {
     gridDefaults: structuredClone(preset.rules.gridDefaults),
     conditions: structuredClone(preset.rules.conditions),
     defaultWidgets: { ...preset.rules.defaultWidgets },
+    creatureFilters: structuredClone(preset.rules.creatureFilters ?? []),
   };
 }
 
@@ -71,12 +76,13 @@ function enabledWidgets(defaultWidgets: Record<string, boolean> | undefined): st
   return Object.keys(defaultWidgets ?? {}).filter((key) => defaultWidgets?.[key]).sort().join();
 }
 
-/** Whether two rule sets play the same; condition ids do not matter. */
+/** Whether two rule sets play the same; condition and filter ids do not matter. */
 export function sameSystemRules(a: SystemRules, b: SystemRules): boolean {
   return sameGridDefaults(a.gridDefaults, b.gridDefaults)
     && enabledWidgets(a.defaultWidgets) === enabledWidgets(b.defaultWidgets)
     && a.conditions.length === b.conditions.length
-    && a.conditions.every((condition, i) => sameCondition(condition, b.conditions[i]!));
+    && a.conditions.every((condition, i) => sameCondition(condition, b.conditions[i]!))
+    && sameCreatureFilters(a.creatureFilters, b.creatureFilters);
 }
 
 const SQUARE_UNIT: Record<GridUnitType, string> = { feet: 'ft', yards: 'yd', meters: 'm', units: 'unit', custom: 'unit' };
@@ -132,4 +138,25 @@ export function findActivePreset(
 ): SystemPreset | undefined {
   return presets.find((preset) => preset.id === presetId)
     ?? presets.find((preset) => sameSystemRules(preset.rules, rules));
+}
+
+/**
+ * The creature filters a collection offers. A collection saved before filters
+ * existed has none stored and offers those of the preset it plays (recorded, or
+ * matched by its other rules), so it keeps matching that preset instead of
+ * showing as edited.
+ */
+export function collectionCreatureFilters(
+  settings: Partial<Pick<CollectionSettings, 'gridDefaults' | 'conditions' | 'defaultWidgets' | 'creatureFilters' | 'systemPresetId'>>,
+  presets: readonly SystemPreset[],
+): CreatureFilterDefinition[] {
+  if (settings.creatureFilters !== undefined) return parseCreatureFilters(settings.creatureFilters);
+  const rules: SystemRules = {
+    gridDefaults: settings.gridDefaults ?? DEFAULT_GRID_DEFAULTS,
+    conditions: settings.conditions ?? [],
+    ...(settings.defaultWidgets && { defaultWidgets: settings.defaultWidgets }),
+  };
+  const preset = presets.find((candidate) => candidate.id === settings.systemPresetId)
+    ?? presets.find((candidate) => sameSystemRules(candidate.rules, { ...rules, creatureFilters: candidate.rules.creatureFilters ?? [] }));
+  return structuredClone(preset?.rules.creatureFilters ?? []);
 }

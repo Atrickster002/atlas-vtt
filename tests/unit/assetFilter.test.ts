@@ -36,6 +36,11 @@ describe('filterAssets', () => {
     expect(names(filterAssets(assets, folders, filter({ folderId: 'monsters', tags: [forest] })))).toEqual(['Wolf', 'Ghoul']);
   });
 
+  it('lists every folder below the open one while other filters narrow the list', () => {
+    expect(names(filterAssets(assets, folders, filter({ folderId: 'monsters', narrowed: true })))).toEqual(['Wolf', 'Ghoul']);
+    expect(filterFolders(folders, filter({ narrowed: true }))).toEqual([]);
+  });
+
   it('searches every folder from the root and every subfolder of the open folder', () => {
     expect(names(filterAssets(assets, folders, filter({ search: 'o' })))).toEqual(['Goblin', 'Wolf', 'Ghoul']);
     expect(names(filterAssets(assets, folders, filter({ folderId: 'monsters', search: 'o' })))).toEqual(['Wolf', 'Ghoul']);

@@ -7,6 +7,7 @@ import { LocalPlayerView, LOCAL_PLAYER_VIEW_TYPE } from './src/app/local-player-
 import { PlayerView, PLAYER_VIEW_TYPE } from './src/app/player-view';
 import { DashboardView, DASHBOARD_VIEW_TYPE } from './src/app/dashboard-view';
 import { initializeAtlasStorage } from './src/app/atlasStorageInit';
+import { CreatureIndex } from './src/app/creatures/CreatureIndex';
 import { GlobalAssetManagerService } from './src/app/services/GlobalAssetManagerService';
 import { ImageDisplayService } from './src/app/services/ImageDisplayService';
 import { PlayerWindowService } from './src/app/services/PlayerWindowService';
@@ -105,6 +106,7 @@ export default class AtlasVTTPlugin extends Plugin {
     this.imageDisplayService?.destroy();
     PlayerWindowService.getInstance()?.destroy(false);
     this.globalAssetManager?.close();
+    CreatureIndex.release(this.app);
   }
 
   private registerAtlasViews(): void {

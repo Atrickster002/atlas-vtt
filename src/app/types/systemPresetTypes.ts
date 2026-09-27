@@ -1,9 +1,10 @@
 /**
- * Game system presets: a named set of collection rules (measurement and
- * conditions) that can be applied to any collection.
+ * Game system presets: a named set of collection rules (measurement,
+ * conditions and creature filters) that can be applied to any collection.
  */
 
 import type { CollectionGridDefaults, ConditionDefinition } from './collectionSettingsTypes';
+import type { CreatureFilterDefinition } from './creatureFilterTypes';
 import type { AnyWidget } from './widgetTypes';
 
 /** The parts of a collection's settings that a game system defines. */
@@ -21,6 +22,8 @@ export interface SystemRules {
    * `CollectionSettings.defaultWidgets` (e.g. `stressBar` for Daggerheart's Stress).
    */
   defaultWidgets?: Record<string, boolean>;
+  /** The statblock fields the asset manager filters the collection's tokens by, e.g. CR or tier. */
+  creatureFilters?: CreatureFilterDefinition[];
 }
 
 /** Built-in preset ids start with this; user presets never do. */

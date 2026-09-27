@@ -1,0 +1,71 @@
+import { TFile, type App } from 'obsidian';
+import {
+  getFantasyStatblocksApi,
+  resolveCreatureFromFence,
+  type FantasyStatblocksApi,
+  type FantasyStatblocksCreature,
+} from '../services/FantasyStatblocksService';
+import { hasBestiaryFrontmatter, parseStatblockFence } from '../services/statblockNoteSource';
+
+/** The bestiary as one lookup, built once and reused for many notes. */
+export interface BestiaryLookup {
+  api: FantasyStatblocksApi | null;
+  byPath: ReadonlyMap<string, FantasyStatblocksCreature>;
+}
+
+/** Fantasy Statblocks' note-backed creatures by note path; empty while the plugin is missing. */
+export function bestiaryLookup(): BestiaryLookup {
+  const api = getFantasyStatblocksApi();
+  const byPath = new Map<string, FantasyStatblocksCreature>();
+  for (const creature of api?.getBestiaryCreatures() ?? []) {
+    if (creature.path) byPath.set(creature.path, creature);
+  }
+  return { api, byPath };
+}
+
+/** A bestiary creature with its `extends` applied, which only the plugin's name lookup does. */
+function withExtensions(api: FantasyStatblocksApi | null, creature: FantasyStatblocksCreature): FantasyStatblocksCreature {
+  if (!api || creature.extends === undefined) return creature;
+  const resolved = api.getCreatureFromBestiary(creature.name);
+  return resolved && resolved.path === creature.path ? resolved : creature;
+}
+
+/** The creature a note's frontmatter defines, as Fantasy Statblocks' watcher parses it. */
+function frontmatterCreature(app: App, file: TFile): FantasyStatblocksCreature {
+  const frontmatter: Record<string, unknown> = app.metadataCache.getFileCache(file)?.frontmatter ?? {};
+  const name = typeof frontmatter.name === 'string' && frontmatter.name.trim() ? frontmatter.name : file.basename;
+  return { ...frontmatter, name, path: file.path };
+}
+
+/**
+ * The creature a linked statblock note describes, with the fields Fantasy
+ * Statblocks renders: its bestiary entry when the plugin parsed the note, else
+ * the note's frontmatter (the plugin parses notes only with "auto parse" on),
+ * else the note's ```statblock fence. A note that is none of these falls back
+ * to the bestiary creature of the same name, as token links always have.
+ */
+export async function resolveLinkedCreature(
+  app: App,
+  notePath: string,
+  bestiary: BestiaryLookup = bestiaryLookup(),
+): Promise<FantasyStatblocksCreature | null> {
+  const { api, byPath } = bestiary;
+  const parsed = byPath.get(notePath);
+  if (parsed) return withExtensions(api, parsed);
+
+  const file = app.vault.getAbstractFileByPath(notePath);
+  if (file instanceof TFile && file.extension === 'md') {
+    const frontmatterOnly = hasBestiaryFrontmatter(app, file)
+      && app.metadataCache.getFileCache(file)?.frontmatter?.statblock !== 'inline';
+    if (frontmatterOnly) return frontmatterCreature(app, file);
+
+    const params = parseStatblockFence(await app.vault.cachedRead(file));
+    if (params) {
+      const creature = await resolveCreatureFromFence(app, params, notePath);
+      if (creature) return { ...creature, path: notePath };
+    }
+  }
+
+  const basename = notePath.split('/').pop()?.replace(/\.md$/, '') ?? '';
+  return basename && api?.hasCreature(basename) ? api.getCreatureFromBestiary(basename) : null;
+}

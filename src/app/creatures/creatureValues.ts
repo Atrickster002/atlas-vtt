@@ -1,0 +1,103 @@
+/**
+ * Reads statblock values the way people write them in any game system: ratings
+ * as numbers ("1/4", "½", "Creature 3", "3+1*", "−1") and categories as clean
+ * labels ("[[Monster Manual]] p.114" is the option "Monster Manual").
+ */
+
+const VULGAR_FRACTIONS: Readonly<Record<string, number>> = {
+  '½': 1 / 2, '⅓': 1 / 3, '⅔': 2 / 3, '¼': 1 / 4, '¾': 3 / 4, '⅛': 1 / 8, '⅜': 3 / 8, '⅝': 5 / 8, '⅞': 7 / 8,
+};
+
+/** A signed number, optionally a fraction, or a vulgar fraction character. */
+const RATING_TOKEN = /([-−]?)(\d+(?:\.\d+)?)(?:\s*\/\s*(\d+))?|([½⅓⅔¼¾⅛⅜⅝⅞])/;
+
+/**
+ * The first number a value holds, or null. A minus sign counts only at the
+ * start of a word, so "1-1" (hit dice) is 1 while "Creature −1" is −1.
+ */
+export function parseRating(value: unknown): number | null {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : null;
+  if (Array.isArray(value)) return value.length > 0 ? parseRating(value[0]) : null;
+  if (typeof value !== 'string') return null;
+
+  const match = RATING_TOKEN.exec(value);
+  if (!match) return null;
+  const [, sign, whole, denominator, vulgar] = match;
+  if (vulgar) return VULGAR_FRACTIONS[vulgar] ?? null;
+
+  const numerator = Number(whole);
+  const magnitude = denominator === undefined ? numerator : numerator / Number(denominator);
+  if (!Number.isFinite(magnitude)) return null;
+  const before = value[match.index - 1];
+  const negative = Boolean(sign) && (before === undefined || !/[\p{L}\p{N}]/u.test(before));
+  return negative ? -magnitude : magnitude;
+}
+
+const FRACTION_DENOMINATORS = [2, 3, 4, 8];
+
+/** A rating as statblocks write it: 0.25 is "1/4", 1.5 is "1 1/2". */
+export function formatRating(value: number): string {
+  if (Number.isInteger(value)) return String(value);
+  const whole = Math.trunc(value);
+  const part = Math.abs(value - whole);
+  for (const denominator of FRACTION_DENOMINATORS) {
+    const numerator = part * denominator;
+    if (Math.abs(numerator - Math.round(numerator)) < 1e-9) {
+      const fraction = `${Math.round(numerator)}/${denominator}`;
+      if (whole === 0) return value < 0 ? `-${fraction}` : fraction;
+      return `${whole} ${fraction}`;
+    }
+  }
+  return String(Math.round(value * 100) / 100);
+}
+
+/** Longer text is a description, not a category. */
+const MAX_OPTION_LENGTH = 80;
+
+/** Fantasy Statblocks' encoding of links in bestiary values: `<STATBLOCK-WIKI-LINK>path|alias<STATBLOCK-WIKI-LINK>`. */
+const ENCODED_LINK = /<STATBLOCK-(WIKI|MARKDOWN)-LINK>([\s\S]*?)<STATBLOCK-\1-LINK>/g;
+const WIKI_LINK = /!?\[\[([^\]|#]*)(?:#[^\]|]*)?(?:\|([^\]]*))?\]\]/g;
+const MARKDOWN_LINK = /!?\[([^\]]*)\]\([^)]*\)/g;
+const PAGE_REFERENCE = /[\s,;]*\b(?:pp?|pg|page)\.?\s*\d+(?:\s*[-–]\s*\d+)?\s*$/i;
+
+/** A linked note by its name: no folders, no extension, no URL escapes. */
+function noteName(target: string): string {
+  let name = target.trim().split('/').pop() ?? '';
+  try { name = decodeURI(name); } catch { /* keep the escaped name */ }
+  return name.replace(/\.md$/i, '');
+}
+
+function linkText(target: string, alias: string | undefined): string {
+  return alias?.trim() ? alias.trim() : noteName(target);
+}
+
+function cleanOption(text: string): string | null {
+  const cleaned = text
+    .replace(ENCODED_LINK, (_match, _kind: string, link: string) => {
+      const [target = '', alias] = link.split('|');
+      return linkText(target, alias);
+    })
+    .replace(WIKI_LINK, (_match, target: string, alias: string | undefined) => linkText(target, alias))
+    .replace(MARKDOWN_LINK, (_match, label: string) => label)
+    .replace(PAGE_REFERENCE, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return cleaned && cleaned.length <= MAX_OPTION_LENGTH ? cleaned : null;
+}
+
+/** The categories a value names: one per string, number or yes/no, flattened out of lists. */
+export function parseOptions(value: unknown): string[] {
+  if (typeof value === 'string') {
+    const option = cleanOption(value);
+    return option ? [option] : [];
+  }
+  if (typeof value === 'number') return Number.isFinite(value) ? [String(value)] : [];
+  if (typeof value === 'boolean') return [value ? 'Yes' : 'No'];
+  if (Array.isArray(value)) return value.flatMap(parseOptions);
+  return [];
+}
+
+/** Options that differ only in case are the same option. */
+export function optionKey(option: string): string {
+  return option.toLowerCase();
+}

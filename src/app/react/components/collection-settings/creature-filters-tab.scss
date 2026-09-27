@@ -1,0 +1,90 @@
+// ═══════════════════════════════════════════════════════════════════════════
+// Collection Settings – Creature Filters tab
+// ═══════════════════════════════════════════════════════════════════════════
+
+@use '../../../../../styles/tokens' as *;
+@use '../../../../../styles/mixins' as *;
+
+.atlas-csm-creature-filter__fields {
+  font-family: var(--font-monospace);
+}
+
+// As tall as the field input beside it.
+.atlas-csm-creature-filter__kind {
+  flex: none;
+  height: $input-height-s;
+  padding: 2px;
+
+  .atlas-segmented__option {
+    height: 100%;
+    padding: 0 $spacing-s;
+  }
+}
+
+.atlas-csm-creature-filter__move {
+  color: var(--text-faint);
+
+  &.btn--icon {
+    width: $button-height-s;
+    height: $button-height-s;
+  }
+
+  &:hover:not(:disabled) {
+    color: var(--text-normal);
+  }
+}
+
+// ── Fields found in the collection's statblocks ───────────────────────────
+.atlas-csm-creature-fields {
+  @include atlas-flex-col($spacing-xs);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.atlas-csm-creature-field {
+  @include atlas-inset-surface;
+  @include atlas-flex-row($spacing-s);
+  padding: $spacing-s;
+}
+
+.atlas-csm-creature-field__text {
+  @include atlas-flex-col(2px);
+  flex: 1;
+  min-width: 0;
+
+  .atlas-csm-hint {
+    @include atlas-truncate;
+  }
+}
+
+.atlas-csm-creature-field__name {
+  align-self: flex-start;
+  font-size: $font-ui-small;
+  color: var(--text-normal);
+}
+
+.atlas-csm-creature-field__count {
+  flex-shrink: 0;
+  font-size: $font-ui-smaller;
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.atlas-csm-creature-field__add {
+  color: var(--text-muted);
+
+  &.btn--icon {
+    width: $button-height-s;
+    height: $button-height-s;
+  }
+
+  &:hover {
+    color: var(--text-accent);
+  }
+}
+
+.atlas-csm-creature-fields__status {
+  gap: $spacing-s;
+  font-style: normal;
+}

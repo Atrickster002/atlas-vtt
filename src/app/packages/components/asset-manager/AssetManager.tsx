@@ -23,7 +23,8 @@ import { useFollowSelectedCollection } from './hooks/useFollowSelectedCollection
 import { useHeldWhile } from './hooks/useHeldWhile';
 import { useSidebarLayout } from './hooks/useSidebarLayout';
 import { sortAssets } from './utils/assetSort';
-import { filterAssets, filterFolders, type AssetFilter } from './utils/assetFilter';
+import { filterFolders, type AssetFilter } from './utils/assetFilter';
+import { useCreatureFilters } from './hooks/useCreatureFilters';
 import { DIALOG_EXIT_DURATION, dialogBackdropVariants, useDialogWindowVariants } from '../primitives/dialogMotion';
 
 const wrapperVariants = {
@@ -58,12 +59,17 @@ export default function AssetManager({ isOpen, onClose, initialTab, onExitComple
     tags: sel.selectedTagIds.map((tagId) => data.availableTags.find((tag) => tag.id === tagId) ?? { id: tagId, name: tagId }),
   }), [activeTab, sel.selectedFolderId, search, sel.selectedTagIds, data.availableTags]);
 
+  const creature = useCreatureFilters({
+    app: data.app, assetService: data.assetService, collectionId: selectedCollection, isOpen,
+    assets: data.assets, folders: data.folders, filter: assetFilter,
+  });
+
   const displayedAssets = useMemo(
-    () => sortAssets(filterAssets(data.assets, data.folders, assetFilter), sel.sortBy, sel.sortOrder),
-    [data.assets, data.folders, assetFilter, sel.sortBy, sel.sortOrder],
+    () => sortAssets(creature.assets, sel.sortBy, sel.sortOrder),
+    [creature.assets, sel.sortBy, sel.sortOrder],
   );
 
-  const displayedFolders = useMemo(() => filterFolders(data.folders, assetFilter), [data.folders, assetFilter]);
+  const displayedFolders = useMemo(() => filterFolders(data.folders, creature.filter), [data.folders, creature.filter]);
 
   // A tab switch keeps the previous tab's content on screen, untouched by the resets
   // the switch triggers, until the new tab's assets have loaded; then the panes swap once.
@@ -74,7 +80,7 @@ export default function AssetManager({ isOpen, onClose, initialTab, onExitComple
     folders: displayedFolders,
     folderId: sel.selectedFolderId,
     folderPath: sel.selectedFolderId ? sel.getFolderPath(sel.selectedFolderId) : [],
-    refinement: [search, sel.sortBy, sel.sortOrder, ...sel.selectedTagIds].join('\n'),
+    refinement: [search, sel.sortBy, sel.sortOrder, ...sel.selectedTagIds, creature.refinementKey].join('\n'),
   });
 
   visibleIds.current = {
@@ -160,6 +166,7 @@ export default function AssetManager({ isOpen, onClose, initialTab, onExitComple
                 onExportCollection={() => { void crud.handleExportCollection(); }}
                 onImportCollection={crud.handleImportCollection}
                 layout={sidebar}
+                creatureFilters={creature.panel}
               />
               <Header
                 search={search}
@@ -219,6 +226,7 @@ export default function AssetManager({ isOpen, onClose, initialTab, onExitComple
                       assetService={data.assetService}
                       spawnCounts={sel.spawnCounts}
                       onSpawnCountChange={sel.handleSpawnCountChange}
+                      {...(creature.panel?.activeCount ? { onClearFilters: creature.clear } : {})}
                     />
                   </AssetTagMenuContext.Provider>
                 </div>

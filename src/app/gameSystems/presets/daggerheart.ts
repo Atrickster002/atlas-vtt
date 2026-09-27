@@ -1,5 +1,5 @@
 import type { SystemPreset } from '../../types/systemPresetTypes';
-import { builtInPresetId, conditionsOf } from './presetHelpers';
+import { builtInPresetId, conditionsOf, creatureFiltersOf } from './presetHelpers';
 
 /**
  * Daggerheart measures in range bands. The SRD's optional grid conversion
@@ -32,5 +32,10 @@ export const DAGGERHEART: SystemPreset = {
     ]),
     // Every Daggerheart character and adversary tracks Hit Points and Stress.
     defaultWidgets: { hpBar: true, stressBar: true },
+    creatureFilters: creatureFiltersOf('daggerheart', [
+      { label: 'Tier', kind: 'range', field: 'tier' },
+      { label: 'Role', kind: 'options', fields: ['type'] },
+      { label: 'Difficulty', kind: 'range', field: 'difficulty' },
+    ]),
   },
 };
