@@ -32,6 +32,9 @@ const TOKENS = [
 
 const events = { on: () => ({}), offref: () => {} };
 const app = {
+  // The asset manager remembers where it was left in the vault's local storage.
+  loadLocalStorage: () => null,
+  saveLocalStorage: () => {},
   workspace: events,
   metadataCache: { ...events, getFileCache: (file: TFile) => ({ frontmatter: FRONTMATTER[file.path] }) },
   vault: { ...events, getAbstractFileByPath: (path: string) => (FRONTMATTER[path] ? new TFile(path) : null), cachedRead: async () => '' },
