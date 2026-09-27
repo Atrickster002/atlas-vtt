@@ -229,13 +229,10 @@ export function createAtlasStorage<T extends { mapPath: string | null }, S = unk
             parsed.version = ATLAS_VERSION;
           }
 
-          // Verify the loaded data belongs to this map
-          // This prevents loading stale data from wrong maps
-          if (state?.mapPath && state.mapPath !== mapPath) {
-            console.warn(`[AtlasStorage] Loaded data has wrong mapPath. Expected: ${mapPath}, Got: ${state.mapPath}`);
-            console.warn(`[AtlasStorage] Rejecting mismatched data to prevent cross-map contamination`);
-            return null;
-          }
+          // The file at `mapPath` holds this map; a path it repeats from before the
+          // file was moved or renamed is only outdated. Rejecting the data would
+          // load the map without fog, walls and lights and save that over the file.
+          if (state && state.mapPath !== mapPath) state.mapPath = mapPath;
 
           // Validated above; `S` is the caller's view of the same persisted envelope.
           return parsed as StorageValue<S>;

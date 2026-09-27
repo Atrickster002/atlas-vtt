@@ -665,7 +665,7 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
           }),
 
           retargetRenamedFile: (oldPath, newPath) => set((draft) => {
-            rewriteMapReferences(draft.objects, movedPathOf([{ from: oldPath, to: newPath }]));
+            rewriteMapReferences(draft, movedPathOf([{ from: oldPath, to: newPath }]));
           }),
 
           deleteToken: (id) => set((draft) => {

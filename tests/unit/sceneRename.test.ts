@@ -92,10 +92,30 @@ describe('rewriteMapReferences', () => {
       pins: { p: { notePath: 'Bestiary/Goblin.md#Tactics' } },
     };
 
-    expect(rewriteMapReferences(objects, movedPathOf([{ from: 'Bestiary/Goblin.md', to: 'Bestiary/Goblin Boss.md' }]))).toBe(true);
+    expect(rewriteMapReferences({ objects }, movedPathOf([{ from: 'Bestiary/Goblin.md', to: 'Bestiary/Goblin Boss.md' }]))).toBe(true);
     expect(objects.tokens.a.statblockPath).toBe('Bestiary/Goblin Boss.md');
     expect(objects.pins.p.notePath).toBe('Bestiary/Goblin Boss.md#Tactics');
     expect(objects.tokens.b.imagePath).toBe('Art/orc.webp');
-    expect(rewriteMapReferences(objects, movedPathOf([{ from: 'Nowhere.md', to: 'Elsewhere.md' }]))).toBe(false);
+    expect(rewriteMapReferences({ objects }, movedPathOf([{ from: 'Nowhere.md', to: 'Elsewhere.md' }]))).toBe(false);
+  });
+
+  it('retargets the map\'s own path and the portraits of initiative entries and dice rolls', () => {
+    const map = {
+      mapPath: 'Camp/Cave.atlasmap',
+      initiative: { entries: [{ imagePath: 'Camp/goblin.webp', statblockPath: 'Camp/Goblin.md' }] },
+      diceLog: [{ source: { tokenImagePath: 'Camp/goblin.webp', statblockPath: 'Camp/Goblin.md' } }, {}],
+    };
+    const moved = movedPathOf([
+      { from: 'Camp/Cave.atlasmap', to: 'Keep/Cave.atlasmap' },
+      { from: 'Camp/goblin.webp', to: 'Keep/goblin.webp' },
+      { from: 'Camp/Goblin.md', to: 'Keep/Goblin.md' },
+    ]);
+
+    expect(rewriteMapReferences(map, moved)).toBe(true);
+    expect(map).toEqual({
+      mapPath: 'Keep/Cave.atlasmap',
+      initiative: { entries: [{ imagePath: 'Keep/goblin.webp', statblockPath: 'Keep/Goblin.md' }] },
+      diceLog: [{ source: { tokenImagePath: 'Keep/goblin.webp', statblockPath: 'Keep/Goblin.md' } }, {}],
+    });
   });
 });

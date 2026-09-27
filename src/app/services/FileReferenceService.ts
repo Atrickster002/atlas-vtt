@@ -141,7 +141,7 @@ export class FileReferenceService {
     const rewriteMap = (content: string): string | null => {
       const mapData: unknown = JSON.parse(content);
       if (!isPersistedMapEnvelope(mapData)) return null;
-      return rewriteMapReferences(mapData.state?.objects, moved) ? JSON.stringify(mapData, null, 2) : null;
+      return rewriteMapReferences(mapData.state, moved) ? JSON.stringify(mapData, null, 2) : null;
     };
 
     for (const mapFile of mapFiles) {
