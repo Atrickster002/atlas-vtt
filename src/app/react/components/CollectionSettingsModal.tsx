@@ -43,12 +43,14 @@ interface CollectionSettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
   collectionId: string;
+  /** The tab it opens on; Game System by default. */
+  initialTab?: CollectionSettingsTab;
 }
 
-type TabId = 'system' | 'grid' | 'widgets' | 'conditions' | 'creatureFilters' | 'loot' | 'vision';
+export type CollectionSettingsTab = 'system' | 'grid' | 'widgets' | 'conditions' | 'creatureFilters' | 'loot' | 'vision';
 
 interface TabDef {
-  id: TabId;
+  id: CollectionSettingsTab;
   label: string;
   icon: React.ReactNode;
 }
@@ -69,13 +71,14 @@ export function CollectionSettingsModal({
   isOpen,
   onClose,
   collectionId,
+  initialTab = 'system',
 }: CollectionSettingsModalProps): React.ReactElement | null {
   const { app } = useAtlasUI();
   const assetService = app ? AssetService.getInstance(app) : null;
   const systemPresets = useSystemPresets(app);
   const windowVariants = useDialogWindowVariants();
 
-  const [activeTab, setActiveTab] = useState<TabId>('system');
+  const [activeTab, setActiveTab] = useState<CollectionSettingsTab>(initialTab);
   const [collectionName, setCollectionName] = useState('');
   const [releaseLine, setReleaseLine] = useState('');
 

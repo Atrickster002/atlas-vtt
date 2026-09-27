@@ -13,6 +13,8 @@ import { parentPath } from '../../../utils/pathUtils';
 import { plural } from '../../../utils/plural';
 import { useLootBases } from '../loot/useLootBases';
 import LinkedNotePicker from '../LinkedNotePicker';
+import { Tutorial } from '../../../onboarding/Tutorial';
+import { LOOT_SETTINGS_STEPS, LOOT_TUTORIAL_LABEL } from '../../../onboarding/lootTutorials';
 
 interface LootTabProps {
   app: App;
@@ -49,55 +51,64 @@ export function LootTab({ app, lootBases, onBasesChange, currency, onCurrencyCha
         properties. Tick views in the loot roller to choose what it rolls on.
       </p>
 
-      {lootBases.length > 0 ? (
-        <div className="atlas-csm-loot-list">
-          {lootBases.map((path) => {
-            const base = bases.find((entry) => entry.path === path);
-            const problem = base !== undefined && (base.missing || base.views.length === 0 || needsBases(base));
-            return (
-              <div key={path} className={`atlas-csm-loot-base${problem ? ' atlas-csm-loot-base--problem' : ''}`}>
-                <span className="atlas-csm-loot-base-icon">{problem ? <AlertTriangle /> : <Table />}</span>
-                <span className="atlas-csm-loot-base-text">
-                  <span className="atlas-csm-loot-base-name">{base?.name ?? path}</span>
-                  <span className="atlas-csm-loot-base-path">{parentPath(path) || 'Vault root'}</span>
-                </span>
-                <span className="atlas-csm-loot-base-summary">
-                  {baseSummary(base)}
-                </span>
-                <LabelTooltip label="Remove loot base">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="atlas-csm-condition-delete"
-                    aria-label="Remove loot base"
-                    onClick={() => onBasesChange(lootBases.filter((entry) => entry !== path))}
-                  >
-                    <Trash2 />
-                  </Button>
-                </LabelTooltip>
-              </div>
-            );
-          })}
-        </div>
-      ) : (
-        <div className="atlas-csm-empty">No loot bases yet</div>
-      )}
+      <Tutorial
+        id="lootSettings"
+        label={LOOT_TUTORIAL_LABEL}
+        steps={LOOT_SETTINGS_STEPS}
+        action={lootBases.length === 0 ? { label: 'Add a base', onClick: () => setPicking(true) } : undefined}
+      />
 
-      {picking ? (
-        <div className="atlas-csm-loot-picker">
-          <LinkedNotePicker app={app} files={baseFiles} noun="bases" icon={Table} onSelect={addBase} />
-          <Button variant="ghost" className="atlas-csm-add-btn" onClick={() => setPicking(false)}>
-            Cancel
+      <div className="atlas-csm-loot-bases">
+        {lootBases.length > 0 ? (
+          <div className="atlas-csm-loot-list">
+            {lootBases.map((path) => {
+              const base = bases.find((entry) => entry.path === path);
+              const problem = base !== undefined && (base.missing || base.views.length === 0 || needsBases(base));
+              return (
+                <div key={path} className={`atlas-csm-loot-base${problem ? ' atlas-csm-loot-base--problem' : ''}`}>
+                  <span className="atlas-csm-loot-base-icon">{problem ? <AlertTriangle /> : <Table />}</span>
+                  <span className="atlas-csm-loot-base-text">
+                    <span className="atlas-csm-loot-base-name">{base?.name ?? path}</span>
+                    <span className="atlas-csm-loot-base-path">{parentPath(path) || 'Vault root'}</span>
+                  </span>
+                  <span className="atlas-csm-loot-base-summary">
+                    {baseSummary(base)}
+                  </span>
+                  <LabelTooltip label="Remove loot base">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="atlas-csm-condition-delete"
+                      aria-label="Remove loot base"
+                      onClick={() => onBasesChange(lootBases.filter((entry) => entry !== path))}
+                    >
+                      <Trash2 />
+                    </Button>
+                  </LabelTooltip>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="atlas-csm-empty">No loot bases yet</div>
+        )}
+
+        {picking ? (
+          <div className="atlas-csm-loot-picker">
+            <LinkedNotePicker app={app} files={baseFiles} noun="bases" icon={Table} onSelect={addBase} />
+            <Button variant="ghost" className="atlas-csm-add-btn" onClick={() => setPicking(false)}>
+              Cancel
+            </Button>
+          </div>
+        ) : (
+          <Button variant="ghost" className="atlas-csm-add-btn" onClick={() => setPicking(true)}>
+            <Plus />
+            Add Loot Base
           </Button>
-        </div>
-      ) : (
-        <Button variant="ghost" className="atlas-csm-add-btn" onClick={() => setPicking(true)}>
-          <Plus />
-          Add Loot Base
-        </Button>
-      )}
+        )}
+      </div>
 
-      <div className="atlas-csm-field">
+      <div className="atlas-csm-field atlas-csm-loot-currency">
         <label className="atlas-csm-label" htmlFor="atlas-csm-loot-currency">Currency</label>
         <input
           id="atlas-csm-loot-currency"

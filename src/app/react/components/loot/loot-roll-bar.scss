@@ -136,6 +136,16 @@
   font-weight: $font-weight-normal;
 }
 
+.atlas-loot-roll-trigger {
+  display: flex;
+  flex: 1;
+}
+
+// A disabled button takes no pointer events; its trigger gets them instead.
+.atlas-loot-roll-trigger > .atlas-loot-roll-button:disabled {
+  pointer-events: none;
+}
+
 .atlas-loot-roll-button {
   flex: 1;
   gap: $spacing-s;

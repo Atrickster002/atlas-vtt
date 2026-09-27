@@ -4,26 +4,32 @@ import { Button } from '../packages/components/primitives/button';
 import { useAtlasSettings } from '../keyboard/useMapHotkeys';
 import type { SettingsService, TutorialId } from '../services/SettingsService';
 import { useDialogFocus } from './useDialogFocus';
+import { placeTutorialCard } from './tutorialPlacement';
 
-export interface TutorialStep { title: string; body: string; selector?: string }
+/** A screenshot shown above a step's text, for what the user cannot see yet. */
+export interface TutorialImage { src: string; alt: string }
+export interface TutorialStep { title: string; body: string; selector?: string; image?: TutorialImage }
 interface TutorialProps {
   settings?: SettingsService;
   id: TutorialId;
   steps: TutorialStep[];
-  action?: { label: string; onClick: () => void };
+  /** Names the tour above each step, e.g. "Loot"; "Getting started" by default. */
+  label?: string;
+  action?: { label: string; onClick: () => void } | undefined;
 }
 export function Tutorial(props: TutorialProps): React.JSX.Element | null {
   const settings = useAtlasSettings(props.settings);
   if (!settings?.shouldShowTutorial(props.id)) return null;
   return <TutorialCard {...props} settings={settings} />;
 }
-function TutorialCard({ settings, id, steps, action }: TutorialProps & { settings: SettingsService }): React.JSX.Element {
+function TutorialCard({ settings, id, steps, label = 'Getting started', action }: TutorialProps & { settings: SettingsService }): React.JSX.Element {
   const [index, setIndex] = useState(0);
   const [rect, setRect] = useState<DOMRect | null>(null);
   const card = useRef<HTMLDivElement>(null);
   const titleId = useId();
   const bodyId = useId();
-  const step = steps[index]!;
+  // A tour's steps may change while it shows (a step that no longer applies); stay within them.
+  const step = steps[Math.min(index, steps.length - 1)]!;
   const finish = useCallback(() => settings.completeTutorial(id), [settings, id]);
   useDialogFocus(card, finish);
   useEffect(() => {
@@ -38,19 +44,19 @@ function TutorialCard({ settings, id, steps, action }: TutorialProps & { setting
     window.addEventListener('resize', measure);
     return () => { window.clearInterval(timer); window.removeEventListener('resize', measure); };
   }, [step.selector]);
-  const width = Math.min(360, window.innerWidth - 32);
+  // Screenshots need room to be read.
+  const width = Math.min(step.image ? 440 : 360, window.innerWidth - 32);
   const height = card.current?.offsetHeight ?? 240;
-  const placement: React.CSSProperties = rect ? {
-    width,
-    left: Math.max(16, Math.min(rect.left, window.innerWidth - width - 16)),
-    top: Math.max(16, Math.min(rect.bottom + 16 + height < window.innerHeight ? rect.bottom + 16 : rect.top - height - 16, window.innerHeight - height - 16)),
-  } : { width, left: '50%', top: '50%', transform: 'translate(-50%, -50%)' };
+  const placement: React.CSSProperties = rect
+    ? { width, ...placeTutorialCard(rect, { width, height }, { width: window.innerWidth, height: window.innerHeight }) }
+    : { width, left: '50%', top: '50%', transform: 'translate(-50%, -50%)' };
   return createPortal(
     <div className="atlas-vtt-plugin atlas-vtt-root atlas-onboarding-overlay">
       {rect ? <div className="atlas-onboarding-spotlight" style={{ left: rect.left - 4, top: rect.top - 4, width: rect.width + 8, height: rect.height + 8 }} /> : <div className="atlas-onboarding-dimmer" />}
       <div ref={card} className="atlas-onboarding-card" style={placement} role="dialog" aria-modal="true" aria-labelledby={titleId} aria-describedby={bodyId}>
+        {step.image && <img className="atlas-onboarding-image" src={step.image.src} alt={step.image.alt} />}
         <div className="atlas-onboarding-content">
-          <div className="atlas-onboarding-eyebrow">Getting started · {index + 1} / {steps.length}</div>
+          <div className="atlas-onboarding-eyebrow">{label} · {index + 1} / {steps.length}</div>
           <h3 id={titleId}>{step.title}</h3>
           <p id={bodyId}>{step.body}</p>
         </div>

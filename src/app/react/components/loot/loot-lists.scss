@@ -166,6 +166,10 @@ $loot-padding: $spacing-m;
   line-height: 1.5;
 }
 
+.atlas-loot-empty__action {
+  margin-top: $spacing-s;
+}
+
 // A window resized narrow shows one column.
 @container (max-width: 560px) {
   .atlas-loot-list__cards {

@@ -1,6 +1,7 @@
 import React from 'react';
 import { History, Sparkles } from 'lucide-react';
 import type { LootPane } from '../../../stores/lootRollerSlice';
+import { LabelTooltip } from '../../../packages/components/primitives/tooltip';
 
 interface LootPaneTabsProps {
   pane: LootPane;
@@ -14,30 +15,36 @@ export function LootPaneTabs({ pane, historyCount, onSelect, onClearHistory }: L
   return (
     <div className="atlas-loot-pane-tabs">
       <div className="atlas-loot-pane-tabs__switch" role="tablist" aria-label="Loot list">
-        <button
-          type="button"
-          role="tab"
-          aria-selected={pane === 'results'}
-          className={`atlas-loot-pane-tab${pane === 'results' ? ' atlas-active' : ''}`}
-          onClick={() => onSelect('results')}
-        >
-          <Sparkles />
-          Latest roll
-        </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={pane === 'history'}
-          className={`atlas-loot-pane-tab${pane === 'history' ? ' atlas-active' : ''}`}
-          onClick={() => onSelect('history')}
-        >
-          <History />
-          History
-          <span className="atlas-tab-count">{historyCount}</span>
-        </button>
+        <LabelTooltip describe label="The last roll on this map.">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={pane === 'results'}
+            className={`atlas-loot-pane-tab${pane === 'results' ? ' atlas-active' : ''}`}
+            onClick={() => onSelect('results')}
+          >
+            <Sparkles />
+            Latest roll
+          </button>
+        </LabelTooltip>
+        <LabelTooltip describe label="Every roll in this collection, from all its maps.">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={pane === 'history'}
+            className={`atlas-loot-pane-tab${pane === 'history' ? ' atlas-active' : ''}`}
+            onClick={() => onSelect('history')}
+          >
+            <History />
+            History
+            <span className="atlas-tab-count">{historyCount}</span>
+          </button>
+        </LabelTooltip>
       </div>
       {pane === 'history' && historyCount > 0 && (
-        <button type="button" className="atlas-loot-text-button" onClick={onClearHistory}>Clear history</button>
+        <LabelTooltip describe label="Removes every roll of this collection, for all its maps.">
+          <button type="button" className="atlas-loot-text-button" onClick={onClearHistory}>Clear history</button>
+        </LabelTooltip>
       )}
     </div>
   );

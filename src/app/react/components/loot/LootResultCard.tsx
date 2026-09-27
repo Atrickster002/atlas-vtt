@@ -57,15 +57,16 @@ function LootResultCardView({ draw, fresh, order, onOpenSource, onOpenLink, show
       />
 
       <div className="atlas-loot-card__foot">
-        <button
-          type="button"
-          className="atlas-loot-text-button atlas-loot-card__source"
-          aria-label={`Open ${draw.name}`}
-          onClick={() => onOpenSource(draw)}
-        >
-          <span>{draw.source.join(' › ')}</span>
-          <ArrowUpRight />
-        </button>
+        <LabelTooltip label={`Open the note of ${draw.name}`}>
+          <button
+            type="button"
+            className="atlas-loot-text-button atlas-loot-card__source"
+            onClick={() => onOpenSource(draw)}
+          >
+            <span>{draw.source.join(' › ')}</span>
+            <ArrowUpRight />
+          </button>
+        </LabelTooltip>
       </div>
     </motion.li>
   );

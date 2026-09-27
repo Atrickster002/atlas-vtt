@@ -18,7 +18,7 @@ export interface NavigationSettings {
   inputMode: NavigationInputMode;
 }
 
-export type TutorialId = 'assets' | 'palette' | 'tokenStatblocks';
+export type TutorialId = 'assets' | 'palette' | 'tokenStatblocks' | 'lootSettings' | 'lootRoller' | 'lootResults';
 
 export interface AtlasSettings {
   showChangelogOnUpdate: boolean;

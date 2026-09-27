@@ -23,6 +23,8 @@ import { LootRollBar } from './LootRollBar';
 import { LootPaneTabs } from './LootPaneTabs';
 import { LootHistory, LootResults } from './LootLists';
 import { LootEmptyState } from './LootEmptyState';
+import { LootRollerTutorials } from './LootRollerTutorials';
+import { CollectionSettingsModal } from '../CollectionSettingsModal';
 
 const MARGIN = 12;
 /** Small enough for a laptop map view, big enough for the source list and one column of cards. */
@@ -60,6 +62,7 @@ function LootRollerPanel(): React.ReactElement {
   const showRoll = useAtlasStore((s) => s.showLootRoll);
   const windowVariants = useDialogWindowVariants();
   const [freshRollId, setFreshRollId] = useState<string | null>(null);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   const { position, panelRef, startDrag, isDragging } = useDraggablePosition(state.position ?? topRight, {
     margin: MARGIN,
@@ -134,9 +137,11 @@ function LootRollerPanel(): React.ReactElement {
           basesAvailable={basesAvailable}
           loaded={loaded}
           baseCount={loot.bases.length}
+          onSetUp={() => setSettingsOpen(true)}
         />
       ) : (
         <div className="atlas-loot-roller__body">
+          <LootRollerTutorials hasRarities={rarityCounts.size > 0} rolled={freshRollId !== null} />
           <aside className="atlas-loot-roller__sidebar">
             <LootSourceTree bases={bases} disabled={disabled} onChange={(disabledViews) => update({ disabledViews })} />
           </aside>
@@ -174,6 +179,12 @@ function LootRollerPanel(): React.ReactElement {
           </div>
         </div>
       )}
+
+      <AnimatePresence>
+        {settingsOpen && collectionId && (
+          <CollectionSettingsModal isOpen collectionId={collectionId} initialTab="loot" onClose={() => setSettingsOpen(false)} />
+        )}
+      </AnimatePresence>
 
       <div className="atlas-loot-roller__resize atlas-loot-roller__resize--right" onPointerDown={startResize('right')} />
       <div className="atlas-loot-roller__resize atlas-loot-roller__resize--bottom" onPointerDown={startResize('bottom')} />

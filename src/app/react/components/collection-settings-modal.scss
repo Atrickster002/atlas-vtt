@@ -403,6 +403,10 @@
 }
 
 // ── Loot notes ─────────────────────────────────────────────────────────────
+.atlas-csm-loot-bases {
+  @include atlas-flex-col($spacing-l);
+}
+
 .atlas-csm-loot-list {
   @include atlas-flex-col($spacing-xs);
 }

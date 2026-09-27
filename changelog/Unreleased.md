@@ -23,6 +23,7 @@
 - Items with Type and Rarity properties show what each item is and colour it by rarity, like in games: Common, Uncommon in green, Rare in blue, Epic in purple and Legendary in orange.
 - Hand items to your players: the eye button on an item shows it with its price in a large "Loot received" window at the top of the player view, easy to read from across the table. Show one item after another and they stack; players close the window by clicking outside it or pressing Escape.
 - The History tab keeps every roll made in the collection, from any of its maps, with when and where it was rolled.
+- Short tours with screenshots walk you through loot the first time you open the Loot settings, the loot roller and your first roll, and tooltips explain every control. An empty loot roller opens the Loot settings in one click.
 
 ## Improved
 
