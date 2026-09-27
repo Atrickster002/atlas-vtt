@@ -152,6 +152,21 @@ export class Component {
   }
 }
 
+/** Obsidian's Bases view; tests fill `data`, `config` and `allProperties` themselves. */
+export abstract class BasesView extends Component {
+  abstract type: string;
+  data: { data: unknown[] } = { data: [] };
+  allProperties: string[] = [];
+  config = {
+    getOrder: (): string[] => [],
+    getDisplayName: (id: string): string => id,
+  };
+  constructor(public controller: unknown) {
+    super();
+  }
+  abstract onDataUpdated(): void;
+}
+
 export class MarkdownRenderChild extends Component {
   constructor(public containerEl: HTMLElement) {
     super();
@@ -209,6 +224,16 @@ export const Platform = {
 };
 
 export const apiVersion = '1.13.1';
+
+export function requireApiVersion(version: string): boolean {
+  const have = apiVersion.split('.').map(Number);
+  const want = version.split('.').map(Number);
+  for (let i = 0; i < want.length; i++) {
+    const diff = (have[i] ?? 0) - (want[i] ?? 0);
+    if (diff !== 0) return diff > 0;
+  }
+  return true;
+}
 
 /** The subset of Obsidian's `Setting` components the tests drive, on real DOM elements. Grow it per test need. */
 abstract class ValueComponent<T> {

@@ -34,6 +34,7 @@ export const MAP_HOTKEYS = [
   { id: 'diceTray', label: 'Dice tray', group: 'Combat', defaultKey: 'r' },
   { id: 'diceLog', label: 'Dice roll log', group: 'Combat', defaultKey: 'Enter' },
   { id: 'initiative', label: 'Initiative tracker', group: 'Combat', defaultKey: 'i', dmOnly: true },
+  { id: 'lootRoller', label: 'Loot roller', group: 'Combat', defaultKey: 'l', dmOnly: true },
   { id: 'previousTurn', label: 'Previous turn (during combat)', group: 'Combat', defaultKey: 'ArrowUp', dmOnly: true },
   { id: 'nextTurn', label: 'Next turn (during combat)', group: 'Combat', defaultKey: 'ArrowDown', dmOnly: true },
   ...([1, 2, 3, 4, 5] as const).map(n => ({ id: `widget${n}` as const, label: `Hold to select counter ${n}`, group: 'Counters', defaultKey: String(n) })),

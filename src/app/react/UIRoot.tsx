@@ -12,6 +12,7 @@ import { UndoRedoControls } from './components/UndoRedoControls';
 import DMDashboard from './components/DMDashboard';
 import { InitiativeTracker } from './components/InitiativeTracker';
 import { DiceRollLog } from './components/dice-log/DiceRollLog';
+import { LootRoller } from './components/loot/LootRollerPanel';
 import { MapLoadingOverlay } from './components/MapLoadingOverlay';
 import { SceneTabBar } from './components/SceneTabBar';
 import { SceneSwitcher } from './components/scene-switcher/SceneSwitcher';
@@ -256,6 +257,9 @@ export const UIRoot: React.FC<UIRootProps> = ({ app, view, pixiApp }) => {
 
           {/* Initiative Tracker - only for DM view */}
           {!isPlayerView && <InitiativeTracker />}
+
+          {/* Loot Roller - floating window, DM only */}
+          {!isPlayerView && <LootRoller />}
 
           {/* Player Character Sheet - REMOVED: Players should only edit via their character sheet file */}
           

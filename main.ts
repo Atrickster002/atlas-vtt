@@ -8,8 +8,11 @@ import { PlayerView, PLAYER_VIEW_TYPE } from './src/app/player-view';
 import { DashboardView, DASHBOARD_VIEW_TYPE } from './src/app/dashboard-view';
 import { initializeAtlasStorage } from './src/app/atlasStorageInit';
 import { CreatureIndex } from './src/app/creatures/CreatureIndex';
+import { registerLootQueryView } from './src/app/loot/lootQueryView';
 import { GlobalAssetManagerService } from './src/app/services/GlobalAssetManagerService';
 import { ImageDisplayService } from './src/app/services/ImageDisplayService';
+import { PlayerLootDisplay } from './src/app/services/PlayerLootDisplay';
+import { LootHistoryStore } from './src/app/loot/LootHistoryStore';
 import { PlayerWindowService } from './src/app/services/PlayerWindowService';
 import { SettingsService } from './src/app/services/SettingsService';
 import type { WidgetSyncService } from './src/app/services/WidgetSyncService';
@@ -110,6 +113,8 @@ export default class AtlasVTTPlugin extends Plugin {
     this.widgetSyncService = undefined;
 
     this.imageDisplayService?.destroy();
+    PlayerLootDisplay.get().dispose();
+    LootHistoryStore.flush(this.app);
     PlayerWindowService.getInstance()?.destroy(false);
     this.globalAssetManager?.close();
     CreatureIndex.release(this.app);
@@ -121,5 +126,6 @@ export default class AtlasVTTPlugin extends Plugin {
     this.registerView(LOCAL_PLAYER_VIEW_TYPE, (leaf) => new LocalPlayerView(leaf));
     this.registerView(PLAYER_VIEW_TYPE, (leaf) => new PlayerView(leaf, this));
     this.registerView(DASHBOARD_VIEW_TYPE, (leaf) => new DashboardView(leaf, this));
+    registerLootQueryView(this);
   }
 }

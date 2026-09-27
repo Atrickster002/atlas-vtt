@@ -58,4 +58,8 @@ export interface CollectionSettings {
   customCreatureFilters?: CreatureFilterDefinition[];
   /** Ids of Atlas' own creature filters (`CATALOG_CREATURE_FILTERS`) switched off for the collection. */
   hiddenCreatureFilters?: string[];
+  /** Vault paths of the `.base` files whose views the loot roller rolls on. */
+  lootBases?: string[];
+  /** Named after plain-number item prices, e.g. "gold" or "thorns". */
+  lootCurrency?: string | undefined;
 }

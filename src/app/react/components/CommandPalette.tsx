@@ -23,6 +23,7 @@ import {
   UserCheck,
   History,
 } from 'lucide-react';
+import { CoinIcon } from './CoinIcon';
 import { Notice } from 'obsidian';
 import { useStore } from 'zustand';
 import { useAtlasStore, useViewStoreHook } from '../ViewStoreContext';
@@ -102,6 +103,7 @@ export function CommandPalette({ isOpen, onClose, toolbarRef }: CommandPalettePr
   const initiativeTrackerOpen = useAtlasStore(state => state.initiativeTrackerOpen);
   const setInitiativeTrackerOpen = useAtlasStore(state => state.setInitiativeTrackerOpen);
   const setDiceLogOpen = useAtlasStore(state => state.setDiceLogOpen);
+  const setLootRollerOpen = useAtlasStore(state => state.setLootRollerOpen);
   const [searchQuery, setSearchQuery] = useState("");
   const [activeTab, setActiveTab] = useState("all");
   const [focusedOptionIndex, setFocusedOptionIndex] = useState<number>(-1);
@@ -262,6 +264,18 @@ export function CommandPalette({ isOpen, onClose, toolbarRef }: CommandPalettePr
       section: "tools",
       action: () => {
         setDiceLogOpen(true);
+        onClose();
+      },
+    },
+    {
+      id: "open-loot-roller",
+      icon: <CoinIcon />,
+      label: "Open loot roller",
+      keywords: ["loot", "treasure", "items", "roll", "base", "toggle"],
+      shortcut: hotkeyLabel('lootRoller'),
+      section: "tools",
+      action: () => {
+        setLootRollerOpen(true);
         onClose();
       },
     },

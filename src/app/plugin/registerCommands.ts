@@ -101,6 +101,20 @@ function registerMapCommands(plugin: Plugin, deps: CommandDependencies): void {
   });
 
   plugin.addCommand({
+    id: 'toggle-loot-roller',
+    name: 'Toggle loot roller',
+    checkCallback: (checking) => {
+      const view = app.workspace.getActiveViewOfType(AtlasView);
+      if (!view) return false;
+      if (!checking) {
+        const state = view.getStore().getState();
+        state.setLootRollerOpen(!state.lootRoller.open);
+      }
+      return true;
+    },
+  });
+
+  plugin.addCommand({
     id: 'toggle-dice-log',
     name: 'Toggle dice log',
     checkCallback: (checking) => {

@@ -46,6 +46,7 @@ import { useMapClipboardHotkeys } from "../../clipboard/useMapClipboardHotkeys"
 import { CommandPalette } from "../../react/components/CommandPalette"
 import AssetManager from "./asset-manager/AssetManager"
 import { ToolButton } from "./primitives/ToolButton"
+import { CoinIcon } from "../../react/components/CoinIcon"
 import { useAtlasUI } from "src/app/react/root/AtlasUIContext"
 import { DropdownMenu } from "./primitives/DropdownMenu"
 import { DropdownMenuItem } from "./primitives/DropdownMenuItem"
@@ -143,6 +144,8 @@ export const MainToolbar = forwardRef<HTMLDivElement, MainToolbarProps>(({ viewI
   const isAssetManagerOpen = useAtlasStore(s => s.isAssetManagerOpen)
   const assetManagerInitialTab = useAtlasStore(s => s.assetManagerInitialTab)
   const isDiceTrayOpen = useAtlasStore(s => s.isDiceTrayOpen)
+  const lootRollerOpen = useAtlasStore(s => s.lootRoller.open)
+  const setLootRollerOpen = useAtlasStore(s => s.setLootRollerOpen)
   const setDiceTrayOpen = useAtlasStore(s => s.setDiceTrayOpen)
 
   // Simple state for each dropdown
@@ -439,6 +442,11 @@ export const MainToolbar = forwardRef<HTMLDivElement, MainToolbarProps>(({ viewI
       // Read current state from store to avoid stale closure
       const currentOpen = store.getState().initiativeTrackerOpen;
       store.getState().setInitiativeTrackerOpen(!currentOpen);
+    },
+    lootRoller: () => {
+      if (isActualPlayerView) return;
+      const state = store.getState();
+      state.setLootRollerOpen(!state.lootRoller.open);
     },
     palette: () => {
       store.getState().setCommandPaletteOpen(!store.getState().isCommandPaletteOpen)
@@ -1001,6 +1009,17 @@ export const MainToolbar = forwardRef<HTMLDivElement, MainToolbarProps>(({ viewI
               />
             )}
           </div>
+
+          {/* Loot Roller - DM Only */}
+          {!isActualPlayerView && (
+            <ToolButton
+              icon={CoinIcon}
+              label="Loot Roller"
+              shortcut={hotkeyLabel('lootRoller')}
+              isActive={lootRollerOpen}
+              onClick={() => setLootRollerOpen(!lootRollerOpen)}
+            />
+          )}
 
           {/* Asset Manager Button - DM Only */}
           {!isActualPlayerView && (

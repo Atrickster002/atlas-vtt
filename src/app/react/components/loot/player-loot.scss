@@ -1,0 +1,141 @@
+// ═══════════════════════════════════════════════════════════════════════════
+// Player loot window — shown in the player popout (PlayerLootDisplay.ts)
+// ═══════════════════════════════════════════════════════════════════════════
+// Imported inside the `.atlas-vtt-plugin` scope; the host carries that class.
+// An Atlas panel like the DM's loot roller, holding the same loot cards
+// (loot-card.scss) in their large size.
+
+@use '../../../../../styles/tokens' as *;
+@use '../../../../../styles/mixins' as *;
+
+// Keep equal to the loot roller's padding: cards run concentric with the window.
+$player-loot-padding: $spacing-m;
+// Below the player view's top row: the "Camera paused" badge and the widgets.
+$player-loot-top: 2 * $spacing-2xl;
+
+&.atlas-player-loot-host {
+  position: fixed;
+  inset: 0;
+  z-index: 10001;
+}
+
+.atlas-player-loot {
+  position: absolute;
+  inset: 0;
+  color: var(--text-normal);
+  font-family: var(--font-interface);
+}
+
+.atlas-player-loot__scrim {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  animation: atlas-player-loot-fade $transition-normal $transition-ease-out;
+}
+
+.atlas-player-loot__window {
+  @include atlas-elevated-surface;
+  @include atlas-panel-radius($radius-2xl);
+  position: absolute;
+  top: $player-loot-top;
+  left: 50%;
+  display: flex;
+  flex-direction: column;
+  width: min(680px, calc(100vw - 2 * #{$spacing-xl}));
+  max-height: calc(100vh - #{$player-loot-top} - #{$spacing-2xl});
+  overflow: hidden;
+  font-size: $font-ui-medium;
+  transform: translateX(-50%);
+  animation: atlas-player-loot-in 220ms $transition-ease-out;
+}
+
+.atlas-player-loot__header {
+  @include atlas-flex-row($spacing-s);
+  @include atlas-close-header($player-loot-padding);
+  flex-shrink: 0;
+  border-bottom: $border-width-s solid var(--divider-color);
+}
+
+// The gold coin, as in the loot roller's header.
+.atlas-player-loot__badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: $button-height-m;
+  height: $button-height-m;
+  border-radius: $radius-m;
+  @include atlas-corner-shape;
+  color: var(--color-yellow);
+  background: color-mix(in oklch, var(--color-yellow) 16%, transparent);
+
+  svg {
+    width: $icon-m;
+    height: $icon-m;
+  }
+}
+
+.atlas-player-loot__title {
+  flex: 1;
+  margin: 0;
+  font-size: $font-ui-large;
+  font-weight: $font-weight-semibold;
+  line-height: 1.2;
+}
+
+.atlas-player-loot__count {
+  color: var(--text-muted);
+  font-size: $font-ui-small;
+  font-variant-numeric: tabular-nums;
+}
+
+.atlas-player-loot__items {
+  @include atlas-flex-col($player-loot-padding);
+  @include atlas-scrollbar;
+  min-height: 0;
+  margin: 0;
+  padding: $player-loot-padding;
+  overflow-y: auto;
+  list-style: none;
+
+  // A handed-out item rises into place, like a card that was just rolled.
+  .atlas-loot-card {
+    flex-shrink: 0;
+    animation: atlas-player-loot-item-in 220ms $transition-ease-out;
+  }
+}
+
+@keyframes atlas-player-loot-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes atlas-player-loot-in {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(8px) scale(0.97);
+  }
+}
+
+@keyframes atlas-player-loot-item-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.97);
+  }
+}
+
+// Large player screens (a TV or projector) get a larger window still.
+@media (min-width: 1800px) and (min-height: 1000px) {
+  .atlas-player-loot__window {
+    zoom: 1.25;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .atlas-player-loot__scrim,
+  .atlas-player-loot__window,
+  .atlas-player-loot__items .atlas-loot-card {
+    animation-name: atlas-player-loot-fade;
+  }
+}

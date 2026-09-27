@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Flame, Sparkles, Lightbulb, GripHorizontal, type LucideIcon } from 'lucide-react';
 import { createRoot } from 'react-dom/client';
 import type { StoreApi } from 'zustand';
@@ -7,6 +7,7 @@ import { beginHistoryTransaction, endHistoryTransaction } from '../../stores/his
 import type { LightSource, LightStyle } from '../../types/wallTypes';
 
 import './light-config-panel.scss';
+import { useDraggablePosition } from '../../react/hooks/useDraggablePosition';
 import { CloseButton } from '../../packages/components/primitives/CloseButton';
 import { LabelTooltip } from '../../packages/components/primitives/tooltip';
 import { unitLabelFor } from '../../grid/measurementFormat';
@@ -65,10 +66,7 @@ function LightConfigPanelInner({ light, store, screenX, screenY, onClose }: Ligh
   const [lightStyle, setLightStyle] = useState<LightStyle>(light.lightStyle ?? 'torch');
   const [color, setColor] = useState(light.color ?? '#ff9933');
 
-  // Dragging state
-  const [pos, setPos] = useState({ x: screenX + 20, y: screenY - 40 });
-  const panelRef = useRef<HTMLDivElement>(null);
-  const dragRef = useRef<{ startX: number; startY: number; panelX: number; panelY: number } | null>(null);
+  const { position, panelRef, startDrag } = useDraggablePosition({ x: screenX + 20, y: screenY - 40 });
 
   // The whole editing session is one undo step, even though changes apply live
   useEffect(() => {
@@ -99,46 +97,14 @@ function LightConfigPanelInner({ light, store, screenX, screenY, onClose }: Ligh
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [onClose]);
 
-  // Clamp panel to viewport on mount
-  useEffect(() => {
-    if (!panelRef.current) return;
-    const rect = panelRef.current.getBoundingClientRect();
-    const maxX = window.innerWidth - rect.width - 8;
-    const maxY = window.innerHeight - rect.height - 8;
-    setPos(prev => ({
-      x: Math.max(8, Math.min(prev.x, maxX)),
-      y: Math.max(8, Math.min(prev.y, maxY)),
-    }));
-  }, []);
-
-  // Drag handlers
-  const onDragStart = useCallback((e: React.PointerEvent) => {
-    e.preventDefault();
-    dragRef.current = { startX: e.clientX, startY: e.clientY, panelX: pos.x, panelY: pos.y };
-    const onMove = (ev: PointerEvent): void => {
-      if (!dragRef.current) return;
-      setPos({
-        x: dragRef.current.panelX + (ev.clientX - dragRef.current.startX),
-        y: dragRef.current.panelY + (ev.clientY - dragRef.current.startY),
-      });
-    };
-    const onUp = (): void => {
-      dragRef.current = null;
-      window.removeEventListener('pointermove', onMove);
-      window.removeEventListener('pointerup', onUp);
-    };
-    window.addEventListener('pointermove', onMove);
-    window.addEventListener('pointerup', onUp);
-  }, [pos]);
-
   return (
     <div
       ref={panelRef}
       className="atlas-light-config"
-      style={{ left: pos.x, top: pos.y }}
+      style={{ left: position.x, top: position.y }}
     >
       {/* Drag handle + header */}
-      <div className="atlas-light-config__header" onPointerDown={onDragStart}>
+      <div className="atlas-light-config__header" onPointerDown={startDrag}>
         <GripHorizontal size={14} className="atlas-light-config__grip" />
         <span className="atlas-light-config__title">Light Configuration</span>
         <CloseButton onClick={onClose} />

@@ -69,6 +69,12 @@
   @import '../src/app/react/components/player-dashboard.scss';
   @import '../src/app/react/components/dashboard.scss';
   @import '../src/app/react/components/dice-log/dice-roll-log.scss';
+  @import '../src/app/react/components/loot/loot-roller.scss';
+  @import '../src/app/react/components/loot/loot-source-tree.scss';
+  @import '../src/app/react/components/loot/loot-roll-bar.scss';
+  @import '../src/app/react/components/loot/loot-lists.scss';
+  @import '../src/app/react/components/loot/loot-card.scss';
+  @import '../src/app/react/components/loot/player-loot.scss';
   @import '../src/app/packages/components/asset-manager/tag-search-modal.scss';
   @import '../src/app/pixi/token-renderer/edit-token-modal.scss';
   @import '../src/app/react/components/collection-settings-modal.scss';
@@ -859,6 +865,23 @@ input.atlas-offscreen-input {
   outline: none;
   background: transparent;
   z-index: -1;
+}
+
+// Base views Atlas runs off screen to read loot (src/app/loot/lootQueryView.ts).
+.atlas-loot-query-host {
+  position: fixed;
+  left: -10000px;
+  top: 0;
+  width: 400px;
+  height: 300px;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+// Atlas's loot view opened in a base of one's own: a short note on what it is for.
+.atlas-loot-query-note {
+  padding: var(--size-4-4);
+  color: var(--text-muted);
 }
 
 // Throwaway element used to resolve a CSS colour to its computed value.

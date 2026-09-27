@@ -9,9 +9,10 @@ type MapState = NonNullable<PersistedMapEnvelope['state']>;
 /**
  * Saved map state that belongs to the session rather than to the scene. A
  * snapshot leaves it out, and restoring one keeps what the map has now: the
- * file a map lives in, the camera and the dice rolled at the table.
+ * file a map lives in, the camera, the dice rolled at the table and the loot
+ * roller with the loot it rolled.
  */
-const SESSION_KEYS = ['mapPath', 'camera', 'diceLog'] as const;
+const SESSION_KEYS = ['mapPath', 'camera', 'diceLog', 'lootRoller'] as const;
 
 /**
  * One named state of a scene. It is the scene's persisted map envelope

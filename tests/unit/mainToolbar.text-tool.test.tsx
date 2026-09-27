@@ -29,6 +29,8 @@ const storeState = {
   isDiceTrayOpen: false,
   setDiceTrayOpen,
   initiativeTrackerOpen: false,
+  lootRoller: { open: false },
+  setLootRollerOpen: vi.fn(),
   setInitiativeTrackerOpen,
   objects: { tokens: {} },
   setSelection,

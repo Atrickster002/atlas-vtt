@@ -19,6 +19,8 @@ import { normalizeImagePath } from './utils/pathUtils';
 import { createInitiativeActions } from './stores/initiativeSlice';
 import { createInitialUIState, createUIActions, type UISlice } from './stores/uiSlice';
 import { createPinnedNotePreviewActions, type PinnedNotePreviewSlice } from './stores/pinnedNotePreviewSlice';
+import { createInitialLootRollerState, createLootRollerActions, readLootRollerState, type LootRollerSlice } from './stores/lootRollerSlice';
+import { isRecord } from './services/assetMetadataGuards';
 import { createHistoryOptions } from './stores/history';
 import { withoutCollectionWidgets } from './utils/collectionWidgets';
 import { createMapObjectsActions, type MapObjectsSlice } from './stores/mapObjectsSlice';
@@ -268,6 +270,12 @@ export interface ViewAtlasState {
   savePinnedNotePreview: PinnedNotePreviewSlice['savePinnedNotePreview'];
   removePinnedNotePreview: PinnedNotePreviewSlice['removePinnedNotePreview'];
 
+  // Loot roller window (persisted per map)
+  lootRoller: LootRollerSlice['lootRoller'];
+  setLootRollerOpen: LootRollerSlice['setLootRollerOpen'];
+  updateLootRoller: LootRollerSlice['updateLootRoller'];
+  showLootRoll: LootRollerSlice['showLootRoll'];
+
   // --- Per-view UI visibility (from uiSlice.ts, NOT persisted) ---
   isGridSettingsOpen: UISlice['isGridSettingsOpen'];
   isDMDashboardOpen: UISlice['isDMDashboardOpen'];
@@ -313,7 +321,7 @@ export const DEFAULT_TOKEN_SETTINGS: Readonly<ViewAtlasState['tokenSettings']> =
   tokenRingSize: 1,
 };
 
-const createInitialState = (): Pick<ViewAtlasState, 'schema' | 'version' | 'mapPath' | 'background' | 'grid' | 'objects' | 'camera' | 'persistenceEnabled' | 'widgetSettings' | 'widgetValues' | 'dmNotePath' | 'tokenSettings' | 'initiative' | 'diceLog' | 'pinnedNotePreviews'> => ({
+const createInitialState = (): Pick<ViewAtlasState, 'schema' | 'version' | 'mapPath' | 'background' | 'grid' | 'objects' | 'camera' | 'persistenceEnabled' | 'widgetSettings' | 'widgetValues' | 'dmNotePath' | 'tokenSettings' | 'initiative' | 'diceLog' | 'pinnedNotePreviews' | 'lootRoller'> => ({
   schema: ATLAS_SCHEMA,
   version: ATLAS_VERSION,
   mapPath: null,
@@ -355,6 +363,7 @@ const createInitialState = (): Pick<ViewAtlasState, 'schema' | 'version' | 'mapP
   initiative: createDefaultInitiativeState(),
   diceLog: [],
   pinnedNotePreviews: {},
+  lootRoller: createInitialLootRollerState(),
 });
 
 /**
@@ -1233,6 +1242,7 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
             draft.widgetSettings = createDefaultWidgets();
             draft.widgetValues = {};
             draft.pinnedNotePreviews = {};
+            draft.lootRoller = createInitialLootRollerState();
 
             // Note: We don't clear background here - it will be set by the new map
             // Note: We don't clear mapPath - it must be preserved for storage adapter
@@ -1369,6 +1379,10 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
           pinnedNotePreviews: {},
           ...createPinnedNotePreviewActions(set),
 
+          // --- Loot roller window (persisted per map) ---
+          lootRoller: createInitialLootRollerState(),
+          ...createLootRollerActions(set),
+
           // --- Per-view UI visibility (from uiSlice.ts) ---
           ...createInitialUIState(),
           ...createUIActions(set),
@@ -1415,9 +1429,16 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
               initiativeTrackerOpen: state.initiativeTrackerOpen, // Initiative tracker open/closed state
               diceLog: state.diceLog, // Dice roll history (last 20 per map)
               pinnedNotePreviews: state.pinnedNotePreviews, // Pinned note preview windows
+              lootRoller: state.lootRoller, // Loot roller window, filters and history
             };
           },
           
+          // The map file arrives unchecked; fields that need it are checked here, once per load.
+          merge: (persisted, current): ViewAtlasState => {
+            const saved: Partial<ViewAtlasState> = isRecord(persisted) ? persisted : {};
+            return { ...current, ...saved, lootRoller: readLootRollerState(saved.lootRoller) };
+          },
+
           onRehydrateStorage: () => {
             return (_state, error) => {
               if (error) {

@@ -10,6 +10,17 @@
 - In Collection Settings → Creature Filters, switch off filters a collection does not need, or add filters on other fields of your statblocks. Atlas lists the fields it finds and how many statblocks have each.
 - Works with statblock notes Fantasy Statblocks has not parsed, such as notes in a vault where its "auto parse" setting is off.
 
+**New Feature: Loot Roller**
+
+- Roll random loot from your own item notes, gathered with Obsidian Bases. Add bases to a collection in Collection Settings → Loot; every note a base's views list is an item. The Bases core plugin must be turned on.
+- Open the loot roller with L, the coin button in the toolbar or the command palette. It floats over the map; drag it anywhere and resize it from its edges. Each map remembers its place, size, views and latest roll.
+- Tick the bases to roll from on the left, or open a base to pick single views. Roll one item or up to ten at once. An item in several ticked views counts once.
+- Every item of the ticked views has an equal chance. Switch rarities on and off to roll, say, only Common and Uncommon items.
+- Results show the item's price, description and the other columns of its view, under the names the base gives them. Click a result's source to open the item's note. Name the collection's currency in its settings and plain-number prices read as, say, "500 gold".
+- Items with Type and Rarity properties show what each item is and colour it by rarity, like in games: Common, Uncommon in green, Rare in blue, Epic in purple and Legendary in orange.
+- Hand items to your players: the eye button on an item shows it with its price in a large "Loot received" window at the top of the player view, easy to read from across the table. Show one item after another and they stack; players close the window by clicking outside it or pressing Escape.
+- The History tab keeps every roll made in the collection, from any of its maps, with when and where it was rolled.
+
 ## Improved
 
 - The laser pointer looks like a laser: a glowing beam with a bright core that narrows as it fades, and a round spot at the pointer. It stays visible on light maps, where the old one almost disappeared. Pick its colour and size in the Move tool's menu (the arrow next to it): eight colours that stay distinguishable for colour-blind players, with sky blue, blue and white clear for every kind of colour blindness. It keeps the same size on screen at every zoom level, and Atlas remembers your choice for every map.

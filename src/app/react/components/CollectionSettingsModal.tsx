@@ -2,7 +2,7 @@
  * CollectionSettingsModal
  *
  * Vertical-tabbed modal for configuring per-collection settings:
- *   Game System | Grid & Measurement | Default Widgets | Conditions | Vision
+ *   Game System | Grid & Measurement | Default Widgets | Conditions | Loot | Vision
  *
  * Opens after collection creation and via a gear button in the sidebar.
  */
@@ -11,6 +11,7 @@ import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { motion } from 'framer-motion';
 import { Dices, Grid3X3, LayoutGrid, ListFilter, ShieldAlert, Eye } from 'lucide-react';
+import { CoinIcon } from './CoinIcon';
 import { Button } from '../../packages/components/primitives/button';
 import { useAtlasUI } from '../root/AtlasUIContext';
 import { AssetService } from '../../services/AssetService';
@@ -25,6 +26,7 @@ import { GridMeasurementTab } from './collection-settings/GridMeasurementTab';
 import { DefaultWidgetsTab } from './collection-settings/DefaultWidgetsTab';
 import { ConditionsTab } from './collection-settings/ConditionsTab';
 import { VisionTab } from './collection-settings/VisionTab';
+import { LootTab } from './collection-settings/LootTab';
 import { SystemTab } from './collection-settings/SystemTab';
 import { CreatureFiltersTab } from './collection-settings/CreatureFiltersTab';
 import { useCollectionCreatures } from './collection-settings/useCollectionCreatures';
@@ -43,7 +45,7 @@ interface CollectionSettingsModalProps {
   collectionId: string;
 }
 
-type TabId = 'system' | 'grid' | 'widgets' | 'conditions' | 'creatureFilters' | 'vision';
+type TabId = 'system' | 'grid' | 'widgets' | 'conditions' | 'creatureFilters' | 'loot' | 'vision';
 
 interface TabDef {
   id: TabId;
@@ -57,6 +59,7 @@ const TABS: TabDef[] = [
   { id: 'widgets', label: 'Default Widgets', icon: <LayoutGrid size={16} /> },
   { id: 'conditions', label: 'Conditions', icon: <ShieldAlert size={16} /> },
   { id: 'creatureFilters', label: 'Creature Filters', icon: <ListFilter size={16} /> },
+  { id: 'loot', label: 'Loot', icon: <CoinIcon size={16} /> },
   ...(WALLS_AND_LIGHTING_ENABLED ? [{ id: 'vision' as const, label: 'Vision', icon: <Eye size={16} /> }] : []),
 ];
 
@@ -215,6 +218,15 @@ export function CollectionSettingsModal({
                 onCustomChange={draft.setCustomCreatureFilters}
                 creatures={collectionCreatures.creatures}
                 pending={collectionCreatures.pending}
+              />
+            )}
+            {activeTab === 'loot' && app && (
+              <LootTab
+                app={app}
+                lootBases={draft.lootBases}
+                onBasesChange={draft.setLootBases}
+                currency={draft.lootCurrency}
+                onCurrencyChange={draft.setLootCurrency}
               />
             )}
             {activeTab === 'vision' && (

@@ -401,3 +401,74 @@
   font-size: $font-ui-smaller;
   font-weight: $font-weight-normal;
 }
+
+// ── Loot notes ─────────────────────────────────────────────────────────────
+.atlas-csm-loot-list {
+  @include atlas-flex-col($spacing-xs);
+}
+
+.atlas-csm-loot-base {
+  @include atlas-inset-surface;
+  @include atlas-flex-row($gap: $spacing-s);
+  padding: $spacing-s;
+  min-width: 0;
+}
+
+.atlas-csm-loot-base-icon {
+  display: flex;
+  flex-shrink: 0;
+  color: var(--text-muted);
+
+  svg {
+    width: $icon-s;
+    height: $icon-s;
+  }
+}
+
+.atlas-csm-loot-base-text {
+  @include atlas-flex-col(0);
+  flex: 1;
+  min-width: 0;
+}
+
+.atlas-csm-loot-base-name,
+.atlas-csm-loot-base-path {
+  @include atlas-truncate;
+}
+
+.atlas-csm-loot-base-name {
+  font-size: $font-ui-small;
+  font-weight: $font-weight-medium;
+  color: var(--text-normal);
+}
+
+.atlas-csm-loot-base-path {
+  font-size: $font-ui-smaller;
+  color: var(--text-faint);
+}
+
+.atlas-csm-loot-base-summary {
+  flex-shrink: 0;
+  font-size: $font-ui-smaller;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.atlas-csm-loot-base--problem :is(.atlas-csm-loot-base-icon, .atlas-csm-loot-base-summary) {
+  color: var(--text-warning);
+}
+
+.atlas-csm-loot-picker {
+  @include atlas-inset-surface;
+  @include atlas-flex-col($spacing-xs);
+  height: 320px;
+  padding-bottom: $spacing-s;
+
+  .atlas-linked-note-picker {
+    padding-bottom: 0;
+  }
+
+  .atlas-csm-add-btn {
+    margin-inline-start: $spacing-m;
+  }
+}
