@@ -26,13 +26,15 @@ const TOKENS = [
 ];
 
 const events = { on: () => ({}), offref: () => {} };
-const app = {
+// A new app for every test: the asset manager keeps state per app (the creature index, where it was left).
+const makeApp = () => ({
   loadLocalStorage: () => null,
   saveLocalStorage: () => {},
   workspace: events,
   metadataCache: { ...events, getFileCache: (file: TFile) => ({ frontmatter: FRONTMATTER[file.path] }) },
   vault: { ...events, getAbstractFileByPath: (path: string) => (FRONTMATTER[path] ? new TFile(path) : null), cachedRead: async () => '' },
-};
+});
+let app = makeApp();
 const assetService = { getCollectionSettings: () => ({ conditions: [] }) };
 
 vi.mock('../../src/app/packages/components/asset-manager/hooks/useAssetData', () => ({
@@ -56,6 +58,7 @@ vi.mock('../../src/app/packages/components/asset-manager/components/Content', ()
 }));
 
 beforeEach(() => {
+  app = makeApp();
   vi.stubGlobal('ResizeObserver', class { observe(): void {} unobserve(): void {} disconnect(): void {} });
 });
 afterEach(() => {
