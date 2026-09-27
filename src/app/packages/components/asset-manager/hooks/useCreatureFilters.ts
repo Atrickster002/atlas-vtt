@@ -53,9 +53,11 @@ interface CreatureFilteringOptions {
 const NO_PATHS: string[] = [];
 
 /**
- * Applies the collection's creature filters on top of the asset filter. Picks
- * reset when the manager opens or the tab changes, like tags; picks for filters
- * the collection does not define are dropped.
+ * Applies the collection's creature filters on top of the asset filter. The
+ * options and counts come from the open folder and all folders below it, which
+ * is what an active filter searches. Picks reset when the manager opens or the
+ * tab changes, like tags; picks for filters the collection does not define are
+ * dropped.
  */
 export function useCreatureFilters({ app, definitions, isOpen, assets, folders, filter }: CreatureFilteringOptions): CreatureFiltering {
   const enabled = filter.tab === 'tokens';
@@ -69,10 +71,13 @@ export function useCreatureFilters({ app, definitions, isOpen, assets, folders, 
   const totalCount = enabled ? activeFilterCount(selection, definitions) : 0;
   const scopeFilter = useMemo((): AssetFilter => ({ ...filter, narrowed: totalCount > 0 }), [filter, totalCount]);
   const scoped = useMemo(() => filterAssets(assets, folders, scopeFilter), [assets, folders, scopeFilter]);
-  const tokens = useMemo(
-    () => (enabled ? scoped.filter((asset): asset is TokenAsset => asset.type === 'tokens') : []),
-    [enabled, scoped],
-  );
+  // The filters offer what they would search: the open folder with every folder below it, so a
+  // folder that only holds folders (often the root) offers the statblocks of its subfolders.
+  const tokens = useMemo(() => {
+    if (!enabled) return [];
+    const searched = filterAssets(assets, folders, { ...filter, narrowed: true });
+    return searched.filter((asset): asset is TokenAsset => asset.type === 'tokens');
+  }, [enabled, assets, folders, filter]);
 
   const pathsKey = linkedStatblockPaths(tokens).join('\n');
   const paths = useMemo(() => (pathsKey ? pathsKey.split('\n') : NO_PATHS), [pathsKey]);

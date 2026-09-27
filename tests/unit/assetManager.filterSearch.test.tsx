@@ -3,7 +3,7 @@ import { act, cleanup, fireEvent, render, screen, within } from '@testing-librar
 import { TFile } from 'obsidian';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import AssetManager from '../../src/app/packages/components/asset-manager/AssetManager';
-import type { AnyAsset, TokenAsset } from '../../src/app/packages/components/asset-manager/types';
+import type { AnyAsset, Folder, TokenAsset } from '../../src/app/packages/components/asset-manager/types';
 import { CreatureIndex } from '../../src/app/creatures/CreatureIndex';
 
 // The real header, search, filter panel and chips over an in-memory vault of statblock notes.
@@ -35,11 +35,13 @@ const makeApp = () => ({
   vault: { ...events, getAbstractFileByPath: (path: string) => (FRONTMATTER[path] ? new TFile(path) : null), cachedRead: async () => '' },
 });
 let app = makeApp();
+// What the manager lists; a test may move the characters into folders.
+let view: { assets: AnyAsset[]; folders: Folder[] } = { assets: TOKENS, folders: [] };
 const assetService = { getCollectionSettings: () => ({ conditions: [] }) };
 
 vi.mock('../../src/app/packages/components/asset-manager/hooks/useAssetData', () => ({
   useAssetData: () => ({
-    app, assetService, folders: [], assets: TOKENS,
+    app, assetService, folders: view.folders, assets: view.assets,
     availableTags: [{ id: 'forest', name: 'Forest' }],
     collections: [{ id: 'default', uid: 'u-default', name: 'Default' }],
     assetCounts: { scenes: 0, maps: 0, encounters: 0, tokens: TOKENS.length },
@@ -59,6 +61,7 @@ vi.mock('../../src/app/packages/components/asset-manager/components/Content', ()
 
 beforeEach(() => {
   app = makeApp();
+  view = { assets: TOKENS, folders: [] };
   vi.stubGlobal('ResizeObserver', class { observe(): void {} unobserve(): void {} disconnect(): void {} });
 });
 afterEach(() => {
@@ -182,4 +185,18 @@ it('excludes an option with a double-click, Alt-click or a typed minus', async (
   fireEvent.keyDown(search(), { key: 'Enter' });
   expect(shown()).toEqual(['Goblin', 'Innkeeper']);
   expect(chips()).toEqual(['Type2']);
+});
+
+it('offers the statblocks of the subfolders where the open folder only holds folders', async () => {
+  view = {
+    assets: TOKENS.map((asset) => ({ ...asset, folderId: 'monsters' })),
+    folders: [{ id: 'monsters', name: 'Monsters', type: 'tokens', parentId: null, path: 'monsters' }],
+  };
+  await openManager();
+  expect(shown()).toEqual([]);
+  fireEvent.click(screen.getByRole('button', { name: 'Filters' }));
+  const types = within(screen.getByRole('dialog', { name: 'Filters' })).getByRole('group', { name: 'Type' });
+  expect(within(types).getAllByRole('button').map((button) => button.textContent)).toEqual(['beast2', 'dragon1', 'humanoid1']);
+  fireEvent.click(within(types).getByRole('button', { name: /^beast/ }), { detail: 1 });
+  expect(shown()).toEqual(['Bear', 'Wolf']);
 });
