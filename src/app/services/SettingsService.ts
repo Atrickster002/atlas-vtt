@@ -1,6 +1,11 @@
 import { App, Platform, normalizePath } from 'obsidian';
 import { DEFAULT_MAP_HOTKEYS, availableHotkeys, type MapHotkeyId, type MapHotkeys } from '../keyboard/mapHotkeys';
 import { getDataFilePath } from '../utils/dataFileMigration';
+import {
+  DEFAULT_LASER_POINTER_SETTINGS,
+  resolveLaserPointerSettings,
+  type LaserPointerSettings,
+} from '../tools/laserPointerSettings';
 
 /**
  * How wheel events drive the map viewport.
@@ -21,6 +26,7 @@ export interface AtlasSettings {
   hotkeys: MapHotkeys;
   onboarding: { enabled: boolean; completed: Partial<Record<TutorialId, boolean>>; tokenImported: boolean };
   navigation: NavigationSettings;
+  laserPointer: LaserPointerSettings;
   /** Game system presets the user saved, as stored; `SystemPresetService` validates them. */
   systemPresets: unknown[];
   localPlayerView: {
@@ -45,6 +51,7 @@ const DEFAULT_SETTINGS: AtlasSettings = {
   navigation: {
     inputMode: Platform.isMacOS ? 'trackpad' : 'mouse',
   },
+  laserPointer: DEFAULT_LASER_POINTER_SETTINGS,
   systemPresets: [],
   localPlayerView: {
     // UI element visibility defaults
@@ -249,6 +256,15 @@ export class SettingsService {
 
   setNavigationSettings(settings: Partial<NavigationSettings>): void {
     this.settings.navigation = { ...this.settings.navigation, ...settings };
+    this.commit();
+  }
+
+  getLaserPointerSettings(): LaserPointerSettings {
+    return resolveLaserPointerSettings(this.settings.laserPointer);
+  }
+
+  setLaserPointerSettings(settings: Partial<LaserPointerSettings>): void {
+    this.settings.laserPointer = resolveLaserPointerSettings({ ...this.settings.laserPointer, ...settings });
     this.commit();
   }
 

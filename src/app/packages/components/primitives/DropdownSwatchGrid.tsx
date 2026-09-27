@@ -1,0 +1,44 @@
+import React from "react"
+import { LabelTooltip } from "./tooltip"
+
+export interface DropdownSwatch {
+  value: string
+  label: string
+}
+
+interface DropdownSwatchGridProps {
+  label: string
+  swatches: readonly DropdownSwatch[]
+  value: string
+  onChange: (value: string) => void
+  /** A line of guidance under the swatches. */
+  hint?: string
+}
+
+/** A labelled row of colour swatches for toolbar dropdowns; the current colour is ringed. */
+export function DropdownSwatchGrid({ label, swatches, value, onChange, hint }: DropdownSwatchGridProps): React.ReactElement {
+  const current = value.toLowerCase()
+  return (
+    <div className="atlas-dropdown-swatches">
+      <span className="atlas-dropdown-swatches__label">{label}</span>
+      <div className="atlas-swatch-grid">
+        {swatches.map((swatch) => {
+          const isActive = current === swatch.value.toLowerCase()
+          return (
+            <LabelTooltip key={swatch.value} label={swatch.label}>
+              <button
+                type="button"
+                aria-label={swatch.label}
+                aria-pressed={isActive}
+                className={`atlas-swatch${isActive ? " atlas-swatch--active" : ""}`}
+                style={{ backgroundColor: swatch.value }}
+                onClick={() => onChange(swatch.value)}
+              />
+            </LabelTooltip>
+          )
+        })}
+      </div>
+      {hint && <span className="atlas-dropdown-swatches__hint">{hint}</span>}
+    </div>
+  )
+}

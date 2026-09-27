@@ -63,6 +63,7 @@ vi.mock('../../src/app/react/root/AtlasUIContext', () => ({
 
 vi.mock('../../src/app/keyboard/useMapHotkeys', () => ({
   useHotkeyLabels: () => (id: string) => id,
+  useAtlasSettings: () => undefined,
   useMapHotkeys: (shortcuts: Record<string, (event: KeyboardEvent) => void>) => {
     capturedShortcuts = shortcuts;
   },

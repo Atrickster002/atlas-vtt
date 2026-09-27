@@ -8,6 +8,10 @@
 - Filter by whether a character has a statblock, by the statblock's layout and by token size in every collection. Characters without the field you filter by are hidden, and the sidebar says how many.
 - Works with statblock notes Fantasy Statblocks has not parsed, such as notes in a vault where its "auto parse" setting is off.
 
+## Improved
+
+- The laser pointer looks like a laser: a glowing beam with a bright core that narrows as it fades, and a round spot at the pointer. It stays visible on light maps, where the old one almost disappeared. Pick its colour and size in the Move tool's menu (the arrow next to it): eight colours that stay distinguishable for colour-blind players, with sky blue, blue and white clear for every kind of colour blindness. It keeps the same size on screen at every zoom level, and Atlas remembers your choice for every map.
+
 ## Fixed
 
 - Maps that were already open when Obsidian started now follow settings changes right away, such as trackpad or mouse navigation. Changing player view options on such a map no longer reverts settings you changed elsewhere.

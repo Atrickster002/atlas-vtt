@@ -52,6 +52,8 @@ import { DropdownMenuItem } from "./primitives/DropdownMenuItem"
 import { DropdownToggleRow } from "./primitives/DropdownToggleRow"
 import { DropdownSliderRow } from "./primitives/DropdownSliderRow"
 import { DropdownModeSelector } from "./primitives/DropdownModeSelector"
+import { DropdownSwatchGrid } from "./primitives/DropdownSwatchGrid"
+import { LaserPointerOptions } from "./LaserPointerOptions"
 import { Toggle } from "./primitives/Toggle"
 import { DiceDropdownMenu } from "../../react/components/dice/DiceDropdownMenu"
 import { AMBIENT_AUDIO_ENABLED, WALLS_AND_LIGHTING_ENABLED } from "../../featureFlags"
@@ -511,6 +513,8 @@ export const MainToolbar = forwardRef<HTMLDivElement, MainToolbarProps>(({ viewI
                     }}
                   />
                 </div>
+
+                <LaserPointerOptions />
               </DropdownMenu>
             </div>
 
@@ -749,22 +753,12 @@ export const MainToolbar = forwardRef<HTMLDivElement, MainToolbarProps>(({ viewI
                 menuClassName="min-w-[220px] shadow-ob"
               >
                 <div className="atlas-dropdown-section">
-                  <div className="space-y-2">
-                    <span className="text-sm text-[var(--text-normal)]">Colour</span>
-                    <div className="atlas-swatch-grid">
-                      {TEXT_COLOR_SWATCHES.map(({ value, label }) => (
-                        <LabelTooltip key={value} label={label}>
-                          <button
-                            type="button"
-                            aria-pressed={textColor === value}
-                            className={`atlas-swatch${textColor === value ? " atlas-swatch--active" : ""}`}
-                            style={{ backgroundColor: value }}
-                            onClick={() => { setTextColor(value); applyTextSetting({ color: value }); }}
-                          />
-                        </LabelTooltip>
-                      ))}
-                    </div>
-                  </div>
+                  <DropdownSwatchGrid
+                    label="Colour"
+                    swatches={TEXT_COLOR_SWATCHES}
+                    value={textColor}
+                    onChange={(value) => { setTextColor(value); applyTextSetting({ color: value }); }}
+                  />
                 </div>
 
                 <div className="atlas-dropdown-section">

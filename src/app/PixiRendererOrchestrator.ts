@@ -1,5 +1,6 @@
 import { canRunMapHotkeys, matchesMapHotkey } from './keyboard/mapHotkeys';
 import { SettingsService, type AtlasSettings } from './services/SettingsService';
+import { DEFAULT_LASER_POINTER_SETTINGS } from './tools/laserPointerSettings';
 import { Application, Sprite, Container } from "pixi.js";
 import { runInBackground } from './utils/backgroundTask';
 import { Viewport } from "pixi-viewport"; // Keep for type, but instance comes from PixiAppManager
@@ -416,8 +417,10 @@ export class PixiRendererOrchestrator { // Renamed class
     
     // Initialize LaserPointerRenderer (self-manages activation via store subscription)
     this.laserPointerRenderer = new LaserPointerRenderer(
-      viewport, this.app, this.eventBus, this.store,
+      viewport, this.app, this.store,
       this.pixiAppManager.getCanvasElement(),
+      // Looked up on every draw: a plugin reload replaces the settings service.
+      () => SettingsService.forApp(this.obsApp)?.getLaserPointerSettings() ?? DEFAULT_LASER_POINTER_SETTINGS,
     );
     const laserPointerContainer = this.laserPointerRenderer.getContainer();
     viewport.addChild(laserPointerContainer);
