@@ -240,3 +240,17 @@ it('focuses the search with Cmd+F through an Obsidian key scope, and gives the k
   cleanup();
   expect(app.keymap.scopes).toEqual([]);
 });
+
+it('keeps the filter button on every tab, disabled where a tab has no filters yet', async () => {
+  await openManager();
+  fireEvent.click(screen.getByRole('button', { name: 'Filters' }));
+  expect(screen.getByRole('dialog', { name: 'Filters' })).toBeTruthy();
+  fireEvent.click(screen.getAllByRole('button', { name: /^Maps/ })[0]!);
+  const filters = screen.getByRole('button', { name: 'Filters' }) as HTMLButtonElement;
+  expect(filters.disabled).toBe(true);
+  expect(filters.getAttribute('aria-expanded')).toBe('false');
+  await vi.waitFor(() => expect(screen.queryByRole('dialog', { name: 'Filters' })).toBeNull());
+  fireEvent.click(screen.getAllByRole('button', { name: /^Characters/ })[0]!);
+  expect((screen.getByRole('button', { name: 'Filters' }) as HTMLButtonElement).disabled).toBe(false);
+  expect(screen.queryByRole('dialog', { name: 'Filters' })).toBeNull();
+});

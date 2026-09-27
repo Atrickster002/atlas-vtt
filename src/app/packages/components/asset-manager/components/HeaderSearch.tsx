@@ -1,4 +1,4 @@
-import React, { useCallback, useId, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { AnimatePresence } from 'framer-motion';
 import { Search, SlidersHorizontal, X } from 'lucide-react';
 import type { App } from 'obsidian';
@@ -34,6 +34,12 @@ export function HeaderSearch({ app, search, onSearch, query }: HeaderSearchProps
   const autocomplete = useSearchAutocomplete(search, onSearch, query, inputRef);
   useSearchShortcut(app, inputRef);
   const closeFilters = useCallback(() => setFiltersOpen(false), []);
+  const hasFilters = query.panel !== null;
+
+  // A tab without filters closes the panel, so it does not open again on the way back.
+  useEffect(() => {
+    if (!hasFilters) setFiltersOpen(false);
+  }, [hasFilters]);
   const isActive = search !== '' || query.activeCount > 0;
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement>): void => {
@@ -60,7 +66,7 @@ export function HeaderSearch({ app, search, onSearch, query }: HeaderSearchProps
         </Button>
       </LabelTooltip>
 
-      <div className={`atlas-asset-manager-search${query.panel ? ' atlas-has-filters' : ''}`}>
+      <div className="atlas-asset-manager-search">
         <Search />
         <span id={labelId} hidden>Search assets</span>
         <input
@@ -87,25 +93,23 @@ export function HeaderSearch({ app, search, onSearch, query }: HeaderSearchProps
             </Button>
           </LabelTooltip>
         )}
-        {query.panel && (
-          <>
-            <span className="atlas-am-search-divider" aria-hidden="true" />
-            <LabelTooltip label="Filters">
-              <Button
-                ref={filtersButtonRef}
-                variant="ghost"
-                size="icon"
-                className={`atlas-am-icon-btn atlas-am-filters-btn${filtersOpen ? ' atlas-active' : ''}`}
-                aria-expanded={filtersOpen}
-                aria-haspopup="dialog"
-                onClick={() => setFiltersOpen(!filtersOpen)}
-              >
-                <SlidersHorizontal />
-                {query.activeCount > 0 && <span className="atlas-am-filters-badge">{query.activeCount}</span>}
-              </Button>
-            </LabelTooltip>
-          </>
-        )}
+        {/* On every tab, so the field keeps its size; tabs without a filter panel yet disable it. */}
+        <span className="atlas-am-search-divider" aria-hidden="true" />
+        <LabelTooltip label="Filters">
+          <Button
+            ref={filtersButtonRef}
+            variant="ghost"
+            size="icon"
+            className={`atlas-am-icon-btn atlas-am-filters-btn${filtersOpen ? ' atlas-active' : ''}`}
+            disabled={!hasFilters}
+            aria-expanded={filtersOpen}
+            aria-haspopup="dialog"
+            onClick={() => setFiltersOpen(!filtersOpen)}
+          >
+            <SlidersHorizontal />
+            {query.activeCount > 0 && <span className="atlas-am-filters-badge">{query.activeCount}</span>}
+          </Button>
+        </LabelTooltip>
         {autocomplete.suggestions && !filtersOpen && (
           <SearchSuggestions
             id={autocomplete.listId}

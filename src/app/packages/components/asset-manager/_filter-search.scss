@@ -8,14 +8,6 @@
 
 // ── Search field: room for typed filters, and the filter button at its end ──
 
-// Typed filters need more room than a name; narrow headers overlay the field anyway.
-@container atlas-am-header (width >= #{$header-search-inline-width}) {
-  .atlas-asset-manager-search.atlas-has-filters {
-    flex-basis: 240px;
-    width: 240px;
-  }
-}
-
 .atlas-am-search-divider {
   flex-shrink: 0;
   width: $border-width-s;
