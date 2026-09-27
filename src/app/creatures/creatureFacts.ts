@@ -1,7 +1,7 @@
 import type { CreatureFilterDefinition } from '../types/creatureFilterTypes';
 import type { IndexedCreature } from './CreatureIndex';
 import { RATING_FILTERS } from './creatureFieldCatalog';
-import { alignmentParts, optionKey, parseOptions, parseRating } from './creatureValues';
+import { alignmentParts, optionKey, parseCategories, parseOptions, parseRating } from './creatureValues';
 
 /** What the filters need of a token. */
 export interface FilterableToken {
@@ -68,7 +68,7 @@ export function factsOf(token: FilterableToken, lookup: CreatureLookupFn, defini
     if (definition.kind === 'range') {
       ratings.set(definition.id, fields ? parseRating(fields[definition.field]) : null);
     } else {
-      const read = definition.values === 'alignment' ? alignmentParts : parseOptions;
+      const read = definition.values === 'alignment' ? alignmentParts : definition.values === 'category' ? parseCategories : parseOptions;
       options.set(definition.id, fields ? uniqueOptions(definition.fields.map((field) => fields[field]), read) : []);
     }
   }

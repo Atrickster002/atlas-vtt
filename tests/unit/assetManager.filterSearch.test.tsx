@@ -1,6 +1,6 @@
 import React from 'react';
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
-import { TFile } from 'obsidian';
+import { App, Scope, TFile } from 'obsidian';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import AssetManager from '../../src/app/packages/components/asset-manager/AssetManager';
 import type { AnyAsset, Folder, TokenAsset } from '../../src/app/packages/components/asset-manager/types';
@@ -30,6 +30,8 @@ const events = { on: () => ({}), offref: () => {} };
 const makeApp = () => ({
   loadLocalStorage: () => null,
   saveLocalStorage: () => {},
+  scope: new Scope(),
+  keymap: new App().keymap,
   workspace: events,
   metadataCache: { ...events, getFileCache: (file: TFile) => ({ frontmatter: FRONTMATTER[file.path] }) },
   vault: { ...events, getAbstractFileByPath: (path: string) => (FRONTMATTER[path] ? new TFile(path) : null), cachedRead: async () => '' },
@@ -224,4 +226,17 @@ it('starts at the root of a collection it switches to, also with filters active'
   expect(chips()).toEqual(['Challenge rating1']);
   fireEvent.click(screen.getByRole('button', { name: 'Reset' }));
   expect(shown()).toEqual(['Acid Burrower', 'Dryad']);
+});
+
+it('focuses the search with Cmd+F through an Obsidian key scope, and gives the key back when closed', async () => {
+  render(<AssetManager isOpen onClose={() => {}} />);
+  const [scope] = app.keymap.scopes;
+  const shortcut = scope?.keys.find((handler) => handler.key === 'f');
+  expect(shortcut?.modifiers).toEqual(['Mod']);
+  let handled: unknown;
+  act(() => { handled = shortcut!.func(new KeyboardEvent('keydown')); });
+  expect(handled).toBe(false);
+  expect(document.activeElement).toBe(search());
+  cleanup();
+  expect(app.keymap.scopes).toEqual([]);
 });

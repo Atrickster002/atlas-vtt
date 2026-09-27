@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { alignmentParts, formatRating, optionKey, parseOptions, parseRating } from '../../src/app/creatures/creatureValues';
+import { alignmentParts, formatRating, optionKey, parseCategories, parseOptions, parseRating } from '../../src/app/creatures/creatureValues';
 
 describe('parseRating', () => {
   it.each([
@@ -115,5 +115,21 @@ describe('alignmentParts', () => {
     ['', []],
   ])('reads %j as %j', (raw, parts) => {
     expect(alignmentParts(raw)).toEqual(parts);
+  });
+});
+
+describe('parseCategories', () => {
+  it('drops a detail in brackets at the end', () => {
+    expect(parseCategories('humanoid (goblinoid)')).toEqual(['humanoid']);
+    expect(parseCategories('Horde (10/HP)')).toEqual(['Horde']);
+    expect(parseCategories(['Solo', 'beast'])).toEqual(['Solo', 'beast']);
+    expect(parseCategories('(unknown)')).toEqual(['(unknown)']);
+  });
+});
+
+describe('characters of a rulebook font', () => {
+  it('are left out of options', () => {
+    expect(parseOptions('Horde (1/HP)')).toEqual(['Horde (1/HP)']);
+    expect(parseOptions('')).toEqual([]);
   });
 });

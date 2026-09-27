@@ -36,9 +36,10 @@ export interface CreatureOptionsFilter extends CreatureFilterBase {
   /**
    * How the values are read: `alignment` splits alignments into their parts
    * (Lawful, Neutral, Chaotic, Good, Evil, Unaligned, Any), so "chaotic evil"
-   * is Chaotic and Evil. Unset, each value is one option.
+   * is Chaotic and Evil; `category` drops a detail in brackets at the end, so
+   * "Horde (10/HP)" is Horde. Unset, each value is one option.
    */
-  values?: 'alignment';
+  values?: 'alignment' | 'category';
   /** `all`: a creature needs every picked option, as parts of one alignment do. Unset: any of them. */
   match?: 'all';
 }

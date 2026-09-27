@@ -11,7 +11,8 @@ export const CATALOG_CREATURE_FILTERS: readonly CreatureFilterDefinition[] = [
   { id: 'cr', label: 'Challenge rating', kind: 'range', field: 'cr' },
   { id: 'level', label: 'Level', kind: 'range', field: 'level' },
   { id: 'tier', label: 'Tier', kind: 'range', field: 'tier' },
-  { id: 'type', label: 'Type', kind: 'options', fields: ['type'] },
+  // "humanoid (goblinoid)" is humanoid, Daggerheart's "Horde (10/HP)" is Horde.
+  { id: 'type', label: 'Type', kind: 'options', fields: ['type'], values: 'category' },
   // Pathfinder's creature layout keeps traits in one list, its basic layout (and importers) in numbered fields.
   { id: 'traits', label: 'Traits', kind: 'options', fields: ['traits', 'trait_01', 'trait_02', 'trait_03', 'trait_04', 'trait_05', 'trait_06', 'trait_07'] },
   { id: 'rarity', label: 'Rarity', kind: 'options', fields: ['rarity', 'rare_01', 'rare_02', 'rare_03', 'rare_04'] },

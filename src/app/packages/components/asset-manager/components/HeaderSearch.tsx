@@ -1,14 +1,17 @@
 import React, { useCallback, useId, useRef, useState } from 'react';
 import { AnimatePresence } from 'framer-motion';
 import { Search, SlidersHorizontal, X } from 'lucide-react';
+import type { App } from 'obsidian';
 import { Button } from '../../primitives/button';
 import { LabelTooltip } from '../../primitives/tooltip';
 import type { FilterSearch } from '../hooks/useFilterSearch';
 import { useSearchAutocomplete } from '../hooks/useSearchAutocomplete';
+import { useSearchShortcut } from '../hooks/useSearchShortcut';
 import { AdvancedFilterPanel } from './search/AdvancedFilterPanel';
 import { SearchSuggestions } from './search/SearchSuggestions';
 
 export interface HeaderSearchProps {
+  app: App;
   search: string;
   onSearch: (value: string) => void;
   /** Filters typed as `keyword:value`, and the filter panel on the Characters tab. */
@@ -22,13 +25,14 @@ export interface HeaderSearchProps {
  * field then opens over the toolbar row while it has focus (see `_header.scss`),
  * so Cmd/Ctrl+F opens it as well.
  */
-export function HeaderSearch({ search, onSearch, query }: HeaderSearchProps): React.JSX.Element {
+export function HeaderSearch({ app, search, onSearch, query }: HeaderSearchProps): React.JSX.Element {
   const labelId = useId();
   const toggleRef = useRef<HTMLButtonElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const filtersButtonRef = useRef<HTMLButtonElement>(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const autocomplete = useSearchAutocomplete(search, onSearch, query, inputRef);
+  useSearchShortcut(app, inputRef);
   const closeFilters = useCallback(() => setFiltersOpen(false), []);
   const isActive = search !== '' || query.activeCount > 0;
 

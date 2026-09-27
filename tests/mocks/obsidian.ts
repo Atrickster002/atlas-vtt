@@ -1,8 +1,29 @@
+/** Obsidian's key scope: handlers by modifiers and key; the most recently pushed scope is asked first. */
+export class Scope {
+  keys: Array<{ modifiers: string[]; key: string; func: (event: KeyboardEvent) => unknown }> = [];
+  constructor(public parent?: Scope) {}
+  register(modifiers: string[], key: string, func: (event: KeyboardEvent) => unknown) {
+    const handler = { modifiers, key, func };
+    this.keys.push(handler);
+    return handler;
+  }
+  unregister(handler: unknown): void {
+    this.keys = this.keys.filter((candidate) => candidate !== handler);
+  }
+}
+
 export class App {
   vault: any;
   workspace: any;
   fileManager: any;
   metadataCache: any;
+  scope = new Scope();
+  /** Scopes pushed and not yet popped, most recent last. */
+  keymap = {
+    scopes: [] as Scope[],
+    pushScope(scope: Scope): void { this.scopes.push(scope); },
+    popScope(scope: Scope): void { this.scopes = this.scopes.filter((candidate) => candidate !== scope); },
+  };
   constructor() {}
 }
 

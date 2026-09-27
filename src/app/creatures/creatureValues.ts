@@ -60,6 +60,10 @@ const ENCODED_LINK = /<STATBLOCK-(WIKI|MARKDOWN)-LINK>([\s\S]*?)<STATBLOCK-\1-LI
 const WIKI_LINK = /!?\[\[([^\]|#]*)(?:#[^\]|]*)?(?:\|([^\]]*))?\]\]/g;
 const MARKDOWN_LINK = /!?\[([^\]]*)\]\([^)]*\)/g;
 const PAGE_REFERENCE = /[\s,;]*\b(?:pp?|pg|page)\.?\s*\d+(?:\s*[-–]\s*\d+)?\s*$/i;
+/** Private-use characters: glyphs of a PDF's own font that no other font draws (text copied from rulebooks). */
+const PRIVATE_USE = /[\uE000-\uF8FF]/g;
+/** A detail in brackets at the end: "humanoid (goblinoid)", "Horde (10/HP)". */
+const TRAILING_DETAIL = /\s*\([^()]*\)\s*$/;
 
 /** A linked note by its name: no folders, no extension, no URL escapes. */
 function noteName(target: string): string {
@@ -74,6 +78,7 @@ function linkText(target: string, alias: string | undefined): string {
 
 function cleanOption(text: string): string | null {
   const cleaned = text
+    .replace(PRIVATE_USE, '')
     .replace(ENCODED_LINK, (_match, _kind: string, link: string) => {
       const [target = '', alias] = link.split('|');
       return linkText(target, alias);
@@ -96,6 +101,14 @@ export function parseOptions(value: unknown): string[] {
   if (typeof value === 'boolean') return [value ? 'Yes' : 'No'];
   if (Array.isArray(value)) return value.flatMap(parseOptions);
   return [];
+}
+
+/**
+ * The categories a value names without the detail in brackets at their end, so
+ * "humanoid (goblinoid)" is humanoid and "Horde (10/HP)" is Horde.
+ */
+export function parseCategories(value: unknown): string[] {
+  return parseOptions(value).map((option) => option.replace(TRAILING_DETAIL, '') || option);
 }
 
 /** Options that differ only in case are the same option. */

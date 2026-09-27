@@ -8,6 +8,7 @@
 - Exclude with a double-click on an option (or Alt-click), or type `-type:beast`: the chip reads "not beast" and hides every beast. Click it again to clear it.
 - Alignment filters by its parts, Lawful, Neutral, Chaotic, Good, Evil, Unaligned and Any, instead of every way a statblock words it. Pick Chaotic and Evil to find chaotic evil creatures.
 - Every active filter shows as a chip above your characters; click one to remove it, or Reset to clear them all. Filters with several values fold into one chip that lists them.
+- Press Cmd+F (Ctrl+F on Windows and Linux) in the asset manager to jump to the search.
 - Sort characters by Rating: challenge rating, level or tier, whichever their statblock has.
 - In Collection Settings → Creature Filters, switch off filters a collection does not need, or add filters on other fields of your statblocks. Atlas lists the fields it finds and how many statblocks have each.
 - Works with statblock notes Fantasy Statblocks has not parsed, such as notes in a vault where its "auto parse" setting is off.

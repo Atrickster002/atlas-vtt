@@ -191,6 +191,7 @@ export default function AssetManager({ isOpen, onClose, initialTab, onExitComple
                 layout={sidebar}
               />
               <Header
+                app={data.app}
                 search={search}
                 onSearch={setSearch}
                 query={filterSearch}
