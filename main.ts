@@ -50,6 +50,9 @@ export default class AtlasVTTPlugin extends Plugin {
     const issueReporter = new IssueReporter(this.app, this.manifest, errorLog);
     this.addCommand({ id: 'report-issue', name: 'Report an issue…', callback: () => issueReporter.open() });
 
+    // Before the views: a restored map may start Atlas's first check of the vault,
+    // whose folder renames reach map files only through these vault events.
+    registerVaultSync(this);
     // Views first, so workspace restore can resolve persisted Atlas tabs
     // before the slower startup path finishes.
     this.registerAtlasViews();
@@ -82,7 +85,6 @@ export default class AtlasVTTPlugin extends Plugin {
     ]));
     this.registerEditorSuggest(new HeaderAutocompleteSuggest(this.app));
     registerAtlasLeafSync(this);
-    registerVaultSync(this);
     registerPlayerWindowReloadCleanup(this);
     registerCommands(this, {
       imageDisplay: this.imageDisplayService,

@@ -7,9 +7,11 @@ import type { CellCoord, EncounterFormation } from '../encounters/encounterForma
 import { getDataFilePath } from '../utils/dataFileMigration';
 import { SerialLock } from '../utils/serialLock';
 import { preserveUnreadableMetadata, readStoredMetadata, type StoredMetadata } from './assetMetadataFile';
-import { collectionNameKey, freeCollectionId, uniqueCollectionName } from './collectionNaming';
-import { collectionIdOfFolder, COLLECTIONS_DIR, GLOBAL_ASSETS_DIR, ATLAS_VTT_DIR } from './assetPaths';
-import { createCollectionRecord, forgetCollection, moveCollectionRecord, numberedCollectionName, prettifyIdentifier } from './collectionRecords';
+import { collectionNameKey, uniqueCollectionName } from './collectionNaming';
+import { collectionFolderName, collectionFolderPath, collectionIdOfFolder, collectionNameProblem, COLLECTIONS_DIR, GLOBAL_ASSETS_DIR, ATLAS_VTT_DIR } from './assetPaths';
+import { planFolderNameFixes } from './collectionFolderNames';
+import { moveInstallRecord } from './collectionBundle/installRecord';
+import { createCollectionRecord, defaultCollectionIdOf, forgetCollection, INITIAL_COLLECTION_ID, moveCollectionRecord, numberedCollectionName, prettifyIdentifier } from './collectionRecords';
 import { assetFilePath, groupTokenRefs } from './vault-sync/assetFiles';
 import { reconcileIndex, type VaultReconciliation } from './vault-sync/reconcileIndex';
 import { listVault, readVault } from './vault-sync/vaultListing';
@@ -189,6 +191,8 @@ export interface AssetMetadata {
   version: number;
   /** Identifies this vault as the publisher of the collections it creates. */
   vaultId?: string;
+  /** The collection new content goes to when none is chosen; read it through `defaultCollectionIdOf`. */
+  defaultCollectionId?: string;
 }
 
 /** What an import writes into the asset index, in one save. */
@@ -248,7 +252,6 @@ export class AssetService {
     await this.ensureDirectory(ATLAS_VTT_DIR);
     await this.ensureDirectory(GLOBAL_ASSETS_DIR);
     await this.ensureDirectory(COLLECTIONS_DIR);
-    await this.ensureDefaultCollection();
     await this.loadMetadata();
     await this.reconcileOnceVaultIsListed();
   }
@@ -305,17 +308,6 @@ export class AssetService {
 
   private async ensureDirectoryViaAdapter(path: string): Promise<void> {
     await ensureAdapterFolder(this.app, path);
-  }
-
-  private async ensureDefaultCollection(): Promise<void> {
-    const defaultCollectionPath = `${COLLECTIONS_DIR}/default`;
-    await this.ensureDirectory(defaultCollectionPath);
-    
-    // Ensure all subdirectories exist ('assets' is global, not per collection)
-    const subdirs = ['tokens', 'notes', 'statblocks', 'maps', 'characters', 'scenes', 'encounters', 'players'];
-    for (const subdir of subdirs) {
-      await this.ensureDirectory(`${defaultCollectionPath}/${subdir}`);
-    }
   }
 
   private async ensureCollectionStructure(collectionName: string): Promise<void> {
@@ -403,19 +395,8 @@ export class AssetService {
 
   private async createDefaultMetadata(): Promise<AssetMetadata> {
     return {
-      collections: {
-        'default': {
-          id: 'default',
-          uid: crypto.randomUUID(),
-          version: 1,
-          name: 'Default',
-          description: 'Default collection',
-          tags: {}, // Initialize with empty tags
-          settings: { conditions: [] },
-          createdAt: Date.now(),
-          modifiedAt: Date.now()
-        }
-      },
+      collections: { [INITIAL_COLLECTION_ID]: createCollectionRecord(INITIAL_COLLECTION_ID) },
+      defaultCollectionId: INITIAL_COLLECTION_ID,
       assets: {},
       version: 2
     };
@@ -450,8 +431,9 @@ export class AssetService {
 
     // Older imports could reuse a taken name; numbering them keeps every collection distinguishable.
     const takenNames: string[] = [];
+    const defaultId = defaultCollectionIdOf(this.metadata);
     const defaultFirst = Object.values(this.metadata.collections)
-      .sort((a, b) => Number(b.id === 'default') - Number(a.id === 'default'));
+      .sort((a, b) => Number(b.id === defaultId) - Number(a.id === defaultId));
     for (const collection of defaultFirst) {
       const stored = typeof collection.name === 'string' && collection.name.trim() ? collection.name : prettifyIdentifier(collection.id);
       const name = uniqueCollectionName(stored, takenNames);
@@ -485,7 +467,7 @@ export class AssetService {
         name: oldToken.name,
         imagePath: oldToken.imagePath,
         tags: Array.isArray(oldToken.tags) ? oldToken.tags.filter((tag): tag is string => typeof tag === 'string') : [],
-        collection: 'default',
+        collection: defaultCollectionIdOf(this.metadata),
         createdAt,
         modifiedAt: typeof oldToken.modifiedAt === 'number' ? oldToken.modifiedAt : createdAt
       };
@@ -625,32 +607,18 @@ export class AssetService {
   }
 
   // Collection management
+  /** Creates a collection in a folder named like it; `name` must be a valid folder name no collection uses. */
   async createCollection(name: string, description?: string): Promise<CollectionMetadata> {
     await this.ensureLoaded();
-    this.assertCollectionNameFree(name);
+    const id = this.assertCollectionFolderName(name);
 
-    const id = this.freeCollectionId(name);
-    const now = Date.now();
-    
-    const collection: CollectionMetadata = {
-      id,
-      uid: crypto.randomUUID(),
-      version: 1,
-      publisherId: this.metadata!.vaultId!,
-      name,
-      ...(description !== undefined && { description }),
-      tags: {}, // Initialize empty tags
-      settings: { conditions: [] },
-      createdAt: now,
-      modifiedAt: now
-    };
+    const collection: CollectionMetadata = { ...createCollectionRecord(id), publisherId: this.metadata!.vaultId! };
+    if (description === undefined) delete collection.description;
+    else collection.description = description;
 
     await this.ensureCollectionStructure(id);
-    
     this.metadata!.collections[id] = collection;
-    
     await this.saveMetadata();
-    
     return collection;
   }
 
@@ -660,32 +628,117 @@ export class AssetService {
     return Object.values(this.metadata!.collections);
   }
 
+  /** The collection new content goes to when none is chosen; it cannot be deleted. */
+  getDefaultCollectionId(): string {
+    return defaultCollectionIdOf(this.metadata);
+  }
+
+  /** The default collection of the loaded index, for code that has no service at hand. */
+  static defaultCollectionId(): string {
+    return defaultCollectionIdOf(AssetService.instance?.metadata ?? null);
+  }
+
   /** Registers a record for a collection id that assets already point at. */
   private async ensureCollectionRecord(id: string): Promise<void> {
     if (this.metadata!.collections[id]) return;
     // The folder first: a vault check forgets records whose folder is missing.
     await this.ensureCollectionStructure(id);
-    this.metadata!.collections[id] ??= createCollectionRecord(this.metadata, id);
-    await this.saveMetadata();
-  }
-
-  async renameCollection(collectionId: string, name: string): Promise<void> {
-    await this.ensureLoaded();
-    const collection = this.metadata!.collections[collectionId];
-    if (!collection) throw new Error(`Collection ${collectionId} not found`);
-    this.assertCollectionNameFree(name, collectionId);
-    collection.name = name;
-    collection.modifiedAt = Date.now();
+    this.metadata!.collections[id] ??= createCollectionRecord(id);
     await this.saveMetadata();
   }
 
   /**
+   * Renames a collection together with its folder, since a collection is named
+   * like its folder. Every stored path into the folder follows, and the vault
+   * rename event carries the new paths to open maps and map files. Returns the
+   * collection as renamed.
+   */
+  async renameCollection(collectionId: string, name: string): Promise<CollectionMetadata> {
+    await this.ensureLoaded();
+    const collection = this.metadata!.collections[collectionId];
+    if (!collection) throw new Error(`Collection ${collectionId} not found`);
+    if (name.trim() === collectionId) return collection;
+    const id = this.assertCollectionFolderName(name, collectionId);
+    await this.moveCollectionFolder(collectionId, id);
+    await this.saveMetadata();
+    return this.metadata!.collections[id]!;
+  }
+
+  /** The trimmed `name` as a collection folder name; throws when it is invalid or taken by another collection. */
+  private assertCollectionFolderName(name: string, exceptId?: string): string {
+    const problem = collectionNameProblem(name);
+    if (problem) throw new Error(problem);
+    const id = name.trim();
+    this.assertCollectionNameFree(id, exceptId);
+    if (this.isCollectionFolderTaken(id, exceptId)) throw new Error(`A folder named "${id}" already exists in the collections folder`);
+    return id;
+  }
+
+  /** Whether a folder other than `exceptId`'s in the collections folder has this name, compared without case like macOS and Windows do. */
+  private isCollectionFolderTaken(id: string, exceptId?: string): boolean {
+    const key = collectionNameKey(id);
+    return (this.app.vault.getFolderByPath(COLLECTIONS_DIR)?.children ?? [])
+      .some((child) => child.name !== exceptId && collectionNameKey(child.name) === key);
+  }
+
+  /** Renames a collection's folder and moves its record along; the caller saves the index. */
+  private async moveCollectionFolder(oldId: string, newId: string): Promise<void> {
+    const folder = this.app.vault.getFolderByPath(collectionFolderPath(oldId));
+    if (folder) await this.app.fileManager.renameFile(folder, collectionFolderPath(newId));
+    await this.moveRecordWithInstall(oldId, newId);
+  }
+
+  /** Moves a collection record to the folder `newId`, and its install record along, so updates still find its files. */
+  private async moveRecordWithInstall(oldId: string, newId: string): Promise<void> {
+    moveCollectionRecord(this.metadata!, oldId, newId);
+    const uid = this.metadata!.collections[newId]?.uid;
+    if (uid) await moveInstallRecord(this.app, uid, oldId, newId);
+  }
+
+  /**
+   * Gives every collection its folder's name: the folder takes the collection's
+   * name where it can (older versions named folders `default` or `winter-camp`),
+   * otherwise the collection takes the folder's name. Returns whether any changed.
+   */
+  private async matchFolderNames(onlyId?: string): Promise<boolean> {
+    const folders = (this.app.vault.getFolderByPath(COLLECTIONS_DIR)?.children ?? [])
+      .filter((child) => child instanceof TFolder)
+      .map((child) => child.name);
+    const fixes = planFolderNameFixes(this.metadata!, folders).filter((fix) => onlyId === undefined || fix.id === onlyId);
+    for (const fix of fixes) {
+      const collection = this.metadata!.collections[fix.id];
+      if (!collection) continue;
+      if (fix.kind === 'rename-folder') {
+        try {
+          await this.moveCollectionFolder(fix.id, fix.folder);
+          continue;
+        } catch (error) {
+          console.error(`[AssetService] Could not rename the folder of collection "${collection.name}":`, error);
+        }
+      }
+      collection.name = fix.id;
+    }
+    if (fixes.length > 0) await this.saveMetadata();
+    return fixes.length > 0;
+  }
+
+  /**
+   * Gives a collection whose name was set elsewhere, such as by an import, a
+   * folder of that name, or takes its folder's name when the name is taken.
+   * Returns the collection as it is afterwards.
+   */
+  async matchCollectionFolder(collectionId: string): Promise<CollectionMetadata | null> {
+    await this.ensureLoaded();
+    const uid = this.metadata!.collections[collectionId]?.uid;
+    await this.matchFolderNames(collectionId);
+    return Object.values(this.metadata!.collections).find((collection) => collection.uid === uid) ?? null;
+  }
+
+  /**
    * Follows a collection folder renamed in the vault: the record moves to the
-   * new folder name as its id and takes it as display name, and every stored
-   * path into the folder is rewritten. Renaming the default folder turns its
-   * contents into a normal collection and starts an empty default one. A
-   * folder moved out of the collections folder is no longer a collection.
-   * Returns whether `oldPath` was a collection folder.
+   * new folder name as its id and name, and every stored path into the folder
+   * is rewritten. A folder moved out of the collections folder is no longer a
+   * collection. Returns whether `oldPath` was a collection folder.
    */
   async followCollectionFolderRename(oldPath: string, newPath: string): Promise<boolean> {
     await this.ensureLoaded();
@@ -693,9 +746,11 @@ export class AssetService {
     const newId = collectionIdOfFolder(newPath);
     if (!oldId || oldId === newId || !this.metadata!.collections[oldId]) return false;
 
-    if (newId) moveCollectionRecord(this.metadata!, oldId, newId);
+    if (newId) await this.moveRecordWithInstall(oldId, newId);
     else forgetCollection(this.metadata!, oldId);
-    if (oldId === 'default') await this.ensureDefaultCollection();
+    for (const id of Object.keys(this.metadata!.collections)) {
+      if (!this.app.vault.getFolderByPath(collectionFolderPath(id))) await this.ensureCollectionStructure(id);
+    }
     await this.saveMetadata();
     return true;
   }
@@ -711,10 +766,16 @@ export class AssetService {
   reconcileWithVault(deleted: ReadonlySet<string> = new Set()): Promise<VaultReconciliation> {
     return this.indexLock.run(async () => {
       await this.ensureLoaded();
+      await this.matchFolderNames();
       const readings = await readVault(this.app, this.metadata!);
       // From the listing on, nothing awaits until the index is changed, so no other edit interleaves.
       const result = reconcileIndex(this.metadata!, listVault(this.app, readings, deleted));
       if (result.changed) await this.saveMetadata();
+      for (const { from, to } of result.folderMoves) {
+        const [oldId, newId] = [collectionIdOfFolder(from), collectionIdOfFolder(to)];
+        const uid = newId ? this.metadata!.collections[newId]?.uid : undefined;
+        if (oldId && newId && uid) await moveInstallRecord(this.app, uid, oldId, newId);
+      }
       for (const id of result.missingFolders) await this.ensureCollectionStructure(id);
       await this.applyVaultFileOps(result);
       if (result.changed) this.notifyReconciled(result);
@@ -754,8 +815,8 @@ export class AssetService {
   }
 
   async deleteCollection(collectionId: string): Promise<void> {
-    if (!this.metadata || collectionId === 'default') {
-      return; // Can't delete default collection
+    if (!this.metadata || collectionId === defaultCollectionIdOf(this.metadata)) {
+      return; // The default collection stays
     }
 
     // Delete all assets in the collection
@@ -1091,15 +1152,17 @@ export class AssetService {
     return this.numberedCollectionName(name, exceptId);
   }
 
-  /** A new id derived from `name` that no collection uses yet. */
+  /**
+   * A folder name for a new collection called `name`: the name itself, or
+   * `name (2)`, `name (3)`, … while a collection or a leftover folder has it,
+   * so a deleted collection's files never leak into the new one.
+   */
   async freeCollectionIdFor(name: string): Promise<string> {
     await this.ensureLoaded();
-    return this.freeCollectionId(name);
-  }
-
-  private freeCollectionId(name: string): string {
-    // A leftover folder of a deleted collection must not leak its files into the new one.
-    return freeCollectionId(name, (id) => Boolean(this.metadata!.collections[id] || this.app.vault.getAbstractFileByPath(`${COLLECTIONS_DIR}/${id}`)));
+    const base = collectionFolderName(name);
+    let id = base;
+    for (let n = 2; this.findCollectionByName(id) || this.isCollectionFolderTaken(id); n++) id = `${base} (${n})`;
+    return id;
   }
 
   private numberedCollectionName(name: string, exceptId?: string): string {
@@ -1143,15 +1206,15 @@ export class AssetService {
     await this.ensureLoaded();
     const collection = this.metadata!.collections[collectionId];
     if (!collection) throw new Error(`Collection ${collectionId} not found`);
-    this.assertCollectionNameFree(name, collectionId);
+    const id = name.trim() === collectionId ? collectionId : this.assertCollectionFolderName(name, collectionId);
     collection.uid = uid;
-    collection.name = name;
     collection.version = 1;
     collection.publisherId = this.metadata!.vaultId!;
     delete collection.releasedAt;
     collection.modifiedAt = Date.now();
+    if (id !== collectionId) await this.moveCollectionFolder(collectionId, id);
     await this.saveMetadata();
-    return collection;
+    return this.metadata!.collections[id]!;
   }
 
   /**
@@ -1209,7 +1272,7 @@ export class AssetService {
       ...encounterData,
       ...this.createAssetIdentity('encounter'),
       type: 'encounter',
-      collection: 'default', // Use default collection
+      collection: defaultCollectionIdOf(this.metadata),
       data: {
         ...encounterData.data,
         tokens: encounterData.tokens,
@@ -1257,7 +1320,7 @@ export class AssetService {
     const assets = Object.values(this.metadata.assets);
     let changed = false;
     for (const collection of Object.values(this.metadata.collections)) {
-      const collectionAssets = assets.filter((asset) => (asset.collection || 'default') === collection.id);
+      const collectionAssets = assets.filter((asset) => (asset.collection || defaultCollectionIdOf(this.metadata)) === collection.id);
       if (!collection.tags) {
         collection.tags = {};
         changed = true;

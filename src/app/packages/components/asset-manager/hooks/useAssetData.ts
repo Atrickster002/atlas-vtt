@@ -76,7 +76,7 @@ export function useAssetData(
   // ── Load folders ──────────────────────────────────────────────
   const loadFoldersForActiveTab = useCallback(async (): Promise<void> => {
     if (!app) return;
-    const col = selectedCollection || 'default';
+    const col = selectedCollection || AssetService.defaultCollectionId();
     try {
       const basePath = `${ATLAS_VTT_DIR}/collections/${col}/${activeTab}`;
       const baseFolder = app.vault.getAbstractFileByPath(basePath);
@@ -112,7 +112,7 @@ export function useAssetData(
   const loadAssetsForActiveTab = useCallback(async (): Promise<void> => {
     if (!assetService || !app) return;
     try {
-      const col = selectedCollection || 'default';
+      const col = selectedCollection || AssetService.defaultCollectionId();
       const byTab = partitionByTab(await assetService.getAssets(col));
       const previewSources = tokenPreviewSources(byTab.tokens);
       const tabBase = `${ATLAS_VTT_DIR}/collections/${col}/${activeTab}`;
@@ -143,7 +143,7 @@ export function useAssetData(
   const reloadGlobalTags = useCallback(async (): Promise<void> => {
     if (!assetService) return;
     try {
-      const col = selectedCollection || 'default';
+      const col = selectedCollection || AssetService.defaultCollectionId();
       const load = async (group: TagGroup): Promise<Tag[]> =>
         (await assetService.getCollectionTags(col, group)).map((t) => ({ id: t.id, name: t.name }));
       setTagsByGroup({ tokens: await load('tokens'), maps: await load('maps') });
@@ -156,7 +156,8 @@ export function useAssetData(
   const reloadCollections = useCallback(async (): Promise<void> => {
     if (!assetService) return;
     const loaded = await assetService.getCollections();
-    setCollections(loaded.map(({ id, uid, name }) => ({ id, uid, name })));
+    const defaultId = assetService.getDefaultCollectionId();
+    setCollections(loaded.map(({ id, uid, name }) => ({ id, uid, name, ...(id === defaultId && { isDefault: true }) })));
   }, [assetService]);
 
   // ── Initialize service ────────────────────────────────────────

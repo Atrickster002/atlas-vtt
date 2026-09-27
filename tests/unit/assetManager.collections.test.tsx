@@ -8,7 +8,7 @@ import type { CollectionOption } from '../../src/app/packages/components/asset-m
 afterEach(cleanup);
 
 const collections: CollectionOption[] = [
-  { id: 'default', uid: 'u-default', name: 'Default' },
+  { id: 'default', uid: 'u-default', name: 'Default', isDefault: true },
   { id: 'winter-camp', uid: 'u-winter', name: 'Winter Camp' },
 ];
 

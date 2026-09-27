@@ -1,5 +1,5 @@
 import type { AssetMetadata } from '../AssetService';
-import { createCollectionRecord } from '../collectionRecords';
+import { createCollectionRecord, defaultCollectionIdOf, INITIAL_COLLECTION_ID } from '../collectionRecords';
 import type { PathMove } from '../renamedPaths';
 import { adoptUnindexedFiles } from './assetAdoption';
 import { indexedPaths } from './assetFiles';
@@ -32,21 +32,22 @@ export interface VaultReconciliation {
   missingFolders: string[];
 }
 
-/** Every asset belongs to a collection with a record, and the default collection always exists. */
+/** Every asset belongs to a collection with a record, and there is always a collection. */
 function ensureCollectionRecords(metadata: AssetMetadata, now: number): boolean {
   let changed = false;
-  for (const asset of Object.values(metadata.assets)) {
-    const id = asset.collection || 'default';
-    if (asset.collection !== id) {
-      asset.collection = id;
-      changed = true;
-    }
-    if (metadata.collections[id]) continue;
-    metadata.collections[id] = createCollectionRecord(metadata, id, now);
+  if (Object.keys(metadata.collections).length === 0) {
+    metadata.collections[INITIAL_COLLECTION_ID] = createCollectionRecord(INITIAL_COLLECTION_ID, now);
+    metadata.defaultCollectionId = INITIAL_COLLECTION_ID;
     changed = true;
   }
-  if (!metadata.collections.default) {
-    metadata.collections.default = createCollectionRecord(metadata, 'default', now);
+  const fallback = defaultCollectionIdOf(metadata);
+  for (const asset of Object.values(metadata.assets)) {
+    if (!asset.collection) {
+      asset.collection = fallback;
+      changed = true;
+    }
+    if (metadata.collections[asset.collection]) continue;
+    metadata.collections[asset.collection] = createCollectionRecord(asset.collection, now);
     changed = true;
   }
   return changed;

@@ -93,7 +93,7 @@ export function followCollectionFolders(
     moves.push({ from: collectionFolderPath(from), to: collectionFolderPath(to) });
   }
   const added = [...folders].sort().filter((id) => !metadata.collections[id]);
-  for (const id of added) metadata.collections[id] = createCollectionRecord(metadata, id, now);
+  for (const id of added) metadata.collections[id] = createCollectionRecord(id, now);
   return { moves, added };
 }
 

@@ -17,8 +17,8 @@ beforeEach(async () => {
   service = AssetService.getInstance(app);
   await service.initialize();
   await service.createCollection('Winter Camp');
-  await service.addTokenAsset({ name: 'Goblin', imagePath: 'goblin.webp', collection: 'default', tags: [] });
-  await service.addTokenAsset({ name: 'Wolf', imagePath: 'wolf.webp', collection: 'winter-camp', tags: [] });
+  await service.addTokenAsset({ name: 'Goblin', imagePath: 'goblin.webp', collection: 'Default', tags: [] });
+  await service.addTokenAsset({ name: 'Wolf', imagePath: 'wolf.webp', collection: 'Winter Camp', tags: [] });
 });
 afterEach(cleanup);
 
@@ -34,7 +34,7 @@ function useManager(initialCollection: string) {
   return { selected, setSelected, data, manage };
 }
 
-const mountManager = (initialCollection = 'default') =>
+const mountManager = (initialCollection = 'Default') =>
   renderHook(() => useManager(initialCollection), {
     wrapper: ({ children }) => <AtlasUIContext.Provider value={{ app } as never}>{children}</AtlasUIContext.Provider>,
   });
@@ -42,36 +42,40 @@ const mountManager = (initialCollection = 'default') =>
 const shownTokens = (result: { current: ReturnType<typeof useManager> }): string[] =>
   result.current.data.assets.map((asset) => asset.name);
 
-it('keeps showing a renamed collection, also after a reload', async () => {
+it('renames the default collection with its folder and keeps showing it, also after a reload', async () => {
   const { result, unmount } = mountManager();
   await waitFor(() => expect(shownTokens(result)).toEqual(['Goblin']));
 
-  await act(() => result.current.manage.handleUpdateCollection('default', '5E'));
+  await act(() => result.current.manage.handleUpdateCollection('Default', '5E'));
 
-  expect(result.current.data.collections.map((c) => [c.id, c.name])).toContainEqual(['default', '5E']);
-  expect(result.current.selected).toBe('default');
-  expect(shownTokens(result)).toEqual(['Goblin']);
+  expect(result.current.data.collections.map((c) => [c.id, c.name, c.isDefault])).toContainEqual(['5E', '5E', true]);
+  await waitFor(() => expect(result.current.selected).toBe('5E'));
+  await waitFor(() => expect(shownTokens(result)).toEqual(['Goblin']));
+  expect(app.vault.getFolderByPath('atlas-vtt/collections/5E')).not.toBeNull();
+  expect(app.vault.getFolderByPath('atlas-vtt/collections/Default')).toBeNull();
 
   unmount();
-  const reloaded = mountManager();
+  const reloaded = mountManager('5E');
   await waitFor(() => expect(shownTokens(reloaded.result)).toEqual(['Goblin']));
   expect(reloaded.result.current.data.collections.find((c) => c.id === reloaded.result.current.selected)?.name).toBe('5E');
 });
 
 it('shows a renamed non-default collection and deletes it by id', async () => {
-  const { result } = mountManager('winter-camp');
+  const { result } = mountManager('Winter Camp');
   await waitFor(() => expect(shownTokens(result)).toEqual(['Wolf']));
 
-  await act(() => result.current.manage.handleUpdateCollection('winter-camp', 'Default'));
+  // Another collection's name is refused, also in other letter case.
+  await act(() => result.current.manage.handleUpdateCollection('Winter Camp', 'default'));
   expect(result.current.data.collections.map((c) => c.name)).toEqual(['Default', 'Winter Camp']);
 
-  await act(() => result.current.manage.handleUpdateCollection('winter-camp', 'Frozen Keep'));
+  await act(() => result.current.manage.handleUpdateCollection('Winter Camp', 'Frozen Keep'));
+  await waitFor(() => expect(result.current.selected).toBe('Frozen Keep'));
   await waitFor(() => expect(shownTokens(result)).toEqual(['Wolf']));
 
-  await act(() => result.current.manage.handleDeleteCollection('winter-camp'));
-  await waitFor(() => expect(result.current.selected).toBe('default'));
+  await act(() => result.current.manage.handleDeleteCollection('Frozen Keep'));
+  await waitFor(() => expect(result.current.selected).toBe('Default'));
   await waitFor(() => expect(shownTokens(result)).toEqual(['Goblin']));
-  expect(result.current.data.collections.map((c) => c.id)).toEqual(['default']);
+  expect(result.current.data.collections.map((c) => c.id)).toEqual(['Default']);
 });
 
 it('reads the index from disk when it opens, not on every collection switch', async () => {
@@ -79,7 +83,7 @@ it('reads the index from disk when it opens, not on every collection switch', as
   await waitFor(() => expect(shownTokens(result)).toEqual(['Goblin']));
   const reads = vi.mocked(app.vault.adapter.read).mock.calls.length;
 
-  await act(async () => { result.current.setSelected('winter-camp'); });
+  await act(async () => { result.current.setSelected('Winter Camp'); });
   await waitFor(() => expect(shownTokens(result)).toEqual(['Wolf']));
 
   expect(vi.mocked(app.vault.adapter.read).mock.calls.length).toBe(reads);
@@ -101,7 +105,7 @@ it('shows the newly selected collection when a refresh was announced before the 
 
   // An import selects its collection and announces the change before React re-renders.
   await act(async () => {
-    result.current.setSelected('winter-camp');
+    result.current.setSelected('Winter Camp');
     handlers.forEach((handler) => { void handler(); });
   });
   await act(() => new Promise((resolve) => window.setTimeout(resolve, 50)));

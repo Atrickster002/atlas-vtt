@@ -105,6 +105,8 @@ export function registerVaultSync(plugin: Plugin): void {
 
   // Obsidian reports every existing file as created while it loads the vault; only later creations are new.
   app.workspace.onLayoutReady(() => {
+    // The first load checks the index against the vault, also when no map or asset manager opens.
+    runInBackground(assets.initialize(), 'Checking Atlas files against the vault');
     plugin.registerEvent(
       app.vault.on('create', (file) => {
         if (file.path.startsWith(`${ATLAS_VTT_DIR}/`) || file.path.endsWith(`.${EXTENSION_ATLASMAP}`)) scheduleCheck();

@@ -8,7 +8,7 @@ import { coverCandidates, coverFileFor, currentCover, storeCover, type CoverCand
 import { CollectionReferenceCollector, type MissingReference } from './collectionReferences';
 import { assetFingerprint, fieldFingerprint } from './fingerprints';
 import { sha256 } from './hashing';
-import { COLLECTION_FIELDS, deleteInstallRecord, readInstallRecord, writeInstallRecord, type InstallRecord } from './installRecord';
+import { COLLECTION_FIELDS, deleteInstallRecord, moveInstallRecord, readInstallRecord, writeInstallRecord, type InstallRecord } from './installRecord';
 import { remapPaths } from './pathRemap';
 import { readVaultBinary, vaultFileSize } from '../../utils/hiddenVaultFiles';
 
@@ -241,20 +241,23 @@ async function originNames(app: App, collection: CollectionMetadata, packedPaths
  */
 async function recordRelease(app: App, assets: AssetService, preview: ExportPreview, manifest: CollectionBundleManifest, cover: CoverFile | null): Promise<void> {
   const { collection } = manifest;
-  const collectionId = preview.collection.id;
+  let collectionId = preview.collection.id;
   if (cover) await storeCover(app, cover);
   if (collection.uid !== preview.collection.uid) {
-    await assets.forkCollection(collectionId, collection.name, collection.uid);
+    // A fork takes its new name, and with it a folder of that name.
+    collectionId = (await assets.forkCollection(collectionId, collection.name, collection.uid)).id;
     await deleteInstallRecord(app, preview.collection.uid);
   }
   await assets.recordCollectionRelease(collectionId, {
     version: collection.version, releasedAt: manifest.exportedAt, author: collection.author, coverPath: collection.coverPath,
   });
 
+  // The bundle's paths live under the folder the collection had when it was exported.
+  const bundleCollectionId = preview.collection.id;
   const record: InstallRecord = {
     uid: collection.uid,
-    collectionId,
-    sourceCollectionId: collectionId,
+    collectionId: bundleCollectionId,
+    sourceCollectionId: bundleCollectionId,
     sourceName: collection.name,
     version: collection.version,
     releasedAt: manifest.exportedAt,
@@ -275,4 +278,5 @@ async function recordRelease(app: App, assets: AssetService, preview: ExportPrev
     record.fields[field] = { source: fingerprint, installed: fingerprint };
   }
   await writeInstallRecord(app, record);
+  if (collectionId !== bundleCollectionId) await moveInstallRecord(app, collection.uid, bundleCollectionId, collectionId);
 }

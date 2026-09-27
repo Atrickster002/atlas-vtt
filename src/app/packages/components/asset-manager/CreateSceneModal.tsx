@@ -36,7 +36,7 @@ export default function CreateSceneModal({
   const [sceneName, setSceneName] = useState('');
   const [isCreating, setIsCreating] = useState(false);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
-  const { tags, createTag, isCreatingTag } = useAssetTags(assetService, isOpen, selectedCollection || 'default', 'maps');
+  const { tags, createTag, isCreatingTag } = useAssetTags(assetService, isOpen, selectedCollection || AssetService.defaultCollectionId(), 'maps');
   const inputRef = useRef<HTMLInputElement>(null);
   const { app } = useAtlasUI();
   const [hasSetDefaultName, setHasSetDefaultName] = useState(false);
@@ -86,7 +86,7 @@ export default function CreateSceneModal({
 
     setIsCreating(true);
     try {
-      const selection = selectedCollection || 'default';
+      const selection = selectedCollection || AssetService.defaultCollectionId();
       const collection = await assetService.getCollection(selection);
       if (!collection) {
         throw new Error(`Collection "${selection}" no longer exists. Select another collection and try again.`);

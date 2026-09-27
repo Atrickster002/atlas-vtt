@@ -91,7 +91,10 @@ export interface Folder {
 // ─── Tag ────────────────────────────────────────────────────────────
 
 /** A collection as the asset manager lists it: selected by id, shown by name, followed across folder renames by uid. */
-export type CollectionOption = Pick<CollectionMetadata, 'id' | 'uid' | 'name'>;
+export type CollectionOption = Pick<CollectionMetadata, 'id' | 'uid' | 'name'> & {
+  /** The collection new content goes to when none is chosen; it cannot be deleted. */
+  isDefault?: boolean;
+};
 
 export interface Tag {
   id: string;

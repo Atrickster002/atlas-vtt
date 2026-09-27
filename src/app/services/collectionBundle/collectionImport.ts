@@ -206,10 +206,12 @@ async function applyImport(
   } catch (error) {
     console.error('[collectionImport] Could not record the install:', error);
   }
+  // A collection is named like its folder: a new name from the review or an update moves the folder, install record included.
+  const installed = await assets.matchCollectionFolder(targets.collectionId) ?? collection;
   onProgress({ message: 'Done', fraction: 1 });
   return {
-    collectionId: targets.collectionId,
-    collectionName: collection.name,
+    collectionId: installed.id,
+    collectionName: installed.name,
     version: manifest.collection.version,
     created: !existing,
     written,

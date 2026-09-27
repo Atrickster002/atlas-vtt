@@ -1,5 +1,6 @@
 import type { AssetMetadata, TokenAsset } from '../AssetService';
 import { GLOBAL_ASSETS_DIR } from '../assetPaths';
+import { defaultCollectionIdOf } from '../collectionRecords';
 import { groupTokenRefs } from './assetFiles';
 import { recoveredId, recoveredTokenName } from './recoveredIds';
 
@@ -13,7 +14,7 @@ function groupArtwork(metadata: AssetMetadata): Map<string, string> {
   for (const asset of Object.values(metadata.assets)) {
     if (asset.type !== 'encounter' && asset.type !== 'player') continue;
     for (const token of groupTokenRefs(asset)) {
-      if (typeof token?.imagePath === 'string' && token.imagePath) art.set(token.imagePath, asset.collection || 'default');
+      if (typeof token?.imagePath === 'string' && token.imagePath) art.set(token.imagePath, asset.collection || defaultCollectionIdOf(metadata));
     }
   }
   return art;

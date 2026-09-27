@@ -20,7 +20,7 @@ function setup() {
   Object.assign(window, { FantasyStatblocks: { isResolved: () => true, getBestiaryCreatures: () => [] } });
   const assetService = AssetService.getInstance(app);
   const preview: TokenPreview = { id: 'goblin', name: 'Custom Goblin', statblockPath: note, tags: ['Enemy'], showRing: false, size: 2, file: new File(['art'], 'goblin.webp'), previewUrl: 'blob:art', imageScale: 1, imagePosition: { x: 0, y: 0 }, isSelected: false, isOptimizing: false };
-  const options = { app, assetService, mode: 'token' as const, previews: [preview], collection: 'default', tags: [], waitForOptimized: async () => blob, onSaved: vi.fn() };
+  const options = { app, assetService, mode: 'token' as const, previews: [preview], collection: 'Default', tags: [], waitForOptimized: async () => blob, onSaved: vi.fn() };
   return { app, files, assetService, preview, options };
 }
 

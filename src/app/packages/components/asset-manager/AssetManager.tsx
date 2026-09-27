@@ -1,4 +1,5 @@
 import { Tutorial } from '../../../onboarding/Tutorial';
+import { AssetService } from '../../../services/AssetService';
 import { useAtlasSettings } from '../../../keyboard/useMapHotkeys';
 import { SettingsService } from '../../../services/SettingsService';
 import React, { useState, useRef, useMemo } from 'react';
@@ -36,7 +37,7 @@ const wrapperVariants = {
 export default function AssetManager({ isOpen, onClose, initialTab, onExitComplete }: AssetManagerProps): React.JSX.Element {
   const [search, setSearch] = useState('');
   const [activeTab, setActiveTab] = useState<Tab>('tokens');
-  const [selectedCollection, setSelectedCollection] = useState<string | null>('default');
+  const [selectedCollection, setSelectedCollection] = useState<string | null>(() => AssetService.defaultCollectionId());
   const [collapsedSections, setCollapsedSections] = useState<{ folders: boolean; assets: boolean }>({ folders: false, assets: false });
   const [draggedItems, setDraggedItems] = useState<{ type: 'asset' | 'folder'; ids: string[] } | null>(null);
   const [dropTarget, setDropTarget] = useState<string | null>(null);

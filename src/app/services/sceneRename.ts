@@ -1,9 +1,7 @@
 import { Notice, normalizePath, type App } from 'obsidian';
 import type { AssetService } from './AssetService';
 import { getLoadedAtlasView } from '../plugin/atlasLeaves';
-
-/** Characters Obsidian rejects in file names or that break links to them. */
-const INVALID_NAME = /[\\/:*?"<>|#^[\]]/;
+import { INVALID_NAME_CHARACTERS } from './assetPaths';
 
 /**
  * Renames a scene and the .atlasmap file behind it, because the tab bar, pins
@@ -14,7 +12,7 @@ export async function renameScene(app: App, assetService: AssetService, sceneId:
   const name = requestedName.trim();
   const scene = await assetService.getAssetById(sceneId);
   if (!name || scene?.type !== 'scene') return false;
-  if (INVALID_NAME.test(name)) {
+  if (INVALID_NAME_CHARACTERS.test(name)) {
     new Notice('Scene names cannot contain \\ / : * ? " < > | # ^ [ or ]');
     return false;
   }

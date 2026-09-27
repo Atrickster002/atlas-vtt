@@ -20,3 +20,23 @@ export function collectionIdOfPath(path: string | null | undefined): string | nu
   const slash = rest.indexOf('/');
   return slash > 0 ? rest.slice(0, slash) : null;
 }
+
+/** Characters Obsidian rejects in file names or that break links to them. */
+export const INVALID_NAME_CHARACTERS = /[\\/:*?"<>|#^[\]]/;
+
+/**
+ * Why `name` cannot name a collection folder, or null when it can. A
+ * collection's folder carries its name, so the name must be a valid folder name.
+ */
+export function collectionNameProblem(name: string): string | null {
+  const trimmed = name.trim();
+  if (!trimmed) return 'Enter a name';
+  if (INVALID_NAME_CHARACTERS.test(trimmed)) return 'Collection names cannot contain \\ / : * ? " < > | # ^ [ or ]';
+  if (trimmed.startsWith('.')) return 'Collection names cannot start with a dot';
+  return null;
+}
+
+/** `name` as a folder name: characters a folder cannot carry become `-`, a leading dot goes. */
+export function collectionFolderName(name: string): string {
+  return name.trim().replace(new RegExp(INVALID_NAME_CHARACTERS.source, 'g'), '-').replace(/^\.+/, '').trim() || 'Collection';
+}

@@ -1,7 +1,7 @@
 import type * as React from 'react';
 import { useState, useCallback } from 'react';
 import type { AnyAsset, Tag } from '../types';
-import type { AssetService } from '../../../../services/AssetService';
+import { AssetService } from '../../../../services/AssetService';
 import { hasAssetTag, type TagGroup } from '../../../../services/tagGroups';
 import { showAtlasToast } from '../../../../react/components/AtlasToast';
 import { tagGroupOfTab, type TagsByGroup } from '../utils/assetTags';
@@ -30,7 +30,7 @@ export function useTagsAndCollections(
   reloadGlobalTags: () => Promise<void>
 ): TagsAndCollectionsState {
   const [isTagManagerOpen, setIsTagManagerOpen] = useState(false);
-  const collection = selectedCollection || 'default';
+  const collection = selectedCollection || AssetService.defaultCollectionId();
 
   /** Rewrites the tags of the loaded assets that belong to `group`. */
   const retagAssets = useCallback((group: TagGroup, retag: (tags: string[]) => string[]): void => {
@@ -98,14 +98,14 @@ export function useTagsAndCollections(
       await reloadCollections();
     } catch (error) {
       console.error('[AssetManager] Failed to rename collection:', error);
-      showAtlasToast('Could not rename the collection');
+      showAtlasToast(error instanceof Error ? error.message : 'Could not rename the collection');
     }
   }, [assetService, reloadCollections]);
 
   const handleDeleteCollection = useCallback(async (collectionId: string): Promise<void> => {
     if (!assetService) return;
     try {
-      if (collectionId === 'default') {
+      if (collectionId === assetService.getDefaultCollectionId()) {
         showAtlasToast('The default collection cannot be deleted');
         return;
       }

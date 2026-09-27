@@ -3,7 +3,13 @@ import { collectionFolderPath } from './assetPaths';
 import { uniqueCollectionName } from './collectionNaming';
 import { mapStrings } from '../utils/mapStrings';
 
-/** `winter-camp` → `Winter Camp`: the display name of a collection known only by its folder. */
+/** The folder of the collection a new vault starts with. */
+export const INITIAL_COLLECTION_ID = 'Default';
+
+/** The id collections had before the default one could be renamed. */
+const LEGACY_DEFAULT_ID = 'default';
+
+/** `winter-camp` → `Winter Camp`: a readable name for an asset known only by its file name. */
 export function prettifyIdentifier(identifier: string): string {
   const words = identifier.replace(/[-_]+/g, ' ').trim().split(/\s+/).filter(Boolean);
   if (words.length === 0) return identifier;
@@ -18,15 +24,29 @@ export function numberedCollectionName(metadata: AssetMetadata | null, name: str
   return uniqueCollectionName(name, taken);
 }
 
-/** A new record for a collection folder named `id`, named after the folder. */
-export function createCollectionRecord(metadata: AssetMetadata | null, id: string, now = Date.now()): CollectionMetadata {
-  const name = id === 'default' ? 'Default' : numberedCollectionName(metadata, prettifyIdentifier(id));
+/**
+ * The collection new content goes to when none is chosen; it cannot be
+ * deleted. It is recorded in the index and follows its folder when renamed;
+ * older indexes mean the collection in `default`, and without either the
+ * oldest collection takes the part.
+ */
+export function defaultCollectionIdOf(metadata: AssetMetadata | null): string {
+  const collections = metadata?.collections ?? {};
+  const recorded = metadata?.defaultCollectionId;
+  if (recorded && collections[recorded]) return recorded;
+  if (collections[LEGACY_DEFAULT_ID]) return LEGACY_DEFAULT_ID;
+  const [oldest] = Object.values(collections).sort((a, b) => a.createdAt - b.createdAt);
+  return oldest?.id ?? recorded ?? INITIAL_COLLECTION_ID;
+}
+
+/** A new record for the collection folder `id`; a collection is named like its folder. */
+export function createCollectionRecord(id: string, now = Date.now()): CollectionMetadata {
   return {
     id,
     uid: crypto.randomUUID(),
     version: 1,
-    name,
-    description: `${name} collection`,
+    name: id,
+    description: `${id} collection`,
     tags: {},
     settings: { conditions: [] },
     createdAt: now,
@@ -35,20 +55,17 @@ export function createCollectionRecord(metadata: AssetMetadata | null, id: strin
 }
 
 /**
- * Moves a collection record to the folder `newId`: the record keeps its uid and
- * settings, takes the folder name as display name, and every stored path into
- * the old folder follows. Moving the default collection starts an empty one.
+ * Moves a collection record to the folder `newId`: the record keeps its uid,
+ * settings and default role, takes the folder name as its name, and every
+ * stored path into the old folder follows.
  */
 export function moveCollectionRecord(metadata: AssetMetadata, oldId: string, newId: string, now = Date.now()): void {
   const collection = metadata.collections[oldId];
   if (!collection) return;
+  const wasDefault = defaultCollectionIdOf(metadata) === oldId;
   delete metadata.collections[oldId];
-  metadata.collections[newId] = {
-    ...collection,
-    id: newId,
-    name: numberedCollectionName(metadata, prettifyIdentifier(newId), oldId),
-    modifiedAt: now,
-  };
+  metadata.collections[newId] = { ...collection, id: newId, name: newId, modifiedAt: now };
+  if (wasDefault) metadata.defaultCollectionId = newId;
 
   const oldPrefix = `${collectionFolderPath(oldId)}/`;
   const newPrefix = `${collectionFolderPath(newId)}/`;
@@ -57,19 +74,22 @@ export function moveCollectionRecord(metadata: AssetMetadata, oldId: string, new
     const moved = mapStrings(asset, movePath);
     metadata.assets[id] = asset.collection === oldId ? { ...moved, collection: newId } : moved;
   }
-
-  if (oldId === 'default') metadata.collections.default = createCollectionRecord(metadata, 'default', now);
 }
 
 /**
  * Removes a collection and its assets from the index. Files outside its folder,
- * such as token images in the global assets folder, stay. Forgetting the
- * default collection starts an empty one.
+ * such as token images in the global assets folder, stay. When the default
+ * collection goes, the oldest remaining one takes its part, or a new one when
+ * none is left; the caller creates its folder.
  */
 export function forgetCollection(metadata: AssetMetadata, id: string, now = Date.now()): void {
+  const wasDefault = defaultCollectionIdOf(metadata) === id;
   for (const [assetId, asset] of Object.entries(metadata.assets)) {
     if (asset.collection === id) delete metadata.assets[assetId];
   }
   delete metadata.collections[id];
-  if (id === 'default') metadata.collections.default = createCollectionRecord(metadata, 'default', now);
+  if (!wasDefault) return;
+  delete metadata.defaultCollectionId;
+  if (Object.keys(metadata.collections).length === 0) metadata.collections[INITIAL_COLLECTION_ID] = createCollectionRecord(INITIAL_COLLECTION_ID, now);
+  metadata.defaultCollectionId = defaultCollectionIdOf(metadata);
 }

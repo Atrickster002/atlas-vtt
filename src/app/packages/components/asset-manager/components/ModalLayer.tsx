@@ -1,4 +1,5 @@
 import React from 'react';
+import { AssetService } from '../../../../services/AssetService';
 import { AnimatePresence } from 'framer-motion';
 import { TokenCreator } from '../TokenCreator';
 import TagManager from '../TagManager';
@@ -33,7 +34,7 @@ export interface ModalLayerProps {
 export function ModalLayer({
   isOpen, activeTab, selectedCollection, onClose, data, sel, crud, tags, statblock,
 }: ModalLayerProps): React.JSX.Element {
-  const collectionOrDefault = selectedCollection || 'default';
+  const collectionOrDefault = selectedCollection || AssetService.defaultCollectionId();
 
   const closeMoveModal = (): void => {
     crud.setIsMoveModalOpen(false);
