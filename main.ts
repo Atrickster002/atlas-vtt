@@ -50,6 +50,16 @@ export default class AtlasVTTPlugin extends Plugin {
     const issueReporter = new IssueReporter(this.app, this.manifest, errorLog);
     this.addCommand({ id: 'report-issue', name: 'Report an issue…', callback: () => issueReporter.open() });
 
+    // Capture this before migrations/services can create Atlas's storage folder.
+    const existingInstallation = this.app.vault.adapter.exists('atlas-vtt');
+    const storageReady = existingInstallation.then(async () => {
+      await initializeAtlasStorage(this.app);
+      await runStartupMigration(this.app);
+    });
+    // Created before the views so every restored tab shares it; it reads the
+    // settings file only once the migration has put it in place.
+    this.settingsService = new SettingsService(this.app, storageReady);
+
     // Before the views: a restored map may start Atlas's first check of the vault,
     // whose folder renames reach map files only through these vault events.
     registerVaultSync(this);
@@ -57,17 +67,11 @@ export default class AtlasVTTPlugin extends Plugin {
     // before the slower startup path finishes.
     this.registerAtlasViews();
 
-    // Capture this before migrations/services can create Atlas's storage folder.
-    const existingInstallation = await this.app.vault.adapter.exists('atlas-vtt');
-
-    await initializeAtlasStorage(this.app);
-    await runStartupMigration(this.app);
-
-    this.settingsService = new SettingsService(this.app);
+    await storageReady;
     await this.settingsService.initialize();
     const changelogService = new ChangelogService(this.app, this.settingsService, {
       installedVersion: this.manifest.version,
-      existingInstallation,
+      existingInstallation: await existingInstallation,
       releaseBuild: __ATLAS_RELEASE_BUILD__,
     });
     this.changelogService = changelogService;

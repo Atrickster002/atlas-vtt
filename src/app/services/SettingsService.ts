@@ -73,9 +73,12 @@ export class SettingsService {
   private settingsPath: string;
   private saveTimeout: number | undefined;
   private listeners: Set<SettingsListener> = new Set();
+  /** Settles once the settings file is in place (after the startup migration). */
+  private readonly storageReady: Promise<unknown>;
 
-  constructor(app: App) {
+  constructor(app: App, storageReady: Promise<unknown> = Promise.resolve()) {
     this.app = app;
+    this.storageReady = storageReady;
     SettingsService.instances.set(app, this);
     this.settings = { ...DEFAULT_SETTINGS };
     this.settingsPath = normalizePath(getDataFilePath('atlas-vtt/settings.json'));
@@ -125,6 +128,8 @@ export class SettingsService {
   }
 
   private async loadSettings(): Promise<void> {
+    // A failed migration is reported by the plugin's startup; settings still load.
+    await this.storageReady.catch(() => undefined);
     try {
       // Use adapter.exists() and adapter.read() to bypass vault index timing issues
       // The vault index may not be ready at plugin startup, but adapter reads directly from disk
