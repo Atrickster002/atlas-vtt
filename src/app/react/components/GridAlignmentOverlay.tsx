@@ -8,7 +8,6 @@ import { detectGridFromSprite } from '../../pixi/gridDetection/detectGrid';
 import { describeGridType } from '../hooks/useGridAlignmentEffects';
 import type { AlignmentTabProps } from '../hooks/useGridAlignmentEffects';
 import { IntersectionsTab } from './IntersectionsTab';
-import { FreeSizeTab } from './FreeSizeTab';
 import { FreehandTab } from './FreehandTab';
 import { CloseButton } from '../../packages/components/primitives/CloseButton';
 import { LabelTooltip } from '../../packages/components/primitives/tooltip';
@@ -17,17 +16,15 @@ import { LabelTooltip } from '../../packages/components/primitives/tooltip';
 // Tabs
 // ---------------------------------------------------------------------------
 
-type AlignmentTab = 'intersections' | 'quick' | 'freehand';
+type AlignmentTab = 'intersections' | 'freehand';
 
 const ALIGNMENT_TABS: ReadonlyArray<{ id: AlignmentTab; label: string }> = [
   { id: 'intersections', label: 'Intersections' },
-  { id: 'quick', label: 'Quick' },
   { id: 'freehand', label: 'Freehand' },
 ];
 
 const TAB_COMPONENTS: Record<AlignmentTab, (props: AlignmentTabProps) => React.ReactElement> = {
   intersections: IntersectionsTab,
-  quick: FreeSizeTab,
   freehand: FreehandTab,
 };
 

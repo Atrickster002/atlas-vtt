@@ -41,3 +41,4 @@
 ## Important changes
 
 - A collection's folder now always carries the collection's name, in Atlas and in Obsidian's file explorer alike. Renaming a collection in Atlas renames its folder, and renaming the folder renames the collection. On the first start, Atlas renames existing folders once to match their collections, for example `default` to `5e`. The default collection can be renamed like any other and stays your default collection.
+- Grid alignment no longer offers the Quick tab: a single measurement placed the grid too unreliably. Align with Intersections, place the grid by eye with Freehand, or let Atlas detect it from the map image.

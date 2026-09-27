@@ -2,8 +2,7 @@
  * Grid Alignment Controller
  *
  * Manages PIXI-side visuals for the grid calibration tool: the 4-quadrant
- * "Intersections" mode, the single-measurement "Quick" mode and the grid
- * preview the "Freehand" mode places.
+ * "Intersections" mode and the grid preview the "Freehand" mode places.
  * Draws crosshair markers, connecting lines, quadrant dimming, and drives
  * live grid preview through the existing GridSystem.
  */
