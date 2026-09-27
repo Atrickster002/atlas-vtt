@@ -152,24 +152,21 @@ export default function CreateSceneModal({
         return;
       }
 
-      await ensureFolder(app, scenePath.substring(0, scenePath.lastIndexOf('/')));
-      const sceneFile = await app.vault.create(scenePath, JSON.stringify(mapData, null, 2));
-
-      // Register the scene with AssetService
-      if (assetService) {
-        const sceneAsset = {
-          type: 'scene' as const,
+      // The map file and its scene record are written as one step, so the vault
+      // check never finds the new map without a scene and adds a second one.
+      const sceneFile = await assetService.runExclusive(async () => {
+        await ensureFolder(app, scenePath.substring(0, scenePath.lastIndexOf('/')));
+        const file = await app.vault.create(scenePath, JSON.stringify(mapData, null, 2));
+        await assetService.addAsset({
+          type: 'scene',
           name: sceneName.trim(),
           collection: collectionId,
           tags: selectedTags,
-          data: {
-            mapPath: scenePath
-          }
-        };
-        
-        await assetService.addAsset(sceneAsset);
-      }
-      
+          data: { mapPath: scenePath },
+        });
+        return file;
+      });
+
       await app.workspace.getLeaf(false).openFile(sceneFile);
       
       // Close the modal

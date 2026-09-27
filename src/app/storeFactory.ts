@@ -26,7 +26,7 @@ import { computeNextInstanceNumber } from './stores/tokenInstanceNumbers';
 import type { DiceRollResult } from './tools/DiceTool';
 import { isAtlasToolAvailable } from './tools/toolAvailability';
 import { isPinLabelKind, nextPinLabel } from './tools/pinLabels';
-import { rewriteMapReferences } from './services/renamedPaths';
+import { movedPathOf, rewriteMapReferences } from './services/renamedPaths';
 import { conditionValue, removeCondition, setConditionValue } from './utils/conditionValues';
 
 // Individual store state interface (same as AtlasState but isolated)
@@ -665,7 +665,7 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
           }),
 
           retargetRenamedFile: (oldPath, newPath) => set((draft) => {
-            rewriteMapReferences(draft.objects, oldPath, newPath);
+            rewriteMapReferences(draft.objects, movedPathOf([{ from: oldPath, to: newPath }]));
           }),
 
           deleteToken: (id) => set((draft) => {

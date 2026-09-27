@@ -22,9 +22,9 @@ import { registerColorSwatchIcons } from './src/app/plugin/colorSwatchIcons';
 import { HeaderAutocompleteSuggest } from './src/app/plugin/HeaderAutocompleteSuggest';
 import { registerCommands } from './src/app/plugin/registerCommands';
 import { registerPlayerWindowReloadCleanup } from './src/app/plugin/playerWindowReload';
-import { registerSceneSnapshotSync } from './src/app/plugin/sceneSnapshotSync';
 import { runStartupMigration } from './src/app/plugin/startupMigration';
 import { registerStatusBarVisibility } from './src/app/plugin/statusBarVisibility';
+import { registerVaultSync } from './src/app/plugin/vaultSync';
 import { ChangelogService } from './src/app/changelog/ChangelogService';
 import { AtlasErrorLog } from './src/app/support/errorLog';
 import { IssueReporter } from './src/app/support/IssueReporter';
@@ -81,7 +81,7 @@ export default class AtlasVTTPlugin extends Plugin {
     ]));
     this.registerEditorSuggest(new HeaderAutocompleteSuggest(this.app));
     registerAtlasLeafSync(this);
-    registerSceneSnapshotSync(this);
+    registerVaultSync(this);
     registerPlayerWindowReloadCleanup(this);
     registerCommands(this, {
       imageDisplay: this.imageDisplayService,

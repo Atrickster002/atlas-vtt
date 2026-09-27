@@ -22,6 +22,7 @@ const service = {
   addAsset: vi.fn().mockResolvedValue({}),
   getAssets: vi.fn().mockResolvedValue([]),
   getCollectionSettings: vi.fn().mockReturnValue({}),
+  runExclusive: <T,>(task: () => Promise<T>): Promise<T> => task(),
 };
 const app = {
   vault: {

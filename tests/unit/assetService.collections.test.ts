@@ -28,9 +28,11 @@ it('deletes a collection together with its assets and keeps the default one', as
 });
 
 it('never lets two collections share a name or an id', async () => {
-  const { app } = createInMemoryApp({ folders: ['atlas-vtt/collections/lore'] });
+  const { app, folders } = createInMemoryApp();
   const service = AssetService.getInstance(app);
   await service.initialize();
+  // A folder the vault check has not taken in yet.
+  folders.add('atlas-vtt/collections/lore');
 
   const first = await service.createCollection('Monsters');
   await expect(service.createCollection('monsters ')).rejects.toThrow('A collection named "monsters" already exists');
@@ -89,26 +91,39 @@ it('ignores folder renames outside the collections folder and keeps a default co
 });
 
 it('forgets a collection whose folder was deleted in the vault', async () => {
-  const service = await setup();
+  const { app, files, folders } = createInMemoryApp({ files: { 'goblin.webp': '' } });
+  const service = AssetService.getInstance(app);
+  await service.initialize();
+  await service.createCollection('Winter Camp');
   await service.addTokenAsset({ name: 'Goblin', imagePath: 'goblin.webp', collection: 'winter-camp', tags: [] });
   const kept = await service.addTokenAsset({ name: 'Orc', imagePath: 'goblin.webp', collection: 'default', tags: [] });
+  const removeFolder = (folder: string): void => {
+    for (const path of [...files.keys()]) if (path.startsWith(`${folder}/`)) files.delete(path);
+    for (const path of [...folders]) if (path === folder || path.startsWith(`${folder}/`)) folders.delete(path);
+  };
 
-  expect(await service.forgetDeletedCollectionFolder('atlas-vtt/collections/winter-camp/tokens')).toBe(false);
-  expect(await service.forgetDeletedCollectionFolder('atlas-vtt/collections/winter-camp')).toBe(true);
+  removeFolder('atlas-vtt/collections/winter-camp');
+  await service.reconcileWithVault();
 
   expect((await service.getCollections()).map((c) => c.id)).toEqual(['default']);
   expect(await service.getAssets('winter-camp')).toEqual([]);
   expect((await service.getAssets('default')).map((asset) => asset.id)).toEqual([kept.id]);
 
-  expect(await service.forgetDeletedCollectionFolder('atlas-vtt/collections/default')).toBe(true);
+  // Without any collection folder the vault counts as not listed yet: nothing goes, the default folder comes back.
+  removeFolder('atlas-vtt/collections/default');
+  await service.reconcileWithVault();
   expect((await service.getCollections()).map((c) => [c.id, c.name])).toEqual([['default', 'Default']]);
-  expect(await service.getAssets('default')).toEqual([]);
+  expect((await service.getAssets('default')).map((asset) => asset.id)).toEqual([kept.id]);
+  expect(folders.has('atlas-vtt/collections/default/scenes')).toBe(true);
 });
 
 it('numbers collections that an older import left with the same name', async () => {
   const collection = (id: string): Record<string, unknown> => ({ id, uid: id, name: 'Default', version: 1, settings: { conditions: [] }, tags: {} });
   const metadata = { version: 2, assets: {}, collections: { 'default-2': collection('default-2'), default: collection('default') } };
-  const { app } = createInMemoryApp({ files: { 'atlas-vtt/.atlas-data/assets-metadata.json': JSON.stringify(metadata) } });
+  const { app } = createInMemoryApp({
+    files: { 'atlas-vtt/.atlas-data/assets-metadata.json': JSON.stringify(metadata) },
+    folders: ['atlas-vtt/collections/default-2'],
+  });
   const service = AssetService.getInstance(app as any);
   await service.initialize();
 

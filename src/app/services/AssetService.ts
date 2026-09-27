@@ -5,17 +5,16 @@ import { ensureAdapterFolder } from '../plugin/vaultFolders';
 import type { TokenStateSnapshot } from '../types';
 import type { CellCoord, EncounterFormation } from '../encounters/encounterFormation';
 import { getDataFilePath } from '../utils/dataFileMigration';
-import { mapStrings } from '../utils/mapStrings';
 import { SerialLock } from '../utils/serialLock';
 import { preserveUnreadableMetadata, readStoredMetadata, type StoredMetadata } from './assetMetadataFile';
 import { collectionNameKey, freeCollectionId, uniqueCollectionName } from './collectionNaming';
+import { collectionIdOfFolder, COLLECTIONS_DIR, GLOBAL_ASSETS_DIR, ATLAS_VTT_DIR } from './assetPaths';
+import { createCollectionRecord, forgetCollection, moveCollectionRecord, numberedCollectionName, prettifyIdentifier } from './collectionRecords';
+import { assetFilePath, groupTokenRefs } from './vault-sync/assetFiles';
+import { reconcileIndex, type VaultReconciliation } from './vault-sync/reconcileIndex';
+import { listVault, readVault } from './vault-sync/vaultListing';
 import type { CollectionSettings } from '../types/collectionSettingsTypes';
-import {
-  isLegacyTokenRecord,
-  isRecord,
-  parseGroupTokenRefs,
-  type LegacyAssetMetadata,
-} from './assetMetadataGuards';
+import { isLegacyTokenRecord, isRecord, type LegacyAssetMetadata } from './assetMetadataGuards';
 import { groupLegacyTags, hasAssetTag, tagGroupOf, tagKey, type TagGroup } from './tagGroups';
 
 export interface BaseAsset {
@@ -148,11 +147,9 @@ export type AssetUpdates = AssetUpdatesOf<Asset>;
 
 export type GroupAsset = EncounterAsset | PlayerAsset;
 
-/** Token lists of a group asset: the top-level one and the copy inside its JSON payload. */
-export function groupTokenRefs(asset: GroupAsset): GroupTokenRef[] {
-  if (Array.isArray(asset.tokens)) return asset.tokens;
-  return Array.isArray(asset.data?.tokens) ? asset.data.tokens : [];
-}
+export { groupTokenRefs };
+export { ATLAS_VTT_DIR, COLLECTIONS_DIR, GLOBAL_ASSETS_DIR };
+export type { VaultReconciliation };
 
 export interface TagMetadata {
   id: string;
@@ -204,9 +201,6 @@ export interface CollectionImportCommit {
   remove: readonly string[];
 }
 
-export const ATLAS_VTT_DIR = 'atlas-vtt';
-export const COLLECTIONS_DIR = `${ATLAS_VTT_DIR}/collections`;
-export const GLOBAL_ASSETS_DIR = `${ATLAS_VTT_DIR}/assets`;
 const ASSETS_METADATA_PATH = getDataFilePath(`${ATLAS_VTT_DIR}/assets-metadata.json`);
 const LEGACY_ASSETS_METADATA_PATH = `${ATLAS_VTT_DIR}/assets-metadata.json`;
 /** A sync tool may be rewriting the index; a few more reads ride that out. */
@@ -214,13 +208,6 @@ const METADATA_READ_OPTIONS = { retries: 3, retryDelayMs: 200 };
 
 /** Tags are keyed by their lower-case, hyphenated name. */
 const tagIdOf = (name: string): string => name.trim().toLowerCase().replace(/\s+/g, '-');
-
-/** The id of a collection folder (`atlas-vtt/collections/goblins` → `goblins`), or null for any other path. */
-function collectionIdOfFolder(path: string): string | null {
-  const prefix = `${COLLECTIONS_DIR}/`;
-  const id = path.startsWith(prefix) ? path.slice(prefix.length) : '';
-  return id && !id.includes('/') ? id : null;
-}
 
 export class AssetService {
   private static instance: AssetService | null = null;
@@ -232,6 +219,7 @@ export class AssetService {
   /** Metadata writes, in the order they were requested. */
   private readonly writes = new SerialLock();
   private saveCount = 0;
+  private readonly reconciledListeners = new Set<(result: VaultReconciliation) => void>();
 
   private constructor(app: App) {
     this.app = app;
@@ -273,7 +261,7 @@ export class AssetService {
   private reconcileOnceVaultIsListed(): Promise<void> {
     const reconciled = new Promise<void>((resolve) => {
       this.app.workspace.onLayoutReady(() => {
-        resolve(this.indexLock.run(() => this.reconcileMetadataWithVault()).catch((error: unknown) => {
+        resolve(this.reconcileWithVault().then(() => undefined, (error: unknown) => {
           console.error('[AssetService] Checking the index against the vault failed:', error);
         }));
       });
@@ -343,26 +331,7 @@ export class AssetService {
   }
 
   private getAssetPath(asset: Asset): string {
-    const collectionPath = `${COLLECTIONS_DIR}/${asset.collection}`;
-    
-    switch (asset.type) {
-      case 'token':
-        return asset.imagePath; // This will be in the global assets folder
-      case 'map':
-        return `${collectionPath}/maps/${asset.id}.json`; // JSON metadata file for the map
-      case 'note':
-        return asset.notePath;
-      case 'statblock':
-        return asset.filePath || `${collectionPath}/statblocks/${asset.id}.json`;
-      case 'character':
-        return asset.filePath || `${collectionPath}/characters/${asset.id}.json`;
-      case 'scene':
-        return asset.filePath || `${collectionPath}/scenes/${asset.id}.json`;
-      case 'encounter':
-        return asset.filePath || `${collectionPath}/encounters/${asset.id}.json`;
-      case 'player':
-        return asset.filePath || `${collectionPath}/players/${asset.id}.json`;
-    }
+    return assetFilePath(asset);
   }
 
   private readStoredMetadata(): Promise<StoredMetadata> {
@@ -452,405 +421,6 @@ export class AssetService {
     };
   }
 
-  private prettifyIdentifier(identifier: string): string {
-    const words = identifier
-      .replace(/[-_]+/g, ' ')
-      .trim()
-      .split(/\s+/)
-      .filter(Boolean);
-
-    if (words.length === 0) {
-      return identifier;
-    }
-
-    return words
-      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-      .join(' ');
-  }
-
-  private createCollectionMetadata(id: string): CollectionMetadata {
-    const now = Date.now();
-    const name = id === 'default' ? 'Default' : this.numberedCollectionName(this.prettifyIdentifier(id));
-    return {
-      id,
-      uid: crypto.randomUUID(),
-      version: 1,
-      name,
-      description: `${name} collection`,
-      tags: {},
-      settings: { conditions: [] },
-      createdAt: now,
-      modifiedAt: now
-    };
-  }
-
-  private getCollectionIdFromPath(path: string): string | null {
-    const match = path.match(/^atlas-vtt\/collections\/([^/]+)\//);
-    return match?.[1] ?? null;
-  }
-
-  private createRecoveredId(prefix: string, seed: string): string {
-    let hash = 0;
-    for (let i = 0; i < seed.length; i++) {
-      hash = ((hash << 5) - hash) + seed.charCodeAt(i);
-      hash |= 0;
-    }
-    return `${prefix}-recovered-${Math.abs(hash).toString(36)}`;
-  }
-
-  private fileNameWithoutExtension(path: string): string {
-    const parts = path.split('/');
-    const fileName = parts[parts.length - 1] ?? path;
-    return fileName.replace(/\.[^.]+$/, '');
-  }
-
-  private async readJsonFile(file: TFile): Promise<unknown> {
-    try {
-      const content = await this.app.vault.read(file);
-      return JSON.parse(content);
-    } catch {
-      return null;
-    }
-  }
-
-  private normalizeTagArray(tags: unknown): string[] {
-    if (!Array.isArray(tags)) return [];
-    return tags.filter((tag): tag is string => typeof tag === 'string');
-  }
-
-  private isRecoverableImagePath(path: string): boolean {
-    return /\.(png|jpe?g|webp|gif)$/i.test(path);
-  }
-
-  private stripGeneratedTokenFileSuffix(baseName: string): string {
-    return baseName
-      .replace(/[-_]\d{10,}[-_][a-z0-9]{4,}$/i, '')
-      .replace(/[-_]\d{10,}$/i, '');
-  }
-
-  private deriveRecoveredTokenName(path: string): string {
-    const baseName = this.fileNameWithoutExtension(path);
-    const cleanedBase = this.stripGeneratedTokenFileSuffix(baseName);
-    return this.prettifyIdentifier(cleanedBase || baseName);
-  }
-
-  private recoverTokenAssetsFromVaultFiles(vaultFiles: TFile[]): TokenAsset[] {
-    if (!this.metadata) {
-      return [];
-    }
-
-    const now = Date.now();
-    const recovered: TokenAsset[] = [];
-    const existingTokenImagePaths = new Set<string>();
-    const encounterOrPlayerTokenPathToCollection = new Map<string, string>();
-
-    for (const asset of Object.values(this.metadata.assets)) {
-      if (asset.type === 'token') {
-        if (asset.imagePath) {
-          existingTokenImagePaths.add(asset.imagePath);
-        }
-        continue;
-      }
-
-      if (asset.type === 'encounter' || asset.type === 'player') {
-        for (const token of groupTokenRefs(asset)) {
-          if (token && typeof token.imagePath === 'string' && token.imagePath.length > 0) {
-            encounterOrPlayerTokenPathToCollection.set(token.imagePath, asset.collection || 'default');
-          }
-        }
-      }
-    }
-
-    for (const file of vaultFiles) {
-      const path = file.path;
-      if (!this.isRecoverableImagePath(path)) {
-        continue;
-      }
-      if (existingTokenImagePaths.has(path)) {
-        continue;
-      }
-
-      const collectionTokenMatch = path.match(
-        /^atlas-vtt\/collections\/([^/]+)\/(?:.+\/)?tokens\/.+$/i
-      );
-
-      let collectionId: string | null = null;
-      if (collectionTokenMatch) {
-        collectionId = collectionTokenMatch[1]!;
-      } else if (encounterOrPlayerTokenPathToCollection.has(path)) {
-        collectionId = encounterOrPlayerTokenPathToCollection.get(path)!;
-      } else {
-        continue;
-      }
-
-      const recoveredAsset: TokenAsset = {
-        id: this.createRecoveredId('token', path),
-        type: 'token',
-        name: this.deriveRecoveredTokenName(path),
-        imagePath: path,
-        tags: [],
-        collection: collectionId,
-        createdAt: now,
-        modifiedAt: now
-      };
-
-      if (this.metadata.assets[recoveredAsset.id]) {
-        continue;
-      }
-
-      recovered.push(recoveredAsset);
-      existingTokenImagePaths.add(path);
-    }
-
-    return recovered;
-  }
-
-  private async recoverAssetsFromVaultFiles(vaultFiles: TFile[]): Promise<Asset[]> {
-    const recoveredAssets = new Map<string, Asset>();
-    const recoveredSceneMapPaths = new Set<string>();
-    const now = Date.now();
-
-    // Recover structured assets from their JSON files first.
-    for (const file of vaultFiles) {
-      const mapMatch = file.path.match(/^atlas-vtt\/collections\/([^/]+)\/maps\/([^/]+)\.json$/);
-      if (mapMatch) {
-        const collectionId = mapMatch[1]!;
-        const fallbackId = mapMatch[2]!;
-        const parsed = await this.readJsonFile(file);
-        if (!isRecord(parsed)) {
-          continue;
-        }
-        const mapFilePath = typeof parsed.mapFilePath === 'string' ? parsed.mapFilePath : '';
-        if (!mapFilePath) {
-          continue;
-        }
-        const createdAt = typeof parsed.createdAt === 'number' ? parsed.createdAt : now;
-        const modifiedAt = typeof parsed.modifiedAt === 'number' ? parsed.modifiedAt : createdAt;
-        const mapAsset: MapAsset = {
-          id: typeof parsed.id === 'string' && parsed.id.trim() ? parsed.id : fallbackId,
-          type: 'map',
-          name: typeof parsed.name === 'string' && parsed.name.trim()
-            ? parsed.name
-            : this.fileNameWithoutExtension(mapFilePath),
-          mapFilePath,
-          tags: this.normalizeTagArray(parsed.tags),
-          collection: collectionId,
-          createdAt,
-          modifiedAt
-        };
-        recoveredAssets.set(mapAsset.id, mapAsset);
-        continue;
-      }
-
-      const typedMatch = file.path.match(/^atlas-vtt\/collections\/([^/]+)\/(scenes|encounters|players|characters|statblocks)\/(.+)\.json$/);
-      if (!typedMatch) {
-        continue;
-      }
-
-      const collectionId = typedMatch[1]!;
-      const folderType = typedMatch[2]!;
-      const assetId = this.fileNameWithoutExtension(file.path);
-      const parsed = await this.readJsonFile(file);
-      const parsedObject = isRecord(parsed) ? parsed : {};
-      const createdAt = typeof parsedObject.createdAt === 'number' ? parsedObject.createdAt : now;
-      const modifiedAt = typeof parsedObject.modifiedAt === 'number' ? parsedObject.modifiedAt : createdAt;
-      const tags = this.normalizeTagArray(parsedObject.tags);
-
-      if (folderType === 'scenes') {
-        const parsedMapPath = typeof parsedObject.mapPath === 'string' ? parsedObject.mapPath : '';
-        const mapPath = parsedMapPath || file.path.replace(/\.json$/, '.atlasmap');
-        if (mapPath) {
-          recoveredSceneMapPaths.add(mapPath);
-        }
-        const sceneAsset: SceneAsset = {
-          id: assetId,
-          type: 'scene',
-          name: typeof parsedObject.name === 'string' && parsedObject.name.trim()
-            ? parsedObject.name
-            : this.fileNameWithoutExtension(mapPath || assetId),
-          filePath: file.path,
-          tags,
-          collection: collectionId,
-          createdAt,
-          modifiedAt,
-          data: {
-            ...parsedObject,
-            mapPath
-          }
-        };
-        recoveredAssets.set(sceneAsset.id, sceneAsset);
-        continue;
-      }
-
-      const base: BaseAsset = {
-        id: assetId,
-        name: typeof parsedObject.name === 'string' && parsedObject.name.trim()
-          ? parsedObject.name
-          : this.prettifyIdentifier(assetId),
-        filePath: file.path,
-        tags,
-        collection: collectionId,
-        createdAt,
-        modifiedAt
-      };
-      recoveredAssets.set(assetId, this.recoverJsonAsset(folderType, base, parsedObject));
-    }
-
-    // Recover scene assets directly from .atlasmap files that have no matching scene JSON.
-    for (const file of vaultFiles) {
-      const sceneFileMatch = file.path.match(/^atlas-vtt\/collections\/([^/]+)\/(?:.+\/)?scenes\/([^/]+)\.atlasmap$/);
-      if (!sceneFileMatch) {
-        continue;
-      }
-
-      const collectionId = sceneFileMatch[1]!;
-      if (recoveredSceneMapPaths.has(file.path)) {
-        continue;
-      }
-
-      const sceneName = this.fileNameWithoutExtension(file.path);
-      const sceneId = this.createRecoveredId('scene', file.path);
-      if (recoveredAssets.has(sceneId)) {
-        continue;
-      }
-
-      const recoveredScene: SceneAsset = {
-        id: sceneId,
-        type: 'scene',
-        name: sceneName,
-        tags: [],
-        collection: collectionId,
-        createdAt: now,
-        modifiedAt: now,
-        data: {
-          mapPath: file.path
-        }
-      };
-      recoveredAssets.set(sceneId, recoveredScene);
-    }
-
-    return Array.from(recoveredAssets.values());
-  }
-
-  /** Rebuilds a JSON-backed asset from its own data file (the file holds the asset's `data` payload). */
-  private recoverJsonAsset(folderType: string, base: BaseAsset, payload: Record<string, unknown>): Asset {
-    if (folderType === 'encounters' || folderType === 'players') {
-      const tokens = parseGroupTokenRefs(payload.tokens);
-      return {
-        ...base,
-        type: folderType === 'encounters' ? 'encounter' : 'player',
-        tokens,
-        data: { ...payload, tokens }
-      };
-    }
-    return { ...base, type: folderType === 'characters' ? 'character' : 'statblock', data: payload };
-  }
-
-  private async reconcileMetadataWithVault(): Promise<void> {
-    if (!this.metadata || typeof this.app.vault.getFiles !== 'function') {
-      return;
-    }
-
-    const vaultFiles = this.app.vault.getFiles();
-    if (!vaultFiles || vaultFiles.length === 0) {
-      return;
-    }
-    const vaultFilePaths = new Set(vaultFiles.map((file) => file.path));
-    const encounterOrPlayerTokenRefs = new Set<string>();
-    for (const asset of Object.values(this.metadata.assets)) {
-      if (asset.type !== 'encounter' && asset.type !== 'player') {
-        continue;
-      }
-      for (const token of groupTokenRefs(asset)) {
-        if (token && typeof token.imagePath === 'string' && token.imagePath.length > 0) {
-          encounterOrPlayerTokenRefs.add(token.imagePath);
-        }
-      }
-    }
-
-    let needsSave = false;
-
-    if (!this.metadata.collections.default) {
-      this.metadata.collections.default = this.createCollectionMetadata('default');
-      needsSave = true;
-    }
-
-    // Register collection IDs that exist on disk but are missing in metadata.
-    for (const file of vaultFiles) {
-      const collectionId = this.getCollectionIdFromPath(file.path);
-      if (!collectionId || this.metadata.collections[collectionId]) {
-        continue;
-      }
-      this.metadata.collections[collectionId] = this.createCollectionMetadata(collectionId);
-      needsSave = true;
-    }
-
-    // If metadata was wiped, rebuild a usable index from persisted files.
-    if (Object.keys(this.metadata.assets).length === 0) {
-      const recoveredAssets = await this.recoverAssetsFromVaultFiles(vaultFiles);
-      if (recoveredAssets.length > 0) {
-        for (const asset of recoveredAssets) {
-          this.metadata.assets[asset.id] = asset;
-        }
-        needsSave = true;
-      }
-    }
-
-    // Remove stale token metadata entries that no longer point to an existing file.
-    for (const [id, asset] of Object.entries(this.metadata.assets)) {
-      if (asset.type !== 'token') {
-        continue;
-      }
-      const imagePath = asset.imagePath;
-      const isCollectionTokenPath = typeof imagePath === 'string' &&
-        /^atlas-vtt\/collections\/[^/]+\/(?:.+\/)?tokens\/.+$/i.test(imagePath);
-      const isEncounterOrPlayerThumbnail = typeof imagePath === 'string' && (
-        imagePath.startsWith(`${GLOBAL_ASSETS_DIR}/encounter-thumbnails/`) ||
-        imagePath.startsWith(`${GLOBAL_ASSETS_DIR}/player-thumbnails/`)
-      );
-      const isRecoveredId = id.startsWith('token-recovered-');
-      const isAllowedRecoveredGlobalToken = !!imagePath && encounterOrPlayerTokenRefs.has(imagePath);
-
-      // The file list can lag behind the disk, so a token is dropped only when its image is really gone.
-      if (!imagePath || (!vaultFilePaths.has(imagePath) && !(await this.app.vault.adapter.exists(imagePath)))) {
-        delete this.metadata.assets[id];
-        needsSave = true;
-        continue;
-      }
-
-      // Clean up previously over-broad recovered entries from global assets.
-      if (
-        isEncounterOrPlayerThumbnail ||
-        (isRecoveredId && !isCollectionTokenPath && !isAllowedRecoveredGlobalToken)
-      ) {
-        delete this.metadata.assets[id];
-        needsSave = true;
-        continue;
-      }
-
-      if (isRecoveredId && imagePath) {
-        const normalizedName = this.deriveRecoveredTokenName(imagePath);
-        if (normalizedName && asset.name !== normalizedName) {
-          asset.name = normalizedName;
-          asset.modifiedAt = Date.now();
-          needsSave = true;
-        }
-      }
-    }
-
-    const recoveredTokens = this.recoverTokenAssetsFromVaultFiles(vaultFiles);
-    if (recoveredTokens.length > 0) {
-      for (const token of recoveredTokens) {
-        this.metadata.assets[token.id] = token;
-      }
-      needsSave = true;
-    }
-
-    if (needsSave) {
-      await this.saveMetadata();
-    }
-  }
-
   /**
    * Ensures all collections have the uid, version, and settings fields.
    * Called at the end of loadMetadata() to migrate legacy collections.
@@ -883,7 +453,7 @@ export class AssetService {
     const defaultFirst = Object.values(this.metadata.collections)
       .sort((a, b) => Number(b.id === 'default') - Number(a.id === 'default'));
     for (const collection of defaultFirst) {
-      const stored = typeof collection.name === 'string' && collection.name.trim() ? collection.name : this.prettifyIdentifier(collection.id);
+      const stored = typeof collection.name === 'string' && collection.name.trim() ? collection.name : prettifyIdentifier(collection.id);
       const name = uniqueCollectionName(stored, takenNames);
       if (name !== collection.name) {
         collection.name = name;
@@ -914,7 +484,7 @@ export class AssetService {
         type: 'token',
         name: oldToken.name,
         imagePath: oldToken.imagePath,
-        tags: this.normalizeTagArray(oldToken.tags),
+        tags: Array.isArray(oldToken.tags) ? oldToken.tags.filter((tag): tag is string => typeof tag === 'string') : [],
         collection: 'default',
         createdAt,
         modifiedAt: typeof oldToken.modifiedAt === 'number' ? oldToken.modifiedAt : createdAt
@@ -1093,8 +663,9 @@ export class AssetService {
   /** Registers a record for a collection id that assets already point at. */
   private async ensureCollectionRecord(id: string): Promise<void> {
     if (this.metadata!.collections[id]) return;
-    this.metadata!.collections[id] = this.createCollectionMetadata(id);
+    // The folder first: a vault check forgets records whose folder is missing.
     await this.ensureCollectionStructure(id);
+    this.metadata!.collections[id] ??= createCollectionRecord(this.metadata, id);
     await this.saveMetadata();
   }
 
@@ -1120,56 +691,66 @@ export class AssetService {
     await this.ensureLoaded();
     const oldId = collectionIdOfFolder(oldPath);
     const newId = collectionIdOfFolder(newPath);
-    const collection = oldId ? this.metadata!.collections[oldId] : undefined;
-    if (!oldId || oldId === newId || !collection) return false;
-    if (!newId) return this.forgetDeletedCollectionFolder(oldPath);
+    if (!oldId || oldId === newId || !this.metadata!.collections[oldId]) return false;
 
-    delete this.metadata!.collections[oldId];
-    this.metadata!.collections[newId] = {
-      ...collection,
-      id: newId,
-      name: this.numberedCollectionName(this.prettifyIdentifier(newId), oldId),
-      modifiedAt: Date.now(),
-    };
-
-    const oldPrefix = `${oldPath}/`;
-    const newPrefix = `${newPath}/`;
-    const movePath = (text: string): string => (text.startsWith(oldPrefix) ? newPrefix + text.slice(oldPrefix.length) : text);
-    for (const [id, asset] of Object.entries(this.metadata!.assets)) {
-      const moved = mapStrings(asset, movePath);
-      this.metadata!.assets[id] = asset.collection === oldId ? { ...moved, collection: newId } : moved;
-    }
-
-    if (oldId === 'default') {
-      this.metadata!.collections.default = this.createCollectionMetadata('default');
-      await this.ensureDefaultCollection();
-    }
+    if (newId) moveCollectionRecord(this.metadata!, oldId, newId);
+    else forgetCollection(this.metadata!, oldId);
+    if (oldId === 'default') await this.ensureDefaultCollection();
     await this.saveMetadata();
     return true;
   }
 
   /**
-   * Follows a collection folder deleted in the vault: the collection and its
-   * assets leave the metadata. Files outside the folder, such as token images
-   * in the global assets folder, stay. Deleting the default folder starts an
-   * empty default collection. Returns whether `path` was a collection folder.
+   * Brings the index in line with the vault's files after changes Atlas did not
+   * make itself: collection folders renamed, added or deleted in the file
+   * manager or by a sync tool, scenes moved to another collection, asset files
+   * added, moved or deleted. `deleted` holds the paths deleted since the last
+   * check; only those remove records whose data lives in the index. Runs while
+   * no import or refresh holds the index.
    */
-  async forgetDeletedCollectionFolder(path: string): Promise<boolean> {
-    await this.ensureLoaded();
-    const id = collectionIdOfFolder(path);
-    if (!id || !this.metadata!.collections[id]) return false;
+  reconcileWithVault(deleted: ReadonlySet<string> = new Set()): Promise<VaultReconciliation> {
+    return this.indexLock.run(async () => {
+      await this.ensureLoaded();
+      const readings = await readVault(this.app, this.metadata!);
+      // From the listing on, nothing awaits until the index is changed, so no other edit interleaves.
+      const result = reconcileIndex(this.metadata!, listVault(this.app, readings, deleted));
+      if (result.changed) await this.saveMetadata();
+      for (const id of result.missingFolders) await this.ensureCollectionStructure(id);
+      await this.applyVaultFileOps(result);
+      if (result.changed) this.notifyReconciled(result);
+      return result;
+    });
+  }
 
-    for (const [assetId, asset] of Object.entries(this.metadata!.assets)) {
-      if (asset.collection === id) delete this.metadata!.assets[assetId];
+  /** Moves and trashes the JSON copies the vault check asked for; a failure only skips that file. */
+  private async applyVaultFileOps({ ops }: VaultReconciliation): Promise<void> {
+    for (const { from, to } of ops.moves) {
+      const file = this.app.vault.getFileByPath(from);
+      if (!file) continue;
+      try {
+        await this.ensureDirectory(to.slice(0, to.lastIndexOf('/')));
+        await this.app.fileManager.renameFile(file, to);
+      } catch (error) {
+        console.error(`[AssetService] Could not move ${from} to ${to}:`, error);
+      }
     }
-    delete this.metadata!.collections[id];
+    for (const path of ops.trash) await this.trashFileIfPresent(path);
+  }
 
-    if (id === 'default') {
-      this.metadata!.collections.default = this.createCollectionMetadata('default');
-      await this.ensureDefaultCollection();
+  /** Calls `listener` after every vault check that changed the index; returns the unsubscribe function. */
+  onReconciled(listener: (result: VaultReconciliation) => void): () => void {
+    this.reconciledListeners.add(listener);
+    return () => this.reconciledListeners.delete(listener);
+  }
+
+  private notifyReconciled(result: VaultReconciliation): void {
+    for (const listener of this.reconciledListeners) {
+      try {
+        listener(result);
+      } catch (error) {
+        console.error('[AssetService] A vault check listener failed:', error);
+      }
     }
-    await this.saveMetadata();
-    return true;
   }
 
   async deleteCollection(collectionId: string): Promise<void> {
@@ -1522,10 +1103,7 @@ export class AssetService {
   }
 
   private numberedCollectionName(name: string, exceptId?: string): string {
-    const taken = Object.values(this.metadata?.collections ?? {})
-      .filter((collection) => collection.id !== exceptId)
-      .map((collection) => collection.name);
-    return uniqueCollectionName(name, taken);
+    return numberedCollectionName(this.metadata, name, exceptId);
   }
 
   private findCollectionByName(name: string, exceptId?: string): CollectionMetadata | undefined {

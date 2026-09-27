@@ -5,7 +5,7 @@ vi.mock('../../src/app/plugin/atlasLeaves', () => ({ getLoadedAtlasView: () => n
 import { AssetService, type SceneAsset } from '../../src/app/services/AssetService';
 import { FileReferenceService } from '../../src/app/services/FileReferenceService';
 import { renameScene } from '../../src/app/services/sceneRename';
-import { rewriteMapReferences } from '../../src/app/services/renamedPaths';
+import { movedPathOf, rewriteMapReferences } from '../../src/app/services/renamedPaths';
 import { createInMemoryApp } from '../mocks/inMemoryVault';
 
 const scenes = 'atlas-vtt/collections/default/scenes';
@@ -92,10 +92,10 @@ describe('rewriteMapReferences', () => {
       pins: { p: { notePath: 'Bestiary/Goblin.md#Tactics' } },
     };
 
-    expect(rewriteMapReferences(objects, 'Bestiary/Goblin.md', 'Bestiary/Goblin Boss.md')).toBe(true);
+    expect(rewriteMapReferences(objects, movedPathOf([{ from: 'Bestiary/Goblin.md', to: 'Bestiary/Goblin Boss.md' }]))).toBe(true);
     expect(objects.tokens.a.statblockPath).toBe('Bestiary/Goblin Boss.md');
     expect(objects.pins.p.notePath).toBe('Bestiary/Goblin Boss.md#Tactics');
     expect(objects.tokens.b.imagePath).toBe('Art/orc.webp');
-    expect(rewriteMapReferences(objects, 'Nowhere.md', 'Elsewhere.md')).toBe(false);
+    expect(rewriteMapReferences(objects, movedPathOf([{ from: 'Nowhere.md', to: 'Elsewhere.md' }]))).toBe(false);
   });
 });
