@@ -305,6 +305,7 @@ export class ButtonComponent {
   constructor(public buttonEl: HTMLButtonElement) {}
   setButtonText(text: string): this { this.buttonEl.textContent = text; return this; }
   setCta(): this { this.buttonEl.classList.add('mod-cta'); return this; }
+  setDisabled(disabled: boolean): this { this.buttonEl.disabled = disabled; return this; }
   onClick(callback: () => unknown): this { this.buttonEl.addEventListener('click', () => void callback()); return this; }
 }
 

@@ -18,7 +18,9 @@ export interface NavigationSettings {
   inputMode: NavigationInputMode;
 }
 
-export type TutorialId = 'assets' | 'palette' | 'tokenStatblocks' | 'lootSettings' | 'lootRoller' | 'lootResults';
+/** Every tutorial Atlas has; the settings list those the user finished or skipped. */
+export const TUTORIAL_IDS = ['assets', 'palette', 'tokenStatblocks', 'lootSettings', 'lootRoller', 'lootResults'] as const;
+export type TutorialId = typeof TUTORIAL_IDS[number];
 
 export interface AtlasSettings {
   showChangelogOnUpdate: boolean;
@@ -242,6 +244,11 @@ export class SettingsService {
     if (this.settings.onboarding.tokenImported) return;
     this.settings.onboarding = { ...this.settings.onboarding, tokenImported: true };
     this.commit();
+  }
+
+  /** How many tutorials the user finished or skipped; either way they do not show again until reset. */
+  finishedTutorialCount(): number {
+    return TUTORIAL_IDS.filter((id) => this.settings.onboarding.completed[id]).length;
   }
 
   resetTutorials(): void {

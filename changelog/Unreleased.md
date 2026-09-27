@@ -27,6 +27,7 @@
 
 ## Improved
 
+- Settings → Getting started shows how many tutorials you finished or skipped, and Reset tutorials shows them all again. A tutorial you finish, skip or close with Escape stays hidden until you reset it.
 - The laser pointer looks like a laser: a glowing beam with a bright core that narrows as it fades, and a round spot at the pointer. It stays visible on light maps, where the old one almost disappeared. Pick its colour and size in the Move tool's menu (the arrow next to it): eight colours that stay distinguishable for colour-blind players, with sky blue, blue and white clear for every kind of colour blindness. It keeps the same size on screen at every zoom level, and Atlas remembers your choice for every map.
 
 ## Fixed
