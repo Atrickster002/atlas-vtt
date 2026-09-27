@@ -52,20 +52,23 @@
 
 // ── Suggestions under the search: keywords, then the values in view ─────────
 
+// Anchored at the field's end: the field sits at the header's end, the room is to its left.
 .atlas-search-suggestions {
   position: absolute;
   top: calc(100% + #{$spacing-xs});
-  left: 0;
+  right: 0;
   z-index: $z-popover;
   @include atlas-flex-col($gap: $spacing-xs);
-  min-width: max(100%, 280px);
-  max-width: 380px;
+  // As wide as the descriptions need, within the window; long ones wrap rather than being cut.
+  width: max-content;
+  min-width: max(100%, 320px);
+  max-width: min(600px, calc(100vw - 2 * #{$spacing-l}));
   padding: $spacing-xs;
   background: var(--menu-background);
   border: var(--menu-border-width, #{$border-width-s}) solid var(--menu-border-color);
   border-radius: $radius-xl;
   box-shadow: var(--menu-shadow, #{$shadow-md});
-  transform-origin: top left;
+  transform-origin: top right;
   transition: opacity 150ms $transition-ease-out, transform 150ms $transition-ease-out;
 
   @starting-style {
@@ -100,7 +103,7 @@
 .atlas-search-suggestions__list {
   display: grid;
   grid-template-columns: max-content 1fr;
-  max-height: 280px;
+  max-height: 360px;
   overflow-y: auto;
 }
 
@@ -109,13 +112,13 @@
   grid-column: 1 / -1;
   grid-template-columns: subgrid;
   align-items: baseline;
-  column-gap: $spacing-m;
+  column-gap: $spacing-l;
   min-height: $control-height;
-  padding: 0 $spacing-s;
+  padding: $spacing-xs $spacing-s;
   border-radius: $radius-m;
   color: var(--text-normal);
   font-size: $font-ui-small;
-  line-height: $control-height;
+  line-height: 1.5;
   cursor: pointer;
 
   &.atlas-active {
@@ -128,7 +131,7 @@
 }
 
 .atlas-search-suggestion__key {
-  @include atlas-truncate;
+  white-space: nowrap;
 }
 
 .atlas-search-suggestion__aliases {
@@ -139,7 +142,6 @@
 }
 
 .atlas-search-suggestion__detail {
-  @include atlas-truncate;
   color: var(--text-muted);
   font-size: $font-ui-smaller;
 }

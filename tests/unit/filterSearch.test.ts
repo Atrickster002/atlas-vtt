@@ -80,7 +80,7 @@ describe('suggestions', () => {
     const typeValues = filterSuggestions('t:b', 3, sources);
     expect(typeValues).toMatchObject({ mode: 'value', heading: 'Type', items: [{ label: 'beast', count: 2, insert: 'beast' }] });
     expect(filterSuggestions('source:', 7, sources)?.items).toEqual([{ kind: 'value', label: 'Monster Manual', insert: '"Monster Manual"', count: 1 }]);
-    expect(filterSuggestions('cr:1', 4, sources)?.items.map((item) => (item.kind === 'value' ? item.label : ''))).toEqual(['1/4', '1', '10']);
+    expect(filterSuggestions('cr:1', 4, sources)?.items.map((item) => (item.kind === 'value' ? item.label : ''))).toEqual(['1', '1/4', '10']);
     expect(filterSuggestions('cr:', 3, sources)?.hint).toMatch(/cr:1-3/);
     expect(filterSuggestions('tag:bo', 6, sources)?.items).toEqual([{ kind: 'value', label: 'Boss fight', insert: '"Boss fight"' }]);
   });

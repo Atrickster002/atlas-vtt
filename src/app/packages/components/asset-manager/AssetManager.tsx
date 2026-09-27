@@ -56,6 +56,13 @@ export default function AssetManager({ isOpen, onClose, initialTab, onExitComple
   const visibleIds = useRef<VisibleIds>({ assets: [], folders: [] });
   const sel = useSelectionHandlers(visibleIds, data.folders, activeTab, isOpen);
 
+  // The open folder, the selection and the tags belong to the collection they were chosen in.
+  const changeCollection = (collectionId: string | null): void => {
+    if (collectionId === selectedCollection) return;
+    setSelectedCollection(collectionId);
+    sel.resetForTab();
+  };
+
   const filterDefinitions = useCollectionFilterDefinitions(data.app, data.assetService, selectedCollection);
   const searchKeywords = useSearchKeywords(activeTab, filterDefinitions, search);
 
@@ -176,7 +183,7 @@ export default function AssetManager({ isOpen, onClose, initialTab, onExitComple
                 assets={data.assets}
                 collections={data.collections}
                 selectedCollection={selectedCollection}
-                onSelectCollection={setSelectedCollection}
+                onSelectCollection={changeCollection}
                 onManageTags={() => tags.setIsTagManagerOpen(true)}
                 onEditCollectionSettings={crud.setSettingsModalCollectionId}
                 onExportCollection={() => { void crud.handleExportCollection(); }}

@@ -40,10 +40,13 @@ let view: { assets: AnyAsset[]; folders: Folder[] } = { assets: TOKENS, folders:
 const assetService = { getCollectionSettings: () => ({ conditions: [] }) };
 
 vi.mock('../../src/app/packages/components/asset-manager/hooks/useAssetData', () => ({
-  useAssetData: () => ({
-    app, assetService, folders: view.folders, assets: view.assets,
+  // The second collection holds two characters at its root.
+  useAssetData: (_tab: string, collection: string | null) => ({
+    app, assetService,
+    folders: collection === 'other' ? [] : view.folders,
+    assets: collection === 'other' ? [token('Acid Burrower'), token('Dryad')] : view.assets,
     availableTags: [{ id: 'forest', name: 'Forest' }],
-    collections: [{ id: 'default', uid: 'u-default', name: 'Default' }],
+    collections: [{ id: 'default', uid: 'u-default', name: 'Default' }, { id: 'other', uid: 'u-other', name: 'Other' }],
     assetCounts: { scenes: 0, maps: 0, encounters: 0, tokens: TOKENS.length },
   }),
 }));
@@ -54,8 +57,11 @@ vi.mock('../../src/app/packages/components/asset-manager/hooks/useStatblockLink'
 vi.mock('../../src/app/packages/components/asset-manager/hooks/useAssetManagerEffects', () => ({ useAssetManagerEffects: () => {} }));
 vi.mock('../../src/app/packages/components/asset-manager/components/ModalLayer', () => ({ ModalLayer: () => null }));
 vi.mock('../../src/app/packages/components/asset-manager/components/Content', () => ({
-  Content: ({ assets }: { assets: AnyAsset[] }) => (
-    <ul aria-label="Assets">{assets.map((asset) => <li key={asset.id}>{asset.name}</li>)}</ul>
+  Content: ({ assets, folders, onFolderDoubleClick }: { assets: AnyAsset[]; folders: Folder[]; onFolderDoubleClick: (id: string) => void }) => (
+    <>
+      <ul aria-label="Assets">{assets.map((asset) => <li key={asset.id}>{asset.name}</li>)}</ul>
+      {folders.map((folder) => <button key={folder.id} onClick={() => onFolderDoubleClick(folder.id)}>{`Open ${folder.name}`}</button>)}
+    </>
   ),
 }));
 
@@ -199,4 +205,23 @@ it('offers the statblocks of the subfolders where the open folder only holds fol
   expect(within(types).getAllByRole('button').map((button) => button.textContent)).toEqual(['beast2', 'dragon1', 'humanoid1']);
   fireEvent.click(within(types).getByRole('button', { name: /^beast/ }), { detail: 1 });
   expect(shown()).toEqual(['Bear', 'Wolf']);
+});
+
+it('starts at the root of a collection it switches to, also with filters active', async () => {
+  view = {
+    assets: TOKENS.map((asset) => ({ ...asset, folderId: 'monsters' })),
+    folders: [{ id: 'monsters', name: 'Monsters', type: 'tokens', parentId: null, path: 'monsters' }],
+  };
+  await openManager();
+  fireEvent.click(screen.getByRole('button', { name: 'Open Monsters' }));
+  expect(shown()).toHaveLength(5);
+  type('cr:1');
+  fireEvent.keyDown(search(), { key: 'Enter' });
+  expect(shown()).toEqual(['Bear']);
+
+  fireEvent.click(document.querySelector('.atlas-collection-dropdown-trigger')!);
+  fireEvent.click(screen.getByRole('button', { name: 'Other' }));
+  expect(chips()).toEqual(['Challenge rating1']);
+  fireEvent.click(screen.getByRole('button', { name: 'Reset' }));
+  expect(shown()).toEqual(['Acid Burrower', 'Dryad']);
 });

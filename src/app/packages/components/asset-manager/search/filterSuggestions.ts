@@ -80,7 +80,10 @@ export function filterSuggestions(text: string, cursor: number, sources: Suggest
     return items.length > 0 ? { mode: 'keyword', heading: negated ? 'Exclude' : 'Filter by', items, context } : null;
   }
   const { keyword } = context;
-  const items = valueItems(keyword, context.fragment, sources);
+  // A value typed in full comes first, so Enter takes it rather than a longer one ("1", not "1/4").
+  const typed = context.fragment.toLowerCase();
+  const items = valueItems(keyword, context.fragment, sources)
+    .sort((a, b) => Number(b.kind === 'value' && b.label.toLowerCase() === typed) - Number(a.kind === 'value' && a.label.toLowerCase() === typed));
   const typedFreely = keyword.kind === 'name' || keyword.kind === 'range';
   const label = keyword.description.split(':')[0]!;
   return {

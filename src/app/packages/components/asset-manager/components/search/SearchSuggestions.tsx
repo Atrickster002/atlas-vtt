@@ -23,7 +23,7 @@ function SuggestionRow({ item }: { item: FilterSuggestion }): React.JSX.Element 
           <code>{prefix}:</code>
           {aliases.length > 0 && <span className="atlas-search-suggestion__aliases">{aliases.map((alias) => `${alias}:`).join(' ')}</span>}
         </span>
-        <span className="atlas-search-suggestion__detail">{description.split(':')[0]}</span>
+        <span className="atlas-search-suggestion__detail">{description}</span>
       </>
     );
   }
