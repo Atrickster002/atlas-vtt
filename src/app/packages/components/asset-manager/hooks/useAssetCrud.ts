@@ -252,7 +252,8 @@ export function useAssetCrud(
       if (token.statblockPath) draft.statblockPath = token.statblockPath;
       return draft;
     });
-    const saved = await saveEncounter(app, assetService, drafts);
+    const collectionId = selectedCollection || assetService.getDefaultCollectionId();
+    const saved = await saveEncounter(app, assetService, collectionId, drafts);
     if (saved && activeTab === 'encounters') await loadAssetsForActiveTab();
   };
 

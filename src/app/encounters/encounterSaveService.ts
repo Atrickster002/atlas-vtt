@@ -73,13 +73,14 @@ async function saveThumbnailToVault(app: ObsidianApp, tokens: EncounterTokenDraf
 }
 
 /**
- * Prompt for a name and persist a group of tokens as an encounter asset.
+ * Prompt for a name and persist a group of tokens as an encounter asset in `collectionId`.
  * Pass `formation` when the tokens carry cell/offset data captured from a map.
  * Resolves with the created asset, or null when the user cancelled or saving failed.
  */
 export async function saveEncounter(
   app: ObsidianApp,
   assetService: AssetService,
+  collectionId: string,
   tokens: EncounterTokenDraft[],
   formation?: EncounterFormation,
 ): Promise<EncounterAsset | null> {
@@ -95,6 +96,7 @@ export async function saveEncounter(
     const thumbnailUrl = await saveThumbnailToVault(app, tokens);
     const encounter = await assetService.createEncounter({
       name: encounterName,
+      collection: collectionId,
       tokens,
       ...(formation ? { formation } : {}),
       difficulty: 'medium',

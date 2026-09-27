@@ -1299,12 +1299,11 @@ export class AssetService {
     await this.updateAsset(id, updates);
   }
 
-  async createEncounter(encounterData: Omit<EncounterAsset, 'id' | 'createdAt' | 'modifiedAt' | 'type' | 'collection'>): Promise<EncounterAsset> {
+  async createEncounter(encounterData: Omit<EncounterAsset, 'id' | 'createdAt' | 'modifiedAt' | 'type'>): Promise<EncounterAsset> {
     const encounter: EncounterAsset = {
       ...encounterData,
       ...this.createAssetIdentity('encounter'),
       type: 'encounter',
-      collection: defaultCollectionIdOf(this.metadata),
       data: {
         ...encounterData.data,
         tokens: encounterData.tokens,
