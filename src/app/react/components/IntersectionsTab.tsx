@@ -6,6 +6,7 @@ import { isHexGridType } from '../../grid/hexGeometry';
 import type { MeasurementPair } from '../../pixi/gridAlignmentMath';
 import {
   useCrosshairCursor,
+  useCanvasClick,
   useArrowNudge,
   useCursorPreview,
   useAlignmentPreview,
@@ -79,67 +80,35 @@ export function IntersectionsTab({ controller, view, result, setResult, gridType
   }, [step, isPreviewing, quadrantIndex, isPlacingA, controller]);
 
   // -----------------------------------------------------------------------
-  // Viewport click handling (pointerup after short press — lets pan through)
+  // Viewport clicks
   // -----------------------------------------------------------------------
 
-  useEffect(() => {
-    if (isPreviewing || !controller) return;
+  useCanvasClick(!isPreviewing && controller !== null, (e) => {
+    if (!controller) return;
+    const world = controller.screenToWorld(e.clientX, e.clientY);
 
-    const DRAG_THRESHOLD = 5;
-    let leftDown = false;
-    let startX = 0;
-    let startY = 0;
+    if (isPlacingA) {
+      const mapBounds = controller.getMapBounds();
+      if (mapBounds && !isPointInQuadrant(world, quadrantIndex, mapBounds)) return;
 
-    const onDown = (e: PointerEvent): void => {
-      if (e.button !== 0 || e.ctrlKey) return;
-      if ((e.target as HTMLElement)?.tagName !== 'CANVAS') return;
-      leftDown = true;
-      startX = e.clientX;
-      startY = e.clientY;
-    };
+      controller.showMeasurementCrosshair(step, world);
+      setCurrentPointA(world);
+      setStep(s => s + 1);
+      return;
+    }
 
-    const onUp = (e: PointerEvent): void => {
-      if (!leftDown || e.button !== 0) return;
-      leftDown = false;
+    if (currentPointA && !isHex) world.y = currentPointA.y;
+    controller.showMeasurementCrosshair(step, world);
 
-      if ((e.target as HTMLElement)?.tagName !== 'CANVAS') return;
+    const pairIndex = Math.floor(step / 2);
+    if (currentPointA) {
+      controller.showMeasurementLine(pairIndex, currentPointA, world);
+      setMeasurements(prev => [...prev, { a: currentPointA, b: world }]);
+    }
 
-      const dx = Math.abs(e.clientX - startX);
-      const dy = Math.abs(e.clientY - startY);
-      if (dx > DRAG_THRESHOLD || dy > DRAG_THRESHOLD) return;
-
-      const world = controller.screenToWorld(e.clientX, e.clientY);
-
-      if (isPlacingA) {
-        const mapBounds = controller.getMapBounds();
-        if (mapBounds && !isPointInQuadrant(world, quadrantIndex, mapBounds)) return;
-
-        controller.showMeasurementCrosshair(step, world);
-        setCurrentPointA(world);
-        setStep(s => s + 1);
-      } else {
-        if (currentPointA && !isHex) world.y = currentPointA.y;
-
-        controller.showMeasurementCrosshair(step, world);
-
-        const pairIndex = Math.floor(step / 2);
-        if (currentPointA) {
-          controller.showMeasurementLine(pairIndex, currentPointA, world);
-          setMeasurements(prev => [...prev, { a: currentPointA, b: world }]);
-        }
-
-        setCurrentPointA(null);
-        setStep(s => s + 1);
-      }
-    };
-
-    window.addEventListener('pointerdown', onDown, true);
-    window.addEventListener('pointerup', onUp, true);
-    return () => {
-      window.removeEventListener('pointerdown', onDown, true);
-      window.removeEventListener('pointerup', onUp, true);
-    };
-  }, [step, isPreviewing, isPlacingA, quadrantIndex, currentPointA, controller]);
+    setCurrentPointA(null);
+    setStep(s => s + 1);
+  });
 
   // -----------------------------------------------------------------------
   // Individual cell sizes for display

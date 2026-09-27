@@ -6,10 +6,30 @@ import type { AlignmentResult } from '../../pixi/GridAlignmentController';
 import type { GridType } from '../../grid/GridSystem';
 import { detectGridFromSprite } from '../../pixi/gridDetection/detectGrid';
 import { describeGridType } from '../hooks/useGridAlignmentEffects';
+import type { AlignmentTabProps } from '../hooks/useGridAlignmentEffects';
 import { IntersectionsTab } from './IntersectionsTab';
 import { FreeSizeTab } from './FreeSizeTab';
+import { FreehandTab } from './FreehandTab';
 import { CloseButton } from '../../packages/components/primitives/CloseButton';
 import { LabelTooltip } from '../../packages/components/primitives/tooltip';
+
+// ---------------------------------------------------------------------------
+// Tabs
+// ---------------------------------------------------------------------------
+
+type AlignmentTab = 'intersections' | 'quick' | 'freehand';
+
+const ALIGNMENT_TABS: ReadonlyArray<{ id: AlignmentTab; label: string }> = [
+  { id: 'intersections', label: 'Intersections' },
+  { id: 'quick', label: 'Quick' },
+  { id: 'freehand', label: 'Freehand' },
+];
+
+const TAB_COMPONENTS: Record<AlignmentTab, (props: AlignmentTabProps) => React.ReactElement> = {
+  intersections: IntersectionsTab,
+  quick: FreeSizeTab,
+  freehand: FreehandTab,
+};
 
 // ---------------------------------------------------------------------------
 // Props
@@ -28,7 +48,7 @@ export function GridAlignmentOverlay({ onClose }: GridAlignmentOverlayProps): Re
   const store = view?.atlasStore;
   const gridType: GridType = store?.getState().grid?.type ?? 'square';
 
-  const [activeTab, setActiveTab] = useState<'intersections' | 'quick'>('intersections');
+  const [activeTab, setActiveTab] = useState<AlignmentTab>('intersections');
   const [result, setResult] = useState<AlignmentResult | null>(null);
   const [resetKey, setResetKey] = useState(0);
   const [, setControllerVersion] = useState(0);
@@ -171,7 +191,7 @@ export function GridAlignmentOverlay({ onClose }: GridAlignmentOverlayProps): Re
   // Tab switching — clean up visuals from previous tab
   // -----------------------------------------------------------------------
 
-  const handleTabChange = useCallback((tab: 'intersections' | 'quick'): void => {
+  const handleTabChange = useCallback((tab: AlignmentTab): void => {
     if (tab === activeTab) return;
     controllerRef.current?.cleanupVisuals();
     setResult(null);
@@ -201,6 +221,8 @@ export function GridAlignmentOverlay({ onClose }: GridAlignmentOverlayProps): Re
   // Render
   // -----------------------------------------------------------------------
 
+  const ActiveTab = TAB_COMPONENTS[activeTab];
+
   return (
     <div className="atlas-vtt-plugin atlas-vtt-root" style={{ pointerEvents: 'none' }}>
       <div className="atlas-grid-alignment-panel">
@@ -214,18 +236,15 @@ export function GridAlignmentOverlay({ onClose }: GridAlignmentOverlayProps): Re
 
         {/* Tab switcher */}
         <div className="atlas-grid-alignment-tabs">
-          <button
-            className={`atlas-grid-alignment-tab${activeTab === 'intersections' ? ' is-active' : ''}`}
-            onClick={() => handleTabChange('intersections')}
-          >
-            Intersections
-          </button>
-          <button
-            className={`atlas-grid-alignment-tab${activeTab === 'quick' ? ' is-active' : ''}`}
-            onClick={() => handleTabChange('quick')}
-          >
-            Quick
-          </button>
+          {ALIGNMENT_TABS.map(tab => (
+            <button
+              key={tab.id}
+              className={`atlas-grid-alignment-tab${activeTab === tab.id ? ' is-active' : ''}`}
+              onClick={() => handleTabChange(tab.id)}
+            >
+              {tab.label}
+            </button>
+          ))}
         </div>
 
         {/* Automatic detection from the map image; the tabs below stay available as the manual path */}
@@ -242,24 +261,14 @@ export function GridAlignmentOverlay({ onClose }: GridAlignmentOverlayProps): Re
         {detectionStatus && <p className="atlas-grid-alignment-hint">{detectionStatus}</p>}
 
         {/* Active tab content */}
-        {activeTab === 'intersections'
-          ? <IntersectionsTab
-              key={resetKey}
-              controller={controllerRef.current}
-              view={view}
-              result={result}
-              setResult={setResult}
-              gridType={gridType}
-            />
-          : <FreeSizeTab
-              key={resetKey}
-              controller={controllerRef.current}
-              view={view}
-              result={result}
-              setResult={setResult}
-              gridType={gridType}
-            />
-        }
+        <ActiveTab
+          key={resetKey}
+          controller={controllerRef.current}
+          view={view}
+          result={result}
+          setResult={setResult}
+          gridType={gridType}
+        />
 
         {/* Action buttons */}
         <div className="atlas-grid-alignment-actions">

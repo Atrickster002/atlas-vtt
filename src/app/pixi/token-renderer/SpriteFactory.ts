@@ -5,24 +5,23 @@ import { syncTokenArtwork } from './tokenArtwork';
  * Handles creation and management of token sprites and containers.
  */
 
-import { Container, Graphics, Sprite, Circle, Texture, CanvasSource, Assets } from 'pixi.js';
+import { Container, Graphics, Sprite, Circle, Texture, CanvasSource } from 'pixi.js';
 import type { ITokenSpriteFactory, TokenGroupContainer } from './types';
 import type { TokenEntity } from '../../types';
 import type { GridSystem } from '../../grid/GridSystem';
-import tokenRingImageUrl from '../../assets/token-ring.webp';
 import { destroyTree } from '../utils/destroyTree';
 import { getTokenRingOuterDiameter } from './tokenRingMetrics';
+import { loadedTokenRingTexture, loadTokenRingTexture } from './tokenRingTexture';
 import { computeTokenPixelSize, computeTokenStrokeWidth } from './tokenSizing';
 
 // Cached textures - generated once, reused for all tokens
 let cachedGlassTexture: Texture | null = null;
-let cachedTokenRingTexture: Texture | null = null;
-let tokenRingTextureLoadPromise: Promise<Texture | null> | null = null;
 
 export class SpriteFactory implements ITokenSpriteFactory {
   private gridSystem: GridSystem;
   public isPlayerView: boolean;
   private onTokenRingTextureReady: (() => void) | undefined;
+  private ringTextureLoad: Promise<Texture | null> | null = null;
 
   constructor(gridSystem: GridSystem, isPlayerView: boolean = false) {
     this.gridSystem = gridSystem;
@@ -157,45 +156,22 @@ export class SpriteFactory implements ITokenSpriteFactory {
   setTokenRingTextureReadyCallback(callback: (() => void) | undefined): void {
     this.onTokenRingTextureReady = callback;
 
-    if (callback && cachedTokenRingTexture && cachedTokenRingTexture !== Texture.EMPTY) {
+    if (callback && loadedTokenRingTexture()) {
       callback();
     }
   }
 
   preloadTokenRingTexture(): Promise<Texture | null> {
-    if (cachedTokenRingTexture && cachedTokenRingTexture !== Texture.EMPTY) {
-      return Promise.resolve(cachedTokenRingTexture);
-    }
+    const loaded = loadedTokenRingTexture();
+    if (loaded) return Promise.resolve(loaded);
 
-    if (!tokenRingTextureLoadPromise) {
-      tokenRingTextureLoadPromise = (async () => {
-        try {
-          const loadedTexture = await Assets.load<Texture>({
-            src: tokenRingImageUrl,
-            loadParser: 'loadTextures',
-            data: {
-              autoGenerateMipmaps: true,
-              scaleMode: 'linear',
-            },
-          });
-
-          if (loadedTexture instanceof Texture && loadedTexture !== Texture.EMPTY) {
-            cachedTokenRingTexture = loadedTexture;
-            this.onTokenRingTextureReady?.();
-            return loadedTexture;
-          }
-
-          return null;
-        } catch (error) {
-          console.error('[SpriteFactory] Failed to load textured token ring:', error);
-          return null;
-        } finally {
-          tokenRingTextureLoadPromise = null;
-        }
-      })();
-    }
-
-    return tokenRingTextureLoadPromise;
+    // One pending load per factory, so tokens created meanwhile announce the texture once.
+    this.ringTextureLoad ??= loadTokenRingTexture().then((texture) => {
+      this.ringTextureLoad = null;
+      if (texture) this.onTokenRingTextureReady?.();
+      return texture;
+    });
+    return this.ringTextureLoad;
   }
 
   createTokenRing(container: TokenGroupContainer, ringColor: string | null, tokenSizeOverride?: number): Sprite | Graphics | null {
@@ -244,12 +220,9 @@ export class SpriteFactory implements ITokenSpriteFactory {
   }
 
   private getTokenRingTexture(): Texture | null {
-    if (!cachedTokenRingTexture || cachedTokenRingTexture === Texture.EMPTY) {
-      void this.preloadTokenRingTexture();
-      return null;
-    }
-
-    return cachedTokenRingTexture;
+    const loaded = loadedTokenRingTexture();
+    if (!loaded) void this.preloadTokenRingTexture();
+    return loaded;
   }
 
   private createFallbackRing(container: Container, tokenSize: number, ringSize: number, ringTint: number): Graphics {

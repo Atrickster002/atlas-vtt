@@ -94,6 +94,8 @@ export class PixiRendererOrchestrator { // Renamed class
   private getViewportPositionHandler: ((e: WindowEventMap['get-viewport-position']) => void) | null = null;
   private eventBusUnsubscribers: Array<() => void> = [];
   private gridInitRetryTimeout: number | null = null;
+  /** Screen-space overlays that exist only for the DM, such as tool previews. */
+  private readonly dmScreenOverlays = new Set<Container>();
 
   private getSourceLeaf(): WorkspaceLeaf | null {
     return findAtlasLeafByViewId(this.obsApp.workspace, this.viewId);
@@ -669,6 +671,16 @@ export class PixiRendererOrchestrator { // Renamed class
     });
   }
 
+  /** Shows `overlay` above the map in screen space and never in the player view. Returns the function that removes it again. */
+  public addDmScreenOverlay(overlay: Container): () => void {
+    this.app.stage.addChild(overlay);
+    this.dmScreenOverlays.add(overlay);
+    return () => {
+      this.dmScreenOverlays.delete(overlay);
+      overlay.parent?.removeChild(overlay);
+    };
+  }
+
   public getGridOptions(): GridOptions | null {
     return this.gridSystem?.getOptions() || null;
   }
@@ -689,6 +701,7 @@ export class PixiRendererOrchestrator { // Renamed class
     layers.push(...(this.tokenRenderer?.getPlayerViewLayers(settings) ?? []));
     layers.push(...(this.fogRenderer?.getPlayerViewLayers() ?? []));
     layers.push(...(this.selectionManager?.getPlayerViewLayers() ?? []));
+    for (const overlay of this.dmScreenOverlays) layers.push({ layer: overlay, visible: false });
     const viewport = this.pixiAppManager.getViewport();
     const playerCamera = camera && viewport ? { target: viewport, camera } : undefined;
     captureWithLayerVisibility(layers, () => app.renderer.render(app.stage), capture, playerCamera);

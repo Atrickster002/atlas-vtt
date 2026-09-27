@@ -46,6 +46,9 @@ export interface GridOptions {
   isAligning?: boolean;
 }
 
+/** Colour of every grid preview while the grid is being aligned. */
+export const ALIGNMENT_GRID_COLOR = 0x00ff00;
+
 /**
  * Manages a static grid overlay that exactly matches a background sprite,
  * staying locked under pan/zoom by the Pixi‑Viewport container.
@@ -159,7 +162,7 @@ export class GridSystem {
     };
 
     // `??`, not `||`: black is 0x000000 and must not fall through to the automatic colour
-    const gridColor = isAligning ? 0x00ff00 : (color ?? this.getAutoColor());
+    const gridColor = isAligning ? ALIGNMENT_GRID_COLOR : (color ?? this.getAutoColor());
     const gridAlpha = isAligning ? Math.min(alpha! * 1.5, 1) : alpha!;
 
     const graphics = new Graphics();

@@ -1,12 +1,9 @@
 /**
- * Shared hooks for grid alignment tab components.
- *
- * Extracts the duplicated useEffect logic from IntersectionsTab and FreeSizeTab
- * into reusable hooks: cursor style, arrow-key nudging, cursor preview, and
- * alignment preview calculation.
+ * Shared hooks for the grid alignment tabs: cursor style, canvas clicks,
+ * arrow-key nudging, cursor preview and alignment preview calculation.
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import type { GridAlignmentController } from '../../pixi/GridAlignmentController';
 import type { AlignmentPoint, AlignmentResult } from '../../pixi/GridAlignmentController';
 import { calculateAlignment } from '../../pixi/gridAlignmentMath';
@@ -61,6 +58,51 @@ export function useCrosshairCursor(isPreviewing: boolean, view: AlignmentTabProp
 }
 
 // ---------------------------------------------------------------------------
+// useCanvasClick — short left clicks on the map canvas; presses that move pan instead
+// ---------------------------------------------------------------------------
+
+const CLICK_DRAG_THRESHOLD = 5;
+
+export function useCanvasClick(active: boolean, onClick: (event: PointerEvent) => void): void {
+  const onClickRef = useRef(onClick);
+  onClickRef.current = onClick;
+
+  useEffect(() => {
+    if (!active) return;
+
+    let leftDown = false;
+    let startX = 0;
+    let startY = 0;
+
+    const onDown = (e: PointerEvent): void => {
+      if (e.button !== 0 || e.ctrlKey) return;
+      if ((e.target as HTMLElement)?.tagName !== 'CANVAS') return;
+      leftDown = true;
+      startX = e.clientX;
+      startY = e.clientY;
+    };
+
+    const onUp = (e: PointerEvent): void => {
+      if (!leftDown || e.button !== 0) return;
+      leftDown = false;
+
+      if ((e.target as HTMLElement)?.tagName !== 'CANVAS') return;
+      if (Math.abs(e.clientX - startX) > CLICK_DRAG_THRESHOLD ||
+          Math.abs(e.clientY - startY) > CLICK_DRAG_THRESHOLD) return;
+
+      onClickRef.current(e);
+    };
+
+    window.addEventListener('pointerdown', onDown, true);
+    window.addEventListener('pointerup', onUp, true);
+    return () => {
+      window.removeEventListener('pointerdown', onDown, true);
+      window.removeEventListener('pointerup', onUp, true);
+    };
+  }, [active]);
+}
+
+// ---------------------------------------------------------------------------
 // useArrowNudge — arrow key offset nudging during preview
 // ---------------------------------------------------------------------------
 
@@ -68,7 +110,11 @@ export function useArrowNudge(isPreviewing: boolean): { dx: number; dy: number }
   const [offsetAdjust, setOffsetAdjust] = useState<{ dx: number; dy: number }>({ dx: 0, dy: 0 });
 
   useEffect(() => {
-    if (!isPreviewing) return;
+    // A new preview starts without the previous one's nudges.
+    if (!isPreviewing) {
+      setOffsetAdjust(prev => (prev.dx === 0 && prev.dy === 0 ? prev : { dx: 0, dy: 0 }));
+      return;
+    }
 
     const handler = (e: KeyboardEvent): void => {
       const nudge = e.shiftKey ? 0.1 : 1;

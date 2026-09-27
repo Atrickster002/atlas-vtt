@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import type { AlignmentPoint } from '../../pixi/GridAlignmentController';
 import type { MeasurementPair } from '../../pixi/gridAlignmentMath';
 import {
   useCrosshairCursor,
+  useCanvasClick,
   useArrowNudge,
   useCursorPreview,
   useAlignmentPreview,
@@ -47,62 +48,29 @@ export function FreeSizeTab({ controller, view, result, setResult, gridType }: A
   }
 
   // -----------------------------------------------------------------------
-  // Viewport click handling (pointerup after short press — lets pan through)
+  // Viewport clicks
   // -----------------------------------------------------------------------
 
-  useEffect(() => {
-    if (isPreviewing || !controller) return;
+  useCanvasClick(!isPreviewing && controller !== null, (e) => {
+    if (!controller) return;
+    const world = controller.screenToWorld(e.clientX, e.clientY);
 
-    const DRAG_THRESHOLD = 5;
-    let leftDown = false;
-    let startX = 0;
-    let startY = 0;
+    if (isPlacingA) {
+      controller.showMeasurementCrosshair(0, world);
+      setPointA(world);
+      setStep(1);
+      return;
+    }
 
-    const onDown = (e: PointerEvent): void => {
-      if (e.button !== 0 || e.ctrlKey) return;
-      if ((e.target as HTMLElement)?.tagName !== 'CANVAS') return;
-      leftDown = true;
-      startX = e.clientX;
-      startY = e.clientY;
-    };
-
-    const onUp = (e: PointerEvent): void => {
-      if (!leftDown || e.button !== 0) return;
-      leftDown = false;
-
-      if ((e.target as HTMLElement)?.tagName !== 'CANVAS') return;
-
-      if (Math.abs(e.clientX - startX) > DRAG_THRESHOLD ||
-          Math.abs(e.clientY - startY) > DRAG_THRESHOLD) return;
-
-      const world = controller.screenToWorld(e.clientX, e.clientY);
-
-      if (isPlacingA) {
-        controller.showMeasurementCrosshair(0, world);
-        setPointA(world);
-        setStep(1);
-      } else {
-        if (pointA && !isHex) world.y = pointA.y;
-
-        controller.showMeasurementCrosshair(1, world);
-
-        if (pointA) {
-          controller.showMeasurementLine(0, pointA, world);
-          setMeasurement({ a: pointA, b: world });
-        }
-
-        setPointA(null);
-        setStep(2);
-      }
-    };
-
-    window.addEventListener('pointerdown', onDown, true);
-    window.addEventListener('pointerup', onUp, true);
-    return () => {
-      window.removeEventListener('pointerdown', onDown, true);
-      window.removeEventListener('pointerup', onUp, true);
-    };
-  }, [step, isPreviewing, isPlacingA, pointA, controller]);
+    if (pointA && !isHex) world.y = pointA.y;
+    controller.showMeasurementCrosshair(1, world);
+    if (pointA) {
+      controller.showMeasurementLine(0, pointA, world);
+      setMeasurement({ a: pointA, b: world });
+    }
+    setPointA(null);
+    setStep(2);
+  });
 
   // -----------------------------------------------------------------------
   // Render
