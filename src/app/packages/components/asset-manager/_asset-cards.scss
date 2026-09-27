@@ -122,8 +122,10 @@
     position: absolute;
     inset: 0;
 
-    // Opaque backing so transparent art doesn't reveal the portrait beneath
-    .atlas-token-image-wrapper {
+    // Opaque backing so transparent art doesn't reveal the portrait beneath.
+    // Only framed portraits are circles; unframed art stays cut out, as on
+    // the canvas, instead of sitting on a grey square.
+    .atlas-token-portrait:not(.atlas-token-portrait--unframed) .atlas-token-image-wrapper {
       background: var(--background-secondary);
     }
 
