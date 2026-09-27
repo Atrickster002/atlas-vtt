@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import type { HiddenSummary } from '../../../../../creatures/creatureFilterEngine';
-import { toggleLayout, toggleOption, withRange, withStatblockFilter } from '../../../../../creatures/creatureSelection';
+import { hasPicks, LAYOUT_FACET, withOptionState, withRange, withStatblockFilter } from '../../../../../creatures/creatureSelection';
 import type { StatblockLinkFilter } from '../../../../../types/creatureFilterTypes';
 import { EASE_OUT_CONTROL_POINTS } from '../../../../../utils/motion';
 import { Button } from '../../../primitives/button';
@@ -54,7 +54,7 @@ export function AdvancedFilterPanel({ panel, onClose, onReset, anchorRef }: Adva
   const hidden = hiddenText(result.hidden);
   const ranges = facets.ranges.filter((facet) => facet.values.length > 1 || facet.selected);
   const options = facets.options.filter((facet) => facet.options.length > 0);
-  const showLayouts = facets.layouts.length > 1 || selection.layouts.length > 0;
+  const showLayouts = facets.layouts.length > 1 || hasPicks(selection.layouts);
   const hasStatblockFields = ranges.length > 0 || options.length > 0 || showLayouts;
 
   useDialogEscape(rootRef, onClose);
@@ -77,6 +77,7 @@ export function AdvancedFilterPanel({ panel, onClose, onReset, anchorRef }: Adva
       </div>
 
       <div className="atlas-filter-panel__body">
+        <p className="atlas-filter-panel__hint">Click an option to require it, double-click to exclude it.</p>
         <FilterSection title="Statblock" active={selection.statblock !== 'any'}>
           <SegmentedControl
             className="atlas-filter-panel__statblock"
@@ -96,18 +97,22 @@ export function AdvancedFilterPanel({ panel, onClose, onReset, anchorRef }: Adva
         ))}
 
         {options.map((facet) => (
-          <FilterSection key={facet.definition.id} title={facet.definition.label} active={facet.options.some((option) => option.selected)}>
+          <FilterSection key={facet.definition.id} title={facet.definition.label} active={facet.options.some((option) => option.state !== null)}>
             <OptionChips
               label={facet.definition.label}
               options={facet.options}
-              onToggle={(key) => setSelection((current) => toggleOption(current, facet.definition.id, key))}
+              onChange={(key, state) => setSelection((current) => withOptionState(current, facet.definition.id, key, state))}
             />
           </FilterSection>
         ))}
 
         {showLayouts && (
-          <FilterSection title="Layout" active={selection.layouts.length > 0}>
-            <OptionChips label="Layout" options={facets.layouts} onToggle={(layout) => setSelection((current) => toggleLayout(current, layout))} />
+          <FilterSection title="Layout" active={hasPicks(selection.layouts)}>
+            <OptionChips
+              label="Layout"
+              options={facets.layouts}
+              onChange={(layout, state) => setSelection((current) => withOptionState(current, LAYOUT_FACET, layout, state))}
+            />
           </FilterSection>
         )}
 

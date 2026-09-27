@@ -5,6 +5,8 @@
 - Filter your characters in the asset manager by what their linked statblocks say: challenge rating, level, tier, type, traits, rarity, alignment and source, whatever game system they come from. Atlas offers the filters your statblocks have, so a D&D 5e statblock gives challenge rating and a Pathfinder or Old-School Essentials one level.
 - Type filters into the search: `type:beast`, `cr:1-3`, `cr>=5`, `tag:forest` or `statblock:no`. Suggestions list the filters and the values your characters have with their counts; Tab or Enter completes them.
 - Or open the filter panel with the button at the end of the search: ranges show how many characters have each value and step through exactly those values, so challenge rating moves from 1/4 to 1/2 to 1. Options show how many characters each one would add.
+- Exclude with a double-click on an option (or Alt-click), or type `-type:beast`: the chip reads "not beast" and hides every beast. Click it again to clear it.
+- Alignment filters by its parts, Lawful, Neutral, Chaotic, Good, Evil, Unaligned and Any, instead of every way a statblock words it. Pick Chaotic and Evil to find chaotic evil creatures.
 - Every active filter shows as a chip above your characters; click one to remove it, or Reset to clear them all. Filters with several values fold into one chip that lists them.
 - Sort characters by Rating: challenge rating, level or tier, whichever their statblock has.
 - In Collection Settings → Creature Filters, switch off filters a collection does not need, or add filters on other fields of your statblocks. Atlas lists the fields it finds and how many statblocks have each.

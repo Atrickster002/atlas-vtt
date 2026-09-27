@@ -1,9 +1,10 @@
 /**
  * Faceted filtering of tokens by their statblocks. Options within one filter
- * are alternatives, filters narrow each other. Each facet counts the tokens
- * the other filters leave, so picking "Beast" does not zero the other types.
- * A token without the data an active filter reads is hidden, and counted in
- * `hidden` so the list can say why.
+ * are alternatives (or all required, for alignment parts), filters narrow each
+ * other, and an excluded option hides every token that has it. Each facet
+ * counts the tokens the other filters leave, so picking "Beast" does not zero
+ * the other types. A token without the data a required option reads is
+ * hidden, and counted in `hidden` so the list can say why.
  */
 
 import type {
@@ -12,13 +13,17 @@ import type {
   CreatureOptionsFilter,
   CreatureRangeFilter,
   NumericRange,
+  OptionPicks,
+  OptionState,
 } from '../types/creatureFilterTypes';
 import type { OptionValue, TokenFacts } from './creatureFacts';
+import { hasPicks, LAYOUT_FACET, optionState, STATBLOCK_FACET } from './creatureSelection';
+import { ALIGNMENT_PARTS, optionKey } from './creatureValues';
 
 export interface FacetOption extends OptionValue {
   /** Tokens it would show, given the other filters. */
   count: number;
-  selected: boolean;
+  state: OptionState;
 }
 
 export interface RangeFacet {
@@ -61,8 +66,6 @@ interface Check {
   test: (facts: TokenFacts) => Outcome;
 }
 
-const STATBLOCK = 'statblock';
-const LAYOUTS = 'layouts';
 const fieldCheckId = (definitionId: string): string => `field:${definitionId}`;
 
 const outcome = (passes: boolean): Outcome => (passes ? 'pass' : 'fail');
@@ -70,20 +73,46 @@ const outcome = (passes: boolean): Outcome => (passes ? 'pass' : 'fail');
 /** "Level 2" before "Level 10"; case and accents do not matter. */
 const LABEL_ORDER = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
 
+const layoutValues = (facts: TokenFacts): readonly OptionValue[] =>
+  (facts.creature?.layout ? [{ key: facts.creature.layout, label: facts.creature.layout }] : []);
+
+const optionValues = (definition: CreatureOptionsFilter) => (facts: TokenFacts): readonly OptionValue[] =>
+  facts.options.get(definition.id) ?? [];
+
+/**
+ * An excluded value fails a token; one without the field passes, it is none
+ * of them. Required values fail a token without the field as missing data, and
+ * need any one (`any`) or every one (`all`) of them.
+ */
+function optionsCheck(
+  id: string,
+  picks: OptionPicks | undefined,
+  match: 'any' | 'all',
+  valuesOf: (facts: TokenFacts) => readonly OptionValue[],
+): Check | null {
+  if (!picks || !hasPicks(picks)) return null;
+  const exclude = new Set(picks.exclude);
+  return {
+    id,
+    test: (facts) => {
+      const keys = valuesOf(facts).map((value) => value.key);
+      if (keys.some((key) => exclude.has(key))) return 'fail';
+      if (picks.include.length === 0) return 'pass';
+      if (keys.length === 0) return 'missing';
+      return outcome(match === 'all' ? picks.include.every((key) => keys.includes(key)) : keys.some((key) => picks.include.includes(key)));
+    },
+  };
+}
+
 /** The checks the selection makes; filters that pick nothing make none. */
 function activeChecks(definitions: readonly CreatureFilterDefinition[], selection: CreatureFilterSelection): Check[] {
   const checks: Check[] = [];
   if (selection.statblock !== 'any') {
     const wanted = selection.statblock === 'linked';
-    checks.push({ id: STATBLOCK, test: (facts) => outcome(facts.linked === wanted) });
+    checks.push({ id: STATBLOCK_FACET, test: (facts) => outcome(facts.linked === wanted) });
   }
-  if (selection.layouts.length > 0) {
-    const layouts = new Set(selection.layouts);
-    checks.push({
-      id: LAYOUTS,
-      test: (facts) => (facts.creature?.layout ? outcome(layouts.has(facts.creature.layout)) : 'missing'),
-    });
-  }
+  const layoutCheck = optionsCheck(LAYOUT_FACET, selection.layouts, 'any', layoutValues);
+  if (layoutCheck) checks.push(layoutCheck);
   for (const definition of definitions) {
     if (definition.kind === 'range') {
       const range = selection.ranges[definition.id];
@@ -95,18 +124,10 @@ function activeChecks(definitions: readonly CreatureFilterDefinition[], selectio
           return value == null ? 'missing' : outcome(value >= range.min && value <= range.max);
         },
       });
-    } else {
-      const picked = selection.options[definition.id];
-      if (!picked?.length) continue;
-      const keys = new Set(picked);
-      checks.push({
-        id: fieldCheckId(definition.id),
-        test: (facts) => {
-          const values = facts.options.get(definition.id) ?? [];
-          return values.length === 0 ? 'missing' : outcome(values.some((value) => keys.has(value.key)));
-        },
-      });
+      continue;
     }
+    const check = optionsCheck(fieldCheckId(definition.id), selection.options[definition.id], definition.match ?? 'any', optionValues(definition));
+    if (check) checks.push(check);
   }
   return checks;
 }
@@ -119,38 +140,51 @@ function counted(failures: ReadonlyArray<readonly string[]>, checkId: string): (
   };
 }
 
-/** Options by how often they occur among all tokens in view (so they keep their place as filters change), then by name. */
+/** Canonical positions for options that have one (alignment parts); others sort by frequency. */
+const ALIGNMENT_ORDER = new Map(ALIGNMENT_PARTS.map((part, index) => [optionKey(part), index]));
+
+/**
+ * The options of a facet with how many tokens each would show: tokens the
+ * other filters leave, that do not have an excluded value (other than the
+ * option itself) and, for `all` facets, have the options already required.
+ * Options sort by how often they occur among all tokens in view, so they keep
+ * their place as filters change; alignment parts keep their usual order.
+ */
 function optionFacet(
   facts: readonly TokenFacts[],
   valuesOf: (facts: TokenFacts) => readonly OptionValue[],
   isCounted: (index: number) => boolean,
-  selected: readonly string[],
+  picks: OptionPicks,
+  match: 'any' | 'all',
 ): FacetOption[] {
   const byKey = new Map<string, { labels: Map<string, number>; total: number; count: number }>();
   facts.forEach((token, index) => {
-    for (const { key, label } of valuesOf(token)) {
+    const values = valuesOf(token);
+    const keys = values.map((value) => value.key);
+    const counts = isCounted(index) && (match === 'any' || picks.include.every((key) => keys.includes(key)));
+    for (const { key, label } of values) {
       const entry = byKey.get(key) ?? { labels: new Map<string, number>(), total: 0, count: 0 };
       entry.labels.set(label, (entry.labels.get(label) ?? 0) + 1);
       entry.total++;
-      if (isCounted(index)) entry.count++;
+      if (counts && !keys.some((other) => other !== key && picks.exclude.includes(other))) entry.count++;
       byKey.set(key, entry);
     }
   });
-  for (const key of selected) {
+  for (const key of [...picks.include, ...picks.exclude]) {
     if (!byKey.has(key)) byKey.set(key, { labels: new Map([[key, 1]]), total: 0, count: 0 });
   }
-  const chosen = new Set(selected);
   const options = [...byKey.entries()].map(([key, entry]) => ({
     option: {
       key,
       // The spelling most tokens use.
       label: [...entry.labels.entries()].reduce((best, next) => (next[1] > best[1] ? next : best))[0],
       count: entry.count,
-      selected: chosen.has(key),
+      state: optionState(picks, key),
     },
     total: entry.total,
+    rank: ALIGNMENT_ORDER.get(key),
   }));
-  options.sort((a, b) => b.total - a.total || LABEL_ORDER.compare(a.option.label, b.option.label));
+  options.sort((a, b) => (a.rank ?? Infinity) - (b.rank ?? Infinity) || b.total - a.total || LABEL_ORDER.compare(a.option.label, b.option.label));
   return options.map(({ option }) => option);
 }
 
@@ -202,7 +236,7 @@ export function evaluateCreatureFilters(
   const failures = outcomes.map((results) => results.filter(([, result]) => result !== 'pass').map(([id]) => id));
   const passes = failures.map((failed) => failed.length === 0);
 
-  const statblockCounted = counted(failures, STATBLOCK);
+  const statblockCounted = counted(failures, STATBLOCK_FACET);
   const statblock = { any: 0, linked: 0, unlinked: 0 };
   facts.forEach((token, index) => {
     if (!statblockCounted(index)) return;
@@ -210,12 +244,7 @@ export function evaluateCreatureFilters(
     statblock[token.linked ? 'linked' : 'unlinked']++;
   });
 
-  const layouts = optionFacet(
-    facts,
-    (token) => (token.creature?.layout ? [{ key: token.creature.layout, label: token.creature.layout }] : []),
-    counted(failures, LAYOUTS),
-    selection.layouts,
-  );
+  const layouts = optionFacet(facts, layoutValues, counted(failures, LAYOUT_FACET), selection.layouts, 'any');
 
   const ranges: RangeFacet[] = [];
   const options: OptionsFacet[] = [];
@@ -226,7 +255,7 @@ export function evaluateCreatureFilters(
     } else {
       options.push({
         definition,
-        options: optionFacet(facts, (token) => token.options.get(definition.id) ?? [], isCounted, selection.options[definition.id] ?? []),
+        options: optionFacet(facts, optionValues(definition), isCounted, selection.options[definition.id] ?? { include: [], exclude: [] }, definition.match ?? 'any'),
       });
     }
   }

@@ -157,3 +157,29 @@ it('groups several values of a filter in one chip, and Reset clears everything',
   expect(search().value).toBe('');
   expect(shown()).toHaveLength(5);
 });
+
+it('excludes an option with a double-click, Alt-click or a typed minus', async () => {
+  await openManager();
+  fireEvent.click(screen.getByRole('button', { name: 'Filters' }));
+  const panel = screen.getByRole('dialog', { name: 'Filters' });
+  const beast = (): HTMLElement => within(within(panel).getByRole('group', { name: 'Type' })).getByRole('button', { name: /^beast/ });
+  const doubleClick = (): void => {
+    fireEvent.click(beast(), { detail: 1 });
+    fireEvent.click(beast(), { detail: 2 });
+    fireEvent.doubleClick(beast());
+  };
+
+  doubleClick();
+  expect(shown()).toEqual(['Dragon', 'Goblin', 'Innkeeper']);
+  expect(chips()).toEqual(['Typenot beast']);
+  expect(beast().getAttribute('aria-label')).toBe('beast, 2, excluded');
+  doubleClick();
+  expect(chips()).toEqual([]);
+
+  fireEvent.click(beast(), { altKey: true });
+  expect(chips()).toEqual(['Typenot beast']);
+  type('-t:dragon');
+  fireEvent.keyDown(search(), { key: 'Enter' });
+  expect(shown()).toEqual(['Goblin', 'Innkeeper']);
+  expect(chips()).toEqual(['Type2']);
+});

@@ -61,7 +61,7 @@ export function useSearchAutocomplete(
     const context = suggestions?.context;
     if (!context) return;
     if (item.kind === 'keyword') {
-      const replacement = `${item.keyword.prefix}:`;
+      const replacement = `${item.negated ? '-' : ''}${item.keyword.prefix}:`;
       const text = search.slice(0, context.start) + replacement + search.slice(context.end);
       onSearch(text);
       setHighlight(0);

@@ -1,5 +1,5 @@
 import type { CreatureFacets } from '../../../../creatures/creatureFilterEngine';
-import { addLayout, addOption, withRange, withStatblockFilter } from '../../../../creatures/creatureSelection';
+import { LAYOUT_FACET, withOptionState, withRange, withStatblockFilter } from '../../../../creatures/creatureSelection';
 import { optionKey } from '../../../../creatures/creatureValues';
 import type { QueryToken } from '../../../../search/querySyntax';
 import type { CreatureFilterSelection, NumericRange } from '../../../../types/creatureFilterTypes';
@@ -31,7 +31,7 @@ function boundsFor(op: QueryToken<FilterKeyword>['op'], typed: NumericRange, val
 /**
  * The filters `tokens` set on top of `filters`, and the words that stay in the
  * search: plain words, `name:` values and tokens that name nothing (a tag that
- * does not exist) as typed.
+ * does not exist) as typed. Negated options and layouts are excluded.
  */
 export function applyFilterTokens(
   text: string,
@@ -42,7 +42,8 @@ export function applyFilterTokens(
   let { selection, tagIds } = filters;
   const words: string[] = [];
   for (const token of tokens) {
-    const { keyword, value } = token;
+    const { keyword, value, negated } = token;
+    const state = negated ? 'exclude' : 'include';
     switch (keyword.kind) {
       case 'name':
         words.push(value);
@@ -58,11 +59,11 @@ export function applyFilterTokens(
         break;
       case 'layout': {
         const layout = facets?.layouts.find((candidate) => optionKey(candidate.label) === optionKey(value));
-        selection = addLayout(selection, layout?.key ?? value);
+        selection = withOptionState(selection, LAYOUT_FACET, layout?.key ?? value, state);
         break;
       }
       case 'options':
-        selection = addOption(selection, keyword.filterId, optionKey(value));
+        selection = withOptionState(selection, keyword.filterId, optionKey(value), state);
         break;
       case 'range': {
         const typed = rangeValue(value);

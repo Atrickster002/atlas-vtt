@@ -5,7 +5,8 @@ import type { Tag } from '../types';
 import { suggestedKeywords, type FilterKeyword } from './filterKeywords';
 
 export type FilterSuggestion =
-  | { kind: 'keyword'; keyword: FilterKeyword }
+  /** `negated`: typed after a `-`, so it completes to `-prefix:`. */
+  | { kind: 'keyword'; keyword: FilterKeyword; negated: boolean }
   | { kind: 'value'; label: string; insert: string; count?: number };
 
 export interface FilterSuggestions {
@@ -71,16 +72,20 @@ export function filterSuggestions(text: string, cursor: number, sources: Suggest
   if (context.kind === 'prefix') {
     // The full list shows only keywords the assets in view have values for. A typed fragment is
     // also a name search that may empty the view, so it matches every keyword.
-    const offered = context.fragment ? sources.keywords : suggestedKeywords(sources.keywords, sources.facets, sources.tags.length > 0);
-    const items = matchingKeywords(offered, context.fragment).map((keyword): FilterSuggestion => ({ kind: 'keyword', keyword }));
-    return items.length > 0 ? { mode: 'keyword', heading: 'Filter by', items, context } : null;
+    const negated = context.fragment.startsWith('-');
+    const fragment = negated ? context.fragment.slice(1) : context.fragment;
+    const offered = (fragment ? sources.keywords : suggestedKeywords(sources.keywords, sources.facets, sources.tags.length > 0))
+      .filter((keyword) => !negated || keyword.negatable);
+    const items = matchingKeywords(offered, fragment).map((keyword): FilterSuggestion => ({ kind: 'keyword', keyword, negated }));
+    return items.length > 0 ? { mode: 'keyword', heading: negated ? 'Exclude' : 'Filter by', items, context } : null;
   }
   const { keyword } = context;
   const items = valueItems(keyword, context.fragment, sources);
   const typedFreely = keyword.kind === 'name' || keyword.kind === 'range';
+  const label = keyword.description.split(':')[0]!;
   return {
     mode: 'value',
-    heading: keyword.description.split(':')[0]!,
+    heading: context.negated ? `Exclude ${label.toLowerCase()}` : label,
     items,
     ...(typedFreely && { hint: keyword.description }),
     context,

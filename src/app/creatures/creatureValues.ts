@@ -109,3 +109,35 @@ export function formatRange(range: { min: number; max: number }): string {
   if (range.max === Infinity) return `≥ ${formatRating(range.min)}`;
   return range.min === range.max ? formatRating(range.min) : `${formatRating(range.min)} – ${formatRating(range.max)}`;
 }
+
+/** The parts an alignment is made of, in the order the alignment filter lists them. */
+export const ALIGNMENT_PARTS = ['Lawful', 'Neutral', 'Chaotic', 'Good', 'Evil', 'Unaligned', 'Any'] as const;
+
+const ALIGNMENT_WORDS: Readonly<Record<string, (typeof ALIGNMENT_PARTS)[number]>> = {
+  lawful: 'Lawful', neutral: 'Neutral', chaotic: 'Chaotic', good: 'Good', evil: 'Evil', unaligned: 'Unaligned',
+};
+const ALIGNMENT_LETTERS: Readonly<Record<string, (typeof ALIGNMENT_PARTS)[number]>> = {
+  l: 'Lawful', n: 'Neutral', c: 'Chaotic', g: 'Good', e: 'Evil',
+};
+
+/**
+ * The parts of an alignment as statblocks write it: "chaotic evil" is Chaotic
+ * and Evil, "neutral good (50%) or neutral evil (50%)" Neutral, Good and Evil,
+ * the abbreviations "CE" or "L" (Pathfinder, Shadowdark) the same. "Any
+ * alignment" and "any non-good alignment" are Any; "any evil alignment" is Evil.
+ */
+export function alignmentParts(value: unknown): string[] {
+  const parts = new Set<string>();
+  for (const text of parseOptions(value)) {
+    const abbreviation = /^[lnc]?[nge]?$/i.test(text.trim()) ? text.trim().toLowerCase() : null;
+    if (abbreviation) {
+      for (const letter of abbreviation) parts.add(ALIGNMENT_LETTERS[letter]!);
+      continue;
+    }
+    const words = text.toLowerCase().split(/[^a-z-]+/);
+    const named = words.flatMap((word) => (ALIGNMENT_WORDS[word] ? [ALIGNMENT_WORDS[word]] : []));
+    if (named.length > 0) named.forEach((part) => parts.add(part));
+    else if (words.includes('any') || words.some((word) => word.startsWith('non-'))) parts.add('Any');
+  }
+  return ALIGNMENT_PARTS.filter((part) => parts.has(part));
+}

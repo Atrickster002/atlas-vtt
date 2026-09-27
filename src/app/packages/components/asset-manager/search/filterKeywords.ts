@@ -56,7 +56,7 @@ function creatureKeyword(definition: CreatureFilterDefinition, taken: Set<string
       description: `${definition.label}: a value or a range, like ${names.prefix}:1-3 or ${names.prefix}>=5`,
       accepts: (value) => rangeValue(value) !== null,
     }
-    : { kind: 'options', filterId: definition.id, prefix: names.prefix, aliases, numeric: false, description: definition.label };
+    : { kind: 'options', filterId: definition.id, prefix: names.prefix, aliases, numeric: false, negatable: true, description: definition.label };
 }
 
 /** The keywords the search of a tab understands: name and tag everywhere, statblock fields on the Characters tab. */
@@ -68,7 +68,7 @@ export function filterKeywords(tab: Tab, definitions: readonly CreatureFilterDef
   if (tab !== 'tokens') return keywords;
   keywords.push(
     { kind: 'statblock', prefix: 'statblock', aliases: ['sb'], numeric: false, description: 'With or without a statblock: yes or no', accepts: (value) => statblockValue(value) !== null },
-    { kind: 'layout', prefix: 'layout', aliases: [], numeric: false, description: 'Statblock layout' },
+    { kind: 'layout', prefix: 'layout', aliases: [], numeric: false, negatable: true, description: 'Statblock layout' },
   );
   const taken = new Set(keywords.flatMap((keyword) => [keyword.prefix, ...keyword.aliases]));
   for (const definition of definitions) {

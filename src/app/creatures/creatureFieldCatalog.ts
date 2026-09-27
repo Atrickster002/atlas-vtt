@@ -15,7 +15,8 @@ export const CATALOG_CREATURE_FILTERS: readonly CreatureFilterDefinition[] = [
   // Pathfinder's creature layout keeps traits in one list, its basic layout (and importers) in numbered fields.
   { id: 'traits', label: 'Traits', kind: 'options', fields: ['traits', 'trait_01', 'trait_02', 'trait_03', 'trait_04', 'trait_05', 'trait_06', 'trait_07'] },
   { id: 'rarity', label: 'Rarity', kind: 'options', fields: ['rarity', 'rare_01', 'rare_02', 'rare_03', 'rare_04'] },
-  { id: 'alignment', label: 'Alignment', kind: 'options', fields: ['alignment'] },
+  // Parts, not phrases: "chaotic evil" is Chaotic and Evil, and picking both finds exactly that.
+  { id: 'alignment', label: 'Alignment', kind: 'options', fields: ['alignment'], values: 'alignment', match: 'all' },
   { id: 'source', label: 'Source', kind: 'options', fields: ['source'] },
 ];
 

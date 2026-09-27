@@ -1,7 +1,7 @@
 import type { CreatureFilterDefinition } from '../types/creatureFilterTypes';
 import type { IndexedCreature } from './CreatureIndex';
 import { RATING_FILTERS } from './creatureFieldCatalog';
-import { optionKey, parseOptions, parseRating } from './creatureValues';
+import { alignmentParts, optionKey, parseOptions, parseRating } from './creatureValues';
 
 /** What the filters need of a token. */
 export interface FilterableToken {
@@ -41,9 +41,9 @@ export function linkedStatblockPaths(tokens: readonly Pick<FilterableToken, 'sta
   return [...new Set(tokens.flatMap((token) => (token.statblockPath ? [token.statblockPath] : [])))];
 }
 
-function uniqueOptions(values: readonly unknown[]): OptionValue[] {
+function uniqueOptions(values: readonly unknown[], read: (value: unknown) => string[]): OptionValue[] {
   const byKey = new Map<string, OptionValue>();
-  for (const label of values.flatMap(parseOptions)) {
+  for (const label of values.flatMap(read)) {
     const key = optionKey(label);
     if (!byKey.has(key)) byKey.set(key, { key, label });
   }
@@ -68,7 +68,8 @@ export function factsOf(token: FilterableToken, lookup: CreatureLookupFn, defini
     if (definition.kind === 'range') {
       ratings.set(definition.id, fields ? parseRating(fields[definition.field]) : null);
     } else {
-      options.set(definition.id, fields ? uniqueOptions(definition.fields.map((field) => fields[field])) : []);
+      const read = definition.values === 'alignment' ? alignmentParts : parseOptions;
+      options.set(definition.id, fields ? uniqueOptions(definition.fields.map((field) => fields[field]), read) : []);
     }
   }
   return { linked: Boolean(token.statblockPath), creature, rating: fields ? ratingOf(fields) : null, ratings, options };

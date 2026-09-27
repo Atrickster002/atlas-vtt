@@ -1,7 +1,7 @@
-import type { CreatureFacets } from '../../../../creatures/creatureFilterEngine';
-import { clearFacet, toggleLayout, toggleOption } from '../../../../creatures/creatureSelection';
+import type { CreatureFacets, FacetOption } from '../../../../creatures/creatureFilterEngine';
+import { clearFacet, LAYOUT_FACET, STATBLOCK_FACET, withOptionState } from '../../../../creatures/creatureSelection';
 import { formatRange } from '../../../../creatures/creatureValues';
-import type { CreatureFilterDefinition, CreatureFilterSelection } from '../../../../types/creatureFilterTypes';
+import type { CreatureFilterDefinition, CreatureFilterSelection, OptionPicks } from '../../../../types/creatureFilterTypes';
 import type { Tag } from '../types';
 
 type Update<T> = (update: (current: T) => T) => void;
@@ -9,6 +9,8 @@ type Update<T> = (update: (current: T) => T) => void;
 export interface FilterChip {
   key: string;
   label: string;
+  /** The value is excluded ("not beast"). */
+  excluded: boolean;
   remove: () => void;
 }
 
@@ -30,47 +32,51 @@ interface ChipSources {
   setTagIds: Update<string[]>;
 }
 
+/** The chips of an option facet: required values first, then the excluded ones. */
+function pickChips(
+  facet: string,
+  picks: OptionPicks,
+  options: readonly FacetOption[] | undefined,
+  setSelection: Update<CreatureFilterSelection>,
+): FilterChip[] {
+  const labelOf = (key: string): string => options?.find((option) => option.key === key)?.label ?? key;
+  const chip = (key: string, excluded: boolean): FilterChip => ({
+    key,
+    label: excluded ? `not ${labelOf(key)}` : labelOf(key),
+    excluded,
+    remove: () => setSelection((current) => withOptionState(current, facet, key, null)),
+  });
+  return [...picks.include.map((key) => chip(key, false)), ...picks.exclude.map((key) => chip(key, true))];
+}
+
 /** Every active filter as removable chips, in the order the filter panel lists them. */
 export function activeFilterChips({ selection, definitions, facets, tagIds, tags, setSelection, setTagIds }: ChipSources): FilterChipGroup[] {
   const groups: FilterChipGroup[] = [];
   const clear = (facet: string) => (): void => setSelection((current) => clearFacet(current, facet));
+  const addGroup = (key: string, category: string, items: FilterChip[]): void => {
+    if (items.length > 0) groups.push({ key, category, items, removeAll: clear(key) });
+  };
 
   if (selection.statblock !== 'any') {
-    groups.push({
-      key: 'statblock',
-      category: 'Statblock',
-      items: [{ key: selection.statblock, label: selection.statblock === 'linked' ? 'With statblock' : 'Without statblock', remove: clear('statblock') }],
-      removeAll: clear('statblock'),
-    });
+    addGroup(STATBLOCK_FACET, 'Statblock', [{
+      key: selection.statblock,
+      label: selection.statblock === 'linked' ? 'With statblock' : 'Without statblock',
+      excluded: false,
+      remove: clear(STATBLOCK_FACET),
+    }]);
   }
   for (const definition of definitions) {
     if (definition.kind === 'range') {
       const range = selection.ranges[definition.id];
-      if (range) groups.push({ key: definition.id, category: definition.label, items: [{ key: 'range', label: formatRange(range), remove: clear(definition.id) }], removeAll: clear(definition.id) });
+      if (range) addGroup(definition.id, definition.label, [{ key: 'range', label: formatRange(range), excluded: false, remove: clear(definition.id) }]);
       continue;
     }
-    const picked = selection.options[definition.id] ?? [];
-    if (picked.length === 0) continue;
-    const labels = facets?.options.find((facet) => facet.definition.id === definition.id)?.options;
-    groups.push({
-      key: definition.id,
-      category: definition.label,
-      items: picked.map((key) => ({
-        key,
-        label: labels?.find((option) => option.key === key)?.label ?? key,
-        remove: () => setSelection((current) => toggleOption(current, definition.id, key)),
-      })),
-      removeAll: clear(definition.id),
-    });
+    const picks = selection.options[definition.id];
+    if (!picks) continue;
+    const options = facets?.options.find((facet) => facet.definition.id === definition.id)?.options;
+    addGroup(definition.id, definition.label, pickChips(definition.id, picks, options, setSelection));
   }
-  if (selection.layouts.length > 0) {
-    groups.push({
-      key: 'layouts',
-      category: 'Layout',
-      items: selection.layouts.map((layout) => ({ key: layout, label: layout, remove: () => setSelection((current) => toggleLayout(current, layout)) })),
-      removeAll: clear('layouts'),
-    });
-  }
+  addGroup(LAYOUT_FACET, 'Layout', pickChips(LAYOUT_FACET, selection.layouts, facets?.layouts, setSelection));
   if (tagIds.length > 0) {
     groups.push({
       key: 'tags',
@@ -78,6 +84,7 @@ export function activeFilterChips({ selection, definitions, facets, tagIds, tags
       items: tagIds.map((id) => ({
         key: id,
         label: tags.find((tag) => tag.id === id)?.name ?? id,
+        excluded: false,
         remove: () => setTagIds((current) => current.filter((other) => other !== id)),
       })),
       removeAll: () => setTagIds(() => []),

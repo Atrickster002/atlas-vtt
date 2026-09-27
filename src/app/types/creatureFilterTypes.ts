@@ -33,21 +33,38 @@ export interface CreatureRangeFilter extends CreatureFilterBase {
 export interface CreatureOptionsFilter extends CreatureFilterBase {
   kind: 'options';
   fields: string[];
+  /**
+   * How the values are read: `alignment` splits alignments into their parts
+   * (Lawful, Neutral, Chaotic, Good, Evil, Unaligned, Any), so "chaotic evil"
+   * is Chaotic and Evil. Unset, each value is one option.
+   */
+  values?: 'alignment';
+  /** `all`: a creature needs every picked option, as parts of one alignment do. Unset: any of them. */
+  match?: 'all';
 }
 
 /** Whether a token must have a linked statblock. */
 export type StatblockLinkFilter = 'any' | 'linked' | 'unlinked';
 
-/** What the user picked in the asset manager's filters. Empty lists and missing ranges filter nothing. */
+/** Options picked in one filter: those a token must have, and those it must not. */
+export interface OptionPicks {
+  include: string[];
+  exclude: string[];
+}
+
+/** What the user picked in the asset manager's filters. Empty picks and missing ranges filter nothing. */
 export interface CreatureFilterSelection {
   statblock: StatblockLinkFilter;
-  /** Statblock layouts (Fantasy Statblocks layout names), any of which a token's statblock must use. */
-  layouts: string[];
+  /** Statblock layouts (Fantasy Statblocks layout names). */
+  layouts: OptionPicks;
   /** Inclusive bounds by range filter id. */
   ranges: Record<string, NumericRange>;
-  /** Picked option keys by options filter id; a token needs any one of them. */
-  options: Record<string, string[]>;
+  /** Picked option keys by options filter id. */
+  options: Record<string, OptionPicks>;
 }
+
+/** Whether an option is picked to be required, excluded, or not at all. */
+export type OptionState = 'include' | 'exclude' | null;
 
 export interface NumericRange {
   min: number;
@@ -56,5 +73,5 @@ export interface NumericRange {
 
 /** A selection that filters nothing. */
 export function emptyCreatureSelection(): CreatureFilterSelection {
-  return { statblock: 'any', layouts: [], ranges: {}, options: {} };
+  return { statblock: 'any', layouts: { include: [], exclude: [] }, ranges: {}, options: {} };
 }

@@ -6,7 +6,7 @@ import {
 const KEYWORDS: QueryKeyword[] = [
   { prefix: 'type', aliases: ['t'], description: 'Type', numeric: false },
   { prefix: 'cr', aliases: ['challenge'], description: 'Challenge rating', numeric: true, accepts: (value) => /\d/.test(value) },
-  { prefix: 'source', aliases: ['src'], description: 'Source', numeric: false },
+  { prefix: 'source', aliases: ['src'], description: 'Source', numeric: false, negatable: true },
 ];
 const lookup = keywordLookup(KEYWORDS);
 
@@ -27,6 +27,18 @@ describe('parseQuery', () => {
     expect(tokens.map((token) => token.value)).toEqual(['Beast']);
     expect(leftover).toBe('note:x');
     expect(parseQuery('note:x type>beast cr:abc type: T:Beast', lookup).incomplete).toEqual(['type>beast', 'cr:abc', 'type:']);
+  });
+});
+
+describe('negation', () => {
+  it('excludes with a leading minus or != where the keyword allows it', () => {
+    const { tokens, incomplete } = parseQuery('-src:MM source!=VGM -type:beast cr!=5 -source!=x', lookup);
+    expect(tokens.map((token) => [token.keyword.prefix, token.value, token.negated])).toEqual([['source', 'MM', true], ['source', 'VGM', true]]);
+    expect(incomplete).toEqual(['-type:beast', 'cr!=5', '-source!=x']);
+  });
+
+  it('knows a negated value is being typed', () => {
+    expect(queryContextAt('-src:M', 6, lookup)).toMatchObject({ kind: 'value', negated: true, fragment: 'M', valueStart: 5 });
   });
 });
 

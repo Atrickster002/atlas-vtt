@@ -69,6 +69,13 @@ describe('suggestions', () => {
     expect(filterSuggestions('gob', 3, sources)).toBeNull();
   });
 
+  it('offer the keywords that can exclude after a minus', () => {
+    const suggestions = filterSuggestions('-t', 2, sources);
+    expect(suggestions?.heading).toBe('Exclude');
+    expect(suggestions?.items.map((item) => (item.kind === 'keyword' ? [item.keyword.prefix, item.negated] : null))).toEqual([['type', true], ['trait', true]]);
+    expect(filterSuggestions('-type:', 6, sources)?.heading).toBe('Exclude type');
+  });
+
   it('list values with counts after a keyword', () => {
     const typeValues = filterSuggestions('t:b', 3, sources);
     expect(typeValues).toMatchObject({ mode: 'value', heading: 'Type', items: [{ label: 'beast', count: 2, insert: 'beast' }] });
@@ -82,7 +89,7 @@ describe('suggestions', () => {
 describe('applying typed filters', () => {
   it('turns tokens into filters and keeps the plain words as the search', () => {
     const { filters, words, leftover } = apply('red t:beast name:wolf tag:forest statblock:yes');
-    expect(filters.selection.options).toEqual({ type: ['beast'] });
+    expect(filters.selection.options).toEqual({ type: { include: ['beast'], exclude: [] } });
     expect(filters.selection.statblock).toBe('linked');
     expect(filters.tagIds).toEqual(['forest-id']);
     expect([...words, leftover]).toEqual(['wolf', 'red']);
@@ -99,9 +106,19 @@ describe('applying typed filters', () => {
     expect(apply('cr>1').filters.selection.ranges.cr).toEqual({ min: 10, max: Infinity });
   });
 
+  it('excludes options and layouts typed with a minus or !=', () => {
+    expect(apply('-type:beast source!="Monster Manual"').filters.selection.options).toEqual({
+      type: { include: [], exclude: ['beast'] },
+      source: { include: [], exclude: ['monster manual'] },
+    });
+    expect(apply('-layout:"basic 5e"').filters.selection.layouts).toEqual({ include: [], exclude: ['Basic 5e'] });
+    expect(apply('-cr:1 -tag:forest').words).toEqual([]);
+    expect(apply('-cr:1 -tag:forest').leftover).toBe('');
+  });
+
   it('adds to what is picked instead of toggling', () => {
     const once = apply('type:beast').filters.selection;
-    expect(apply('type:BEAST type:dragon', once).filters.selection.options).toEqual({ type: ['beast', 'dragon'] });
+    expect(apply('type:BEAST type:dragon', once).filters.selection.options).toEqual({ type: { include: ['beast', 'dragon'], exclude: [] } });
   });
 });
 
@@ -109,17 +126,17 @@ describe('active filter chips', () => {
   it('list every active filter with a way to remove it', () => {
     const setSelection = vi.fn();
     const setTagIds = vi.fn();
-    const selection = apply('t:beast t:dragon cr>=1 sb:no layout:"basic 5e"').filters.selection;
+    const selection = apply('t:beast -t:dragon cr>=1 sb:no layout:"basic 5e"').filters.selection;
     const groups = activeFilterChips({ selection, definitions: CATALOG_CREATURE_FILTERS, facets, tagIds: ['forest-id'], tags, setSelection, setTagIds });
     expect(groups.map((group) => [group.category, group.items.map((item) => item.label)])).toEqual([
       ['Statblock', ['Without statblock']],
       ['Challenge rating', ['≥ 1']],
-      ['Type', ['beast', 'dragon']],
+      ['Type', ['beast', 'not dragon']],
       ['Layout', ['Basic 5e']],
       ['Tag', ['Forest']],
     ]);
     groups[2]!.items[0]!.remove();
-    expect(setSelection.mock.calls[0]![0](selection).options).toEqual({ type: ['dragon'] });
+    expect(setSelection.mock.calls[0]![0](selection).options).toEqual({ type: { include: [], exclude: ['dragon'] } });
     groups[4]!.removeAll();
     expect(setTagIds.mock.calls[0]![0](['forest-id'])).toEqual([]);
   });

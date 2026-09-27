@@ -1,9 +1,10 @@
+import { CATALOG_CREATURE_FILTERS } from '../../src/app/creatures/creatureFieldCatalog';
 import { describe, expect, it } from 'vitest';
 import { factsOf, type FilterableToken } from '../../src/app/creatures/creatureFacts';
 import { evaluateCreatureFilters } from '../../src/app/creatures/creatureFilterEngine';
 import type { IndexedCreature } from '../../src/app/creatures/CreatureIndex';
 import {
-  activeFilterCount, clearFacet, pruneSelection, toggleLayout, toggleOption, withoutFieldFilters, withRange, withStatblockFilter,
+  activeFilterCount, clearFacet, LAYOUT_FACET, pruneSelection, STATBLOCK_FACET, toggleExcludedOption, toggleOption, withOptionState, withRange, withStatblockFilter,
 } from '../../src/app/creatures/creatureSelection';
 import {
   emptyCreatureSelection,
@@ -83,14 +84,14 @@ describe('evaluateCreatureFilters', () => {
   it('filters by statblock link and layout', () => {
     expect(shown(select((s) => withStatblockFilter(s, 'unlinked')))).toEqual(['plain']);
     expect(shown(select((s) => withStatblockFilter(s, 'linked')))).toEqual(names.slice(0, 6));
-    expect(shown(select((s) => toggleLayout(s, 'Daggerheart Adversary')))).toEqual(['burrower']);
+    expect(shown(select((s) => toggleOption(s, LAYOUT_FACET, 'Daggerheart Adversary')))).toEqual(['burrower']);
   });
 
   it('counts each facet as if its own filter were off', () => {
     const { facets } = evaluateCreatureFilters(facts, DEFINITIONS, select((s) => toggleOption(s, 'type', 'beast')));
     const type = facets.options.find((facet) => facet.definition.id === 'type')!;
-    expect(type.options.map((option) => [option.label, option.count, option.selected])).toEqual([
-      ['Beast', 2, true], ['dragon', 1, false], ['humanoid', 1, false], ['Solo', 1, false],
+    expect(type.options.map((option) => [option.label, option.count, option.state])).toEqual([
+      ['Beast', 2, 'include'], ['dragon', 1, null], ['humanoid', 1, null], ['Solo', 1, null],
     ]);
     const cr = facets.ranges.find((facet) => facet.definition.id === 'cr')!;
     expect(cr.values).toEqual([{ value: 0.25, count: 1 }, { value: 1, count: 1 }, { value: 10, count: 0 }]);
@@ -106,7 +107,23 @@ describe('evaluateCreatureFilters', () => {
     const { facets } = evaluateCreatureFilters(facts, DEFINITIONS, select((s) => toggleOption(s, 'type', 'ooze')));
     expect(facets.layouts.map((layout) => layout.count)).toEqual([0, 0]);
     const type = facets.options.find((facet) => facet.definition.id === 'type')!;
-    expect(type.options.at(-1)).toEqual({ key: 'ooze', label: 'ooze', count: 0, selected: true });
+    expect(type.options.at(-1)).toEqual({ key: 'ooze', label: 'ooze', count: 0, state: 'include' });
+  });
+
+  it('hides tokens with an excluded value and keeps those without the field', () => {
+    expect(shown(select((s) => toggleExcludedOption(s, 'type', 'beast')))).toEqual(['goblin', 'dragon', 'burrower', 'missing', 'plain']);
+    const both = select((s) => toggleOption(s, 'type', 'beast'), (s) => toggleExcludedOption(s, 'traits', 'fire'));
+    expect(shown(both)).toEqual(['wolf', 'bear']);
+    expect(evaluateCreatureFilters(facts, DEFINITIONS, select((s) => toggleExcludedOption(s, 'type', 'beast'))).hidden)
+      .toEqual({ withoutStatblock: 0, withoutField: [] });
+  });
+
+  it('marks excluded options and does not count tokens another exclusion hides', () => {
+    const selection = select((s) => toggleExcludedOption(s, 'traits', 'fire'));
+    const traits = evaluateCreatureFilters(facts, DEFINITIONS, selection).facets.options.find((facet) => facet.definition.id === 'traits')!;
+    expect(traits.options.map((option) => [option.label, option.count, option.state])).toEqual([
+      ['Evil', 0, null], ['Fire', 1, 'exclude'], ['Goblinoid', 1, null],
+    ]);
   });
 
   it('filters thousands of tokens quickly', () => {
@@ -135,16 +152,25 @@ describe('selection edits', () => {
     expect(selection.ranges).toEqual({});
   });
 
+  it('cycles an option between required, excluded and nothing', () => {
+    const included = toggleOption(emptyCreatureSelection(), 'type', 'beast');
+    expect(included.options.type).toEqual({ include: ['beast'], exclude: [] });
+    const excluded = toggleExcludedOption(included, 'type', 'beast');
+    expect(excluded.options.type).toEqual({ include: [], exclude: ['beast'] });
+    expect(toggleOption(excluded, 'type', 'beast').options).toEqual({});
+    expect(withOptionState(excluded, 'type', 'beast', 'exclude')).toBe(excluded);
+  });
+
   it('drops an options filter when its last option is unpicked', () => {
     const selection = toggleOption(toggleOption(emptyCreatureSelection(), 'type', 'beast'), 'type', 'beast');
     expect(selection.options).toEqual({});
   });
 
   it('counts and clears facets', () => {
-    const selection = select((s) => withStatblockFilter(s, 'linked'), (s) => toggleLayout(s, 'Basic 5e'), (s) => withRange(s, 'cr', { min: 1, max: 2 }));
+    const selection = select((s) => withStatblockFilter(s, 'linked'), (s) => toggleOption(s, LAYOUT_FACET, 'Basic 5e'), (s) => withRange(s, 'cr', { min: 1, max: 2 }));
     expect(activeFilterCount(selection, DEFINITIONS)).toBe(3);
-    expect(activeFilterCount(clearFacet(clearFacet(selection, 'cr'), 'statblock'), DEFINITIONS)).toBe(1);
-    expect(withoutFieldFilters(selection)).toEqual({ ...emptyCreatureSelection(), statblock: 'linked' });
+    expect(activeFilterCount(clearFacet(clearFacet(selection, 'cr'), STATBLOCK_FACET), DEFINITIONS)).toBe(1);
+    expect(clearFacet(selection, LAYOUT_FACET).layouts).toEqual({ include: [], exclude: [] });
   });
 
   it('prunes picks of filters the collection no longer defines, keeping the object when nothing changes', () => {
@@ -155,5 +181,37 @@ describe('selection edits', () => {
     expect(pruneSelection(pruned, DEFINITIONS)).toBe(pruned);
     const retyped: CreatureFilterDefinition[] = [{ id: 'cr', label: 'CR', kind: 'options', fields: ['cr'] }];
     expect(pruneSelection(pruned, retyped).ranges).toEqual({});
+  });
+});
+
+describe('alignment', () => {
+  const alignment = CATALOG_CREATURE_FILTERS.find((filter) => filter.id === 'alignment')!;
+  const creatures: Record<string, IndexedCreature> = {
+    orc: { path: 'orc', layout: null, fields: { alignment: 'chaotic evil' } },
+    devil: { path: 'devil', layout: null, fields: { alignment: 'lawful evil' } },
+    elf: { path: 'elf', layout: null, fields: { alignment: 'chaotic good' } },
+    wolf: { path: 'wolf', layout: null, fields: { alignment: 'unaligned' } },
+  };
+  const alignmentFacts = Object.keys(creatures).map((path) => factsOf({ statblockPath: path }, (p) => creatures[p] ?? null, [alignment]));
+  const evaluate = (selection: CreatureFilterSelection) => evaluateCreatureFilters(alignmentFacts, [alignment], selection);
+  const names = (selection: CreatureFilterSelection): string[] => Object.keys(creatures).filter((_, index) => evaluate(selection).passes[index]);
+
+  it('lists the parts of the alignments in their usual order', () => {
+    expect(evaluate(emptyCreatureSelection()).facets.options[0]!.options.map((option) => [option.label, option.count])).toEqual([
+      ['Lawful', 1], ['Chaotic', 2], ['Good', 1], ['Evil', 2], ['Unaligned', 1],
+    ]);
+  });
+
+  it('needs every picked part, and counts what each further part would leave', () => {
+    const chaoticEvil = select((s) => toggleOption(s, 'alignment', 'chaotic'), (s) => toggleOption(s, 'alignment', 'evil'));
+    expect(names(chaoticEvil)).toEqual(['orc']);
+    const chaotic = select((s) => toggleOption(s, 'alignment', 'chaotic'));
+    expect(evaluate(chaotic).facets.options[0]!.options.map((option) => [option.label, option.count])).toEqual([
+      ['Lawful', 0], ['Chaotic', 2], ['Good', 1], ['Evil', 1], ['Unaligned', 0],
+    ]);
+  });
+
+  it('excludes a part', () => {
+    expect(names(select((s) => toggleExcludedOption(s, 'alignment', 'evil')))).toEqual(['elf', 'wolf']);
   });
 });

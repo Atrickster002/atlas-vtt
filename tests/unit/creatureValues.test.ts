@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatRating, optionKey, parseOptions, parseRating } from '../../src/app/creatures/creatureValues';
+import { alignmentParts, formatRating, optionKey, parseOptions, parseRating } from '../../src/app/creatures/creatureValues';
 
 describe('parseRating', () => {
   it.each([
@@ -95,5 +95,25 @@ describe('parseOptions', () => {
 describe('optionKey', () => {
   it('compares options regardless of case', () => {
     expect(optionKey('Beast')).toBe(optionKey('beast'));
+  });
+});
+
+describe('alignmentParts', () => {
+  it.each([
+    ['chaotic evil', ['Chaotic', 'Evil']],
+    ['Lawful Good', ['Lawful', 'Good']],
+    ['neutral', ['Neutral']],
+    ['unaligned', ['Unaligned']],
+    ['any alignment', ['Any']],
+    ['any non-good alignment', ['Any']],
+    ['any evil alignment', ['Evil']],
+    ['neutral good (50%) or neutral evil (50%)', ['Neutral', 'Good', 'Evil']],
+    ['CE', ['Chaotic', 'Evil']],
+    ['N', ['Neutral']],
+    ['L', ['Lawful']],
+    [['LG'], ['Lawful', 'Good']],
+    ['', []],
+  ])('reads %j as %j', (raw, parts) => {
+    expect(alignmentParts(raw)).toEqual(parts);
   });
 });

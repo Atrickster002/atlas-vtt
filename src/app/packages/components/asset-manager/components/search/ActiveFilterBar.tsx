@@ -11,7 +11,7 @@ function SingleChip({ group }: { group: FilterChipGroup }): React.JSX.Element {
   return (
     <Button variant="ghost" className="atlas-active-filter" onClick={item.remove} aria-label={`Remove ${group.category}: ${item.label}`}>
       <span className="atlas-active-filter__category">{group.category}</span>
-      <span className="atlas-active-filter__value">{item.label}</span>
+      <span className={`atlas-active-filter__value${item.excluded ? ' atlas-excluded' : ''}`}>{item.label}</span>
       <X />
     </Button>
   );
@@ -52,7 +52,7 @@ function GroupedChip({ group }: { group: FilterChipGroup }): React.JSX.Element {
           </div>
           {group.items.map((item) => (
             <Button key={item.key} variant="ghost" className="atlas-active-filter-group__item" onClick={item.remove} aria-label={`Remove ${group.category}: ${item.label}`}>
-              <span>{item.label}</span>
+              <span className={item.excluded ? 'atlas-active-filter__value atlas-excluded' : undefined}>{item.label}</span>
               <X />
             </Button>
           ))}
