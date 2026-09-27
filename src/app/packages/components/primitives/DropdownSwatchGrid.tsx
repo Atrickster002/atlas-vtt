@@ -1,4 +1,5 @@
 import React from "react"
+import { Check } from "lucide-react"
 import { LabelTooltip } from "./tooltip"
 
 export interface DropdownSwatch {
@@ -33,7 +34,9 @@ export function DropdownSwatchGrid({ label, swatches, value, onChange, hint }: D
                 className={`atlas-swatch${isActive ? " atlas-swatch--active" : ""}`}
                 style={{ backgroundColor: swatch.value }}
                 onClick={() => onChange(swatch.value)}
-              />
+              >
+                {isActive && <Check className="atlas-swatch-check" aria-hidden="true" />}
+              </button>
             </LabelTooltip>
           )
         })}

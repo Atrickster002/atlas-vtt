@@ -272,13 +272,17 @@
 }
 
 .atlas-swatch {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   aspect-ratio: 1;
+  padding: 0;
   // Steps down from the dropdown's own radius.
   border-radius: $radius-s;
   border: $border-width-s solid color-mix(in oklch, var(--mono-100) $border-opacity-subtle, transparent);
   cursor: pointer;
   // The swatch is small, so the ring sits outside it rather than shrinking the colour.
-  box-shadow: 0 0 0 0 var(--interactive-accent);
+  box-shadow: 0 0 0 0 var(--text-normal);
   transition-property: box-shadow, scale;
   transition-duration: $transition-normal;
   transition-timing-function: $transition-ease;
@@ -291,7 +295,13 @@
     scale: 0.96;
   }
 
+  // A ring in the text colour contrasts with the menu, not with the swatch, so it shows
+  // around every colour; the tick marks the choice without relying on colour at all.
   &--active {
-    box-shadow: 0 0 0 2px var(--interactive-accent);
+    box-shadow: 0 0 0 2px var(--text-normal);
   }
+}
+
+.atlas-swatch-check {
+  @include atlas-swatch-check(14px);
 }
