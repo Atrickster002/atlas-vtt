@@ -1,87 +1,105 @@
 /**
- * CreatureFiltersTab: the statblock fields the asset manager filters this
- * collection's characters by, with the fields its statblocks have to add.
+ * CreatureFiltersTab: which statblock fields the asset manager filters this
+ * collection's characters by. Atlas' own filters can be switched off; filters
+ * on other fields are added from those the collection's statblocks have.
  */
 
 import React, { useMemo } from 'react';
 import { Plus } from 'lucide-react';
 import { Button } from '../../../packages/components/primitives/button';
+import { CATALOG_CREATURE_FILTERS } from '../../../creatures/creatureFieldCatalog';
 import { discoverCreatureFields, type DiscoveredField } from '../../../creatures/creatureFieldDiscovery';
+import { filterFields, filterForField, newCreatureFilterId } from '../../../creatures/creatureFilterDefinitions';
 import type { IndexedCreature } from '../../../creatures/CreatureIndex';
-import { filterFields, filterForField, newCreatureFilterId } from '../../../gameSystems/creatureFilters';
 import type { CreatureFilterDefinition } from '../../../types/creatureFilterTypes';
+import { CatalogFilterList } from './CatalogFilterList';
 import { CreatureFieldSuggestions } from './CreatureFieldSuggestions';
 import { CreatureFilterRow } from './CreatureFilterRow';
 
 interface CreatureFiltersTabProps {
-  filters: CreatureFilterDefinition[];
-  onChange: (filters: CreatureFilterDefinition[]) => void;
+  /** Ids of Atlas' own filters switched off. */
+  hidden: string[];
+  onHiddenChange: (hidden: string[]) => void;
+  /** The collection's filters on fields of its own. */
+  custom: CreatureFilterDefinition[];
+  onCustomChange: (filters: CreatureFilterDefinition[]) => void;
   /** The statblocks linked to the collection's characters. */
   creatures: readonly IndexedCreature[];
   /** Whether those statblocks are still being read. */
   pending: boolean;
 }
 
-export function CreatureFiltersTab({ filters, onChange, creatures, pending }: CreatureFiltersTabProps): React.ReactElement {
+export function CreatureFiltersTab({ hidden, onHiddenChange, custom, onCustomChange, creatures, pending }: CreatureFiltersTabProps): React.ReactElement {
   const discovered = useMemo(() => discoverCreatureFields(creatures), [creatures]);
   const unused = useMemo(() => {
-    const used = new Set(filters.flatMap(filterFields));
+    const used = new Set([...CATALOG_CREATURE_FILTERS, ...custom].flatMap(filterFields));
     return discovered.filter((field) => !used.has(field.field));
-  }, [discovered, filters]);
+  }, [discovered, custom]);
+  // Custom ids never take one of Atlas' own.
+  const taken = useMemo(() => [...CATALOG_CREATURE_FILTERS, ...custom], [custom]);
 
   const update = (index: number, filter: CreatureFilterDefinition): void => {
-    onChange(filters.map((current, i) => (i === index ? filter : current)));
+    onCustomChange(custom.map((current, i) => (i === index ? filter : current)));
   };
 
   const move = (index: number, offset: -1 | 1): void => {
     const target = index + offset;
-    if (target < 0 || target >= filters.length) return;
-    const next = [...filters];
+    if (target < 0 || target >= custom.length) return;
+    const next = [...custom];
     [next[index], next[target]] = [next[target]!, next[index]!];
-    onChange(next);
+    onCustomChange(next);
   };
 
   const addBlank = (): void => {
-    onChange([...filters, { id: newCreatureFilterId(filters, 'filter'), label: '', kind: 'range', field: '' }]);
+    onCustomChange([...custom, { id: newCreatureFilterId(taken, 'filter'), label: '', kind: 'range', field: '' }]);
   };
 
   const addDiscovered = (field: DiscoveredField): void => {
-    onChange([...filters, filterForField(filters, field.field, field.kind)]);
+    onCustomChange([...custom, filterForField(taken, field.field, field.kind)]);
   };
 
   return (
     <>
       <p className="atlas-csm-hint">
-        Filter this collection&apos;s characters in the asset manager by what their linked
-        statblocks say. A range filters numbers such as CR, level or tier; options filter
-        categories such as type or role and can merge several fields.
+        The asset manager filters this collection&apos;s characters by what their linked
+        statblocks say. Atlas knows the fields most statblock layouts share, whatever the
+        game system, and shows each filter only where the statblocks have its field.
       </p>
 
-      {filters.length > 0 ? (
-        <div className="atlas-csm-condition-list">
-          {filters.map((filter, i) => (
-            <CreatureFilterRow
-              key={filter.id}
-              filter={filter}
-              isFirst={i === 0}
-              isLast={i === filters.length - 1}
-              onChange={(next) => update(i, next)}
-              onMove={(offset) => move(i, offset)}
-              onRemove={() => onChange(filters.filter((_, j) => j !== i))}
-            />
-          ))}
-        </div>
-      ) : (
-        <div className="atlas-csm-empty">No creature filters</div>
-      )}
-
-      <Button variant="ghost" className="atlas-csm-add-btn" onClick={addBlank}>
-        <Plus />
-        Add filter
-      </Button>
+      <div className="atlas-csm-field">
+        <div className="atlas-csm-label">Atlas filters</div>
+        <CatalogFilterList hidden={hidden} onHiddenChange={onHiddenChange} creatures={creatures} pending={pending} />
+      </div>
 
       <div className="atlas-csm-field">
-        <div className="atlas-csm-label">Fields in this collection&apos;s statblocks</div>
+        <div className="atlas-csm-label">Your filters</div>
+        <p className="atlas-csm-hint">
+          Filter by other fields: a range for numbers such as hit dice, options for
+          categories. Options can merge several fields.
+        </p>
+        {custom.length > 0 && (
+          <div className="atlas-csm-condition-list">
+            {custom.map((filter, i) => (
+              <CreatureFilterRow
+                key={filter.id}
+                filter={filter}
+                isFirst={i === 0}
+                isLast={i === custom.length - 1}
+                onChange={(next) => update(i, next)}
+                onMove={(offset) => move(i, offset)}
+                onRemove={() => onCustomChange(custom.filter((_, j) => j !== i))}
+              />
+            ))}
+          </div>
+        )}
+        <Button variant="ghost" className="atlas-csm-add-btn" onClick={addBlank}>
+          <Plus />
+          Add filter
+        </Button>
+      </div>
+
+      <div className="atlas-csm-field">
+        <div className="atlas-csm-label">Other fields in this collection&apos;s statblocks</div>
         <CreatureFieldSuggestions fields={unused} statblockCount={creatures.length} pending={pending} onAdd={addDiscovered} />
       </div>
     </>

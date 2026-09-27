@@ -36,7 +36,6 @@ export interface OptionsFacet {
 export interface CreatureFacets {
   statblock: { any: number; linked: number; unlinked: number };
   layouts: readonly FacetOption[];
-  sizes: ReadonlyArray<{ size: number; count: number; selected: boolean }>;
   ranges: readonly RangeFacet[];
   options: readonly OptionsFacet[];
 }
@@ -64,7 +63,6 @@ interface Check {
 
 const STATBLOCK = 'statblock';
 const LAYOUTS = 'layouts';
-const SIZES = 'sizes';
 const fieldCheckId = (definitionId: string): string => `field:${definitionId}`;
 
 const outcome = (passes: boolean): Outcome => (passes ? 'pass' : 'fail');
@@ -85,10 +83,6 @@ function activeChecks(definitions: readonly CreatureFilterDefinition[], selectio
       id: LAYOUTS,
       test: (facts) => (facts.creature?.layout ? outcome(layouts.has(facts.creature.layout)) : 'missing'),
     });
-  }
-  if (selection.sizes.length > 0) {
-    const sizes = new Set(selection.sizes);
-    checks.push({ id: SIZES, test: (facts) => outcome(sizes.has(facts.size)) });
   }
   for (const definition of definitions) {
     if (definition.kind === 'range') {
@@ -223,14 +217,6 @@ export function evaluateCreatureFilters(
     selection.layouts,
   );
 
-  const sizesCounted = counted(failures, SIZES);
-  const sizeCounts = new Map<number, number>();
-  facts.forEach((token, index) => sizeCounts.set(token.size, (sizeCounts.get(token.size) ?? 0) + (sizesCounted(index) ? 1 : 0)));
-  for (const size of selection.sizes) if (!sizeCounts.has(size)) sizeCounts.set(size, 0);
-  const sizes = [...sizeCounts.entries()]
-    .sort(([a], [b]) => a - b)
-    .map(([size, count]) => ({ size, count, selected: selection.sizes.includes(size) }));
-
   const ranges: RangeFacet[] = [];
   const options: OptionsFacet[] = [];
   for (const definition of definitions) {
@@ -247,7 +233,7 @@ export function evaluateCreatureFilters(
 
   return {
     passes,
-    facets: { statblock, layouts, sizes, ranges, options },
+    facets: { statblock, layouts, ranges, options },
     hidden: hiddenSummary(facts, outcomes, definitions),
   };
 }

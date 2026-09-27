@@ -1,11 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
-import {
-  DEFAULT_GRID_DEFAULTS,
-  collectionCreatureFilters,
-  rulesOfPreset,
-  vanillaSystemSettings,
-} from '../../../gameSystems/systemRules';
-import { parseCreatureFilters } from '../../../gameSystems/creatureFilters';
+import { useEffect, useState } from 'react';
+import { DEFAULT_GRID_DEFAULTS, rulesOfPreset, vanillaSystemSettings } from '../../../gameSystems/systemRules';
+import { parseCreatureFilters, parseHiddenCreatureFilters } from '../../../creatures/creatureFilterDefinitions';
 import type { AssetService } from '../../../services/AssetService';
 import type {
   CollectionGridDefaults,
@@ -26,8 +21,12 @@ export interface CollectionSettingsDraft {
   setConditions: (conditions: ConditionDefinition[]) => void;
   vision: VisionSettings | undefined;
   setVision: (vision: VisionSettings | undefined) => void;
-  creatureFilters: CreatureFilterDefinition[];
-  setCreatureFilters: (creatureFilters: CreatureFilterDefinition[]) => void;
+  /** The collection's filters on fields of its own. */
+  customCreatureFilters: CreatureFilterDefinition[];
+  setCustomCreatureFilters: (filters: CreatureFilterDefinition[]) => void;
+  /** Ids of Atlas' own filters switched off for the collection. */
+  hiddenCreatureFilters: string[];
+  setHiddenCreatureFilters: (ids: string[]) => void;
   systemPresetId: string | undefined;
   setSystemPresetId: (presetId: string | undefined) => void;
   applyPreset: (preset: SystemPreset) => void;
@@ -39,29 +38,20 @@ export interface CollectionSettingsDraft {
   tokenBarChanges: () => TokenBars;
 }
 
-/**
- * The collection's settings as edited in the modal; nothing is written until the
- * caller saves. `presets` supplies the creature filters of a collection saved
- * before filters existed.
- */
+/** The collection's settings as edited in the modal; nothing is written until the caller saves. */
 export function useCollectionSettingsDraft(
   assetService: AssetService | null,
   collectionId: string,
   isOpen: boolean,
-  presets: readonly SystemPreset[],
 ): CollectionSettingsDraft {
   const [gridDefaults, setGridDefaults] = useState<CollectionGridDefaults>(() => structuredClone(DEFAULT_GRID_DEFAULTS));
   const [defaultWidgets, setDefaultWidgets] = useState<Record<string, boolean>>({});
   const [conditions, setConditions] = useState<ConditionDefinition[]>([]);
   const [vision, setVision] = useState<VisionSettings | undefined>(undefined);
   const [systemPresetId, setSystemPresetId] = useState<string | undefined>(undefined);
-  const [loaded, setLoaded] = useState<Partial<CollectionSettings>>({});
-  // Unset until edited, so a collection saved before filters existed follows its preset's.
-  const [editedFilters, setCreatureFilters] = useState<CreatureFilterDefinition[] | undefined>(undefined);
-  const creatureFilters = useMemo(
-    () => editedFilters ?? collectionCreatureFilters(loaded, presets),
-    [editedFilters, loaded, presets],
-  );
+  const [loadedDefaultWidgets, setLoadedDefaultWidgets] = useState<Record<string, boolean> | undefined>(undefined);
+  const [customCreatureFilters, setCustomCreatureFilters] = useState<CreatureFilterDefinition[]>([]);
+  const [hiddenCreatureFilters, setHiddenCreatureFilters] = useState<string[]>([]);
 
   useEffect(() => {
     if (!isOpen || !assetService) return;
@@ -71,8 +61,9 @@ export function useCollectionSettingsDraft(
     setConditions(settings.conditions ?? []);
     setVision(settings.vision);
     setSystemPresetId(settings.systemPresetId);
-    setLoaded(settings);
-    setCreatureFilters(undefined);
+    setLoadedDefaultWidgets(settings.defaultWidgets);
+    setCustomCreatureFilters(parseCreatureFilters(settings.customCreatureFilters));
+    setHiddenCreatureFilters(parseHiddenCreatureFilters(settings.hiddenCreatureFilters));
   }, [isOpen, collectionId, assetService]);
 
   const applyPreset = (preset: SystemPreset): void => {
@@ -80,7 +71,6 @@ export function useCollectionSettingsDraft(
     setGridDefaults(rules.gridDefaults);
     setConditions(rules.conditions);
     setDefaultWidgets(rules.defaultWidgets);
-    setCreatureFilters(rules.creatureFilters);
     setSystemPresetId(preset.id);
   };
 
@@ -89,7 +79,6 @@ export function useCollectionSettingsDraft(
     setGridDefaults(vanilla.gridDefaults);
     setConditions(vanilla.conditions);
     setDefaultWidgets(vanilla.defaultWidgets);
-    setCreatureFilters(vanilla.creatureFilters);
     setSystemPresetId(undefined);
   };
 
@@ -98,7 +87,8 @@ export function useCollectionSettingsDraft(
     defaultWidgets,
     conditions,
     // Trimmed, with the field as label where none was typed.
-    creatureFilters: parseCreatureFilters(creatureFilters),
+    customCreatureFilters: parseCreatureFilters(customCreatureFilters),
+    hiddenCreatureFilters,
     systemPresetId,
     ...(vision !== undefined && { vision }),
   });
@@ -108,9 +98,10 @@ export function useCollectionSettingsDraft(
     defaultWidgets, setDefaultWidgets,
     conditions, setConditions,
     vision, setVision,
-    creatureFilters, setCreatureFilters,
+    customCreatureFilters, setCustomCreatureFilters,
+    hiddenCreatureFilters, setHiddenCreatureFilters,
     systemPresetId, setSystemPresetId,
     applyPreset, clearSystem, toSettings,
-    tokenBarChanges: () => changedTokenBars(tokenBarsOf(loaded.defaultWidgets), tokenBarsOf(defaultWidgets)),
+    tokenBarChanges: () => changedTokenBars(tokenBarsOf(loadedDefaultWidgets), tokenBarsOf(defaultWidgets)),
   };
 }

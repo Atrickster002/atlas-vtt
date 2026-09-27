@@ -1,12 +1,18 @@
 import type { CreatureFilterDefinition } from '../types/creatureFilterTypes';
 import type { IndexedCreature } from './CreatureIndex';
+import { RATING_FILTERS } from './creatureFieldCatalog';
 import { optionKey, parseOptions, parseRating } from './creatureValues';
 
 /** What the filters need of a token. */
 export interface FilterableToken {
   statblockPath?: string;
-  /** Size multiplier; unset is a medium token (1). */
-  size?: number;
+}
+
+/** A creature's rating: its value on the first scale of `RATING_FILTERS` its statblock has. */
+export interface CreatureRating {
+  /** Index of the scale in `RATING_FILTERS`, so creatures group by scale. */
+  scale: number;
+  value: number;
 }
 
 /** A category as it appears on a token: compared by key, shown by label. */
@@ -21,7 +27,7 @@ export interface TokenFacts {
   linked: boolean;
   /** The linked note's creature; null without one, or while the note is not read yet. */
   creature: IndexedCreature | null;
-  size: number;
+  rating: CreatureRating | null;
   /** Value of every range filter, by filter id; null when the statblock does not have it. */
   ratings: ReadonlyMap<string, number | null>;
   /** Values of every options filter, by filter id; empty when the statblock has none. */
@@ -44,6 +50,14 @@ function uniqueOptions(values: readonly unknown[]): OptionValue[] {
   return [...byKey.values()];
 }
 
+function ratingOf(fields: Readonly<Record<string, unknown>>): CreatureRating | null {
+  for (const [scale, filter] of RATING_FILTERS.entries()) {
+    const value = parseRating(fields[filter.field]);
+    if (value !== null) return { scale, value };
+  }
+  return null;
+}
+
 /** The facts of one token under the collection's filter definitions. */
 export function factsOf(token: FilterableToken, lookup: CreatureLookupFn, definitions: readonly CreatureFilterDefinition[]): TokenFacts {
   const creature = token.statblockPath ? lookup(token.statblockPath) ?? null : null;
@@ -57,5 +71,5 @@ export function factsOf(token: FilterableToken, lookup: CreatureLookupFn, defini
       options.set(definition.id, fields ? uniqueOptions(definition.fields.map((field) => fields[field])) : []);
     }
   }
-  return { linked: Boolean(token.statblockPath), creature, size: token.size ?? 1, ratings, options };
+  return { linked: Boolean(token.statblockPath), creature, rating: fields ? ratingOf(fields) : null, ratings, options };
 }

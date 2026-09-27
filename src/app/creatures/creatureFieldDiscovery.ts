@@ -84,3 +84,8 @@ export function discoverCreatureFields(creatures: readonly IndexedCreature[]): D
     .filter((field): field is DiscoveredField => field !== null)
     .sort((a, b) => b.count - a.count || a.field.localeCompare(b.field));
 }
+
+/** How many of `creatures` have a value in any of `fields`. */
+export function countCreaturesWith(creatures: readonly IndexedCreature[], fields: readonly string[]): number {
+  return creatures.filter((creature) => fields.some((field) => !isEmpty(creature.fields[field]))).length;
+}

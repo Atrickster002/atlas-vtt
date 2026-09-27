@@ -58,3 +58,31 @@ describe('sort options', () => {
     expect(resolveSortOption('type', 'tokens')).toBe('type');
   });
 });
+
+describe('sorting characters by rating', () => {
+  const ratings: Record<string, { scale: number; value: number }> = {
+    Ogre: { scale: 0, value: 2 },
+    Goblin: { scale: 0, value: 0.25 },
+    Dragon: { scale: 0, value: 10 },
+    Burrower: { scale: 2, value: 1 },
+    Knight: { scale: 1, value: 5 },
+  };
+  const tokens = ['Ogre', 'Innkeeper', 'Goblin', 'Burrower', 'Dragon', 'Knight', 'Adept'].map((name) => token(name));
+  const ratingOf = (asset: AnyAsset): { scale: number; value: number } | null => ratings[asset.name] ?? null;
+  const names = (assets: AnyAsset[]): string[] => assets.map((asset) => asset.name);
+
+  it('is offered for characters only', () => {
+    expect(sortOptionsFor('tokens')).toContain('rating');
+    expect(sortOptionsFor('maps')).not.toContain('rating');
+    expect(resolveSortOption('rating', 'maps')).toBe('name');
+  });
+
+  it('groups by scale, orders each scale by value and puts characters without a rating last either way', () => {
+    expect(names(sortAssets(tokens, 'rating', 'asc', ratingOf))).toEqual(['Goblin', 'Ogre', 'Dragon', 'Knight', 'Burrower', 'Adept', 'Innkeeper']);
+    expect(names(sortAssets(tokens, 'rating', 'desc', ratingOf))).toEqual(['Dragon', 'Ogre', 'Goblin', 'Knight', 'Burrower', 'Adept', 'Innkeeper']);
+  });
+
+  it('falls back to names while no ratings are known', () => {
+    expect(names(sortAssets(tokens, 'rating', 'asc'))).toEqual(['Adept', 'Burrower', 'Dragon', 'Goblin', 'Innkeeper', 'Knight', 'Ogre']);
+  });
+});

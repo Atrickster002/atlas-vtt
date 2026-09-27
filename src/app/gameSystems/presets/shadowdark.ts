@@ -1,6 +1,6 @@
 import type { SystemPreset } from '../../types/systemPresetTypes';
 import type { TimerWidget } from '../../types/widgetTypes';
-import { builtInPresetId, conditionsOf, creatureFiltersOf } from './presetHelpers';
+import { builtInPresetId, conditionsOf } from './presetHelpers';
 
 /** Torches (and lanterns and the Light spell) burn for one hour of real time. */
 const SHADOWDARK_TORCH: TimerWidget = {
@@ -57,9 +57,5 @@ export const SHADOWDARK: SystemPreset = {
     ]),
     widgets: [SHADOWDARK_TORCH],
     defaultWidgets: { hpBar: true },
-    creatureFilters: creatureFiltersOf('shadowdark', [
-      { label: 'Level', kind: 'range', field: 'level' },
-      { label: 'Alignment', kind: 'options', fields: ['alignment'] },
-    ]),
   },
 };

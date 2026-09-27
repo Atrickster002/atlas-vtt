@@ -5,7 +5,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import AssetManager from '../../src/app/packages/components/asset-manager/AssetManager';
 import type { AnyAsset, TokenAsset } from '../../src/app/packages/components/asset-manager/types';
 import { CreatureIndex } from '../../src/app/creatures/CreatureIndex';
-import type { CreatureFilterDefinition } from '../../src/app/types/creatureFilterTypes';
+import type { StatblockFilterControl } from '../../src/app/packages/components/asset-manager/hooks/useCreatureFilters';
 
 // The real sidebar, filter engine and creature index over an in-memory vault of statblock notes.
 const FRONTMATTER: Record<string, Record<string, unknown>> = {
@@ -14,10 +14,6 @@ const FRONTMATTER: Record<string, Record<string, unknown>> = {
   'Bestiary/Bear.md': { statblock: true, name: 'Bear', cr: 1, type: 'Beast' },
   'Bestiary/Dragon.md': { statblock: true, name: 'Dragon', cr: 10, type: 'dragon' },
 };
-const FILTERS: CreatureFilterDefinition[] = [
-  { id: 'cr', label: 'CR', kind: 'range', field: 'cr' },
-  { id: 'type', label: 'Type', kind: 'options', fields: ['type'] },
-];
 const token = (name: string, statblockPath?: string, size?: number): TokenAsset => ({
   id: name, name, type: 'tokens', imageUrl: '', folderId: null, modifiedAt: 0,
   ...(statblockPath && { statblockPath }), ...(size && { size }),
@@ -39,7 +35,8 @@ const app = {
   metadataCache: { ...events, getFileCache: (file: TFile) => ({ frontmatter: FRONTMATTER[file.path] }) },
   vault: { ...events, getAbstractFileByPath: (path: string) => (FRONTMATTER[path] ? new TFile(path) : null), cachedRead: async () => '' },
 };
-const assetService = { getCollectionSettings: () => ({ conditions: [], creatureFilters: FILTERS }) };
+// Set to another game system on purpose: the filters follow the statblocks, not the system.
+const assetService = { getCollectionSettings: () => ({ conditions: [], systemPresetId: 'builtin:daggerheart' }) };
 
 vi.mock('../../src/app/packages/components/asset-manager/hooks/useAssetData', () => ({
   useAssetData: () => ({
@@ -55,9 +52,14 @@ vi.mock('../../src/app/packages/components/asset-manager/hooks/useAssetManagerEf
 vi.mock('../../src/app/packages/components/asset-manager/components/Header', () => ({ Header: () => null }));
 vi.mock('../../src/app/packages/components/asset-manager/components/ModalLayer', () => ({ ModalLayer: () => null }));
 vi.mock('../../src/app/packages/components/asset-manager/components/Content', () => ({
-  Content: ({ assets, onClearFilters }: { assets: AnyAsset[]; onClearFilters?: () => void }) => (
+  Content: ({ assets, onClearFilters, statblockFilter }: { assets: AnyAsset[]; onClearFilters?: () => void; statblockFilter?: StatblockFilterControl }) => (
     <>
       <ul aria-label="Assets">{assets.map((asset) => <li key={asset.id}>{asset.name}</li>)}</ul>
+      {statblockFilter && (['any', 'linked', 'unlinked'] as const).map((value) => (
+        <button key={value} aria-pressed={statblockFilter.value === value} onClick={() => statblockFilter.onChange(value)}>
+          {`${value} ${statblockFilter.counts[value]}`}
+        </button>
+      ))}
       {assets.length === 0 && onClearFilters && <button onClick={onClearFilters}>Clear filters</button>}
     </>
   ),
@@ -80,11 +82,14 @@ async function openManager(): Promise<void> {
   await screen.findByRole('group', { name: 'Type' });
 }
 
-it('lists the statblock fields of the collection with how many characters have each value', async () => {
+it('offers the filters whose fields the statblocks have, whatever the collection’s game system', async () => {
   await openManager();
   expect(within(screen.getByRole('group', { name: 'Type' })).getAllByRole('button').map((button) => button.textContent))
     .toEqual(['beast2', 'dragon1', 'humanoid1']);
-  expect(screen.getAllByRole('slider').map((thumb) => thumb.getAttribute('aria-label'))).toEqual(['Lowest CR', 'Highest CR']);
+  expect(screen.getAllByRole('slider').map((thumb) => thumb.getAttribute('aria-label')))
+    .toEqual(['Lowest Challenge rating', 'Highest Challenge rating']);
+  expect(screen.queryByRole('group', { name: 'Traits' })).toBeNull();
+  expect(screen.queryByText('Tier')).toBeNull();
 });
 
 it('filters by options, keeping the counts of the other options', async () => {
@@ -97,7 +102,7 @@ it('filters by options, keeping the counts of the other options', async () => {
 
 it('filters by a range and says which characters it hides for lack of the field', async () => {
   await openManager();
-  const highest = screen.getByRole('slider', { name: 'Highest CR' });
+  const highest = screen.getByRole('slider', { name: 'Highest Challenge rating' });
   act(() => {
     fireEvent.focus(highest);
     fireEvent.keyDown(highest, { key: 'ArrowLeft' });
@@ -106,19 +111,19 @@ it('filters by a range and says which characters it hides for lack of the field'
   expect(screen.getByRole('status').textContent).toBe('Hidden: 1 without a statblock');
 });
 
-it('filters by statblock link and token size', async () => {
+it('shows characters with or without a statblock from beside the Characters heading, with counts', async () => {
   await openManager();
-  fireEvent.click(screen.getByRole('radio', { name: 'Not linked' }));
+  expect(screen.getByRole('button', { name: 'unlinked 1' })).toBeTruthy();
+  fireEvent.click(screen.getByRole('button', { name: 'unlinked 1' }));
   expect(shown()).toEqual(['Innkeeper']);
-  fireEvent.click(screen.getByRole('radio', { name: 'All' }));
-  fireEvent.click(option('Size', /^Large/));
-  expect(shown()).toEqual(['Bear']);
+  fireEvent.click(screen.getByRole('button', { name: /^linked/ }));
+  expect(shown()).toEqual(['Bear', 'Dragon', 'Goblin', 'Wolf']);
 });
 
 it('offers to clear filters that leave nothing', async () => {
   await openManager();
   fireEvent.click(option('Type', /^dragon/));
-  fireEvent.click(screen.getByRole('radio', { name: 'Not linked' }));
+  fireEvent.click(screen.getByRole('button', { name: /^unlinked/ }));
   expect(shown()).toEqual([]);
   fireEvent.click(screen.getByRole('button', { name: 'Clear filters' }));
   expect(shown()).toHaveLength(5);

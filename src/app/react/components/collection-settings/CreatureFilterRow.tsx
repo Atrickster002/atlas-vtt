@@ -3,7 +3,7 @@ import { ChevronDown, ChevronUp, Trash2 } from 'lucide-react';
 import { Button } from '../../../packages/components/primitives/button';
 import { SegmentedControl } from '../../../packages/components/primitives/SegmentedControl';
 import { LabelTooltip } from '../../../packages/components/primitives/tooltip';
-import { filterFields, isCompleteCreatureFilter, withFilterKind } from '../../../gameSystems/creatureFilters';
+import { filterFields, isCompleteCreatureFilter, withFilterKind } from '../../../creatures/creatureFilterDefinitions';
 import type { CreatureFilterDefinition, CreatureFilterKind } from '../../../types/creatureFilterTypes';
 
 const KIND_OPTIONS = [

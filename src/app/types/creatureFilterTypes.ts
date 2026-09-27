@@ -43,8 +43,6 @@ export interface CreatureFilterSelection {
   statblock: StatblockLinkFilter;
   /** Statblock layouts (Fantasy Statblocks layout names), any of which a token's statblock must use. */
   layouts: string[];
-  /** Token sizes in grid squares, any of which a token must have. */
-  sizes: number[];
   /** Inclusive bounds by range filter id. */
   ranges: Record<string, NumericRange>;
   /** Picked option keys by options filter id; a token needs any one of them. */
@@ -58,5 +56,5 @@ export interface NumericRange {
 
 /** A selection that filters nothing. */
 export function emptyCreatureSelection(): CreatureFilterSelection {
-  return { statblock: 'any', layouts: [], sizes: [], ranges: {}, options: {} };
+  return { statblock: 'any', layouts: [], ranges: {}, options: {} };
 }

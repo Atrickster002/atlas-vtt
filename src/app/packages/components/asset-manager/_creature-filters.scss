@@ -15,16 +15,6 @@
   flex-shrink: 0;
 }
 
-.atlas-creature-filters__statblock {
-  width: 100%;
-
-  .atlas-segmented__option {
-    min-width: 0;
-    padding: $spacing-xs;
-    font-size: $font-ui-smaller;
-  }
-}
-
 .atlas-creature-filters__hidden {
   margin: 0;
   color: var(--text-faint);
@@ -149,4 +139,33 @@
 .atlas-empty-state .atlas-empty-action {
   margin-top: $spacing-xs;
   pointer-events: auto;
+}
+
+// ── Characters heading: with or without a statblock ────────────────────────
+
+.atlas-section-header-row {
+  @include atlas-flex-row($gap: $spacing-s);
+
+  .atlas-section-header {
+    flex: 1;
+    min-width: 0;
+  }
+}
+
+.atlas-asset-manager-modal .atlas-statblock-filter__trigger {
+  @include atlas-flex-row($gap: 2px);
+  height: 24px;
+  padding: 0 $spacing-xs 0 $spacing-s;
+  border-radius: $radius-m;
+  color: var(--text-muted);
+  font-size: $font-ui-smaller;
+
+  svg {
+    width: $icon-xs;
+    height: $icon-xs;
+  }
+
+  &.atlas-filtering {
+    color: var(--text-accent);
+  }
 }

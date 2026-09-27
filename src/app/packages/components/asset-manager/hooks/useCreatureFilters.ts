@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { App } from 'obsidian';
-import { factsOf, linkedStatblockPaths } from '../../../../creatures/creatureFacts';
+import { factsOf, linkedStatblockPaths, type CreatureRating } from '../../../../creatures/creatureFacts';
 import { evaluateCreatureFilters, type CreatureFilterResult } from '../../../../creatures/creatureFilterEngine';
 import { activeFilterCount, pruneSelection } from '../../../../creatures/creatureSelection';
 import { useCreatureIndex } from '../../../../creatures/useCreatureIndex';
@@ -9,6 +9,7 @@ import {
   emptyCreatureSelection,
   type CreatureFilterDefinition,
   type CreatureFilterSelection,
+  type StatblockLinkFilter,
 } from '../../../../types/creatureFilterTypes';
 import type { AnyAsset, Folder, TokenAsset } from '../types';
 import { filterAssets, type AssetFilter } from '../utils/assetFilter';
@@ -20,7 +21,7 @@ export interface CreatureFilterPanel {
   selection: CreatureFilterSelection;
   setSelection: (update: (selection: CreatureFilterSelection) => CreatureFilterSelection) => void;
   result: CreatureFilterResult;
-  /** Filters that narrow the list. */
+  /** Sidebar filters that narrow the list. */
   activeCount: number;
   /** Whether linked statblocks are still being read, so counts may still change. */
   pending: boolean;
@@ -33,9 +34,22 @@ export interface CreatureFiltering {
   filter: AssetFilter;
   /** Set on the Characters tab only. */
   panel: CreatureFilterPanel | null;
+  /** Whether characters must have a linked statblock; set on the Characters tab only. */
+  statblock: StatblockFilterControl | null;
+  /** The rating of a character's statblock, for the Rating sort. */
+  ratingOf: (asset: AnyAsset) => CreatureRating | null;
+  /** Whether any creature filter narrows the list. */
+  isActive: boolean;
   /** Changes whenever the creature filters change what is listed. */
   refinementKey: string;
   clear: () => void;
+}
+
+export interface StatblockFilterControl {
+  value: StatblockLinkFilter;
+  /** Characters each choice would show, given the other filters. */
+  counts: Record<StatblockLinkFilter, number>;
+  onChange: (value: StatblockLinkFilter) => void;
 }
 
 interface CreatureFilteringOptions {
@@ -65,8 +79,8 @@ export function useCreatureFilters({ app, assetService, collectionId, isOpen, as
     if (isOpen) setStoredSelection(emptyCreatureSelection());
   }, [isOpen, filter.tab]);
 
-  const activeCount = enabled ? activeFilterCount(selection, definitions) : 0;
-  const scopeFilter = useMemo((): AssetFilter => ({ ...filter, narrowed: activeCount > 0 }), [filter, activeCount]);
+  const totalCount = enabled ? activeFilterCount(selection, definitions) : 0;
+  const scopeFilter = useMemo((): AssetFilter => ({ ...filter, narrowed: totalCount > 0 }), [filter, totalCount]);
   const scoped = useMemo(() => filterAssets(assets, folders, scopeFilter), [assets, folders, scopeFilter]);
   const tokens = useMemo(
     () => (enabled ? scoped.filter((asset): asset is TokenAsset => asset.type === 'tokens') : []),
@@ -81,25 +95,40 @@ export function useCreatureFilters({ app, assetService, collectionId, isOpen, as
   const result = useMemo(() => evaluateCreatureFilters(facts, definitions, selection), [facts, definitions, selection]);
 
   const shown = useMemo(() => {
-    if (activeCount === 0) return scoped;
+    if (totalCount === 0) return scoped;
     const passing = new Set(tokens.filter((_, index) => result.passes[index]).map((token) => token.id));
     return scoped.filter((asset) => passing.has(asset.id));
-  }, [activeCount, scoped, tokens, result]);
+  }, [totalCount, scoped, tokens, result]);
 
+  const ratingOf = useMemo(() => {
+    const ratings = new Map(tokens.map((token, index) => [token.id, facts[index]?.rating ?? null]));
+    return (asset: AnyAsset): CreatureRating | null => ratings.get(asset.id) ?? null;
+  }, [tokens, facts]);
+
+  const sidebarCount = totalCount - (selection.statblock === 'any' ? 0 : 1);
   const panel = useMemo((): CreatureFilterPanel | null => (enabled ? {
     definitions,
     selection,
     setSelection: (update) => setStoredSelection((current) => update(pruneSelection(current, definitions))),
     result,
-    activeCount,
+    activeCount: sidebarCount,
     pending: lookup.pending,
-  } : null), [enabled, definitions, selection, result, activeCount, lookup.pending]);
+  } : null), [enabled, definitions, selection, result, sidebarCount, lookup.pending]);
+
+  const statblock = useMemo((): StatblockFilterControl | null => (enabled ? {
+    value: selection.statblock,
+    counts: result.facets.statblock,
+    onChange: (value) => setStoredSelection((current) => ({ ...current, statblock: value })),
+  } : null), [enabled, selection.statblock, result.facets.statblock]);
 
   return {
     assets: shown,
     filter: scopeFilter,
     panel,
-    refinementKey: activeCount > 0 ? JSON.stringify(selection) : '',
+    statblock,
+    ratingOf,
+    isActive: totalCount > 0,
+    refinementKey: totalCount > 0 ? JSON.stringify(selection) : '',
     clear: () => setStoredSelection(emptyCreatureSelection()),
   };
 }

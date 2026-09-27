@@ -17,7 +17,8 @@ const tabDisplayNames: Record<Tab, string> = {
 
 export const getTabDisplayName = (tab: Tab): string => tabDisplayNames[tab];
 
-export type SortOption = 'name' | 'date' | 'type';
+export const sortOptions = ['name', 'date', 'type', 'rating'] as const;
+export type SortOption = (typeof sortOptions)[number];
 export type SortOrder = 'asc' | 'desc';
 
 // ─── Asset Types ────────────────────────────────────────────────────

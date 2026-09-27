@@ -66,8 +66,8 @@ export default function AssetManager({ isOpen, onClose, initialTab, onExitComple
   });
 
   const displayedAssets = useMemo(
-    () => sortAssets(creature.assets, sel.sortBy, sel.sortOrder),
-    [creature.assets, sel.sortBy, sel.sortOrder],
+    () => sortAssets(creature.assets, sel.sortBy, sel.sortOrder, creature.ratingOf),
+    [creature.assets, sel.sortBy, sel.sortOrder, creature.ratingOf],
   );
 
   const displayedFolders = useMemo(() => filterFolders(data.folders, creature.filter), [data.folders, creature.filter]);
@@ -227,7 +227,8 @@ export default function AssetManager({ isOpen, onClose, initialTab, onExitComple
                       assetService={data.assetService}
                       spawnCounts={sel.spawnCounts}
                       onSpawnCountChange={sel.handleSpawnCountChange}
-                      {...(creature.panel?.activeCount ? { onClearFilters: creature.clear } : {})}
+                      {...(creature.isActive ? { onClearFilters: creature.clear } : {})}
+                      {...(creature.statblock ? { statblockFilter: creature.statblock } : {})}
                     />
                   </AssetTagMenuContext.Provider>
                 </div>

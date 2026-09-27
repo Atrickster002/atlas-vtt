@@ -3,7 +3,7 @@ import { factsOf, type FilterableToken } from '../../src/app/creatures/creatureF
 import { evaluateCreatureFilters } from '../../src/app/creatures/creatureFilterEngine';
 import type { IndexedCreature } from '../../src/app/creatures/CreatureIndex';
 import {
-  activeFilterCount, clearFacet, pruneSelection, toggleLayout, toggleOption, toggleSize, withRange, withStatblockFilter,
+  activeFilterCount, clearFacet, pruneSelection, toggleLayout, toggleOption, withoutFieldFilters, withRange, withStatblockFilter,
 } from '../../src/app/creatures/creatureSelection';
 import {
   emptyCreatureSelection,
@@ -28,9 +28,9 @@ const CREATURES: Record<string, IndexedCreature> = {
 const TOKENS: FilterableToken[] = [
   { statblockPath: 'goblin' },
   { statblockPath: 'wolf' },
-  { statblockPath: 'bear', size: 1.5 },
-  { statblockPath: 'dragon', size: 2 },
-  { statblockPath: 'burrower', size: 2 },
+  { statblockPath: 'bear' },
+  { statblockPath: 'dragon' },
+  { statblockPath: 'burrower' },
   { statblockPath: 'missing-note' },
   {},
 ];
@@ -80,11 +80,10 @@ describe('evaluateCreatureFilters', () => {
     expect(evaluateCreatureFilters(facts, DEFINITIONS, selection).hidden).toEqual({ withoutStatblock: 2, withoutField: [] });
   });
 
-  it('filters by statblock link, layout and token size', () => {
+  it('filters by statblock link and layout', () => {
     expect(shown(select((s) => withStatblockFilter(s, 'unlinked')))).toEqual(['plain']);
     expect(shown(select((s) => withStatblockFilter(s, 'linked')))).toEqual(names.slice(0, 6));
     expect(shown(select((s) => toggleLayout(s, 'Daggerheart Adversary')))).toEqual(['burrower']);
-    expect(shown(select((s) => toggleSize(s, 1)))).toEqual(['goblin', 'wolf', 'missing', 'plain']);
   });
 
   it('counts each facet as if its own filter were off', () => {
@@ -96,9 +95,6 @@ describe('evaluateCreatureFilters', () => {
     const cr = facets.ranges.find((facet) => facet.definition.id === 'cr')!;
     expect(cr.values).toEqual([{ value: 0.25, count: 1 }, { value: 1, count: 1 }, { value: 10, count: 0 }]);
     expect(facets.statblock).toEqual({ any: 2, linked: 2, unlinked: 0 });
-    expect(facets.sizes).toEqual([
-      { size: 1, count: 1, selected: false }, { size: 1.5, count: 1, selected: false }, { size: 2, count: 0, selected: false },
-    ]);
   });
 
   it('lists every layout in view', () => {
@@ -115,10 +111,21 @@ describe('evaluateCreatureFilters', () => {
 
   it('filters thousands of tokens quickly', () => {
     const many = Array.from({ length: 5000 }, (_, index) => facts[index % facts.length]!);
-    const selection = select((s) => withRange(s, 'cr', { min: 0, max: 5 }), (s) => toggleOption(s, 'type', 'beast'), (s) => toggleSize(s, 1));
+    const selection = select((s) => withRange(s, 'cr', { min: 0, max: 5 }), (s) => toggleOption(s, 'type', 'beast'), (s) => withStatblockFilter(s, 'linked'));
     const start = performance.now();
     evaluateCreatureFilters(many, DEFINITIONS, selection);
     expect(performance.now() - start).toBeLessThan(250);
+  });
+});
+
+describe('token facts', () => {
+  it('rate a creature on the first scale its statblock has, so scales group together', () => {
+    const rating = (fields: Record<string, unknown>) => factsOf({ statblockPath: 'x' }, () => ({ path: 'x', layout: null, fields }), []).rating;
+    expect(rating({ cr: '1/2', level: 3 })).toEqual({ scale: 0, value: 0.5 });
+    expect(rating({ level: 'Creature 3' })).toEqual({ scale: 1, value: 3 });
+    expect(rating({ tier: 2 })).toEqual({ scale: 2, value: 2 });
+    expect(rating({ type: 'beast' })).toBeNull();
+    expect(factsOf({}, () => undefined, []).rating).toBeNull();
   });
 });
 
@@ -134,9 +141,10 @@ describe('selection edits', () => {
   });
 
   it('counts and clears facets', () => {
-    const selection = select((s) => withStatblockFilter(s, 'linked'), (s) => toggleSize(s, 2), (s) => withRange(s, 'cr', { min: 1, max: 2 }));
+    const selection = select((s) => withStatblockFilter(s, 'linked'), (s) => toggleLayout(s, 'Basic 5e'), (s) => withRange(s, 'cr', { min: 1, max: 2 }));
     expect(activeFilterCount(selection, DEFINITIONS)).toBe(3);
     expect(activeFilterCount(clearFacet(clearFacet(selection, 'cr'), 'statblock'), DEFINITIONS)).toBe(1);
+    expect(withoutFieldFilters(selection)).toEqual({ ...emptyCreatureSelection(), statblock: 'linked' });
   });
 
   it('prunes picks of filters the collection no longer defines, keeping the object when nothing changes', () => {

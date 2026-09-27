@@ -2,10 +2,11 @@
 
 **New Feature: Creature Filters**
 
-- Filter your characters in the asset manager by what their linked statblocks say: CR in D&D 5e, level in Pathfinder, Old-School Essentials and Shadowdark, tier and role in Daggerheart, or any other field your statblocks have. The Filters section sits below the tags on the Characters tab.
-- Each game system brings its own filters. Choose yours in Collection Settings → Creature Filters, where Atlas lists the fields your statblocks have and how many of them have each.
-- Ranges show how many characters have each value and step through exactly those values, so CR moves from 1/4 to 1/2 to 1. Options show how many characters each one would add.
-- Filter by whether a character has a statblock, by the statblock's layout and by token size in every collection. Characters without the field you filter by are hidden, and the sidebar says how many.
+- Filter your characters in the asset manager by what their linked statblocks say: challenge rating, level, tier, type, traits, rarity, alignment and source. The Filters section below the tags shows the filters your statblocks have, whatever game system they come from, so a D&D 5e statblock offers challenge rating and a Pathfinder or Old-School Essentials one level.
+- Sort characters by Rating: challenge rating, level or tier, whichever their statblock has.
+- Show all characters, or only those with or without a statblock, from the menu beside the Characters heading.
+- Ranges show how many characters have each value and step through exactly those values, so challenge rating moves from 1/4 to 1/2 to 1. Options show how many characters each one would add. Characters without the field you filter by are hidden, and the sidebar says how many.
+- In Collection Settings → Creature Filters, switch off filters a collection does not need, or add filters on other fields of your statblocks. Atlas lists the fields it finds and how many statblocks have each.
 - Works with statblock notes Fantasy Statblocks has not parsed, such as notes in a vault where its "auto parse" setting is off.
 
 ## Improved

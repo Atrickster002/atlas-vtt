@@ -18,6 +18,8 @@ import type { ViewAtlasState } from '../../../../storeFactory';
 import { useSpawnCountTyping } from '../hooks/useSpawnCountTyping';
 import { useScrollbarGutter } from '../../primitives/useScrollbarGutter';
 import { Button } from '../../primitives/button';
+import { StatblockFilterMenu } from './creature-filters/StatblockFilterMenu';
+import type { StatblockFilterControl } from '../hooks/useCreatureFilters';
 
 export interface ContentPaneProps {
   activeTab: Tab;
@@ -49,8 +51,10 @@ export interface ContentPaneProps {
   assetService: AssetService | null;
   spawnCounts: Record<string, number>;
   onSpawnCountChange: (assetId: string, count: number) => void;
-  /** Set while filters on the sidebar narrow the list; the empty state offers to clear them. */
+  /** Set while creature filters narrow the list; the empty state offers to clear them. */
   onClearFilters?: () => void;
+  /** Characters with or without a linked statblock, chosen beside the section heading. */
+  statblockFilter?: StatblockFilterControl;
 }
 
 interface SectionHeaderProps {
@@ -58,21 +62,26 @@ interface SectionHeaderProps {
   count: number;
   collapsed: boolean;
   onToggle: () => void;
+  /** Controls at the end of the heading row, outside the fold toggle. */
+  actions?: React.ReactNode;
 }
 
-function SectionHeader({ title, count, collapsed, onToggle }: SectionHeaderProps): React.JSX.Element {
+function SectionHeader({ title, count, collapsed, onToggle, actions }: SectionHeaderProps): React.JSX.Element {
   return (
-    <div
-      className="atlas-section-header"
-      onClick={onToggle}
-      role="button"
-      aria-expanded={!collapsed}
-      tabIndex={0}
-      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onToggle(); }}
-    >
-      <ChevronDown className={`atlas-chevron ${collapsed ? 'atlas-collapsed' : ''}`} />
-      <h3>{title}</h3>
-      <span className="atlas-section-count">{count}</span>
+    <div className="atlas-section-header-row">
+      <div
+        className="atlas-section-header"
+        onClick={onToggle}
+        role="button"
+        aria-expanded={!collapsed}
+        tabIndex={0}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onToggle(); }}
+      >
+        <ChevronDown className={`atlas-chevron ${collapsed ? 'atlas-collapsed' : ''}`} />
+        <h3>{title}</h3>
+        <span className="atlas-section-count">{count}</span>
+      </div>
+      {actions}
     </div>
   );
 }
@@ -200,6 +209,7 @@ export function ContentPane(props: ContentPaneProps): React.JSX.Element {
                   count={assets.length}
                   collapsed={collapsedSections.assets}
                   onToggle={() => setCollapsedSections((prev) => ({ ...prev, assets: !prev.assets }))}
+                  actions={props.statblockFilter && <StatblockFilterMenu control={props.statblockFilter} />}
                 />
                 {!collapsedSections.assets && (
                   <VirtualAssetGrid

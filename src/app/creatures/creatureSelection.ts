@@ -27,10 +27,6 @@ export function toggleLayout(selection: CreatureFilterSelection, layout: string)
   return { ...selection, layouts: toggled(selection.layouts, layout) };
 }
 
-export function toggleSize(selection: CreatureFilterSelection, size: number): CreatureFilterSelection {
-  return { ...selection, sizes: toggled(selection.sizes, size) };
-}
-
 export function toggleOption(selection: CreatureFilterSelection, filterId: string, key: string): CreatureFilterSelection {
   const picked = toggled(selection.options[filterId] ?? [], key);
   return { ...selection, options: withEntry(selection.options, filterId, picked.length > 0 ? picked : null) };
@@ -47,17 +43,21 @@ export function withRange(
   return { ...selection, ranges: withEntry(selection.ranges, filterId, spansDomain ? null : range) };
 }
 
-/** Clears the filters of one facet: `statblock`, `layouts`, `sizes`, or a filter id. */
+/** Clears the filters of one facet: `statblock`, `layouts`, or a filter id. */
 export function clearFacet(selection: CreatureFilterSelection, facet: string): CreatureFilterSelection {
   if (facet === 'statblock') return { ...selection, statblock: 'any' };
   if (facet === 'layouts') return { ...selection, layouts: [] };
-  if (facet === 'sizes') return { ...selection, sizes: [] };
   return { ...selection, ranges: withEntry(selection.ranges, facet, null), options: withEntry(selection.options, facet, null) };
+}
+
+/** The selection with only its statblock link filter left, the one the sidebar does not show. */
+export function withoutFieldFilters(selection: CreatureFilterSelection): CreatureFilterSelection {
+  return { ...selection, layouts: [], ranges: {}, options: {} };
 }
 
 /** How many filters narrow the list: one per facet with something picked. */
 export function activeFilterCount(selection: CreatureFilterSelection, definitions: readonly CreatureFilterDefinition[]): number {
-  let count = (selection.statblock === 'any' ? 0 : 1) + (selection.layouts.length > 0 ? 1 : 0) + (selection.sizes.length > 0 ? 1 : 0);
+  let count = (selection.statblock === 'any' ? 0 : 1) + (selection.layouts.length > 0 ? 1 : 0);
   for (const definition of definitions) {
     if (definition.kind === 'range' ? selection.ranges[definition.id] : selection.options[definition.id]?.length) count++;
   }

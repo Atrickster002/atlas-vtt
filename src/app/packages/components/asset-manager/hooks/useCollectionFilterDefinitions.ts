@@ -1,19 +1,19 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { App } from 'obsidian';
-import { collectionCreatureFilters } from '../../../../gameSystems/systemRules';
-import { useSystemPresets } from '../../../../react/hooks/useSystemPresets';
+import { CATALOG_CREATURE_FILTERS } from '../../../../creatures/creatureFieldCatalog';
+import { collectionCreatureFilters } from '../../../../creatures/creatureFilterDefinitions';
 import type { AssetService } from '../../../../services/AssetService';
 import type { CreatureFilterDefinition } from '../../../../types/creatureFilterTypes';
 
-const NO_FILTERS: CreatureFilterDefinition[] = [];
-
-/** The creature filters a collection offers, kept current as its settings are saved; none without a collection. */
+/**
+ * The creature filters a collection offers, kept current as its settings are
+ * saved. Across all collections, Atlas' own filters.
+ */
 export function useCollectionFilterDefinitions(
   app: App,
   assetService: AssetService | null,
   collectionId: string | null,
-): CreatureFilterDefinition[] {
-  const { presets } = useSystemPresets(app);
+): readonly CreatureFilterDefinition[] {
   const [revision, setRevision] = useState(0);
 
   useEffect(() => {
@@ -24,8 +24,8 @@ export function useCollectionFilterDefinitions(
   }, [app, collectionId]);
 
   return useMemo(() => {
-    if (!assetService || !collectionId) return NO_FILTERS;
-    return collectionCreatureFilters(assetService.getCollectionSettings(collectionId), presets);
+    if (!assetService || !collectionId) return CATALOG_CREATURE_FILTERS;
+    return collectionCreatureFilters(assetService.getCollectionSettings(collectionId));
     // `revision` stands for the collection settings, which are read here.
-  }, [assetService, collectionId, presets, revision]);
+  }, [assetService, collectionId, revision]);
 }

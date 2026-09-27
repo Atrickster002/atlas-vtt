@@ -1,5 +1,5 @@
 import type { SystemPreset } from '../../types/systemPresetTypes';
-import { builtInPresetId, conditionsOf, creatureFiltersOf } from './presetHelpers';
+import { builtInPresetId, conditionsOf } from './presetHelpers';
 
 /** D&D 5th edition: 5-foot squares, every diagonal counts 5 feet, the 15 SRD conditions. */
 export const DND_5E: SystemPreset = {
@@ -32,10 +32,5 @@ export const DND_5E: SystemPreset = {
       { name: 'Unconscious', color: '#1e3a8a', icon: 'sleepy' },
     ]),
     defaultWidgets: { hpBar: true },
-    creatureFilters: creatureFiltersOf('dnd5e', [
-      { label: 'CR', kind: 'range', field: 'cr' },
-      { label: 'Type', kind: 'options', fields: ['type'] },
-      { label: 'Source', kind: 'options', fields: ['source'] },
-    ]),
   },
 };

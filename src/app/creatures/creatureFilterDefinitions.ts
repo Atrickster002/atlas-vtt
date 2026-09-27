@@ -1,11 +1,13 @@
 /**
- * The creature filters of a collection: which statblock fields the asset
- * manager filters its tokens by. They are part of the game system rules, so a
- * preset brings its own and applying another preset replaces them.
+ * The creature filters of a collection: Atlas' own filters on the common
+ * statblock fields (`CATALOG_CREATURE_FILTERS`) minus those the collection
+ * switched off, then the collection's filters on fields of its own.
  */
 
 import { isRecord } from '../services/assetMetadataGuards';
+import type { CollectionSettings } from '../types/collectionSettingsTypes';
 import type { CreatureFilterDefinition, CreatureFilterKind } from '../types/creatureFilterTypes';
+import { CATALOG_CREATURE_FILTERS } from './creatureFieldCatalog';
 
 function fieldName(value: unknown): string | null {
   return typeof value === 'string' && value.trim() ? value.trim() : null;
@@ -26,7 +28,7 @@ function parseFilter(raw: unknown): CreatureFilterDefinition | null {
 }
 
 /**
- * Filters stored by any Atlas version, in a preset, a collection or a bundle:
+ * Filters stored by any Atlas version, in a collection or a bundle:
  * entries that cannot be used (an unknown kind from a newer version, no field)
  * are left out, and a repeated id keeps its first entry.
  */
@@ -38,21 +40,6 @@ export function parseCreatureFilters(raw: unknown): CreatureFilterDefinition[] {
     if (!filter || seen.has(filter.id)) return [];
     seen.add(filter.id);
     return [filter];
-  });
-}
-
-/** Whether two filter lists filter the same way, in the same order; ids do not matter, as with conditions. */
-export function sameCreatureFilters(
-  a: readonly CreatureFilterDefinition[] | undefined,
-  b: readonly CreatureFilterDefinition[] | undefined,
-): boolean {
-  const listA = a ?? [];
-  const listB = b ?? [];
-  return listA.length === listB.length && listA.every((filter, i) => {
-    const other = listB[i]!;
-    if (filter.label !== other.label || filter.kind !== other.kind) return false;
-    if (filter.kind === 'range') return other.kind === 'range' && filter.field === other.field;
-    return other.kind === 'options' && filter.fields.join('\n') === other.fields.join('\n');
   });
 }
 
@@ -101,4 +88,20 @@ export function filterFields(filter: CreatureFilterDefinition): readonly string[
 /** Whether a filter names a field to read; one without cannot be saved. */
 export function isCompleteCreatureFilter(filter: CreatureFilterDefinition): boolean {
   return filterFields(filter).some((field) => field.trim() !== '');
+}
+
+const CATALOG_IDS = new Set(CATALOG_CREATURE_FILTERS.map((filter) => filter.id));
+
+/** The ids of catalog filters a collection switched off, as stored by any Atlas version. */
+export function parseHiddenCreatureFilters(raw: unknown): string[] {
+  return Array.isArray(raw) ? [...new Set(raw.filter((id): id is string => typeof id === 'string' && CATALOG_IDS.has(id)))] : [];
+}
+
+/** The filters a collection offers: the catalog's that it keeps on, then its own. */
+export function collectionCreatureFilters(
+  settings: Pick<CollectionSettings, 'customCreatureFilters' | 'hiddenCreatureFilters'>,
+): CreatureFilterDefinition[] {
+  const hidden = new Set(parseHiddenCreatureFilters(settings.hiddenCreatureFilters));
+  const custom = parseCreatureFilters(settings.customCreatureFilters).filter((filter) => !CATALOG_IDS.has(filter.id));
+  return [...CATALOG_CREATURE_FILTERS.filter((filter) => !hidden.has(filter.id)), ...custom];
 }

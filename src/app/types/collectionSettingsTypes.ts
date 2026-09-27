@@ -54,9 +54,8 @@ export interface CollectionSettings {
   vision?: VisionSettings;
   /** The game system preset the rules were last taken from or saved to; they may have been edited since. */
   systemPresetId?: string | undefined;
-  /**
-   * The statblock fields the asset manager filters the collection's tokens by.
-   * Unset in collections saved before filters existed: read them with `collectionCreatureFilters`.
-   */
-  creatureFilters?: CreatureFilterDefinition[];
+  /** Filters on statblock fields Atlas does not filter by on its own. Read with `collectionCreatureFilters`. */
+  customCreatureFilters?: CreatureFilterDefinition[];
+  /** Ids of Atlas' own creature filters (`CATALOG_CREATURE_FILTERS`) switched off for the collection. */
+  hiddenCreatureFilters?: string[];
 }

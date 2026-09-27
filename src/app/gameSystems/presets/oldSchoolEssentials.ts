@@ -1,5 +1,5 @@
 import type { SystemPreset } from '../../types/systemPresetTypes';
-import { builtInPresetId, conditionsOf, creatureFiltersOf } from './presetHelpers';
+import { builtInPresetId, conditionsOf } from './presetHelpers';
 
 /**
  * Old-School Essentials: the rules' miniatures scale is 1" = 5' (5 yards
@@ -33,8 +33,5 @@ export const OLD_SCHOOL_ESSENTIALS: SystemPreset = {
       { name: 'Surprised', color: '#f59e0b', icon: 'surprised' },
     ]),
     defaultWidgets: { hpBar: true },
-    creatureFilters: creatureFiltersOf('ose', [
-      { label: 'Level', kind: 'range', field: 'level' },
-    ]),
   },
 };

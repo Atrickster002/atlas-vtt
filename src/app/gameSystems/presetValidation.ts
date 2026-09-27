@@ -16,7 +16,6 @@ import type {
 import { BUILT_IN_ID_PREFIX, type SystemPreset } from '../types/systemPresetTypes';
 import { WIDGET_ICON_PATHS, resolveWidgetIcon, type WidgetIcon } from '../types/widgetIcons';
 import type { AnyWidget } from '../types/widgetTypes';
-import { parseCreatureFilters } from './creatureFilters';
 
 const UNIT_TYPES: readonly GridUnitType[] = ['feet', 'yards', 'meters', 'units', 'custom'];
 const MEASUREMENT_MODES: readonly MeasurementMode[] = ['metric', 'abstract'];
@@ -114,7 +113,6 @@ export function parseUserPreset(raw: unknown): SystemPreset | null {
     ? raw.rules.widgets.map(parseWidget).filter((w): w is AnyWidget => w !== null)
     : [];
   const defaultWidgets = parseEnabledFlags(raw.rules.defaultWidgets);
-  const creatureFilters = parseCreatureFilters(raw.rules.creatureFilters);
   return {
     id: raw.id,
     name: raw.name.trim(),
@@ -124,7 +122,6 @@ export function parseUserPreset(raw: unknown): SystemPreset | null {
       conditions,
       ...(widgets.length > 0 && { widgets }),
       ...(Object.keys(defaultWidgets).length > 0 && { defaultWidgets }),
-      ...(creatureFilters.length > 0 && { creatureFilters }),
     },
   };
 }
