@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { TFile, App } from 'obsidian';
 import FantasyStatblock from './FantasyStatblock';
 import type { TokenVitals } from '../../services/statblockVitalsSync';
+import { isModKey } from '../../keyboard/modKey';
 import './statblock-hover-preview.scss';
 
 export interface StatblockHoverPreviewProps {
@@ -310,10 +311,10 @@ export function useStatblockHoverPreview<TEntry>(
     };
   }, []);
 
-  // Listen for CMD/Ctrl key release to close preview
+  // Releasing Mod (Cmd on macOS, Ctrl elsewhere) closes the preview
   useEffect(() => {
     const handleKeyUp = (e: KeyboardEvent): void => {
-      if (e.key === 'Meta' || e.key === 'Control') {
+      if (isModKey(e)) {
         closePreview();
       }
     };

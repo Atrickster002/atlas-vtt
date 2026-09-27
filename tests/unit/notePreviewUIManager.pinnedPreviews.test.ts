@@ -80,7 +80,7 @@ async function openPreview({ eventBus }: Harness): Promise<HTMLElement> {
     pin: { id: 'pin-1', kind: 'pin', notePath: 'notes/tavern.md', x: 0, y: 0 },
     screenX: 100,
     screenY: 100,
-    pixiEvent: { metaKey: true, ctrlKey: false },
+    pixiEvent: { metaKey: true, ctrlKey: true },
   });
   return findPreview();
 }

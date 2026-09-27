@@ -36,6 +36,7 @@ import type { ConditionDefinition } from '../types/collectionSettingsTypes';
 import { setCanvasCursor } from './utils/canvasCursor';
 import { markHandled, resetHandled } from './utils/handledEvents';
 import { runInBackground } from '../utils/backgroundTask';
+import { isModHeld } from '../keyboard/modKey';
 
 export class TokenRenderer {
   private obsApp: ObsidianApp;
@@ -1706,8 +1707,7 @@ export class TokenRenderer {
     const tokenId = this.hitTestTokens(worldPos.x, worldPos.y);
 
     this.interactionController.handleViewportTokenHover(tokenId, e);
-    const modifierDown = e.metaKey || e.ctrlKey;
-    this.uiManager.setHoverState(tokenId, modifierDown);
+    this.uiManager.setHoverState(tokenId, isModHeld(e));
 
     this.applyCursor(tokenId ? 'pointer' : 'default');
   };

@@ -759,7 +759,7 @@ export class NotePreviewWindow {
       } else {
         this.element.remove();
       }
-      this.manager.handlePreviewClosed(this.notePath, this.originatingPin ?? undefined);
+      this.manager.handlePreviewClosed(this);
       this.element = null;
       // Use the same key format when removing (with original path including header)
       const windowKey = this.originatingPin ? `${this.originalNotePath}::${this.originatingPin.id}` : this.originalNotePath;

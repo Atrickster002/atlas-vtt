@@ -64,7 +64,7 @@ export class MapLinkPreview {
       this.escapeHandler = null;
     }
     this.wrapperEl?.remove();
-    this.manager.handlePreviewClosed(this.notePath, this.originatingPin);
+    this.manager.handlePreviewClosed(this);
     this.wrapperEl = null;
     this.cardEl = null;
   }

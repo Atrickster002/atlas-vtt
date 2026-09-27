@@ -4,6 +4,7 @@ import type { InitiativeEntry } from '../../types/initiativeTypes';
 import { useAtlasUI } from '../root/AtlasUIContext';
 import { useAtlasStore } from '../ViewStoreContext';
 import { zoomToTokenWithHighlight } from '../../pixi/utils/tokenHighlight';
+import { isModHeld, isModKey } from '../../keyboard/modKey';
 
 interface InitiativeCardProps {
   entry: InitiativeEntry;
@@ -88,7 +89,7 @@ export const InitiativeCard: React.FC<InitiativeCardProps> = ({
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent): void => {
-      if (event.key !== 'Meta' && event.key !== 'Control') {
+      if (!isModKey(event)) {
         return;
       }
 
@@ -100,7 +101,7 @@ export const InitiativeCard: React.FC<InitiativeCardProps> = ({
     };
 
     const handleKeyUp = (event: KeyboardEvent): void => {
-      if (event.key !== 'Meta' && event.key !== 'Control') {
+      if (!isModKey(event)) {
         return;
       }
 
@@ -168,12 +169,12 @@ export const InitiativeCard: React.FC<InitiativeCardProps> = ({
   // Preview stays open while CMD is held - only closes on CMD release
   const handleMouseEnter = (e: React.MouseEvent): void => {
     isPointerInsideRef.current = true;
-    isModifierKeyDownRef.current = e.metaKey || e.ctrlKey || isModifierKeyDownRef.current;
+    isModifierKeyDownRef.current = isModHeld(e) || isModifierKeyDownRef.current;
     triggerPreviewIfEligible();
   };
 
   const handleMouseMove = (e: React.MouseEvent): void => {
-    isModifierKeyDownRef.current = e.metaKey || e.ctrlKey || isModifierKeyDownRef.current;
+    isModifierKeyDownRef.current = isModHeld(e) || isModifierKeyDownRef.current;
     triggerPreviewIfEligible();
   };
 
