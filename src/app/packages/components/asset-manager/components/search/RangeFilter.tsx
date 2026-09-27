@@ -1,11 +1,11 @@
 import React, { useMemo, useState } from 'react';
 import type { RangeFacet as RangeFacetData } from '../../../../../creatures/creatureFilterEngine';
-import { formatRating } from '../../../../../creatures/creatureValues';
+import { formatRange, formatRating } from '../../../../../creatures/creatureValues';
 import type { NumericRange } from '../../../../../types/creatureFilterTypes';
 import { Slider } from '../../../primitives/slider';
-import { FilterFacet } from './FilterFacet';
+import { FilterSection } from './FilterSection';
 
-interface RangeFacetProps {
+interface RangeFilterProps {
   facet: RangeFacetData;
   /** Sets the bounds; null when they span every value, so the filter stops filtering. */
   onChange: (range: NumericRange | null) => void;
@@ -26,16 +26,12 @@ function indexOf(values: readonly number[], bound: number, edge: 'min' | 'max'):
   return 0;
 }
 
-function rangeLabel(min: number, max: number): string {
-  return min === max ? formatRating(min) : `${formatRating(min)} – ${formatRating(max)}`;
-}
-
 /**
  * A scale such as CR: bars show how many tokens have each value, the slider
  * steps through exactly those values. The list follows on release, so dragging
  * does not refilter at every step.
  */
-export function RangeFacet({ facet, onChange }: RangeFacetProps): React.JSX.Element | null {
+export function RangeFilter({ facet, onChange }: RangeFilterProps): React.JSX.Element | null {
   const values = useMemo(() => facet.values.map((entry) => entry.value), [facet.values]);
   const last = values.length - 1;
   const committed: Thumbs = facet.selected
@@ -57,7 +53,9 @@ export function RangeFacet({ facet, onChange }: RangeFacetProps): React.JSX.Elem
 
   if (values.length < 2 && !facet.selected) return null;
   const { label } = facet.definition;
-  const summary = facet.selected ? rangeLabel(values[low] ?? facet.selected.min, values[high] ?? facet.selected.max) : undefined;
+  const summary = dragging
+    ? formatRange({ min: values[low]!, max: values[high]! })
+    : facet.selected ? formatRange(facet.selected) : undefined;
 
   const commit = ([from, to]: number[]): void => {
     setDragging(null);
@@ -68,7 +66,7 @@ export function RangeFacet({ facet, onChange }: RangeFacetProps): React.JSX.Elem
   };
 
   return (
-    <FilterFacet title={label} summary={dragging ? rangeLabel(values[low]!, values[high]!) : summary} active={Boolean(facet.selected)}>
+    <FilterSection title={label} summary={summary} active={Boolean(facet.selected)}>
       <div className="atlas-filter-range">
         <div className="atlas-filter-range__bars" aria-hidden="true">
           {bars.map((bar) => (
@@ -98,6 +96,6 @@ export function RangeFacet({ facet, onChange }: RangeFacetProps): React.JSX.Elem
           <span>{formatRating(values[last] ?? 0)}</span>
         </div>
       </div>
-    </FilterFacet>
+    </FilterSection>
   );
 }

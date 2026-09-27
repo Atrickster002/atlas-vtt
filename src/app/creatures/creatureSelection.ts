@@ -32,6 +32,16 @@ export function toggleOption(selection: CreatureFilterSelection, filterId: strin
   return { ...selection, options: withEntry(selection.options, filterId, picked.length > 0 ? picked : null) };
 }
 
+/** Picks an option (again picked stays picked), as typing `type:beast` does. */
+export function addOption(selection: CreatureFilterSelection, filterId: string, key: string): CreatureFilterSelection {
+  const picked = selection.options[filterId] ?? [];
+  return picked.includes(key) ? selection : { ...selection, options: { ...selection.options, [filterId]: [...picked, key] } };
+}
+
+export function addLayout(selection: CreatureFilterSelection, layout: string): CreatureFilterSelection {
+  return selection.layouts.includes(layout) ? selection : { ...selection, layouts: [...selection.layouts, layout] };
+}
+
 /** Sets a range filter's bounds; null, or bounds spanning every value in view, stop it filtering. */
 export function withRange(
   selection: CreatureFilterSelection,

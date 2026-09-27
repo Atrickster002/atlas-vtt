@@ -1,0 +1,88 @@
+import type { CreatureFacets } from '../../../../creatures/creatureFilterEngine';
+import { formatRating } from '../../../../creatures/creatureValues';
+import { matchingKeywords, queryContextAt, quoteValue, type QueryContext } from '../../../../search/querySyntax';
+import type { Tag } from '../types';
+import { suggestedKeywords, type FilterKeyword } from './filterKeywords';
+
+export type FilterSuggestion =
+  | { kind: 'keyword'; keyword: FilterKeyword }
+  | { kind: 'value'; label: string; insert: string; count?: number };
+
+export interface FilterSuggestions {
+  /** Keywords while one is typed, values after its operator. */
+  mode: 'keyword' | 'value';
+  heading: string;
+  items: FilterSuggestion[];
+  /** Explains a value that is typed freely, like a name or a number. */
+  hint?: string;
+  context: QueryContext<FilterKeyword>;
+}
+
+interface SuggestionSources {
+  keywords: readonly FilterKeyword[];
+  lookup: ReadonlyMap<string, FilterKeyword>;
+  facets: CreatureFacets | null;
+  tags: readonly Tag[];
+}
+
+const STATBLOCK_CHOICES = [
+  { label: 'yes', detail: 'with a statblock', value: 'linked' },
+  { label: 'no', detail: 'without a statblock', value: 'unlinked' },
+] as const;
+
+function matches(label: string, fragment: string): boolean {
+  return label.toLowerCase().includes(fragment.toLowerCase());
+}
+
+function valueItems(keyword: FilterKeyword, fragment: string, { facets, tags }: SuggestionSources): FilterSuggestion[] {
+  const value = (label: string, count?: number): FilterSuggestion => ({ kind: 'value', label, insert: quoteValue(label), ...(count !== undefined && { count }) });
+  switch (keyword.kind) {
+    case 'tag':
+      return tags.filter((tag) => matches(tag.name, fragment)).map((tag) => value(tag.name));
+    case 'statblock':
+      return STATBLOCK_CHOICES
+        .filter((choice) => choice.label.startsWith(fragment.toLowerCase()))
+        .map((choice) => value(choice.label, facets?.statblock[choice.value]));
+    case 'layout':
+      return (facets?.layouts ?? []).filter((layout) => matches(layout.label, fragment)).map((layout) => value(layout.label, layout.count));
+    case 'options': {
+      const facet = facets?.options.find((candidate) => candidate.definition.id === keyword.filterId);
+      return (facet?.options ?? []).filter((option) => matches(option.label, fragment)).map((option) => value(option.label, option.count));
+    }
+    case 'range': {
+      const facet = facets?.ranges.find((candidate) => candidate.definition.id === keyword.filterId);
+      return (facet?.values ?? [])
+        .map((entry) => ({ label: formatRating(entry.value), count: entry.count }))
+        .filter((entry) => entry.label.startsWith(fragment))
+        .map((entry) => value(entry.label, entry.count));
+    }
+    default:
+      return [];
+  }
+}
+
+/**
+ * What the dropdown under the search offers at the cursor: keywords while one
+ * is typed, the values in view after its operator. Null while a plain word is
+ * typed that is no keyword, so a name search is not interrupted.
+ */
+export function filterSuggestions(text: string, cursor: number, sources: SuggestionSources): FilterSuggestions | null {
+  const context = queryContextAt(text, cursor, sources.lookup);
+  if (context.kind === 'prefix') {
+    // The full list shows only keywords the assets in view have values for. A typed fragment is
+    // also a name search that may empty the view, so it matches every keyword.
+    const offered = context.fragment ? sources.keywords : suggestedKeywords(sources.keywords, sources.facets, sources.tags.length > 0);
+    const items = matchingKeywords(offered, context.fragment).map((keyword): FilterSuggestion => ({ kind: 'keyword', keyword }));
+    return items.length > 0 ? { mode: 'keyword', heading: 'Filter by', items, context } : null;
+  }
+  const { keyword } = context;
+  const items = valueItems(keyword, context.fragment, sources);
+  const typedFreely = keyword.kind === 'name' || keyword.kind === 'range';
+  return {
+    mode: 'value',
+    heading: keyword.description.split(':')[0]!,
+    items,
+    ...(typedFreely && { hint: keyword.description }),
+    context,
+  };
+}

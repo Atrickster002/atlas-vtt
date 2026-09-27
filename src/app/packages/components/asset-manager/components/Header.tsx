@@ -9,6 +9,7 @@ import type { Tab } from '../types';
 import type { SelectionState } from '../hooks/useSelectionHandlers';
 import { HeaderMenu } from './HeaderMenu';
 import { HeaderSearch } from './HeaderSearch';
+import type { FilterSearch } from '../hooks/useFilterSearch';
 import { SortControls } from './SortControls';
 import { TabSwitcher } from './TabSwitcher';
 import { TokenIcon } from '../../../../react/components/TokenIcon';
@@ -16,6 +17,8 @@ import { TokenIcon } from '../../../../react/components/TokenIcon';
 export interface HeaderProps {
   search: string;
   onSearch: (value: string) => void;
+  /** Filters typed into the search and set in its filter panel. */
+  query: FilterSearch;
   activeTab: Tab;
   onTabChange: (tab: Tab) => void;
   assetCounts: Record<Tab, number>;
@@ -42,6 +45,7 @@ export interface HeaderProps {
 export function Header({
   search,
   onSearch,
+  query,
   activeTab,
   onTabChange,
   assetCounts,
@@ -119,7 +123,7 @@ export function Header({
         </div>
 
         <div className="atlas-am-toolbar-right">
-          <HeaderSearch search={search} onSearch={onSearch} />
+          <HeaderSearch search={search} onSearch={onSearch} query={query} />
           <SortControls
             sortBy={sel.sortBy}
             sortOptions={sel.sortOptions}

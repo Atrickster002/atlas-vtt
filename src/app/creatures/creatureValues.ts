@@ -40,6 +40,7 @@ export function formatRating(value: number): string {
   if (Number.isInteger(value)) return String(value);
   const whole = Math.trunc(value);
   const part = Math.abs(value - whole);
+  if (part < 1e-9) return String(whole);
   for (const denominator of FRACTION_DENOMINATORS) {
     const numerator = part * denominator;
     if (Math.abs(numerator - Math.round(numerator)) < 1e-9) {
@@ -100,4 +101,11 @@ export function parseOptions(value: unknown): string[] {
 /** Options that differ only in case are the same option. */
 export function optionKey(option: string): string {
   return option.toLowerCase();
+}
+
+/** Bounds as the filters show them: "3", "1/4 – 3", "≥ 5" or "≤ 2" when one side is open. */
+export function formatRange(range: { min: number; max: number }): string {
+  if (range.min === -Infinity) return `≤ ${formatRating(range.max)}`;
+  if (range.max === Infinity) return `≥ ${formatRating(range.min)}`;
+  return range.min === range.max ? formatRating(range.min) : `${formatRating(range.min)} – ${formatRating(range.max)}`;
 }

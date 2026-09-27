@@ -99,6 +99,8 @@
 }
 
 .atlas-asset-manager-search {
+  // Anchors the suggestions; narrow headers make the field an absolute overlay instead.
+  position: relative;
   @include atlas-flex-row($gap: $spacing-xs);
   flex: 0 1 180px;
   width: 180px;

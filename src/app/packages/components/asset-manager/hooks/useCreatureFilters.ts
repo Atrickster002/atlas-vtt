@@ -4,24 +4,21 @@ import { factsOf, linkedStatblockPaths, type CreatureRating } from '../../../../
 import { evaluateCreatureFilters, type CreatureFilterResult } from '../../../../creatures/creatureFilterEngine';
 import { activeFilterCount, pruneSelection } from '../../../../creatures/creatureSelection';
 import { useCreatureIndex } from '../../../../creatures/useCreatureIndex';
-import type { AssetService } from '../../../../services/AssetService';
 import {
   emptyCreatureSelection,
   type CreatureFilterDefinition,
   type CreatureFilterSelection,
-  type StatblockLinkFilter,
 } from '../../../../types/creatureFilterTypes';
 import type { AnyAsset, Folder, TokenAsset } from '../types';
 import { filterAssets, type AssetFilter } from '../utils/assetFilter';
-import { useCollectionFilterDefinitions } from './useCollectionFilterDefinitions';
 
-/** The creature filters of the Characters tab, as the sidebar shows and edits them. */
+/** The creature filters of the Characters tab, as the filter panel and the search show and edit them. */
 export interface CreatureFilterPanel {
   definitions: readonly CreatureFilterDefinition[];
   selection: CreatureFilterSelection;
   setSelection: (update: (selection: CreatureFilterSelection) => CreatureFilterSelection) => void;
   result: CreatureFilterResult;
-  /** Sidebar filters that narrow the list. */
+  /** Filters that narrow the list. */
   activeCount: number;
   /** Whether linked statblocks are still being read, so counts may still change. */
   pending: boolean;
@@ -34,8 +31,6 @@ export interface CreatureFiltering {
   filter: AssetFilter;
   /** Set on the Characters tab only. */
   panel: CreatureFilterPanel | null;
-  /** Whether characters must have a linked statblock; set on the Characters tab only. */
-  statblock: StatblockFilterControl | null;
   /** The rating of a character's statblock, for the Rating sort. */
   ratingOf: (asset: AnyAsset) => CreatureRating | null;
   /** Whether any creature filter narrows the list. */
@@ -45,17 +40,10 @@ export interface CreatureFiltering {
   clear: () => void;
 }
 
-export interface StatblockFilterControl {
-  value: StatblockLinkFilter;
-  /** Characters each choice would show, given the other filters. */
-  counts: Record<StatblockLinkFilter, number>;
-  onChange: (value: StatblockLinkFilter) => void;
-}
-
 interface CreatureFilteringOptions {
   app: App;
-  assetService: AssetService | null;
-  collectionId: string | null;
+  /** The filters of the collection in view (`useCollectionFilterDefinitions`). */
+  definitions: readonly CreatureFilterDefinition[];
   isOpen: boolean;
   assets: readonly AnyAsset[];
   folders: readonly Folder[];
@@ -69,9 +57,8 @@ const NO_PATHS: string[] = [];
  * reset when the manager opens or the tab changes, like tags; picks for filters
  * the collection does not define are dropped.
  */
-export function useCreatureFilters({ app, assetService, collectionId, isOpen, assets, folders, filter }: CreatureFilteringOptions): CreatureFiltering {
+export function useCreatureFilters({ app, definitions, isOpen, assets, folders, filter }: CreatureFilteringOptions): CreatureFiltering {
   const enabled = filter.tab === 'tokens';
-  const definitions = useCollectionFilterDefinitions(app, assetService, collectionId);
   const [storedSelection, setStoredSelection] = useState<CreatureFilterSelection>(emptyCreatureSelection);
   const selection = useMemo(() => pruneSelection(storedSelection, definitions), [storedSelection, definitions]);
 
@@ -105,27 +92,19 @@ export function useCreatureFilters({ app, assetService, collectionId, isOpen, as
     return (asset: AnyAsset): CreatureRating | null => ratings.get(asset.id) ?? null;
   }, [tokens, facts]);
 
-  const sidebarCount = totalCount - (selection.statblock === 'any' ? 0 : 1);
   const panel = useMemo((): CreatureFilterPanel | null => (enabled ? {
     definitions,
     selection,
     setSelection: (update) => setStoredSelection((current) => update(pruneSelection(current, definitions))),
     result,
-    activeCount: sidebarCount,
+    activeCount: totalCount,
     pending: lookup.pending,
-  } : null), [enabled, definitions, selection, result, sidebarCount, lookup.pending]);
-
-  const statblock = useMemo((): StatblockFilterControl | null => (enabled ? {
-    value: selection.statblock,
-    counts: result.facets.statblock,
-    onChange: (value) => setStoredSelection((current) => ({ ...current, statblock: value })),
-  } : null), [enabled, selection.statblock, result.facets.statblock]);
+  } : null), [enabled, definitions, selection, result, totalCount, lookup.pending]);
 
   return {
     assets: shown,
     filter: scopeFilter,
     panel,
-    statblock,
     ratingOf,
     isActive: totalCount > 0,
     refinementKey: totalCount > 0 ? JSON.stringify(selection) : '',

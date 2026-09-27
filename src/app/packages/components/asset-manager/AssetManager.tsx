@@ -26,6 +26,9 @@ import { useSidebarLayout } from './hooks/useSidebarLayout';
 import { sortAssets } from './utils/assetSort';
 import { filterFolders, type AssetFilter } from './utils/assetFilter';
 import { useCreatureFilters } from './hooks/useCreatureFilters';
+import { useCollectionFilterDefinitions } from './hooks/useCollectionFilterDefinitions';
+import { useFilterSearch, useSearchKeywords } from './hooks/useFilterSearch';
+import { ActiveFilterBar } from './components/search/ActiveFilterBar';
 import { DIALOG_EXIT_DURATION, dialogBackdropVariants, useDialogWindowVariants } from '../primitives/dialogMotion';
 
 const wrapperVariants = {
@@ -53,16 +56,28 @@ export default function AssetManager({ isOpen, onClose, initialTab, onExitComple
   const visibleIds = useRef<VisibleIds>({ assets: [], folders: [] });
   const sel = useSelectionHandlers(visibleIds, data.folders, activeTab, isOpen);
 
+  const filterDefinitions = useCollectionFilterDefinitions(data.app, data.assetService, selectedCollection);
+  const searchKeywords = useSearchKeywords(activeTab, filterDefinitions, search);
+
   const assetFilter = useMemo((): AssetFilter => ({
     tab: activeTab,
     folderId: sel.selectedFolderId,
-    search,
+    search: searchKeywords.nameQuery,
     tags: sel.selectedTagIds.map((tagId) => data.availableTags.find((tag) => tag.id === tagId) ?? { id: tagId, name: tagId }),
-  }), [activeTab, sel.selectedFolderId, search, sel.selectedTagIds, data.availableTags]);
+  }), [activeTab, sel.selectedFolderId, searchKeywords.nameQuery, sel.selectedTagIds, data.availableTags]);
 
   const creature = useCreatureFilters({
-    app: data.app, assetService: data.assetService, collectionId: selectedCollection, isOpen,
+    app: data.app, definitions: filterDefinitions, isOpen,
     assets: data.assets, folders: data.folders, filter: assetFilter,
+  });
+
+  const filterSearch = useFilterSearch({
+    keywords: searchKeywords,
+    setSearch,
+    panel: creature.panel,
+    tags: data.availableTags,
+    tagIds: sel.selectedTagIds,
+    setTagIds: sel.setSelectedTagIds,
   });
 
   const displayedAssets = useMemo(
@@ -81,7 +96,7 @@ export default function AssetManager({ isOpen, onClose, initialTab, onExitComple
     folders: displayedFolders,
     folderId: sel.selectedFolderId,
     folderPath: sel.selectedFolderId ? sel.getFolderPath(sel.selectedFolderId) : [],
-    refinement: [search, sel.sortBy, sel.sortOrder, ...sel.selectedTagIds, creature.refinementKey].join('\n'),
+    refinement: [searchKeywords.nameQuery, sel.sortBy, sel.sortOrder, ...sel.selectedTagIds, creature.refinementKey].join('\n'),
   });
 
   visibleIds.current = {
@@ -167,11 +182,11 @@ export default function AssetManager({ isOpen, onClose, initialTab, onExitComple
                 onExportCollection={() => { void crud.handleExportCollection(); }}
                 onImportCollection={crud.handleImportCollection}
                 layout={sidebar}
-                creatureFilters={creature.panel}
               />
               <Header
                 search={search}
                 onSearch={setSearch}
+                query={filterSearch}
                 activeTab={activeTab}
                 onTabChange={setActiveTab}
                 assetCounts={data.assetCounts}
@@ -189,6 +204,7 @@ export default function AssetManager({ isOpen, onClose, initialTab, onExitComple
                 onDragOver={(e) => { if (draggedItems && sel.selectedFolderId === null) { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; } }}
                 onDrop={(e) => { if (draggedItems && sel.selectedFolderId === null) { e.preventDefault(); crud.handleDrop(null); } }}
               >
+                <ActiveFilterBar groups={filterSearch.chips} onReset={filterSearch.reset} />
                 <Breadcrumb
                   activeTab={shown.tab}
                   path={shown.folderPath}
@@ -227,8 +243,7 @@ export default function AssetManager({ isOpen, onClose, initialTab, onExitComple
                       assetService={data.assetService}
                       spawnCounts={sel.spawnCounts}
                       onSpawnCountChange={sel.handleSpawnCountChange}
-                      {...(creature.isActive ? { onClearFilters: creature.clear } : {})}
-                      {...(creature.statblock ? { statblockFilter: creature.statblock } : {})}
+                      {...(creature.isActive ? { onClearFilters: filterSearch.reset } : {})}
                     />
                   </AssetTagMenuContext.Provider>
                 </div>

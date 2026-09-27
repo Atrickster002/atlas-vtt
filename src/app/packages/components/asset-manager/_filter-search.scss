@@ -1,0 +1,446 @@
+@use '../../../../../styles/tokens' as *;
+@use '../../../../../styles/mixins' as *;
+@use 'variables' as *;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Asset Manager – Filter search: typed filters, suggestions, filter panel, chips
+// ═══════════════════════════════════════════════════════════════════════════
+
+// ── Search field: room for typed filters, and the filter button at its end ──
+
+// Typed filters need more room than a name; narrow headers overlay the field anyway.
+@container atlas-am-header (width >= #{$header-search-inline-width}) {
+  .atlas-asset-manager-search.atlas-has-filters {
+    flex-basis: 240px;
+    width: 240px;
+  }
+}
+
+.atlas-am-search-divider {
+  flex-shrink: 0;
+  width: $border-width-s;
+  height: 16px;
+  background-color: var(--background-modifier-border);
+}
+
+.atlas-asset-manager-search .atlas-am-filters-btn {
+  position: relative;
+
+  &.atlas-active {
+    color: var(--text-accent);
+    background: color-mix(in oklch, var(--interactive-accent) 14%, transparent);
+  }
+}
+
+.atlas-am-filters-badge {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  min-width: 14px;
+  height: 14px;
+  padding: 0 3px;
+  border-radius: $radius-full;
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+  font-size: 10px;
+  font-weight: $font-weight-semibold;
+  font-variant-numeric: tabular-nums;
+  line-height: 14px;
+  text-align: center;
+  pointer-events: none;
+}
+
+// ── Suggestions under the search: keywords, then the values in view ─────────
+
+.atlas-search-suggestions {
+  position: absolute;
+  top: calc(100% + #{$spacing-xs});
+  left: 0;
+  z-index: $z-popover;
+  @include atlas-flex-col($gap: $spacing-xs);
+  min-width: max(100%, 280px);
+  max-width: 380px;
+  padding: $spacing-xs;
+  background: var(--menu-background);
+  border: var(--menu-border-width, #{$border-width-s}) solid var(--menu-border-color);
+  border-radius: $radius-xl;
+  box-shadow: var(--menu-shadow, #{$shadow-md});
+  transform-origin: top left;
+  transition: opacity 150ms $transition-ease-out, transform 150ms $transition-ease-out;
+
+  @starting-style {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+}
+
+.atlas-search-suggestions__heading {
+  @include atlas-flex-row($gap: $spacing-s);
+  justify-content: space-between;
+  padding: $spacing-xs $spacing-s 0;
+  color: var(--text-faint);
+  font-size: $font-ui-smaller;
+
+  kbd {
+    padding: 0 $spacing-xs;
+    border: $border-width-s solid var(--background-modifier-border);
+    border-radius: $radius-s;
+    font-family: var(--font-monospace);
+    font-size: 10px;
+  }
+}
+
+.atlas-search-suggestions__hint {
+  padding: 0 $spacing-s $spacing-xs;
+  color: var(--text-muted);
+  font-size: $font-ui-smaller;
+}
+
+// One grid for all rows, so the second column lines up on the widest keyword.
+.atlas-search-suggestions__list {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.atlas-search-suggestion {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: subgrid;
+  align-items: baseline;
+  column-gap: $spacing-m;
+  min-height: $control-height;
+  padding: 0 $spacing-s;
+  border-radius: $radius-m;
+  color: var(--text-normal);
+  font-size: $font-ui-small;
+  line-height: $control-height;
+  cursor: pointer;
+
+  &.atlas-active {
+    background-color: var(--background-modifier-hover);
+  }
+
+  code {
+    font-weight: $font-weight-semibold;
+  }
+}
+
+.atlas-search-suggestion__key {
+  @include atlas-truncate;
+}
+
+.atlas-search-suggestion__aliases {
+  margin-left: $spacing-xs;
+  color: var(--text-faint);
+  font-family: var(--font-monospace);
+  font-size: $font-ui-smaller;
+}
+
+.atlas-search-suggestion__detail {
+  @include atlas-truncate;
+  color: var(--text-muted);
+  font-size: $font-ui-smaller;
+}
+
+.atlas-search-suggestion__count {
+  justify-self: end;
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+// ── Filter panel: under the header, at its end ─────────────────────────────
+
+.atlas-asset-manager-header .atlas-filter-panel {
+  position: absolute;
+  top: calc(100% + #{$spacing-xs});
+  right: $spacing-m;
+  z-index: $z-popover;
+  @include atlas-elevated-surface;
+  @include atlas-panel-radius($radius-2xl);
+  display: flex;
+  flex-direction: column;
+  width: 380px;
+  max-width: calc(100% - 2 * #{$spacing-m});
+  max-height: min(560px, 70vh);
+  overflow: hidden;
+  transform-origin: top right;
+}
+
+.atlas-filter-panel__header {
+  display: flex;
+  justify-content: space-between;
+  @include atlas-close-header;
+  flex-shrink: 0;
+
+  h3 {
+    margin: 0;
+    font-size: $font-ui-medium;
+    font-weight: $font-weight-semibold;
+    color: var(--text-normal);
+  }
+}
+
+.atlas-filter-panel__body {
+  @include atlas-flex-col($gap: $spacing-l);
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0 $spacing-l;
+}
+
+.atlas-filter-panel__statblock {
+  width: 100%;
+
+  .atlas-segmented__option {
+    min-width: 0;
+  }
+}
+
+.atlas-filter-panel__empty {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: $font-ui-small;
+}
+
+.atlas-filter-panel__footer {
+  @include atlas-flex-row($gap: $spacing-s);
+  flex-shrink: 0;
+  justify-content: flex-end;
+  padding: $spacing-s;
+}
+
+.atlas-filter-panel__hidden {
+  flex: 1;
+  min-width: 0;
+  padding-left: $spacing-s;
+  color: var(--text-faint);
+  font-size: $font-ui-smaller;
+  @include atlas-truncate;
+}
+
+// The footer's end control sits in the panel's bottom-right corner.
+.atlas-filter-panel__done.btn {
+  @include atlas-panel-inset-radius($spacing-s, bottom-right);
+}
+
+// ── Sections and option chips ──────────────────────────────────────────────
+
+.atlas-filter-section {
+  @include atlas-flex-col($gap: $spacing-s);
+}
+
+.atlas-filter-section__header {
+  @include atlas-flex-row($gap: $spacing-s);
+  justify-content: space-between;
+  color: var(--text-muted);
+  font-size: $font-ui-smaller;
+  font-weight: $font-weight-medium;
+}
+
+.atlas-filter-section.atlas-active .atlas-filter-section__title,
+.atlas-filter-section__summary {
+  color: var(--text-accent);
+}
+
+.atlas-filter-section__summary {
+  font-variant-numeric: tabular-nums;
+}
+
+.atlas-filter-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: $spacing-xs;
+}
+
+.atlas-asset-manager-header .atlas-filter-chip.btn {
+  @include atlas-flex-row($gap: $spacing-xs);
+  height: 24px;
+  padding: 0 $spacing-s;
+  border: $border-width-s solid var(--background-modifier-border);
+  border-radius: $radius-full;
+  color: var(--text-normal);
+  font-size: $font-ui-smaller;
+  font-weight: $font-weight-normal;
+  transition: background-color $transition-fast $transition-ease, transform $transition-press $transition-ease-out;
+
+  &:active {
+    transform: scale(0.96);
+  }
+
+  &.atlas-active {
+    border-color: transparent;
+    background-color: color-mix(in oklch, var(--interactive-accent) 18%, transparent);
+    color: var(--text-accent);
+  }
+
+  &.atlas-empty:not(.atlas-active) {
+    color: var(--text-faint);
+  }
+}
+
+.atlas-filter-chip__count {
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+
+  .atlas-filter-chip.atlas-active & {
+    color: var(--text-accent);
+  }
+}
+
+.atlas-asset-manager-header .atlas-filter-chips__more {
+  height: 24px;
+  padding: 0 $spacing-s;
+  border-radius: $radius-full;
+  color: var(--text-accent);
+  font-size: $font-ui-smaller;
+}
+
+// ── Range: a histogram above a two-thumb slider ────────────────────────────
+
+.atlas-filter-range {
+  @include atlas-flex-col($gap: $spacing-xs);
+  padding: 0 $spacing-s;
+}
+
+.atlas-filter-range__bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 32px;
+}
+
+.atlas-filter-range__bar {
+  flex: 1;
+  min-width: 1px;
+  height: var(--atlas-bar-height);
+  border-radius: 2px 2px 0 0;
+  background-color: var(--background-modifier-border);
+  transition: background-color $transition-fast $transition-ease, height $transition-fast $transition-ease;
+
+  &.atlas-in-range {
+    background-color: color-mix(in oklch, var(--interactive-accent) 55%, transparent);
+  }
+}
+
+.atlas-filter-range__slider {
+  height: 20px;
+}
+
+.atlas-filter-range__ends {
+  display: flex;
+  justify-content: space-between;
+  color: var(--text-faint);
+  font-size: $font-ui-smaller;
+  font-variant-numeric: tabular-nums;
+}
+
+// ── Active filters: a chip per filter above the content ───────────────────
+
+.atlas-active-filters {
+  display: flex;
+  flex-wrap: wrap;
+  flex-shrink: 0;
+  align-items: center;
+  gap: $spacing-s;
+  padding: $spacing-s;
+}
+
+.atlas-active-filters .atlas-active-filter.btn {
+  @include atlas-flex-row($gap: $spacing-xs);
+  height: 24px;
+  padding: 0 $spacing-s;
+  border: $border-width-s solid var(--background-modifier-border);
+  border-radius: $radius-full;
+  color: var(--text-normal);
+  font-size: $font-ui-smaller;
+  font-weight: $font-weight-normal;
+
+  &:hover,
+  .atlas-active-filter-group.atlas-open > & {
+    border-color: var(--interactive-accent);
+  }
+
+  svg {
+    width: $icon-xs;
+    height: $icon-xs;
+    color: var(--text-faint);
+  }
+}
+
+.atlas-active-filter__category {
+  color: var(--text-muted);
+}
+
+.atlas-active-filter__value {
+  color: var(--text-accent);
+  font-weight: $font-weight-medium;
+  font-variant-numeric: tabular-nums;
+}
+
+.atlas-active-filter-group {
+  position: relative;
+}
+
+.atlas-active-filter-group__list {
+  position: absolute;
+  top: calc(100% + #{$spacing-xs});
+  left: 0;
+  z-index: $z-popover;
+  @include atlas-flex-col($gap: 0);
+  min-width: 180px;
+  padding: $spacing-xs;
+  background: var(--menu-background);
+  border: var(--menu-border-width, #{$border-width-s}) solid var(--menu-border-color);
+  border-radius: $radius-xl;
+  box-shadow: var(--menu-shadow, #{$shadow-md});
+}
+
+.atlas-active-filter-group__heading {
+  @include atlas-flex-row($gap: $spacing-s);
+  justify-content: space-between;
+  padding: 0 0 0 $spacing-s;
+  color: var(--text-faint);
+  font-size: $font-ui-smaller;
+}
+
+.atlas-active-filter-group__clear.btn {
+  height: 24px;
+  padding: 0 $spacing-s;
+  border-radius: $radius-m;
+  color: var(--text-error);
+  font-size: $font-ui-smaller;
+}
+
+.atlas-active-filter-group .atlas-active-filter-group__item.btn {
+  @include atlas-flex-row($gap: $spacing-s);
+  justify-content: space-between;
+  width: 100%;
+  height: $control-height;
+  padding: 0 $spacing-s;
+  border-radius: $radius-m;
+  color: var(--text-normal);
+  font-size: $font-ui-small;
+  font-weight: $font-weight-normal;
+
+  svg {
+    width: $icon-xs;
+    height: $icon-xs;
+    color: var(--text-faint);
+  }
+}
+
+.atlas-active-filters__reset.btn {
+  height: 24px;
+  padding: 0 $spacing-s;
+  border-radius: $radius-full;
+  color: var(--text-accent);
+  font-size: $font-ui-smaller;
+}
+
+// ── Content area: the empty state offers to clear the filters ──────────────
+
+.atlas-empty-state .atlas-empty-action {
+  margin-top: $spacing-xs;
+  pointer-events: auto;
+}
