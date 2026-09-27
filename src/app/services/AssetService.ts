@@ -6,6 +6,7 @@ import type { TokenStateSnapshot } from '../types';
 import type { CellCoord, EncounterFormation } from '../encounters/encounterFormation';
 import { getDataFilePath } from '../utils/dataFileMigration';
 import { SerialLock } from '../utils/serialLock';
+import { runInBackground } from '../utils/backgroundTask';
 import { preserveUnreadableMetadata, readStoredMetadata, type StoredMetadata } from './assetMetadataFile';
 import { collectionNameKey, uniqueCollectionName } from './collectionNaming';
 import { collectionFolderName, collectionFolderPath, collectionIdOfFolder, collectionNameProblem, COLLECTIONS_DIR, GLOBAL_ASSETS_DIR, ATLAS_VTT_DIR } from './assetPaths';
@@ -223,6 +224,8 @@ export class AssetService {
   /** Metadata writes, in the order they were requested. */
   private readonly writes = new SerialLock();
   private saveCount = 0;
+  /** Collections whose folder is being renamed to their name, so no check starts it twice. */
+  private readonly folderRenames = new Set<string>();
   private readonly reconciledListeners = new Set<(result: VaultReconciliation) => void>();
 
   private constructor(app: App) {
@@ -660,7 +663,6 @@ export class AssetService {
     if (name.trim() === collectionId) return collection;
     const id = this.assertCollectionFolderName(name, collectionId);
     await this.moveCollectionFolder(collectionId, id);
-    await this.saveMetadata();
     return this.metadata!.collections[id]!;
   }
 
@@ -681,11 +683,39 @@ export class AssetService {
       .some((child) => child.name !== exceptId && collectionNameKey(child.name) === key);
   }
 
-  /** Renames a collection's folder and moves its record along; the caller saves the index. */
+  /**
+   * Renames a collection's folder and moves its record along. Resolves once the
+   * vault has renamed the folder; the vault's rename event may move the record
+   * first, as for a folder renamed in Obsidian.
+   */
   private async moveCollectionFolder(oldId: string, newId: string): Promise<void> {
     const folder = this.app.vault.getFolderByPath(collectionFolderPath(oldId));
-    if (folder) await this.app.fileManager.renameFile(folder, collectionFolderPath(newId));
+    if (folder) await this.renameInVault(folder, collectionFolderPath(newId));
+    if (!this.metadata!.collections[oldId]) return;
     await this.moveRecordWithInstall(oldId, newId);
+    await this.saveMetadata();
+  }
+
+  /**
+   * Renames through Obsidian, so links to the folder's notes follow. Obsidian
+   * may first ask whether to update those links and only then settle its
+   * promise; the rename itself is done once the vault reports it, so Atlas
+   * never waits for that answer.
+   */
+  private renameInVault(folder: TFolder, newPath: string): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const renamed = this.app.vault.on('rename', (file) => {
+        if (file.path === newPath) settle(resolve);
+      });
+      const settle = (done: () => void): void => {
+        this.app.vault.offref(renamed);
+        done();
+      };
+      this.app.fileManager.renameFile(folder, newPath).then(
+        () => settle(resolve),
+        (error: unknown) => settle(() => reject(error instanceof Error ? error : new Error(String(error)))),
+      );
+    });
   }
 
   /** Moves a collection record to the folder `newId`, and its install record along, so updates still find its files. */
@@ -704,28 +734,30 @@ export class AssetService {
     const folders = (this.app.vault.getFolderByPath(COLLECTIONS_DIR)?.children ?? [])
       .filter((child) => child instanceof TFolder)
       .map((child) => child.name);
-    const fixes = planFolderNameFixes(this.metadata!, folders).filter((fix) => onlyId === undefined || fix.id === onlyId);
+    const fixes = planFolderNameFixes(this.metadata!, folders)
+      .filter((fix) => (onlyId === undefined || fix.id === onlyId) && !this.folderRenames.has(fix.id));
+    let renamed = false;
     for (const fix of fixes) {
       const collection = this.metadata!.collections[fix.id];
       if (!collection) continue;
       if (fix.kind === 'rename-folder') {
-        try {
-          await this.moveCollectionFolder(fix.id, fix.folder);
-          continue;
-        } catch (error) {
-          console.error(`[AssetService] Could not rename the folder of collection "${collection.name}":`, error);
-        }
+        // Not awaited: the caller holds the index, and the record follows the folder by itself.
+        this.folderRenames.add(fix.id);
+        const rename = this.moveCollectionFolder(fix.id, fix.folder).finally(() => this.folderRenames.delete(fix.id));
+        runInBackground(rename, `Renaming the folder of collection "${collection.name}"`);
+        continue;
       }
       collection.name = fix.id;
+      renamed = true;
     }
-    if (fixes.length > 0) await this.saveMetadata();
-    return fixes.length > 0;
+    if (renamed) await this.saveMetadata();
+    return renamed;
   }
 
   /**
    * Gives a collection whose name was set elsewhere, such as by an import, a
    * folder of that name, or takes its folder's name when the name is taken.
-   * Returns the collection as it is afterwards.
+   * The folder is renamed in the background; returns the collection as it is now.
    */
   async matchCollectionFolder(collectionId: string): Promise<CollectionMetadata | null> {
     await this.ensureLoaded();

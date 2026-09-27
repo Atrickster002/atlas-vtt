@@ -1,4 +1,4 @@
-import { beforeEach, expect, it } from 'vitest';
+import { beforeEach, expect, it, vi } from 'vitest';
 import { AssetService } from '../../src/app/services/AssetService';
 import { createInMemoryApp, type InMemoryApp } from '../mocks/inMemoryVault';
 
@@ -175,8 +175,8 @@ it('renames the folders of older collections after their names, numbering names 
   const service = AssetService.getInstance(app);
   await service.initialize();
 
+  await vi.waitFor(async () => expect(service.getDefaultCollectionId()).toBe('5e'));
   expect(Object.fromEntries((await service.getCollections()).map((c) => [c.id, c.name]))).toEqual({ '5e': '5e', 'Winter Camp': 'Winter Camp', 'Winter Camp (2)': 'Winter Camp (2)' });
-  expect(service.getDefaultCollectionId()).toBe('5e');
   expect(await service.getAssetById('goblin')).toMatchObject({ collection: '5e', imagePath: 'atlas-vtt/collections/5e/tokens/goblin.webp' });
   expect(files.has('atlas-vtt/collections/5e/tokens/goblin.webp')).toBe(true);
   expect(folders.has('atlas-vtt/collections/default')).toBe(false);
@@ -211,4 +211,27 @@ it('forgets a collection whose folder was moved out of the collections folder', 
 
   expect((await service.getCollections()).map((c) => c.id)).toEqual(['Default']);
   expect(await service.getAssets('Winter Camp')).toEqual([]);
+});
+
+it('never waits for Obsidian to ask about updating links when it renames a folder', async () => {
+  const metadata = { version: 2, collections: { default: { id: 'default', uid: 'u', name: '5e', version: 1, settings: { conditions: [] }, tags: {}, createdAt: 0 } }, assets: {} };
+  const { app, folders } = createInMemoryApp({ files: { [METADATA_PATH]: JSON.stringify(metadata) }, folders: ['atlas-vtt/collections/default'] });
+  // Obsidian renames the folder, reports it, and then waits for the user to answer its "Update links" dialog.
+  const renameListeners: Array<(file: { path: string }, oldPath: string) => void> = [];
+  app.vault.on = vi.fn((_name: string, listener: (file: { path: string }, oldPath: string) => void) => { renameListeners.push(listener); return listener; }) as never;
+  app.fileManager.renameFile = vi.fn(async (file: { path: string }, newPath: string) => {
+    const oldPath = file.path;
+    await app.vault.adapter.rename(oldPath, newPath);
+    renameListeners.forEach((listener) => listener({ path: newPath }, oldPath));
+    return new Promise<void>(() => undefined);
+  }) as never;
+  const service = AssetService.getInstance(app);
+
+  await service.initialize();
+  await service.refreshMetadata();
+  await service.reconcileWithVault();
+
+  await vi.waitFor(async () => expect(await service.getCollection('5e')).toMatchObject({ uid: 'u', name: '5e' }));
+  expect(folders.has('atlas-vtt/collections/5e')).toBe(true);
+  expect(service.getDefaultCollectionId()).toBe('5e');
 });
