@@ -1,12 +1,13 @@
 import { canRunMapHotkeys, matchesMapHotkey } from './keyboard/mapHotkeys';
 import { SettingsService, type AtlasSettings } from './services/SettingsService';
 import { DEFAULT_LASER_POINTER_SETTINGS } from './tools/laserPointerSettings';
-import { Application, Sprite, Container } from "pixi.js";
+import { Application, Sprite, Container, type FederatedPointerEvent } from "pixi.js";
 import { runInBackground } from './utils/backgroundTask';
 import { Viewport } from "pixi-viewport"; // Keep for type, but instance comes from PixiAppManager
 import { WorkspaceLeaf } from 'obsidian';
 import { GridOptions, GridSystem, GridType } from "./grid/GridSystem";
 import { parseGridColor } from "./grid/gridContrastColor";
+import { hexNumberStyleOfGrid } from "./grid/hexNumbering";
 import type { App } from 'obsidian';
 import type { ViewAtlasState, ViewAtlasStore } from './storeFactory';
 import { openContextMenuGlobal, type ContextMenuEntry } from './react/root/ContextMenuContext';
@@ -15,6 +16,10 @@ import { PixiAppManager } from "./pixi/PixiAppManager"; // Import the new manage
 import { TokenRenderer } from "./pixi/token-renderer"; // Import TokenRenderer
 // Import color utils
 import { PinRenderer } from "./pixi/PinRenderer"; // Import PinRenderer
+import { HexLinkRenderer } from "./pixi/hexLinks/HexLinkRenderer";
+import { HexLinkInteraction } from "./pixi/hexLinks/HexLinkInteraction";
+import type { MapRect } from "./grid/hexNumbering";
+import type { NotePin } from "./types";
 import { captureWithLayerVisibility, type LayerVisibility } from "./pixi/playerSafeFrame";
 import type { PlayerCameraState } from "./local-player-view";
 import { SelectionManager } from "./pixi/SelectionManager"; // Import SelectionManager
@@ -50,6 +55,8 @@ export class PixiRendererOrchestrator { // Renamed class
   private pixiAppManager: PixiAppManager;
   private tokenRenderer?: TokenRenderer; // Add TokenRenderer instance
   private pinRenderer?: PinRenderer; // Add PinRenderer instance
+  private hexLinkRenderer?: HexLinkRenderer;
+  private hexLinkInteraction?: HexLinkInteraction;
   private selectionManager?: SelectionManager; // Add SelectionManager instance
   private fogRenderer?: FogOfWarRenderer; // Add FogRenderer instance
   private measureRenderer?: MeasureRenderer; // Add MeasureRenderer instance
@@ -209,9 +216,13 @@ export class PixiRendererOrchestrator { // Renamed class
             const lineWidthChanged = grid.lineWidth !== undefined && grid.lineWidth !== currentOptions.lineWidth;
             const lineTypeChanged = grid.lineType !== undefined && grid.lineType !== currentOptions.lineType;
             const colorChanged = gridColorNum !== currentOptions.color;
+            const hexNumbers = hexNumberStyleOfGrid(grid);
+            const hexNumberFormatChanged = hexNumbers?.format !== currentOptions.hexNumbers?.format;
+            const hexNumberOpacityChanged = hexNumbers?.opacity !== currentOptions.hexNumbers?.opacity;
             
             const hasChanges = visibleChanged || typeChanged || offsetXChanged || offsetYChanged || 
-                             sizeChanged || opacityChanged || lineWidthChanged || lineTypeChanged || colorChanged;
+                             sizeChanged || opacityChanged || lineWidthChanged || lineTypeChanged || colorChanged ||
+                             hexNumberFormatChanged || hexNumberOpacityChanged;
             
             if (!hasChanges) {
               return;
@@ -251,6 +262,12 @@ export class PixiRendererOrchestrator { // Renamed class
             if (colorChanged) {
               updates.color = gridColorNum;
               needsOptionsUpdate = true;
+            }
+            if (hexNumberFormatChanged) {
+              updates.hexNumbers = hexNumbers;
+              needsOptionsUpdate = true;
+            } else if (hexNumbers && hexNumberOpacityChanged) {
+              this.gridSystem.setHexNumberOpacity(hexNumbers.opacity);
             }
             if (grid.lineType !== undefined && grid.lineType !== currentOptions.lineType) {
               updates.lineType = grid.lineType;
@@ -346,6 +363,21 @@ export class PixiRendererOrchestrator { // Renamed class
     // Check if this is a player view through the store
     const isPlayerView = this.store.getState().isPlayerView || false;
     this.pinRenderer = new PinRenderer(viewport, this.eventBus, this.store, isPlayerView);
+
+    this.hexLinkRenderer = new HexLinkRenderer({
+      viewport,
+      store: this.store,
+      eventBus: this.eventBus,
+      getMapRect: () => this.getMapRect(),
+    });
+    viewport.addChild(this.hexLinkRenderer.container);
+    this.keepHexLinksAboveGrid();
+    this.hexLinkInteraction = new HexLinkInteraction({
+      viewport,
+      store: this.store,
+      renderer: this.hexLinkRenderer,
+      onNoteHover: (type, pin, e) => this.emitNoteHover(type, pin, e),
+    });
 
     this.selectionManager = new SelectionManager(
         viewport,
@@ -616,6 +648,8 @@ export class PixiRendererOrchestrator { // Renamed class
         currentViewport.setChildIndex(sprite, 0);
     }
 
+    this.keepHexLinksAboveGrid();
+
     this.eventBus.emit('background-sprite-updated', {
       x: sprite.x,
       y: sprite.y,
@@ -628,6 +662,31 @@ export class PixiRendererOrchestrator { // Renamed class
       // Don't pass empty options - this would reset the grid settings!
       // The updateBackgroundSprite call should trigger recreation with current options
     }
+  }
+
+  /** The map image in world space; null until it has loaded. */
+  private getMapRect(): MapRect | null {
+    const sprite = this.backgroundSprite;
+    if (!sprite || sprite.destroyed || !(sprite.width > 0)) return null;
+    return { x: sprite.x, y: sprite.y, width: sprite.width, height: sprite.height };
+  }
+
+  /**
+   * Linked hexes sit right above the map and its grid, below tokens. The grid
+   * is always re-inserted directly above the map, so it stays underneath.
+   */
+  private keepHexLinksAboveGrid(): void {
+    const viewport = this.viewport;
+    const container = this.hexLinkRenderer?.container;
+    if (!viewport || !container || container.parent !== viewport) return;
+    const children = viewport.children;
+    const grid = this.gridSystem?.getGridSprite();
+    const below = Math.max(
+      this.backgroundSprite ? children.indexOf(this.backgroundSprite) : -1,
+      grid ? children.indexOf(grid) : -1,
+    );
+    const current = children.indexOf(container);
+    viewport.setChildIndex(container, current > below ? below + 1 : below);
   }
 
   public toggleGrid(visible?: boolean): boolean {
@@ -696,6 +755,7 @@ export class PixiRendererOrchestrator { // Renamed class
     if (!app?.renderer) return;
     const layers: LayerVisibility[] = [];
     if (this.pinRenderer) layers.push({ layer: this.pinRenderer.getPinContainer(), visible: false });
+    if (this.hexLinkRenderer) layers.push({ layer: this.hexLinkRenderer.container, visible: false });
     const grid = this.gridSystem?.getGridSprite();
     if (grid) layers.push({ layer: grid, visible: settings.showGrid });
     layers.push(...(this.tokenRenderer?.getPlayerViewLayers(settings) ?? []));
@@ -784,6 +844,21 @@ export class PixiRendererOrchestrator { // Renamed class
   }
   
 
+  /** Tells the note preview a pin or linked hex is hovered, so Cmd/Ctrl previews its note. */
+  private emitNoteHover(type: 'over' | 'out', pin: NotePin, e: FederatedPointerEvent): void {
+    if (type === 'out') {
+      this.eventBus.emit('pin-hide-preview', { pin });
+      return;
+    }
+    this.eventBus.emit('pin-hover-preview', {
+      pin,
+      screenX: e.clientX ?? e.global.x,
+      screenY: e.clientY ?? e.global.y,
+      pixiEvent: e,
+      sourceLeaf: this.getSourceLeaf(),
+    });
+  }
+
   /** Wires viewport-level event dispatch providers between TokenRenderer and other renderers.
    *  Must be called after TokenRenderer is available (either from setupRenderersAndManagers or initGrid). */
   private wireViewportDispatchProviders(): void {
@@ -815,24 +890,12 @@ export class PixiRendererOrchestrator { // Renamed class
         (pinId, e) => this.pinRenderer!.handleViewportPinPointerDown(pinId, e)
       );
       this.tokenRenderer.setPinHoverHandler((type, pinId, e) => {
-        const pins = this.store.getState().objects.pins;
-        const pin = pins[pinId];
-        if (!pin) return;
-        if (type === 'over') {
-          const screenX = e.clientX ?? e.global.x;
-          const screenY = e.clientY ?? e.global.y;
-          const sourceLeaf = this.getSourceLeaf();
-          this.eventBus.emit('pin-hover-preview', {
-            pin,
-            screenX,
-            screenY,
-            pixiEvent: e,
-            sourceLeaf,
-          });
-        } else {
-          this.eventBus.emit('pin-hide-preview', { pin });
-        }
+        const pin = this.store.getState().objects.pins[pinId];
+        if (pin) this.emitNoteHover(type, pin, e);
       });
+    }
+    if (this.hexLinkInteraction) {
+      this.tokenRenderer.setHexLinkHandlers(this.hexLinkInteraction);
     }
     if (this.selectionManager) {
       this.selectionManager.setHitTestTokensProvider(
@@ -1165,7 +1228,6 @@ export class PixiRendererOrchestrator { // Renamed class
       onClick: () => openLightConfigPanel(lightId, this.store, screenX, screenY),
     });
 
-    entries.push({ type: 'separator' });
 
     // Light style submenu
     const styleOptions: Array<{ label: string; value: 'torch' | 'magic' | 'steady' }> = [
@@ -1214,7 +1276,6 @@ export class PixiRendererOrchestrator { // Renamed class
       })),
     });
 
-    entries.push({ type: 'separator' });
 
     // Delete
     entries.push({
@@ -1274,7 +1335,6 @@ export class PixiRendererOrchestrator { // Renamed class
         icon: 'lock',
         onClick: () => this.wallInteraction!.startDoorPlacement(singleWall.id, 'secret-door'),
       });
-      entries.push({ type: 'separator' });
     }
 
     // Light pass-through direction submenu
@@ -1304,7 +1364,6 @@ export class PixiRendererOrchestrator { // Renamed class
       ],
     });
 
-    entries.push({ type: 'separator' });
 
     // Delete
     entries.push({
@@ -1355,6 +1414,8 @@ export class PixiRendererOrchestrator { // Renamed class
 
     this.tokenRenderer?.destroy(); // Destroy TokenRenderer
     this.pinRenderer?.destroy(); // Destroy PinRenderer
+    this.hexLinkInteraction?.destroy();
+    this.hexLinkRenderer?.destroy();
     this.fogRenderer?.destroy(); // Destroy FogRenderer
     this.measureRenderer?.destroy(); // Destroy MeasureRenderer
     this.laserPointerRenderer?.destroy(); // Destroy LaserPointerRenderer

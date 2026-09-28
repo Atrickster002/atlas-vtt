@@ -4,6 +4,7 @@ import { withStatblockImportLock } from '../../../../services/statblockImportLoc
 import { requireResolvedBestiary, statblockImportCandidate } from '../../../../services/statblockImportCandidates';
 import { AssetService } from '../../../../services/AssetService';
 import { AssetThumbnailService } from '../../../../services/AssetThumbnailService';
+import { transferAssets } from '../../../../services/assetTransfer/assetTransfer';
 import { optimizeImage, OPTIMIZATION_PRESETS } from '../../../../utils/imageOptimizer';
 import { bakeTokenCrop } from './bakeTokenCrop';
 import type { CreatorMode, EditTokenInput, TokenPreview } from './types';
@@ -84,8 +85,12 @@ async function savePreviews(options: SaveTokenPreviewsOptions): Promise<number> 
     }
     await assetService.updateAsset(editToken.id, {
       name: preview.name, imagePath, showRing: preview.showRing !== false, size: preview.size, tags: preview.tags ?? tags,
-      ...meta, ...(preview.file && { thumbnailPath }),
+      ...(preview.file && { thumbnailPath }),
     });
+    const stored = await assetService.getAssetById(editToken.id);
+    if (stored && stored.collection !== destination.id) {
+      await transferAssets(app, assetService, { assetIds: [editToken.id], targetCollectionId: destination.id, mode: 'move' });
+    }
     return 1;
   }
 

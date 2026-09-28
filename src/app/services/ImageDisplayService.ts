@@ -2,6 +2,7 @@ import { App, FileSystemAdapter, Menu, TFile, Notice, type EventRef } from 'obsi
 import { openContextMenuGlobal, type ContextMenuEntry } from '../react/root/ContextMenuContext';
 import { PlayerWindowService } from './PlayerWindowService';
 import { playImageEnter, playImageExit } from './imageDisplayMotion';
+import { ImageOverlayControls } from './imageOverlayControls';
 import './image-display.scss';
 
 /** An image overlay in the player window. */
@@ -20,24 +21,12 @@ export class ImageDisplayService {
   private imageStage: HTMLDivElement | null = null;
   /** Overlays still fading out after being closed or replaced. */
   private leavingDisplays = new Set<ImageDisplay>();
-  private currentScale: number = 1;
-  private isDragging: boolean = false;
-  private dragStartX: number = 0;
-  private dragStartY: number = 0;
-  private imageX: number = 0;
-  private imageY: number = 0;
+  private controls: ImageOverlayControls | null = null;
   private boundHandleContextMenu: (event: MouseEvent) => void;
   private boundStoreContextMenuTarget: (event: MouseEvent) => void;
   private lastContextMenuTarget: HTMLElement | null = null;
   private contextMenuEventRefs: EventRef[] = [];
   private contextMenuRegistered = false;
-  private activePlayerDocument: Document | null = null;
-  private containerWheelHandler: ((event: WheelEvent) => void) | null = null;
-  private containerMouseDownHandler: ((event: MouseEvent) => void) | null = null;
-  private containerDoubleClickHandler: (() => void) | null = null;
-  private documentMouseMoveHandler: ((event: MouseEvent) => void) | null = null;
-  private documentMouseUpHandler: (() => void) | null = null;
-  private documentKeyDownHandler: ((event: KeyboardEvent) => void) | null = null;
 
   constructor(app: App) {
     this.app = app;
@@ -197,7 +186,6 @@ export class ImageDisplayService {
       const file = imageFile;
       const entries: ContextMenuEntry[] = [
         { type: 'item', label: 'Display on player view', icon: 'monitor', onClick: () => this.displayImageOnPlayerView(file) },
-        { type: 'separator' },
         { type: 'item', label: 'Copy image', icon: 'copy', onClick: () => this.copyImageToClipboard(imgElement) },
         { type: 'item', label: 'Open in Default App', icon: 'external-link', onClick: () => this.app.openWithDefaultApp(file.path) },
       ];
@@ -301,105 +289,17 @@ export class ImageDisplayService {
     this.currentImage = this.imageStage.createEl('img', { cls: 'atlas-image-display__image' });
     this.currentImage.src = imageUrl;
 
-    // Reset scale and position
-    this.currentScale = 1;
-    this.imageX = 0;
-    this.imageY = 0;
-    this.updateImageTransform();
-
-    // Add close button
     const closeButton = this.imageContainer.createEl('button', { cls: 'atlas-image-display__close', text: '×' });
     closeButton.setAttribute('aria-label', 'Close');
-    
-    closeButton.addEventListener('click', () => {
-      this.closeImageDisplay();
-    });
+    closeButton.addEventListener('click', () => this.closeImageDisplay());
 
-    // Add event listeners
-    this.setupEventListeners(playerWindow);
+    this.controls = new ImageOverlayControls(this.imageContainer, this.currentImage, playerWindow, () => this.closeImageDisplay());
 
     // A replaced image leaves above the new one, so the scrim stays dark while they crossfade
     previous?.container.before(this.imageContainer);
     const entrance = playImageEnter(this.imageContainer, this.imageStage, this.currentImage, previous !== null);
     // The previous image stays until the new one can paint, so the crossfade never shows an empty scrim
     if (previous) void this.leave(previous, entrance);
-  }
-
-  /**
-   * Setup event listeners for zoom and pan
-   */
-  private setupEventListeners(playerWindow: Window): void {
-    if (!this.imageContainer) return;
-
-    const doc = playerWindow.document;
-    this.activePlayerDocument = doc;
-
-    // Mouse wheel for zoom
-    this.containerWheelHandler = (e: WheelEvent) => {
-      e.preventDefault();
-      
-      const delta = e.deltaY < 0 ? 1.1 : 0.9;
-      const newScale = this.currentScale * delta;
-      
-      // Limit scale between 0.1 and 5
-      this.currentScale = Math.max(0.1, Math.min(5, newScale));
-      this.updateImageTransform();
-    };
-    this.imageContainer.addEventListener('wheel', this.containerWheelHandler);
-
-    // Mouse drag for pan
-    this.containerMouseDownHandler = (e: MouseEvent) => {
-      if (e.button === 0) { // Left click only
-        this.isDragging = true;
-        this.dragStartX = e.clientX - this.imageX;
-        this.dragStartY = e.clientY - this.imageY;
-        this.imageContainer!.classList.add('is-dragging');
-      }
-    };
-    this.imageContainer.addEventListener('mousedown', this.containerMouseDownHandler);
-
-    this.documentMouseMoveHandler = (e: MouseEvent) => {
-      if (this.isDragging && this.imageContainer) {
-        this.imageX = e.clientX - this.dragStartX;
-        this.imageY = e.clientY - this.dragStartY;
-        this.updateImageTransform();
-      }
-    };
-    doc.addEventListener('mousemove', this.documentMouseMoveHandler);
-
-    this.documentMouseUpHandler = () => {
-      if (this.isDragging && this.imageContainer) {
-        this.isDragging = false;
-        this.imageContainer.classList.remove('is-dragging');
-      }
-    };
-    doc.addEventListener('mouseup', this.documentMouseUpHandler);
-
-    // ESC key to close
-    this.documentKeyDownHandler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && this.imageContainer) {
-        this.closeImageDisplay();
-      }
-    };
-    doc.addEventListener('keydown', this.documentKeyDownHandler);
-
-    // Double-click to reset
-    this.containerDoubleClickHandler = () => {
-      this.currentScale = 1;
-      this.imageX = 0;
-      this.imageY = 0;
-      this.updateImageTransform();
-    };
-    this.imageContainer.addEventListener('dblclick', this.containerDoubleClickHandler);
-  }
-
-  /**
-   * Update image transform based on current scale and position
-   */
-  private updateImageTransform(): void {
-    if (!this.currentImage) return;
-    
-    this.currentImage.style.transform = `translate(${this.imageX}px, ${this.imageY}px) scale(${this.currentScale})`;
   }
 
   /**
@@ -549,17 +449,14 @@ export class ImageDisplayService {
   /** Stops the shown overlay from reacting to input and hands it back for its exit, or null when none is shown. */
   private detachImageDisplay(): ImageDisplay | null {
     if (!this.imageContainer || !this.imageStage || !this.currentImage) return null;
-    this.teardownImageEventListeners();
+    this.controls?.detach();
+    this.controls = null;
     const display: ImageDisplay = { container: this.imageContainer, stage: this.imageStage, imageUrl: this.currentImage.src };
     // A leaving overlay may sit above the next image; let input reach that one
     display.container.addClass('is-leaving');
     this.imageContainer = null;
     this.imageStage = null;
     this.currentImage = null;
-    this.currentScale = 1;
-    this.imageX = 0;
-    this.imageY = 0;
-    this.isDragging = false;
     return display;
   }
 
@@ -576,34 +473,5 @@ export class ImageDisplayService {
   private removeImageDisplay(display: ImageDisplay): void {
     display.container.remove();
     URL.revokeObjectURL(display.imageUrl);
-  }
-
-  private teardownImageEventListeners(): void {
-    if (this.imageContainer && this.containerWheelHandler) {
-      this.imageContainer.removeEventListener('wheel', this.containerWheelHandler);
-    }
-    if (this.imageContainer && this.containerMouseDownHandler) {
-      this.imageContainer.removeEventListener('mousedown', this.containerMouseDownHandler);
-    }
-    if (this.imageContainer && this.containerDoubleClickHandler) {
-      this.imageContainer.removeEventListener('dblclick', this.containerDoubleClickHandler);
-    }
-    if (this.activePlayerDocument && this.documentMouseMoveHandler) {
-      this.activePlayerDocument.removeEventListener('mousemove', this.documentMouseMoveHandler);
-    }
-    if (this.activePlayerDocument && this.documentMouseUpHandler) {
-      this.activePlayerDocument.removeEventListener('mouseup', this.documentMouseUpHandler);
-    }
-    if (this.activePlayerDocument && this.documentKeyDownHandler) {
-      this.activePlayerDocument.removeEventListener('keydown', this.documentKeyDownHandler);
-    }
-
-    this.activePlayerDocument = null;
-    this.containerWheelHandler = null;
-    this.containerMouseDownHandler = null;
-    this.containerDoubleClickHandler = null;
-    this.documentMouseMoveHandler = null;
-    this.documentMouseUpHandler = null;
-    this.documentKeyDownHandler = null;
   }
 }

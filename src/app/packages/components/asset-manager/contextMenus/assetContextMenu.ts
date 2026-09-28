@@ -3,6 +3,7 @@ import { App as ObsidianApp } from 'obsidian';
 import type { ContextMenuEntry } from '../../../../react/components/context-menu/AtlasContextMenu';
 import type {
   AnyAsset,
+  CollectionOption,
   Folder,
   InputModalState,
   Tag as TagType,
@@ -23,6 +24,7 @@ import type { AtlasView } from '../../../../atlas-view';
 import type { ViewAtlasState } from '../../../../storeFactory';
 import { applyTokenDeleteImpact, describeTokenDeleteImpact, findTokenDeleteImpact } from '../utils/tokenDeleteImpact';
 import { tokenSizeSubmenu } from '../../../../react/components/context-menu/tokenSizeMenu';
+import type { TransferMode } from '../../../../services/assetTransfer/transferPlan';
 
 export interface AssetContextMenuDeps {
   app: ObsidianApp;
@@ -45,11 +47,14 @@ export interface AssetContextMenuDeps {
   openStatblockLinkModal: (asset: AnyAsset) => void;
   unlinkStatblock: (asset: AnyAsset) => Promise<void>;
   deleteAssetFromVault: (asset: { id: string; name: string }) => Promise<boolean>;
+  transferToCollection: (assets: AnyAsset[], target: CollectionOption, mode: TransferMode) => void;
   // Data
   selectedAssetIds: string[];
   assets: AnyAsset[];
   folders: Folder[];
   availableTags: TagType[];
+  /** Collections the assets can be moved or copied to. */
+  transferTargets: CollectionOption[];
 }
 
 export function buildAssetContextMenuEntries(
@@ -77,7 +82,6 @@ export function buildAssetContextMenuEntries(
         if (ids.length > 0) deps.onClose();
       },
     });
-    entries.push({ type: 'separator' });
   }
 
   // ── Spawn Token(s) on Map ─────────────────────────────────────
@@ -107,7 +111,6 @@ export function buildAssetContextMenuEntries(
         })),
       });
     }
-    entries.push({ type: 'separator' });
   }
 
   // ── Save as Encounter (multi-select tokens) ───────────────────
@@ -119,7 +122,6 @@ export function buildAssetContextMenuEntries(
       icon: 'target',
       onClick: () => deps.handleSaveAsEncounter(tokenAssets),
     });
-    entries.push({ type: 'separator' });
   }
 
   // ── Edit / Rename ─────────────────────────────────────────────
@@ -209,7 +211,6 @@ export function buildAssetContextMenuEntries(
     }
   }
 
-  entries.push({ type: 'separator' });
 
   // ── Move to Folder ────────────────────────────────────────────
   if (deps.folders.filter((f) => f.type === asset.type).length > 0) {
@@ -221,7 +222,24 @@ export function buildAssetContextMenuEntries(
     });
   }
 
-  entries.push({ type: 'separator' });
+  // ── Move / Copy to another collection ─────────────────────────
+  if (deps.transferTargets.length > 0) {
+    const collectionSubmenu = (label: string, icon: string, mode: TransferMode): ContextMenuEntry => ({
+      type: 'submenu',
+      label,
+      icon,
+      children: deps.transferTargets.map((target) => ({
+        type: 'item' as const,
+        label: target.name,
+        onClick: () => deps.transferToCollection(selectedAssets, target, mode),
+      })),
+    });
+    entries.push(
+      collectionSubmenu('Move to Collection', 'folder-input', 'move'),
+      collectionSubmenu('Copy to Collection', 'copy', 'copy'),
+    );
+  }
+
 
   // ── Tags ──────────────────────────────────────────────────────
   entries.push({
@@ -261,7 +279,6 @@ export function buildAssetContextMenuEntries(
     },
   });
 
-  entries.push({ type: 'separator' });
 
   // ── Delete ────────────────────────────────────────────────────
   const deleteCount = selectedAssets.length;

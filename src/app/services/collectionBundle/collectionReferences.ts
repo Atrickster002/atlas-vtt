@@ -4,13 +4,11 @@ import { isPersistedMapEnvelope, type PersistedMapEnvelope } from '../MapPersist
 import { SceneSnapshotService } from '../../snapshots/SceneSnapshotService';
 import { isRecord } from '../assetMetadataGuards';
 import { imageReference, localImage } from '../statblockImportCandidates';
+import { linkedFilePath } from '../sceneLinks';
 import type { BundleFile, BundleFileRole, StatblockImageKey } from './bundleFormat';
 
 /** The scene thumbnail lives next to its map file. */
 export const sceneThumbnailPath = (mapPath: string): string => mapPath.replace(/\.atlasmap$/, '.thumb.jpg');
-
-/** The file a note link opens: `Notes/Cave.md#Entrance` opens `Notes/Cave.md`. */
-export const linkedFilePath = (link: string): string => link.split('#', 1)[0]!;
 
 /** A file the collection refers to that is no longer in the vault. */
 export interface MissingReference {

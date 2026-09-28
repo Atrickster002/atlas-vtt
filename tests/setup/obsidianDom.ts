@@ -19,9 +19,15 @@ type ElementSpec = ElementOptions | string | undefined;
 
 const SVG_NAMESPACE = 'http://www.w3.org/2000/svg';
 
-/** Applies the options HTML and SVG elements share: classes, text and attributes. */
+/**
+ * Applies the options HTML and SVG elements share: classes, text and attributes.
+ * Obsidian sets an HTML element's `className` but adds an SVG element's string
+ * `cls` as one class token, which throws when it holds a space.
+ */
 function applyCommonOptions(el: Element, options: ElementOptions): void {
-  if (options.cls) el.classList.add(...(Array.isArray(options.cls) ? options.cls : options.cls.split(' ').filter(Boolean)));
+  if (Array.isArray(options.cls)) el.classList.add(...options.cls);
+  else if (options.cls && el instanceof SVGElement) el.classList.add(options.cls);
+  else if (options.cls) el.classList.add(...options.cls.split(' ').filter(Boolean));
   if (options.text !== undefined) el.textContent = options.text;
   for (const [name, value] of Object.entries(options.attr ?? {})) {
     if (value === null) el.removeAttribute(name);
@@ -159,4 +165,12 @@ if (typeof window !== 'undefined' && typeof window.matchMedia !== 'function') {
     removeEventListener: () => undefined,
     dispatchEvent: () => false,
   });
+}
+// jsdom has no layout, so nothing ever resizes
+if (typeof window !== 'undefined' && typeof window.ResizeObserver !== 'function') {
+  window.ResizeObserver = class {
+    observe(): void {}
+    unobserve(): void {}
+    disconnect(): void {}
+  };
 }

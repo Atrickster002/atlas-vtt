@@ -58,7 +58,6 @@ export function SystemTab({
       ? [{ type: 'item' as const, label: 'Save changes to preset', icon: 'save', onClick: () => service.update(preset.id, rules) }]
       : []),
     { type: 'item', label: 'Rename', icon: 'pencil', onClick: () => setPending({ kind: 'rename', presetId: preset.id }) },
-    { type: 'separator' },
     { type: 'item', label: 'Delete', icon: 'trash-2', destructive: true, onClick: () => setPending({ kind: 'delete', presetId: preset.id }) },
   ];
 

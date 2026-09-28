@@ -5,6 +5,7 @@ import { useViewStoreHook } from './ViewStoreContext';
 import { toError } from '../utils/errors';
 import type { GridOptions } from '../grid/GridSystem';
 import { parseGridColor } from '../grid/gridContrastColor';
+import { hexNumberStyleOfGrid } from '../grid/hexNumbering';
 import { backgroundTextureCache } from '../pixi/backgroundTextureCache';
 import type { GridState } from '../services/MapPersistence';
 import { destroyTree } from '../pixi/utils/destroyTree';
@@ -35,6 +36,7 @@ function toGridOptions(grid: GridState): GridOptions {
     ...(grid.lineWidth !== undefined ? { lineWidth: grid.lineWidth } : {}),
     ...(grid.scale !== undefined ? { scale: grid.scale } : {}),
     ...(grid.mapScale !== undefined ? { mapScale: grid.mapScale } : {}),
+    hexNumbers: hexNumberStyleOfGrid(grid),
   };
 }
 

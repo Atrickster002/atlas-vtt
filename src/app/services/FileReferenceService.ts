@@ -10,7 +10,7 @@ import { SceneSnapshotService } from '../snapshots/SceneSnapshotService';
  * Propagates file path changes (renames/moves) across all storage layers:
  * - Asset metadata (assets-metadata.json), including scene records of a renamed map
  * - Map files (.atlasmap token instances and pin targets) and scene snapshots
- * - Statblock frontmatter (token-image field)
+ * - Statblock frontmatter (image and token-image fields)
  * - Collection loot bases
  * - The thumbnail of a renamed map
  *
@@ -179,26 +179,31 @@ export class FileReferenceService {
     }
   }
 
-  // Statblock frontmatter (token-image field)
+  // Statblock frontmatter (image fields)
   // ---------------------------------------------------------------------------
 
+  /**
+   * Statblock notes name their artwork by vault path in `image` (what Atlas
+   * writes when it links a token) or the older `token-image`. Obsidian keeps
+   * wikilinks there up to date itself, but not plain paths.
+   */
   private async updateStatblockFrontmatter(moved: MovedPath): Promise<void> {
-    // Find statblock .md files whose frontmatter token-image matches the old path
     const mdFiles = this.app.vault.getFiles().filter(f => f.extension === 'md');
 
     for (const mdFile of mdFiles) {
       try {
-        const cache = this.app.metadataCache.getFileCache(mdFile);
-        if (!cache?.frontmatter) continue;
+        const frontmatter = this.app.metadataCache.getFileCache(mdFile)?.frontmatter;
+        if (!frontmatter) continue;
 
-        const tokenImage: unknown = cache.frontmatter['token-image'];
-        if (typeof tokenImage !== 'string' || !tokenImage) continue;
+        const targets = STATBLOCK_IMAGE_KEYS.flatMap((key) => {
+          const value: unknown = frontmatter[key];
+          const target = typeof value === 'string' ? moved(value) : null;
+          return target === null ? [] : [[key, target] as const];
+        });
+        if (targets.length === 0) continue;
 
-        const target = moved(tokenImage);
-        if (target === null) continue;
-
-        await this.app.fileManager.processFrontMatter(mdFile, (frontmatter: Record<string, unknown>) => {
-          frontmatter['token-image'] = target;
+        await this.app.fileManager.processFrontMatter(mdFile, (latest: Record<string, unknown>) => {
+          for (const [key, target] of targets) latest[key] = target;
         });
       } catch (error) {
         console.error(`[FileReferenceService] Error updating frontmatter in ${mdFile.path}:`, error);
@@ -206,5 +211,7 @@ export class FileReferenceService {
     }
   }
 }
+
+const STATBLOCK_IMAGE_KEYS = ['image', 'token-image'] as const;
 
 const basename = (path: string): string => path.slice(path.lastIndexOf('/') + 1).replace(/\.[^.]+$/, '');

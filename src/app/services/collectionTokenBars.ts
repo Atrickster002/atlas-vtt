@@ -28,7 +28,8 @@ export function withTokenBars(current: Partial<TokenSettings> | undefined, bars:
   return { ...DEFAULT_TOKEN_SETTINGS, ...current, ...bars };
 }
 
-function rewriteMapBars(content: string, bars: TokenBars): string | null {
+/** The map JSON showing `bars`, or null when it already does. */
+export function rewriteMapBars(content: string, bars: TokenBars): string | null {
   const data: unknown = JSON.parse(content);
   if (!isPersistedMapEnvelope(data) || !data.state) return null;
   const state = data.state as { tokenSettings?: Partial<TokenSettings> };

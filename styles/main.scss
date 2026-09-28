@@ -335,8 +335,7 @@
 
     // Restore default styles for buttons inside dropdown menus
     .atlas-dropdown-content button.btn {
-      border-radius: var(--atlas-menu-top-radius, #{$radius-l}) var(--atlas-menu-top-radius, #{$radius-l})
-        var(--atlas-menu-bottom-radius, #{$radius-l}) var(--atlas-menu-bottom-radius, #{$radius-l}) !important;
+      border-radius: atlas-panel-inset-radius-value($spacing-s) !important;
       background: transparent !important;
 
       &:hover {

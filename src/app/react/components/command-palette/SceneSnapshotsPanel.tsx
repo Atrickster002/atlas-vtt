@@ -29,7 +29,6 @@ export function SceneSnapshotsPanel({ onRestore }: SceneSnapshotsPanelProps): Re
       { type: 'item', label: 'Restore', icon: 'history', onClick: () => restore(entry) },
       { type: 'item', label: 'Overwrite with current map', icon: 'refresh-cw', onClick: () => overwrite(entry) },
       { type: 'item', label: 'Rename', icon: 'pencil', onClick: () => setRenamingId(entry.snapshot.id) },
-      { type: 'separator' },
       { type: 'item', label: 'Delete', icon: 'trash-2', destructive: true, onClick: () => remove(entry) },
     ], { x: event.clientX, y: event.clientY });
   }, [overwrite, remove, restore]);

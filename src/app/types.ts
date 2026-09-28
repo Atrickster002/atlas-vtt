@@ -13,6 +13,8 @@ export interface NotePin {
   icon?: string; // Optional icon for customized pins
   label?: string; // Auto-assigned sequence label shown by 'number' / 'letter' pins
   gmOnly?: boolean; // Whether the pin is only visible to the GM
+  /** Links the note to the grid cell containing (x, y) instead of marking a point; hex grids show that hex, other grids a pin. */
+  hex?: boolean;
 }
 
 /** A bounded resource value saved on an individual map token. */

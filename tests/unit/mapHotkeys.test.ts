@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { SettingsService } from '../../src/app/services/SettingsService';
-import { hotkeyFromEvent, formatHotkey, matchesHotkey, canRunMapHotkeys, MAP_HOTKEYS } from '../../src/app/keyboard/mapHotkeys';
+import { hotkeyFromEvent, formatHotkey, matchesHotkey, canRunMapHotkeys, canShareHotkey, MAP_HOTKEYS } from '../../src/app/keyboard/mapHotkeys';
 
 function service() {
   const files = new Map<string, string>();
@@ -69,8 +69,18 @@ describe('map hotkeys', () => {
     expect(canRunMapHotkeys(new KeyboardEvent('keydown'), 'map-one')).toBe(false);
   });
   it('has no conflicting default bindings', () => {
-    const bindings = MAP_HOTKEYS.map(action => action.defaultKey).filter(Boolean);
-    expect(new Set(bindings).size).toBe(bindings.length);
+    const clashes = MAP_HOTKEYS.flatMap((a, i) => MAP_HOTKEYS.slice(i + 1)
+      .filter(b => a.defaultKey === b.defaultKey && !canShareHotkey(a.id, b.id))
+      .map(b => `${a.id}/${b.id}`));
+    expect(clashes).toEqual([]);
+  });
+  it('lets held-widget keys share a key with map shortcuts but not with each other or the number keys', () => {
+    const { settings } = service();
+    expect(settings.getHotkeys().timerPlayPause).toBe(settings.getHotkeys().palette);
+    expect(settings.getHotkeys().timerReset).toBe(settings.getHotkeys().diceTray);
+    expect(() => settings.setHotkey('timerReset', 'm')).not.toThrow();
+    expect(() => settings.setHotkey('timerReset', '-')).toThrow(/Decrease/);
+    expect(() => settings.setHotkey('timerReset', '3')).toThrow(/widget 3/);
   });
   it('replays tutorials without losing hotkeys and does not share progress across vaults', () => {
     const { settings } = service(); settings.completeTutorial('palette');

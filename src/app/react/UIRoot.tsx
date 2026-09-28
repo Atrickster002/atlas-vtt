@@ -43,6 +43,7 @@ interface UIRootProps {
 export const UIRoot: React.FC<UIRootProps> = ({ app, view, pixiApp }) => {
   const settings = SettingsService.forApp(app);
   const [hotkeyHelpOpen, setHotkeyHelpOpen] = useState(false);
+  const [isSceneSwitcherOpen, setSceneSwitcherOpen] = useState(false);
 
   // Get the store directly from context
   const store = useViewStoreHook();
@@ -201,6 +202,7 @@ export const UIRoot: React.FC<UIRootProps> = ({ app, view, pixiApp }) => {
                 onCloseTab={(tabId) => { if (view) runInBackground(view.closeTab(tabId), 'Closing scene tab'); }}
                 onAddTab={() => view?.openSceneBrowser()}
                 onPresentTab={presentTab}
+                onShowAllTabs={() => setSceneSwitcherOpen(true)}
               />
             )}
             <ResponsiveWidgetBar
@@ -219,7 +221,14 @@ export const UIRoot: React.FC<UIRootProps> = ({ app, view, pixiApp }) => {
           {/* View actions menu — bottom right, DM only */}
           {!isPlayerView && <ViewActionsMenu app={app} filePath={view?.file?.path} />}
 
-          {!isPlayerView && !isMapLoading && <SceneSwitcher onSwitchTab={switchTab} onPresentTab={presentTab} />}
+          {!isPlayerView && !isMapLoading && (
+            <SceneSwitcher
+              isOpen={isSceneSwitcherOpen}
+              onOpenChange={setSceneSwitcherOpen}
+              onSwitchTab={switchTab}
+              onPresentTab={presentTab}
+            />
+          )}
           
           {/* Grid Settings Modal - only render when needed */}
           {isGridSettingsOpen && (

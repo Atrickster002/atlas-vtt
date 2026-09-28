@@ -1,5 +1,6 @@
 import { Notice, type Setting, type ToggleComponent } from 'obsidian';
-import { availableHotkeys, DEFAULT_MAP_HOTKEYS, formatHotkey, hotkeyFromEvent } from '../keyboard/mapHotkeys';
+import { availableHotkeys, DEFAULT_MAP_HOTKEYS, formatHotkey, hotkeyAction, hotkeyFromEvent } from '../keyboard/mapHotkeys';
+import type { HotkeyOrigin } from '../keyboard/hotkeyOverrides';
 import type { SettingsService } from '../services/SettingsService';
 import type { AtlasSettingRow, AtlasSettingSection } from './settingSections';
 import type { ButtonComponent } from 'obsidian';
@@ -11,26 +12,34 @@ function notifyFailure(error: unknown, fallback: string): void {
   new Notice(error instanceof Error ? error.message : fallback);
 }
 
-/** Map shortcut recorder rows plus the "reset all" row that refreshes them. */
-export function hotkeySettingsSection(settings: SettingsService): AtlasSettingSection {
-  // Each rendered row registers a callback that re-reads its binding, so
-  // "reset all" can refresh every recorder without re-rendering the tab.
-  const rowSyncs = new Set<() => void>();
+/** The action's group, plus its default once changed or why it lost its default. */
+function describeHotkey(descEl: HTMLElement, action: HotkeyAction, origin: HotkeyOrigin): void {
+  const defaultKey = formatHotkey(DEFAULT_MAP_HOTKEYS[action.id]);
+  descEl.setText(origin.kind === 'custom' ? `${action.group} · Default: ${defaultKey}` : action.group);
+  if (origin.kind === 'displaced') {
+    descEl.createDiv({ cls: 'atlas-hotkey-warning', text: `Unassigned: its default, ${defaultKey}, is assigned to ${hotkeyAction(origin.by).label}.` });
+  }
+}
 
+/** Map shortcut recorder rows plus the "reset all" row. Every row follows the settings, since one binding can change another. */
+export function hotkeySettingsSection(settings: SettingsService): AtlasSettingSection {
   const hotkeyRow = (action: HotkeyAction): AtlasSettingRow => ({
     name: action.label,
     desc: action.group,
     aliases: ['hotkey', 'shortcut'],
     render: (setting: Setting) => {
       let input: HTMLInputElement | undefined;
+      let restoreEl: HTMLElement | undefined;
       const sync = (): void => {
+        const origin = settings.getHotkeyOrigin(action.id);
         if (input) input.value = formatHotkey(settings.getHotkeys()[action.id]);
+        describeHotkey(setting.descEl, action, origin);
+        if (origin.kind === 'default') restoreEl?.hide(); else restoreEl?.show();
       };
 
       setting.addText(text => {
         input = text.inputEl;
         const recorder = text.inputEl;
-        sync();
         recorder.readOnly = true;
         recorder.classList.add('atlas-hotkey-recorder');
         recorder.setAttribute('aria-label', `Shortcut for ${action.label}`);
@@ -47,15 +56,18 @@ export function hotkeySettingsSection(settings: SettingsService): AtlasSettingSe
         });
       });
       setting.addExtraButton(button => button.setIcon('x').setTooltip('Clear shortcut').onClick(() => {
-        settings.setHotkey(action.id, ''); sync();
+        settings.setHotkey(action.id, '');
       }));
-      setting.addExtraButton(button => button.setIcon('reset').setTooltip('Restore default').onClick(() => {
-        try { settings.setHotkey(action.id, DEFAULT_MAP_HOTKEYS[action.id]); sync(); }
-        catch (error) { notifyFailure(error, 'Could not restore shortcut'); }
-      }));
+      setting.addExtraButton(button => {
+        restoreEl = button.extraSettingsEl;
+        button.setIcon('reset').setTooltip('Restore default').onClick(() => {
+          try { settings.setHotkey(action.id, DEFAULT_MAP_HOTKEYS[action.id]); }
+          catch (error) { notifyFailure(error, 'Could not restore shortcut'); }
+        });
+      });
 
-      rowSyncs.add(sync);
-      return () => { rowSyncs.delete(sync); };
+      sync();
+      return settings.onChange(sync);
     },
   });
 
@@ -64,13 +76,10 @@ export function hotkeySettingsSection(settings: SettingsService): AtlasSettingSe
     rows: [
       {
         name: 'Single keys and combinations',
-        desc: 'These shortcuts work only in the active map, outside text fields and dialogs. Select a shortcut field and press a key or combination. Escape cancels recording. Clear a binding before assigning its key to another action.',
+        desc: 'These shortcuts work only in the active map, outside text fields and dialogs. Select a shortcut field and press a key or combination. Escape cancels recording. Clear a binding before assigning its key to another action. Keys for a held widget work only while you hold its number key, so they can share a key with another shortcut.',
         aliases: ['hotkey', 'shortcut', 'reset'],
         render: (setting) => {
-          setting.addButton(button => button.setButtonText('Reset all hotkeys').onClick(() => {
-            settings.resetHotkeys();
-            rowSyncs.forEach(sync => sync());
-          }));
+          setting.addButton(button => button.setButtonText('Reset all hotkeys').onClick(() => settings.resetHotkeys()));
         },
       },
       ...availableHotkeys().map(hotkeyRow),

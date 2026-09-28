@@ -14,12 +14,10 @@ import { SettingsService } from '../../../../services/SettingsService';
 interface EffectDeps {
   isOpen: boolean;
   onClose: () => void;
-  initialTab: Tab | undefined;
   modalRef: React.RefObject<HTMLDivElement | null>;
   containerRef: React.RefObject<HTMLDivElement | null>;
-  setSearch: (s: string) => void;
-  setActiveTab: React.Dispatch<React.SetStateAction<Tab>>;
-  setSelectedCollection: (col: string | null) => void;
+  activeTab: Tab;
+  changeTab: (tab: Tab) => void;
   data: AssetData;
   sel: SelectionState;
   crud: AssetCrudActions;
@@ -28,9 +26,9 @@ interface EffectDeps {
 }
 
 export function useAssetManagerEffects({
-  isOpen, onClose, initialTab,
+  isOpen, onClose,
   modalRef, containerRef,
-  setSearch, setActiveTab, setSelectedCollection,
+  activeTab, changeTab,
   data, sel, crud, tags, statblock,
 }: EffectDeps): void {
   const isAnySubModalOpen =
@@ -40,29 +38,14 @@ export function useAssetManagerEffects({
     tags.isTagManagerOpen ||
     statblock.linkingStatblockAsset !== null || crud.transfer !== null;
 
+  // Separate from the shortcuts below, whose handler is re-registered on most renders
+  // and must not pull focus out of the search field while typing.
   useEffect(() => {
-    if (!isOpen) return;
-    setSearch('');
-    setActiveTab(initialTab || 'tokens');
-    // Reset persisted filters so reopening doesn't stay scoped to stale folder/tag state.
-    sel.setSelectedAssetIds([]);
-    sel.setSelectedFolderIds([]);
-    sel.setSelectedFolderId(null);
-    sel.setSelectedTagIds([]);
-    sel.setSpawnCounts({});
-
-    sel.navigationHistory.clear();
-    sel.navigationHistory.push(null);
-
-    if (data.assetService && data.mapPath) {
-      const mapCol = data.assetService.getCollectionForMap(data.mapPath);
-      if (mapCol) setSelectedCollection(mapCol);
-    }
-  }, [isOpen]);
+    if (isOpen && !isAnySubModalOpen) modalRef.current?.focus();
+  }, [isOpen, isAnySubModalOpen]);
 
   useEffect(() => {
     if (!isOpen || isAnySubModalOpen) return;
-    modalRef.current?.focus();
     const handler = (e: KeyboardEvent): void => {
       if (document.querySelector('.atlas-onboarding-overlay')) return;
       if (!isShortcutScopeActive(modalRef.current)) return;
@@ -87,7 +70,7 @@ export function useAssetManagerEffects({
       if (e.key === 'Tab' && !e.metaKey && !e.ctrlKey && !e.altKey) {
         e.preventDefault();
         const direction = e.shiftKey ? -1 : 1;
-        setActiveTab((prev) => tabs[(tabs.indexOf(prev) + direction + tabs.length) % tabs.length]!);
+        changeTab(tabs[(tabs.indexOf(activeTab) + direction + tabs.length) % tabs.length]!);
         return;
       }
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'f' && !e.shiftKey && !e.altKey) {
@@ -97,12 +80,12 @@ export function useAssetManagerEffects({
       }
       if ((e.metaKey || e.ctrlKey) && e.key >= '1' && e.key <= '4') {
         const idx = parseInt(e.key) - 1;
-        if (idx < tabs.length) { setActiveTab(tabs[idx]!); e.preventDefault(); }
+        if (idx < tabs.length) { changeTab(tabs[idx]!); e.preventDefault(); }
       }
     };
     document.addEventListener('keydown', handler);
     return () => document.removeEventListener('keydown', handler);
-  }, [isOpen, onClose, sel.selectedAssetIds, isAnySubModalOpen, data.app]);
+  }, [isOpen, onClose, sel.selectedAssetIds, isAnySubModalOpen, data.app, activeTab, changeTab]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -116,10 +99,10 @@ export function useAssetManagerEffects({
         t.closest('.atlas-collection-settings-overlay')
       ) return;
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        // The tag filter stays: the manager reopens where it was left
         onClose();
         sel.setSelectedAssetIds([]);
         sel.setSelectedFolderIds([]);
-        sel.setSelectedTagIds([]);
         crud.setEditingToken(null);
       }
     };

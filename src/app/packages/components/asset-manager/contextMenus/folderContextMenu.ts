@@ -28,7 +28,6 @@ export function buildFolderContextMenuEntries(
     onClick: () => deps.handleFolderDoubleClick(folder.id),
   });
 
-  entries.push({ type: 'separator' });
 
   // Rename
   entries.push({
@@ -100,7 +99,6 @@ export function buildFolderContextMenuEntries(
     },
   });
 
-  entries.push({ type: 'separator' });
 
   // Move contents
   const otherFolders = deps.folders.filter(
@@ -132,7 +130,6 @@ export function buildFolderContextMenuEntries(
     });
   }
 
-  entries.push({ type: 'separator' });
 
   // Delete
   entries.push({

@@ -1,14 +1,23 @@
-import React, { useState } from 'react';
-import { ChevronDown, Eye, EyeOff, Pencil, Plus, Swords, Trash2, Users } from 'lucide-react';
+import React, { useMemo, useState } from 'react';
+import { ChevronDown, Plus, Swords } from 'lucide-react';
 import { cn } from '../../../../utils/cn';
 import { Button } from '../../../packages/components/primitives/button';
 import { LabelTooltip } from '../../../packages/components/primitives/tooltip';
 import type { AnyWidget } from '../../../types/widgetTypes';
 import type { ViewAtlasState } from '../../../storeFactory';
+import { deleteCollectionWidget } from '../../../services/collectionWidgetDeletion';
+import { WidgetSyncService } from '../../../services/WidgetSyncService';
+import { isCollectionWidget } from '../../../utils/collectionWidgets';
+import { useCollectionWidgetLibrary } from '../../hooks/useCollectionWidgetLibrary';
 import { useMapCollectionId } from '../../hooks/useMapCollectionId';
-import { WidgetIconGlyph } from '../WidgetIconGlyph';
+import { useAtlasUI } from '../../root/AtlasUIContext';
+import { useViewStoreHook } from '../../ViewStoreContext';
+import { stepCounter } from '../../../utils/counterWidget';
+import { isWidgetOn } from '../../../utils/widgetActivation';
 import { SettingToggleRow } from './SettingRows';
 import { WidgetEditorForm, type WidgetDraft } from './WidgetEditorForm';
+import { WidgetListItem } from './WidgetListItem';
+import { widgetRows, type WidgetRow } from './widgetRows';
 
 interface WidgetSettingsPanelProps {
   widgetSettings: ViewAtlasState['widgetSettings'];
@@ -40,7 +49,14 @@ export const WidgetSettingsPanel = React.memo(function WidgetSettingsPanel({
   const [initiativeExpanded, setInitiativeExpanded] = useState(true);
   const [isAdding, setIsAdding] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const { app } = useAtlasUI();
   const collectionId = useMapCollectionId();
+  const library = useCollectionWidgetLibrary(collectionId);
+  const store = useViewStoreHook();
+  const rows = useMemo(
+    () => widgetRows(sortedWidgets, (widget) => isWidgetOn(widgetSettings, widget), library),
+    [sortedWidgets, widgetSettings, library],
+  );
 
   // Persisted state from older maps can lack these fields; both default to on.
   const globalVisible = widgetSettings?.globalVisible !== false;
@@ -50,8 +66,42 @@ export const WidgetSettingsPanel = React.memo(function WidgetSettingsPanel({
     setWidgetSettings({ ...widgetSettings, globalVisible: !globalVisible });
   };
 
-  const editingWidget = sortedWidgets.find((widget) => widget.id === editingId);
+  const editingRow = rows.find((row) => row.widget.id === editingId);
+  const editingWidget = editingRow?.widget;
   const editorOpen = isAdding || !!editingWidget;
+
+  /** Widgets the scene holds change there (and reach the library through the sync); the others in the library. */
+  const changeWidget = (row: WidgetRow, changes: Partial<AnyWidget>): void => {
+    if (row.inScene) {
+      updateWidget(row.widget.id, changes);
+    } else if (collectionId) {
+      WidgetSyncService.forApp(app)?.editCollectionWidgets(collectionId, (widgets) => {
+        const widget = widgets[row.widget.id];
+        return widget ? { ...widgets, [widget.id]: Object.assign({}, widget, changes) } : widgets;
+      });
+    }
+  };
+
+  const toggleHere = ({ widget, inScene, active }: WidgetRow): void => {
+    if (inScene) store.getState().setWidgetOn(widget.id, !active);
+    else addWidget(widget);
+  };
+
+  /** Switching a widget on in every scene also switches it on here. */
+  const toggleEveryScene = (row: WidgetRow): void => {
+    const scope = isCollectionWidget(row.widget) ? 'scene' : 'collection';
+    if (!row.inScene) {
+      addWidget({ ...row.widget, scope });
+      return;
+    }
+    updateWidget(row.widget.id, { scope });
+    if (scope === 'collection') store.getState().setWidgetOn(row.widget.id, true);
+  };
+
+  const deleteWidget = ({ widget }: WidgetRow): void => {
+    if (collectionId) void deleteCollectionWidget(app, collectionId, widget.id);
+    else removeWidget(widget.id);
+  };
 
   const closeEditor = (): void => {
     setIsAdding(false);
@@ -59,8 +109,15 @@ export const WidgetSettingsPanel = React.memo(function WidgetSettingsPanel({
   };
 
   const handleSubmit = (draft: WidgetDraft): void => {
-    if (editingWidget) {
-      updateWidget(editingWidget.id, { label: draft.label, icon: draft.icon, color: draft.color, scope: draft.scope });
+    if (editingRow) {
+      const { label, icon, color, scope, segments, showCount } = draft;
+      if (editingRow.widget.type === 'clock') {
+        changeWidget(editingRow, { label, icon, color, scope, segments, showCount });
+        // A step of 0 clamps a filled clock to its new segment count.
+        if (editingRow.inScene) stepCounter(store, editingRow.widget.id, 0);
+      } else {
+        changeWidget(editingRow, { label, icon, color, scope });
+      }
     } else {
       const base = {
         id: `${draft.type}-${Date.now()}`,
@@ -70,13 +127,15 @@ export const WidgetSettingsPanel = React.memo(function WidgetSettingsPanel({
         scope: draft.scope,
         visible: true,
         visibleToPlayers: true,
-        order: sortedWidgets.length,
+        order: Math.max(-1, ...rows.map((row) => row.widget.order)) + 1,
       };
-      addWidget(
-        draft.type === 'timer'
-          ? { ...base, type: 'timer', value: DEFAULT_TIMER_SECONDS, duration: DEFAULT_TIMER_SECONDS, direction: 'down' }
-          : { ...base, type: 'counter', value: 0 },
-      );
+      if (draft.type === 'timer') {
+        addWidget({ ...base, type: 'timer', value: DEFAULT_TIMER_SECONDS, duration: DEFAULT_TIMER_SECONDS, direction: 'down' });
+      } else if (draft.type === 'clock') {
+        addWidget({ ...base, type: 'clock', value: 0, segments: draft.segments, showCount: draft.showCount });
+      } else {
+        addWidget({ ...base, type: 'counter', value: 0 });
+      }
     }
     closeEditor();
   };
@@ -145,64 +204,22 @@ export const WidgetSettingsPanel = React.memo(function WidgetSettingsPanel({
               </Button>
             </LabelTooltip>
           </div>
-          {sortedWidgets.length === 0 && (
-            <span className="atlas-setting-hint">No widgets yet. Add a counter or timer with the plus button.</span>
+          {rows.length === 0 && (
+            <span className="atlas-setting-hint">No widgets yet. Add a counter, clock or timer with the plus button.</span>
           )}
           <div className="atlas-command-palette-widget-list">
-            {sortedWidgets.map((widget) => (
-              <div key={widget.id} className="atlas-command-palette-widget-item">
-                <WidgetIconGlyph icon={widget.icon} size={20} {...(widget.color !== undefined ? { color: widget.color } : {})} />
-                <div className="atlas-command-palette-widget-info">
-                  <div className="atlas-command-palette-widget-name">{widget.label}</div>
-                  <div className="atlas-command-palette-widget-type">
-                    {widget.scope === 'collection' ? `${widget.type} · collection` : widget.type}
-                  </div>
-                </div>
-                <div className="atlas-command-palette-widget-controls">
-                  <LabelTooltip label="Edit name and icon">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="atlas-command-palette-icon-btn"
-                      onClick={() => setEditingId(widget.id)}
-                    >
-                      <Pencil />
-                    </Button>
-                  </LabelTooltip>
-                  <LabelTooltip label={widget.visible ? 'Hide widget' : 'Show widget'}>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className={cn('atlas-command-palette-icon-btn', widget.visible && 'atlas-active')}
-                      onClick={() => updateWidget(widget.id, { visible: !widget.visible })}
-                      aria-pressed={widget.visible}
-                    >
-                      {widget.visible ? <Eye /> : <EyeOff />}
-                    </Button>
-                  </LabelTooltip>
-                  <LabelTooltip label={widget.visibleToPlayers ? 'Hide from players' : 'Show to players'}>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className={cn('atlas-command-palette-icon-btn', widget.visibleToPlayers && 'atlas-active')}
-                      onClick={() => updateWidget(widget.id, { visibleToPlayers: !widget.visibleToPlayers })}
-                      aria-pressed={widget.visibleToPlayers}
-                    >
-                      <Users />
-                    </Button>
-                  </LabelTooltip>
-                  <LabelTooltip label={widget.scope === 'collection' ? 'Delete from every scene' : 'Delete widget'}>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="atlas-command-palette-icon-btn atlas-icon-btn--danger"
-                      onClick={() => removeWidget(widget.id)}
-                    >
-                      <Trash2 />
-                    </Button>
-                  </LabelTooltip>
-                </div>
-              </div>
+            {rows.map((row) => (
+              <WidgetListItem
+                key={row.widget.id}
+                widget={row.widget}
+                active={row.active}
+                inCollection={collectionId !== null}
+                onEdit={() => setEditingId(row.widget.id)}
+                onUpdate={(changes) => changeWidget(row, changes)}
+                onToggleHere={() => toggleHere(row)}
+                onToggleEveryScene={() => toggleEveryScene(row)}
+                onDelete={() => deleteWidget(row)}
+              />
             ))}
           </div>
 

@@ -67,6 +67,25 @@ describe('bindViewportNavigation', () => {
     expect(wheelOptions(viewport)).toEqual({ wheelZoom: false, trackpadPinch: true });
   });
 
+  it('takes the stored mode when the settings finish loading after the viewport was bound', async () => {
+    let finishMigration!: () => void;
+    const storageReady = new Promise<void>((resolve) => { finishMigration = resolve; });
+    const app = createMockApp();
+    app.vault.adapter.exists = async () => true;
+    app.vault.adapter.read = async () => JSON.stringify({ navigation: { inputMode: 'mouse' } });
+    const settings = new SettingsService(app, storageReady);
+    settings.setNavigationSettings({ inputMode: 'trackpad' });
+    const viewport = createViewport();
+
+    // A map tab restored at startup binds while the service still holds the defaults.
+    bindViewportNavigation(viewport, settings);
+    expect(wheelOptions(viewport)).toEqual({ wheelZoom: false, trackpadPinch: true });
+
+    finishMigration();
+    await settings.initialize();
+    expect(wheelOptions(viewport)).toEqual({ wheelZoom: true, trackpadPinch: false });
+  });
+
   it('ignores settings changes that do not alter the navigation mode', () => {
     const settings = new SettingsService(createMockApp());
     const viewport = createViewport();

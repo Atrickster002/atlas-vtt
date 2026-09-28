@@ -64,14 +64,6 @@ export function useSelectionHandlers(
   const [sortOrder, setSortOrder] = useState<SortOrder>('asc');
   const [navigationHistory] = useState(() => new NavigationHistory());
 
-  // ── Clear on tab change ───────────────────────────────────────
-  useEffect(() => {
-    setSelectedAssetIds([]);
-    setSelectedFolderIds([]);
-    setSelectedFolderId(null);
-    setSelectedTagIds([]);
-  }, [activeTab]);
-
   // ── Handlers ──────────────────────────────────────────────────
 
   const assetAnchor = useRef<string | null>(null);

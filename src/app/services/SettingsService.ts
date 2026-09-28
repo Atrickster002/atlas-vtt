@@ -1,5 +1,6 @@
 import { App, Platform, normalizePath } from 'obsidian';
-import { DEFAULT_MAP_HOTKEYS, availableHotkeys, type MapHotkeyId, type MapHotkeys } from '../keyboard/mapHotkeys';
+import { availableHotkeys, canShareHotkey, type MapHotkeyId, type MapHotkeys } from '../keyboard/mapHotkeys';
+import { hotkeyOrigin, readHotkeyOverrides, resolveHotkeys, withHotkey, type HotkeyOrigin, type HotkeyOverrides } from '../keyboard/hotkeyOverrides';
 import { getDataFilePath } from '../utils/dataFileMigration';
 import {
   DEFAULT_LASER_POINTER_SETTINGS,
@@ -25,7 +26,8 @@ export type TutorialId = typeof TUTORIAL_IDS[number];
 export interface AtlasSettings {
   showChangelogOnUpdate: boolean;
   changelogMajorUpdatesOnly: boolean;
-  hotkeys: MapHotkeys;
+  /** Only the bindings the user changed; read the effective ones with `getHotkeys`. */
+  hotkeys: HotkeyOverrides;
   onboarding: { enabled: boolean; completed: Partial<Record<TutorialId, boolean>>; tokenImported: boolean };
   navigation: NavigationSettings;
   laserPointer: LaserPointerSettings;
@@ -48,7 +50,7 @@ export interface AtlasSettings {
 const DEFAULT_SETTINGS: AtlasSettings = {
   showChangelogOnUpdate: true,
   changelogMajorUpdatesOnly: false,
-  hotkeys: DEFAULT_MAP_HOTKEYS,
+  hotkeys: {},
   onboarding: { enabled: true, completed: {}, tokenImported: false },
   navigation: {
     inputMode: Platform.isMacOS ? 'trackpad' : 'mouse',
@@ -93,8 +95,12 @@ export class SettingsService {
     this.settingsPath = normalizePath(getDataFilePath('atlas-vtt/settings.json'));
   }
 
+  /**
+   * Loads the settings file once and notifies subscribers, since views restored at startup
+   * subscribe while the service still holds the defaults.
+   */
   async initialize(): Promise<void> {
-    await (this.initialization ??= this.loadSettings());
+    await (this.initialization ??= this.loadSettings().then(() => this.notify()));
   }
 
   /**
@@ -146,8 +152,7 @@ export class SettingsService {
       // Try new location first
       if (await this.app.vault.adapter.exists(this.settingsPath)) {
         const content = await this.app.vault.adapter.read(this.settingsPath);
-        const loadedSettings = JSON.parse(content) as Partial<AtlasSettings>;
-        this.settings = this.deepMerge(DEFAULT_SETTINGS, loadedSettings);
+        this.applyStoredSettings(JSON.parse(content) as Partial<AtlasSettings>);
         return;
       }
 
@@ -155,8 +160,7 @@ export class SettingsService {
       const oldPath = 'atlas-vtt/settings.json';
       if (await this.app.vault.adapter.exists(oldPath)) {
         const content = await this.app.vault.adapter.read(oldPath);
-        const loadedSettings = JSON.parse(content) as Partial<AtlasSettings>;
-        this.settings = this.deepMerge(DEFAULT_SETTINGS, loadedSettings);
+        this.applyStoredSettings(JSON.parse(content) as Partial<AtlasSettings>);
         return;
       }
 
@@ -166,7 +170,16 @@ export class SettingsService {
     }
   }
 
+  private applyStoredSettings(stored: Partial<AtlasSettings>): void {
+    this.settings = this.deepMerge(DEFAULT_SETTINGS, stored);
+    this.settings.hotkeys = readHotkeyOverrides(stored.hotkeys);
+    // Rewrite files from versions that saved every binding, so they keep only the user's.
+    if (JSON.stringify(stored.hotkeys ?? {}) !== JSON.stringify(this.settings.hotkeys)) this.scheduleSave();
+  }
+
   private async saveSettings(): Promise<void> {
+    // Saving before the file was read would write the defaults over the user's settings.
+    await this.initialize();
     try {
       const settingsJson = JSON.stringify(this.settings, null, 2);
 
@@ -202,6 +215,10 @@ export class SettingsService {
   /** Persist (debounced) and notify subscribers of the new settings. */
   private commit(): void {
     this.scheduleSave();
+    this.notify();
+  }
+
+  private notify(): void {
     for (const listener of this.listeners) {
       listener(this.getAllSettings());
     }
@@ -217,17 +234,20 @@ export class SettingsService {
     };
   }
 
-  getHotkeys(): MapHotkeys { return { ...this.settings.hotkeys }; }
+  getHotkeys(): MapHotkeys { return resolveHotkeys(this.settings.hotkeys); }
+
+  getHotkeyOrigin(id: MapHotkeyId): HotkeyOrigin { return hotkeyOrigin(this.settings.hotkeys, id); }
 
   setHotkey(id: MapHotkeyId, key: string): void {
-    const conflict = key && availableHotkeys().find(action => action.id !== id && this.settings.hotkeys[action.id] === key);
+    const bindings = this.getHotkeys();
+    const conflict = key && availableHotkeys().find(action => action.id !== id && bindings[action.id] === key && !canShareHotkey(action.id, id));
     if (conflict) throw new Error(`Already assigned to ${conflict.label}. Clear that shortcut first.`);
-    this.settings.hotkeys = { ...this.settings.hotkeys, [id]: key };
+    this.settings.hotkeys = withHotkey(this.settings.hotkeys, id, key);
     this.commit();
   }
 
   resetHotkeys(): void {
-    this.settings.hotkeys = { ...DEFAULT_MAP_HOTKEYS };
+    this.settings.hotkeys = {};
     this.commit();
   }
 

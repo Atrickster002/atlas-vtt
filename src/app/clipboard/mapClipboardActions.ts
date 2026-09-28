@@ -1,5 +1,6 @@
 import type { StoreApi } from 'zustand';
 import type { ViewAtlasState } from '../storeFactory';
+import { mayLinkFromScene } from '../services/sceneLinks';
 import { readMapClipboard, writeMapClipboard } from './mapClipboard';
 import { collectMapObjects, countMapObjects, type MapObjectContent, type Point } from './mapObjectContent';
 import { pasteOffset, placeMapObjects } from './mapObjectPlacement';
@@ -44,11 +45,17 @@ export async function cutSelection(store: ClipboardStore): Promise<boolean> {
   return true;
 }
 
-/** Pastes the clipboard centred on `target` (world coordinates) and returns the ids of the copies. */
+/**
+ * Pastes the clipboard centred on `target` (world coordinates) and returns the
+ * ids of the copies. Pins that open a scene of another collection stay behind,
+ * since scenes only link within their collection.
+ */
 export async function pasteClipboard(store: ClipboardStore, target: Point): Promise<string[]> {
-  const content = await readMapClipboard();
+  const copied = await readMapClipboard();
   const state = store.getState();
-  if (!content || !canEditMapObjects(state)) return [];
+  if (!copied || !canEditMapObjects(state)) return [];
+  const content = { ...copied, pins: copied.pins.filter((pin) => mayLinkFromScene(state.mapPath, pin.notePath)) };
+  if (countMapObjects(content) === 0) return [];
   const placed = placeMapObjects(content, pasteOffset(content, target, state.grid), state.grid, state.objects);
   return state.insertMapObjects(placed);
 }

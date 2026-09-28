@@ -1,8 +1,9 @@
-import React from 'react';
-import { Eye, Plus, X } from 'lucide-react';
+import React, { useState } from 'react';
+import { ChevronDown, Eye, Plus, X } from 'lucide-react';
 import { useStore } from 'zustand';
 import { cn } from '../../../utils/cn';
 import { useSceneTabStore } from '../hooks/useSceneTabStore';
+import { useTabStripOverflow } from '../hooks/useTabStripOverflow';
 import { playerWindowStore } from '../../stores/playerWindowStore';
 import type { SceneTab } from '../../types/sceneTabTypes';
 import { LabelTooltip, TooltipProvider } from '../../packages/components/primitives/tooltip';
@@ -13,6 +14,8 @@ interface SceneTabBarProps {
   onCloseTab: (tabId: string) => void;
   onAddTab: () => void;
   onPresentTab: (tabId: string) => void;
+  /** Lists every open map; offered while the tabs do not fit the bar. */
+  onShowAllTabs: () => void;
 }
 
 interface TabActionButtonProps {
@@ -44,65 +47,92 @@ function TabActionButton({ icon: Icon, label, isActive, onClick }: TabActionButt
   );
 }
 
-export function SceneTabBar({ onSwitchTab, onCloseTab, onAddTab, onPresentTab }: SceneTabBarProps): React.ReactElement | null {
+export function SceneTabBar({ onSwitchTab, onCloseTab, onAddTab, onPresentTab, onShowAllTabs }: SceneTabBarProps): React.ReactElement | null {
   const store = useSceneTabStore();
 
   const tabs = useStore(store, (s) => s.tabs);
   const activeTabId = useStore(store, (s) => s.activeTabId);
   const presentedTabId = useStore(playerWindowStore, (s) => s.presentedTabId);
   const isPlayerWindowOpen = useStore(playerWindowStore, (s) => s.isOpen);
+  const [strip, setStrip] = useState<HTMLDivElement | null>(null);
+  const { overflows, hiddenBefore, hiddenAfter } = useTabStripOverflow(strip, activeTabId);
 
   if (tabs.length === 0) return null;
 
   return (
     <TooltipProvider delayDuration={300}>
       <div className="atlas-scene-tab-bar">
-        {tabs.map((tab: SceneTab) => {
-          const isActive = tab.id === activeTabId;
-          const isPresented = isPlayerWindowOpen && tab.id === presentedTabId;
-          const stateClass = isActive
-            ? 'atlas-scene-tab--active'
-            : tab.isLoaded
-              ? 'atlas-scene-tab--loaded'
-              : 'atlas-scene-tab--sleeping';
+        <div
+          ref={setStrip}
+          role="tablist"
+          aria-label="Open maps"
+          className={cn(
+            'atlas-scene-tab-bar__strip',
+            hiddenBefore && 'atlas-scene-tab-bar__strip--hidden-before',
+            hiddenAfter && 'atlas-scene-tab-bar__strip--hidden-after',
+          )}
+        >
+          {tabs.map((tab: SceneTab) => {
+            const isActive = tab.id === activeTabId;
+            const isPresented = isPlayerWindowOpen && tab.id === presentedTabId;
+            const stateClass = isActive
+              ? 'atlas-scene-tab--active'
+              : tab.isLoaded
+                ? 'atlas-scene-tab--loaded'
+                : 'atlas-scene-tab--sleeping';
 
-          return (
-            <div
-              key={tab.id}
-              role="tab"
-              tabIndex={0}
-              className={`atlas-scene-tab ${stateClass}`}
-              onClick={() => onSwitchTab(tab.id)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault();
-                  onSwitchTab(tab.id);
-                }
-              }}
-              onMouseDown={(e) => {
-                if (e.button === 1) {
-                  e.preventDefault();
-                  onCloseTab(tab.id);
-                }
-              }}
+            return (
+              <div
+                key={tab.id}
+                role="tab"
+                aria-selected={isActive}
+                tabIndex={0}
+                className={`atlas-scene-tab ${stateClass}`}
+                onClick={() => onSwitchTab(tab.id)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    onSwitchTab(tab.id);
+                  }
+                }}
+                onMouseDown={(e) => {
+                  if (e.button === 1) {
+                    e.preventDefault();
+                    onCloseTab(tab.id);
+                  }
+                }}
+              >
+                <LabelTooltip side="bottom" label={tab.filePath}>
+                  <span className="atlas-scene-tab__name">{tab.displayName}</span>
+                </LabelTooltip>
+                {tab.isDirty && <span className="atlas-scene-tab__dirty" />}
+                <TabActionButton
+                  icon={Eye}
+                  label={isPresented ? `${tab.displayName} is shown on the player view` : `Show ${tab.displayName} on the player view`}
+                  isActive={isPresented}
+                  onClick={() => onPresentTab(tab.id)}
+                />
+                <TabActionButton icon={X} label={`Close ${tab.displayName}`} onClick={() => onCloseTab(tab.id)} />
+              </div>
+            );
+          })}
+        </div>
+        {overflows && (
+          <LabelTooltip side="bottom" label="All open maps">
+            <button
+              type="button"
+              className="atlas-scene-tab atlas-scene-tab-bar__button"
+              aria-haspopup="dialog"
+              onClick={onShowAllTabs}
             >
-              <LabelTooltip side="bottom" label={tab.filePath}>
-                <span className="atlas-scene-tab__name">{tab.displayName}</span>
-              </LabelTooltip>
-              {tab.isDirty && <span className="atlas-scene-tab__dirty" />}
-              <TabActionButton
-                icon={Eye}
-                label={isPresented ? `${tab.displayName} is shown on the player view` : `Show ${tab.displayName} on the player view`}
-                isActive={isPresented}
-                onClick={() => onPresentTab(tab.id)}
-              />
-              <TabActionButton icon={X} label={`Close ${tab.displayName}`} onClick={() => onCloseTab(tab.id)} />
-            </div>
-          );
-        })}
+              <ChevronDown size={14} />
+            </button>
+          </LabelTooltip>
+        )}
         <LabelTooltip side="bottom" label="Open scene">
           <button
-            className="atlas-scene-tab atlas-scene-tab-bar__add"
+            type="button"
+            className="atlas-scene-tab atlas-scene-tab-bar__button atlas-scene-tab-bar__add"
             onClick={onAddTab}
           >
             <Plus size={14} />

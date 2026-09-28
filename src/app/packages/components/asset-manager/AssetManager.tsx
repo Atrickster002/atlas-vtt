@@ -2,7 +2,7 @@ import { Tutorial } from '../../../onboarding/Tutorial';
 import { AssetService } from '../../../services/AssetService';
 import { useAtlasSettings } from '../../../keyboard/useMapHotkeys';
 import { SettingsService } from '../../../services/SettingsService';
-import React, { useState, useRef, useMemo } from 'react';
+import React, { useState, useRef, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { AssetManagerProps, Tab } from './types';
 
@@ -23,6 +23,7 @@ import { useAssetManagerEffects } from './hooks/useAssetManagerEffects';
 import { useFollowSelectedCollection } from './hooks/useFollowSelectedCollection';
 import { useHeldWhile } from './hooks/useHeldWhile';
 import { useSidebarLayout } from './hooks/useSidebarLayout';
+import { useRememberedPlace } from './hooks/useRememberedPlace';
 import { sortAssets } from './utils/assetSort';
 import { filterFolders, type AssetFilter } from './utils/assetFilter';
 import { useCreatureFilters } from './hooks/useCreatureFilters';
@@ -55,6 +56,23 @@ export default function AssetManager({ isOpen, onClose, initialTab, onExitComple
 
   const visibleIds = useRef<VisibleIds>({ assets: [], folders: [] });
   const sel = useSelectionHandlers(visibleIds, data.folders, activeTab, isOpen);
+
+  const changeTab = useCallback((tab: Tab): void => {
+    if (tab === activeTab) return;
+    setActiveTab(tab);
+    sel.resetForTab();
+  }, [activeTab, sel.resetForTab]);
+
+  const memory = useRememberedPlace({
+    isOpen, initialTab, data, sel,
+    place: { collection: selectedCollection, tab: activeTab, search, collapsedSections },
+    apply: (place) => {
+      setActiveTab(place.tab);
+      setSelectedCollection(place.collection);
+      setSearch(place.search);
+      setCollapsedSections(place.collapsedSections);
+    },
+  });
 
   // The open folder, the selection and the tags belong to the collection they were chosen in.
   const changeCollection = (collectionId: string | null): void => {
@@ -133,12 +151,12 @@ export default function AssetManager({ isOpen, onClose, initialTab, onExitComple
   const statblock = useStatblockLink(data.app);
 
   const { handleAssetContextMenu, handleFolderContextMenu, handleContentContextMenu } =
-    useContextMenus({ data, sel, crud, tags, statblock, onClose });
+    useContextMenus({ data, sel, crud, tags, statblock, selectedCollection, onClose });
 
   useAssetManagerEffects({
-    isOpen, onClose, initialTab,
+    isOpen, onClose,
     modalRef, containerRef,
-    setSearch, setActiveTab, setSelectedCollection,
+    activeTab, changeTab,
     data, sel, crud, tags, statblock,
   });
 
@@ -196,7 +214,7 @@ export default function AssetManager({ isOpen, onClose, initialTab, onExitComple
                 onSearch={setSearch}
                 query={filterSearch}
                 activeTab={activeTab}
-                onTabChange={setActiveTab}
+                onTabChange={changeTab}
                 assetCounts={data.assetCounts}
                 onCreateTokens={() => crud.setIsTokenCreatorOpen(true)}
                 onCreateMap={crud.handleCreateMap}
@@ -229,6 +247,8 @@ export default function AssetManager({ isOpen, onClose, initialTab, onExitComple
                       selectedFolderId={shown.folderId}
                       folderDepth={shown.folderPath.length}
                       refinement={shown.refinement}
+                      scrollKey={`${selectedCollection ?? 'default'}/${shown.tab}/${shown.folderId ?? ''}?${shown.refinement}`}
+                      scrollMemory={memory}
                       onAssetSelect={sel.handleAssetSelect}
                       onAssetContextMenu={handleAssetContextMenu}
                       onFolderSelection={sel.handleFolderSelection}

@@ -33,13 +33,33 @@ function copyFolder(file: BundleFile, collectionId: string): string {
 }
 
 /** The file's own name in `folder`, or `goblin-2.png`, `goblin-3.png`, … while that name is taken. */
-function freePathIn(folder: string, name: string, isTaken: (path: string) => boolean): string {
+export function freePathIn(folder: string, name: string, isTaken: (path: string) => boolean): string {
   const dot = name.lastIndexOf('.');
   const stem = dot > 0 ? name.slice(0, dot) : name;
   const extension = dot > 0 ? name.slice(dot) : '';
   let path = `${folder}/${name}`;
   for (let n = 2; isTaken(path); n++) path = `${folder}/${stem}-${n}${extension}`;
   return path;
+}
+
+/** The scene map among `mapPaths` that a scene thumbnail or snapshot file belongs to, found by where it lies. */
+export function sceneMapOf(file: BundleFile, mapPaths: readonly string[]): string | undefined {
+  switch (file.role) {
+    case 'scene-thumbnail':
+      return mapPaths.find((map) => sceneThumbnailPath(map) === file.vaultPath);
+    case 'scene-snapshot':
+    case 'scene-snapshot-thumbnail':
+      return mapPaths.find((map) => parentPath(file.vaultPath) === snapshotFolderFor(map));
+    default:
+      return undefined;
+  }
+}
+
+/** Where a scene's thumbnail or snapshot file goes when its map goes to `mapTarget`. */
+export function besideMap(file: BundleFile, mapTarget: string): string {
+  return file.role === 'scene-thumbnail'
+    ? sceneThumbnailPath(mapTarget)
+    : `${snapshotFolderFor(mapTarget)}/${baseName(file.vaultPath)}`;
 }
 
 export interface ImportPathRules {
@@ -79,27 +99,13 @@ export function planImportPaths(files: readonly BundleFile[], rules: ImportPathR
   };
 
   // A scene's thumbnail and snapshots are found next to its map, so they take whatever name the map gets.
-  const mapPaths = new Set(files.filter((file) => file.role === 'scene-map').map((file) => file.vaultPath));
-  const followsMap = (file: BundleFile): string | undefined => {
-    switch (file.role) {
-      case 'scene-thumbnail':
-        return [...mapPaths].find((map) => sceneThumbnailPath(map) === file.vaultPath);
-      case 'scene-snapshot':
-      case 'scene-snapshot-thumbnail':
-        return [...mapPaths].find((map) => parentPath(file.vaultPath) === snapshotFolderFor(map));
-      default:
-        return undefined;
-    }
-  };
-  const besideMap = (file: BundleFile, mapTarget: string): string => (file.role === 'scene-thumbnail'
-    ? sceneThumbnailPath(mapTarget)
-    : `${snapshotFolderFor(mapTarget)}/${baseName(file.vaultPath)}`);
+  const mapPaths = files.filter((file) => file.role === 'scene-map').map((file) => file.vaultPath);
 
   const unplaced: Array<{ file: BundleFile; folder: string }> = [];
   const besideMaps: Array<{ file: BundleFile; map: string }> = [];
   for (const file of files) {
     const path = file.vaultPath;
-    const map = followsMap(file);
+    const map = sceneMapOf(file, mapPaths);
     if (map) besideMaps.push({ file, map });
     else if (path.startsWith(sourcePrefix)) {
       const target = `${targetPrefix}${path.slice(sourcePrefix.length)}`;

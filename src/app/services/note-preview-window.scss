@@ -3,9 +3,18 @@
 
 // ── Note Preview Window ──────────────────────────────────────────────────
 
+// Holds the previews of a map inside its UI layer (UIOverlay)
+.atlas-note-preview-layer {
+  position: absolute;
+  inset: 0;
+  z-index: $z-atlas-note-preview;
+  pointer-events: none;
+}
+
 .atlas-note-preview-window {
   position: fixed;
   z-index: 5;
+  pointer-events: auto;
   display: flex;
   flex-direction: column;
   overflow: hidden;

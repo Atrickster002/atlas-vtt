@@ -5,8 +5,10 @@ import { createViewAtlasStore, type ViewAtlasStore } from '../../src/app/storeFa
 import { AssetService } from '../../src/app/services/AssetService';
 import { WidgetSyncService } from '../../src/app/services/WidgetSyncService';
 import { getDataFilePath } from '../../src/app/utils/dataFileMigration';
+import { runUntracked } from '../../src/app/stores/history';
 import {
-  pickCollectionWidgets,
+  pickLibraryWidgets,
+  withCollectionEdit,
   withCollectionWidgets,
   withoutCollectionWidgets,
   type WidgetRecord,
@@ -24,15 +26,27 @@ const clock: TimerWidget = {
 };
 
 describe('collection widget helpers', () => {
-  it('picks collection widgets with their current value', () => {
-    const shared = pickCollectionWidgets({
+  it('picks every widget for the library, shared ones with their current value', () => {
+    const library = pickLibraryWidgets({
       widgets: { fear, torches, clock },
       widgetValues: { fear: 5, torches: 3, clock: 1 },
     });
-    expect(Object.keys(shared)).toEqual(['fear', 'clock']);
-    expect(shared.fear?.value).toBe(5);
+    expect(Object.keys(library)).toEqual(['fear', 'torches', 'clock']);
+    expect(library.fear?.value).toBe(5);
     // Timers keep their running value on the definition
-    expect(shared.clock?.value).toBe(42);
+    expect(library.clock?.value).toBe(42);
+    // Each scene counts its own widgets, so the library keeps their start value
+    expect(library.torches?.value).toBe(0);
+  });
+
+  it('gives the scene\'s own widgets the library definition and keeps their value', () => {
+    const merged = withCollectionWidgets(
+      { widgets: { torches }, widgetValues: { torches: 3 } },
+      { torches: { ...torches, label: 'Lanterns', value: 0 } },
+    );
+    expect(merged.widgets.torches?.label).toBe('Lanterns');
+    expect(merged.widgets.torches?.value).toBe(torches.value);
+    expect(merged.widgetValues.torches).toBe(3);
   });
 
   it('replaces only the collection widgets of a scene', () => {
@@ -43,6 +57,16 @@ describe('collection widget helpers', () => {
     );
     expect(Object.keys(merged.widgets).sort()).toEqual(['clock', 'fear', 'torches']);
     expect(merged.widgetValues).toEqual({ torches: 3, fear: 6 });
+  });
+
+  it('applies only what a scene changed to the collection', () => {
+    const collection = { fear: { ...fear, value: 5 }, clock };
+    // Unchanged widgets keep the collection's newer value; the unseen clock stays.
+    expect(withCollectionEdit(collection, { fear }, { fear })).toEqual(collection);
+    expect(withCollectionEdit(collection, { fear }, { fear: { ...fear, value: 3 } }).fear?.value).toBe(3);
+    // Removing a widget from a scene only switches it off there
+    expect(withCollectionEdit(collection, { fear }, {})).toEqual(collection);
+    expect(withCollectionEdit({}, {}, { fear })).toEqual({ fear });
   });
 
   it('leaves scenes without collection widgets untouched', () => {
@@ -153,7 +177,7 @@ describe('WidgetSyncService', () => {
 
     sync.destroy();
     expect(updateCollectionSettings).toHaveBeenLastCalledWith('campaign', {
-      widgets: { fear: { ...fear, value: 3 } },
+      widgets: { fear: { ...fear, value: 3 }, torches: { ...torches, value: 0 } },
     });
   });
 
@@ -169,5 +193,55 @@ describe('WidgetSyncService', () => {
     cave.getState().updateWidget('fear', { scope: 'scene' });
     expect(keep.getState().widgetSettings.widgets.fear).toBeUndefined();
     expect(cave.getState().widgetSettings.widgets.fear?.scope).toBe('scene');
+  });
+
+  it('never removes a collection widget through a scene that does not show it', async () => {
+    const { sync, open, updateCollectionSettings } = setup({ fear });
+    const cave = open('cave', scenePath('campaign', 'cave'));
+    await waitFor(() => expect(cave.getState().widgetSettings.widgets.fear).toBeDefined());
+    // A view that has not received the collection's widgets, e.g. still waiting for the asset index
+    const keep = open('keep', scenePath('campaign', 'keep'));
+    runUntracked(keep, () => keep.setState({ widgetSettings: { ...keep.getState().widgetSettings, widgets: {} } }));
+
+    keep.getState().addWidget(torches);
+
+    expect(cave.getState().widgetSettings.widgets.fear).toBeDefined();
+    await waitFor(() => expect(keep.getState().widgetSettings.widgets.fear).toBeDefined());
+    sync.destroy();
+    expect(updateCollectionSettings).toHaveBeenLastCalledWith('campaign', {
+      widgets: { fear, torches: { ...torches, value: 0 } },
+    });
+  });
+
+  it('shows the collection widgets of a scene moved into the collection while it is open', async () => {
+    const { sync, open, updateCollectionSettings } = setup({ fear: { ...fear, value: 7 } });
+    const inn = open('inn', scenePath('side-quest', 'inn'));
+    await Promise.resolve();
+    expect(inn.getState().widgetSettings.widgets.fear).toBeUndefined();
+
+    inn.getState().setMapPath(scenePath('campaign', 'inn'));
+    expect(inn.getState().widgetValues.fear).toBe(7);
+
+    inn.getState().addWidget(torches);
+    sync.destroy();
+    expect(updateCollectionSettings).toHaveBeenLastCalledWith('campaign', {
+      widgets: { fear: { ...fear, value: 7 }, torches: { ...torches, value: 0 } },
+    });
+  });
+
+  it('takes the collection widgets of a scene moved to another collection off it', async () => {
+    const { sync, open, updateCollectionSettings } = setup({ fear });
+    const cave = open('cave', scenePath('campaign', 'cave'));
+    const inn = open('inn', scenePath('side-quest', 'inn'));
+    await waitFor(() => expect(cave.getState().widgetSettings.widgets.fear).toBeDefined());
+
+    cave.getState().setMapPath(scenePath('side-quest', 'cave'));
+    expect(cave.getState().widgetSettings.widgets.fear).toBeUndefined();
+
+    cave.getState().addWidget(torches);
+    expect(inn.getState().widgetSettings.widgets.fear).toBeUndefined();
+    sync.destroy();
+    expect(updateCollectionSettings).toHaveBeenCalledTimes(1);
+    expect(updateCollectionSettings).toHaveBeenCalledWith('side-quest', { widgets: { torches: { ...torches, value: 0 } } });
   });
 });

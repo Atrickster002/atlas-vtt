@@ -3,6 +3,7 @@ import { App, Notice, TFile } from 'obsidian';
 import type { TokenEntity, TextElement, DrawingStroke, NotePin } from '../types';
 import type { WallSegment, LightSource } from '../types/wallTypes';
 import type { WidgetSettings } from '../types/widgetTypes';
+import type { HexNumberFormat } from '../grid/hexNumbering';
 import type AtlasVTTPlugin from '../../../main';
 import { debounce, type DebouncedFunction } from '../../utils/debounce';
 import { migrateWidgetsToCollection, needsWidgetMigration } from '../utils/widgetMigration';
@@ -38,6 +39,10 @@ export interface GridState {
   measurementType?: 'units' | 'abstract'; // Measurement system to use
   /** Set on new scenes: align the grid to the map image on the first load, then cleared. */
   autoDetect?: boolean;
+  /** Numbers every hex on hex grids in this format; unset shows no numbers. */
+  hexNumbers?: HexNumberFormat;
+  /** Opacity of the hex numbers (0 to 1), separate from the grid lines; unset is `DEFAULT_HEX_NUMBER_OPACITY`. */
+  hexNumberOpacity?: number;
 }
 
 import type { FogOperation } from '../types/fogTypes';

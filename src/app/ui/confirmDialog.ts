@@ -9,11 +9,26 @@ export interface ConfirmDialogOptions {
   destructive?: boolean;
 }
 
+export interface DialogChoice<T> {
+  label: string;
+  value: T;
+  /** `cta` marks the recommended choice, `warning` one that deletes or overwrites. */
+  style?: 'cta' | 'warning';
+}
+
+export interface ChoiceDialogOptions<T> {
+  title: string;
+  /** One paragraph per entry. */
+  message: string[];
+  /** The buttons after Cancel, in order; the last one has focus. */
+  choices: DialogChoice<T>[];
+}
+
 /**
- * Small centred yes/no dialog. Resolves `true` when confirmed and `false` when
- * cancelled, dismissed via the backdrop or closed with Escape.
+ * Small centred dialog offering `choices` and Cancel. Resolves the chosen
+ * value, or null when cancelled, dismissed via the backdrop or closed with Escape.
  */
-export function confirmAction(options: ConfirmDialogOptions): Promise<boolean> {
+export function chooseAction<T>(options: ChoiceDialogOptions<T>): Promise<T | null> {
   return new Promise((resolve) => {
     const { root, dialog } = createDialogShell(options.title);
     dialog.addClass('atlas-text-dialog--confirm');
@@ -21,30 +36,43 @@ export function confirmAction(options: ConfirmDialogOptions): Promise<boolean> {
       dialog.createEl('p', { cls: 'atlas-text-dialog__message', text: paragraph });
     }
 
-    const actions = dialog.createDiv({ cls: 'atlas-text-dialog__actions' });
-    const cancelButton = actions.createEl('button', { text: 'Cancel' });
-    const confirmButton = actions.createEl('button', {
-      cls: options.destructive ? 'mod-warning' : 'mod-cta',
-      text: options.confirmLabel,
-    });
-
-    const close = (confirmed: boolean): void => {
+    const close = (value: T | null): void => {
       root.remove();
-      resolve(confirmed);
+      resolve(value);
     };
 
-    confirmButton.addEventListener('click', () => close(true));
-    cancelButton.addEventListener('click', () => close(false));
+    const actions = dialog.createDiv({ cls: 'atlas-text-dialog__actions' });
+    actions.createEl('button', { text: 'Cancel' }).addEventListener('click', () => close(null));
+    const buttons = options.choices.map((choice) => {
+      const button = actions.createEl('button', { text: choice.label });
+      if (choice.style) button.addClass(`mod-${choice.style}`);
+      button.addEventListener('click', () => close(choice.value));
+      return button;
+    });
+
     root.addEventListener('click', (event) => {
-      if (event.target === root) close(false);
+      if (event.target === root) close(null);
     });
     root.addEventListener('keydown', (event) => {
       if (event.key === 'Escape') {
         event.stopPropagation();
-        close(false);
+        close(null);
       }
     });
 
-    confirmButton.focus();
+    buttons[buttons.length - 1]?.focus();
   });
+}
+
+/**
+ * Small centred yes/no dialog. Resolves `true` when confirmed and `false` when
+ * cancelled, dismissed via the backdrop or closed with Escape.
+ */
+export async function confirmAction(options: ConfirmDialogOptions): Promise<boolean> {
+  const confirmed = await chooseAction({
+    title: options.title,
+    message: options.message,
+    choices: [{ label: options.confirmLabel, value: true, style: options.destructive ? 'warning' : 'cta' }],
+  });
+  return confirmed === true;
 }

@@ -522,21 +522,22 @@ export class InteractionController implements ITokenInteractionController {
     const conditionDefs = this.getConditionDefs();
     if (conditionDefs.length > 0) {
       entries.push(conditionsSubmenu(this.store, conditionDefs, this.contextMenuTargets(token.id)));
-      entries.push({ type: 'separator' });
     }
 
     // Size
     entries.push(tokenSizeSubmenu(token.size, size => this.store.getState().updateToken(token.id, { size })));
-    entries.push({ type: 'separator' });
 
-    // Hide/Show
+    // Hide/Show the selection in one undo step; the clicked token decides which way
     const currentToken = this.store.getState().objects.tokens[token.id];
     const isHidden = currentToken?.isHidden || false;
+    const hideTargets = this.contextMenuTargets(token.id);
     entries.push({
       type: 'item',
       label: isHidden ? 'Show' : 'Hide',
       icon: isHidden ? 'eye' : 'eye-off',
-      onClick: () => this.store.getState().updateToken(token.id, { isHidden: !isHidden }),
+      onClick: () => this.store.getState().updateTokens(
+        hideTargets.map((id) => ({ id, changes: { isHidden: !isHidden } })),
+      ),
     });
 
     // Vision source toggle (player character token)
@@ -550,7 +551,6 @@ export class InteractionController implements ITokenInteractionController {
       });
     }
 
-    entries.push({ type: 'separator' });
 
     // Save the selection (or this token alone) as an encounter — DM only
     if (!this.isPlayerView) {
@@ -596,7 +596,6 @@ export class InteractionController implements ITokenInteractionController {
       onClick: () => this.handleInitiativeToggle(token, isInInitiative),
     });
 
-    entries.push({ type: 'separator' });
 
     // Statblock linking
     const obsApp = this.obsApp;
@@ -654,7 +653,6 @@ export class InteractionController implements ITokenInteractionController {
       });
     }
 
-    entries.push({ type: 'separator' });
 
     // Ring color submenu
     const currentRingColor = token.ringColor;
@@ -694,7 +692,6 @@ export class InteractionController implements ITokenInteractionController {
       });
     }
 
-    entries.push({ type: 'separator' });
 
     // Destructive actions row (Kill + Delete side by side)
     entries.push({

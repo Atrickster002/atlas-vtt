@@ -35,6 +35,7 @@ import type { TokenGroupContainer } from './token-renderer/types';
 import type { ConditionDefinition } from '../types/collectionSettingsTypes';
 import { setCanvasCursor } from './utils/canvasCursor';
 import { markHandled, resetHandled } from './utils/handledEvents';
+import type { HexLinkPointerHandlers } from './hexLinks/HexLinkInteraction';
 import { runInBackground } from '../utils/backgroundTask';
 import { isModHeld } from '../keyboard/modKey';
 
@@ -102,6 +103,7 @@ export class TokenRenderer {
   private pinHitTestProvider?: (worldX: number, worldY: number) => string | null;
   private pinClickHandler?: (pinId: string, e: FederatedPointerEvent) => void;
   private pinHoverHandler?: (type: 'over' | 'out', pinId: string, e: FederatedPointerEvent) => void;
+  private hexLinkHandlers?: HexLinkPointerHandlers;
   private lastHoveredPinId: string | null = null;
 
   // Wall provider pattern — wired by PixiRendererOrchestrator
@@ -1390,6 +1392,11 @@ export class TokenRenderer {
     this.pinHoverHandler = fn;
   }
 
+  /** Notes linked to hexes: they react to the select and move tools, below tokens and drawings. */
+  public setHexLinkHandlers(handlers: HexLinkPointerHandlers): void {
+    this.hexLinkHandlers = handlers;
+  }
+
   public setWallPointerDownHandler(fn: (worldX: number, worldY: number, e: FederatedPointerEvent) => boolean): void {
     this.wallPointerDownHandler = fn;
   }
@@ -1542,6 +1549,18 @@ export class TokenRenderer {
           return;
         }
       }
+      if (
+        (activeTool === 'select' || activeTool === 'move') &&
+        this.hexLinkHandlers &&
+        !this.hitTestTokens(worldPos.x, worldPos.y)
+      ) {
+        const hexLinkId = this.hexLinkHandlers.hitTest(worldPos.x, worldPos.y);
+        if (hexLinkId) {
+          markHandled(e);
+          this.hexLinkHandlers.openContextMenu(hexLinkId, e);
+          return;
+        }
+      }
       if (this.fogHitTestProvider && this.fogClickHandler) {
         const fogId = this.fogHitTestProvider(worldPos.x, worldPos.y);
         if (fogId) {
@@ -1614,8 +1633,14 @@ export class TokenRenderer {
       }
     }
 
-    // 4. Hit-test fog (left-click selection)
-    if (this.fogHitTestProvider && this.fogClickHandler) {
+    // 4. Linked hexes open their note on click; the event stays unhandled, so a drag still pans or selects
+    const hexLinkId = e.button === 0 ? this.hexLinkHandlers?.hitTest(worldPos.x, worldPos.y) ?? null : null;
+    if (hexLinkId) {
+      this.hexLinkHandlers?.press(hexLinkId, e);
+    }
+
+    // 5. Hit-test fog (left-click selection); a whole-map fog must not hide linked hexes
+    if (!hexLinkId && this.fogHitTestProvider && this.fogClickHandler) {
       const fogId = this.fogHitTestProvider(worldPos.x, worldPos.y);
       if (fogId) {
         markHandled(e);
@@ -1624,7 +1649,7 @@ export class TokenRenderer {
       }
     }
 
-    // 5. Nothing hit — clear selection for move tool on empty-space left-click (shift keeps it)
+    // 6. Nothing hit — clear selection for move tool on empty-space left-click (shift keeps it)
     if (e.button === 0 && activeTool === 'move' && !e.shiftKey) {
       const selectedIds = this.store.getState().selectedIds;
       if (selectedIds.length > 0) {
@@ -1653,6 +1678,9 @@ export class TokenRenderer {
 
     const worldPos = this.viewport.toWorld(e.global);
     const activeTool = this.store.getState().activeTool;
+    if (activeTool !== 'select' && activeTool !== 'move') {
+      this.hexLinkHandlers?.hover(null, e);
+    }
 
     // Pin hover: show pointer cursor and emit preview events from any tool
     if (this.pinHitTestProvider) {
@@ -1669,6 +1697,7 @@ export class TokenRenderer {
       if (pinId) {
         this.interactionController.handleViewportTokenHover(null);
         this.uiManager.setHoverState(null);
+        this.hexLinkHandlers?.hover(null, e);
         this.applyCursor('pointer');
         return;
       }
@@ -1705,11 +1734,13 @@ export class TokenRenderer {
     }
 
     const tokenId = this.hitTestTokens(worldPos.x, worldPos.y);
+    const hexLinkId = tokenId ? null : this.hexLinkHandlers?.hitTest(worldPos.x, worldPos.y) ?? null;
 
     this.interactionController.handleViewportTokenHover(tokenId, e);
     this.uiManager.setHoverState(tokenId, isModHeld(e));
+    this.hexLinkHandlers?.hover(hexLinkId, e);
 
-    this.applyCursor(tokenId ? 'pointer' : 'default');
+    this.applyCursor(tokenId || hexLinkId ? 'pointer' : 'default');
   };
 
   /** Sets the viewport cursor and re-applies it after PIXI's own cursor write for this event. */

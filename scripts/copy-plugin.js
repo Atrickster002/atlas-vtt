@@ -1,6 +1,6 @@
 const fs = require('fs');
 const path = require('path');
-const { getPluginTargetDirs } = require('./worktree-targets');
+const { getPluginTargetDirs, markForHotReload } = require('./worktree-targets');
 
 const distDir = path.join(__dirname, '..', 'dist');
 const rootManifest = path.join(__dirname, '..', 'manifest.json');
@@ -24,6 +24,7 @@ if (missingRequired.length > 0) {
 
   for (const target of targets) {
     fs.mkdirSync(target.dirPath, { recursive: true });
+    markForHotReload(target.dirPath);
 
     for (const file of artifactFiles) {
       if (!fs.existsSync(file.source)) continue;

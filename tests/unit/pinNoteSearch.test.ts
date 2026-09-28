@@ -4,8 +4,14 @@ import { createPinNoteSearch } from '../../src/app/tools/pinNoteSearch';
 
 let container: HTMLElement;
 
-function setup(headings: Record<string, string[]> = {}): { onPick: ReturnType<typeof vi.fn>; onCancel: ReturnType<typeof vi.fn> } {
-  const files = ['Tavern.md', 'Temple.md', 'Town.atlasmap'].map((path) => new TFile(path));
+interface SetupOptions {
+  headings?: Record<string, string[]>;
+  paths?: string[];
+  mapPath?: string | null;
+}
+
+function setup({ headings = {}, paths = ['Tavern.md', 'Temple.md', 'Town.atlasmap'], mapPath = null }: SetupOptions = {}): { onPick: ReturnType<typeof vi.fn>; onCancel: ReturnType<typeof vi.fn> } {
+  const files = paths.map((path) => new TFile(path));
   const app = {
     vault: { getAllLoadedFiles: () => files },
     metadataCache: {
@@ -17,7 +23,7 @@ function setup(headings: Record<string, string[]> = {}): { onPick: ReturnType<ty
   const onPick = vi.fn();
   const onCancel = vi.fn();
   container = document.body.createDiv();
-  createPinNoteSearch(container, { app, onPick, onCancel });
+  createPinNoteSearch(container, { app, mapPath, onPick, onCancel });
   return { onPick, onCancel };
 }
 
@@ -66,7 +72,7 @@ describe('pin note search', () => {
   });
 
   it('opens the headings of a note that has them and activates the whole note first', () => {
-    const { onPick } = setup({ Tavern: ['Cellar', 'Rooms'] });
+    const { onPick } = setup({ headings: { Tavern: ['Cellar', 'Rooms'] } });
     press('Enter');
     expect(input().value).toBe('Tavern#');
     expect(activeName()).toBe('Entire note');
@@ -76,7 +82,7 @@ describe('pin note search', () => {
   });
 
   it('activates the first matching heading', () => {
-    const { onPick } = setup({ Tavern: ['Cellar', 'Rooms'] });
+    const { onPick } = setup({ headings: { Tavern: ['Cellar', 'Rooms'] } });
     type('Tavern#ro');
     expect(activeName()).toBe('Rooms');
     press('Enter');
@@ -98,5 +104,14 @@ describe('pin note search', () => {
     expect(onPick).not.toHaveBeenCalled();
     press('Escape');
     expect(onCancel).toHaveBeenCalled();
+  });
+
+  it('offers only scenes of the collection the map belongs to', () => {
+    setup({
+      mapPath: 'atlas-vtt/collections/Realm/scenes/Town.atlasmap',
+      paths: ['Tavern.md', 'atlas-vtt/collections/Realm/scenes/Keep.atlasmap', 'atlas-vtt/collections/Other/scenes/Crypt.atlasmap'],
+    });
+    const names = [...container.querySelectorAll('.pin-result-name')].map((element) => element.textContent);
+    expect(names).toEqual(['Tavern', 'Keep']);
   });
 });

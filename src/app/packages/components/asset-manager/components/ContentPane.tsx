@@ -16,6 +16,7 @@ import type { AssetService } from '../../../../services/AssetService';
 import type { AtlasView } from '../../../../atlas-view';
 import type { ViewAtlasState } from '../../../../storeFactory';
 import { useSpawnCountTyping } from '../hooks/useSpawnCountTyping';
+import { useRememberedScroll, type ScrollMemory } from '../hooks/useRememberedScroll';
 import { useScrollbarGutter } from '../../primitives/useScrollbarGutter';
 import { Button } from '../../primitives/button';
 
@@ -49,6 +50,9 @@ export interface ContentPaneProps {
   assetService: AssetService | null;
   spawnCounts: Record<string, number>;
   onSpawnCountChange: (assetId: string, count: number) => void;
+  /** Identifies the place the pane shows (collection, tab, folder, refinement) for its scroll position. */
+  scrollKey: string;
+  scrollMemory: ScrollMemory;
   /** Set while filters narrow the list; the empty state offers to clear them. */
   onClearFilters?: () => void;
 }
@@ -104,6 +108,7 @@ export function ContentPane(props: ContentPaneProps): React.JSX.Element {
   });
   useSpawnCountTyping(scrollElement, props.onSpawnCountChange);
   useScrollbarGutter(scrollElement);
+  useRememberedScroll(scrollElement, props.scrollKey, props.scrollMemory);
 
   const selectedIds = useMemo(() => new Set(selectedAssetIds), [selectedAssetIds]);
   const draggingIds = useMemo(

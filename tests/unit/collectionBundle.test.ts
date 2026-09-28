@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { TFile } from 'obsidian';
 import { AtlasView } from '../../src/app/atlas-view';
 import { AssetService } from '../../src/app/services/AssetService';
+import { transferAssets } from '../../src/app/services/assetTransfer/assetTransfer';
 import { exportCollectionBundle, prepareCollectionExport, type ExportChoice } from '../../src/app/services/collectionBundle/collectionExport';
 import { openCollectionImport, type ImportDecision } from '../../src/app/services/collectionBundle/collectionImport';
 import type { ImportReview } from '../../src/app/services/collectionBundle/importReview';
@@ -552,7 +553,7 @@ describe('review findings', () => {
     await fan.assets.createCollection('mine');
     const [token] = await fan.assets.getAssets('source', 'token');
     await fan.assets.updateAsset(token!.id, { name: 'My goblin' });
-    await fan.assets.updateAsset(token!.id, { collection: 'mine' });
+    await transferAssets(fan.vault.app, fan.assets, { assetIds: [token!.id], targetCollectionId: 'mine', mode: 'move' });
 
     const { review, apply } = await reviewImport(fan, v1);
     expect(review.canRestore).toBe(true);
@@ -813,7 +814,7 @@ describe('remaining findings', () => {
     await importInto(fan, v1);
     await fan.assets.createCollection('mine');
     const [encounter] = await fan.assets.getAssets('source', 'encounter');
-    await fan.assets.updateAsset(encounter!.id, { collection: 'mine' });
+    await transferAssets(fan.vault.app, fan.assets, { assetIds: [encounter!.id], targetCollectionId: 'mine', mode: 'move' });
 
     await (await reviewImport(fan, v1)).apply({ restore: true });
     const [restored] = await fan.assets.getAssets('source', 'encounter');
@@ -907,7 +908,7 @@ describe('final review findings', () => {
     await importInto(fan, v1);
     await fan.assets.createCollection('mine');
     const [fanMap] = await fan.assets.getAssets('source', 'map');
-    await fan.assets.updateAsset(fanMap!.id, { collection: 'mine' });
+    await transferAssets(fan.vault.app, fan.assets, { assetIds: [fanMap!.id], targetCollectionId: 'mine', mode: 'move' });
 
     await (await reviewImport(fan, v1)).apply({ restore: true });
     const [restored] = await fan.assets.getAssets('source', 'map');
@@ -923,7 +924,7 @@ describe('pull request review findings', () => {
     await importInto(fan, await exportFrom(creator));
     await fan.assets.createCollection('mine');
     const [token] = await fan.assets.getAssets('source', 'token');
-    await fan.assets.updateAsset(token!.id, { collection: 'mine' });
+    await transferAssets(fan.vault.app, fan.assets, { assetIds: [token!.id], targetCollectionId: 'mine', mode: 'move' });
     creator.vault.files.set(TOKEN_IMAGE, 'NEW IMG');
 
     const v2 = await exportFrom(creator);

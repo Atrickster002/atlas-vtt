@@ -8,6 +8,7 @@ import { AssetService } from '../../../../services/AssetService';
 import { showAtlasToast } from '../../../../react/components/AtlasToast';
 import { ensureFolder } from '../../../../plugin/vaultFolders';
 import { useCollectionTransfer, type CollectionTransferActions } from './useCollectionTransfer';
+import { folderIdOf, tabFolderPath, vaultPathOfFolder } from '../utils/assetFolders';
 
 /** Background and name carried over when a scene is created from a map asset. */
 export interface CreateScenePrefill {
@@ -124,7 +125,7 @@ export function useAssetCrud(
       await ensureFolder(app, path);
 
       const newFolder: Folder = {
-        id: `folder-${path}`,
+        id: folderIdOf(path),
         name: folderName.trim(),
         type: activeTab,
         path: path.substring(`${ATLAS_VTT_DIR}/collections/${selectedCollection || AssetService.defaultCollectionId()}/${activeTab}/`.length),
@@ -180,8 +181,8 @@ export function useAssetCrud(
   const moveAssetsToFolder = async (assetIds: string[], targetFolderId: string | null): Promise<void> => {
     if (!app || !assetService) return;
     const col = selectedCollection || AssetService.defaultCollectionId();
-    const tabBase = `${ATLAS_VTT_DIR}/collections/${col}/${activeTab}`;
-    const targetDir = targetFolderId ? targetFolderId.replace('folder-', '') : tabBase;
+    const tabBase = tabFolderPath(col, activeTab);
+    const targetDir = targetFolderId ? vaultPathOfFolder(targetFolderId) : tabBase;
     const movedPathById: Record<string, string> = {};
 
     for (const id of assetIds) {

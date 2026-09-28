@@ -1,10 +1,11 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useImperativeHandle } from 'react';
 import { Play, Pause, RotateCcw } from 'lucide-react';
 import { useAtlasUI } from '../root/AtlasUIContext';
 import type { TimerWidget } from '../../types/widgetTypes';
 import type { ViewAtlasStore } from '../../storeFactory';
 import { WidgetIconGlyph } from './WidgetIconGlyph';
 import { LabelTooltip } from '../../packages/components/primitives/tooltip';
+import { DEFAULT_TIMER_COLOR, formatTimerTime } from '../../utils/timerWidget';
 
 interface TimerWidgetDisplayProps {
   widget: TimerWidget;
@@ -17,19 +18,13 @@ interface TimerWidgetDisplayProps {
   shortcutLabel?: string | undefined;
   isKeyHeld: boolean;
   onInteraction: (widgetId: string) => void;
+  ref?: React.Ref<TimerWidgetControls>;
 }
 
-/** Format seconds into MM:SS or H:MM:SS */
-function formatTime(totalSeconds: number): string {
-  const clamped = Math.max(0, Math.floor(totalSeconds));
-  const h = Math.floor(clamped / 3600);
-  const m = Math.floor((clamped % 3600) / 60);
-  const s = clamped % 60;
-
-  if (h > 0) {
-    return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
-  }
-  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+/** What the widget bar's held-widget hotkeys can do with a timer. */
+export interface TimerWidgetControls {
+  togglePlay: () => void;
+  reset: () => void;
 }
 
 /** Parse a user-entered time string (M:SS, MM:SS, H:MM:SS, or plain minutes) into seconds */
@@ -88,6 +83,7 @@ export function TimerWidgetDisplay({
   shortcutLabel,
   isKeyHeld,
   onInteraction,
+  ref,
 }: TimerWidgetDisplayProps): React.ReactElement | null {
   const { view } = useAtlasUI();
   const [isRunning, setIsRunning] = useState(false);
@@ -169,6 +165,8 @@ export function TimerWidgetDisplay({
     store.getState().updateWidget(widget.id, { value: duration });
   }, [widget.id, duration, store, onInteraction]);
 
+  useImperativeHandle(ref, () => ({ togglePlay: handlePlayPause, reset: handleReset }), [handlePlayPause, handleReset]);
+
   const handleTimeClick = useCallback((): void => {
     if (isPlayerView || isRunning) return;
     onInteraction(widget.id);
@@ -206,7 +204,7 @@ export function TimerWidgetDisplay({
     isExpired ? 'timer-expired' : '',
   ].filter(Boolean).join(' ');
 
-  const color = widget.color || '#4caf50';
+  const color = widget.color || DEFAULT_TIMER_COLOR;
 
   return (
     <div
@@ -237,7 +235,7 @@ export function TimerWidgetDisplay({
               ref={inputRef}
               type="text"
               className="atlas-timer-edit-input"
-              defaultValue={formatTime(duration)}
+              defaultValue={formatTimerTime(duration)}
               placeholder="MM:SS"
               onBlur={() => commitEdit(true)}
               onKeyDown={(e) => {
@@ -250,7 +248,7 @@ export function TimerWidgetDisplay({
               className={`atlas-timer-display ${!isPlayerView && !isRunning ? 'editable' : ''}`}
               onClick={handleTimeClick}
             >
-              {formatTime(remainingSeconds)}
+              {formatTimerTime(remainingSeconds)}
             </span>
           )}
 

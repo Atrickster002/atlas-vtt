@@ -309,6 +309,13 @@ export class ButtonComponent {
   onClick(callback: () => unknown): this { this.buttonEl.addEventListener('click', () => void callback()); return this; }
 }
 
+export class ExtraButtonComponent {
+  constructor(public extraSettingsEl: HTMLElement) {}
+  setIcon(_icon: string): this { return this; }
+  setTooltip(tooltip: string): this { this.extraSettingsEl.setAttribute('aria-label', tooltip); return this; }
+  onClick(callback: () => unknown): this { this.extraSettingsEl.addEventListener('click', () => void callback()); return this; }
+}
+
 export class Setting {
   settingEl: HTMLElement;
   nameEl: HTMLElement;
@@ -347,6 +354,7 @@ export class Setting {
   addDropdown(callback: (component: DropdownComponent) => void): this { callback(new DropdownComponent(this.create('select'))); return this; }
   addToggle(callback: (component: ToggleComponent) => void): this { callback(new ToggleComponent(this.create('div'))); return this; }
   addButton(callback: (component: ButtonComponent) => void): this { callback(new ButtonComponent(this.create('button'))); return this; }
+  addExtraButton(callback: (component: ExtraButtonComponent) => void): this { callback(new ExtraButtonComponent(this.create('div'))); return this; }
 }
 
 export function setIcon(_parent: HTMLElement, _iconId: string): void {}

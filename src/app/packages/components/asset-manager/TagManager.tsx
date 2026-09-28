@@ -165,7 +165,6 @@ const TagManager: React.FC<TagManagerProps> = ({
 
     const entries: ContextMenuEntry[] = [
       { type: 'item', label: 'Edit', icon: 'edit', onClick: () => handleEdit(item) },
-      { type: 'separator' },
       {
         type: 'item',
         label: targets.length > 1 ? `Delete ${targets.length} items` : 'Delete',

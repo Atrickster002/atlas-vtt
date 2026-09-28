@@ -43,18 +43,9 @@
   @include atlas-panel-radius($radius-2xl);
   box-shadow: $shadow-elevated;
 
-  // Items in the menu's corners run concentric with it; the rest keep $radius-l.
+  // Every item runs concentric with the menu's corners, so all items match.
   .btn {
-    border-radius: var(--atlas-menu-top-radius, #{$radius-l}) var(--atlas-menu-top-radius, #{$radius-l})
-      var(--atlas-menu-bottom-radius, #{$radius-l}) var(--atlas-menu-bottom-radius, #{$radius-l});
-  }
-
-  > .atlas-dropdown-section:first-child > .btn:first-child {
-    --atlas-menu-top-radius: #{atlas-panel-inset-radius-value($spacing-s)};
-  }
-
-  > .atlas-dropdown-section:last-child > .btn:last-of-type {
-    --atlas-menu-bottom-radius: #{atlas-panel-inset-radius-value($spacing-s)};
+    @include atlas-panel-inset-radius($spacing-s);
   }
 
   // A toggle closing the menu sits in its bottom-right corner, like a button would.

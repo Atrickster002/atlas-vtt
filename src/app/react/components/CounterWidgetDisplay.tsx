@@ -3,7 +3,7 @@ import { useStore } from 'zustand';
 import { Plus, Minus } from 'lucide-react';
 import type { CounterWidget } from '../../types/widgetTypes';
 import type { ViewAtlasStore } from '../../storeFactory';
-import { DEFAULT_COUNTER_COLOR, clampCounterValue, readCounterValue } from '../../utils/counterWidget';
+import { DEFAULT_COUNTER_COLOR, clampCounterValue, readCounterValue, stepCounter } from '../../utils/counterWidget';
 import { WidgetIconGlyph } from './WidgetIconGlyph';
 import { LabelTooltip } from '../../packages/components/primitives/tooltip';
 
@@ -18,13 +18,6 @@ interface CounterWidgetDisplayProps {
   isKeyHeld: boolean;
   onInteraction: (widgetId: string) => void;
   onValueChange: (widgetId: string) => void;
-}
-
-export function stepCounter(store: ViewAtlasStore, widgetId: string, delta: number): void {
-  const state = store.getState();
-  const widget = state.widgetSettings?.widgets?.[widgetId];
-  if (!widget || widget.type !== 'counter') return;
-  state.setWidgetValue(widgetId, clampCounterValue(widget, readCounterValue(state, widget) + delta));
 }
 
 export function CounterWidgetDisplay({

@@ -105,9 +105,20 @@ function getPluginTargetDirs(
   return targets.filter((target) => exists(path.resolve(target.dirPath, '../..')));
 }
 
+/**
+ * Asks the Hot Reload plugin (pjeby/hot-reload) to watch this plugin folder. It only
+ * reloads plugins whose folder holds a `.git` or `.hotreload` entry, and a copied
+ * build carries neither, so a recreated folder would otherwise stop reloading.
+ */
+function markForHotReload(pluginDir) {
+  const marker = path.join(pluginDir, '.hotreload');
+  if (!fs.existsSync(marker)) fs.writeFileSync(marker, '');
+}
+
 module.exports = {
   findNearestVaultRoot,
   parseWorktreeListPorcelain,
   getMainWorktreeRoot,
   getPluginTargetDirs,
+  markForHotReload,
 };

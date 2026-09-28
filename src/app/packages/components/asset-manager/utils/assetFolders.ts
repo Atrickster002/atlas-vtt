@@ -1,0 +1,25 @@
+import { AssetService } from '../../../../services/AssetService';
+import { TFolder, type App } from 'obsidian';
+import { ATLAS_VTT_DIR, type Tab } from '../types';
+
+const FOLDER_ID_PREFIX = 'folder-';
+
+/** The vault folder holding a tab's assets in a collection. */
+export function tabFolderPath(collection: string | null, tab: Tab): string {
+  return `${ATLAS_VTT_DIR}/collections/${collection || AssetService.defaultCollectionId()}/${tab}`;
+}
+
+/** Asset manager folders are identified by their vault path. */
+export function folderIdOf(vaultPath: string): string {
+  return `${FOLDER_ID_PREFIX}${vaultPath}`;
+}
+
+export function vaultPathOfFolder(folderId: string): string {
+  return folderId.startsWith(FOLDER_ID_PREFIX) ? folderId.slice(FOLDER_ID_PREFIX.length) : folderId;
+}
+
+/** True when the folder still exists inside the tab's folder of the collection. */
+export function isFolderOfTab(app: App, folderId: string, collection: string | null, tab: Tab): boolean {
+  const path = vaultPathOfFolder(folderId);
+  return path.startsWith(`${tabFolderPath(collection, tab)}/`) && app.vault.getAbstractFileByPath(path) instanceof TFolder;
+}

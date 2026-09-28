@@ -143,9 +143,9 @@ type NewAssetOf<A> = A extends Asset ? Omit<A, 'id' | 'createdAt' | 'modifiedAt'
 export type NewAsset = NewAssetOf<Asset>;
 
 type AssetUpdatesOf<A> = A extends Asset
-  ? { [K in Exclude<keyof A, 'id' | 'createdAt' | 'type'>]?: A[K] | undefined }
+  ? { [K in Exclude<keyof A, 'id' | 'createdAt' | 'type' | 'collection'>]?: A[K] | undefined }
   : never;
-/** Fields to change on an asset; an explicit `undefined` removes the field. */
+/** Fields to change on an asset; an explicit `undefined` removes the field. Moving to another collection is `transferAssets`. */
 export type AssetUpdates = AssetUpdatesOf<Asset>;
 
 export type GroupAsset = EncounterAsset | PlayerAsset;
@@ -204,6 +204,15 @@ export interface CollectionImportCommit {
   upsert: readonly Asset[];
   /** Ids of asset records to drop; their files are handled by the import. */
   remove: readonly string[];
+}
+
+/** What moving or copying assets into a collection writes into the asset index, in one save. */
+export interface AssetTransferCommit {
+  collectionId: string;
+  /** Asset records to add or replace, already pointing at their files in the target collection. */
+  records: readonly Asset[];
+  /** Tags the records carry that the target collection registers too. */
+  tags: ReadonlyArray<TagMetadata & { group: TagGroup }>;
 }
 
 const ASSETS_METADATA_PATH = getDataFilePath(`${ATLAS_VTT_DIR}/assets-metadata.json`);
@@ -901,14 +910,7 @@ export class AssetService {
 
     await this.ensureCollectionRecord(newAsset.collection);
 
-    // Save asset data if needed
-    if (newAsset.type === 'map') {
-      const mapJsonPath = `${COLLECTIONS_DIR}/${newAsset.collection}/maps/${newAsset.id}.json`;
-      await this.app.vault.create(mapJsonPath, this.serializeMapAsset(newAsset));
-    } else if (newAsset.type !== 'token' && newAsset.type !== 'note') {
-      const content = JSON.stringify(newAsset.data, null, 2) || '{}';
-      await this.app.vault.create(this.getAssetPath(newAsset), content);
-    }
+    await this.writeRecordFile(newAsset);
 
     this.metadata!.assets[newAsset.id] = newAsset;
     try {
@@ -958,12 +960,6 @@ export class AssetService {
     const asset = this.metadata!.assets[id];
     if (!asset) return;
 
-    // If collection is being changed, move the asset
-    if (updates.collection && updates.collection !== asset.collection) {
-      await this.moveAssetToCollection(id, updates.collection);
-      return;
-    }
-
     // Properties explicitly set to undefined in updates are removed from the asset
     const keysToRemove = Object.entries<unknown>(updates)
       .filter(([, value]) => value === undefined)
@@ -1009,6 +1005,27 @@ export class AssetService {
       createdAt: asset.createdAt,
       modifiedAt: asset.modifiedAt
     }, null, 2);
+  }
+
+  /**
+   * The JSON file a record needs written, or null when it needs none: a map's
+   * always, since it repeats the record; the payload of other JSON-backed types
+   * only when the file is missing, because older records keep it in the file alone.
+   */
+  pendingRecordFile(asset: Asset): { path: string; content: string } | null {
+    if (asset.type === 'token' || asset.type === 'note') return null;
+    const path = this.getAssetPath(asset);
+    if (asset.type === 'map') return { path, content: this.serializeMapAsset(asset) };
+    if (this.app.vault.getAbstractFileByPath(path)) return null;
+    return { path, content: JSON.stringify(asset.data, null, 2) || '{}' };
+  }
+
+  private async writeRecordFile(asset: Asset): Promise<void> {
+    const file = this.pendingRecordFile(asset);
+    if (!file) return;
+    const existing = this.app.vault.getAbstractFileByPath(file.path);
+    if (existing instanceof TFile) await this.app.vault.process(existing, () => file.content);
+    else await this.app.vault.create(file.path, file.content);
   }
 
   async deleteAsset(id: string): Promise<void> {
@@ -1101,54 +1118,6 @@ export class AssetService {
     } catch (error) {
       console.error('[AssetService] Error deleting file:', path, error);
     }
-  }
-
-  private async moveAssetToCollection(assetId: string, targetCollection: string): Promise<void> {
-    await this.ensureLoaded();
-
-    const asset = this.metadata!.assets[assetId];
-    if (!asset) return;
-
-    await this.ensureCollectionRecord(targetCollection);
-
-    const oldPath = this.getAssetPath(asset);
-    const updatedAsset = { ...asset, collection: targetCollection, modifiedAt: Date.now() };
-    const oldCollectionPrefix = `${COLLECTIONS_DIR}/${asset.collection}/`;
-    if (
-      (asset.type === 'statblock' ||
-        asset.type === 'character' ||
-        asset.type === 'scene' ||
-        asset.type === 'encounter' ||
-        asset.type === 'player') &&
-      asset.filePath
-    ) {
-      if (asset.filePath.startsWith(oldCollectionPrefix)) {
-        const relativePath = asset.filePath.substring(oldCollectionPrefix.length);
-        updatedAsset.filePath = `${COLLECTIONS_DIR}/${targetCollection}/${relativePath}`;
-      } else {
-        delete updatedAsset.filePath;
-      }
-    }
-    const newPath = this.getAssetPath(updatedAsset);
-
-    // Move the file
-    try {
-      if (oldPath !== newPath) {
-        const newParent = newPath.substring(0, newPath.lastIndexOf('/'));
-        await this.ensureDirectory(newParent);
-        const file = this.app.vault.getAbstractFileByPath(oldPath);
-        if (file instanceof TFile) {
-          await this.app.fileManager.renameFile(file, newPath);
-        }
-      }
-    } catch (error) {
-      console.error('[AssetService] Error moving asset file:', error);
-      return;
-    }
-
-    // Update metadata
-    this.metadata!.assets[assetId] = updatedAsset;
-    await this.saveMetadata();
   }
 
   /** Vault path of the file that backs `asset`: the token image, the map's JSON record, or the JSON payload of other types. */
@@ -1282,6 +1251,33 @@ export class AssetService {
     return recorded;
   }
 
+  /**
+   * Records assets moved or copied into a collection, with the tags they carry,
+   * in one save. Their files, record files included (`pendingRecordFile`),
+   * must already be in place. A failed save leaves the index as it was.
+   */
+  async commitAssetTransfer({ collectionId, records, tags }: AssetTransferCommit): Promise<void> {
+    await this.ensureLoaded();
+    const current = this.metadata!;
+    const collection = current.collections[collectionId];
+    if (!collection) throw new Error(`Collection ${collectionId} not found`);
+    const collectionTags = { ...collection.tags };
+    for (const tag of tags) collectionTags[tagKey(tag.group, tag.id)] ??= tag;
+    const assets = { ...current.assets };
+    for (const record of records) assets[record.id] = record;
+    this.metadata = {
+      ...current,
+      collections: { ...current.collections, [collectionId]: { ...collection, tags: collectionTags, modifiedAt: Date.now() } },
+      assets,
+    };
+    try {
+      await this.saveMetadata();
+    } catch (error) {
+      this.metadata = current;
+      throw error;
+    }
+  }
+
   // Backward compatibility methods
   async addTokenAsset(asset: Omit<TokenAsset, 'id' | 'createdAt' | 'modifiedAt' | 'type'>): Promise<TokenAsset> {
     return this.registerAsset<TokenAsset>({ ...asset, type: 'token', ...this.createAssetIdentity('token') });
@@ -1295,7 +1291,7 @@ export class AssetService {
     await this.deleteAsset(id);
   }
 
-  async updateTokenAsset(id: string, updates: Partial<Omit<TokenAsset, 'id' | 'createdAt' | 'type'>>): Promise<void> {
+  async updateTokenAsset(id: string, updates: Partial<Omit<TokenAsset, 'id' | 'createdAt' | 'type' | 'collection'>>): Promise<void> {
     await this.updateAsset(id, updates);
   }
 

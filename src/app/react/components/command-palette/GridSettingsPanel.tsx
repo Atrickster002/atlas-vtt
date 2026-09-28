@@ -6,6 +6,9 @@ import { ObsidianMenuDropdown } from '../ObsidianMenuDropdown';
 import { SettingRow, SettingSliderRow, SettingToggleRow } from './SettingRows';
 import type { AtlasView } from '../../../atlas-view';
 import type { GridType } from '../../../grid/GridSystem';
+import { isHexGridType } from '../../../grid/hexGeometry';
+import { DEFAULT_HEX_NUMBER_OPACITY, isHexNumberFormat, type HexNumberFormat } from '../../../grid/hexNumbering';
+import { debounce } from '../../../../utils/debounce';
 
 /** `undefined` leaves the colour to the grid, which picks black or white from the map's brightness. */
 const GRID_COLORS: ReadonlyArray<{ value: string | undefined; label: string }> = [
@@ -32,6 +35,12 @@ const GRID_TYPE_OPTIONS = {
 function isGridType(value: string): value is GridType {
   return value in GRID_TYPE_OPTIONS;
 }
+
+const HEX_NUMBER_OPTIONS: Record<HexNumberFormat | 'off', string> = {
+  off: 'Off',
+  'column-row': 'Column and row (0101)',
+  sequential: 'Sequential (1, 2, 3)',
+};
 
 const LINE_STYLE_OPTIONS = {
   solid: 'Solid',
@@ -71,13 +80,24 @@ export function GridSettingsPanel({
   const currentType: string = currentGrid?.type ?? 'square';
   const currentColor: string | undefined = currentGrid?.color;
   const currentLineType: string = currentGrid?.lineType ?? 'solid';
+  // Held locally: the palette does not re-render when the store's grid changes
+  const [hexNumbers, setHexNumbers] = React.useState<HexNumberFormat | undefined>(currentGrid?.hexNumbers);
+  const [hexNumberOpacity, setHexNumberOpacity] = React.useState(
+    currentGrid?.hexNumberOpacity ?? DEFAULT_HEX_NUMBER_OPACITY,
+  );
 
-  const patchGrid = (patch: Record<string, unknown>): void => {
+  const patchGrid = React.useCallback((patch: Record<string, unknown>): void => {
     if (!view?.atlasStore) return;
     const grid = view.atlasStore.getState().grid;
     if (!grid) return;
     view.atlasStore.getState().setGrid({ ...grid, ...patch });
-  };
+  }, [view?.atlasStore]);
+
+  // Dragging the slider settles into one grid change (and one undo step)
+  const debouncedNumberOpacityUpdate = React.useMemo(
+    () => debounce((opacity: number) => patchGrid({ hexNumberOpacity: opacity }), 100),
+    [patchGrid],
+  );
 
   return (
     <div className="atlas-command-palette-panel">
@@ -115,6 +135,37 @@ export function GridSettingsPanel({
           }}
         />
       </SettingRow>
+
+      {isHexGridType(currentType) && (
+        <SettingRow label="Hex numbers">
+          <ObsidianMenuDropdown
+            className="atlas-setting-dropdown"
+            value={hexNumbers ?? 'off'}
+            options={HEX_NUMBER_OPTIONS}
+            onChange={(value) => {
+              const format = isHexNumberFormat(value) ? value : undefined;
+              setHexNumbers(format);
+              patchGrid({ hexNumbers: format });
+            }}
+          />
+        </SettingRow>
+      )}
+
+      {isHexGridType(currentType) && hexNumbers && (
+        <SettingSliderRow
+          label="Number opacity"
+          value={hexNumberOpacity * 100}
+          min={0}
+          max={100}
+          step={5}
+          displayValue={`${Math.round(hexNumberOpacity * 100)}%`}
+          onChange={(percent) => {
+            const opacity = percent / 100;
+            setHexNumberOpacity(opacity);
+            debouncedNumberOpacityUpdate(opacity);
+          }}
+        />
+      )}
 
       <SettingRow label="Line style">
         <ObsidianMenuDropdown

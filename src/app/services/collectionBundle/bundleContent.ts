@@ -7,7 +7,8 @@ const JSON_ROLES: ReadonlySet<BundleFileRole> = new Set<BundleFileRole>(['asset-
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
 
-function toBuffer(text: string): ArrayBuffer {
+/** `text` as UTF-8 bytes in an ArrayBuffer of their own. */
+export function toBuffer(text: string): ArrayBuffer {
   const bytes = encoder.encode(text);
   // Copy into a fresh ArrayBuffer: TextEncoder's view may sit on a shared or offset buffer.
   const buffer = new ArrayBuffer(bytes.byteLength);
@@ -20,34 +21,39 @@ function indentationOf(text: string): string | undefined {
   return /^[[{]\r?\n([ \t]+)\S/.exec(text)?.[1];
 }
 
-function rewriteJson(raw: ArrayBuffer, rewrites: PathMap): ArrayBuffer {
+function rewriteJson(text: string, rewrites: PathMap): string {
   try {
-    const text = decoder.decode(raw);
     const parsed: unknown = JSON.parse(text);
     const remapped = remapPaths(parsed, rewrites);
-    if (JSON.stringify(remapped) === JSON.stringify(parsed)) return raw;
-    return toBuffer(JSON.stringify(remapped, null, indentationOf(text)) + (text.endsWith('\n') ? '\n' : ''));
+    if (JSON.stringify(remapped) === JSON.stringify(parsed)) return text;
+    return JSON.stringify(remapped, null, indentationOf(text)) + (text.endsWith('\n') ? '\n' : '');
   } catch {
-    return raw;
+    return text;
   }
 }
 
 const FRONTMATTER = /^(---\r?\n)([\s\S]*?)(\r?\n---)/;
 
 /** Points the note's artwork field at where the artwork now lives; only a single-line value is rewritten. */
-function relinkStatblockNote(file: BundleFile, raw: ArrayBuffer, rewrites: PathMap): ArrayBuffer {
+function relinkStatblockNote(file: BundleFile, text: string, rewrites: PathMap): string {
   const image = file.statblockImage;
   const target = image && rewrites.get(image.path);
-  if (!image || !target) return raw;
-  const text = decoder.decode(raw);
+  if (!image || !target) return text;
   const frontmatter = FRONTMATTER.exec(text);
-  if (!frontmatter) return raw;
+  if (!frontmatter) return text;
   // The manifest check limits the key to `image` or `token-image`, so it is safe inside the pattern.
   const line = new RegExp(`^${image.key}:[ \\t]*\\S[^\\n]*$`, 'm').exec(frontmatter[2]!);
-  if (!line) return raw;
+  if (!line) return text;
   // Splice at the matched line: a plain replace would hit the first equal text and expand `$` patterns in the path.
   const start = frontmatter.index + frontmatter[1]!.length + line.index;
-  return toBuffer(`${text.slice(0, start)}${image.key}: ${JSON.stringify(target)}${text.slice(start + line[0].length)}`);
+  return `${text.slice(0, start)}${image.key}: ${JSON.stringify(target)}${text.slice(start + line[0].length)}`;
+}
+
+/** `text` of a file that `refersToFiles`, with the paths and ids it refers to rewritten; `text` itself when nothing changes. */
+export function rewriteText(file: BundleFile, text: string, rewrites: PathMap): string {
+  if (JSON_ROLES.has(file.role)) return rewriteJson(text, rewrites);
+  if (file.role === 'statblock-note') return relinkStatblockNote(file, text, rewrites);
+  return text;
 }
 
 /**
@@ -56,12 +62,15 @@ function relinkStatblockNote(file: BundleFile, raw: ArrayBuffer, rewrites: PathM
  * `raw` itself when nothing changes, so unchanged files keep their exact bytes.
  */
 export function rewriteContent(file: BundleFile, raw: ArrayBuffer, rewrites: PathMap): ArrayBuffer {
-  if (rewrites.size === 0) return raw;
-  if (JSON_ROLES.has(file.role)) return rewriteJson(raw, rewrites);
-  if (file.role === 'statblock-note') return relinkStatblockNote(file, raw, rewrites);
-  return raw;
+  if (!mayRewrite(file, rewrites)) return raw;
+  const text = decoder.decode(raw);
+  const rewritten = rewriteText(file, text, rewrites);
+  return rewritten === text ? raw : toBuffer(rewritten);
 }
 
+/** Whether the file is text that refers to other files or records: JSON, or a statblock note that shows artwork. */
+export const refersToFiles = (file: BundleFile): boolean =>
+  JSON_ROLES.has(file.role) || (file.role === 'statblock-note' && file.statblockImage !== undefined);
+
 /** Whether `rewriteContent` may change the file's bytes, so they must be read to know the result. */
-export const mayRewrite = (file: BundleFile, rewrites: PathMap): boolean =>
-  rewrites.size > 0 && (JSON_ROLES.has(file.role) || (file.role === 'statblock-note' && file.statblockImage !== undefined));
+export const mayRewrite = (file: BundleFile, rewrites: PathMap): boolean => rewrites.size > 0 && refersToFiles(file);

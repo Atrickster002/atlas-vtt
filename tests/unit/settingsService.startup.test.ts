@@ -27,4 +27,24 @@ describe('SettingsService startup', () => {
     await settings.initialize();
     expect(settings.getNavigationSettings().inputMode).toBe('trackpad');
   });
+
+  it('never saves the defaults over the file before it was read', async () => {
+    let finishMigration!: () => void;
+    const storageReady = new Promise<void>((resolve) => { finishMigration = resolve; });
+    const write = vi.fn(async () => undefined);
+    const app = {
+      vault: { adapter: { exists: async () => true, read: async () => JSON.stringify({ navigation: { inputMode: 'mouse' } }), write } },
+    };
+    const settings = new SettingsService(app as never, storageReady);
+
+    // The plugin unloads during startup, before the settings were loaded.
+    const saving = settings.saveSettingsNow();
+    await Promise.resolve();
+    expect(write).not.toHaveBeenCalled();
+
+    finishMigration();
+    await saving;
+    expect(write).toHaveBeenCalledOnce();
+    expect(JSON.parse(write.mock.calls[0][1] as string).navigation.inputMode).toBe('mouse');
+  });
 });

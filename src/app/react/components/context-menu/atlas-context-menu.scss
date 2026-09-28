@@ -1,37 +1,27 @@
 @use '../../../../../styles/tokens' as *;
 @use '../../../../../styles/mixins' as *;
 
+// Rows are capsules; the menu's corner is set so every row runs concentric with it.
+$ctx-row-height: 28px;
+$ctx-inset: $spacing-xs;
+
 // ── Menu container ──────────────────────────────────────────────────────────
 
 .atlas-ctx-menu {
   @include atlas-elevated-surface;
-  @include atlas-panel-radius($radius-2xl);
+  @include atlas-panel-radius($ctx-row-height * 0.5 + $ctx-inset + $border-width-m);
   box-shadow: $shadow-md;
   display: flex;
   flex-direction: column;
-  // The same gap to the border as every other surface's corner controls.
-  padding: $spacing-s;
-  gap: $spacing-xs;
+  padding: $ctx-inset;
+  // Rows sit close like Obsidian's own menus.
+  gap: var(--size-2-1);
   min-width: 180px;
   max-width: 280px;
   max-height: 70vh;
   overflow-y: auto;
   z-index: $z-atlas-dropdown;
   @include atlas-scrollbar;
-
-  // Rows in the menu's corners run concentric with it; the rest keep $radius-l.
-  > .atlas-ctx-item:first-child {
-    @include atlas-panel-inset-radius($spacing-s, top-left, top-right);
-  }
-
-  > .atlas-ctx-item:last-child {
-    @include atlas-panel-inset-radius($spacing-s, bottom-left, bottom-right);
-  }
-
-  > .atlas-ctx-custom:last-child .atlas-ctx-destructive-btn {
-    &:first-child { @include atlas-panel-inset-radius($spacing-s, bottom-left); }
-    &:last-child { @include atlas-panel-inset-radius($spacing-s, bottom-right); }
-  }
 }
 
 .atlas-ctx-menu--dropdown {
@@ -45,9 +35,9 @@
   align-items: center;
   justify-content: space-between;
   gap: $spacing-xs;
-  padding: $spacing-xs $spacing-s;
-  border-radius: $radius-l;
-  @include atlas-corner-shape;
+  min-height: $ctx-row-height;
+  padding: 0 $spacing-s;
+  @include atlas-panel-inset-radius($ctx-inset);
   background: transparent;
   color: var(--text-normal);
   font-size: var(--font-ui-small);
@@ -193,16 +183,6 @@
   flex-shrink: 0;
 }
 
-// ── Separator ───────────────────────────────────────────────────────────────
-
-.atlas-ctx-separator {
-  height: 1px;
-  margin: 0;
-  padding: 0;
-  border: none;
-  background: color-mix(in oklch, var(--mono-100) $border-opacity-subtle, transparent);
-}
-
 // ── Destructive action row (Kill + Delete at bottom) ────────────────────────
 
 .atlas-ctx-destructive-row {
@@ -215,10 +195,10 @@
   display: flex;
   align-items: center;
   gap: $spacing-s;
-  padding: $spacing-xs $spacing-s;
+  min-height: $ctx-row-height;
+  padding: 0 $spacing-s;
   border: none;
-  border-radius: $radius-l;
-  @include atlas-corner-shape;
+  @include atlas-panel-inset-radius($ctx-inset);
   background: transparent;
   color: var(--text-error);
   font-size: var(--font-ui-small);

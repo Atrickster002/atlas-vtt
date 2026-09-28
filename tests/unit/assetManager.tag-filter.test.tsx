@@ -27,6 +27,9 @@ vi.mock('../../src/app/packages/components/asset-manager/hooks/useAssetCrud', ()
 vi.mock('../../src/app/packages/components/asset-manager/hooks/useTagsAndCollections', () => ({ useTagsAndCollections: () => ({}) }));
 vi.mock('../../src/app/packages/components/asset-manager/hooks/useContextMenus', () => ({ useContextMenus: () => ({}) }));
 vi.mock('../../src/app/packages/components/asset-manager/hooks/useStatblockLink', () => ({ useStatblockLink: () => ({}) }));
+vi.mock('../../src/app/packages/components/asset-manager/hooks/useRememberedPlace', () => ({
+  useRememberedPlace: () => ({ scrollTopOf: () => 0, setScrollTop: () => {} }),
+}));
 vi.mock('../../src/app/packages/components/asset-manager/hooks/useAssetManagerEffects', () => ({ useAssetManagerEffects: () => {} }));
 vi.mock('../../src/app/packages/components/asset-manager/components/Header', () => ({ Header: () => null }));
 vi.mock('../../src/app/packages/components/asset-manager/components/ModalLayer', () => ({ ModalLayer: () => null }));

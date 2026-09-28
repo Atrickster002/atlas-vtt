@@ -4,6 +4,9 @@ import { sameWidgets, type WidgetRecord } from '../utils/collectionWidgets';
 /** Counters change on every click and timers every second, so writes wait for a pause. */
 const SAVE_DELAY_MS = 1000;
 
+/** Shared fallback, so a collection without widgets always reads as the same record. */
+const NO_WIDGETS: WidgetRecord = {};
+
 /**
  * Reads and writes the collection-wide widgets kept in each collection's settings.
  * Edits are held in memory until the debounced write has finished, so scenes loaded
@@ -15,6 +18,7 @@ export class CollectionWidgetStore {
   /** Collections whose write has not started yet. */
   private readonly scheduled = new Set<string>();
   private saveTimer: number | undefined;
+  private readonly listeners = new Set<() => void>();
 
   constructor(private readonly assets: AssetService) {}
 
@@ -24,13 +28,20 @@ export class CollectionWidgetStore {
   }
 
   get(collectionId: string): WidgetRecord {
-    return this.unsaved.get(collectionId) ?? this.assets.getCollectionSettings(collectionId).widgets ?? {};
+    return this.unsaved.get(collectionId) ?? this.assets.getCollectionSettings(collectionId).widgets ?? NO_WIDGETS;
+  }
+
+  /** Calls `listener` whenever a collection's widgets change; returns the unsubscribe. */
+  subscribe(listener: () => void): () => void {
+    this.listeners.add(listener);
+    return () => { this.listeners.delete(listener); };
   }
 
   /** Records the collection's widgets and schedules the write; unchanged widgets write nothing. */
   set(collectionId: string, widgets: WidgetRecord): void {
     if (sameWidgets(this.get(collectionId), widgets)) return;
     this.unsaved.set(collectionId, widgets);
+    this.listeners.forEach((listener) => listener());
     this.scheduled.add(collectionId);
     window.clearTimeout(this.saveTimer);
     this.saveTimer = window.setTimeout(() => this.flush(), SAVE_DELAY_MS);

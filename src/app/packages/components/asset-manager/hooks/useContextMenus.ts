@@ -1,3 +1,4 @@
+import { AssetService } from '../../../../services/AssetService';
 import React from 'react';
 import { openContextMenuGlobal } from '../../../../react/root/ContextMenuContext';
 import { buildAssetContextMenuEntries } from '../contextMenus/assetContextMenu';
@@ -10,6 +11,7 @@ import type { AssetCrudActions } from './useAssetCrud';
 import type { TagsAndCollectionsState } from './useTagsAndCollections';
 import type { StatblockLinkState } from './useStatblockLink';
 import { tagGroupOfTab } from '../utils/assetTags';
+import { transferTargets, transferToCollection } from '../utils/collectionTransferActions';
 
 interface ContextMenuDeps {
   data: AssetData;
@@ -17,6 +19,8 @@ interface ContextMenuDeps {
   crud: AssetCrudActions;
   tags: TagsAndCollectionsState;
   statblock: StatblockLinkState;
+  /** Id of the collection shown; null shows the default one. */
+  selectedCollection: string | null;
   onClose: () => void;
 }
 
@@ -27,7 +31,7 @@ interface ContextMenuHandlers {
 }
 
 export function useContextMenus({
-  data, sel, crud, tags, statblock, onClose,
+  data, sel, crud, tags, statblock, selectedCollection, onClose,
 }: ContextMenuDeps): ContextMenuHandlers {
   const handleAssetContextMenu = (asset: AnyAsset, event: React.MouseEvent): void => {
     if (!sel.selectedAssetIds.includes(asset.id)) {
@@ -51,8 +55,13 @@ export function useContextMenus({
       openStatblockLinkModal: statblock.openStatblockLinkModal,
       unlinkStatblock: statblock.unlinkStatblock,
       deleteAssetFromVault: crud.deleteAssetFromVault,
+      transferToCollection: (assets, target, mode) => {
+        const context = { app: data.app, assetService: data.assetService, setAssets: data.setAssets, setSelectedAssetIds: sel.setSelectedAssetIds };
+        void transferToCollection(context, assets, target, mode);
+      },
       selectedAssetIds: sel.selectedAssetIds,
       assets: data.assets, folders: data.folders, availableTags: data.availableTags,
+      transferTargets: transferTargets(data.collections, selectedCollection || AssetService.defaultCollectionId()),
     });
     openContextMenuGlobal(entries, { x: event.clientX, y: event.clientY });
   };

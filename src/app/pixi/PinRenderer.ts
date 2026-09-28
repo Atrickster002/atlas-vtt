@@ -11,6 +11,9 @@ import { openContextMenuGlobal } from '../react/root/ContextMenuContext';
 import { pinSize } from '../styles/designTokens';
 import { isPinLabelKind, nextPinLabel } from '../tools/pinLabels';
 import { getPinIconDefinition, resolvePinIcon, type PinIconId } from '../types/pinIcons';
+import { canvasBadgeColors, isDarkTheme } from './utils/canvasBadgeColors';
+import { dispatchPinAction } from './utils/pinActions';
+import { hexLayoutOfGrid, isShownAsHex, pinDisplayPoint } from '../grid/hexLinks';
 
 /** True when anything other than the position changed, which means the pin's graphics must be rebuilt. */
 function differsBeyondPosition(pin: NotePin, prev: NotePin | undefined): boolean {
@@ -60,6 +63,11 @@ export class PinRenderer {
       this.syncPins.bind(this),
       { fireImmediately: true }
     );
+    // Pins linked to a hex sit in its centre, which moves with the grid
+    const unsubscribeHexGrid = this.store.subscribe(
+      (state: ViewAtlasState) => state.grid,
+      () => this.repositionPins(),
+    );
     // The player window mirrors this canvas, so pins must vanish with the GM view
     const unsubscribeGMView = this.store.subscribe(
       (state: ViewAtlasState) => state.isGMView,
@@ -68,6 +76,7 @@ export class PinRenderer {
     );
     this._unsubscribeFromStore = () => {
       unsubscribePins();
+      unsubscribeHexGrid();
       unsubscribeGMView();
     };
     this._notePinToolViewportListener = (e: FederatedPointerEvent) => {
@@ -81,7 +90,8 @@ export class PinRenderer {
         const worldPos = this.viewport.toWorld(e.global);
         this.eventBus.emit('canvas-click', {
           x: e.global.x, y: e.global.y,
-          worldX: worldPos.x, worldY: worldPos.y
+          worldX: worldPos.x, worldY: worldPos.y,
+          shiftKey: e.shiftKey,
         });
       }
     };
@@ -153,12 +163,14 @@ export class PinRenderer {
     this.eventBus.on('pin-preview-update-icon', this.pinPreviewUpdateIconHandler);
     
     // Set up viewport pointer move handler for preview position updates
+    // Emitted even while the preview pin is hidden: Shift turns the tool into hex linking
     this._viewportPointerMoveHandler = (e: FederatedPointerEvent) => {
-      if (this.previewPin && this.store.getState().activeTool === 'note-pin') {
+      if (this.store.getState().activeTool === 'note-pin') {
         const worldPos = this.viewport.toWorld(e.global);
         this.eventBus.emit('viewport-pointer-move', {
           worldX: worldPos.x,
-          worldY: worldPos.y
+          worldY: worldPos.y,
+          shiftKey: e.shiftKey,
         });
       }
     };
@@ -205,6 +217,17 @@ export class PinRenderer {
     return thresholdInverse * Math.pow(excess, 1.21);
   }
   
+  private pinPosition(pin: NotePin): { x: number; y: number } {
+    return pinDisplayPoint(pin, hexLayoutOfGrid(this.store.getState().grid));
+  }
+
+  private repositionPins(): void {
+    for (const pin of Object.values(this.store.getState().objects.pins)) {
+      const position = this.pinPosition(pin);
+      this.pinSprites[pin.id]?.position.set(position.x, position.y);
+    }
+  }
+
   private redrawAllPins(): void {
     const pins = this.store.getState().objects.pins;
     for (const pinId in pins) {
@@ -235,10 +258,12 @@ export class PinRenderer {
     if (this.arePinsHidden()) return null;
 
     const pins = this.store.getState().objects.pins;
+    const layout = hexLayoutOfGrid(this.store.getState().grid);
     const hitRadius = 20 * this.getPinScale();
 
     for (const [id, pin] of Object.entries(pins)) {
-      if (!pin) continue;
+      // A linked pin is part of its hex, which handles the pointer
+      if (!pin || isShownAsHex(pin, layout)) continue;
       const dx = worldX - pin.x;
       const dy = worldY - pin.y;
       if (dx * dx + dy * dy <= hitRadius * hitRadius) {
@@ -310,7 +335,7 @@ export class PinRenderer {
           endHistoryTransaction(this.store);
           this.viewport.plugins.resume('drag');
         } else if (!hasMoved) {
-          this.dispatchPinAction('open', pin);
+          dispatchPinAction('open', pin);
         }
       };
 
@@ -318,13 +343,6 @@ export class PinRenderer {
       this.viewport.on('pointerup', onPointerUp);
       this.viewport.on('pointerupoutside', onPointerUp);
     }
-  }
-  
-  private getThemeColors(): { background: number; stroke: number } {
-    // Matches the token UI badges (HP bar background)
-    return document.body.classList.contains('theme-dark')
-      ? { background: 0x2a2a2a, stroke: 0xffffff }
-      : { background: 0xe3e3e3, stroke: 0x000000 };
   }
   
   /** Removes and destroys a pin's graphics; cached icon textures survive (no `texture` flag). */
@@ -347,8 +365,8 @@ export class PinRenderer {
     const container = new Container();
     
     // Get theme colors
-    const colors = this.getThemeColors();
-    const isDarkMode = document.body.classList.contains('theme-dark');
+    const colors = canvasBadgeColors();
+    const isDarkMode = isDarkTheme();
     
     // Create the circular badge background using design tokens
     const bgGraphics = new Graphics();
@@ -397,20 +415,13 @@ export class PinRenderer {
   private showPinContextMenu(pin: NotePin, pos: { x: number; y: number }): void {
     openContextMenuGlobal(
       [
-        { type: 'item', label: 'Open Note', icon: 'file-text', onClick: () => this.dispatchPinAction('open', pin) },
-        { type: 'item', label: 'Edit Pin', icon: 'edit', onClick: () => this.dispatchPinAction('edit', pin) },
-        { type: 'separator' },
+        { type: 'item', label: 'Open Note', icon: 'file-text', onClick: () => dispatchPinAction('open', pin) },
+        { type: 'item', label: 'Edit Pin', icon: 'edit', onClick: () => dispatchPinAction('edit', pin) },
         { type: 'item', label: 'Duplicate', icon: 'files', onClick: () => this.store.getState().duplicateMapObjects([pin.id]) },
-        { type: 'separator' },
         { type: 'item', label: 'Delete', icon: 'trash', destructive: true, onClick: () => this.store.getState().deleteMapObject('pin', pin.id) },
       ],
       pos,
     );
-  }
-
-  private dispatchPinAction(action: 'open' | 'edit', pin: NotePin): void {
-    const event = new CustomEvent('atlas-pin-action', { detail: { action, pin } });
-    window.dispatchEvent(event);
   }
 
   private syncPins = (
@@ -450,7 +461,8 @@ export class PinRenderer {
       if (pinGroup) {
         const prevPin = prevPinsRecord?.[id];
         if (pin === prevPin) continue;
-        pinGroup.position.set(pin.x, pin.y);
+        const position = this.pinPosition(pin);
+        pinGroup.position.set(position.x, position.y);
         pinGroup.visible = true;
         // Dragging only moves the pin; its graphics are rebuilt when what they show changes
         if (!differsBeyondPosition(pin, prevPin)) continue;
@@ -463,7 +475,8 @@ export class PinRenderer {
 
       pinGroup = new Container();
       pinGroup.label = `pin-${id}`;
-      pinGroup.position.set(pin.x, pin.y);
+      const position = this.pinPosition(pin);
+      pinGroup.position.set(position.x, position.y);
       pinGroup.visible = true; 
       
       // Create pin graphics

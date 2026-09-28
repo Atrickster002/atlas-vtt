@@ -7,6 +7,7 @@ import { NotePreviewWindow } from './NotePreviewWindow';
 import { StatblockPreviewWindow } from './StatblockPreviewWindow';
 import { findCreatureForNotePath } from './FantasyStatblocksService';
 import { MapLinkPreview } from './MapLinkPreview';
+import { linkedFilePath, linkedMapPath, linkedSceneFile } from './sceneLinks';
 import { runInBackground } from '../utils/backgroundTask';
 import { findAtlasLeafByViewId } from '../utils/atlasLeafLookup';
 import { readPinnedNotePreviews } from '../stores/pinnedNotePreviewSlice';
@@ -302,30 +303,20 @@ export class NotePreviewUIManager {
     // Hide all unpinned previews before creating a new one
     this.hideAllUnpinnedPreviews();
     
-    // Extract the base file path without header
-    const hashIndex = pin.notePath.indexOf('#');
-    const baseNotePath = hashIndex !== -1 ? pin.notePath.substring(0, hashIndex) : pin.notePath;
-    
-    // Check file type for specialized previews
-    const file = this.app.vault.getAbstractFileByPath(baseNotePath);
-    if (file instanceof TFile) {
-      // Atlas map files → lightweight tooltip with thumbnail + "Open Map" button
-      if (file.extension === 'atlasmap') {
-        const mapPreview = new MapLinkPreview(
-          this.app,
-          file,
-          pin,
-          this,
-          { x: screenX, y: screenY }
-        );
-
-        if (mapPreview.element) {
-          const previewKey = `${pin.notePath}::${pin.id}`;
-          this.activePreviews.set(previewKey, mapPreview);
-          this.raiseZIndex(mapPreview);
-        }
-        return;
+    // Scene links → lightweight tooltip with thumbnail + "Open Map" button; nothing for a scene not in this collection
+    if (linkedMapPath(pin.notePath)) {
+      const scene = linkedSceneFile(this.app, this.store.getState().mapPath, pin.notePath);
+      const mapPreview = scene ? new MapLinkPreview(this.app, scene, pin, this, { x: screenX, y: screenY }) : null;
+      if (mapPreview?.element) {
+        this.activePreviews.set(`${pin.notePath}::${pin.id}`, mapPreview);
+        this.raiseZIndex(mapPreview);
       }
+      return;
+    }
+
+    // Check file type for specialized previews
+    const file = this.app.vault.getAbstractFileByPath(linkedFilePath(pin.notePath));
+    if (file instanceof TFile) {
 
       // Notes backed by a Fantasy Statblocks creature → rich statblock preview for tokens
       const isStatblock = findCreatureForNotePath(file.path) !== null;

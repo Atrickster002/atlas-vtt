@@ -4,9 +4,11 @@ import { mountUI, unmountUI } from '../react/index';
 import { EventEmitter } from 'events';
 import type { ViewAtlasStore } from '../storeFactory';
 import type { AtlasView } from '../atlas-view';
+import { createUILayers } from './uiLayers';
 
 export class UIOverlay {
   private uiContainer: HTMLDivElement | null = null;
+  private reactRootEl: HTMLDivElement | null = null;
   private eventBus: EventEmitter;
   private view: AtlasView | null = null;
   private mountObserver: MutationObserver | null = null;
@@ -28,20 +30,14 @@ export class UIOverlay {
     }
 
     this.view = view;
-    this.uiContainer = containerEl.createDiv({ cls: 'atlas-vtt-plugin atlas-react-ui-container' });
+    const layers = createUILayers(containerEl);
+    this.uiContainer = layers.container;
+    this.reactRootEl = layers.reactRoot;
     
     // Add view ID as data attribute for keyboard shortcut targeting
     if (view?.viewId) {
       this.uiContainer.setAttribute('data-view-id', view.viewId);
     }
-    
-    // Make sure the React overlay sits above the Pixi canvas
-    Object.assign(this.uiContainer.style, {
-      position: 'absolute',
-      inset: '0',
-      zIndex: '1000',
-      pointerEvents: 'none'   // always on top
-    });
     
     // Add debug logging for container visibility
     // Monitor for removal
@@ -63,7 +59,7 @@ export class UIOverlay {
     this.mountObserver = observer;
     
     // Pass the obtained PixiApp instance, renderer, and store to mountUI
-    mountUI(this.app, this.uiContainer, view, pixiApp, this.store);
+    mountUI(this.app, this.reactRootEl, view, pixiApp, this.store);
     
     this.eventBus.emit('ui-mounted', this.uiContainer);
   }
@@ -84,9 +80,10 @@ export class UIOverlay {
 
     // Unmount React UI overlay (destroys PixiViewport and its children)
     if (this.uiContainer) {
-      unmountUI(this.uiContainer);
+      if (this.reactRootEl) unmountUI(this.reactRootEl);
       this.uiContainer.remove();
       this.uiContainer = null;
+      this.reactRootEl = null;
       this.eventBus.emit('ui-unmounted');
     }
   }

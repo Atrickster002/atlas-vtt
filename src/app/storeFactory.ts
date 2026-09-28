@@ -23,6 +23,7 @@ import { createInitialLootRollerState, createLootRollerActions, readLootRollerSt
 import { isRecord } from './services/assetMetadataGuards';
 import { createHistoryOptions } from './stores/history';
 import { withoutCollectionWidgets } from './utils/collectionWidgets';
+import { withWidgetOff } from './utils/widgetActivation';
 import { createMapObjectsActions, type MapObjectsSlice } from './stores/mapObjectsSlice';
 import { computeNextInstanceNumber } from './stores/tokenInstanceNumbers';
 import type { DiceRollResult } from './tools/DiceTool';
@@ -124,7 +125,8 @@ export interface ViewAtlasState {
   resetTokens: (ids: string[]) => void;
 
   // Note Pin actions
-  addNotePin: (x: number, y: number, notePath: string, icon?: string) => string;
+  /** With `hex`, the note is linked to the hex containing (x, y) rather than pinned to the point. */
+  addNotePin: (x: number, y: number, notePath: string, icon?: string, options?: { hex?: boolean }) => string;
   updateNotePin: (id: string, updates: Partial<Omit<NotePin, 'id' | 'kind'>>) => void;
   moveNotePin: (id: string, x: number, y: number) => void;
   deleteNotePin: (id: string) => void;
@@ -204,6 +206,8 @@ export interface ViewAtlasState {
   updateWidget: (widgetId: string, updates: Partial<AnyWidget>) => void;
   addWidget: (widget: AnyWidget) => void;
   removeWidget: (widgetId: string) => void;
+  /** Switches a widget on or off in this scene. */
+  setWidgetOn: (widgetId: string, on: boolean) => void;
   reorderWidgets: (widgetIds: string[]) => void;
   setWidgetValue: (widgetId: string, value: number) => void;
   
@@ -749,6 +753,18 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
           removeWidget: (widgetId) => set((draft) => {
             delete draft.widgetSettings.widgets[widgetId];
             delete draft.widgetValues[widgetId];
+            const offWidgets = withWidgetOff(draft.widgetSettings.offWidgets, widgetId, false);
+            if (offWidgets) draft.widgetSettings.offWidgets = offWidgets;
+            else delete draft.widgetSettings.offWidgets;
+          }),
+
+          setWidgetOn: (widgetId, on) => set((draft) => {
+            const offWidgets = withWidgetOff(draft.widgetSettings.offWidgets, widgetId, !on);
+            if (offWidgets) draft.widgetSettings.offWidgets = offWidgets;
+            else delete draft.widgetSettings.offWidgets;
+            const widget = draft.widgetSettings.widgets[widgetId];
+            // Older Atlas versions hid widgets with this flag instead
+            if (on && widget && !widget.visible) widget.visible = true;
           }),
           
           reorderWidgets: (widgetIds) => set((draft) => {
@@ -895,7 +911,7 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
           }),
 
           // Note Pin actions
-          addNotePin: (x, y, notePath, icon) => {
+          addNotePin: (x, y, notePath, icon, options) => {
             const id = `pin_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
             set((draft) => {
               const newPin: NotePin = { 
@@ -907,6 +923,9 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
               };
               if (icon) {
                 newPin.icon = icon;
+              }
+              if (options?.hex) {
+                newPin.hex = true;
               }
               if (isPinLabelKind(icon)) {
                 newPin.label = nextPinLabel(draft.objects.pins, icon);

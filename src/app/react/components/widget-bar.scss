@@ -1,4 +1,4 @@
-// Widget bar — counters and timers floating above the map, each on its own card.
+// Widget bar — counters, clocks and timers floating above the map, each on its own card.
 // Each widget sets --widget-color; every tint, ring and glow derives from it.
 @use '../../../../styles/tokens' as *;
 @use '../../../../styles/mixins' as *;
@@ -135,6 +135,55 @@ $widget-bar-offset: $spacing-l;
 
 .atlas-widget-value-input { width: 3ch; box-sizing: content-box; }
 .atlas-timer-edit-input { width: 5ch; box-sizing: content-box; }
+
+// ── Progress clock face ──────────────────────────────────────────────────────
+
+// Same height as a counter's value, so clocks and counters line up in one bar.
+.atlas-clock-face {
+  flex-shrink: 0;
+  width: $button-height-m;
+  height: $button-height-m;
+  overflow: visible;
+}
+
+// Wedges are separated by strokes in the card's colour, so they read as cut pieces.
+.atlas-clock-wedge {
+  fill: color-mix(in oklch, var(--widget-color) 14%, transparent);
+  stroke: var(--background-primary);
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+  transition: fill $transition-fast $transition-ease;
+
+  &.is-filled {
+    fill: var(--widget-color);
+  }
+}
+
+// Only the GM's bar changes a clock by clicking its wedges.
+.atlas-widget-clock:has(.atlas-widget-btn) .atlas-clock-wedge {
+  cursor: pointer;
+
+  &:hover {
+    fill: color-mix(in oklch, var(--widget-color) 40%, transparent);
+  }
+
+  &.is-filled:hover {
+    fill: color-mix(in oklch, var(--widget-color) 80%, var(--background-primary));
+  }
+}
+
+.atlas-clock-count {
+  fill: var(--text-normal);
+  font-weight: $font-weight-bold;
+  font-variant-numeric: tabular-nums;
+  text-anchor: middle;
+  dominant-baseline: central;
+  pointer-events: none;
+}
+
+.atlas-widget-clock.clock-complete {
+  border-color: var(--widget-color);
+}
 
 // ── Step / transport buttons ─────────────────────────────────────────────────
 

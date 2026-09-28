@@ -3,7 +3,8 @@ import { getActiveWorkspaceLeaf, suppressActiveLeaf } from '../utils/embeddedLea
 import { runInBackground } from '../utils/backgroundTask';
 import type { NotePreviewUIManager, PreviewAnchorRef } from './NotePreviewUIManager';
 import type { NoteViewState, PinnedNotePreview } from '../stores/pinnedNotePreviewSlice';
-import { applyPreviewWindowLayout, readPreviewWindowLayout } from './previewWindowLayout';
+import { PreviewWindowPlacement } from './previewWindowLayout';
+import { NOTE_PREVIEW_LAYER_CLASS } from './uiLayers';
 import { applyNoteScroll, readNoteViewState, toOpenViewState } from './noteViewState';
 
 // Styles imported via styles/main.scss → note-preview-window.scss
@@ -39,6 +40,7 @@ export class NotePreviewWindow {
   private wrapperEl: HTMLDivElement | null = null;
   private preferredActiveLeaf: WorkspaceLeaf | null = null;
   private mountRootEl: HTMLElement | null = null;
+  private placement: PreviewWindowPlacement | null = null;
   /** How a reopened note was left, kept until its view is mounted and has taken it over. */
   private savedViewState: NoteViewState | null = null;
   private stateSaveTimer: number | null = null;
@@ -92,7 +94,7 @@ export class NotePreviewWindow {
     this.savedViewState = pinned?.view ?? null;
     this.render();
     if (this.element && pinned) {
-      applyPreviewWindowLayout(this.element, pinned);
+      this.placement?.restore(pinned);
       this.isPinned = true;
       this.updatePinButtonState();
     } else if (this.element && initialPos) {
@@ -113,9 +115,12 @@ export class NotePreviewWindow {
   private render() {
     // Wrap in .atlas-vtt-plugin so SCSS scoped under that selector applies
     this.mountRootEl = this.resolveMountRoot();
-    this.wrapperEl = this.mountRootEl.createDiv({ cls: 'atlas-vtt-plugin atlas-vtt-root' });
+    this.wrapperEl = resolvePreviewLayer(this.mountRootEl).createDiv({ cls: 'atlas-vtt-plugin atlas-vtt-root' });
     this.element = this.wrapperEl.createDiv({ cls: 'atlas-note-preview-window' });
     this.element.setAttribute('tabindex', '-1'); // Make the main window programmatically focusable
+    const placement = new PreviewWindowPlacement(this.element, this.mountRootEl);
+    this.placement = placement;
+    this.parentComponent.register(() => placement.destroy());
 
     const header = this.element.createDiv({ cls: 'atlas-note-preview-header' });
     header.addEventListener('mousedown', this.onDragStart.bind(this));
@@ -515,25 +520,9 @@ export class NotePreviewWindow {
     this.parentComponent.register(() => observer.disconnect());
   }
 
-  setPosition(x: number, y: number) {
-    if (!this.element) return;
-    const winWidth = window.innerWidth;
-    const winHeight = window.innerHeight;
-    const elWidth = this.element.offsetWidth;
-    const elHeight = this.element.offsetHeight;
-    // Start a little offset so the preview does not occlude the pin/cursor directly
-    let finalX = x + 12;
-    let finalY = y + 12;
-    if (finalX + elWidth > winWidth - 10) {
-      finalX = x - elWidth - 15;
-    }
-    if (finalY + elHeight > winHeight - 10) {
-      finalY = y - elHeight - 15;
-    }
-    finalX = Math.max(10, finalX);
-    finalY = Math.max(10, finalY);
-    this.element.style.left = `${finalX}px`;
-    this.element.style.top = `${finalY}px`;
+  /** Opens the preview next to the pointer, given in window coordinates. */
+  setPosition(x: number, y: number): void {
+    this.placement?.placeNearPointer(x, y);
   }
 
   private onDragStart(e: MouseEvent) {
@@ -560,6 +549,7 @@ export class NotePreviewWindow {
     this.element?.classList.remove('is-dragging');
     document.removeEventListener('mousemove', this.onDragMove);
     document.removeEventListener('mouseup', this.onDragEnd);
+    this.placement?.recordMove();
     this.saveStateNow();
   }
 
@@ -656,6 +646,7 @@ export class NotePreviewWindow {
 
     document.removeEventListener('mousemove', this.onResizeMove);
     document.removeEventListener('mouseup', this.onResizeEnd);
+    this.placement?.recordCurrent();
     this.saveStateNow();
   }
 
@@ -665,6 +656,8 @@ export class NotePreviewWindow {
 
   private setPinned(pinned: boolean): void {
     this.isPinned = pinned;
+    if (pinned) this.placement?.recordCurrent();
+    else this.placement?.clear();
     this.updatePinButtonState();
     this.manager.handlePreviewStateChanged(this);
   }
@@ -696,12 +689,13 @@ export class NotePreviewWindow {
 
   /** What the map saves for this preview, or null while it is not pinned. */
   public toPinnedNotePreview(): PinnedNotePreview | null {
-    if (!this.isPinned || !this.element || !this.originatingPin) return null;
+    const layout = this.placement?.getLayout();
+    if (!this.isPinned || !layout || !this.originatingPin) return null;
     const view = this.getNoteViewState();
     return {
       anchorId: this.originatingPin.id,
       notePath: this.originalNotePath,
-      ...readPreviewWindowLayout(this.element),
+      ...layout,
       ...(view ? { view } : {}),
     };
   }
@@ -965,4 +959,12 @@ export class NotePreviewWindow {
       }
     });
   }
+}
+
+/**
+ * The layer of the map's UI that holds its previews (`UIOverlay`): above the
+ * toolbar, scene tabs and widgets, below overlays such as the DM dashboard.
+ */
+function resolvePreviewLayer(mountRoot: HTMLElement): HTMLElement {
+  return mountRoot.querySelector<HTMLElement>(`.${NOTE_PREVIEW_LAYER_CLASS}`) ?? mountRoot;
 }

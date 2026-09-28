@@ -10,22 +10,23 @@ import { SceneSwitcherFooter } from './SceneSwitcherFooter';
 import './scene-switcher.scss';
 
 interface SceneSwitcherProps {
+  isOpen: boolean;
+  onOpenChange: (isOpen: boolean) => void;
   onSwitchTab: (tabId: string) => void;
   /** Switches to the tab and shows it in the player window, opening that window if needed. */
   onPresentTab: (tabId: string) => void;
 }
 
-interface SceneSwitcherPanelProps extends SceneSwitcherProps {
+interface SceneSwitcherPanelProps extends Omit<SceneSwitcherProps, 'isOpen' | 'onOpenChange'> {
   onClose: () => void;
 }
 
-/** Opens the open-maps switcher on the scene switcher hotkey. */
-export function SceneSwitcher({ onSwitchTab, onPresentTab }: SceneSwitcherProps): React.ReactElement | null {
+/** The open-maps switcher; the scene switcher hotkey opens it as well. */
+export function SceneSwitcher({ isOpen, onOpenChange, onSwitchTab, onPresentTab }: SceneSwitcherProps): React.ReactElement | null {
   const store = useSceneTabStore();
-  const [isOpen, setOpen] = useState(false);
-  const close = useCallback((): void => setOpen(false), []);
+  const close = useCallback((): void => onOpenChange(false), [onOpenChange]);
 
-  useMapHotkeys({ sceneSwitcher: () => setOpen(store.getState().tabs.length > 0) });
+  useMapHotkeys({ sceneSwitcher: () => onOpenChange(store.getState().tabs.length > 0) });
 
   return isOpen ? <SceneSwitcherPanel onSwitchTab={onSwitchTab} onPresentTab={onPresentTab} onClose={close} /> : null;
 }

@@ -1,12 +1,15 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useStore } from 'zustand';
-import { useMapHotkeys, useAtlasSettings, useHotkeyLabels } from '../../keyboard/useMapHotkeys';
-import { canRunMapHotkeys, matchesMapHotkey } from '../../keyboard/mapHotkeys';
+import { useAtlasSettings, useHotkeyLabels } from '../../keyboard/useMapHotkeys';
+import { canRunMapHotkeys, matchesMapHotkey, type HeldWidgetHotkeyId } from '../../keyboard/mapHotkeys';
 import type { WidgetSyncService, WidgetAnimationType, WidgetAnimationPayloads } from '../../services/WidgetSyncService';
 import type { ViewAtlasStore } from '../../storeFactory';
 import type { AnyWidget } from '../../types/widgetTypes';
-import { TimerWidgetDisplay } from './TimerWidgetDisplay';
-import { CounterWidgetDisplay, stepCounter } from './CounterWidgetDisplay';
+import { TimerWidgetDisplay, type TimerWidgetControls } from './TimerWidgetDisplay';
+import { CounterWidgetDisplay } from './CounterWidgetDisplay';
+import { ClockWidgetDisplay } from './ClockWidgetDisplay';
+import { isSteppedWidget, stepCounter } from '../../utils/counterWidget';
+import { isWidgetOn } from '../../utils/widgetActivation';
 
 interface ResponsiveWidgetBarProps {
   isPlayerView?: boolean;
@@ -25,6 +28,8 @@ export function ResponsiveWidgetBar({ isPlayerView = false, store, viewId, widge
   const heldCodes = useRef(new Map<string, number>());
   const pulseTimeouts = useRef<Map<string, number>>(new Map());
   const pulseIntensity = useRef<Map<string, number>>(new Map());
+  const timerControls = useRef(new Map<string, TimerWidgetControls>());
+  const heldWidgetActions = useRef<Partial<Record<HeldWidgetHotkeyId, () => void>>>({});
   
   // Select only what this component renders so drag ticks and selection
   // changes elsewhere in the store do not re-render the widget bar.
@@ -199,10 +204,20 @@ export function ResponsiveWidgetBar({ isPlayerView = false, store, viewId, widge
     return unsubscribe;
   }, [componentId, widgetSyncService]);
   
-  // Keyboard shortcut tracking
+  // Keyboard shortcut tracking. Listens in the capture phase so a held widget's
+  // keys (e.g. Space) win over the map shortcuts that share them.
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (!canRunMapHotkeys(e, viewId)) return;
+      if (heldKeys.current.size > 0) {
+        const actions = heldWidgetActions.current;
+        const held = (Object.keys(actions) as HeldWidgetHotkeyId[]).find(id => matchesMapHotkey(e, id, settings));
+        if (held) {
+          e.preventDefault();
+          actions[held]?.();
+          return;
+        }
+      }
       const num = ([1, 2, 3, 4, 5] as const).find(n => matchesMapHotkey(e, `widget${n}`, settings));
       if (!num) return;
       e.preventDefault();
@@ -232,19 +247,19 @@ export function ResponsiveWidgetBar({ isPlayerView = false, store, viewId, widge
       setHeldNumberKeys(new Set());
     };
     
-    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keydown', handleKeyDown, true);
     window.addEventListener('keyup', handleKeyUp);
     window.addEventListener('blur', handleBlur);
     
     return () => {
-      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keydown', handleKeyDown, true);
       window.removeEventListener('keyup', handleKeyUp);
       window.removeEventListener('blur', handleBlur);
     };
   }, [handleInteraction, broadcastAnimation, settings, viewId]);
   
   const visibleWidgets: AnyWidget[] = Object.values<AnyWidget>(storedWidgetSettings?.widgets ?? {})
-    .filter((widget) => widget.visible && (!isPlayerView || widget.visibleToPlayers))
+    .filter((widget) => isWidgetOn(storedWidgetSettings, widget) && (!isPlayerView || widget.visibleToPlayers))
     .sort((a, b) => a.order - b.order);
   const visibleWidgetsRef = useRef(visibleWidgets);
   visibleWidgetsRef.current = visibleWidgets;
@@ -254,24 +269,31 @@ export function ResponsiveWidgetBar({ isPlayerView = false, store, viewId, widge
     handleInteraction();
   }, [triggerPulse, handleInteraction]);
 
-  // Hold 1-5 and press +/- to step the counter at that position
+  // Hold 1-5 to target the widget at that position
+  const heldWidget = (): AnyWidget | undefined => {
+    const position = ([1, 2, 3, 4, 5] as const).find(n => heldKeys.current.has(String(n)));
+    return position ? visibleWidgetsRef.current[position - 1] : undefined;
+  };
+
   const stepHeldWidget = (delta: number): void => {
-    for (let i = 1; i <= 5; i++) {
-      if (!heldKeys.current.has(String(i))) continue;
-      const target = visibleWidgetsRef.current[i - 1];
-      if (target?.type === 'counter') {
-        stepCounter(store, target.id, delta);
-        handleInteraction(target.id);
-      }
-      break;
+    const target = heldWidget();
+    if (target && isSteppedWidget(target)) {
+      stepCounter(store, target.id, delta);
+      handleInteraction(target.id);
     }
   };
 
-  useMapHotkeys({
+  const controlHeldTimer = (action: keyof TimerWidgetControls): void => {
+    const target = heldWidget();
+    if (target?.type === 'timer') timerControls.current.get(target.id)?.[action]();
+  };
+
+  heldWidgetActions.current = {
     increase: () => stepHeldWidget(1),
     increaseAlt: () => stepHeldWidget(1),
     decrease: () => stepHeldWidget(-1),
-  }, viewId);
+    ...(isPlayerView ? {} : { timerPlayPause: () => controlHeldTimer('togglePlay'), timerReset: () => controlHeldTimer('reset') }),
+  };
 
   // For player view, always show widgets regardless of globalVisible setting
   if (!isPlayerView && storedWidgetSettings?.globalVisible === false) {
@@ -301,7 +323,15 @@ export function ResponsiveWidgetBar({ isPlayerView = false, store, viewId, widge
             onInteraction: handleInteraction,
           };
           if (widget.type === 'timer') {
-            return <TimerWidgetDisplay key={widget.id} widget={widget} isPlayerView={isPlayerView} {...shared} />;
+            const registerControls = (controls: TimerWidgetControls | null): (() => void) | undefined => {
+              if (!controls) return undefined;
+              timerControls.current.set(widget.id, controls);
+              return () => { timerControls.current.delete(widget.id); };
+            };
+            return <TimerWidgetDisplay key={widget.id} ref={registerControls} widget={widget} isPlayerView={isPlayerView} {...shared} />;
+          }
+          if (widget.type === 'clock') {
+            return <ClockWidgetDisplay key={widget.id} widget={widget} onValueChange={handleCounterValueChange} {...shared} />;
           }
           return <CounterWidgetDisplay key={widget.id} widget={widget} onValueChange={handleCounterValueChange} {...shared} />;
         })}

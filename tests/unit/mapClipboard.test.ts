@@ -113,6 +113,23 @@ describe('map copy, paste and duplicate', () => {
     expect(Object.keys(source.getState().objects.tokens)).toEqual([a]);
   });
 
+  it('leaves pins to scenes of another collection behind when pasting into a map of a different collection', async () => {
+    const source = createStore().store;
+    const sameCollection = createStore().store;
+    const otherCollection = createStore().store;
+    source.setState({ mapPath: 'atlas-vtt/collections/Realm/scenes/Town.atlasmap' });
+    sameCollection.setState({ mapPath: 'atlas-vtt/collections/Realm/scenes/Keep.atlasmap' });
+    otherCollection.setState({ mapPath: 'atlas-vtt/collections/Other/scenes/Crypt.atlasmap' });
+    const note = source.getState().addNotePin(0, 0, 'Notes/Tavern.md');
+    const scene = source.getState().addNotePin(50, 0, 'atlas-vtt/collections/Realm/scenes/Keep.atlasmap');
+    source.getState().setSelection([note, scene]);
+    await copySelection(source);
+
+    const links = (store: typeof source, ids: string[]): string[] => ids.map((id) => store.getState().objects.pins[id]!.notePath);
+    expect(links(sameCollection, await pasteClipboard(sameCollection, { x: 100, y: 100 }))).toEqual(['Notes/Tavern.md', 'atlas-vtt/collections/Realm/scenes/Keep.atlasmap']);
+    expect(links(otherCollection, await pasteClipboard(otherCollection, { x: 100, y: 100 }))).toEqual(['Notes/Tavern.md']);
+  });
+
   it('cuts in one undo step and pastes the cut objects back', async () => {
     const { store } = createStore();
     const a = addGoblin(store, 25, 25);
