@@ -9,14 +9,16 @@ interface ClearTagsChipProps {
   /** Number of tags filtering the assets; the chip shows only while it is above zero. */
   count: number;
   onClear: () => void;
+  /** What the tooltip calls the button; defaults to clearing tag filters. */
+  label?: string;
 }
 
 const TRANSITION = { duration: 0.15, ease: EASE_OUT_CONTROL_POINTS };
 const HIDDEN = { opacity: 0, transform: 'scale(0.85)' };
 const SHOWN = { opacity: 1, transform: 'scale(1)' };
 
-/** Shows how many tags filter the assets and clears them all on click. */
-export function ClearTagsChip({ count, onClear }: ClearTagsChipProps): React.JSX.Element {
+/** Shows how many tags (or other filters) filter the assets and clears them all on click. */
+export function ClearTagsChip({ count, onClear, label }: ClearTagsChipProps): React.JSX.Element {
   return (
     <AnimatePresence initial={false}>
       {count > 0 && (
@@ -28,7 +30,7 @@ export function ClearTagsChip({ count, onClear }: ClearTagsChipProps): React.JSX
           exit={HIDDEN}
           transition={TRANSITION}
         >
-          <LabelTooltip label={count === 1 ? 'Clear tag filter' : `Clear ${count} tag filters`}>
+          <LabelTooltip label={label ?? (count === 1 ? 'Clear tag filter' : `Clear ${count} tag filters`)}>
             <Button
               variant="ghost"
               className="atlas-tags-clear"

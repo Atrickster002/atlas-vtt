@@ -79,7 +79,7 @@ describe('bulk importing recognized statblock notes', () => {
     files.set('Other/Goblin.md', 'Other original');
     frontmatter['Other/Goblin.md'] = { ...frontmatter[note] };
     const importer = new StatblockTokenImportService(app, assets);
-    const result = await importer.import([note, 'Other/Goblin.md', note], 'default');
+    const result = await importer.import([note, 'Other/Goblin.md', note], 'Default');
     expect(result.items.map(i => i.status)).toEqual(['created', 'created']);
     const tokens = await assets.getTokenAssets();
     expect(tokens).toHaveLength(2);
@@ -89,7 +89,7 @@ describe('bulk importing recognized statblock notes', () => {
     expect(files.get(note)).toBe('Original note');
     expect(files.get(image)).toBe('image-bytes');
     await assets.updateTokenAsset(tokens[0]!.id, { name: 'Customized Goblin' });
-    expect((await importer.import([note], 'default')).items[0]?.status).toBe('skipped');
+    expect((await importer.import([note], 'Default')).items[0]?.status).toBe('skipped');
     expect((await assets.getTokenAssets())[0]?.name).toBe('Customized Goblin');
     await assets.deleteAsset(tokens[0]!.id);
     expect(files.get(image)).toBe('image-bytes');
@@ -102,12 +102,12 @@ describe('bulk importing recognized statblock notes', () => {
     const importer = new StatblockTokenImportService(app, assets);
     await importer.scan();
     files.delete(image);
-    expect((await importer.import([note], 'default')).items[0]?.status).toBe('skipped');
+    expect((await importer.import([note], 'Default')).items[0]?.status).toBe('skipped');
     files.set(image, 'bytes');
     app.vault.createBinary.mockRejectedValueOnce(new Error('Disk full'));
-    expect((await importer.import([note, 'Next.md'], 'default')).items.map(i=>i.status)).toEqual(['failed', 'created']);
+    expect((await importer.import([note, 'Next.md'], 'Default')).items.map(i=>i.status)).toEqual(['failed', 'created']);
     const controller = new AbortController();
-    const result = await importer.import([note, 'Next.md'], 'default', { signal: controller.signal, onProgress: () => controller.abort() });
+    const result = await importer.import([note, 'Next.md'], 'Default', { signal: controller.signal, onProgress: () => controller.abort() });
     expect(result.items).toHaveLength(1);
     expect(result.cancelled).toBe(true);
   });
@@ -121,11 +121,11 @@ describe('bulk importing recognized statblock notes', () => {
       return write(path, data);
     });
     const importer = new StatblockTokenImportService(app, assets);
-    expect((await importer.import([note], 'default')).items[0]?.status).toBe('failed');
+    expect((await importer.import([note], 'Default')).items[0]?.status).toBe('failed');
     app.vault.adapter.write = write;
     expect(await assets.getTokenAssets()).toHaveLength(0);
     expect([...files.keys()].filter(p => p.startsWith('atlas-vtt/assets/'))).toHaveLength(0);
-    expect((await importer.import([note], 'default')).items[0]?.status).toBe('created');
+    expect((await importer.import([note], 'Default')).items[0]?.status).toBe('created');
   });
 
   it('recognizes a committed token if only the legacy metadata mirror write fails', async () => {
@@ -138,8 +138,8 @@ describe('bulk importing recognized statblock notes', () => {
       return write(path, data);
     });
     const importer = new StatblockTokenImportService(app, assets);
-    expect((await importer.import([note], 'default')).items[0]?.status).toBe('created');
-    expect((await importer.import([note], 'default')).items[0]?.status).toBe('skipped');
+    expect((await importer.import([note], 'Default')).items[0]?.status).toBe('created');
+    expect((await importer.import([note], 'Default')).items[0]?.status).toBe('skipped');
     expect(await assets.getTokenAssets()).toHaveLength(1);
   });
 
@@ -155,7 +155,7 @@ describe('bulk importing recognized statblock notes', () => {
       if (writeFailed) throw new Error('Storage unavailable');
       return read(path);
     });
-    const result = await new StatblockTokenImportService(app, assets).import([note, 'Next.md'], 'default');
+    const result = await new StatblockTokenImportService(app, assets).import([note, 'Next.md'], 'Default');
     expect(result.uncertain).toBe(true);
     expect(result.items).toHaveLength(1);
     expect(result.items[0]?.status).toBe('failed');
@@ -172,10 +172,10 @@ describe('bulk importing recognized statblock notes', () => {
     Object.assign(window, { FantasyStatblocks: { ...api, isResolved: () => false } });
     await expect(importer.scan()).rejects.toThrow('still loading');
     Object.assign(window, { FantasyStatblocks: api });
-    const first = importer.import([note], 'default');
-    await expect(importer.import([note], 'default')).rejects.toThrow('already running');
+    const first = importer.import([note], 'Default');
+    await expect(importer.import([note], 'Default')).rejects.toThrow('already running');
     expect((await first).items[0]?.status).toBe('created');
-    expect((await importer.import([note], 'default')).items[0]?.status).toBe('skipped');
+    expect((await importer.import([note], 'Default')).items[0]?.status).toBe('skipped');
   });
 
   it('shares the safe import path with the single-note command', async () => {
@@ -196,7 +196,7 @@ describe('bulk importing recognized statblock notes', () => {
     frontmatter['Ogre.md'] = { ...frontmatter[note], name: 'Ogre', layout: 'Daggerheart Adversary' };
     const importer = new StatblockTokenImportService(app, assets);
     expect((await importer.scan()).map(r => r.layoutName)).toEqual(['Basic 5e Layout', 'Daggerheart Adversary']);
-    const result = await importer.import([note, 'Ogre.md'], 'default', { ringByPath: { [note]: false, 'Ogre.md': true } });
+    const result = await importer.import([note, 'Ogre.md'], 'Default', { ringByPath: { [note]: false, 'Ogre.md': true } });
     expect(result.items.map(i => i.asset?.showRing)).toEqual([false, true]);
     expect((await assets.getTokenAssets()).map(t => t.showRing)).toEqual([false, true]);
   });

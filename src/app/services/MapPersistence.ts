@@ -3,6 +3,7 @@ import { App, Notice, TFile } from 'obsidian';
 import type { TokenEntity, TextElement, DrawingStroke, NotePin } from '../types';
 import type { WallSegment, LightSource } from '../types/wallTypes';
 import type { WidgetSettings } from '../types/widgetTypes';
+import type { HexNumberFormat } from '../grid/hexNumbering';
 import type AtlasVTTPlugin from '../../../main';
 import { debounce, type DebouncedFunction } from '../../utils/debounce';
 import { migrateWidgetsToCollection, needsWidgetMigration } from '../utils/widgetMigration';
@@ -38,6 +39,10 @@ export interface GridState {
   measurementType?: 'units' | 'abstract'; // Measurement system to use
   /** Set on new scenes: align the grid to the map image on the first load, then cleared. */
   autoDetect?: boolean;
+  /** Numbers every hex on hex grids in this format; unset shows no numbers. */
+  hexNumbers?: HexNumberFormat;
+  /** Opacity of the hex numbers (0 to 1), separate from the grid lines; unset is `DEFAULT_HEX_NUMBER_OPACITY`. */
+  hexNumberOpacity?: number;
 }
 
 import type { FogOperation } from '../types/fogTypes';
@@ -229,13 +234,10 @@ export function createAtlasStorage<T extends { mapPath: string | null }, S = unk
             parsed.version = ATLAS_VERSION;
           }
 
-          // Verify the loaded data belongs to this map
-          // This prevents loading stale data from wrong maps
-          if (state?.mapPath && state.mapPath !== mapPath) {
-            console.warn(`[AtlasStorage] Loaded data has wrong mapPath. Expected: ${mapPath}, Got: ${state.mapPath}`);
-            console.warn(`[AtlasStorage] Rejecting mismatched data to prevent cross-map contamination`);
-            return null;
-          }
+          // The file at `mapPath` holds this map; a path it repeats from before the
+          // file was moved or renamed is only outdated. Rejecting the data would
+          // load the map without fog, walls and lights and save that over the file.
+          if (state && state.mapPath !== mapPath) state.mapPath = mapPath;
 
           // Validated above; `S` is the caller's view of the same persisted envelope.
           return parsed as StorageValue<S>;

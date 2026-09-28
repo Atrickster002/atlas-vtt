@@ -1,7 +1,7 @@
 import { TFile, normalizePath, type App } from 'obsidian';
 import { AssetService, ATLAS_VTT_DIR, COLLECTIONS_DIR, GLOBAL_ASSETS_DIR, type Asset, type CollectionMetadata } from '../AssetService';
 import { isSafeBundlePath, zipPathFor, type BundleFile } from './bundleFormat';
-import { linkedFilePath } from './collectionReferences';
+import { linkedFilePath } from '../sceneLinks';
 import type { OpenedBundle } from './bundleReader';
 import { mayRewrite, rewriteContent } from './bundleContent';
 import { assetFingerprint, fieldFingerprint } from './fingerprints';

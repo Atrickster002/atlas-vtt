@@ -21,6 +21,11 @@
   min-width: 0;
 }
 
+// A collection widget that is switched off in this scene
+.atlas-command-palette-widget-item--off > :not(.atlas-command-palette-widget-controls) {
+  opacity: 0.5;
+}
+
 .atlas-command-palette-widget-name {
   @include atlas-truncate;
   font-size: $font-ui-small;
@@ -56,11 +61,13 @@
 }
 
 .atlas-widget-editor-types,
+.atlas-widget-editor-segments,
 .atlas-widget-editor-name-row {
   @include atlas-flex-row($spacing-s);
 }
 
-.atlas-widget-editor-types .btn {
+.atlas-widget-editor-types .btn,
+.atlas-widget-editor-segments .btn {
   flex: 1;
 }
 

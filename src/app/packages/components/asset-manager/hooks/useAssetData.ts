@@ -6,6 +6,7 @@ import { ATLAS_VTT_DIR } from '../types';
 import { AssetService } from '../../../../services/AssetService';
 import { AssetThumbnailService } from '../../../../services/AssetThumbnailService';
 import { tagGroupOfTab, type TagsByGroup } from '../utils/assetTags';
+import { folderIdOf, tabFolderPath } from '../utils/assetFolders';
 import type { TagGroup } from '../../../../services/tagGroups';
 import { formatServiceAsset, partitionByTab, tokenPreviewSources, type TabServiceAsset } from '../utils/assetFormatters';
 import { useAtlasUI } from '../../../../react/root/AtlasUIContext';
@@ -22,6 +23,8 @@ export interface AssetData {
   /** Tags of the active tab's tag group. */
   availableTags: Tag[];
   tagsByGroup: TagsByGroup;
+  /** The collection `tagsByGroup` was loaded for; null until the first load. */
+  tagsCollection: string | null;
   collections: CollectionOption[];
   assetCounts: Record<Tab, number>;
   assetService: AssetService | null;
@@ -59,6 +62,7 @@ export function useAssetData(
   const [assets, setAssets] = useState<AnyAsset[]>([]);
   const [assetsTab, setAssetsTab] = useState<Tab | null>(null);
   const [tagsByGroup, setTagsByGroup] = useState<TagsByGroup>({ tokens: [], maps: [] });
+  const [tagsCollection, setTagsCollection] = useState<string | null>(null);
   const availableTags = tagsByGroup[tagGroupOfTab(activeTab)];
   const [collections, setCollections] = useState<CollectionOption[]>([]);
   const [assetService, setAssetService] = useState<AssetService | null>(null);
@@ -76,9 +80,9 @@ export function useAssetData(
   // ── Load folders ──────────────────────────────────────────────
   const loadFoldersForActiveTab = useCallback(async (): Promise<void> => {
     if (!app) return;
-    const col = selectedCollection || 'default';
+    const col = selectedCollection || AssetService.defaultCollectionId();
     try {
-      const basePath = `${ATLAS_VTT_DIR}/collections/${col}/${activeTab}`;
+      const basePath = tabFolderPath(col, activeTab);
       const baseFolder = app.vault.getAbstractFileByPath(basePath);
       if (baseFolder instanceof TFolder) {
         const loaded: Folder[] = [];
@@ -86,7 +90,7 @@ export function useAssetData(
           folder.children.forEach((child) => {
             if (child instanceof TFolder) {
               const obj: Folder = {
-                id: `folder-${child.path}`,
+                id: folderIdOf(child.path),
                 name: child.name,
                 type: activeTab,
                 path: child.path.substring(basePath.length + 1),
@@ -112,7 +116,7 @@ export function useAssetData(
   const loadAssetsForActiveTab = useCallback(async (): Promise<void> => {
     if (!assetService || !app) return;
     try {
-      const col = selectedCollection || 'default';
+      const col = selectedCollection || AssetService.defaultCollectionId();
       const byTab = partitionByTab(await assetService.getAssets(col));
       const previewSources = tokenPreviewSources(byTab.tokens);
       const tabBase = `${ATLAS_VTT_DIR}/collections/${col}/${activeTab}`;
@@ -143,10 +147,11 @@ export function useAssetData(
   const reloadGlobalTags = useCallback(async (): Promise<void> => {
     if (!assetService) return;
     try {
-      const col = selectedCollection || 'default';
+      const col = selectedCollection || AssetService.defaultCollectionId();
       const load = async (group: TagGroup): Promise<Tag[]> =>
         (await assetService.getCollectionTags(col, group)).map((t) => ({ id: t.id, name: t.name }));
       setTagsByGroup({ tokens: await load('tokens'), maps: await load('maps') });
+      setTagsCollection(col);
     } catch (error) {
       console.error('[useAssetData] Error reloading tags:', error);
     }
@@ -156,7 +161,8 @@ export function useAssetData(
   const reloadCollections = useCallback(async (): Promise<void> => {
     if (!assetService) return;
     const loaded = await assetService.getCollections();
-    setCollections(loaded.map(({ id, uid, name }) => ({ id, uid, name })));
+    const defaultId = assetService.getDefaultCollectionId();
+    setCollections(loaded.map(({ id, uid, name }) => ({ id, uid, name, ...(id === defaultId && { isDefault: true }) })));
   }, [assetService]);
 
   // ── Initialize service ────────────────────────────────────────
@@ -214,7 +220,7 @@ export function useAssetData(
   }, [assetService, activeTab, app, selectedCollection, loadAssetsForActiveTab, loadFoldersForActiveTab]);
 
   return {
-    folders, assets, assetsTab, availableTags, tagsByGroup, collections, assetCounts, assetService,
+    folders, assets, assetsTab, availableTags, tagsByGroup, tagsCollection, collections, assetCounts, assetService,
     setFolders, setAssets,
     loadFoldersForActiveTab, loadAssetsForActiveTab, reloadGlobalTags, reloadCollections,
     app, view, addTokens, setSelection, mapPath,

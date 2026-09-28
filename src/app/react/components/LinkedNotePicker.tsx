@@ -1,5 +1,5 @@
 import React, { useEffect, useId, useMemo, useRef, useState } from 'react';
-import { FileText, Search, SearchX } from 'lucide-react';
+import { FileText, Search, SearchX, type LucideIcon } from 'lucide-react';
 import { App, TFile } from 'obsidian';
 import { formatRelativeTime } from '../../utils/relativeTime';
 
@@ -10,13 +10,18 @@ const SEARCH_LIMIT = 50;
 interface LinkedNotePickerProps {
   app: App;
   onSelect: (path: string) => void;
+  /** The files offered; the vault's Markdown notes by default. */
+  files?: readonly TFile[];
+  /** What the files are, in the plural, e.g. "bases". */
+  noun?: string;
+  icon?: LucideIcon;
 }
 
 /**
  * Notes offered for linking: hidden and oversized files are skipped, title
  * matches rank above path-only matches, newest first within each group.
  */
-export function rankNotes(files: TFile[], query: string): TFile[] {
+export function rankNotes(files: readonly TFile[], query: string): TFile[] {
   const needle = query.trim().toLowerCase();
   const titleMatches = (file: TFile): boolean => file.basename.toLowerCase().includes(needle);
 
@@ -36,13 +41,13 @@ export function rankNotes(files: TFile[], query: string): TFile[] {
     .slice(0, needle ? SEARCH_LIMIT : RECENT_LIMIT);
 }
 
-export default function LinkedNotePicker({ app, onSelect }: LinkedNotePickerProps): React.ReactElement {
+export default function LinkedNotePicker({ app, onSelect, files, noun = 'notes', icon: Icon = FileText }: LinkedNotePickerProps): React.ReactElement {
   const searchLabelId = useId();
   const [query, setQuery] = useState('');
   const [activeIndex, setActiveIndex] = useState(0);
   const listRef = useRef<HTMLDivElement>(null);
 
-  const notes = useMemo(() => rankNotes(app.vault.getMarkdownFiles(), query), [app, query]);
+  const notes = useMemo(() => rankNotes(files ?? app.vault.getMarkdownFiles(), query), [app, files, query]);
 
   useEffect(() => {
     setActiveIndex(0);
@@ -68,10 +73,10 @@ export default function LinkedNotePicker({ app, onSelect }: LinkedNotePickerProp
     <div className="atlas-linked-note-picker">
       <div className="atlas-linked-note-search">
         <Search className="atlas-linked-note-search-icon" />
-        <span id={searchLabelId} hidden>Search notes</span>
+        <span id={searchLabelId} hidden>Search {noun}</span>
         <input
           type="text"
-          placeholder="Search notes..."
+          placeholder={`Search ${noun}...`}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={handleKeyDown}
@@ -87,7 +92,7 @@ export default function LinkedNotePicker({ app, onSelect }: LinkedNotePickerProp
       {notes.length === 0 ? (
         <div className="atlas-linked-note-empty">
           <SearchX />
-          <p>No notes match “{query.trim()}”</p>
+          <p>No {noun} match “{query.trim()}”</p>
         </div>
       ) : (
         <div className="atlas-linked-note-list" ref={listRef}>
@@ -99,7 +104,7 @@ export default function LinkedNotePicker({ app, onSelect }: LinkedNotePickerProp
               onClick={() => onSelect(file.path)}
               onMouseMove={() => setActiveIndex(index)}
             >
-              <span className="atlas-linked-note-item-icon"><FileText /></span>
+              <span className="atlas-linked-note-item-icon"><Icon /></span>
               <span className="atlas-linked-note-item-text">
                 <span className="atlas-linked-note-item-name">{file.basename}</span>
                 <span className="atlas-linked-note-item-path">

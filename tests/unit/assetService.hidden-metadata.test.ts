@@ -105,7 +105,7 @@ describe('AssetService hidden metadata saves', () => {
     expect(scenes[0]).toMatchObject({
       type: 'scene',
       name: 'Recovered Scene',
-      collection: 'default',
+      collection: 'Default',
     });
   });
 
@@ -153,8 +153,8 @@ describe('AssetService hidden metadata saves', () => {
     expect(tokens).toHaveLength(1);
     expect(tokens[0]).toMatchObject({
       type: 'token',
-      imagePath: 'atlas-vtt/collections/default/tokens/recovered-token.webp',
-      collection: 'default',
+      imagePath: 'atlas-vtt/collections/Default/tokens/recovered-token.webp',
+      collection: 'Default',
     });
   });
 
@@ -313,7 +313,7 @@ describe('AssetService hidden metadata saves', () => {
     const tokens = await service.getAssets('default', 'token');
 
     expect(tokens).toHaveLength(1);
-    expect((tokens[0] as any).imagePath).toBe('atlas-vtt/collections/default/tokens/goblin.webp');
+    expect((tokens[0] as any).imagePath).toBe('atlas-vtt/collections/Default/tokens/goblin.webp');
   });
 
   it('drops stale token metadata when file is missing and keeps recovered token only once', async () => {
@@ -358,7 +358,7 @@ describe('AssetService hidden metadata saves', () => {
     const tokens = await service.getAssets('default', 'token');
 
     expect(tokens).toHaveLength(1);
-    expect((tokens[0] as any).imagePath).toBe('atlas-vtt/collections/default/tokens/goblin.webp');
+    expect((tokens[0] as any).imagePath).toBe('atlas-vtt/collections/Default/tokens/goblin.webp');
   });
 
   it('prunes previously recovered non-token global images from token metadata', async () => {

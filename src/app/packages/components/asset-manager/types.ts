@@ -17,7 +17,8 @@ const tabDisplayNames: Record<Tab, string> = {
 
 export const getTabDisplayName = (tab: Tab): string => tabDisplayNames[tab];
 
-export type SortOption = 'name' | 'date' | 'type';
+export const sortOptions = ['name', 'date', 'type', 'rating'] as const;
+export type SortOption = (typeof sortOptions)[number];
 export type SortOrder = 'asc' | 'desc';
 
 // ─── Asset Types ────────────────────────────────────────────────────
@@ -91,7 +92,10 @@ export interface Folder {
 // ─── Tag ────────────────────────────────────────────────────────────
 
 /** A collection as the asset manager lists it: selected by id, shown by name, followed across folder renames by uid. */
-export type CollectionOption = Pick<CollectionMetadata, 'id' | 'uid' | 'name'>;
+export type CollectionOption = Pick<CollectionMetadata, 'id' | 'uid' | 'name'> & {
+  /** The collection new content goes to when none is chosen; it cannot be deleted. */
+  isDefault?: boolean;
+};
 
 export interface Tag {
   id: string;

@@ -1,7 +1,7 @@
 import { useContext, useEffect, useRef, useState } from 'react';
 import { AtlasUIContext } from '../react/root/AtlasUIContext';
 import { SettingsService } from '../services/SettingsService';
-import { availableHotkeys, canRunMapHotkeys, DEFAULT_MAP_HOTKEYS, formatHotkey, matchesMapHotkey, type MapHotkeyId } from './mapHotkeys';
+import { availableHotkeys, canRunMapHotkeys, DEFAULT_MAP_HOTKEYS, formatHotkey, matchesMapHotkey, type HeldWidgetHotkeyId, type MapHotkeyId } from './mapHotkeys';
 
 export function useAtlasSettings(explicit?: SettingsService): SettingsService | undefined {
   const context = useContext(AtlasUIContext);
@@ -21,10 +21,12 @@ function hasTextSelection(event: KeyboardEvent): boolean {
   const selection = (target?.ownerDocument ?? document).getSelection();
   return !!selection && !selection.isCollapsed && selection.toString().trim() !== '';
 }
-export function useMapHotkeys(handlers: Partial<Record<MapHotkeyId, (event: KeyboardEvent) => void>>, viewId?: string): void {
+type HotkeyHandlers = Partial<Record<MapHotkeyId, (event: KeyboardEvent) => void>>;
+/** Held-widget actions are left to the widget bar, which runs them only while a number key is held. */
+export function useMapHotkeys(handlers: Partial<Record<Exclude<MapHotkeyId, HeldWidgetHotkeyId>, (event: KeyboardEvent) => void>>, viewId?: string): void {
   const context = useContext(AtlasUIContext);
   const settings = SettingsService.forApp(context?.app);
-  const current = useRef(handlers);
+  const current = useRef<HotkeyHandlers>(handlers);
   current.current = handlers;
   const view = context?.view as { viewId?: string } | null | undefined;
   const id = viewId ?? view?.viewId;

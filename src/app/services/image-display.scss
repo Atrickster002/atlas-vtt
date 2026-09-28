@@ -1,3 +1,6 @@
+@use '../../../styles/tokens' as *;
+@use '../../../styles/mixins' as *;
+
 // Full-window image overlay shown in the player popout (ImageDisplayService.ts).
 // The player display is always dark, so the scrim and controls use fixed
 // black/white tints rather than theme variables. Enter/exit motion lives in
@@ -37,6 +40,9 @@
   .atlas-image-display__image {
     max-width: 90%;
     max-height: 90%;
+    // The same corners as every floating surface; they scale with the image's zoom
+    border-radius: $radius-2xl;
+    @include atlas-corner-shape;
     transform-origin: center center;
     transition: none;
     pointer-events: none;
@@ -44,11 +50,12 @@
     user-drag: none;
   }
 
+  // Opaque, so the player widgets beneath the overlay's top-right corner never show through
   .atlas-image-display__close {
     position: absolute;
     top: 20px;
     right: 20px;
-    background: rgba(255, 255, 255, 0.1);
+    background: rgb(38, 38, 38);
     border: 1px solid rgba(255, 255, 255, 0.3);
     color: white;
     font-size: 24px;
@@ -63,7 +70,7 @@
     z-index: 10001;
 
     &:hover {
-      background: rgba(255, 255, 255, 0.2);
+      background: rgb(64, 64, 64);
       transform: scale(1.1);
     }
   }

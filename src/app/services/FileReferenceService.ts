@@ -3,14 +3,15 @@ import { AssetService, Asset } from './AssetService';
 import { isPersistedMapEnvelope } from './MapPersistence';
 import { normalizeImagePath } from '../utils/pathUtils';
 import { mapThumbnailPath } from '../utils/dataFileMigration';
-import { pathMatches, rewriteMapReferences } from './renamedPaths';
+import { movedPathOf, rewriteMapReferences, type MovedPath, type PathMove } from './renamedPaths';
 import { SceneSnapshotService } from '../snapshots/SceneSnapshotService';
 
 /**
  * Propagates file path changes (renames/moves) across all storage layers:
  * - Asset metadata (assets-metadata.json), including scene records of a renamed map
  * - Map files (.atlasmap token instances and pin targets) and scene snapshots
- * - Statblock frontmatter (token-image field)
+ * - Statblock frontmatter (image and token-image fields)
+ * - Collection loot bases
  * - The thumbnail of a renamed map
  *
  * The open map is updated separately by its view, from the same vault event.
@@ -22,21 +23,26 @@ export class FileReferenceService {
     this.app = app;
   }
 
-  /**
-   * Called when a vault file is renamed/moved.
-   * Propagates the path change to every storage layer that may reference it.
-   */
+  /** Called when a vault file is renamed/moved. */
   async handleFileRenamed(oldPath: string, newPath: string): Promise<void> {
-    const normalizedOld = normalizeImagePath(oldPath);
-    const normalizedNew = normalizeImagePath(newPath);
+    await this.handleFilesMoved([{ from: oldPath, to: newPath }]);
+  }
 
-    if (normalizedOld === normalizedNew) return;
+  /**
+   * Propagates moved files to every storage layer that may reference them,
+   * reading each map file and note once however many files moved.
+   */
+  async handleFilesMoved(moves: readonly PathMove[]): Promise<void> {
+    const fileMoves = moves.filter(({ from, to }) => normalizeImagePath(from) !== normalizeImagePath(to));
+    if (fileMoves.length === 0) return;
+    const moved = movedPathOf(fileMoves);
 
-    await this.updateAssetMetadata(oldPath, newPath);
-    await this.updateScenes(oldPath, newPath);
-    await this.renameMapThumbnail(oldPath, newPath);
-    await this.updateMapFiles(oldPath, newPath);
-    await this.updateStatblockFrontmatter(oldPath, newPath);
+    await this.updateAssetMetadata(moved);
+    await this.updateScenes(moved);
+    for (const { from, to } of fileMoves) await this.renameMapThumbnail(from, to);
+    await this.updateMapFiles(moved);
+    await this.updateStatblockFrontmatter(moved);
+    await this.updateLootBases(moved);
   }
 
   /**
@@ -51,67 +57,44 @@ export class FileReferenceService {
     }
   }
 
-  /** Called when a vault folder is deleted; a deleted collection folder removes the collection. */
-  async handleFolderDeleted(path: string): Promise<void> {
-    const assetService = AssetService.getInstance(this.app);
-    await assetService.initialize();
-    if (await assetService.forgetDeletedCollectionFolder(path)) {
-      this.app.workspace.trigger('atlas-vtt:refresh-assets');
-    }
-  }
-
   // ---------------------------------------------------------------------------
   // Asset metadata
   // ---------------------------------------------------------------------------
 
-  private async updateAssetMetadata(oldPath: string, newPath: string): Promise<boolean> {
+  private async updateAssetMetadata(moved: MovedPath): Promise<boolean> {
     const assetService = AssetService.getInstance(this.app);
     await assetService.initialize();
 
+    /** Sets `record[key]` to the moved path; returns whether it moved. */
+    const follow = <K extends string>(record: Partial<Record<K, string | null | undefined>>, key: K): boolean => {
+      const target = moved(record[key]);
+      if (target === null) return false;
+      record[key] = target;
+      return true;
+    };
+
     return assetService.rewriteAssets((asset: Asset): boolean => {
-      let changed = false;
+      let changed = follow(asset, 'filePath');
       switch (asset.type) {
-        case 'token': {
-          if (pathMatches(asset.imagePath, oldPath)) {
-            asset.imagePath = newPath;
-            changed = true;
-          }
-          if (asset.statblockPath && pathMatches(asset.statblockPath, oldPath)) {
-            asset.statblockPath = newPath;
-            changed = true;
-          }
+        case 'token':
+          changed = follow(asset, 'imagePath') || changed;
+          changed = follow(asset, 'statblockPath') || changed;
           break;
-        }
         case 'encounter':
-        case 'player': {
-          if (asset.tokens) {
-            for (const tok of asset.tokens) {
-              if (tok.imagePath && pathMatches(tok.imagePath, oldPath)) {
-                tok.imagePath = newPath;
-                changed = true;
-              }
-              if (tok.statblockPath && pathMatches(tok.statblockPath, oldPath)) {
-                tok.statblockPath = newPath;
-                changed = true;
-              }
+        case 'player':
+          for (const list of [asset.tokens, asset.data?.tokens]) {
+            for (const token of list ?? []) {
+              changed = follow(token, 'imagePath') || changed;
+              changed = follow(token, 'statblockPath') || changed;
             }
           }
           break;
-        }
-        case 'map': {
-          if (pathMatches(asset.mapFilePath, oldPath)) {
-            asset.mapFilePath = newPath;
-            changed = true;
-          }
+        case 'map':
+          changed = follow(asset, 'mapFilePath') || changed;
           break;
-        }
-        case 'note': {
-          if (pathMatches(asset.notePath, oldPath)) {
-            asset.notePath = newPath;
-            changed = true;
-          }
+        case 'note':
+          changed = follow(asset, 'notePath') || changed;
           break;
-        }
       }
       return changed;
     });
@@ -122,16 +105,15 @@ export class FileReferenceService {
   // ---------------------------------------------------------------------------
 
   /** Scene records follow their map; a scene named after its file takes the new file name. */
-  private async updateScenes(oldPath: string, newPath: string): Promise<void> {
-    if (!newPath.endsWith('.atlasmap')) return;
+  private async updateScenes(moved: MovedPath): Promise<void> {
     const assetService = AssetService.getInstance(this.app);
-    const scenes = (await assetService.getAssets(undefined, 'scene'))
-      .filter((scene) => pathMatches(scene.data?.mapPath, oldPath));
-
-    for (const scene of scenes) {
+    for (const scene of await assetService.getAssets(undefined, 'scene')) {
+      const mapPath = scene.data?.mapPath;
+      const target = moved(mapPath);
+      if (!mapPath || !target?.endsWith('.atlasmap')) continue;
       await assetService.updateAsset(scene.id, {
-        data: { ...scene.data, mapPath: newPath },
-        ...(scene.name === basename(oldPath) ? { name: basename(newPath) } : {}),
+        data: { ...scene.data, mapPath: target },
+        ...(scene.name === basename(mapPath) ? { name: basename(target) } : {}),
       });
     }
   }
@@ -152,16 +134,16 @@ export class FileReferenceService {
   // .atlasmap files
   // ---------------------------------------------------------------------------
 
-  private async updateMapFiles(oldPath: string, newPath: string): Promise<boolean> {
+  private async updateMapFiles(moved: MovedPath): Promise<boolean> {
     const mapFiles = this.app.vault.getFiles().filter(f => f.extension === 'atlasmap');
     const snapshots = new SceneSnapshotService(this.app);
     let anyChanged = false;
 
-    /** Returns the rewritten map JSON, or null when the map does not reference the old path. */
+    /** Returns the rewritten map JSON, or null when the map references none of the moved files. */
     const rewriteMap = (content: string): string | null => {
       const mapData: unknown = JSON.parse(content);
       if (!isPersistedMapEnvelope(mapData)) return null;
-      return rewriteMapReferences(mapData.state?.objects, oldPath, newPath) ? JSON.stringify(mapData, null, 2) : null;
+      return rewriteMapReferences(mapData.state, moved) ? JSON.stringify(mapData, null, 2) : null;
     };
 
     for (const mapFile of mapFiles) {
@@ -185,25 +167,43 @@ export class FileReferenceService {
   }
 
   // ---------------------------------------------------------------------------
-  // Statblock frontmatter (token-image field)
+  /** Collections keep rolling on a loot base after it is renamed or moved. */
+  private async updateLootBases(moved: MovedPath): Promise<void> {
+    const assetService = AssetService.getInstance(this.app);
+    for (const collection of await assetService.getCollections()) {
+      const lootBases = collection.settings.lootBases;
+      if (!lootBases?.some((path) => moved(path) !== null)) continue;
+      await assetService.updateCollectionSettings(collection.id, {
+        lootBases: lootBases.map((path) => moved(path) ?? path),
+      });
+    }
+  }
+
+  // Statblock frontmatter (image fields)
   // ---------------------------------------------------------------------------
 
-  private async updateStatblockFrontmatter(oldPath: string, newPath: string): Promise<void> {
-    // Find statblock .md files whose frontmatter token-image matches the old path
+  /**
+   * Statblock notes name their artwork by vault path in `image` (what Atlas
+   * writes when it links a token) or the older `token-image`. Obsidian keeps
+   * wikilinks there up to date itself, but not plain paths.
+   */
+  private async updateStatblockFrontmatter(moved: MovedPath): Promise<void> {
     const mdFiles = this.app.vault.getFiles().filter(f => f.extension === 'md');
 
     for (const mdFile of mdFiles) {
       try {
-        const cache = this.app.metadataCache.getFileCache(mdFile);
-        if (!cache?.frontmatter) continue;
+        const frontmatter = this.app.metadataCache.getFileCache(mdFile)?.frontmatter;
+        if (!frontmatter) continue;
 
-        const tokenImage: unknown = cache.frontmatter['token-image'];
-        if (typeof tokenImage !== 'string' || !tokenImage) continue;
+        const targets = STATBLOCK_IMAGE_KEYS.flatMap((key) => {
+          const value: unknown = frontmatter[key];
+          const target = typeof value === 'string' ? moved(value) : null;
+          return target === null ? [] : [[key, target] as const];
+        });
+        if (targets.length === 0) continue;
 
-        if (!pathMatches(tokenImage, oldPath)) continue;
-
-        await this.app.fileManager.processFrontMatter(mdFile, (frontmatter: Record<string, unknown>) => {
-          frontmatter['token-image'] = newPath;
+        await this.app.fileManager.processFrontMatter(mdFile, (latest: Record<string, unknown>) => {
+          for (const [key, target] of targets) latest[key] = target;
         });
       } catch (error) {
         console.error(`[FileReferenceService] Error updating frontmatter in ${mdFile.path}:`, error);
@@ -211,5 +211,7 @@ export class FileReferenceService {
     }
   }
 }
+
+const STATBLOCK_IMAGE_KEYS = ['image', 'token-image'] as const;
 
 const basename = (path: string): string => path.slice(path.lastIndexOf('/') + 1).replace(/\.[^.]+$/, '');

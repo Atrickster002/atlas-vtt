@@ -47,8 +47,9 @@ export class ServiceManager {
     // Store viewId
     this.viewId = viewId || `view-${Date.now()}`;
 
-    // Share the plugin-wide settings service so every view sees the same settings
-    this.settingsService = plugin?.settingsService ?? new SettingsService(app);
+    // Share the plugin-wide settings service so every view sees the same settings. A second
+    // instance would take over SettingsService.forApp and save stale values over the file.
+    this.settingsService = plugin?.settingsService ?? SettingsService.forApp(app) ?? new SettingsService(app);
 
     // Initialize all services with the view store
     this.rendererService = new RendererService(app, this.eventBus, store, this.viewId, this.settingsService);

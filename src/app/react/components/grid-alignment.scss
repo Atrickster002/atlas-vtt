@@ -1,7 +1,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // Grid Alignment Overlay
 // ═══════════════════════════════════════════════════════════════════════════
-// Floating panel for the grid alignment tool (Intersections + Quick tabs).
+// Floating panel for the grid alignment tool (Intersections and Freehand tabs).
 // All child classes scoped under .atlas-grid-alignment-panel.
 
 @use '../../../../styles/tokens' as *;
@@ -55,6 +55,10 @@
 
   .atlas-grid-alignment-tab {
     flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: $spacing-xs;
     padding: $spacing-s;
     border: none;
     border-radius: $radius-m;
@@ -74,6 +78,17 @@
       color: var(--text-normal);
       box-shadow: $shadow-sm;
     }
+
+    svg {
+      width: 14px;
+      height: 14px;
+      flex-shrink: 0;
+    }
+  }
+
+  // Lucide's hexagon is pointy-top; turned a quarter it shows flat-top hexes.
+  .atlas-grid-alignment-icon--flat {
+    transform: rotate(90deg);
   }
 
   // ── Progress indicator (Intersections tab) ───────────────────────────

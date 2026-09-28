@@ -24,7 +24,6 @@ export type ContextMenuEntry =
     /** − value + controls after the label, also driven by the + and - keys while the item is highlighted. */
     stepper?: MenuStepper;
   }
-  | { type: 'separator' }
   | {
     type: 'submenu';
     label: string;
@@ -149,9 +148,6 @@ export function renderEntries(
 ): React.ReactNode[] {
   return entries.map((entry, idx) => {
     switch (entry.type) {
-      case 'separator':
-        return <DropdownMenu.Separator key={`sep-${idx}`} className="atlas-ctx-separator" />;
-
       case 'custom':
         return (
           <div key={`custom-${idx}`} className="atlas-ctx-custom" role="none">

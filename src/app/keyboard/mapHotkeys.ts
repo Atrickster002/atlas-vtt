@@ -34,17 +34,32 @@ export const MAP_HOTKEYS = [
   { id: 'diceTray', label: 'Dice tray', group: 'Combat', defaultKey: 'r' },
   { id: 'diceLog', label: 'Dice roll log', group: 'Combat', defaultKey: 'Enter' },
   { id: 'initiative', label: 'Initiative tracker', group: 'Combat', defaultKey: 'i', dmOnly: true },
+  { id: 'lootRoller', label: 'Loot roller', group: 'Combat', defaultKey: 'l', dmOnly: true },
   { id: 'previousTurn', label: 'Previous turn (during combat)', group: 'Combat', defaultKey: 'ArrowUp', dmOnly: true },
   { id: 'nextTurn', label: 'Next turn (during combat)', group: 'Combat', defaultKey: 'ArrowDown', dmOnly: true },
-  ...([1, 2, 3, 4, 5] as const).map(n => ({ id: `widget${n}` as const, label: `Hold to select counter ${n}`, group: 'Counters', defaultKey: String(n) })),
-  { id: 'increase', label: 'Increase held counter', group: 'Counters', defaultKey: '+' },
-  { id: 'increaseAlt', label: 'Increase held counter (alternate)', group: 'Counters', defaultKey: '=' },
-  { id: 'decrease', label: 'Decrease held counter', group: 'Counters', defaultKey: '-' },
+  ...([1, 2, 3, 4, 5] as const).map(n => ({ id: `widget${n}` as const, label: `Hold to select widget ${n}`, group: 'Widgets', defaultKey: String(n), selectsWidget: true })),
+  { id: 'increase', label: 'Increase held counter', group: 'Widgets', defaultKey: '+', whileWidgetHeld: true },
+  { id: 'increaseAlt', label: 'Increase held counter (alternate)', group: 'Widgets', defaultKey: '=', whileWidgetHeld: true },
+  { id: 'decrease', label: 'Decrease held counter', group: 'Widgets', defaultKey: '-', whileWidgetHeld: true },
+  { id: 'timerPlayPause', label: 'Start / pause held timer', group: 'Widgets', defaultKey: 'Space', dmOnly: true, whileWidgetHeld: true },
+  { id: 'timerReset', label: 'Reset held timer', group: 'Widgets', defaultKey: 'r', dmOnly: true, whileWidgetHeld: true },
 ] as const;
-export type MapHotkeyId = typeof MAP_HOTKEYS[number]['id'];
+type MapHotkey = typeof MAP_HOTKEYS[number];
+export type MapHotkeyId = MapHotkey['id'];
+/** Actions that run only while a widget's number key is held; the widget bar dispatches them. */
+export type HeldWidgetHotkeyId = Extract<MapHotkey, { whileWidgetHeld: true }>['id'];
 export type MapHotkeys = Record<MapHotkeyId, string>;
 export const DEFAULT_MAP_HOTKEYS = Object.fromEntries(MAP_HOTKEYS.map(h => [h.id, h.defaultKey])) as MapHotkeys;
 export const availableHotkeys = (player = false) => MAP_HOTKEYS.filter(h => !('enabled' in h && !h.enabled) && !(player && 'dmOnly' in h && h.dmOnly));
+
+export const hotkeyAction = (id: MapHotkeyId): MapHotkey => MAP_HOTKEYS.find(action => action.id === id)!;
+const runsWhileWidgetHeld = (action: MapHotkey): boolean => 'whileWidgetHeld' in action;
+const selectsWidget = (action: MapHotkey): boolean => 'selectsWidget' in action;
+/** A held-widget action may share its key with any other shortcut except the number keys that hold a widget. */
+export function canShareHotkey(a: MapHotkeyId, b: MapHotkeyId): boolean {
+  const [first, second] = [hotkeyAction(a), hotkeyAction(b)];
+  return runsWhileWidgetHeld(first) !== runsWhileWidgetHeld(second) && !selectsWidget(first) && !selectsWidget(second);
+}
 
 /** Printable symbols are layout-aware; shifted digits preserve the familiar Shift+1/2 navigation. */
 export function hotkeyFromEvent(event: KeyboardEvent): string | null {

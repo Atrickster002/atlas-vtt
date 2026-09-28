@@ -17,6 +17,7 @@ export class StatblockPreviewWindow {
   private initialPos?: { x: number; y: number } | undefined;
   private reactRoot: Root | null = null;
   private resizeObserver: ResizeObserver | null = null;
+  private closing = false;
 
   constructor(
     private app: ObsidianApp,
@@ -109,6 +110,8 @@ export class StatblockPreviewWindow {
   }
 
   hide(_force?: boolean): void {
+    if (this.closing) return;
+    this.closing = true;
     if (this.element) {
       this.element.classList.add('atlas-statblock-preview-window--closing');
       window.setTimeout(() => {
@@ -134,7 +137,7 @@ export class StatblockPreviewWindow {
       this.element = null;
     }
 
-    this.manager.handlePreviewClosed(this.notePath, this.originatingPin);
+    this.manager.handlePreviewClosed(this);
   }
 
   getIsPinned(): boolean {

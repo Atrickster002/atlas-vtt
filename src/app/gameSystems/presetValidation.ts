@@ -16,6 +16,7 @@ import type {
 import { BUILT_IN_ID_PREFIX, type SystemPreset } from '../types/systemPresetTypes';
 import { WIDGET_ICON_PATHS, resolveWidgetIcon, type WidgetIcon } from '../types/widgetIcons';
 import type { AnyWidget } from '../types/widgetTypes';
+import { isValidClockSegments } from '../utils/clockWidget';
 
 const UNIT_TYPES: readonly GridUnitType[] = ['feet', 'yards', 'meters', 'units', 'custom'];
 const MEASUREMENT_MODES: readonly MeasurementMode[] = ['metric', 'abstract'];
@@ -85,6 +86,11 @@ function parseWidget(raw: unknown): AnyWidget | null {
   if (raw.type === 'timer') {
     return isNumber(raw.duration) && raw.duration > 0
       ? { ...base, type: 'timer', duration: raw.duration, direction: 'down' }
+      : null;
+  }
+  if (raw.type === 'clock') {
+    return isValidClockSegments(raw.segments) && raw.value >= 0 && raw.value <= raw.segments
+      ? { ...base, type: 'clock', segments: raw.segments, ...(raw.showCount === true && { showCount: true }) }
       : null;
   }
   if (raw.type !== 'counter') return null;

@@ -34,9 +34,7 @@ export const ViewActionsMenu: React.FC<ViewActionsMenuProps> = ({ app, filePath 
     const entries: ContextMenuEntry[] = [
       { type: 'item', label: 'Split right', icon: 'separator-vertical', onClick: () => app.workspace.createLeafBySplit(activeLeaf, 'vertical') },
       { type: 'item', label: 'Split down', icon: 'separator-horizontal', onClick: () => app.workspace.createLeafBySplit(activeLeaf, 'horizontal') },
-      { type: 'separator' },
       { type: 'item', label: 'Move to new window', icon: 'maximize', onClick: () => app.workspace.moveLeafToPopout(activeLeaf) },
-      { type: 'separator' },
     ];
 
     if (filePath) {
@@ -60,7 +58,6 @@ export const ViewActionsMenu: React.FC<ViewActionsMenuProps> = ({ app, filePath 
             );
           },
         },
-        { type: 'separator' },
         {
           type: 'item', label: 'Rename...', icon: 'pencil',
           onClick: async () => {
@@ -79,7 +76,6 @@ export const ViewActionsMenu: React.FC<ViewActionsMenuProps> = ({ app, filePath 
     }
 
     entries.push(
-      { type: 'separator' },
       { type: 'item', label: 'Close', icon: 'x', onClick: () => activeLeaf.detach() },
     );
 

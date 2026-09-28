@@ -224,14 +224,8 @@
   background: linear-gradient(135deg, #000 50%, #fff 50%);
 }
 
-// Neutral badge so the tick reads on any swatch colour
 .atlas-command-palette-swatch-check {
-  width: 16px;
-  height: 16px;
-  padding: 3px;
-  border-radius: $radius-full;
-  background: var(--background-primary);
-  color: var(--text-normal);
+  @include atlas-swatch-check;
 }
 
 @media (prefers-reduced-motion: reduce) {

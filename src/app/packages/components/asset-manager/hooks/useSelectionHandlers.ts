@@ -42,6 +42,8 @@ export interface SelectionState {
   handleNavigateToFolder: (folderId: string | null) => void;
   handleTagSelect: (tagId: string) => void;
   handleClearSelection: () => void;
+  /** Back at the root with nothing selected, as a new tab or collection starts. */
+  resetForTab: () => void;
   /** Sets how many copies spawning the asset places; 1 clears the counter. */
   handleSpawnCountChange: (assetId: string, count: number) => void;
   getFolderPath: (folderId: string) => Folder[];
@@ -61,14 +63,6 @@ export function useSelectionHandlers(
   const [chosenSortBy, setSortBy] = useState<SortOption>('name');
   const [sortOrder, setSortOrder] = useState<SortOrder>('asc');
   const [navigationHistory] = useState(() => new NavigationHistory());
-
-  // ── Clear on tab change ───────────────────────────────────────
-  useEffect(() => {
-    setSelectedAssetIds([]);
-    setSelectedFolderIds([]);
-    setSelectedFolderId(null);
-    setSelectedTagIds([]);
-  }, [activeTab]);
 
   // ── Handlers ──────────────────────────────────────────────────
 
@@ -146,6 +140,15 @@ export function useSelectionHandlers(
     );
   };
 
+  const resetForTab = (): void => {
+    setSelectedAssetIds([]);
+    setSelectedFolderIds([]);
+    setSelectedFolderId(null);
+    setSelectedTagIds([]);
+    navigationHistory.clear();
+    navigationHistory.push(null);
+  };
+
   const handleClearSelection = (): void => {
     setSelectedAssetIds([]);
     setSelectedFolderIds([]);
@@ -201,7 +204,7 @@ export function useSelectionHandlers(
     setSpawnCounts, setSortBy, setSortOrder,
     handleAssetSelect, handleFolderSelect, handleFolderSelection,
     handleFolderDoubleClick, handleNavigateBack, handleNavigateForward,
-    handleNavigateToFolder, handleTagSelect, handleClearSelection, handleSpawnCountChange,
+    handleNavigateToFolder, handleTagSelect, handleClearSelection, resetForTab, handleSpawnCountChange,
     getFolderPath,
   };
 }

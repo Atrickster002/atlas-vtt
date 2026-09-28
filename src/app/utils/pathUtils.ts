@@ -95,3 +95,10 @@ export const baseName = (path: string): string => path.slice(path.lastIndexOf('/
 
 /** The folder of a vault path: `a/b/goblin.webp` → `a/b`; empty at the vault root. */
 export const parentPath = (path: string): string => path.slice(0, Math.max(0, path.lastIndexOf('/')));
+
+/** How a note link reads to people: "Keep" for `Places/Keep.md`, "Keep > Dungeon" for `Places/Keep#Dungeon`. */
+export function noteLinkTitle(notePath: string): string {
+  const [file = '', heading] = notePath.split('#', 2);
+  const name = baseName(file).replace(/\.md$/i, '');
+  return heading ? `${name} > ${heading}` : name;
+}

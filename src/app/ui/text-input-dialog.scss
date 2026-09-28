@@ -36,6 +36,7 @@
 
   &__actions {
     display: flex;
+    flex-wrap: wrap;
     gap: $spacing-m;
     justify-content: flex-end;
   }

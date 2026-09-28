@@ -28,3 +28,12 @@ it('clearing the system leaves the vanilla settings', () => {
   act(() => result.current.clearSystem());
   expect(result.current.toSettings()).toMatchObject({ conditions: [], defaultWidgets: {}, systemPresetId: undefined });
 });
+
+it('loads and saves the collection’s own creature filters and the switched-off ones, whatever the system', () => {
+  const custom = [{ id: 'hd', label: 'HD', kind: 'range' as const, field: 'hit_dice' }];
+  const { result } = draftFor({ ...structuredClone(shadowdark.rules), customCreatureFilters: custom, hiddenCreatureFilters: ['source'] });
+  expect(result.current.customCreatureFilters).toEqual(custom);
+  act(() => result.current.applyPreset(dnd5e));
+  act(() => result.current.setHiddenCreatureFilters(['source', 'rarity']));
+  expect(result.current.toSettings()).toMatchObject({ customCreatureFilters: custom, hiddenCreatureFilters: ['source', 'rarity'] });
+});

@@ -1,8 +1,29 @@
+/** Obsidian's key scope: handlers by modifiers and key; the most recently pushed scope is asked first. */
+export class Scope {
+  keys: Array<{ modifiers: string[]; key: string; func: (event: KeyboardEvent) => unknown }> = [];
+  constructor(public parent?: Scope) {}
+  register(modifiers: string[], key: string, func: (event: KeyboardEvent) => unknown) {
+    const handler = { modifiers, key, func };
+    this.keys.push(handler);
+    return handler;
+  }
+  unregister(handler: unknown): void {
+    this.keys = this.keys.filter((candidate) => candidate !== handler);
+  }
+}
+
 export class App {
   vault: any;
   workspace: any;
   fileManager: any;
   metadataCache: any;
+  scope = new Scope();
+  /** Scopes pushed and not yet popped, most recent last. */
+  keymap = {
+    scopes: [] as Scope[],
+    pushScope(scope: Scope): void { this.scopes.push(scope); },
+    popScope(scope: Scope): void { this.scopes = this.scopes.filter((candidate) => candidate !== scope); },
+  };
   constructor() {}
 }
 
@@ -135,6 +156,10 @@ export function normalizePath(path: string): string {
   return path.replace(/\\/g, '/').replace(/\/+/g, '/');
 }
 
+export function base64ToArrayBuffer(base64: string): ArrayBuffer {
+  return Uint8Array.from(atob(base64), (char) => char.charCodeAt(0)).buffer;
+}
+
 export class Component {
   private cleanups: Array<() => void> = [];
   load(): void {}
@@ -150,6 +175,21 @@ export class Component {
   addChild<T>(child: T): T {
     return child;
   }
+}
+
+/** Obsidian's Bases view; tests fill `data`, `config` and `allProperties` themselves. */
+export abstract class BasesView extends Component {
+  abstract type: string;
+  data: { data: unknown[] } = { data: [] };
+  allProperties: string[] = [];
+  config = {
+    getOrder: (): string[] => [],
+    getDisplayName: (id: string): string => id,
+  };
+  constructor(public controller: unknown) {
+    super();
+  }
+  abstract onDataUpdated(): void;
 }
 
 export class MarkdownRenderChild extends Component {
@@ -210,6 +250,16 @@ export const Platform = {
 
 export const apiVersion = '1.13.1';
 
+export function requireApiVersion(version: string): boolean {
+  const have = apiVersion.split('.').map(Number);
+  const want = version.split('.').map(Number);
+  for (let i = 0; i < want.length; i++) {
+    const diff = (have[i] ?? 0) - (want[i] ?? 0);
+    if (diff !== 0) return diff > 0;
+  }
+  return true;
+}
+
 /** The subset of Obsidian's `Setting` components the tests drive, on real DOM elements. Grow it per test need. */
 abstract class ValueComponent<T> {
   protected changed: ((value: T) => void) | undefined;
@@ -259,7 +309,15 @@ export class ButtonComponent {
   constructor(public buttonEl: HTMLButtonElement) {}
   setButtonText(text: string): this { this.buttonEl.textContent = text; return this; }
   setCta(): this { this.buttonEl.classList.add('mod-cta'); return this; }
+  setDisabled(disabled: boolean): this { this.buttonEl.disabled = disabled; return this; }
   onClick(callback: () => unknown): this { this.buttonEl.addEventListener('click', () => void callback()); return this; }
+}
+
+export class ExtraButtonComponent {
+  constructor(public extraSettingsEl: HTMLElement) {}
+  setIcon(_icon: string): this { return this; }
+  setTooltip(tooltip: string): this { this.extraSettingsEl.setAttribute('aria-label', tooltip); return this; }
+  onClick(callback: () => unknown): this { this.extraSettingsEl.addEventListener('click', () => void callback()); return this; }
 }
 
 export class Setting {
@@ -300,6 +358,7 @@ export class Setting {
   addDropdown(callback: (component: DropdownComponent) => void): this { callback(new DropdownComponent(this.create('select'))); return this; }
   addToggle(callback: (component: ToggleComponent) => void): this { callback(new ToggleComponent(this.create('div'))); return this; }
   addButton(callback: (component: ButtonComponent) => void): this { callback(new ButtonComponent(this.create('button'))); return this; }
+  addExtraButton(callback: (component: ExtraButtonComponent) => void): this { callback(new ExtraButtonComponent(this.create('div'))); return this; }
 }
 
 export function setIcon(_parent: HTMLElement, _iconId: string): void {}

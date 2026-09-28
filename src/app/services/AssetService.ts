@@ -5,17 +5,19 @@ import { ensureAdapterFolder } from '../plugin/vaultFolders';
 import type { TokenStateSnapshot } from '../types';
 import type { CellCoord, EncounterFormation } from '../encounters/encounterFormation';
 import { getDataFilePath } from '../utils/dataFileMigration';
-import { mapStrings } from '../utils/mapStrings';
 import { SerialLock } from '../utils/serialLock';
+import { runInBackground } from '../utils/backgroundTask';
 import { preserveUnreadableMetadata, readStoredMetadata, type StoredMetadata } from './assetMetadataFile';
-import { collectionNameKey, freeCollectionId, uniqueCollectionName } from './collectionNaming';
+import { collectionNameKey, uniqueCollectionName } from './collectionNaming';
+import { collectionFolderName, collectionFolderPath, collectionIdOfFolder, collectionNameProblem, COLLECTIONS_DIR, GLOBAL_ASSETS_DIR, ATLAS_VTT_DIR } from './assetPaths';
+import { planFolderNameFixes } from './collectionFolderNames';
+import { moveInstallRecord } from './collectionBundle/installRecord';
+import { createCollectionRecord, defaultCollectionIdOf, forgetCollection, INITIAL_COLLECTION_ID, moveCollectionRecord, numberedCollectionName, prettifyIdentifier } from './collectionRecords';
+import { assetFilePath, groupTokenRefs } from './vault-sync/assetFiles';
+import { reconcileIndex, type VaultReconciliation } from './vault-sync/reconcileIndex';
+import { listVault, readVault } from './vault-sync/vaultListing';
 import type { CollectionSettings } from '../types/collectionSettingsTypes';
-import {
-  isLegacyTokenRecord,
-  isRecord,
-  parseGroupTokenRefs,
-  type LegacyAssetMetadata,
-} from './assetMetadataGuards';
+import { isLegacyTokenRecord, isRecord, type LegacyAssetMetadata } from './assetMetadataGuards';
 import { groupLegacyTags, hasAssetTag, tagGroupOf, tagKey, type TagGroup } from './tagGroups';
 
 export interface BaseAsset {
@@ -141,18 +143,16 @@ type NewAssetOf<A> = A extends Asset ? Omit<A, 'id' | 'createdAt' | 'modifiedAt'
 export type NewAsset = NewAssetOf<Asset>;
 
 type AssetUpdatesOf<A> = A extends Asset
-  ? { [K in Exclude<keyof A, 'id' | 'createdAt' | 'type'>]?: A[K] | undefined }
+  ? { [K in Exclude<keyof A, 'id' | 'createdAt' | 'type' | 'collection'>]?: A[K] | undefined }
   : never;
-/** Fields to change on an asset; an explicit `undefined` removes the field. */
+/** Fields to change on an asset; an explicit `undefined` removes the field. Moving to another collection is `transferAssets`. */
 export type AssetUpdates = AssetUpdatesOf<Asset>;
 
 export type GroupAsset = EncounterAsset | PlayerAsset;
 
-/** Token lists of a group asset: the top-level one and the copy inside its JSON payload. */
-export function groupTokenRefs(asset: GroupAsset): GroupTokenRef[] {
-  if (Array.isArray(asset.tokens)) return asset.tokens;
-  return Array.isArray(asset.data?.tokens) ? asset.data.tokens : [];
-}
+export { groupTokenRefs };
+export { ATLAS_VTT_DIR, COLLECTIONS_DIR, GLOBAL_ASSETS_DIR };
+export type { VaultReconciliation };
 
 export interface TagMetadata {
   id: string;
@@ -192,6 +192,8 @@ export interface AssetMetadata {
   version: number;
   /** Identifies this vault as the publisher of the collections it creates. */
   vaultId?: string;
+  /** The collection new content goes to when none is chosen; read it through `defaultCollectionIdOf`. */
+  defaultCollectionId?: string;
 }
 
 /** What an import writes into the asset index, in one save. */
@@ -204,9 +206,15 @@ export interface CollectionImportCommit {
   remove: readonly string[];
 }
 
-export const ATLAS_VTT_DIR = 'atlas-vtt';
-export const COLLECTIONS_DIR = `${ATLAS_VTT_DIR}/collections`;
-export const GLOBAL_ASSETS_DIR = `${ATLAS_VTT_DIR}/assets`;
+/** What moving or copying assets into a collection writes into the asset index, in one save. */
+export interface AssetTransferCommit {
+  collectionId: string;
+  /** Asset records to add or replace, already pointing at their files in the target collection. */
+  records: readonly Asset[];
+  /** Tags the records carry that the target collection registers too. */
+  tags: ReadonlyArray<TagMetadata & { group: TagGroup }>;
+}
+
 const ASSETS_METADATA_PATH = getDataFilePath(`${ATLAS_VTT_DIR}/assets-metadata.json`);
 const LEGACY_ASSETS_METADATA_PATH = `${ATLAS_VTT_DIR}/assets-metadata.json`;
 /** A sync tool may be rewriting the index; a few more reads ride that out. */
@@ -214,13 +222,6 @@ const METADATA_READ_OPTIONS = { retries: 3, retryDelayMs: 200 };
 
 /** Tags are keyed by their lower-case, hyphenated name. */
 const tagIdOf = (name: string): string => name.trim().toLowerCase().replace(/\s+/g, '-');
-
-/** The id of a collection folder (`atlas-vtt/collections/goblins` → `goblins`), or null for any other path. */
-function collectionIdOfFolder(path: string): string | null {
-  const prefix = `${COLLECTIONS_DIR}/`;
-  const id = path.startsWith(prefix) ? path.slice(prefix.length) : '';
-  return id && !id.includes('/') ? id : null;
-}
 
 export class AssetService {
   private static instance: AssetService | null = null;
@@ -232,6 +233,9 @@ export class AssetService {
   /** Metadata writes, in the order they were requested. */
   private readonly writes = new SerialLock();
   private saveCount = 0;
+  /** Collections whose folder is being renamed to their name, so no check starts it twice. */
+  private readonly folderRenames = new Set<string>();
+  private readonly reconciledListeners = new Set<(result: VaultReconciliation) => void>();
 
   private constructor(app: App) {
     this.app = app;
@@ -260,7 +264,6 @@ export class AssetService {
     await this.ensureDirectory(ATLAS_VTT_DIR);
     await this.ensureDirectory(GLOBAL_ASSETS_DIR);
     await this.ensureDirectory(COLLECTIONS_DIR);
-    await this.ensureDefaultCollection();
     await this.loadMetadata();
     await this.reconcileOnceVaultIsListed();
   }
@@ -273,7 +276,7 @@ export class AssetService {
   private reconcileOnceVaultIsListed(): Promise<void> {
     const reconciled = new Promise<void>((resolve) => {
       this.app.workspace.onLayoutReady(() => {
-        resolve(this.indexLock.run(() => this.reconcileMetadataWithVault()).catch((error: unknown) => {
+        resolve(this.reconcileWithVault().then(() => undefined, (error: unknown) => {
           console.error('[AssetService] Checking the index against the vault failed:', error);
         }));
       });
@@ -319,17 +322,6 @@ export class AssetService {
     await ensureAdapterFolder(this.app, path);
   }
 
-  private async ensureDefaultCollection(): Promise<void> {
-    const defaultCollectionPath = `${COLLECTIONS_DIR}/default`;
-    await this.ensureDirectory(defaultCollectionPath);
-    
-    // Ensure all subdirectories exist ('assets' is global, not per collection)
-    const subdirs = ['tokens', 'notes', 'statblocks', 'maps', 'characters', 'scenes', 'encounters', 'players'];
-    for (const subdir of subdirs) {
-      await this.ensureDirectory(`${defaultCollectionPath}/${subdir}`);
-    }
-  }
-
   private async ensureCollectionStructure(collectionName: string): Promise<void> {
     const collectionPath = `${COLLECTIONS_DIR}/${collectionName}`;
     await this.ensureDirectory(collectionPath);
@@ -343,26 +335,7 @@ export class AssetService {
   }
 
   private getAssetPath(asset: Asset): string {
-    const collectionPath = `${COLLECTIONS_DIR}/${asset.collection}`;
-    
-    switch (asset.type) {
-      case 'token':
-        return asset.imagePath; // This will be in the global assets folder
-      case 'map':
-        return `${collectionPath}/maps/${asset.id}.json`; // JSON metadata file for the map
-      case 'note':
-        return asset.notePath;
-      case 'statblock':
-        return asset.filePath || `${collectionPath}/statblocks/${asset.id}.json`;
-      case 'character':
-        return asset.filePath || `${collectionPath}/characters/${asset.id}.json`;
-      case 'scene':
-        return asset.filePath || `${collectionPath}/scenes/${asset.id}.json`;
-      case 'encounter':
-        return asset.filePath || `${collectionPath}/encounters/${asset.id}.json`;
-      case 'player':
-        return asset.filePath || `${collectionPath}/players/${asset.id}.json`;
-    }
+    return assetFilePath(asset);
   }
 
   private readStoredMetadata(): Promise<StoredMetadata> {
@@ -434,421 +407,11 @@ export class AssetService {
 
   private async createDefaultMetadata(): Promise<AssetMetadata> {
     return {
-      collections: {
-        'default': {
-          id: 'default',
-          uid: crypto.randomUUID(),
-          version: 1,
-          name: 'Default',
-          description: 'Default collection',
-          tags: {}, // Initialize with empty tags
-          settings: { conditions: [] },
-          createdAt: Date.now(),
-          modifiedAt: Date.now()
-        }
-      },
+      collections: { [INITIAL_COLLECTION_ID]: createCollectionRecord(INITIAL_COLLECTION_ID) },
+      defaultCollectionId: INITIAL_COLLECTION_ID,
       assets: {},
       version: 2
     };
-  }
-
-  private prettifyIdentifier(identifier: string): string {
-    const words = identifier
-      .replace(/[-_]+/g, ' ')
-      .trim()
-      .split(/\s+/)
-      .filter(Boolean);
-
-    if (words.length === 0) {
-      return identifier;
-    }
-
-    return words
-      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-      .join(' ');
-  }
-
-  private createCollectionMetadata(id: string): CollectionMetadata {
-    const now = Date.now();
-    const name = id === 'default' ? 'Default' : this.numberedCollectionName(this.prettifyIdentifier(id));
-    return {
-      id,
-      uid: crypto.randomUUID(),
-      version: 1,
-      name,
-      description: `${name} collection`,
-      tags: {},
-      settings: { conditions: [] },
-      createdAt: now,
-      modifiedAt: now
-    };
-  }
-
-  private getCollectionIdFromPath(path: string): string | null {
-    const match = path.match(/^atlas-vtt\/collections\/([^/]+)\//);
-    return match?.[1] ?? null;
-  }
-
-  private createRecoveredId(prefix: string, seed: string): string {
-    let hash = 0;
-    for (let i = 0; i < seed.length; i++) {
-      hash = ((hash << 5) - hash) + seed.charCodeAt(i);
-      hash |= 0;
-    }
-    return `${prefix}-recovered-${Math.abs(hash).toString(36)}`;
-  }
-
-  private fileNameWithoutExtension(path: string): string {
-    const parts = path.split('/');
-    const fileName = parts[parts.length - 1] ?? path;
-    return fileName.replace(/\.[^.]+$/, '');
-  }
-
-  private async readJsonFile(file: TFile): Promise<unknown> {
-    try {
-      const content = await this.app.vault.read(file);
-      return JSON.parse(content);
-    } catch {
-      return null;
-    }
-  }
-
-  private normalizeTagArray(tags: unknown): string[] {
-    if (!Array.isArray(tags)) return [];
-    return tags.filter((tag): tag is string => typeof tag === 'string');
-  }
-
-  private isRecoverableImagePath(path: string): boolean {
-    return /\.(png|jpe?g|webp|gif)$/i.test(path);
-  }
-
-  private stripGeneratedTokenFileSuffix(baseName: string): string {
-    return baseName
-      .replace(/[-_]\d{10,}[-_][a-z0-9]{4,}$/i, '')
-      .replace(/[-_]\d{10,}$/i, '');
-  }
-
-  private deriveRecoveredTokenName(path: string): string {
-    const baseName = this.fileNameWithoutExtension(path);
-    const cleanedBase = this.stripGeneratedTokenFileSuffix(baseName);
-    return this.prettifyIdentifier(cleanedBase || baseName);
-  }
-
-  private recoverTokenAssetsFromVaultFiles(vaultFiles: TFile[]): TokenAsset[] {
-    if (!this.metadata) {
-      return [];
-    }
-
-    const now = Date.now();
-    const recovered: TokenAsset[] = [];
-    const existingTokenImagePaths = new Set<string>();
-    const encounterOrPlayerTokenPathToCollection = new Map<string, string>();
-
-    for (const asset of Object.values(this.metadata.assets)) {
-      if (asset.type === 'token') {
-        if (asset.imagePath) {
-          existingTokenImagePaths.add(asset.imagePath);
-        }
-        continue;
-      }
-
-      if (asset.type === 'encounter' || asset.type === 'player') {
-        for (const token of groupTokenRefs(asset)) {
-          if (token && typeof token.imagePath === 'string' && token.imagePath.length > 0) {
-            encounterOrPlayerTokenPathToCollection.set(token.imagePath, asset.collection || 'default');
-          }
-        }
-      }
-    }
-
-    for (const file of vaultFiles) {
-      const path = file.path;
-      if (!this.isRecoverableImagePath(path)) {
-        continue;
-      }
-      if (existingTokenImagePaths.has(path)) {
-        continue;
-      }
-
-      const collectionTokenMatch = path.match(
-        /^atlas-vtt\/collections\/([^/]+)\/(?:.+\/)?tokens\/.+$/i
-      );
-
-      let collectionId: string | null = null;
-      if (collectionTokenMatch) {
-        collectionId = collectionTokenMatch[1]!;
-      } else if (encounterOrPlayerTokenPathToCollection.has(path)) {
-        collectionId = encounterOrPlayerTokenPathToCollection.get(path)!;
-      } else {
-        continue;
-      }
-
-      const recoveredAsset: TokenAsset = {
-        id: this.createRecoveredId('token', path),
-        type: 'token',
-        name: this.deriveRecoveredTokenName(path),
-        imagePath: path,
-        tags: [],
-        collection: collectionId,
-        createdAt: now,
-        modifiedAt: now
-      };
-
-      if (this.metadata.assets[recoveredAsset.id]) {
-        continue;
-      }
-
-      recovered.push(recoveredAsset);
-      existingTokenImagePaths.add(path);
-    }
-
-    return recovered;
-  }
-
-  private async recoverAssetsFromVaultFiles(vaultFiles: TFile[]): Promise<Asset[]> {
-    const recoveredAssets = new Map<string, Asset>();
-    const recoveredSceneMapPaths = new Set<string>();
-    const now = Date.now();
-
-    // Recover structured assets from their JSON files first.
-    for (const file of vaultFiles) {
-      const mapMatch = file.path.match(/^atlas-vtt\/collections\/([^/]+)\/maps\/([^/]+)\.json$/);
-      if (mapMatch) {
-        const collectionId = mapMatch[1]!;
-        const fallbackId = mapMatch[2]!;
-        const parsed = await this.readJsonFile(file);
-        if (!isRecord(parsed)) {
-          continue;
-        }
-        const mapFilePath = typeof parsed.mapFilePath === 'string' ? parsed.mapFilePath : '';
-        if (!mapFilePath) {
-          continue;
-        }
-        const createdAt = typeof parsed.createdAt === 'number' ? parsed.createdAt : now;
-        const modifiedAt = typeof parsed.modifiedAt === 'number' ? parsed.modifiedAt : createdAt;
-        const mapAsset: MapAsset = {
-          id: typeof parsed.id === 'string' && parsed.id.trim() ? parsed.id : fallbackId,
-          type: 'map',
-          name: typeof parsed.name === 'string' && parsed.name.trim()
-            ? parsed.name
-            : this.fileNameWithoutExtension(mapFilePath),
-          mapFilePath,
-          tags: this.normalizeTagArray(parsed.tags),
-          collection: collectionId,
-          createdAt,
-          modifiedAt
-        };
-        recoveredAssets.set(mapAsset.id, mapAsset);
-        continue;
-      }
-
-      const typedMatch = file.path.match(/^atlas-vtt\/collections\/([^/]+)\/(scenes|encounters|players|characters|statblocks)\/(.+)\.json$/);
-      if (!typedMatch) {
-        continue;
-      }
-
-      const collectionId = typedMatch[1]!;
-      const folderType = typedMatch[2]!;
-      const assetId = this.fileNameWithoutExtension(file.path);
-      const parsed = await this.readJsonFile(file);
-      const parsedObject = isRecord(parsed) ? parsed : {};
-      const createdAt = typeof parsedObject.createdAt === 'number' ? parsedObject.createdAt : now;
-      const modifiedAt = typeof parsedObject.modifiedAt === 'number' ? parsedObject.modifiedAt : createdAt;
-      const tags = this.normalizeTagArray(parsedObject.tags);
-
-      if (folderType === 'scenes') {
-        const parsedMapPath = typeof parsedObject.mapPath === 'string' ? parsedObject.mapPath : '';
-        const mapPath = parsedMapPath || file.path.replace(/\.json$/, '.atlasmap');
-        if (mapPath) {
-          recoveredSceneMapPaths.add(mapPath);
-        }
-        const sceneAsset: SceneAsset = {
-          id: assetId,
-          type: 'scene',
-          name: typeof parsedObject.name === 'string' && parsedObject.name.trim()
-            ? parsedObject.name
-            : this.fileNameWithoutExtension(mapPath || assetId),
-          filePath: file.path,
-          tags,
-          collection: collectionId,
-          createdAt,
-          modifiedAt,
-          data: {
-            ...parsedObject,
-            mapPath
-          }
-        };
-        recoveredAssets.set(sceneAsset.id, sceneAsset);
-        continue;
-      }
-
-      const base: BaseAsset = {
-        id: assetId,
-        name: typeof parsedObject.name === 'string' && parsedObject.name.trim()
-          ? parsedObject.name
-          : this.prettifyIdentifier(assetId),
-        filePath: file.path,
-        tags,
-        collection: collectionId,
-        createdAt,
-        modifiedAt
-      };
-      recoveredAssets.set(assetId, this.recoverJsonAsset(folderType, base, parsedObject));
-    }
-
-    // Recover scene assets directly from .atlasmap files that have no matching scene JSON.
-    for (const file of vaultFiles) {
-      const sceneFileMatch = file.path.match(/^atlas-vtt\/collections\/([^/]+)\/(?:.+\/)?scenes\/([^/]+)\.atlasmap$/);
-      if (!sceneFileMatch) {
-        continue;
-      }
-
-      const collectionId = sceneFileMatch[1]!;
-      if (recoveredSceneMapPaths.has(file.path)) {
-        continue;
-      }
-
-      const sceneName = this.fileNameWithoutExtension(file.path);
-      const sceneId = this.createRecoveredId('scene', file.path);
-      if (recoveredAssets.has(sceneId)) {
-        continue;
-      }
-
-      const recoveredScene: SceneAsset = {
-        id: sceneId,
-        type: 'scene',
-        name: sceneName,
-        tags: [],
-        collection: collectionId,
-        createdAt: now,
-        modifiedAt: now,
-        data: {
-          mapPath: file.path
-        }
-      };
-      recoveredAssets.set(sceneId, recoveredScene);
-    }
-
-    return Array.from(recoveredAssets.values());
-  }
-
-  /** Rebuilds a JSON-backed asset from its own data file (the file holds the asset's `data` payload). */
-  private recoverJsonAsset(folderType: string, base: BaseAsset, payload: Record<string, unknown>): Asset {
-    if (folderType === 'encounters' || folderType === 'players') {
-      const tokens = parseGroupTokenRefs(payload.tokens);
-      return {
-        ...base,
-        type: folderType === 'encounters' ? 'encounter' : 'player',
-        tokens,
-        data: { ...payload, tokens }
-      };
-    }
-    return { ...base, type: folderType === 'characters' ? 'character' : 'statblock', data: payload };
-  }
-
-  private async reconcileMetadataWithVault(): Promise<void> {
-    if (!this.metadata || typeof this.app.vault.getFiles !== 'function') {
-      return;
-    }
-
-    const vaultFiles = this.app.vault.getFiles();
-    if (!vaultFiles || vaultFiles.length === 0) {
-      return;
-    }
-    const vaultFilePaths = new Set(vaultFiles.map((file) => file.path));
-    const encounterOrPlayerTokenRefs = new Set<string>();
-    for (const asset of Object.values(this.metadata.assets)) {
-      if (asset.type !== 'encounter' && asset.type !== 'player') {
-        continue;
-      }
-      for (const token of groupTokenRefs(asset)) {
-        if (token && typeof token.imagePath === 'string' && token.imagePath.length > 0) {
-          encounterOrPlayerTokenRefs.add(token.imagePath);
-        }
-      }
-    }
-
-    let needsSave = false;
-
-    if (!this.metadata.collections.default) {
-      this.metadata.collections.default = this.createCollectionMetadata('default');
-      needsSave = true;
-    }
-
-    // Register collection IDs that exist on disk but are missing in metadata.
-    for (const file of vaultFiles) {
-      const collectionId = this.getCollectionIdFromPath(file.path);
-      if (!collectionId || this.metadata.collections[collectionId]) {
-        continue;
-      }
-      this.metadata.collections[collectionId] = this.createCollectionMetadata(collectionId);
-      needsSave = true;
-    }
-
-    // If metadata was wiped, rebuild a usable index from persisted files.
-    if (Object.keys(this.metadata.assets).length === 0) {
-      const recoveredAssets = await this.recoverAssetsFromVaultFiles(vaultFiles);
-      if (recoveredAssets.length > 0) {
-        for (const asset of recoveredAssets) {
-          this.metadata.assets[asset.id] = asset;
-        }
-        needsSave = true;
-      }
-    }
-
-    // Remove stale token metadata entries that no longer point to an existing file.
-    for (const [id, asset] of Object.entries(this.metadata.assets)) {
-      if (asset.type !== 'token') {
-        continue;
-      }
-      const imagePath = asset.imagePath;
-      const isCollectionTokenPath = typeof imagePath === 'string' &&
-        /^atlas-vtt\/collections\/[^/]+\/(?:.+\/)?tokens\/.+$/i.test(imagePath);
-      const isEncounterOrPlayerThumbnail = typeof imagePath === 'string' && (
-        imagePath.startsWith(`${GLOBAL_ASSETS_DIR}/encounter-thumbnails/`) ||
-        imagePath.startsWith(`${GLOBAL_ASSETS_DIR}/player-thumbnails/`)
-      );
-      const isRecoveredId = id.startsWith('token-recovered-');
-      const isAllowedRecoveredGlobalToken = !!imagePath && encounterOrPlayerTokenRefs.has(imagePath);
-
-      // The file list can lag behind the disk, so a token is dropped only when its image is really gone.
-      if (!imagePath || (!vaultFilePaths.has(imagePath) && !(await this.app.vault.adapter.exists(imagePath)))) {
-        delete this.metadata.assets[id];
-        needsSave = true;
-        continue;
-      }
-
-      // Clean up previously over-broad recovered entries from global assets.
-      if (
-        isEncounterOrPlayerThumbnail ||
-        (isRecoveredId && !isCollectionTokenPath && !isAllowedRecoveredGlobalToken)
-      ) {
-        delete this.metadata.assets[id];
-        needsSave = true;
-        continue;
-      }
-
-      if (isRecoveredId && imagePath) {
-        const normalizedName = this.deriveRecoveredTokenName(imagePath);
-        if (normalizedName && asset.name !== normalizedName) {
-          asset.name = normalizedName;
-          asset.modifiedAt = Date.now();
-          needsSave = true;
-        }
-      }
-    }
-
-    const recoveredTokens = this.recoverTokenAssetsFromVaultFiles(vaultFiles);
-    if (recoveredTokens.length > 0) {
-      for (const token of recoveredTokens) {
-        this.metadata.assets[token.id] = token;
-      }
-      needsSave = true;
-    }
-
-    if (needsSave) {
-      await this.saveMetadata();
-    }
   }
 
   /**
@@ -880,10 +443,11 @@ export class AssetService {
 
     // Older imports could reuse a taken name; numbering them keeps every collection distinguishable.
     const takenNames: string[] = [];
+    const defaultId = defaultCollectionIdOf(this.metadata);
     const defaultFirst = Object.values(this.metadata.collections)
-      .sort((a, b) => Number(b.id === 'default') - Number(a.id === 'default'));
+      .sort((a, b) => Number(b.id === defaultId) - Number(a.id === defaultId));
     for (const collection of defaultFirst) {
-      const stored = typeof collection.name === 'string' && collection.name.trim() ? collection.name : this.prettifyIdentifier(collection.id);
+      const stored = typeof collection.name === 'string' && collection.name.trim() ? collection.name : prettifyIdentifier(collection.id);
       const name = uniqueCollectionName(stored, takenNames);
       if (name !== collection.name) {
         collection.name = name;
@@ -914,8 +478,8 @@ export class AssetService {
         type: 'token',
         name: oldToken.name,
         imagePath: oldToken.imagePath,
-        tags: this.normalizeTagArray(oldToken.tags),
-        collection: 'default',
+        tags: Array.isArray(oldToken.tags) ? oldToken.tags.filter((tag): tag is string => typeof tag === 'string') : [],
+        collection: defaultCollectionIdOf(this.metadata),
         createdAt,
         modifiedAt: typeof oldToken.modifiedAt === 'number' ? oldToken.modifiedAt : createdAt
       };
@@ -1055,32 +619,18 @@ export class AssetService {
   }
 
   // Collection management
+  /** Creates a collection in a folder named like it; `name` must be a valid folder name no collection uses. */
   async createCollection(name: string, description?: string): Promise<CollectionMetadata> {
     await this.ensureLoaded();
-    this.assertCollectionNameFree(name);
+    const id = this.assertCollectionFolderName(name);
 
-    const id = this.freeCollectionId(name);
-    const now = Date.now();
-    
-    const collection: CollectionMetadata = {
-      id,
-      uid: crypto.randomUUID(),
-      version: 1,
-      publisherId: this.metadata!.vaultId!,
-      name,
-      ...(description !== undefined && { description }),
-      tags: {}, // Initialize empty tags
-      settings: { conditions: [] },
-      createdAt: now,
-      modifiedAt: now
-    };
+    const collection: CollectionMetadata = { ...createCollectionRecord(id), publisherId: this.metadata!.vaultId! };
+    if (description === undefined) delete collection.description;
+    else collection.description = description;
 
     await this.ensureCollectionStructure(id);
-    
     this.metadata!.collections[id] = collection;
-    
     await this.saveMetadata();
-    
     return collection;
   }
 
@@ -1090,91 +640,224 @@ export class AssetService {
     return Object.values(this.metadata!.collections);
   }
 
+  /** The collection new content goes to when none is chosen; it cannot be deleted. */
+  getDefaultCollectionId(): string {
+    return defaultCollectionIdOf(this.metadata);
+  }
+
+  /** The default collection of the loaded index, for code that has no service at hand. */
+  static defaultCollectionId(): string {
+    return defaultCollectionIdOf(AssetService.instance?.metadata ?? null);
+  }
+
   /** Registers a record for a collection id that assets already point at. */
   private async ensureCollectionRecord(id: string): Promise<void> {
     if (this.metadata!.collections[id]) return;
-    this.metadata!.collections[id] = this.createCollectionMetadata(id);
+    // The folder first: a vault check forgets records whose folder is missing.
     await this.ensureCollectionStructure(id);
-    await this.saveMetadata();
-  }
-
-  async renameCollection(collectionId: string, name: string): Promise<void> {
-    await this.ensureLoaded();
-    const collection = this.metadata!.collections[collectionId];
-    if (!collection) throw new Error(`Collection ${collectionId} not found`);
-    this.assertCollectionNameFree(name, collectionId);
-    collection.name = name;
-    collection.modifiedAt = Date.now();
+    this.metadata!.collections[id] ??= createCollectionRecord(id);
     await this.saveMetadata();
   }
 
   /**
+   * Renames a collection together with its folder, since a collection is named
+   * like its folder. Every stored path into the folder follows, and the vault
+   * rename event carries the new paths to open maps and map files. Returns the
+   * collection as renamed.
+   */
+  async renameCollection(collectionId: string, name: string): Promise<CollectionMetadata> {
+    await this.ensureLoaded();
+    const collection = this.metadata!.collections[collectionId];
+    if (!collection) throw new Error(`Collection ${collectionId} not found`);
+    if (name.trim() === collectionId) return collection;
+    const id = this.assertCollectionFolderName(name, collectionId);
+    await this.moveCollectionFolder(collectionId, id);
+    return this.metadata!.collections[id]!;
+  }
+
+  /** The trimmed `name` as a collection folder name; throws when it is invalid or taken by another collection. */
+  private assertCollectionFolderName(name: string, exceptId?: string): string {
+    const problem = collectionNameProblem(name);
+    if (problem) throw new Error(problem);
+    const id = name.trim();
+    this.assertCollectionNameFree(id, exceptId);
+    if (this.isCollectionFolderTaken(id, exceptId)) throw new Error(`A folder named "${id}" already exists in the collections folder`);
+    return id;
+  }
+
+  /** Whether a folder other than `exceptId`'s in the collections folder has this name, compared without case like macOS and Windows do. */
+  private isCollectionFolderTaken(id: string, exceptId?: string): boolean {
+    const key = collectionNameKey(id);
+    return (this.app.vault.getFolderByPath(COLLECTIONS_DIR)?.children ?? [])
+      .some((child) => child.name !== exceptId && collectionNameKey(child.name) === key);
+  }
+
+  /**
+   * Renames a collection's folder and moves its record along. Resolves once the
+   * vault has renamed the folder; the vault's rename event may move the record
+   * first, as for a folder renamed in Obsidian.
+   */
+  private async moveCollectionFolder(oldId: string, newId: string): Promise<void> {
+    const folder = this.app.vault.getFolderByPath(collectionFolderPath(oldId));
+    if (folder) await this.renameInVault(folder, collectionFolderPath(newId));
+    if (!this.metadata!.collections[oldId]) return;
+    await this.moveRecordWithInstall(oldId, newId);
+    await this.saveMetadata();
+  }
+
+  /**
+   * Renames through Obsidian, so links to the folder's notes follow. Obsidian
+   * may first ask whether to update those links and only then settle its
+   * promise; the rename itself is done once the vault reports it, so Atlas
+   * never waits for that answer.
+   */
+  private renameInVault(folder: TFolder, newPath: string): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const renamed = this.app.vault.on('rename', (file) => {
+        if (file.path === newPath) settle(resolve);
+      });
+      const settle = (done: () => void): void => {
+        this.app.vault.offref(renamed);
+        done();
+      };
+      this.app.fileManager.renameFile(folder, newPath).then(
+        () => settle(resolve),
+        (error: unknown) => settle(() => reject(error instanceof Error ? error : new Error(String(error)))),
+      );
+    });
+  }
+
+  /** Moves a collection record to the folder `newId`, and its install record along, so updates still find its files. */
+  private async moveRecordWithInstall(oldId: string, newId: string): Promise<void> {
+    moveCollectionRecord(this.metadata!, oldId, newId);
+    const uid = this.metadata!.collections[newId]?.uid;
+    if (uid) await moveInstallRecord(this.app, uid, oldId, newId);
+  }
+
+  /**
+   * Gives every collection its folder's name: the folder takes the collection's
+   * name where it can (older versions named folders `default` or `winter-camp`),
+   * otherwise the collection takes the folder's name. Returns whether any changed.
+   */
+  private async matchFolderNames(onlyId?: string): Promise<boolean> {
+    const folders = (this.app.vault.getFolderByPath(COLLECTIONS_DIR)?.children ?? [])
+      .filter((child) => child instanceof TFolder)
+      .map((child) => child.name);
+    const fixes = planFolderNameFixes(this.metadata!, folders)
+      .filter((fix) => (onlyId === undefined || fix.id === onlyId) && !this.folderRenames.has(fix.id));
+    let renamed = false;
+    for (const fix of fixes) {
+      const collection = this.metadata!.collections[fix.id];
+      if (!collection) continue;
+      if (fix.kind === 'rename-folder') {
+        // Not awaited: the caller holds the index, and the record follows the folder by itself.
+        this.folderRenames.add(fix.id);
+        const rename = this.moveCollectionFolder(fix.id, fix.folder).finally(() => this.folderRenames.delete(fix.id));
+        runInBackground(rename, `Renaming the folder of collection "${collection.name}"`);
+        continue;
+      }
+      collection.name = fix.id;
+      renamed = true;
+    }
+    if (renamed) await this.saveMetadata();
+    return renamed;
+  }
+
+  /**
+   * Gives a collection whose name was set elsewhere, such as by an import, a
+   * folder of that name, or takes its folder's name when the name is taken.
+   * The folder is renamed in the background; returns the collection as it is now.
+   */
+  async matchCollectionFolder(collectionId: string): Promise<CollectionMetadata | null> {
+    await this.ensureLoaded();
+    const uid = this.metadata!.collections[collectionId]?.uid;
+    await this.matchFolderNames(collectionId);
+    return Object.values(this.metadata!.collections).find((collection) => collection.uid === uid) ?? null;
+  }
+
+  /**
    * Follows a collection folder renamed in the vault: the record moves to the
-   * new folder name as its id and takes it as display name, and every stored
-   * path into the folder is rewritten. Renaming the default folder turns its
-   * contents into a normal collection and starts an empty default one. A
-   * folder moved out of the collections folder is no longer a collection.
-   * Returns whether `oldPath` was a collection folder.
+   * new folder name as its id and name, and every stored path into the folder
+   * is rewritten. A folder moved out of the collections folder is no longer a
+   * collection. Returns whether `oldPath` was a collection folder.
    */
   async followCollectionFolderRename(oldPath: string, newPath: string): Promise<boolean> {
     await this.ensureLoaded();
     const oldId = collectionIdOfFolder(oldPath);
     const newId = collectionIdOfFolder(newPath);
-    const collection = oldId ? this.metadata!.collections[oldId] : undefined;
-    if (!oldId || oldId === newId || !collection) return false;
-    if (!newId) return this.forgetDeletedCollectionFolder(oldPath);
+    if (!oldId || oldId === newId || !this.metadata!.collections[oldId]) return false;
 
-    delete this.metadata!.collections[oldId];
-    this.metadata!.collections[newId] = {
-      ...collection,
-      id: newId,
-      name: this.numberedCollectionName(this.prettifyIdentifier(newId), oldId),
-      modifiedAt: Date.now(),
-    };
-
-    const oldPrefix = `${oldPath}/`;
-    const newPrefix = `${newPath}/`;
-    const movePath = (text: string): string => (text.startsWith(oldPrefix) ? newPrefix + text.slice(oldPrefix.length) : text);
-    for (const [id, asset] of Object.entries(this.metadata!.assets)) {
-      const moved = mapStrings(asset, movePath);
-      this.metadata!.assets[id] = asset.collection === oldId ? { ...moved, collection: newId } : moved;
-    }
-
-    if (oldId === 'default') {
-      this.metadata!.collections.default = this.createCollectionMetadata('default');
-      await this.ensureDefaultCollection();
+    if (newId) await this.moveRecordWithInstall(oldId, newId);
+    else forgetCollection(this.metadata!, oldId);
+    for (const id of Object.keys(this.metadata!.collections)) {
+      if (!this.app.vault.getFolderByPath(collectionFolderPath(id))) await this.ensureCollectionStructure(id);
     }
     await this.saveMetadata();
     return true;
   }
 
   /**
-   * Follows a collection folder deleted in the vault: the collection and its
-   * assets leave the metadata. Files outside the folder, such as token images
-   * in the global assets folder, stay. Deleting the default folder starts an
-   * empty default collection. Returns whether `path` was a collection folder.
+   * Brings the index in line with the vault's files after changes Atlas did not
+   * make itself: collection folders renamed, added or deleted in the file
+   * manager or by a sync tool, scenes moved to another collection, asset files
+   * added, moved or deleted. `deleted` holds the paths deleted since the last
+   * check; only those remove records whose data lives in the index. Runs while
+   * no import or refresh holds the index.
    */
-  async forgetDeletedCollectionFolder(path: string): Promise<boolean> {
-    await this.ensureLoaded();
-    const id = collectionIdOfFolder(path);
-    if (!id || !this.metadata!.collections[id]) return false;
+  reconcileWithVault(deleted: ReadonlySet<string> = new Set()): Promise<VaultReconciliation> {
+    return this.indexLock.run(async () => {
+      await this.ensureLoaded();
+      await this.matchFolderNames();
+      const readings = await readVault(this.app, this.metadata!);
+      // From the listing on, nothing awaits until the index is changed, so no other edit interleaves.
+      const result = reconcileIndex(this.metadata!, listVault(this.app, readings, deleted));
+      if (result.changed) await this.saveMetadata();
+      for (const { from, to } of result.folderMoves) {
+        const [oldId, newId] = [collectionIdOfFolder(from), collectionIdOfFolder(to)];
+        const uid = newId ? this.metadata!.collections[newId]?.uid : undefined;
+        if (oldId && newId && uid) await moveInstallRecord(this.app, uid, oldId, newId);
+      }
+      for (const id of result.missingFolders) await this.ensureCollectionStructure(id);
+      await this.applyVaultFileOps(result);
+      if (result.changed) this.notifyReconciled(result);
+      return result;
+    });
+  }
 
-    for (const [assetId, asset] of Object.entries(this.metadata!.assets)) {
-      if (asset.collection === id) delete this.metadata!.assets[assetId];
+  /** Moves and trashes the JSON copies the vault check asked for; a failure only skips that file. */
+  private async applyVaultFileOps({ ops }: VaultReconciliation): Promise<void> {
+    for (const { from, to } of ops.moves) {
+      const file = this.app.vault.getFileByPath(from);
+      if (!file) continue;
+      try {
+        await this.ensureDirectory(to.slice(0, to.lastIndexOf('/')));
+        await this.app.fileManager.renameFile(file, to);
+      } catch (error) {
+        console.error(`[AssetService] Could not move ${from} to ${to}:`, error);
+      }
     }
-    delete this.metadata!.collections[id];
+    for (const path of ops.trash) await this.trashFileIfPresent(path);
+  }
 
-    if (id === 'default') {
-      this.metadata!.collections.default = this.createCollectionMetadata('default');
-      await this.ensureDefaultCollection();
+  /** Calls `listener` after every vault check that changed the index; returns the unsubscribe function. */
+  onReconciled(listener: (result: VaultReconciliation) => void): () => void {
+    this.reconciledListeners.add(listener);
+    return () => this.reconciledListeners.delete(listener);
+  }
+
+  private notifyReconciled(result: VaultReconciliation): void {
+    for (const listener of this.reconciledListeners) {
+      try {
+        listener(result);
+      } catch (error) {
+        console.error('[AssetService] A vault check listener failed:', error);
+      }
     }
-    await this.saveMetadata();
-    return true;
   }
 
   async deleteCollection(collectionId: string): Promise<void> {
-    if (!this.metadata || collectionId === 'default') {
-      return; // Can't delete default collection
+    if (!this.metadata || collectionId === defaultCollectionIdOf(this.metadata)) {
+      return; // The default collection stays
     }
 
     // Delete all assets in the collection
@@ -1217,8 +900,8 @@ export class AssetService {
     };
   }
 
-  /** Persists a fully built asset: data file, metadata entry and onboarding flag. */
-  private async registerAsset<A extends Asset>(newAsset: A): Promise<A> {
+  /** Persists a fully built asset: data file, metadata entry and, for a token the user imported, the onboarding flag. */
+  private async registerAsset<A extends Asset>(newAsset: A, userImport = true): Promise<A> {
     await this.ensureLoaded();
 
     if (newAsset.type !== 'token' && newAsset.type !== 'map' && newAsset.type !== 'note' && !newAsset.filePath) {
@@ -1227,14 +910,7 @@ export class AssetService {
 
     await this.ensureCollectionRecord(newAsset.collection);
 
-    // Save asset data if needed
-    if (newAsset.type === 'map') {
-      const mapJsonPath = `${COLLECTIONS_DIR}/${newAsset.collection}/maps/${newAsset.id}.json`;
-      await this.app.vault.create(mapJsonPath, this.serializeMapAsset(newAsset));
-    } else if (newAsset.type !== 'token' && newAsset.type !== 'note') {
-      const content = JSON.stringify(newAsset.data, null, 2) || '{}';
-      await this.app.vault.create(this.getAssetPath(newAsset), content);
-    }
+    await this.writeRecordFile(newAsset);
 
     this.metadata!.assets[newAsset.id] = newAsset;
     try {
@@ -1248,7 +924,7 @@ export class AssetService {
       }
     }
 
-    if (newAsset.type === 'token') SettingsService.forApp(this.app)?.markTokenImported();
+    if (newAsset.type === 'token' && userImport) SettingsService.forApp(this.app)?.markTokenImported();
     return newAsset;
   }
 
@@ -1283,12 +959,6 @@ export class AssetService {
 
     const asset = this.metadata!.assets[id];
     if (!asset) return;
-
-    // If collection is being changed, move the asset
-    if (updates.collection && updates.collection !== asset.collection) {
-      await this.moveAssetToCollection(id, updates.collection);
-      return;
-    }
 
     // Properties explicitly set to undefined in updates are removed from the asset
     const keysToRemove = Object.entries<unknown>(updates)
@@ -1335,6 +1005,27 @@ export class AssetService {
       createdAt: asset.createdAt,
       modifiedAt: asset.modifiedAt
     }, null, 2);
+  }
+
+  /**
+   * The JSON file a record needs written, or null when it needs none: a map's
+   * always, since it repeats the record; the payload of other JSON-backed types
+   * only when the file is missing, because older records keep it in the file alone.
+   */
+  pendingRecordFile(asset: Asset): { path: string; content: string } | null {
+    if (asset.type === 'token' || asset.type === 'note') return null;
+    const path = this.getAssetPath(asset);
+    if (asset.type === 'map') return { path, content: this.serializeMapAsset(asset) };
+    if (this.app.vault.getAbstractFileByPath(path)) return null;
+    return { path, content: JSON.stringify(asset.data, null, 2) || '{}' };
+  }
+
+  private async writeRecordFile(asset: Asset): Promise<void> {
+    const file = this.pendingRecordFile(asset);
+    if (!file) return;
+    const existing = this.app.vault.getAbstractFileByPath(file.path);
+    if (existing instanceof TFile) await this.app.vault.process(existing, () => file.content);
+    else await this.app.vault.create(file.path, file.content);
   }
 
   async deleteAsset(id: string): Promise<void> {
@@ -1429,54 +1120,6 @@ export class AssetService {
     }
   }
 
-  private async moveAssetToCollection(assetId: string, targetCollection: string): Promise<void> {
-    await this.ensureLoaded();
-
-    const asset = this.metadata!.assets[assetId];
-    if (!asset) return;
-
-    await this.ensureCollectionRecord(targetCollection);
-
-    const oldPath = this.getAssetPath(asset);
-    const updatedAsset = { ...asset, collection: targetCollection, modifiedAt: Date.now() };
-    const oldCollectionPrefix = `${COLLECTIONS_DIR}/${asset.collection}/`;
-    if (
-      (asset.type === 'statblock' ||
-        asset.type === 'character' ||
-        asset.type === 'scene' ||
-        asset.type === 'encounter' ||
-        asset.type === 'player') &&
-      asset.filePath
-    ) {
-      if (asset.filePath.startsWith(oldCollectionPrefix)) {
-        const relativePath = asset.filePath.substring(oldCollectionPrefix.length);
-        updatedAsset.filePath = `${COLLECTIONS_DIR}/${targetCollection}/${relativePath}`;
-      } else {
-        delete updatedAsset.filePath;
-      }
-    }
-    const newPath = this.getAssetPath(updatedAsset);
-
-    // Move the file
-    try {
-      if (oldPath !== newPath) {
-        const newParent = newPath.substring(0, newPath.lastIndexOf('/'));
-        await this.ensureDirectory(newParent);
-        const file = this.app.vault.getAbstractFileByPath(oldPath);
-        if (file instanceof TFile) {
-          await this.app.fileManager.renameFile(file, newPath);
-        }
-      }
-    } catch (error) {
-      console.error('[AssetService] Error moving asset file:', error);
-      return;
-    }
-
-    // Update metadata
-    this.metadata!.assets[assetId] = updatedAsset;
-    await this.saveMetadata();
-  }
-
   /** Vault path of the file that backs `asset`: the token image, the map's JSON record, or the JSON payload of other types. */
   getAssetFilePath(asset: Asset): string {
     return this.getAssetPath(asset);
@@ -1510,22 +1153,21 @@ export class AssetService {
     return this.numberedCollectionName(name, exceptId);
   }
 
-  /** A new id derived from `name` that no collection uses yet. */
+  /**
+   * A folder name for a new collection called `name`: the name itself, or
+   * `name (2)`, `name (3)`, … while a collection or a leftover folder has it,
+   * so a deleted collection's files never leak into the new one.
+   */
   async freeCollectionIdFor(name: string): Promise<string> {
     await this.ensureLoaded();
-    return this.freeCollectionId(name);
-  }
-
-  private freeCollectionId(name: string): string {
-    // A leftover folder of a deleted collection must not leak its files into the new one.
-    return freeCollectionId(name, (id) => Boolean(this.metadata!.collections[id] || this.app.vault.getAbstractFileByPath(`${COLLECTIONS_DIR}/${id}`)));
+    const base = collectionFolderName(name);
+    let id = base;
+    for (let n = 2; this.findCollectionByName(id) || this.isCollectionFolderTaken(id); n++) id = `${base} (${n})`;
+    return id;
   }
 
   private numberedCollectionName(name: string, exceptId?: string): string {
-    const taken = Object.values(this.metadata?.collections ?? {})
-      .filter((collection) => collection.id !== exceptId)
-      .map((collection) => collection.name);
-    return uniqueCollectionName(name, taken);
+    return numberedCollectionName(this.metadata, name, exceptId);
   }
 
   private findCollectionByName(name: string, exceptId?: string): CollectionMetadata | undefined {
@@ -1565,15 +1207,15 @@ export class AssetService {
     await this.ensureLoaded();
     const collection = this.metadata!.collections[collectionId];
     if (!collection) throw new Error(`Collection ${collectionId} not found`);
-    this.assertCollectionNameFree(name, collectionId);
+    const id = name.trim() === collectionId ? collectionId : this.assertCollectionFolderName(name, collectionId);
     collection.uid = uid;
-    collection.name = name;
     collection.version = 1;
     collection.publisherId = this.metadata!.vaultId!;
     delete collection.releasedAt;
     collection.modifiedAt = Date.now();
+    if (id !== collectionId) await this.moveCollectionFolder(collectionId, id);
     await this.saveMetadata();
-    return collection;
+    return this.metadata!.collections[id]!;
   }
 
   /**
@@ -1609,9 +1251,40 @@ export class AssetService {
     return recorded;
   }
 
+  /**
+   * Records assets moved or copied into a collection, with the tags they carry,
+   * in one save. Their files, record files included (`pendingRecordFile`),
+   * must already be in place. A failed save leaves the index as it was.
+   */
+  async commitAssetTransfer({ collectionId, records, tags }: AssetTransferCommit): Promise<void> {
+    await this.ensureLoaded();
+    const current = this.metadata!;
+    const collection = current.collections[collectionId];
+    if (!collection) throw new Error(`Collection ${collectionId} not found`);
+    const collectionTags = { ...collection.tags };
+    for (const tag of tags) collectionTags[tagKey(tag.group, tag.id)] ??= tag;
+    const assets = { ...current.assets };
+    for (const record of records) assets[record.id] = record;
+    this.metadata = {
+      ...current,
+      collections: { ...current.collections, [collectionId]: { ...collection, tags: collectionTags, modifiedAt: Date.now() } },
+      assets,
+    };
+    try {
+      await this.saveMetadata();
+    } catch (error) {
+      this.metadata = current;
+      throw error;
+    }
+  }
+
   // Backward compatibility methods
-  async addTokenAsset(asset: Omit<TokenAsset, 'id' | 'createdAt' | 'modifiedAt' | 'type'>): Promise<TokenAsset> {
-    return this.registerAsset<TokenAsset>({ ...asset, type: 'token', ...this.createAssetIdentity('token') });
+  /** `userImport: false` adds a token Atlas provides, which does not count as the user's first import. */
+  async addTokenAsset(
+    asset: Omit<TokenAsset, 'id' | 'createdAt' | 'modifiedAt' | 'type'>,
+    { userImport = true }: { userImport?: boolean } = {},
+  ): Promise<TokenAsset> {
+    return this.registerAsset<TokenAsset>({ ...asset, type: 'token', ...this.createAssetIdentity('token') }, userImport);
   }
 
   async getTokenAssets(): Promise<TokenAsset[]> {
@@ -1622,16 +1295,15 @@ export class AssetService {
     await this.deleteAsset(id);
   }
 
-  async updateTokenAsset(id: string, updates: Partial<Omit<TokenAsset, 'id' | 'createdAt' | 'type'>>): Promise<void> {
+  async updateTokenAsset(id: string, updates: Partial<Omit<TokenAsset, 'id' | 'createdAt' | 'type' | 'collection'>>): Promise<void> {
     await this.updateAsset(id, updates);
   }
 
-  async createEncounter(encounterData: Omit<EncounterAsset, 'id' | 'createdAt' | 'modifiedAt' | 'type' | 'collection'>): Promise<EncounterAsset> {
+  async createEncounter(encounterData: Omit<EncounterAsset, 'id' | 'createdAt' | 'modifiedAt' | 'type'>): Promise<EncounterAsset> {
     const encounter: EncounterAsset = {
       ...encounterData,
       ...this.createAssetIdentity('encounter'),
       type: 'encounter',
-      collection: 'default', // Use default collection
       data: {
         ...encounterData.data,
         tokens: encounterData.tokens,
@@ -1679,7 +1351,7 @@ export class AssetService {
     const assets = Object.values(this.metadata.assets);
     let changed = false;
     for (const collection of Object.values(this.metadata.collections)) {
-      const collectionAssets = assets.filter((asset) => (asset.collection || 'default') === collection.id);
+      const collectionAssets = assets.filter((asset) => (asset.collection || defaultCollectionIdOf(this.metadata)) === collection.id);
       if (!collection.tags) {
         collection.tags = {};
         changed = true;

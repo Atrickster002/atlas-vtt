@@ -1,6 +1,7 @@
 import type { App } from 'obsidian';
 import { ensureAdapterFolder } from '../../plugin/vaultFolders';
-import { ATLAS_VTT_DIR } from '../AssetService';
+import { ATLAS_VTT_DIR, collectionFolderPath } from '../assetPaths';
+import { mapStrings } from '../../utils/mapStrings';
 import { isRecord } from '../assetMetadataGuards';
 
 /** Hidden, so Obsidian never indexes install records or backups. */
@@ -84,4 +85,14 @@ export async function writeInstallRecord(app: App, record: InstallRecord): Promi
 export async function deleteInstallRecord(app: App, uid: string): Promise<void> {
   const path = recordPath(uid);
   if (await app.vault.adapter.exists(path)) await app.vault.adapter.remove(path);
+}
+
+/** Points a collection's install record at the collection's new folder, so its next update finds the installed files. */
+export async function moveInstallRecord(app: App, uid: string, oldCollectionId: string, newCollectionId: string): Promise<void> {
+  const record = await readInstallRecord(app, uid);
+  if (!record) return;
+  const oldPrefix = `${collectionFolderPath(oldCollectionId)}/`;
+  const newPrefix = `${collectionFolderPath(newCollectionId)}/`;
+  const files = mapStrings(record.files, (text) => (text.startsWith(oldPrefix) ? newPrefix + text.slice(oldPrefix.length) : text));
+  await writeInstallRecord(app, { ...record, collectionId: newCollectionId, files });
 }

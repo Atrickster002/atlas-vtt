@@ -10,15 +10,21 @@ const loaded: { tab: Tab; assets: AnyAsset[] } = {
   assets: [{ id: 'goblin', name: 'Goblin', type: 'tokens', imageUrl: '', folderId: null, modifiedAt: 0 }],
 };
 
+// The asset manager listens to workspace events (collection settings changes).
+const workspaceApp = { workspace: { on: () => ({}), offref: () => {} } };
+
 vi.mock('../../src/app/packages/components/asset-manager/hooks/useAssetData', () => ({
   useAssetData: () => ({
-    folders: [], collections: [], availableTags: [], assets: loaded.assets, assetsTab: loaded.tab,
+    folders: [], collections: [], availableTags: [], assets: loaded.assets, assetsTab: loaded.tab, app: workspaceApp,
   }),
 }));
 vi.mock('../../src/app/packages/components/asset-manager/hooks/useAssetCrud', () => ({ useAssetCrud: () => ({}) }));
 vi.mock('../../src/app/packages/components/asset-manager/hooks/useTagsAndCollections', () => ({ useTagsAndCollections: () => ({}) }));
 vi.mock('../../src/app/packages/components/asset-manager/hooks/useContextMenus', () => ({ useContextMenus: () => ({}) }));
 vi.mock('../../src/app/packages/components/asset-manager/hooks/useStatblockLink', () => ({ useStatblockLink: () => ({}) }));
+vi.mock('../../src/app/packages/components/asset-manager/hooks/useRememberedPlace', () => ({
+  useRememberedPlace: () => ({ scrollTopOf: () => 0, setScrollTop: () => {} }),
+}));
 vi.mock('../../src/app/packages/components/asset-manager/hooks/useAssetManagerEffects', () => ({ useAssetManagerEffects: () => {} }));
 vi.mock('../../src/app/packages/components/asset-manager/components/Sidebar', () => ({ Sidebar: () => null }));
 vi.mock('../../src/app/packages/components/asset-manager/components/ModalLayer', () => ({ ModalLayer: () => null }));

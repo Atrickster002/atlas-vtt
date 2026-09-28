@@ -7,9 +7,11 @@ import { NotePreviewWindow } from './NotePreviewWindow';
 import { StatblockPreviewWindow } from './StatblockPreviewWindow';
 import { findCreatureForNotePath } from './FantasyStatblocksService';
 import { MapLinkPreview } from './MapLinkPreview';
+import { linkedFilePath, linkedMapPath, linkedSceneFile } from './sceneLinks';
 import { runInBackground } from '../utils/backgroundTask';
 import { findAtlasLeafByViewId } from '../utils/atlasLeafLookup';
 import { readPinnedNotePreviews } from '../stores/pinnedNotePreviewSlice';
+import { isModHeld } from '../keyboard/modKey';
 import type { ViewAtlasStore } from '../storeFactory';
 
 /**
@@ -31,7 +33,7 @@ export type PreviewAnchor = NotePin | TokenPreviewAnchor;
 export type PreviewAnchorRef = Pick<PreviewAnchor, 'id' | 'notePath'>;
 
 // Common interface for preview windows
-interface IPreviewWindow {
+export interface IPreviewWindow {
   notePath: string;
   element: HTMLElement | null;
   originatingPin?: PreviewAnchorRef | null;
@@ -101,7 +103,7 @@ export class NotePreviewUIManager {
       // Check the actual key state from the event if available, otherwise fall back to tracked state
       let modifierKeyDown = this.isModifierKeyDown;
       if (data.pixiEvent) {
-        modifierKeyDown = data.pixiEvent.metaKey || data.pixiEvent.ctrlKey;
+        modifierKeyDown = isModHeld(data.pixiEvent);
       }
       
       // Hover events only fire when the hovered element changes, so remember
@@ -245,7 +247,7 @@ export class NotePreviewUIManager {
   }
 
   private handleKeyDown(e: KeyboardEvent): void {
-    if (e.metaKey || e.ctrlKey) {
+    if (isModHeld(e)) {
       const justPressed = !this.isModifierKeyDown;
       this.isModifierKeyDown = true;
       if (justPressed && this.currentHover) {
@@ -257,31 +259,23 @@ export class NotePreviewUIManager {
   }
 
   private handleKeyUp(e: KeyboardEvent): void {
-    if (!e.metaKey && !e.ctrlKey) {
+    if (!isModHeld(e)) {
       this.isModifierKeyDown = false;
       // Always hide all unpinned previews when modifier is released
       this.hideAllUnpinnedPreviews();
     }
   }
   
-  public handlePreviewClosed(notePath: string, originatingPin?: PreviewAnchorRef): void {
-    // Find and remove the specific preview instance
-    if (originatingPin) {
-      // We need to use the original pin.notePath (with header) for the key
-      const key = `${originatingPin.notePath}::${originatingPin.id}`;
-      if (this.activePreviews.has(key)) {
-        this.activePreviews.delete(key);
-      }
-    } else {
-      // Fallback: remove any preview with this note path
-      for (const [key, preview] of this.activePreviews.entries()) {
-        if (preview.notePath === notePath) {
-          this.activePreviews.delete(key);
-        }
-      }
+  /**
+   * Forgets a window that closed. Matched by instance, not by key: a window
+   * fading out may finish after a new one for the same anchor took its key.
+   */
+  public handlePreviewClosed(preview: IPreviewWindow): void {
+    for (const [key, tracked] of this.activePreviews) {
+      if (tracked === preview) this.activePreviews.delete(key);
     }
   }
-  
+
   public async showOrCreatePreview(
     pin: PreviewAnchor,
     screenX: number,
@@ -309,30 +303,20 @@ export class NotePreviewUIManager {
     // Hide all unpinned previews before creating a new one
     this.hideAllUnpinnedPreviews();
     
-    // Extract the base file path without header
-    const hashIndex = pin.notePath.indexOf('#');
-    const baseNotePath = hashIndex !== -1 ? pin.notePath.substring(0, hashIndex) : pin.notePath;
-    
-    // Check file type for specialized previews
-    const file = this.app.vault.getAbstractFileByPath(baseNotePath);
-    if (file instanceof TFile) {
-      // Atlas map files → lightweight tooltip with thumbnail + "Open Map" button
-      if (file.extension === 'atlasmap') {
-        const mapPreview = new MapLinkPreview(
-          this.app,
-          file,
-          pin,
-          this,
-          { x: screenX, y: screenY }
-        );
-
-        if (mapPreview.element) {
-          const previewKey = `${pin.notePath}::${pin.id}`;
-          this.activePreviews.set(previewKey, mapPreview);
-          this.raiseZIndex(mapPreview);
-        }
-        return;
+    // Scene links → lightweight tooltip with thumbnail + "Open Map" button; nothing for a scene not in this collection
+    if (linkedMapPath(pin.notePath)) {
+      const scene = linkedSceneFile(this.app, this.store.getState().mapPath, pin.notePath);
+      const mapPreview = scene ? new MapLinkPreview(this.app, scene, pin, this, { x: screenX, y: screenY }) : null;
+      if (mapPreview?.element) {
+        this.activePreviews.set(`${pin.notePath}::${pin.id}`, mapPreview);
+        this.raiseZIndex(mapPreview);
       }
+      return;
+    }
+
+    // Check file type for specialized previews
+    const file = this.app.vault.getAbstractFileByPath(linkedFilePath(pin.notePath));
+    if (file instanceof TFile) {
 
       // Notes backed by a Fantasy Statblocks creature → rich statblock preview for tokens
       const isStatblock = findCreatureForNotePath(file.path) !== null;

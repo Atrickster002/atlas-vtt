@@ -1,6 +1,7 @@
 import React from 'react';
 import { fireEvent, render } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { Platform } from 'obsidian';
 import type { InitiativeEntry } from '../../src/app/types/initiativeTypes';
 
 vi.mock('../../src/app/react/root/AtlasUIContext', () => ({
@@ -40,6 +41,14 @@ function createEntry(): InitiativeEntry {
 }
 
 describe('InitiativeCard statblock preview hover behavior', () => {
+  beforeEach(() => {
+    Platform.isMacOS = true;
+  });
+
+  afterEach(() => {
+    Platform.isMacOS = false;
+  });
+
   it('does not repeatedly trigger onHover when this card is already active preview target', () => {
     const onHover = vi.fn();
     const entry = createEntry();
@@ -128,5 +137,53 @@ describe('InitiativeCard statblock preview hover behavior', () => {
     fireEvent.mouseMove(card);
 
     expect(onHover).toHaveBeenCalledTimes(1);
+  });
+
+  it('ignores Ctrl on macOS, where Ctrl+click is a right click', () => {
+    const onHover = vi.fn();
+
+    const { getByRole } = render(
+      <InitiativeCard
+        entry={createEntry()}
+        index={0}
+        isHoveredForPreview={false}
+        onDragStart={vi.fn()}
+        onDragOver={vi.fn()}
+        onDragEnd={vi.fn()}
+        onContextMenu={vi.fn()}
+        onHover={onHover}
+      />,
+    );
+
+    const card = getByRole('listitem');
+    fireEvent.keyDown(window, { key: 'Control', ctrlKey: true });
+    fireEvent.mouseMove(card, { ctrlKey: true });
+
+    expect(onHover).not.toHaveBeenCalled();
+  });
+
+  it('ignores the modifier key once the card was hidden without a mouseleave', () => {
+    const onHover = vi.fn();
+
+    const { getByRole } = render(
+      <InitiativeCard
+        entry={createEntry()}
+        index={0}
+        isHoveredForPreview={false}
+        onDragStart={vi.fn()}
+        onDragOver={vi.fn()}
+        onDragEnd={vi.fn()}
+        onContextMenu={vi.fn()}
+        onHover={onHover}
+      />,
+    );
+
+    const card = getByRole('listitem');
+    fireEvent.mouseEnter(card);
+    // Another Obsidian tab took over and hid the map view under the resting pointer.
+    card.checkVisibility = (): boolean => false;
+
+    fireEvent.keyDown(window, { key: 'Meta', metaKey: true });
+    expect(onHover).not.toHaveBeenCalled();
   });
 });

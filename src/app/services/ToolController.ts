@@ -7,7 +7,6 @@ import { MeasureTool, MeasureSettings } from '../tools/MeasureTool';
 import { FogTool, FogSettings } from '../tools/FogTool';
 import { NotePinTool } from '../tools/NotePinTool';
 import { DiceTool } from '../tools/DiceTool';
-import { LaserPointerTool } from '../tools/LaserPointerTool';
 import { AudioTool } from '../tools/AudioTool';
 import type { App } from 'obsidian';
 
@@ -18,7 +17,6 @@ export class ToolController {
   private readonly fogTool: FogTool;
   private readonly notePinTool: NotePinTool;
   private readonly diceTool: DiceTool;
-  private readonly laserPointerTool: LaserPointerTool;
   private readonly audioTool: AudioTool;
   private eventBus: EventEmitter;
   private store: StoreApi<ViewAtlasState>;
@@ -33,7 +31,6 @@ export class ToolController {
     this.fogTool = new FogTool(eventBus);
     this.notePinTool = new NotePinTool(eventBus, app, store);
     this.diceTool = new DiceTool(eventBus);
-    this.laserPointerTool = new LaserPointerTool(eventBus);
     this.audioTool = new AudioTool(eventBus);
   }
   
@@ -187,14 +184,6 @@ export class ToolController {
    */
   public getDiceTool(): DiceTool {
     return this.diceTool;
-  }
-  
-  /**
-   * Get the laser pointer tool instance
-   * @returns The laser pointer tool
-   */
-  public getLaserPointerTool(): LaserPointerTool {
-    return this.laserPointerTool;
   }
   
   /**

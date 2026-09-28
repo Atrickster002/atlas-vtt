@@ -1,8 +1,8 @@
 /**
  * Grid Alignment Controller
  *
- * Manages PIXI-side visuals for the grid calibration tool. Supports both
- * the 4-quadrant "Intersections" mode and the single-measurement "Quick" mode.
+ * Manages PIXI-side visuals for the grid calibration tool: the 4-quadrant
+ * "Intersections" mode and the grid preview the "Freehand" mode places.
  * Draws crosshair markers, connecting lines, quadrant dimming, and drives
  * live grid preview through the existing GridSystem.
  */
@@ -238,6 +238,11 @@ export class GridAlignmentController {
       isAligning: true,
       ...(type ? { type } : {}),
     });
+  }
+
+  /** Hides the grid while a new one is being placed; cancelling restores the scene's grid. */
+  hidePreview(): void {
+    this.gridSystem.updateOptions({ enabled: false, isAligning: true });
   }
 
   // -----------------------------------------------------------------------

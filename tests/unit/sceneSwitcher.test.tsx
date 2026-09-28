@@ -9,6 +9,11 @@ import { playerWindowStore, resetPlayerWindowStore } from '../../src/app/stores/
 beforeEach(() => { Element.prototype.scrollIntoView = vi.fn(); });
 afterEach(() => { cleanup(); resetPlayerWindowStore(); document.body.innerHTML = ''; });
 
+function OwnedSceneSwitcher(props: { onSwitchTab: (tabId: string) => void; onPresentTab: (tabId: string) => void }) {
+  const [isOpen, setOpen] = React.useState(false);
+  return <SceneSwitcher isOpen={isOpen} onOpenChange={setOpen} {...props} />;
+}
+
 function setup() {
   const tabMetaStore = createTabMetaStore();
   const ids = ['Tavern', 'Crystal Caves', 'Cave Entrance'].map(name => tabMetaStore.getState().addTab(`${name}.atlasmap`, name));
@@ -18,7 +23,7 @@ function setup() {
   const app = { vault: { adapter: { exists: async () => true, write: async () => {} } } };
   const value = { app, view: { viewId: 'map', tabMetaStore }, pixiApp: null, renderer: null } as never;
   render(<AtlasUIContext.Provider value={value}>
-    <div className="workspace-leaf mod-active"><div data-view-id="map"><SceneSwitcher onSwitchTab={onSwitchTab} onPresentTab={onPresentTab} /></div></div>
+    <div className="workspace-leaf mod-active"><div data-view-id="map"><OwnedSceneSwitcher onSwitchTab={onSwitchTab} onPresentTab={onPresentTab} /></div></div>
   </AtlasUIContext.Provider>);
   const open = (): HTMLInputElement => {
     fireEvent.keyDown(window, { key: 'g' });

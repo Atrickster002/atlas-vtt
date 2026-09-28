@@ -1,6 +1,12 @@
 {
-  "version": "0.3.1",
+  "version": "0.4.0",
   "releases": [
+    {
+      "version": "0.4.0",
+      "date": "2026-09-28",
+      "title": "Creature filters, hexcrawl maps, loot roller, progress clocks and moving between collections",
+      "markdown": "## New\n\n**Creature Filters**\n- Filter characters by challenge rating, level, type, alignment and more. Type `cr:1-3` or `type:beast` in the search, or use the filter panel.\n- Sort characters by Rating.\n\n**Hexcrawl Maps**\n- Number every hex on a hex grid.\n- Link a note to a hex: Shift-click it with the Note Pin tool.\n\n**Progress Clocks**\n- A new Clock widget, like in Blades in the Dark. Show it to your players too.\n\n**Move and Copy Between Collections**\n- Right-click any asset and choose Move or Copy to Collection. Artwork, statblocks and links come along.\n\n**Loot Roller**\n- Roll random loot from your item notes in Obsidian Bases. Press L to open it.\n- Show an item to your players with the eye button.\n\n**Player View and Starter Tokens**\n- Share your dice rolls with players. Turn on \"Show dice rolls\" in the player view settings.\n- Ten new class tokens in the default collection.\n\n## Improved\n\n- New laser pointer that is easy to see on any map.\n- Place a grid by eye with the new Freehand tab.\n- The asset manager opens where you left it.\n- Start, pause and reset timers from the keyboard.\n- Open map tabs scroll when there are too many.\n\n## Fixed\n\n- Many fixes for note previews, the player view, widgets and settings.\n- Atlas now notices when you rename, move or delete its files outside Atlas.\n- Saved encounters go to the right collection.\n\n## Important changes\n\n- A collection's folder now always has the collection's name. Atlas renames old folders once, for example `default` to `5e`.\n- The Quick tab in Grid alignment is gone. Use Intersections or Freehand instead."
+    },
     {
       "version": "0.3.1",
       "date": "2026-09-24",

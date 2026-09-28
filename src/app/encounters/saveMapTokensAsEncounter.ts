@@ -20,8 +20,8 @@ function snapshotTokenState(token: TokenEntity): TokenStateSnapshot {
 }
 
 /**
- * Save the given map tokens as an encounter, recording their grid-relative layout
- * and full state so spawning the encounter later reproduces them exactly.
+ * Save the given map tokens as an encounter in the scene's collection, recording their
+ * grid-relative layout and full state so spawning the encounter later reproduces them exactly.
  */
 export async function saveMapTokensAsEncounter(
   app: ObsidianApp,
@@ -58,5 +58,8 @@ export async function saveMapTokensAsEncounter(
     return draft;
   });
 
-  await saveEncounter(app, AssetService.getInstance(app), drafts, formation);
+  const assetService = AssetService.getInstance(app);
+  const mapPath = store.getState().mapPath;
+  const collectionId = (mapPath && assetService.getCollectionForMap(mapPath)) || assetService.getDefaultCollectionId();
+  await saveEncounter(app, assetService, collectionId, drafts, formation);
 }

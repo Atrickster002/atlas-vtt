@@ -1,7 +1,6 @@
-import { App as ObsidianApp, TFile } from 'obsidian';
-import { findCreatureForNotePath, layoutForCreature, resolveCreatureFromFence } from '../../../../services/FantasyStatblocksService';
-
-import { resolveStatblockNote } from '../../../../services/statblockNoteSource';
+import type { App as ObsidianApp } from 'obsidian';
+import { resolveLinkedCreature } from '../../../../creatures/linkedCreature';
+import { layoutForCreature } from '../../../../services/FantasyStatblocksService';
 import { getStatblockResources, getResourceUpdate } from '../../../../services/statblockResources';
 import type { TokenResourceValue } from '../../../../types';
 
@@ -31,12 +30,7 @@ export async function loadStatblockOverrides(
   const overrides: StatblockOverrides = {};
 
   try {
-    let creature = findCreatureForNotePath(statblockPath);
-    if (!creature) {
-      const file = app.vault.getAbstractFileByPath(statblockPath);
-      const source = file instanceof TFile ? await resolveStatblockNote(app, file) : null;
-      if (source?.kind === 'codeblock') creature = await resolveCreatureFromFence(app, source.params, statblockPath);
-    }
+    const creature = await resolveLinkedCreature(app, statblockPath);
     if (!creature) return overrides;
 
     const layout = layoutForCreature(app, creature) ?? { id: '', name: '', blocks: [] };

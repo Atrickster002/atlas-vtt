@@ -6,6 +6,11 @@ vi.mock('../../src/app/react/root/ContextMenuContext', () => ({
 
 import { ImageDisplayService } from '../../src/app/services/ImageDisplayService';
 
+/** A player window: its document and the window-level listeners the overlay uses for Escape. */
+function fakePlayerWindow(document: Document): Window {
+  return Object.assign(new EventTarget(), { document }) as unknown as Window;
+}
+
 describe('ImageDisplayService cleanup', () => {
   beforeEach(() => {
     document.body.innerHTML = '';
@@ -21,8 +26,9 @@ describe('ImageDisplayService cleanup', () => {
     const app = { workspace: {} } as any;
     const service = new ImageDisplayService(app);
     const playerDoc = document.implementation.createHTMLDocument('player');
-    const playerWindow = { document: playerDoc } as Window;
+    const playerWindow = fakePlayerWindow(playerDoc);
     const removeSpy = vi.spyOn(playerDoc, 'removeEventListener');
+    const removeWindowSpy = vi.spyOn(playerWindow, 'removeEventListener');
     const revokeSpy = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {});
 
     (service as any).createImageDisplay(playerWindow, 'blob:test-image', 'test.png');
@@ -31,7 +37,7 @@ describe('ImageDisplayService cleanup', () => {
     // Input stops at once; the overlay itself leaves once its exit has played
     expect(removeSpy).toHaveBeenCalledWith('mousemove', expect.any(Function));
     expect(removeSpy).toHaveBeenCalledWith('mouseup', expect.any(Function));
-    expect(removeSpy).toHaveBeenCalledWith('keydown', expect.any(Function));
+    expect(removeWindowSpy).toHaveBeenCalledWith('keydown', expect.any(Function), true);
     expect(playerDoc.querySelector('.atlas-image-display')?.classList.contains('is-leaving')).toBe(true);
     expect(service.isImageDisplayed()).toBe(false);
 
@@ -44,7 +50,7 @@ describe('ImageDisplayService cleanup', () => {
   test('crossfades a replaced image: the new overlay enters beneath the leaving one', async () => {
     const service = new ImageDisplayService({ workspace: {} } as any);
     const playerDoc = document.implementation.createHTMLDocument('player');
-    const playerWindow = { document: playerDoc } as Window;
+    const playerWindow = fakePlayerWindow(playerDoc);
     vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {});
 
     (service as any).createImageDisplay(playerWindow, 'blob:first', 'first.png');
@@ -65,9 +71,9 @@ describe('ImageDisplayService cleanup', () => {
     let finishDecode: () => void = () => undefined;
     const decode = vi.spyOn(HTMLImageElement.prototype, 'decode');
 
-    (service as any).createImageDisplay({ document: playerDoc } as Window, 'blob:first', 'first.png');
+    (service as any).createImageDisplay(fakePlayerWindow(playerDoc), 'blob:first', 'first.png');
     decode.mockImplementationOnce(() => new Promise<void>((resolve) => { finishDecode = resolve; }));
-    (service as any).createImageDisplay({ document: playerDoc } as Window, 'blob:second', 'second.png');
+    (service as any).createImageDisplay(fakePlayerWindow(playerDoc), 'blob:second', 'second.png');
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(playerDoc.querySelectorAll('.atlas-image-display')).toHaveLength(2);
 
@@ -80,7 +86,7 @@ describe('ImageDisplayService cleanup', () => {
     const playerDoc = document.implementation.createHTMLDocument('player');
     vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {});
 
-    (service as any).createImageDisplay({ document: playerDoc } as Window, 'blob:test-image', 'test.png');
+    (service as any).createImageDisplay(fakePlayerWindow(playerDoc), 'blob:test-image', 'test.png');
     service.closeImageDisplay();
     service.destroy();
 

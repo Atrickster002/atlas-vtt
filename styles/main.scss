@@ -69,10 +69,17 @@
   @import '../src/app/react/components/player-dashboard.scss';
   @import '../src/app/react/components/dashboard.scss';
   @import '../src/app/react/components/dice-log/dice-roll-log.scss';
+  @import '../src/app/react/components/loot/loot-roller.scss';
+  @import '../src/app/react/components/loot/loot-source-tree.scss';
+  @import '../src/app/react/components/loot/loot-roll-bar.scss';
+  @import '../src/app/react/components/loot/loot-lists.scss';
+  @import '../src/app/react/components/loot/loot-card.scss';
+  @import '../src/app/react/components/loot/player-loot.scss';
   @import '../src/app/packages/components/asset-manager/tag-search-modal.scss';
   @import '../src/app/pixi/token-renderer/edit-token-modal.scss';
   @import '../src/app/react/components/collection-settings-modal.scss';
   @import '../src/app/react/components/collection-settings/system-tab.scss';
+  @import '../src/app/react/components/collection-settings/creature-filters-tab.scss';
   @import '../src/app/services/note-preview-window.scss';
   @import '../src/app/services/embedded-leaf.scss';
   @import '../src/app/react/components/atlas-toast.scss';
@@ -128,11 +135,10 @@
     z-index: 100;
     pointer-events: none;
 
-    // The row positions the widget bar here; the fixed variants in
-    // widget-bar.scss remain for the player window.
-    > .atlas-widget-bar.atlas-widget-bar-top {
+    // The row positions the widget bar here; its fixed placement in
+    // widget-bar.scss is for the player window.
+    > .atlas-widget-bar {
       position: static;
-      transform: none;
       flex: none;
       margin-left: auto;
     }
@@ -328,8 +334,7 @@
 
     // Restore default styles for buttons inside dropdown menus
     .atlas-dropdown-content button.btn {
-      border-radius: var(--atlas-menu-top-radius, #{$radius-l}) var(--atlas-menu-top-radius, #{$radius-l})
-        var(--atlas-menu-bottom-radius, #{$radius-l}) var(--atlas-menu-bottom-radius, #{$radius-l}) !important;
+      border-radius: atlas-panel-inset-radius-value($spacing-s) !important;
       background: transparent !important;
 
       &:hover {
@@ -858,6 +863,23 @@ input.atlas-offscreen-input {
   outline: none;
   background: transparent;
   z-index: -1;
+}
+
+// Base views Atlas runs off screen to read loot (src/app/loot/lootQueryView.ts).
+.atlas-loot-query-host {
+  position: fixed;
+  left: -10000px;
+  top: 0;
+  width: 400px;
+  height: 300px;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+// Atlas's loot view opened in a base of one's own: a short note on what it is for.
+.atlas-loot-query-note {
+  padding: var(--size-4-4);
+  color: var(--text-muted);
 }
 
 // Throwaway element used to resolve a CSS colour to its computed value.

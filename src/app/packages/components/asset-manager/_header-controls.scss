@@ -99,9 +99,12 @@
 }
 
 .atlas-asset-manager-search {
+  // Anchors the suggestions; narrow headers make the field an absolute overlay instead.
+  position: relative;
   @include atlas-flex-row($gap: $spacing-xs);
-  flex: 0 1 180px;
-  width: 180px;
+  // The same on every tab: room for typed filters and the filter button.
+  flex: 0 1 240px;
+  width: 240px;
   min-width: 120px;
   height: $control-height;
   padding: 0 $spacing-xs 0 $spacing-s;

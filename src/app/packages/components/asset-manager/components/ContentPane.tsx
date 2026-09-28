@@ -16,7 +16,9 @@ import type { AssetService } from '../../../../services/AssetService';
 import type { AtlasView } from '../../../../atlas-view';
 import type { ViewAtlasState } from '../../../../storeFactory';
 import { useSpawnCountTyping } from '../hooks/useSpawnCountTyping';
+import { useRememberedScroll, type ScrollMemory } from '../hooks/useRememberedScroll';
 import { useScrollbarGutter } from '../../primitives/useScrollbarGutter';
+import { Button } from '../../primitives/button';
 
 export interface ContentPaneProps {
   activeTab: Tab;
@@ -48,6 +50,11 @@ export interface ContentPaneProps {
   assetService: AssetService | null;
   spawnCounts: Record<string, number>;
   onSpawnCountChange: (assetId: string, count: number) => void;
+  /** Identifies the place the pane shows (collection, tab, folder, refinement) for its scroll position. */
+  scrollKey: string;
+  scrollMemory: ScrollMemory;
+  /** Set while filters narrow the list; the empty state offers to clear them. */
+  onClearFilters?: () => void;
 }
 
 interface SectionHeaderProps {
@@ -101,6 +108,7 @@ export function ContentPane(props: ContentPaneProps): React.JSX.Element {
   });
   useSpawnCountTyping(scrollElement, props.onSpawnCountChange);
   useScrollbarGutter(scrollElement);
+  useRememberedScroll(scrollElement, props.scrollKey, props.scrollMemory);
 
   const selectedIds = useMemo(() => new Set(selectedAssetIds), [selectedAssetIds]);
   const draggingIds = useMemo(
@@ -142,8 +150,12 @@ export function ContentPane(props: ContentPaneProps): React.JSX.Element {
         {isEmpty ? (
           <motion.div key="empty" className="atlas-empty-state" variants={fadeVariants} initial="hidden" animate="visible" exit="exit">
             <PackageOpen className="atlas-empty-icon" />
-            <h3>No {getTabDisplayName(activeTab).toLowerCase()} yet</h3>
-            <p>Use the + button to add some, or adjust your search and tag filters.</p>
+            <h3>No {getTabDisplayName(activeTab).toLowerCase()} {props.onClearFilters ? 'match these filters' : 'yet'}</h3>
+            {props.onClearFilters ? (
+              <Button variant="outline" className="atlas-empty-action" onClick={props.onClearFilters}>Clear filters</Button>
+            ) : (
+              <p>Use the + button to add some, or adjust your search and tag filters.</p>
+            )}
           </motion.div>
         ) : (
           <motion.div

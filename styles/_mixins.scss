@@ -378,6 +378,18 @@
   }
 }
 
+/// Marks the chosen colour swatch with a tick on a neutral badge, so it reads on any
+/// swatch colour and does not depend on telling colours apart.
+@mixin atlas-swatch-check($size: 16px) {
+  width: $size;
+  height: $size;
+  padding: 3px;
+  border-radius: $radius-full;
+  background: var(--background-primary);
+  color: var(--text-normal);
+  box-shadow: $shadow-sm;
+}
+
 /// Input accent focus state — accent border with soft glow.
 /// Use on text inputs and selects when focused.
 @mixin atlas-input-focus {

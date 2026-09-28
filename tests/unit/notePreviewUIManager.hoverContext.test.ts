@@ -1,6 +1,6 @@
 import { EventEmitter } from 'events';
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
-import { WorkspaceLeaf } from 'obsidian';
+import { Platform, WorkspaceLeaf } from 'obsidian';
 import { createInMemoryApp } from '../mocks/inMemoryVault';
 import { createViewAtlasStore } from '../../src/app/storeFactory';
 import { NotePreviewUIManager } from '../../src/app/services/NotePreviewUIManager';
@@ -65,11 +65,13 @@ describe('NotePreviewUIManager hover replay', () => {
   let harness: ManagerHarness;
 
   beforeEach(() => {
+    Platform.isMacOS = true;
     harness = createHarness();
   });
 
   afterEach(() => {
     harness.manager.destroy();
+    Platform.isMacOS = false;
   });
 
   it('opens the preview when CMD is pressed while an element is hovered', () => {
@@ -77,6 +79,13 @@ describe('NotePreviewUIManager hover replay', () => {
     pressModifier();
 
     expect(harness.showPreview).toHaveBeenCalledTimes(1);
+  });
+
+  it('ignores Ctrl on macOS, where Ctrl+click is a right click', () => {
+    hoverPin(harness.eventBus);
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Control', ctrlKey: true }));
+
+    expect(harness.showPreview).not.toHaveBeenCalled();
   });
 
   it('does not replay the previous map\'s hover after another map loads', () => {

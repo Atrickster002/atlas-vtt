@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { GripHorizontal, Volume2, Play } from 'lucide-react';
 import { createRoot } from 'react-dom/client';
 import type { StoreApi } from 'zustand';
@@ -8,6 +8,7 @@ import type { AudioSource, SoundMeta, SoundCategory } from '../../types/audioTyp
 import type { SoundRegistry } from '../../audio/SoundRegistry';
 
 import './audio-config-panel.scss';
+import { useDraggablePosition } from '../../react/hooks/useDraggablePosition';
 import { CloseButton } from '../../packages/components/primitives/CloseButton';
 import { LabelTooltip } from '../../packages/components/primitives/tooltip';
 import { unitLabelFor } from '../../grid/measurementFormat';
@@ -58,14 +59,7 @@ function AudioConfigPanelInner({
   );
   const [loop, setLoop] = useState(audio.loop);
 
-  const [pos, setPos] = useState({ x: screenX + 20, y: screenY - 40 });
-  const panelRef = useRef<HTMLDivElement>(null);
-  const dragRef = useRef<{
-    startX: number;
-    startY: number;
-    panelX: number;
-    panelY: number;
-  } | null>(null);
+  const { position, panelRef, startDrag } = useDraggablePosition({ x: screenX + 20, y: screenY - 40 });
 
   const soundsByCategory = registry.listByCategory();
 
@@ -99,46 +93,6 @@ function AudioConfigPanelInner({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [onClose]);
 
-  // Clamp panel to viewport on mount
-  useEffect(() => {
-    if (!panelRef.current) return;
-    const rect = panelRef.current.getBoundingClientRect();
-    const maxX = window.innerWidth - rect.width - 8;
-    const maxY = window.innerHeight - rect.height - 8;
-    setPos((prev) => ({
-      x: Math.max(8, Math.min(prev.x, maxX)),
-      y: Math.max(8, Math.min(prev.y, maxY)),
-    }));
-  }, []);
-
-  // Drag handlers
-  const onDragStart = useCallback(
-    (e: React.PointerEvent) => {
-      e.preventDefault();
-      dragRef.current = {
-        startX: e.clientX,
-        startY: e.clientY,
-        panelX: pos.x,
-        panelY: pos.y,
-      };
-      const onMove = (ev: PointerEvent): void => {
-        if (!dragRef.current) return;
-        setPos({
-          x: dragRef.current.panelX + (ev.clientX - dragRef.current.startX),
-          y: dragRef.current.panelY + (ev.clientY - dragRef.current.startY),
-        });
-      };
-      const onUp = (): void => {
-        dragRef.current = null;
-        window.removeEventListener('pointermove', onMove);
-        window.removeEventListener('pointerup', onUp);
-      };
-      window.addEventListener('pointermove', onMove);
-      window.addEventListener('pointerup', onUp);
-    },
-    [pos],
-  );
-
   const handleDelete = useCallback(() => {
     store.getState().deleteAudio(audio.id);
     onClose();
@@ -148,10 +102,10 @@ function AudioConfigPanelInner({
     <div
       ref={panelRef}
       className="atlas-audio-config"
-      style={{ left: pos.x, top: pos.y }}
+      style={{ left: position.x, top: position.y }}
     >
       {/* Drag handle + header */}
-      <div className="atlas-audio-config__header" onPointerDown={onDragStart}>
+      <div className="atlas-audio-config__header" onPointerDown={startDrag}>
         <GripHorizontal size={14} className="atlas-audio-config__grip" />
         <span className="atlas-audio-config__title">Sound Source</span>
         <CloseButton onClick={onClose} />

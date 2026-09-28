@@ -26,6 +26,6 @@ describe('counter values', () => {
   it('clamps to the default and configured range', () => {
     expect(clampCounterValue(counter, -1)).toBe(0);
     expect(clampCounterValue(counter, 120)).toBe(99);
-    expect(clampCounterValue({ min: -5, max: 5 }, -9)).toBe(-5);
+    expect(clampCounterValue({ ...counter, min: -5, max: 5 }, -9)).toBe(-5);
   });
 });

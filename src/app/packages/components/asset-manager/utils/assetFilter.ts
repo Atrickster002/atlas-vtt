@@ -9,12 +9,15 @@ export interface AssetFilter {
   search: string;
   /** Tags an asset must all carry. */
   tags: readonly Pick<Tag, 'id' | 'name'>[];
+  /** Other filters narrow the list (creature filters), so it searches the folder's whole subtree as well. */
+  narrowed?: boolean;
 }
 
 /**
  * The assets the content area shows. Unfiltered, those directly in the open
- * folder. While a search or tag filters, those anywhere below it, so a filter
- * finds assets whatever folder they sit in; at the root that is every asset of the tab.
+ * folder. While a search, tag or other filter narrows the list, those anywhere
+ * below it, so a filter finds assets whatever folder they sit in; at the root
+ * that is every asset of the tab.
  */
 export function filterAssets(assets: readonly AnyAsset[], folders: readonly Folder[], filter: AssetFilter): AnyAsset[] {
   const searchLower = filter.search.toLowerCase();
@@ -41,7 +44,7 @@ function folderScope(folders: readonly Folder[], filter: AssetFilter): (folderId
 }
 
 function isFiltering(filter: AssetFilter): boolean {
-  return filter.search !== '' || filter.tags.length > 0;
+  return filter.search !== '' || filter.tags.length > 0 || filter.narrowed === true;
 }
 
 /** `rootId` and the ids of every folder below it. */

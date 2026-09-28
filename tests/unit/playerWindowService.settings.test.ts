@@ -46,6 +46,49 @@ describe('live player settings', () => {
     expect(widgets.textContent).toContain('Counter');
   });
 
+  it('shows public timers beside counters, ticking with the DM\'s timer, and hides private ones', () => {
+    vi.useFakeTimers();
+    const settings = new SettingsService(app);
+    const scene = counterScene('Fear', 2);
+    const timer = { id: 'timer', type: 'timer', icon: 'hourglass', label: 'Torch', value: 3600, duration: 3600, direction: 'down', visible: true, visibleToPlayers: true, order: 1 };
+    const hidden = { ...timer, id: 'hidden', label: 'Secret', visibleToPlayers: false, order: 2 };
+    const store = createStore(() => ({ ...scene, widgetSettings: { ...scene.widgetSettings, widgets: { ...scene.widgetSettings.widgets, timer, hidden } } }) as CounterScene);
+    const source = sourceFor(store);
+    const service = new PlayerWindowService(app, source.store!, settings);
+    const doc = attachFakePlayerWindow(service, source);
+    const widgets = doc.getElementById('atlas-player-widgets')!;
+
+    expect(widgets.querySelector('.atlas-widget-timer .atlas-timer-display')?.textContent).toBe('1:00:00');
+    expect(widgets.textContent).toBe('2Fear1:00:00Torch');
+
+    const current = store.getState().widgetSettings;
+    store.setState({ widgetSettings: { ...current, widgets: { ...current.widgets, timer: { ...timer, value: 3599 } } } });
+    expect(widgets.querySelector('.atlas-timer-display')?.textContent).toBe('59:59');
+    service.destroy();
+  });
+
+  it('shows public progress clocks with their filled wedges', () => {
+    vi.useFakeTimers();
+    const settings = new SettingsService(app);
+    const scene = counterScene('Fear', 2);
+    const clock = { id: 'alarm', type: 'clock', icon: 'skull', label: 'Alarm', value: 0, segments: 4, showCount: true, visible: true, visibleToPlayers: true, order: 1 };
+    const store = createStore(() => ({ ...scene, widgetValues: { alarm: 3 }, widgetSettings: { ...scene.widgetSettings, widgets: { ...scene.widgetSettings.widgets, alarm: clock } } }) as CounterScene);
+    const source = sourceFor(store);
+    const service = new PlayerWindowService(app, source.store!, settings);
+    const doc = attachFakePlayerWindow(service, source);
+    const widgets = doc.getElementById('atlas-player-widgets')!;
+
+    const face = widgets.querySelector('.atlas-widget-clock .atlas-clock-face');
+    expect(face?.querySelectorAll('.atlas-clock-wedge')).toHaveLength(4);
+    expect(face?.querySelectorAll('.is-filled')).toHaveLength(3);
+    expect(face?.getAttribute('aria-label')).toBe('Alarm: 3 of 4');
+    expect(face?.querySelector('.atlas-clock-count')?.textContent).toBe('3/4');
+
+    store.setState({ widgetValues: { alarm: 4 } });
+    expect(widgets.querySelector('.atlas-widget-clock.clock-complete .atlas-clock-face')?.querySelectorAll('.is-filled')).toHaveLength(4);
+    service.destroy();
+  });
+
   it('keeps the presented map\'s widgets while the DM browses another map and follows a newly presented one', () => {
     vi.useFakeTimers();
     const settings = new SettingsService(app);

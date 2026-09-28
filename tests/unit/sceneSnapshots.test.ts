@@ -55,6 +55,11 @@ describe('scene snapshot format', () => {
     expect(isSceneSnapshot(JSON.parse(JSON.stringify(snapshot)))).toBe(true);
   });
 
+  it('leaves the loot roller out, as it belongs to the session', () => {
+    const snapshot = createSnapshot({ version: 4, state: { ...encounterReady, lootRoller: { open: true, history: [] } } }, 's1', 'Ambush', 1000);
+    expect(snapshot.state).not.toHaveProperty('lootRoller');
+  });
+
   it('restores the scene state but keeps the session state of the map it is restored into', () => {
     const snapshot = createSnapshot({ version: 4, state: { ...encounterReady } }, 's1', 'Ambush', 1000);
     const played = { version: 4, state: { mapPath: 'old/path.atlasmap', camera: { x: 9, y: 9, scale: 1 }, diceLog: ['d6: 3'], objects: { tokens: {} } } };

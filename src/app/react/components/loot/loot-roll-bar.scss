@@ -1,0 +1,168 @@
+// ═══════════════════════════════════════════════════════════════════════════
+// Loot Roller — roll controls: rarity toggles, item count, Roll
+// ═══════════════════════════════════════════════════════════════════════════
+// Imported inside the `.atlas-vtt-plugin` scope of styles/main.scss, after
+// loot-roller.scss.
+
+@use '../../../../../styles/tokens' as *;
+@use '../../../../../styles/mixins' as *;
+
+// ── Roll bar ───────────────────────────────────────────────────────────────
+.atlas-loot-rollbar {
+  @include atlas-flex-col($spacing-s);
+  flex-shrink: 0;
+}
+
+// Rarity toggles: one per step of the ladder, in its colour. Switched-off
+// rarities are never rolled.
+.atlas-loot-rarities {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: $spacing-xs;
+}
+
+.atlas-loot-rarity {
+  --atlas-loot-tone: var(--text-muted);
+  appearance: none;
+  display: flex;
+  align-items: center;
+  gap: $spacing-s;
+  min-width: 0;
+  height: $button-height-m;
+  padding: 0 $spacing-s;
+  border: $border-width-s solid var(--background-modifier-border);
+  border-radius: $radius-m;
+  box-shadow: none;
+  background: transparent;
+  color: var(--text-faint);
+  font-size: $font-ui-smaller;
+  font-weight: $font-weight-medium;
+  cursor: pointer;
+  transition: background-color $transition-fast $transition-ease,
+              border-color $transition-fast $transition-ease,
+              color $transition-fast $transition-ease,
+              transform $transition-press $transition-ease-out;
+
+  &[data-rarity='uncommon'] { --atlas-loot-tone: var(--color-green); }
+  &[data-rarity='rare'] { --atlas-loot-tone: var(--color-blue); }
+  &[data-rarity='epic'] { --atlas-loot-tone: var(--color-purple); }
+  &[data-rarity='legendary'] { --atlas-loot-tone: var(--color-orange); }
+
+  &:hover {
+    color: var(--text-normal);
+    background: var(--background-modifier-hover);
+  }
+
+  &:active {
+    transform: scale(0.97);
+  }
+
+  &:focus-visible {
+    @include atlas-focus-ring;
+  }
+
+  &.is-on {
+    border-color: color-mix(in oklch, var(--atlas-loot-tone) 50%, var(--background-modifier-border));
+    background: color-mix(in oklch, var(--atlas-loot-tone) 12%, transparent);
+    color: var(--text-normal);
+  }
+}
+
+// A small gem in the rarity's colour: filled when on, an outline when off.
+.atlas-loot-rarity__gem {
+  flex-shrink: 0;
+  width: 8px;
+  height: 8px;
+  border: $border-width-l solid var(--atlas-loot-tone);
+  border-radius: 2px;
+  transform: rotate(45deg);
+  transition: background-color $transition-fast $transition-ease;
+}
+
+.atlas-loot-rarity.is-on .atlas-loot-rarity__gem {
+  background: var(--atlas-loot-tone);
+}
+
+.atlas-loot-rarity__label {
+  @include atlas-truncate;
+  flex: 1;
+  text-align: left;
+}
+
+.atlas-loot-rarity__count {
+  flex-shrink: 0;
+  color: var(--text-faint);
+  font-weight: $font-weight-normal;
+  font-variant-numeric: tabular-nums;
+}
+
+.atlas-loot-rollbar__actions {
+  @include atlas-flex-row($spacing-s);
+}
+
+.atlas-loot-stepper {
+  @include atlas-flex-row(0);
+  flex-shrink: 0;
+  height: $button-height-m;
+  padding: 2px;
+  border-radius: $radius-m;
+  background: var(--background-secondary);
+
+  .atlas-loot-stepper__button {
+    width: $button-height-m - 4px;
+    height: $button-height-m - 4px;
+    color: var(--text-muted);
+
+    svg {
+      width: $icon-xs;
+      height: $icon-xs;
+    }
+  }
+}
+
+.atlas-loot-stepper__value {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 3px;
+  min-width: 64px;
+  font-weight: $font-weight-semibold;
+  font-variant-numeric: tabular-nums;
+}
+
+.atlas-loot-stepper__unit {
+  color: var(--text-muted);
+  font-size: $font-ui-smaller;
+  font-weight: $font-weight-normal;
+}
+
+.atlas-loot-roll-trigger {
+  display: flex;
+  flex: 1;
+}
+
+// A disabled button takes no pointer events; its trigger gets them instead.
+.atlas-loot-roll-trigger > .atlas-loot-roll-button:disabled {
+  pointer-events: none;
+}
+
+.atlas-loot-roll-button {
+  flex: 1;
+  gap: $spacing-s;
+  height: $button-height-m;
+  font-weight: $font-weight-semibold;
+
+  svg {
+    width: $icon-s;
+    height: $icon-s;
+    transition: transform $transition-slow $transition-ease-out;
+  }
+
+  &:hover:not(:disabled) svg {
+    transform: rotate(-18deg) scale(1.08);
+  }
+
+  &:active:not(:disabled) {
+    transform: scale(0.98);
+  }
+}

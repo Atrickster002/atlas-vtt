@@ -1,4 +1,6 @@
 import { createRequire } from 'module';
+import fs from 'fs';
+import os from 'os';
 import path from 'path';
 import { describe, expect, it } from 'vitest';
 
@@ -7,6 +9,7 @@ const {
   parseWorktreeListPorcelain,
   getMainWorktreeRoot,
   getPluginTargetDirs,
+  markForHotReload,
 } = require('../../scripts/worktree-targets.js');
 
 describe('worktree target resolution', () => {
@@ -104,5 +107,22 @@ describe('worktree target resolution', () => {
         dirPath: path.join('/Users/tester/Github/atlas-vtt', 'test-vault/.obsidian/plugins/atlas-vtt'),
       },
     ]);
+  });
+});
+
+describe('hot reload marker', () => {
+  it('marks a plugin folder for Hot Reload once and keeps an existing marker', () => {
+    const pluginDir = fs.mkdtempSync(path.join(os.tmpdir(), 'atlas-hot-reload-'));
+    try {
+      const marker = path.join(pluginDir, '.hotreload');
+      markForHotReload(pluginDir);
+      expect(fs.readFileSync(marker, 'utf8')).toBe('');
+
+      fs.writeFileSync(marker, 'kept');
+      markForHotReload(pluginDir);
+      expect(fs.readFileSync(marker, 'utf8')).toBe('kept');
+    } finally {
+      fs.rmSync(pluginDir, { recursive: true, force: true });
+    }
   });
 });

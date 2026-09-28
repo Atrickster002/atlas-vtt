@@ -19,14 +19,17 @@ import { normalizeImagePath } from './utils/pathUtils';
 import { createInitiativeActions } from './stores/initiativeSlice';
 import { createInitialUIState, createUIActions, type UISlice } from './stores/uiSlice';
 import { createPinnedNotePreviewActions, type PinnedNotePreviewSlice } from './stores/pinnedNotePreviewSlice';
+import { createInitialLootRollerState, createLootRollerActions, readLootRollerState, type LootRollerSlice } from './stores/lootRollerSlice';
+import { isRecord } from './services/assetMetadataGuards';
 import { createHistoryOptions } from './stores/history';
 import { withoutCollectionWidgets } from './utils/collectionWidgets';
+import { withWidgetOff } from './utils/widgetActivation';
 import { createMapObjectsActions, type MapObjectsSlice } from './stores/mapObjectsSlice';
 import { computeNextInstanceNumber } from './stores/tokenInstanceNumbers';
 import type { DiceRollResult } from './tools/DiceTool';
 import { isAtlasToolAvailable } from './tools/toolAvailability';
 import { isPinLabelKind, nextPinLabel } from './tools/pinLabels';
-import { rewriteMapReferences } from './services/renamedPaths';
+import { movedPathOf, rewriteMapReferences } from './services/renamedPaths';
 import { conditionValue, removeCondition, setConditionValue } from './utils/conditionValues';
 
 // Individual store state interface (same as AtlasState but isolated)
@@ -122,7 +125,8 @@ export interface ViewAtlasState {
   resetTokens: (ids: string[]) => void;
 
   // Note Pin actions
-  addNotePin: (x: number, y: number, notePath: string, icon?: string) => string;
+  /** With `hex`, the note is linked to the hex containing (x, y) rather than pinned to the point. */
+  addNotePin: (x: number, y: number, notePath: string, icon?: string, options?: { hex?: boolean }) => string;
   updateNotePin: (id: string, updates: Partial<Omit<NotePin, 'id' | 'kind'>>) => void;
   moveNotePin: (id: string, x: number, y: number) => void;
   deleteNotePin: (id: string) => void;
@@ -202,6 +206,8 @@ export interface ViewAtlasState {
   updateWidget: (widgetId: string, updates: Partial<AnyWidget>) => void;
   addWidget: (widget: AnyWidget) => void;
   removeWidget: (widgetId: string) => void;
+  /** Switches a widget on or off in this scene. */
+  setWidgetOn: (widgetId: string, on: boolean) => void;
   reorderWidgets: (widgetIds: string[]) => void;
   setWidgetValue: (widgetId: string, value: number) => void;
   
@@ -268,6 +274,12 @@ export interface ViewAtlasState {
   savePinnedNotePreview: PinnedNotePreviewSlice['savePinnedNotePreview'];
   removePinnedNotePreview: PinnedNotePreviewSlice['removePinnedNotePreview'];
 
+  // Loot roller window (persisted per map)
+  lootRoller: LootRollerSlice['lootRoller'];
+  setLootRollerOpen: LootRollerSlice['setLootRollerOpen'];
+  updateLootRoller: LootRollerSlice['updateLootRoller'];
+  showLootRoll: LootRollerSlice['showLootRoll'];
+
   // --- Per-view UI visibility (from uiSlice.ts, NOT persisted) ---
   isGridSettingsOpen: UISlice['isGridSettingsOpen'];
   isDMDashboardOpen: UISlice['isDMDashboardOpen'];
@@ -313,7 +325,7 @@ export const DEFAULT_TOKEN_SETTINGS: Readonly<ViewAtlasState['tokenSettings']> =
   tokenRingSize: 1,
 };
 
-const createInitialState = (): Pick<ViewAtlasState, 'schema' | 'version' | 'mapPath' | 'background' | 'grid' | 'objects' | 'camera' | 'persistenceEnabled' | 'widgetSettings' | 'widgetValues' | 'dmNotePath' | 'tokenSettings' | 'initiative' | 'diceLog' | 'pinnedNotePreviews'> => ({
+const createInitialState = (): Pick<ViewAtlasState, 'schema' | 'version' | 'mapPath' | 'background' | 'grid' | 'objects' | 'camera' | 'persistenceEnabled' | 'widgetSettings' | 'widgetValues' | 'dmNotePath' | 'tokenSettings' | 'initiative' | 'diceLog' | 'pinnedNotePreviews' | 'lootRoller'> => ({
   schema: ATLAS_SCHEMA,
   version: ATLAS_VERSION,
   mapPath: null,
@@ -355,6 +367,7 @@ const createInitialState = (): Pick<ViewAtlasState, 'schema' | 'version' | 'mapP
   initiative: createDefaultInitiativeState(),
   diceLog: [],
   pinnedNotePreviews: {},
+  lootRoller: createInitialLootRollerState(),
 });
 
 /**
@@ -665,7 +678,7 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
           }),
 
           retargetRenamedFile: (oldPath, newPath) => set((draft) => {
-            rewriteMapReferences(draft.objects, oldPath, newPath);
+            rewriteMapReferences(draft, movedPathOf([{ from: oldPath, to: newPath }]));
           }),
 
           deleteToken: (id) => set((draft) => {
@@ -740,6 +753,18 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
           removeWidget: (widgetId) => set((draft) => {
             delete draft.widgetSettings.widgets[widgetId];
             delete draft.widgetValues[widgetId];
+            const offWidgets = withWidgetOff(draft.widgetSettings.offWidgets, widgetId, false);
+            if (offWidgets) draft.widgetSettings.offWidgets = offWidgets;
+            else delete draft.widgetSettings.offWidgets;
+          }),
+
+          setWidgetOn: (widgetId, on) => set((draft) => {
+            const offWidgets = withWidgetOff(draft.widgetSettings.offWidgets, widgetId, !on);
+            if (offWidgets) draft.widgetSettings.offWidgets = offWidgets;
+            else delete draft.widgetSettings.offWidgets;
+            const widget = draft.widgetSettings.widgets[widgetId];
+            // Older Atlas versions hid widgets with this flag instead
+            if (on && widget && !widget.visible) widget.visible = true;
           }),
           
           reorderWidgets: (widgetIds) => set((draft) => {
@@ -886,7 +911,7 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
           }),
 
           // Note Pin actions
-          addNotePin: (x, y, notePath, icon) => {
+          addNotePin: (x, y, notePath, icon, options) => {
             const id = `pin_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
             set((draft) => {
               const newPin: NotePin = { 
@@ -898,6 +923,9 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
               };
               if (icon) {
                 newPin.icon = icon;
+              }
+              if (options?.hex) {
+                newPin.hex = true;
               }
               if (isPinLabelKind(icon)) {
                 newPin.label = nextPinLabel(draft.objects.pins, icon);
@@ -1233,6 +1261,7 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
             draft.widgetSettings = createDefaultWidgets();
             draft.widgetValues = {};
             draft.pinnedNotePreviews = {};
+            draft.lootRoller = createInitialLootRollerState();
 
             // Note: We don't clear background here - it will be set by the new map
             // Note: We don't clear mapPath - it must be preserved for storage adapter
@@ -1369,6 +1398,10 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
           pinnedNotePreviews: {},
           ...createPinnedNotePreviewActions(set),
 
+          // --- Loot roller window (persisted per map) ---
+          lootRoller: createInitialLootRollerState(),
+          ...createLootRollerActions(set),
+
           // --- Per-view UI visibility (from uiSlice.ts) ---
           ...createInitialUIState(),
           ...createUIActions(set),
@@ -1415,9 +1448,16 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
               initiativeTrackerOpen: state.initiativeTrackerOpen, // Initiative tracker open/closed state
               diceLog: state.diceLog, // Dice roll history (last 20 per map)
               pinnedNotePreviews: state.pinnedNotePreviews, // Pinned note preview windows
+              lootRoller: state.lootRoller, // Loot roller window, filters and history
             };
           },
           
+          // The map file arrives unchecked; fields that need it are checked here, once per load.
+          merge: (persisted, current): ViewAtlasState => {
+            const saved: Partial<ViewAtlasState> = isRecord(persisted) ? persisted : {};
+            return { ...current, ...saved, lootRoller: readLootRollerState(saved.lootRoller) };
+          },
+
           onRehydrateStorage: () => {
             return (_state, error) => {
               if (error) {

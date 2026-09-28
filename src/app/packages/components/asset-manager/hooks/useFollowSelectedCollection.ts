@@ -21,6 +21,6 @@ export function useFollowSelectedCollection(
       return;
     }
     const moved = collections.find((collection) => collection.uid === selectedUid.current);
-    setSelectedCollection(moved?.id ?? 'default');
+    setSelectedCollection(moved?.id ?? collections.find((collection) => collection.isDefault)?.id ?? collections[0]!.id);
   }, [collections, selectedCollection, setSelectedCollection]);
 }

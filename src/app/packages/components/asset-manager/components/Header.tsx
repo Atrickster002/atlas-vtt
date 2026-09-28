@@ -5,17 +5,22 @@ import {
 } from 'lucide-react';
 import { Button } from '../../primitives/button';
 import { LabelTooltip } from '../../primitives/tooltip';
+import type { App } from 'obsidian';
 import type { Tab } from '../types';
 import type { SelectionState } from '../hooks/useSelectionHandlers';
 import { HeaderMenu } from './HeaderMenu';
 import { HeaderSearch } from './HeaderSearch';
+import type { FilterSearch } from '../hooks/useFilterSearch';
 import { SortControls } from './SortControls';
 import { TabSwitcher } from './TabSwitcher';
 import { TokenIcon } from '../../../../react/components/TokenIcon';
 
 export interface HeaderProps {
+  app: App;
   search: string;
   onSearch: (value: string) => void;
+  /** Filters typed into the search and set in its filter panel. */
+  query: FilterSearch;
   activeTab: Tab;
   onTabChange: (tab: Tab) => void;
   assetCounts: Record<Tab, number>;
@@ -40,8 +45,10 @@ export interface HeaderProps {
  * the tabs, the sort and the search fold into menus and buttons (see `_header.scss`).
  */
 export function Header({
+  app,
   search,
   onSearch,
+  query,
   activeTab,
   onTabChange,
   assetCounts,
@@ -119,7 +126,7 @@ export function Header({
         </div>
 
         <div className="atlas-am-toolbar-right">
-          <HeaderSearch search={search} onSearch={onSearch} />
+          <HeaderSearch app={app} search={search} onSearch={onSearch} query={query} />
           <SortControls
             sortBy={sel.sortBy}
             sortOptions={sel.sortOptions}

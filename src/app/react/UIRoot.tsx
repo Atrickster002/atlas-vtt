@@ -12,6 +12,7 @@ import { UndoRedoControls } from './components/UndoRedoControls';
 import DMDashboard from './components/DMDashboard';
 import { InitiativeTracker } from './components/InitiativeTracker';
 import { DiceRollLog } from './components/dice-log/DiceRollLog';
+import { LootRoller } from './components/loot/LootRollerPanel';
 import { MapLoadingOverlay } from './components/MapLoadingOverlay';
 import { SceneTabBar } from './components/SceneTabBar';
 import { SceneSwitcher } from './components/scene-switcher/SceneSwitcher';
@@ -42,6 +43,7 @@ interface UIRootProps {
 export const UIRoot: React.FC<UIRootProps> = ({ app, view, pixiApp }) => {
   const settings = SettingsService.forApp(app);
   const [hotkeyHelpOpen, setHotkeyHelpOpen] = useState(false);
+  const [isSceneSwitcherOpen, setSceneSwitcherOpen] = useState(false);
 
   // Get the store directly from context
   const store = useViewStoreHook();
@@ -200,6 +202,7 @@ export const UIRoot: React.FC<UIRootProps> = ({ app, view, pixiApp }) => {
                 onCloseTab={(tabId) => { if (view) runInBackground(view.closeTab(tabId), 'Closing scene tab'); }}
                 onAddTab={() => view?.openSceneBrowser()}
                 onPresentTab={presentTab}
+                onShowAllTabs={() => setSceneSwitcherOpen(true)}
               />
             )}
             <ResponsiveWidgetBar
@@ -218,7 +221,14 @@ export const UIRoot: React.FC<UIRootProps> = ({ app, view, pixiApp }) => {
           {/* View actions menu — bottom right, DM only */}
           {!isPlayerView && <ViewActionsMenu app={app} filePath={view?.file?.path} />}
 
-          {!isPlayerView && !isMapLoading && <SceneSwitcher onSwitchTab={switchTab} onPresentTab={presentTab} />}
+          {!isPlayerView && !isMapLoading && (
+            <SceneSwitcher
+              isOpen={isSceneSwitcherOpen}
+              onOpenChange={setSceneSwitcherOpen}
+              onSwitchTab={switchTab}
+              onPresentTab={presentTab}
+            />
+          )}
           
           {/* Grid Settings Modal - only render when needed */}
           {isGridSettingsOpen && (
@@ -256,6 +266,9 @@ export const UIRoot: React.FC<UIRootProps> = ({ app, view, pixiApp }) => {
 
           {/* Initiative Tracker - only for DM view */}
           {!isPlayerView && <InitiativeTracker />}
+
+          {/* Loot Roller - floating window, DM only */}
+          {!isPlayerView && <LootRoller />}
 
           {/* Player Character Sheet - REMOVED: Players should only edit via their character sheet file */}
           

@@ -5,6 +5,7 @@ import type { MapFile } from './services/MapPersistence';
 import { PixiRendererOrchestrator } from './PixiRendererOrchestrator';
 import type { GridOptions } from './grid/GridSystem';
 import { parseGridColor } from './grid/gridContrastColor';
+import { hexNumberStyleOfGrid } from './grid/hexNumbering';
 
 export interface DisplayedMap {
   mapData: MapFile;
@@ -54,6 +55,7 @@ async function loadAndDisplay(
     offsetY: shouldUseCurrentOffset ? currentOffset.y : (mapData.grid?.offsetY ?? 0),
     color: parseGridColor(mapData.grid?.color),
     alpha: mapData.grid?.opacity ?? 0.7,
+    hexNumbers: hexNumberStyleOfGrid(mapData.grid),
     enabled: true,
   } as const;
 

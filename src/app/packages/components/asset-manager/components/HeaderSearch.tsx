@@ -1,24 +1,49 @@
-import React, { useId, useRef } from 'react';
-import { Search, X } from 'lucide-react';
+import React, { useCallback, useEffect, useId, useRef, useState } from 'react';
+import { AnimatePresence } from 'framer-motion';
+import { Search, SlidersHorizontal, X } from 'lucide-react';
+import type { App } from 'obsidian';
 import { Button } from '../../primitives/button';
 import { LabelTooltip } from '../../primitives/tooltip';
+import type { FilterSearch } from '../hooks/useFilterSearch';
+import { useSearchAutocomplete } from '../hooks/useSearchAutocomplete';
+import { useSearchShortcut } from '../hooks/useSearchShortcut';
+import { AdvancedFilterPanel } from './search/AdvancedFilterPanel';
+import { SearchSuggestions } from './search/SearchSuggestions';
 
 export interface HeaderSearchProps {
+  app: App;
   search: string;
   onSearch: (value: string) => void;
+  /** Filters typed as `keyword:value`, and the filter panel on the Characters tab. */
+  query: FilterSearch;
 }
 
 /**
- * The asset search. On narrow headers it collapses to a button; the field then
- * opens over the toolbar row while it has focus (see `_header.scss`), so
- * Cmd/Ctrl+F opens it as well.
+ * The asset search. Typed `keyword:value` tokens become filters, with
+ * suggestions for keywords and the values in view; the button at its end opens
+ * the filter panel. On narrow headers the search collapses to a button; the
+ * field then opens over the toolbar row while it has focus (see `_header.scss`),
+ * so Cmd/Ctrl+F opens it as well.
  */
-export function HeaderSearch({ search, onSearch }: HeaderSearchProps): React.JSX.Element {
+export function HeaderSearch({ app, search, onSearch, query }: HeaderSearchProps): React.JSX.Element {
   const labelId = useId();
   const toggleRef = useRef<HTMLButtonElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const filtersButtonRef = useRef<HTMLButtonElement>(null);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const autocomplete = useSearchAutocomplete(search, onSearch, query, inputRef);
+  useSearchShortcut(app, inputRef);
+  const closeFilters = useCallback(() => setFiltersOpen(false), []);
+  const hasFilters = query.panel !== null;
+
+  // A tab without filters closes the panel, so it does not open again on the way back.
+  useEffect(() => {
+    if (!hasFilters) setFiltersOpen(false);
+  }, [hasFilters]);
+  const isActive = search !== '' || query.activeCount > 0;
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement>): void => {
+    if (autocomplete.onKeyDown(event)) return;
     // Collapsed, Escape closes the field first instead of the whole asset manager.
     if (event.key !== 'Escape' || toggleRef.current?.offsetParent == null) return;
     event.preventDefault();
@@ -33,7 +58,7 @@ export function HeaderSearch({ search, onSearch }: HeaderSearchProps): React.JSX
           ref={toggleRef}
           variant="ghost"
           size="icon"
-          className={`atlas-am-icon-btn atlas-am-search-toggle ${search ? 'atlas-active' : ''}`}
+          className={`atlas-am-icon-btn atlas-am-search-toggle ${isActive ? 'atlas-active' : ''}`}
           onClick={() => inputRef.current?.focus()}
           aria-label="Search"
         >
@@ -48,10 +73,11 @@ export function HeaderSearch({ search, onSearch }: HeaderSearchProps): React.JSX
           ref={inputRef}
           type="text"
           value={search}
-          placeholder="Search…"
-          onChange={(e) => onSearch(e.target.value)}
+          placeholder={query.panel ? 'Search… try cr:1-3 or type:beast' : 'Search…'}
+          spellCheck={false}
           onKeyDown={handleKeyDown}
           aria-labelledby={labelId}
+          {...autocomplete.inputProps}
         />
         {search && (
           <LabelTooltip label="Clear search">
@@ -67,7 +93,45 @@ export function HeaderSearch({ search, onSearch }: HeaderSearchProps): React.JSX
             </Button>
           </LabelTooltip>
         )}
+        {/* On every tab, so the field keeps its size; tabs without a filter panel yet disable it. */}
+        <span className="atlas-am-search-divider" aria-hidden="true" />
+        <LabelTooltip label="Filters">
+          <Button
+            ref={filtersButtonRef}
+            variant="ghost"
+            size="icon"
+            className={`atlas-am-icon-btn atlas-am-filters-btn${filtersOpen ? ' atlas-active' : ''}`}
+            disabled={!hasFilters}
+            aria-expanded={filtersOpen}
+            aria-haspopup="dialog"
+            onClick={() => setFiltersOpen(!filtersOpen)}
+          >
+            <SlidersHorizontal />
+            {query.activeCount > 0 && <span className="atlas-am-filters-badge">{query.activeCount}</span>}
+          </Button>
+        </LabelTooltip>
+        {autocomplete.suggestions && !filtersOpen && (
+          <SearchSuggestions
+            id={autocomplete.listId}
+            suggestions={autocomplete.suggestions}
+            highlight={autocomplete.highlight}
+            onHighlight={autocomplete.setHighlight}
+            onPick={autocomplete.pick}
+          />
+        )}
       </div>
+
+      <AnimatePresence>
+        {filtersOpen && query.panel && (
+          <AdvancedFilterPanel
+            key="filters"
+            panel={query.panel}
+            onClose={closeFilters}
+            onReset={query.reset}
+            anchorRef={filtersButtonRef}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }

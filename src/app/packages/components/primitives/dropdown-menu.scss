@@ -43,18 +43,9 @@
   @include atlas-panel-radius($radius-2xl);
   box-shadow: $shadow-elevated;
 
-  // Items in the menu's corners run concentric with it; the rest keep $radius-l.
+  // Every item runs concentric with the menu's corners, so all items match.
   .btn {
-    border-radius: var(--atlas-menu-top-radius, #{$radius-l}) var(--atlas-menu-top-radius, #{$radius-l})
-      var(--atlas-menu-bottom-radius, #{$radius-l}) var(--atlas-menu-bottom-radius, #{$radius-l});
-  }
-
-  > .atlas-dropdown-section:first-child > .btn:first-child {
-    --atlas-menu-top-radius: #{atlas-panel-inset-radius-value($spacing-s)};
-  }
-
-  > .atlas-dropdown-section:last-child > .btn:last-of-type {
-    --atlas-menu-bottom-radius: #{atlas-panel-inset-radius-value($spacing-s)};
+    @include atlas-panel-inset-radius($spacing-s);
   }
 
   // A toggle closing the menu sits in its bottom-right corner, like a button would.
@@ -251,6 +242,20 @@
 }
 
 /* Colour swatch grid (text tool → colour) */
+.atlas-dropdown-swatches {
+  @include atlas-flex-col($spacing-s);
+}
+
+.atlas-dropdown-swatches__label {
+  font-size: $font-ui-small;
+  color: var(--text-normal);
+}
+
+.atlas-dropdown-swatches__hint {
+  font-size: $font-ui-smaller;
+  color: var(--text-muted);
+}
+
 .atlas-swatch-grid {
   display: grid;
   grid-template-columns: repeat(8, 1fr);
@@ -258,13 +263,17 @@
 }
 
 .atlas-swatch {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   aspect-ratio: 1;
+  padding: 0;
   // Steps down from the dropdown's own radius.
   border-radius: $radius-s;
   border: $border-width-s solid color-mix(in oklch, var(--mono-100) $border-opacity-subtle, transparent);
   cursor: pointer;
   // The swatch is small, so the ring sits outside it rather than shrinking the colour.
-  box-shadow: 0 0 0 0 var(--interactive-accent);
+  box-shadow: 0 0 0 0 var(--text-normal);
   transition-property: box-shadow, scale;
   transition-duration: $transition-normal;
   transition-timing-function: $transition-ease;
@@ -277,7 +286,13 @@
     scale: 0.96;
   }
 
+  // A ring in the text colour contrasts with the menu, not with the swatch, so it shows
+  // around every colour; the tick marks the choice without relying on colour at all.
   &--active {
-    box-shadow: 0 0 0 2px var(--interactive-accent);
+    box-shadow: 0 0 0 2px var(--text-normal);
   }
+}
+
+.atlas-swatch-check {
+  @include atlas-swatch-check(14px);
 }

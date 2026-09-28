@@ -1,18 +1,23 @@
+import type { CreatureRating } from '../../../../creatures/creatureFacts';
 import type { AnyAsset, EncounterAsset, SortOption, SortOrder, Tab } from '../types';
 
 export const SORT_LABELS: Record<SortOption, string> = {
   name: 'Name',
   date: 'Date modified',
   type: 'Type',
+  rating: 'Rating',
 };
 
-const ALL_SORT_OPTIONS: readonly SortOption[] = ['name', 'date', 'type'];
+const ASSET_SORT_OPTIONS: readonly SortOption[] = ['name', 'date', 'type'];
+// Characters also sort by the rating of their statblocks (challenge rating, level or tier).
+const CHARACTER_SORT_OPTIONS: readonly SortOption[] = ['name', 'date', 'type', 'rating'];
 // Every scene is of one kind: the scene index does not record which map a scene shows.
 const SCENE_SORT_OPTIONS: readonly SortOption[] = ['name', 'date'];
 
 /** The sort options that order the assets of a tab, in the order the sort button cycles through them. */
 export function sortOptionsFor(tab: Tab): readonly SortOption[] {
-  return tab === 'scenes' ? SCENE_SORT_OPTIONS : ALL_SORT_OPTIONS;
+  if (tab === 'scenes') return SCENE_SORT_OPTIONS;
+  return tab === 'tokens' ? CHARACTER_SORT_OPTIONS : ASSET_SORT_OPTIONS;
 }
 
 /** The chosen sort option, or name where the option means nothing on the tab. */
@@ -57,14 +62,36 @@ const compareKinds: AssetComparator = (a, b) => {
 const compareNames: AssetComparator = (a, b) =>
   nameCollator.compare(a.name, b.name) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
 
-const PRIMARY_COMPARATORS: Record<SortOption, AssetComparator> = {
+const PRIMARY_COMPARATORS: Record<Exclude<SortOption, 'rating'>, AssetComparator> = {
   name: () => 0,
   date: (a, b) => a.modifiedAt - b.modifiedAt,
   type: compareKinds,
 };
 
-/** A sorted copy of `assets`; ties fall back to the name. Descending reverses the whole order. */
-export function sortAssets(assets: readonly AnyAsset[], sortBy: SortOption, order: SortOrder): AnyAsset[] {
+/** The rating of an asset's statblock, or null for assets without one. */
+export type RatingOf = (asset: AnyAsset) => CreatureRating | null;
+
+/**
+ * By rating, grouped by scale (challenge rating, then level, then tier), with
+ * the order applying within each scale. Assets without a rating come last in
+ * either order, by name.
+ */
+function sortByRating(assets: readonly AnyAsset[], order: SortOrder, ratingOf: RatingOf): AnyAsset[] {
+  const direction = order === 'asc' ? 1 : -1;
+  const rated = assets.flatMap((asset) => {
+    const rating = ratingOf(asset);
+    return rating ? [{ asset, rating }] : [];
+  });
+  rated.sort((a, b) => a.rating.scale - b.rating.scale
+    || direction * (a.rating.value - b.rating.value)
+    || compareNames(a.asset, b.asset));
+  const unrated = assets.filter((asset) => !ratingOf(asset)).sort(compareNames);
+  return [...rated.map(({ asset }) => asset), ...unrated];
+}
+
+/** A sorted copy of `assets`; ties fall back to the name. Descending reverses the whole order, except by rating. */
+export function sortAssets(assets: readonly AnyAsset[], sortBy: SortOption, order: SortOrder, ratingOf: RatingOf = () => null): AnyAsset[] {
+  if (sortBy === 'rating') return sortByRating(assets, order, ratingOf);
   const primary = PRIMARY_COMPARATORS[sortBy];
   const direction = order === 'asc' ? 1 : -1;
   return [...assets].sort((a, b) => direction * (primary(a, b) || compareNames(a, b)));

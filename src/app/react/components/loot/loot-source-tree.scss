@@ -1,0 +1,116 @@
+// ═══════════════════════════════════════════════════════════════════════════
+// Loot Roller — source list in the sidebar: bases and their views
+// ═══════════════════════════════════════════════════════════════════════════
+// Imported inside the `.atlas-vtt-plugin` scope of styles/main.scss, after
+// loot-roller.scss.
+
+@use '../../../../../styles/tokens' as *;
+@use '../../../../../styles/mixins' as *;
+
+// ── Source tree ────────────────────────────────────────────────────────────
+.atlas-loot-tree {
+  @include atlas-flex-col($spacing-s);
+}
+
+.atlas-loot-tree__head {
+  @include atlas-flex-row($spacing-s);
+  justify-content: space-between;
+  padding: 0 $spacing-xs;
+}
+
+.atlas-loot-tree__bases,
+.atlas-loot-tree__views {
+  @include atlas-flex-col(1px);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.atlas-loot-tree__views {
+  // Tables line up with their note's checkbox, past the chevron.
+  padding: 1px 0 $spacing-xs calc(#{$button-height-s} + 2px);
+}
+
+.atlas-loot-tree__row {
+  @include atlas-flex-row(2px);
+  border-radius: $radius-m;
+  @include atlas-corner-shape;
+  transition: background-color $transition-fast $transition-ease;
+
+  &:hover {
+    background: var(--background-modifier-hover);
+  }
+}
+
+.atlas-loot-tree__toggle {
+  @include atlas-flex-row(0);
+  justify-content: center;
+  flex-shrink: 0;
+  width: $button-height-s;
+  height: $button-height-s;
+  padding: 0;
+  border: none;
+  border-radius: $radius-s;
+  box-shadow: none;
+  background: none;
+  color: var(--text-faint);
+  cursor: pointer;
+
+  svg {
+    width: $icon-xs;
+    height: $icon-xs;
+    transition: transform $transition-normal $transition-ease-out;
+  }
+
+  &:hover {
+    color: var(--text-normal);
+    background: none;
+  }
+}
+
+.atlas-loot-tree__base.is-open > .atlas-loot-tree__row .atlas-loot-tree__toggle svg {
+  transform: rotate(90deg);
+}
+
+.atlas-loot-tree__check {
+  @include atlas-flex-row($spacing-s);
+  flex: 1;
+  min-width: 0;
+  min-height: $button-height-m - 2px;
+  padding: $spacing-xs $spacing-s $spacing-xs $spacing-xs;
+  cursor: pointer;
+
+  input[type='checkbox'] {
+    flex-shrink: 0;
+    margin: 0;
+  }
+}
+
+.atlas-loot-tree__label {
+  // Long note names wrap to a second line instead of losing their end.
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  font-size: $font-ui-small;
+  line-height: 1.3;
+}
+
+.atlas-loot-tree__views .atlas-loot-tree__label {
+  color: var(--text-muted);
+  font-size: $font-ui-smaller;
+}
+
+.atlas-loot-tree__views .atlas-loot-tree__check.is-on .atlas-loot-tree__label {
+  color: var(--text-normal);
+}
+
+.atlas-loot-tree__count {
+  flex-shrink: 0;
+  font-size: $font-ui-smaller;
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+}

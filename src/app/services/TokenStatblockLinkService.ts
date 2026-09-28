@@ -262,7 +262,7 @@ export class TokenStatblockLinkService extends EventEmitter {
    */
   async createTokenFromStatblockImage(statblockPath: string): Promise<string | null> {
     try {
-      const result = await new StatblockTokenImportService(this.app, this.assetService).import([statblockPath], 'default');
+      const result = await new StatblockTokenImportService(this.app, this.assetService).import([statblockPath], this.assetService.getDefaultCollectionId());
       const item = result.items[0];
       if (item?.asset) {
         this.emit('link-changed', { type: 'linked', tokenImagePath: item.asset.imagePath, statblockPath });

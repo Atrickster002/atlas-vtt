@@ -43,3 +43,15 @@ describe('map data that cannot be loaded', () => {
     expect(backupsOf(files)).toHaveLength(0);
   });
 });
+
+describe('a map file that was moved or renamed while closed', () => {
+  it('loads everything it holds and takes its new path', async () => {
+    const saved = { version: 4, state: { mapPath: 'old/cave.atlasmap', objects: { tokens: {}, fog: { f1: { id: 'f1' } }, walls: { w1: { id: 'w1' } } } } };
+    const { storage, files } = createStorage(JSON.stringify(saved));
+
+    const loaded = await storage.getItem('atlas');
+
+    expect(loaded?.state).toMatchObject({ mapPath: MAP_PATH, objects: { fog: { f1: { id: 'f1' } }, walls: { w1: { id: 'w1' } } } });
+    expect(backupsOf(files)).toHaveLength(0);
+  });
+});

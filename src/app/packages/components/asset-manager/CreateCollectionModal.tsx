@@ -6,6 +6,7 @@ import { areRangeBandsValid } from '../../../grid/measurementFormat';
 import { useSystemPresets } from '../../../react/hooks/useSystemPresets';
 import { useAtlasUI } from '../../../react/root/AtlasUIContext';
 import { createCollectionWithSystem } from '../../../services/collectionCreation';
+import { collectionNameProblem } from '../../../services/assetPaths';
 import type { SystemPreset } from '../../../types/systemPresetTypes';
 import { Button } from '../primitives/button';
 import { CloseButton } from '../primitives/CloseButton';
@@ -53,11 +54,11 @@ export function CreateCollectionModal({ existingNames, onClose, onCreated }: Cre
   useDialogEscape(dialogRef, step === 'custom' ? () => setStep('details') : onClose);
 
   const trimmedName = name.trim();
-  const nameError = !trimmedName
-    ? 'Enter a name'
-    : existingNames.some((existing) => existing.toLowerCase() === trimmedName.toLowerCase())
+  // The name is also the collection's folder name, so it must be a valid one.
+  const nameError = collectionNameProblem(name)
+    ?? (existingNames.some((existing) => existing.toLowerCase() === trimmedName.toLowerCase())
       ? `A collection named "${trimmedName}" already exists`
-      : null;
+      : null);
   const presetNameError = service?.nameError(presetName) ?? null;
   const rulesValid = areRangeBandsValid(rules.gridDefaults.abstractRangeBands);
 

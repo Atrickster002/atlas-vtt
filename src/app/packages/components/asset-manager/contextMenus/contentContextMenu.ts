@@ -24,7 +24,6 @@ export function buildContentContextMenuEntries(
     onClick: deps.handleCreateFolder,
   });
 
-  entries.push({ type: 'separator' });
 
   entries.push({
     type: 'submenu',
@@ -34,7 +33,6 @@ export function buildContentContextMenuEntries(
       ...deps.sortOptions.map((option): ContextMenuEntry => ({
         type: 'item', label: SORT_LABELS[option], checked: deps.sortBy === option, onClick: () => deps.setSortBy(option),
       })),
-      { type: 'separator' },
       {
         type: 'item',
         label: deps.sortOrder === 'asc' ? 'Ascending' : 'Descending',
@@ -44,7 +42,6 @@ export function buildContentContextMenuEntries(
     ],
   });
 
-  entries.push({ type: 'separator' });
 
   entries.push({
     type: 'item',

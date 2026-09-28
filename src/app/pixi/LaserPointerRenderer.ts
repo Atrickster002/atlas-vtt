@@ -1,9 +1,11 @@
-import { Application, Color, Container, FederatedPointerEvent, Graphics } from 'pixi.js';
+import { Application, Container, FederatedPointerEvent } from 'pixi.js';
 import type { Viewport } from 'pixi-viewport';
-import type { EventEmitter } from 'events';
 import type { ViewAtlasState, ViewAtlasStore } from '../storeFactory';
-import type { LaserPointerSettings } from '../tools/LaserPointerTool';
+import { LASER_FADE_TIME, type LaserPointerSettings } from '../tools/laserPointerSettings';
 import { setCanvasCursor } from './utils/canvasCursor';
+import { destroyTree } from './utils/destroyTree';
+import { MAX_TRAIL_SAMPLES, type BeamPoint } from './laser/laserBeamGeometry';
+import { LaserBeam, beamWidth } from './laser/LaserBeam';
 
 interface TrailPoint {
   x: number;
@@ -11,35 +13,46 @@ interface TrailPoint {
   timestamp: number;
 }
 
-const MAX_TRAIL_POINTS = 100;
-const MIN_POINT_DISTANCE_SQ = 4; // 2px minimum gap between trail points
+interface WorldPoint {
+  x: number;
+  y: number;
+}
+
+/** Closest two trail points may be, in screen pixels; closer samples are mostly hand jitter. */
+const MIN_POINT_SPACING = 3;
+/** Wide beams keep points further apart: detail finer than the beam is invisible and costly. */
+const MIN_POINT_SPACING_PER_WIDTH = 0.15;
+
 /**
- * Renders the laser pointer visual effects on the PIXI canvas.
+ * Renders the laser pointer: a glowing beam that follows the pointer and narrows as it
+ * fades, drawn by `LaserBeam`.
  * Self-manages activation via store subscription on `activeTool`.
  * Handles viewport input directly (left-click when active, middle-click always).
  */
 export class LaserPointerRenderer {
   private viewport: Viewport;
   private pixiApp: Application;
-  private eventBus: EventEmitter;
   private store: ViewAtlasStore;
   private canvasEl: HTMLCanvasElement;
 
   private container: Container;
-  private trailGraphics: Graphics;
-  private cursorGraphics: Graphics;
+  private beam: LaserBeam;
 
   private trailPoints: TrailPoint[] = [];
+  /** Where the pointer is on the map, or null while it is off the canvas. */
+  private pointer: WorldPoint | null = null;
   private isToolActive: boolean = false;
   private isPointing: boolean = false;
   private isQuickMode: boolean = false;
-  private settings: LaserPointerSettings = { color: '#FF0000', size: 10, fadeTime: 800 };
+  /** Something besides the fading trail changed since the last frame. */
+  private needsRedraw: boolean = false;
+  /** The GM's colour and size, read on every draw so a change in the toolbar applies at once. */
+  private readSettings: () => LaserPointerSettings;
   /** Last pointer position in screen (canvas) space, used to re-project the cursor when the viewport moves. */
   private lastPointerScreen: { x: number; y: number } | null = null;
 
   private tickerCallback: (() => void) | null = null;
   private unsubscribeFromStore?: () => void;
-  private settingsHandler: (s: LaserPointerSettings) => void;
   private onCanvasLeave: () => void;
 
   // Bound viewport handlers (stored for cleanup)
@@ -52,31 +65,22 @@ export class LaserPointerRenderer {
   constructor(
     viewport: Viewport,
     pixiApp: Application,
-    eventBus: EventEmitter,
     store: ViewAtlasStore,
     canvasEl: HTMLCanvasElement,
+    readSettings: () => LaserPointerSettings,
   ) {
     this.viewport = viewport;
     this.pixiApp = pixiApp;
-    this.eventBus = eventBus;
     this.store = store;
     this.canvasEl = canvasEl;
 
-    // Build display hierarchy
     this.container = new Container();
     this.container.label = 'laser-pointer-layer';
     this.container.interactive = false;
     this.container.interactiveChildren = false;
 
-    this.trailGraphics = new Graphics();
-    this.trailGraphics.label = 'laser-trail';
-    this.trailGraphics.blendMode = 'add';
-    this.container.addChild(this.trailGraphics);
-
-    this.cursorGraphics = new Graphics();
-    this.cursorGraphics.label = 'laser-cursor';
-    this.cursorGraphics.blendMode = 'add';
-    this.container.addChild(this.cursorGraphics);
+    this.beam = new LaserBeam();
+    this.container.addChild(this.beam.view);
 
     // Store subscription for tool activation (follows MeasureRenderer pattern)
     this.unsubscribeFromStore = this.store.subscribe(
@@ -87,21 +91,17 @@ export class LaserPointerRenderer {
 
         if (this.isToolActive && !wasActive) {
           setCanvasCursor(this.canvasEl, 'none');
-          this.startTicker();
+          this.redraw();
         } else if (!this.isToolActive && wasActive) {
           setCanvasCursor(this.canvasEl, 'auto');
-          this.cursorGraphics.clear();
           this.isPointing = false;
+          this.redraw();
         }
       },
       { fireImmediately: true },
     );
 
-    // Settings change listener
-    this.settingsHandler = (s: LaserPointerSettings): void => {
-      this.settings = s;
-    };
-    this.eventBus.on('laser-pointer-settings-changed', this.settingsHandler);
+    this.readSettings = readSettings;
 
     // Bind viewport handlers (always attached, guarded internally)
     this.onPointerDown = this.handlePointerDown.bind(this);
@@ -119,7 +119,8 @@ export class LaserPointerRenderer {
 
     this.onCanvasLeave = (): void => {
       this.lastPointerScreen = null;
-      this.cursorGraphics.clear();
+      this.pointer = null;
+      this.redraw();
     };
     this.canvasEl.addEventListener('mouseleave', this.onCanvasLeave);
   }
@@ -130,7 +131,7 @@ export class LaserPointerRenderer {
 
   // ── Input handling ──────────────────────────────────────────────────
 
-  private getWorldFromPointerEvent(e: FederatedPointerEvent): { x: number; y: number } | null {
+  private getWorldFromPointerEvent(e: FederatedPointerEvent): WorldPoint | null {
     const global = e.global;
     if (!global) {
       return null;
@@ -145,29 +146,21 @@ export class LaserPointerRenderer {
 
   private handlePointerDown(e: FederatedPointerEvent): void {
     const button: number = e.button;
+    // Middle-click → quick mode regardless of active tool; left-click when the laser tool is active
+    const quick = button === 1;
+    if (!quick && !(button === 0 && this.isToolActive)) return;
     const world = this.getWorldFromPointerEvent(e);
     if (!world) {
       return;
     }
 
-    // Middle-click → quick mode regardless of active tool
-    if (button === 1) {
+    if (quick) {
       this.isQuickMode = true;
-      this.isPointing = true;
       setCanvasCursor(this.canvasEl, 'none');
-      this.addTrailPoint(world.x, world.y);
-      this.startTicker();
-      e.stopPropagation();
-      return;
     }
-
-    // Left-click when laser tool active
-    if (button === 0 && this.isToolActive) {
-      this.isPointing = true;
-      this.addTrailPoint(world.x, world.y);
-      this.startTicker();
-      e.stopPropagation();
-    }
+    this.isPointing = true;
+    this.trackPointer(world);
+    e.stopPropagation();
   }
 
   private handlePointerMove(e: FederatedPointerEvent): void {
@@ -193,13 +186,13 @@ export class LaserPointerRenderer {
     this.trackPointer({ x: world.x, y: world.y });
   }
 
-  private trackPointer(world: { x: number; y: number }): void {
+  private trackPointer(world: WorldPoint): void {
+    this.pointer = world;
     if (this.isPointing) {
       this.addTrailPoint(world.x, world.y);
-    } else if (this.isToolActive || this.isQuickMode) {
-      this.drawCursor(world.x, world.y);
-    } else {
-      this.cursorGraphics.clear();
+    }
+    if (this.isPointing || this.isToolActive || this.isQuickMode) {
+      this.redraw();
     }
   }
 
@@ -207,62 +200,63 @@ export class LaserPointerRenderer {
     const button: number = e.button;
 
     if (button === 1 && this.isQuickMode) {
-      this.isQuickMode = false;
-      this.isPointing = false;
-      if (!this.isToolActive) {
-        setCanvasCursor(this.canvasEl, 'auto');
-        this.cursorGraphics.clear();
-      }
+      this.endQuickMode();
       e.stopPropagation();
       return;
     }
 
     if (button === 0 && this.isToolActive && this.isPointing) {
       this.isPointing = false;
+      this.redraw();
       e.stopPropagation();
     }
   }
 
   private handlePointerUpOutside(): void {
     if (this.isQuickMode) {
-      this.isQuickMode = false;
-      this.isPointing = false;
-      if (!this.isToolActive) {
-        setCanvasCursor(this.canvasEl, 'auto');
-        this.cursorGraphics.clear();
-      }
+      this.endQuickMode();
       return;
     }
     if (this.isPointing) {
       this.isPointing = false;
+      this.redraw();
     }
+  }
+
+  private endQuickMode(): void {
+    this.isQuickMode = false;
+    this.isPointing = false;
+    if (!this.isToolActive) {
+      setCanvasCursor(this.canvasEl, 'auto');
+    }
+    this.redraw();
   }
 
   // ── Trail management ────────────────────────────────────────────────
 
   private addTrailPoint(x: number, y: number): void {
-    // Enforce minimum distance to avoid dense clusters at slow speeds
+    // Enforce a minimum on-screen gap to avoid dense, jittery clusters at slow speeds
     const last = this.trailPoints[this.trailPoints.length - 1];
     if (last) {
-      const dx = x - last.x;
-      const dy = y - last.y;
-      if (dx * dx + dy * dy < MIN_POINT_DISTANCE_SQ) return;
+      const zoom = this.viewport.scale.x || 1;
+      const { halfWidth } = beamWidth(this.readSettings().size, zoom);
+      const minGap = Math.max(MIN_POINT_SPACING / zoom, halfWidth * MIN_POINT_SPACING_PER_WIDTH);
+      if (Math.hypot(x - last.x, y - last.y) < minGap) return;
     }
 
     this.trailPoints.push({ x, y, timestamp: Date.now() });
-    if (this.trailPoints.length > MAX_TRAIL_POINTS) {
-      this.trailPoints.splice(0, this.trailPoints.length - MAX_TRAIL_POINTS);
+    if (this.trailPoints.length > MAX_TRAIL_SAMPLES) {
+      this.trailPoints.splice(0, this.trailPoints.length - MAX_TRAIL_SAMPLES);
     }
   }
 
   // ── Ticker-driven rendering ─────────────────────────────────────────
 
-  private startTicker(): void {
+  /** Draws on the next frame; the ticker keeps running while the trail fades. */
+  private redraw(): void {
+    this.needsRedraw = true;
     if (this.tickerCallback) return;
-
-    this.tickerCallback = (): void => {
-      this.tick();
-    };
+    this.tickerCallback = (): void => this.tick();
     this.pixiApp.ticker.add(this.tickerCallback);
   }
 
@@ -274,94 +268,37 @@ export class LaserPointerRenderer {
 
   private tick(): void {
     const now = Date.now();
-    const fade = this.settings.fadeTime;
+    const hadTrail = this.trailPoints.length > 0;
+    this.trailPoints = this.trailPoints.filter((point) => now - point.timestamp < LASER_FADE_TIME);
 
-    // Expire old points
-    this.trailPoints = this.trailPoints.filter(p => now - p.timestamp < fade);
-
-    // Redraw trail
-    this.drawTrail(now, fade);
-
-    // Auto-stop ticker when idle
-    if (
-      this.trailPoints.length === 0 &&
-      !this.isToolActive &&
-      !this.isQuickMode
-    ) {
-      this.trailGraphics.clear();
+    if (hadTrail || this.needsRedraw) {
+      this.needsRedraw = false;
+      this.drawBeam(now);
+    }
+    if (this.trailPoints.length === 0 && !this.needsRedraw) {
       this.stopTicker();
     }
   }
 
-  // ── Drawing helpers ─────────────────────────────────────────────────
+  // ── Drawing ─────────────────────────────────────────────────────────
 
-  private drawTrail(now: number, fadeDuration: number): void {
-    this.trailGraphics.clear();
-    if (this.trailPoints.length < 2) return;
 
-    const color = new Color(this.settings.color);
-    const hex = color.toNumber();
-    const size = this.settings.size;
+  private drawBeam(now: number): void {
+    const zoom = this.viewport.scale.x || 1;
+    const { color, size } = this.readSettings();
+    const width = beamWidth(size, zoom);
+    const pointer = this.isToolActive || this.isQuickMode || this.isPointing ? this.pointer : null;
 
-    // Glow layers: outer soft → inner → bright core
-    const layers: Array<{ widthMul: number; alphaMul: number }> = [
-      { widthMul: 3.0, alphaMul: 0.12 },
-      { widthMul: 1.6, alphaMul: 0.25 },
-      { widthMul: 0.7, alphaMul: 0.6 },
-    ];
+    const trail: BeamPoint[] = this.trailPoints.map((point) => ({
+      x: point.x,
+      y: point.y,
+      life: 1 - (now - point.timestamp) / LASER_FADE_TIME,
+    }));
+    // While drawing, the beam runs up to the pointer, which stays at full strength.
+    if (this.isPointing && pointer) trail.push({ ...pointer, life: 1 });
+    const dot = pointer && !this.isPointing ? { ...pointer, life: 1 } : null;
 
-    // Additive sub-trail technique: draw the trail N times, each starting
-    // from a different age threshold. With blendMode 'add', areas covered
-    // by more sub-trails glow brighter. The head is covered by ALL sub-trails
-    // (max brightness), the tail only by the longest one (faintest).
-    const SUB_TRAILS = 6;
-
-    for (const layer of layers) {
-      const alphaPerPass = layer.alphaMul / SUB_TRAILS;
-
-      for (let sub = 0; sub < SUB_TRAILS; sub++) {
-        // Each sub-trail covers points younger than this age
-        const maxAge = fadeDuration * ((sub + 1) / SUB_TRAILS);
-
-        // Find first point within this sub-trail's age window
-        const startIdx = this.trailPoints.findIndex(p => now - p.timestamp < maxAge);
-        if (startIdx < 0 || startIdx >= this.trailPoints.length - 1) continue;
-
-        this.trailGraphics.setStrokeStyle({
-          width: size * layer.widthMul,
-          color: hex,
-          alpha: alphaPerPass,
-          cap: 'round',
-          join: 'round',
-        });
-
-        // Single continuous polyline — one moveTo, many lineTos, one stroke
-        this.trailGraphics.moveTo(this.trailPoints[startIdx]!.x, this.trailPoints[startIdx]!.y);
-        for (let i = startIdx + 1; i < this.trailPoints.length; i++) {
-          this.trailGraphics.lineTo(this.trailPoints[i]!.x, this.trailPoints[i]!.y);
-        }
-        this.trailGraphics.stroke();
-      }
-    }
-  }
-
-  private drawCursor(x: number, y: number): void {
-    this.cursorGraphics.clear();
-    const color = new Color(this.settings.color);
-    const hex = color.toNumber();
-    const size = this.settings.size;
-
-    // Soft outer glow
-    this.cursorGraphics.circle(x, y, size * 2);
-    this.cursorGraphics.fill({ color: hex, alpha: 0.04 });
-
-    // Mid glow
-    this.cursorGraphics.circle(x, y, size * 1.0);
-    this.cursorGraphics.fill({ color: hex, alpha: 0.1 });
-
-    // Bright core
-    this.cursorGraphics.circle(x, y, size * 0.35);
-    this.cursorGraphics.fill({ color: hex, alpha: 0.85 });
+    this.beam.draw({ trail, dot, pointer, color, width, zoom });
   }
 
   // ── Cleanup ─────────────────────────────────────────────────────────
@@ -369,7 +306,6 @@ export class LaserPointerRenderer {
   public destroy(): void {
     this.stopTicker();
     this.unsubscribeFromStore?.();
-    this.eventBus.off('laser-pointer-settings-changed', this.settingsHandler);
 
     this.viewport.off('pointerdown', this.onPointerDown);
     this.viewport.off('pointermove', this.onPointerMove);
@@ -379,8 +315,7 @@ export class LaserPointerRenderer {
     this.canvasEl.removeEventListener('mouseleave', this.onCanvasLeave);
 
     this.trailPoints = [];
-    this.cursorGraphics.destroy();
-    this.trailGraphics.destroy();
-    this.container.destroy();
+    destroyTree(this.container);
+    this.beam.destroy();
   }
 }

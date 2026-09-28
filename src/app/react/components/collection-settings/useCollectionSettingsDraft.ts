@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { DEFAULT_GRID_DEFAULTS, rulesOfPreset, vanillaSystemSettings } from '../../../gameSystems/systemRules';
+import { parseCreatureFilters, parseHiddenCreatureFilters } from '../../../creatures/creatureFilterDefinitions';
 import type { AssetService } from '../../../services/AssetService';
 import type {
   CollectionGridDefaults,
@@ -7,6 +8,7 @@ import type {
   ConditionDefinition,
   VisionSettings,
 } from '../../../types/collectionSettingsTypes';
+import type { CreatureFilterDefinition } from '../../../types/creatureFilterTypes';
 import type { SystemPreset } from '../../../types/systemPresetTypes';
 import { changedTokenBars, tokenBarsOf, type TokenBars } from '../../../services/collectionTokenBars';
 
@@ -19,8 +21,18 @@ export interface CollectionSettingsDraft {
   setConditions: (conditions: ConditionDefinition[]) => void;
   vision: VisionSettings | undefined;
   setVision: (vision: VisionSettings | undefined) => void;
+  /** The collection's filters on fields of its own. */
+  customCreatureFilters: CreatureFilterDefinition[];
+  setCustomCreatureFilters: (filters: CreatureFilterDefinition[]) => void;
+  /** Ids of Atlas' own filters switched off for the collection. */
+  hiddenCreatureFilters: string[];
+  setHiddenCreatureFilters: (ids: string[]) => void;
   systemPresetId: string | undefined;
   setSystemPresetId: (presetId: string | undefined) => void;
+  lootBases: string[];
+  setLootBases: (lootBases: string[]) => void;
+  lootCurrency: string;
+  setLootCurrency: (lootCurrency: string) => void;
   applyPreset: (preset: SystemPreset) => void;
   /** Leaves the collection without a game system, as if it had never been set up. */
   clearSystem: () => void;
@@ -41,7 +53,11 @@ export function useCollectionSettingsDraft(
   const [conditions, setConditions] = useState<ConditionDefinition[]>([]);
   const [vision, setVision] = useState<VisionSettings | undefined>(undefined);
   const [systemPresetId, setSystemPresetId] = useState<string | undefined>(undefined);
+  const [lootBases, setLootBases] = useState<string[]>([]);
+  const [lootCurrency, setLootCurrency] = useState('');
   const [loadedDefaultWidgets, setLoadedDefaultWidgets] = useState<Record<string, boolean> | undefined>(undefined);
+  const [customCreatureFilters, setCustomCreatureFilters] = useState<CreatureFilterDefinition[]>([]);
+  const [hiddenCreatureFilters, setHiddenCreatureFilters] = useState<string[]>([]);
 
   useEffect(() => {
     if (!isOpen || !assetService) return;
@@ -51,7 +67,11 @@ export function useCollectionSettingsDraft(
     setConditions(settings.conditions ?? []);
     setVision(settings.vision);
     setSystemPresetId(settings.systemPresetId);
+    setLootBases(settings.lootBases ?? []);
+    setLootCurrency(settings.lootCurrency ?? '');
     setLoadedDefaultWidgets(settings.defaultWidgets);
+    setCustomCreatureFilters(parseCreatureFilters(settings.customCreatureFilters));
+    setHiddenCreatureFilters(parseHiddenCreatureFilters(settings.hiddenCreatureFilters));
   }, [isOpen, collectionId, assetService]);
 
   const applyPreset = (preset: SystemPreset): void => {
@@ -74,7 +94,12 @@ export function useCollectionSettingsDraft(
     gridDefaults,
     defaultWidgets,
     conditions,
+    // Trimmed, with the field as label where none was typed.
+    customCreatureFilters: parseCreatureFilters(customCreatureFilters),
+    hiddenCreatureFilters,
     systemPresetId,
+    lootBases,
+    lootCurrency: lootCurrency.trim() || undefined,
     ...(vision !== undefined && { vision }),
   });
 
@@ -83,7 +108,11 @@ export function useCollectionSettingsDraft(
     defaultWidgets, setDefaultWidgets,
     conditions, setConditions,
     vision, setVision,
+    customCreatureFilters, setCustomCreatureFilters,
+    hiddenCreatureFilters, setHiddenCreatureFilters,
     systemPresetId, setSystemPresetId,
+    lootBases, setLootBases,
+    lootCurrency, setLootCurrency,
     applyPreset, clearSystem, toSettings,
     tokenBarChanges: () => changedTokenBars(tokenBarsOf(loadedDefaultWidgets), tokenBarsOf(defaultWidgets)),
   };

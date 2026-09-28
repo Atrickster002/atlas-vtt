@@ -1,0 +1,178 @@
+// ═══════════════════════════════════════════════════════════════════════════
+// Loot Roller — Latest roll / History switch, the result lists and empty states
+// ═══════════════════════════════════════════════════════════════════════════
+// Imported inside the `.atlas-vtt-plugin` scope of styles/main.scss, after
+// loot-roller.scss.
+
+@use '../../../../../styles/tokens' as *;
+@use '../../../../../styles/mixins' as *;
+
+// Keep equal to $loot-padding in loot-roller.scss.
+$loot-padding: $spacing-m;
+
+// ── Latest roll / History switch ───────────────────────────────────────────
+.atlas-loot-pane-tabs {
+  @include atlas-flex-row($spacing-s);
+  justify-content: space-between;
+  flex-shrink: 0;
+}
+
+.atlas-loot-pane-tabs__switch {
+  @include atlas-tab-switcher;
+}
+
+.atlas-loot-pane-tab {
+  @include atlas-tab-button;
+}
+
+// ── List ───────────────────────────────────────────────────────────────────
+.atlas-loot-list {
+  @include atlas-scrollbar;
+  flex: 1;
+  min-height: 0;
+  margin: 0 (-$loot-padding);
+  padding: 0 $loot-padding $loot-padding;
+  overflow-y: auto;
+  container-type: inline-size;
+}
+
+.atlas-loot-list__cards {
+  // Two columns: wide enough for an item's properties to flow in lines.
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: $spacing-s;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.atlas-loot-list__empty {
+  @include atlas-flex-col($spacing-s);
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  padding: $spacing-xl;
+  color: var(--text-faint);
+  font-size: $font-ui-smaller;
+  text-align: center;
+
+  svg {
+    width: $icon-m;
+    height: $icon-m;
+  }
+}
+
+// ── History ────────────────────────────────────────────────────────────────
+.atlas-loot-history {
+  @include atlas-flex-col($spacing-l);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.atlas-loot-history__roll {
+  @include atlas-flex-col($spacing-s);
+}
+
+.atlas-loot-history__meta {
+  @include atlas-flex-row($spacing-s);
+  min-height: $button-height-s;
+  color: var(--text-muted);
+  font-size: $font-ui-smaller;
+}
+
+.atlas-loot-history__when {
+  font-weight: $font-weight-semibold;
+  color: var(--text-normal);
+}
+
+.atlas-loot-history__map {
+  @include atlas-flex-row($spacing-xs);
+  @include atlas-truncate;
+  min-width: 0;
+
+  svg {
+    width: $icon-xs;
+    height: $icon-xs;
+    flex-shrink: 0;
+  }
+}
+
+.atlas-loot-history__count {
+  flex-shrink: 0;
+  color: var(--text-faint);
+}
+
+.atlas-loot-history__remove.btn--icon {
+  width: $button-height-s;
+  height: $button-height-s;
+  margin-left: auto;
+  flex-shrink: 0;
+  color: var(--text-faint);
+  opacity: 0;
+  transition: opacity $transition-fast $transition-ease;
+
+  svg {
+    width: $icon-xs;
+    height: $icon-xs;
+  }
+
+  &:focus-visible {
+    opacity: 1;
+  }
+}
+
+.atlas-loot-history__roll:hover .atlas-loot-history__remove.btn--icon {
+  opacity: 1;
+}
+
+// ── Empty states ───────────────────────────────────────────────────────────
+.atlas-loot-empty {
+  @include atlas-flex-col($spacing-s);
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  padding: $spacing-xl;
+  text-align: center;
+}
+
+.atlas-loot-empty__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: $button-height-l;
+  height: $button-height-l;
+  border-radius: $radius-full;
+  color: var(--color-yellow);
+  background: color-mix(in oklch, var(--color-yellow) 14%, transparent);
+
+  svg {
+    width: $icon-m;
+    height: $icon-m;
+  }
+}
+
+.atlas-loot-empty__title {
+  margin: $spacing-xs 0 0;
+  font-weight: $font-weight-semibold;
+}
+
+.atlas-loot-empty__body {
+  margin: 0;
+  max-width: 340px;
+  color: var(--text-muted);
+  font-size: $font-ui-smaller;
+  line-height: 1.5;
+}
+
+.atlas-loot-empty__action {
+  margin-top: $spacing-s;
+}
+
+// A window resized narrow shows one column.
+@container (max-width: 560px) {
+  .atlas-loot-list__cards {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

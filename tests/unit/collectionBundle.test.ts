@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { TFile } from 'obsidian';
 import { AtlasView } from '../../src/app/atlas-view';
 import { AssetService } from '../../src/app/services/AssetService';
+import { transferAssets } from '../../src/app/services/assetTransfer/assetTransfer';
 import { exportCollectionBundle, prepareCollectionExport, type ExportChoice } from '../../src/app/services/collectionBundle/collectionExport';
 import { openCollectionImport, type ImportDecision } from '../../src/app/services/collectionBundle/collectionImport';
 import type { ImportReview } from '../../src/app/services/collectionBundle/importReview';
@@ -69,7 +70,7 @@ async function emptyVault(files: Record<string, string> = {}): Promise<Vault> {
 async function creatorVault(): Promise<Vault> {
   const creator = await emptyVault();
   const { vault, assets } = creator;
-  await assets.createCollection('Source');
+  await assets.createCollection('source');
   for (const [path, content] of Object.entries({
     [TOKEN_IMAGE]: 'IMG', [TOKEN_THUMB]: 'THUMB', [BACKGROUND]: 'BG', [MAP_PATH]: mapFile(),
     'atlas-vtt/collections/source/scenes/Cave.thumb.jpg': 'JPG',
@@ -138,7 +139,7 @@ describe('exporting', () => {
     expect(preview.missing).toEqual([expect.objectContaining({ path: BACKGROUND, assetName: 'Cave' })]);
 
     const bundle = await exportCollectionBundle(creator.vault.app, creator.assets, preview, { kind: 'release', version: 1, author: 'Dungeon Tube', notes: 'First release' });
-    expect(bundle.fileName).toBe('Source v1.atlas-collection.zip');
+    expect(bundle.fileName).toBe('source v1.atlas-collection.zip');
     expect((await creator.assets.getCollection('source'))?.releasedAt).toBeUndefined();
     await bundle.commit();
     const { default: JSZip } = await import('jszip');
@@ -242,7 +243,7 @@ describe('installing', () => {
     });
 
     const collection = await fan.assets.getCollection('source');
-    expect(collection).toMatchObject({ name: 'Source', version: 1, tags: { 'tokens:dragon': { id: 'dragon', name: 'Dragon', group: 'tokens' } } });
+    expect(collection).toMatchObject({ name: 'source', version: 1, tags: { 'tokens:dragon': { id: 'dragon', name: 'Dragon', group: 'tokens' } } });
     expect(collection?.settings.conditions).toEqual([{ id: 'c1', name: 'Poisoned', color: '#0f0' }]);
     const statblocks = 'atlas-vtt/collections/source/statblocks';
     const [token] = await fan.assets.getAssets('source', 'token');
@@ -275,13 +276,13 @@ describe('installing', () => {
 
   it('imports a different collection with a name the vault already uses under a name of the user\'s choice', async () => {
     const fan = await emptyVault();
-    await fan.assets.createCollection('Source');
+    await fan.assets.createCollection('source');
     const { review, apply } = await reviewImport(fan, await exportFrom(await creatorVault()));
-    expect(review).toMatchObject({ relation: 'new', suggestedName: 'Source (2)' });
+    expect(review).toMatchObject({ relation: 'new', suggestedName: 'source (2)' });
     await expect(apply({ name: 'source' })).rejects.toThrow(/already exists/);
-    await apply({ name: 'Source (2)' });
+    await apply({ name: 'source (2)' });
     const names = (await fan.assets.getCollections()).map((collection) => collection.name);
-    expect(names).toEqual(expect.arrayContaining(['Source', 'Source (2)']));
+    expect(names).toEqual(expect.arrayContaining(['source', 'source (2)']));
     expect(await fan.assets.getAssets('source')).toHaveLength(0);
   });
 
@@ -296,11 +297,11 @@ describe('installing', () => {
     await importInto(creator, new Blob([await zip.generateAsync({ type: 'arraybuffer' })]));
 
     expect(await creator.assets.getAssets('source')).toEqual(sourceAssets);
-    const copied = await creator.assets.getAssets('source-copy');
+    const copied = await creator.assets.getAssets('Source copy');
     expect(copied).toHaveLength(3);
     expect(copied.every((asset) => !sourceAssets.some((original) => original.id === asset.id))).toBe(true);
-    const [scene] = await creator.assets.getAssets('source-copy', 'scene');
-    expect(scene?.data?.mapPath).toBe('atlas-vtt/collections/source-copy/scenes/Cave.atlasmap');
+    const [scene] = await creator.assets.getAssets('Source copy', 'scene');
+    expect(scene?.data?.mapPath).toBe('atlas-vtt/collections/Source copy/scenes/Cave.atlasmap');
   });
 
   it('keeps statblock notes the vault already has and never rewrites them', async () => {
@@ -404,15 +405,18 @@ describe('updating', () => {
     const { creator, fan } = await installedV1();
     const [token] = await fan.assets.getAssets('source', 'token');
     await fan.assets.updateAsset(token!.id, { name: 'My goblin' });
+    // The collection's folder takes the new name, and the update finds its files there.
     await fan.assets.renameCollection('source', 'My campaign pack');
     creator.vault.files.set(MAP_PATH, mapFile(12));
 
     const { review, apply } = await reviewImport(fan, await exportFrom(creator));
     expect(review).toMatchObject({ relation: 'newer', localName: 'My campaign pack', conflicts: [] });
     await apply();
-    expect((await fan.assets.getAssets('source', 'token'))[0]?.name).toBe('My goblin');
-    expect((await fan.assets.getCollection('source'))?.name).toBe('My campaign pack');
-    expect(JSON.parse(fan.vault.files.get(MAP_PATH)!).state.objects.tokens.t1.hp).toBe(12);
+    expect((await fan.assets.getAssets('My campaign pack', 'token'))[0]?.name).toBe('My goblin');
+    expect((await fan.assets.getCollection('My campaign pack'))?.name).toBe('My campaign pack');
+    const renamedMap = MAP_PATH.replace('collections/source/', 'collections/My campaign pack/');
+    expect(JSON.parse(fan.vault.files.get(renamedMap)!).state.objects.tokens.t1.hp).toBe(12);
+    expect(fan.vault.files.has(MAP_PATH)).toBe(false);
   });
 
   it('asks about changes both sides made, keeps the user\'s by default, and asks again only when the creator changes it again', async () => {
@@ -546,10 +550,10 @@ describe('review findings', () => {
     const fan = await emptyVault();
     const v1 = await exportFrom(creator);
     await importInto(fan, v1);
-    await fan.assets.createCollection('Mine');
+    await fan.assets.createCollection('mine');
     const [token] = await fan.assets.getAssets('source', 'token');
     await fan.assets.updateAsset(token!.id, { name: 'My goblin' });
-    await fan.assets.updateAsset(token!.id, { collection: 'mine' });
+    await transferAssets(fan.vault.app, fan.assets, { assetIds: [token!.id], targetCollectionId: 'mine', mode: 'move' });
 
     const { review, apply } = await reviewImport(fan, v1);
     expect(review.canRestore).toBe(true);
@@ -602,14 +606,14 @@ describe('review findings', () => {
   it('shares a copy that was imported under another name with the original name', async () => {
     const creator = await creatorVault();
     const fan = await emptyVault();
-    await fan.assets.createCollection('Source');
-    await importInto(fan, await exportFrom(creator), { name: 'Source (2)' });
-    const shared = await exportFrom(fan, { kind: 'share' }, 'source-2');
+    await fan.assets.createCollection('source');
+    await importInto(fan, await exportFrom(creator), { name: 'source (2)' });
+    const shared = await exportFrom(fan, { kind: 'share' }, 'source (2)');
     AssetService.resetInstance();
     const { review, apply } = await reviewImport(creator, shared);
     expect(review).toMatchObject({ upToDate: true, counts: { updated: 0 } });
     await apply();
-    expect((await creator.assets.getCollection('source'))?.name).toBe('Source');
+    expect((await creator.assets.getCollection('source'))?.name).toBe('source');
   });
 });
 
@@ -808,9 +812,9 @@ describe('remaining findings', () => {
     const fan = await emptyVault();
     const v1 = await exportFrom(creator);
     await importInto(fan, v1);
-    await fan.assets.createCollection('Mine');
+    await fan.assets.createCollection('mine');
     const [encounter] = await fan.assets.getAssets('source', 'encounter');
-    await fan.assets.updateAsset(encounter!.id, { collection: 'mine' });
+    await transferAssets(fan.vault.app, fan.assets, { assetIds: [encounter!.id], targetCollectionId: 'mine', mode: 'move' });
 
     await (await reviewImport(fan, v1)).apply({ restore: true });
     const [restored] = await fan.assets.getAssets('source', 'encounter');
@@ -902,9 +906,9 @@ describe('final review findings', () => {
     const fan = await emptyVault();
     const v1 = await exportFrom(creator);
     await importInto(fan, v1);
-    await fan.assets.createCollection('Mine');
+    await fan.assets.createCollection('mine');
     const [fanMap] = await fan.assets.getAssets('source', 'map');
-    await fan.assets.updateAsset(fanMap!.id, { collection: 'mine' });
+    await transferAssets(fan.vault.app, fan.assets, { assetIds: [fanMap!.id], targetCollectionId: 'mine', mode: 'move' });
 
     await (await reviewImport(fan, v1)).apply({ restore: true });
     const [restored] = await fan.assets.getAssets('source', 'map');
@@ -918,9 +922,9 @@ describe('pull request review findings', () => {
     const creator = await creatorVault();
     const fan = await emptyVault();
     await importInto(fan, await exportFrom(creator));
-    await fan.assets.createCollection('Mine');
+    await fan.assets.createCollection('mine');
     const [token] = await fan.assets.getAssets('source', 'token');
-    await fan.assets.updateAsset(token!.id, { collection: 'mine' });
+    await transferAssets(fan.vault.app, fan.assets, { assetIds: [token!.id], targetCollectionId: 'mine', mode: 'move' });
     creator.vault.files.set(TOKEN_IMAGE, 'NEW IMG');
 
     const v2 = await exportFrom(creator);
@@ -940,16 +944,16 @@ describe('pull request review findings', () => {
     creator.vault.files.set(MAP_PATH, mapFile(12));
     await creator.assets.renameCollection('source', 'Source Deluxe');
 
-    const map = await reviewImport(fan, await exportFrom(creator));
+    const map = await reviewImport(fan, await exportFrom(creator, undefined, 'Source Deluxe'));
     expect(map.review.counts.conflict).toBe(0);
     fan.vault.files.set(MAP_PATH, 'PLAYED DURING REVIEW');
     await expect(map.apply()).rejects.toThrow('Your vault changed since the review');
     expect(fan.vault.files.get(MAP_PATH)).toBe('PLAYED DURING REVIEW');
 
-    const name = await reviewImport(fan, await exportFrom(creator, { kind: 'release', version: 2 }));
+    const name = await reviewImport(fan, await exportFrom(creator, { kind: 'release', version: 2 }, 'Source Deluxe'));
     await fan.assets.renameCollection('source', 'My pack');
     await expect(name.apply()).rejects.toThrow('Your vault changed since the review');
-    expect((await fan.assets.getCollection('source'))?.name).toBe('My pack');
+    expect((await fan.assets.getCollection('My pack'))?.name).toBe('My pack');
   });
 });
 
@@ -970,12 +974,12 @@ describe('sharing and forking', () => {
   it('files a fan added to a renamed copy under the original collection\'s folder when shared back', async () => {
     const creator = await creatorVault();
     const fan = await emptyVault();
-    await fan.assets.createCollection('Source');
-    await importInto(fan, await exportFrom(creator), { name: 'Source (2)' });
-    await fan.vault.app.vault.create('atlas-vtt/collections/source-2/scenes/Lair.atlasmap', '{}');
-    await fan.assets.addAsset({ type: 'scene', name: 'Lair', collection: 'source-2', tags: [], data: { mapPath: 'atlas-vtt/collections/source-2/scenes/Lair.atlasmap' } });
+    await fan.assets.createCollection('source');
+    await importInto(fan, await exportFrom(creator), { name: 'source (2)' });
+    await fan.vault.app.vault.create('atlas-vtt/collections/source (2)/scenes/Lair.atlasmap', '{}');
+    await fan.assets.addAsset({ type: 'scene', name: 'Lair', collection: 'source (2)', tags: [], data: { mapPath: 'atlas-vtt/collections/source (2)/scenes/Lair.atlasmap' } });
 
-    const shared = await exportFrom(fan, { kind: 'share' }, 'source-2');
+    const shared = await exportFrom(fan, { kind: 'share' }, 'source (2)');
     AssetService.resetInstance();
     const { review, apply } = await reviewImport(creator, shared);
     expect(review).toMatchObject({ relation: 'same', counts: { added: 1, removed: 0 } });
@@ -992,10 +996,12 @@ describe('sharing and forking', () => {
     const originalUid = (await fan.assets.getCollection('source'))!.uid;
 
     const fork = await exportFrom(fan, { kind: 'fork', name: 'Fan edition', author: 'Fan' });
-    const forked = await fan.assets.getCollection('source');
+    // A fork takes its new name, and with it a folder of that name.
+    expect(await fan.assets.getCollection('source')).toBeNull();
+    const forked = await fan.assets.getCollection('Fan edition');
     expect(forked).toMatchObject({ name: 'Fan edition', version: 1, author: 'Fan', publisherId: await fan.assets.getVaultId() });
     expect(forked?.uid).not.toBe(originalUid);
-    expect((await prepareCollectionExport(fan.vault.app, fan.assets, 'source')).publisher).toBe('self');
+    expect((await prepareCollectionExport(fan.vault.app, fan.assets, 'Fan edition')).publisher).toBe('self');
 
     AssetService.resetInstance();
     const { review } = await reviewImport(creator, fork);

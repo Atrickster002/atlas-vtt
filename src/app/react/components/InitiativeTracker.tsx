@@ -299,10 +299,8 @@ export const InitiativeTracker: React.FC = () => {
     (e: React.MouseEvent, entry: InitiativeEntry, cardElement: HTMLElement): void => {
       const entries: ContextMenuEntry[] = [
         { type: 'item', label: 'Roll Initiative', icon: 'dice', onClick: () => rollEntryInitiative(entry.id) },
-        { type: 'separator' },
         { type: 'item', label: 'Move to Front', icon: 'arrow-up-to-line', onClick: () => moveToFront(entry.id) },
         { type: 'item', label: 'Move to Back', icon: 'arrow-down-to-line', onClick: () => moveToBack(entry.id) },
-        { type: 'separator' },
         {
           type: 'item', label: 'Edit Initiative', icon: 'pencil',
           onClick: () => {
@@ -311,7 +309,6 @@ export const InitiativeTracker: React.FC = () => {
             setEditValue(String(entry.initiative));
           },
         },
-        { type: 'separator' },
         { type: 'item', label: 'Remove from Initiative', icon: 'trash-2', destructive: true, onClick: () => removeFromInitiative(entry.id) },
       ];
 

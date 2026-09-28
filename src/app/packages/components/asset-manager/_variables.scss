@@ -11,7 +11,8 @@ $control-height: var(--input-height);
 
 /// Header content widths below which the toolbar gets more compact. Derived from
 /// the measured widths of its parts (navigation with a selection ≈ 200px, tabs ≈
-/// 410px, type menu ≈ 150px, search 180px, sort ≈ 130px, other actions ≈ 130px).
+/// 410px, type menu ≈ 150px, search 180px (240px where there is room: it shrinks
+/// first), sort ≈ 130px, other actions ≈ 130px).
 $header-tabs-inline-width: 1080px;   // tabs fold into a menu
 $header-search-inline-width: 820px;  // search folds into a button
 $header-sort-inline-width: 670px;    // sort folds into a menu, selection shows only its count

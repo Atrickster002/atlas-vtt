@@ -1,4 +1,5 @@
 import { AssetRegistrationUncertainError } from '../../../services/assetRegistrationRecovery';
+import { AssetService } from '../../../services/AssetService';
 import { StatblockImportContent } from './statblock-import/StatblockImportContent';
 import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
@@ -32,7 +33,7 @@ function hasFiles(e: React.DragEvent): boolean {
   return Array.from(e.dataTransfer.types).includes('Files');
 }
 
-export function TokenCreator({ isOpen, onClose, mode = 'token', selectedCollection = 'default', editToken, initialSource = 'images' }: TokenCreatorProps): React.JSX.Element | null {
+export function TokenCreator({ isOpen, onClose, mode = 'token', selectedCollection = AssetService.defaultCollectionId(), editToken, initialSource = 'images' }: TokenCreatorProps): React.JSX.Element | null {
   const { app } = useAtlasUI();
   const { assetService, collections } = useAssetCatalog(app, isOpen);
   const previews = useTokenPreviews(mode);

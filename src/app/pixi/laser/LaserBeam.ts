@@ -1,0 +1,108 @@
+import { AlphaFilter, Buffer, BufferUsage, Container, Geometry, Mesh, Rectangle, type Shader } from 'pixi.js';
+import { createLaserBeamBuffers, smoothBeam, writeLaserBeam, type BeamPoint } from './laserBeamGeometry';
+import { createLaserBeamShader, type LaserBeamShader } from './laserBeamShader';
+
+/** Longest straight step of the smoothed beam, in screen pixels. */
+const SMOOTHING_SPACING = 3;
+/**
+ * Wide beams take longer steps: every capsule is a square as wide as the glow, so fine
+ * steps would shade the same pixels many times over, and the curve stays round anyway.
+ */
+const SMOOTHING_SPACING_PER_WIDTH = 0.25;
+
+/** Radius of the beam's solid body per unit of the size setting, in screen pixels. */
+const BODY_PER_SIZE = 0.35;
+/** The glow around the body grows with the size only up to GLOW_MAX, so wide beams stay crisp instead of hazy. */
+const GLOW_PER_SIZE = 1.15;
+const GLOW_MAX = 40;
+
+export interface BeamWidth {
+  /** Half the beam's width including its glow, in world units. */
+  halfWidth: number;
+  /** Share of that half width the solid body takes. */
+  bodyShare: number;
+}
+
+/** How wide the beam is for the size setting, which is in screen pixels at any zoom. */
+export function beamWidth(size: number, zoom: number): BeamWidth {
+  const body = size * BODY_PER_SIZE;
+  const radius = body + Math.min(GLOW_MAX, size * GLOW_PER_SIZE);
+  return { halfWidth: radius / zoom, bodyShare: body / radius };
+}
+
+export interface LaserBeamFrame {
+  /** Trail samples from oldest to newest, the last one at the pointer while drawing. */
+  trail: BeamPoint[];
+  /** The pointer while it hovers without drawing. */
+  dot: BeamPoint | null;
+  /** Where the white-hot spot sits, or null when the pointer is off the map. */
+  pointer: { x: number; y: number } | null;
+  color: string;
+  width: BeamWidth;
+  /** Viewport scale, so smoothing stays fine at any zoom. */
+  zoom: number;
+}
+
+/**
+ * The laser's display object. Its capsules overlap at every joint and are drawn with max
+ * blending, so each pixel keeps the strongest capsule instead of adding them up. That only
+ * works on an empty surface, so the beam renders into its own layer (a pass-through filter)
+ * that is then blended onto the map as a whole.
+ */
+export class LaserBeam {
+  /** Add this to the scene. */
+  readonly view: Container;
+  private readonly mesh: Mesh<Geometry, Shader>;
+  private readonly geometry: Geometry;
+  private readonly shader: LaserBeamShader;
+  private readonly layer = new AlphaFilter({ alpha: 1, resolution: 'inherit' });
+  private readonly vertexBuffers: Buffer[];
+  private readonly indexBuffer: Buffer;
+  private readonly buffers = createLaserBeamBuffers();
+
+  constructor() {
+    const vertexBuffer = (data: Float32Array): Buffer => new Buffer({ data, usage: BufferUsage.VERTEX | BufferUsage.COPY_DST });
+    const positions = vertexBuffer(this.buffers.positions);
+    const segments = vertexBuffer(this.buffers.segments);
+    const shapes = vertexBuffer(this.buffers.shapes);
+    this.vertexBuffers = [positions, segments, shapes];
+    this.indexBuffer = new Buffer({ data: this.buffers.indices, usage: BufferUsage.INDEX | BufferUsage.COPY_DST });
+    this.geometry = new Geometry({
+      attributes: {
+        aPosition: { buffer: positions, format: 'float32x2' },
+        aSegment: { buffer: segments, format: 'float32x4' },
+        aShape: { buffer: shapes, format: 'float32x4' },
+      },
+      indexBuffer: this.indexBuffer,
+    });
+    this.shader = createLaserBeamShader();
+    this.mesh = new Mesh({ geometry: this.geometry, shader: this.shader.shader });
+    this.mesh.blendMode = 'max';
+
+    this.view = new Container({ label: 'laser-beam' });
+    this.view.filters = [this.layer];
+    this.view.visible = false;
+    this.view.addChild(this.mesh);
+  }
+
+  /** Rebuilds the beam; the buffer updates tell PIXI to render the frame. */
+  draw({ trail, dot, pointer, color, width, zoom }: LaserBeamFrame): void {
+    const { halfWidth, bodyShare } = width;
+    const spacing = Math.max(SMOOTHING_SPACING / zoom, halfWidth * SMOOTHING_SPACING_PER_WIDTH);
+    const bounds = writeLaserBeam(this.buffers, smoothBeam(trail, spacing), dot, halfWidth);
+    this.view.visible = bounds !== null;
+    if (!bounds) return;
+    for (const buffer of this.vertexBuffers) buffer.update();
+    this.indexBuffer.update();
+    this.shader.update(color, pointer, halfWidth, bodyShare);
+    // The layer covers the beam only; vertices left from longer frames must not widen it.
+    this.view.boundsArea = new Rectangle(bounds.minX, bounds.minY, bounds.maxX - bounds.minX, bounds.maxY - bounds.minY);
+  }
+
+  /** Frees the geometry, shader and filter, which a destroyed mesh leaves alive. Destroy the view with its parent first. */
+  destroy(): void {
+    this.geometry.destroy(true);
+    this.shader.shader.destroy(true);
+    this.layer.destroy();
+  }
+}

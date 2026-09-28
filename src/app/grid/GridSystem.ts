@@ -1,4 +1,4 @@
-import { Application, Graphics, Sprite } from 'pixi.js';
+import { Application, Container, Graphics, Sprite } from 'pixi.js';
 import { Viewport } from 'pixi-viewport';
 import type { IRenderLayer } from 'pixi.js';
 import { drawSquareGrid } from './squareGridDrawer';
@@ -7,12 +7,14 @@ import type { GridBounds, GridLineType } from './gridLineStyle';
 import { createHexLayout, hexCellExtent, isHexGridType, nearestHexCenter } from './hexGeometry';
 import type { HexLayout } from './hexGeometry';
 import { contrastColorForSprite } from './gridContrastColor';
+import { numberHexes, type HexNumberStyle } from './hexNumbering';
+import { HexNumberLabels, type HexNumberView } from './hexNumberLabels';
 import { destroyTree } from '../pixi/utils/destroyTree';
 
 export type GridType = 'square' | 'hex-horizontal' | 'hex-vertical';
 
-// Tracks grid graphics without modifying their types
-const gridSpriteIds = new WeakMap<Graphics, number>();
+// Tracks grid containers without modifying their types
+const gridSpriteIds = new WeakMap<Container, number>();
 
 export interface GridOptions {
   /** Type of grid. `hex-horizontal` is flat-top, `hex-vertical` is pointy-top. */
@@ -44,15 +46,25 @@ export interface GridOptions {
   mapScale?: number;
   /** Whether in alignment mode (for visual feedback) */
   isAligning?: boolean;
+  /** Numbers every hex on hex grids in this style; unset shows no numbers. */
+  hexNumbers?: HexNumberStyle | undefined;
 }
+
+/** Colour of every grid preview while the grid is being aligned. */
+export const ALIGNMENT_GRID_COLOR = 0x00ff00;
 
 /**
  * Manages a static grid overlay that exactly matches a background sprite,
  * staying locked under pan/zoom by the Pixi‑Viewport container.
  */
 export class GridSystem {
-  private gridSprite: Graphics | null = null;
+  /** Holds the grid lines and, on numbered hex grids, the hex numbers. */
+  private gridSprite: Container | null = null;
   private gridMask: Graphics | null = null;
+  private hexNumberLabels: HexNumberLabels | null = null;
+  private readonly onViewportZoomed = (): void => {
+    this.hexNumberLabels?.setView(this.numberView());
+  };
   private bgSprite: Sprite;
   private viewport: Viewport;
   private app: Application;
@@ -96,6 +108,7 @@ export class GridSystem {
     };
 
     this.updateMapScale();
+    this.viewport.on('zoomed', this.onViewportZoomed);
     this.createGrid();
   }
 
@@ -159,11 +172,11 @@ export class GridSystem {
     };
 
     // `??`, not `||`: black is 0x000000 and must not fall through to the automatic colour
-    const gridColor = isAligning ? 0x00ff00 : (color ?? this.getAutoColor());
+    const gridColor = isAligning ? ALIGNMENT_GRID_COLOR : (color ?? this.getAutoColor());
     const gridAlpha = isAligning ? Math.min(alpha! * 1.5, 1) : alpha!;
 
-    const graphics = new Graphics();
-    graphics.setStrokeStyle({
+    const lines = new Graphics();
+    lines.setStrokeStyle({
       width: lineWidth!,
       color: gridColor,
       alpha: gridAlpha,
@@ -173,51 +186,68 @@ export class GridSystem {
     });
 
     if (hexLayout) {
-      drawHexGrid(graphics, bounds, hexLayout, lineType, lineWidth);
+      drawHexGrid(lines, bounds, hexLayout, lineType, lineWidth);
     } else {
-      drawSquareGrid(graphics, bounds, size, offsetX, offsetY, lineType, lineWidth);
+      drawSquareGrid(lines, bounds, size, offsetX, offsetY, lineType, lineWidth);
     }
     if (lineType === 'dotted') {
-      graphics.fill({ color: gridColor, alpha: gridAlpha });
+      lines.fill({ color: gridColor, alpha: gridAlpha });
     } else {
-      graphics.stroke();
+      lines.stroke();
     }
 
-    graphics.position.set(bounds.minX, bounds.minY);
-    graphics.eventMode = 'none';
-    graphics.interactive = false;
+    const grid = new Container({ label: 'grid', eventMode: 'none', interactiveChildren: false });
+    grid.addChild(lines);
+    grid.position.set(bounds.minX, bounds.minY);
+
+    const hexNumbers = this.options.hexNumbers;
+    if (hexLayout && hexNumbers) {
+      const mapRect = { x: bgX, y: bgY, width: this.bgSprite.width, height: this.bgSprite.height };
+      this.hexNumberLabels = new HexNumberLabels(
+        numberHexes(hexLayout, mapRect, hexNumbers.format),
+        hexLayout,
+        { x: bounds.minX, y: bounds.minY },
+        { color: gridColor, opacity: hexNumbers.opacity },
+        this.numberView(),
+      );
+      grid.addChild(this.hexNumberLabels.container);
+    }
 
     // Clip the grid to the map bounds
     const maskGraphics = new Graphics();
     maskGraphics.rect(0, 0, this.bgSprite.width, this.bgSprite.height);
     maskGraphics.fill(0xffffff);
     maskGraphics.position.set(bgX, bgY);
-    graphics.mask = maskGraphics;
+    grid.mask = maskGraphics;
     this.gridMask = maskGraphics;
     this.viewport.addChild(maskGraphics);
 
     // Keep geometry ready for player capture even when the DM hides the grid.
-    graphics.visible = this.options.enabled !== false;
-    this.gridSprite = graphics;
+    grid.visible = this.options.enabled !== false;
+    this.gridSprite = grid;
     this._gridSpriteInitialWorldX = bounds.minX;
     this._gridSpriteInitialWorldY = bounds.minY;
     this._gridOptionsOffsetXAtCreation = offsetX;
     this._gridOptionsOffsetYAtCreation = offsetY;
 
     // Insert just above the background
-    const existingGrids = this.viewport.children.filter(child => gridSpriteIds.has(child as Graphics));
+    const existingGrids = this.viewport.children.filter(child => gridSpriteIds.has(child));
     existingGrids.forEach(g => this.viewport.removeChild(g));
 
     const bgIndex = this.viewport.children.indexOf(this.bgSprite);
-    this.viewport.addChildAt(graphics, bgIndex >= 0 ? bgIndex + 1 : 0);
-    gridSpriteIds.set(graphics, Date.now());
+    this.viewport.addChildAt(grid, bgIndex >= 0 ? bgIndex + 1 : 0);
+    gridSpriteIds.set(grid, Date.now());
 
     if (this.layer) {
-      this.layer.attach(graphics);
+      this.layer.attach(grid);
     }
 
     this.viewport.dirty = true;
     this._isCreating = false;
+  }
+
+  private numberView(): HexNumberView {
+    return { zoom: this.viewport.scale.x, pixelRatio: this.app.renderer.resolution };
   }
 
   /** Black or white, whichever contrasts with the map image; cached because it reads the texture's pixels. */
@@ -228,6 +258,7 @@ export class GridSystem {
 
   /** Clean up grid-only resources */
   private destroyGridResources(): void {
+    this.hexNumberLabels = null;
     if (this.gridMask) {
       if (this.gridMask.parent) {
         this.gridMask.parent.removeChild(this.gridMask);
@@ -303,6 +334,13 @@ export class GridSystem {
     }, 100);
   }
 
+  /** Changes only the numbers' opacity, without rebuilding the grid. */
+  public setHexNumberOpacity(opacity: number): void {
+    if (!this.options.hexNumbers) return;
+    this.options.hexNumbers = { ...this.options.hexNumbers, opacity };
+    this.hexNumberLabels?.setOpacity(opacity);
+  }
+
   /** Return current options */
   public getOptions(): Readonly<GridOptions> {
     return this.options;
@@ -313,8 +351,8 @@ export class GridSystem {
     return this.options.mapScale || 1;
   }
 
-  /** Returns the grid graphics instance */
-  public getGridSprite(): Graphics | null {
+  /** Returns the grid container: its lines and, on numbered hex grids, the hex numbers */
+  public getGridSprite(): Container | null {
     return this.gridSprite;
   }
 
@@ -326,6 +364,7 @@ export class GridSystem {
   /** Completely destroy */
   public destroy(): void {
     this.isDestroying = true;
+    this.viewport.off('zoomed', this.onViewportZoomed);
     this.destroyGridResources();
   }
 

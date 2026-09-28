@@ -1,9 +1,12 @@
 import { App, TFile, setIcon } from 'obsidian';
+import { mayLinkFromScene } from '../services/sceneLinks';
 
 const RESULT_LIMIT = 30;
 
 export interface PinNoteSearchOptions {
   app: App;
+  /** The map the pin goes on; it may only link to scenes of its own collection. */
+  mapPath: string | null;
   /** A note (optionally `path#heading`) was chosen. */
   onPick: (notePath: string) => void;
   onCancel: () => void;
@@ -55,7 +58,7 @@ export function createPinNoteSearch(container: HTMLElement, options: PinNoteSear
   });
 
   const files = app.vault.getAllLoadedFiles().filter((f): f is TFile =>
-    f instanceof TFile && (f.extension === 'md' || f.extension === 'atlasmap')
+    f instanceof TFile && (f.extension === 'md' || (f.extension === 'atlasmap' && mayLinkFromScene(options.mapPath, f.path)))
   );
 
   let entries: ResultEntry[] = [];

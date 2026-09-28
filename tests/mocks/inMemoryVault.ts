@@ -118,6 +118,8 @@ export function createInMemoryApp(seed: InMemoryVaultSeed = {}): InMemoryApp {
         return folders.has(path) ? { type: 'folder', size: 0, ctime: 0, mtime: 0 } : null;
       }),
     },
+    on: vi.fn(() => ({})),
+    offref: vi.fn(),
     getFiles: vi.fn(() => Array.from(files.keys()).filter((path) => !isHiddenPath(path)).map((path) => new TFile(path))),
     getAbstractFileByPath: vi.fn((path: string): TAbstractFile | null => {
       if (isHiddenPath(path)) return null;

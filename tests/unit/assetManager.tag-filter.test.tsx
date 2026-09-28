@@ -6,8 +6,12 @@ import type { AnyAsset } from '../../src/app/packages/components/asset-manager/t
 
 // Keep the real sidebar, selection state, and AssetManager filtering together.
 // Stub vault loading, unrelated modal actions, and asset card rendering.
+// The asset manager listens to workspace events (collection settings changes).
+const workspaceApp = { workspace: { on: () => ({}), offref: () => {} } };
+
 vi.mock('../../src/app/packages/components/asset-manager/hooks/useAssetData', () => ({
   useAssetData: () => ({
+    app: workspaceApp,
     folders: [], collections: [{ id: 'default', uid: 'u-default', name: 'Default' }],
     availableTags: [{ id: 'testing-tags', name: 'Testing Tags' }, { id: 'forest', name: 'Forest' }],
     assets: [
@@ -23,6 +27,9 @@ vi.mock('../../src/app/packages/components/asset-manager/hooks/useAssetCrud', ()
 vi.mock('../../src/app/packages/components/asset-manager/hooks/useTagsAndCollections', () => ({ useTagsAndCollections: () => ({}) }));
 vi.mock('../../src/app/packages/components/asset-manager/hooks/useContextMenus', () => ({ useContextMenus: () => ({}) }));
 vi.mock('../../src/app/packages/components/asset-manager/hooks/useStatblockLink', () => ({ useStatblockLink: () => ({}) }));
+vi.mock('../../src/app/packages/components/asset-manager/hooks/useRememberedPlace', () => ({
+  useRememberedPlace: () => ({ scrollTopOf: () => 0, setScrollTop: () => {} }),
+}));
 vi.mock('../../src/app/packages/components/asset-manager/hooks/useAssetManagerEffects', () => ({ useAssetManagerEffects: () => {} }));
 vi.mock('../../src/app/packages/components/asset-manager/components/Header', () => ({ Header: () => null }));
 vi.mock('../../src/app/packages/components/asset-manager/components/ModalLayer', () => ({ ModalLayer: () => null }));

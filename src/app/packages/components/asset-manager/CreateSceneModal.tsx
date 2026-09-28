@@ -36,7 +36,7 @@ export default function CreateSceneModal({
   const [sceneName, setSceneName] = useState('');
   const [isCreating, setIsCreating] = useState(false);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
-  const { tags, createTag, isCreatingTag } = useAssetTags(assetService, isOpen, selectedCollection || 'default', 'maps');
+  const { tags, createTag, isCreatingTag } = useAssetTags(assetService, isOpen, selectedCollection || AssetService.defaultCollectionId(), 'maps');
   const inputRef = useRef<HTMLInputElement>(null);
   const { app } = useAtlasUI();
   const [hasSetDefaultName, setHasSetDefaultName] = useState(false);
@@ -86,7 +86,7 @@ export default function CreateSceneModal({
 
     setIsCreating(true);
     try {
-      const selection = selectedCollection || 'default';
+      const selection = selectedCollection || AssetService.defaultCollectionId();
       const collection = await assetService.getCollection(selection);
       if (!collection) {
         throw new Error(`Collection "${selection}" no longer exists. Select another collection and try again.`);
@@ -152,24 +152,21 @@ export default function CreateSceneModal({
         return;
       }
 
-      await ensureFolder(app, scenePath.substring(0, scenePath.lastIndexOf('/')));
-      const sceneFile = await app.vault.create(scenePath, JSON.stringify(mapData, null, 2));
-
-      // Register the scene with AssetService
-      if (assetService) {
-        const sceneAsset = {
-          type: 'scene' as const,
+      // The map file and its scene record are written as one step, so the vault
+      // check never finds the new map without a scene and adds a second one.
+      const sceneFile = await assetService.runExclusive(async () => {
+        await ensureFolder(app, scenePath.substring(0, scenePath.lastIndexOf('/')));
+        const file = await app.vault.create(scenePath, JSON.stringify(mapData, null, 2));
+        await assetService.addAsset({
+          type: 'scene',
           name: sceneName.trim(),
           collection: collectionId,
           tags: selectedTags,
-          data: {
-            mapPath: scenePath
-          }
-        };
-        
-        await assetService.addAsset(sceneAsset);
-      }
-      
+          data: { mapPath: scenePath },
+        });
+        return file;
+      });
+
       await app.workspace.getLeaf(false).openFile(sceneFile);
       
       // Close the modal

@@ -1,6 +1,5 @@
-import { App, Plugin, TFile, TFolder, WorkspaceLeaf } from 'obsidian';
+import { App, Plugin, TFile, WorkspaceLeaf } from 'obsidian';
 import { AtlasView, ATLAS_VIEW_TYPE } from '../atlas-view';
-import { FileReferenceService } from '../services/FileReferenceService';
 
 export const EXTENSION_ATLASMAP = 'atlasmap';
 
@@ -65,40 +64,16 @@ function mergeDuplicateAtlasLeaves(app: App): void {
   void app.workspace.revealLeaf(primaryLeaf);
 }
 
-/** Keeps the single Atlas view and its scene tabs consistent with the vault. */
+/** Closes the scene tab of a map file, if the Atlas view has it open. */
+export function closeMapTab(app: App, mapPath: string): void {
+  const atlasView = getLoadedAtlasView(app);
+  const tab = atlasView?.tabMetaStore.getState().getTabByFilePath(mapPath);
+  if (atlasView && tab) void atlasView.closeTab(tab.id);
+}
+
+/** Keeps a single Atlas leaf: leaves split off by the user fold back into it as scene tabs. */
 export function registerAtlasLeafSync(plugin: Plugin): void {
-  const { app } = plugin;
-  const fileReferences = new FileReferenceService(app);
-
   plugin.registerEvent(
-    app.workspace.on('layout-change', () => mergeDuplicateAtlasLeaves(app))
-  );
-
-  plugin.registerEvent(
-    app.vault.on('rename', async (file, oldPath) => {
-      if (file instanceof TFolder) {
-        await fileReferences.handleFolderRenamed(oldPath, file.path);
-        return;
-      }
-      if (!(file instanceof TFile)) return;
-      // The open map first, so its next autosave cannot write the old paths back.
-      getLoadedAtlasView(app)?.handleFileRenamed(oldPath, file.path, file.basename);
-      await fileReferences.handleFileRenamed(oldPath, file.path);
-    })
-  );
-
-  plugin.registerEvent(
-    app.vault.on('delete', async (file) => {
-      if (file instanceof TFolder) {
-        await fileReferences.handleFolderDeleted(file.path);
-        return;
-      }
-      if (!(file instanceof TFile) || file.extension !== EXTENSION_ATLASMAP) return;
-      const atlasView = getLoadedAtlasView(app);
-      const tab = atlasView?.tabMetaStore.getState().getTabByFilePath(file.path);
-      if (atlasView && tab) {
-        void atlasView.closeTab(tab.id);
-      }
-    })
+    plugin.app.workspace.on('layout-change', () => mergeDuplicateAtlasLeaves(plugin.app))
   );
 }

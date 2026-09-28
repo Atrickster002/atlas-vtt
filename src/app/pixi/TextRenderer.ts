@@ -409,7 +409,6 @@ export class TextRenderer {
 
     const entries: ContextMenuEntry[] = [
       { type: 'item', label: 'Edit Text', icon: 'edit', onClick: () => void this.editText(textElement) },
-      { type: 'separator' },
       {
         type: 'submenu',
         label: 'Text Color',
@@ -430,7 +429,6 @@ export class TextRenderer {
           onClick: () => this.store.getState().updateText(textElement.id, c.value !== undefined ? { backgroundColor: c.value } : { backgroundColor: '' }),
         })),
       },
-      { type: 'separator' },
       {
         type: 'submenu',
         label: 'Font Size',
@@ -452,7 +450,6 @@ export class TextRenderer {
         label: textElement.italic ? '\u2713 Italic' : 'Italic',
         onClick: () => this.store.getState().updateText(textElement.id, { italic: !textElement.italic }),
       },
-      { type: 'separator' },
       {
         type: 'item',
         label: 'Delete',

@@ -2,7 +2,7 @@
  * CollectionSettingsModal
  *
  * Vertical-tabbed modal for configuring per-collection settings:
- *   Game System | Grid & Measurement | Default Widgets | Conditions | Vision
+ *   Game System | Grid & Measurement | Default Widgets | Conditions | Loot | Vision
  *
  * Opens after collection creation and via a gear button in the sidebar.
  */
@@ -10,7 +10,8 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { motion } from 'framer-motion';
-import { Dices, Grid3X3, LayoutGrid, ShieldAlert, Eye } from 'lucide-react';
+import { Dices, Grid3X3, LayoutGrid, ListFilter, ShieldAlert, Eye } from 'lucide-react';
+import { CoinIcon } from './CoinIcon';
 import { Button } from '../../packages/components/primitives/button';
 import { useAtlasUI } from '../root/AtlasUIContext';
 import { AssetService } from '../../services/AssetService';
@@ -25,7 +26,11 @@ import { GridMeasurementTab } from './collection-settings/GridMeasurementTab';
 import { DefaultWidgetsTab } from './collection-settings/DefaultWidgetsTab';
 import { ConditionsTab } from './collection-settings/ConditionsTab';
 import { VisionTab } from './collection-settings/VisionTab';
+import { LootTab } from './collection-settings/LootTab';
 import { SystemTab } from './collection-settings/SystemTab';
+import { CreatureFiltersTab } from './collection-settings/CreatureFiltersTab';
+import { useCollectionCreatures } from './collection-settings/useCollectionCreatures';
+import { isCompleteCreatureFilter } from '../../creatures/creatureFilterDefinitions';
 import { WALLS_AND_LIGHTING_ENABLED } from '../../featureFlags';
 import { areRangeBandsValid, unitLabelFor } from '../../grid/measurementFormat';
 
@@ -38,12 +43,14 @@ interface CollectionSettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
   collectionId: string;
+  /** The tab it opens on; Game System by default. */
+  initialTab?: CollectionSettingsTab;
 }
 
-type TabId = 'system' | 'grid' | 'widgets' | 'conditions' | 'vision';
+export type CollectionSettingsTab = 'system' | 'grid' | 'widgets' | 'conditions' | 'creatureFilters' | 'loot' | 'vision';
 
 interface TabDef {
-  id: TabId;
+  id: CollectionSettingsTab;
   label: string;
   icon: React.ReactNode;
 }
@@ -53,6 +60,8 @@ const TABS: TabDef[] = [
   { id: 'grid', label: 'Grid & Measure', icon: <Grid3X3 size={16} /> },
   { id: 'widgets', label: 'Default Widgets', icon: <LayoutGrid size={16} /> },
   { id: 'conditions', label: 'Conditions', icon: <ShieldAlert size={16} /> },
+  { id: 'creatureFilters', label: 'Creature Filters', icon: <ListFilter size={16} /> },
+  { id: 'loot', label: 'Loot', icon: <CoinIcon size={16} /> },
   ...(WALLS_AND_LIGHTING_ENABLED ? [{ id: 'vision' as const, label: 'Vision', icon: <Eye size={16} /> }] : []),
 ];
 
@@ -62,19 +71,21 @@ export function CollectionSettingsModal({
   isOpen,
   onClose,
   collectionId,
+  initialTab = 'system',
 }: CollectionSettingsModalProps): React.ReactElement | null {
   const { app } = useAtlasUI();
   const assetService = app ? AssetService.getInstance(app) : null;
   const systemPresets = useSystemPresets(app);
   const windowVariants = useDialogWindowVariants();
 
-  const [activeTab, setActiveTab] = useState<TabId>('system');
+  const [activeTab, setActiveTab] = useState<CollectionSettingsTab>(initialTab);
   const [collectionName, setCollectionName] = useState('');
   const [releaseLine, setReleaseLine] = useState('');
 
   // Local draft of settings — only persisted on Save
   const draft = useCollectionSettingsDraft(assetService, collectionId, isOpen);
   const { gridDefaults, conditions } = draft;
+  const collectionCreatures = useCollectionCreatures(app ?? null, assetService, collectionId, isOpen && activeTab === 'creatureFilters');
 
   // Resolve the collection name for the header
   useEffect(() => {
@@ -103,7 +114,7 @@ export function CollectionSettingsModal({
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onClose]);
 
-  const canSave = areRangeBandsValid(gridDefaults.abstractRangeBands);
+  const canSave = areRangeBandsValid(gridDefaults.abstractRangeBands) && draft.customCreatureFilters.every(isCompleteCreatureFilter);
 
   const handleSave = async (): Promise<void> => {
     if (!app || !assetService || !canSave) return;
@@ -200,6 +211,25 @@ export function CollectionSettingsModal({
               <ConditionsTab
                 conditions={conditions}
                 onChange={draft.setConditions}
+              />
+            )}
+            {activeTab === 'creatureFilters' && (
+              <CreatureFiltersTab
+                hidden={draft.hiddenCreatureFilters}
+                onHiddenChange={draft.setHiddenCreatureFilters}
+                custom={draft.customCreatureFilters}
+                onCustomChange={draft.setCustomCreatureFilters}
+                creatures={collectionCreatures.creatures}
+                pending={collectionCreatures.pending}
+              />
+            )}
+            {activeTab === 'loot' && app && (
+              <LootTab
+                app={app}
+                lootBases={draft.lootBases}
+                onBasesChange={draft.setLootBases}
+                currency={draft.lootCurrency}
+                onCurrencyChange={draft.setLootCurrency}
               />
             )}
             {activeTab === 'vision' && (

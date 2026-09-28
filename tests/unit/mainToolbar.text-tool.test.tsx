@@ -29,6 +29,8 @@ const storeState = {
   isDiceTrayOpen: false,
   setDiceTrayOpen,
   initiativeTrackerOpen: false,
+  lootRoller: { open: false },
+  setLootRollerOpen: vi.fn(),
   setInitiativeTrackerOpen,
   objects: { tokens: {} },
   setSelection,
@@ -63,6 +65,7 @@ vi.mock('../../src/app/react/root/AtlasUIContext', () => ({
 
 vi.mock('../../src/app/keyboard/useMapHotkeys', () => ({
   useHotkeyLabels: () => (id: string) => id,
+  useAtlasSettings: () => undefined,
   useMapHotkeys: (shortcuts: Record<string, (event: KeyboardEvent) => void>) => {
     capturedShortcuts = shortcuts;
   },

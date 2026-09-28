@@ -8,8 +8,9 @@ import { changelog } from './vite/changelog.mts';
 
 const isProduction = process.env.NODE_ENV === 'production';
 const copyToTestVault = process.env.COPY_ON_CHANGE === 'true';
-const { getPluginTargetDirs } = module.createRequire(import.meta.url)('./scripts/worktree-targets.js') as {
+const { getPluginTargetDirs, markForHotReload } = module.createRequire(import.meta.url)('./scripts/worktree-targets.js') as {
   getPluginTargetDirs: (projectRoot: string) => Array<{ label: string; dirPath: string }>;
+  markForHotReload: (pluginDir: string) => void;
 };
 
 // Custom Vite plugin to copy files after build
@@ -35,6 +36,7 @@ function copyFilesPlugin(): Plugin {
         if (!fs.existsSync(targetDir)) {
           fs.mkdirSync(targetDir, { recursive: true });
         }
+        markForHotReload(targetDir);
       });
 
       // Ensure the output CSS is named styles.css (Obsidian convention)

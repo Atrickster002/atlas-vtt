@@ -4,6 +4,10 @@
 
 $tab-bar-inset: 4px;
 $tab-height: 28px;
+// Tabs shrink down to this width, then the strip scrolls.
+$tab-min-width: 112px;
+// Fades the strip's edges where tabs are cut off.
+$tab-fade: 24px;
 
 .atlas-scene-tab-bar {
   flex: 0 1 auto;
@@ -13,12 +17,52 @@ $tab-height: 28px;
   gap: $tab-bar-inset;
   padding: $tab-bar-inset;
   pointer-events: auto;
-  overflow-x: auto;
-  scrollbar-width: thin;
 
   @include atlas-elevated-surface;
   // Shorter than the radius allows, so the bar renders as a capsule.
   @include atlas-panel-radius($radius-2xl);
+}
+
+// Scrolls sideways with a trackpad or a mouse wheel (useTabStripOverflow);
+// the edge fades take the place of a scrollbar.
+.atlas-scene-tab-bar__strip {
+  --atlas-tab-fade-start: 0px;
+  --atlas-tab-fade-end: 0px;
+
+  flex: 0 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: $tab-bar-inset;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+  // Keeps a tab scrolled into view clear of the fades.
+  scroll-padding-inline: $tab-fade;
+  mask-image: linear-gradient(
+    to right,
+    transparent,
+    #000 var(--atlas-tab-fade-start),
+    #000 calc(100% - var(--atlas-tab-fade-end)),
+    transparent
+  );
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
+
+  &--hidden-before {
+    --atlas-tab-fade-start: #{$tab-fade};
+  }
+
+  &--hidden-after {
+    --atlas-tab-fade-end: #{$tab-fade};
+  }
+
+  > .atlas-scene-tab {
+    flex: 0 1 auto;
+    min-width: $tab-min-width;
+  }
 }
 
 .atlas-scene-tab {
@@ -113,8 +157,11 @@ $tab-height: 28px;
   border-bottom-left-radius: atlas-panel-inset-radius-value($tab-bar-inset, $tab-height * 0.5);
 }
 
-.atlas-scene-tab-bar__add {
+.atlas-scene-tab-bar__button {
   flex-shrink: 0;
+}
+
+.atlas-scene-tab-bar__add {
   border-top-right-radius: atlas-panel-inset-radius-value($tab-bar-inset, $tab-height * 0.5);
   border-bottom-right-radius: atlas-panel-inset-radius-value($tab-bar-inset, $tab-height * 0.5);
 }

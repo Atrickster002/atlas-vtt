@@ -39,6 +39,15 @@
   max-height: calc(100vh - 32px);
   overflow: auto;
 }
+.atlas-onboarding-image {
+  display: block;
+  width: 100%;
+  height: auto;
+  // Flush with the card's padding, so its corners run concentric with the card's.
+  border-radius: var(--atlas-onboarding-control-radius);
+  border: $border-width-s solid var(--background-modifier-border);
+  box-sizing: border-box;
+}
 .atlas-onboarding-content {
   padding: $spacing-l;
 
@@ -101,3 +110,4 @@
   }
 }
 .atlas-hotkey-recorder { width: 12em; }
+.atlas-hotkey-warning { color: var(--text-warning); }

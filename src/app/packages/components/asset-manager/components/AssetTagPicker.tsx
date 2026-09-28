@@ -94,7 +94,6 @@ export function AssetTagPicker({ asset }: AssetTagPickerProps): React.ReactEleme
           onKeyDown={handleKeyDown}
         />
       </div>
-      <div className="atlas-ctx-separator" role="none" />
       <div
         ref={listRef}
         id={`${idPrefix}-list`}

@@ -1,0 +1,198 @@
+// ═══════════════════════════════════════════════════════════════════════════
+// Loot Roller — floating window of the map view (DM only)
+// ═══════════════════════════════════════════════════════════════════════════
+// Imported inside the `.atlas-vtt-plugin` scope of styles/main.scss.
+// Layout: header, then a source list on the left and the roll controls with
+// the result list on the right.
+
+@use '../../../../../styles/tokens' as *;
+@use '../../../../../styles/mixins' as *;
+
+// Default size; the user resizes from the right and bottom edges.
+$loot-width: 1040px;
+$loot-height: 760px;
+$loot-resize-hit: 8px;
+$loot-sidebar-width: 272px;
+$loot-padding: $spacing-m; // loot-lists.scss keeps a copy
+// Keep equal to $loot-card-inset in loot-card.scss: cards run concentric with the window.
+
+.atlas-loot-roller {
+  @include atlas-elevated-surface;
+  @include atlas-panel-radius($radius-2xl);
+  position: absolute;
+  z-index: 45;
+  display: flex;
+  flex-direction: column;
+  width: $loot-width;
+  height: $loot-height;
+  max-width: calc(100% - 2 * #{$spacing-m});
+  max-height: calc(100% - 2 * #{$spacing-m});
+  overflow: hidden;
+  pointer-events: auto;
+  color: var(--text-normal);
+  font-size: $font-ui-small;
+  transform-origin: top center;
+  transition: box-shadow $transition-normal $transition-ease;
+
+  &.is-dragging,
+  &.is-resizing {
+    box-shadow: $shadow-elevated, 0 18px 48px rgba(0, 0, 0, 0.28);
+    user-select: none;
+  }
+}
+
+// ── Resize handles ─────────────────────────────────────────────────────────
+.atlas-loot-roller__resize {
+  position: absolute;
+  z-index: 2;
+  touch-action: none;
+
+  &--right {
+    top: $radius-2xl;
+    right: 0;
+    bottom: $radius-2xl;
+    width: $loot-resize-hit;
+    cursor: ew-resize;
+  }
+
+  &--bottom {
+    right: $radius-2xl;
+    bottom: 0;
+    left: $radius-2xl;
+    height: $loot-resize-hit;
+    cursor: ns-resize;
+  }
+
+  &--corner {
+    right: 0;
+    bottom: 0;
+    width: $radius-2xl;
+    height: $radius-2xl;
+    cursor: nwse-resize;
+
+    // A grip mark along the window's own corner, inset from the border.
+    &::after {
+      content: '';
+      position: absolute;
+      right: 4px;
+      bottom: 4px;
+      width: 14px;
+      height: 14px;
+      border-right: $border-width-l solid var(--text-faint);
+      border-bottom: $border-width-l solid var(--text-faint);
+      border-bottom-right-radius: atlas-panel-inset-radius-value(4px);
+      opacity: 0.45;
+      transition: opacity $transition-fast $transition-ease;
+    }
+
+    &:hover::after {
+      opacity: 1;
+    }
+  }
+}
+
+.atlas-loot-roller.is-resizing .atlas-loot-roller__resize--corner::after {
+  opacity: 1;
+}
+
+// ── Header ─────────────────────────────────────────────────────────────────
+.atlas-loot-roller__header {
+  @include atlas-flex-row($spacing-s);
+  @include atlas-close-header($spacing-m);
+  flex-shrink: 0;
+  border-bottom: $border-width-s solid var(--divider-color);
+  cursor: grab;
+  user-select: none;
+  touch-action: none;
+}
+
+// Nested `.parent &` would put the `.atlas-vtt-plugin` scope between the two,
+// so rules that depend on an ancestor's state are written out in full.
+.atlas-loot-roller.is-dragging .atlas-loot-roller__header {
+  cursor: grabbing;
+}
+
+.atlas-loot-roller__grip {
+  width: $icon-xs;
+  height: $icon-xs;
+  color: var(--text-faint);
+  flex-shrink: 0;
+}
+
+.atlas-loot-roller__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: $button-height-s;
+  height: $button-height-s;
+  flex-shrink: 0;
+  border-radius: $radius-m;
+  @include atlas-corner-shape;
+  // The gold coin, the loot roller's mark.
+  color: var(--color-yellow);
+  background: color-mix(in oklch, var(--color-yellow) 16%, transparent);
+
+  svg {
+    width: $icon-s;
+    height: $icon-s;
+  }
+}
+
+.atlas-loot-roller__title {
+  flex: 1;
+  margin: 0;
+  font-size: $font-ui-medium;
+  font-weight: $font-weight-semibold;
+  line-height: 1.2;
+}
+
+// ── Body: sidebar + main ───────────────────────────────────────────────────
+.atlas-loot-roller__body {
+  display: grid;
+  grid-template-columns: $loot-sidebar-width minmax(0, 1fr);
+  flex: 1;
+  min-height: 0;
+}
+
+.atlas-loot-roller__sidebar {
+  @include atlas-scrollbar;
+  min-height: 0;
+  padding: $loot-padding;
+  overflow-y: auto;
+  border-right: $border-width-s solid var(--divider-color);
+  background: var(--background-secondary);
+}
+
+.atlas-loot-roller__main {
+  @include atlas-flex-col($loot-padding);
+  min-width: 0;
+  min-height: 0;
+  padding: $loot-padding $loot-padding 0;
+}
+
+// ── Shared bits ────────────────────────────────────────────────────────────
+.atlas-loot-section-label {
+  font-size: $font-ui-smaller;
+  font-weight: $font-weight-semibold;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+.atlas-loot-text-button {
+  appearance: none;
+  height: auto;
+  padding: 0;
+  border: none;
+  box-shadow: none;
+  background: none;
+  color: var(--text-muted);
+  font-size: $font-ui-smaller;
+  font-weight: $font-weight-medium;
+  cursor: pointer;
+
+  &:hover {
+    color: var(--interactive-accent);
+    background: none;
+  }
+}
