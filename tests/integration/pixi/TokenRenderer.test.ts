@@ -83,6 +83,7 @@ describe('TokenRenderer Integration Tests', () => {
   let restoreGraphics: () => void;
   let viewportPointerDownListeners: number;
   let isRendererDestroyed: boolean;
+  let canvas: HTMLCanvasElement;
 
   const gridSystem = {
     getOptions: () => ({ type: 'square', size: gridSize, offsetX: 0, offsetY: 0 }),
@@ -102,9 +103,10 @@ describe('TokenRenderer Integration Tests', () => {
       eventBus,
       'test-view-id',
     );
+    canvas = document.createElement('canvas');
     renderer.setPixiApp({
       ticker,
-      canvas: document.createElement('canvas'),
+      canvas,
       renderer: { generateTexture: vi.fn(() => new Texture()) },
     } as unknown as Application);
     return renderer;
@@ -184,6 +186,64 @@ describe('TokenRenderer Integration Tests', () => {
       expect(tokenSprite('token-2').rotation).toBeCloseTo(Math.PI / 4);
       expect(tokenSprite('token-1').width).toBeCloseTo(computeTokenPixelSize(70, 1));
       expect(tokenSprite('token-2').width).toBeCloseTo(computeTokenPixelSize(70, 2));
+    });
+  });
+
+  describe('Map loads while tokens are loading', () => {
+    const tokenGroups = (): Container[] =>
+      tokenRenderer.getTokenContainer().children.filter((child) => child.label === 'tokenGroup');
+
+    /** Holds every token image read until the returned function is called. */
+    const holdImageReads = (): { reads: ReturnType<typeof vi.fn>; release: () => void } => {
+      let release!: () => void;
+      const gate = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      const read = obsidianApp.vault.readBinary;
+      const reads = vi.fn(async (file: Parameters<typeof read>[0]) => {
+        await gate;
+        return read(file);
+      });
+      obsidianApp.vault.readBinary = reads;
+      return { reads, release };
+    };
+
+    it('shows a token once when its map loads again before its sprite finished, and never keeps destroyed art', async () => {
+      const { reads, release } = holdImageReads();
+      store.getState().addToken(token({ id: 'goblin' }));
+      await vi.waitFor(() => expect(reads).toHaveBeenCalledTimes(1));
+
+      // The same scene loads again, e.g. when a restored player view switches scenes on startup
+      eventBus.emit('map-loaded');
+      await vi.waitFor(() => expect(reads).toHaveBeenCalledTimes(2));
+      release();
+      await waitForTokens('goblin');
+      await vi.waitFor(() => expect(tokenGroups()).toEqual([tokenGroup('goblin')]));
+
+      // Switching to a scene without the goblin frees its art, which nothing may still show
+      store.getState().clearMapState();
+      store.getState().addToken(token({ id: 'orc', imagePath: ORC_IMAGE }));
+      eventBus.emit('map-loaded');
+      await waitForTokens('orc');
+
+      expect(tokenGroups()).toEqual([tokenGroup('orc')]);
+      expect(tokenSprite('orc').texture.source).not.toBeNull();
+    });
+
+    it('discards a sprite that finishes loading after the view switched to another scene and back', async () => {
+      const { reads, release } = holdImageReads();
+      store.getState().addToken(token({ id: 'goblin' }));
+      await vi.waitFor(() => expect(reads).toHaveBeenCalledTimes(1));
+
+      store.getState().clearMapState();
+      eventBus.emit('map-loaded');
+      store.getState().addToken(token({ id: 'goblin' }));
+      eventBus.emit('map-loaded');
+      release();
+      await waitForTokens('goblin');
+
+      await vi.waitFor(() => expect(tokenGroups()).toEqual([tokenGroup('goblin')]));
+      expect(tokenSprite('goblin').texture.source).not.toBeNull();
     });
   });
 
@@ -297,6 +357,34 @@ describe('TokenRenderer Integration Tests', () => {
       expect(store.getState().isDragging).toBe(false);
       expect(selectionOverlayUpdater).toHaveBeenCalled();
       expect(getHistoryStore(store)!.getState().pastStates).toHaveLength(undoStepsBefore + 1);
+    });
+  });
+
+  describe('Hover', () => {
+    it('should drop the statblock hover when the pointer leaves the canvas', async () => {
+      store.getState().addToken(token({ id: 'token-1', x: 105, y: 105, kind: 'character', statblockPath: 'Goblin.md' }));
+      await waitForTokens('token-1');
+      const hovered = vi.fn();
+      const left = vi.fn();
+      eventBus.on('pin-hover-preview', hovered);
+      eventBus.on('pin-hide-preview', left);
+
+      viewport.emit('pointermove', { ...pointerEvent(105, 105), clientX: 105, clientY: 105 });
+      expect(hovered).toHaveBeenCalledTimes(1);
+
+      canvas.dispatchEvent(new Event('pointerleave'));
+      expect(left).toHaveBeenCalledWith({ pin: expect.objectContaining({ id: 'token-1' }) });
+    });
+  });
+
+  describe('Canvas Listeners', () => {
+    it('should forward a double-click to the wall tool', () => {
+      const doubleClicked = vi.fn();
+      tokenRenderer.setWallDoubleClickHandler(doubleClicked);
+      store.setState({ activeTool: 'wall' }); // the tool is behind a feature flag
+
+      canvas.dispatchEvent(new MouseEvent('dblclick'));
+      expect(doubleClicked).toHaveBeenCalledTimes(1);
     });
   });
 

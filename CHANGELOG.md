@@ -2,6 +2,53 @@
 
 <!-- Generated from changelog/*.md. Run npm run changelog:generate. -->
 
+## 0.4.0 — Creature filters, hexcrawl maps, loot roller, progress clocks and moving between collections
+
+2026-09-28
+
+### New
+
+**Creature Filters**
+- Filter characters by challenge rating, level, type, alignment and more. Type `cr:1-3` or `type:beast` in the search, or use the filter panel.
+- Sort characters by Rating.
+
+**Hexcrawl Maps**
+- Number every hex on a hex grid.
+- Link a note to a hex: Shift-click it with the Note Pin tool.
+
+**Progress Clocks**
+- A new Clock widget, like in Blades in the Dark. Show it to your players too.
+
+**Move and Copy Between Collections**
+- Right-click any asset and choose Move or Copy to Collection. Artwork, statblocks and links come along.
+
+**Loot Roller**
+- Roll random loot from your item notes in Obsidian Bases. Press L to open it.
+- Show an item to your players with the eye button.
+
+**Player View and Starter Tokens**
+- Share your dice rolls with players. Turn on "Show dice rolls" in the player view settings.
+- Ten new class tokens in the default collection.
+
+### Improved
+
+- New laser pointer that is easy to see on any map.
+- Place a grid by eye with the new Freehand tab.
+- The asset manager opens where you left it.
+- Start, pause and reset timers from the keyboard.
+- Open map tabs scroll when there are too many.
+
+### Fixed
+
+- Many fixes for note previews, the player view, widgets and settings.
+- Atlas now notices when you rename, move or delete its files outside Atlas.
+- Saved encounters go to the right collection.
+
+### Important changes
+
+- A collection's folder now always has the collection's name. Atlas renames old folders once, for example `default` to `5e`.
+- The Quick tab in Grid alignment is gone. Use Intersections or Freehand instead.
+
 ## 0.3.1 — Completes 0.3.0 with game systems, new pin icons and conditions
 
 2026-09-24

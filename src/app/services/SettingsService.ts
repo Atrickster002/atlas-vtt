@@ -29,6 +29,8 @@ export interface AtlasSettings {
   /** Only the bindings the user changed; read the effective ones with `getHotkeys`. */
   hotkeys: HotkeyOverrides;
   onboarding: { enabled: boolean; completed: Partial<Record<TutorialId, boolean>>; tokenImported: boolean };
+  /** The starter tokens were added to the default collection once; deleted ones stay deleted. */
+  starterTokensAdded: boolean;
   navigation: NavigationSettings;
   laserPointer: LaserPointerSettings;
   /** Game system presets the user saved, as stored; `SystemPresetService` validates them. */
@@ -43,6 +45,8 @@ export interface AtlasSettings {
     showGrid: boolean;
     showWidgets: boolean;
     showInitiative: boolean;
+    /** Show the DM's dice rolls to players as toasts in the player window. */
+    showDiceRolls: boolean;
     showCommandPalette: boolean;
   };
 }
@@ -52,6 +56,7 @@ const DEFAULT_SETTINGS: AtlasSettings = {
   changelogMajorUpdatesOnly: false,
   hotkeys: {},
   onboarding: { enabled: true, completed: {}, tokenImported: false },
+  starterTokensAdded: false,
   navigation: {
     inputMode: Platform.isMacOS ? 'trackpad' : 'mouse',
   },
@@ -67,6 +72,7 @@ const DEFAULT_SETTINGS: AtlasSettings = {
     showGrid: true, // Show grid by default
     showWidgets: true,
     showInitiative: true,
+    showDiceRolls: false,
     showCommandPalette: false // Hide command palette
   },
 };
