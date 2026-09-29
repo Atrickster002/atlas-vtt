@@ -218,7 +218,8 @@ export class PixiAppManager {
     // An app whose init failed has no renderer or resize plugin to tear down
     if (this.app?.renderer) {
       try {
-        this.app.destroy(true, { children: true, texture: true }); 
+        // `true` would also release PIXI's shared pools, which other open map views still use
+        this.app.destroy({ removeView: true }, { children: true, texture: true });
       } catch (e) {
         console.warn('[PixiAppManager] Error destroying Pixi app:', e);
       }
