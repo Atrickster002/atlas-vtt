@@ -2,6 +2,11 @@
   "version": "0.5.0-beta.0",
   "releases": [
     {
+      "version": "0.5.0-beta.0",
+      "title": "Coming in 0.5.0",
+      "markdown": "## Fixed\n\n- Maps and scenes move into folders in the asset manager, by drag and drop or with Move to Folder.\n- Scenes keep their background when the map image behind it is renamed or moved."
+    },
+    {
       "version": "0.4.1",
       "date": "2026-09-28",
       "title": "Fixes the asset manager's menus on older Obsidian installs and note pins linked to a heading",
