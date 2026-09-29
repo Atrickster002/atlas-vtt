@@ -210,7 +210,7 @@
         var(--atlas-bar-end-radius, #{$radius-l}) var(--atlas-bar-start-radius, #{$radius-l});
     }
 
-    .atlas-toolbar-item > .atlas-toggle > .atlas-toggle__switch {
+    .atlas-toolbar-end > .atlas-toggle > .atlas-toggle__switch {
       @include atlas-corner-shape;
       border-radius: var(--atlas-bar-start-radius, 10px) var(--atlas-bar-end-radius, 10px)
         var(--atlas-bar-end-radius, 10px) var(--atlas-bar-start-radius, 10px);
@@ -218,7 +218,9 @@
   }
 
   // One control of the main toolbar; hidden while it is in the overflow menu.
-  .atlas-toolbar-item {
+  // The end control (GM view switch) never is.
+  .atlas-toolbar-item,
+  .atlas-toolbar-end {
     display: flex;
     align-items: center;
 

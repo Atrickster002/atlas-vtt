@@ -1,6 +1,6 @@
 ## Improved
 
-- The toolbar at the bottom of the map now fits any window size. When the map view gets too narrow, the tools you need least move into a "More tools" menu at the end of the toolbar, and they come back as soon as there is room again. The tool you are using always stays in the toolbar.
+- The toolbar at the bottom of the map now fits any window size. When the map view gets too narrow, the tools you need least move into a "More tools" menu at the end of the toolbar, and they come back as soon as there is room again. The tool you are using and the GM view switch always stay in the toolbar; the switch keeps its place at the right end.
 - Tool menus, the dice tray and the command palette stay inside small map views: they shift away from the edge and scroll when the view is too short for them.
 - Creating tokens and maps is much faster, and Obsidian stays responsive while it runs. Images are converted in the background on several processor cores at once and each image is read only once, so importing creatures from Fantasy Statblocks takes a fraction of the time.
 - Opening the Fantasy Statblocks import in large vaults is much faster.

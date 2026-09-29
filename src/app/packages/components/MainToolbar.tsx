@@ -45,7 +45,6 @@ const PRIORITY = {
   dice: 75,
   pin: 70,
   draw: 65,
-  gmView: 60,
   palette: 55,
   text: 50,
   loot: 45,
@@ -204,11 +203,16 @@ export const MainToolbar = forwardRef<HTMLDivElement, MainToolbarProps>(({ viewI
       buttonItem('loot', { icon: CoinIcon, label: "Loot Roller", shortcut: hotkeyLabel('lootRoller'), isActive: lootRollerOpen, onClick: () => setLootRollerOpen(!lootRollerOpen) }, false),
       buttonItem('assets', { icon: ImageIcon, label: "Asset Manager", shortcut: hotkeyLabel('assets'), isActive: isAssetManagerOpen, onClick: handleAssetManagerClick }, false),
       buttonItem('palette', { icon: Command, label: "Command Palette", shortcut: hotkeyLabel('palette'), isActive: isCommandPaletteOpen, onClick: () => setCommandPaletteOpen(!isCommandPaletteOpen) }, false),
-      {
-        id: 'gmView',
-        priority: PRIORITY.gmView,
-        pinned: false,
-        element: (
+    ] : []),
+  ]
+
+  return (
+    <TooltipProvider delayDuration={300}>
+      <ResponsiveToolbar
+        ref={ref || toolbarRef}
+        items={items}
+        // The GM view switch keeps the bar's last place, after "More tools".
+        end={dm && (
           <Toggle
             value={isGMView}
             onChange={toggleGMView}
@@ -217,15 +221,8 @@ export const MainToolbar = forwardRef<HTMLDivElement, MainToolbarProps>(({ viewI
             tooltipOn={`GM View (${hotkeyLabel('gmView')})`}
             tooltipOff={`Session View (${hotkeyLabel('gmView')})`}
           />
-        ),
-        menuEntry: { icon: Eye, label: "GM View", shortcut: hotkeyLabel('gmView'), isActive: isGMView, onSelect: toggleGMView },
-      },
-    ] : []),
-  ]
-
-  return (
-    <TooltipProvider delayDuration={300}>
-      <ResponsiveToolbar ref={ref || toolbarRef} items={items} />
+        )}
+      />
       <CommandPalette
         isOpen={isCommandPaletteOpen}
         onClose={() => setCommandPaletteOpen(false)}

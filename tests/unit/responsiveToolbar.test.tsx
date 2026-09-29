@@ -16,7 +16,7 @@ beforeEach(() => {
   Object.defineProperty(HTMLElement.prototype, 'offsetWidth', {
     configurable: true,
     get(this: HTMLElement) {
-      return this.matches('[data-toolbar-item], .atlas-toolbar-overflow') ? CONTROL_WIDTH : 0;
+      return this.matches('[data-toolbar-item], .atlas-toolbar-overflow, .atlas-toolbar-end') ? CONTROL_WIDTH : 0;
     },
   });
 });
@@ -35,11 +35,11 @@ function makeItem(id: string, priority: number, onSelect = vi.fn(), pinned = fal
   };
 }
 
-function renderToolbar(items: ResponsiveToolbarItem[], space: number | null) {
+function renderToolbar(items: ResponsiveToolbarItem[], space: number | null, end?: React.ReactNode) {
   return render(
     <TooltipProvider>
       <ToolbarSpaceContext.Provider value={space}>
-        <ResponsiveToolbar items={items} />
+        <ResponsiveToolbar items={items} end={end} />
       </ToolbarSpaceContext.Provider>
     </TooltipProvider>,
   );
@@ -67,6 +67,17 @@ describe('ResponsiveToolbar', () => {
     const more = screen.getByRole('button', { name: 'More tools' });
     expect(more.getAttribute('aria-haspopup')).toBe('menu');
     expect(more.getAttribute('aria-expanded')).toBe('false');
+  });
+
+  it('keeps the end control last, after the overflow button, and reserves its width', () => {
+    // 170px: the end control (40), the overflow button (40) and two controls (80).
+    const { container } = renderToolbar(ITEMS(), 170, <button type="button">GM view</button>);
+    expect(visibleIds(container)).toEqual(['move', 'measure']);
+
+    const bar = container.querySelector('.atlas-vtt-toolbar')!;
+    const lastTwo = Array.from(bar.children).slice(-2).map((el) => el.className);
+    expect(lastTwo).toEqual(['atlas-toolbar-overflow', 'atlas-toolbar-end']);
+    expect(within(bar.lastElementChild as HTMLElement).getByRole('button', { name: 'GM view' })).toBeTruthy();
   });
 
   it('never moves a pinned control into the menu', () => {

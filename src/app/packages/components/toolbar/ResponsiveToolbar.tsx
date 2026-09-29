@@ -23,6 +23,7 @@ function sameGeometry(a: BarGeometry | null, b: BarGeometry): boolean {
 /**
  * Reads the bar's padding, border and gap, and the width of every item in it.
  * Items in the overflow menu keep the width they had when last shown. The
+ * control fixed at the end counts as chrome, with the gap before it. The
  * overflow button is a square icon button, so before it has ever shown, the
  * bar's content height stands in for its width.
  */
@@ -35,28 +36,34 @@ function measureBar(bar: HTMLElement, previous: BarGeometry | null): BarGeometry
     if (id && !item.hidden && item.offsetWidth > 0) widths[id] = item.offsetWidth
   }
   const overflowButton = bar.querySelector<HTMLElement>(":scope > .atlas-toolbar-overflow")
+  const endControl = bar.querySelector<HTMLElement>(":scope > .atlas-toolbar-end")
   const contentHeight = bar.clientHeight - px(style.paddingTop) - px(style.paddingBottom)
+  const gap = px(style.columnGap)
   return {
     widths,
-    chrome: px(style.paddingLeft) + px(style.paddingRight) + px(style.borderLeftWidth) + px(style.borderRightWidth),
-    gap: px(style.columnGap),
+    chrome: px(style.paddingLeft) + px(style.paddingRight) + px(style.borderLeftWidth) + px(style.borderRightWidth)
+      + (endControl ? endControl.offsetWidth + gap : 0),
+    gap,
     overflowButtonWidth: overflowButton?.offsetWidth || previous?.overflowButtonWidth || contentHeight,
   }
 }
 
 interface ResponsiveToolbarProps {
   items: readonly ResponsiveToolbarItem[]
+  /** A control that always stays at the very end of the bar, after the overflow button. */
+  end?: React.ReactNode
 }
 
 /**
  * The main toolbar's bar. When its row has less room than all controls need,
  * controls move into a "More tools" menu at the end of the bar, lowest
  * priority first; the rest keep their order. Pinned controls (the tool in
- * use, a control whose menu or panel is open) always stay. Every control stays
+ * use, a control whose menu or panel is open) always stay, and so does the
+ * `end` control, which keeps the bar's last place. Every control stays
  * mounted while it is in the menu, so tool options keep their state and the
  * bar can measure it again once it returns.
  */
-export const ResponsiveToolbar = forwardRef<HTMLDivElement, ResponsiveToolbarProps>(({ items }, forwardedRef) => {
+export const ResponsiveToolbar = forwardRef<HTMLDivElement, ResponsiveToolbarProps>(({ items, end }, forwardedRef) => {
   const space = useContext(ToolbarSpaceContext)
   const barRef = useRef<HTMLDivElement | null>(null)
   const [geometry, setGeometry] = useState<BarGeometry | null>(null)
@@ -103,6 +110,7 @@ export const ResponsiveToolbar = forwardRef<HTMLDivElement, ResponsiveToolbarPro
         </div>
       ))}
       {overflowItems.length > 0 && <ToolbarOverflowMenu items={overflowItems} />}
+      {end && <div className="atlas-toolbar-end">{end}</div>}
     </div>
   )
 })
