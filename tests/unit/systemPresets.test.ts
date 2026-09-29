@@ -12,7 +12,7 @@ import { formatDistance, resolveMeasurementSettings } from '../../src/app/grid/m
 import type { SystemPreset, SystemRules } from '../../src/app/types/systemPresetTypes';
 import { WIDGET_ICON_PATHS } from '../../src/app/types/widgetIcons';
 
-const [daggerheart, dnd5e] = BUILT_IN_SYSTEM_PRESETS as [SystemPreset, SystemPreset];
+const [daggerheart, dnd5e, drawSteel] = BUILT_IN_SYSTEM_PRESETS as [SystemPreset, SystemPreset, SystemPreset];
 
 function rules(conditions: SystemRules['conditions']): SystemRules {
   return { gridDefaults: structuredClone(dnd5e.rules.gridDefaults), conditions };
@@ -77,6 +77,16 @@ describe('built-in presets', () => {
     const settings = resolveMeasurementSettings(dnd5e.rules.gridDefaults, null);
     expect(settings.diagonalRule).toBe('equidistant');
     expect(formatDistance(6, settings)).toBe('30ft');
+  });
+
+  it('measure Draw Steel in 1-unit squares with every diagonal counting 1 unit', () => {
+    const settings = resolveMeasurementSettings(drawSteel.rules.gridDefaults, null);
+    expect(settings.diagonalRule).toBe('equidistant');
+    expect(formatDistance(6, settings)).toBe('6 squares');
+    const conditionNames = drawSteel.rules.conditions.map((c) => c.name);
+        expect(conditionNames).toHaveLength(10);
+        expect(conditionNames).toContain('Winded');
+        expect(describeSystemRules(drawSteel.rules)).toBe('1 squares · 10 conditions');
   });
 
   it('carry the core conditions of each system with known icons and unique ids', () => {
