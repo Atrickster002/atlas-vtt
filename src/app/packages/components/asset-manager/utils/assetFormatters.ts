@@ -8,6 +8,7 @@ import type {
 } from '../../../../services/AssetService';
 import { assetJsonPath, primaryPath } from '../../../../services/vault-sync/assetFiles';
 import { folderIdOf } from './assetFolders';
+import { mapThumbnailPath } from '../../../../utils/dataFileMigration';
 
 /** The stored asset types the asset manager shows, one per tab. */
 export type TabServiceAsset = AssetOfType<'token' | 'map' | 'scene' | 'encounter'>;
@@ -45,7 +46,7 @@ export function resourceUrl(app: ObsidianApp, path: string | undefined): string 
 
 function sceneThumbnailUrl(app: ObsidianApp, mapPath: string | undefined): string {
   if (!mapPath) return '';
-  const thumbnailUrl = resourceUrl(app, mapPath.replace('.atlasmap', '.thumb.jpg'));
+  const thumbnailUrl = resourceUrl(app, mapThumbnailPath(mapPath));
   if (thumbnailUrl) return thumbnailUrl;
 
   const mapFile = app.vault.getAbstractFileByPath(mapPath);

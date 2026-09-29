@@ -12,6 +12,7 @@
 
 - Maps and scenes move into folders in the asset manager, by drag and drop or with Move to Folder.
 - Scenes keep their background when the map image behind it is renamed or moved.
+- New scenes show a thumbnail in the asset manager and on the dashboard as soon as they open, and scenes without one get it the next time they are opened. Changes made just before switching scenes or closing the map are no longer missing from the thumbnail.
 - Imported maps no longer open as a black canvas from the dashboard. The dashboard listed map images among your recent scenes, and opening one showed an empty map. It now lists only scenes; to play on a map, create a scene from it in the asset manager. Maps you already opened this way no longer come back as scene tabs.
 - A scene that cannot be opened now says why, instead of leaving an empty black canvas.
 - A token's image can be moved and zoomed again after turning its ring on, and Edit token saves the new framing even without a new image. Tokens already on your maps show the change right away.

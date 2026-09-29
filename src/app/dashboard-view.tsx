@@ -55,7 +55,11 @@ const Dashboard: React.FC<DashboardProps> = ({
   useEffect(() => {
     void loadRecentScenes();
     const refreshRef = app.workspace.on('atlas-vtt:refresh-assets', () => { void loadRecentScenes(); });
-    return () => app.workspace.offref(refreshRef);
+    const thumbnailRef = app.workspace.on('atlas-vtt:scene-thumbnail-updated', () => { void loadRecentScenes(); });
+    return () => {
+      app.workspace.offref(refreshRef);
+      app.workspace.offref(thumbnailRef);
+    };
   }, []);
 
   const loadRecentScenes = async (): Promise<void> => {

@@ -592,6 +592,8 @@ export class AtlasView extends FileView {
    * store, so switching maps never rebuilds the PIXI application.
    */
   private async performSceneLoad(file: TFile): Promise<void> {
+    // The renderer still shows the previous scene; its pending thumbnail is taken now or never
+    this._serviceManager.flushSceneThumbnail();
     this.store.getState().setMapLoading(true, 0, 'Preparing...');
     this.currentMapFilePath = file.path;
 
