@@ -3,7 +3,7 @@ import { builtInPresetId, conditionsOf } from './presetHelpers';
 
 /**
  * Draw Steel: a square is each typically represents 5 feet of distance,
- * however the system measures each square as 1 square / square unit. 
+ * however the system measures each square as 1 unit.
  * HP is tracked as Stamina, with a Winded threshold.
  */
 
@@ -29,7 +29,7 @@ export const DRAW_STEEL: SystemPreset = {
       { name: 'Slowed', color: '#0284c7', icon: 'snail' },
       { name: 'Taunted', color: '#ec4899', icon: 'eye' },
       { name: 'Weakened', color: '#b45309', icon: 'arm-sling' },
-      { name: 'Winded', color: '#f97316', icon: 'tired-eye' },
+      // { name: 'Winded', color: '#f97316', icon: 'tired-eye' },
     ]),
     defaultWidgets: { hpBar: true, }
   },
