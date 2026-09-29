@@ -99,10 +99,14 @@ export class LaserBeam {
     this.view.boundsArea = new Rectangle(bounds.minX, bounds.minY, bounds.maxX - bounds.minX, bounds.maxY - bounds.minY);
   }
 
-  /** Frees the geometry, shader and filter, which a destroyed mesh leaves alive. Destroy the view with its parent first. */
+  /**
+   * Frees the geometry, shader and filter, which a destroyed mesh leaves alive. Destroy the view with its parent first.
+   * The GL program stays: `Shader.from` shares it through PIXI's program cache, and destroying it
+   * would leave every later beam compiling a program without source.
+   */
   destroy(): void {
     this.geometry.destroy(true);
-    this.shader.shader.destroy(true);
+    this.shader.shader.destroy();
     this.layer.destroy();
   }
 }
