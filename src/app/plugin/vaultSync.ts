@@ -5,7 +5,8 @@ import type { PathMove } from '../services/renamedPaths';
 import { stemOf } from '../services/vault-sync/recoveredIds';
 import { moveSceneSnapshots, trashSceneSnapshots } from '../snapshots/snapshotFolderSync';
 import { runInBackground } from '../utils/backgroundTask';
-import { closeMapTab, EXTENSION_ATLASMAP, getLoadedAtlasView } from './atlasLeaves';
+import { EXTENSION_ATLASMAP, isScenePath } from '../utils/sceneFiles';
+import { closeMapTab, getLoadedAtlasView } from './atlasLeaves';
 
 /**
  * How long the vault has to stay quiet before Atlas checks its index against
@@ -13,8 +14,6 @@ import { closeMapTab, EXTENSION_ATLASMAP, getLoadedAtlasView } from './atlasLeav
  * of many files; the check has to see both halves to recognise the move.
  */
 const SETTLE_MS = 1000;
-
-const isMapPath = (path: string): boolean => path.endsWith(`.${EXTENSION_ATLASMAP}`);
 
 /** The files of moved folders, each with the path it had before. */
 function filesOfMovedFolders(app: App, folderMoves: readonly PathMove[]): PathMove[] {
@@ -40,7 +39,7 @@ export function registerVaultSync(plugin: Plugin): void {
   const propagateMoves = async (moves: readonly PathMove[]): Promise<void> => {
     await fileReferences.handleFilesMoved(moves);
     for (const { from, to } of moves) {
-      if (isMapPath(from) && isMapPath(to)) await moveSceneSnapshots(app, from, to);
+      if (isScenePath(from) && isScenePath(to)) await moveSceneSnapshots(app, from, to);
     }
   };
   const flushMoves = (): void => {
@@ -109,7 +108,7 @@ export function registerVaultSync(plugin: Plugin): void {
     runInBackground(assets.initialize(), 'Checking Atlas files against the vault');
     plugin.registerEvent(
       app.vault.on('create', (file) => {
-        if (file.path.startsWith(`${ATLAS_VTT_DIR}/`) || file.path.endsWith(`.${EXTENSION_ATLASMAP}`)) scheduleCheck();
+        if (file.path.startsWith(`${ATLAS_VTT_DIR}/`) || isScenePath(file.path)) scheduleCheck();
       })
     );
   });
