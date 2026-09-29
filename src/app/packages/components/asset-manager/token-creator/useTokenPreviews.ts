@@ -103,7 +103,9 @@ export function useTokenPreviews(mode: CreatorMode): TokenPreviewsApi {
   const optimizeOne = useCallback(async (preview: TokenPreview, signal: AbortSignal): Promise<ProcessedImage | undefined> => {
     if (!preview.file) return undefined;
     try {
-      const result = await optimizeUpload(preview.file, mode, signal);
+      // The thumbnail is only saved from this result for maps and unframed tokens; framed ones are cropped at save.
+      const thumbnail = mode === 'map' || preview.showRing === false;
+      const result = await optimizeUpload(preview.file, mode, { signal, thumbnail, background: true });
       const stillPresent = previewsRef.current.some((p) => p.id === preview.id);
       if (!stillPresent) return result;
       patchPreview(preview.id, {

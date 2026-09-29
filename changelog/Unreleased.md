@@ -3,6 +3,8 @@
 - The toolbar at the bottom of the map now fits any window size. When the map view gets too narrow, the tools you need least move into a "More tools" menu at the end of the toolbar, and they come back as soon as there is room again. The tool you are using always stays in the toolbar.
 - Tool menus, the dice tray and the command palette stay inside small map views: they shift away from the edge and scroll when the view is too short for them.
 - Creating tokens and maps is much faster, and Obsidian stays responsive while it runs. Images are converted in the background on several processor cores at once and each image is read only once, so importing creatures from Fantasy Statblocks takes a fraction of the time.
+- Opening the Fantasy Statblocks import in large vaults is much faster.
+- Create token from statblock image converts the artwork the way Create Token does, so the token gets a small WebP image and thumbnail instead of a full-size copy of the artwork.
 - Map and token images that are already WebP and within the size limit keep their original file instead of being compressed again, so they lose no quality.
 
 ## Fixed

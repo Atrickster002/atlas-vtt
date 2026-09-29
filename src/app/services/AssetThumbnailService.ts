@@ -93,12 +93,12 @@ export class AssetThumbnailService {
   }
 
   /**
-   * Stores a `thumbnail` rendered along with the image, sparing another decode
-   * of it. Without one, or on failure (logged), the asset is left for the
-   * background pass.
+   * Stores the `thumbnail` rendered along with the image, sparing another
+   * decode of it, or renders one from the image when none came with it. A
+   * failure is logged and leaves the asset for the background pass.
    */
-  async tryStoreForImage(imagePath: string, thumbnail: Blob | null): Promise<string | undefined> {
-    if (!thumbnail) return undefined;
+  async tryThumbnailForImage(imagePath: string, thumbnail: Blob | null): Promise<string | undefined> {
+    if (!thumbnail) return this.tryCreateForImage(imagePath);
     try {
       return await this.storeForImage(imagePath, await thumbnail.arrayBuffer());
     } catch (error) {

@@ -38,8 +38,9 @@ const RESULT: ImageJobResult = { image: new Blob(['webp']), thumbnail: null, pre
 const job = (): ImageJob => ({ source: new Blob(['png']), layout: { kind: 'fit', maxWidth: 10, maxHeight: 10 }, quality: 0.8 });
 const flush = (): Promise<void> => new Promise(resolve => queueMicrotask(resolve));
 
+const MB = 1024 * 1024;
 function createPool(maxWorkers: number, idleTimeoutMs = 1000, jobTimeoutMs = 5000): ImageWorkerPool {
-  return new ImageWorkerPool(maxWorkers, () => new FakeWorker() as unknown as Worker, idleTimeoutMs, jobTimeoutMs);
+  return new ImageWorkerPool(() => new FakeWorker() as unknown as Worker, { maxWorkers, memoryBudget: 100 * MB, idleTimeoutMs, jobTimeoutMs });
 }
 
 describe('ImageWorkerPool', () => {
@@ -51,7 +52,7 @@ describe('ImageWorkerPool', () => {
 
   it('runs at most one job per worker and starts queued jobs in order as workers free up', async () => {
     const pool = createPool(2);
-    const results = [pool.run(job()), pool.run(job()), pool.run(job())];
+    const results = [1, 2, 3].map(() => pool.run(job(), { cost: MB }));
     expect(FakeWorker.instances).toHaveLength(2);
     expect(FakeWorker.instances.map(w => w.posted.length)).toEqual([1, 1]);
 
@@ -65,16 +66,40 @@ describe('ImageWorkerPool', () => {
     await expect(Promise.all(results)).resolves.toHaveLength(3);
   });
 
-  it('runs heavy jobs one at a time while light jobs pass them', () => {
-    const pool = createPool(3);
-    void pool.run(job(), { heavy: true });
-    void pool.run(job(), { heavy: true });
+  it('runs jobs together only while their memory fits the budget, and unknown or oversized jobs alone', () => {
+    const pool = createPool(4);
+    void pool.run(job(), { cost: 60 * MB });
+    void pool.run(job(), { cost: 60 * MB });
+    void pool.run(job(), { cost: 30 * MB });
     void pool.run(job());
-    expect(FakeWorker.instances).toHaveLength(2);
     expect(FakeWorker.instances.map(w => w.posted[0]!.id)).toEqual([1, 3]);
 
     FakeWorker.instances[0]!.succeed();
-    expect(FakeWorker.instances[0]!.posted.map(r => r.id)).toEqual([1, 2]);
+    FakeWorker.instances[1]!.succeed();
+    expect(FakeWorker.instances.flatMap(w => w.posted.map(r => r.id))).toEqual([1, 2, 3]);
+
+    FakeWorker.instances[0]!.succeed();
+    expect(FakeWorker.instances[0]!.posted.map(r => r.id)).toEqual([1, 2, 4]);
+    void pool.run(job(), { cost: MB });
+    expect(FakeWorker.instances.flatMap(w => w.posted)).toHaveLength(4);
+  });
+
+  it('starts jobs someone waits for before queued background work', () => {
+    const pool = createPool(1);
+    void pool.run(job());
+    void pool.run(job(), { background: true });
+    void pool.run(job(), { background: true });
+    void pool.run(job());
+    const [worker] = FakeWorker.instances;
+    worker!.succeed();
+    worker!.succeed();
+    expect(worker!.posted.map(r => r.id)).toEqual([1, 4, 2]);
+  });
+
+  it('fails a job whose worker cannot start instead of keeping it queued', async () => {
+    const pool = new ImageWorkerPool(() => { throw new Error('Workers are unavailable'); }, { maxWorkers: 1, memoryBudget: MB });
+    await expect(pool.run(job())).rejects.toThrow('Workers are unavailable');
+    await expect(pool.run(job())).rejects.toThrow('Workers are unavailable');
   });
 
   it('drops a cancelled queued job and ignores the result of a cancelled running one', async () => {

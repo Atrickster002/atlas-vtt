@@ -12,7 +12,7 @@ const cropTokenImage = vi.hoisted(() => vi.fn(async () => ({
 vi.mock('../../src/app/packages/components/asset-manager/token-creator/tokenImages', () => ({ cropTokenImage }));
 vi.mock('../../src/app/services/AssetThumbnailService', () => {
   const thumbnail = async (path: string): Promise<string> => `thumbs/${path}`;
-  return { AssetThumbnailService: { getInstance: () => ({ tryCreateForImage: thumbnail, tryStoreForImage: thumbnail, tryThumbnailForImage: thumbnail }) } };
+  return { AssetThumbnailService: { getInstance: () => ({ tryCreateForImage: thumbnail, tryThumbnailForImage: thumbnail }) } };
 });
 
 beforeEach(() => {

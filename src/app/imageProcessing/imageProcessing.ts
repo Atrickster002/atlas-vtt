@@ -1,5 +1,7 @@
 import type { FramePlacement, ImageJob, ImageJobResult, ThumbnailSpec } from './imageJob';
+import { imageDimensions } from './imageDimensions';
 import { withDecodedImage } from './imageElement';
+import type { Size } from './imageLayout';
 import { ImageDecodeError, ImageWorkerPool, type ImageJobOptions } from './ImageWorkerPool';
 import ImageWorker from './imageWorker?worker&inline';
 
@@ -28,14 +30,17 @@ export interface ProcessOptions {
   signal?: AbortSignal | undefined;
   thumbnail?: ThumbnailSpec | undefined;
   preview?: ThumbnailSpec | undefined;
-  /** Marks a source whose pixels need a lot of memory; defaults to a guess from its file size. */
-  heavy?: boolean;
+  /** Work nobody waits for yet, such as preview conversions; jobs someone waits for run first. */
+  background?: boolean;
 }
 
 /** Workers beyond this add little for batches of token art and cost memory. */
 const MAX_WORKERS = 6;
-/** Sources larger than this are treated as heavy unless the caller says otherwise. */
-const HEAVY_SOURCE_BYTES = 16 * 1024 * 1024;
+/**
+ * Decoded pixels all running jobs may hold together. Token art runs in
+ * parallel; a huge map (150 megapixels hold 1.2 GB while converting) runs alone.
+ */
+const MEMORY_BUDGET_BYTES = 1024 ** 3;
 /** Longer side of a vector image (SVG) once rasterized; vectors have no pixels of their own. */
 const VECTOR_RASTER_SIZE = 2048;
 const SVG = 'image/svg+xml';
@@ -43,7 +48,10 @@ const SVG = 'image/svg+xml';
 let pool: ImageWorkerPool | null = null;
 
 function workerPool(): ImageWorkerPool {
-  pool ??= new ImageWorkerPool(workerCount(), () => new ImageWorker({ name: 'Atlas image processing' }));
+  pool ??= new ImageWorkerPool(() => new ImageWorker({ name: 'Atlas image processing' }), {
+    maxWorkers: workerCount(),
+    memoryBudget: MEMORY_BUDGET_BYTES,
+  });
   return pool;
 }
 
@@ -73,15 +81,20 @@ function rasterize(blob: Blob): Promise<ImageBitmap> {
   });
 }
 
+/** Memory a job holds while it runs: the decoded source plus, at most as large, the output and its scaling steps. */
+function jobCost(size: Size | null): number | undefined {
+  return size ? size.width * size.height * 4 * 2 : undefined;
+}
+
 async function process(source: Blob, job: Omit<ImageJob, 'source'>, options: ProcessOptions): Promise<ImageJobResult> {
-  const run: ImageJobOptions = { signal: options.signal, heavy: options.heavy ?? source.size > HEAVY_SOURCE_BYTES };
+  const run: ImageJobOptions = { signal: options.signal, background: options.background ?? false, cost: jobCost(await imageDimensions(source)) };
   const withCopies = { ...job, thumbnail: options.thumbnail, preview: options.preview };
   try {
     return await workerPool().run({ ...withCopies, source }, run);
   } catch (error) {
     if (!(error instanceof ImageDecodeError)) throw error;
     const bitmap = await rasterize(source);
-    return workerPool().run({ ...withCopies, source: bitmap }, { ...run, transfer: [bitmap] });
+    return workerPool().run({ ...withCopies, source: bitmap }, { ...run, cost: jobCost(bitmap), transfer: [bitmap] });
   }
 }
 

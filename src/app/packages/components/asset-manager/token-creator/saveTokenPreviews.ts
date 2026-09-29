@@ -99,7 +99,7 @@ async function savePreviews(options: SaveTokenPreviewsOptions): Promise<number> 
       }
       const data = await prepared.image.arrayBuffer();
       imagePath = await overwriteStoredImage(app, editToken.imagePath, data) ?? await writeAssetImage(app, preview.name, data);
-      thumbnailPath = await thumbnails.tryStoreForImage(imagePath, prepared.thumbnail);
+      thumbnailPath = await thumbnails.tryThumbnailForImage(imagePath, prepared.thumbnail);
     }
     await assetService.updateAsset(editToken.id, {
       name: preview.name, imagePath, showRing: preview.showRing !== false, size: preview.size, tags: preview.tags ?? tags,
@@ -134,7 +134,7 @@ async function savePreviews(options: SaveTokenPreviewsOptions): Promise<number> 
         const { image, thumbnail } = await pending;
         if (options.signal?.aborted) break;
         imagePath = await writeAssetImage(app, preview.name, await image.arrayBuffer());
-        thumbnailPath = await thumbnails.tryStoreForImage(imagePath, thumbnail);
+        thumbnailPath = await thumbnails.tryThumbnailForImage(imagePath, thumbnail);
         const metadata = { ...meta, tags: preview.tags ?? tags, ...(thumbnailPath && { thumbnailPath }) };
         if (mode === 'map') {
           await assetService.addAsset({ type: 'map', name: preview.name, mapFilePath: imagePath, ...metadata });

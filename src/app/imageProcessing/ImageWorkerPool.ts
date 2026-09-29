@@ -6,18 +6,30 @@ export class ImageDecodeError extends Error {}
 export interface ImageJobOptions {
   signal?: AbortSignal | undefined;
   /**
-   * Large images (maps) run one at a time: each holds its decoded pixels, up to
-   * hundreds of megabytes, while it is processed.
+   * Bytes the job holds while it runs (decoded pixels and canvases); unknown
+   * runs the job alone. Jobs only run together while their costs fit the
+   * pool's memory budget.
    */
-  heavy?: boolean;
+  cost?: number | undefined;
+  /** Work nobody is waiting for yet, such as preview conversions; other jobs start first. */
+  background?: boolean;
   /** Bitmaps moved to the worker instead of copied, such as a source decoded on the main thread. */
   transfer?: ImageBitmap[];
+}
+
+export interface ImageWorkerPoolLimits {
+  maxWorkers: number;
+  /** Bytes all running jobs may hold together. A job that exceeds it alone still runs, by itself. */
+  memoryBudget: number;
+  idleTimeoutMs?: number;
+  jobTimeoutMs?: number;
 }
 
 interface PendingJob {
   id: number;
   job: ImageJob;
-  heavy: boolean;
+  cost: number;
+  background: boolean;
   transfer: ImageBitmap[];
   signal: AbortSignal | undefined;
   settled: boolean;
@@ -32,7 +44,6 @@ interface WorkerSlot {
   timeout: number | null;
 }
 
-const MAX_HEAVY_JOBS = 1;
 /** Idle workers are stopped after this long, so no threads linger between imports. */
 const IDLE_TIMEOUT_MS = 30_000;
 /** A worker that has not answered after this long is stopped; even huge maps finish well within it. */
@@ -44,9 +55,10 @@ function abortReason(signal: AbortSignal): Error {
 }
 
 /**
- * Runs image jobs on a bounded set of dedicated workers, first in, first out.
- * Workers start on demand and stop when idle; a crashed worker fails only its
- * own job and is replaced by the next one that is needed.
+ * Runs image jobs on a bounded set of dedicated workers, first in, first out
+ * (background jobs after the rest), as many at once as workers and memory
+ * budget allow. Workers start on demand and stop when idle; a crashed worker
+ * fails only its own job and is replaced by the next one that is needed.
  */
 export class ImageWorkerPool {
   private readonly slots: WorkerSlot[] = [];
@@ -55,12 +67,17 @@ export class ImageWorkerPool {
   private idleTimer: number | null = null;
   private disposed = false;
 
-  constructor(
-    private readonly maxWorkers: number,
-    private readonly createWorker: () => Worker,
-    private readonly idleTimeoutMs = IDLE_TIMEOUT_MS,
-    private readonly jobTimeoutMs = JOB_TIMEOUT_MS,
-  ) {}
+  private readonly maxWorkers: number;
+  private readonly memoryBudget: number;
+  private readonly idleTimeoutMs: number;
+  private readonly jobTimeoutMs: number;
+
+  constructor(private readonly createWorker: () => Worker, limits: ImageWorkerPoolLimits) {
+    this.maxWorkers = limits.maxWorkers;
+    this.memoryBudget = limits.memoryBudget;
+    this.idleTimeoutMs = limits.idleTimeoutMs ?? IDLE_TIMEOUT_MS;
+    this.jobTimeoutMs = limits.jobTimeoutMs ?? JOB_TIMEOUT_MS;
+  }
 
   run(job: ImageJob, options: ImageJobOptions = {}): Promise<ImageJobResult> {
     if (this.disposed) return Promise.reject(new Error(STOPPED_MESSAGE));
@@ -70,7 +87,8 @@ export class ImageWorkerPool {
       const pending: PendingJob = {
         id: this.nextId++,
         job,
-        heavy: options.heavy ?? false,
+        cost: options.cost ?? Infinity,
+        background: options.background ?? false,
         transfer: options.transfer ?? [],
         signal,
         settled: false,
@@ -79,7 +97,7 @@ export class ImageWorkerPool {
         onAbort: () => this.abort(pending),
       };
       signal?.addEventListener('abort', pending.onAbort, { once: true });
-      this.queue.push(pending);
+      this.enqueue(pending);
       this.pump();
     });
   }
@@ -96,18 +114,35 @@ export class ImageWorkerPool {
     for (const pending of this.queue.splice(0)) this.drop(pending, new Error(STOPPED_MESSAGE));
   }
 
+  private enqueue(pending: PendingJob): void {
+    const firstBackground = pending.background ? -1 : this.queue.findIndex(queued => queued.background);
+    if (firstBackground < 0) this.queue.push(pending);
+    else this.queue.splice(firstBackground, 0, pending);
+  }
+
+  /** Starts queued jobs in order; a job that does not fit the budget yet lets smaller ones behind it pass. */
   private pump(): void {
-    let heavyRunning = this.slots.filter(slot => slot.job?.heavy).length;
+    let running = this.slots.filter(slot => slot.job).length;
+    let used = this.slots.reduce((sum, slot) => sum + (slot.job?.cost ?? 0), 0);
     for (let index = 0; index < this.queue.length;) {
       const pending = this.queue[index]!;
-      if (pending.heavy && heavyRunning >= MAX_HEAVY_JOBS) {
+      if (running > 0 && used + pending.cost > this.memoryBudget) {
         index += 1;
         continue;
       }
-      const slot = this.freeSlot();
+      let slot: WorkerSlot | null;
+      try {
+        slot = this.freeSlot();
+      } catch (error) {
+        // A worker that cannot even start fails the job instead of leaving it queued forever.
+        this.queue.splice(index, 1);
+        this.drop(pending, error);
+        continue;
+      }
       if (!slot) break;
       this.queue.splice(index, 1);
-      if (pending.heavy) heavyRunning += 1;
+      running += 1;
+      used += pending.cost;
       this.start(slot, pending);
     }
     this.stopWhenIdle();
