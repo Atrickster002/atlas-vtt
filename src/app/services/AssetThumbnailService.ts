@@ -107,6 +107,17 @@ export class AssetThumbnailService {
     }
   }
 
+  /** Moves a thumbnail its asset no longer uses to the trash; a failure is logged and leaves the file. */
+  async tryDiscard(thumbnailPath: string): Promise<void> {
+    const file = this.app.vault.getAbstractFileByPath(thumbnailPath);
+    if (!(file instanceof TFile)) return;
+    try {
+      await this.app.fileManager.trashFile(file);
+    } catch (error) {
+      console.error('[AssetThumbnailService] Could not remove the old thumbnail', thumbnailPath, error);
+    }
+  }
+
   /** Like `createForImage`, but a failure is logged and leaves the asset for the background pass. */
   async tryCreateForImage(imagePath: string): Promise<string | undefined> {
     try {

@@ -72,6 +72,17 @@ describe('renaming a map file in the vault', () => {
     expect(pins.note.notePath).toBe('Notes/Tavern.md');
   });
 
+  it('replaces a thumbnail a deleted scene left at the new path', async () => {
+    const { app, files } = await setup();
+    files.set(`${scenes}/New Keep.thumb.jpg`, 'stale jpeg');
+    await app.vault.rename(app.vault.getFileByPath(`${scenes}/Old Keep.atlasmap`)!, `${scenes}/New Keep.atlasmap`);
+
+    await new FileReferenceService(app).handleFileRenamed(`${scenes}/Old Keep.atlasmap`, `${scenes}/New Keep.atlasmap`);
+
+    expect(files.get(`${scenes}/New Keep.thumb.jpg`)).toBe('jpeg');
+    expect(files.has(`${scenes}/Old Keep.thumb.jpg`)).toBe(false);
+  });
+
   it('keeps a scene name the user chose instead of the file name', async () => {
     const { app, assets, scene, read } = await setup();
     await assets.updateAsset(scene.id, { name: 'The Keep at Dawn' });

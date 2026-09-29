@@ -80,9 +80,11 @@ export class ImageWorkerPool {
   }
 
   run(job: ImageJob, options: ImageJobOptions = {}): Promise<ImageJobResult> {
-    if (this.disposed) return Promise.reject(new Error(STOPPED_MESSAGE));
     const { signal } = options;
-    if (signal?.aborted) return Promise.reject(abortReason(signal));
+    if (this.disposed || signal?.aborted) {
+      for (const bitmap of options.transfer ?? []) bitmap.close();
+      return Promise.reject(signal?.aborted ? abortReason(signal) : new Error(STOPPED_MESSAGE));
+    }
     return new Promise<ImageJobResult>((resolve, reject) => {
       const pending: PendingJob = {
         id: this.nextId++,
@@ -190,22 +192,33 @@ export class ImageWorkerPool {
   }
 
   private crash(slot: WorkerSlot, message: string): void {
+    this.retire(slot, new Error(message));
+  }
+
+  /** Stops a slot's worker, fails its job with `reason` and lets the next job start. */
+  private retire(slot: WorkerSlot, reason: unknown): void {
     this.clearJobTimeout(slot);
     slot.worker.terminate();
     const index = this.slots.indexOf(slot);
     if (index >= 0) this.slots.splice(index, 1);
-    if (slot.job) this.fail(slot.job, new Error(message));
+    if (slot.job) this.fail(slot.job, reason);
+    slot.job = null;
     this.pump();
   }
 
-  /** A queued job leaves the queue; a running one is failed now and its result ignored. */
+  /**
+   * A queued job leaves the queue. A running one stops with its worker, so it neither
+   * keeps a worker busy nor holds its share of the memory budget.
+   */
   private abort(pending: PendingJob): void {
     const reason = abortReason(pending.signal!);
-    const index = this.queue.indexOf(pending);
-    if (index < 0) {
-      this.fail(pending, reason);
+    const running = this.slots.find(slot => slot.job === pending);
+    if (running) {
+      this.retire(running, reason);
       return;
     }
+    const index = this.queue.indexOf(pending);
+    if (index < 0) return;
     this.queue.splice(index, 1);
     this.drop(pending, reason);
     this.stopWhenIdle();

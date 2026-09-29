@@ -46,8 +46,11 @@ const VECTOR_RASTER_SIZE = 2048;
 const SVG = 'image/svg+xml';
 
 let pool: ImageWorkerPool | null = null;
+/** Set on unload, so work finishing afterwards cannot start new workers for a plugin that is gone. */
+let disposed = false;
 
 function workerPool(): ImageWorkerPool {
+  if (disposed) throw new Error('Image processing has stopped.');
   pool ??= new ImageWorkerPool(() => new ImageWorker({ name: 'Atlas image processing' }), {
     maxWorkers: workerCount(),
     memoryBudget: MEMORY_BUDGET_BYTES,
@@ -63,6 +66,7 @@ function workerCount(): number {
 
 /** Stops the workers; called when the plugin unloads. */
 export function disposeImageProcessing(): void {
+  disposed = true;
   pool?.dispose();
   pool = null;
 }
@@ -89,12 +93,14 @@ function jobCost(size: Size | null): number | undefined {
 async function process(source: Blob, job: Omit<ImageJob, 'source'>, options: ProcessOptions): Promise<ImageJobResult> {
   const run: ImageJobOptions = { signal: options.signal, background: options.background ?? false, cost: jobCost(await imageDimensions(source)) };
   const withCopies = { ...job, thumbnail: options.thumbnail, preview: options.preview };
+  // One pool for both attempts: after unload it refuses the fallback and frees its bitmap
+  const workers = workerPool();
   try {
-    return await workerPool().run({ ...withCopies, source }, run);
+    return await workers.run({ ...withCopies, source }, run);
   } catch (error) {
     if (!(error instanceof ImageDecodeError)) throw error;
     const bitmap = await rasterize(source);
-    return workerPool().run({ ...withCopies, source: bitmap }, { ...run, cost: jobCost(bitmap), transfer: [bitmap] });
+    return workers.run({ ...withCopies, source: bitmap }, { ...run, cost: jobCost(bitmap), transfer: [bitmap] });
   }
 }
 

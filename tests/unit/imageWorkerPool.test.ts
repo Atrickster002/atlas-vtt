@@ -102,7 +102,7 @@ describe('ImageWorkerPool', () => {
     await expect(pool.run(job())).rejects.toThrow('Workers are unavailable');
   });
 
-  it('drops a cancelled queued job and ignores the result of a cancelled running one', async () => {
+  it('drops a cancelled queued job and stops the worker of a cancelled running one', async () => {
     const pool = createPool(1);
     const running = new AbortController();
     const queued = new AbortController();
@@ -115,11 +115,29 @@ describe('ImageWorkerPool', () => {
     running.abort();
     await expect(first).rejects.toMatchObject({ name: 'AbortError' });
 
-    const [worker] = FakeWorker.instances;
-    worker!.succeed();
-    expect(worker!.posted.map(r => r.id)).toEqual([1, 3]);
-    worker!.succeed();
+    const [stopped, replacement] = FakeWorker.instances;
+    expect(stopped!.terminated).toBe(true);
+    expect(replacement!.posted.map(r => r.id)).toEqual([3]);
+    replacement!.succeed();
     await expect(third).resolves.toBe(RESULT);
+  });
+
+  it('frees the budget of a cancelled running job at once', () => {
+    const pool = new ImageWorkerPool(() => new FakeWorker() as unknown as Worker, { maxWorkers: 2, memoryBudget: 100 * MB });
+    const huge = new AbortController();
+    void pool.run(job(), { signal: huge.signal, cost: 150 * MB });
+    void pool.run(job(), { cost: 10 * MB });
+    expect(FakeWorker.instances.flatMap(w => w.posted)).toHaveLength(1);
+    huge.abort();
+    expect(FakeWorker.instances.at(-1)!.posted.map(r => r.id)).toEqual([2]);
+  });
+
+  it('frees a transferred bitmap when it refuses a job', async () => {
+    const pool = createPool(1);
+    pool.dispose();
+    const bitmap = { close: vi.fn() } as unknown as ImageBitmap;
+    await expect(pool.run(job(), { transfer: [bitmap] })).rejects.toThrow('stopped');
+    expect(bitmap.close).toHaveBeenCalled();
   });
 
   it('rejects an already cancelled job without starting a worker', async () => {

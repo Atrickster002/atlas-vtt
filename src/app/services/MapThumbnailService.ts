@@ -2,6 +2,7 @@ import { App, TFile } from 'obsidian';
 import { Application, Container, Rectangle, type Texture } from 'pixi.js';
 import { mapThumbnailPath } from '../utils/dataFileMigration';
 import { requestRender } from '../pixi/RenderScheduler';
+import { trashHiddenPath } from '../utils/hiddenVaultFiles';
 
 /** The bytes of a base64 data URL, such as the JPEG `renderThumbnail` returns. */
 export function dataUrlToBytes(dataUrl: string): ArrayBuffer | null {
@@ -152,6 +153,14 @@ export class MapThumbnailService {
       await this.app.vault.createBinary(thumbnailPath, bytes);
     }
     this.app.workspace.trigger('atlas-vtt:scene-thumbnail-updated', mapPath);
+  }
+
+  /** Moves a deleted scene's thumbnail to the trash, so a later scene of the same name does not show it. */
+  async trashThumbnail(mapPath: string): Promise<void> {
+    const thumbnailPath = mapThumbnailPath(mapPath);
+    const file = this.app.vault.getAbstractFileByPath(thumbnailPath);
+    if (file instanceof TFile) await this.app.fileManager.trashFile(file);
+    else await trashHiddenPath(this.app, thumbnailPath);
   }
 
   /** Whether the scene at `mapPath` has a thumbnail, wherever it is stored. */

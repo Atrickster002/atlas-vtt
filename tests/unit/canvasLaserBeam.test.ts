@@ -39,4 +39,13 @@ describe('CanvasLaserBeam', () => {
     expect(bounds.minX).toBeLessThan(50);
     expect(bounds.maxX).toBeGreaterThan(50);
   });
+
+  it('keeps a spot on screen while the laser is held still', () => {
+    const beam = new CanvasLaserBeam();
+    beam.draw(frame({ trail: [{ x: 50, y: 50, life: 1 }] }));
+    expect(beam.view.visible).toBe(true);
+    const bounds = beam.view.getLocalBounds();
+    expect(bounds.minX).toBeLessThan(50);
+    expect(bounds.maxX).toBeGreaterThan(50);
+  });
 });

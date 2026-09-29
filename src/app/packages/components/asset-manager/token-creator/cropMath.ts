@@ -1,5 +1,5 @@
 import type { FramePlacement } from '../../../../imageProcessing/imageProcessing';
-import type { ImagePosition } from './types';
+import type { ImagePosition, TokenPreview, TokenPreviewPatch } from './types';
 
 /** Diameter of the circular token crop as a fraction of the well. Mirrors the 10% mask inset in _card.scss. */
 export const TOKEN_CROP_FRACTION = 0.8;
@@ -9,6 +9,15 @@ export const TOKEN_CROP_FRACTION = 0.8;
  * image that way on the map, so editing one starts here.
  */
 export const STORED_IMAGE_SCALE = TOKEN_CROP_FRACTION;
+
+/**
+ * The framing a preview starts at and resets to: a new upload fills the well, an edited
+ * token's stored image shows as it is. Resetting an edit to any other zoom would count as
+ * a new crop and overwrite the token's own image on save.
+ */
+export function cropReset(preview: Pick<TokenPreview, 'file'>): Required<Pick<TokenPreviewPatch, 'imageScale' | 'imagePosition'>> {
+  return { imageScale: preview.file ? 1 : STORED_IMAGE_SCALE, imagePosition: { x: 0, y: 0 } };
+}
 
 export interface ImageAspect {
   width: number;

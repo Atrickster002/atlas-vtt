@@ -103,10 +103,14 @@ async function savePreviews(options: SaveTokenPreviewsOptions): Promise<number> 
       imagePath = await overwriteStoredImage(app, editToken.imagePath, data) ?? await writeAssetImage(app, preview.name, data);
       thumbnailPath = await thumbnails.tryThumbnailForImage(imagePath, prepared.thumbnail);
     }
+    const before = await assetService.getAssetById(editToken.id);
+    const previousThumbnail = before?.type === 'token' || before?.type === 'map' ? before.thumbnailPath : undefined;
     await assetService.updateAsset(editToken.id, {
       name: preview.name, imagePath, showRing: preview.showRing !== false, size: preview.size, tags: preview.tags ?? tags,
       ...(source && { thumbnailPath }),
     });
+    // A new image path (an upload, or stored art renamed to .webp) gets a thumbnail of its own
+    if (source && previousThumbnail && previousThumbnail !== thumbnailPath) await thumbnails.tryDiscard(previousThumbnail);
     const stored = await assetService.getAssetById(editToken.id);
     if (stored && stored.collection !== destination.id) {
       await transferAssets(app, assetService, { assetIds: [editToken.id], targetCollectionId: destination.id, mode: 'move' });

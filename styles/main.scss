@@ -237,6 +237,7 @@
     display: flex;
     align-items: center;
 
+    // Shows the menu as open; it has to outrank the `!important` that makes every toolbar button transparent
     .atlas-tool-button button.btn[aria-expanded="true"] {
       background: var(--background-modifier-hover) !important;
     }

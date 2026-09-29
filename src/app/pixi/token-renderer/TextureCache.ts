@@ -78,6 +78,8 @@ export class TextureCache implements ITextureCache {
   private readonly assetUrlByKey = new Map<string, string>();
   // Decoded bitmaps backing vault-loaded textures, closed on eviction
   private readonly bitmapByKey = new Map<string, ImageBitmap>();
+  /** Latest reload started per art path; only it may replace the texture. */
+  private readonly reloadGenerations = new Map<string, number>();
   private pixiApp: Application | null = null;
 
   constructor(private readonly obsApp: ObsidianApp) {}
@@ -163,7 +165,8 @@ export class TextureCache implements ITextureCache {
   /**
    * Re-reads art whose file changed into a new texture, which `show` puts on every sprite
    * with the old one before that is destroyed. Returns false when the art is not cached
-   * from the vault.
+   * from the vault, when a newer change to the same file overtook this one, or when the
+   * file cannot be decoded (a half-written file keeps the art it had).
    */
   async reload(imagePath: string, show: (texture: Texture) => void): Promise<boolean> {
     const key = normalizeImagePath(imagePath);
@@ -171,11 +174,21 @@ export class TextureCache implements ITextureCache {
     const file = this.obsApp.vault.getAbstractFileByPath(key);
     if (!previous || this.assetUrlByKey.has(key) || !(file instanceof TFile)) return false;
 
-    const decoded = await this.decodeVaultImage(file);
-    if (this.textures.get(key) !== previous) {
+    const generation = (this.reloadGenerations.get(key) ?? 0) + 1;
+    this.reloadGenerations.set(key, generation);
+    let decoded: ImageBitmap | HTMLCanvasElement;
+    try {
+      decoded = await this.decodeVaultImage(file);
+    } catch (error) {
+      console.warn(`[TextureCache] Could not reload ${key}:`, error);
+      return false;
+    }
+    // A newer reload read the file later, and eviction or a rebuild replaced the texture
+    if (this.reloadGenerations.get(key) !== generation || this.textures.get(key) !== previous) {
       if (decoded instanceof ImageBitmap) decoded.close();
       return false;
     }
+    this.reloadGenerations.delete(key);
     const previousBitmap = this.bitmapByKey.get(key);
     this.bitmapByKey.delete(key);
     const texture = new Texture({ source: this.createSource(key, decoded), label: key });

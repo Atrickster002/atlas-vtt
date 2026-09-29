@@ -19,12 +19,15 @@ function contentChanged(state: ViewAtlasState, previous: ViewAtlasState): boolea
 /**
  * Keeps the thumbnail of the scene a map view shows in step with it. A scene
  * gets one when it opens without one (a new scene, or one from before
- * thumbnails or from outside Atlas) and a new one after edits settle. Work
+ * thumbnails or from outside Atlas), a new one after edits settle and after
+ * it is loaded again in the same view (a restored snapshot). Work
  * still pending when the view switches scene or closes is done at once
  * (`flush`), while the view still shows that scene.
  */
 export class SceneThumbnailUpdater {
   private stalePath: string | null = null;
+  /** The scene the view showed after its last load; loading it again is a reload. */
+  private shownPath: string | null = null;
   private timer: number | null = null;
   private destroyed = false;
   private readonly unsubscribe: () => void;
@@ -49,7 +52,11 @@ export class SceneThumbnailUpdater {
   private onStoreChange(state: ViewAtlasState, previous: ViewAtlasState): void {
     if (state.isPlayerView || !state.persistenceEnabled || state.isMapLoading || !state.mapPath) return;
     if (previous.isMapLoading) {
-      this.ensureThumbnail(state.mapPath);
+      // A reload (a restored snapshot, a rewrite after a transfer) may show different content
+      const reloaded = this.shownPath === state.mapPath;
+      this.shownPath = state.mapPath;
+      if (reloaded) this.markStale(state.mapPath, AFTER_OPEN_MS);
+      else this.ensureThumbnail(state.mapPath);
     } else if (state.mapPath === previous.mapPath && contentChanged(state, previous)) {
       this.markStale(state.mapPath, AFTER_EDIT_MS);
     }

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ProcessedImage } from '../../../../imageProcessing/imageProcessing';
 import { optimizeUpload } from './tokenImages';
 import type { CreatorMode, EditTokenInput, PreviewImage, TokenPreview, TokenPreviewPatch } from './types';
-import { STORED_IMAGE_SCALE } from './cropMath';
+import { cropReset } from './cropMath';
 import { useBatchProgress } from './useBatchProgress';
 import type { ProgressCount } from '../../primitives/useLingeringTask';
 
@@ -40,8 +40,7 @@ function previewFromFile(file: File): TokenPreview {
     file,
     previewUrl: '',
     name: baseName || 'Untitled',
-    imageScale: 1,
-    imagePosition: { x: 0, y: 0 },
+    ...cropReset({ file }),
     isSelected: true,
     isOptimizing: true,
   };
@@ -56,8 +55,7 @@ function previewFromEdit(token: EditTokenInput): TokenPreview {
     file: null,
     previewUrl: token.imageUrl,
     name: token.name,
-    imageScale: STORED_IMAGE_SCALE,
-    imagePosition: { x: 0, y: 0 },
+    ...cropReset({ file: null }),
     isSelected: true,
     isOptimizing: false,
   };

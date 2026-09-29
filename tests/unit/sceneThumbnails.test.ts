@@ -82,6 +82,19 @@ describe('SceneThumbnailUpdater', () => {
     expect(savedPaths()).toEqual([CAVE]);
   });
 
+  it('refreshes the thumbnail when the view loads the same scene again, e.g. to restore a snapshot', async () => {
+    const { store, ports, savedPaths } = setup({ [CAVE]: true });
+    store.setState({ isMapLoading: true, mapPath: CAVE });
+    store.setState({ isMapLoading: false });
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(ports.render).not.toHaveBeenCalled();
+
+    store.setState({ isMapLoading: true });
+    store.setState({ isMapLoading: false });
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(savedPaths()).toEqual([CAVE]);
+  });
+
   it('writes the pending thumbnail when the view closes and stops afterwards', async () => {
     const { ports, updater, open, edit, savedPaths } = setup();
     await open(CAVE);
@@ -145,5 +158,17 @@ describe('MapThumbnailService.saveThumbnail', () => {
     await new MapThumbnailService(app).saveThumbnail(CAVE, bytes('pixels'));
     expect([...files.keys()]).toEqual([]);
     expect(app.workspace.trigger).not.toHaveBeenCalled();
+  });
+
+  it('moves the thumbnail of a deleted scene to the trash, also from the hidden data folder', async () => {
+    const legacyScene = 'atlas-vtt/collections/default/maps/Keep.atlasmap';
+    const hidden = 'atlas-vtt/.atlas-data/collections/default/maps/Keep.thumb.jpg';
+    const visible = 'atlas-vtt/collections/default/scenes/Cave.thumb.jpg';
+    const { app, files } = createInMemoryApp({ files: { [visible]: 'cave', [hidden]: 'keep' } });
+    const service = new MapThumbnailService(app);
+    await service.trashThumbnail(CAVE);
+    await service.trashThumbnail(legacyScene);
+    expect(files.has(visible)).toBe(false);
+    expect(files.has(hidden)).toBe(false);
   });
 });

@@ -7,7 +7,7 @@ import { cn } from '../../../../../utils/cn';
 import { Button } from '../../primitives/button';
 import { Slider } from '../../primitives/slider';
 import { LabelTooltip } from '../../primitives/tooltip';
-import { clampImagePosition } from './cropMath';
+import { clampImagePosition, cropReset } from './cropMath';
 import type { ImageAspect } from './cropMath';
 import { clampZoom, ZOOM_MAX, ZOOM_MIN, ZOOM_STEP } from './types';
 import type { CreatorMode, ImagePosition, TokenPreview, TokenPreviewPatch } from './types';
@@ -96,7 +96,8 @@ export function TokenPreviewCard({ preview, mode, index, onChange, onToggleSelec
   }, [artElement, isCropEditable]);
 
   const setScale = (scale: number): void => onChange({ imageScale: clampZoom(scale) });
-  const resetCrop = (): void => onChange({ imageScale: 1, imagePosition: { x: 0, y: 0 } });
+  const initialCrop = cropReset(preview);
+  const resetCrop = (): void => onChange(initialCrop);
 
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>): void => {
     if (e.button !== 0) return;
@@ -230,11 +231,11 @@ export function TokenPreviewCard({ preview, mode, index, onChange, onToggleSelec
               <ZoomIn />
             </Button>
           </LabelTooltip>
-          <LabelTooltip label="Reset zoom to 100%">
+          <LabelTooltip label={`Reset zoom to ${Math.round(initialCrop.imageScale * 100)}%`}>
             <button
               type="button"
               className="atlas-token-card__zoom-value"
-              onClick={() => setScale(1)}
+              onClick={() => setScale(initialCrop.imageScale)}
             >
               {zoomPercent}%
             </button>
