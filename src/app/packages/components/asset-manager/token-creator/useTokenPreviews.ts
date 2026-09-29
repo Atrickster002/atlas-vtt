@@ -3,6 +3,8 @@ import type { ProcessedImage } from '../../../../imageProcessing/imageProcessing
 import { optimizeUpload } from './tokenImages';
 import type { CreatorMode, EditTokenInput, PreviewImage, TokenPreview, TokenPreviewPatch } from './types';
 import { STORED_IMAGE_SCALE } from './cropMath';
+import { useBatchProgress } from './useBatchProgress';
+import type { ProgressCount } from '../../primitives/useLingeringTask';
 
 export interface TokenPreviewsApi {
   previews: TokenPreview[];
@@ -22,6 +24,8 @@ export interface TokenPreviewsApi {
   updateSelected: (patch: TokenPreviewPatch) => void;
   /** Resolves with the converted upload once background optimization for this preview settles. */
   waitForOptimized: (id: string) => Promise<ProcessedImage | undefined>;
+  /** How far the conversion of the images added last is, or null when none runs. */
+  optimization: ProgressCount | null;
 }
 
 function revokeIfBlob(url: string): void {
@@ -62,6 +66,7 @@ function previewFromEdit(token: EditTokenInput): TokenPreview {
 interface PendingOptimization {
   result: Promise<ProcessedImage | undefined>;
   controller: AbortController;
+  settled: boolean;
 }
 
 /**
@@ -81,14 +86,19 @@ export function useTokenPreviews(mode: CreatorMode): TokenPreviewsApi {
   }, []);
 
   const pendingRef = useRef(new Map<string, PendingOptimization>());
+  const { progress: optimization, start: startOptimizations, finish: finishOptimization, drop: dropOptimization, clear: clearOptimizations } = useBatchProgress();
   const cancelOptimization = useCallback((id: string): void => {
-    pendingRef.current.get(id)?.controller.abort();
+    const pending = pendingRef.current.get(id);
     pendingRef.current.delete(id);
-  }, []);
+    if (!pending || pending.settled) return;
+    pending.controller.abort();
+    dropOptimization();
+  }, [dropOptimization]);
   const cancelAllOptimizations = useCallback((): void => {
     pendingRef.current.forEach(pending => pending.controller.abort());
     pendingRef.current.clear();
-  }, []);
+    clearOptimizations();
+  }, [clearOptimizations]);
 
   useEffect(() => () => {
     cancelAllOptimizations();
@@ -134,11 +144,17 @@ export function useTokenPreviews(mode: CreatorMode): TokenPreviewsApi {
     }).map(image => ({ ...previewFromFile(image.file), ...image, tags: image.tags ?? [], showRing: image.showRing ?? defaultRing }));
     if (fresh.length === 0) return;
     changePreviews((prev) => [...prev, ...fresh]);
+    startOptimizations(fresh.length);
     for (const preview of fresh) {
       const controller = new AbortController();
-      pendingRef.current.set(preview.id, { controller, result: optimizeOne(preview, controller.signal) });
+      const pending: PendingOptimization = { controller, settled: false, result: optimizeOne(preview, controller.signal) };
+      void pending.result.finally(() => {
+        pending.settled = true;
+        if (!controller.signal.aborted) finishOptimization();
+      });
+      pendingRef.current.set(preview.id, pending);
     }
-  }, [optimizeOne, defaultRing, changePreviews]);
+  }, [optimizeOne, defaultRing, changePreviews, startOptimizations, finishOptimization]);
 
   const reset = useCallback((editToken?: EditTokenInput | null): void => {
     previewsRef.current.forEach((p) => revokeIfBlob(p.previewUrl));
@@ -201,5 +217,6 @@ export function useTokenPreviews(mode: CreatorMode): TokenPreviewsApi {
     update: patchPreview,
     updateSelected,
     waitForOptimized,
+    optimization,
   };
 }

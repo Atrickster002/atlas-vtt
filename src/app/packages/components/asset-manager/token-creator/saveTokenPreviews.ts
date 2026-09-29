@@ -21,6 +21,8 @@ export interface SaveTokenPreviewsOptions {
   tags: string[];
   editToken?: EditTokenInput | null;
   onSaved?: (id: string) => void;
+  /** Called once per preview as it is saved or fails, with the count so far and the number being saved. */
+  onProgress?: (done: number, total: number) => void;
   signal?: AbortSignal;
   waitForOptimized: (id: string) => Promise<ProcessedImage | undefined>;
 }
@@ -116,6 +118,8 @@ async function savePreviews(options: SaveTokenPreviewsOptions): Promise<number> 
   const stopConversion = (): void => conversion.abort();
   options.signal?.addEventListener('abort', stopConversion, { once: true });
   const prepared = prepareImages(options, conversion.signal);
+  let done = 0;
+  options.onProgress?.(done, prepared.size);
   try {
     for (const preview of previews) {
       if (options.signal?.aborted) break;
@@ -159,6 +163,8 @@ async function savePreviews(options: SaveTokenPreviewsOptions): Promise<number> 
         }
         new Notice(`${preview.name}: ${error instanceof Error ? error.message : 'Could not save this preview.'}`);
       }
+      done += 1;
+      options.onProgress?.(done, prepared.size);
     }
   } finally {
     options.signal?.removeEventListener('abort', stopConversion);

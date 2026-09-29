@@ -72,3 +72,18 @@ it('stops converting the remaining previews when saving is cancelled', async () 
   expect(await saving).toBe(0);
   expect(await assets.getTokenAssets()).toHaveLength(0);
 });
+
+it('reports progress once per preview, counting failures too', async () => {
+  const { app, assets } = setup();
+  crop.mockImplementation(async (file: File) => {
+    if (file.name === 'wolf.png') throw new Error('Could not decode');
+    return converted(file.name);
+  });
+  const progress: Array<[number, number]> = [];
+  const saved = await saveTokenPreviews({
+    app, assetService: assets, mode: 'token', previews: [preview('goblin'), preview('wolf'), preview('bat')], collection: 'Default', tags: [],
+    waitForOptimized: vi.fn(), onProgress: (done, total) => progress.push([done, total]),
+  });
+  expect(saved).toBe(2);
+  expect(progress).toEqual([[0, 3], [1, 3], [2, 3], [3, 3]]);
+});

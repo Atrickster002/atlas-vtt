@@ -41,12 +41,15 @@ export interface StatblockImportOptions {
 export class StatblockTokenImportService {
   constructor(private readonly app: App, private readonly assets = AssetService.getInstance(app)) {}
 
-  async scan(signal?: AbortSignal): Promise<StatblockImportCandidate[]> {
+  /** Every note that defines a statblock, with its import status; `onProgress` counts the notes checked. */
+  async scan(signal?: AbortSignal, onProgress?: (done: number, total: number) => void): Promise<StatblockImportCandidate[]> {
     const bestiary = requireResolvedBestiary();
     const lookup = statblockLookup(await this.assets.getTokenAssets(), bestiary);
     const candidates: StatblockImportCandidate[] = [];
-    for (const file of this.app.vault.getMarkdownFiles()) {
+    const files = this.app.vault.getMarkdownFiles();
+    for (const [index, file] of files.entries()) {
       if (signal?.aborted) break;
+      onProgress?.(index, files.length);
       try {
         const row = await statblockImportCandidate(this.app, file, lookup);
         if (row) candidates.push(row);
