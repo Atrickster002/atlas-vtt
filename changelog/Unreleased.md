@@ -1,3 +1,8 @@
+## Improved
+
+- The toolbar at the bottom of the map now fits any window size. When the map view gets too narrow, the tools you need least move into a "More tools" menu at the end of the toolbar, and they come back as soon as there is room again. The tool you are using always stays in the toolbar.
+- Tool menus, the dice tray and the command palette stay inside small map views: they shift away from the edge and scroll when the view is too short for them.
+
 ## Fixed
 
 - Maps and scenes move into folders in the asset manager, by drag and drop or with Move to Folder.

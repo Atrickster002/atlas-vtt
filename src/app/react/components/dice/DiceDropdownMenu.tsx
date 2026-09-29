@@ -1,5 +1,7 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
+import { cn } from 'src/utils/cn';
+import { useKeepInView } from '../../../packages/components/primitives/useKeepInView';
 import { DiceTool } from '../../../tools/DiceTool';
 import { DiceGrid } from './DiceGrid';
 import { DiceFormulaBar } from './DiceFormulaBar';
@@ -19,6 +21,8 @@ export interface DiceDropdownMenuProps {
 export function DiceDropdownMenu({ diceTool, isOpen, onToggle, triggerRef }: DiceDropdownMenuProps): React.ReactElement {
   const [selection, setSelection] = useState<DiceSelection>({});
   const [position, setPosition] = useState({ top: 0, left: 0 });
+  const portalRef = useRef<HTMLDivElement>(null);
+  const keepInView = useKeepInView(portalRef, isOpen, 'top', `${position.left},${position.top}`);
 
   // ── Dice add / remove ────────────────────────
 
@@ -100,8 +104,9 @@ export function DiceDropdownMenu({ diceTool, isOpen, onToggle, triggerRef }: Dic
       {isOpen &&
         createPortal(
           <div
-            className="atlas-dice-portal atlas-vtt-plugin"
-            style={{ top: `${position.top}px`, left: `${position.left}px` }}
+            ref={portalRef}
+            className={cn('atlas-dice-portal atlas-vtt-plugin', keepInView.capped && 'atlas-keep-in-view--capped')}
+            style={{ ...keepInView.style, top: `${position.top}px`, left: `${position.left}px` }}
           >
             <div className="atlas-dice-panel">
               <DiceGrid selection={selection} onAdd={handleAdd} onRemove={handleRemove} />
