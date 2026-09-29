@@ -82,12 +82,11 @@ describe('built-in presets', () => {
   it('measure Draw Steel in 1-unit squares with every diagonal counting 1 unit', () => {
     const drawSteel = BUILT_IN_SYSTEM_PRESETS.find((preset) => preset.name === 'Draw Steel')!;
     const settings = resolveMeasurementSettings(drawSteel.rules.gridDefaults, null);
+    const conditionNames = drawSteel.rules.conditions.map((c) => c.name);
     expect(settings.diagonalRule).toBe('equidistant');
     expect(formatDistance(6, settings)).toBe('6u');
-    const conditionNames = drawSteel.rules.conditions.map((c) => c.name);
-        expect(conditionNames).toHaveLength(9);
-        // expect(conditionNames).not.toContain('Winded');
-        expect(describeSystemRules(drawSteel.rules)).toBe('1 unit squares · 9 conditions');
+    expect(conditionNames).toHaveLength(9);
+    expect(describeSystemRules(drawSteel.rules)).toBe('1 unit squares · 9 conditions');
   });
 
   it('carry the core conditions of each system with known icons and unique ids', () => {
