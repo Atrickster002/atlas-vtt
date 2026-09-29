@@ -6,9 +6,17 @@ import type {
   EncounterTokenRef,
   TokenAsset as ServiceTokenAsset,
 } from '../../../../services/AssetService';
+import { primaryPath } from '../../../../services/vault-sync/assetFiles';
+import { folderIdOf } from './assetFolders';
 
 /** The stored asset types the asset manager shows, one per tab. */
 export type TabServiceAsset = AssetOfType<'token' | 'map' | 'scene' | 'encounter'>;
+
+const TAB_ASSET_TYPES: ReadonlySet<ServiceAsset['type']> = new Set<TabServiceAsset['type']>(['token', 'map', 'scene', 'encounter']);
+
+export function isTabAsset(asset: ServiceAsset): asset is TabServiceAsset {
+  return TAB_ASSET_TYPES.has(asset.type);
+}
 
 /** Stored assets grouped by the tab that shows them. */
 export interface AssetsByTab {
@@ -46,13 +54,18 @@ function sceneThumbnailUrl(app: ObsidianApp, mapPath: string | undefined): strin
   return isImage ? app.vault.getResourcePath(mapFile) : '';
 }
 
-/** Derives the folder id from where the asset's file lives below the tab's base path. */
-function folderIdFor(assetPath: string | undefined, tabBasePath: string): string | null {
+/**
+ * The folder an asset is shown in: the one below the tab's base path that holds
+ * its primary file (token art, map image, scene file, encounter JSON), or null
+ * at the top level.
+ */
+export function assetFolderId(asset: TabServiceAsset, tabBasePath: string): string | null {
+  const assetPath = primaryPath(asset);
   if (assetPath && assetPath.startsWith(tabBasePath + '/')) {
     const relativePath = assetPath.substring(tabBasePath.length + 1);
     const lastSlash = relativePath.lastIndexOf('/');
     if (lastSlash > 0) {
-      return `folder-${tabBasePath}/${relativePath.substring(0, lastSlash)}`;
+      return folderIdOf(`${tabBasePath}/${relativePath.substring(0, lastSlash)}`);
     }
   }
   return null;
@@ -109,12 +122,11 @@ export function formatServiceAsset(
   app: ObsidianApp,
   previewSources: TokenPreviewSources = NO_PREVIEW_SOURCES,
 ): AnyAsset {
-  const assetPath = asset.type === 'token' ? asset.imagePath : asset.filePath;
   const base: Omit<Asset, 'type' | 'thumbnailUrl'> = {
     id: asset.id,
     name: asset.name,
     tags: asset.tags,
-    folderId: folderIdFor(assetPath, tabBasePath),
+    folderId: assetFolderId(asset, tabBasePath),
     modifiedAt: asset.modifiedAt,
     ...(asset.filePath !== undefined && { filePath: asset.filePath }),
   };
