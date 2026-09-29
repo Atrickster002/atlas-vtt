@@ -1,9 +1,9 @@
 import { normalizePath, type App } from 'obsidian';
-import type { AssetService } from '../../../../services/AssetService';
+import type { AssetService, AssetUpdates } from '../../../../services/AssetService';
 import { ensureFolder } from '../../../../plugin/vaultFolders';
 import { saveOpenScene } from '../../../../services/sceneRename';
-import { primaryPath, primaryPathUpdate } from '../../../../services/vault-sync/assetFiles';
-import { assetFolderId, isTabAsset } from './assetFormatters';
+import { primaryPathUpdate } from '../../../../services/vault-sync/assetFiles';
+import { assetFolderId, isTabAsset, placingFilePath, type TabServiceAsset } from './assetFormatters';
 import { vaultPathOfFolder } from './assetFolders';
 
 /** What moving assets into a folder did. */
@@ -16,12 +16,17 @@ export interface FolderMoveResult {
   failed: string[];
 }
 
+/** Points an asset at the new place of the file that places it in a folder. */
+function placingFileUpdate(asset: TabServiceAsset, path: string): AssetUpdates {
+  return asset.type === 'map' ? { filePath: path } : primaryPathUpdate(asset, path);
+}
+
 /**
  * Moves assets into a folder of their tab (`targetFolderId`, or the tab's top
- * level when null) by moving the file each asset stands for: token art, a
- * map's image, a scene's `.atlasmap`, an encounter's JSON. The rename event
- * carries the new path to scenes, snapshots and notes. Assets already in the
- * folder stay where they are.
+ * level when null) by moving the file that places each one (`placingFilePath`):
+ * token art, a map's record, a scene's `.atlasmap`, an encounter's JSON. A
+ * map's image stays where it is. The rename event carries the new path to
+ * scenes, snapshots and notes. Assets already in the folder stay where they are.
  */
 export async function moveAssetsIntoFolder(
   app: App,
@@ -37,7 +42,7 @@ export async function moveAssetsIntoFolder(
     for (const id of assetIds) {
       const asset = await assetService.getAssetById(id);
       if (!asset || !isTabAsset(asset) || assetFolderId(asset, tabBasePath) === targetFolderId) continue;
-      const file = app.vault.getFileByPath(primaryPath(asset) ?? '');
+      const file = app.vault.getFileByPath(placingFilePath(asset) ?? '');
       if (!file) continue;
 
       const newPath = normalizePath(`${targetDir}/${file.name}`);
@@ -49,7 +54,7 @@ export async function moveAssetsIntoFolder(
         if (asset.type === 'scene') await saveOpenScene(app, file.path);
         await ensureFolder(app, targetDir);
         await app.fileManager.renameFile(file, newPath);
-        await assetService.updateAsset(id, primaryPathUpdate(asset, newPath));
+        await assetService.updateAsset(id, placingFileUpdate(asset, newPath));
         result.moved.push(id);
       } catch (error) {
         console.error(`[assetFolderMove] Failed to move ${file.path} to ${newPath}:`, error);

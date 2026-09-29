@@ -20,12 +20,10 @@ export function defaultJsonPath(type: JsonBackedType, collectionId: string, id: 
 
 /**
  * The JSON file Atlas keeps for an asset in its collection folder; tokens and
- * notes have none. A map's always follows from its id, other types may record
- * their own place.
+ * notes have none. Records without a place of their own find it by their id.
  */
 export function assetJsonPath(asset: Asset): string | null {
   if (asset.type === 'token' || asset.type === 'note') return null;
-  if (asset.type === 'map') return defaultJsonPath('map', asset.collection, asset.id);
   return asset.filePath || defaultJsonPath(asset.type, asset.collection, asset.id);
 }
 

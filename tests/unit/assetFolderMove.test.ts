@@ -1,6 +1,7 @@
 // @vitest-environment node
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AssetService, type Asset } from '../../src/app/services/AssetService';
+import { transferAssets } from '../../src/app/services/assetTransfer/assetTransfer';
 import { folderIdOf, tabFolderPath } from '../../src/app/packages/components/asset-manager/utils/assetFolders';
 import { assetFolderId, isTabAsset } from '../../src/app/packages/components/asset-manager/utils/assetFormatters';
 import { folderMoveProblem, moveAssetsIntoFolder } from '../../src/app/packages/components/asset-manager/utils/assetFolderMove';
@@ -17,6 +18,9 @@ const MAP_IMAGE = 'atlas-vtt/assets/forest_123.webp';
 const SCENE_FILE = `${SCENES}/Forest.atlasmap`;
 
 interface Vault { vault: InMemoryApp; assets: AssetService; mapId: string; sceneId: string }
+
+const MAP_RECORD = (id: string): string => `${MAPS}/${id}.json`;
+const FOLDER_RECORD = (id: string): string => `${MAPS}/Wilderness/${id}.json`;
 
 async function seededVault(): Promise<Vault> {
   const vault = createInMemoryApp({ folders: [`${MAPS}/Wilderness`, `${SCENES}/Act 1`] });
@@ -42,15 +46,17 @@ async function folderOf(assets: AssetService, id: string, tabBase: string): Prom
 beforeEach(() => { AssetService.resetInstance(); });
 
 describe('moving assets into asset manager folders', () => {
-  it('moves a map by moving its image into the folder', async () => {
+  it('moves a map by moving its record into the folder, keeping its image in the shared assets folder', async () => {
     const { vault, assets, mapId } = await seededVault();
     const folder = folderIdOf(`${MAPS}/Wilderness`);
 
     const result = await moveAssetsIntoFolder(vault.app, assets, [mapId], MAPS, folder);
 
     expect(result).toEqual({ moved: [mapId], nameClashes: [], failed: [] });
-    expect(vault.files.has(`${MAPS}/Wilderness/forest_123.webp`)).toBe(true);
-    expect(vault.files.has(MAP_IMAGE)).toBe(false);
+    expect(vault.files.has(FOLDER_RECORD(mapId))).toBe(true);
+    expect(vault.files.has(MAP_RECORD(mapId))).toBe(false);
+    expect(vault.files.has(MAP_IMAGE)).toBe(true);
+    expect(await assets.getAssetById(mapId)).toMatchObject({ filePath: FOLDER_RECORD(mapId), mapFilePath: MAP_IMAGE });
     expect(await folderOf(assets, mapId, MAPS)).toBe(folder);
   });
 
@@ -70,7 +76,7 @@ describe('moving assets into asset manager folders', () => {
 
     await moveAssetsIntoFolder(vault.app, assets, [mapId], MAPS, null);
 
-    expect(vault.files.has(`${MAPS}/forest_123.webp`)).toBe(true);
+    expect(vault.files.has(MAP_RECORD(mapId))).toBe(true);
     expect(await folderOf(assets, mapId, MAPS)).toBeNull();
   });
 
@@ -80,7 +86,38 @@ describe('moving assets into asset manager folders', () => {
     const result = await moveAssetsIntoFolder(vault.app, assets, [mapId], MAPS, null);
 
     expect(result.moved).toEqual([]);
-    expect(vault.files.has(MAP_IMAGE)).toBe(true);
+    expect(vault.files.has(MAP_RECORD(mapId))).toBe(true);
+  });
+
+  it('keeps a map in its folder through the vault check', async () => {
+    const { vault, assets, mapId } = await seededVault();
+    await moveAssetsIntoFolder(vault.app, assets, [mapId], MAPS, folderIdOf(`${MAPS}/Wilderness`));
+
+    await assets.reconcileWithVault();
+
+    expect(await assets.getAssets('camp', 'map')).toEqual([expect.objectContaining({ id: mapId, filePath: FOLDER_RECORD(mapId) })]);
+  });
+
+  it('finds a map whose record was moved into a folder outside Atlas', async () => {
+    const { vault, assets, mapId } = await seededVault();
+    await vault.app.vault.rename(vault.app.vault.getFileByPath(MAP_RECORD(mapId))!, FOLDER_RECORD(mapId));
+
+    await assets.reconcileWithVault();
+
+    expect(await assets.getAssets('camp', 'map')).toEqual([expect.objectContaining({ id: mapId, filePath: FOLDER_RECORD(mapId) })]);
+  });
+
+  it('copies a map in a folder to another collection into the same folder, sharing its image', async () => {
+    const { vault, assets, mapId } = await seededVault();
+    await assets.createCollection('keep');
+    await moveAssetsIntoFolder(vault.app, assets, [mapId], MAPS, folderIdOf(`${MAPS}/Wilderness`));
+
+    await transferAssets(vault.app, assets, { assetIds: [mapId], targetCollectionId: 'keep', mode: 'copy' });
+
+    const [copy] = await assets.getAssets('keep', 'map');
+    expect(copy).toMatchObject({ mapFilePath: MAP_IMAGE, filePath: `${tabFolderPath('keep', 'maps')}/Wilderness/${copy!.id}.json` });
+    expect(vault.files.has(copy!.filePath!)).toBe(true);
+    expect([...vault.files.keys()].filter((path) => path.endsWith('.webp'))).toEqual([MAP_IMAGE]);
   });
 
   it('keeps an asset in place when the folder already holds a file of the same name', async () => {

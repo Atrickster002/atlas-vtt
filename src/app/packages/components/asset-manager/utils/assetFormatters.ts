@@ -6,7 +6,7 @@ import type {
   EncounterTokenRef,
   TokenAsset as ServiceTokenAsset,
 } from '../../../../services/AssetService';
-import { primaryPath } from '../../../../services/vault-sync/assetFiles';
+import { assetJsonPath, primaryPath } from '../../../../services/vault-sync/assetFiles';
 import { folderIdOf } from './assetFolders';
 
 /** The stored asset types the asset manager shows, one per tab. */
@@ -55,12 +55,17 @@ function sceneThumbnailUrl(app: ObsidianApp, mapPath: string | undefined): strin
 }
 
 /**
- * The folder an asset is shown in: the one below the tab's base path that holds
- * its primary file (token art, map image, scene file, encounter JSON), or null
- * at the top level.
+ * The file whose folder places an asset in the asset manager: a map's record,
+ * since its image stays in the shared assets folder, otherwise the file the
+ * asset stands for (token art, scene file, encounter JSON).
  */
+export function placingFilePath(asset: TabServiceAsset): string | null {
+  return asset.type === 'map' ? assetJsonPath(asset) : primaryPath(asset);
+}
+
+/** The folder below the tab's base path an asset is shown in, or null at the top level. */
 export function assetFolderId(asset: TabServiceAsset, tabBasePath: string): string | null {
-  const assetPath = primaryPath(asset);
+  const assetPath = placingFilePath(asset);
   if (assetPath && assetPath.startsWith(tabBasePath + '/')) {
     const relativePath = assetPath.substring(tabBasePath.length + 1);
     const lastSlash = relativePath.lastIndexOf('/');
