@@ -12,7 +12,7 @@ import { formatDistance, resolveMeasurementSettings } from '../../src/app/grid/m
 import type { SystemPreset, SystemRules } from '../../src/app/types/systemPresetTypes';
 import { WIDGET_ICON_PATHS } from '../../src/app/types/widgetIcons';
 
-const [daggerheart, dnd5e,] = BUILT_IN_SYSTEM_PRESETS as [SystemPreset, SystemPreset];
+const [daggerheart, dnd5e] = BUILT_IN_SYSTEM_PRESETS as [SystemPreset, SystemPreset];
 
 function rules(conditions: SystemRules['conditions']): SystemRules {
   return { gridDefaults: structuredClone(dnd5e.rules.gridDefaults), conditions };
