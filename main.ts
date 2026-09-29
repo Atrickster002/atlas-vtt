@@ -23,7 +23,8 @@ import { changelogSettingsSection } from './src/app/settings/changelogSettingsSe
 import { hotkeySettingsSection, onboardingSettingsSection } from './src/app/settings/hotkeySettingsSection';
 import { navigationSettingsSection } from './src/app/settings/navigationSettingsSection';
 import { supportSettingsSection } from './src/app/settings/supportSettingsSection';
-import { EXTENSION_ATLASMAP, registerAtlasLeafSync } from './src/app/plugin/atlasLeaves';
+import { registerAtlasLeafSync } from './src/app/plugin/atlasLeaves';
+import { EXTENSION_ATLASMAP } from './src/app/utils/sceneFiles';
 import { registerColorSwatchIcons } from './src/app/plugin/colorSwatchIcons';
 import { HeaderAutocompleteSuggest } from './src/app/plugin/HeaderAutocompleteSuggest';
 import { registerCommands } from './src/app/plugin/registerCommands';
