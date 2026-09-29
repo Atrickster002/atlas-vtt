@@ -140,7 +140,7 @@ export class TextureCache implements ITextureCache {
   private async loadUrl(url: string): Promise<Texture> {
     const texture = await loadAsset<Texture>({
       src: url,
-      loadParser: 'loadTextures',
+      parser: 'texture',
       data: { autoGenerateMipmaps: true, scaleMode: 'linear' },
     });
     this.assetUrlByKey.set(url, url);
