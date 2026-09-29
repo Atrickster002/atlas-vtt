@@ -3,6 +3,8 @@ import { App as ObsidianApp, TFile } from 'obsidian';
 import type { ITextureCache } from './types';
 import { normalizeImagePath } from '../../utils/pathUtils';
 import { loadAsset, unloadAsset } from '../utils/assetLifecycle';
+import { withDecodedImage } from '../../imageProcessing/imageElement';
+import { fitWithin } from '../../imageProcessing/imageLayout';
 
 /**
  * Longest edge of a token texture. Tokens render at roughly one grid cell, so
@@ -11,11 +13,6 @@ import { loadAsset, unloadAsset } from '../utils/assetLifecycle';
 const MAX_TOKEN_TEXTURE_SIZE = 1024;
 /** Cache key of the placeholder used for tokens without art. */
 const DEFAULT_TOKEN_TEXTURE_KEY = 'default-token';
-
-function fitWithin(width: number, height: number, max: number): { width: number; height: number } {
-  const scale = Math.min(1, max / Math.max(width, height));
-  return { width: Math.max(1, Math.round(width * scale)), height: Math.max(1, Math.round(height * scale)) };
-}
 
 /**
  * Decode an image off the main thread and downscale it to the token budget.
@@ -27,7 +24,7 @@ async function decodeTokenImage(buffer: ArrayBuffer, mimeType: string): Promise<
   if (mimeType !== 'image/svg+xml') {
     try {
       const full = await createImageBitmap(blob);
-      const target = fitWithin(full.width, full.height, MAX_TOKEN_TEXTURE_SIZE);
+      const target = fitWithin(full, MAX_TOKEN_TEXTURE_SIZE, MAX_TOKEN_TEXTURE_SIZE);
       if (target.width === full.width && target.height === full.height) return full;
       const scaled = await createImageBitmap(full, {
         resizeWidth: target.width,
@@ -40,20 +37,14 @@ async function decodeTokenImage(buffer: ArrayBuffer, mimeType: string): Promise<
       // Fall through to the <img> path
     }
   }
-  const url = URL.createObjectURL(blob);
-  try {
-    const img = new Image();
-    img.src = url;
-    await img.decode();
-    const target = fitWithin(img.naturalWidth || 512, img.naturalHeight || 512, MAX_TOKEN_TEXTURE_SIZE);
+  return withDecodedImage(blob, (img) => {
+    const target = fitWithin({ width: img.naturalWidth || 512, height: img.naturalHeight || 512 }, MAX_TOKEN_TEXTURE_SIZE, MAX_TOKEN_TEXTURE_SIZE);
     const canvas = createEl('canvas');
     canvas.width = target.width;
     canvas.height = target.height;
     canvas.getContext('2d')!.drawImage(img, 0, 0, target.width, target.height);
     return canvas;
-  } finally {
-    URL.revokeObjectURL(url);
-  }
+  });
 }
 
 // MIME type mapping

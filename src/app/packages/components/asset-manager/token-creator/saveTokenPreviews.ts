@@ -1,15 +1,15 @@
 import { App, Notice, TFile } from 'obsidian';
 import { AssetRegistrationUncertainError } from '../../../../services/assetRegistrationRecovery';
 import { withStatblockImportLock } from '../../../../services/statblockImportLock';
-import { requireResolvedBestiary, statblockImportCandidate } from '../../../../services/statblockImportCandidates';
+import { requireResolvedBestiary, statblockImportCandidate, statblockLookup } from '../../../../services/statblockImportCandidates';
 import { AssetService } from '../../../../services/AssetService';
 import { AssetThumbnailService } from '../../../../services/AssetThumbnailService';
 import { writeAssetImage } from '../../../../services/assetImageFiles';
 import { transferAssets } from '../../../../services/assetTransfer/assetTransfer';
-import { optimizeImage, OPTIMIZATION_PRESETS } from '../../../../utils/imageOptimizer';
-import { bakeTokenCrop } from './bakeTokenCrop';
+import type { ProcessedImage } from '../../../../imageProcessing/imageProcessing';
 import { STORED_IMAGE_SCALE } from './cropMath';
 import { overwriteStoredImage, storedImageFile } from './storedTokenImage';
+import { cropTokenImage } from './tokenImages';
 import type { CreatorMode, EditTokenInput, TokenPreview } from './types';
 
 export interface SaveTokenPreviewsOptions {
@@ -22,16 +22,33 @@ export interface SaveTokenPreviewsOptions {
   editToken?: EditTokenInput | null;
   onSaved?: (id: string) => void;
   signal?: AbortSignal;
-  waitForOptimized: (id: string) => Promise<Blob | undefined>;
+  waitForOptimized: (id: string) => Promise<ProcessedImage | undefined>;
 }
 
-/** Tokens are cropped as shown in the preview and re-optimized; maps use the background-optimized whole image. */
-async function resolveImageBlob(preview: TokenPreview, source: File, mode: CreatorMode, waitForOptimized: (id: string) => Promise<Blob | undefined>): Promise<Blob | undefined> {
-  if (mode === 'token' && preview.showRing !== false) {
-    const cropped = await bakeTokenCrop(source, preview.imageScale, preview.imagePosition);
-    return (await optimizeImage(cropped, OPTIMIZATION_PRESETS.token)).blob;
+/** Framed tokens are cropped as shown in the preview; maps and unframed tokens use the background-converted whole image. */
+async function prepareImage(file: File, preview: TokenPreview, options: SaveTokenPreviewsOptions, signal?: AbortSignal): Promise<ProcessedImage> {
+  if (options.mode === 'token' && preview.showRing !== false) {
+    return cropTokenImage(file, preview.imageScale, preview.imagePosition, signal);
   }
-  return waitForOptimized(preview.id);
+  const optimized = await options.waitForOptimized(preview.id);
+  if (!optimized) throw new Error('Could not optimize the image. Try again with a smaller image.');
+  return optimized;
+}
+
+/**
+ * Starts converting every preview at once; the image workers bound how many
+ * run together, and assets are registered in order as their images finish.
+ */
+function prepareImages(options: SaveTokenPreviewsOptions, signal: AbortSignal): Map<string, Promise<ProcessedImage>> {
+  const prepared = new Map<string, Promise<ProcessedImage>>();
+  for (const preview of options.previews) {
+    if (!preview.file) continue;
+    const image = prepareImage(preview.file, preview, options, signal);
+    // Failures surface when the loop awaits this preview; previews it never reaches must not raise unhandled rejections.
+    image.catch(() => undefined);
+    prepared.set(preview.id, image);
+  }
+  return prepared;
 }
 
 /**
@@ -56,7 +73,7 @@ export async function saveTokenPreviews(options: SaveTokenPreviewsOptions): Prom
 }
 
 async function savePreviews(options: SaveTokenPreviewsOptions): Promise<number> {
-  const { app, assetService, mode, previews, collection, tags, editToken, waitForOptimized } = options;
+  const { app, assetService, mode, previews, collection, tags, editToken } = options;
   const destinations = await assetService.getCollections();
   const destination = destinations.find(c => c.id === collection) ?? destinations.find(c => c.name === collection);
   if (!destination) throw new Error('The destination collection no longer exists. Choose another collection.');
@@ -72,14 +89,17 @@ async function savePreviews(options: SaveTokenPreviewsOptions): Promise<number> 
     let thumbnailPath: string | undefined;
     const source = preview.file ?? (cropsStoredImage(preview, editToken) ? await storedImageFile(app, editToken) : null);
     if (source) {
-      const blob = await resolveImageBlob(preview, source, mode, waitForOptimized);
-      if (!blob) {
+      let prepared: ProcessedImage;
+      try {
+        prepared = await prepareImage(source, preview, options);
+      } catch (error) {
+        console.error(`[TokenCreator] Failed to optimize ${preview.name}:`, error);
         new Notice(`Failed to optimize ${preview.name}. Cannot update ${mode}.`);
         return 0;
       }
-      const data = await blob.arrayBuffer();
+      const data = await prepared.image.arrayBuffer();
       imagePath = await overwriteStoredImage(app, editToken.imagePath, data) ?? await writeAssetImage(app, preview.name, data);
-      thumbnailPath = await thumbnails.tryCreateForImage(imagePath);
+      thumbnailPath = await thumbnails.tryStoreForImage(imagePath, prepared.thumbnail);
     }
     await assetService.updateAsset(editToken.id, {
       name: preview.name, imagePath, showRing: preview.showRing !== false, size: preview.size, tags: preview.tags ?? tags,
@@ -92,30 +112,35 @@ async function savePreviews(options: SaveTokenPreviewsOptions): Promise<number> 
     return 1;
   }
 
+  const conversion = new AbortController();
+  const stopConversion = (): void => conversion.abort();
+  options.signal?.addEventListener('abort', stopConversion, { once: true });
+  const prepared = prepareImages(options, conversion.signal);
   try {
     for (const preview of previews) {
       if (options.signal?.aborted) break;
-      if (!preview.file) continue;
+      const pending = prepared.get(preview.id);
+      if (!pending) continue;
       let imagePath: string | undefined;
       let thumbnailPath: string | undefined;
       try {
         if (preview.statblockPath) {
           const note = app.vault.getAbstractFileByPath(preview.statblockPath);
           if (!(note instanceof TFile)) throw new Error('The statblock note no longer exists.');
-          const candidate = await statblockImportCandidate(app, note, await assetService.getTokenAssets(), requireResolvedBestiary());
+          const lookup = statblockLookup(await assetService.getTokenAssets(), requireResolvedBestiary());
+          const candidate = await statblockImportCandidate(app, note, lookup);
           if (!candidate || candidate.status !== 'ready') throw new Error(candidate?.detail ?? 'The statblock no longer resolves.');
         }
-        const blob = await resolveImageBlob(preview, preview.file, mode, waitForOptimized);
-        if (!blob) throw new Error('Could not optimize the image. Try again with a smaller image.');
+        const { image, thumbnail } = await pending;
         if (options.signal?.aborted) break;
-        imagePath = await writeAssetImage(app, preview.name, await blob.arrayBuffer());
-        const metadata = { ...meta, tags: preview.tags ?? tags };
+        imagePath = await writeAssetImage(app, preview.name, await image.arrayBuffer());
+        thumbnailPath = await thumbnails.tryStoreForImage(imagePath, thumbnail);
+        const metadata = { ...meta, tags: preview.tags ?? tags, ...(thumbnailPath && { thumbnailPath }) };
         if (mode === 'map') {
           await assetService.addAsset({ type: 'map', name: preview.name, mapFilePath: imagePath, ...metadata });
         } else {
-          thumbnailPath = await thumbnails.tryCreateForImage(imagePath);
           await assetService.addTokenAsset({
-            showRing: preview.showRing !== false, name: preview.name, imagePath, ...(thumbnailPath && { thumbnailPath }),
+            showRing: preview.showRing !== false, name: preview.name, imagePath,
             ...(preview.size !== undefined && { size: preview.size }),
             ...(preview.statblockPath ? { statblockPath: preview.statblockPath } : {}), ...metadata,
           });
@@ -124,8 +149,8 @@ async function savePreviews(options: SaveTokenPreviewsOptions): Promise<number> 
         options.onSaved?.(preview.id);
       } catch (error) {
         if (error instanceof AssetRegistrationUncertainError) throw error;
-        if (imagePath && mode === 'token') {
-          for (const path of [imagePath, thumbnailPath]) {
+        if (imagePath) {
+          for (const path of mode === 'token' ? [imagePath, thumbnailPath] : [thumbnailPath]) {
             const copied = path ? app.vault.getAbstractFileByPath(path) : null;
             if (copied instanceof TFile) {
               try { await app.fileManager.trashFile(copied); } catch { /* Keep an unlinked copy if trash is unavailable. */ }
@@ -136,6 +161,8 @@ async function savePreviews(options: SaveTokenPreviewsOptions): Promise<number> 
       }
     }
   } finally {
+    options.signal?.removeEventListener('abort', stopConversion);
+    conversion.abort();
     if (saved) app.workspace.trigger('atlas-vtt:refresh-assets');
   }
   return saved;

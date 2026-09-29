@@ -3,7 +3,7 @@ import { TFile, normalizePath, type App } from 'obsidian';
 import { AssetService, type TokenAsset } from './AssetService';
 import { AssetThumbnailService } from './AssetThumbnailService';
 import { AssetRegistrationUncertainError } from './assetRegistrationRecovery';
-import { requireResolvedBestiary, statblockImportCandidate, type StatblockImportCandidate } from './statblockImportCandidates';
+import { requireResolvedBestiary, statblockImportCandidate, statblockLookup, type StatblockImportCandidate } from './statblockImportCandidates';
 
 export interface StatblockImportItem {
   path: string;
@@ -30,16 +30,16 @@ export class StatblockTokenImportService {
 
   async scan(signal?: AbortSignal): Promise<StatblockImportCandidate[]> {
     const bestiary = requireResolvedBestiary();
-    const assets = await this.assets.getTokenAssets();
+    const lookup = statblockLookup(await this.assets.getTokenAssets(), bestiary);
     const candidates: StatblockImportCandidate[] = [];
     for (const file of this.app.vault.getMarkdownFiles()) {
       if (signal?.aborted) break;
       try {
-        const row = await statblockImportCandidate(this.app, file, assets, bestiary);
+        const row = await statblockImportCandidate(this.app, file, lookup);
         if (row) candidates.push(row);
       } catch {
         // Only report recognized notes; unrelated unreadable files are not import candidates.
-        if (bestiary.some(creature => creature.path === file.path)) {
+        if (lookup.creatures.has(file.path)) {
           candidates.push({ path: file.path, name: file.basename, status: 'conflict', detail: 'Could not read this statblock. Try scanning again.' });
         }
       }
@@ -78,7 +78,7 @@ export class StatblockTokenImportService {
     try {
       const file = this.app.vault.getAbstractFileByPath(path);
       if (!(file instanceof TFile)) return { path, name, status: 'skipped', message: 'The statblock note no longer exists.' };
-      const row = await statblockImportCandidate(this.app, file, await this.assets.getTokenAssets(), requireResolvedBestiary());
+      const row = await statblockImportCandidate(this.app, file, statblockLookup(await this.assets.getTokenAssets(), requireResolvedBestiary()));
       if (!row || row.status !== 'ready' || !row.imagePath) return { path, name: row?.name ?? name, status: 'skipped', message: row?.detail ?? 'No recognized statblock in this note.' };
       name = row.name;
       const image = this.app.vault.getAbstractFileByPath(row.imagePath);

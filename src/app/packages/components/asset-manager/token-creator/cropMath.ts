@@ -1,3 +1,4 @@
+import type { FramePlacement } from '../../../../imageProcessing/imageProcessing';
 import type { ImagePosition } from './types';
 
 /** Diameter of the circular token crop as a fraction of the well. Mirrors the 10% mask inset in _card.scss. */
@@ -40,4 +41,18 @@ export function renderedImageRect(scale: number, position: ImagePosition, aspect
 export function clampImagePosition(position: ImagePosition, scale: number, aspect: ImageAspect | null): ImagePosition {
   const { width, height } = renderedImageRect(scale, position, aspect);
   return { x: clamp(position.x, width / 2), y: clamp(position.y, height / 2) };
+}
+
+/**
+ * Where the image sits in the square around the token circle, the area a
+ * token image keeps: `renderedImageRect` expressed in units of that square.
+ */
+export function tokenCropPlacement(scale: number, position: ImagePosition): FramePlacement {
+  const cropOrigin = (1 - TOKEN_CROP_FRACTION) / 2;
+  const { left, top, width, height } = renderedImageRect(scale, position, null);
+  return {
+    centerX: (left + width / 2 - cropOrigin) / TOKEN_CROP_FRACTION,
+    centerY: (top + height / 2 - cropOrigin) / TOKEN_CROP_FRACTION,
+    width: width / TOKEN_CROP_FRACTION,
+  };
 }

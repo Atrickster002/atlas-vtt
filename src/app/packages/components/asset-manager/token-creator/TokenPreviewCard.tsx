@@ -28,6 +28,7 @@ const ENTER_STAGGER_CAP = 12;
 function useImageAspect(url: string): ImageAspect | null {
   const [aspect, setAspect] = useState<ImageAspect | null>(null);
   useEffect(() => {
+    if (!url) return;
     let cancelled = false;
     const image = new Image();
     image.onload = () => { if (!cancelled) setAspect({ width: image.naturalWidth, height: image.naturalHeight }); };
@@ -124,13 +125,13 @@ export function TokenPreviewCard({ preview, mode, index, onChange, onToggleSelec
     target.addEventListener('pointercancel', handleUp);
   };
 
-  const imageStyle: React.CSSProperties = isCropEditable
+  const placement: React.CSSProperties = isCropEditable
     ? {
-        backgroundImage: `url(${preview.previewUrl})`,
         backgroundSize: `${preview.imageScale * 100}%`,
         backgroundPosition: `calc(50% + ${preview.imagePosition.x * wellSize}px) calc(50% + ${preview.imagePosition.y * wellSize}px)`,
       }
-    : { backgroundImage: `url(${preview.previewUrl})`, backgroundSize: 'contain', backgroundPosition: 'center' };
+    : { backgroundSize: 'contain', backgroundPosition: 'center' };
+  const imageStyle: React.CSSProperties = preview.previewUrl ? { backgroundImage: `url(${preview.previewUrl})`, ...placement } : {};
 
   const zoomPercent = Math.round(preview.imageScale * 100);
 
@@ -175,10 +176,10 @@ export function TokenPreviewCard({ preview, mode, index, onChange, onToggleSelec
           <span>Optimizing</span>
         </div>
       )}
-      {preview.optimizationResult && (
+      {preview.compressionRatio !== undefined && preview.compressionRatio > 0 && (
         <LabelTooltip label="Size reduction from optimization">
           <div className="atlas-token-card__badge">
-            −{preview.optimizationResult.compressionRatio}%
+            −{preview.compressionRatio}%
           </div>
         </LabelTooltip>
       )}
