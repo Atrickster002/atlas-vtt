@@ -8,6 +8,8 @@ import { writeAssetImage } from '../../../../services/assetImageFiles';
 import { transferAssets } from '../../../../services/assetTransfer/assetTransfer';
 import { optimizeImage, OPTIMIZATION_PRESETS } from '../../../../utils/imageOptimizer';
 import { bakeTokenCrop } from './bakeTokenCrop';
+import { STORED_IMAGE_SCALE } from './cropMath';
+import { overwriteStoredImage, storedImageFile } from './storedTokenImage';
 import type { CreatorMode, EditTokenInput, TokenPreview } from './types';
 
 export interface SaveTokenPreviewsOptions {
@@ -24,17 +26,27 @@ export interface SaveTokenPreviewsOptions {
 }
 
 /** Tokens are cropped as shown in the preview and re-optimized; maps use the background-optimized whole image. */
-async function resolveImageBlob(preview: TokenPreview, mode: CreatorMode, waitForOptimized: (id: string) => Promise<Blob | undefined>): Promise<Blob | undefined> {
-  if (mode === 'token' && preview.file && preview.showRing !== false) {
-    const cropped = await bakeTokenCrop(preview.file, preview.imageScale, preview.imagePosition);
+async function resolveImageBlob(preview: TokenPreview, source: File, mode: CreatorMode, waitForOptimized: (id: string) => Promise<Blob | undefined>): Promise<Blob | undefined> {
+  if (mode === 'token' && preview.showRing !== false) {
+    const cropped = await bakeTokenCrop(source, preview.imageScale, preview.imagePosition);
     return (await optimizeImage(cropped, OPTIMIZATION_PRESETS.token)).blob;
   }
   return waitForOptimized(preview.id);
 }
 
 /**
+ * An edit without an upload crops the token's stored image when the crop was moved or
+ * the ring was just turned on (the stored image is then the whole artwork).
+ */
+function cropsStoredImage(preview: TokenPreview, editToken: EditTokenInput): boolean {
+  if (preview.file || preview.showRing === false) return false;
+  const { imageScale, imagePosition } = preview;
+  return editToken.showRing === false || imageScale !== STORED_IMAGE_SCALE || imagePosition.x !== 0 || imagePosition.y !== 0;
+}
+
+/**
  * Persists every preview as an asset. In edit mode the single preview updates
- * the existing asset and only writes a new image when one was uploaded.
+ * the existing asset and replaces its image when one was uploaded or the crop changed.
  * Returns the number of previews that were saved.
  */
 export async function saveTokenPreviews(options: SaveTokenPreviewsOptions): Promise<number> {
@@ -58,18 +70,20 @@ async function savePreviews(options: SaveTokenPreviewsOptions): Promise<number> 
     if (!preview) return 0;
     let imagePath = editToken.imagePath ?? editToken.imageUrl;
     let thumbnailPath: string | undefined;
-    if (preview.file) {
-      const blob = await resolveImageBlob(preview, mode, waitForOptimized);
+    const source = preview.file ?? (cropsStoredImage(preview, editToken) ? await storedImageFile(app, editToken) : null);
+    if (source) {
+      const blob = await resolveImageBlob(preview, source, mode, waitForOptimized);
       if (!blob) {
         new Notice(`Failed to optimize ${preview.name}. Cannot update ${mode}.`);
         return 0;
       }
-      imagePath = await writeAssetImage(app, preview.name, await blob.arrayBuffer());
+      const data = await blob.arrayBuffer();
+      imagePath = await overwriteStoredImage(app, editToken.imagePath, data) ?? await writeAssetImage(app, preview.name, data);
       thumbnailPath = await thumbnails.tryCreateForImage(imagePath);
     }
     await assetService.updateAsset(editToken.id, {
       name: preview.name, imagePath, showRing: preview.showRing !== false, size: preview.size, tags: preview.tags ?? tags,
-      ...(preview.file && { thumbnailPath }),
+      ...(source && { thumbnailPath }),
     });
     const stored = await assetService.getAssetById(editToken.id);
     if (stored && stored.collection !== destination.id) {
@@ -91,7 +105,7 @@ async function savePreviews(options: SaveTokenPreviewsOptions): Promise<number> 
           const candidate = await statblockImportCandidate(app, note, await assetService.getTokenAssets(), requireResolvedBestiary());
           if (!candidate || candidate.status !== 'ready') throw new Error(candidate?.detail ?? 'The statblock no longer resolves.');
         }
-        const blob = await resolveImageBlob(preview, mode, waitForOptimized);
+        const blob = await resolveImageBlob(preview, preview.file, mode, waitForOptimized);
         if (!blob) throw new Error('Could not optimize the image. Try again with a smaller image.');
         if (options.signal?.aborted) break;
         imagePath = await writeAssetImage(app, preview.name, await blob.arrayBuffer());

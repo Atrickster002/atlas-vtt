@@ -79,4 +79,23 @@ describe('TextureCache holds', () => {
     expect(after).not.toBe(before);
     expect(after.destroyed).toBe(false);
   });
+
+  it('reloads changed art into a new texture that every holder gets before the old one is destroyed', async () => {
+    const cache = createCache();
+    const before = await cache.acquire(GOBLIN);
+    const shown: unknown[] = [];
+
+    expect(await cache.reload(GOBLIN, (texture) => shown.push(texture))).toBe(true);
+
+    const after = await cache.acquire(GOBLIN);
+    expect(shown).toEqual([after]);
+    expect(after).not.toBe(before);
+    expect(before.destroyed).toBe(true);
+    expect(after.destroyed).toBe(false);
+  });
+
+  it('does not reload art it never loaded', async () => {
+    const cache = createCache();
+    expect(await cache.reload(ORC, () => undefined)).toBe(false);
+  });
 });

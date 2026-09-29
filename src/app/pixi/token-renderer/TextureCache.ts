@@ -155,9 +155,7 @@ export class TextureCache implements ITextureCache {
       return this.getDefaultTokenTexture();
     }
 
-    const arrayBuffer = await this.obsApp.vault.readBinary(file);
-    const mimeType = MIME_MAP[file.extension.toLowerCase()] || 'image/png';
-    const decoded = await decodeTokenImage(arrayBuffer, mimeType);
+    const decoded = await this.decodeVaultImage(file);
 
     // A concurrent call may have finished first; keep the existing texture.
     const existing = this.textures.get(path);
@@ -166,15 +164,47 @@ export class TextureCache implements ITextureCache {
       return existing;
     }
 
-    const sourceOptions = { autoGenerateMipmaps: true, scaleMode: 'linear' as const, label: path };
-    const source = decoded instanceof ImageBitmap
-      ? new ImageSource({ resource: decoded, ...sourceOptions })
-      : new CanvasSource({ resource: decoded, ...sourceOptions });
-    const texture = new Texture({ source, label: path });
-
-    if (decoded instanceof ImageBitmap) this.bitmapByKey.set(path, decoded);
+    const texture = new Texture({ source: this.createSource(path, decoded), label: path });
     this.textures.set(path, texture);
     return texture;
+  }
+
+  /**
+   * Re-reads art whose file changed into a new texture, which `show` puts on every sprite
+   * with the old one before that is destroyed. Returns false when the art is not cached
+   * from the vault.
+   */
+  async reload(imagePath: string, show: (texture: Texture) => void): Promise<boolean> {
+    const key = normalizeImagePath(imagePath);
+    const previous = this.textures.get(key);
+    const file = this.obsApp.vault.getAbstractFileByPath(key);
+    if (!previous || this.assetUrlByKey.has(key) || !(file instanceof TFile)) return false;
+
+    const decoded = await this.decodeVaultImage(file);
+    if (this.textures.get(key) !== previous) {
+      if (decoded instanceof ImageBitmap) decoded.close();
+      return false;
+    }
+    const previousBitmap = this.bitmapByKey.get(key);
+    this.bitmapByKey.delete(key);
+    const texture = new Texture({ source: this.createSource(key, decoded), label: key });
+    this.textures.set(key, texture);
+    show(texture);
+    previous.destroy(true);
+    previousBitmap?.close();
+    return true;
+  }
+
+  private async decodeVaultImage(file: TFile): Promise<ImageBitmap | HTMLCanvasElement> {
+    const mimeType = MIME_MAP[file.extension.toLowerCase()] || 'image/png';
+    return decodeTokenImage(await this.obsApp.vault.readBinary(file), mimeType);
+  }
+
+  private createSource(path: string, decoded: ImageBitmap | HTMLCanvasElement): ImageSource | CanvasSource {
+    const sourceOptions = { autoGenerateMipmaps: true, scaleMode: 'linear' as const, label: path };
+    if (!(decoded instanceof ImageBitmap)) return new CanvasSource({ resource: decoded, ...sourceOptions });
+    this.bitmapByKey.set(path, decoded);
+    return new ImageSource({ resource: decoded, ...sourceOptions });
   }
 
   private destroyTexture(key: string): void {

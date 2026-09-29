@@ -37,16 +37,19 @@ function useImageAspect(url: string): ImageAspect | null {
   return aspect;
 }
 
-/** Tracks the rendered width of the art well so fractional offsets map to pixels. */
-function useWellSize(ref: React.RefObject<HTMLDivElement | null>): number {
+/**
+ * Tracks the rendered width of the art well so fractional offsets map to pixels.
+ * Takes the element itself: toggling the ring remounts the well, and an observer
+ * left on the detached one would report 0 and pin the image in place.
+ */
+function useWellSize(element: HTMLDivElement | null): number {
   const [size, setSize] = useState(0);
   useEffect(() => {
-    const element = ref.current;
     if (!element) return;
     const observer = new ResizeObserver(([entry]) => { if (entry) setSize(entry.contentRect.width); });
     observer.observe(element);
     return () => observer.disconnect();
-  }, [ref]);
+  }, [element]);
   return size;
 }
 
@@ -58,7 +61,7 @@ function useWellSize(ref: React.RefObject<HTMLDivElement | null>): number {
  */
 export function TokenPreviewCard({ preview, mode, index, onChange, onToggleSelected, onRemove }: TokenPreviewCardProps): React.JSX.Element {
   const nameLabelId = useId();
-  const artRef = useRef<HTMLDivElement>(null);
+  const [artElement, setArtElement] = useState<HTMLDivElement | null>(null);
   const previewRef = useRef(preview);
   previewRef.current = preview;
   const onChangeRef = useRef(onChange);
@@ -66,7 +69,7 @@ export function TokenPreviewCard({ preview, mode, index, onChange, onToggleSelec
 
   const isCropEditable = mode === 'token' && preview.showRing !== false;
   const aspect = useImageAspect(preview.previewUrl);
-  const wellSize = useWellSize(artRef);
+  const wellSize = useWellSize(artElement);
 
   const clampPosition = useCallback(
     (position: ImagePosition, scale: number): ImagePosition => clampImagePosition(position, scale, aspect),
@@ -81,16 +84,15 @@ export function TokenPreviewCard({ preview, mode, index, onChange, onToggleSelec
   }, [isCropEditable, preview.imageScale, clampPosition]);
 
   useEffect(() => {
-    const art = artRef.current;
-    if (!art || !isCropEditable) return;
+    if (!artElement || !isCropEditable) return;
     const handleWheel = (e: WheelEvent): void => {
       e.preventDefault();
       const next = previewRef.current.imageScale * Math.exp(-e.deltaY * WHEEL_ZOOM_SENSITIVITY);
       onChangeRef.current({ imageScale: clampZoom(next) });
     };
-    art.addEventListener('wheel', handleWheel, { passive: false });
-    return () => art.removeEventListener('wheel', handleWheel);
-  }, [isCropEditable]);
+    artElement.addEventListener('wheel', handleWheel, { passive: false });
+    return () => artElement.removeEventListener('wheel', handleWheel);
+  }, [artElement, isCropEditable]);
 
   const setScale = (scale: number): void => onChange({ imageScale: clampZoom(scale) });
   const resetCrop = (): void => onChange({ imageScale: 1, imagePosition: { x: 0, y: 0 } });
@@ -134,7 +136,7 @@ export function TokenPreviewCard({ preview, mode, index, onChange, onToggleSelec
 
   const art = (
     <div
-      ref={artRef}
+      ref={setArtElement}
       className="atlas-token-card__art"
       onDoubleClick={isCropEditable ? resetCrop : undefined}
     >

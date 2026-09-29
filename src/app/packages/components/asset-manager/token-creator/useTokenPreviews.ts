@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { optimizeImage, OPTIMIZATION_PRESETS } from '../../../../utils/imageOptimizer';
 import type { CreatorMode, EditTokenInput, PreviewImage, TokenPreview, TokenPreviewPatch } from './types';
+import { STORED_IMAGE_SCALE } from './cropMath';
 
 export interface TokenPreviewsApi {
   previews: TokenPreview[];
@@ -49,7 +50,7 @@ function previewFromEdit(token: EditTokenInput): TokenPreview {
     file: null,
     previewUrl: token.imageUrl,
     name: token.name,
-    imageScale: 1,
+    imageScale: STORED_IMAGE_SCALE,
     imagePosition: { x: 0, y: 0 },
     isSelected: true,
     isOptimizing: false,

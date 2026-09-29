@@ -3,6 +3,12 @@ import type { ImagePosition } from './types';
 /** Diameter of the circular token crop as a fraction of the well. Mirrors the 10% mask inset in _card.scss. */
 export const TOKEN_CROP_FRACTION = 0.8;
 
+/**
+ * Zoom at which a whole image spans the crop circle. A ringed token shows its stored
+ * image that way on the map, so editing one starts here.
+ */
+export const STORED_IMAGE_SCALE = TOKEN_CROP_FRACTION;
+
 export interface ImageAspect {
   width: number;
   height: number;
