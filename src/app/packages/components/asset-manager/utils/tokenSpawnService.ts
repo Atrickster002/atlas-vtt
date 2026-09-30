@@ -12,7 +12,7 @@ import {
 } from '../../../../encounters/encounterFormation';
 import type { AtlasView } from '../../../../atlas-view';
 import type { TokenInput } from '../../../../storeFactory';
-import { getLoadedAtlasView } from '../../../../plugin/atlasLeaves';
+import { loadAtlasView } from '../../../../plugin/atlasLeaves';
 
 // ─── Viewport helpers ───────────────────────────────────────────────
 
@@ -52,18 +52,23 @@ interface SpawnTarget {
 /**
  * The scene spawned tokens go to: the asset manager's own view or, for the global
  * asset manager, the open Atlas view, looked up now since the scene may have changed
- * since the manager opened. Null, after telling the user, when no scene is loaded.
+ * since the manager opened. Null, after telling the user, while no scene is ready.
  */
-function getSpawnTarget(ctx: SpawnContext): SpawnTarget | null {
-  const view = ctx.view ?? getLoadedAtlasView(ctx.app);
-  const rendererService = view?.serviceManager.getRendererService();
-  const viewport = rendererService?.getViewport() as ViewportLike | undefined;
-  if (!view || !viewport || !view.getStore().getState().mapPath) {
+async function getSpawnTarget(ctx: SpawnContext): Promise<SpawnTarget | null> {
+  const view = ctx.view ?? await loadAtlasView(ctx.app);
+  if (!view) {
     new Notice('No scene is open. Open a scene to add tokens to it.');
     return null;
   }
   if (view !== ctx.view) void ctx.app.workspace.revealLeaf(view.leaf);
-  const gridSystem = (rendererService?.getGridSystem() as GridSystemLike | undefined) ?? null;
+  const rendererService = view.serviceManager.getRendererService();
+  const viewport = rendererService.getViewport() as ViewportLike | null;
+  const { mapPath, isMapLoading } = view.getStore().getState();
+  if (!viewport || !mapPath || isMapLoading) {
+    new Notice('The scene is still loading. Add the tokens once it is open.');
+    return null;
+  }
+  const gridSystem = rendererService.getGridSystem() as GridSystemLike | null;
   const grid = formationGridFromOptions(gridSystem?.getOptions());
   return { view, viewport, gridSystem, grid, pitch: grid ? cellPitch(grid) : FALLBACK_PITCH };
 }
@@ -219,7 +224,7 @@ export async function spawnTokenAsset(
   asset: TokenAsset,
   count: number
 ): Promise<string[]> {
-  const target = getSpawnTarget(ctx);
+  const target = await getSpawnTarget(ctx);
   if (!target) return [];
   const { viewport, grid, pitch } = target;
   const gridSystem = grid ? target.gridSystem : null;
@@ -243,7 +248,7 @@ export async function spawnEncounterTokens(
   ctx: SpawnContext,
   encounter: EncounterAsset
 ): Promise<string[]> {
-  const target = getSpawnTarget(ctx);
+  const target = await getSpawnTarget(ctx);
   if (!target) return [];
   const { viewport, grid, pitch } = target;
   const gridSystem = grid ? target.gridSystem : null;
@@ -306,7 +311,7 @@ export async function spawnSelectedTokens(
   ctx: SpawnContext,
   selectedAssets: AnyAsset[]
 ): Promise<string[]> {
-  const target = getSpawnTarget(ctx);
+  const target = await getSpawnTarget(ctx);
   if (!target) return [];
   const { viewport, grid, pitch } = target;
   const gridSystem = grid ? target.gridSystem : null;
