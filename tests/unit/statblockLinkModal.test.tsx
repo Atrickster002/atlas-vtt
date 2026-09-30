@@ -35,6 +35,7 @@ function fakeApp(): { app: never; trigger: (event: string) => void } {
       },
       offref: () => undefined,
     },
+    vault: { getMarkdownFiles: () => [] },
   } as never;
   return { app, trigger: (event) => handlers.get(event)?.forEach((handler) => handler()) };
 }
@@ -168,5 +169,44 @@ describe('StatblockLinkModal', () => {
     installBestiary(CREATURES);
     act(() => trigger('fantasy-statblocks:bestiary:resolved'));
     expect(optionNames()).toHaveLength(4);
+  });
+});
+
+describe('StatblockLinkModal with statblock notes outside the bestiary', () => {
+  it('lists notes that define their statblock in a fence or unparsed frontmatter', async () => {
+    const { TFile } = await import('obsidian');
+    const notes: Record<string, string> = {
+      'Notes/Vecna.md': ['```statblock', 'name: Vecna', 'size: Large', 'type: Undead', 'cr: 5', '```'].join('\n'),
+      'Notes/Octopus.md': ['# Octopus', '', '```statblock', 'monster: Octopus', '```'].join('\n'),
+      'Notes/Lich.md': ['---', 'statblock: true', 'name: Lich', '---'].join('\n'),
+      'Notes/Goblin.md': '# Goblin\n\nA note about goblins, without a statblock.',
+      'Bestiary/Aboleth.md': '',
+    };
+    const files = Object.keys(notes).map((path) => new TFile(path));
+    const frontmatter: Record<string, Record<string, unknown>> = { 'Notes/Lich.md': { statblock: true, name: 'Lich' } };
+    const octopus = { name: 'Octopus', size: 'Medium', type: 'Beast', cr: '1' };
+    installBestiary([CREATURES[0], octopus]);
+    Object.assign((window as never as Record<string, Record<string, unknown>>).FantasyStatblocks!, {
+      hasCreature: (name: string) => name === 'Octopus',
+      getCreatureFromBestiary: (name: string) => (name === 'Octopus' ? octopus : null),
+    });
+    const app = {
+      workspace: { on: () => ({}), offref: () => undefined },
+      vault: {
+        getMarkdownFiles: () => files,
+        getAbstractFileByPath: (path: string) => files.find((file) => file.path === path) ?? null,
+        cachedRead: (file: { path: string }) => Promise.resolve(notes[file.path] ?? ''),
+      },
+      metadataCache: {
+        getFileCache: (file: { path: string }) => ({ frontmatter: frontmatter[file.path] }),
+        getFirstLinkpathDest: () => null,
+      },
+    } as never;
+
+    render(<StatblockLinkModal isOpen onClose={vi.fn()} asset={{ name: 'Token' }} onLink={vi.fn()} app={app} />);
+
+    expect(await screen.findByText('Vecna')).toBeTruthy();
+    expect(optionNames()).toEqual(['Aboleth', 'Lich', 'Octopus', 'Vecna']);
+    expect(screen.getByText('Large Undead · CR 5')).toBeTruthy();
   });
 });

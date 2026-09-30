@@ -23,7 +23,7 @@ interface StatblockLinkModalProps {
 const EMPTY_MESSAGES: Record<BestiaryStatus, string> = {
   missing: 'Install and enable the Fantasy Statblocks plugin to link statblocks.',
   loading: 'Loading statblocks…',
-  ready: 'No note-based creatures found. Enable "Parse Frontmatter for Creatures" in the Fantasy Statblocks settings.',
+  ready: 'No statblock notes found. Add a statblock code block to a note (`monster: Goblin` is enough for a bestiary creature), or enable "Parse Frontmatter for Creatures" in the Fantasy Statblocks settings.',
 };
 
 /**
