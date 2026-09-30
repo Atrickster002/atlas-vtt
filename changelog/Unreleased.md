@@ -12,4 +12,4 @@
 
 - Collections can be deleted again when some of their files were already removed outside Obsidian, for example by git
 - Starting a circle measurement no longer stops the map from drawing when Obsidian runs without hardware acceleration, so tokens and encounters added afterwards show up again
-- Adding tokens or encounters from an asset manager opened outside a scene now tells you to open a scene first instead of doing nothing
+- Spawn on Map and Spawn Multiple now work in the asset manager opened from the scene browser, the dashboard or a command: tokens and encounters go to the open scene, and when no scene is open Atlas says so instead of doing nothing

@@ -21,7 +21,6 @@ import { TagSearchModal } from '../TagSearchModal';
 import { runInBackground } from '../../../../utils/backgroundTask';
 import { confirmAction } from '../../../../ui/confirmDialog';
 import type { AtlasView } from '../../../../atlas-view';
-import type { ViewAtlasState } from '../../../../storeFactory';
 import { applyTokenDeleteImpact, describeTokenDeleteImpact, findTokenDeleteImpact } from '../utils/tokenDeleteImpact';
 import { tokenSizeSubmenu } from '../../../../react/components/context-menu/tokenSizeMenu';
 import type { TransferMode } from '../../../../services/assetTransfer/transferPlan';
@@ -29,8 +28,6 @@ import type { TransferMode } from '../../../../services/assetTransfer/transferPl
 export interface AssetContextMenuDeps {
   app: ObsidianApp;
   view: AtlasView | null;
-  addTokens: ViewAtlasState['addTokens'];
-  setSelection: (ids: string[]) => void;
   assetService: AssetService | null;
   onClose: () => void;
   // State setters
@@ -66,8 +63,6 @@ export function buildAssetContextMenuEntries(
   const spawnCtx: SpawnContext = {
     app: deps.app,
     view: deps.view,
-    addTokens: deps.addTokens,
-    setSelection: deps.setSelection,
     assetService: deps.assetService,
   };
 

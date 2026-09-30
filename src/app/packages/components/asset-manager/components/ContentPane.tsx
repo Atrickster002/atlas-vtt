@@ -14,7 +14,6 @@ import { useOpenAsset } from '../hooks/useOpenAsset';
 import { useAssetCardHandlers, type DraggedItems } from '../hooks/useAssetCardHandlers';
 import type { AssetService } from '../../../../services/AssetService';
 import type { AtlasView } from '../../../../atlas-view';
-import type { ViewAtlasState } from '../../../../storeFactory';
 import { useSpawnCountTyping } from '../hooks/useSpawnCountTyping';
 import { useRememberedScroll, type ScrollMemory } from '../hooks/useRememberedScroll';
 import { useScrollbarGutter } from '../../primitives/useScrollbarGutter';
@@ -44,8 +43,6 @@ export interface ContentPaneProps {
   setDropTarget: React.Dispatch<React.SetStateAction<string | null>>;
   onDrop: (targetFolderId: string | null) => void;
   view: AtlasView | null;
-  addTokens: ViewAtlasState['addTokens'];
-  setSelection: (ids: string[]) => void;
   app: App;
   assetService: AssetService | null;
   spawnCounts: Record<string, number>;
@@ -98,7 +95,7 @@ export function ContentPane(props: ContentPaneProps): React.JSX.Element {
   useEffect(() => { paneShown.current = true; }, []);
 
   const openAsset = useOpenAsset({
-    app: props.app, view: props.view, addTokens: props.addTokens, setSelection: props.setSelection,
+    app: props.app, view: props.view,
     assetService: props.assetService, onClose: props.onClose,
   });
   const cardHandlers = useAssetCardHandlers({

@@ -3,14 +3,11 @@ import type { AnyAsset } from '../types';
 import { spawnTokenAsset, spawnEncounterTokens, type SpawnContext } from '../utils/tokenSpawnService';
 import type { AssetService } from '../../../../services/AssetService';
 import type { AtlasView } from '../../../../atlas-view';
-import type { ViewAtlasState } from '../../../../storeFactory';
 import { useStableCallback } from '../../../../react/hooks/useStableCallback';
 
 export interface OpenAssetDeps {
   app: App;
   view: AtlasView | null;
-  addTokens: ViewAtlasState['addTokens'];
-  setSelection: (ids: string[]) => void;
   assetService: AssetService | null;
   onClose: () => void;
 }
@@ -34,7 +31,7 @@ async function openScene(deps: OpenAssetDeps, assetId: string): Promise<void> {
 export function useOpenAsset(deps: OpenAssetDeps): OpenAsset {
   return useStableCallback(async (asset: AnyAsset, spawnCount: number): Promise<void> => {
     const spawnCtx: SpawnContext = {
-      app: deps.app, view: deps.view, addTokens: deps.addTokens, setSelection: deps.setSelection, assetService: deps.assetService,
+      app: deps.app, view: deps.view, assetService: deps.assetService,
     };
     switch (asset.type) {
       case 'maps':

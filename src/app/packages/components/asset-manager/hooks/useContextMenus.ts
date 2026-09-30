@@ -42,7 +42,7 @@ export function useContextMenus({
       : [asset];
 
     const entries = buildAssetContextMenuEntries(asset, selectedAssets, {
-      app: data.app, view: data.view, addTokens: data.addTokens, setSelection: data.setSelection,
+      app: data.app, view: data.view,
       assetService: data.assetService, onClose,
       setEditingToken: crud.setEditingToken, setIsTokenCreatorOpen: crud.setIsTokenCreatorOpen,
       setIsMoveModalOpen: crud.setIsMoveModalOpen,
