@@ -13,7 +13,6 @@ import { useAtlasUI } from '../../../../react/root/AtlasUIContext';
 import { useOptionalAtlasStore } from '../../../../react/ViewStoreContext';
 import { runInBackground } from '../../../../utils/backgroundTask';
 import type { AtlasView } from '../../../../atlas-view';
-import type { ViewAtlasState } from '../../../../storeFactory';
 
 export interface AssetData {
   folders: Folder[];
@@ -39,14 +38,8 @@ export interface AssetData {
   // Store-provided
   app: ObsidianApp;
   view: AtlasView | null;
-  addTokens: ViewAtlasState['addTokens'];
-  setSelection: (ids: string[]) => void;
   mapPath: string | null;
 }
-
-// The global asset manager opens without a map view, so there is no store to spawn tokens into.
-const addTokensWithoutMap = (): string[] => [];
-const setSelectionWithoutMap = (): void => {};
 
 export function useAssetData(
   activeTab: Tab,
@@ -54,8 +47,6 @@ export function useAssetData(
   isOpen: boolean
 ): AssetData {
   const { app, view } = useAtlasUI();
-  const addTokens = useOptionalAtlasStore((s) => s.addTokens, addTokensWithoutMap);
-  const setSelection = useOptionalAtlasStore((s) => s.setSelection, setSelectionWithoutMap);
   const mapPath = useOptionalAtlasStore((s) => s.mapPath, null);
 
   const [folders, setFolders] = useState<Folder[]>([]);
@@ -230,6 +221,6 @@ export function useAssetData(
     folders, assets, assetsTab, availableTags, tagsByGroup, tagsCollection, collections, assetCounts, assetService,
     setFolders, setAssets,
     loadFoldersForActiveTab, loadAssetsForActiveTab, reloadGlobalTags, reloadCollections,
-    app, view, addTokens, setSelection, mapPath,
+    app, view, mapPath,
   };
 }

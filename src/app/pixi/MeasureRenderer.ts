@@ -7,7 +7,7 @@ import { pathLengthInCells } from '../grid/gridDistance';
 import { formatDistance, resolveMeasurementSettings, type MeasurementSettings } from '../grid/measurementFormat';
 import type { ViewAtlasState } from '../storeFactory';
 import type { StoreApi } from 'zustand';
-import { createMeasureLabelText, drawMeasureLabel, drawMeasurePath, drawMeasurePoint, measureLabelFontSize } from './utils/measureDrawing';
+import { createMeasureLabelText, drawMeasureCircle, drawMeasureLabel, drawMeasurePath, drawMeasurePoint, measureLabelFontSize } from './utils/measureDrawing';
 
 interface PersistentMeasurement {
   graphics: Graphics;
@@ -284,7 +284,7 @@ export class MeasureRenderer {
   
   private drawCircle(color: number, radius: number): void {
     if (!this.startPoint) return;
-    this.drawCircleOnGraphics(this.measureGraphics, color, radius, this.startPoint);
+    drawMeasureCircle(this.measureGraphics, color, this.startPoint, radius);
   }
   
   private drawCone(color: number, distance: number, dx: number, dy: number): void {
@@ -344,7 +344,7 @@ export class MeasureRenderer {
         break;
       case 'circle':
       case 'sphere':
-        this.drawCircleOnGraphics(persistGraphics, accentHex, distance, this.startPoint);
+        drawMeasureCircle(persistGraphics, accentHex, this.startPoint, distance);
         break;
       case 'cone':
         this.drawConeOnGraphics(persistGraphics, accentHex, distance, dx, dy, this.startPoint);
@@ -373,20 +373,6 @@ export class MeasureRenderer {
   private drawLineOnGraphics(graphics: Graphics, color: number, start: { x: number; y: number }, end: { x: number; y: number }): void {
     drawMeasurePath(graphics, color, [start, end]);
     drawMeasurePoint(graphics, color, end);
-  }
-  
-  private drawCircleOnGraphics(graphics: Graphics, color: number, radius: number, center: { x: number; y: number }): void {
-    // Fill with transparent color
-    graphics.circle(center.x, center.y, radius);
-    graphics.fill({ color: color, alpha: 0.1 });
-    
-    // Draw outline
-    graphics.circle(center.x, center.y, radius);
-    graphics.stroke({ width: 3, color: color, alpha: 0.8 });
-    
-    // Inner stroke for highlight
-    graphics.circle(center.x, center.y, radius - 1);
-    graphics.stroke({ width: 1.5, color: color, alpha: 1 });
   }
   
   private drawConeOnGraphics(graphics: Graphics, color: number, distance: number, dx: number, dy: number, start: { x: number; y: number }): void {
