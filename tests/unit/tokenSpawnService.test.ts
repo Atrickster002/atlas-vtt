@@ -1,9 +1,13 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { Notice } from 'obsidian';
 import { spawnEncounterTokens, spawnSelectedTokens, spawnTokenAsset, type SpawnContext } from '../../src/app/packages/components/asset-manager/utils/tokenSpawnService';
 import type { EncounterAsset, TokenAsset } from '../../src/app/packages/components/asset-manager/types';
 import type { AtlasView } from '../../src/app/atlas-view';
 import type { AssetService } from '../../src/app/services/AssetService';
 import { createInMemoryApp } from '../mocks/inMemoryVault';
+
+vi.mock('obsidian', async (importOriginal) => ({ ...(await importOriginal<typeof import('obsidian')>()), Notice: vi.fn() }));
+beforeEach(() => vi.mocked(Notice).mockClear());
 
 const unframed: TokenAsset = { id: 'goblin', name: 'Goblin', type: 'tokens', imageUrl: 'app://goblin.png', imagePath: 'tokens/goblin.png', showRing: false, size: 2, modifiedAt: 0 };
 const framed: TokenAsset = { id: 'knight', name: 'Knight', type: 'tokens', imageUrl: 'app://knight.png', imagePath: 'tokens/knight.png', showRing: true, modifiedAt: 0 };
@@ -90,5 +94,24 @@ describe('encounter spawning', () => {
       { id: 'map-token', name: 'Goblin', imagePath: 'tokens/goblin.png', state: { kind: 'token', imagePath: 'tokens/goblin.png', showRing: false } },
     ]));
     expect(spawned[0]).toMatchObject({ imagePath: 'tokens/goblin.png', showRing: false });
+  });
+});
+
+describe('spawning without an open scene', () => {
+  const ambush: EncounterAsset = {
+    id: 'ambush', name: 'Ambush', type: 'encounters', tags: [], modifiedAt: 0, tokenPreviews: [],
+    tokens: [{ id: 'goblin', name: 'Goblin', imagePath: 'tokens/goblin.png' }],
+  };
+
+  it.each([
+    ['a token', (ctx: SpawnContext) => spawnTokenAsset(ctx, unframed, 1)],
+    ['selected tokens', (ctx: SpawnContext) => spawnSelectedTokens(ctx, [unframed])],
+    ['an encounter', (ctx: SpawnContext) => spawnEncounterTokens(ctx, ambush)],
+  ])('tells the user to open a scene when adding %s', async (_label, spawn) => {
+    const { ctx, spawned } = setup();
+    const ids = await spawn({ ...ctx, view: null });
+    expect(ids).toEqual([]);
+    expect(spawned).toHaveLength(0);
+    expect(vi.mocked(Notice).mock.calls).toEqual([[expect.stringContaining('Open a scene')]]);
   });
 });

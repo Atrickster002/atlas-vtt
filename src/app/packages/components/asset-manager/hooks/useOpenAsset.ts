@@ -1,4 +1,4 @@
-import { Notice, TFile, type App } from 'obsidian';
+import { TFile, type App } from 'obsidian';
 import type { AnyAsset } from '../types';
 import { spawnTokenAsset, spawnEncounterTokens, type SpawnContext } from '../utils/tokenSpawnService';
 import type { AssetService } from '../../../../services/AssetService';
@@ -50,13 +50,8 @@ export function useOpenAsset(deps: OpenAssetDeps): OpenAsset {
       case 'scenes':
         await openScene(deps, asset.id);
         return;
-      case 'encounters': {
-        const ids = await spawnEncounterTokens(spawnCtx, asset);
-        const expected = asset.tokens.length;
-        new Notice(ids.length < expected
-          ? `Spawned ${ids.length} of ${expected} tokens from "${asset.name}" (some had missing images)`
-          : `Spawned ${ids.length} tokens from "${asset.name}"`);
-      }
+      case 'encounters':
+        await spawnEncounterTokens(spawnCtx, asset);
     }
   });
 }

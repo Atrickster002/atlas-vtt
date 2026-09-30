@@ -1,4 +1,4 @@
-import { App as ObsidianApp } from 'obsidian';
+import { Notice, App as ObsidianApp } from 'obsidian';
 import type { TokenAsset, AnyAsset, EncounterAsset } from '../types';
 import { loadStatblockOverrides, type StatblockOverrides } from './statblockLoader';
 import type { AssetService } from '../../../../services/AssetService';
@@ -48,13 +48,17 @@ interface SpawnTarget {
   pitch: number;
 }
 
+/** Where spawned tokens go, or null (after telling the user) when no scene is open to take them. */
 function getSpawnTarget(view: AtlasView | null): SpawnTarget | null {
   const serviceManager = view?.serviceManager;
   const rendererService = serviceManager?.getRendererService();
   const viewport = rendererService?.getViewport() as ViewportLike | undefined;
   const gridSystem = (rendererService?.getGridSystem() as GridSystemLike | undefined) ?? null;
 
-  if (!viewport) return null;
+  if (!viewport) {
+    new Notice('Open a scene first, then add tokens from the asset manager in its toolbar.');
+    return null;
+  }
   const grid = formationGridFromOptions(gridSystem?.getOptions());
   return { viewport, gridSystem, grid, pitch: grid ? cellPitch(grid) : FALLBACK_PITCH };
 }
@@ -210,10 +214,7 @@ export async function spawnTokenAsset(
   count: number
 ): Promise<string[]> {
   const target = getSpawnTarget(ctx.view);
-  if (!target) {
-    console.error('[tokenSpawnService] No renderer or viewport available');
-    return [];
-  }
+  if (!target) return [];
   const { viewport, grid, pitch } = target;
   const gridSystem = grid ? target.gridSystem : null;
   const center = getViewportCenter(viewport);
@@ -230,17 +231,14 @@ export async function spawnTokenAsset(
 }
 
 /**
- * Spawn all tokens from an encounter asset.
+ * Spawn all tokens from an encounter asset and report how many made it onto the map.
  */
 export async function spawnEncounterTokens(
   ctx: SpawnContext,
   encounter: EncounterAsset
 ): Promise<string[]> {
   const target = getSpawnTarget(ctx.view);
-  if (!target) {
-    console.error('[tokenSpawnService] No renderer or viewport available');
-    return [];
-  }
+  if (!target) return [];
   const { viewport, grid, pitch } = target;
   const gridSystem = grid ? target.gridSystem : null;
   const center = getViewportCenter(viewport);
@@ -288,7 +286,11 @@ export async function spawnEncounterTokens(
     }
   }
 
-  return addSpawnedTokens(ctx, tokens);
+  const ids = addSpawnedTokens(ctx, tokens);
+  new Notice(ids.length < tokensToSpawn.length
+    ? `Spawned ${ids.length} of ${tokensToSpawn.length} tokens from "${encounter.name}" (some had missing images)`
+    : `Spawned ${ids.length} tokens from "${encounter.name}"`);
+  return ids;
 }
 
 /**
@@ -299,10 +301,7 @@ export async function spawnSelectedTokens(
   selectedAssets: AnyAsset[]
 ): Promise<string[]> {
   const target = getSpawnTarget(ctx.view);
-  if (!target) {
-    console.error('[tokenSpawnService] No renderer or viewport available');
-    return [];
-  }
+  if (!target) return [];
   const { viewport, grid, pitch } = target;
   const gridSystem = grid ? target.gridSystem : null;
   const center = getViewportCenter(viewport);

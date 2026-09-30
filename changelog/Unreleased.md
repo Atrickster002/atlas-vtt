@@ -11,3 +11,5 @@
 ## Fixed
 
 - Collections can be deleted again when some of their files were already removed outside Obsidian, for example by git
+- Starting a circle measurement no longer stops the map from drawing when Obsidian runs without hardware acceleration, so tokens and encounters added afterwards show up again
+- Adding tokens or encounters from an asset manager opened outside a scene now tells you to open a scene first instead of doing nothing
