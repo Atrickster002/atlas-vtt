@@ -11,3 +11,4 @@
 ## Fixed
 
 - Collections can be deleted again when some of their files were already removed outside Obsidian, for example by git
+- "Link Statblock" now finds every statblock note the token creator finds, including notes that define their statblock in a statblock code block (such as `monster: Octopus`)
