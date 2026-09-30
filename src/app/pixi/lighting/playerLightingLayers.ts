@@ -1,5 +1,5 @@
 import type { TokenEntity } from '../../types';
-import { isSeen, type LightReach, type Sight } from '../../vision/sight';
+import { isFelt, isSeen, type AmbientLight, type LightReach, type Sight } from '../../vision/sight';
 import type { HideableLayer, LayerVisibility } from '../playerSafeFrame';
 
 /** Things only the GM may see. A type, not an interface, so `Object.values` knows its layers. */
@@ -24,15 +24,20 @@ export function playerLightingLayers({ enabled, modeLayer, gmOverlays }: PlayerL
   return enabled ? [{ layer: modeLayer, visible: true }, ...hidden] : hidden;
 }
 
-/** Whether the viewer sees each token, by its centre. The viewer's own tokens always show, lit or not. */
+/**
+ * Whether the viewer sees each token, by its centre. The viewer's own tokens always show, lit or
+ * not, and so do tokens within a vision token's tremorsense, whatever walls or darkness lie between.
+ */
 export function tokenSeenPredicate(
   sight: Sight,
-  ambient: number,
+  ambient: AmbientLight,
   lights: readonly LightReach[],
   tokens: Record<string, TokenEntity>,
 ): (tokenId: string) => boolean {
   return (tokenId) => {
     const token = tokens[tokenId];
-    return !!token && (!!token.vision?.enabled || isSeen({ x: token.x, y: token.y }, sight, ambient, lights));
+    if (!token) return false;
+    const at = { x: token.x, y: token.y };
+    return !!token.vision?.enabled || isFelt(at, sight) || isSeen(at, sight, ambient, lights);
   };
 }

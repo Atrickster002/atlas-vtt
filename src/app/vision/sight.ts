@@ -1,11 +1,18 @@
 import type { TokenEntity } from '../types';
+import type { SceneLighting } from '../types/lightingTypes';
 import type { Point } from '../types/visionTypes';
 import type { WallSegment } from '../types/wallTypes';
 import { gameUnitsToWorld, type UnitScale } from '../lighting/lightingUnits';
+import { litThresholdOf, tokenVisionOn } from '../lighting/sceneLightingOptions';
 import { computeVisibility, pointInPolygon, type MapBounds, type Polygon } from './visibility';
+import { visionCone, type VisionCone } from './visionCone';
+import { computeTokenPixelSize } from '../pixi/token-renderer/tokenSizing';
 
-/** Light level at which a point counts as lit, so a token standing there can be seen. */
-export const LIT_THRESHOLD = 0.25;
+/**
+ * The scene's light without its sources: at or above `litThreshold` (unset: 0.25) ambient light,
+ * every point in sight counts as lit, so a token standing there can be seen.
+ */
+export type AmbientLight = Pick<SceneLighting, 'ambient' | 'litThreshold'>;
 
 /** A token that sees, in world pixels. */
 export interface SightSource {
@@ -14,6 +21,19 @@ export interface SightSource {
   range: number;
   /** 0 without darkvision. */
   darkvision: number;
+  /**
+   * Where the token looks; unset, it sees all around. Clips its sight and darkvision, except
+   * within `cone.apex`, the token's own radius, which it always sees (walls permitting).
+   */
+  cone?: VisionCone;
+  /** Radius within which it senses tokens through walls and darkness; unset without tremorsense. */
+  tremorsense?: number;
+}
+
+/** Tokens within `radius` of `origin` are sensed, whatever lies between. */
+export interface TremorSense {
+  origin: Point;
+  radius: number;
 }
 
 /** What a viewer sees. `all` means no token has vision, so nothing is hidden by line of sight. */
@@ -22,12 +42,17 @@ export interface Sight {
   polygons: Polygon[];
   /** Where each polygon is seen from, aligned with `polygons`. */
   origins: Point[];
+  /** Radius of each viewer's own space around a vision cone (0 without a cone), aligned with `polygons`. */
+  apexes: number[];
   darkvision: Polygon[];
   darkvisionOrigins: Point[];
+  darkvisionApexes: number[];
+  /** Tremorsense of the vision tokens: reveals tokens only, never the map, light or explored memory. */
+  tremors: TremorSense[];
 }
 
 /** Sight of a viewer without a vision token: line of sight hides nothing. */
-export const SEES_ALL: Sight = { all: true, polygons: [], origins: [], darkvision: [], darkvisionOrigins: [] };
+export const SEES_ALL: Sight = { all: true, polygons: [], origins: [], apexes: [], darkvision: [], darkvisionOrigins: [], darkvisionApexes: [], tremors: [] };
 
 /** The area a light illuminates, for deciding on the CPU whether a point is lit. */
 export interface LightReach {
@@ -42,12 +67,15 @@ export function sightSources(tokens: Record<string, TokenEntity>, scale: UnitSca
   const sources: SightSource[] = [];
   for (const token of Object.values(tokens)) {
     if (!token.vision?.enabled) continue;
-    const { range, darkvision } = token.vision;
+    const { range, darkvision, tremorsense, angle } = token.vision;
+    const cone = visionCone(token.rotation, angle, computeTokenPixelSize(scale.cellSize, token.size || 1) / 2);
     sources.push({
       tokenId: token.id,
       origin: { x: token.x, y: token.y },
       range: range === undefined ? unlimited : gameUnitsToWorld(range, scale),
       darkvision: darkvision ? gameUnitsToWorld(darkvision, scale) : 0,
+      ...(cone && { cone }),
+      ...(tremorsense !== undefined && tremorsense > 0 && { tremorsense: gameUnitsToWorld(tremorsense, scale) }),
     });
   }
   return sources;
@@ -70,8 +98,8 @@ export class SightCache {
     const entry: CachedSight = {
       source,
       walls,
-      polygon: computeVisibility(source.origin, source.range, walls),
-      darkvision: source.darkvision > 0 ? computeVisibility(source.origin, Math.min(source.darkvision, source.range), walls) : null,
+      polygon: computeVisibility(source.origin, source.range, walls, source.cone),
+      darkvision: source.darkvision > 0 ? computeVisibility(source.origin, Math.min(source.darkvision, source.range), walls, source.cone) : null,
     };
     this.entries.set(source.tokenId, entry);
     return entry;
@@ -84,7 +112,18 @@ export class SightCache {
 }
 
 function sameSource(a: SightSource, b: SightSource): boolean {
-  return a.origin.x === b.origin.x && a.origin.y === b.origin.y && a.range === b.range && a.darkvision === b.darkvision;
+  return a.origin.x === b.origin.x && a.origin.y === b.origin.y && a.range === b.range && a.darkvision === b.darkvision
+    && a.cone?.facing === b.cone?.facing && a.cone?.angle === b.cone?.angle && a.cone?.apex === b.cone?.apex;
+}
+
+/** The scene's sight: that of its vision tokens, or everything while the scene has token vision off. */
+export function sceneSight(
+  lighting: Pick<SceneLighting, 'tokenVision'>,
+  sources: readonly SightSource[],
+  walls: readonly WallSegment[],
+  cache?: SightCache,
+): Sight {
+  return tokenVisionOn(lighting) ? computeSight(sources, walls, cache) : SEES_ALL;
 }
 
 export function computeSight(sources: readonly SightSource[], walls: readonly WallSegment[], cache: SightCache = new SightCache()): Sight {
@@ -96,8 +135,11 @@ export function computeSight(sources: readonly SightSource[], walls: readonly Wa
     all: false,
     polygons: entries.map((entry) => entry.polygon),
     origins: entries.map((entry) => entry.source.origin),
+    apexes: entries.map((entry) => entry.source.cone?.apex ?? 0),
     darkvision: withDarkvision.map((entry) => entry.darkvision!),
     darkvisionOrigins: withDarkvision.map((entry) => entry.source.origin),
+    darkvisionApexes: withDarkvision.map((entry) => entry.source.cone?.apex ?? 0),
+    tremors: sources.flatMap(({ origin, tremorsense }) => (tremorsense ? [{ origin, radius: tremorsense }] : [])),
   };
 }
 
@@ -105,13 +147,23 @@ export function lightReach(origin: Point, dim: number, walls: readonly WallSegme
   return { origin, dim, polygon: computeVisibility(origin, dim, walls) };
 }
 
-function isLit(point: Point, ambient: number, lights: readonly LightReach[]): boolean {
-  if (ambient >= LIT_THRESHOLD) return true;
+/** Whether the ambient light alone lights everything in sight. */
+export function ambientLights(light: AmbientLight): boolean {
+  return light.ambient >= litThresholdOf(light);
+}
+
+function isLit(point: Point, ambient: AmbientLight, lights: readonly LightReach[]): boolean {
+  if (ambientLights(ambient)) return true;
   return lights.some((light) => Math.hypot(point.x - light.origin.x, point.y - light.origin.y) <= light.dim && pointInPolygon(point, light.polygon));
 }
 
+/** Whether a vision token senses a token at `point` by tremorsense, through walls and darkness. */
+export function isFelt(point: Point, sight: Sight): boolean {
+  return sight.tremors.some(({ origin, radius }) => Math.hypot(point.x - origin.x, point.y - origin.y) <= radius);
+}
+
 /** Whether a viewer can see `point`: in line of sight and lit, or within darkvision. */
-export function isSeen(point: Point, sight: Sight, ambient: number, lights: readonly LightReach[]): boolean {
+export function isSeen(point: Point, sight: Sight, ambient: AmbientLight, lights: readonly LightReach[]): boolean {
   if (!sight.all && !sight.polygons.some((polygon) => pointInPolygon(point, polygon))) return false;
   return isLit(point, ambient, lights) || sight.darkvision.some((polygon) => pointInPolygon(point, polygon));
 }
