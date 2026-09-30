@@ -4,21 +4,21 @@ import { spawnEncounterTokens, spawnSelectedTokens, spawnTokenAsset, type SpawnC
 import type { EncounterAsset, TokenAsset } from '../../src/app/packages/components/asset-manager/types';
 import type { AtlasView } from '../../src/app/atlas-view';
 import type { AssetService } from '../../src/app/services/AssetService';
-import { getLoadedAtlasView } from '../../src/app/plugin/atlasLeaves';
+import { loadAtlasView } from '../../src/app/plugin/atlasLeaves';
 import { createInMemoryApp } from '../mocks/inMemoryVault';
 
 vi.mock('obsidian', async (importOriginal) => ({ ...(await importOriginal<typeof import('obsidian')>()), Notice: vi.fn() }));
-vi.mock('../../src/app/plugin/atlasLeaves', () => ({ getLoadedAtlasView: vi.fn(() => null) }));
+vi.mock('../../src/app/plugin/atlasLeaves', () => ({ loadAtlasView: vi.fn(async () => null) }));
 beforeEach(() => {
   vi.mocked(Notice).mockClear();
-  vi.mocked(getLoadedAtlasView).mockReturnValue(null);
+  vi.mocked(loadAtlasView).mockResolvedValue(null);
 });
 
 const unframed: TokenAsset = { id: 'goblin', name: 'Goblin', type: 'tokens', imageUrl: 'app://goblin.png', imagePath: 'tokens/goblin.png', showRing: false, size: 2, modifiedAt: 0 };
 const framed: TokenAsset = { id: 'knight', name: 'Knight', type: 'tokens', imageUrl: 'app://knight.png', imagePath: 'tokens/knight.png', showRing: true, modifiedAt: 0 };
 
-/** An Atlas view with a loaded scene whose store records the tokens added to it. */
-function mapView(mapPath: string | null = 'maps/cave.atlasmap') {
+/** An Atlas view showing `mapPath` whose store records the tokens added to it. */
+function mapView(mapPath: string | null = 'maps/cave.atlasmap', isMapLoading = false) {
   const viewport = { screenWidth: 800, screenHeight: 600, toWorld: (p: { x: number; y: number }) => p, scale: { x: 1 } };
   const spawned: Array<Record<string, unknown>> = [];
   const addTokens = vi.fn((tokens: unknown[]) => tokens.map((data) => { spawned.push(data as Record<string, unknown>); return `tok_${spawned.length}`; }));
@@ -26,7 +26,7 @@ function mapView(mapPath: string | null = 'maps/cave.atlasmap') {
   const view = {
     leaf: {},
     serviceManager: { getRendererService: () => ({ getViewport: () => viewport, getGridSystem: () => null }) },
-    getStore: () => ({ getState: () => ({ mapPath, addTokens, setSelection }) }),
+    getStore: () => ({ getState: () => ({ mapPath, isMapLoading, addTokens, setSelection }) }),
   } as unknown as AtlasView;
   return { view, spawned, addTokens, setSelection };
 }
@@ -127,7 +127,7 @@ describe('spawning from the global asset manager', () => {
   it.each(spawns)('adds %s to the open scene and brings it to the front', async (_label, spawn) => {
     const { ctx } = setup();
     const open = mapView();
-    vi.mocked(getLoadedAtlasView).mockReturnValue(open.view);
+    vi.mocked(loadAtlasView).mockResolvedValue(open.view);
     const ids = await spawn({ ...ctx, view: null });
     expect(ids).toEqual(['tok_1']);
     expect(open.spawned.map(t => t.name)).toEqual(['Goblin']);
@@ -142,12 +142,15 @@ describe('spawning from the global asset manager', () => {
     expect(vi.mocked(Notice).mock.calls).toEqual([[expect.stringContaining('No scene is open')]]);
   });
 
-  it('does not add tokens to an Atlas view whose scene has not loaded', async () => {
+  it.each([
+    ['has no scene yet', mapView(null)],
+    ['is still loading its scene', mapView('maps/cave.atlasmap', true)],
+  ])('shows the Atlas view that %s and says the scene is loading', async (_label, loading) => {
     const { ctx } = setup();
-    const empty = mapView(null);
-    vi.mocked(getLoadedAtlasView).mockReturnValue(empty.view);
+    vi.mocked(loadAtlasView).mockResolvedValue(loading.view);
     expect(await spawnTokenAsset({ ...ctx, view: null }, unframed, 1)).toEqual([]);
-    expect(empty.addTokens).not.toHaveBeenCalled();
-    expect(vi.mocked(Notice)).toHaveBeenCalledTimes(1);
+    expect(loading.addTokens).not.toHaveBeenCalled();
+    expect(ctx.app.workspace.revealLeaf).toHaveBeenCalledWith(loading.view.leaf);
+    expect(vi.mocked(Notice).mock.calls).toEqual([[expect.stringContaining('still loading')]]);
   });
 });
