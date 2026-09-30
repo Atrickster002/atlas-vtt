@@ -11,3 +11,4 @@
 ## Fixed
 
 - Collections can be deleted again when some of their files were already removed outside Obsidian, for example by git
+- The description and steps boxes of the issue report form no longer slide under the rows below them in a short window, such as the settings window. The form scrolls instead
