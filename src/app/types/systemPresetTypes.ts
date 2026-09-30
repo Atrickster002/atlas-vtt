@@ -4,6 +4,7 @@
  */
 
 import type { CollectionGridDefaults, ConditionDefinition } from './collectionSettingsTypes';
+import type { DiceRules } from './diceRulesTypes';
 import type { AnyWidget } from './widgetTypes';
 
 /** The parts of a collection's settings that a game system defines. */
@@ -21,6 +22,8 @@ export interface SystemRules {
    * `CollectionSettings.defaultWidgets` (e.g. `stressBar` for Daggerheart's Stress).
    */
   defaultWidgets?: Record<string, boolean>;
+  /** Default roll and critical rule. Unset means `DEFAULT_DICE_RULES`. */
+  dice?: DiceRules;
 }
 
 /** Built-in preset ids start with this; user presets never do. */

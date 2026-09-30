@@ -21,6 +21,7 @@ export const OLD_SCHOOL_ESSENTIALS: SystemPreset = {
       diagonalRule: 'equidistant',
       abstractRangeBands: [],
     },
+    dice: { defaultRoll: '1d20', crit: 'natural' },
     conditions: conditionsOf('ose', [
       { name: 'Paralysed', color: '#38bdf8', icon: 'frozen-body' },
       { name: 'Petrified', color: '#78716c', icon: 'stoned-skull' },

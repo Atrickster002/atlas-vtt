@@ -11,6 +11,7 @@ import type {
 } from '../types/collectionSettingsTypes';
 import type { SystemPreset, SystemRules } from '../types/systemPresetTypes';
 import type { AnyWidget } from '../types/widgetTypes';
+import { DEFAULT_DICE_RULES, sameDiceRules } from './diceRules';
 
 /** Measurement of a collection that never set any: 5-foot squares, every diagonal counts 1. */
 export const DEFAULT_GRID_DEFAULTS: Readonly<CollectionGridDefaults> = {
@@ -22,15 +23,16 @@ export const DEFAULT_GRID_DEFAULTS: Readonly<CollectionGridDefaults> = {
 };
 
 /** What a game system sets in a collection's settings. */
-export type SystemSettings = Required<Pick<CollectionSettings, 'gridDefaults' | 'conditions' | 'defaultWidgets'>>
+export type SystemSettings = Required<Pick<CollectionSettings, 'gridDefaults' | 'conditions' | 'defaultWidgets' | 'dice'>>
   & Pick<CollectionSettings, 'systemPresetId'>;
 
-/** A collection without a game system: default measurement, no conditions, no default widgets. */
+/** A collection without a game system: default measurement and dice, no conditions, no default widgets. */
 export function vanillaSystemSettings(): SystemSettings {
   return {
     gridDefaults: structuredClone(DEFAULT_GRID_DEFAULTS),
     conditions: [],
     defaultWidgets: {},
+    dice: { ...DEFAULT_DICE_RULES },
     systemPresetId: undefined,
   };
 }
@@ -40,11 +42,12 @@ export function vanillaSystemSettings(): SystemSettings {
  * conditions with their own ids. Conditions from the previous system never carry
  * over; the ones tokens still have are removed when the collection is saved.
  */
-export function rulesOfPreset(preset: SystemPreset): Required<Pick<SystemRules, 'gridDefaults' | 'conditions' | 'defaultWidgets'>> {
+export function rulesOfPreset(preset: SystemPreset): Required<Pick<SystemRules, 'gridDefaults' | 'conditions' | 'defaultWidgets' | 'dice'>> {
   return {
     gridDefaults: structuredClone(preset.rules.gridDefaults),
     conditions: structuredClone(preset.rules.conditions),
     defaultWidgets: { ...preset.rules.defaultWidgets },
+    dice: { ...(preset.rules.dice ?? DEFAULT_DICE_RULES) },
   };
 }
 
@@ -74,6 +77,7 @@ function enabledWidgets(defaultWidgets: Record<string, boolean> | undefined): st
 /** Whether two rule sets play the same; condition ids do not matter. */
 export function sameSystemRules(a: SystemRules, b: SystemRules): boolean {
   return sameGridDefaults(a.gridDefaults, b.gridDefaults)
+    && sameDiceRules(a.dice, b.dice)
     && enabledWidgets(a.defaultWidgets) === enabledWidgets(b.defaultWidgets)
     && a.conditions.length === b.conditions.length
     && a.conditions.every((condition, i) => sameCondition(condition, b.conditions[i]!));

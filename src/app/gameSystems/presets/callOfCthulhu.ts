@@ -21,6 +21,8 @@ export const CALL_OF_CTHULHU: SystemPreset = {
       diagonalRule: 'euclidean',
       abstractRangeBands: [],
     },
+    // Percentile skill rolls: 01 is a critical success, 100 a fumble.
+    dice: { defaultRoll: '1d100', crit: 'roll-under' },
     conditions: conditionsOf('coc7e', [
       { name: 'Major Wound', color: '#dc2626', icon: 'bleeding-wound' },
       { name: 'Dying', color: '#7f1d1d', icon: 'heartbeat' },

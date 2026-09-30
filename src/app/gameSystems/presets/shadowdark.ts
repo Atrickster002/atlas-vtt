@@ -43,6 +43,7 @@ export const SHADOWDARK: SystemPreset = {
         { name: 'Far', maxSquares: 13 },
       ],
     },
+    dice: { defaultRoll: '1d20', crit: 'natural' },
     conditions: conditionsOf('shadowdark', [
       { name: 'Dying', color: '#991b1b', icon: 'skull', valued: true },
       { name: 'Unconscious', color: '#1e3a8a', icon: 'sleepy' },

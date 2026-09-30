@@ -13,6 +13,7 @@ import { BottomToolbarRow } from './components/BottomToolbarRow';
 import DMDashboard from './components/DMDashboard';
 import { InitiativeTracker } from './components/InitiativeTracker';
 import { DiceRollLog } from './components/dice-log/DiceRollLog';
+import { DiceRollDisplay } from './components/dice/DiceRollDisplay';
 import { LootRoller } from './components/loot/LootRollerPanel';
 import { MapLoadingOverlay } from './components/MapLoadingOverlay';
 import { SceneTabBar } from './components/SceneTabBar';
@@ -206,11 +207,15 @@ export const UIRoot: React.FC<UIRootProps> = ({ app, view, pixiApp }) => {
                 onShowAllTabs={() => setSceneSwitcherOpen(true)}
               />
             )}
-            <ResponsiveWidgetBar
-              isPlayerView={isPlayerView}
-              store={store}
-              viewId={view?.viewId}
-            />
+            {/* Widgets and the DM's dice rolls share the right end; rolls hang below the widgets */}
+            <div className="atlas-top-bar-end">
+              <ResponsiveWidgetBar
+                isPlayerView={isPlayerView}
+                store={store}
+                viewId={view?.viewId}
+              />
+              {!isPlayerView && <DiceRollDisplay />}
+            </div>
           </div>
 
           {/* Bottom row — undo/redo docked left of the main toolbar, view actions (DM only) at the right edge */}

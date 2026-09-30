@@ -25,6 +25,8 @@ export const DAGGERHEART: SystemPreset = {
         { name: 'Very Far', maxSquares: 13 },
       ],
     },
+    // Adversary statblocks roll a d20; player characters' duality dice come with character sheets.
+    dice: { defaultRoll: '1d20', crit: 'natural' },
     conditions: conditionsOf('daggerheart', [
       { name: 'Hidden', color: '#475569', icon: 'hidden' },
       { name: 'Restrained', color: '#0d9488', icon: 'imprisoned' },

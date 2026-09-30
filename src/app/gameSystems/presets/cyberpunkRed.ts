@@ -20,6 +20,7 @@ export const CYBERPUNK_RED: SystemPreset = {
       diagonalRule: 'equidistant',
       abstractRangeBands: [],
     },
+    dice: { defaultRoll: '1d10', crit: 'natural' },
     conditions: conditionsOf('cyberpunkred', [
       { name: 'Seriously Wounded', color: '#dc2626', icon: 'bleeding-wound' },
       { name: 'Mortally Wounded', color: '#7f1d1d', icon: 'heartbeat' },

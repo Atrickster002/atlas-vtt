@@ -13,10 +13,12 @@ import type {
   MeasurementMode,
   RangeBand,
 } from '../types/collectionSettingsTypes';
+import type { DiceRules } from '../types/diceRulesTypes';
 import { BUILT_IN_ID_PREFIX, type SystemPreset } from '../types/systemPresetTypes';
 import { WIDGET_ICON_PATHS, resolveWidgetIcon, type WidgetIcon } from '../types/widgetIcons';
 import type { AnyWidget } from '../types/widgetTypes';
 import { isValidClockSegments } from '../utils/clockWidget';
+import { CRIT_RULES, isValidDefaultRoll } from './diceRules';
 
 const UNIT_TYPES: readonly GridUnitType[] = ['feet', 'yards', 'meters', 'units', 'custom'];
 const MEASUREMENT_MODES: readonly MeasurementMode[] = ['metric', 'abstract'];
@@ -102,6 +104,11 @@ function parseWidget(raw: unknown): AnyWidget | null {
   };
 }
 
+function parseDiceRules(raw: unknown): DiceRules | null {
+  if (!isRecord(raw) || typeof raw.defaultRoll !== 'string' || !isValidDefaultRoll(raw.defaultRoll)) return null;
+  return isOneOf(CRIT_RULES, raw.crit) ? { defaultRoll: raw.defaultRoll.trim(), crit: raw.crit } : null;
+}
+
 /** The keys of `raw` that are `true`; anything else is left out. */
 function parseEnabledFlags(raw: unknown): Record<string, boolean> {
   if (!isRecord(raw)) return {};
@@ -119,6 +126,7 @@ export function parseUserPreset(raw: unknown): SystemPreset | null {
     ? raw.rules.widgets.map(parseWidget).filter((w): w is AnyWidget => w !== null)
     : [];
   const defaultWidgets = parseEnabledFlags(raw.rules.defaultWidgets);
+  const dice = parseDiceRules(raw.rules.dice);
   return {
     id: raw.id,
     name: raw.name.trim(),
@@ -128,6 +136,7 @@ export function parseUserPreset(raw: unknown): SystemPreset | null {
       conditions,
       ...(widgets.length > 0 && { widgets }),
       ...(Object.keys(defaultWidgets).length > 0 && { defaultWidgets }),
+      ...(dice && { dice }),
     },
   };
 }

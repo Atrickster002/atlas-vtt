@@ -1,0 +1,252 @@
+import React, { useCallback, useEffect, useImperativeHandle, useMemo, useRef } from 'react';
+import { useReducedMotion } from 'framer-motion';
+import { dieGeometry, faceIndexForValue, restingQuaternion } from '../../../dice3d/dieGeometry';
+import { beginRoll, makeDie, restImmediately, stepDie } from '../../../dice3d/dieMotion';
+import { STAGE_X } from '../../../dice3d/dieTour';
+import { layoutDice, type DiceScene, type RestingFrame } from '../../../dice3d/diceScene';
+import { loadDiceArtwork } from '../../../dice3d/dieArtwork';
+import type { DiceRenderer, StageDie } from '../../../dice3d/DiceRenderer';
+import { borrowStage, returnStage } from '../../../dice3d/stagePool';
+import { bank, rattle, rollEnd, rollStart } from '../../../dice3d/audio/diceSounds';
+import type { DiceCrit } from '../../../tools/diceCrit';
+import type { ThrowStyle } from '../../../dice3d/diceDisplay';
+
+export interface DiceStageHandle {
+  /**
+   * Cuts the throw short: every die goes straight to its resting pose. Returns
+   * whether anything was still flying; a click on a settled roll means something else.
+   */
+  skip: () => boolean;
+}
+
+interface DiceStageProps {
+  scene: DiceScene;
+  /** Known before landing: the burst has to fire the moment the dice touch down. */
+  crit: DiceCrit;
+  onSettled: () => void;
+  /** Throws without a sound, e.g. in the player window while the DM's window plays it. */
+  muted: boolean;
+  /**
+   * How the throw plays out. A faster one runs the dice's clock faster, so
+   * paths and sounds stay the same in less time; the afterglow keeps real time,
+   * or the sparks would freeze mid-shower.
+   */
+  style: ThrowStyle;
+  /** Set in a shrunk roll: the dice lie still, and the view frames them instead of the whole stage. */
+  frame: RestingFrame | null;
+  /** For screen readers; the canvas itself has no text. */
+  label: string;
+  className?: string;
+  ref?: React.Ref<DiceStageHandle>;
+}
+
+/**
+ * Afterglow in which only the light swells and the sparks burn out before the
+ * loop stops. Longer than the longest spark of the high-crit burst, or it
+ * freezes mid-shower.
+ */
+const AFTERGLOW = 1.45;
+/** Dice leave one after another, as from one hand, not in chorus. */
+const STAGGER = 0.075;
+
+/**
+ * The stage: a canvas and a clock. The clock lives here, the maths in
+ * `dice3d/`, which is why the throw can be tested without drawing a frame.
+ * Without WebGL the canvas stays empty and the maths still runs. The loop stops
+ * once every die rests and the afterglow ran out.
+ */
+export function DiceStage({ scene, crit, onSettled, muted, style, frame, label, className, ref }: DiceStageProps): React.ReactElement {
+  const { speed, maxWallHits } = style;
+  const holderRef = useRef<HTMLDivElement | null>(null);
+  const rendererRef = useRef<DiceRenderer | null>(null);
+  const diceRef = useRef<StageDie[]>([]);
+  const frameRef = useRef<number | null>(null);
+  const lastRef = useRef(0);
+  const settledRef = useRef(false);
+  const reduced = useReducedMotion() === true;
+
+  const settledCb = useRef(onSettled);
+  useEffect(() => {
+    settledCb.current = onSettled;
+  });
+
+  const { offsets, radius } = useMemo(() => layoutDice(scene.plan.length), [scene]);
+
+  // The canvas belongs to the pool, not to this panel: a canvas whose context
+  // was lost never gives a live one again, so contexts are lent and returned.
+  // Declared first because effects run in declaration order.
+  useEffect(() => {
+    const holder = holderRef.current;
+    if (!holder) return;
+    const lease = borrowStage(holder.doc);
+    holder.appendChild(lease.canvas);
+    rendererRef.current = lease.renderer;
+    return (): void => {
+      rendererRef.current = null;
+      returnStage(lease);
+    };
+  }, []);
+
+  useEffect(() => {
+    const stage = rendererRef.current?.stage();
+    diceRef.current = scene.plan.map((die, i) => ({
+      anim: makeDie(Math.random, offsets[i], radius, stage),
+      sides: die.sides,
+    }));
+    rendererRef.current?.setPlan(scene.plan.map((die) => die.sides));
+  }, [scene, offsets, radius]);
+
+  const paint = useCallback((): void => {
+    const renderer = rendererRef.current;
+    if (!renderer) return;
+    const resting = diceRef.current.filter((die) => die.anim.phase === 'rest');
+    const emphasis = resting.length === diceRef.current.length && resting.length > 0
+      ? Math.min(1, Math.min(...resting.map((die) => die.anim.restFor)) / (0.28 * speed))
+      : 0;
+    renderer.render(diceRef.current, emphasis, crit);
+  }, [crit, speed]);
+
+  /** One frame on. Returns whether anything is left to do. */
+  const advance = useCallback((dt: number): boolean => {
+    for (const die of diceRef.current) {
+      const wasResting = die.anim.phase === 'rest';
+      stepDie(die.anim, dt * speed, Math.random);
+      // Two events make a sound, not three: the rim cracks where it was hit
+      // (panned across the stage) and the landing rattles. The floor stays
+      // silent; while the die flies, the wheel owns the air.
+      const hit = die.anim.impact;
+      if (hit && !wasResting && !muted) {
+        if (hit.kind === 'wall') bank(hit.strength, Math.max(-1, Math.min(1, hit.at[0] / STAGE_X)));
+        else if (hit.kind === 'settle') rattle();
+      }
+    }
+
+    const allResting = diceRef.current.every((die) => die.anim.phase === 'rest');
+    if (allResting && !settledRef.current) {
+      settledRef.current = true;
+      if (!muted) rollEnd();
+      settledCb.current();
+    }
+    return !allResting || Math.min(...diceRef.current.map((die) => die.anim.restFor)) < AFTERGLOW * speed;
+  }, [muted, speed]);
+
+  const start = useCallback((): void => {
+    const win = holderRef.current?.win;
+    if (!win || frameRef.current !== null) return;
+    lastRef.current = 0;
+    const tick = (now: number): void => {
+      const previous = lastRef.current;
+      lastRef.current = now;
+      // The first step is zero: between the request and the first frame lies
+      // the whole setup, and the die would jump.
+      const dt = previous === 0 ? 0 : Math.min(0.04, (now - previous) / 1000);
+      const more = advance(dt);
+      paint();
+      frameRef.current = more ? win.requestAnimationFrame(tick) : null;
+    };
+    frameRef.current = win.requestAnimationFrame(tick);
+  }, [advance, paint]);
+
+  useImperativeHandle(ref, () => ({
+    skip: (): boolean => {
+      let flying = false;
+      for (const die of diceRef.current) {
+        if (die.anim.phase === 'rest') continue;
+        restImmediately(die.anim, die.anim.target);
+        flying = true;
+      }
+      if (flying) {
+        paint();
+        // Skipping means landing earlier, not landing silently: the skipped
+        // flight never reports its touchdown, and the wheel must stop now.
+        if (!muted) {
+          rollEnd(true);
+          rattle();
+        }
+      }
+      return flying;
+    },
+  }), [paint, muted]);
+
+  useEffect(() => {
+    const holder = holderRef.current;
+    const canvas = holder?.querySelector('canvas');
+    if (!holder || !canvas) return;
+    const win = holder.win;
+
+    const measure = (): void => {
+      // Layout size, not the bounding box: the panel morphs between sizes with a
+      // scale transform, and a size measured mid-morph would stay squashed.
+      const width = Math.max(1, Math.round(canvas.clientWidth || 240));
+      const height = Math.max(1, Math.round(canvas.clientHeight || 190));
+      rendererRef.current?.setSize(width, height, Math.min(2, win.devicePixelRatio || 1), 0.5, frame?.halfWidth);
+      // The walls move with the canvas. Resting dice take the new size; a die
+      // in flight keeps the stage it was thrown on, or its path would jump.
+      const stage = rendererRef.current?.stage();
+      if (stage) {
+        for (const die of diceRef.current) {
+          if (die.anim.phase === 'rest') die.anim.stage = stage;
+        }
+      }
+      paint();
+    };
+
+    measure();
+    win.addEventListener('resize', measure);
+    // The popout's own observer: an observer from another window never fires there.
+    const Observer = (win as typeof window).ResizeObserver as typeof ResizeObserver | undefined;
+    const observer = Observer ? new Observer(measure) : null;
+    observer?.observe(canvas);
+    return (): void => {
+      win.removeEventListener('resize', measure);
+      observer?.disconnect();
+    };
+  }, [paint, frame]);
+
+  // The numerals and card stock are images; until they load the die is blank
+  // card, so the faces are redrawn once they arrive.
+  useEffect(() => {
+    let alive = true;
+    void loadDiceArtwork().then(() => {
+      if (!alive) return;
+      rendererRef.current?.refreshArtwork();
+      if (frameRef.current === null) paint();
+    });
+    return (): void => {
+      alive = false;
+    };
+  }, [paint]);
+
+  useEffect(() => {
+    diceRef.current.forEach((die, i) => {
+      const geometry = dieGeometry(die.sides);
+      const target = restingQuaternion(geometry, faceIndexForValue(geometry, scene.faces[i] ?? 1));
+      if (reduced) restImmediately(die.anim, target);
+      else beginRoll(die.anim, target, i * STAGGER, Math.random, maxWallHits);
+    });
+    settledRef.current = false;
+
+    if (reduced) {
+      paint();
+      settledRef.current = true;
+      // Reduced motion is not a silent roll: the die lies there, and what lies
+      // there rattled first.
+      if (!muted) rattle();
+      settledCb.current();
+      return;
+    }
+    // The wheel gets the real duration of this throw: the latest die decides.
+    if (!muted) rollStart(Math.max(...diceRef.current.map((die) => die.anim.delay + die.anim.tour.duration)) / speed);
+    start();
+  }, [scene, reduced, muted, speed, maxWallHits, start, paint]);
+
+  useEffect(() => (): void => {
+    const win = holderRef.current?.win;
+    if (frameRef.current !== null) win?.cancelAnimationFrame(frameRef.current);
+    frameRef.current = null;
+    // A panel closing mid-throw silences the wheel at once.
+    if (!muted) rollEnd(true);
+  }, [muted]);
+
+  return <div ref={holderRef} role="img" aria-label={label} className={className} />;
+}

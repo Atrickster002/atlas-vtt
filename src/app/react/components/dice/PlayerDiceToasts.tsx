@@ -4,7 +4,7 @@ import type { StoreApi } from 'zustand';
 import { AtlasUIContext, type AtlasUIContextValue } from '../../root/AtlasUIContext';
 import type { ViewAtlasState } from '../../../storeFactory';
 import type { DiceRollResult } from '../../../tools/DiceTool';
-import { DiceToastContainer } from './DiceToastContainer';
+import { DiceRollDisplay } from './DiceRollDisplay';
 
 interface PlayerDiceToastsProps {
   app: App;
@@ -31,7 +31,8 @@ export function PlayerDiceToasts({ app, store, container }: PlayerDiceToastsProp
 
   return (
     <AtlasUIContext.Provider value={context}>
-      <DiceToastContainer container={container} prepare={forPlayers} />
+      {/* The DM's window plays the sound; a second one here would echo it. */}
+      <DiceRollDisplay container={container} prepare={forPlayers} muted />
     </AtlasUIContext.Provider>
   );
 }

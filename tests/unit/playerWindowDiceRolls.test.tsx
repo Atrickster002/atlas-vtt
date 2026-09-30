@@ -15,6 +15,8 @@ function setup(): { settings: SettingsService; store: StoreApi<ViewAtlasState>; 
   vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null);
   const { app } = createInMemoryApp();
   const settings = new SettingsService(app);
+  // The result cards; the 3D panel has its own case below.
+  settings.setDiceDisplay('card');
   const store = createStore(() => ({
     objects: { tokens: { goblin: { id: 'goblin', kind: 'token', x: 0, y: 0, imagePath: '', isHidden: true } } },
   })) as unknown as StoreApi<ViewAtlasState>;
@@ -59,5 +61,19 @@ describe('player window dice rolls', () => {
     store.setState({ objects: { tokens: { goblin: { ...store.getState().objects.tokens.goblin!, isHidden: false } } } } as Partial<ViewAtlasState>);
     roll(source);
     expect(doc.body.textContent).toContain('Goblin Boss');
+  });
+
+  it('throws 3D dice without naming a hidden token', () => {
+    const { settings, doc } = setup();
+    act(() => {
+      settings.setDiceDisplay('full');
+      settings.setLocalPlayerViewSettings({ showDiceRolls: true });
+    });
+
+    roll({ type: 'statblock', tokenId: 'goblin', tokenName: 'Goblin Boss', abilityName: 'Scimitar' });
+    const panel = doc.querySelector('.atlas-dice-roll');
+    expect(panel?.textContent).toContain('Scimitar');
+    expect(panel?.textContent).not.toContain('Goblin Boss');
+    expect(doc.querySelector('.atlas-dice-toast')).toBeNull();
   });
 });

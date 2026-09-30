@@ -43,12 +43,12 @@ describe('toRollFormula', () => {
     expect(toRollFormula('2d8 + 3')).toBe('2d8+3');
   });
 
-  it('rolls bare modifiers against a d20', () => {
-    expect(toRollFormula('+4')).toBe('1d20+4');
+  it('leaves bare modifiers for the dice tool to add to the default roll', () => {
+    expect(toRollFormula('+4')).toBe('+4');
   });
 
   it('strips an ATK label before rolling the bonus', () => {
-    expect(toRollFormula('ATK: +4')).toBe('1d20+4');
+    expect(toRollFormula('ATK: +4')).toBe('+4');
   });
 });
 

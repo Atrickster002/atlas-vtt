@@ -33,10 +33,8 @@ export function DiceRollEntry({ result, isNew, onRepeat }: DiceRollEntryProps): 
     return () => window.clearInterval(interval);
   }, [result.timestamp]);
 
-  const isCritSuccess =
-    result.rolls.some(r => r.die === 'd20' && r.value === 20);
-  const isCritFail =
-    result.rolls.some(r => r.die === 'd20' && r.value === 1) && result.total === 1;
+  const isCritSuccess = result.crit === 'high';
+  const isCritFail = result.crit === 'low';
 
   const source = result.source;
   const sourceTokenName = source?.tokenName ?? 'Unknown';

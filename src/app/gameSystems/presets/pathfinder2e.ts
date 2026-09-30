@@ -20,6 +20,7 @@ export const PATHFINDER_2E: SystemPreset = {
       diagonalRule: 'alternating',
       abstractRangeBands: [],
     },
+    dice: { defaultRoll: '1d20', crit: 'natural' },
     conditions: conditionsOf('pathfinder2e', [
       { name: 'Blinded', color: '#475569', icon: 'blindfold' },
       { name: 'Clumsy', color: '#ca8a04', icon: 'falling', valued: true },

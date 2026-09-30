@@ -14,6 +14,7 @@ export const DND_5E: SystemPreset = {
       diagonalRule: 'equidistant',
       abstractRangeBands: [],
     },
+    dice: { defaultRoll: '1d20', crit: 'natural' },
     conditions: conditionsOf('dnd5e', [
       { name: 'Blinded', color: '#475569', icon: 'blindfold' },
       { name: 'Charmed', color: '#db2777', icon: 'heart' },

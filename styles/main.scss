@@ -21,6 +21,16 @@
   initial-value: transparent;
 }
 
+// The display face of the 3D dice panel's numbers (dice-roll.scss). At-rules
+// stay at the root, like @property above.
+@font-face {
+  font-family: 'Atlas Fantaisie Artistique';
+  src: url('../src/app/assets/fonts/fantaisie-artistique.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
 // Root namespace for all Atlas VTT styles
 .atlas-vtt-plugin {
   // Export design tokens as CSS custom properties
@@ -62,6 +72,7 @@
   @import '../src/app/packages/components/primitives/close-button.scss';
   @import '../src/app/react/components/dice/dice-dropdown.scss';
   @import '../src/app/react/components/dice/dice-toast.scss';
+  @import '../src/app/react/components/dice3d/dice-roll.scss';
   @import '../src/app/react/components/character-select-mode.scss';
   @import '../src/app/packages/token.scss';
     @import '../src/app/react/components/view-actions-menu.scss';
@@ -137,12 +148,19 @@
     z-index: 100;
     pointer-events: none;
 
-    // The row positions the widget bar here; its fixed placement in
-    // widget-bar.scss is for the player window.
-    > .atlas-widget-bar {
-      position: static;
+    // The right end holds the widget bar and, below it, the DM's dice rolls
+    // (dice-roll.scss). Without widgets it is empty and the rolls start at the
+    // top, as far from the top edge as from the right.
+    > .atlas-top-bar-end {
+      position: relative;
       flex: none;
       margin-left: auto;
+
+      // The row positions the widget bar here; its fixed placement in
+      // widget-bar.scss is for the player window.
+      > .atlas-widget-bar {
+        position: static;
+      }
     }
   }
 
@@ -285,8 +303,9 @@
     }
   }
 
-  /* Make all buttons in toolbar transparent by default */
-  .atlas-vtt-toolbar button.btn,
+  /* Make all buttons in toolbar transparent by default; the dice tray that hangs
+     from the toolbar keeps its own Roll and Clear buttons. */
+  .atlas-vtt-toolbar button.btn:not(.atlas-dice-tray *),
   .atlas-vtt-toolbar button.btn--toolbar {
     background: transparent !important;
     border: none !important;
@@ -302,7 +321,7 @@
   }
 
   // Pointer focus stays quiet; keyboard focus gets the shared ring
-  .atlas-vtt-toolbar button.btn:focus,
+  .atlas-vtt-toolbar button.btn:focus:not(.atlas-dice-tray *),
   .atlas-vtt-toolbar button.btn--toolbar:focus {
     outline: none !important;
     box-shadow: none !important;
@@ -314,7 +333,7 @@
     outline-offset: -2px;
   }
 
-  .atlas-vtt-toolbar button.btn:hover,
+  .atlas-vtt-toolbar button.btn:hover:not(.atlas-dice-tray *),
   .atlas-vtt-toolbar button.btn--toolbar:hover {
     background: var(--background-modifier-hover) !important;
     color: var(--text-normal) !important;

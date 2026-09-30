@@ -41,6 +41,8 @@ $font-ui-smaller: var(--font-ui-smaller); // 12px – captions, counts, shortcut
 $font-ui-small:   var(--font-ui-small);   // 13px – labels, body UI text
 $font-ui-medium:  var(--font-ui-medium);  // 15px – section titles
 $font-ui-large:   var(--font-ui-large);   // 20px – modal titles
+// The dice numerals' display face (FantaisieArtistique, @font-face in main.scss).
+$font-dice-display: 'Atlas Fantaisie Artistique', 'Palatino Linotype', Palatino, Georgia, serif;
 $font-weight-normal:   var(--font-normal);
 $font-weight-medium:   var(--font-medium);
 $font-weight-semibold: var(--font-semibold);

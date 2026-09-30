@@ -58,7 +58,7 @@ export class ServiceManager {
     this.mapService = new MapService(app, this.eventBus, store);
     // Initialize SoundEffectService before ToolController
     this.soundEffectService = new SoundEffectService();
-    this.diceToastObserver = new DiceToastObserver(this.soundEffectService);
+    this.diceToastObserver = new DiceToastObserver(this.soundEffectService, this.settingsService);
 
     this.toolController = new ToolController(this.eventBus, app, store);
 

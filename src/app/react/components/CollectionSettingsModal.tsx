@@ -2,7 +2,7 @@
  * CollectionSettingsModal
  *
  * Vertical-tabbed modal for configuring per-collection settings:
- *   Game System | Grid & Measurement | Default Widgets | Conditions | Loot | Vision
+ *   Game System | Dice | Grid & Measurement | Default Widgets | Conditions | Loot | Vision
  *
  * Opens after collection creation and via a gear button in the sidebar.
  */
@@ -10,7 +10,7 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { motion } from 'framer-motion';
-import { Dices, Grid3X3, LayoutGrid, ListFilter, ShieldAlert, Eye } from 'lucide-react';
+import { Dice5, Dices, Grid3X3, LayoutGrid, ListFilter, ShieldAlert, Eye } from 'lucide-react';
 import { CoinIcon } from './CoinIcon';
 import { Button } from '../../packages/components/primitives/button';
 import { useAtlasUI } from '../root/AtlasUIContext';
@@ -28,6 +28,8 @@ import { ConditionsTab } from './collection-settings/ConditionsTab';
 import { VisionTab } from './collection-settings/VisionTab';
 import { LootTab } from './collection-settings/LootTab';
 import { SystemTab } from './collection-settings/SystemTab';
+import { DiceTab } from './collection-settings/DiceTab';
+import { collectionDiceRules, isValidDefaultRoll } from '../../gameSystems/diceRules';
 import { CreatureFiltersTab } from './collection-settings/CreatureFiltersTab';
 import { useCollectionCreatures } from './collection-settings/useCollectionCreatures';
 import { isCompleteCreatureFilter } from '../../creatures/creatureFilterDefinitions';
@@ -47,7 +49,7 @@ interface CollectionSettingsModalProps {
   initialTab?: CollectionSettingsTab;
 }
 
-export type CollectionSettingsTab = 'system' | 'grid' | 'widgets' | 'conditions' | 'creatureFilters' | 'loot' | 'vision';
+export type CollectionSettingsTab = 'system' | 'dice' | 'grid' | 'widgets' | 'conditions' | 'creatureFilters' | 'loot' | 'vision';
 
 interface TabDef {
   id: CollectionSettingsTab;
@@ -57,6 +59,7 @@ interface TabDef {
 
 const TABS: TabDef[] = [
   { id: 'system', label: 'Game System', icon: <Dices size={16} /> },
+  { id: 'dice', label: 'Dice', icon: <Dice5 size={16} /> },
   { id: 'grid', label: 'Grid & Measure', icon: <Grid3X3 size={16} /> },
   { id: 'widgets', label: 'Default Widgets', icon: <LayoutGrid size={16} /> },
   { id: 'conditions', label: 'Conditions', icon: <ShieldAlert size={16} /> },
@@ -114,7 +117,10 @@ export function CollectionSettingsModal({
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onClose]);
 
-  const canSave = areRangeBandsValid(gridDefaults.abstractRangeBands) && draft.customCreatureFilters.every(isCompleteCreatureFilter);
+  const dice = collectionDiceRules(draft, systemPresets.presets);
+  const canSave = areRangeBandsValid(gridDefaults.abstractRangeBands)
+    && isValidDefaultRoll(dice.defaultRoll)
+    && draft.customCreatureFilters.every(isCompleteCreatureFilter);
 
   const handleSave = async (): Promise<void> => {
     if (!app || !assetService || !canSave) return;
@@ -188,12 +194,15 @@ export function CollectionSettingsModal({
               <SystemTab
                 service={systemPresets.service}
                 presets={systemPresets.presets}
-                rules={{ gridDefaults, conditions, defaultWidgets: draft.defaultWidgets }}
+                rules={{ gridDefaults, conditions, defaultWidgets: draft.defaultWidgets, dice }}
                 presetId={draft.systemPresetId}
                 onApplyPreset={draft.applyPreset}
                 onPresetIdChange={draft.setSystemPresetId}
                 onDeletePreset={handleDeletePreset}
               />
+            )}
+            {activeTab === 'dice' && (
+              <DiceTab dice={dice} onChange={draft.setDice} />
             )}
             {activeTab === 'grid' && (
               <GridMeasurementTab

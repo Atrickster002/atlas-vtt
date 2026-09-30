@@ -6,6 +6,7 @@
  */
 
 import type { CreatureFilterDefinition } from './creatureFilterTypes';
+import type { DiceRules } from './diceRulesTypes';
 import type { VisionSettings } from './wallTypes';
 import type { AnyWidget } from './widgetTypes';
 import type { WidgetIcon } from './widgetIcons';
@@ -54,6 +55,8 @@ export interface CollectionSettings {
   vision?: VisionSettings;
   /** The game system preset the rules were last taken from or saved to; they may have been edited since. */
   systemPresetId?: string | undefined;
+  /** Default roll and critical rule. Read with `collectionDiceRules`. */
+  dice?: DiceRules;
   /** Filters on statblock fields Atlas does not filter by on its own. Read with `collectionCreatureFilters`. */
   customCreatureFilters?: CreatureFilterDefinition[];
   /** Ids of Atlas' own creature filters (`CATALOG_CREATURE_FILTERS`) switched off for the collection. */

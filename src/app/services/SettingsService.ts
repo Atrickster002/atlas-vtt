@@ -7,6 +7,7 @@ import {
   resolveLaserPointerSettings,
   type LaserPointerSettings,
 } from '../tools/laserPointerSettings';
+import { isDiceDisplay, type DiceDisplay } from '../dice3d/diceDisplay';
 
 /**
  * How wheel events drive the map viewport.
@@ -33,6 +34,8 @@ export interface AtlasSettings {
   starterTokensAdded: boolean;
   navigation: NavigationSettings;
   laserPointer: LaserPointerSettings;
+  /** How rolls show: a result card, or 3D dice at double or normal speed. Read with `getDiceDisplay`. */
+  diceDisplay: DiceDisplay;
   /** Game system presets the user saved, as stored; `SystemPresetService` validates them. */
   systemPresets: unknown[];
   localPlayerView: {
@@ -61,6 +64,7 @@ const DEFAULT_SETTINGS: AtlasSettings = {
     inputMode: Platform.isMacOS ? 'trackpad' : 'mouse',
   },
   laserPointer: DEFAULT_LASER_POINTER_SETTINGS,
+  diceDisplay: 'full',
   systemPresets: [],
   localPlayerView: {
     // UI element visibility defaults
@@ -298,6 +302,17 @@ export class SettingsService {
 
   setLaserPointerSettings(settings: Partial<LaserPointerSettings>): void {
     this.settings.laserPointer = resolveLaserPointerSettings({ ...this.settings.laserPointer, ...settings });
+    this.commit();
+  }
+
+  /** The stored choice, or normal dice when the file holds something else. */
+  getDiceDisplay(): DiceDisplay {
+    return isDiceDisplay(this.settings.diceDisplay) ? this.settings.diceDisplay : 'full';
+  }
+
+  setDiceDisplay(display: DiceDisplay): void {
+    if (this.settings.diceDisplay === display) return;
+    this.settings.diceDisplay = display;
     this.commit();
   }
 

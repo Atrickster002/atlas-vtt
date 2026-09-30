@@ -24,9 +24,6 @@ import { ATLAS_VIEW_TYPE } from '../atlas-view';
 const DICE_PATTERN =
   /((?<![a-z])\d*d\d+(?:\s*[+-]\s*\d+)*|(?:ATK|Attack)\s*:\s*[+-]\d+|(?<!\w)[+-]\d+(?!\s*d\d))/gi;
 
-/** Bare modifiers are rolled against a d20 unless the text names its own dice. */
-const MODIFIER_BASE_DICE = '1d20';
-
 const LINK_CLASS = 'atlas-dice-link';
 
 /** Set by the statblock renderer on the line that holds a creature's hit points. */
@@ -83,10 +80,12 @@ export function rollStatblockDice(app: App, formula: string, source: DiceRollSou
   return diceTool.rollDice(formula, rollSource);
 }
 
-/** Turns matched display text into a formula the dice tool understands. */
+/**
+ * Turns matched display text into a formula the dice tool understands. A bare
+ * bonus stays bare: the dice tool adds it to the collection's default roll.
+ */
 export function toRollFormula(text: string): string {
-  const normalized = text.replace(/\s+/g, '').replace(/^(?:ATK|Attack):/i, '');
-  return /d\d/i.test(normalized) ? normalized : `${MODIFIER_BASE_DICE}${normalized}`;
+  return text.replace(/\s+/g, '').replace(/^(?:ATK|Attack):/i, '');
 }
 
 /** Nearest heading-ish label above the roll, used to title the dice toast. */

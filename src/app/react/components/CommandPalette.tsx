@@ -43,6 +43,7 @@ import { GridSettingsPanel } from './command-palette/GridSettingsPanel';
 import { TokenSettingsPanel } from './command-palette/TokenSettingsPanel';
 import { WidgetSettingsPanel } from './command-palette/WidgetSettingsPanel';
 import { LocalPlayerViewSettingsPanel } from './command-palette/LocalPlayerViewSettingsPanel';
+import { DiceSettingsPanel } from './command-palette/DiceSettingsPanel';
 import { SceneSnapshotsPanel } from './command-palette/SceneSnapshotsPanel';
 import { placePalette, type PalettePosition } from './command-palette/palettePlacement';
 import { isSettingsPanelId, type CommandOption, type SettingsPanelId } from './command-palette/types';
@@ -75,6 +76,7 @@ const SETTINGS_PANEL_META: Record<SettingsPanelId, { title: string; icon: React.
   'token-settings': { title: 'Token Settings', icon: <Users /> },
   'widget-settings': { title: 'Widget Settings', icon: <Palette /> },
   'local-player-view-settings': { title: 'Local Player View Settings', icon: <MonitorUp /> },
+  'dice-settings': { title: 'Dice Settings', icon: <Dices /> },
 };
 
 export function CommandPalette({ isOpen, onClose, toolbarRef }: CommandPaletteProps): React.ReactElement | null {
@@ -365,6 +367,23 @@ export function CommandPalette({ isOpen, onClose, toolbarRef }: CommandPalettePr
           icon: null,
           label: "Player dashboard configuration",
           section: "local-player-view",
+          hasSubmenu: false,
+        },
+      ],
+    },
+    {
+      id: "dice-settings",
+      icon: <Dices />,
+      label: "Dice settings",
+      keywords: ["roll", "3d", "speed", "fast", "result card", "toast"],
+      section: "settings",
+      hasSubmenu: true,
+      submenu: [
+        {
+          id: "dice-all-settings",
+          icon: null,
+          label: "Roll display",
+          section: "dice",
           hasSubmenu: false,
         },
       ],
@@ -775,6 +794,8 @@ export function CommandPalette({ isOpen, onClose, toolbarRef }: CommandPalettePr
         );
       case 'local-player-view-settings':
         return <LocalPlayerViewSettingsPanel />;
+      case 'dice-settings':
+        return <DiceSettingsPanel />;
     }
   };
 
