@@ -20,10 +20,15 @@ interface StatblockLinkModalProps {
   app: App;
 }
 
-const EMPTY_MESSAGES: Record<BestiaryStatus, string> = {
+const EMPTY_MESSAGES: Record<BestiaryStatus, React.ReactNode> = {
   missing: 'Install and enable the Fantasy Statblocks plugin to link statblocks.',
   loading: 'Loading statblocks…',
-  ready: 'No statblock notes found. Add a statblock code block to a note (`monster: Goblin` is enough for a bestiary creature), or enable "Parse Frontmatter for Creatures" in the Fantasy Statblocks settings.',
+  ready: (
+    <>
+      No statblock notes found. Add a statblock code block to a note (<code>monster: Goblin</code> is enough for a
+      bestiary creature), or enable &quot;Parse Frontmatter for Creatures&quot; in the Fantasy Statblocks settings.
+    </>
+  ),
 };
 
 /**

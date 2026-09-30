@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { App } from 'obsidian';
+import { BESTIARY_SETTLE_MS } from '../../../../creatures/CreatureIndex';
 import { bestiaryLookup, unparsedStatblockNotes } from '../../../../creatures/linkedCreature';
 import type { FantasyStatblocksCreature } from '../../../../services/FantasyStatblocksService';
 import { useBestiaryRevision } from '../../../../react/hooks/useBestiaryRevision';
@@ -15,10 +16,11 @@ export interface StatblockEntries {
 /**
  * The linkable creatures: Fantasy Statblocks' note-backed bestiary entries at
  * once, and the statblock notes it never parsed (```statblock fences) once the
- * vault is read. Both are kept current while the bestiary (re)parses.
+ * vault is read. Both are kept current while the bestiary (re)parses; the vault
+ * is read again once its updates settle, and a superseded read stops.
  */
 export function useStatblockEntries(app: App): StatblockEntries {
-  const revision = useBestiaryRevision(app);
+  const revision = useBestiaryRevision(app, BESTIARY_SETTLE_MS);
   // `revision` is not read here; it re-reads the bestiary whenever it changes.
   const bestiary = useMemo(() => bestiaryLookup(), [revision]);
   // The previous read stays listed while the vault is read again.
@@ -26,14 +28,14 @@ export function useStatblockEntries(app: App): StatblockEntries {
 
   useEffect(() => {
     if (!bestiary.api) return;
-    let cancelled = false;
-    void unparsedStatblockNotes(app, bestiary)
-      .then((creatures) => { if (!cancelled) setNotes(creatures); })
+    const controller = new AbortController();
+    void unparsedStatblockNotes(app, bestiary, controller.signal)
+      .then((creatures) => { if (!controller.signal.aborted) setNotes(creatures); })
       .catch((error: unknown) => {
         console.error('[StatblockLink] Could not read the statblock notes:', error);
-        if (!cancelled) setNotes([]);
+        if (!controller.signal.aborted) setNotes([]);
       });
-    return () => { cancelled = true; };
+    return () => controller.abort();
   }, [app, bestiary]);
 
   return useMemo((): StatblockEntries => {
