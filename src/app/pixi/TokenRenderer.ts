@@ -107,6 +107,7 @@ export class TokenRenderer {
   private pinClickHandler?: (pinId: string, e: FederatedPointerEvent) => void;
   private pinHoverHandler?: (type: 'over' | 'out', pinId: string, e?: FederatedPointerEvent) => void;
   private hexLinkHandlers?: HexLinkPointerHandlers;
+  private doorClickHandler?: (worldX: number, worldY: number) => boolean;
   private lastHoveredPinId: string | null = null;
 
   // Wall provider pattern — wired by PixiRendererOrchestrator
@@ -1366,11 +1367,11 @@ export class TokenRenderer {
     }
   }
 
-  /** Player overlays prepared for the next mirrored frame. */
-  public getPlayerViewLayers(settings: AtlasSettings['localPlayerView']): LayerVisibility[] {
+  /** Player overlays prepared for the next mirrored frame; `isSeen` hides tokens out of the players' sight. */
+  public getPlayerViewLayers(settings: AtlasSettings['localPlayerView'], isSeen?: (tokenId: string) => boolean): LayerVisibility[] {
     return [
-      ...hiddenTokenLayers(this.store.getState().objects.tokens, this.tokenSprites),
-      ...this.uiManager.getPlayerViewLayers(settings),
+      ...hiddenTokenLayers(this.store.getState().objects.tokens, this.tokenSprites, isSeen),
+      ...this.uiManager.getPlayerViewLayers(settings, isSeen),
       ...this.dragRuler.getPlayerViewLayers(),
     ];
   }
@@ -1423,6 +1424,11 @@ export class TokenRenderer {
   /** Notes linked to hexes: they react to the select and move tools, below tokens and drawings. */
   public setHexLinkHandlers(handlers: HexLinkPointerHandlers): void {
     this.hexLinkHandlers = handlers;
+  }
+
+  /** Door badges: the GM opens and closes doors with a click from any tool but the wall tool, which edits them. */
+  public setDoorClickHandler(handler: (worldX: number, worldY: number) => boolean): void {
+    this.doorClickHandler = handler;
   }
 
   public setWallPointerDownHandler(fn: (worldX: number, worldY: number, e: FederatedPointerEvent) => boolean): void {
@@ -1619,6 +1625,12 @@ export class TokenRenderer {
         this.pinClickHandler(pinId, e);
         return;
       }
+    }
+
+    // ── Door badges: open and close doors from any tool ────────────────
+    if (e.button === 0 && activeTool !== 'wall' && this.doorClickHandler?.(worldPos.x, worldPos.y)) {
+      markHandled(e);
+      return;
     }
 
     // ── Wall tool: drawing, vertex drag, selection ─────────────────────

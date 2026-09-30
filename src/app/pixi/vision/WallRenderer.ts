@@ -4,8 +4,8 @@ import { Graphics, Container } from 'pixi.js';
 import type { Viewport } from 'pixi-viewport';
 import type { StoreApi } from 'zustand';
 import type { ViewAtlasState } from '../../storeFactory';
-import type { WallSegment, LightSource } from '../../types/wallTypes';
-import { WALLS_AND_LIGHTING_ENABLED } from '../../featureFlags';
+import type { WallSegment } from '../../types/wallTypes';
+import type { LightSource } from '../../types/lightingTypes';
 import { cssColorToHexNumber } from '../utils/colorUtils';
 import { destroyTree } from '../utils/destroyTree';
 
@@ -27,6 +27,7 @@ export class WallRenderer {
   private store: StoreApi<ViewAtlasState>;
   private selectedWallIds: Set<string> = new Set();
   private selectedLightIds: Set<string> = new Set();
+  private accentColor = 0x7f6df2;
   private _unsubscribe?: () => void;
 
   /** Live preview state: anchor point + current cursor position */
@@ -63,13 +64,9 @@ export class WallRenderer {
 
     viewport.addChild(this.container);
 
-    // Subscribe to relevant state changes
-    this._unsubscribe = store.subscribe((state) => {
-      const isWallTool = WALLS_AND_LIGHTING_ENABLED && state.activeTool === 'wall';
-      this.container.visible = isWallTool;
-      if (isWallTool) {
-        this.redraw(state);
-      }
+    // Redraw while shown; whoever shows it (the wall tool) owns `visible`.
+    this._unsubscribe = store.subscribe((state, previous) => {
+      if (this.container.visible && state.objects !== previous.objects) this.redraw(state);
     });
   }
 
@@ -206,15 +203,14 @@ export class WallRenderer {
     g.lineTo(endX, endY);
     g.stroke({ width: 4, color, alpha: 0.8 });
 
-    // Door icon preview at midpoint — small rounded rect with handle
-    const angle = Math.atan2(dy, dx);
-    g.setTransform(midX, midY, 1, 1, angle + Math.PI / 2);
-    g.roundRect(-8, -10, 16, 20, 2);
+    // Door leaf preview at the midpoint, turned across the wall. Graphics.setTransform does not
+    // move drawing commands in PIXI 8, so the corners are rotated by hand.
+    const along = { x: dx / (len || 1), y: dy / (len || 1) };
+    const across = { x: -along.y, y: along.x };
+    const corner = (u: number, v: number): number[] => [midX + along.x * u + across.x * v, midY + along.y * u + across.y * v];
+    g.poly([...corner(-10, -8), ...corner(10, -8), ...corner(10, 8), ...corner(-10, 8)]);
     g.fill({ color, alpha: 0.6 });
     g.stroke({ width: 1.5, color: 0xffffff, alpha: 0.8 });
-    g.circle(4, 1, 2);
-    g.fill({ color: 0xffd54f, alpha: 0.9 });
-    g.setTransform(0, 0, 1, 1, 0);
 
     // Endpoint markers
     g.circle(startX, startY, 3);
@@ -248,6 +244,9 @@ export class WallRenderer {
   }
 
   private redraw(state: ViewAtlasState): void {
+    this.accentColor = cssColorToHexNumber(
+      getComputedStyle(activeDocument.body).getPropertyValue('--interactive-accent').trim() || '#7f6df2'
+    );
     this.wallGraphics.clear();
     this.handleGraphics.clear();
     this.lightGraphics.clear();
@@ -266,9 +265,7 @@ export class WallRenderer {
 
   private drawWall(wall: WallSegment): void {
     const isSelected = this.selectedWallIds.has(wall.id);
-    const accentColor = cssColorToHexNumber(
-      getComputedStyle(document.body).getPropertyValue('--interactive-accent').trim() || '#7f6df2'
-    );
+    const accentColor = this.accentColor;
     const baseColor = this.getWallColor(wall);
     const color = isSelected ? accentColor : baseColor;
 
@@ -283,7 +280,7 @@ export class WallRenderer {
         break;
 
       case 'door': {
-        // Line only — door icon is rendered by VisionRenderer (always visible)
+        // Line only — door icons are drawn by the lighting layer
         g.moveTo(wall.p1.x, wall.p1.y);
         g.lineTo(wall.p2.x, wall.p2.y);
         g.stroke({ width: isOpen ? 1.5 : 2.5, color: isOpen ? 0x44dd44 : color, alpha: isOpen ? 0.5 : 1 });
@@ -291,7 +288,7 @@ export class WallRenderer {
       }
 
       case 'secret-door': {
-        // Dashed line only — door icon is rendered by VisionRenderer (GM only)
+        // Dashed line only — door icons are drawn by the lighting layer
         const dashColor = isOpen ? 0x44dd44 : color;
         this.drawDashedLine(g, wall.p1.x, wall.p1.y, wall.p2.x, wall.p2.y,
           dashColor, isOpen ? 1.5 : 2.5, 8, 5);
@@ -339,15 +336,6 @@ export class WallRenderer {
     // Inner dot for visual weight
     g.circle(light.x, light.y, 4);
     g.fill({ color: 0xffffff, alpha: 0.6 });
-
-    // Radius preview circles (inner + outer)
-    g.circle(light.x, light.y, light.innerRadius);
-    g.stroke({ width: 1, color: 0xffaa00, alpha: 0.25 });
-
-    if (light.outerRadius && light.outerRadius > light.innerRadius) {
-      g.circle(light.x, light.y, light.outerRadius);
-      g.stroke({ width: 1, color: 0xffaa00, alpha: 0.12 });
-    }
   }
 
   private getWallColor(wall: WallSegment): number {
