@@ -11,3 +11,4 @@
 ## Fixed
 
 - Collections can be deleted again when some of their files were already removed outside Obsidian, for example by git
+- You can create a scene from the asset manager's Create menu (+) and by right-clicking a map. Before, a scene could only be made by double-clicking a map, which nothing pointed to

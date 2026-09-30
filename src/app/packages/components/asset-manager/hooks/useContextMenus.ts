@@ -46,6 +46,7 @@ export function useContextMenus({
       assetService: data.assetService, onClose,
       setEditingToken: crud.setEditingToken, setIsTokenCreatorOpen: crud.setIsTokenCreatorOpen,
       setIsMoveModalOpen: crud.setIsMoveModalOpen,
+      openCreateScene: crud.openCreateSceneModalFromMap,
       setInputModalState: crud.setInputModalState,
       setAssets: data.setAssets, setSelectedAssetIds: sel.setSelectedAssetIds,
       loadAssetsForActiveTab: data.loadAssetsForActiveTab,
