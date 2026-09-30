@@ -14,6 +14,8 @@ import {
   filterStatblockEntries,
   statblockEntries,
 } from '../../src/app/packages/components/asset-manager/statblock-link/statblockEntries';
+import { BESTIARY_SETTLE_MS } from '../../src/app/creatures/CreatureIndex';
+import { unparsedStatblockNotes } from '../../src/app/creatures/linkedCreature';
 
 type Handler = () => void;
 
@@ -160,7 +162,7 @@ describe('StatblockLinkModal', () => {
     expect(search().disabled).toBe(true);
   });
 
-  it('shows the creatures once the bestiary resolves', () => {
+  it('shows the creatures once the bestiary resolves', async () => {
     installBestiary([], false);
     const { app, trigger } = fakeApp();
     render(<StatblockLinkModal isOpen onClose={vi.fn()} asset={{ name: 'Token' }} onLink={vi.fn()} app={app} />);
@@ -168,7 +170,7 @@ describe('StatblockLinkModal', () => {
 
     installBestiary(CREATURES);
     act(() => trigger('fantasy-statblocks:bestiary:resolved'));
-    expect(optionNames()).toHaveLength(4);
+    expect(await screen.findAllByRole('option')).toHaveLength(4);
   });
 });
 
@@ -208,5 +210,62 @@ describe('StatblockLinkModal with statblock notes outside the bestiary', () => {
     expect(await screen.findByText('Vecna')).toBeTruthy();
     expect(optionNames()).toEqual(['Aboleth', 'Lich', 'Octopus', 'Vecna']);
     expect(screen.getByText('Large Undead · CR 5')).toBeTruthy();
+  });
+});
+
+describe('StatblockLinkModal while the bestiary parses', () => {
+  afterEach(() => { vi.useRealTimers(); });
+
+  it('reads the vault again only once a burst of bestiary updates settles', async () => {
+    vi.useFakeTimers();
+    installBestiary(CREATURES);
+    const handlers = new Map<string, Handler[]>();
+    const getMarkdownFiles = vi.fn(() => []);
+    const app = {
+      workspace: {
+        on: (event: string, handler: Handler) => {
+          handlers.set(event, [...(handlers.get(event) ?? []), handler]);
+          return {};
+        },
+        offref: () => undefined,
+      },
+      vault: { getMarkdownFiles },
+    } as never;
+    render(<StatblockLinkModal isOpen onClose={vi.fn()} asset={{ name: 'Token' }} onLink={vi.fn()} app={app} />);
+    expect(getMarkdownFiles).toHaveBeenCalledTimes(1);
+
+    act(() => {
+      for (let note = 0; note < 20; note++) handlers.get('fantasy-statblocks:bestiary:updated')?.forEach((handler) => handler());
+      vi.advanceTimersByTime(100);
+    });
+    expect(getMarkdownFiles).toHaveBeenCalledTimes(1);
+
+    await act(async () => { await vi.advanceTimersByTimeAsync(BESTIARY_SETTLE_MS); });
+    expect(getMarkdownFiles).toHaveBeenCalledTimes(2);
+  });
+
+  it('stops a superseded read at the next note', async () => {
+    const { TFile } = await import('obsidian');
+    installBestiary([]);
+    const controller = new AbortController();
+    const cachedRead = vi.fn((): Promise<string> => {
+      controller.abort();
+      return Promise.resolve('# Just a note');
+    });
+    const app = {
+      vault: { getMarkdownFiles: () => ['A.md', 'B.md', 'C.md'].map((path) => new TFile(path)), cachedRead },
+      metadataCache: { getFileCache: () => null },
+    } as never;
+
+    expect(await unparsedStatblockNotes(app, undefined, controller.signal)).toEqual([]);
+    expect(cachedRead).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows the code block example as code when no statblock note exists', async () => {
+    installBestiary([]);
+    open();
+    const example = await screen.findByText('monster: Goblin');
+    expect(example.tagName).toBe('CODE');
+    expect(example.parentElement?.textContent).not.toContain('`');
   });
 });

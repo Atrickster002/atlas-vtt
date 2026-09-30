@@ -22,7 +22,7 @@ const BESTIARY_EVENTS = [
 /** Notes read at the same time while resolving statblock fences. */
 const CONCURRENCY = 4;
 /** The bestiary fires one update per parsed note while it loads; rebuild once they settle. */
-const BESTIARY_SETTLE_MS = 150;
+export const BESTIARY_SETTLE_MS = 150;
 
 /**
  * The creatures of the statblock notes tokens link to, by note path. Resolves

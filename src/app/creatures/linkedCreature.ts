@@ -74,14 +74,16 @@ export async function resolveLinkedCreature(
  * The creatures of the vault's statblock notes that the bestiary lacks: notes
  * Fantasy Statblocks renders from a ```statblock fence, which it never parses,
  * and statblock frontmatter it has not parsed. Tokens link to these like any
- * bestiary note.
+ * bestiary note. An aborted read stops at the next note.
  */
 export async function unparsedStatblockNotes(
   app: App,
   bestiary: BestiaryLookup = bestiaryLookup(),
+  signal?: AbortSignal,
 ): Promise<FantasyStatblocksCreature[]> {
   const creatures: FantasyStatblocksCreature[] = [];
   for (const file of app.vault.getMarkdownFiles()) {
+    if (signal?.aborted) break;
     if (bestiary.byPath.has(file.path) || !(await resolveStatblockNote(app, file))) continue;
     const creature = await resolveLinkedCreature(app, file.path, bestiary);
     const name = typeof creature?.name === 'string' && creature.name.trim() ? creature.name : file.basename;
