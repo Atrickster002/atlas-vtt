@@ -4,6 +4,7 @@ import { spawnTokenAsset, spawnEncounterTokens, type SpawnContext } from '../uti
 import type { AssetService } from '../../../../services/AssetService';
 import type { AtlasView } from '../../../../atlas-view';
 import { useStableCallback } from '../../../../react/hooks/useStableCallback';
+import { scenePrefillFromMap } from '../utils/sceneCreation';
 
 export interface OpenAssetDeps {
   app: App;
@@ -35,9 +36,7 @@ export function useOpenAsset(deps: OpenAssetDeps): OpenAsset {
     };
     switch (asset.type) {
       case 'maps':
-        window.dispatchEvent(new CustomEvent('create-scene-from-map', {
-          detail: { backgroundPath: asset.mapFilePath, defaultName: asset.name },
-        }));
+        window.dispatchEvent(new CustomEvent('create-scene-from-map', { detail: scenePrefillFromMap(asset) }));
         return;
       case 'tokens': {
         const ids = await spawnTokenAsset(spawnCtx, asset, Math.max(1, spawnCount));

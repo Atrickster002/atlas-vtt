@@ -16,3 +16,4 @@
 - Right-clicking a token under fog of war opens the token's menu instead of the fog menu, and the fog and text menus open at the pointer instead of shifted up and to the left
 - Starting a circle measurement no longer stops the map from drawing when Obsidian runs without hardware acceleration, so tokens and encounters added afterwards show up again
 - Spawn on Map and Spawn Multiple now work in the asset manager opened from the scene browser, the dashboard or a command: tokens and encounters go to the open scene, and when no scene is open Atlas says so instead of doing nothing
+- You can create a scene from the asset manager's Create menu (+) and by right-clicking a map. Before, a scene could only be made by double-clicking a map, which nothing pointed to
