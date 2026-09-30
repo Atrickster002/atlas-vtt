@@ -9,6 +9,7 @@ import {
   withSystemWidgets,
 } from '../../src/app/gameSystems/systemRules';
 import { formatDistance, resolveMeasurementSettings } from '../../src/app/grid/measurementFormat';
+import { getDiceCrit } from '../../src/app/tools/diceCrit';
 import type { SystemPreset, SystemRules } from '../../src/app/types/systemPresetTypes';
 import { WIDGET_ICON_PATHS } from '../../src/app/types/widgetIcons';
 
@@ -51,6 +52,9 @@ describe('built-in presets', () => {
     expect(formatDistance(8, settings)).toBe('40ft');
     expect(cairn.rules.conditions.find((c) => c.name === 'Fatigue')?.valued).toBe(true);
     expect(cairn.rules.conditions.map((c) => c.id)).toContain('cairn-critical-damage');
+    // Saves roll under an attribute: a 1 always succeeds, a 20 always fails.
+    const save = (value: number): ReturnType<typeof getDiceCrit> => getDiceCrit([{ die: 'd20', value, max: 20 }], cairn.rules.dice!);
+    expect([save(1), save(20), save(10)]).toEqual(['high', 'low', null]);
   });
 
   it('measure Pathfinder 2e in 5-foot squares with 5/10 diagonals and the Remaster conditions', () => {

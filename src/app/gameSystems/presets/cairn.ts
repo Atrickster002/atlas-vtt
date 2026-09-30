@@ -21,8 +21,8 @@ export const CAIRN: SystemPreset = {
       diagonalRule: 'equidistant',
       abstractRangeBands: [],
     },
-    // Saves roll under an attribute on a d20; there are no critical results.
-    dice: { defaultRoll: '1d20', crit: 'none' },
+    // Saves roll under an attribute on a d20: a 1 always succeeds, a 20 always fails.
+    dice: { defaultRoll: '1d20', crit: 'roll-under' },
     conditions: conditionsOf('cairn', [
       { name: 'Deprived', color: '#b45309', icon: 'rations' },
       { name: 'Fatigue', color: '#78716c', icon: 'weight', valued: true },

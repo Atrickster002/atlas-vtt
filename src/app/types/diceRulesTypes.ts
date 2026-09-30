@@ -5,9 +5,9 @@
 
 /**
  * - `natural`: the highest face of a default die is a critical success, a 1 a failure (d20 systems).
- * - `roll-under`: a 1 is a critical success, the highest face a failure (Call of Cthulhu).
+ * - `roll-under`: a 1 is a critical success, the highest face a failure (Call of Cthulhu, Cairn).
  * - `doubles`: matching default dice are a critical success (Daggerheart's duality dice).
- * - `none`: no critical results (Cairn).
+ * - `none`: no critical results.
  */
 export type CritRule = 'natural' | 'roll-under' | 'doubles' | 'none';
 
