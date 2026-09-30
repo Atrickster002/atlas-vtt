@@ -605,7 +605,7 @@ export class FogOfWarRenderer {
           this.store.getState().deleteFogOperations(fogIds);
         }
       },
-    }], { x: e.global.x, y: e.global.y });
+    }], { x: e.clientX, y: e.clientY });
   }
 
   private eraseConnectedVisibleRegionAt(worldX: number, worldY: number): boolean {

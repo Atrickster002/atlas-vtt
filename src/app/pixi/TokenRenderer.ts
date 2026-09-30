@@ -1589,11 +1589,10 @@ export class TokenRenderer {
           return;
         }
       }
-      if (
-        (activeTool === 'select' || activeTool === 'move') &&
-        this.hexLinkHandlers &&
-        !this.hitTestTokens(worldPos.x, worldPos.y)
-      ) {
+      // A token takes the right-click from a linked hex or fog beneath it, as it takes the left-click
+      const tokenTools = activeTool === 'select' || activeTool === 'move';
+      const onToken = tokenTools && this.hitTestTokens(worldPos.x, worldPos.y) !== null;
+      if (tokenTools && !onToken && this.hexLinkHandlers) {
         const hexLinkId = this.hexLinkHandlers.hitTest(worldPos.x, worldPos.y);
         if (hexLinkId) {
           markHandled(e);
@@ -1601,7 +1600,7 @@ export class TokenRenderer {
           return;
         }
       }
-      if (this.fogHitTestProvider && this.fogClickHandler) {
+      if (!onToken && this.fogHitTestProvider && this.fogClickHandler) {
         const fogId = this.fogHitTestProvider(worldPos.x, worldPos.y);
         if (fogId) {
           markHandled(e);

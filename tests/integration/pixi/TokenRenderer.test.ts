@@ -20,6 +20,12 @@ import type { GridSystem } from '../../../src/app/grid/GridSystem';
 import { createInMemoryApp } from '../../mocks/inMemoryVault';
 import { stubJsdomGraphics } from '../../mocks/jsdomGraphics';
 
+const openContextMenuGlobal = vi.hoisted(() => vi.fn());
+vi.mock('../../../src/app/react/root/ContextMenuContext', () => ({
+  openContextMenuGlobal,
+  closeContextMenuGlobal: vi.fn(),
+}));
+
 // jsdom has no 2D canvas, so SVG icons cannot be rasterised here.
 vi.mock('../../../src/app/pixi/utils/lucideIconTexture', () => ({
   createLucideIconTexture: vi.fn(async () => new Texture()),
@@ -357,6 +363,26 @@ describe('TokenRenderer Integration Tests', () => {
       expect(store.getState().isDragging).toBe(false);
       expect(selectionOverlayUpdater).toHaveBeenCalled();
       expect(getHistoryStore(store)!.getState().pastStates).toHaveLength(undoStepsBefore + 1);
+    });
+  });
+
+  describe('Right-click', () => {
+    const rightClick = (x: number, y: number): FederatedPointerEvent =>
+      ({ ...pointerEvent(x, y), button: 2, clientX: x + 300, clientY: y + 40 }) as unknown as FederatedPointerEvent;
+
+    it('opens the token menu at the pointer for a token inside fog, and the fog menu beside it', async () => {
+      const fogClickHandler = vi.fn();
+      tokenRenderer.setFogHitTestProvider(() => 'fog-1');
+      tokenRenderer.setFogClickHandler(fogClickHandler);
+      store.getState().addToken(token({ id: 'token-1', x: 105, y: 105 }));
+      await waitForTokens('token-1');
+
+      viewport.emit('pointerdown', rightClick(105, 105));
+      expect(fogClickHandler).not.toHaveBeenCalled();
+      expect(openContextMenuGlobal).toHaveBeenCalledWith(expect.any(Array), { x: 405, y: 145 });
+
+      viewport.emit('pointerdown', rightClick(900, 900));
+      expect(fogClickHandler).toHaveBeenCalledWith('fog-1', expect.anything());
     });
   });
 

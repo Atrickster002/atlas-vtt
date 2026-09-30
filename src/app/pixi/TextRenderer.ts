@@ -459,8 +459,7 @@ export class TextRenderer {
       },
     ];
 
-    const globalPos = e.global;
-    openContextMenuGlobal(entries, { x: globalPos.x, y: globalPos.y });
+    openContextMenuGlobal(entries, { x: e.clientX, y: e.clientY });
   }
 
   private async editText(textElement: TextElement): Promise<void> {
