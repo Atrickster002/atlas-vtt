@@ -8,6 +8,7 @@ import { DEFAULT_MAP_HOTKEYS } from '../../keyboard/mapHotkeys';
 import { AssetService } from '../../services/AssetService';
 import { mapLightPresets } from '../../services/mapCollectionRules';
 import { mapMeasurementSettings } from '../../services/mapMeasurementSettings';
+import { heldForSight } from '../../lighting/sightOnDrop';
 import { SettingsService } from '../../services/SettingsService';
 import type { ViewAtlasState, ViewAtlasStore } from '../../storeFactory';
 import { findAtlasLeafByViewId } from '../../utils/atlasLeafLookup';
@@ -135,7 +136,8 @@ export class LightingController {
 
   /** Which tokens the players see, for their frame and for session view; sight hides nothing in an unlit scene. */
   playerSight(): ((tokenId: string) => boolean) | undefined {
-    return playerTokenSight(this.renderer, this.deps.store.getState().objects.tokens);
+    const state = this.deps.store.getState();
+    return playerTokenSight(this.renderer, state.objects.tokens, heldForSight(state));
   }
 
   /** Escape cancels a light or ring being dragged and closes the light popover; else it is the wall editor's. */

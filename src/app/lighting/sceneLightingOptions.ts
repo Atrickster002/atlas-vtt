@@ -23,6 +23,10 @@ export function exploredMemoryOn(lighting: Pick<SceneLighting, 'exploredMemory'>
   return lighting.exploredMemory !== false;
 }
 
+export function sightOnDropOn(lighting: Pick<SceneLighting, 'sightOnDrop'>): boolean {
+  return lighting.sightOnDrop !== false;
+}
+
 /**
  * Whether two lightings give the GM a different picture of the scene: lighting on or off, the
  * ambient light, and token vision (what no token sees is faded). The other options change only

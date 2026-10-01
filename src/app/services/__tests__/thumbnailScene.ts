@@ -84,6 +84,7 @@ export async function createThumbnailScene(lighting: SceneLighting, antialias: b
     isGMView: true,
     activeTool: 'select',
     lightPopover: null,
+    heldTokens: {},
     grid: null,
     exploredMask: null,
     setExploredMask: (): void => undefined,

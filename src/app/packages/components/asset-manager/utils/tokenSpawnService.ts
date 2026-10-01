@@ -16,6 +16,7 @@ import { loadAtlasView } from '../../../../plugin/atlasLeaves';
 import { mapVisionDefaults } from '../../../../gameSystems/visionDefaults';
 import { systemPresetsOf } from '../../../../services/mapCollectionRules';
 import type { TokenVision, TokenVisionDefaults } from '../../../../types/lightingTypes';
+import { placementVision } from '../../../../creatures/placementVision';
 
 // ─── Viewport helpers ───────────────────────────────────────────────
 
@@ -186,7 +187,7 @@ function spawnVisionDefaults(ctx: SpawnContext, target: SpawnTarget): TokenVisio
     : undefined;
 }
 
-/** Builds a token from its asset; `visionDefaults` (the placing collection's) start vision off. */
+/** Builds a token from its asset; `visionDefaults` (the placing collection's) start vision off (`placementVision`). */
 async function buildTokenData(
   app: ObsidianApp,
   pos: { x: number; y: number },
@@ -210,7 +211,8 @@ async function buildTokenData(
     Object.assign(data, overrides);
   }
 
-  if (visionDefaults) data.vision = { enabled: false, ...visionDefaults };
+  const vision = placementVision(visionDefaults, Boolean(statblockPath));
+  if (vision) data.vision = vision;
 
   return data;
 }

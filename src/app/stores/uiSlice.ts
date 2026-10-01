@@ -6,6 +6,8 @@
  * NOT persisted — the partialize whitelist in storeFactory.ts excludes these.
  */
 
+import type { HeldTokens } from '../lighting/sightOnDrop';
+
 /** State fields added to ViewAtlasState */
 export interface UISlice {
   // Panel visibility
@@ -21,6 +23,8 @@ export interface UISlice {
   lightPopover: string | null;
   /** The scene lighting settings panel, opened from the lighting tool's menu. */
   isSceneLightingPanelOpen: boolean;
+  /** The tokens the pointer holds (pressed or dragged), each where it stood when taken; set through `holdTokens`. */
+  heldTokens: HeldTokens;
 
   // Actions
   setGridSettingsOpen: (open: boolean) => void;
@@ -34,6 +38,7 @@ export interface UISlice {
   openLightPopover: (lightId: string) => void;
   closeLightPopover: () => void;
   setSceneLightingPanelOpen: (open: boolean) => void;
+  setHeldTokens: (held: HeldTokens) => void;
 }
 
 /** Default state — all panels closed */
@@ -49,6 +54,7 @@ export function createInitialUIState(): Pick<
   | 'isDiceTrayOpen'
   | 'lightPopover'
   | 'isSceneLightingPanelOpen'
+  | 'heldTokens'
 > {
   return {
     isGridSettingsOpen: false,
@@ -61,6 +67,7 @@ export function createInitialUIState(): Pick<
     isDiceTrayOpen: false,
     lightPopover: null,
     isSceneLightingPanelOpen: false,
+    heldTokens: {},
   };
 }
 
@@ -80,6 +87,7 @@ export function createUIActions(
   | 'openLightPopover'
   | 'closeLightPopover'
   | 'setSceneLightingPanelOpen'
+  | 'setHeldTokens'
 > {
   return {
     setGridSettingsOpen: (open) => set((draft) => { draft.isGridSettingsOpen = open; }),
@@ -99,5 +107,6 @@ export function createUIActions(
     openLightPopover: (lightId) => set((draft) => { draft.lightPopover = lightId; }),
     closeLightPopover: () => set((draft) => { draft.lightPopover = null; }),
     setSceneLightingPanelOpen: (open) => set((draft) => { draft.isSceneLightingPanelOpen = open; }),
+    setHeldTokens: (held) => set((draft) => { draft.heldTokens = held; }),
   };
 }

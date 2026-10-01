@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Notice } from 'obsidian';
 import { spawnEncounterTokens, spawnSelectedTokens, spawnTokenAsset, type SpawnContext } from '../../src/app/packages/components/asset-manager/utils/tokenSpawnService';
 import type { EncounterAsset, TokenAsset } from '../../src/app/packages/components/asset-manager/types';
@@ -6,6 +6,7 @@ import type { AtlasView } from '../../src/app/atlas-view';
 import type { AssetService } from '../../src/app/services/AssetService';
 import { loadAtlasView } from '../../src/app/plugin/atlasLeaves';
 import type { TokenVisionDefaults } from '../../src/app/types/lightingTypes';
+import { GENERIC_SENSES } from '../../src/app/gameSystems/senses';
 import { createInMemoryApp } from '../mocks/inMemoryVault';
 
 vi.mock('obsidian', async (importOriginal) => ({ ...(await importOriginal<typeof import('obsidian')>()), Notice: vi.fn() }));
@@ -209,5 +210,55 @@ describe('default token vision of the placing map\'s collection', () => {
     vi.mocked(loadAtlasView).mockResolvedValue(open.view);
     await spawnTokenAsset({ ...ctx, view: null }, unframed, 1);
     expect(open.spawned[0]!.vision).toEqual({ enabled: false, ...defaults });
+  });
+});
+
+describe('default token vision of a token with a linked statblock', () => {
+  const darkvision = GENERIC_SENSES.find((sense) => sense.role === 'darkvision')!;
+  const defaults: TokenVisionDefaults = { range: 120, senses: [{ id: darkvision.id, range: 30 }] };
+  const bestiary = [
+    { name: 'Goblin', path: 'Bestiary/Goblin.md', senses: 'darkvision 60 ft., passive Perception 9' },
+    { name: 'Commoner', path: 'Bestiary/Commoner.md', senses: 'passive Perception 10' },
+  ];
+
+  beforeEach(() => { Object.assign(window, { FantasyStatblocks: { getBestiaryCreatures: () => bestiary } }); });
+  afterEach(() => { Reflect.deleteProperty(window, 'FantasyStatblocks'); });
+
+  it('leaves the default senses out, with or without senses in the statblock today, and stamps none of the statblock\'s', async () => {
+    for (const statblockPath of ['Bestiary/Goblin.md', 'Bestiary/Commoner.md', 'Bestiary/Not read.md']) {
+      const { ctx, spawned } = setup({ goblin: { statblockPath } }, defaults);
+      await spawnTokenAsset(ctx, unframed, 2);
+      await spawnSelectedTokens(ctx, [unframed]);
+      expect(spawned).toHaveLength(3);
+      for (const token of spawned) {
+        expect(token.statblockPath).toBe(statblockPath);
+        expect(token.vision).toEqual({ enabled: false, range: 120 });
+      }
+    }
+  });
+
+  it('stamps the whole default on a token without a statblock', async () => {
+    const { ctx, spawned } = setup({ goblin: { statblockPath: 'Bestiary/Goblin.md' } }, defaults);
+    await spawnSelectedTokens(ctx, [unframed, framed]);
+    expect(spawned.map((token) => token.vision)).toEqual([{ enabled: false, range: 120 }, { enabled: false, ...defaults }]);
+    expect(spawned[1]!.vision).not.toBe(defaults);
+  });
+
+  it('adds no vision field to a linked token when the collection sets no default, or only senses', async () => {
+    for (const vision of [undefined, { senses: [{ id: darkvision.id }] }, { darkvision: 60 }]) {
+      const { ctx, spawned } = setup({ goblin: { statblockPath: 'Bestiary/Goblin.md' } }, vision);
+      await spawnTokenAsset(ctx, unframed, 1);
+      expect(spawned[0]).toMatchObject({ statblockPath: 'Bestiary/Goblin.md', name: 'Goblin' });
+      expect(spawned[0]).not.toHaveProperty('vision');
+    }
+  });
+
+  it('applies the rule to tokens an encounter builds from assets', async () => {
+    const { ctx, spawned } = setup({ goblin: { statblockPath: 'Bestiary/Goblin.md' } }, defaults);
+    await spawnEncounterTokens(ctx, {
+      id: 'ambush', name: 'Ambush', type: 'encounters', tags: [], tokenPreviews: [], modifiedAt: 0,
+      tokens: [{ id: 'goblin', name: 'Goblin', imagePath: 'tokens/goblin.png', size: 1 }],
+    });
+    expect(spawned[0]!.vision).toEqual({ enabled: false, range: 120 });
   });
 });

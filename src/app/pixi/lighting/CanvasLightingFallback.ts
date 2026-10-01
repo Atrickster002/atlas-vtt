@@ -5,6 +5,7 @@ import type { MeasurementSettings } from '../../grid/measurementFormat';
 import { unitScaleOf } from '../../lighting/lightingUnits';
 import { sealedWalls } from '../../lighting/sealWalls';
 import { worldTexel } from '../../lighting/lightingConstants';
+import { SightTokens } from '../../lighting/sightOnDrop';
 import { SEES_ALL, SightCache, sceneSight, sightSources, type AmbientLight, type LightReach, type Sight } from '../../vision/sight';
 import { wallList } from '../../vision/wallList';
 import type { MapBounds } from '../../vision/visibility';
@@ -39,6 +40,7 @@ export class CanvasLightingFallback implements SceneLightingView {
   readonly modeLayer: HideableLayer;
   private readonly darkness = new Graphics();
   private readonly cache = new SightCache();
+  private readonly sightTokens = new SightTokens();
   private sight: Sight = SEES_ALL;
   private readonly playerView = new PlayerView((shown) => { this.darkness.visible = shown; });
   private readonly unsubscribe: () => void;
@@ -79,7 +81,7 @@ export class CanvasLightingFallback implements SceneLightingView {
     }
     const scale = unitScaleOf(this.deps.measurement(), state.grid);
     const walls = sealedWalls(wallList(state.objects.walls), worldTexel(bounds));
-    this.sight = sceneSight(state.lighting, sightSources(state.objects.tokens, scale, bounds), walls, this.cache);
+    this.sight = sceneSight(state.lighting, sightSources(this.sightTokens.read(state), scale, bounds), walls, this.cache);
     this.drawDarkness(bounds);
     this.deps.onSightChange?.();
   }

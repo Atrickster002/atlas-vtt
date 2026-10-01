@@ -1429,7 +1429,7 @@ export class TokenRenderer {
     return [
       ...hiddenTokenLayers(this.store.getState().objects.tokens, this.tokenSprites, isSeen),
       ...this.uiManager.getPlayerViewLayers(settings, isSeen),
-      ...this.dragRuler.getPlayerViewLayers(),
+      ...this.dragRuler.getPlayerViewLayers(isSeen),
     ];
   }
 
