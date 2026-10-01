@@ -27,6 +27,8 @@ export function getDiceCrit(rolls: readonly RolledDie[], rules: DiceRules): Dice
       return extremeCrit(values, 1, roll.sides);
     case 'doubles':
       return values.length >= 2 && values.every((value) => value === values[0]) ? 'high' : null;
+    case 'high-total':
+      return values.reduce((sum, value) => sum + value, 0) >= roll.count * roll.sides - 1 ? 'high' : null;
   }
 }
 

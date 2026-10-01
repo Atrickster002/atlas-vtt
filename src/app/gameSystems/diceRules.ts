@@ -9,7 +9,7 @@ import type { SystemPreset } from '../types/systemPresetTypes';
 /** Dice of a collection without a game system: a d20, natural 20 and natural 1. */
 export const DEFAULT_DICE_RULES: Readonly<DiceRules> = { defaultRoll: '1d20', crit: 'natural' };
 
-export const CRIT_RULES: readonly CritRule[] = ['natural', 'roll-under', 'doubles', 'none'];
+export const CRIT_RULES: readonly CritRule[] = ['natural', 'roll-under', 'doubles', 'high-total', 'none'];
 
 export const EXPLODE_SCOPES: readonly ExplodeScope[] = ['default', 'all'];
 

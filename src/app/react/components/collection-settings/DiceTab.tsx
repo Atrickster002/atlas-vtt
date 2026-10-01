@@ -17,6 +17,7 @@ const CRIT_OPTIONS: Record<CritRule, string> = {
   natural: 'Natural',
   'roll-under': 'Roll-under',
   doubles: 'Doubles',
+  'high-total': 'High total',
   none: 'None',
 };
 
@@ -24,6 +25,7 @@ const CRIT_DESCRIPTIONS: Record<CritRule, string> = {
   natural: 'The highest face is a critical success, a 1 a critical failure (natural 20 and natural 1).',
   'roll-under': 'A 1 is a critical success, the highest face a critical failure (percentile systems).',
   doubles: 'Default dice that all show the same number are a critical success (duality dice).',
+  'high-total': 'Default dice that add up to their highest total or one below it are a critical success (19 or 20 on 2d10 in Draw Steel).',
   none: 'Rolls are never critical.',
 };
 
