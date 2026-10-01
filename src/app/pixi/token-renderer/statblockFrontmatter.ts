@@ -9,10 +9,7 @@ import type { FrontMatterCache } from 'obsidian';
 import type { Character } from '../../types';
 
 export interface StatblockVitals {
-  /** Raw `hp` values; a plain number in the frontmatter fills both. */
-  hp?: { current?: number; max?: number };
   name?: string;
-  maxStress?: number;
   difficulty?: string;
 }
 
@@ -38,34 +35,12 @@ export const STATBLOCK_UNLINK_UPDATES = {
   difficulty: undefined,
 } as const;
 
-function finiteNumber(value: unknown): number | undefined {
-  return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
-}
-
 export function readStatblockVitals(frontmatter: FrontMatterCache): StatblockVitals {
   const source: Record<string, unknown> = frontmatter;
   const vitals: StatblockVitals = {};
 
-  const hp = source.hp;
-  if (typeof hp === 'number') {
-    vitals.hp = { current: hp, max: hp };
-  } else if (typeof hp === 'object' && hp !== null) {
-    const record: Record<string, unknown> = { ...hp };
-    const current = finiteNumber(record.current);
-    const max = finiteNumber(record.max);
-    vitals.hp = {
-      ...(current !== undefined && { current }),
-      ...(max !== undefined && { max }),
-    };
-  }
-
   if (typeof source.name === 'string' && source.name) {
     vitals.name = source.name;
-  }
-
-  const maxStress = finiteNumber(source.stress);
-  if (maxStress !== undefined) {
-    vitals.maxStress = maxStress;
   }
 
   if (typeof source.difficulty === 'string') {

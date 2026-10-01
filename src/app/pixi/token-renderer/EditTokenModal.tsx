@@ -9,15 +9,16 @@ import { WALLS_AND_LIGHTING_ENABLED } from '../../featureFlags';
 import { CloseButton } from '../../packages/components/primitives/CloseButton';
 import { Button } from '../../packages/components/primitives/button';
 import { NumberOverrideField, parseNumberInput } from './NumberOverrideField';
-import { readStatblockVitals } from './statblockFrontmatter';
-import { buildResourceUpdates, statblockResourceDefaults, type ResourceDefaults } from './tokenResourceEdits';
+import { buildResourceEdits } from '../../resources/resourceEdits';
+import type { ResourceDefinition, ResourceValue } from '../../resources/resourceTypes';
+import { startingResources } from '../../resources/statblockResourceValues';
 import { unitLabelFor } from '../../grid/measurementFormat';
 
 interface EditTokenValues {
   name: string;
   showNameplate: boolean;
-  maxHp: number | undefined;
-  maxStress: number | undefined;
+  /** Maximum per resource key; undefined follows the statblock, or removes a resource the statblock lacks. */
+  maxima: Record<string, number | undefined>;
   visionInnerRadius: number | undefined;
   visionOuterRadius: number | undefined;
 }
@@ -25,7 +26,10 @@ interface EditTokenValues {
 interface EditTokenModalProps {
   initial: EditTokenValues;
   playerLinked: boolean;
-  resourceDefaults: ResourceDefaults;
+  /** The resources of the map's collection, in the order they show. */
+  definitions: readonly ResourceDefinition[];
+  /** What the linked statblock gives each resource. */
+  resourceDefaults: Record<string, ResourceValue>;
   unitLabel: string;
   onSave: (values: EditTokenValues) => void;
   onClose: () => void;
@@ -36,11 +40,12 @@ const numberInput = (value: number | undefined): string => (value === undefined 
 const defaultPlaceholder = (value: number | undefined): string =>
   value === undefined ? 'None' : `Statblock default: ${value}`;
 
-function EditTokenModalInner({ initial, playerLinked, resourceDefaults, unitLabel, onSave, onClose }: EditTokenModalProps): React.ReactElement {
+function EditTokenModalInner({ initial, playerLinked, definitions, resourceDefaults, unitLabel, onSave, onClose }: EditTokenModalProps): React.ReactElement {
   const [name, setName] = useState(initial.name);
   const [showNameplate, setShowNameplate] = useState(initial.showNameplate);
-  const [maxHpInput, setMaxHpInput] = useState(numberInput(initial.maxHp));
-  const [maxStressInput, setMaxStressInput] = useState(numberInput(initial.maxStress));
+  const [maxInputs, setMaxInputs] = useState<Record<string, string>>(
+    () => Object.fromEntries(definitions.map(({ key }) => [key, numberInput(initial.maxima[key])])),
+  );
   const [visionInnerInput, setVisionInnerInput] = useState(numberInput(initial.visionInnerRadius));
   const [visionOuterInput, setVisionOuterInput] = useState(numberInput(initial.visionOuterRadius));
   const inputRef = useRef<HTMLInputElement>(null);
@@ -56,8 +61,7 @@ function EditTokenModalInner({ initial, playerLinked, resourceDefaults, unitLabe
     onSave({
       name,
       showNameplate,
-      maxHp: parseNumberInput(maxHpInput),
-      maxStress: parseNumberInput(maxStressInput),
+      maxima: Object.fromEntries(definitions.map(({ key }) => [key, parseNumberInput(maxInputs[key] ?? '')])),
       visionInnerRadius: parseNumberInput(visionInnerInput),
       visionOuterRadius: parseNumberInput(visionOuterInput),
     });
@@ -112,22 +116,22 @@ function EditTokenModalInner({ initial, playerLinked, resourceDefaults, unitLabe
             </div>
           </div>
 
-          <div className="atlas-edit-token__section-divider" />
-          <div className="atlas-edit-token__section-label">Resources</div>
-          <NumberOverrideField
-            label="Max HP"
-            value={maxHpInput}
-            onChange={setMaxHpInput}
-            placeholder={defaultPlaceholder(resourceDefaults.maxHp)}
-            resetLabel="Reset to statblock default"
-          />
-          <NumberOverrideField
-            label="Max Secondary Resource"
-            value={maxStressInput}
-            onChange={setMaxStressInput}
-            placeholder={defaultPlaceholder(resourceDefaults.maxStress)}
-            resetLabel="Reset to statblock default"
-          />
+          {definitions.length > 0 && (
+            <>
+              <div className="atlas-edit-token__section-divider" />
+              <div className="atlas-edit-token__section-label">Resources</div>
+              {definitions.map(({ key, name: resourceName }) => (
+                <NumberOverrideField
+                  key={key}
+                  label={`Max ${resourceName}`}
+                  value={maxInputs[key] ?? ''}
+                  onChange={(value) => setMaxInputs((current) => ({ ...current, [key]: value }))}
+                  placeholder={defaultPlaceholder(resourceDefaults[key]?.max)}
+                  resetLabel="Reset to statblock default"
+                />
+              ))}
+            </>
+          )}
 
           {WALLS_AND_LIGHTING_ENABLED && playerLinked && (
             <>
@@ -160,19 +164,19 @@ function EditTokenModalInner({ initial, playerLinked, resourceDefaults, unitLabe
   );
 }
 
-function readResourceDefaults(app: App, statblockPath: string | undefined): ResourceDefaults {
+function readResourceDefaults(app: App, statblockPath: string | undefined, definitions: readonly ResourceDefinition[]): Record<string, ResourceValue> {
   const file = statblockPath ? app.vault.getAbstractFileByPath(statblockPath) : null;
   const frontmatter = file instanceof TFile ? app.metadataCache.getFileCache(file)?.frontmatter : undefined;
-  return frontmatter ? statblockResourceDefaults(readStatblockVitals(frontmatter)) : {};
+  return frontmatter ? startingResources(frontmatter, definitions) : {};
 }
 
 /**
  * Imperatively opens an Edit Token modal by mounting a React root.
  * Call from non-React code (e.g. InteractionController).
  */
-export function openEditTokenModal(token: TokenEntity, store: StoreApi<ViewAtlasState>, app: App): void {
+export function openEditTokenModal(token: TokenEntity, store: StoreApi<ViewAtlasState>, app: App, definitions: readonly ResourceDefinition[]): void {
   const character = token.kind === 'character' ? token : undefined;
-  const resourceDefaults = readResourceDefaults(app, character?.statblockPath);
+  const resourceDefaults = readResourceDefaults(app, character?.statblockPath, definitions);
   const container = document.body.createDiv({ cls: 'atlas-vtt-plugin atlas-vtt-root' });
   const root = createRoot(container);
 
@@ -181,13 +185,13 @@ export function openEditTokenModal(token: TokenEntity, store: StoreApi<ViewAtlas
     container.remove();
   };
 
-  const handleSave = ({ name, showNameplate, maxHp, maxStress, visionInnerRadius, visionOuterRadius }: EditTokenValues): void => {
+  const handleSave = ({ name, showNameplate, maxima, visionInnerRadius, visionOuterRadius }: EditTokenValues): void => {
     store.getState().updateToken(token.id, {
       name,
       showNameplate,
       visionInnerRadius,
       visionOuterRadius,
-      ...buildResourceUpdates(character ?? {}, { maxHp, maxStress }, resourceDefaults),
+      ...buildResourceEdits(character ?? {}, definitions.map(({ key }) => ({ key, max: maxima[key] })), resourceDefaults),
     });
     cleanup();
   };
@@ -199,12 +203,12 @@ export function openEditTokenModal(token: TokenEntity, store: StoreApi<ViewAtlas
       initial={{
         name: character?.name ?? '',
         showNameplate: token.showNameplate ?? false,
-        maxHp: typeof character?.hp === 'object' ? character.hp.max : character?.hp,
-        maxStress: typeof character?.stress === 'object' ? character.stress.max : character?.maxStress,
+        maxima: Object.fromEntries(definitions.map(({ key }) => [key, character?.resources?.[key]?.max])),
         visionInnerRadius: token.visionInnerRadius,
         visionOuterRadius: token.visionOuterRadius,
       }}
       playerLinked={character?.playerLinked ?? false}
+      definitions={definitions}
       resourceDefaults={resourceDefaults}
       unitLabel={unitLabel}
       onSave={handleSave}

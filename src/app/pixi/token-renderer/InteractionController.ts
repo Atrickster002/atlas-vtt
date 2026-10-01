@@ -824,7 +824,7 @@ export class InteractionController implements ITokenInteractionController {
   }
 
   private showEditTokenModal(token: TokenEntity): void {
-    openEditTokenModal(token, this.store, this.obsApp);
+    openEditTokenModal(token, this.store, this.obsApp, this.resourceDefsProvider());
   }
 
   destroyAll(): void {
