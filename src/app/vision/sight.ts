@@ -3,16 +3,18 @@ import type { SceneLighting } from '../types/lightingTypes';
 import type { Point } from '../types/visionTypes';
 import type { WallSegment } from '../types/wallTypes';
 import { gameUnitsToWorld, type UnitScale } from '../lighting/lightingUnits';
-import { litThresholdOf, tokenVisionOn } from '../lighting/sceneLightingOptions';
+import { tokenVisionOn } from '../lighting/sceneLightingOptions';
+import { ambientLevel, isLit } from './lightLevels';
 import { computeVisibility, pointInPolygon, type MapBounds, type Polygon } from './visibility';
 import { visionCone, type VisionCone } from './visionCone';
 import { computeTokenPixelSize } from '../pixi/token-renderer/tokenSizing';
 
 /**
  * The scene's light without its sources: at or above `litThreshold` (unset: 0.25) ambient light,
- * every point in sight counts as lit, so a token standing there can be seen.
+ * every point in sight counts as lit, so a token standing there can be seen. It is dimly lit up
+ * to `brightThreshold` (unset: 0.75) and brightly from there (`lightLevelAt`).
  */
-export type AmbientLight = Pick<SceneLighting, 'ambient' | 'litThreshold'>;
+export type AmbientLight = Pick<SceneLighting, 'ambient' | 'litThreshold' | 'brightThreshold'>;
 
 /** A token that sees, in world pixels. */
 export interface SightSource {
@@ -54,10 +56,14 @@ export interface Sight {
 /** Sight of a viewer without a vision token: line of sight hides nothing. */
 export const SEES_ALL: Sight = { all: true, polygons: [], origins: [], apexes: [], darkvision: [], darkvisionOrigins: [], darkvisionApexes: [], tremors: [] };
 
-/** The area a light illuminates, for deciding on the CPU whether a point is lit. */
+/** The area a light illuminates, for deciding on the CPU how well a point is lit. World pixels. */
 export interface LightReach {
   origin: Point;
+  /** Radius of bright light; 0 for a light that is dim throughout. */
+  bright: number;
+  /** Radius where the light ends. */
   dim: number;
+  /** What the light reaches within `dim`, clipped by walls. */
   polygon: Polygon;
 }
 
@@ -143,13 +149,14 @@ export function computeSight(sources: readonly SightSource[], walls: readonly Wa
   };
 }
 
-export function lightReach(origin: Point, dim: number, walls: readonly WallSegment[]): LightReach {
-  return { origin, dim, polygon: computeVisibility(origin, dim, walls) };
+/** Where a light at `origin` reaches: its `dim` radius clipped by `walls`. Without `bright` it has no bright part. */
+export function lightReach(origin: Point, dim: number, walls: readonly WallSegment[], bright = 0): LightReach {
+  return { origin, bright, dim, polygon: computeVisibility(origin, dim, walls) };
 }
 
 /** Whether the ambient light alone lights everything in sight. */
 export function ambientLights(light: AmbientLight): boolean {
-  return light.ambient >= litThresholdOf(light);
+  return ambientLevel(light) !== 'dark';
 }
 
 /**
@@ -161,18 +168,18 @@ export function sightOptionsChanged(a: SceneLighting, b: SceneLighting): boolean
     || ambientLights(a) !== ambientLights(b);
 }
 
-function isLit(point: Point, ambient: AmbientLight, lights: readonly LightReach[]): boolean {
-  if (ambientLights(ambient)) return true;
-  return lights.some((light) => Math.hypot(point.x - light.origin.x, point.y - light.origin.y) <= light.dim && pointInPolygon(point, light.polygon));
-}
-
 /** Whether a vision token senses a token at `point` by tremorsense, through walls and darkness. */
 export function isFelt(point: Point, sight: Sight): boolean {
   return sight.tremors.some(({ origin, radius }) => Math.hypot(point.x - origin.x, point.y - origin.y) <= radius);
 }
 
+/** Whether `point` is in a viewer's line of sight, lit or not. */
+export function inSight(point: Point, sight: Sight): boolean {
+  return sight.all || sight.polygons.some((polygon) => pointInPolygon(point, polygon));
+}
+
 /** Whether a viewer can see `point`: in line of sight and lit, or within darkvision. */
 export function isSeen(point: Point, sight: Sight, ambient: AmbientLight, lights: readonly LightReach[]): boolean {
-  if (!sight.all && !sight.polygons.some((polygon) => pointInPolygon(point, polygon))) return false;
+  if (!inSight(point, sight)) return false;
   return isLit(point, ambient, lights) || sight.darkvision.some((polygon) => pointInPolygon(point, polygon));
 }

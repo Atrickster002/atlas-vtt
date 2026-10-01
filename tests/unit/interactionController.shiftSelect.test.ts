@@ -19,6 +19,8 @@ function makeController(selectedIds: string[]): { controller: InteractionControl
       moveToken: vi.fn(),
       grid: { snapToGrid: false },
       objects: { tokens: { a: { id: 'a' }, b: { id: 'b' } } },
+      heldTokens: {},
+      setHeldTokens: vi.fn(),
     }),
   } as any;
   const controller = new InteractionController(viewport, store, {} as any, {} as any, {} as any, false);

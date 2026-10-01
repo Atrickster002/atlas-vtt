@@ -3,7 +3,8 @@
  *
  * Convention: "up" is +Y and the camera looks **down** on the table. The rolled
  * face is the one whose normal points to +Y, and the top of its numeral points
- * to −Z so the number reads upright on screen.
+ * to −Z so the number reads upright on screen. The d4 is the exception: its
+ * rolled face lies on the table (see `restingQuaternion`).
  */
 
 import {
@@ -30,7 +31,7 @@ export interface DieGeometry {
   vertices: Vec3[];
   /** Faces as vertex indices, counter-clockwise seen from outside. */
   faces: number[][];
-  /** The number printed on each face; opposite faces add up to n+1. */
+  /** The number each face stands for; opposite faces add up to n+1. What is printed where: `faceMarks`. */
   values: number[];
   normals: Vec3[];
   centers: Vec3[];
@@ -288,23 +289,33 @@ export function faceIndexForValue(geometry: DieGeometry, value: number): number 
 }
 
 /**
- * How the die **comes to rest**: slightly tilted, because from above a face
- * pointing exactly up turns the body into a polygon (the d6 a square). The tilt
- * is a share of the angle to the nearest face (90° on a d6, 41.8° on a d20), so
- * the rolled face stays clearly topmost and the d6 still tilts more than the d20.
+ * How high the centre of a die lies above the table when the die lies on a
+ * face, as a share of its radius: a third on the d4, four fifths on the d20.
  */
-const TILT_SHARE = 0.3;
+export function lyingHeight(geometry: DieGeometry): number {
+  return vDot(geometry.centers[0]!, geometry.normals[0]!);
+}
 
-export function restingQuaternion(geometry: DieGeometry, face: number): Quat {
-  const n = geometry.normals[face]!;
-  let nearest = Math.PI;
-  for (let i = 0; i < geometry.normals.length; i++) {
-    if (i === face) continue;
-    nearest = Math.min(nearest, Math.acos(Math.min(1, Math.max(-1, vDot(n, geometry.normals[i]!)))));
-  }
-  const angle = nearest * TILT_SHARE;
-  // Tilt about the horizontal axes: slightly towards the camera (an +X turn
-  // leans the face forward) and a touch to the side.
-  const tilt = qMul(qAxisAngle([0, 0, 1], angle * 0.62), qAxisAngle([1, 0, 0], angle * 0.78));
-  return qNormalize(qMul(tilt, faceQuaternion(geometry, face)));
+/** How far a resting die may be turned on the table, either way: enough to show its sides, not enough to tip the number. */
+export const REST_YAW = 0.3;
+
+/**
+ * How the die **comes to rest**: lying on a face, as a body on a table does,
+ * and turned by `yaw` about the vertical. The rolled face lies on top.
+ *
+ * The d4 has no face on top: it lies **on** the rolled face and points its tip
+ * up, with one face turned to the viewer. The roll is the number at the tip
+ * (`faceMarks`).
+ *
+ * The dice once came to rest tilted, a share of the way to the next face, so
+ * that the body would not flatten to a polygon seen from above. They stood on
+ * an edge or a corner for it, the d4 on its tip, and the d6 showed two numbers
+ * almost alike.
+ */
+export function restingQuaternion(geometry: DieGeometry, face: number, yaw = 0): Quat {
+  const onTop = faceQuaternion(geometry, face);
+  // Half a turn about the line of sight puts the face on the table and leaves
+  // the edge that was at the bottom of the screen there.
+  const lying = geometry.sides === 4 ? qMul(qAxisAngle([0, 0, 1], Math.PI), onTop) : onTop;
+  return qNormalize(qMul(qAxisAngle([0, 1, 0], yaw), lying));
 }

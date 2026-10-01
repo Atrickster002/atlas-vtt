@@ -4,6 +4,7 @@ import { withChangedBars } from '../../../resources/sceneVisibility';
 import type { ResourceDefinition } from '../../../resources/resourceTypes';
 import { useEffect, useRef, useState } from 'react';
 import { hasVisionDefaults } from '../../../gameSystems/visionDefaults';
+import { parseSenseDefinitions } from '../../../gameSystems/senseValidation';
 import { DEFAULT_GRID_DEFAULTS, rulesOfPreset, vanillaSystemSettings } from '../../../gameSystems/systemRules';
 import { parseCreatureFilters, parseHiddenCreatureFilters } from '../../../creatures/creatureFilterDefinitions';
 import type { AssetService } from '../../../services/AssetService';
@@ -15,6 +16,7 @@ import type {
 import type { CreatureFilterDefinition } from '../../../types/creatureFilterTypes';
 import type { DiceRules } from '../../../types/diceRulesTypes';
 import type { TokenVisionDefaults } from '../../../types/lightingTypes';
+import type { SenseDefinition } from '../../../types/senseTypes';
 import type { SystemPreset } from '../../../types/systemPresetTypes';
 
 export interface CollectionSettingsDraft {
@@ -25,6 +27,8 @@ export interface CollectionSettingsDraft {
   /** What new tokens start with; undefined when the collection sets nothing. */
   defaultTokenVision: TokenVisionDefaults | undefined;
   setDefaultTokenVision: (vision: TokenVisionDefaults | undefined) => void;
+  /** Unset while the collection takes the senses of its preset; read with `collectionSenses`. */
+  senses: readonly SenseDefinition[] | undefined;
   conditions: ConditionDefinition[];
   setConditions: (conditions: ConditionDefinition[]) => void;
   resources: ResourceDefinition[];
@@ -65,6 +69,7 @@ export function useCollectionSettingsDraft(
   const [gridDefaults, setGridDefaults] = useState<CollectionGridDefaults>(() => structuredClone(DEFAULT_GRID_DEFAULTS));
   const [defaultWidgets, setDefaultWidgets] = useState<Record<string, boolean>>({});
   const [defaultTokenVision, setDefaultTokenVision] = useState<TokenVisionDefaults | undefined>(undefined);
+  const [senses, setSenses] = useState<readonly SenseDefinition[] | undefined>(undefined);
   const [conditions, setConditions] = useState<ConditionDefinition[]>([]);
   const [resources, setResources] = useState<ResourceDefinition[]>([]);
   /** The resources the collection had when the draft opened; a bar switch follows only a resource that came or went. */
@@ -82,6 +87,7 @@ export function useCollectionSettingsDraft(
     setGridDefaults(settings.gridDefaults ?? structuredClone(DEFAULT_GRID_DEFAULTS));
     setDefaultWidgets(settings.defaultWidgets ?? {});
     setDefaultTokenVision(settings.defaultTokenVision);
+    setSenses(parseSenseDefinitions(settings.senses));
     setConditions(settings.conditions ?? []);
     const loaded = collectionResources(settings);
     loadedResources.current = loaded;
@@ -102,6 +108,8 @@ export function useCollectionSettingsDraft(
     setDefaultWidgets(rules.defaultWidgets);
     setDice(rules.dice);
     setDefaultTokenVision(rules.defaultTokenVision);
+    // The collection reads its preset's senses until they are edited.
+    setSenses(undefined);
     setSystemPresetId(preset.id);
   };
 
@@ -113,6 +121,7 @@ export function useCollectionSettingsDraft(
     setDefaultWidgets(vanilla.defaultWidgets);
     setDice(vanilla.dice);
     setDefaultTokenVision(vanilla.defaultTokenVision);
+    setSenses(vanilla.senses);
     setSystemPresetId(undefined);
   };
 
@@ -122,6 +131,7 @@ export function useCollectionSettingsDraft(
       gridDefaults,
       defaultWidgets: withChangedBars(defaultWidgets, loadedResources.current, saved),
       defaultTokenVision: hasVisionDefaults(defaultTokenVision) ? defaultTokenVision : undefined,
+      senses,
       conditions,
       resources: saved,
       ...(dice && { dice: { ...dice, defaultRoll: dice.defaultRoll.trim() } }),
@@ -138,6 +148,7 @@ export function useCollectionSettingsDraft(
     gridDefaults, setGridDefaults,
     defaultWidgets, setDefaultWidgets,
     defaultTokenVision, setDefaultTokenVision,
+    senses,
     conditions, setConditions,
     resources, setResources,
     dice, setDice,

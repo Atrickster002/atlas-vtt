@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useImperativeHandle, useMemo, useRef } from 'react';
 import { useReducedMotion } from 'framer-motion';
-import { dieGeometry, faceIndexForValue, restingQuaternion } from '../../../dice3d/dieGeometry';
+import { dieGeometry, faceIndexForValue, lyingHeight, REST_YAW, restingQuaternion } from '../../../dice3d/dieGeometry';
 import { beginRoll, makeDie, restImmediately, stepDie } from '../../../dice3d/dieMotion';
 import { STAGE_X, type Rng } from '../../../dice3d/dieTour';
 import { throwRandom } from '../../../dice3d/throwSeed';
@@ -71,6 +71,11 @@ export function DiceStage({ scene, crit, onSettled, muted, style, frame, seed, l
   const frameRef = useRef<number | null>(null);
   const lastRef = useRef(0);
   const settledRef = useRef(false);
+  /**
+   * This throw's wheel: other rolls throw meanwhile, and only its own wheel is
+   * this stage's to stop. 0 is no roll's number, so a stage that started none stops none.
+   */
+  const wheelRef = useRef(0);
   const reduced = useReducedMotion() === true;
 
   const settledCb = useRef(onSettled);
@@ -98,7 +103,7 @@ export function DiceStage({ scene, crit, onSettled, muted, style, frame, seed, l
   useEffect(() => {
     const stage = rendererRef.current?.stage();
     diceRef.current = scene.plan.map((die, i) => ({
-      anim: makeDie(throwRandom(seed, -1 - i), offsets[i], radius, stage),
+      anim: makeDie(throwRandom(seed, -1 - i), offsets[i], radius, stage, lyingHeight(dieGeometry(die.sides))),
       sides: die.sides,
     }));
     stepRandoms.current = scene.plan.map((_, i) => throwRandom(seed, 1000 + i));
@@ -133,7 +138,7 @@ export function DiceStage({ scene, crit, onSettled, muted, style, frame, seed, l
     const allResting = diceRef.current.every((die) => die.anim.phase === 'rest');
     if (allResting && !settledRef.current) {
       settledRef.current = true;
-      if (!muted) rollEnd();
+      if (!muted) rollEnd(wheelRef.current);
       settledCb.current();
     }
     return !allResting || Math.min(...diceRef.current.map((die) => die.anim.restFor)) < AFTERGLOW * speed;
@@ -169,7 +174,7 @@ export function DiceStage({ scene, crit, onSettled, muted, style, frame, seed, l
         // Skipping means landing earlier, not landing silently: the skipped
         // flight never reports its touchdown, and the wheel must stop now.
         if (!muted) {
-          rollEnd(true);
+          rollEnd(wheelRef.current);
           rattle();
         }
       }
@@ -228,7 +233,9 @@ export function DiceStage({ scene, crit, onSettled, muted, style, frame, seed, l
   useEffect(() => {
     diceRef.current.forEach((die, i) => {
       const geometry = dieGeometry(die.sides);
-      const target = restingQuaternion(geometry, faceIndexForValue(geometry, scene.faces[i] ?? 1));
+      // Each die lies turned a little differently, as thrown dice do; from the seed, like the rest of the throw.
+      const yaw = (throwRandom(seed, 2000 + i)() * 2 - 1) * REST_YAW;
+      const target = restingQuaternion(geometry, faceIndexForValue(geometry, scene.faces[i] ?? 1), yaw);
       if (reduced) restImmediately(die.anim, target);
       else beginRoll(die.anim, target, i * STAGGER, throwRandom(seed, i), maxWallHits);
     });
@@ -244,7 +251,7 @@ export function DiceStage({ scene, crit, onSettled, muted, style, frame, seed, l
       return;
     }
     // The wheel gets the real duration of this throw: the latest die decides.
-    if (!muted) rollStart(Math.max(...diceRef.current.map((die) => die.anim.delay + die.anim.tour.duration)) / speed);
+    if (!muted) wheelRef.current = rollStart(Math.max(...diceRef.current.map((die) => die.anim.delay + die.anim.tour.duration)) / speed);
     start();
   }, [scene, reduced, muted, speed, maxWallHits, seed, start, paint]);
 
@@ -253,7 +260,7 @@ export function DiceStage({ scene, crit, onSettled, muted, style, frame, seed, l
     if (frameRef.current !== null) win?.cancelAnimationFrame(frameRef.current);
     frameRef.current = null;
     // A panel closing mid-throw silences the wheel at once.
-    if (!muted) rollEnd(true);
+    if (!muted) rollEnd(wheelRef.current);
   }, [muted]);
 
   return <div ref={holderRef} role="img" aria-label={label} className={className} />;

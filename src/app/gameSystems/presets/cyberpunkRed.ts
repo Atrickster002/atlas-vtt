@@ -1,5 +1,6 @@
 import type { SystemPreset } from '../../types/systemPresetTypes';
 import { HP_RESOURCE } from '../../resources/resourceDefinitions';
+import { CYBERPUNK_RED_SENSES } from '../senses/cyberpunkRed';
 import { builtInPresetId, conditionsOf } from './presetHelpers';
 
 /**
@@ -34,5 +35,6 @@ export const CYBERPUNK_RED: SystemPreset = {
       { name: 'Damaged Ear', color: '#0891b2', icon: 'hearing-disabled' },
     ]),
     resources: [{ ...HP_RESOURCE }],
+    senses: CYBERPUNK_RED_SENSES,
   },
 };

@@ -6,13 +6,14 @@
 
 import { HP_RESOURCE, parseResourceDefinitions, withLegacyBars } from '../resources/resourceDefinitions';
 import { isValidRangeBandThreshold } from '../grid/measurementFormat';
-import type {
-  CollectionGridDefaults,
-  ConditionDefinition,
-  DiagonalRule,
-  GridUnitType,
-  MeasurementMode,
-  RangeBand,
+import {
+  CONDITION_EFFECTS,
+  type CollectionGridDefaults,
+  type ConditionDefinition,
+  type DiagonalRule,
+  type GridUnitType,
+  type MeasurementMode,
+  type RangeBand,
 } from '../types/collectionSettingsTypes';
 import type { DiceRules } from '../types/diceRulesTypes';
 import { BUILT_IN_ID_PREFIX, type SystemPreset } from '../types/systemPresetTypes';
@@ -20,6 +21,8 @@ import { WIDGET_ICON_PATHS, resolveWidgetIcon, type WidgetIcon } from '../types/
 import type { AnyWidget } from '../types/widgetTypes';
 import { isValidClockSegments } from '../utils/clockWidget';
 import { CRIT_RULES, isValidDefaultRoll } from './diceRules';
+import { GENERIC_SENSES } from './senses/generic';
+import { parseSenseDefinitions } from './senseValidation';
 import { parseVisionDefaults } from './visionDefaults';
 import { isHexColor } from '../utils/hexColor';
 
@@ -66,7 +69,14 @@ function parseCondition(raw: unknown): ConditionDefinition | null {
   if (!isRecord(raw) || !isNonEmptyString(raw.id) || typeof raw.name !== 'string') return null;
   if (!isHexColor(raw.color)) return null;
   const icon = typeof raw.icon === 'string' && raw.icon in WIDGET_ICON_PATHS ? (raw.icon as WidgetIcon) : undefined;
-  return { id: raw.id, name: raw.name, color: raw.color, ...(icon && { icon }), ...(raw.valued === true && { valued: true }) };
+  return {
+    id: raw.id,
+    name: raw.name,
+    color: raw.color,
+    ...(icon && { icon }),
+    ...(raw.valued === true && { valued: true }),
+    ...(isOneOf(CONDITION_EFFECTS, raw.effect) && { effect: raw.effect }),
+  };
 }
 
 function isNumber(value: unknown): value is number {
@@ -133,7 +143,9 @@ export function parseUserPreset(raw: unknown): SystemPreset | null {
   const resources = Array.isArray(raw.rules.resources)
     ? parseResourceDefinitions(raw.rules.resources)
     : withLegacyBars([{ ...HP_RESOURCE }], defaultWidgets);
-  const defaultTokenVision = parseVisionDefaults(raw.rules.defaultTokenVision);
+  const senses = parseSenseDefinitions(raw.rules.senses);
+  // A collection set from the preset has these senses, so only they can be a default.
+  const defaultTokenVision = parseVisionDefaults(raw.rules.defaultTokenVision, senses ?? GENERIC_SENSES);
   return {
     id: raw.id,
     name: raw.name.trim(),
@@ -146,6 +158,7 @@ export function parseUserPreset(raw: unknown): SystemPreset | null {
       ...(dice && { dice }),
       ...(resources.length > 0 && { resources }),
       ...(defaultTokenVision && { defaultTokenVision }),
+      ...(senses && { senses }),
     },
   };
 }

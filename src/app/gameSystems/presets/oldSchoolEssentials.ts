@@ -1,5 +1,6 @@
 import type { SystemPreset } from '../../types/systemPresetTypes';
 import { HP_RESOURCE } from '../../resources/resourceDefinitions';
+import { OLD_SCHOOL_ESSENTIALS_SENSES } from '../senses/oldSchoolEssentials';
 import { builtInPresetId, conditionsOf } from './presetHelpers';
 
 /**
@@ -28,12 +29,13 @@ export const OLD_SCHOOL_ESSENTIALS: SystemPreset = {
       { name: 'Petrified', color: '#78716c', icon: 'stoned-skull' },
       { name: 'Charmed', color: '#db2777', icon: 'heart' },
       { name: 'Asleep', color: '#1e3a8a', icon: 'sleepy' },
-      { name: 'Blinded', color: '#475569', icon: 'blindfold' },
-      { name: 'Invisible', color: '#c7d2fe', icon: 'invisible' },
+      { name: 'Blinded', color: '#475569', icon: 'blindfold', effect: 'blinded' },
+      { name: 'Invisible', color: '#c7d2fe', icon: 'invisible', effect: 'invisible' },
       { name: 'Entangled', color: '#0d9488', icon: 'spider-web' },
       { name: 'Fleeing', color: '#7c3aed', icon: 'run' },
       { name: 'Surprised', color: '#f59e0b', icon: 'surprised' },
     ]),
     resources: [{ ...HP_RESOURCE }],
+    senses: OLD_SCHOOL_ESSENTIALS_SENSES,
   },
 };

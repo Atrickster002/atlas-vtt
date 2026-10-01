@@ -10,8 +10,8 @@ import NUMERALS_URL from '../assets/dice3d/numerals.webp?inline';
 import { CELL } from './atlasCell';
 import type { DiceFont } from './diceLook';
 import { dieGeometry, faceIndexForValue, type DieSides } from './dieGeometry';
-import { faceOutline } from './faceFrame';
-import { placeNumeral, type InkBox, type NumeralPlacement } from './numeralPlacement';
+import { faceMarks, type NumeralMark } from './faceMarks';
+import { fitNumeral, type InkBox } from './numeralFit';
 
 const SHEET_CELL = 160;
 const SHEET_COLS = 6;
@@ -53,7 +53,7 @@ interface NumeralSheet {
 
 const sheets = new Map<DiceFont, NumeralSheet>();
 const pending = new Map<DiceFont, Promise<void>>();
-const placements = new Map<string, NumeralPlacement>();
+const scales = new Map<string, number>();
 /** One cell of scratch space, for colouring a numeral before it goes onto a face. */
 let scratch: HTMLCanvasElement | null = null;
 
@@ -149,9 +149,9 @@ function measureInk(sheet: HTMLImageElement | HTMLCanvasElement): InkBox[] | nul
   });
 }
 
-/** Font size of the numeral per body: many faces means little room. */
+/** Font size of the numeral per body: many faces means little room, and the d4 writes three on each face. */
 export function numeralSize(sides: DieSides): number {
-  if (sides === 4) return CELL * 0.34;
+  if (sides === 4) return CELL * 0.19;
   if (sides >= 12) return CELL * 0.36;
   return CELL * 0.44;
 }
@@ -167,17 +167,18 @@ export function numeralCell(sides: DieSides, value: number): number {
   return value - 1;
 }
 
-/** Size and position of a numeral on its face; see `numeralPlacement.ts`. */
-function placementFor(font: DiceFont, sides: DieSides, value: number, ink: InkBox, pxPerSheetPx: number): NumeralPlacement {
-  const key = `${font}:${sides}:${value}`;
-  let placement = placements.get(key);
-  if (!placement) {
-    const geometry = dieGeometry(sides);
-    const outline = faceOutline(geometry, faceIndexForValue(geometry, value), CELL);
-    placement = placeNumeral(outline, (ink.x1 - ink.x0) * pxPerSheetPx, (ink.y1 - ink.y0) * pxPerSheetPx);
-    placements.set(key, placement);
+/**
+ * How far a numeral is shrunk to fit its room; see `numeralFit.ts`. Kept per
+ * number: on every body all the rooms a number is written into are alike.
+ */
+function scaleFor(font: DiceFont, sides: DieSides, mark: NumeralMark, ink: InkBox, pxPerSheetPx: number): number {
+  const key = `${font}:${sides}:${mark.value}`;
+  let scale = scales.get(key);
+  if (scale === undefined) {
+    scale = fitNumeral(mark.room, (ink.x1 - ink.x0) * pxPerSheetPx, (ink.y1 - ink.y0) * pxPerSheetPx);
+    scales.set(key, scale);
   }
-  return placement;
+  return scale;
 }
 
 /** The sheet cell of a numeral, in `ink`, or as drawn when `ink` is null. */
@@ -196,7 +197,11 @@ function numeralSource(sheet: NumeralSheet, cell: number, ink: string | null): {
   return { image: scratch, sx: 0, sy: 0 };
 }
 
-/** A numeral of the font's sheet, its ink fitted into the face and coloured `ink` (null: as drawn). */
+/**
+ * The numerals of the face that stands for `value` (`faceMarks`), from the
+ * font's sheet: each fitted into its room, its ink centre on its place, and
+ * coloured `ink` (null: as drawn).
+ */
 export function paintNumeral(
   ctx: CanvasRenderingContext2D,
   x: number,
@@ -208,22 +213,28 @@ export function paintNumeral(
 ): void {
   const sheet = sheets.get(font);
   if (!sheet) return;
-  const cell = numeralCell(sides, value);
-  const box = sheet.ink?.[cell] ?? NOMINAL_INK;
+  const geometry = dieGeometry(sides);
   const pxPerSheetPx = numeralSize(sides) / SHEET_FILL / SHEET_CELL;
-  const { scale, shift } = placementFor(font, sides, value, box, pxPerSheetPx);
-  const k = pxPerSheetPx * scale;
-  const source = numeralSource(sheet, cell, ink);
-  // The ink centre lands on the face centre, moved `shift` towards the numeral's top (up the canvas).
-  ctx.drawImage(
-    source.image,
-    source.sx,
-    source.sy,
-    SHEET_CELL,
-    SHEET_CELL,
-    x - ((box.x0 + box.x1) / 2) * k,
-    y - shift - ((box.y0 + box.y1) / 2) * k,
-    SHEET_CELL * k,
-    SHEET_CELL * k,
-  );
+  for (const mark of faceMarks(geometry, faceIndexForValue(geometry, value), CELL)) {
+    const cell = numeralCell(sides, mark.value);
+    const box = sheet.ink?.[cell] ?? NOMINAL_INK;
+    const k = pxPerSheetPx * scaleFor(font, sides, mark, box, pxPerSheetPx);
+    const source = numeralSource(sheet, cell, ink);
+    ctx.save();
+    // The cell's y points up, the canvas' down.
+    ctx.translate(x + mark.at[0], y - mark.at[1]);
+    ctx.rotate(Math.atan2(mark.up[0], mark.up[1]));
+    ctx.drawImage(
+      source.image,
+      source.sx,
+      source.sy,
+      SHEET_CELL,
+      SHEET_CELL,
+      -((box.x0 + box.x1) / 2) * k,
+      -((box.y0 + box.y1) / 2) * k,
+      SHEET_CELL * k,
+      SHEET_CELL * k,
+    );
+    ctx.restore();
+  }
 }

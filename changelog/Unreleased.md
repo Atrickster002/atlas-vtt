@@ -30,6 +30,7 @@
 - Flickering lights take about a quarter of the graphics card time they did on a 120 Hz display, and half on a 60 Hz one
 - Dynamic lighting costs far less on high-density displays such as Retina screens, so panning a lit map stays smooth
 - An open player window costs far less, so the GM view stays smooth on large maps with lighting
+- Dragging a token no longer reveals the map along the way. What it sees and the light it carries stay where the drag began, and players see both at the new position when you drop it. To update while dragging instead, switch off "Update sight when a token is dropped" in Lighting settings
 - Session view (the GM view switch in the toolbar, D) now also shows the players' lighting: the map as their tokens see it, without the tokens they cannot see, door badges, light markers and wall lines
 - The lighting menu is laid out like the other tool menus: what the tool does and how walls are drawn are rows with a tick, and the time of day shows which one is chosen
 - Switches in the tool menus can be reached with Tab and switched with Space or Enter, and screen readers announce them. Every menu row is now rounded alike on both sides
@@ -60,5 +61,6 @@
 - The player window follows again when you return to the scene it presents
 - When a scene cannot be saved, Atlas now says so after a few seconds instead of waiting without end
 - When one part of the map view fails to show, such as the initiative tracker, the map, the toolbar and the other parts now stay and Atlas tells you which part is missing. Before, the whole view went black
+- A light's dim range is now visibly lit out to its edge and the light ends just past it, so what looks dark on the map is dark. Before, the outer part of the dim range was drawn nearly black although tokens standing there still showed
 - Scene thumbnails and snapshot previews show a scene's dynamic lighting as the GM sees it. They also leave out pins, linked hexes, light markers, door badges and wall lines, and follow changes to the scene's lighting
 - A scene keeps its thumbnail when the graphics device resets or the scene could not be opened again, instead of getting a blank or outdated one

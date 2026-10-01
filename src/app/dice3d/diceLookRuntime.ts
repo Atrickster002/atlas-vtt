@@ -6,7 +6,7 @@
 import { DICE_COLOUR_OPTIONS, parseHex, type DiceColour, type DiceFont, type DiceLook, type Rgb } from './diceLook';
 import { layoutDice, restingFrame } from './diceScene';
 import { loadDiceArtwork } from './dieArtwork';
-import { dieGeometry, faceIndexForValue, restingQuaternion } from './dieGeometry';
+import { dieGeometry, faceIndexForValue, lyingHeight, REST_YAW, restingQuaternion } from './dieGeometry';
 import { refreshDieArtwork } from './dieMesh';
 import { makeDie, restImmediately } from './dieMotion';
 import { activeLook, resolveLook, setActiveLook } from './dieSkin';
@@ -55,8 +55,8 @@ export async function renderDicePreviews(font: DiceFont, doc: Document = activeD
     renderer.setSize(PREVIEW_PX, PREVIEW_PX, 1, 0.5, restingFrame(offsets, radius).halfWidth);
     renderer.setPlan([20]);
     const geometry = dieGeometry(20);
-    const anim = makeDie(Math.random, offsets[0], radius, renderer.stage());
-    restImmediately(anim, restingQuaternion(geometry, faceIndexForValue(geometry, 20)));
+    const anim = makeDie(Math.random, offsets[0], radius, renderer.stage(), lyingHeight(geometry));
+    restImmediately(anim, restingQuaternion(geometry, faceIndexForValue(geometry, 20), REST_YAW / 2));
     for (const { value: colour } of DICE_COLOUR_OPTIONS) {
       setActiveLook(resolveLook({ colour, font }, accent));
       refreshDieArtwork(20);

@@ -4,6 +4,7 @@ import {
   dieGeometry,
   faceIndexForValue,
   faceQuaternion,
+  lyingHeight,
   restingQuaternion,
   type DieSides,
 } from '../../../src/app/dice3d/dieGeometry';
@@ -78,34 +79,38 @@ describe('target orientation', () => {
     }
   });
 
-  // The tilt may look nice but never become ambiguous: the rolled face stays
-  // the topmost, or the neighbouring number would be read.
-  it.each(ALL)('the rolled face of a tilted d%i stays topmost', (sides) => {
+  // A die at rest lies on the table: one whole face touches it and nothing
+  // reaches lower. Standing on an edge or a tip is no way to come to rest.
+  it.each(ALL)('the d%i comes to rest lying on a face', (sides) => {
     const geometry = dieGeometry(sides);
-    for (let value = 1; value <= sides; value++) {
-      const face = faceIndexForValue(geometry, value);
-      const q = restingQuaternion(geometry, face);
-      const tops = geometry.normals
-        .map((n, i) => ({ i, y: qRotate(q, n)[1] }))
-        .sort((a, b) => b.y - a.y);
-
-      expect(tops[0]!.i).toBe(face);
-      // And by a visible margin, not just a rounding digit.
-      expect(tops[0]!.y - tops[1]!.y).toBeGreaterThan(0.06);
+    for (let face = 0; face < sides; face++) {
+      for (const yaw of [0, 0.3, -0.3]) {
+        const q = restingQuaternion(geometry, face, yaw);
+        const heights = geometry.vertices.map((v) => qRotate(q, v)[1]);
+        const lowest = Math.min(...heights);
+        expect(heights.filter((y) => y - lowest < 1e-6).length).toBeGreaterThanOrEqual(3);
+        expect(-lowest).toBeCloseTo(lyingHeight(geometry), 6);
+      }
     }
   });
 
-  // How far it tilts depends on the body: the d4 may tilt further than the
-  // d20 because its neighbours are 109° away instead of 42°. So the band is
-  // checked, not the number.
-  it.each(ALL)('tilts the d%i visibly, but not to the edge', (sides) => {
+  it.each([6, 8, 10, 12, 20] as DieSides[])('the rolled face of a resting d%i is the one on top', (sides) => {
     const geometry = dieGeometry(sides);
     for (let face = 0; face < sides; face++) {
+      expect(qRotate(restingQuaternion(geometry, face, 0.2), geometry.normals[face]!)[1]).toBeCloseTo(1, 9);
+    }
+  });
+
+  // No face of a d4 lies on top. It rests on the rolled face, tip up, and the
+  // face turned to the viewer (+Z) reads upright.
+  it('a resting d4 lies on its rolled face, one face turned to the viewer', () => {
+    const geometry = dieGeometry(4);
+    for (let face = 0; face < 4; face++) {
       const q = restingQuaternion(geometry, face);
-      const degrees =
-        (Math.acos(Math.min(1, qRotate(q, geometry.normals[face]!)[1])) * 180) / Math.PI;
-      expect(degrees).toBeGreaterThan(8);
-      expect(degrees).toBeLessThan(35);
+      expect(qRotate(q, geometry.normals[face]!)[1]).toBeCloseTo(-1, 9);
+      const front = geometry.normals.map((n) => qRotate(q, n)).sort((a, b) => b[2] - a[2])[0]!;
+      expect(front[0]).toBeCloseTo(0, 9);
+      expect(front[2]).toBeGreaterThan(0.9);
     }
   });
 

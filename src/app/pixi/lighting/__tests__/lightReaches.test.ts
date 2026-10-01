@@ -3,8 +3,8 @@ import { LightReaches } from '../lightReaches';
 import type { EngineLight } from '../engine/types';
 import type { WallSegment } from '../../../types/wallTypes';
 
-function light(key: string, x: number, dim = 100): EngineLight {
-  return { key, x, y: 0, bright: dim / 2, dim, flame: 10, color: [1, 1, 1], intensity: 1, animation: 'none' };
+function light(key: string, x: number, dim = 100, bright = dim / 2): EngineLight {
+  return { key, x, y: 0, bright, dim, flame: 10, color: [1, 1, 1], intensity: 1, animation: 'none' };
 }
 
 const walls: WallSegment[] = [{ id: 'w', kind: 'wall', type: 'solid', p1: { x: 50, y: -100 }, p2: { x: 50, y: 100 } }];
@@ -24,6 +24,20 @@ describe('LightReaches', () => {
 
     const rewalled = cache.sync([light('a', 10), light('b', 200, 150)], [...walls]);
     expect(rewalled[0]).not.toBe(moved[0]);
+  });
+
+  it('carries each light\'s bright radius', () => {
+    expect(new LightReaches().sync([light('a', 0), light('b', 200, 150, 30)], walls).map((reach) => [reach.bright, reach.dim]))
+      .toEqual([[50, 100], [30, 150]]);
+  });
+
+  it('takes a new bright radius without tracing the light again', () => {
+    const cache = new LightReaches();
+    const [before] = cache.sync([light('a', 0, 100, 50)], walls);
+    const [after] = cache.sync([light('a', 0, 100, 80)], walls);
+    expect(after!.bright).toBe(80);
+    expect(after!.polygon).toBe(before!.polygon);
+    expect(cache.sync([light('a', 0, 100, 80)], walls)[0]).toBe(after);
   });
 
   it('drops lights that are gone', () => {
