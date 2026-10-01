@@ -22,4 +22,9 @@ export class LatestRequestQueue {
     this.inFlight = result.catch(() => undefined);
     return result;
   }
+
+  /** Replaces every request without a new one: waiting jobs never start and the running one stops at its next wait. */
+  cancel(): void {
+    this.requests++;
+  }
 }

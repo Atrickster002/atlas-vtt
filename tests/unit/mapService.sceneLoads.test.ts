@@ -322,6 +322,23 @@ describe('MapService scene loads', () => {
       expect(tower && towerSaved).toBeTruthy();
     });
 
+    it('starts no load and shows no notice after the view was closed', async () => {
+      const { service, store, rendererService, shown, holdBack } = setup();
+      holdBack(CAVE);
+      void service.loadMap(rendererService, CAVE);
+      await vi.advanceTimersByTimeAsync(0);
+      const waiting = service.loadMap(rendererService, TOWER);
+      vi.mocked(Notice).mockClear();
+
+      service.destroy();
+      await vi.advanceTimersByTimeAsync(STALLED_JOB_MS);
+
+      expect(await waiting).toBeNull();
+      expect(shown).toEqual([]);
+      expect(store.getState().mapPath).toBe(CAVE);
+      expect(Notice).not.toHaveBeenCalled();
+    });
+
     it('runs only the latest of several requests', async () => {
       const { service, store, rendererService, shown, holdBack } = setup();
       const gate = holdBack(CAVE);

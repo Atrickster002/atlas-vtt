@@ -238,8 +238,9 @@ export class MapService {
     if (previous) backgroundTextureCache.release(previous);
   }
 
-  /** Releases resources held for the loaded map. */
+  /** Stops waiting and running loads and releases resources held for the loaded map. */
   public destroy(): void {
+    this.loads.cancel();
     this.holdBackground(null);
   }
 
