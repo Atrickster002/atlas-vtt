@@ -6,7 +6,7 @@ import { stubJsdomGraphics } from '../mocks/jsdomGraphics';
 
 const definitions: ConditionDefinition[] = [{ id: 'restrained', name: 'Restrained', color: '#c0392b' }];
 const LAYOUT = { ringRadius: 31, badgeScale: 1, cardScale: 1 };
-const NOTE = 'Darkness · Seen by Mirabel: darkvision';
+const NOTE = 'Darkness · Seen by Mirabel: Darkvision';
 
 describe('the note on a token\'s hover card', () => {
   let restore: () => void;

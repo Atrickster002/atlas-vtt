@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { Container, EventSystem, Text } from 'pixi.js';
+import type { Container, EventSystem, Graphics, Text } from 'pixi.js';
 import { Viewport } from 'pixi-viewport';
 import type { MeasurementSettings } from '../../src/app/grid/measurementFormat';
 import { GmSightAids, SIGHT_AIDS_Z_INDEX } from '../../src/app/pixi/lighting/GmSightAids';
@@ -34,7 +34,7 @@ afterEach(() => {
   document.body.className = '';
 });
 
-function setup(): Setup {
+function setup(measure: () => MeasurementSettings = measurement, frames: () => Window = () => window): Setup {
   const restoreGraphics = stubJsdomGraphics();
   const events = { domElement: document.createElement('canvas') } as unknown as EventSystem;
   const viewport = new Viewport({ screenWidth: 800, screenHeight: 600, events });
@@ -48,12 +48,12 @@ function setup(): Setup {
   const aids = new GmSightAids({
     viewport,
     store,
-    measurement,
+    measurement: measure,
     bounds: () => ({ width: 4000, height: 4000 }),
     rules: () => GENERIC_SIGHT_RULES,
     lighting: { isEnabled: () => store.getState().lighting.enabled, currentSight: () => SEES_ALL, ambientLight: () => ({ ambient: 1 }), lightReaches: () => [] },
     perception: () => (store.getState().lighting.enabled ? perception() : undefined),
-    frames: () => window,
+    frames,
   });
   cleanup = () => {
     aids.destroy();
@@ -140,6 +140,105 @@ describe('the ranges of a selected vision token', () => {
     expect(light.destroyed).toBe(true);
     const text = (aids.rings.view.children[1]!.children[0] as Container).children[1] as Text;
     expect(text.style.fill).toBe(0xffffff);
+  });
+});
+
+/** The lines of the rings and cone edges. */
+const lines = (aids: GmSightAids): Graphics => aids.rings.view.children[0] as Graphics;
+
+describe('the ranges of a selected vision token in the edge cases', () => {
+  it('draws the cone\'s edges out to the map\'s diagonal for a token that looks one way with unlimited sight', () => {
+    const { aids, store, add } = setup();
+    const id = add(500, { enabled: true, angle: 90 });
+    store.getState().setSelection([id]);
+    aids.update();
+    expect(labels(aids)).toEqual(['No limit: Sight']);
+    expect(aids.rings.rings()[0]).toMatchObject({ cone: { angle: Math.PI / 2 }, coneReach: Math.hypot(4000, 4000) });
+    const stroked = lines(aids).context.instructions.filter((instruction) => instruction.action === 'stroke');
+    // The dark rim and the line, each of the two edges.
+    expect(stroked).toHaveLength(2);
+    // With a sight range the edges end at its ring.
+    store.getState().updateToken(id, { vision: { enabled: true, angle: 90, range: 60 } });
+    aids.update();
+    expect(aids.rings.rings()[0]!.coneReach).toBe(840);
+  });
+
+  it('words a distance that is not whole as it is set: 7.5 m is not 8 m', () => {
+    const metres = (): MeasurementSettings => ({ mode: 'grid', unitType: 'meters', unitDistance: 1.5, diagonalRule: 'chebyshev', rangeBands: [] }) as unknown as MeasurementSettings;
+    const { aids, store, add } = setup(metres);
+    store.getState().setSelection([add(500, { enabled: true, range: 18, senses: [{ id: 'tremorsense', range: 4.5 }, { id: 'darkvision', range: 7.5 }] })]);
+    aids.update();
+    expect(labels(aids)).toEqual(['Sight 18m', 'Darkvision 7.5m', 'Tremorsense 4.5m']);
+  });
+
+  it('keeps its dashes one length on screen at every zoom', () => {
+    const { aids, store, viewport, add } = setup();
+    store.getState().setSelection([add(2000, { enabled: true, senses: [{ id: 'tremorsense', range: 60 }] })]);
+    aids.update();
+    const dashOnScreen = (zoom: number): number => {
+      viewport.scale.set(zoom);
+      // The camera looks at the ring's right end, where the first dashes are.
+      viewport.position.set(400 - 2840 * zoom, 300 - 500 * zoom);
+      viewport.emit('zoomed', { viewport, type: 'wheel' });
+      const arcs = lines(aids).context.instructions
+        .flatMap((instruction) => ((instruction.data as { path?: { instructions: Array<{ action: string; data: number[] }> } }).path?.instructions ?? []))
+        .filter((step) => step.action === 'arc');
+      const [, , radius, from, to] = arcs[0]!.data as [number, number, number, number, number];
+      expect(arcs.length).toBeLessThan(2000);
+      return (to - from) * radius * zoom;
+    };
+    // Tremorsense is dotted: dashes of 2 px.
+    for (const zoom of [0.25, 1, 4, 8]) expect(dashOnScreen(zoom)).toBeCloseTo(2, 0);
+  });
+
+  it('are not drawn while the scene has token vision off: no token\'s sight counts there', () => {
+    const { aids, store, add } = setup();
+    const id = add(500, { enabled: true, range: 60 });
+    store.getState().setSelection([id]);
+    aids.update();
+    expect(labels(aids)).toEqual(['Sight 60ft']);
+    store.getState().setSceneLighting({ tokenVision: false });
+    aids.update();
+    expect(labels(aids)).toEqual([]);
+    expect(aids.rings.view.visible).toBe(false);
+    // The hover line still tells the light the token stands in.
+    expect(aids.sightLine(id)).toBe('Bright light · Always shown to the players');
+  });
+
+  it('are drawn anew only when what they show changes: the selected token, the zoom, the theme', () => {
+    const { aids, store, viewport, add } = setup();
+    const seeing = add(500, { enabled: true, range: 60, senses: [{ id: 'darkvision', range: 30 }] });
+    const other = add(2000);
+    store.getState().setSelection([seeing]);
+    aids.update();
+    const clear = vi.spyOn(lines(aids), 'clear');
+    store.getState().updateToken(other, { name: 'Renamed', x: 2100 });
+    aids.update();
+    aids.update();
+    expect(clear).not.toHaveBeenCalled();
+    store.getState().updateToken(seeing, { x: 520 });
+    aids.update();
+    expect(clear).toHaveBeenCalledTimes(1);
+    store.getState().updateToken(seeing, { vision: { enabled: true, range: 40 } });
+    aids.update();
+    expect(clear).toHaveBeenCalledTimes(2);
+    viewport.scale.set(2);
+    viewport.emit('zoomed', { viewport, type: 'wheel' });
+    expect(clear).toHaveBeenCalledTimes(3);
+    // The camera moves without a zoom: nothing of a ring this small is left out, so nothing is drawn anew.
+    viewport.position.set(-40, -40);
+    viewport.emit('moved', { viewport, type: 'drag' });
+    expect(clear).toHaveBeenCalledTimes(3);
+    document.body.classList.add('theme-dark');
+    aids.update();
+    expect(clear).toHaveBeenCalledTimes(4);
+    // Nothing selected: nothing to clear, again and again.
+    store.getState().setSelection([]);
+    aids.update();
+    expect(clear).toHaveBeenCalledTimes(5);
+    store.getState().updateToken(other, { x: 2200 });
+    aids.update();
+    expect(clear).toHaveBeenCalledTimes(5);
   });
 });
 
@@ -235,6 +334,32 @@ describe('GmSightAids', () => {
     aids.schedule();
     await nextFrame();
     expect(aids.marks.shown()).toEqual([]);
+  });
+
+  it('cancels a waiting update in the window it asked, also once the canvas is in another (a popout)', () => {
+    const fake = (): { window: Window; pending: Map<number, FrameRequestCallback>; cancelled: number[] } => {
+      const pending = new Map<number, FrameRequestCallback>();
+      const cancelled: number[] = [];
+      let next = 0;
+      const frames = {
+        requestAnimationFrame: (callback: FrameRequestCallback): number => (pending.set(++next, callback), next),
+        cancelAnimationFrame: (id: number): void => { cancelled.push(id); pending.delete(id); },
+      } as unknown as Window;
+      return { window: frames, pending, cancelled };
+    };
+    const first = fake();
+    const second = fake();
+    let current = first;
+    const { aids } = setup(measurement, () => current.window);
+    expect(first.pending.size).toBe(1);
+    const update = vi.spyOn(aids, 'update');
+    current = second;
+    cleanup!();
+    cleanup = null;
+    expect(first.cancelled).toHaveLength(1);
+    expect(first.pending.size).toBe(0);
+    expect(second.cancelled).toEqual([]);
+    expect(update).not.toHaveBeenCalled();
   });
 
   it('shows nothing while the canvas shows the players\' view, and all of it again after', () => {

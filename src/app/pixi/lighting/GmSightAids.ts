@@ -2,6 +2,7 @@ import { Container } from 'pixi.js';
 import type { Viewport } from 'pixi-viewport';
 import type { MeasurementSettings } from '../../grid/measurementFormat';
 import { unitScaleOf } from '../../lighting/lightingUnits';
+import { tokenVisionOn } from '../../lighting/sceneLightingOptions';
 import type { ViewAtlasStore } from '../../storeFactory';
 import type { SightRules } from '../../vision/sightRules';
 import type { MapBounds } from '../../vision/visibility';
@@ -48,14 +49,16 @@ export class GmSightAids {
   readonly rings: SenseRangeRings;
   readonly marks = new PlayerSightMarks();
   private suppressed = false;
-  private frame: number | null = null;
+  /** The update that waits for a frame, with the window it was asked of: the canvas may be in another by then (a popout). */
+  private frame: { id: number; from: Window } | null = null;
   private host: SightLineHost | null = null;
   private refreshHoverCard: (() => void) | null = null;
   private readonly cleanups: Array<() => void> = [];
 
   constructor(private readonly deps: GmSightAidsDeps) {
     const { viewport, store } = deps;
-    this.rings = new SenseRangeRings({ ...deps, shown: () => this.shown() });
+    // With token vision off no token's sight counts, so its ranges say nothing.
+    this.rings = new SenseRangeRings({ ...deps, shown: () => this.shown() && tokenVisionOn(deps.store.getState().lighting) });
     this.view.addChild(this.rings.view, this.marks.view);
     viewport.addChild(this.view);
     this.cleanups.push(store.subscribe((state, previous) => {
@@ -89,10 +92,12 @@ export class GmSightAids {
   /** Something the aids show may have changed (the players' sight did): looked at once, in the next frame. */
   schedule(): void {
     if (this.frame !== null) return;
-    this.frame = this.deps.frames().requestAnimationFrame(() => {
+    const from = this.deps.frames();
+    const id = from.requestAnimationFrame(() => {
       this.frame = null;
       this.update();
     });
+    this.frame = { id, from };
   }
 
   update(): void {
@@ -122,7 +127,7 @@ export class GmSightAids {
 
   destroy(): void {
     for (const cleanup of this.cleanups.splice(0)) cleanup();
-    if (this.frame !== null) this.deps.frames().cancelAnimationFrame(this.frame);
+    this.frame?.from.cancelAnimationFrame(this.frame.id);
     this.frame = null;
     this.host?.setSightLineProvider(null);
     this.host = null;

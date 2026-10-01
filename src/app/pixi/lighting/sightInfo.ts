@@ -1,4 +1,3 @@
-import { NORMAL_SIGHT } from '../../gameSystems/senses/generic';
 import type { TokenEntity } from '../../types';
 import type { LightLevel } from '../../types/senseTypes';
 import { lightLevelAt } from '../../vision/lightLevels';
@@ -6,7 +5,7 @@ import { perceive, perceivingRegion, targetOf, type PerceptionOptions } from '..
 import type { AmbientLight, LightReach, Sight } from '../../vision/sight';
 import { tokenEffects } from '../../vision/sightRules';
 
-export const LIGHT_LEVEL_LABELS: Record<LightLevel, string> = {
+const LIGHT_LEVEL_LABELS: Record<LightLevel, string> = {
   bright: 'Bright light',
   dim: 'Dim light',
   dark: 'Darkness',
@@ -21,7 +20,8 @@ function nameOf(token: TokenEntity | undefined): string | null {
 
 /**
  * One line for the GM about a token on a lit scene: the light it stands in, and whether the
- * players' tokens perceive it and through which sense ("Darkness · Seen by Mirabel: darkvision").
+ * players' tokens perceive it and through which sense, named as the collection writes it
+ * ("Darkness · Seen by Mirabel: Darkvision").
  * A token with vision is one of theirs and always shown; a hidden token never is.
  */
 export function tokenSightLine(
@@ -41,6 +41,5 @@ export function tokenSightLine(
   const region = perceivingRegion(at, sight, level, target);
   if (!region) return `${light} · ${perceive(at, sight, level, target) === 'seen' ? 'Seen by the players' : 'Not seen by the players'}`;
   const viewer = nameOf(tokens[region.tokenId]) ?? 'a token';
-  const sense = region.sense === NORMAL_SIGHT ? 'sight' : region.sense.name.toLowerCase();
-  return `${light} · ${region.sense.precise ? 'Seen' : 'Sensed'} by ${viewer}: ${sense}`;
+  return `${light} · ${region.sense.precise ? 'Seen' : 'Sensed'} by ${viewer}: ${region.sense.name}`;
 }

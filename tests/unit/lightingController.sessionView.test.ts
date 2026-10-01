@@ -499,7 +499,7 @@ describe('tokens in session view', () => {
     const { onSightChange } = lighting.deps as SceneLightingDeps;
     expect(wired.sightLine(lurker)).toBe('Bright light · Not seen by the players');
     store.getState().updateToken(lurker, { x: 150, y: 100 });
-    expect(wired.sightLine(lurker)).toBe('Bright light · Seen by a token: sight');
+    expect(wired.sightLine(lurker)).toBe('Bright light · Seen by a token: Sight');
     await nextFrame();
     wired.refreshSightLine.mockClear();
     onSightChange?.();

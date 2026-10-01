@@ -3,6 +3,7 @@ import type { RangeBand } from '../../src/app/types/collectionSettingsTypes';
 import {
   areRangeBandsValid,
   formatDistance,
+  formatReach,
   isValidRangeBandThreshold,
   rangeBandName,
   resolveMeasurementSettings,
@@ -110,5 +111,22 @@ describe('unitLabelFor', () => {
   it('labels feet, yards and metres, nothing for generic units, and feet for maps without a unit', () => {
     expect(['feet', 'yards', 'meters', 'units', 'custom', undefined].map((unit) => unitLabelFor(unit as never)))
       .toEqual(['ft', 'yd', 'm', '', '', 'ft']);
+  });
+});
+
+describe('formatReach', () => {
+  const metric = (unitDistance: number, unitType: 'feet' | 'meters'): MeasurementSettings => ({ mode: 'metric', unitType, unitDistance, diagonalRule: 'equidistant', rangeBands: [] });
+
+  it('words a set distance with one decimal where it has one', () => {
+    expect(formatReach(12, metric(5, 'feet'))).toBe('60ft');
+    expect(formatReach(5, metric(1.5, 'meters'))).toBe('7.5m');
+    expect(formatReach(3, metric(1.5, 'meters'))).toBe('4.5m');
+    expect(formatReach(12.04, metric(5, 'feet'))).toBe('60.2ft');
+  });
+
+  it('names the range band, or counts squares where the collection has none', () => {
+    const bands = { mode: 'abstract', unitType: 'feet', unitDistance: 5, diagonalRule: 'equidistant', rangeBands: [{ name: 'Close', maxSquares: 2 }, { name: 'Far', maxSquares: 10 }] } as MeasurementSettings;
+    expect(formatReach(6, bands)).toBe('Far');
+    expect(formatReach(1.5, { ...bands, rangeBands: [] })).toBe('1.5 sq');
   });
 });

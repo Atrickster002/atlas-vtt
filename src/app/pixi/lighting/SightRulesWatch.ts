@@ -31,7 +31,7 @@ export interface SightRulesWatchDeps {
 export class SightRulesWatch {
   private rules: { mapPath: string | null; rules: SightRules } | null = null;
   /** The frame in which the rules are compared, while one is waited for. */
-  private refresh: number | null = null;
+  private refresh: { id: number; from: Window } | null = null;
   /** A statblock or the rules it is read with changed: the next refresh reports a change whatever the rules compare to. */
   private sensesChanged = false;
   private readonly visionOf: NonNullable<SightRules['visionOf']> = (token) => this.deps.senses.visionOf(token);
@@ -65,7 +65,8 @@ export class SightRulesWatch {
   private schedule(senses = false): void {
     this.sensesChanged ||= senses;
     if (this.refresh !== null) return;
-    this.refresh = this.deps.frames().requestAnimationFrame(() => {
+    const from = this.deps.frames();
+    const id = from.requestAnimationFrame(() => {
       this.refresh = null;
       const { obsApp, store, onChange } = this.deps;
       const state = store.getState();
@@ -76,11 +77,13 @@ export class SightRulesWatch {
       this.rules = { mapPath: state.mapPath, rules: next };
       onChange();
     });
+    // Cancelled in the window it was asked of: the canvas may be in another by then (a popout).
+    this.refresh = { id, from };
   }
 
   destroy(): void {
     for (const cleanup of this.cleanups.splice(0)) cleanup();
-    if (this.refresh !== null) this.deps.frames().cancelAnimationFrame(this.refresh);
+    this.refresh?.from.cancelAnimationFrame(this.refresh.id);
     this.refresh = null;
   }
 }

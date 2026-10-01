@@ -1,6 +1,6 @@
 import { Container, Graphics, Text, TextStyle } from 'pixi.js';
 import type { Viewport } from 'pixi-viewport';
-import { formatDistance, type MeasurementSettings } from '../../grid/measurementFormat';
+import { formatReach, type MeasurementSettings } from '../../grid/measurementFormat';
 import { unitScaleOf } from '../../lighting/lightingUnits';
 import type { ViewAtlasStore } from '../../storeFactory';
 import type { Point } from '../../types/visionTypes';
@@ -21,6 +21,7 @@ const LINE = 0xf2efe9;
 const UNDER_ALPHA = 0.7;
 /** Dash and gap of each line style; sight is solid. */
 const DASHES: Record<SenseRing['style'], readonly [number, number] | null> = { sight: null, sense: [7, 5], creatures: [2, 5] };
+/** A ring with more dashes than this is drawn only where the screen shows it. */
 const MAX_DASHES = 240;
 const LABEL_FONT_SIZE = 11;
 const LABEL_PADDING = 4;
@@ -36,6 +37,14 @@ const NO_LIMIT_ANGLE = Math.PI / 4;
 const NO_LIMIT_GAP = 12;
 /** More selected tokens than this draw no rings: they would cover the map. */
 const MAX_TOKENS = 4;
+
+/** The part of the map the screen shows, in world pixels. */
+interface Rect {
+  left: number;
+  top: number;
+  right: number;
+  bottom: number;
+}
 
 /** The rings of one token, and the radius of the token itself in world pixels. */
 interface TokenRings {
@@ -66,12 +75,20 @@ export class SenseRangeRings {
   private readonly badges = this.view.addChild(new Container());
   /** The label badges by token, text and theme: text is costly to set, so a label stays while it reads the same. */
   private readonly pool = new Map<string, Container>();
+  /** What the last drawing showed: the same again draws nothing anew. */
+  private drawn = '';
+  /** The last drawing left dashes out that the screen did not show, so it follows the camera. */
+  private culled = false;
   private readonly redraw = (): void => this.draw();
+  private readonly moved = (): void => {
+    if (this.culled) this.draw();
+  };
 
   constructor(private readonly deps: SenseRangeRingsDeps) {
     this.view.visible = false;
     deps.viewport.on('zoomed', this.redraw);
     deps.viewport.on('zoomed-end', this.redraw);
+    deps.viewport.on('moved', this.moved);
   }
 
   /** The rings of every selected token with vision, in a lit scene. */
@@ -92,29 +109,50 @@ export class SenseRangeRings {
     const settings = measurement();
     const scale = unitScaleOf(settings, state.grid);
     const unlimited = Math.hypot(map.width, map.height);
-    const distance = (radius: number): string => formatDistance(radius / scale.cellSize, settings);
+    const distance = (radius: number): string => formatReach(radius / scale.cellSize, settings);
     return tokens.flatMap((token) => {
       const footprint = computeTokenPixelSize(scale.cellSize, token.size || 1) / 2;
       return sightSources({ [token.id]: token }, scale, map, rules()).map((source) => ({ rings: senseRings(source, unlimited, distance), footprint }));
     });
   }
 
+  /**
+   * Draws the rings of the selected tokens. Called on every update of the sight aids and on
+   * every zoom, it draws anew only when what it shows changed: the selected tokens' ranges and
+   * places, the zoom, the theme, or the part on screen of a ring too long to dash all around.
+   */
   draw(): void {
     const all = this.selected();
+    const zoom = this.deps.viewport.scale.x;
+    const theme = canvasBadgeColors().background;
+    const screen = all.some(({ rings }) => rings.rings.some((ring) => dashCount(ring, zoom) > MAX_DASHES)) ? this.onScreen(zoom) : null;
+    const key = all.length === 0 ? '' : JSON.stringify([zoom, theme, screen, all]);
+    if (key === this.drawn) return;
+    this.drawn = key;
+    this.culled = screen !== null;
     this.view.visible = all.length > 0;
     this.lines.clear();
-    const zoom = this.deps.viewport.scale.x;
     const kept = new Set<string>();
-    all.forEach((token, index) => this.drawToken(token, zoom, (text) => {
-      const key = `${index}|${text}|${canvasBadgeColors().background}`;
-      kept.add(key);
-      return key;
+    all.forEach((token, index) => this.drawToken(token, zoom, screen, (text) => {
+      const label = `${index}|${text}|${theme}`;
+      kept.add(label);
+      return label;
     }));
-    for (const [key, badge] of this.pool) {
-      if (kept.has(key)) continue;
+    for (const [label, badge] of this.pool) {
+      if (kept.has(label)) continue;
       destroyTree(badge);
-      this.pool.delete(key);
+      this.pool.delete(label);
     }
+  }
+
+  /** The part of the map on screen, a dash and a half wider on every side; null for a viewport that does not tell its size. */
+  private onScreen(zoom: number): Rect | null {
+    const { position, screenWidth, screenHeight } = this.deps.viewport;
+    if (!(screenWidth > 0) || !(screenHeight > 0)) return null;
+    const margin = 16 / zoom;
+    const left = -position.x / zoom;
+    const top = -position.y / zoom;
+    return { left: left - margin, top: top - margin, right: left + screenWidth / zoom + margin, bottom: top + screenHeight / zoom + margin };
   }
 
   /** The texts of the labels shown now. */
@@ -122,22 +160,22 @@ export class SenseRangeRings {
     return [...this.pool.keys()].map((key) => key.split('|')[1]!);
   }
 
-  private drawToken({ rings: { center, rings, cone, unbounded }, footprint }: TokenRings, zoom: number, keyOf: (text: string) => string): void {
+  private drawToken({ rings: { center, rings, cone, coneReach, unbounded }, footprint }: TokenRings, zoom: number, screen: Rect | null, keyOf: (text: string) => string): void {
     const pixel = 1 / zoom;
     const g = this.lines;
     // Dark under light: first every hairline, then every line, so no line is cut by another's rim.
     for (const [width, color, alpha] of [[UNDER_WIDTH, 0x000000, UNDER_ALPHA], [LINE_WIDTH, LINE, 0.95]] as const) {
       for (const ring of rings) {
-        this.trace(center, ring, zoom);
+        this.trace(center, ring, zoom, screen);
         g.stroke({ width: width * pixel, color, alpha });
       }
-      const widest = rings.find((ring) => ring.cone);
-      if (cone && widest) {
+      // The cone's edges run as far as the eyes see: to the widest ring, or across the map without a sight range.
+      const from = cone?.apex ?? 0;
+      if (cone && coneReach > from) {
         for (const side of [-1, 1]) {
           const angle = cone.facing + (side * cone.angle) / 2;
-          const from = cone.apex ?? 0;
           g.moveTo(center.x + Math.cos(angle) * from, center.y + Math.sin(angle) * from);
-          g.lineTo(center.x + Math.cos(angle) * widest.radius, center.y + Math.sin(angle) * widest.radius);
+          g.lineTo(center.x + Math.cos(angle) * coneReach, center.y + Math.sin(angle) * coneReach);
         }
         g.stroke({ width: width * pixel, color, alpha });
       }
@@ -155,11 +193,14 @@ export class SenseRangeRings {
     }
   }
 
-  /** The ring's line: all around, or the arc within the cone; dashed by its style, in dashes of a constant length on screen. */
-  private trace(center: Point, ring: SenseRing, zoom: number): void {
+  /**
+   * The ring's line: all around, or the arc within the cone; dashed by its style, in dashes of
+   * one length on screen at every zoom. A ring too long to dash all around is dashed only where
+   * the screen shows it.
+   */
+  private trace(center: Point, ring: SenseRing, zoom: number, screen: Rect | null): void {
     const g = this.lines;
-    const start = ring.cone ? ring.cone.facing - ring.cone.angle / 2 : 0;
-    const sweep = ring.cone ? ring.cone.angle : 2 * Math.PI;
+    const { start, sweep } = arcOf(ring);
     const dashes = DASHES[ring.style];
     if (!dashes) {
       g.moveTo(center.x + Math.cos(start) * ring.radius, center.y + Math.sin(start) * ring.radius);
@@ -167,13 +208,16 @@ export class SenseRangeRings {
       return;
     }
     const [dash, gap] = dashes;
-    const length = sweep * ring.radius * zoom;
-    const count = Math.min(MAX_DASHES, Math.max(4, Math.round(length / (dash + gap))));
+    const count = dashCount(ring, zoom);
     const step = sweep / count;
     const on = step * (dash / (dash + gap));
+    const cull = count > MAX_DASHES ? screen : null;
     for (let i = 0; i < count; i++) {
       const from = start + i * step;
-      g.moveTo(center.x + Math.cos(from) * ring.radius, center.y + Math.sin(from) * ring.radius);
+      const x = center.x + Math.cos(from) * ring.radius;
+      const y = center.y + Math.sin(from) * ring.radius;
+      if (cull && (x < cull.left || x > cull.right || y < cull.top || y > cull.bottom)) continue;
+      g.moveTo(x, y);
       g.arc(center.x, center.y, ring.radius, from, from + on);
     }
   }
@@ -190,8 +234,21 @@ export class SenseRangeRings {
   destroy(): void {
     this.deps.viewport.off('zoomed', this.redraw);
     this.deps.viewport.off('zoomed-end', this.redraw);
+    this.deps.viewport.off('moved', this.moved);
     destroyTree(this.view);
   }
+}
+
+/** Where a ring's line begins and how far around it runs. */
+function arcOf(ring: SenseRing): { start: number; sweep: number } {
+  return ring.cone ? { start: ring.cone.facing - ring.cone.angle / 2, sweep: ring.cone.angle } : { start: 0, sweep: 2 * Math.PI };
+}
+
+/** How many dashes a ring's line has at `zoom`, each one length on screen; 0 for a solid line. */
+function dashCount(ring: SenseRing, zoom: number): number {
+  const dashes = DASHES[ring.style];
+  if (!dashes) return 0;
+  return Math.max(4, Math.round((arcOf(ring).sweep * ring.radius * zoom) / (dashes[0] + dashes[1])));
 }
 
 function drawLabel(text: string): Container {

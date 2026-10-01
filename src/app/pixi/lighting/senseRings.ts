@@ -18,8 +18,10 @@ export interface SenseRing {
 export interface SenseRings {
   center: { x: number; y: number };
   rings: SenseRing[];
-  /** Where the token looks, drawn as two edges out to its widest ring of the eyes. */
+  /** Where the token looks, drawn as two edges as far as `coneReach`. */
   cone?: VisionCone;
+  /** How far the eyes of a token that looks one way see, in world pixels: `unlimited` without a sight range, 0 without a cone or without eyes that see. */
+  coneReach: number;
   /** The senses that reach as far as the token sees, without a ring of their own. */
   unbounded: string[];
 }
@@ -44,5 +46,6 @@ export function senseRings(source: SightSource, unlimited: number, distance: (ra
     add(definition.name, range, !definition.worksWhileBlinded, showsMap(definition) ? 'sense' : 'creatures');
   }
   rings.sort((a, b) => b.radius - a.radius);
-  return { center: source.origin, rings, ...(source.cone && !source.blinded && { cone: source.cone }), unbounded };
+  const looks = source.cone && !source.blinded;
+  return { center: source.origin, rings, ...(looks && { cone: source.cone }), coneReach: looks ? Math.max(0, Math.min(source.range, unlimited)) : 0, unbounded };
 }

@@ -51,10 +51,10 @@ describe('tokenSightLine', () => {
   });
 
   it('says which token perceives it, and through which sense', () => {
-    expect(line('near')).toBe('Darkness · Seen by Mirabel: darkvision');
-    expect(line('near', { ambient: 1 })).toBe('Bright light · Seen by Mirabel: sight');
-    expect(line('behind')).toBe('Darkness · Sensed by Mirabel: tremorsense');
-    expect(line('cloaked', { ambient: 1 })).toBe('Bright light · Sensed by Mirabel: tremorsense');
+    expect(line('near')).toBe('Darkness · Seen by Mirabel: Darkvision');
+    expect(line('near', { ambient: 1 })).toBe('Bright light · Seen by Mirabel: Sight');
+    expect(line('behind')).toBe('Darkness · Sensed by Mirabel: Tremorsense');
+    expect(line('cloaked', { ambient: 1 })).toBe('Bright light · Sensed by Mirabel: Tremorsense');
   });
 
   it('says when the players do not see it', () => {
@@ -68,9 +68,18 @@ describe('tokenSightLine', () => {
     expect(line('mirabel', { ambient: 1 })).toBe('Bright light · Always shown to the players');
   });
 
+  it('names the sense as the collection writes it', () => {
+    const cybereye = BUILT_IN_SENSES['builtin:cyberpunkred']![0]!;
+    const viewer = { ...mirabel, vision: { enabled: true, senses: [{ id: cybereye.id }] } };
+    const all = { ...tokens, mirabel: viewer };
+    const seen = computeSight(sightSources(all, scale, bounds, { definitions: [cybereye], conditions: [] }), []);
+    expect(tokenSightLine(tokens.near!, all, seen, dark, [])).toBe(`Darkness · Seen by Mirabel: ${cybereye.name}`);
+    expect(cybereye.name).toBe('Low light / IR / UV');
+  });
+
   it('names a viewer without a name "a token", and reads the scene without vision tokens by its light', () => {
     const nameless = { ...tokens, mirabel: { ...at('mirabel', 100, 100), vision: mirabel.vision! } };
-    expect(tokenSightLine(tokens.near!, nameless, sight, dark, [], { conditions })).toBe('Darkness · Seen by a token: darkvision');
+    expect(tokenSightLine(tokens.near!, nameless, sight, dark, [], { conditions })).toBe('Darkness · Seen by a token: Darkvision');
     const everything = sceneSight({}, [], [wall]);
     expect(tokenSightLine(tokens.behind!, tokens, everything, { ambient: 1 }, [])).toBe('Bright light · Seen by the players');
     expect(tokenSightLine(tokens.behind!, tokens, everything, dark, [])).toBe('Darkness · Not seen by the players');
@@ -122,6 +131,15 @@ describe('senseRings', () => {
     const { rings, cone: looking } = senseRings(source({ range: 50, cone, senses: [darkvision(60), senseSource('blindsight', 30)] }), UNLIMITED, feet);
     expect(rings.map((ring) => [ring.label, ring.cone])).toEqual([['Sight 50ft', cone], ['Darkvision 50ft', cone], ['Blindsight 30ft', undefined]]);
     expect(looking).toBe(cone);
+  });
+
+  it('tells how far the cone\'s edges run: as far as the eyes see, to the map\'s diagonal without a sight range', () => {
+    const cone = { facing: 0, angle: 1, apex: 31 };
+    expect(senseRings(source({ cone, senses: [darkvision(60)] }), UNLIMITED, feet).coneReach).toBe(UNLIMITED);
+    expect(senseRings(source({ cone, range: 50 }), UNLIMITED, feet).coneReach).toBe(50);
+    expect(senseRings(source({ range: 50 }), UNLIMITED, feet).coneReach).toBe(0);
+    expect(senseRings(source({ cone, blinded: true, senses: [tremorsense(90)] }), UNLIMITED, feet).coneReach).toBe(0);
+    expect(senseRings(source({ cone, range: 0, senses: [senseSource('blindsight', 30)] }), UNLIMITED, feet).coneReach).toBe(0);
   });
 
   it('draws no sight for a blinded token or one without normal sight, and keeps what it senses without the eyes', () => {

@@ -59,6 +59,16 @@ export function formatDistance(cells: number, settings: MeasurementSettings): st
   return `${Math.round(cells * settings.unitDistance)}${UNIT_SUFFIX[settings.unitType]}`;
 }
 
+/**
+ * Label for a distance that is set rather than measured (a sense's range): as `formatDistance`,
+ * with one decimal where the distance has one, since 7.5 m is not 8 m.
+ */
+export function formatReach(cells: number, settings: MeasurementSettings): string {
+  const tenths = (value: number): number => Math.round(value * 10) / 10;
+  if (settings.mode === 'abstract') return settings.rangeBands.length > 0 ? rangeBandName(cells, settings.rangeBands) : `${tenths(cells)} sq`;
+  return `${tenths(cells * settings.unitDistance)}${UNIT_SUFFIX[settings.unitType]}`;
+}
+
 /** A band threshold must be a whole number of at least one square. */
 export function isValidRangeBandThreshold(maxSquares: number): boolean {
   return Number.isInteger(maxSquares) && maxSquares >= 1;
