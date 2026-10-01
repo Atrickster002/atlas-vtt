@@ -3,6 +3,7 @@ import { HALO, LIGHT_LEVELS } from '../../../lighting/lightingConstants';
 import type { MapBounds } from '../../../vision/visibility';
 import { destroyTree } from '../../utils/destroyTree';
 import { ENGINE_SHADERS } from './engineShaders';
+import { darknessUniforms, setDarkness } from './DarknessMap';
 import { createPlaceholder, createQuad, createShader, createTarget, destroyQuad, quadGeometry, renderInto, type Quad } from './gpu';
 import type { Tile } from './TileCache';
 
@@ -14,6 +15,16 @@ export interface DrawnLight {
   reach: number;
   color: readonly [number, number, number];
   intensity: number;
+  /** A darkness source: it takes the light drawn before it out of its area instead of adding any. */
+  darkness?: boolean;
+}
+
+/** A darkness source's slot: its coverage, drawn with `erase`. */
+interface DarknessSlot {
+  mesh: Mesh<Geometry, Shader>;
+  uniforms: UniformGroup;
+  rect: Float32Array;
+  light: Float32Array;
 }
 
 interface Slot {
@@ -26,15 +37,20 @@ interface Slot {
 
 /**
  * Every light's direct light over the map in world space (`rgba16float`, HDR): independent of
- * any camera, so the GM view and the player window read the same texture.
+ * any camera, so the GM view and the player window read the same texture. Lights add up; a
+ * darkness source erases what was drawn before it within its area, so the order of `draw`'s
+ * list is the order of priority: a light listed after a darkness shines in it.
  */
 export class LightMap {
   readonly texture: RenderTexture;
   readonly world: readonly [number, number];
   private readonly scene = new Container();
   private readonly slots: Slot[] = [];
+  private readonly darkSlots: DarknessSlot[] = [];
   private readonly quad: Quad = createQuad();
   private readonly geometry: Geometry = quadGeometry(this.quad);
+  /** The meshes were put in an order of priority: the next draw without a darkness puts them back. */
+  private ordered = false;
   /** Bound to idle slots, so no slot keeps a tile texture its owner may destroy. */
   private readonly placeholder: RenderTexture = createPlaceholder();
 
@@ -44,9 +60,12 @@ export class LightMap {
   }
 
   draw(lights: readonly DrawnLight[]): void {
-    while (this.slots.length < lights.length) this.slots.push(this.createSlot());
+    const shining = lights.filter((light) => !light.darkness);
+    const dark = lights.filter((light) => light.darkness);
+    while (this.slots.length < shining.length) this.slots.push(this.createSlot());
+    while (this.darkSlots.length < dark.length) this.darkSlots.push(this.createDarkSlot());
     this.slots.forEach((slot, i) => {
-      const light = lights[i];
+      const light = shining[i];
       slot.mesh.visible = !!light;
       if (!light) return;
       const u = slot.uniforms.uniforms;
@@ -60,8 +79,34 @@ export class LightMap {
       slot.color.set(light.color);
       slot.mesh.shader!.resources.uTile = light.tile.texture.source;
     });
+    this.darkSlots.forEach((slot, i) => {
+      const darkness = dark[i];
+      slot.mesh.visible = !!darkness;
+      if (darkness) setDarkness(slot, darkness);
+    });
+    // Without a darkness the meshes stay in the order they were made: lights only add up.
+    if (dark.length > 0 || this.ordered) this.order(lights, shining, dark);
     renderInto(this.renderer, this.scene, this.texture, [0, 0, 0, 0]);
-    for (const slot of this.slots) slot.mesh.shader!.resources.uTile = this.placeholder.source;
+    for (const slot of [...this.slots, ...this.darkSlots]) slot.mesh.shader!.resources.uTile = this.placeholder.source;
+  }
+
+  /** Puts the meshes in the order of `lights`, so each darkness erases exactly the lights listed before it. */
+  private order(lights: readonly DrawnLight[], shining: readonly DrawnLight[], dark: readonly DrawnLight[]): void {
+    lights.forEach((light, z) => {
+      const slot = light.darkness ? this.darkSlots[dark.indexOf(light)] : this.slots[shining.indexOf(light)];
+      slot!.mesh.zIndex = z;
+    });
+    this.ordered = dark.length > 0;
+    this.scene.sortChildren();
+  }
+
+  private createDarkSlot(): DarknessSlot {
+    const { uniforms, rect, light } = darknessUniforms(this.world, this.texel, [0, 0, 0, 1]);
+    const shader = createShader(ENGINE_SHADERS.darkness, { darknessUniforms: uniforms, uTile: this.placeholder.source });
+    const mesh = new Mesh({ geometry: this.geometry, shader });
+    mesh.blendMode = 'erase';
+    this.scene.addChild(mesh);
+    return { mesh, uniforms, rect, light };
   }
 
   private createSlot(): Slot {
@@ -91,7 +136,7 @@ export class LightMap {
   }
 
   destroy(): void {
-    for (const { mesh } of this.slots) mesh.shader?.destroy();
+    for (const { mesh } of [...this.slots, ...this.darkSlots]) mesh.shader?.destroy();
     destroyTree(this.scene);
     this.geometry.destroy();
     destroyQuad(this.quad);

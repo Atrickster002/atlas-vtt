@@ -6,6 +6,7 @@ import { allSegments, splitBlocking, type Rect } from '../../../lighting/segment
 import type { MapBounds } from '../../../vision/visibility';
 import { LightFlicker, STEADY, type FlickerSample } from '../lightFlicker';
 import { CapsuleField } from './CapsuleField';
+import { DarknessMap, type PierceShape } from './DarknessMap';
 import { LightMap, type DrawnLight } from './LightMap';
 import { RadianceCascades } from './RadianceCascades';
 import { TileCache } from './TileCache';
@@ -13,7 +14,8 @@ import type { EngineLight } from './types';
 
 /**
  * Everything the lighting keeps in world space for one map: the wall field, each light's tile,
- * the light map and the bounce. Independent of any camera; rebuilt only for what changed.
+ * the light map, the bounce and, once the map has a darkness source, the darkness map.
+ * Independent of any camera; rebuilt only for what changed.
  * Constructing it draws nothing: the first `update` builds every texture.
  */
 export class LightingWorld {
@@ -29,6 +31,9 @@ export class LightingWorld {
    */
   private allField: CapsuleField | null = null;
   private hasOneWay = false;
+  /** Created with the first darkness source and then kept, so the composite never holds a destroyed texture. */
+  private darkness: DarknessMap | null = null;
+  private pierce: readonly PierceShape[] = [];
   private readonly tiles: TileCache;
   private readonly flicker = new LightFlicker();
   private walls: readonly WallSegment[] | null = null;
@@ -53,7 +58,19 @@ export class LightingWorld {
     return this.hasOneWay ? this.allField! : this.field;
   }
 
-  update(walls: readonly WallSegment[], lights: readonly EngineLight[], albedo: Texture | null): void {
+  /** The darkness map while the scene has a darkness source: the composite reads it only then. */
+  darknessMap(): DarknessMap | null {
+    return this.lights.some((light) => light.darkness) ? this.darkness : null;
+  }
+
+  /**
+   * `pierce` is what the senses that see in magical darkness perceive (`pierceShapes`), the same
+   * list while nothing changed; it is drawn into the darkness map, so it costs nothing on a map
+   * without a darkness source.
+   */
+  update(walls: readonly WallSegment[], lights: readonly EngineLight[], albedo: Texture | null, pierce: readonly PierceShape[] = this.pierce): void {
+    const pierceChanged = pierce !== this.pierce;
+    this.pierce = pierce;
     let changed: Rect[] | 'all' = [];
     if (walls !== this.walls) {
       changed = this.walls ? changedWallRects(this.walls, walls, tileWallReach(this.texel)) : 'all';
@@ -70,6 +87,8 @@ export class LightingWorld {
     if (tilesChanged || lightsChanged) {
       this.drawSteady();
       this.bounceDirty = true;
+    } else if (pierceChanged && this.darknessMap()) {
+      this.drawDarkness();
     }
     if (albedo !== this.albedo) {
       this.albedo = albedo;
@@ -115,6 +134,7 @@ export class LightingWorld {
     this.tiles.destroy();
     this.cascades.destroy();
     this.lightMap.destroy();
+    this.darkness?.destroy();
     this.allField?.destroy();
     this.field.destroy();
   }
@@ -144,14 +164,29 @@ export class LightingWorld {
   private drawSteady(): void {
     this.drawLightMap(() => STEADY);
     this.lastFlicker = -Infinity;
+    if (this.lights.some((light) => light.darkness)) this.drawDarkness();
+  }
+
+  private drawDarkness(): void {
+    this.darkness ??= new DarknessMap(this.renderer, this.bounds, this.texel);
+    const tiles = this.tiles.tiles();
+    const sources = this.lights.flatMap((light) => {
+      const tile = light.darkness ? tiles.get(light.key) : undefined;
+      return tile ? [{ tile, dim: light.dim }] : [];
+    });
+    this.darkness.draw(sources, this.pierce);
   }
 
   private drawLightMap(sample: (light: EngineLight) => FlickerSample): void {
     const tiles = this.tiles.tiles();
     const drawn: DrawnLight[] = [];
-    for (const light of this.lights) {
+    for (const light of byPriority(this.lights)) {
       const tile = tiles.get(light.key);
       if (!tile) continue;
+      if (light.darkness) {
+        drawn.push({ tile, bright: 0, dim: light.dim, reach: light.dim, color: light.color, intensity: 0, darkness: true });
+        continue;
+      }
       const { intensity, radiusScale } = sample(light);
       // Flicker breathes the bright radius only: where a light ends is where the rules end it.
       drawn.push({ tile, bright: light.bright * radiusScale, dim: light.dim, reach: light.dim * LIGHT_REACH, color: light.color, intensity: light.intensity * intensity });
@@ -164,6 +199,18 @@ function sameLights(a: readonly EngineLight[], b: readonly EngineLight[]): boole
   return a.length === b.length && a.every((x, i) => {
     const y = b[i]!;
     return x.key === y.key && x.x === y.x && x.y === y.y && x.bright === y.bright && x.dim === y.dim && x.flame === y.flame
-      && x.intensity === y.intensity && x.animation === y.animation && x.color.every((c, j) => c === y.color[j]);
+      && x.intensity === y.intensity && x.animation === y.animation && x.color.every((c, j) => c === y.color[j])
+      && !!x.darkness === !!y.darkness && (x.priority ?? 0) === (y.priority ?? 0);
   });
+}
+
+/**
+ * The lights in the order the light map draws them: by priority, a darkness after the lights of
+ * its own priority, so it swallows them and every light below, and a light above it shines in it.
+ * A scene without a darkness keeps its order: lights only add up.
+ */
+function byPriority(lights: readonly EngineLight[]): readonly EngineLight[] {
+  if (!lights.some((light) => light.darkness)) return lights;
+  const rank = (light: EngineLight): number => (light.priority ?? 0) * 2 + (light.darkness ? 1 : 0);
+  return [...lights].sort((a, b) => rank(a) - rank(b));
 }

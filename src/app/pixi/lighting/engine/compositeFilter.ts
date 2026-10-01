@@ -9,13 +9,14 @@ import {
   type FilterSystem,
   type RenderSurface,
 } from 'pixi.js';
-import { BOUNCE, EXPOSURE, PURKINJE, wallBand, wallCore } from '../../../lighting/lightingConstants';
+import { BOUNCE, DARKNESS, EXPOSURE, PURKINJE, wallBand, wallCore } from '../../../lighting/lightingConstants';
 import { DEFAULT_AMBIENT_COLOR, DEFAULT_EXPLORED_COLOR, DEFAULT_UNEXPLORED_COLOR } from '../../../lighting/sceneLightingOptions';
 import { srgbToLinear } from '../../../lighting/srgb';
 import { ENGINE_SHADERS } from './engineShaders';
-import { engineProgram } from './gpu';
+import type { DarknessMap } from './DarknessMap';
+import { createPlaceholder, engineProgram } from './gpu';
 import type { LightingWorld } from './LightingWorld';
-import { darkLooks, type DarkLooks } from './senseDrawing';
+import { DARK_SIGHT_LEVELS, darkLooks, type DarkLooks } from './senseDrawing';
 import { SEES_ALL } from '../../../vision/sight';
 
 export type LightingMode = 'gm' | 'player';
@@ -32,6 +33,8 @@ export interface CompositeFilter {
   setAmbient(level: number, color: string | undefined, lift: number): void;
   /** How what is perceived without light is drawn. */
   setDarkLooks(looks: DarkLooks): void;
+  /** The world's darkness map while the scene has a darkness source, null otherwise: nothing of it is read then. */
+  setDarkness(map: DarknessMap | null): void;
   setMode(mode: LightingMode): void;
   /** No token has vision: line of sight hides nothing. */
   setAllSeen(all: boolean): void;
@@ -103,9 +106,17 @@ export function createCompositeFilter(world: LightingWorld, explored: Texture): 
     uGreyTint: { value: greyTint, type: 'vec3<f32>' },
     uColourLevel: { value: 0, type: 'f32' },
     uAmbientLift: { value: 1, type: 'f32' },
+    uHasDarkness: { value: 0, type: 'f32' },
+    uVeil: { value: new Float32Array(DARKNESS.veil), type: 'vec3<f32>' },
+    uGmVeil: { value: new Float32Array(DARKNESS.gmVeil), type: 'vec3<f32>' },
+    uGreyLevel: { value: 0, type: 'f32' },
+    uDarkLevels: { value: new Float32Array([DARK_SIGHT_LEVELS.dim, DARK_SIGHT_LEVELS.bright]), type: 'vec2<f32>' },
     uFluSpacing: { value: BOUNCE.probe, type: 'f32' },
   });
   const u = group.uniforms;
+  // Bound while the scene has no darkness source, so the filter never holds a destroyed map.
+  const noDarkness = createPlaceholder();
+  let darkness: DarknessMap | null = null;
   const filter = new AreaAwareFilter({
     glProgram: engineProgram(ENGINE_SHADERS.composite),
     resources: {
@@ -113,6 +124,7 @@ export function createCompositeFilter(world: LightingWorld, explored: Texture): 
       uExplored: explored.source,
       uLightMap: world.lightMap.texture.source,
       uFluence: world.cascades.fluence.source,
+      uDarkness: noDarkness.source,
       ...world.fieldAll().resources(),
     },
     blendRequired: true,
@@ -137,7 +149,15 @@ export function createCompositeFilter(world: LightingWorld, explored: Texture): 
     setDarkLooks(looks): void {
       u.uGreyKeep = looks.greyKeep;
       greyTint.set(looks.greyTint);
+      u.uGreyLevel = looks.greyLevel;
       u.uColourLevel = looks.colourLevel;
+      group.update();
+    },
+    setDarkness(map): void {
+      if (map === darkness) return;
+      darkness = map;
+      filter.resources.uDarkness = (map?.texture ?? noDarkness).source;
+      u.uHasDarkness = map ? 1 : 0;
       group.update();
     },
     setMode(mode): void {
@@ -165,6 +185,12 @@ export function createCompositeFilter(world: LightingWorld, explored: Texture): 
       u.uPixelWorld = 1 / zoom;
       group.update();
     },
+  };
+  const destroy = filter.destroy.bind(filter);
+  filter.destroy = (destroyPrograms?: boolean): void => {
+    // The filter lets go of the placeholder before it is destroyed.
+    destroy(destroyPrograms);
+    noDarkness.destroy(true);
   };
   composite.setWorld(world);
   composite.setDarkLooks(darkLooks(SEES_ALL));

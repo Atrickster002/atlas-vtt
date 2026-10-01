@@ -155,6 +155,25 @@ describe('explored stamps', () => {
     for (let x = 0; x < SIZE; x++) for (let y = 0; y < SIZE; y++) if (x + y >= 42) expect(at(x, y)).toBe(0);
   });
 
+  it('leaves out the areas of magical darkness, but for what a sense that sees in it perceives there', async () => {
+    const darkness = rect(20, 20, 44, 44);
+    const everything: ExploredShapes = { polygons: [EVERYTHING], clip: null };
+    const none = await stamped([{ ...everything, except: { areas: [darkness], unless: [] } }]);
+    expect(none(10, 10)).toBe(255);
+    expect(none(32, 32)).toBe(0);
+    expect(none(50, 32)).toBe(255);
+    // A sense that sees in magical darkness perceives the left half of it.
+    const pierced = await stamped([{ ...everything, except: { areas: [darkness], unless: [rect(0, 0, 32, SIZE)] } }]);
+    expect(pierced(26, 32)).toBe(255);
+    expect(pierced(38, 32)).toBe(0);
+    // With a clip: what the stamp records stays inside it, and the darkness the sense sees is recorded as far as the sense reaches.
+    const clipped = await stamped([{ polygons: [EVERYTHING], clip: [rect(0, 0, 28, SIZE)], except: { areas: [darkness], unless: [rect(0, 0, 32, SIZE)] } }]);
+    expect(clipped(24, 32)).toBe(255);
+    expect(clipped(30, 32)).toBe(255);
+    expect(clipped(38, 32)).toBe(0);
+    expect(clipped(50, 10)).toBe(0);
+  });
+
   it('keeps the larger of overlapping stamps texel by texel', async () => {
     const first = await stamped([stamp(TRIANGLE)]);
     const second = await stamped([stamp(OTHER)]);

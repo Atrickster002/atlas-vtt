@@ -3,7 +3,9 @@ import { NORMAL_SIGHT } from '../../../gameSystems/senses/generic';
 import { brightThresholdOf } from '../../../lighting/sceneLightingOptions';
 import type { SenseDefinition, SenseLook } from '../../../types/senseTypes';
 import { ambientLevel } from '../../../vision/lightLevels';
+import type { SeenSpot } from '../../../vision/perception';
 import type { AmbientLight, Sight, SightRegion } from '../../../vision/sight';
+import type { PierceShape } from './DarknessMap';
 
 /** What a sight mesh writes into the lighting layer: red, green, blue, alpha (see `compositeShader.ts`). */
 export type SightChannels = readonly [number, number, number, number];
@@ -55,6 +57,8 @@ export interface DarkLooks {
   greyKeep: number;
   /** Its tint, scaled by how bright it is drawn. */
   greyTint: readonly [number, number, number];
+  /** How bright the look without colour is drawn: the level in `greyTint`. */
+  greyLevel: number;
   /** How bright the look in colour is drawn. */
   colourLevel: number;
 }
@@ -82,7 +86,7 @@ export function darkLooks(sight: Sight, spots = false): DarkLooks {
   }
   const look = GREY_LOOKS[grey && grey.look !== 'colour' ? grey.look : 'monochrome'];
   const level = grey ? darkLevel(grey) : DARK_SIGHT_LEVELS.dim;
-  return { greyKeep: look.keep, greyTint: [look.tint[0] * level, look.tint[1] * level, look.tint[2] * level], colourLevel };
+  return { greyKeep: look.keep, greyTint: [look.tint[0] * level, look.tint[1] * level, look.tint[2] * level], greyLevel: level, colourLevel };
 }
 
 /**
@@ -91,4 +95,19 @@ export function darkLooks(sight: Sight, spots = false): DarkLooks {
  */
 export function ambientLift(scene: AmbientLight): number {
   return ambientLevel(scene) === 'dim' && scene.ambient > 0 ? brightThresholdOf(scene) / scene.ambient : 1;
+}
+
+/**
+ * What is perceived inside magical darkness: the area of every sense that shows the map and
+ * sees there, at the level it sees it (1 as bright light, 0.5 as dim), and the footprint of
+ * every token shown where the map is not (a party token standing in the darkness).
+ */
+export function pierceShapes(sight: Sight, spots: readonly SeenSpot[] = []): PierceShape[] {
+  const shapes: PierceShape[] = [];
+  for (const region of sight.all ? [] : sight.regions) {
+    const level = showsMap(region.sense) ? perceivedLevel(region.sense, 'magical-dark') : null;
+    if (level && region.polygon) shapes.push({ origin: region.origin, polygon: region.polygon, level: level === 'bright' ? 1 : 0.5 });
+  }
+  for (const spot of spots) shapes.push({ origin: spot, polygon: spot.polygon, level: 1 });
+  return shapes;
 }

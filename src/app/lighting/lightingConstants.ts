@@ -40,6 +40,19 @@ export const MIN_SOFTNESS = 0.12;
 /** Strength of the cool grey shift where the light is low and none of it a light's own (ambient, bounce). */
 export const PURKINJE = 0.55;
 
+/**
+ * A source of magical darkness swallows all light up to its radius; over the last `softEdge` of
+ * the radius, inside it, the light comes back, so its rim is soft and nothing beyond the radius
+ * is darkened. `veil` is the faint cool tint (linear light) the players see in place of the map
+ * there, to tell magical darkness from the unlit dark; `gmVeil` the stronger one the GM sees
+ * over the dim map.
+ */
+export const DARKNESS = {
+  softEdge: 0.1,
+  veil: [0.0018, 0.0015, 0.0065],
+  gmVeil: [0.03, 0.022, 0.085],
+} as const;
+
 export const BOUNCE = {
   probe: 16,
   interval: 16,

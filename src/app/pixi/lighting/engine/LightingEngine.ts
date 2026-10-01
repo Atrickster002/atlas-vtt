@@ -7,7 +7,8 @@ import type { CapsuleField } from './CapsuleField';
 import { createCompositeFilter, type CompositeFilter, type LightingMode } from './compositeFilter';
 import { contextLost, glOf } from './gpu';
 import { LightingWorld } from './LightingWorld';
-import { ambientLift, darkLooks } from './senseDrawing';
+import type { PierceShape } from './DarknessMap';
+import { ambientLift, darkLooks, pierceShapes } from './senseDrawing';
 import { describeShaderFailures, failedEngineShaders } from './shaderCheck';
 import { SightMeshes } from './SightMeshes';
 import type { EngineScene, SceneFrame } from './types';
@@ -37,6 +38,8 @@ export class LightingEngine {
   private viewHeld = false;
   private sight: Sight | null = null;
   private spots: EngineScene['spots'];
+  /** What is perceived inside magical darkness, kept while sight and footprints stay. */
+  private pierce: readonly PierceShape[] = [];
   private scene: EngineScene | null = null;
   private enabled = false;
   private ownsBackBuffer = false;
@@ -90,13 +93,15 @@ export class LightingEngine {
     }
     const world = this.world!;
     const composite = this.composite!;
-    world.update(scene.walls, scene.lights, scene.albedo);
+    const newSight = scene.sight !== this.sight;
+    const newSpots = scene.spots !== this.spots;
+    if (newSight || newSpots) this.pierce = pierceShapes(scene.sight, scene.sight.all ? [] : scene.spots);
+    world.update(scene.walls, scene.lights, scene.albedo, this.pierce);
     if (world.fieldAll() !== this.boundField) {
       this.boundField = world.fieldAll();
       composite.setWorld(world);
     }
-    const newSight = scene.sight !== this.sight;
-    const newSpots = scene.spots !== this.spots;
+    composite.setDarkness(world.darknessMap());
     if (newSight) {
       this.sight = scene.sight;
       this.sightMeshes.draw(scene.sight, scene.sightRadius);

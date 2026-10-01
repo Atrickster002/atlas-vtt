@@ -18,6 +18,8 @@ import { destroyTree } from '../utils/destroyTree';
 import type { SceneFrame } from './engine/types';
 import { LIGHTING_Z_INDEX } from './LightingRenderer';
 import { PlayerView } from './PlayerView';
+import { LightReaches } from './lightReaches';
+import { activeLights, engineLight } from './lightSources';
 import type { SceneLightingView } from './sceneLightingView';
 
 /** Full ambient light: everything in sight counts as lit. */
@@ -41,8 +43,10 @@ export interface CanvasLightingDeps {
  * cannot see (the map is black outside line of sight, unless the scene has token vision off),
  * but there is no light, shadow or explored memory, and everything in sight counts as lit
  * whatever the scene's lit threshold: without its lights, a dark scene would hide every token.
- * The GM's canvas is unchanged.
+ * Magical darkness is the one thing of the lights it keeps, since it hides: its area is black
+ * and what stands in it is not seen. The GM's canvas is unchanged.
  */
+// ponytail: a sense that sees in magical darkness sees nothing in it here (the tokens in it are seen, the map is not); cut the darkness by those senses' areas if a table without WebGL needs it.
 // ponytail: overlapping sight polygons are cut as separate holes; earcut may darken their overlap. Union them if that shows.
 export class CanvasLightingFallback implements SceneLightingView {
   readonly modeLayer: HideableLayer;
@@ -50,6 +54,9 @@ export class CanvasLightingFallback implements SceneLightingView {
   private readonly cache = new SightCache();
   private readonly sightTokens = new SightTokens();
   private sight: Sight = SEES_ALL;
+  private readonly darknessReaches = new LightReaches();
+  /** The darkness sources of the scene; the fallback has no other light. */
+  private reaches: LightReach[] = NO_REACHES;
   /** What the last update read: a store change that touches none of it works nothing out. */
   private inputs: readonly unknown[] = [];
   /** The walls with their bridges, kept while the drawn walls and the map's size stay, so the sight cache knows them. */
@@ -68,7 +75,7 @@ export class CanvasLightingFallback implements SceneLightingView {
 
   isEnabled(): boolean { return this.deps.store.getState().lighting.enabled; }
   currentSight(): Sight { return this.sight; }
-  lightReaches(): LightReach[] { return NO_REACHES; }
+  lightReaches(): LightReach[] { return this.reaches; }
   ambientLight(): AmbientLight { return FULL_DAYLIGHT; }
   refreshBounds(): void {
     this.inputs = [];
@@ -93,7 +100,7 @@ export class CanvasLightingFallback implements SceneLightingView {
     const rules = this.deps.rules?.();
     const measurement = this.deps.measurement();
     const held = heldForSight(state);
-    const inputs = [state.lighting, state.objects.tokens, state.objects.walls, state.grid, held, rules, bounds?.width, bounds?.height, measurement.unitDistance];
+    const inputs = [state.lighting, state.objects.tokens, state.objects.walls, state.objects.lights, state.grid, held, rules, bounds?.width, bounds?.height, measurement.unitDistance];
     if (inputs.every((input, i) => input === this.inputs[i]) && inputs.length === this.inputs.length) return;
     this.inputs = inputs;
     if (!state.lighting.enabled || !bounds) {
@@ -106,7 +113,10 @@ export class CanvasLightingFallback implements SceneLightingView {
     const sight = sceneSight(state.lighting, sightSources(tokens, scale, bounds, rules), walls, this.cache);
     // The same regions are the same sight: what was worked out from it (who is seen) stays good.
     if (!sameSight(sight, this.sight)) this.sight = sight;
-    const spots = seenSpots(this.sight, FULL_DAYLIGHT, NO_REACHES, state.objects.tokens, scale.cellSize, walls, { conditions: rules?.conditions ?? [], held });
+    const dark = activeLights(state.objects.lights, tokens).filter((light) => light.emission.darkness).map((light) => engineLight(light, scale));
+    // The same list while there is no darkness, so whoever compares it finds it unchanged.
+    this.reaches = dark.length > 0 ? this.darknessReaches.sync(dark, walls) : NO_REACHES;
+    const spots = seenSpots(this.sight, FULL_DAYLIGHT, this.reaches, state.objects.tokens, scale.cellSize, walls, { conditions: rules?.conditions ?? [], held });
     this.drawDarkness(bounds, spots);
     this.deps.onSightChange?.();
   }
@@ -119,17 +129,29 @@ export class CanvasLightingFallback implements SceneLightingView {
     return walls;
   }
 
-  /** Black over the map, cut open where a sense shows it and at each token seen without the map around it. */
+  /**
+   * Black over the map, cut open where a sense shows it and at each token seen without the map
+   * around it; then black again over each magical darkness, cut open only at those tokens.
+   */
   private drawDarkness(bounds: MapBounds, spots: readonly SeenSpot[]): void {
     const g = this.darkness;
     g.clear();
-    if (this.sight.all) return;
-    g.rect(0, 0, bounds.width, bounds.height).fill({ color: 0x000000 });
-    for (const { sense, polygon } of this.sight.regions) {
-      if (showsMap(sense) && polygon && polygon.length >= 3) g.poly(polygon.flatMap((p) => [p.x, p.y])).cut();
+    const cutSpots = (): void => {
+      for (const { polygon } of spots) {
+        if (polygon.length >= 3) g.poly(polygon.flatMap((p) => [p.x, p.y])).cut();
+      }
+    };
+    if (!this.sight.all) {
+      g.rect(0, 0, bounds.width, bounds.height).fill({ color: 0x000000 });
+      for (const { sense, polygon } of this.sight.regions) {
+        if (showsMap(sense) && polygon && polygon.length >= 3) g.poly(polygon.flatMap((p) => [p.x, p.y])).cut();
+      }
+      cutSpots();
     }
-    for (const { polygon } of spots) {
-      if (polygon.length >= 3) g.poly(polygon.flatMap((p) => [p.x, p.y])).cut();
+    for (const { polygon } of this.reaches) {
+      if (polygon.length < 3) continue;
+      g.poly(polygon.flatMap((p) => [p.x, p.y])).fill({ color: 0x000000 });
+      cutSpots();
     }
     this.darkness.visible = this.playerView.visible;
   }

@@ -48,16 +48,27 @@ export class StampScratch {
   private readonly stamp = new Container();
   private readonly painter = new Graphics();
   private readonly clip = new Graphics();
+  /** Magical darkness: black over what was painted, so nothing of it is recorded. */
+  private readonly hole = new Graphics();
+  /** The darkness again, in white, shown only where a sense that sees in it perceives it. */
+  private readonly pierced = new Graphics();
+  private readonly piercing = new Graphics();
 
   constructor(private readonly renderer: Renderer) {
-    this.stamp.addChild(this.painter, this.clip);
+    this.stamp.addChild(this.painter, this.clip, this.hole, this.pierced, this.piercing);
+    this.pierced.mask = this.piercing;
   }
 
   /** Builds the shapes once; `renderTile` then only moves them. */
-  begin({ polygons, clip }: ExploredShapes): void {
+  begin({ polygons, clip, except }: ExploredShapes): void {
     fillPolygons(this.painter.clear(), polygons);
     fillPolygons(this.clip.clear(), clip ?? []);
     this.painter.mask = clip ? this.clip : null;
+    // The scratch is merged with `max`: black records nothing.
+    fillPolygons(this.hole.clear(), except?.areas ?? [], 0x000000);
+    const seenInDarkness = except && except.unless.length > 0;
+    fillPolygons(this.pierced.clear(), seenInDarkness ? except.areas : []);
+    fillPolygons(this.piercing.clear(), seenInDarkness ? except.unless : []);
   }
 
   /** Draws the begun shapes into the scratch so it shows the tile at (`x`, `y`) of the memory. */
@@ -93,9 +104,9 @@ function boundsOf(polygons: readonly Polygon[]): { minX: number; minY: number; m
   return bounds;
 }
 
-function fillPolygons(g: Graphics, polygons: readonly Polygon[]): Graphics {
+function fillPolygons(g: Graphics, polygons: readonly Polygon[], color = 0xffffff): Graphics {
   for (const polygon of polygons) {
-    if (polygon.length >= 3) g.poly(polygon.flatMap((p) => [p.x, p.y])).fill({ color: 0xffffff });
+    if (polygon.length >= 3) g.poly(polygon.flatMap((p) => [p.x, p.y])).fill({ color });
   }
   return g;
 }

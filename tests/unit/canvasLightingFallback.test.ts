@@ -3,6 +3,7 @@ import { Container, Graphics } from 'pixi.js';
 import type { Viewport } from 'pixi-viewport';
 import { createViewAtlasStore, type ViewAtlasStore } from '../../src/app/storeFactory';
 import { CanvasLightingFallback } from '../../src/app/pixi/lighting/CanvasLightingFallback';
+import { playerTokenSight } from '../../src/app/pixi/lighting/playerLightingLayers';
 import { holdTokens } from '../../src/app/lighting/sightOnDrop';
 import type { TokenEntity } from '../../src/app/types';
 import type { SceneLighting } from '../../src/app/types/lightingTypes';
@@ -99,6 +100,24 @@ describe('CanvasLightingFallback', () => {
     store.getState().updateToken('prey', { conditions: ['gone'] });
     expect(cuts()).toEqual([[69, 131]]);
     poly.mockRestore();
+  });
+
+  it('keeps magical darkness dark: its area is black for every sense, and a token in it is not seen', () => {
+    const prey: TokenEntity = { id: 'prey', kind: 'token', imagePath: 'p.png', x: 150, y: 100 };
+    const { fallback, store } = setup({ hero: { ...hero, vision: { enabled: true } }, prey });
+    const perceived = (): string | undefined => playerTokenSight(fallback, store.getState().objects.tokens)?.('prey');
+    expect(fallback.lightReaches()).toEqual([]);
+    expect(perceived()).toBe('seen');
+    const fill = vi.spyOn(Graphics.prototype, 'fill');
+    store.getState().addLight({ x: 150, y: 100, emission: { bright: 0, dim: 10, color: '#000000', intensity: 1, animation: 'none', darkness: true } });
+    expect(fallback.lightReaches()).toMatchObject([{ darkness: true, origin: { x: 150, y: 100 }, dim: 140 }]);
+    expect(perceived()).toBe('unseen');
+    // The whole map in black, then the darkness in black over the hole of the hero's sight.
+    expect(fill.mock.calls.filter(([style]) => (style as { color: number }).color === 0x000000)).toHaveLength(2);
+    // A plain light is none of the fallback's business: it draws no light.
+    store.getState().addLight({ x: 300, y: 100, emission: { bright: 5, dim: 10, color: '#ffffff', intensity: 1, animation: 'none' } });
+    expect(fallback.lightReaches()).toHaveLength(1);
+    fill.mockRestore();
   });
 
   it('blacks out the map outside sight in the player frame only', () => {

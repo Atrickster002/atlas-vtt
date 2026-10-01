@@ -1,10 +1,11 @@
-import { Buffer, BufferImageSource, BufferUsage, Container, Geometry, Mesh, UniformGroup, type Shader } from 'pixi.js';
+import { BufferImageSource, Container, Mesh, UniformGroup, type Geometry, type Shader } from 'pixi.js';
 import type { Point } from '../../../types/visionTypes';
 import type { SeenSpot } from '../../../vision/perception';
 import type { Sight } from '../../../vision/sight';
 import { sightWedges, type SightWedge } from '../../../vision/sightWedges';
 import type { Polygon } from '../../../vision/visibility';
 import { destroyTree } from '../../utils/destroyTree';
+import { fanGeometry } from './DarknessMap';
 import { ENGINE_SHADERS } from './engineShaders';
 import { createShader } from './gpu';
 import { SPOT_CHANNELS, sightChannels, type SightChannels } from './senseDrawing';
@@ -118,15 +119,5 @@ function wedgeTexture(wedges: readonly SightWedge[]): BufferImageSource {
     format: 'rgba32float',
     scaleMode: 'nearest',
     alphaMode: 'no-premultiply-alpha',
-  });
-}
-
-function fanGeometry(origin: Point, polygon: Polygon): Geometry {
-  const positions = new Float32Array([origin.x, origin.y, ...polygon.flatMap((p) => [p.x, p.y])]);
-  const indices: number[] = [];
-  for (let i = 1; i <= polygon.length; i++) indices.push(0, i, (i % polygon.length) + 1);
-  return new Geometry({
-    attributes: { aPosition: { buffer: new Buffer({ data: positions, usage: BufferUsage.VERTEX }), format: 'float32x2' } },
-    indexBuffer: new Buffer({ data: new Uint32Array(indices), usage: BufferUsage.INDEX }),
   });
 }

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { BUILT_IN_SENSES, GENERIC_SENSES } from '../../../../gameSystems/senses';
 import type { TokenEntity } from '../../../../types';
 import { computeSight, sightSources, type Sight } from '../../../../vision/sight';
-import { DARK_SIGHT_LEVELS, ambientLift, darkLooks, sightChannels } from '../senseDrawing';
+import { DARK_SIGHT_LEVELS, ambientLift, darkLooks, pierceShapes, sightChannels } from '../senseDrawing';
 
 const ALL_SENSES = [...GENERIC_SENSES, ...Object.values(BUILT_IN_SENSES).flat()];
 const scale = { unitDistance: 5, cellSize: 5 };
@@ -72,7 +72,7 @@ describe('darkLooks', () => {
   const grey = (level: number): number[] => [level, level, level];
 
   it('is the grey of darkvision without senses, and with the generic or the D&D darkvision', () => {
-    const before = { greyKeep: 0.15, greyTint: grey(DARK_SIGHT_LEVELS.dim), colourLevel: DARK_SIGHT_LEVELS.dim };
+    const before = { greyKeep: 0.15, greyTint: grey(DARK_SIGHT_LEVELS.dim), greyLevel: DARK_SIGHT_LEVELS.dim, colourLevel: DARK_SIGHT_LEVELS.dim };
     expect(darkLooks({ all: true, regions: [] })).toEqual(before);
     expect(darkLooks(sightWith())).toEqual(before);
     expect(darkLooks(sightWith('darkvision'))).toEqual(before);
@@ -122,5 +122,30 @@ describe('ambientLift', () => {
     expect(ambientLift({ ambient: 0.15 })).toBe(1);
     expect(ambientLift({ ambient: 0 })).toBe(1);
     expect(ambientLift({ ambient: 0, litThreshold: 0 })).toBe(1);
+  });
+});
+
+describe('pierceShapes', () => {
+  /** How each sense perceives magical darkness: its area at 1 (as bright light) or 0.5 (as dim), or not at all. */
+  const levels = (...ids: string[]): number[] => pierceShapes(sightWith(...ids)).map((shape) => shape.level);
+
+  it('is the area of every sense that shows the map and sees in magical darkness, at the level it sees there', () => {
+    expect(levels()).toEqual([]);
+    expect(levels('darkvision')).toEqual([]);
+    expect(levels('dnd5e-darkvision')).toEqual([]);
+    expect(levels('dnd5e-devils-sight')).toEqual([1]);
+    expect(levels('dnd5e-truesight')).toEqual([1]);
+    expect(levels('pathfinder2e-darkvision')).toEqual([0.5]);
+    expect(levels('pathfinder2e-greater-darkvision')).toEqual([1]);
+    // Tremorsense perceives creatures there, not the map.
+    expect(levels('dnd5e-tremorsense')).toEqual([]);
+    const sight = sightWith('dnd5e-truesight');
+    expect(pierceShapes(sight)[0]!.polygon).toBe(sight.regions.find((region) => region.sense.id === 'dnd5e-truesight')!.polygon);
+  });
+
+  it('adds the footprint of every token shown where the map is not, and nothing while line of sight hides nothing', () => {
+    const spot = { x: 10, y: 20, radius: 31, polygon: [{ x: 0, y: 0 }, { x: 20, y: 0 }, { x: 20, y: 40 }] };
+    expect(pierceShapes(sightWith(), [spot])).toEqual([{ origin: spot, polygon: spot.polygon, level: 1 }]);
+    expect(pierceShapes({ all: true, regions: [] })).toEqual([]);
   });
 });
