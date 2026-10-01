@@ -26,19 +26,27 @@ interface SightMesh {
 export class SightMeshes {
   readonly view = new Container({ label: 'sight' });
   private meshes: SightMesh[] = [];
+  /** The footprints of tokens shown where no sense shows the map: drawn apart, since they follow a dragged token. */
+  private spots: SightMesh[] = [];
 
-  draw(sight: Sight, radius: number, spots: readonly SeenSpot[] = []): void {
-    this.clear();
+  draw(sight: Sight, radius: number): void {
+    this.clear(this.meshes);
+    this.meshes = [];
     if (sight.all) return;
     for (const region of sight.regions) {
       const channels = sightChannels(region);
-      if (channels && region.polygon) this.add(region.polygon, region.origin, region.apex, radius, channels);
+      if (channels && region.polygon) this.add(this.meshes, region.polygon, region.origin, region.apex, radius, channels);
     }
-    // A disc has no shadow edges, so no wedge softens it.
-    for (const spot of spots) this.add(disc(spot), spot, 0, radius, SPOT_CHANNELS);
   }
 
-  private add(polygon: Polygon, origin: Point, apex: number, radius: number, channel: SightChannels): void {
+  /** A disc has no shadow edges, so no wedge softens it. */
+  drawSpots(spots: readonly SeenSpot[], radius: number): void {
+    this.clear(this.spots);
+    this.spots = [];
+    for (const spot of spots) this.add(this.spots, disc(spot), spot, 0, radius, SPOT_CHANNELS);
+  }
+
+  private add(list: SightMesh[], polygon: Polygon, origin: Point, apex: number, radius: number, channel: SightChannels): void {
     if (polygon.length < 3) return;
     const wedges = sightWedges(origin, polygon, radius, apex).slice(0, MAX_WEDGES);
     const wedgeSource = wedgeTexture(wedges);
@@ -50,22 +58,22 @@ export class SightMeshes {
     const mesh = new Mesh({ geometry: fanGeometry(origin, polygon), shader });
     mesh.blendMode = 'max';
     this.view.addChild(mesh);
-    this.meshes.push({ mesh, wedges: wedgeSource });
+    list.push({ mesh, wedges: wedgeSource });
   }
 
-  private clear(): void {
-    this.view.removeChildren();
-    for (const { mesh, wedges } of this.meshes) {
+  private clear(list: readonly SightMesh[]): void {
+    for (const { mesh, wedges } of list) {
+      this.view.removeChild(mesh);
       mesh.geometry.destroy(true);
       mesh.shader?.destroy();
       wedges.destroy();
       mesh.destroy();
     }
-    this.meshes = [];
   }
 
   destroy(): void {
-    this.clear();
+    this.clear(this.meshes);
+    this.clear(this.spots);
     destroyTree(this.view);
   }
 }

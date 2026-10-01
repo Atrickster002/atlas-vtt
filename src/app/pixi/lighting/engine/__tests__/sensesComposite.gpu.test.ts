@@ -3,6 +3,7 @@ import { BUILT_IN_SENSES, GENERIC_SENSES } from '../../../../gameSystems/senses'
 import type { TokenEntity } from '../../../../types';
 import type { TokenSense } from '../../../../types/senseTypes';
 import type { WallSegment } from '../../../../types/wallTypes';
+import { seenSpots } from '../../../../vision/perception';
 import { computeSight, sightSources, type Sight } from '../../../../vision/sight';
 import { LightingEngine } from '../LightingEngine';
 import type { LightingMode } from '../compositeFilter';
@@ -169,6 +170,22 @@ describe('senses in the composite', () => {
     const behind = await render(sense('pathfinder2e-echolocation'), { spots: [{ ...BEHIND, radius: 31 }] });
     expect(luminance(behind(BEHIND))).toBeGreaterThan(40);
     expect(behind({ x: BEHIND.x, y: BEHIND.y + 60 })).toEqual([0, 0, 0]);
+  });
+
+  it('shows a party token that stands in darkness within its footprint, in the players\' view and the GM\'s', async () => {
+    const viewer: TokenEntity = { id: 'v', kind: 'token', imagePath: 'v.png', ...VIEWER, vision: { enabled: true } };
+    const sight = sightWith([]);
+    const spots = seenSpots(sight, { ambient: 0 }, [], { v: viewer }, 70);
+    expect(spots).toEqual([{ ...VIEWER, radius: 31 }]);
+    const without = await render([]);
+    expect(isDark(without(VIEWER))).toBe(true);
+    for (const mode of ['player', 'gm'] as const) {
+      const at = await render([], { spots }, mode);
+      const [r, , b] = at(VIEWER);
+      expect(b - r).toBeGreaterThan(40);
+      expect(luminance(at(VIEWER))).toBeGreaterThan(luminance((await render([], {}, mode))({ x: VIEWER.x + 60, y: VIEWER.y })) + 40);
+    }
+    expect(isDark((await render([], { spots }))({ x: VIEWER.x + 60, y: VIEWER.y }))).toBe(true);
   });
 
   it('shows the GM what a sense perceives in the dark too', async () => {

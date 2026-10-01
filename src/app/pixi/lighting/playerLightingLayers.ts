@@ -1,8 +1,7 @@
 import type { TokenEntity } from '../../types';
-import type { ConditionDefinition } from '../../types/collectionSettingsTypes';
-import { movedWhileHeld, type HeldTokens } from '../../lighting/sightOnDrop';
+import { movedWhileHeld } from '../../lighting/sightOnDrop';
 import { lightLevelAt } from '../../vision/lightLevels';
-import { perceive, targetOf, withinReach, type Perception } from '../../vision/perception';
+import { perceive, targetOf, withinReach, type Perception, type PerceptionOptions } from '../../vision/perception';
 import type { AmbientLight, LightReach, Sight } from '../../vision/sight';
 import { tokenEffects } from '../../vision/sightRules';
 import type { HideableLayer, LayerVisibility } from '../playerSafeFrame';
@@ -41,13 +40,6 @@ export function playerLightingLayers({ enabled, modeLayer, gmOverlays, sensedOut
 
 /** How the players perceive each token. */
 export type TokenPerception = (tokenId: string) => Perception;
-
-export interface PerceptionOptions {
-  /** The conditions of the map's collection, for those that change sight; none reads no condition. */
-  conditions?: readonly ConditionDefinition[];
-  /** The tokens the pointer holds while sight waits for the drop, with the places they were taken from. */
-  held?: HeldTokens;
-}
 
 /**
  * How the vision tokens perceive each token, by its centre, the light there and its conditions.

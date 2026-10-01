@@ -1,4 +1,5 @@
 import { perceivedLevel } from '../gameSystems/senseRules';
+import { movedWhileHeld, type HeldTokens } from '../lighting/sightOnDrop';
 import { NORMAL_SIGHT } from '../gameSystems/senses/generic';
 import type { TokenEntity } from '../types';
 import type { ConditionDefinition, ConditionEffect } from '../types/collectionSettingsTypes';
@@ -64,7 +65,15 @@ export function perceive(point: Point, sight: Sight, level: LightLevel, target: 
   return sensed ? 'sensed' : 'unseen';
 }
 
-/** The footprint of a token that is seen where the map around it is not, in world pixels. */
+/** What perception reads besides sight and light. */
+export interface PerceptionOptions {
+  /** The conditions of the map's collection, for those that change sight; none reads no condition. */
+  conditions?: readonly ConditionDefinition[];
+  /** The tokens the pointer holds while sight waits for the drop, with the places they were taken from. */
+  held?: HeldTokens;
+}
+
+/** The footprint of a token that is shown where the map around it is not, in world pixels. */
 export interface SeenSpot {
   x: number;
   y: number;
@@ -72,27 +81,39 @@ export interface SeenSpot {
 }
 
 /**
- * The tokens a precise sense that shows no map sees (echolocation), where no sense shows the
- * map: the picture is dark there, so each is shown within its own footprint. Tokens with
- * vision are not among them; `tokens` is the record their places are read from.
+ * The tokens the players see where no sense shows them the map, so that the picture is dark
+ * there: each is shown within its own footprint.
+ * - A token with vision: the players always see their party, also one standing in darkness or
+ *   blinded. One the pointer has moved beyond the sight that stayed behind is not shown until
+ *   the drop (`held`, as in `tokenPerception`).
+ * - A token a precise sense that shows no map sees (echolocation).
+ *
+ * Never a hidden token. `tokens` is the record their places are read from.
  */
 export function seenSpots(
   sight: Sight,
   ambient: AmbientLight,
   lights: readonly LightReach[],
   tokens: Record<string, TokenEntity>,
-  conditions: readonly ConditionDefinition[],
   cellSize: number,
+  { conditions = [], held = {} }: PerceptionOptions = {},
 ): SeenSpot[] {
-  if (sight.all || !sight.regions.some(({ sense }) => sense.precise && sense.reveals === 'creatures')) return [];
+  if (sight.all) return [];
   const withMap: Sight = { all: false, regions: sight.regions.filter(({ sense }) => sense.reveals === 'all') };
+  const seesCreatures = sight.regions.some(({ sense }) => sense.precise && sense.reveals === 'creatures');
   const spots: SeenSpot[] = [];
   for (const token of Object.values(tokens)) {
-    if (token.vision?.enabled) continue;
+    const party = !!token.vision?.enabled;
+    if (token.isHidden || (!party && !seesCreatures)) continue;
     const at = { x: token.x, y: token.y };
     const level = lightLevelAt(at, ambient, lights);
-    const target = targetOf(tokenEffects(token, conditions));
-    if (perceive(at, sight, level, target) !== 'seen' || perceive(at, withMap, level, target) === 'seen') continue;
+    if (party) {
+      if (movedWhileHeld(token, held) && !withinReach(at, sight)) continue;
+      if (perceive(at, withMap, level) === 'seen') continue;
+    } else {
+      const target = targetOf(tokenEffects(token, conditions));
+      if (perceive(at, sight, level, target) !== 'seen' || perceive(at, withMap, level, target) === 'seen') continue;
+    }
     spots.push({ ...at, radius: computeTokenPixelSize(cellSize, token.size || 1) / 2 });
   }
   return spots;

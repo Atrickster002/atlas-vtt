@@ -2,7 +2,7 @@ import type { MeasurementSettings } from '../../grid/measurementFormat';
 import { worldTexel } from '../../lighting/lightingConstants';
 import { unitScaleOf } from '../../lighting/lightingUnits';
 import { sealedWalls } from '../../lighting/sealWalls';
-import { SightTokens } from '../../lighting/sightOnDrop';
+import { SightTokens, heldForSight, type HeldTokens } from '../../lighting/sightOnDrop';
 import type { ViewAtlasState } from '../../storeFactory';
 import type { TokenEntity } from '../../types';
 import type { SceneLighting } from '../../types/lightingTypes';
@@ -24,8 +24,6 @@ export interface SceneModel {
   lights: EngineLight[];
   reaches: LightReach[];
   sight: Sight;
-  /** Tokens seen where no sense shows the map, each shown within its footprint (`seenSpots`). */
-  spots: SeenSpot[];
   /** What the tokens see now, for explored memory to record; null when nothing is recorded. */
   explored: ExploredShapes | null;
 }
@@ -83,7 +81,42 @@ export class SceneModelBuilder {
     const lights = activeLights(state.objects.lights, tokens).map((light) => engineLight(light, scale));
     const reaches = this.lightReaches.sync(lights, walls);
     const sight = sceneSight(state.lighting, sightSources(tokens, scale, bounds, rules), walls, this.sightCache);
-    const spots = seenSpots(sight, state.lighting, reaches, tokens, rules?.conditions ?? [], scale.cellSize);
-    return { walls, lights, reaches, sight, spots, explored: exploredShapes(sight, state.lighting, reaches) };
+    return { walls, lights, reaches, sight, explored: exploredShapes(sight, state.lighting, reaches) };
   }
+}
+
+interface SpotInputs {
+  model: SceneModel;
+  tokens: Record<string, TokenEntity>;
+  held: HeldTokens;
+  lighting: SceneLighting;
+  grid: ViewAtlasState['grid'];
+  rules: SightRules | undefined;
+}
+
+/**
+ * The tokens shown within their footprint where the picture is dark (`seenSpots`). They are
+ * read where the store has them, not where a drag began: a party token dragged through the
+ * dark is shown along the way, as far as the sight that stayed behind reaches. Worked out only
+ * when the model, the tokens, the held tokens, the lighting or the rules change, and the same
+ * list is returned while its spots stay the same, so a view that compares lists draws nothing anew.
+ */
+export class SceneSpots {
+  private inputs: SpotInputs | null = null;
+  private spots: SeenSpot[] = [];
+
+  update(model: SceneModel, state: SceneState, measurement: () => MeasurementSettings, sightRules?: () => SightRules): SeenSpot[] {
+    const inputs: SpotInputs = { model, tokens: state.objects.tokens, held: heldForSight(state), lighting: state.lighting, grid: state.grid, rules: sightRules?.() };
+    const last = this.inputs;
+    this.inputs = inputs;
+    if (last && (Object.keys(inputs) as (keyof SpotInputs)[]).every((key) => last[key] === inputs[key])) return this.spots;
+    const { cellSize } = unitScaleOf(measurement(), state.grid);
+    const spots = seenSpots(model.sight, state.lighting, model.reaches, inputs.tokens, cellSize, { conditions: inputs.rules?.conditions ?? [], held: inputs.held });
+    if (!sameSpots(spots, this.spots)) this.spots = spots;
+    return this.spots;
+  }
+}
+
+function sameSpots(a: readonly SeenSpot[], b: readonly SeenSpot[]): boolean {
+  return a.length === b.length && a.every((spot, i) => spot.x === b[i]!.x && spot.y === b[i]!.y && spot.radius === b[i]!.radius);
 }

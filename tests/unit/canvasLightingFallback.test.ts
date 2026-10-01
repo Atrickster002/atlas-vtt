@@ -48,7 +48,7 @@ describe('CanvasLightingFallback', () => {
     expect(sighted.regions.map((region) => region.sense.id)).toEqual(['sight', 'pathfinder2e-darkvision', 'blindsight']);
   });
 
-  it('cuts the darkness open at a token that only a precise creature sense sees', () => {
+  it('cuts the darkness open at a party token no sense shows, and at a token that only a precise creature sense sees', () => {
     const rules: SightRules = { definitions: BUILT_IN_SENSES['builtin:pathfinder2e']!, conditions: [{ id: 'blind', name: 'Blinded', color: '#000000', effect: 'blinded' }] };
     const bat: TokenEntity = { ...hero, vision: { enabled: true, senses: [{ id: 'pathfinder2e-echolocation', range: 40 }] }, conditions: ['blind'] };
     const prey: TokenEntity = { id: 'prey', kind: 'token', imagePath: 'p.png', x: 150, y: 100 };
@@ -60,9 +60,11 @@ describe('CanvasLightingFallback', () => {
       restore?.();
       return calls;
     };
-    expect(cuts({ bat })).toEqual([]);
-    expect(cuts({ bat, prey })).toEqual([[150, 100, 31]]);
-    expect(cuts({ bat, prey: { ...prey, x: 900 } })).toEqual([]);
+    // The bat is blinded: it is shown in its own footprint, like the prey its echolocation finds.
+    expect(cuts({ bat })).toEqual([[100, 100, 31]]);
+    expect(cuts({ bat, prey })).toEqual([[100, 100, 31], [150, 100, 31]]);
+    expect(cuts({ hero })).toEqual([]);
+    expect(cuts({ bat, prey: { ...prey, x: 900 } })).toEqual([[100, 100, 31]]);
   });
 
   it('blacks out the map outside sight in the player frame only', () => {

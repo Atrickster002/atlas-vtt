@@ -7,7 +7,7 @@ import type { LightLevel } from '../../types/senseTypes';
 import type { WallSegment } from '../../types/wallTypes';
 import type { TokenVision } from '../../types/lightingTypes';
 import { perceive, regionContains, seenSpots, type PerceivedTarget, type Perception } from '../perception';
-import { computeSight, sceneSight, sightSources } from '../sight';
+import { computeSight, lightReach, sceneSight, sightSources } from '../sight';
 import type { SightRules } from '../sightRules';
 
 /** One game unit is one world pixel. */
@@ -218,45 +218,96 @@ describe('regionContains', () => {
 });
 
 describe('seenSpots', () => {
-  const tokensWith = (id: string | null): Record<string, TokenEntity> => ({
-    viewer: viewerWith(id),
+  const others = (): Record<string, TokenEntity> => ({
     near: token('near', NEAR),
     behind: token('behind', BEHIND),
     far: token('far', FAR),
     hidden: token('hidden', NEAR, { conditions: ['unseen'] }),
     ally: token('ally', { x: 120, y: 100 }, { vision: { enabled: false } }),
   });
-  const spotsFor = (id: string | null, ambient = 0): { x: number; y: number }[] => {
-    const tokens = tokensWith(id);
-    const sight = computeSight(sightSources(tokens, scale, bounds, rules), [wall]);
-    return seenSpots(sight, { ambient }, [], tokens, conditions, scale.cellSize).map(({ x, y }) => ({ x, y }));
+  const sightOf = (tokens: Record<string, TokenEntity>): ReturnType<typeof computeSight> => computeSight(sightSources(tokens, scale, bounds, rules), [wall]);
+  const places = (spots: { x: number; y: number }[]): { x: number; y: number }[] => spots.map(({ x, y }) => ({ x, y }));
+  /** The spots of the creatures around a viewer with the sense `id`, without the viewer's own. */
+  const creatureSpots = (id: string | null, ambient = 0): { x: number; y: number }[] => {
+    const tokens = { viewer: viewerWith(id), ...others() };
+    return places(seenSpots(sightOf(tokens), { ambient }, [], tokens, scale.cellSize, { conditions })).filter((spot) => spot.x !== VIEWER.x);
   };
 
   it('are the tokens echolocation sees in the dark, where nothing shows the map: each is shown in its footprint', () => {
     // Echolocation reaches 100 units here: the two tokens within it, the invisible one too, not the one behind the wall.
-    expect(spotsFor('pathfinder2e-echolocation')).toEqual([NEAR, NEAR, { x: 120, y: 100 }]);
+    expect(creatureSpots('pathfinder2e-echolocation')).toEqual([NEAR, NEAR, { x: 120, y: 100 }]);
   });
 
   it('are as large as the token', () => {
     const tokens = { viewer: viewerWith('pathfinder2e-echolocation'), big: { ...token('big', NEAR), size: 2 } };
-    const sight = computeSight(sightSources(tokens, scale, bounds, rules), [wall]);
-    const [small] = seenSpots(sight, dark, [], { ...tokens, big: token('big', NEAR) }, conditions, 70);
-    const [large] = seenSpots(sight, dark, [], tokens, conditions, 70);
+    const sight = sightOf(tokens);
+    const [, small] = seenSpots(sight, dark, [], { ...tokens, big: token('big', NEAR) }, 70, { conditions });
+    const [, large] = seenSpots(sight, dark, [], tokens, 70, { conditions });
     expect(small!.radius).toBe(31);
     expect(large!.radius).toBeGreaterThan(small!.radius * 1.9);
   });
 
   it('are none where the map is shown: in light for sight, in the dark for a sense that shows the map', () => {
-    expect(spotsFor('pathfinder2e-echolocation', 1)).toEqual([NEAR]);
-    const both = { ...tokensWith(null), viewer: token('viewer', VIEWER, { vision: { enabled: true, senses: [{ id: 'pathfinder2e-echolocation', range: 100 }, { id: 'blindsight', range: 100 }] } }) };
-    const sight = computeSight(sightSources(both, scale, bounds, rules), [wall]);
-    expect(seenSpots(sight, dark, [], both, conditions, scale.cellSize)).toEqual([]);
+    expect(creatureSpots('pathfinder2e-echolocation', 1)).toEqual([NEAR]);
+    const both = { ...others(), viewer: token('viewer', VIEWER, { vision: { enabled: true, senses: [{ id: 'pathfinder2e-echolocation', range: 100 }, { id: 'blindsight', range: 100 }] } }) };
+    expect(seenSpots(sightOf(both), dark, [], both, scale.cellSize, { conditions })).toEqual([]);
   });
 
-  it('are none for senses that only sense, for sight alone, and without vision tokens', () => {
-    expect(spotsFor('tremorsense')).toEqual([]);
-    expect(spotsFor('darkvision')).toEqual([]);
-    expect(spotsFor(null)).toEqual([]);
-    expect(seenSpots(sceneSight({}, [], [wall]), dark, [], tokensWith(null), conditions, scale.cellSize)).toEqual([]);
+  it('are none of the creatures for senses that only sense, for sight alone, and none at all without vision tokens', () => {
+    expect(creatureSpots('tremorsense')).toEqual([]);
+    expect(creatureSpots('darkvision')).toEqual([]);
+    expect(creatureSpots(null)).toEqual([]);
+    expect(seenSpots(sceneSight({}, [], [wall]), dark, [], others(), scale.cellSize, { conditions })).toEqual([]);
+    expect(seenSpots(sceneSight({ tokenVision: false }, sightSources({ viewer: viewerWith(null) }, scale, bounds, rules), [wall]), dark, [], { viewer: viewerWith(null) }, scale.cellSize)).toEqual([]);
+  });
+});
+
+describe('seenSpots of the party', () => {
+  const sightOf = (tokens: Record<string, TokenEntity>): ReturnType<typeof computeSight> => computeSight(sightSources(tokens, scale, bounds, rules), [wall]);
+  const spotsOf = (tokens: Record<string, TokenEntity>, ambient = 0, lights: ReturnType<typeof lightReach>[] = []): { x: number; y: number }[] =>
+    seenSpots(sightOf(tokens), { ambient }, lights, tokens, scale.cellSize, { conditions }).map(({ x, y }) => ({ x, y }));
+
+  it('show a token with vision that stands in darkness within its own footprint', () => {
+    expect(spotsOf({ viewer: viewerWith(null) })).toEqual([VIEWER]);
+    const scout = token('scout', BEHIND, { vision: { enabled: true } });
+    expect(spotsOf({ viewer: viewerWith(null), scout })).toEqual([VIEWER, BEHIND]);
+  });
+
+  it('are none where the token is seen anyway: in light, or in the dark by a sense that shows the map', () => {
+    expect(spotsOf({ viewer: viewerWith(null) }, 0.5)).toEqual([]);
+    expect(spotsOf({ viewer: viewerWith(null) }, 0, [lightReach(VIEWER, 40, [], 20)])).toEqual([]);
+    expect(spotsOf({ viewer: viewerWith('darkvision') })).toEqual([]);
+    expect(spotsOf({ viewer: viewerWith('blindsight') })).toEqual([]);
+    // A second party member in the first one's darkvision is seen by it.
+    expect(spotsOf({ viewer: viewerWith('darkvision'), scout: token('scout', NEAR, { vision: { enabled: true } }) })).toEqual([]);
+  });
+
+  it('show a blinded party token, which sees nothing itself, and one that is invisible or undetected', () => {
+    expect(spotsOf({ viewer: viewerWith(null, true) }, 1)).toEqual([VIEWER]);
+    const cloaked = token('viewer', VIEWER, { vision: { enabled: true }, conditions: ['unseen'] });
+    expect(spotsOf({ viewer: cloaked })).toEqual([VIEWER]);
+    expect(spotsOf({ viewer: cloaked }, 1)).toEqual([]);
+  });
+
+  it('show a party token at night, when the map is dimly drawn but its place counts as dark', () => {
+    expect(spotsOf({ viewer: viewerWith(null) }, 0.15)).toEqual([VIEWER]);
+    expect(spotsOf({ viewer: viewerWith(null) }, 0.25)).toEqual([]);
+  });
+
+  it('never show a hidden token, and none whose vision is off', () => {
+    expect(spotsOf({ viewer: viewerWith(null), gm: { ...token('gm', NEAR, { vision: { enabled: true } }), isHidden: true } })).toEqual([VIEWER]);
+    expect(spotsOf({ viewer: viewerWith(null), npc: token('npc', NEAR, { vision: { enabled: false } }) })).toEqual([VIEWER]);
+  });
+
+  it('follow a party token the pointer drags as far as the sight that stayed behind reaches, and not beyond', () => {
+    const start = { viewer: viewerWith(null) };
+    const sight = sightOf(start);
+    const held = { viewer: VIEWER };
+    const dragged = (at: { x: number; y: number }): { x: number; y: number }[] =>
+      seenSpots(sight, dark, [], { viewer: { ...start.viewer, ...at } }, scale.cellSize, { conditions, held }).map(({ x, y }) => ({ x, y }));
+    expect(dragged(NEAR)).toEqual([NEAR]);
+    expect(dragged(BEHIND)).toEqual([]);
+    // Without sight on drop nothing is held: the token is shown wherever the store has it.
+    expect(seenSpots(sight, dark, [], { viewer: { ...start.viewer, ...BEHIND } }, scale.cellSize, { conditions })).toHaveLength(1);
   });
 });

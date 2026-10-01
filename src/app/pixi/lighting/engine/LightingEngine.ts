@@ -95,13 +95,18 @@ export class LightingEngine {
       this.boundField = world.fieldAll();
       composite.setWorld(world);
     }
-    if (scene.sight !== this.sight || scene.spots !== this.spots) {
+    const newSight = scene.sight !== this.sight;
+    const newSpots = scene.spots !== this.spots;
+    if (newSight) {
       this.sight = scene.sight;
-      this.spots = scene.spots;
-      this.sightMeshes.draw(scene.sight, scene.sightRadius, scene.spots);
+      this.sightMeshes.draw(scene.sight, scene.sightRadius);
       composite.setAllSeen(scene.sight.all);
-      composite.setDarkLooks(darkLooks(scene.sight, !!scene.spots?.length));
     }
+    if (newSpots) {
+      this.spots = scene.spots;
+      this.sightMeshes.drawSpots(scene.sight.all ? [] : scene.spots ?? [], scene.sightRadius);
+    }
+    if (newSight || newSpots) composite.setDarkLooks(darkLooks(scene.sight, !!scene.spots?.length));
     composite.setAmbient(scene.ambient, scene.ambientColor, ambientLift(scene));
     composite.setMemoryShown(exploredMemoryOn(scene));
     composite.setMemoryColours(scene.exploredColor, scene.unexploredColor);

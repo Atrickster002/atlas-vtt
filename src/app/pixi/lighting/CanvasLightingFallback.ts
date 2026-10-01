@@ -5,7 +5,7 @@ import type { MeasurementSettings } from '../../grid/measurementFormat';
 import { unitScaleOf } from '../../lighting/lightingUnits';
 import { sealedWalls } from '../../lighting/sealWalls';
 import { worldTexel } from '../../lighting/lightingConstants';
-import { SightTokens } from '../../lighting/sightOnDrop';
+import { SightTokens, heldForSight } from '../../lighting/sightOnDrop';
 import { SEES_ALL, SightCache, sceneSight, sightSources, type AmbientLight, type LightReach, type Sight } from '../../vision/sight';
 import { wallList } from '../../vision/wallList';
 import { seenSpots, type SeenSpot } from '../../vision/perception';
@@ -88,7 +88,8 @@ export class CanvasLightingFallback implements SceneLightingView {
     const rules = this.deps.rules?.();
     const tokens = this.sightTokens.read(state);
     this.sight = sceneSight(state.lighting, sightSources(tokens, scale, bounds, rules), walls, this.cache);
-    this.drawDarkness(bounds, seenSpots(this.sight, FULL_DAYLIGHT, [], tokens, rules?.conditions ?? [], scale.cellSize));
+    const spots = seenSpots(this.sight, FULL_DAYLIGHT, [], state.objects.tokens, scale.cellSize, { conditions: rules?.conditions ?? [], held: heldForSight(state) });
+    this.drawDarkness(bounds, spots);
     this.deps.onSightChange?.();
   }
 

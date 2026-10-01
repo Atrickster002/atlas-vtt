@@ -14,7 +14,7 @@ import type { EngineScene, SceneFrame } from './engine/types';
 import { ExploredMemory } from './ExploredMemory';
 import type { LightingAttempt } from './lightingAttempts';
 import { PlayerView } from './PlayerView';
-import { SceneModelBuilder, type SceneModel } from './sceneModel';
+import { SceneModelBuilder, SceneSpots, type SceneModel } from './sceneModel';
 import type { SceneLightingView } from './sceneLightingView';
 
 /** Above tokens, below their nameplates and bars (100): the GM keeps readable labels in the dark. */
@@ -68,6 +68,7 @@ export class LightingRenderer implements SceneLightingView {
   private readonly memory: ExploredMemory;
   /** What the scene is built from, and when it is built anew (`SceneModelBuilder`). */
   private readonly model = new SceneModelBuilder();
+  private readonly spots = new SceneSpots();
   private reaches: LightReach[] = [];
   private sight: Sight = SEES_ALL;
   /** The last scene without its look (`SceneLook`), reused while only the look changes. */
@@ -187,17 +188,18 @@ export class LightingRenderer implements SceneLightingView {
 
     const { model, rebuilt } = this.model.update(state, bounds, this.deps.measurement, this.deps.rules);
     const base = rebuilt || !this.lastScene ? (this.lastScene = this.takeModel(model, state, bounds)) : this.lastScene;
-    this.engine.update({ ...base, ...sceneLook(lighting) });
+    const spots = this.spots.update(model, state, this.deps.measurement, this.deps.rules);
+    this.engine.update({ ...base, spots, ...sceneLook(lighting) });
     requestRender(this.deps.app);
   }
 
   /** A model built anew: its sight and reaches are the view's, and what the tokens now see is recorded. */
-  private takeModel({ walls, lights, reaches, sight, spots, explored }: SceneModel, state: ViewAtlasState, bounds: MapBounds): SceneWithoutLook {
+  private takeModel({ walls, lights, reaches, sight, explored }: SceneModel, state: ViewAtlasState, bounds: MapBounds): SceneWithoutLook {
     this.reaches = reaches;
     this.sight = sight;
     this.sightChanged = true;
     if (explored) this.memory.record(explored);
-    return { bounds, albedo: this.deps.albedo(), walls, lights, sight, spots, sightRadius: (state.grid?.size ?? DEFAULT_CELL_SIZE) * 0.5 };
+    return { bounds, albedo: this.deps.albedo(), walls, lights, sight, sightRadius: (state.grid?.size ?? DEFAULT_CELL_SIZE) * 0.5 };
   }
 
   /**

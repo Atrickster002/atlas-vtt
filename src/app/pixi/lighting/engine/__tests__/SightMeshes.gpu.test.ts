@@ -130,7 +130,8 @@ describe('SightMeshes', () => {
       stage.addChild(new Graphics().rect(0, 0, 256, 256).fill({ color: 0, alpha: 0 }), meshes.view);
       // Sight to 100 px, low-light vision as far, blindsight to 40 px.
       const source = { tokenId: 'a', origin: { x: 100, y: 128 }, range: 100, senses: [senseSource('low-light-vision', 4000), senseSource('blindsight', 40)] };
-      meshes.draw(computeSight([source], []), 20, [{ x: 230, y: 30, radius: 12 }]);
+      meshes.draw(computeSight([source], []), 20);
+      meshes.drawSpots([{ x: 230, y: 30, radius: 12 }], 20);
       renderer.render({ container: stage, target, clear: true, clearColor: [0, 0, 0, 0] });
       const px = readRgba(renderer, target);
       const at = (x: number, y: number): number[] => Array.from(px.slice((y * 256 + x) * 4, (y * 256 + x) * 4 + 4));
@@ -139,6 +140,16 @@ describe('SightMeshes', () => {
       expect(at(210, 128)).toEqual([0, 0, 0, 0]);
       expect(at(230, 30)).toEqual([255, 0, 255, 0]);
       expect(at(230, 50)).toEqual([0, 0, 0, 0]);
+      expect(meshes.view.children).toHaveLength(4);
+      // The spots are drawn anew without the sight, and the sight without the spots.
+      const sightMeshes = meshes.view.children.slice(0, 3);
+      meshes.drawSpots([{ x: 30, y: 230, radius: 12 }], 20);
+      expect(meshes.view.children.slice(0, 3)).toEqual(sightMeshes);
+      renderer.render({ container: stage, target, clear: true, clearColor: [0, 0, 0, 0] });
+      const moved = readRgba(renderer, target);
+      expect(Array.from(moved.slice((30 * 256 + 230) * 4, (30 * 256 + 230) * 4 + 4))).toEqual([0, 0, 0, 0]);
+      expect(Array.from(moved.slice((230 * 256 + 30) * 4, (230 * 256 + 30) * 4 + 4))).toEqual([255, 0, 255, 0]);
+      meshes.draw(computeSight([source], []), 20);
       expect(meshes.view.children).toHaveLength(4);
     } finally {
       meshes.destroy();
