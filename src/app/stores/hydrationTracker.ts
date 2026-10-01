@@ -4,6 +4,8 @@ interface Hydration {
   isSuperseded: () => boolean;
   failed: boolean;
   error?: unknown;
+  /** The state the storage's content was merged into, which zustand then sets as it is. */
+  merged?: object;
 }
 
 /**
@@ -14,8 +16,11 @@ interface Hydration {
 export class HydrationTracker {
   private current: Hydration | null = null;
 
+  /** @param getState The store's state; undefined before the store exists. */
+  constructor(private readonly getState: () => object | undefined) {}
+
   /**
-   * Runs `rehydrate` and rejects when the store did not take the storage's state.
+   * Runs `rehydrate` and rejects unless the store took the storage's state completely.
    * Once `isSuperseded` reports true, a read that is still under way is dropped.
    */
   async run(rehydrate: () => Promise<void> | void, isSuperseded: () => boolean): Promise<void> {
@@ -26,7 +31,18 @@ export class HydrationTracker {
     } finally {
       if (this.current === hydration) this.current = null;
     }
-    if (hydration.failed) throw toError(hydration.error, 'The scene data could not be restored');
+    if (!hydration.failed) return;
+    // zustand sets the merged state before it tells the subscribers. A store that holds exactly
+    // that object took the storage's state completely, and the error came from a subscriber:
+    // the data is whole, so the scene opens. The reporter has logged the error.
+    if (hydration.merged !== undefined && this.getState() === hydration.merged) return;
+    throw toError(hydration.error, 'The scene data could not be restored');
+  }
+
+  /** Call from the store's `merge` with its result. */
+  merged<S extends object>(state: S): S {
+    if (this.current) this.current.merged = state;
+    return state;
   }
 
   /** The storage read of the rehydration that is starting. Throws when the rehydration was replaced before the read returned. */
