@@ -5,6 +5,7 @@ import type { EncounterAsset, TokenAsset } from '../../src/app/packages/componen
 import type { AtlasView } from '../../src/app/atlas-view';
 import type { AssetService } from '../../src/app/services/AssetService';
 import { loadAtlasView } from '../../src/app/plugin/atlasLeaves';
+import type { TokenVisionDefaults } from '../../src/app/types/lightingTypes';
 import { createInMemoryApp } from '../mocks/inMemoryVault';
 
 vi.mock('obsidian', async (importOriginal) => ({ ...(await importOriginal<typeof import('obsidian')>()), Notice: vi.fn() }));
@@ -31,15 +32,17 @@ function mapView(mapPath: string | null = 'maps/cave.atlasmap', isMapLoading = f
   return { view, spawned, addTokens, setSelection };
 }
 
-function setup(records: Record<string, Partial<TokenAsset>> = {}) {
+function setup(records: Record<string, Partial<TokenAsset>> = {}, defaultTokenVision?: TokenVisionDefaults, mapPath = 'maps/cave.atlasmap') {
   const { app } = createInMemoryApp({ files: { 'tokens/goblin.png': '', 'tokens/knight.png': '' } });
   app.workspace.revealLeaf = vi.fn(async () => undefined);
-  const { view, spawned, addTokens, setSelection } = mapView();
+  const { view, spawned, addTokens, setSelection } = mapView(mapPath);
   const ctx: SpawnContext = {
     app,
     view,
     assetService: {
       getAssetById: vi.fn(async (id: string) => (id in records ? { id, type: 'token', name: id, imagePath: `tokens/${id}.png`, ...records[id] } : null)),
+      getCollectionForMap: vi.fn((path: string) => (path === 'maps/cave.atlasmap' ? 'dungeon' : null)),
+      getCollectionSettings: vi.fn(() => ({ conditions: [], ...(defaultTokenVision && { defaultTokenVision }) })),
     } as unknown as AssetService,
   };
   return { ctx, spawned, addTokens, setSelection };
@@ -152,5 +155,59 @@ describe('spawning from the global asset manager', () => {
     expect(loading.addTokens).not.toHaveBeenCalled();
     expect(ctx.app.workspace.revealLeaf).toHaveBeenCalledWith(loading.view.leaf);
     expect(vi.mocked(Notice).mock.calls).toEqual([[expect.stringContaining('still loading')]]);
+  });
+});
+
+describe('default token vision of the placing map\'s collection', () => {
+  const encounter = (tokens: EncounterAsset['tokens']): EncounterAsset => ({
+    id: 'ambush', name: 'Ambush', type: 'encounters', tags: [], tokens, tokenPreviews: [], modifiedAt: 0,
+  });
+  const defaults: TokenVisionDefaults = { darkvision: 60, range: 120, angle: 90 };
+
+  it('stamps every token spawned from the library with the default, vision off', async () => {
+    const { ctx, spawned } = setup({}, defaults);
+    await spawnTokenAsset(ctx, unframed, 2);
+    await spawnSelectedTokens(ctx, [unframed, framed]);
+    expect(spawned).toHaveLength(4);
+    for (const token of spawned) expect(token.vision).toEqual({ enabled: false, darkvision: 60, range: 120, angle: 90 });
+    expect(spawned[0]!.vision).not.toBe(spawned[1]!.vision);
+  });
+
+  it('stamps tokens an encounter builds from assets', async () => {
+    const { ctx, spawned } = setup({ goblin: {} }, defaults);
+    await spawnEncounterTokens(ctx, encounter([{ id: 'goblin', name: 'Goblin', imagePath: 'tokens/goblin.png', size: 1 }]));
+    expect(spawned[0]!.vision).toEqual({ enabled: false, ...defaults });
+  });
+
+  it('ignores anything but the defaults in the stored settings, so vision stays off', async () => {
+    const { ctx, spawned } = setup({}, { enabled: true, darkvision: 60, unknown: 1 } as TokenVisionDefaults);
+    await spawnTokenAsset(ctx, unframed, 1);
+    expect(spawned[0]!.vision).toEqual({ enabled: false, darkvision: 60 });
+  });
+
+  it('keeps the vision of a token restored from a saved snapshot, or none', async () => {
+    const { ctx, spawned } = setup({}, defaults);
+    await spawnEncounterTokens(ctx, encounter([
+      { id: 'a', name: 'A', imagePath: 'tokens/goblin.png', state: { kind: 'token', imagePath: 'tokens/goblin.png', vision: { enabled: true, range: 15 } } },
+      { id: 'b', name: 'B', imagePath: 'tokens/knight.png', state: { kind: 'token', imagePath: 'tokens/knight.png' } },
+    ]));
+    expect(spawned[0]!.vision).toEqual({ enabled: true, range: 15 });
+    expect(spawned[1]).not.toHaveProperty('vision');
+  });
+
+  it('adds no vision field when the collection sets no default, sets an empty one or the map has no collection', async () => {
+    for (const [vision, mapPath] of [[undefined, 'maps/cave.atlasmap'], [{}, 'maps/cave.atlasmap'], [defaults, 'maps/other.atlasmap']] as const) {
+      const { ctx, spawned } = setup({}, vision, mapPath);
+      await spawnTokenAsset(ctx, unframed, 1);
+      expect(spawned[0]).not.toHaveProperty('vision');
+    }
+  });
+
+  it('takes the default of the scene the global asset manager spawns into', async () => {
+    const { ctx } = setup({}, defaults);
+    const open = mapView();
+    vi.mocked(loadAtlasView).mockResolvedValue(open.view);
+    await spawnTokenAsset({ ...ctx, view: null }, unframed, 1);
+    expect(open.spawned[0]!.vision).toEqual({ enabled: false, ...defaults });
   });
 });

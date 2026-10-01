@@ -6,12 +6,15 @@ import {
   findActivePreset,
   sameSystemRules,
   rulesOfPreset,
+  vanillaSystemSettings,
   withSystemWidgets,
 } from '../../src/app/gameSystems/systemRules';
 import { formatDistance, resolveMeasurementSettings } from '../../src/app/grid/measurementFormat';
 import { getDiceCrit } from '../../src/app/tools/diceCrit';
 import type { SystemPreset, SystemRules } from '../../src/app/types/systemPresetTypes';
 import { WIDGET_ICON_PATHS } from '../../src/app/types/widgetIcons';
+import { visionDefaultsForm, visionDefaultsFromForm } from '../../src/app/lighting/tokenLighting';
+import { visionCone } from '../../src/app/vision/visionCone';
 
 const [daggerheart, dnd5e] = BUILT_IN_SYSTEM_PRESETS as [SystemPreset, SystemPreset];
 
@@ -211,5 +214,89 @@ describe('preset widgets', () => {
       },
     }]);
     expect(preset?.rules.widgets).toEqual([{ ...torch, icon: 'star' }]);
+  });
+});
+
+describe('default token vision', () => {
+  const withVision = (vision: SystemRules['defaultTokenVision']): SystemRules => ({ ...rules([]), ...(vision && { defaultTokenVision: vision }) });
+  const stored = (defaultTokenVision: unknown) => ({
+    id: 'p1',
+    name: 'Homebrew',
+    rules: { gridDefaults: { unitType: 'feet', unitDistance: 5, measurementMode: 'metric' }, conditions: [], defaultTokenVision },
+  });
+
+  it('is copied by rulesOfPreset, not shared with the preset', () => {
+    const preset: SystemPreset = { id: 'user', name: 'Night', builtIn: false, rules: withVision({ darkvision: 60, angle: 120 }) };
+    const copied = rulesOfPreset(preset);
+    expect(copied.defaultTokenVision).toEqual({ darkvision: 60, angle: 120 });
+    expect(copied.defaultTokenVision).not.toBe(preset.rules.defaultTokenVision);
+  });
+
+  it('is left out of rulesOfPreset for a system that sets none', () => {
+    expect(rulesOfPreset(dnd5e)).not.toHaveProperty('defaultTokenVision');
+  });
+
+  it('is cleared by the vanilla settings', () => {
+    expect(vanillaSystemSettings().defaultTokenVision).toBeUndefined();
+  });
+
+  it('shows in the preset summary when a system sets one', () => {
+    expect(describeSystemRules(withVision({ darkvision: 60 }))).toBe('5 ft squares · 0 conditions · Default vision');
+    expect(describeSystemRules(withVision({}))).toBe('5 ft squares · 0 conditions');
+    expect(describeSystemRules(withVision(undefined))).toBe('5 ft squares · 0 conditions');
+  });
+
+  it('marks a preset as edited when it changes, and treats none and empty alike', () => {
+    expect(sameSystemRules(withVision({ darkvision: 60 }), withVision({ darkvision: 60 }))).toBe(true);
+    expect(sameSystemRules(withVision({ darkvision: 60 }), withVision({ darkvision: 30 }))).toBe(false);
+    expect(sameSystemRules(withVision({ darkvision: 60 }), withVision(undefined))).toBe(false);
+    expect(sameSystemRules(withVision({ tremorsense: 10 }), withVision({ darkvision: 10 }))).toBe(false);
+    expect(sameSystemRules(withVision({ range: 30, angle: 90 }), withVision({ angle: 90, range: 30 }))).toBe(true);
+    expect(sameSystemRules(withVision({}), withVision(undefined))).toBe(true);
+  });
+
+  it('is read field by field from stored presets', () => {
+    const [preset] = parseUserPresets([stored({ range: 60, darkvision: 30, tremorsense: 10, angle: 90 })]);
+    expect(preset?.rules.defaultTokenVision).toEqual({ range: 60, darkvision: 30, tremorsense: 10, angle: 90 });
+  });
+
+  it('drops invalid fields and unknown ones, keeping the valid ones', () => {
+    const [preset] = parseUserPresets([stored({ range: -5, darkvision: '60', tremorsense: 15, angle: 0, enabled: true, other: 1 })]);
+    expect(preset?.rules.defaultTokenVision).toEqual({ tremorsense: 15 });
+    const [zero] = parseUserPresets([stored({ range: 0, darkvision: 30 })]);
+    expect(zero?.rules.defaultTokenVision).toEqual({ darkvision: 30 });
+    const [wide] = parseUserPresets([stored({ angle: 361, darkvision: Infinity, range: 25 })]);
+    expect(wide?.rules.defaultTokenVision).toEqual({ range: 25 });
+    const [full] = parseUserPresets([stored({ angle: 360, range: 30 })]);
+    expect(full?.rules.defaultTokenVision).toEqual({ range: 30 });
+  });
+
+  it('reads a cone angle exactly as the forms and the cone do, so a stored preset never shows as edited', () => {
+    for (const angle of [0.5, 1, 90, 359.5, 360, 400, 0, -30]) {
+      const [parsed] = parseUserPresets([stored({ angle, range: 30 })]);
+      const vision = parsed?.rules.defaultTokenVision;
+      const typed = visionDefaultsFromForm(visionDefaultsForm({ range: 30, angle }));
+      expect(vision).toEqual(typed);
+      expect(visionDefaultsFromForm(visionDefaultsForm(vision))).toEqual(vision);
+      const cone = visionCone(0, angle);
+      expect(cone === undefined ? undefined : Math.round((cone.angle * 180) / Math.PI * 1e6) / 1e6).toBe(vision?.angle);
+    }
+  });
+
+  it('is absent when nothing usable is stored', () => {
+    for (const raw of [undefined, null, 'dark', [], {}, { angle: 0 }]) {
+      const [preset] = parseUserPresets([stored(raw)]);
+      expect(preset).toBeDefined();
+      expect(preset).not.toHaveProperty('rules.defaultTokenVision');
+    }
+  });
+
+  it('is never set on a built-in preset unless every character of the system has it, and then it is valid', () => {
+    for (const preset of BUILT_IN_SYSTEM_PRESETS) {
+      const vision = preset.rules.defaultTokenVision;
+      if (!vision) continue;
+      const [parsed] = parseUserPresets([{ ...stored(vision), id: 'copy' }]);
+      expect(parsed?.rules.defaultTokenVision).toEqual(vision);
+    }
   });
 });
