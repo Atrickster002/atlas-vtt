@@ -32,23 +32,42 @@ const UNIT_WORDS: ReadonlyArray<[StatedUnit, string]> = [
   ['squares', String.raw`squares?|sq\.?|cells?|hex(?:es)?`],
 ];
 
-const NUMBER = String.raw`\d{1,3}(?:,\d{3})+(?!\d)|\d+(?:[.,]\d+)?`;
+/** "1,000", then "1.000" (a thousand only where the locale groups with a dot), then any other number. */
+const NUMBER = String.raw`\d{1,3}(?:,\d{3})+(?!\d)|(?<dotted>[1-9]\d{0,2}(?:\.\d{3})+(?!\d))|\d+(?:[.,]\d+)?`;
 const UNIT = UNIT_WORDS.map(([unit, words]) => `(?<${unit}>${words})`).join('|');
-/** A number that is no modifier ("+7") and no part of a word, with the unit after it. */
-const DISTANCE = new RegExp(String.raw`(?<![\p{L}\p{N}+\-−.,])(${NUMBER})(?:[\s-]*(?:${UNIT})(?![\p{L}\p{N}]))?`, 'iu');
+/**
+ * A number that is no modifier ("+7") and no part of a word ("4th"), with the unit after it or,
+ * as a bare number, nothing of a word after it.
+ */
+const DISTANCE = new RegExp(
+  String.raw`(?<![\p{L}\p{N}+\-−.,])(?<number>${NUMBER})(?:[\s-]*(?:${UNIT})(?![\p{L}\p{N}])|(?![\p{L}\p{N}]))`,
+  'iu',
+);
+
+/** Whether `locale` (the user's, by default) writes a thousand as "1.000". */
+function groupsWithDot(locale?: string): boolean {
+  return (100000).toLocaleString(locale).includes('.');
+}
 
 /** "1,000" is a thousand, "1,5" one and a half. */
 function numberOf(text: string): number {
   return Number(/,\d{3}(?!\d)/.test(text) ? text.replace(/,/g, '') : text.replace(',', '.'));
 }
 
-/** The first distance `text` states, or null when it holds no number. */
-export function readDistance(text: string): StatedDistance | null {
+/**
+ * The first distance `text` states, or null when it holds no number. A number written like
+ * "1.000" is a thousand where `locale` (the user's, by default) groups digits with a dot; in any
+ * other locale it could as well be 1, so no distance is read at all.
+ */
+export function readDistance(text: string, locale?: string): StatedDistance | null {
   const match = DISTANCE.exec(text);
-  if (!match) return null;
-  const value = numberOf(match[1]!);
+  const groups = match?.groups;
+  if (!match || !groups) return null;
+  const dotted = groups.dotted !== undefined;
+  if (dotted && !groupsWithDot(locale)) return null;
+  const value = dotted ? Number(groups.dotted!.replace(/\./g, '')) : numberOf(groups.number!);
   if (!Number.isFinite(value)) return null;
-  const unit = UNIT_WORDS.find(([name]) => match.groups?.[name] !== undefined)?.[0] ?? null;
+  const unit = UNIT_WORDS.find(([name]) => groups[name] !== undefined)?.[0] ?? null;
   return { value, unit, start: match.index, end: match.index + match[0].length };
 }
 

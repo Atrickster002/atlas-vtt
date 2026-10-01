@@ -38,11 +38,22 @@ describe('readDistance', () => {
     expect(read('30 ft. or 10 ft. while deafened')).toEqual([30, 'feet']);
   });
 
-  it('finds none in text without a number, in a modifier, or in a word that only starts like a unit', () => {
+  it('finds none in text without a number, in a modifier, or in a number that is part of a word', () => {
     expect(read('low-light vision')).toBeNull();
     expect(read('Perception +7')).toBeNull();
     expect(read('Perception -1')).toBeNull();
+    expect(read('4th rank')).toBeNull();
+    expect(read('2nd-level spells, 60 ft.')).toEqual([60, 'feet']);
     expect(read('10 minutes')).toEqual([10, null]);
+  });
+
+  it('reads a dot before three digits as thousands only where the locale groups with one, and not at all elsewhere', () => {
+    expect(readDistance('1.000 ft.', 'de')).toMatchObject({ value: 1000, unit: 'feet' });
+    expect(readDistance('12.000 m', 'de')).toMatchObject({ value: 12000, unit: 'meters' });
+    expect(readDistance('1.000 ft.', 'en')).toBeNull();
+    expect(readDistance('1.5 m', 'en')).toMatchObject({ value: 1.5 });
+    expect(readDistance('1.5 m', 'de')).toMatchObject({ value: 1.5 });
+    expect(readDistance('1.25 miles', 'en')).toMatchObject({ value: 1.25 });
   });
 });
 
