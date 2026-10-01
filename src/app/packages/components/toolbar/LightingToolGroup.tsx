@@ -3,24 +3,32 @@ import { BrickWall, Flame, FlameKindling, Lamp, Lightbulb, MousePointer2, Pencil
 import { useHotkeyLabels } from "../../../keyboard/useMapHotkeys"
 import { useAtlasStore } from "../../../react/ViewStoreContext"
 import { LIGHT_PRESETS, LIGHT_PRESET_IDS, type LightPresetId } from "../../../lighting/lightPresets"
-import { DropdownModeSelector, type ModeSelectorOption } from "../primitives/DropdownModeSelector"
+import type { WallToolMode, WallToolSubMode } from "../../../tools/WallTool"
+import { DropdownMenuItem, type DropdownMenuItemProps } from "../primitives/DropdownMenuItem"
 import { SceneLightingSection } from "./SceneLightingSection"
 import { ToolGroup, type ToolGroupControls } from "./ToolGroup"
 import { lightingToolFace } from "./toolFaces"
 import { useEmitViewEvent } from "./useEmitViewEvent"
 
-const PRESET_ICONS: Record<LightPresetId, ModeSelectorOption<LightPresetId>['icon']> = {
+type RowIcon = DropdownMenuItemProps['icon']
+
+/** What the tool does with a click. */
+const SUB_MODES: readonly { value: WallToolSubMode; icon: RowIcon; label: string }[] = [
+  { value: 'draw', icon: BrickWall, label: 'Draw walls' },
+  { value: 'place-light', icon: Lightbulb, label: 'Place lights' },
+]
+
+const DRAW_MODES: readonly { value: WallToolMode; icon: RowIcon; label: string }[] = [
+  { value: 'point-to-point', icon: MousePointer2, label: 'Point to point' },
+  { value: 'freeform', icon: Pencil, label: 'Freehand' },
+]
+
+const PRESET_ICONS: Record<LightPresetId, RowIcon> = {
   candle: Flame,
   torch: FlameKindling,
   lantern: Lamp,
   magical: Sparkles,
 }
-
-const PRESET_OPTIONS: ModeSelectorOption<LightPresetId>[] = LIGHT_PRESET_IDS.map((id) => ({
-  value: id,
-  icon: PRESET_ICONS[id],
-  label: LIGHT_PRESETS[id].label,
-}))
 
 /** Walls, lights and the scene's lighting in one place. DM only, behind WALLS_AND_LIGHTING_ENABLED. */
 export function LightingToolGroup({ activeTool, selectTool, menuOpen, toggleMenu, closeMenu }: ToolGroupControls): React.ReactElement {
@@ -29,8 +37,8 @@ export function LightingToolGroup({ activeTool, selectTool, menuOpen, toggleMenu
   const lighting = useAtlasStore((state) => state.lighting)
   const setSceneLighting = useAtlasStore((state) => state.setSceneLighting)
   const setSceneLightingPanelOpen = useAtlasStore((state) => state.setSceneLightingPanelOpen)
-  const [subMode, setSubMode] = useState<'draw' | 'place-light'>('draw')
-  const [drawMode, setDrawMode] = useState<'point-to-point' | 'freeform'>('point-to-point')
+  const [subMode, setSubMode] = useState<WallToolSubMode>('draw')
+  const [drawMode, setDrawMode] = useState<WallToolMode>('point-to-point')
   const [preset, setPreset] = useState<LightPresetId>('torch')
   const face = lightingToolFace(activeTool)
 
@@ -44,43 +52,47 @@ export function LightingToolGroup({ activeTool, selectTool, menuOpen, toggleMenu
       onMenuToggle={toggleMenu}
     >
       <div className="atlas-dropdown-section">
-        <DropdownModeSelector
-          value={subMode}
-          options={[
-            { value: 'draw' as const, icon: BrickWall, label: 'Draw walls' },
-            { value: 'place-light' as const, icon: Lightbulb, label: 'Place lights' },
-          ]}
-          onChange={(mode) => {
-            setSubMode(mode)
-            emit('wall-submode-changed', mode)
-            selectTool('wall')
-          }}
-        />
+        {SUB_MODES.map(({ value, icon, label }) => (
+          <DropdownMenuItem
+            key={value}
+            icon={icon}
+            label={label}
+            // The tool's key selects it with what it did last.
+            {...(value === subMode && { shortcut: hotkeyLabel('wall') })}
+            isActive={face.isActive && value === subMode}
+            onClick={() => {
+              setSubMode(value)
+              emit('wall-submode-changed', value)
+              selectTool('wall')
+            }}
+          />
+        ))}
       </div>
 
       <div className="atlas-dropdown-section">
-        {subMode === 'draw' ? (
-          <DropdownModeSelector
-            value={drawMode}
-            options={[
-              { value: 'point-to-point' as const, icon: MousePointer2, label: 'Point to point' },
-              { value: 'freeform' as const, icon: Pencil, label: 'Freehand' },
-            ]}
-            onChange={(mode) => {
-              setDrawMode(mode)
-              emit('wall-mode-changed', mode)
+        {subMode === 'draw' ? DRAW_MODES.map(({ value, icon, label }) => (
+          <DropdownMenuItem
+            key={value}
+            icon={icon}
+            label={label}
+            isActive={value === drawMode}
+            onClick={() => {
+              setDrawMode(value)
+              emit('wall-mode-changed', value)
             }}
           />
-        ) : (
-          <DropdownModeSelector
-            value={preset}
-            options={PRESET_OPTIONS}
-            onChange={(next) => {
-              setPreset(next)
-              emit('lighting-preset-changed', next)
+        )) : LIGHT_PRESET_IDS.map((id) => (
+          <DropdownMenuItem
+            key={id}
+            icon={PRESET_ICONS[id]}
+            label={LIGHT_PRESETS[id].label}
+            isActive={id === preset}
+            onClick={() => {
+              setPreset(id)
+              emit('lighting-preset-changed', id)
             }}
           />
-        )}
+        ))}
       </div>
 
       <SceneLightingSection

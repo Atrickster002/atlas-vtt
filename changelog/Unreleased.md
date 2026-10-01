@@ -29,6 +29,8 @@
 - Dynamic lighting costs far less on high-density displays such as Retina screens, so panning a lit map stays smooth
 - An open player window costs far less, so the GM view stays smooth on large maps with lighting
 - Session view (the GM view switch in the toolbar, D) now also shows the players' lighting: the map as their tokens see it, without the tokens they cannot see, door badges, light markers and wall lines. It replaces Preview player view in the lighting menu
+- The lighting menu is laid out like the other tool menus: what the tool does and how walls are drawn are rows with a tick, and the time of day shows which one is chosen
+- Switches in the tool menus can be reached with Tab and switched with Space or Enter, and screen readers announce them. Every menu row is now rounded alike on both sides
 
 ## Fixed
 
