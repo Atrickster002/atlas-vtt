@@ -13,6 +13,8 @@ export interface TokenVitals {
   id?: string | undefined;
   name?: string | undefined;
   instanceNumber?: number | undefined;
+  /** The token's resources by definition key. */
+  resources?: Record<string, TokenResourceValue> | undefined;
   hope?: number | TokenResourceValue | undefined;
   statblockResources?: Record<string, TokenResourceValue> | undefined;
   hp?: number | { current: number; max: number } | undefined;

@@ -14,7 +14,6 @@ import { InitiativeCard } from './InitiativeCard';
 import { EndCombatIcon } from './EndCombatIcon';
 import { StatblockHoverPreview, useStatblockHoverPreview } from './StatblockHoverPreview';
 import type { InitiativeEntry } from '../../types/initiativeTypes';
-import type { Character } from '../../types';
 import type { ViewAtlasState } from '../../storeFactory';
 import './initiative-tracker.scss';
 
@@ -111,22 +110,6 @@ function EditInitiativePopup({
 }
 
 type NewInitiativeEntry = Parameters<ViewAtlasState['addToInitiative']>[0];
-type Vitals = { current: number; max: number };
-
-/** Characters store HP either as a single number or as current/max. */
-function readHp(character: Character): Vitals | null {
-  if (!character.hp) return null;
-  return typeof character.hp === 'object'
-    ? { current: character.hp.current, max: character.hp.max }
-    : { current: character.hp, max: character.hp };
-}
-
-function readStress(character: Character): Vitals | undefined {
-  if (character.stress === undefined) return undefined;
-  return typeof character.stress === 'object'
-    ? { current: character.stress.current, max: character.stress.max }
-    : { current: character.stress, max: character.maxStress ?? 10 };
-}
 
 /**
  * Initiative Tracker Panel
@@ -196,19 +179,13 @@ export const InitiativeTracker: React.FC = () => {
       if (!token) return;
 
       const character = token.kind === 'character' ? token : null;
-      const hp = (character && readHp(character)) ?? { current: 10, max: 10 };
-      const stress = character ? readStress(character) : undefined;
-
       const entry: NewInitiativeEntry = {
         tokenId,
         name: character ? character.name : 'Token',
         initiative: 0,
         initiativeModifier: 0,
-        hp,
         imagePath: token.imagePath,
-        isDefeated: hp.current <= 0,
         isNPC: !character?.playerLinked,
-        ...(stress ? { stress } : {}),
         ...(character?.statblockPath ? { statblockPath: character.statblockPath } : {}),
       };
 
@@ -224,7 +201,7 @@ export const InitiativeTracker: React.FC = () => {
   // Deliberately not keyed on `initiative`: re-sync only when map tokens change, not on entry edits.
   }, [tokens, addToInitiative, removeFromInitiative]);
 
-  // Sync HP/stress changes from tokens to initiative entries
+  // Entries follow their token's name, image and statblock; resources are read from the token itself
   useEffect(() => {
     initiative.entries.forEach((entry) => {
       const token = tokens[entry.tokenId];
@@ -239,24 +216,6 @@ export const InitiativeTracker: React.FC = () => {
       if (token.kind === 'character') {
         if (entry.name !== token.name) {
           updates.name = token.name;
-        }
-
-        const tokenHp = readHp(token);
-        if (tokenHp && (entry.hp.current !== tokenHp.current || entry.hp.max !== tokenHp.max)) {
-          updates.hp = tokenHp;
-          updates.isDefeated = tokenHp.current <= 0;
-        }
-
-        const stressUpdate = readStress(token);
-        const existingStress = entry.stress;
-        const stressChanged = stressUpdate
-          ? !existingStress
-            || existingStress.current !== stressUpdate.current
-            || existingStress.max !== stressUpdate.max
-          : existingStress !== undefined;
-
-        if (stressChanged) {
-          updates.stress = stressUpdate;
         }
 
         const tokenStatblockPath = token.statblockPath?.trim() ? token.statblockPath : undefined;
@@ -395,6 +354,7 @@ export const InitiativeTracker: React.FC = () => {
             ...previewState.hoveredEntry,
             // Rolls from the preview act on the token, not on the initiative entry.
             id: previewState.hoveredEntry.tokenId,
+            resources: tokens[previewState.hoveredEntry.tokenId]?.resources,
             ringColor: tokens[previewState.hoveredEntry.tokenId]?.ringColor,
             showRing: tokens[previewState.hoveredEntry.tokenId]?.showRing,
           }

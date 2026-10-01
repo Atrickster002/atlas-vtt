@@ -16,11 +16,10 @@ vi.mock('../../src/app/resources/collectionResources', () => ({
 afterEach(() => { PlayerWindowService.getInstance()?.destroy(); vi.useRealTimers(); vi.restoreAllMocks(); collection.hpVisibleToPlayers = false; });
 
 function scene(name = 'Hero', initiativeTrackerOpen = true): StoreApi<ViewAtlasState> {
-  const token: TokenEntity = { id: 'hero', kind: 'token', x: 0, y: 0, imagePath: '' };
+  const token: TokenEntity = { id: 'hero', kind: 'character', name, x: 0, y: 0, imagePath: '', resources: { hp: { current: 8, max: 10 } } };
   const entry: InitiativeEntry = {
     id: 'entry', tokenId: token.id, name, initiative: 18, initiativeModifier: 2,
-    hp: { current: 8, max: 10 }, imagePath: '', isActive: true,
-    isDefeated: false, isNPC: false, order: 0,
+    imagePath: '', isActive: true, isNPC: false, order: 0,
   };
   return createStore(() => ({
     initiative: { ...createDefaultInitiativeState(), entries: [entry], isActive: true, round: 1 },

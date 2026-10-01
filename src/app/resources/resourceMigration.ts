@@ -56,3 +56,20 @@ export function migrateTokenSettings(settings: Record<string, unknown>): Record<
   const { showHPBars, showStressBars, ...rest } = settings;
   return { ...rest, showResources: showHPBars !== false || showStressBars === true };
 }
+
+/** Initiative entries used to copy HP, Stress and "defeated" from their tokens; they read the token now. */
+export function migrateInitiative<T>(initiative: T): T {
+  const entries = (initiative as { entries?: unknown } | undefined)?.entries;
+  if (!Array.isArray(entries)) return initiative;
+  const copied = (entry: unknown): boolean => entry !== null && typeof entry === 'object'
+    && ('hp' in entry || 'stress' in entry || 'isDefeated' in entry);
+  if (!entries.some(copied)) return initiative;
+  return {
+    ...initiative,
+    entries: entries.map((entry: unknown) => {
+      if (!copied(entry)) return entry;
+      const { hp: _hp, stress: _stress, isDefeated: _isDefeated, ...rest } = entry as Record<string, unknown>;
+      return rest;
+    }),
+  };
+}

@@ -266,7 +266,6 @@ export interface ViewAtlasState {
   startCombat: () => void;
   endCombat: () => void;
   setInitiativeConfig: (config: Partial<InitiativeConfig>) => void;
-  syncInitiativeWithTokens: () => void;
 
   // Dice roll log (persisted per map, capped at 20 entries)
   diceLog: DiceRollResult[];

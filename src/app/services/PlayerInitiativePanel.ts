@@ -1,3 +1,4 @@
+import type { ResourceValue } from '../resources/resourceTypes';
 import { mapResources } from '../resources/collectionResources';
 import { AssetService } from './AssetService';
 import type { App } from 'obsidian';
@@ -16,6 +17,8 @@ interface InitiativeScene {
   /** Initiative tokens players may see, joined into a key so edits to other tokens compare equal. */
   visibleTokenIds: string;
   mapPath: string | null;
+  /** The HP of each visible initiative token, as a key that changes when one of them does. */
+  hp: string;
 }
 
 /** Read-only initiative projection; never mounts the DM tracker or its controls. */
@@ -30,7 +33,8 @@ export class PlayerInitiativePanel extends PlayerSceneOverlay<InitiativeScene> {
       .filter((entry) => tokens?.[entry.tokenId] && !tokens[entry.tokenId]?.isHidden)
       .map((entry) => entry.tokenId)
       .join(TOKEN_ID_SEPARATOR);
-    return { initiative, initiativeTrackerOpen, visibleTokenIds, mapPath: mapPath ?? null };
+    const hp = JSON.stringify((initiative?.entries ?? []).map((entry) => tokens?.[entry.tokenId]?.resources?.hp ?? null));
+    return { initiative, initiativeTrackerOpen, visibleTokenIds, mapPath: mapPath ?? null, hp };
   }
 
   protected render(container: HTMLElement, scene: InitiativeScene, settings: PlayerSettings): void {
@@ -49,13 +53,17 @@ export class PlayerInitiativePanel extends PlayerSceneOverlay<InitiativeScene> {
     const list = panel.createDiv({ cls: 'atlas-player-initiative__list', attr: { role: 'list' } });
     // Players see HP where the map's collection shows it to them
     const hpVisible = mapResources(AssetService.getInstance(this.app), scene.mapPath).some((definition) => definition.key === 'hp' && definition.visibleToPlayers);
-    for (const entry of entries) this.renderEntry(list, entry, settings, initiative.isActive, hpVisible);
+    const hpOf = JSON.parse(scene.hp) as Array<ResourceValue | null>;
+    for (const entry of entries) {
+      const hp = hpVisible ? hpOf[initiative.entries.indexOf(entry)] ?? null : null;
+      this.renderEntry(list, entry, settings, initiative.isActive, hp);
+    }
     if (initiative.isActive) {
       panel.createDiv({ cls: 'atlas-player-initiative__round', text: `Round ${initiative.round}` });
     }
   }
 
-  private renderEntry(parent: HTMLElement, entry: InitiativeEntry, settings: PlayerSettings, combatActive: boolean, hpVisible: boolean): void {
+  private renderEntry(parent: HTMLElement, entry: InitiativeEntry, settings: PlayerSettings, combatActive: boolean, hp: ResourceValue | null): void {
     const card = parent.createDiv({ cls: 'atlas-player-initiative__card', attr: { role: 'listitem' } });
     if (combatActive && entry.isActive) {
       card.addClass('atlas-player-initiative__card--active');
@@ -73,10 +81,10 @@ export class PlayerInitiativePanel extends PlayerSceneOverlay<InitiativeScene> {
     if (settings.showTokenNameplates) {
       card.createSpan({ cls: 'atlas-player-initiative__name', text: entry.name });
     }
-    if (hpVisible && entry.hp.max > 0) {
+    if (hp && hp.max > 0) {
       card.createEl('progress', {
         cls: 'atlas-player-initiative__hp',
-        attr: { max: entry.hp.max, value: Math.max(0, entry.hp.current), 'aria-label': 'HP' },
+        attr: { max: hp.max, value: Math.max(0, hp.current), 'aria-label': 'HP' },
       });
     }
   }

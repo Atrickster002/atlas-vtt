@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { migrateTokenSettings, migrateTokenState } from '../../../src/app/resources/resourceMigration';
+import { migrateInitiative, migrateTokenSettings, migrateTokenState } from '../../../src/app/resources/resourceMigration';
 
 describe('migrateTokenState', () => {
   it('moves object HP and numeric stress into resources', () => {
@@ -40,5 +40,19 @@ describe('migrateTokenSettings', () => {
     expect(migrateTokenSettings({ showHPBars: true, showStressBars: false })).toEqual({ showResources: true });
     expect(migrateTokenSettings({ showResources: false })).toEqual({ showResources: false });
     expect(migrateTokenSettings({ showNameplates: true })).toEqual({ showNameplates: true });
+  });
+});
+
+describe('migrateInitiative', () => {
+  it('drops the vitals entries used to copy from their tokens', () => {
+    const initiative = { round: 2, entries: [{ id: 'e1', tokenId: 't1', hp: { current: 1, max: 2 }, stress: { current: 0, max: 6 }, isDefeated: false, order: 0 }] };
+    expect(migrateInitiative(initiative)).toEqual({ round: 2, entries: [{ id: 'e1', tokenId: 't1', order: 0 }] });
+  });
+
+  it('leaves current and unreadable initiative states alone', () => {
+    const current = { round: 1, entries: [{ id: 'e1', tokenId: 't1', order: 0 }] };
+    expect(migrateInitiative(current)).toBe(current);
+    expect(migrateInitiative(undefined)).toBeUndefined();
+    expect(migrateInitiative({ entries: 'broken' })).toEqual({ entries: 'broken' });
   });
 });

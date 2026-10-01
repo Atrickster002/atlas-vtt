@@ -11,7 +11,7 @@ import { normalizeImagePath } from '../utils/pathUtils';
 import { fixMapTokenPaths } from '../utils/fixMapPaths';
 import { getDataFilePath } from '../utils/dataFileMigration';
 import { ensureFolder } from '../plugin/vaultFolders';
-import { migrateTokenSettings, migrateTokenState } from '../resources/resourceMigration';
+import { migrateInitiative, migrateTokenSettings, migrateTokenState } from '../resources/resourceMigration';
 
 // Type definitions
 export interface CameraState {
@@ -108,6 +108,8 @@ export interface PersistedMapEnvelope {
     widgetSettings?: Partial<WidgetSettings>;
     /** Checked by the store's merge; older files carry the two bar switches. */
     tokenSettings?: Record<string, unknown>;
+    /** Older files hold copied token vitals in each entry. */
+    initiative?: { entries?: Array<Record<string, unknown>> } | null;
     widgetValues?: Record<string, number>;
   };
 }
@@ -236,6 +238,9 @@ export function createAtlasStorage<T extends { mapPath: string | null }, S = unk
           }
           if (state?.tokenSettings) {
             state.tokenSettings = migrateTokenSettings(state.tokenSettings);
+          }
+          if (state?.initiative) {
+            state.initiative = migrateInitiative(state.initiative);
           }
           if (state?.version && state.version < ATLAS_VERSION) {
             state.version = ATLAS_VERSION;
