@@ -84,6 +84,18 @@ describe('built-in presets', () => {
     expect(preset?.rules.resources?.map((r) => r.key)).toEqual(['ammo']);
   });
 
+  it('gives a user preset saved before resources the bars its default widgets switched on', () => {
+    const rules = { gridDefaults: BUILT_IN_SYSTEM_PRESETS[0]!.rules.gridDefaults, conditions: [] };
+    const [plain, both, emptied] = parseUserPresets([
+      { id: 'u1', name: 'Old', rules: { ...rules, defaultWidgets: { hpBar: true } } },
+      { id: 'u2', name: 'Old with stress', rules: { ...rules, defaultWidgets: { hpBar: true, stressBar: true } } },
+      { id: 'u3', name: 'Emptied on purpose', rules: { ...rules, resources: [] } },
+    ]);
+    expect(rulesOfPreset(plain!).resources.map((r) => r.key)).toEqual(['hp']);
+    expect(rulesOfPreset(both!).resources.map((r) => r.key)).toEqual(['hp', 'stress']);
+    expect(rulesOfPreset(emptied!).resources).toEqual([]);
+  });
+
   it('measure Pathfinder 2e in 5-foot squares with 5/10 diagonals and the Remaster conditions', () => {
     const pf2 = BUILT_IN_SYSTEM_PRESETS.find((preset) => preset.name === 'Pathfinder 2e')!;
     const settings = resolveMeasurementSettings(pf2.rules.gridDefaults, null);
@@ -193,6 +205,8 @@ describe('parseUserPresets', () => {
           unitType: 'meters', unitDistance: 1.5, measurementMode: 'metric', diagonalRule: 'equidistant', abstractRangeBands: [],
         },
         conditions: [{ id: 'c1', name: 'Dazed', color: '#123456' }],
+        // Saved before resources existed: it tracks HP, as its tokens did
+        resources: [expect.objectContaining({ key: 'hp' })],
       },
     }]);
   });

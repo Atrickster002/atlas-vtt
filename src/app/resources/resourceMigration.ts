@@ -1,13 +1,14 @@
+import { resourceKey } from './resourceDefinitions';
 import type { ResourceHolder, ResourceValue } from './resourceTypes';
 
-/** Maxima today's bars show for values stored as bare numbers. */
+/** Maxima the old bars showed for values stored as bare numbers; a larger number is its own maximum. */
 export const LEGACY_MAX_HP = 100;
 export const LEGACY_MAX_STRESS = 10;
 
 const LEGACY_KEYS = ['hp', 'stress', 'maxStress', 'hope', 'statblockResources', 'maxHpOverridden', 'maxStressOverridden'] as const;
 
 function valueOf(raw: unknown, fallbackMax: number): ResourceValue | null {
-  if (typeof raw === 'number' && Number.isFinite(raw)) return { current: raw, max: fallbackMax };
+  if (typeof raw === 'number' && Number.isFinite(raw)) return { current: raw, max: Math.max(raw, fallbackMax) };
   if (raw && typeof raw === 'object') {
     const { current, max } = raw as Record<string, unknown>;
     if (typeof current === 'number' && typeof max === 'number') return { current, max };
@@ -33,8 +34,10 @@ export function migrateTokenState<T extends object>(token: T): T & ResourceHolde
   put('stress', valueOf(old.stress, maxStress));
   put('hope', valueOf(old.hope, LEGACY_MAX_STRESS));
   if (old.statblockResources && typeof old.statblockResources === 'object') {
-    for (const [key, value] of Object.entries(old.statblockResources as Record<string, unknown>)) {
-      put(key.replace(/^resources\./, ''), valueOf(value, 0));
+    for (const [name, value] of Object.entries(old.statblockResources as Record<string, unknown>)) {
+      // The key a resource of that name gets, so defining it finds the value; never over HP, Stress or Hope.
+      const key = resourceKey(name.replace(/^resources\./, ''), []);
+      if (!(key in resources)) put(key, valueOf(value, 0));
     }
   }
 

@@ -15,7 +15,7 @@ export interface TokenStatblockLink {
   statblockPath: string;
 }
 
-const LEGACY_RESOURCE_FIELDS = ['hp', 'maxHp', 'stress', 'maxStress', 'maxHpOverridden', 'maxStressOverridden'] as const;
+const LEGACY_RESOURCE_FIELDS = ['hp', 'maxHp', 'stress', 'maxStress', 'hope', 'statblockResources', 'maxHpOverridden', 'maxStressOverridden'] as const;
 
 /**
  * The statblock-derived fields of a token as stored in a map file. Linking

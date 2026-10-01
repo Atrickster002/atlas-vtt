@@ -57,7 +57,7 @@ describe('a map file that was moved or renamed while closed', () => {
 });
 
 describe('a map saved before tokens had resources', () => {
-  it('upgrades version 4 tokens to resources when the map loads', async () => {
+  it('turns old token fields into resources when the map loads, without a new format version', async () => {
     const v4 = { version: 4, state: { schema: 'atlas-vtt', version: 4, mapPath: MAP_PATH, objects: { tokens: {
       a: { id: 'a', kind: 'character', x: 0, y: 0, imagePath: 'a.webp', hp: { current: 5, max: 12 }, stress: 2, maxStress: 6 },
       b: { id: 'b', kind: 'character', x: 0, y: 0, imagePath: 'b.webp', hp: 12 },
@@ -73,8 +73,9 @@ describe('a map saved before tokens had resources', () => {
     expect(tokens.b!.resources).toEqual({ hp: { current: 12, max: 100 } });
     // Both bar switches were off, so resources stay hidden on this map
     expect((loaded?.state as { tokenSettings: unknown }).tokenSettings).toEqual({ showNameplates: true, showResources: false, showInstanceBadges: true, tokenRingSize: 1 });
-    expect((loaded?.state as { version: number }).version).toBe(5);
-    expect(loaded?.version).toBe(5);
+    // An older Atlas loads a map with a newer version empty and saves that over the file
+    expect((loaded?.state as { version: number }).version).toBe(4);
+    expect(loaded?.version).toBe(4);
     expect(backupsOf(files)).toHaveLength(0);
   });
 });

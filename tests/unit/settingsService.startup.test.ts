@@ -48,14 +48,16 @@ describe('SettingsService startup', () => {
     expect(JSON.parse(write.mock.calls[0][1] as string).navigation.inputMode).toBe('mouse');
   });
 
-  it('hands over the old player bar switches once and stops storing them', async () => {
+  it('reports the old player bar switches until they are cleared', async () => {
     const stored = { localPlayerView: { showTokenHP: true, showTokenStress: false, showGrid: false } };
     const app = { vault: { adapter: { exists: async () => true, read: async () => JSON.stringify(stored), write: vi.fn(async () => undefined) } } };
     const settings = new SettingsService(app as never);
     await settings.initialize();
 
-    expect(settings.takeLegacyPlayerBars()).toEqual({ hp: true, stress: false });
-    expect(settings.takeLegacyPlayerBars()).toBeNull();
+    expect(settings.legacyPlayerBars()).toEqual({ hp: true, stress: false });
+    expect(settings.legacyPlayerBars()).toEqual({ hp: true, stress: false });
+    settings.clearLegacyPlayerBars();
+    expect(settings.legacyPlayerBars()).toBeNull();
     expect(settings.getLocalPlayerViewSettings()).not.toHaveProperty('showTokenHP');
     expect(settings.getLocalPlayerViewSettings().showGrid).toBe(false);
   });
@@ -64,6 +66,6 @@ describe('SettingsService startup', () => {
     const app = { vault: { adapter: { exists: async () => false } } };
     const settings = new SettingsService(app as never);
     await settings.initialize();
-    expect(settings.takeLegacyPlayerBars()).toBeNull();
+    expect(settings.legacyPlayerBars()).toBeNull();
   });
 });

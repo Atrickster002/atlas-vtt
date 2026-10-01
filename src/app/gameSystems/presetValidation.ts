@@ -4,7 +4,7 @@
  * that cannot be used is left out instead of breaking the list.
  */
 
-import { parseResourceDefinitions } from '../resources/resourceDefinitions';
+import { HP_RESOURCE, parseResourceDefinitions, withLegacyBars } from '../resources/resourceDefinitions';
 import { isValidRangeBandThreshold } from '../grid/measurementFormat';
 import type {
   CollectionGridDefaults,
@@ -128,7 +128,10 @@ export function parseUserPreset(raw: unknown): SystemPreset | null {
     : [];
   const defaultWidgets = parseEnabledFlags(raw.rules.defaultWidgets);
   const dice = parseDiceRules(raw.rules.dice);
-  const resources = parseResourceDefinitions(raw.rules.resources);
+  // A preset saved before resources existed tracks the bars its default widgets switched on.
+  const resources = Array.isArray(raw.rules.resources)
+    ? parseResourceDefinitions(raw.rules.resources)
+    : withLegacyBars([{ ...HP_RESOURCE }], defaultWidgets);
   return {
     id: raw.id,
     name: raw.name.trim(),

@@ -316,17 +316,20 @@ export class SettingsService {
   // Local Player View settings
   /**
    * The player-window switches for HP and the secondary bar that older versions
-   * stored, or null when there are none. They are removed from the settings:
-   * each resource now says itself whether players see it.
+   * stored, or null when there are none. Each resource now says itself whether
+   * players see it; `clearLegacyPlayerBars` removes the switches once that is saved.
    */
-  takeLegacyPlayerBars(): LegacyPlayerBars | null {
+  legacyPlayerBars(): LegacyPlayerBars | null {
     const stored: Record<string, unknown> = this.settings.localPlayerView;
     if (!('showTokenHP' in stored) && !('showTokenStress' in stored)) return null;
-    const legacy = { hp: stored.showTokenHP === true, stress: stored.showTokenStress === true };
+    return { hp: stored.showTokenHP === true, stress: stored.showTokenStress === true };
+  }
+
+  clearLegacyPlayerBars(): void {
+    const stored: Record<string, unknown> = this.settings.localPlayerView;
     delete stored.showTokenHP;
     delete stored.showTokenStress;
     this.scheduleSave();
-    return legacy;
   }
 
   getLocalPlayerViewSettings(): AtlasSettings['localPlayerView'] {

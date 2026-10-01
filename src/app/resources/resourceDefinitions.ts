@@ -12,6 +12,19 @@ export const STRESS_RESOURCE: Readonly<ResourceDefinition> = {
   color: '#a855f7', visibleToPlayers: false,
 };
 
+/**
+ * `resources` as the old Default Widgets bar switches had them: a bar switched
+ * off goes, and the secondary bar switched on adds Stress.
+ */
+export function withLegacyBars(
+  resources: readonly ResourceDefinition[],
+  widgets: Record<string, boolean> | undefined,
+): ResourceDefinition[] {
+  const kept = resources.filter(({ key }) => !(key === 'hp' && widgets?.hpBar === false) && !(key === 'stress' && widgets?.stressBar === false));
+  if (widgets?.stressBar === true && !kept.some(({ key }) => key === 'stress')) kept.push({ ...STRESS_RESOURCE });
+  return kept;
+}
+
 /** `Hit Protection` → `hit-protection`, unique among `taken` (`ammo`, `ammo-2`, …). */
 export function resourceKey(name: string, taken: Iterable<string>): string {
   const base = name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'resource';

@@ -1,7 +1,7 @@
 import { BUILT_IN_SYSTEM_PRESETS } from '../gameSystems/builtInPresets';
 import type { CollectionSettings } from '../types/collectionSettingsTypes';
 import type { SystemPreset } from '../types/systemPresetTypes';
-import { HP_RESOURCE, STRESS_RESOURCE } from './resourceDefinitions';
+import { HP_RESOURCE, withLegacyBars } from './resourceDefinitions';
 import type { ResourceDefinition } from './resourceTypes';
 
 /**
@@ -17,20 +17,16 @@ export function collectionResources(
 
 /**
  * Definitions for a collection saved before resources existed: its recorded
- * preset's, else the bars its default widgets switched on (HP when unset, as
- * the HP bar was on by default).
+ * preset's (HP without one), with the bars the collection's own default
+ * widgets switched on or off.
  */
 export function legacyCollectionResources(
   settings: Pick<CollectionSettings, 'defaultWidgets' | 'systemPresetId'>,
   presets: readonly SystemPreset[],
 ): ResourceDefinition[] {
   const preset = presets.find((p) => p.id === settings.systemPresetId);
-  if (preset?.rules.resources) return structuredClone(preset.rules.resources);
-  const widgets = settings.defaultWidgets;
-  const resources: ResourceDefinition[] = [];
-  if (!widgets || widgets.hpBar !== false && (widgets.hpBar === true || !widgets.stressBar)) resources.push({ ...HP_RESOURCE });
-  if (widgets?.stressBar) resources.push({ ...STRESS_RESOURCE });
-  return resources;
+  const resources = preset?.rules.resources ? structuredClone(preset.rules.resources) : [{ ...HP_RESOURCE }];
+  return withLegacyBars(resources, settings.defaultWidgets);
 }
 
 /** The part of the asset service that tells a map's collection and its settings. */

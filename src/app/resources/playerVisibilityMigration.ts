@@ -16,7 +16,8 @@ export function withPlayerVisibility(definitions: readonly ResourceDefinition[],
 }
 
 interface LegacySwitches {
-  takeLegacyPlayerBars(): LegacyPlayerBars | null;
+  legacyPlayerBars(): LegacyPlayerBars | null;
+  clearLegacyPlayerBars(): void;
 }
 
 interface Collections {
@@ -27,11 +28,18 @@ interface Collections {
 /**
  * Carries the old player-window switches into the collections, once: every
  * collection whose HP or Stress the switches showed to players gets that
- * resource marked visible to players. The switches are gone afterwards.
+ * resource marked visible to players. The switches are removed once every
+ * collection is saved.
  */
 export async function migratePlayerResourceVisibility(settings: LegacySwitches, assets: Collections): Promise<void> {
-  const legacy = settings.takeLegacyPlayerBars();
-  if (!legacy || (!legacy.hp && !legacy.stress)) return;
+  const legacy = settings.legacyPlayerBars();
+  if (!legacy) return;
+  if (legacy.hp || legacy.stress) await showToPlayers(assets, legacy);
+  // Only now: a failed save leaves the switches for the next start.
+  settings.clearLegacyPlayerBars();
+}
+
+async function showToPlayers(assets: Collections, legacy: LegacyPlayerBars): Promise<void> {
   for (const collection of await assets.getCollections()) {
     const current = collectionResources(collection.settings ?? { conditions: [] });
     const resources = withPlayerVisibility(current, legacy);

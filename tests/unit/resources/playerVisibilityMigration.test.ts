@@ -2,6 +2,8 @@ import { describe, expect, it, vi } from 'vitest';
 import { migratePlayerResourceVisibility, withPlayerVisibility } from '../../../src/app/resources/playerVisibilityMigration';
 import { HP, STR, STRESS } from '../../mocks/resourceFixtures';
 
+const switches = (legacy: { hp: boolean; stress: boolean } | null) => ({ legacyPlayerBars: () => legacy, clearLegacyPlayerBars: vi.fn() });
+
 describe('player visibility of resources', () => {
   it('shows players the resources the old switches showed them', () => {
     const visible = withPlayerVisibility([HP, STRESS, STR], { hp: true, stress: false });
@@ -17,7 +19,9 @@ describe('player visibility of resources', () => {
       ],
       updateCollectionSettings,
     };
-    await migratePlayerResourceVisibility({ takeLegacyPlayerBars: () => ({ hp: true, stress: true }) }, assets as never);
+    const settings = switches({ hp: true, stress: true });
+    await migratePlayerResourceVisibility(settings, assets as never);
+    expect(settings.clearLegacyPlayerBars).toHaveBeenCalledOnce();
     expect(updateCollectionSettings).toHaveBeenCalledTimes(1);
     const [id, update] = updateCollectionSettings.mock.calls[0] as unknown as [string, { resources: Array<{ key: string; visibleToPlayers: boolean }> }];
     expect(id).toBe('Daggerheart');
@@ -27,9 +31,19 @@ describe('player visibility of resources', () => {
   it('changes nothing when the switches were off or already taken', async () => {
     const updateCollectionSettings = vi.fn();
     const assets = { getCollections: vi.fn(async () => []), updateCollectionSettings };
-    await migratePlayerResourceVisibility({ takeLegacyPlayerBars: () => null }, assets as never);
-    await migratePlayerResourceVisibility({ takeLegacyPlayerBars: () => ({ hp: false, stress: false }) }, assets as never);
+    await migratePlayerResourceVisibility(switches(null), assets as never);
+    await migratePlayerResourceVisibility(switches({ hp: false, stress: false }), assets as never);
     expect(assets.getCollections).not.toHaveBeenCalled();
     expect(updateCollectionSettings).not.toHaveBeenCalled();
+  });
+
+  it('keeps the switches when a collection could not be saved, so the next start tries again', async () => {
+    const settings = switches({ hp: true, stress: false });
+    const assets = {
+      getCollections: async () => [{ id: 'Own', settings: { conditions: [], resources: [HP] } }],
+      updateCollectionSettings: async () => { throw new Error('Disk full'); },
+    };
+    await expect(migratePlayerResourceVisibility(settings, assets as never)).rejects.toThrow('Disk full');
+    expect(settings.clearLegacyPlayerBars).not.toHaveBeenCalled();
   });
 });

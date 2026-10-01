@@ -11,6 +11,18 @@ describe('migrateTokenState', () => {
     expect(migrateTokenState({ hp: 12, stress: 3 }).resources).toEqual({ hp: { current: 12, max: 100 }, stress: { current: 3, max: 10 } });
   });
 
+  it('raises the display maximum to a bare number above it', () => {
+    expect(migrateTokenState({ hp: 150, stress: 12 }).resources).toEqual({ hp: { current: 150, max: 150 }, stress: { current: 12, max: 12 } });
+  });
+
+  it('stores dashboard resources under the key a resource of that name gets, and never over HP or Stress', () => {
+    const migrated = migrateTokenState({
+      stress: 2, maxStress: 6,
+      statblockResources: { 'resources.Mana': { current: 3, max: 10 }, 'Spell Points': { current: 2, max: 5 }, 'resources.stress': { current: 0, max: 3 } },
+    });
+    expect(migrated.resources).toEqual({ stress: { current: 2, max: 6 }, mana: { current: 3, max: 10 }, 'spell-points': { current: 2, max: 5 } });
+  });
+
   it('carries hope, dashboard resources and override flags', () => {
     const migrated = migrateTokenState({
       hope: { current: 2, max: 6 },

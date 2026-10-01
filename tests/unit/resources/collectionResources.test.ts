@@ -15,8 +15,17 @@ describe('legacyCollectionResources', () => {
 
   it('falls back to the bars the old default widgets switched on', () => {
     expect(legacyCollectionResources({ defaultWidgets: { hpBar: true, stressBar: true } }, []).map((d) => d.key)).toEqual(['hp', 'stress']);
-    expect(legacyCollectionResources({ defaultWidgets: { stressBar: true } }, []).map((d) => d.key)).toEqual(['stress']);
+    expect(legacyCollectionResources({ defaultWidgets: { hpBar: false, stressBar: true } }, []).map((d) => d.key)).toEqual(['stress']);
+    expect(legacyCollectionResources({ defaultWidgets: { initiativeTracker: true } }, []).map((d) => d.key)).toEqual(['hp']);
     expect(legacyCollectionResources({}, []).map((d) => d.key)).toEqual(['hp']);
+  });
+
+  it('keeps the bars the collection itself switched on or off, whatever its preset lists', () => {
+    const keys = (systemPresetId: string, defaultWidgets: Record<string, boolean>): string[] =>
+      legacyCollectionResources({ systemPresetId, defaultWidgets }, BUILT_IN_SYSTEM_PRESETS).map((d) => d.key);
+    expect(keys('builtin:coc7e', { hpBar: true, stressBar: true })).toEqual(['hp', 'stress']);
+    expect(keys('builtin:daggerheart', { hpBar: true, stressBar: false })).toEqual(['hp']);
+    expect(keys('builtin:cairn', { hpBar: true })).toEqual(['hp', 'str']);
   });
 
   it('reads a collection that never stored resources the same way', () => {

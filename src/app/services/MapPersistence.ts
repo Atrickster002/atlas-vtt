@@ -54,7 +54,7 @@ export type Pin = NotePin;
 
 // Add constants for schema identification and versioning
 export const ATLAS_SCHEMA = 'atlas-vtt' as const;
-export const ATLAS_VERSION = 5;
+export const ATLAS_VERSION = 4;
 
 /**
  * Defines the structure of the persisted .atlasmap file.
@@ -230,7 +230,8 @@ export function createAtlasStorage<T extends { mapPath: string | null }, S = unk
           if (state?.objects && !state.objects.lights) {
             state.objects.lights = {};
           }
-          // v4 → v5 migration: token HP and Stress fields become resources
+          // Token HP and Stress fields become resources. Recognised by the fields, not by a new
+          // format version: an older Atlas loads a map with a newer version empty and saves that.
           if (state?.objects?.tokens) {
             for (const [id, token] of Object.entries(state.objects.tokens)) {
               state.objects.tokens[id] = migrateTokenState(token);
