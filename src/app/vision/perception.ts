@@ -1,9 +1,13 @@
 import { perceivedLevel } from '../gameSystems/senseRules';
 import { NORMAL_SIGHT } from '../gameSystems/senses/generic';
-import type { ConditionEffect } from '../types/collectionSettingsTypes';
+import type { TokenEntity } from '../types';
+import type { ConditionDefinition, ConditionEffect } from '../types/collectionSettingsTypes';
 import type { LightLevel } from '../types/senseTypes';
 import type { Point } from '../types/visionTypes';
-import type { Sight, SightRegion } from './sight';
+import { computeTokenPixelSize } from '../pixi/token-renderer/tokenSizing';
+import { lightLevelAt } from './lightLevels';
+import type { AmbientLight, LightReach, Sight, SightRegion } from './sight';
+import { tokenEffects } from './sightRules';
 import { pointInPolygon } from './visibility';
 import { coneContains } from './visionCone';
 
@@ -53,4 +57,38 @@ export function perceive(point: Point, sight: Sight, level: LightLevel, target: 
     sensed = true;
   }
   return sensed ? 'sensed' : 'unseen';
+}
+
+/** The footprint of a token that is seen where the map around it is not, in world pixels. */
+export interface SeenSpot {
+  x: number;
+  y: number;
+  radius: number;
+}
+
+/**
+ * The tokens a precise sense that shows no map sees (echolocation), where no sense shows the
+ * map: the picture is dark there, so each is shown within its own footprint. Tokens with
+ * vision are not among them; `tokens` is the record their places are read from.
+ */
+export function seenSpots(
+  sight: Sight,
+  ambient: AmbientLight,
+  lights: readonly LightReach[],
+  tokens: Record<string, TokenEntity>,
+  conditions: readonly ConditionDefinition[],
+  cellSize: number,
+): SeenSpot[] {
+  if (sight.all || !sight.regions.some(({ sense }) => sense.precise && sense.reveals === 'creatures')) return [];
+  const withMap: Sight = { all: false, regions: sight.regions.filter(({ sense }) => sense.reveals === 'all') };
+  const spots: SeenSpot[] = [];
+  for (const token of Object.values(tokens)) {
+    if (token.vision?.enabled) continue;
+    const at = { x: token.x, y: token.y };
+    const level = lightLevelAt(at, ambient, lights);
+    const target = targetOf(tokenEffects(token, conditions));
+    if (perceive(at, sight, level, target) !== 'seen' || perceive(at, withMap, level, target) === 'seen') continue;
+    spots.push({ ...at, radius: computeTokenPixelSize(cellSize, token.size || 1) / 2 });
+  }
+  return spots;
 }

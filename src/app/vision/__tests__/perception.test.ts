@@ -6,7 +6,7 @@ import type { ConditionDefinition } from '../../types/collectionSettingsTypes';
 import type { LightLevel } from '../../types/senseTypes';
 import type { WallSegment } from '../../types/wallTypes';
 import type { TokenVision } from '../../types/lightingTypes';
-import { perceive, regionContains, type PerceivedTarget, type Perception } from '../perception';
+import { perceive, regionContains, seenSpots, type PerceivedTarget, type Perception } from '../perception';
 import { computeSight, sceneSight, sightSources } from '../sight';
 import type { SightRules } from '../sightRules';
 
@@ -29,6 +29,7 @@ const conditions: ConditionDefinition[] = [
 ];
 const ALL_SENSES = [...GENERIC_SENSES, ...Object.values(BUILT_IN_SENSES).flat()];
 const rules: SightRules = { definitions: ALL_SENSES, conditions };
+const dark = { ambient: 0 };
 
 function token(id: string, at: { x: number; y: number }, extra: { vision?: TokenVision; conditions?: string[] } = {}): TokenEntity {
   return { id, kind: 'token', imagePath: `${id}.png`, x: at.x, y: at.y, ...extra };
@@ -213,5 +214,49 @@ describe('regionContains', () => {
     expect(regionContains(region, { x: 100, y: 150 })).toBe(false);
     expect(region.cone!.apex).toBeGreaterThan(0);
     expect(regionContains(region, { x: 100, y: 100 + region.cone!.apex! / 2 })).toBe(true);
+  });
+});
+
+describe('seenSpots', () => {
+  const tokensWith = (id: string | null): Record<string, TokenEntity> => ({
+    viewer: viewerWith(id),
+    near: token('near', NEAR),
+    behind: token('behind', BEHIND),
+    far: token('far', FAR),
+    hidden: token('hidden', NEAR, { conditions: ['unseen'] }),
+    ally: token('ally', { x: 120, y: 100 }, { vision: { enabled: false } }),
+  });
+  const spotsFor = (id: string | null, ambient = 0): { x: number; y: number }[] => {
+    const tokens = tokensWith(id);
+    const sight = computeSight(sightSources(tokens, scale, bounds, rules), [wall]);
+    return seenSpots(sight, { ambient }, [], tokens, conditions, scale.cellSize).map(({ x, y }) => ({ x, y }));
+  };
+
+  it('are the tokens echolocation sees in the dark, where nothing shows the map: each is shown in its footprint', () => {
+    // Echolocation reaches 100 units here: the two tokens within it, the invisible one too, not the one behind the wall.
+    expect(spotsFor('pathfinder2e-echolocation')).toEqual([NEAR, NEAR, { x: 120, y: 100 }]);
+  });
+
+  it('are as large as the token', () => {
+    const tokens = { viewer: viewerWith('pathfinder2e-echolocation'), big: { ...token('big', NEAR), size: 2 } };
+    const sight = computeSight(sightSources(tokens, scale, bounds, rules), [wall]);
+    const [small] = seenSpots(sight, dark, [], { ...tokens, big: token('big', NEAR) }, conditions, 70);
+    const [large] = seenSpots(sight, dark, [], tokens, conditions, 70);
+    expect(small!.radius).toBe(31);
+    expect(large!.radius).toBeGreaterThan(small!.radius * 1.9);
+  });
+
+  it('are none where the map is shown: in light for sight, in the dark for a sense that shows the map', () => {
+    expect(spotsFor('pathfinder2e-echolocation', 1)).toEqual([NEAR]);
+    const both = { ...tokensWith(null), viewer: token('viewer', VIEWER, { vision: { enabled: true, senses: [{ id: 'pathfinder2e-echolocation', range: 100 }, { id: 'blindsight', range: 100 }] } }) };
+    const sight = computeSight(sightSources(both, scale, bounds, rules), [wall]);
+    expect(seenSpots(sight, dark, [], both, conditions, scale.cellSize)).toEqual([]);
+  });
+
+  it('are none for senses that only sense, for sight alone, and without vision tokens', () => {
+    expect(spotsFor('tremorsense')).toEqual([]);
+    expect(spotsFor('darkvision')).toEqual([]);
+    expect(spotsFor(null)).toEqual([]);
+    expect(seenSpots(sceneSight({}, [], [wall]), dark, [], tokensWith(null), conditions, scale.cellSize)).toEqual([]);
   });
 });
