@@ -58,8 +58,9 @@
 
 // ── Tray ─────────────────────────────────────
 
-$tray-face-width: 56px;
-$tray-face-height: 48px;
+// Square faces, all seven dice in one row.
+$tray-face: 48px;
+$tray-dice: 7;
 $tray-grip-height: 24px;
 $tray-art: 32px;
 
@@ -71,7 +72,7 @@ $tray-art: 32px;
 
 .atlas-dice-tray__dice {
   display: grid;
-  grid-template-columns: repeat(4, $tray-face-width);
+  grid-template-columns: repeat($tray-dice, $tray-face);
   gap: $spacing-s;
 }
 
@@ -103,7 +104,7 @@ $tray-art: 32px;
 
 .atlas-dice-tray__face {
   position: relative;
-  height: $tray-face-height;
+  height: $tray-face;
   background: var(--background-secondary);
   border: $border-width-m solid color-mix(in oklch, var(--mono-100) $border-opacity-subtle, transparent);
   border-radius: $radius-l;
@@ -117,12 +118,12 @@ $tray-art: 32px;
   }
 }
 
-// The outer dice of the first row sit $spacing-s below the panel's top corners: concentric with them.
+// The outer dice sit $spacing-s below the panel's top corners: concentric with them.
 .atlas-dice-tray__die:first-child > .atlas-dice-tray__face {
   @include atlas-panel-inset-radius($spacing-s, top-left);
 }
 
-.atlas-dice-tray__die:nth-child(4) > .atlas-dice-tray__face {
+.atlas-dice-tray__die:last-child > .atlas-dice-tray__face {
   @include atlas-panel-inset-radius($spacing-s, top-right);
 }
 
