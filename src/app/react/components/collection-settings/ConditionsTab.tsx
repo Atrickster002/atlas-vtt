@@ -2,11 +2,12 @@
  * ConditionsTab — CRUD list of user-defined token conditions with their badge colour and icon.
  */
 
-import React, { useState } from 'react';
+import React, { useId, useState } from 'react';
 import { Hash, Plus, Trash2 } from 'lucide-react';
 import { Button } from '../../../packages/components/primitives/button';
+import { Select, type SelectOption } from '../../../packages/components/primitives/Select';
 import { LabelTooltip } from '../../../packages/components/primitives/tooltip';
-import type { ConditionDefinition } from '../../../types/collectionSettingsTypes';
+import { CONDITION_EFFECTS, type ConditionDefinition, type ConditionEffect } from '../../../types/collectionSettingsTypes';
 import { conditionGlyph } from '../../../utils/conditionGlyph';
 import { WidgetIconPicker } from '../WidgetIconPicker';
 import { ConditionBadgePreview } from './ConditionBadgePreview';
@@ -14,6 +15,29 @@ import { ConditionBadgePreview } from './ConditionBadgePreview';
 interface ConditionsTabProps {
   conditions: ConditionDefinition[];
   onChange: (conditions: ConditionDefinition[]) => void;
+  /** The effect a condition has; by default the one it stores. The select shows it and stores one only when it is changed. */
+  resolveEffect?: (condition: ConditionDefinition) => ConditionEffect | undefined;
+}
+
+type EffectChoice = ConditionEffect | 'none';
+
+/** The select's words for an effect; one this list does not know yet shows by its own name. */
+const EFFECT_LABELS: Partial<Record<string, string>> = {
+  blinded: 'Blinded',
+  invisible: 'Invisible',
+  airborne: 'Airborne',
+  undetected: 'Undetected',
+};
+
+const EFFECT_OPTIONS: SelectOption<EffectChoice>[] = [
+  { value: 'none', label: 'None' },
+  ...CONDITION_EFFECTS.map((effect) => ({ value: effect, label: EFFECT_LABELS[effect] ?? effect })),
+];
+
+/** `condition` with `effect` as what it does to sight; none leaves no field behind. */
+function withEffect(condition: ConditionDefinition, effect: EffectChoice): ConditionDefinition {
+  const { effect: _effect, ...rest } = condition;
+  return effect === 'none' ? rest : { ...rest, effect };
 }
 
 /** Generate a random hex colour string. */
@@ -27,8 +51,10 @@ function randomColor(): string {
 export function ConditionsTab({
   conditions,
   onChange,
+  resolveEffect = (condition) => condition.effect,
 }: ConditionsTabProps): React.ReactElement {
   const [iconPickerId, setIconPickerId] = useState<string | null>(null);
+  const effectLabel = useId();
 
   const updateCondition = (
     index: number,
@@ -76,11 +102,17 @@ export function ConditionsTab({
         Define conditions that can be toggled on tokens. Each one shows as a badge
         on the token&apos;s edge, and hovering the token lists them by name. Click a
         badge to give it an icon, and turn on # for conditions that carry a number,
-        like Frightened 2.
+        like Frightened 2. A condition can change sight: a Blinded token loses its
+        sight, an Invisible one shows only to senses that see the invisible, and an
+        Airborne one is not felt by tremorsense.
       </p>
 
       {conditions.length > 0 ? (
         <div className="atlas-csm-condition-list">
+          <div className="atlas-csm-condition-head" aria-hidden="true">
+            <span>Condition</span>
+            <span>Effect on sight</span>
+          </div>
           {conditions.map((cond, i) => (
             <div key={cond.id} className="atlas-csm-condition">
               <div className="atlas-csm-condition-row">
@@ -101,6 +133,15 @@ export function ConditionsTab({
                   value={cond.name}
                   onChange={(e) => updateCondition(i, { name: e.target.value })}
                 />
+                <div className={`atlas-csm-condition-effect${resolveEffect(cond) ? '' : ' atlas-csm-condition-effect--none'}`}>
+                  <span id={`${effectLabel}-${cond.id}`} hidden>Effect on sight of {cond.name.trim() || 'this condition'}</span>
+                  <Select
+                    value={resolveEffect(cond) ?? 'none'}
+                    options={EFFECT_OPTIONS}
+                    labelledBy={`${effectLabel}-${cond.id}`}
+                    onChange={(effect) => onChange(conditions.map((c, index) => (index === i ? withEffect(c, effect) : c)))}
+                  />
+                </div>
                 <div
                   className="atlas-csm-color-swatch"
                   style={{ backgroundColor: cond.color }}
