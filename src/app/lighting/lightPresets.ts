@@ -1,6 +1,6 @@
-import type { LightEmission } from '../types/lightingTypes';
+import type { LightEmission, LightKind } from '../types/lightingTypes';
 
-export type LightPresetId = 'candle' | 'torch' | 'lantern' | 'magical';
+export type LightPresetId = Exclude<LightKind, 'custom'>;
 
 export interface LightPreset {
   label: string;
@@ -25,4 +25,20 @@ function sameEmission(a: LightEmission, b: LightEmission): boolean {
 /** The preset an emission is identical to, or null once any field was edited. */
 export function presetOf(emission: LightEmission): LightPresetId | null {
   return LIGHT_PRESET_IDS.find((id) => sameEmission(LIGHT_PRESETS[id].emission, emission)) ?? null;
+}
+
+/** Every kind of light, in the order they are offered. */
+export const LIGHT_KINDS: readonly LightKind[] = [...LIGHT_PRESET_IDS, 'custom'];
+
+export const LIGHT_KIND_LABELS: Record<LightKind, string> = {
+  candle: LIGHT_PRESETS.candle.label,
+  torch: LIGHT_PRESETS.torch.label,
+  lantern: LIGHT_PRESETS.lantern.label,
+  magical: LIGHT_PRESETS.magical.label,
+  custom: 'Custom light',
+};
+
+/** The light's kind: the one it was given, else the preset it still equals, else custom. */
+export function lightKindOf(emission: LightEmission): LightKind {
+  return emission.kind ?? presetOf(emission) ?? 'custom';
 }

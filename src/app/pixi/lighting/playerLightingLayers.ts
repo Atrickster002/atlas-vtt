@@ -5,10 +5,10 @@ import type { SceneLightingView } from './sceneLightingView';
 
 /** Things only the GM may see. A type, not an interface, so `Object.values` knows its layers. */
 export type GmOverlays = {
-  /** Wall lines and light handles, shown with the lighting tool. */
+  /** Wall lines and their handles, shown with the lighting tool. */
   wallEditor: HideableLayer;
   doorBadges: HideableLayer;
-  /** Faint light icons, shown without the lighting tool. */
+  /** The badges on placed lights. */
   lightMarkers: HideableLayer;
 };
 

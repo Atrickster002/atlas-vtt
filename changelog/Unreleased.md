@@ -24,7 +24,7 @@
 - Large token imports are much faster. 1,000 tokens from Fantasy Statblocks now take about 40 seconds instead of 11 minutes, and imports of thousands of tokens no longer slow down as they go
 - The token creator and the Fantasy Statblocks list stay smooth with thousands of images
 - Statblocks that share one image read and convert it only once
-- In the GM view, every light shines at full strength and a faint icon marks every light; areas no token sees are shown slightly faded instead of dimmed
+- In the GM view, every light shines at full strength and a badge with its kind and colour marks every light; areas no token sees are shown slightly faded instead of dimmed
 - Flickering lights take about a quarter of the graphics card time they did on a 120 Hz display, and half on a 60 Hz one
 - Dynamic lighting costs far less on high-density displays such as Retina screens, so panning a lit map stays smooth
 - An open player window costs far less, so the GM view stays smooth on large maps with lighting

@@ -41,6 +41,15 @@ interface DoorPlacementState {
 
 const DOOR_HALF_WIDTH = 20; // Half-width of the door segment in world pixels
 
+/** What the wall tool needs of the light markers. */
+export interface LightHandles {
+  /** The light whose marker is at the world point. */
+  at: (worldX: number, worldY: number) => string | null;
+  showSelection: (lightIds: string[]) => void;
+}
+
+const NO_LIGHTS: LightHandles = { at: () => null, showSelection: () => undefined };
+
 export class WallInteraction {
   private store: StoreApi<ViewAtlasState>;
   private wallRenderer: WallRenderer;
@@ -49,7 +58,8 @@ export class WallInteraction {
   private selectedLightIds: Set<string> = new Set();
   private doorPlacement: DoorPlacementState | null = null;
 
-  constructor(store: StoreApi<ViewAtlasState>, wallRenderer: WallRenderer) {
+  /** Lights are drawn by their markers: `lights` finds the one at a point and shows which are selected. */
+  constructor(store: StoreApi<ViewAtlasState>, wallRenderer: WallRenderer, private readonly lights: LightHandles = NO_LIGHTS) {
     this.store = store;
     this.wallRenderer = wallRenderer;
   }
@@ -79,7 +89,7 @@ export class WallInteraction {
     }
 
     // 3. Check lights (select + start drag)
-    const lightId = this.wallRenderer.hitTestLights(worldX, worldY);
+    const lightId = this.lights.at(worldX, worldY);
     if (lightId) {
       this.selectLight(lightId, addToSelection);
       this.startDrag({ type: 'light', lightId, startX: worldX, startY: worldY });
@@ -144,7 +154,7 @@ export class WallInteraction {
         this.store.getState().deleteLight(id);
       }
       this.selectedLightIds.clear();
-      this.wallRenderer.setSelectedLights([]);
+      this.lights.showSelection([]);
     }
   }
 
@@ -336,7 +346,7 @@ export class WallInteraction {
 
   private syncRendererSelection(): void {
     this.wallRenderer.setSelectedWalls(Array.from(this.selectedWallIds));
-    this.wallRenderer.setSelectedLights(Array.from(this.selectedLightIds));
+    this.lights.showSelection(Array.from(this.selectedLightIds));
   }
 
   private startVertexDrag(wallId: string, vertex: 'p1' | 'p2', worldX: number, worldY: number): void {

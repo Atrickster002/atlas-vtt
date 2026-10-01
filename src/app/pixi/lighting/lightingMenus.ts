@@ -7,6 +7,8 @@ export interface LightingMenuContext {
   store: ViewAtlasStore;
   walls: WallInteraction;
   wallRenderer: WallRenderer;
+  /** The light whose marker is at the world point. */
+  lightAt: (worldX: number, worldY: number) => string | null;
   /** Opens the light's settings next to the given screen point. */
   configureLight: (lightId: string, screenX: number, screenY: number) => void;
 }
@@ -30,7 +32,7 @@ export function showLightMenu(context: LightingMenuContext, lightId: string, scr
 /** The wall tool's context menu: a light under the pointer, else the wall selection. */
 export function showWallMenu(context: LightingMenuContext, worldX: number, worldY: number, screenX: number, screenY: number): void {
   const { walls, wallRenderer, store } = context;
-  const lightId = wallRenderer.hitTestLights(worldX, worldY);
+  const lightId = context.lightAt(worldX, worldY);
   if (lightId) {
     showLightMenu(context, lightId, screenX, screenY);
     return;

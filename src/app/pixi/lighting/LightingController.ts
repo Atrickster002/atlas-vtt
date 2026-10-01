@@ -58,10 +58,13 @@ export class LightingController {
       viewport, app, store, obsApp, measurement, bounds: deps.bounds, albedo: deps.albedo,
       onSightChange: () => this.onSightChange(),
     });
-    this.editor = new WallEditor(viewport, store, eventBus);
+    this.lightMarkers = new LightMarkers(viewport, store);
+    this.editor = new WallEditor(viewport, store, eventBus, {
+      at: (x, y) => this.lightMarkers.hitTest(x, y),
+      showSelection: (lightIds) => this.lightMarkers.setSelected(lightIds),
+    });
     this.doors = new DoorIcons(store);
     viewport.addChild(this.doors.view);
-    this.lightMarkers = new LightMarkers(viewport, store);
     this.session = new SessionLighting({
       store,
       playerLayers: () => this.playerLayers(),
@@ -127,6 +130,7 @@ export class LightingController {
       store: this.deps.store,
       walls: this.editor.walls,
       wallRenderer: this.editor.renderer,
+      lightAt: (x, y) => this.lightMarkers.hitTest(x, y),
       configureLight: (lightId, clientX, clientY) => this.configureLight(lightId, { x: clientX, y: clientY }),
     };
   }
@@ -142,7 +146,7 @@ export class LightingController {
     return { x: canvas.left + screen.x, y: canvas.top + screen.y };
   }
 
-  /** The layers the players' view changes, as the GM sees them. The light markers follow `setSuppressed`. */
+  /** The layers the players' view changes, as the GM sees them. The light markers show by their own rule and follow `setSuppressed`. */
   private gmLayers(): LayerVisibility[] {
     const { activeTool, lighting } = this.deps.store.getState();
     const tool = activeTool === 'wall';

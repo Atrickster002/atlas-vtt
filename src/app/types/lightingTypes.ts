@@ -21,6 +21,9 @@ export const DEFAULT_SCENE_LIGHTING: SceneLighting = { enabled: false, ambient: 
 
 export type LightAnimation = 'none' | 'torch' | 'candle' | 'pulse' | 'magic';
 
+/** What a placed light is: it picks the light's marker. `custom` is any other light. */
+export type LightKind = 'candle' | 'torch' | 'lantern' | 'magical' | 'custom';
+
 /** What a light gives off. Distances are game units (feet, metres…), converted at render time. */
 export interface LightEmission {
   /** Radius of full light. */
@@ -33,6 +36,8 @@ export interface LightEmission {
   animation: LightAnimation;
   /** Size of the flame; larger sources cast softer shadows. */
   sourceRadius?: number;
+  /** The kind the GM gave the light; lights without one are read by `lightKindOf`. */
+  kind?: LightKind;
 }
 
 /** A light placed on the map. */

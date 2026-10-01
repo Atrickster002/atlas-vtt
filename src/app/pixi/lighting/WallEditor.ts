@@ -8,7 +8,7 @@ import { runHistoryTransaction } from '../../stores/history';
 import { WallTool, type WallToolMode, type WallToolSubMode } from '../../tools/WallTool';
 import type { Point } from '../../types/visionTypes';
 import type { WallType } from '../../types/wallTypes';
-import { WallInteraction } from '../vision/WallInteraction';
+import { WallInteraction, type LightHandles } from '../vision/WallInteraction';
 import { WallRenderer } from '../vision/WallRenderer';
 import { WallDrawingSession } from './WallDrawingSession';
 import { splitWall } from './wallEdits';
@@ -16,8 +16,8 @@ import { splitWall } from './wallEdits';
 interface SegmentEvent { p1: Point; p2: Point; type: WallType; chainId: string }
 
 /**
- * The lighting tool's editor: wall lines, their handles and the lights' handles, and the tool's
- * input to them. It takes input only while its layer shows (`shown`); whoever owns the layer's
+ * The lighting tool's editor: wall lines and their handles, and the tool's input to them and to
+ * the lights' markers. It takes input only while its layer shows (`shown`); whoever owns the layer's
  * visibility calls `afterVisibilityChange`, which ends whatever was under way once it is hidden,
  * so nothing is drawn or dragged where no one sees it.
  */
@@ -28,9 +28,10 @@ export class WallEditor {
   private readonly drawing: WallDrawingSession;
   private readonly cleanups: Array<() => void> = [];
 
-  constructor(viewport: Viewport, private readonly store: ViewAtlasStore, eventBus: EventEmitter) {
+  /** `lights`: the light markers, which draw the lights the tool selects and drags. */
+  constructor(viewport: Viewport, private readonly store: ViewAtlasStore, eventBus: EventEmitter, private readonly lights: LightHandles) {
     this.renderer = new WallRenderer(viewport, store);
-    this.walls = new WallInteraction(store, this.renderer);
+    this.walls = new WallInteraction(store, this.renderer, lights);
     this.tool = new WallTool(eventBus);
     this.drawing = new WallDrawingSession(store);
     this.listen(eventBus);
@@ -78,7 +79,8 @@ export class WallEditor {
       return true;
     }
     if (settings.subMode === 'place-light') {
-      this.store.getState().addLight({ x: point.x, y: point.y, emission: emissionOfPreset(settings.lightPreset) });
+      const emission = { ...emissionOfPreset(settings.lightPreset), kind: settings.lightPreset };
+      this.store.getState().addLight({ x: point.x, y: point.y, emission });
       return true;
     }
     if (settings.mode === 'point-to-point') {
@@ -118,7 +120,7 @@ export class WallEditor {
   /** A double click ends the chain being drawn, or names the light under it for its settings. */
   doubleClick(point: Point): string | null {
     if (!this.shown) return null;
-    const lightId = this.renderer.hitTestLights(point.x, point.y);
+    const lightId = this.lights.at(point.x, point.y);
     if (!lightId) this.tool.finishChain();
     return lightId;
   }
@@ -126,7 +128,7 @@ export class WallEditor {
   cursorAt(point: Point): string {
     if (!this.shown) return 'default';
     if (this.renderer.hitTestVertices(point.x, point.y)) return 'grab';
-    return this.renderer.hitTestWalls(point.x, point.y) || this.renderer.hitTestLights(point.x, point.y) ? 'pointer' : 'crosshair';
+    return this.renderer.hitTestWalls(point.x, point.y) || this.lights.at(point.x, point.y) ? 'pointer' : 'crosshair';
   }
 
   /** Escape: stop placing a door, drop the chain being drawn, or clear the wall selection. */
