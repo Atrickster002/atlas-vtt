@@ -1,3 +1,4 @@
+import { clampValue } from './resourceValues';
 import type { ResourceValue } from './resourceTypes';
 
 const normalized = (key: string): string => key.toLowerCase().replace(/[\s_-]/g, '');
@@ -40,15 +41,13 @@ function numeric(value: unknown): number | null {
   return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : null;
 }
 
-const clamp = (current: number, max: number): number => Math.max(0, Math.min(max, current));
-
 /** Only concrete quantities: never rolls a dice expression or guesses from prose. */
 export function parseResourceValue(value: unknown, spent = false): ResourceValue | null {
   if (value && typeof value === 'object' && !Array.isArray(value)) {
     const record = value as Record<string, unknown>;
     const max = numeric(record.max);
     const current = numeric(record.current ?? record.value ?? (spent ? 0 : max));
-    return max !== null && current !== null ? { current: clamp(current, max), max } : null;
+    return max !== null && current !== null ? clampValue({ current, max }) : null;
   }
   if (typeof value === 'string') {
     const fraction = value.trim().match(/^(\d+(?:\.\d+)?)\s*\/\s*(\d+(?:\.\d+)?)$/);

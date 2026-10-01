@@ -9,8 +9,8 @@ import { isNameplateVisible } from './token-renderer/nameplateVisibility';
 import type { ConditionDefinition } from '../types/collectionSettingsTypes';
 import type { TokenGestureEventDetail } from '../types/atlasWindowEvents';
 import { ResourceStack, type ResourceSlot } from './token-renderer/resources/ResourceStack';
-import type { ResourceDefsProvider, ResourceViewer } from '../resources/resourceTypes';
-import { isDefeated } from '../resources/resourceValues';
+import type { ResourceDefsProvider, ResourceViewer, VisibleResource } from '../resources/resourceTypes';
+import { isDefeated, isSpent } from '../resources/resourceValues';
 import { visibleResources } from '../resources/visibleResources';
 import { destroyTree } from './utils/destroyTree';
 import { computeTokenStrokeWidth, restingTokenUIScale, selectedTokenUIScale } from './token-renderer/tokenSizing';
@@ -410,9 +410,9 @@ export class TokenUIRenderer {
   }
   
   /** The bar of the first shown resource whose spending defeated the token. */
-  private defeatedSlot(shown: ReturnType<typeof visibleResources>): ResourceSlot | undefined {
+  private defeatedSlot(shown: readonly VisibleResource[]): ResourceSlot | undefined {
     const key = shown.find(({ definition, value }) => definition.defeatedWhenSpent && definition.look === 'bar'
-      && isDefeated({ resources: { [definition.key]: value } }, [definition]))?.definition.key;
+      && isSpent(definition, value))?.definition.key;
     return key === undefined ? undefined : this.resources.layout().find((slot) => slot.key === key);
   }
 

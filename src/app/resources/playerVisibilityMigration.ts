@@ -10,9 +10,10 @@ export interface LegacyPlayerBars {
 
 /** `definitions` with HP and Stress shown to players where the old switches showed them. */
 export function withPlayerVisibility(definitions: readonly ResourceDefinition[], legacy: LegacyPlayerBars): ResourceDefinition[] {
-  return definitions.map((definition) => ((definition.key === 'hp' && legacy.hp) || (definition.key === 'stress' && legacy.stress)
-    ? { ...definition, visibleToPlayers: true }
-    : definition));
+  return definitions.map((definition) => {
+    const shown = (definition.key === 'hp' && legacy.hp) || (definition.key === 'stress' && legacy.stress);
+    return shown ? { ...definition, visibleToPlayers: true } : definition;
+  });
 }
 
 interface LegacySwitches {

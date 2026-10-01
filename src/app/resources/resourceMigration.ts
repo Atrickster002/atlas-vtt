@@ -25,7 +25,6 @@ export function migrateTokenState<T extends object>(token: T): T & ResourceHolde
   const old = token as Record<string, unknown>;
   if (!LEGACY_KEYS.some((key) => key in old)) return token;
 
-  const next: Record<string, unknown> = { ...old };
   const resources: Record<string, ResourceValue> = {};
   const put = (key: string, value: ResourceValue | null): void => { if (value) resources[key] = value; };
 
@@ -45,6 +44,7 @@ export function migrateTokenState<T extends object>(token: T): T & ResourceHolde
   if (old.maxHpOverridden === true) overridden.add('hp');
   if (old.maxStressOverridden === true) overridden.add('stress');
 
+  const next: Record<string, unknown> = { ...old };
   for (const key of LEGACY_KEYS) delete next[key];
   const existing = (old.resources && typeof old.resources === 'object') ? old.resources as Record<string, ResourceValue> : {};
   const merged = { ...resources, ...existing };

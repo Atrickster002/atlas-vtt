@@ -93,22 +93,24 @@ export class ResourceStack {
   }
 
   private barFor(resource: VisibleResource): ResourceBarView {
-    const existing = this.views.get(viewId(resource));
+    const id = viewId(resource);
+    const existing = this.views.get(id);
     if (existing?.kind === 'bar') return existing.view;
     const view = new ResourceBarView(this.ticker);
     view.setTextAlpha(this.textAlpha);
     if (this.resolution !== undefined) view.setResolution(this.resolution);
-    this.views.set(viewId(resource), { kind: 'bar', view });
+    this.views.set(id, { kind: 'bar', view });
     this.view.addChild(view.view);
     return view;
   }
 
   private badgeFor(resource: VisibleResource): ResourceBadgeView {
-    const existing = this.views.get(viewId(resource));
+    const id = viewId(resource);
+    const existing = this.views.get(id);
     if (existing?.kind === 'badge') return existing.view;
     const view = new ResourceBadgeView();
     if (this.resolution !== undefined) view.setResolution(this.resolution);
-    this.views.set(viewId(resource), { kind: 'badge', view });
+    this.views.set(id, { kind: 'badge', view });
     this.view.addChild(view.view);
     return view;
   }

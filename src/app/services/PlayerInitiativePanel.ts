@@ -17,7 +17,7 @@ interface InitiativeScene {
   /** Initiative tokens players may see, joined into a key so edits to other tokens compare equal. */
   visibleTokenIds: string;
   mapPath: string | null;
-  /** The HP of each visible initiative token, as a key that changes when one of them does. */
+  /** The HP of every initiative token, in entry order, as a key that changes when one of them does. */
   hp: string;
 }
 
@@ -29,11 +29,12 @@ export class PlayerInitiativePanel extends PlayerSceneOverlay<InitiativeScene> {
 
   protected select({ initiative, initiativeTrackerOpen, objects, mapPath }: ViewAtlasState): InitiativeScene {
     const tokens = objects?.tokens;
-    const visibleTokenIds = (initiative?.entries ?? [])
+    const entries = initiative?.entries ?? [];
+    const visibleTokenIds = entries
       .filter((entry) => tokens?.[entry.tokenId] && !tokens[entry.tokenId]?.isHidden)
       .map((entry) => entry.tokenId)
       .join(TOKEN_ID_SEPARATOR);
-    const hp = JSON.stringify((initiative?.entries ?? []).map((entry) => tokens?.[entry.tokenId]?.resources?.hp ?? null));
+    const hp = JSON.stringify(entries.map((entry) => tokens?.[entry.tokenId]?.resources?.hp ?? null));
     return { initiative, initiativeTrackerOpen, visibleTokenIds, mapPath: mapPath ?? null, hp };
   }
 
