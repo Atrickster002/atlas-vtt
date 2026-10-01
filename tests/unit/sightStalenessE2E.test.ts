@@ -256,3 +256,29 @@ describe('what the view holds is what the scene works out from nothing', () => {
     expect(stale).toEqual([]);
   });
 });
+
+describe('the lighting controller reads the rules of its map\'s collection', () => {
+  it('reads a linked statblock with the collection\'s senses', async () => {
+    const { current, store, controller } = world();
+    current.frontmatter[GOBLIN]!.senses = 'darkvision 60 ft., passive Perception 9';
+    store.getState().setSceneLighting({ enabled: true, ambient: 0 });
+    store.getState().addToken({ id: 'g', x: 900, y: 900, imagePath: 'g.png', statblockPath: GOBLIN, vision: { enabled: true } } as never);
+    await vi.waitFor(() => expect(CreatureIndex.forApp(current.app).get(GOBLIN)).toBeTruthy());
+    await nextFrame();
+    await nextFrame();
+    // The generic senses would read the line as `darkvision`: the collection's is D&D's.
+    expect(controller.renderer.currentSight().regions.map((region) => [region.sense.id, Math.round(region.radius)])).toEqual([['sight', 2828], ['dnd5e-darkvision', 840]]);
+  });
+
+  it('names the ranges of a selected token as the collection names its senses, in what it measures in', async () => {
+    const { store, controller, save } = world();
+    const thermal = { ...dnd.rules.senses!.find((sense) => sense.id === 'dnd5e-darkvision')!, id: 'home-thermal', name: 'Thermal sight' };
+    save({ senses: [...dnd.rules.senses!, thermal], gridDefaults: { ...structuredClone(dnd.rules.gridDefaults), unitType: 'meters', unitDistance: 1.5 } });
+    store.getState().setSceneLighting({ enabled: true, ambient: 0 });
+    const id = store.getState().addToken({ id: 'v', x: 900, y: 900, imagePath: 'v.png', vision: { enabled: true, range: 18, senses: [{ id: 'home-thermal', range: 7.5 }] } } as never);
+    store.getState().setSelection([id]);
+    await nextFrame();
+    await nextFrame();
+    expect(controller.sightAids.rings.labels()).toEqual(['Sight 18m', 'Thermal sight 7.5m']);
+  });
+});

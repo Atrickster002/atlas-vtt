@@ -1,11 +1,12 @@
 import { act, fireEvent, screen } from '@testing-library/react';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { GENERIC_LIGHT_PRESETS } from '../../src/app/gameSystems/lightPresets/generic';
 import { GENERIC_SENSES } from '../../src/app/gameSystems/senses/generic';
 import { emissionOf, lightPresetsOnMap } from '../../src/app/lighting/lightPresetChoice';
 import { senseWithRole } from '../../src/app/gameSystems/senseRules';
 import { createViewAtlasStore, type ViewAtlasStore } from '../../src/app/storeFactory';
 import { openEditTokenModal } from '../../src/app/pixi/token-renderer/EditTokenModal';
+import { AssetService } from '../../src/app/services/AssetService';
 import type { TokenEntity } from '../../src/app/types';
 import { createInMemoryApp } from '../mocks/inMemoryVault';
 
@@ -98,6 +99,27 @@ describe('openEditTokenModal', () => {
     expect(screen.queryByRole('group', { name: 'Senses to add' })).toBeNull();
     fireEvent.keyDown(document.body, { key: 'Escape' });
     expect(screen.queryByText('Vision & light')).toBeNull();
+  });
+});
+
+describe('openEditTokenModal in a collection with senses of its own', () => {
+  it('offers the collection\'s senses, by their names, and saves the one chosen', () => {
+    const witchSight = { ...darkvision, id: 'home-witch', name: 'Witch sight', role: undefined, range: 'required' as const, defaultRange: 30 };
+    const { app } = createInMemoryApp();
+    const assets = AssetService.getInstance(app);
+    vi.spyOn(assets, 'getCollectionForMap').mockReturnValue('coven');
+    vi.spyOn(assets, 'getCollectionSettings').mockReturnValue({ conditions: [], senses: [witchSight] } as never);
+    const store = createViewAtlasStore(app, `edit-token-own-${Math.random()}`);
+    const token: TokenEntity = { id: 't', kind: 'token', imagePath: 't.png', x: 0, y: 0, vision: { enabled: true } };
+    store.setState({ persistenceEnabled: false, mapPath: 'atlas-vtt/collections/coven/scenes/Hut.atlasmap', objects: { ...store.getState().objects, tokens: { t: token } } });
+    act(() => openEditTokenModal(token, store, app, []));
+    fireEvent.click(screen.getByRole('button', { name: 'Add sense' }));
+    // Only what the collection defines: its own sense, none of the generic ones it replaced.
+    expect(screen.queryByRole('button', { name: /^Darkvision/ })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: /^Witch sight/ }));
+    save();
+    expect(store.getState().objects.tokens.t!.vision).toEqual({ enabled: true, senses: [{ id: 'home-witch' }] });
+    vi.restoreAllMocks();
   });
 });
 
