@@ -242,6 +242,7 @@ export function DiceRollPanel({ result, scene, compact: compactNow, leaving, mut
           crit={result.crit ?? null}
           muted={muted}
           style={style}
+          seed={result.id}
           frame={compact ? field : null}
           onSettled={() => {
             setLanded(true);

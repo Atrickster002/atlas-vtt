@@ -1,5 +1,5 @@
 /**
- * PIXI compiles a shader as GLSL ES 1.00 unless its source starts with this line; `texture()`,
+ * PIXI compiles a shader as GLSL ES 1.00 unless its source starts with this line; `textureLod()`,
  * `flat` and the other WebGL2 features the engine uses need ES 3.00, so every engine shader starts with it.
  * ES 3.00 defaults `sampler2D` to lowp and PIXI only adds a float precision, so the line also lifts
  * samplers to highp: every lighting texture is read at full precision.
@@ -22,7 +22,7 @@ uniform vec2 ${name}Params;
 float ${name}Distance(vec2 w) {
   vec2 lo = ${name}Rect.xy;
   vec2 inside = clamp(w, lo, lo + ${name}Rect.zw);
-  return texture(${name}, (inside - lo) / ${name}Rect.zw).r - length(w - inside) - ${name}Params.x;
+  return textureLod(${name}, (inside - lo) / ${name}Rect.zw, 0.0).r - length(w - inside) - ${name}Params.x;
 }
 float ${name}Clearance(vec2 w) { return ${name}Distance(w) - ${name}Params.y; }`;
 }

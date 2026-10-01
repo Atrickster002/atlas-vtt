@@ -22,7 +22,7 @@ import * as THREE from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 
 import type { DieSides } from './dieGeometry';
-import { dieAssets, refreshDieArtwork } from './dieMesh';
+import { dieAssets } from './dieMesh';
 import type { DieAnim } from './dieMotion';
 import { FLOOR_Y, restHeight } from './dieTour';
 import { chainLengthFor, GhostTrail } from './ghostTrail';
@@ -303,11 +303,6 @@ export class DiceRenderer {
       if (die.anim.impact?.kind === 'wall') bang = Math.max(bang, die.anim.impact.strength);
     }
     this.view.place(bang, dt);
-  }
-
-  /** When the numeral sheet and card stock arrive, the faces are redrawn. */
-  refreshArtwork(): void {
-    refreshDieArtwork();
   }
 
   /**

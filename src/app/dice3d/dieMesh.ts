@@ -5,8 +5,10 @@
 
 import * as THREE from 'three';
 
-import { atlasLayout, buildTextures } from './dieArtwork';
+import { atlasLayout } from './atlasCell';
+import { buildTextures, diceArtworkReady, loadDiceArtwork } from './dieArtwork';
 import { dieGeometry, type DieSides } from './dieGeometry';
+import { activeLook } from './dieSkin';
 import { FACE_CELL_REACH, faceFrame } from './faceFrame';
 import { vAdd, vCross, vDot, vNormalize, vScale, vSub, type Vec3 } from './vectorMath';
 
@@ -169,10 +171,18 @@ export function dieAssets(sides: DieSides): DieAssets {
     redraw: textures.redraw,
   };
   assetCache.set(sides, assets);
+  // Faces painted before their artwork arrived are painted once more when it does.
+  // Only then: repainting means drawing every cell again and uploading the atlas anew.
+  const font = activeLook().font;
+  if (!diceArtworkReady(font)) void loadDiceArtwork(font).then(() => assets.redraw());
   return assets;
 }
 
-/** When the numeral sheet and card stock arrive, every cached face set is redrawn. */
-export function refreshDieArtwork(): void {
+/** Redraws the faces of every cached body, or of one: when the artwork arrives or the look changes. */
+export function refreshDieArtwork(sides?: DieSides): void {
+  if (sides !== undefined) {
+    assetCache.get(sides)?.redraw();
+    return;
+  }
   for (const assets of assetCache.values()) assets.redraw();
 }

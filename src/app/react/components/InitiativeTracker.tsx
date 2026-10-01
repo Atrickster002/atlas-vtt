@@ -14,7 +14,7 @@ import { InitiativeCard } from './InitiativeCard';
 import { EndCombatIcon } from './EndCombatIcon';
 import { StatblockHoverPreview, useStatblockHoverPreview } from './StatblockHoverPreview';
 import type { InitiativeEntry } from '../../types/initiativeTypes';
-import type { ViewAtlasState } from '../../storeFactory';
+import { initiativeEntryForToken } from '../../stores/initiativeEntries';
 import './initiative-tracker.scss';
 
 /**
@@ -109,8 +109,6 @@ function EditInitiativePopup({
   );
 }
 
-type NewInitiativeEntry = Parameters<ViewAtlasState['addToInitiative']>[0];
-
 /**
  * Initiative Tracker Panel
  * Modern minimal design with floating cards - auto-syncs with map tokens
@@ -178,18 +176,7 @@ export const InitiativeTracker: React.FC = () => {
       const token = tokens[tokenId];
       if (!token) return;
 
-      const character = token.kind === 'character' ? token : null;
-      const entry: NewInitiativeEntry = {
-        tokenId,
-        name: character ? character.name : 'Token',
-        initiative: 0,
-        initiativeModifier: 0,
-        imagePath: token.imagePath,
-        isNPC: !character?.playerLinked,
-        ...(character?.statblockPath ? { statblockPath: character.statblockPath } : {}),
-      };
-
-      addToInitiative(entry);
+      addToInitiative(initiativeEntryForToken(token));
     });
 
     // Also remove entries for tokens that no longer exist

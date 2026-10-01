@@ -14,6 +14,7 @@ import type { EngineLight } from './types';
 /**
  * Everything the lighting keeps in world space for one map: the wall field, each light's tile,
  * the light map and the bounce. Independent of any camera; rebuilt only for what changed.
+ * Constructing it draws nothing: the first `update` builds every texture.
  */
 export class LightingWorld {
   readonly texel: number;
@@ -42,7 +43,6 @@ export class LightingWorld {
     this.texel = worldTexel(bounds);
     this.wallRadius = wallRadius(this.texel);
     this.field = this.createField();
-    this.field.build([]);
     this.lightMap = new LightMap(renderer, bounds, this.texel);
     this.cascades = new RadianceCascades(renderer, bounds, this.field);
     this.tiles = new TileCache(renderer, this.field, bounds);

@@ -27,6 +27,9 @@ export default defineConfig({
       },
       {
         extends: true,
+        // Found only while a test runs, a dependency reloads that test: the Obsidian mock imports
+        // `yaml`, the app manager's test `pixi-viewport`.
+        optimizeDeps: { include: ['yaml', 'pixi-viewport'] },
         test: {
           name: 'gpu',
           include: ['src/**/*.gpu.test.ts'],

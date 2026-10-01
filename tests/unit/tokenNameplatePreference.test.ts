@@ -19,7 +19,7 @@ function createMapStore(path: string) {
   app.vault.getFileByPath = app.vault.getAbstractFileByPath;
   app.vault.getFolderByPath = app.vault.getAbstractFileByPath;
   const store = createViewAtlasStore(app, 'nameplate-test');
-  store.getState().setMapPath(path);
+  store.setState({ mapPath: path, mapLoaded: true });
   return { app, files, store };
 }
 

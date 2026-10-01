@@ -31,6 +31,15 @@
   font-display: swap;
 }
 
+// The sci-fi face of the dice, chosen in Dice settings; a variable font from 200 to 800.
+@font-face {
+  font-family: 'Atlas Oxanium';
+  src: url('../src/app/assets/fonts/oxanium.ttf') format('truetype');
+  font-weight: 200 800;
+  font-style: normal;
+  font-display: swap;
+}
+
 // Root namespace for all Atlas VTT styles
 .atlas-vtt-plugin {
   // Export design tokens as CSS custom properties
@@ -78,7 +87,7 @@
   @import '../src/app/packages/token.scss';
     @import '../src/app/react/components/view-actions-menu.scss';
   @import '../src/app/react/components/undo-redo-controls.scss';
-  @import '../src/app/react/components/dm-dashboard.scss';
+  @import '../src/app/react/components/dm-screen.scss';
   @import '../src/app/react/components/linked-note-panel.scss';
   @import '../src/app/react/components/player-dashboard.scss';
   @import '../src/app/react/components/dashboard.scss';

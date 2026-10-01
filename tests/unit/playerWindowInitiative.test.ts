@@ -111,6 +111,21 @@ describe('player initiative panel', () => {
     expect(progress()).toBeNull();
   });
 
+  it('shows a token without hit points without an HP bar', () => {
+    const { settings, store, doc, collectionChanged } = setup();
+    collection.hpVisibleToPlayers = true;
+    collectionChanged();
+    settings.setLocalPlayerViewSettings({ showTokenNameplates: true });
+    const objects = store.getState().objects;
+    const { resources: _resources, ...withoutHp } = objects.tokens.hero!;
+
+    expect(() => store.setState({ objects: { ...objects, tokens: { hero: withoutHp as typeof objects.tokens.hero } } })).not.toThrow();
+
+    const panel = doc.querySelector('[aria-label="Initiative order"]');
+    expect(panel?.textContent).toContain('Hero');
+    expect(panel?.querySelector('progress')).toBeNull();
+  });
+
   it('holds the presented initiative while browsing and binds to a newly presented view', () => {
     const { service, settings, store, doc, source } = setup();
     service.holdCurrentFrame();

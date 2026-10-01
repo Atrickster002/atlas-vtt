@@ -2,6 +2,8 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useAtlasUI } from '../../root/AtlasUIContext';
 import { useDiceDisplay } from '../../hooks/useDiceDisplay';
+import { diceFontClass, useDiceLook } from '../../hooks/useDiceLook';
+import { cn } from '../../../../utils/cn';
 import { throwStyle } from '../../../dice3d/diceDisplay';
 import { diceSceneToShow } from '../../../dice3d/rollPresentation';
 import { warmDiceSounds } from '../../../dice3d/audio/diceSamples';
@@ -29,6 +31,7 @@ interface DiceRollDisplayProps {
 export function DiceRollDisplay({ container, prepare, muted = false }: DiceRollDisplayProps): React.ReactElement | null {
   const { app, view } = useAtlasUI();
   const display = useDiceDisplay(app ?? undefined);
+  const look = useDiceLook(app ?? undefined);
   const { toasts, addToast, dismissToast, dismissAllToasts } = useDiceToasts();
   const [rolls, setRolls] = useState<readonly StackedRoll[]>([]);
 
@@ -73,7 +76,7 @@ export function DiceRollDisplay({ container, prepare, muted = false }: DiceRollD
 
   const content = (
     // Carries the plugin class itself: in the player window no ancestor does.
-    <div className="atlas-dice-rolls atlas-vtt-plugin">
+    <div className={cn('atlas-dice-rolls atlas-vtt-plugin', diceFontClass(look))}>
       {toasts.length > 0 && (
         // Knotwork defined once; every toast corner draws it with <use>.
         <svg className="atlas-dice-rolls__defs" aria-hidden="true">

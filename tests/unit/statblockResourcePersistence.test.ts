@@ -12,7 +12,7 @@ describe('token resource persistence', () => {
     app.vault.getFolderByPath = app.vault.getAbstractFileByPath;
     const path = 'maps/resources.atlasmap';
     const store = createViewAtlasStore(app, 'resources-test');
-    store.getState().setMapPath(path);
+    store.setState({ mapPath: path, mapLoaded: true });
     const resources = { hp: { current: 27, max: 27 }, hope: { current: 6, max: 6 }, mana: { current: 8, max: 8 } };
     const [first, second] = [10, 30].map((x) => store.getState().addToken({ kind: 'character', x, y: 20, imagePath: 'mage.png', name: 'Mage', resources } as never));
     for (const [key, current] of [['hp', 15], ['hope', 2], ['mana', 3]] as const) {

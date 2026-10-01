@@ -2,7 +2,8 @@ import React, { useCallback, useEffect, useImperativeHandle, useMemo, useRef } f
 import { useReducedMotion } from 'framer-motion';
 import { dieGeometry, faceIndexForValue, restingQuaternion } from '../../../dice3d/dieGeometry';
 import { beginRoll, makeDie, restImmediately, stepDie } from '../../../dice3d/dieMotion';
-import { STAGE_X } from '../../../dice3d/dieTour';
+import { STAGE_X, type Rng } from '../../../dice3d/dieTour';
+import { throwRandom } from '../../../dice3d/throwSeed';
 import { layoutDice, type DiceScene, type RestingFrame } from '../../../dice3d/diceScene';
 import { loadDiceArtwork } from '../../../dice3d/dieArtwork';
 import type { DiceRenderer, StageDie } from '../../../dice3d/DiceRenderer';
@@ -34,6 +35,11 @@ interface DiceStageProps {
   style: ThrowStyle;
   /** Set in a shrunk roll: the dice lie still, and the view frames them instead of the whole stage. */
   frame: RestingFrame | null;
+  /**
+   * Seeds the throw: every window showing the same roll (the DM's map, the
+   * player window) throws the same dice the same way. The roll's id.
+   */
+  seed: string;
   /** For screen readers; the canvas itself has no text. */
   label: string;
   className?: string;
@@ -55,11 +61,13 @@ const STAGGER = 0.075;
  * Without WebGL the canvas stays empty and the maths still runs. The loop stops
  * once every die rests and the afterglow ran out.
  */
-export function DiceStage({ scene, crit, onSettled, muted, style, frame, label, className, ref }: DiceStageProps): React.ReactElement {
+export function DiceStage({ scene, crit, onSettled, muted, style, frame, seed, label, className, ref }: DiceStageProps): React.ReactElement {
   const { speed, maxWallHits } = style;
   const holderRef = useRef<HTMLDivElement | null>(null);
   const rendererRef = useRef<DiceRenderer | null>(null);
   const diceRef = useRef<StageDie[]>([]);
+  /** Each die's own randomness while it flies (its jolts), drawn from the seed like the rest of the throw. */
+  const stepRandoms = useRef<Rng[]>([]);
   const frameRef = useRef<number | null>(null);
   const lastRef = useRef(0);
   const settledRef = useRef(false);
@@ -90,11 +98,12 @@ export function DiceStage({ scene, crit, onSettled, muted, style, frame, label, 
   useEffect(() => {
     const stage = rendererRef.current?.stage();
     diceRef.current = scene.plan.map((die, i) => ({
-      anim: makeDie(Math.random, offsets[i], radius, stage),
+      anim: makeDie(throwRandom(seed, -1 - i), offsets[i], radius, stage),
       sides: die.sides,
     }));
+    stepRandoms.current = scene.plan.map((_, i) => throwRandom(seed, 1000 + i));
     rendererRef.current?.setPlan(scene.plan.map((die) => die.sides));
-  }, [scene, offsets, radius]);
+  }, [scene, offsets, radius, seed]);
 
   const paint = useCallback((): void => {
     const renderer = rendererRef.current;
@@ -108,9 +117,9 @@ export function DiceStage({ scene, crit, onSettled, muted, style, frame, label, 
 
   /** One frame on. Returns whether anything is left to do. */
   const advance = useCallback((dt: number): boolean => {
-    for (const die of diceRef.current) {
+    for (const [i, die] of diceRef.current.entries()) {
       const wasResting = die.anim.phase === 'rest';
-      stepDie(die.anim, dt * speed, Math.random);
+      stepDie(die.anim, dt * speed, stepRandoms.current[i] ?? Math.random);
       // Two events make a sound, not three: the rim cracks where it was hit
       // (panned across the stage) and the landing rattles. The floor stays
       // silent; while the die flies, the wheel owns the air.
@@ -204,13 +213,12 @@ export function DiceStage({ scene, crit, onSettled, muted, style, frame, label, 
   }, [paint, frame]);
 
   // The numerals and card stock are images; until they load the die is blank
-  // card, so the faces are redrawn once they arrive.
+  // card. The faces repaint themselves when their artwork arrives
+  // (`dieAssets`); a stage at rest shows them with one more frame.
   useEffect(() => {
     let alive = true;
     void loadDiceArtwork().then(() => {
-      if (!alive) return;
-      rendererRef.current?.refreshArtwork();
-      if (frameRef.current === null) paint();
+      if (alive && frameRef.current === null) paint();
     });
     return (): void => {
       alive = false;
@@ -222,7 +230,7 @@ export function DiceStage({ scene, crit, onSettled, muted, style, frame, label, 
       const geometry = dieGeometry(die.sides);
       const target = restingQuaternion(geometry, faceIndexForValue(geometry, scene.faces[i] ?? 1));
       if (reduced) restImmediately(die.anim, target);
-      else beginRoll(die.anim, target, i * STAGGER, Math.random, maxWallHits);
+      else beginRoll(die.anim, target, i * STAGGER, throwRandom(seed, i), maxWallHits);
     });
     settledRef.current = false;
 
@@ -238,7 +246,7 @@ export function DiceStage({ scene, crit, onSettled, muted, style, frame, label, 
     // The wheel gets the real duration of this throw: the latest die decides.
     if (!muted) rollStart(Math.max(...diceRef.current.map((die) => die.anim.delay + die.anim.tour.duration)) / speed);
     start();
-  }, [scene, reduced, muted, speed, maxWallHits, start, paint]);
+  }, [scene, reduced, muted, speed, maxWallHits, seed, start, paint]);
 
   useEffect(() => (): void => {
     const win = holderRef.current?.win;

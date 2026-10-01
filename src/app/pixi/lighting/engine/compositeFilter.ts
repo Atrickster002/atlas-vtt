@@ -1,12 +1,10 @@
 import {
   Color,
   Filter,
-  GlProgram,
   Matrix,
   Sprite,
   Texture,
   UniformGroup,
-  defaultFilterVert,
   type FilterWithShader,
   type FilterSystem,
   type RenderSurface,
@@ -14,8 +12,8 @@ import {
 import { BOUNCE, EXPOSURE, PURKINJE, wallBand, wallCore } from '../../../lighting/lightingConstants';
 import { DEFAULT_AMBIENT_COLOR, DEFAULT_EXPLORED_COLOR, DEFAULT_UNEXPLORED_COLOR } from '../../../lighting/sceneLightingOptions';
 import { srgbToLinear } from '../../../lighting/srgb';
-import { compositeFragment } from './compositeShader';
-import { HIGHP } from './gpu';
+import { ENGINE_SHADERS } from './engineShaders';
+import { engineProgram } from './gpu';
 import type { LightingWorld } from './LightingWorld';
 
 export type LightingMode = 'gm' | 'player';
@@ -97,7 +95,7 @@ export function createCompositeFilter(world: LightingWorld, explored: Texture): 
   });
   const u = group.uniforms;
   const filter = new AreaAwareFilter({
-    glProgram: GlProgram.from({ vertex: defaultFilterVert, fragment: compositeFragment, name: 'atlas-lighting-composite', preferredFragmentPrecision: HIGHP }),
+    glProgram: engineProgram(ENGINE_SHADERS.composite),
     resources: {
       compositeUniforms: group,
       uExplored: explored.source,

@@ -10,6 +10,7 @@ import { App, TFile, Component, WorkspaceLeaf } from 'obsidian';
 import { getActiveWorkspaceLeaf, suppressActiveLeaf } from '../../utils/embeddedLeafFocus';
 import FantasyStatblock from './FantasyStatblock';
 import LinkedNotePicker from './LinkedNotePicker';
+import { StatblockFeeds } from './dm-screen/StatblockFeeds';
 import { Button } from '../../packages/components/primitives/button';
 import { LabelTooltip } from '../../packages/components/primitives/tooltip';
 import { addTokenHighlight, zoomToTokenWithHighlight } from '../../pixi/utils/tokenHighlight';
@@ -19,7 +20,7 @@ import { findCreatureForNotePath } from '../../services/FantasyStatblocksService
 import { resolveStatblockNote } from '../../services/statblockNoteSource';
 import { runInBackground } from '../../utils/backgroundTask';
 
-interface DMDashboardProps {
+interface DMScreenProps {
   isOpen: boolean;
   onClose: () => void;
 }
@@ -95,7 +96,7 @@ const NoteContent: React.FC<NoteContentProps> = ({ notePath, app, onFocus }) => 
           }
         }
 
-        // Strategy 2: Create a hidden leaf; dm-dashboard.scss hides its tab via data-dm-dashboard-preview
+        // Strategy 2: Create a hidden leaf; dm-screen.scss hides its tab via data-dm-screen-preview
         const originalActiveLeaf = getActiveWorkspaceLeaf(app.workspace);
 
         // Suppress setActiveLeaf during leaf creation so Obsidian never
@@ -104,8 +105,8 @@ const NoteContent: React.FC<NoteContentProps> = ({ notePath, app, onFocus }) => 
         leafRef.current = app.workspace.getLeaf(true);
 
         if (leafRef.current) {
-          leafRef.current.containerEl.setAttribute('data-dm-dashboard-preview', 'true');
-          leafRef.current.tabHeaderEl?.setAttribute('data-dm-dashboard-preview', 'true');
+          leafRef.current.containerEl.setAttribute('data-dm-screen-preview', 'true');
+          leafRef.current.tabHeaderEl?.setAttribute('data-dm-screen-preview', 'true');
 
           leafRef.current.detach();
         }
@@ -220,7 +221,7 @@ function getStatblockPath(token: TokenEntity): string | undefined {
   return token.kind === 'character' ? token.statblockPath : undefined;
 }
 
-export default function DMDashboard({ isOpen, onClose }: DMDashboardProps) {
+export default function DMScreen({ isOpen, onClose }: DMScreenProps) {
   const tokens = useAtlasStore((state) => state.objects?.tokens || {});
   const linkedNotePath = useAtlasStore((state) => state.dmNotePath);
   const setLinkedNotePath = useAtlasStore((state) => state.setDMNotePath);
@@ -234,16 +235,7 @@ export default function DMDashboard({ isOpen, onClose }: DMDashboardProps) {
   const [closing, setClosing] = useState(false);
   const [isNoteFocused, setIsNoteFocused] = useState(false);
   const componentRef = useRef<Component>(new Component());
-  const dashboardRef = useRef<HTMLDivElement>(null);
-  const [columnCount, setColumnCount] = useState(() => {
-    if (typeof window === 'undefined') return 2;
-    const width = window.innerWidth;
-    if (width >= 2400) return 4;
-    if (width >= 1400) return 3;
-    if (width >= 768) return 2;
-    return 1;
-  });
-
+  const screenRef = useRef<HTMLDivElement>(null);
   // Animated close: play exit animation, then call the real onClose
   const handleClose = useCallback((): void => {
     if (closing) return;
@@ -253,25 +245,6 @@ export default function DMDashboard({ isOpen, onClose }: DMDashboardProps) {
       onClose();
     }, 200); // matches CSS animation duration
   }, [closing, onClose]);
-
-  // Handle window resize to update column count
-  useEffect(() => {
-    const handleResize = () => {
-      const width = window.innerWidth;
-      let newColumnCount: number;
-      if (width >= 2400) newColumnCount = 4;
-      else if (width >= 1400) newColumnCount = 3;
-      else if (width >= 768) newColumnCount = 2;
-      else newColumnCount = 1;
-      setColumnCount(newColumnCount);
-    };
-
-    window.addEventListener('resize', handleResize);
-
-    return () => {
-      window.removeEventListener('resize', handleResize);
-    };
-  }, []);
 
   // Get unique statblocks from tokens on the map
   useEffect(() => {
@@ -344,11 +317,11 @@ export default function DMDashboard({ isOpen, onClose }: DMDashboardProps) {
       setLoading(false);
     };
 
-    runInBackground(loadStatblocks(), 'Loading dashboard statblocks');
+    runInBackground(loadStatblocks(), 'Loading DM screen statblocks');
     return () => { cancelled = true; };
   }, [tokens, isOpen, app]);
 
-  // Reveal the dashboard once statblocks finish loading (prevents layout shift)
+  // Reveal the DM screen once statblocks finish loading (prevents layout shift)
   useEffect(() => {
     if (!isOpen) {
       setContentReady(false);
@@ -361,7 +334,7 @@ export default function DMDashboard({ isOpen, onClose }: DMDashboardProps) {
     }
   }, [loading, isOpen]);
 
-  // Handle dashboard close/cleanup
+  // Handle DM screen close/cleanup
   useEffect(() => {
     if (!isOpen) {
       setIsNoteFocused(false);
@@ -390,9 +363,9 @@ export default function DMDashboard({ isOpen, onClose }: DMDashboardProps) {
           setIsNoteFocused(false);
 
           // Move focus to a safe element instead of just blurring
-          const dashboardElement = dashboardRef.current;
-          if (dashboardElement) {
-            dashboardElement.focus();
+          const screenElement = screenRef.current;
+          if (screenElement) {
+            screenElement.focus();
           }
         }, 50);
       }
@@ -431,8 +404,8 @@ export default function DMDashboard({ isOpen, onClose }: DMDashboardProps) {
         if (!isNoteFocused) {
           setIsNoteFocused(true);
         }
-      } else if (dashboardRef.current?.contains(target)) {
-        // Clicked elsewhere in dashboard
+      } else if (screenRef.current?.contains(target)) {
+        // Clicked elsewhere in the DM screen
         if (isNoteFocused) {
           setIsNoteFocused(false);
         }
@@ -455,7 +428,7 @@ export default function DMDashboard({ isOpen, onClose }: DMDashboardProps) {
       // Don't handle shortcuts if note is focused (keyboard events are already stopped by stopPropagation)
       if (isNoteFocused) return;
 
-      if (e.defaultPrevented || !isShortcutScopeActive(dashboardRef.current, view?.viewId)) return;
+      if (e.defaultPrevented || !isShortcutScopeActive(screenRef.current, view?.viewId)) return;
       if (document.querySelector('.atlas-onboarding-overlay, .atlas-hotkey-help, .modal-container')) return;
       const target = e.target as Element | null;
       if (target?.closest?.('input, textarea, select, [contenteditable]:not([contenteditable="false"])')) return;
@@ -483,11 +456,11 @@ export default function DMDashboard({ isOpen, onClose }: DMDashboardProps) {
   if (!isOpen) return null;
 
   return (
-    <div className="atlas-dm-dashboard-wrapper" ref={dashboardRef} tabIndex={-1}>
-      <div className={`atlas-dm-dashboard-backdrop ${closing ? 'is-closing' : ''}`} onClick={handleClose} />
+    <div className="atlas-dm-screen-wrapper" ref={screenRef} tabIndex={-1}>
+      <div className={`atlas-dm-screen-backdrop ${closing ? 'is-closing' : ''}`} onClick={handleClose} />
 
-      <div className={`atlas-dm-dashboard ${closing ? 'is-closing' : contentReady ? 'is-visible' : ''}`}>
-        <div className="atlas-dm-dashboard-content">
+      <div className={`atlas-dm-screen ${closing ? 'is-closing' : contentReady ? 'is-visible' : ''}`}>
+        <div className="atlas-dm-screen-content">
           {/* Left side - Statblocks (50% height) */}
           <div className="atlas-dm-statblocks-section">
             {loading ? (
@@ -499,43 +472,27 @@ export default function DMDashboard({ isOpen, onClose }: DMDashboardProps) {
                     <p>No statblocks currently in use on this map.</p>
                   </div>
                 ) : (
-                  (() => {
-                    // Create columns array based on state
-                    const columns: Array<Array<[string, LoadedStatblock]>> = Array.from({ length: columnCount }, () => []);
-
-                    // Distribute statblocks across columns
-                    Array.from(statblocks.entries()).forEach(([path, statblock], index) => {
-                      columns[index % columnCount]!.push([path, statblock]);
-                    });
-
-                    return (
-                      <div className="atlas-dm-statblocks-masonry">
-                        {columns.map((column, columnIndex) => (
-                          <div key={columnIndex} className="atlas-dm-statblocks-column">
-                            {column.map(([path, statblock]) => (
-                              <FantasyStatblock
-                                key={path}
-                                notePath={path}
-                                app={app}
-                                tokens={statblock.tokens.map(toTokenVitals)}
-                                tokenActions={{
-                                  definitions,
-                                  onUpdateToken: (id, updates) => updateToken(id, updates),
-                                  onHoverToken: (id) => addTokenHighlight(view, id, { highlightDuration: 800 }),
-                                  onLocateToken: (id) => {
-                                    const token = tokens[id];
-                                    if (!token) return;
-                                    zoomToTokenWithHighlight(view, id, { x: token.x, y: token.y });
-                                    handleClose();
-                                  },
-                                }}
-                              />
-                            ))}
-                          </div>
-                        ))}
-                      </div>
-                    );
-                  })()
+                  <StatblockFeeds>
+                    {Array.from(statblocks.entries(), ([path, statblock]) => (
+                      <FantasyStatblock
+                        key={path}
+                        notePath={path}
+                        app={app}
+                        tokens={statblock.tokens.map(toTokenVitals)}
+                        tokenActions={{
+                          definitions,
+                          onUpdateToken: (id, updates) => updateToken(id, updates),
+                          onHoverToken: (id) => addTokenHighlight(view, id, { highlightDuration: 800 }),
+                          onLocateToken: (id) => {
+                            const token = tokens[id];
+                            if (!token) return;
+                            zoomToTokenWithHighlight(view, id, { x: token.x, y: token.y });
+                            handleClose();
+                          },
+                        }}
+                      />
+                    ))}
+                  </StatblockFeeds>
                 )}
               </div>
             )}

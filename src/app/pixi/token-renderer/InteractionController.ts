@@ -18,11 +18,11 @@ import { openContextMenuGlobal, closeContextMenuGlobal, type ContextMenuEntry } 
 import { DestructiveActionRow } from './DestructiveActionRow';
 import type { ITokenInteractionController, TokenGroupContainer } from './types';
 import type { Character, TokenEntity } from '../../types';
-import type { InitiativeEntry } from '../../types/initiativeTypes';
 import type { ViewAtlasState } from '../../storeFactory';
 import type { StoreApi } from 'zustand';
 import type { GridSystem } from '../../grid/GridSystem';
 import { beginHistoryTransaction, endHistoryTransaction } from '../../stores/history';
+import { initiativeEntryForToken } from '../../stores/initiativeEntries';
 import { EventEmitter } from 'events';
 import { StatblockDialogService } from '../../services/StatblockDialogService';
 import { TokenStatblockLinkService } from '../../services/TokenStatblockLinkService';
@@ -774,22 +774,7 @@ export class InteractionController implements ITokenInteractionController {
       const entry = initiativeEntries.find((e) => e.tokenId === token.id);
       if (entry) this.store.getState().removeFromInitiative(entry.id);
     } else {
-      const character = token.kind === 'character' ? token : undefined;
-
-      const entry: Omit<InitiativeEntry, 'id' | 'order' | 'isActive'> = {
-        tokenId: token.id,
-        name: character ? character.name : 'Token',
-        initiative: 0,
-        initiativeModifier: 0,
-        imagePath: token.imagePath,
-        isNPC: !character?.playerLinked,
-      };
-
-      if (character?.statblockPath) {
-        entry.statblockPath = character.statblockPath;
-      }
-
-      this.store.getState().addToInitiative(entry);
+      this.store.getState().addToInitiative(initiativeEntryForToken(token));
     }
   }
 
