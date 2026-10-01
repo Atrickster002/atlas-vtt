@@ -5,6 +5,7 @@
 import React from 'react';
 import { ObsidianMenuDropdown } from '../ObsidianMenuDropdown';
 import { isValidDefaultRoll } from '../../../gameSystems/diceRules';
+import { DefaultDiceInfo } from './DefaultDiceInfo';
 import { ExplodingDiceFields } from './ExplodingDiceFields';
 import type { CritRule, DiceRules } from '../../../types/diceRulesTypes';
 
@@ -40,7 +41,10 @@ export function DiceTab({ dice, onChange }: DiceTabProps): React.ReactElement {
       </p>
 
       <div className="atlas-csm-field">
-        <label className="atlas-csm-label" htmlFor="atlas-csm-default-roll">Default Roll</label>
+        <div className="atlas-csm-label-row">
+          <label className="atlas-csm-label" htmlFor="atlas-csm-default-roll">Default Roll</label>
+          <DefaultDiceInfo defaultRoll={dice.defaultRoll} />
+        </div>
         <input
           id="atlas-csm-default-roll"
           type="text"

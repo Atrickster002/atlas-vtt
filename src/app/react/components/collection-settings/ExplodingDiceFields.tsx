@@ -9,6 +9,7 @@ import React, { useState } from 'react';
 import { ObsidianMenuDropdown } from '../ObsidianMenuDropdown';
 import { MAX_EXPLODING_FACES, parseDefaultRoll, withExplodeScope, type ExplodeChoice } from '../../../gameSystems/diceRules';
 import { describeExplodeRule, highFaceNames, lowFaceNames } from '../../../gameSystems/explodeRuleText';
+import { DefaultDiceInfo } from './DefaultDiceInfo';
 import type { DiceRules, ExplodeRule } from '../../../types/diceRulesTypes';
 
 interface ExplodingDiceFieldsProps {
@@ -69,7 +70,10 @@ export function ExplodingDiceFields({ dice, onChange }: ExplodingDiceFieldsProps
   return (
     <>
       <div className="atlas-csm-field">
-        <label className="atlas-csm-label">Exploding Dice</label>
+        <div className="atlas-csm-label-row">
+          <label className="atlas-csm-label">Exploding Dice</label>
+          <DefaultDiceInfo defaultRoll={dice.defaultRoll} />
+        </div>
         <ObsidianMenuDropdown
           className="atlas-setting-dropdown atlas-csm-dropdown"
           value={rule?.dice ?? 'off'}

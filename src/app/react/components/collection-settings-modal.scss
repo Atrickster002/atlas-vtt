@@ -134,6 +134,25 @@
   color: var(--text-muted);
 }
 
+// A label with its info mark, whose tooltip explains a term of the setting.
+.atlas-csm-label-row {
+  display: flex;
+  align-items: center;
+  gap: $spacing-xs;
+}
+
+.atlas-csm-info {
+  display: inline-flex;
+  border-radius: $radius-full;
+  color: var(--text-faint);
+  cursor: help;
+
+  &:hover,
+  &:focus-visible {
+    color: var(--text-normal);
+  }
+}
+
 .atlas-csm-hint {
   font-size: $font-ui-smaller;
   color: var(--text-faint);

@@ -40,6 +40,8 @@ interface LabelTooltipProps {
   side?: React.ComponentPropsWithoutRef<typeof TooltipPrimitive.Content>["side"]
   /** Describes `children` instead of naming them, for controls whose visible text already names them. */
   describe?: boolean
+  /** For a sentence or two of explanation: the label wraps instead of running on one line. */
+  multiline?: boolean
   children: React.ReactElement
 }
 
@@ -49,7 +51,7 @@ interface LabelTooltipProps {
  * `aria-label` on `children`. Never give `children` a `title`: it adds the browser's
  * tooltip. Obsidian's `aria-label` tooltip is off throughout Atlas (styles/_native-tooltips.scss).
  */
-function LabelTooltip({ label, side = "top", describe = false, children }: LabelTooltipProps): React.ReactElement {
+function LabelTooltip({ label, side = "top", describe = false, multiline = false, children }: LabelTooltipProps): React.ReactElement {
   const labelId = React.useId()
   const hasProvider = React.useContext(ProviderMounted)
   const tooltip = (
@@ -58,7 +60,7 @@ function LabelTooltip({ label, side = "top", describe = false, children }: Label
       <span id={labelId} hidden>{label}</span>
       <TooltipContent side={side} sideOffset={10}>
         <div className="tooltip-inner">
-          <span className="tooltip-label">{label}</span>
+          <span className={cn("tooltip-label", multiline && "tooltip-label--multiline")}>{label}</span>
         </div>
       </TooltipContent>
     </Tooltip>
