@@ -58,8 +58,9 @@ describe('closing every roll', () => {
 });
 
 describe('panel text', () => {
-  it('names the token and ability, or just the roll', () => {
-    expect(rollLabel(result('a', [d20(3)], 0, { type: 'statblock', tokenName: 'Goblin', abilityName: 'Scimitar' }))).toBe('Goblin · Scimitar');
+  it('names the action, never the creature: its portrait says who rolled', () => {
+    expect(rollLabel(result('a', [d20(3)], 0, { type: 'statblock', tokenName: 'Goblin', abilityName: 'Scimitar' }))).toBe('Scimitar');
+    expect(rollLabel(result('a', [d20(3)], 0, { type: 'statblock', tokenName: 'Goblin' }))).toBe('Roll');
     expect(rollLabel(result('a', [d20(3)]))).toBe('Roll');
   });
 
