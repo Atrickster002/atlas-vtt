@@ -1,6 +1,7 @@
-import React, { useId } from 'react';
+import React from 'react';
 import { ChevronDown, ChevronUp, Eye, EyeOff, Skull, Trash2 } from 'lucide-react';
 import { Button } from '../../../packages/components/primitives/button';
+import { SuggestInput } from '../../../packages/components/primitives/SuggestInput';
 import { LabelTooltip } from '../../../packages/components/primitives/tooltip';
 import type { ResourceDefinition, ResourceDirection, ResourceShape } from '../../../resources/resourceTypes';
 
@@ -45,7 +46,6 @@ function Choice<T extends string>({ label, options, value, onChange }: {
 export function ResourceEditorRow({
   resource, shape, fieldSuggestions, canMoveUp, canMoveDown, onChange, onMove, onRemove,
 }: ResourceEditorRowProps): React.ReactElement {
-  const suggestionsId = useId();
   const defeats = resource.defeatedWhenSpent === true;
 
   return (
@@ -64,19 +64,15 @@ export function ResourceEditorRow({
           value={resource.name}
           onChange={(e) => onChange({ name: e.target.value })}
         />
-        <input
-          type="text"
+        <SuggestInput
           className="atlas-csm-input"
           placeholder="Statblock field, e.g. hp"
-          aria-label="Statblock field"
-          aria-invalid={resource.field.trim() === '' ? true : undefined}
-          list={suggestionsId}
+          ariaLabel="Statblock field"
+          invalid={resource.field.trim() === ''}
+          suggestions={fieldSuggestions}
           value={resource.field}
-          onChange={(e) => onChange({ field: e.target.value })}
+          onChange={(field) => onChange({ field })}
         />
-        <datalist id={suggestionsId}>
-          {fieldSuggestions.map((field) => <option key={field} value={field} />)}
-        </datalist>
         <LabelTooltip label="Remove resource">
           <Button variant="ghost" size="icon" className="atlas-csm-condition-delete" onClick={onRemove}>
             <Trash2 />
