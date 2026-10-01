@@ -1,7 +1,23 @@
+/** How long a request waits for the running job to stop before it starts regardless. */
+export const STALLED_JOB_MS = 5000;
+
+/** Resolves when `job` settles, or after `ms` when it has not by then. */
+function settledWithin(job: Promise<unknown>, ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    const timer = window.setTimeout(resolve, ms);
+    void job.then(() => {
+      window.clearTimeout(timer);
+      resolve();
+    });
+  });
+}
+
 /**
  * Runs async jobs one at a time, the latest request winning: a job requested while
  * another runs starts once that one has settled, and of several waiting only the
- * last starts. A running job learns through `isSuperseded` that it was replaced.
+ * last starts. A running job learns through `isSuperseded` that it was replaced and
+ * stops at its next wait, so the wait is short. A job that never gets there (a file
+ * or an image that never arrives) holds the queue for `STALLED_JOB_MS` at most.
  */
 export class LatestRequestQueue {
   private requests = 0;
@@ -11,7 +27,7 @@ export class LatestRequestQueue {
   run<T>(job: (isSuperseded: () => boolean) => Promise<T>): Promise<T | null> {
     const request = ++this.requests;
     const isSuperseded = (): boolean => request !== this.requests;
-    const result = this.inFlight.then(() => (isSuperseded() ? null : job(isSuperseded)));
+    const result = settledWithin(this.inFlight, STALLED_JOB_MS).then(() => (isSuperseded() ? null : job(isSuperseded)));
     this.inFlight = result.catch(() => undefined);
     return result;
   }

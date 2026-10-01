@@ -247,6 +247,31 @@ describe('MapService scene loads', () => {
       expect(files.get(CAVE)).toBe(cave);
     });
 
+    it.each([
+      ['reading its file', (state: ViewAtlasState) => state.mapPath === CAVE],
+      ['saving the scene before it', (state: ViewAtlasState) => state.mapPath === null],
+    ])('opens the latest one when the load before it never settles while %s', async (_stage, stuckWhere) => {
+      const { service, store, files, rendererService, shown, holdBack } = setup();
+      const cave = files.get(CAVE);
+      holdBack(CAVE);
+      if (stuckWhere(store.getState())) vi.spyOn(store, 'flushStorage').mockReturnValueOnce(new Promise<void>(() => {}));
+
+      void service.loadMap(rendererService, CAVE);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(stuckWhere(store.getState())).toBe(true);
+      let opened = false;
+      const opening = service.loadMap(rendererService, TOWER).then((map) => { opened = map !== null; });
+      await vi.advanceTimersByTimeAsync(10_000);
+
+      expect(opened).toBe(true);
+      await opening;
+      expect(shown).toEqual([TOWER]);
+      expect(tokenIds(store.getState())).toEqual(['mage']);
+      await editAndSave(store);
+      expect(tokenIds(savedState(files, TOWER))).toEqual(['mage']);
+      expect(files.get(CAVE)).toBe(cave);
+    });
+
     it('runs only the latest of several requests', async () => {
       const { service, store, rendererService, shown, holdBack } = setup();
       const gate = holdBack(CAVE);
