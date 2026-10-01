@@ -8,6 +8,10 @@ import { zoomToTokenWithHighlight } from '../../src/app/pixi/utils/tokenHighligh
 
 vi.mock('../../src/app/atlas-view', () => ({ ATLAS_VIEW_TYPE: 'atlas-vtt' }));
 vi.mock('../../src/app/react/components/LinkedNotePicker', () => ({ default: () => null }));
+vi.mock('../../src/app/resources/useMapResources', async () => {
+  const definitions = [(await import('../../src/app/resources/resourceDefinitions')).HP_RESOURCE];
+  return { useMapResources: () => definitions };
+});
 vi.mock('../../src/app/react/root/AtlasUIContext', () => ({ useAtlasUI: () => ({ app, view }) }));
 vi.mock('../../src/app/react/ViewStoreContext', () => ({
   useAtlasStore: (selector: (value: typeof state) => unknown) => selector(state),
@@ -52,6 +56,7 @@ const state = {
 function showDashboard(paths: string[], onClose = vi.fn()) {
   state.objects.tokens = Object.fromEntries(paths.map((statblockPath, index) => [index, {
     id: String(index), kind: 'character', x: index * 100, y: 50, instanceNumber: index, name: index === 0 ? 'Sunborne Beacon' : 'Acid Burrower', statblockPath,
+    resources: { hp: { current: 8, max: 8 } },
   }]));
   Object.assign(window, { FantasyStatblocks: {
     getBestiaryCreatures: () => [creature],
@@ -94,8 +99,8 @@ describe('dashboard token actions', () => {
   it('persists an independent resource update through the map store', async () => {
     showDashboard([legacyPath, creaturePath, creaturePath]);
     const entry = await screen.findByRole('group', { name: 'Acid Burrower #2' });
-    fireEvent.click(within(entry).getByRole('button', { name: 'Decrease HP' }));
-    expect(state.updateToken).toHaveBeenLastCalledWith('2', { hp: { current: 7, max: 8 } });
+    fireEvent.click(within(entry).getByRole('checkbox', { name: 'HP damage 1 of 8' }));
+    expect(state.updateToken).toHaveBeenLastCalledWith('2', { resources: { hp: { current: 7, max: 8 } } });
     expect(screen.getAllByRole('group')).toHaveLength(2);
   });
 

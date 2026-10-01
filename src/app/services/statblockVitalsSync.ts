@@ -1,4 +1,4 @@
-import type { TokenResourceValue } from '../types';
+import type { ResourceHolder } from '../resources/resourceTypes';
 
 /**
  * Mirrors Atlas token HP/stress into the checkbox tracks that the Fantasy
@@ -8,18 +8,11 @@ import type { TokenResourceValue } from '../types';
  * read-only view of them.
  */
 
-export interface TokenVitals {
+export interface TokenVitals extends ResourceHolder {
   /** Ties dice rolls made from the statblock to the token's current artwork. */
   id?: string | undefined;
   name?: string | undefined;
   instanceNumber?: number | undefined;
-  /** The token's resources by definition key. */
-  resources?: Record<string, TokenResourceValue> | undefined;
-  hope?: number | TokenResourceValue | undefined;
-  statblockResources?: Record<string, TokenResourceValue> | undefined;
-  hp?: number | { current: number; max: number } | undefined;
-  stress?: number | { current: number; max: number } | undefined;
-  maxStress?: number | undefined;
   /** Token artwork, shown on the statblock and alongside dice rolls made from it. */
   imagePath?: string | undefined;
   ringColor?: string | undefined;
@@ -32,21 +25,11 @@ export interface TokenVitals {
  * values locked rather than syncing anything.
  */
 export function toTokenVitals(entity: unknown): TokenVitals {
-  const { id, name, imagePath, ringColor, showRing, instanceNumber } = (entity ?? {}) as TokenVitals;
-  // Tokens store `resources`; the statblock views below still read the fields they replaced.
-  // This mapping goes when those views read resources themselves.
-  const { hp, stress, hope, ...statblockResources } = ((entity ?? {}) as { resources?: Record<string, TokenResourceValue> }).resources ?? {};
-  const legacy = (entity ?? {}) as TokenVitals;
-  return {
-    id, name, imagePath, ringColor, showRing, instanceNumber,
-    hp: legacy.hp ?? hp,
-    stress: legacy.stress ?? stress,
-    maxStress: legacy.maxStress ?? stress?.max,
-    hope: legacy.hope ?? hope,
-    statblockResources: legacy.statblockResources ?? (Object.keys(statblockResources).length > 0 ? statblockResources : undefined),
-  };
+  const { id, name, imagePath, ringColor, showRing, instanceNumber, resources, overriddenMax } = (entity ?? {}) as TokenVitals;
+  return { id, name, imagePath, ringColor, showRing, instanceNumber, resources, overriddenMax };
 }
 
+/** The tracks the Fantasy Statblocks Daggerheart layout renders, by the resource key that drives each. */
 type TrackKind = 'hp' | 'stress';
 
 /** `total: null` means "keep however many boxes the statblock rendered". */
@@ -55,20 +38,12 @@ interface Track {
   total: number | null;
 }
 
-function hpTrack(token: TokenVitals): Track | null {
-  if (token.hp == null) return null;
-  const current = typeof token.hp === 'number' ? token.hp : token.hp.current;
-  const max = typeof token.hp === 'number' ? token.hp : token.hp.max;
-  // Daggerheart marks HP boxes as damage is taken, so marked === missing HP.
-  return { marked: max - current, total: max > 0 ? max : null };
-}
-
-function stressTrack(token: TokenVitals): Track | null {
-  if (token.stress == null) return null;
-  const current = typeof token.stress === 'number' ? token.stress : token.stress.current;
-  const max = typeof token.stress === 'object' ? token.stress.max : token.maxStress ?? 0;
-  // Stress counts up as it is spent, so marked === the current value.
-  return { marked: current, total: max > 0 ? max : null };
+function trackOf(token: TokenVitals, kind: TrackKind): Track | null {
+  const value = token.resources?.[kind];
+  if (!value) return null;
+  // HP is stored as what remains and its boxes mark damage; stress is stored as what is marked.
+  const marked = kind === 'hp' ? value.max - value.current : value.current;
+  return { marked, total: value.max > 0 ? value.max : null };
 }
 
 function boxesOf(block: HTMLElement, kind: TrackKind): HTMLInputElement[] {
@@ -127,8 +102,8 @@ export function syncStatblockVitals(el: HTMLElement, tokens: TokenVitals[]): voi
   blocks.forEach((block, index) => {
     const token = tokens[index];
     block.classList.add('atlas-vitals-locked');
-    applyTrack(block, 'hp', token ? hpTrack(token) : null);
-    applyTrack(block, 'stress', token ? stressTrack(token) : null);
+    applyTrack(block, 'hp', token ? trackOf(token, 'hp') : null);
+    applyTrack(block, 'stress', token ? trackOf(token, 'stress') : null);
 
     const nameEl = block.querySelector('.adversary-name');
     const label = token?.name ? `${token.name.toUpperCase()}: ` : null;

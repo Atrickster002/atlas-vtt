@@ -14,6 +14,7 @@ import { Button } from '../../packages/components/primitives/button';
 import { LabelTooltip } from '../../packages/components/primitives/tooltip';
 import { addTokenHighlight, zoomToTokenWithHighlight } from '../../pixi/utils/tokenHighlight';
 import { toTokenVitals } from '../../services/statblockVitalsSync';
+import { useMapResources } from '../../resources/useMapResources';
 import { findCreatureForNotePath } from '../../services/FantasyStatblocksService';
 import { resolveStatblockNote } from '../../services/statblockNoteSource';
 import { runInBackground } from '../../utils/backgroundTask';
@@ -226,6 +227,7 @@ export default function DMDashboard({ isOpen, onClose }: DMDashboardProps) {
   const linkedNoteName = linkedNotePath?.split('/').pop()?.replace(/\.md$/, '');
   const { app, view } = useAtlasUI();
   const updateToken = useAtlasStore((state) => state.updateToken);
+  const definitions = useMapResources();
   const [statblocks, setStatblocks] = useState<Map<string, LoadedStatblock>>(new Map());
   const [loading, setLoading] = useState(true);
   const [contentReady, setContentReady] = useState(false);
@@ -517,6 +519,7 @@ export default function DMDashboard({ isOpen, onClose }: DMDashboardProps) {
                                 app={app}
                                 tokens={statblock.tokens.map(toTokenVitals)}
                                 tokenActions={{
+                                  definitions,
                                   onUpdateToken: (id, updates) => updateToken(id, updates),
                                   onHoverToken: (id) => addTokenHighlight(view, id, { highlightDuration: 800 }),
                                   onLocateToken: (id) => {

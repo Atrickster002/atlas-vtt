@@ -2,41 +2,50 @@ import React, { useId, useLayoutEffect, useRef } from 'react';
 import { LocateFixed, Minus, Plus } from 'lucide-react';
 import { Button } from '../../../packages/components/primitives/button';
 import { LabelTooltip } from '../../../packages/components/primitives/tooltip';
-import { getStatblockResources, getResourceUpdate, type StatblockResource } from '../../../services/statblockResources';
-import type { StatblockLayout, StatblockMonster } from './statblockTypes';
+import { resourceUpdate, withCurrent } from '../../../resources/resourceValues';
+import { visibleResources } from '../../../resources/visibleResources';
+import type { ResourceDefinition, VisibleResource } from '../../../resources/resourceTypes';
+import type { StatblockMonster } from './statblockTypes';
 import type { TokenVitals } from '../../../services/statblockVitalsSync';
-import type { StatblockResourceUpdate } from '../../../services/statblockResources';
+
+/** Whole maximums up to this many show as one box each instead of a gauge. */
+const MAX_PIPS = 10;
 
 export interface StatblockTokenActions {
+  /** The resources of the map's collection. */
+  definitions: readonly ResourceDefinition[];
   onLocateToken: (id: string) => void;
   onHoverToken?: (id: string) => void;
-  onUpdateToken: (id: string, updates: StatblockResourceUpdate) => void;
+  onUpdateToken: (id: string, updates: ReturnType<typeof resourceUpdate>) => void;
 }
 export interface StatblockTokenResourcesProps extends StatblockTokenActions {
   monster: StatblockMonster;
-  layout: StatblockLayout;
   tokens: TokenVitals[];
 }
 function ResourceControl({ resource, onChange }: {
-  resource: StatblockResource;
+  resource: VisibleResource;
   onChange: (value: number) => void;
 }): React.JSX.Element {
-  const { label, current, max, display, spent } = resource;
-  const marked = spent ? current : max - current;
+  const { definition, value: { current, max } } = resource;
+  const label = definition.name;
+  const fills = definition.direction === 'fills';
+  const pips = definition.look === 'bar' && Number.isInteger(max) && max <= MAX_PIPS;
+  // Boxes mark what is used up: damage on a resource that drains, the value itself on one that fills.
+  const marked = fills ? current : max - current;
   const labelId = useId();
   return (
     <div className="atlas-sb-token-resource">
-      <span id={labelId} className="atlas-sb-token-resource-label">{label}{display === 'pips' ? ` (${max})` : ''}</span>
-      {display === 'pips' ? (
+      <span id={labelId} className="atlas-sb-token-resource-label">{label}{pips ? ` (${max})` : ''}</span>
+      {pips ? (
         <div className="atlas-sb-token-pips">
           {Array.from({ length: max }, (_, index) => (
-            <LabelTooltip key={index} label={`${label}${spent ? '' : ' damage'} ${index + 1} of ${max}`}>
+            <LabelTooltip key={index} label={`${label}${fills ? '' : ' damage'} ${index + 1} of ${max}`}>
               <input
                 type="checkbox"
                 checked={index < marked}
                 onChange={(event) => {
                   const nextMarked = event.target.checked ? index + 1 : index;
-                  onChange(spent ? nextMarked : max - nextMarked);
+                  onChange(fills ? nextMarked : max - nextMarked);
                 }}
               />
             </LabelTooltip>
@@ -50,7 +59,7 @@ function ResourceControl({ resource, onChange }: {
           </LabelTooltip>
           <div className="atlas-sb-token-gauge" role="meter" aria-labelledby={labelId}
             aria-valuemin={0} aria-valuemax={max} aria-valuenow={current}>
-            <span className="atlas-sb-token-gauge-fill" style={{ width: `${max > 0 ? current / max * 100 : 0}%` }} />
+            <span className="atlas-sb-token-gauge-fill" style={{ width: `${current / max * 100}%` }} />
             <span className="atlas-sb-token-gauge-value">{current} / {max}</span>
           </div>
           <LabelTooltip label={`Increase ${label}`}>
@@ -63,7 +72,7 @@ function ResourceControl({ resource, onChange }: {
   );
 }
 
-export function StatblockTokenResources({ monster, layout, tokens, onLocateToken, onHoverToken, onUpdateToken }: StatblockTokenResourcesProps): React.JSX.Element {
+export function StatblockTokenResources({ monster, definitions, tokens, onLocateToken, onHoverToken, onUpdateToken }: StatblockTokenResourcesProps): React.JSX.Element {
   const listRef = useRef<HTMLDivElement>(null);
   const entryLabelId = useId();
   const identified = tokens.filter((token): token is TokenVitals & { id: string } => Boolean(token.id));
@@ -98,7 +107,7 @@ export function StatblockTokenResources({ monster, layout, tokens, onLocateToken
     observer?.observe(list);
     Array.from(list.children).slice(0, 3).forEach((child) => observer?.observe(child));
     return () => observer?.disconnect();
-  }, [scrollable, tokens, monster, layout]);
+  }, [scrollable, tokens, definitions]);
 
   return (
     <div ref={listRef} className="atlas-sb-token-list" data-scrollable={scrollable}
@@ -112,9 +121,9 @@ export function StatblockTokenResources({ monster, layout, tokens, onLocateToken
               <span id={`${entryLabelId}-${token.id}`}>{label}</span><LocateFixed aria-hidden="true" />
             </Button>
           </LabelTooltip>
-          {getStatblockResources(monster, layout, token).map((resource) => (
-            <ResourceControl key={resource.key} resource={resource}
-              onChange={(current) => onUpdateToken(token.id, getResourceUpdate(token, resource, current))} />
+          {visibleResources(token, definitions, 'dm').map((resource) => (
+            <ResourceControl key={resource.definition.key} resource={resource}
+              onChange={(current) => onUpdateToken(token.id, resourceUpdate(token, resource.definition.key, withCurrent(resource.value, current), false))} />
           ))}
         </div>
       ))}

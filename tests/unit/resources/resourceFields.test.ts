@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { discoverResourceFields, parseResourceValue, resolveField } from '../../../src/app/resources/resourceFields';
+import { discoverResourceFields, isHitPointsKey, parseResourceValue, resolveField } from '../../../src/app/resources/resourceFields';
 
 describe('resource fields', () => {
   it('reads dotted paths into objects and lists', () => {
@@ -19,6 +19,11 @@ describe('resource fields', () => {
     expect(resolveField({ max_stress: 6 }, 'Max Stress')).toBe(6);
     expect(resolveField({ health: 5, hp: 8 }, 'hp')).toBe(8);
     expect(resolveField({ hp: 8 }, 'stress')).toBeUndefined();
+  });
+
+  it('recognises the usual names of hit points', () => {
+    expect(['hp', 'HP', 'Hit Points:', 'hit_points', 'Health'].map(isHitPointsKey)).not.toContain(false);
+    expect(['Hit Dice', 'hope', 'AC', ''].map(isHitPointsKey)).not.toContain(true);
   });
 
   it('parses concrete quantities only', () => {
