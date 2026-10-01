@@ -19,6 +19,7 @@ class Boundary extends React.Component<BoundaryProps, BoundaryState> {
   override state: BoundaryState = { failed: false };
   /** Whether the failure was reported since the last load began: the retry after a load would repeat it. */
   private reported = false;
+  private notice: Notice | null = null;
 
   static getDerivedStateFromError(): BoundaryState {
     return { failed: true };
@@ -28,7 +29,9 @@ class Boundary extends React.Component<BoundaryProps, BoundaryState> {
     if (this.reported) return;
     this.reported = true;
     console.error(`[Atlas VTT] Could not show ${this.props.name}:`, error, info.componentStack);
-    new Notice(`Atlas VTT could not show ${this.props.name}. The rest of the map keeps working.`, 0);
+    // The notice stays until it is clicked; a surface that fails on every scene would stack one per load
+    this.notice?.hide();
+    this.notice = new Notice(`Atlas VTT could not show ${this.props.name}. The rest of the map keeps working.`, 0);
   }
 
   override componentDidUpdate(previous: BoundaryProps): void {

@@ -4,7 +4,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Notice } from 'obsidian';
 import { createInMemoryApp } from '../mocks/inMemoryVault';
 
-vi.mock('obsidian', async (importOriginal) => ({ ...(await importOriginal<typeof import('obsidian')>()), Notice: vi.fn() }));
+const hiddenNotices = vi.hoisted((): string[] => []);
+vi.mock('obsidian', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('obsidian')>()),
+  Notice: vi.fn(function (this: { hide: () => void }, message: string) {
+    this.hide = (): void => { hiddenNotices.push(message); };
+  }),
+}));
 
 import { MAP_UI_ROOT_OPTIONS, PanelBoundary } from '../../src/app/react/root/PanelBoundary';
 import { ViewStoreProvider, useAtlasStore } from '../../src/app/react/ViewStoreContext';
@@ -39,6 +45,7 @@ beforeEach(() => {
   // The root is created here, not by Testing Library, to give it the map UI's options
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
   unmounted.mockClear();
+  hiddenNotices.length = 0;
   vi.mocked(Notice).mockClear();
   logged = vi.spyOn(console, 'error').mockImplementation(() => {});
   store = createViewAtlasStore(createInMemoryApp().app, 'panel-boundary-test');
@@ -122,5 +129,7 @@ describe('a map panel that fails to render', () => {
 
     loadScene(store, 'maps/cave.atlasmap', 'cave');
     expect(Notice).toHaveBeenCalledTimes(2);
+    // The notice stays until it is clicked: the one before it must not pile up under the new one
+    expect(hiddenNotices).toHaveLength(1);
   });
 });
