@@ -65,6 +65,10 @@ interface Wired {
   refreshPlayerSight: ReturnType<typeof vi.fn>;
   /** The layer of the sensed tokens' outlines, as the token renderer gives it. */
   sensedOutlines: { visible: boolean };
+  /** The hover card's line, as the controller words it. */
+  sightLine: (tokenId: string) => string | null;
+  /** Refreshes an open hover card. */
+  refreshSightLine: ReturnType<typeof vi.fn>;
 }
 
 interface Setup {
@@ -108,7 +112,7 @@ function setup(extra: Partial<ConstructorParameters<typeof LightingController>[0
     albedo: () => null,
     ...extra,
   });
-  const wired = { refreshPlayerSight: vi.fn(), sensedOutlines: { visible: false } } as Wired;
+  const wired = { refreshPlayerSight: vi.fn(), sensedOutlines: { visible: false }, refreshSightLine: vi.fn() } as Wired;
   controller.wire({
     setWallPointerDownHandler: (fn: Wired['pointerDown']) => { wired.pointerDown = fn; },
     setWallPointerMoveHandler: (fn: Wired['pointerMove']) => { wired.pointerMove = fn; },
@@ -121,6 +125,10 @@ function setup(extra: Partial<ConstructorParameters<typeof LightingController>[0
     setPlayerSightProvider: (fn: Wired['playerSight']) => { wired.playerSight = fn; },
     refreshPlayerSight: wired.refreshPlayerSight,
     getSensedOutlineLayer: () => wired.sensedOutlines,
+    setSightLineProvider: (fn: Wired['sightLine']) => {
+      wired.sightLine = fn;
+      return wired.refreshSightLine;
+    },
   } as unknown as TokenRenderer);
   cleanup = () => {
     controller.destroy();
@@ -162,7 +170,7 @@ describe('LightingController in session view', () => {
     store.getState().setSceneLighting({ enabled: true });
     store.getState().setGMView(false);
     const layers = controller.playerLayers();
-    expect(layers).toHaveLength(6);
+    expect(layers).toHaveLength(7);
     for (const { layer, visible } of layers) expect(layer.visible).toBe(visible);
     expect(lighting.modeLayer.visible).toBe(true);
   });
@@ -435,6 +443,70 @@ describe('tokens in session view', () => {
     expect(controller.playerSight()?.(lurker)).toBe('unseen');
     settings.mockRestore();
     collection.mockRestore();
+  });
+
+  it('marks for the GM the tokens the players do not see, follows their sight, and shows none of it in the players\' view', async () => {
+    const { controller, store, lurker } = scene();
+    const { sightAids } = controller.gmOverlays();
+    const { onSightChange } = lighting.deps as SceneLightingDeps;
+    const marks = (): unknown[] => controller.sightAids.marks.shown();
+    const walled = lighting.sight;
+    await nextFrame();
+    expect(marks()).toEqual([[lurker, 'unseen']]);
+    expect(sightAids.visible).toBe(true);
+    // New sight is looked at once, in the next frame.
+    lighting.sight = SEES_ALL;
+    onSightChange?.();
+    onSightChange?.();
+    expect(marks()).toHaveLength(1);
+    await nextFrame();
+    expect(marks()).toEqual([]);
+    lighting.sight = walled;
+    onSightChange?.();
+    await nextFrame();
+    expect(marks()).toHaveLength(1);
+
+    expect(controller.playerLayers()).toContainEqual({ layer: sightAids, visible: false });
+    store.getState().setGMView(false);
+    expect(sightAids.visible).toBe(false);
+    expect(marks()).toEqual([]);
+    store.getState().setGMView(true);
+    expect(sightAids.visible).toBe(true);
+    expect(marks()).toHaveLength(1);
+    pressPeek('keydown');
+    expect(sightAids.visible).toBe(false);
+    pressPeek('keyup');
+    expect(sightAids.visible).toBe(true);
+    store.getState().setSceneLighting({ enabled: false });
+    await nextFrame();
+    expect(marks()).toEqual([]);
+  });
+
+  it('draws the ranges of a selected vision token for the GM alone', async () => {
+    const { controller, store } = scene();
+    const hero = Object.keys(store.getState().objects.tokens)[0]!;
+    store.getState().updateToken(hero, { vision: { enabled: true, range: 30, senses: [{ id: 'darkvision', range: 15 }] } });
+    store.getState().setSelection([hero]);
+    await nextFrame();
+    // A map without a unit counts squares: 30 units are six of five.
+    expect(controller.sightAids.rings.labels()).toEqual(['Sight 6 sq', 'Darkvision 3 sq']);
+    store.getState().setGMView(false);
+    expect(controller.sightAids.rings.labels()).toEqual([]);
+  });
+
+  it('words the hover card\'s line for the GM, and refreshes an open card when the sight changes', async () => {
+    const { store, wired, lurker } = scene();
+    const { onSightChange } = lighting.deps as SceneLightingDeps;
+    expect(wired.sightLine(lurker)).toBe('Bright light · Not seen by the players');
+    store.getState().updateToken(lurker, { x: 150, y: 100 });
+    expect(wired.sightLine(lurker)).toBe('Bright light · Seen by a token: sight');
+    await nextFrame();
+    wired.refreshSightLine.mockClear();
+    onSightChange?.();
+    await nextFrame();
+    expect(wired.refreshSightLine).toHaveBeenCalledTimes(1);
+    store.getState().setGMView(false);
+    expect(wired.sightLine(lurker)).toBeNull();
   });
 
   it('hides nothing by sight while the scene has no lighting', () => {

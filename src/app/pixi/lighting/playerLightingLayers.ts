@@ -16,6 +16,8 @@ export type GmOverlays = {
   lightMarkers: HideableLayer;
   /** The range rings of the light whose popover is open. */
   rangeRings: HideableLayer;
+  /** The ranges of the selected vision tokens and the marks on tokens the players do not see (`GmSightAids`). */
+  sightAids: HideableLayer;
 };
 
 export interface PlayerLightingInput {

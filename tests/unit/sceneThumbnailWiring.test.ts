@@ -23,13 +23,13 @@ function setup(contextLost = false) {
   const layer = (visible = true) => ({ visible, alpha: 1 });
   const pins = layer();
   const hexLinks = layer();
-  const gmOverlays = { wallEditor: layer(), doorBadges: layer(), lightMarkers: layer(), rangeRings: layer() };
+  const gmOverlays = { wallEditor: layer(), doorBadges: layer(), lightMarkers: layer(), rangeRings: layer(), sightAids: layer() };
   // Session view took the hidden token off the canvas
   const hiddenToken = layer(false);
   const fog = layer();
   const shown = () => ({
     pins: pins.visible, hexLinks: hexLinks.visible, wallEditor: gmOverlays.wallEditor.visible, doorBadges: gmOverlays.doorBadges.visible,
-    lightMarkers: gmOverlays.lightMarkers.visible, rangeRings: gmOverlays.rangeRings.visible, hiddenToken: hiddenToken.visible, hiddenTokenAlpha: hiddenToken.alpha, fogAlpha: fog.alpha,
+    lightMarkers: gmOverlays.lightMarkers.visible, rangeRings: gmOverlays.rangeRings.visible, sightAids: gmOverlays.sightAids.visible, hiddenToken: hiddenToken.visible, hiddenTokenAlpha: hiddenToken.alpha, fogAlpha: fog.alpha,
   });
 
   const rendered: Array<{ frame: Rectangle; resolution: number; shown: ReturnType<typeof shown>; lit: boolean }> = [];
@@ -90,7 +90,7 @@ describe('a map view\'s thumbnail render', () => {
     const onCanvas = shown();
     services.renderMapThumbnail({ width: 640, height: 360 });
     expect(rendered[0]!.shown).toEqual({
-      pins: false, hexLinks: false, wallEditor: false, doorBadges: false, lightMarkers: false, rangeRings: false,
+      pins: false, hexLinks: false, wallEditor: false, doorBadges: false, lightMarkers: false, rangeRings: false, sightAids: false,
       hiddenToken: true, hiddenTokenAlpha: 0.5, fogAlpha: 0.5,
     });
     expect(shown()).toEqual(onCanvas);

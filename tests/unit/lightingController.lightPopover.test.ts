@@ -85,6 +85,7 @@ function setup(): Setup {
     setWallPointerMoveHandler: ignore, setWallPointerUpHandler: ignore, setWallDoubleClickHandler: ignore, setWallCursorProvider: ignore,
     setDoorClickHandler: ignore, setPlayerSightProvider: ignore, refreshPlayerSight: ignore,
     getSensedOutlineLayer: () => sensedOutlines,
+    setSightLineProvider: () => ignore,
   } as unknown as TokenRenderer);
   const torch = store.getState().addLight({ x: 400, y: 300, emission: { ...emissionOfPreset('torch'), kind: 'torch' } });
   const lantern = store.getState().addLight({ x: 600, y: 300, emission: { ...emissionOfPreset('lantern'), kind: 'lantern' } });
@@ -308,12 +309,12 @@ describe('a picture of the scene (a thumbnail)', () => {
     const during = captureSceneFrame({ gmViewLayers: [], markerLayers: [], lighting: controller }, FRAME, shown);
     return { before, during, after: shown() };
   }
-  const NONE = { wallEditor: false, doorBadges: false, lightMarkers: false, rangeRings: false };
+  const NONE = { wallEditor: false, doorBadges: false, lightMarkers: false, rangeRings: false, sightAids: false };
 
   it('leaves the GM overlays out in GM view and has them back', () => {
     const { controller } = setup();
     const { before, during, after } = picture(controller);
-    expect(before).toEqual({ wallEditor: false, doorBadges: true, lightMarkers: true, rangeRings: false });
+    expect(before).toEqual({ wallEditor: false, doorBadges: true, lightMarkers: true, rangeRings: false, sightAids: true });
     expect(during).toEqual(NONE);
     expect(after).toEqual(before);
   });
@@ -322,7 +323,7 @@ describe('a picture of the scene (a thumbnail)', () => {
     const { controller, store } = setup();
     store.getState().setActiveTool('wall');
     const { before, during, after } = picture(controller);
-    expect(before).toEqual({ wallEditor: true, doorBadges: true, lightMarkers: true, rangeRings: false });
+    expect(before).toEqual({ wallEditor: true, doorBadges: true, lightMarkers: true, rangeRings: false, sightAids: true });
     expect(during).toEqual(NONE);
     expect(after).toEqual(before);
   });

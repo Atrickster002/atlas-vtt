@@ -20,6 +20,7 @@ import type { LayerVisibility } from '../playerSafeFrame';
 import { requestRender } from '../RenderScheduler';
 import type { TokenRenderer } from '../TokenRenderer';
 import { createSceneLighting } from './createSceneLighting';
+import { GmSightAids } from './GmSightAids';
 import { DoorIcons } from './DoorIcons';
 import { showWallMenu, type LightingMenuContext } from './lightingMenus';
 import { LightInteraction } from './LightInteraction';
@@ -47,13 +48,15 @@ export interface LightingControllerDeps {
 
 /**
  * Walls, lights and scene lighting for one map view: owns the lighting renderer, the wall editor
- * and the GM's overlays (door badges, light markers, the open light's range rings), and routes
+ * and the GM's overlays (door badges, light markers, the open light's range rings, the sight aids), and routes
  * the pointer to them. Walls follow the map's artwork, never the grid. In session view and while
  * the peek key is held, the canvas shows the players' lighting (`SessionLighting`): the GM's
  * overlays are hidden then, and take no input.
  */
 export class LightingController {
   readonly renderer: SceneLightingView;
+  /** What tells the GM how the rules of sight apply: sense ranges, marks on unseen tokens, the hover card's line. */
+  readonly sightAids: GmSightAids;
   private readonly editor: WallEditor;
   private readonly doors: DoorIcons;
   private readonly lightMarkers: LightMarkers;
@@ -83,6 +86,13 @@ export class LightingController {
       viewport, app, store, obsApp, measurement, bounds: deps.bounds, albedo: deps.albedo,
       rules: () => this.sightRules(),
       onSightChange: () => this.onSightChange(),
+    });
+    this.sightAids = new GmSightAids({
+      viewport, store, measurement, bounds: deps.bounds,
+      rules: () => this.sightRules(),
+      lighting: this.renderer,
+      perception: () => this.playerSight(),
+      frames: () => this.frames(),
     });
     this.lightMarkers = new LightMarkers(viewport, store);
     this.rangeRings = new LightRangeRings(viewport, store, measurement);
@@ -123,6 +133,7 @@ export class LightingController {
   wire(tokens: TokenRenderer): void {
     this.tokens = tokens;
     tokens.setPlayerSightProvider(() => (this.session.active ? this.playerSight() : undefined));
+    this.sightAids.wire(tokens);
     tokens.setLightHandlers({
       // With the lighting tool, a wall handle is grabbed before the marker beneath it, and Shift draws past lights.
       pointerDown: (x, y, e) => this.lights.pointerDown({ x, y }, e, this.editor.handleAt({ x, y }) || (this.editor.shown && e.shiftKey && !e.ctrlKey && !e.metaKey)),
@@ -147,7 +158,10 @@ export class LightingController {
   }
 
   gmOverlays(): GmOverlays {
-    return { wallEditor: this.editor.layer, doorBadges: this.doors.view, lightMarkers: this.lightMarkers.view, rangeRings: this.rangeRings.view };
+    return {
+      wallEditor: this.editor.layer, doorBadges: this.doors.view, lightMarkers: this.lightMarkers.view,
+      rangeRings: this.rangeRings.view, sightAids: this.sightAids.view,
+    };
   }
 
   /** What the players' view changes about the lighting: for their frame, and held in session view. */
@@ -200,8 +214,8 @@ export class LightingController {
   }
 
   /**
-   * The layers the players' view changes, as the GM sees them. The light markers and the range
-   * rings show by their own rules and follow `setSuppressed`.
+   * The layers the players' view changes, as the GM sees them. The light markers, the range
+   * rings and the sight aids show by their own rules and follow `setSuppressed`.
    */
   private gmLayers(): LayerVisibility[] {
     const { activeTool, lighting } = this.deps.store.getState();
@@ -219,15 +233,17 @@ export class LightingController {
     const players = this.session.active;
     this.lightMarkers.setSuppressed(players);
     this.rangeRings.setSuppressed(players);
+    this.sightAids.setSuppressed(players);
     if (players) this.lights.cancel();
     this.editor.afterVisibilityChange();
     this.tokens?.refreshPlayerSight();
     requestRender(this.deps.app);
   }
 
-  /** In the players' view, tokens show and hide as the sight they are checked against changes. */
+  /** In the players' view, tokens show and hide as the sight they are checked against changes; in the GM's, the sight aids follow. */
   private onSightChange(): void {
     if (this.tokens && this.session.active) this.tokens.refreshPlayerSight();
+    else this.sightAids.schedule();
   }
 
   private listen(): void {
@@ -263,6 +279,7 @@ export class LightingController {
     this.doors.destroy();
     this.rangeRings.destroy();
     this.lightMarkers.destroy();
+    this.sightAids.destroy();
   }
 }
 

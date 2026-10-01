@@ -1,0 +1,134 @@
+import { Container } from 'pixi.js';
+import type { Viewport } from 'pixi-viewport';
+import type { MeasurementSettings } from '../../grid/measurementFormat';
+import { unitScaleOf } from '../../lighting/lightingUnits';
+import type { ViewAtlasStore } from '../../storeFactory';
+import type { SightRules } from '../../vision/sightRules';
+import type { MapBounds } from '../../vision/visibility';
+import { restingTokenUIScale } from '../token-renderer/tokenSizing';
+import { destroyTree } from '../utils/destroyTree';
+import type { TokenPerception } from './playerLightingLayers';
+import { PlayerSightMarks } from './PlayerSightMarks';
+import type { SceneLightingView } from './sceneLightingView';
+import { SenseRangeRings } from './SenseRangeRings';
+import { tokenSightLine } from './sightInfo';
+import { sightMarks } from './sightMarks';
+
+/** Above the lighting layer (90), the outlines of sensed tokens (95) and a light's range rings (96), below the token UI (100). */
+export const SIGHT_AIDS_Z_INDEX = 97;
+
+export interface GmSightAidsDeps {
+  viewport: Viewport;
+  store: ViewAtlasStore;
+  measurement: () => MeasurementSettings;
+  bounds: () => MapBounds | null;
+  rules: () => SightRules;
+  lighting: Pick<SceneLightingView, 'isEnabled' | 'currentSight' | 'ambientLight' | 'lightReaches'>;
+  /** How the players perceive each token; undefined on an unlit scene. */
+  perception: () => TokenPerception | undefined;
+  /** The window the canvas is in. */
+  frames: () => Window;
+}
+
+/** The part of the token renderer that shows a line on a token's hover card. */
+export interface SightLineHost {
+  setSightLineProvider(provider: ((tokenId: string) => string | null) | null): () => void;
+}
+
+/**
+ * What tells the GM how the rules of sight apply, on a lit scene in GM view: the ranges of the
+ * selected vision tokens (`SenseRangeRings`), a mark on every token the players do not see
+ * (`PlayerSightMarks`) and a line on the token hover card (`tokenSightLine`). All three follow
+ * the store and the players' sight in one update per frame, however many changes arrive: a
+ * dragged token asks once a frame, and nothing is worked out while nothing changes. The rings
+ * and marks are one GM overlay (`GmOverlays`): never in the players' view or a picture.
+ */
+export class GmSightAids {
+  readonly view = new Container({ label: 'gm-sight-aids', zIndex: SIGHT_AIDS_Z_INDEX, eventMode: 'none', interactiveChildren: false });
+  readonly rings: SenseRangeRings;
+  readonly marks = new PlayerSightMarks();
+  private suppressed = false;
+  private frame: number | null = null;
+  private host: SightLineHost | null = null;
+  private refreshHoverCard: (() => void) | null = null;
+  private readonly cleanups: Array<() => void> = [];
+
+  constructor(private readonly deps: GmSightAidsDeps) {
+    const { viewport, store } = deps;
+    this.rings = new SenseRangeRings({ ...deps, shown: () => this.shown() });
+    this.view.addChild(this.rings.view, this.marks.view);
+    viewport.addChild(this.view);
+    this.cleanups.push(store.subscribe((state, previous) => {
+      if (
+        state.objects.tokens !== previous.objects.tokens || state.selectedIds !== previous.selectedIds || state.lighting !== previous.lighting
+        || state.heldTokens !== previous.heldTokens || state.grid !== previous.grid || state.isMapLoading !== previous.isMapLoading
+      ) this.schedule();
+    }));
+    // The badges take the theme's colours, like the pins.
+    const theme = new MutationObserver(() => this.schedule());
+    theme.observe(document.body, { attributes: true, attributeFilter: ['class'] });
+    this.cleanups.push(() => theme.disconnect());
+    this.schedule();
+  }
+
+  /** Gives the token renderer the hover card's line. */
+  wire(host: SightLineHost): void {
+    this.host = host;
+    this.refreshHoverCard = host.setSightLineProvider((tokenId) => this.sightLine(tokenId));
+  }
+
+  /** Shows nothing while the canvas shows the players' view. */
+  setSuppressed(on: boolean): void {
+    // The players' view hides the layer (`playerLightingLayers`); the GM's has it back here.
+    this.view.visible = !on;
+    if (this.suppressed === on) return;
+    this.suppressed = on;
+    this.update();
+  }
+
+  /** Something the aids show may have changed (the players' sight did): looked at once, in the next frame. */
+  schedule(): void {
+    if (this.frame !== null) return;
+    this.frame = this.deps.frames().requestAnimationFrame(() => {
+      this.frame = null;
+      this.update();
+    });
+  }
+
+  update(): void {
+    const { store, measurement, perception } = this.deps;
+    const state = store.getState();
+    const perceived = this.shown() ? perception() : undefined;
+    const { cellSize } = unitScaleOf(measurement(), state.grid);
+    this.marks.sync(perceived ? sightMarks(state.objects.tokens, perceived, cellSize) : [], restingTokenUIScale(cellSize));
+    this.rings.draw();
+    this.refreshHoverCard?.();
+  }
+
+  /** The hover card's line for a token: the light it stands in and how the players perceive it. None unless the GM looks at a lit scene. */
+  sightLine(tokenId: string): string | null {
+    const { store, lighting, rules } = this.deps;
+    const { tokens } = store.getState().objects;
+    const token = tokens[tokenId];
+    if (!token || !this.shown()) return null;
+    return tokenSightLine(token, tokens, lighting.currentSight(), lighting.ambientLight(), lighting.lightReaches(), { conditions: rules().conditions });
+  }
+
+  /** A lit, loaded scene in the GM's view. */
+  private shown(): boolean {
+    const state = this.deps.store.getState();
+    return !this.suppressed && state.lighting.enabled && !state.isMapLoading;
+  }
+
+  destroy(): void {
+    for (const cleanup of this.cleanups.splice(0)) cleanup();
+    if (this.frame !== null) this.deps.frames().cancelAnimationFrame(this.frame);
+    this.frame = null;
+    this.host?.setSightLineProvider(null);
+    this.host = null;
+    this.refreshHoverCard = null;
+    this.rings.destroy();
+    this.marks.destroy();
+    destroyTree(this.view);
+  }
+}
