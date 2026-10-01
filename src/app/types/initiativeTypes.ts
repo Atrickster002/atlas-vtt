@@ -30,21 +30,6 @@ export interface InitiativeEntry {
   /** Initiative modifier from statblock/character */
   initiativeModifier: number;
 
-  /**
-   * Hit points of the token. A token without hit points (no statblock) has none and shows
-   * no HP bar; `undefined` clears them when patched
-   */
-  hp?: {
-    current: number;
-    max: number;
-  } | undefined;
-
-  /** Stress points (optional, for systems like Daggerheart); `undefined` clears them when patched */
-  stress?: {
-    current: number;
-    max: number;
-  } | undefined;
-
   /** Path to token image for avatar display */
   imagePath: string;
 
@@ -53,9 +38,6 @@ export interface InitiativeEntry {
 
   /** Whether this entry has the current turn */
   isActive: boolean;
-
-  /** Whether the entry is defeated (HP <= 0) */
-  isDefeated: boolean;
 
   /** Whether this is an NPC (vs player character) */
   isNPC: boolean;

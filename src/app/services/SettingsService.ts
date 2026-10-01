@@ -1,3 +1,4 @@
+import type { LegacyPlayerBars } from '../resources/playerVisibilityMigration';
 import { App, Platform, normalizePath } from 'obsidian';
 import { availableHotkeys, canShareHotkey, type MapHotkeyId, type MapHotkeys } from '../keyboard/mapHotkeys';
 import { hotkeyOrigin, readHotkeyOverrides, resolveHotkeys, withHotkey, type HotkeyOrigin, type HotkeyOverrides } from '../keyboard/hotkeyOverrides';
@@ -53,8 +54,6 @@ export interface AtlasSettings {
   localPlayerView: {
     // UI element visibility toggles
     showToolbar: boolean;
-    showTokenHP: boolean;
-    showTokenStress: boolean;
     showTokenNameplates: boolean;
     showNotePreviews: boolean;
     showGrid: boolean;
@@ -83,8 +82,6 @@ const DEFAULT_SETTINGS: AtlasSettings = {
   localPlayerView: {
     // UI element visibility defaults
     showToolbar: false, // Hide toolbar by default in player view
-    showTokenHP: false, // Hide HP bars
-    showTokenStress: false, // Hide stress bars
     showTokenNameplates: false, // Hide nameplates
     showNotePreviews: false, // Hide note previews
     showGrid: true, // Show grid by default
@@ -347,6 +344,25 @@ export class SettingsService {
   }
 
   // Local Player View settings
+  /**
+   * The player-window switches for HP and the secondary bar that older versions
+   * stored, or null when there are none or they were carried over. Each resource now
+   * says itself whether players see it. The switches stay in the file: an older Atlas
+   * on the same vault still reads them.
+   */
+  legacyPlayerBars(): LegacyPlayerBars | null {
+    const stored: Record<string, unknown> = this.settings.localPlayerView;
+    if (stored.tokenBarsCarriedOver === true) return null;
+    if (!('showTokenHP' in stored) && !('showTokenStress' in stored)) return null;
+    return { hp: stored.showTokenHP === true, stress: stored.showTokenStress === true };
+  }
+
+  clearLegacyPlayerBars(): void {
+    const stored: Record<string, unknown> = this.settings.localPlayerView;
+    stored.tokenBarsCarriedOver = true;
+    this.scheduleSave();
+  }
+
   getLocalPlayerViewSettings(): AtlasSettings['localPlayerView'] {
     return { ...this.settings.localPlayerView };
   }

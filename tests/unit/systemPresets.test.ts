@@ -63,6 +63,54 @@ describe('built-in presets', () => {
     expect([save(1), save(20), save(10)]).toEqual(['high', 'low', null]);
   });
 
+  it('give every built-in system HP, Cairn STR from its stat row and Daggerheart Stress', () => {
+    for (const preset of BUILT_IN_SYSTEM_PRESETS) {
+      const hp = preset.rules.resources?.find((r) => r.key === 'hp');
+      expect(hp?.defeatedWhenSpent, preset.name).toBe(true);
+      expect(preset.rules.defaultWidgets?.hpBar, preset.name).toBeUndefined();
+    }
+    const cairn = BUILT_IN_SYSTEM_PRESETS.find((p) => p.name === 'Cairn')!;
+    expect(cairn.rules.resources?.map((r) => [r.key, r.field, r.direction])).toEqual([['hp', 'hp', 'drains'], ['str', 'stats.0', 'drains']]);
+    const daggerheart = BUILT_IN_SYSTEM_PRESETS.find((p) => p.name === 'Daggerheart')!;
+    expect(daggerheart.rules.resources?.map((r) => [r.key, r.direction])).toEqual([['hp', 'drains'], ['stress', 'fills']]);
+  });
+
+  it('count a changed resource list as an edited system', () => {
+    const cairn = BUILT_IN_SYSTEM_PRESETS.find((p) => p.name === 'Cairn')!;
+    const rules = rulesOfPreset(cairn);
+    expect(sameSystemRules(rules, rules)).toBe(true);
+    expect(sameSystemRules(rules, { ...rules, resources: rules.resources.slice(0, 1) })).toBe(false);
+  });
+
+  it('keep valid resources of stored user presets and drop broken ones', () => {
+    const [preset] = parseUserPresets([{ id: 'u1', name: 'Mine', builtIn: false, rules: {
+      gridDefaults: BUILT_IN_SYSTEM_PRESETS[0]!.rules.gridDefaults, conditions: [],
+      resources: [{ key: 'ammo', name: 'Ammo', field: 'ammo', direction: 'drains', color: '#f59e0b', visibleToPlayers: true }, { key: '', name: 'x' }],
+    } }]);
+    expect(preset?.rules.resources?.map((r) => r.key)).toEqual(['ammo']);
+  });
+
+  it('does not count the old bar switches or what players see as an edit of the system', () => {
+    const daggerheart = BUILT_IN_SYSTEM_PRESETS.find((preset) => preset.id === 'builtin:daggerheart')!;
+    const rules = rulesOfPreset(daggerheart);
+    expect(sameSystemRules({ ...rules, defaultWidgets: { hpBar: true, stressBar: true } }, daggerheart.rules)).toBe(true);
+    expect(sameSystemRules({ ...rules, resources: rules.resources.map((r) => ({ ...r, visibleToPlayers: true })) }, daggerheart.rules)).toBe(true);
+    expect(sameSystemRules({ ...rules, resources: rules.resources.map((r) => ({ ...r, direction: 'fills' as const })) }, daggerheart.rules)).toBe(false);
+    expect(sameSystemRules({ ...rules, defaultWidgets: { initiativeTracker: true } }, daggerheart.rules)).toBe(false);
+  });
+
+  it('gives a user preset saved before resources the bars its default widgets switched on', () => {
+    const rules = { gridDefaults: BUILT_IN_SYSTEM_PRESETS[0]!.rules.gridDefaults, conditions: [] };
+    const [plain, both, emptied] = parseUserPresets([
+      { id: 'u1', name: 'Old', rules: { ...rules, defaultWidgets: { hpBar: true } } },
+      { id: 'u2', name: 'Old with stress', rules: { ...rules, defaultWidgets: { hpBar: true, stressBar: true } } },
+      { id: 'u3', name: 'Emptied on purpose', rules: { ...rules, resources: [] } },
+    ]);
+    expect(rulesOfPreset(plain!).resources.map((r) => r.key)).toEqual(['hp']);
+    expect(rulesOfPreset(both!).resources.map((r) => r.key)).toEqual(['hp', 'stress']);
+    expect(rulesOfPreset(emptied!).resources).toEqual([]);
+  });
+
   it('measure Pathfinder 2e in 5-foot squares with 5/10 diagonals and the Remaster conditions', () => {
     const pf2 = BUILT_IN_SYSTEM_PRESETS.find((preset) => preset.name === 'Pathfinder 2e')!;
     const settings = resolveMeasurementSettings(pf2.rules.gridDefaults, null);
@@ -121,6 +169,14 @@ describe('rulesOfPreset', () => {
   });
 });
 
+describe('the bar switches of a system', () => {
+  it('are on for the bars its resources define, so new scenes and older versions of Atlas show them', () => {
+    expect(rulesOfPreset(dnd5e).defaultWidgets).toMatchObject({ hpBar: true, stressBar: false });
+    expect(rulesOfPreset(daggerheart).defaultWidgets).toMatchObject({ hpBar: true, stressBar: true });
+    expect(vanillaSystemSettings().defaultWidgets).toEqual({ hpBar: true, stressBar: false });
+  });
+});
+
 describe('comparing and describing rules', () => {
   it('ignores condition ids and colour case', () => {
     const a = rules([{ id: 'x', name: 'Prone', color: '#AABBCC' }]);
@@ -131,7 +187,7 @@ describe('comparing and describing rules', () => {
 
   it('summarises measurement and conditions', () => {
     expect(describeSystemRules(dnd5e.rules)).toBe('5 ft squares · 15 conditions · 6 senses');
-    expect(describeSystemRules(daggerheart.rules)).toBe('5 range bands · 3 conditions');
+    expect(describeSystemRules(daggerheart.rules)).toBe('5 range bands · 3 conditions · HP, Stress');
   });
 
   it('finds the recorded preset, or the one whose rules match', () => {
@@ -172,6 +228,8 @@ describe('parseUserPresets', () => {
           unitType: 'meters', unitDistance: 1.5, measurementMode: 'metric', diagonalRule: 'equidistant', abstractRangeBands: [],
         },
         conditions: [{ id: 'c1', name: 'Dazed', color: '#123456' }],
+        // Saved before resources existed: it tracks HP, as its tokens did
+        resources: [expect.objectContaining({ key: 'hp' })],
       },
     }]);
   });
@@ -331,7 +389,7 @@ describe('senses', () => {
   it('are counted in the preset summary when a system has its own', () => {
     expect(describeSystemRules(withSenses([witchSight]))).toBe('5 ft squares · 0 conditions · 1 sense');
     expect(describeSystemRules(withSenses([]))).toBe('5 ft squares · 0 conditions');
-    expect(describeSystemRules(daggerheart.rules)).toBe('5 range bands · 3 conditions');
+    expect(describeSystemRules(daggerheart.rules)).toBe('5 range bands · 3 conditions · HP, Stress');
   });
 
   it('mark a preset as edited when they change, and count a preset without senses as having the generic set', () => {

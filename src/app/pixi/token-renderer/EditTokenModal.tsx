@@ -14,8 +14,9 @@ import { mapLightPresets } from '../../services/mapCollectionRules';
 import { mapSenseRules } from '../../services/mapSenseRules';
 import { useStatblockSenses, type StatblockLink } from './useStatblockSenses';
 import { NumberOverrideField, parseNumberInput } from './NumberOverrideField';
-import { readStatblockVitals } from './statblockFrontmatter';
-import { buildResourceUpdates, statblockResourceDefaults, type ResourceDefaults } from './tokenResourceEdits';
+import { buildResourceEdits } from '../../resources/resourceEdits';
+import type { ResourceDefinition, ResourceValue } from '../../resources/resourceTypes';
+import { startingResources } from '../../resources/statblockResourceValues';
 import { TokenLightingFields, type TokenLightingContext } from './TokenLightingFields';
 import { WALLS_AND_LIGHTING_ENABLED } from '../../featureFlags';
 import { unitLabelFor } from '../../grid/measurementFormat';
@@ -27,15 +28,18 @@ import { numberText } from '../../utils/numberInput';
 interface EditTokenValues {
   name: string;
   showNameplate: boolean;
-  maxHp: number | undefined;
-  maxStress: number | undefined;
+  /** Maximum per resource key; undefined follows the statblock, or removes a resource the statblock lacks. */
+  maxima: Record<string, number | undefined>;
   vision: VisionForm;
   light: LightForm;
 }
 
 interface EditTokenModalProps {
   initial: EditTokenValues;
-  resourceDefaults: ResourceDefaults;
+  /** The resources of the map's collection, in the order they show. */
+  definitions: readonly ResourceDefinition[];
+  /** What the linked statblock gives each resource. */
+  resourceDefaults: Record<string, ResourceValue>;
   lighting: TokenLightingContext;
   /** The statblock the token links, whose senses it follows while it has none of its own. */
   statblock: StatblockLink | null;
@@ -46,13 +50,14 @@ interface EditTokenModalProps {
 const defaultPlaceholder = (value: number | undefined): string =>
   value === undefined ? 'None' : `Statblock default: ${value}`;
 
-function EditTokenModalInner({ initial, resourceDefaults, lighting, statblock, onSave, onClose }: EditTokenModalProps): React.ReactElement {
+function EditTokenModalInner({ initial, definitions, resourceDefaults, lighting, statblock, onSave, onClose }: EditTokenModalProps): React.ReactElement {
   const inherited = useStatblockSenses(statblock);
   const nameplateId = useId();
   const [name, setName] = useState(initial.name);
   const [showNameplate, setShowNameplate] = useState(initial.showNameplate);
-  const [maxHpInput, setMaxHpInput] = useState(numberText(initial.maxHp));
-  const [maxStressInput, setMaxStressInput] = useState(numberText(initial.maxStress));
+  const [maxInputs, setMaxInputs] = useState<Record<string, string>>(
+    () => Object.fromEntries(definitions.map(({ key }) => [key, numberText(initial.maxima[key])])),
+  );
   const [vision, setVision] = useState(initial.vision);
   const [light, setLight] = useState(initial.light);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -68,8 +73,7 @@ function EditTokenModalInner({ initial, resourceDefaults, lighting, statblock, o
     onSave({
       name,
       showNameplate,
-      maxHp: parseNumberInput(maxHpInput),
-      maxStress: parseNumberInput(maxStressInput),
+      maxima: Object.fromEntries(definitions.map(({ key }) => [key, parseNumberInput(maxInputs[key] ?? '')])),
       vision,
       light,
     });
@@ -118,22 +122,22 @@ function EditTokenModalInner({ initial, resourceDefaults, lighting, statblock, o
             <ToggleSwitch value={showNameplate} onChange={() => setShowNameplate(!showNameplate)} labelledBy={nameplateId} />
           </div>
 
-          <div className="atlas-edit-token__section-divider" />
-          <div className="atlas-edit-token__section-label">Resources</div>
-          <NumberOverrideField
-            label="Max HP"
-            value={maxHpInput}
-            onChange={setMaxHpInput}
-            placeholder={defaultPlaceholder(resourceDefaults.maxHp)}
-            resetLabel="Reset to statblock default"
-          />
-          <NumberOverrideField
-            label="Max Secondary Resource"
-            value={maxStressInput}
-            onChange={setMaxStressInput}
-            placeholder={defaultPlaceholder(resourceDefaults.maxStress)}
-            resetLabel="Reset to statblock default"
-          />
+          {definitions.length > 0 && (
+            <>
+              <div className="atlas-edit-token__section-divider" />
+              <div className="atlas-edit-token__section-label">Resources</div>
+              {definitions.map(({ key, name: resourceName }) => (
+                <NumberOverrideField
+                  key={key}
+                  label={`Max ${resourceName}`}
+                  value={maxInputs[key] ?? ''}
+                  onChange={(value) => setMaxInputs((current) => ({ ...current, [key]: value }))}
+                  placeholder={defaultPlaceholder(resourceDefaults[key]?.max)}
+                  resetLabel="Reset to statblock default"
+                />
+              ))}
+            </>
+          )}
           {WALLS_AND_LIGHTING_ENABLED && (
             <TokenLightingFields vision={vision} onVisionChange={setVision} light={light} onLightChange={setLight} context={{ ...lighting, inherited }} />
           )}
@@ -172,23 +176,28 @@ function lightingContext(state: ViewAtlasState, app: App, rules: SenseRules): To
   };
 }
 
-function readResourceDefaults(app: App, statblockPath: string | undefined): ResourceDefaults {
+function readResourceDefaults(app: App, statblockPath: string | undefined, definitions: readonly ResourceDefinition[]): Record<string, ResourceValue> {
   const file = statblockPath ? app.vault.getAbstractFileByPath(statblockPath) : null;
   const frontmatter = file instanceof TFile ? app.metadataCache.getFileCache(file)?.frontmatter : undefined;
-  return frontmatter ? statblockResourceDefaults(readStatblockVitals(frontmatter)) : {};
+  return frontmatter ? startingResources(frontmatter, definitions) : {};
 }
 
 /**
  * Imperatively opens an Edit Token modal by mounting a React root.
  * Call from non-React code (e.g. InteractionController).
  */
-export function openEditTokenModal(token: TokenEntity, store: StoreApi<ViewAtlasState>, app: App): void {
+export function openEditTokenModal(
+  token: TokenEntity,
+  store: StoreApi<ViewAtlasState>,
+  app: App,
+  definitions: readonly ResourceDefinition[],
+): void {
   const character = token.kind === 'character' ? token : undefined;
   // The senses of the map's collection and what it measures in, as its statblocks are read with.
   const rules = mapSenseRules(app, AssetService.getInstance(app), store.getState());
   const lighting = lightingContext(store.getState(), app, rules);
   const statblock = character?.statblockPath ? { app, path: character.statblockPath, rules } : null;
-  const resourceDefaults = readResourceDefaults(app, character?.statblockPath);
+  const resourceDefaults = readResourceDefaults(app, character?.statblockPath, definitions);
   const container = document.body.createDiv({ cls: 'atlas-vtt-plugin atlas-vtt-root' });
   const root = createRoot(container);
 
@@ -197,12 +206,12 @@ export function openEditTokenModal(token: TokenEntity, store: StoreApi<ViewAtlas
     container.remove();
   };
 
-  const handleSave = ({ name, showNameplate, maxHp, maxStress, vision, light }: EditTokenValues): void => {
+  const handleSave = ({ name, showNameplate, maxima, vision, light }: EditTokenValues): void => {
     store.getState().updateToken(token.id, {
       name,
       showNameplate,
       ...(WALLS_AND_LIGHTING_ENABLED ? lightingUpdates(vision, light) : {}),
-      ...buildResourceUpdates(character ?? {}, { maxHp, maxStress }, resourceDefaults),
+      ...buildResourceEdits(character ?? {}, definitions.map((definition) => ({ definition, max: maxima[definition.key] })), resourceDefaults),
     });
     cleanup();
   };
@@ -214,13 +223,13 @@ export function openEditTokenModal(token: TokenEntity, store: StoreApi<ViewAtlas
         initial={{
           name: character?.name ?? '',
           showNameplate: token.showNameplate ?? false,
-          maxHp: typeof character?.hp === 'object' ? character.hp.max : character?.hp,
-          maxStress: typeof character?.stress === 'object' ? character.stress.max : character?.maxStress,
+          maxima: Object.fromEntries(definitions.map(({ key }) => [key, character?.resources?.[key]?.max])),
           vision: visionForm(token.vision, lighting.senses),
           light: lightForm(token.light, lighting.lightPresets),
         }}
         lighting={lighting}
         statblock={statblock}
+        definitions={definitions}
         resourceDefaults={resourceDefaults}
         onSave={handleSave}
         onClose={cleanup}

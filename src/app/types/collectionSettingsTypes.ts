@@ -5,6 +5,7 @@
  * grid defaults, and token conditions.
  */
 
+import type { ResourceDefinition } from '../resources/resourceTypes';
 import type { CreatureFilterDefinition } from './creatureFilterTypes';
 import type { DiceRules } from './diceRulesTypes';
 import type { LightPresetDefinition } from './lightPresetTypes';
@@ -88,6 +89,8 @@ export interface CollectionSettings {
   systemPresetId?: string | undefined;
   /** Default roll and critical rule. Read with `collectionDiceRules`. */
   dice?: DiceRules;
+  /** Expendable token resources, in token order. Unset in collections saved before resources existed. */
+  resources?: ResourceDefinition[];
   /** Filters on statblock fields Atlas does not filter by on its own. Read with `collectionCreatureFilters`. */
   customCreatureFilters?: CreatureFilterDefinition[];
   /** Ids of Atlas' own creature filters (`CATALOG_CREATURE_FILTERS`) switched off for the collection. */

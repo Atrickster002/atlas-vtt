@@ -280,6 +280,14 @@ $tracker-width: 96px;
 }
 
 // HP Bar — full width
+// One thin bar per resource of the token, in the collection's order
+.atlas-initiative-card__resources {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+}
+
 .atlas-initiative-card__hp-bar {
   width: 100%;
   height: 4px;
@@ -291,19 +299,9 @@ $tracker-width: 96px;
 .atlas-initiative-card__hp-fill {
   height: 100%;
   border-radius: 2px;
+  // The resource's own colour, set per bar
+  background: var(--atlas-resource-color, var(--color-green));
   transition: width 0.3s ease;
-
-  &--healthy {
-    background: var(--color-green);
-  }
-
-  &--injured {
-    background: var(--color-yellow);
-  }
-
-  &--critical {
-    background: var(--color-red);
-  }
 }
 
 // Note: Statblock preview styles are in statblock-hover-preview.scss (shared component)

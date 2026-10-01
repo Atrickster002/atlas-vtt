@@ -1,4 +1,8 @@
-import { useEffect, useState } from 'react';
+import { collectionResources } from '../../../resources/collectionResources';
+import { keepingPlayerVisibility, withFinalKeys } from '../../../resources/resourceDefinitions';
+import { withChangedBars } from '../../../resources/sceneVisibility';
+import type { ResourceDefinition } from '../../../resources/resourceTypes';
+import { useEffect, useRef, useState } from 'react';
 import { hasVisionDefaults } from '../../../gameSystems/visionDefaults';
 import { parseLightPresets } from '../../../gameSystems/lightPresetValidation';
 import { parseSenseDefinitions } from '../../../gameSystems/senseValidation';
@@ -16,7 +20,6 @@ import type { TokenVisionDefaults } from '../../../types/lightingTypes';
 import type { LightPresetDefinition } from '../../../types/lightPresetTypes';
 import type { SenseDefinition } from '../../../types/senseTypes';
 import type { SystemPreset } from '../../../types/systemPresetTypes';
-import { changedTokenBars, tokenBarsOf, type TokenBars } from '../../../services/collectionTokenBars';
 
 export interface CollectionSettingsDraft {
   gridDefaults: CollectionGridDefaults;
@@ -34,6 +37,8 @@ export interface CollectionSettingsDraft {
   lightPresets: readonly LightPresetDefinition[] | undefined;
   conditions: ConditionDefinition[];
   setConditions: (conditions: ConditionDefinition[]) => void;
+  resources: ResourceDefinition[];
+  setResources: (resources: ResourceDefinition[]) => void;
   /** Unset while the collection takes the dice of its preset; read with `collectionDiceRules`. */
   dice: DiceRules | undefined;
   setDice: (dice: DiceRules) => void;
@@ -54,8 +59,11 @@ export interface CollectionSettingsDraft {
   clearSystem: () => void;
   /** The draft as the settings to save. */
   toSettings: () => Partial<CollectionSettings>;
-  /** The resource bars saving turns on or off in every scene, when the draft changed them. */
-  tokenBarChanges: () => TokenBars;
+}
+
+/** Resources as they are stored: names and fields trimmed, and resources added in the dialog keyed by their name. */
+export function savedResources(resources: readonly ResourceDefinition[]): ResourceDefinition[] {
+  return withFinalKeys(resources.map((resource) => ({ ...resource, name: resource.name.trim(), field: resource.field.trim() })));
 }
 
 /** The collection's settings as edited in the modal; nothing is written until the caller saves. */
@@ -70,11 +78,13 @@ export function useCollectionSettingsDraft(
   const [senses, setSenses] = useState<readonly SenseDefinition[] | undefined>(undefined);
   const [lightPresets, setLightPresets] = useState<readonly LightPresetDefinition[] | undefined>(undefined);
   const [conditions, setConditions] = useState<ConditionDefinition[]>([]);
+  const [resources, setResources] = useState<ResourceDefinition[]>([]);
+  /** The resources the collection had when the draft opened; a bar switch follows only a resource that came or went. */
+  const loadedResources = useRef<readonly ResourceDefinition[]>([]);
   const [dice, setDice] = useState<DiceRules | undefined>(undefined);
   const [systemPresetId, setSystemPresetId] = useState<string | undefined>(undefined);
   const [lootBases, setLootBases] = useState<string[]>([]);
   const [lootCurrency, setLootCurrency] = useState('');
-  const [loadedDefaultWidgets, setLoadedDefaultWidgets] = useState<Record<string, boolean> | undefined>(undefined);
   const [customCreatureFilters, setCustomCreatureFilters] = useState<CreatureFilterDefinition[]>([]);
   const [hiddenCreatureFilters, setHiddenCreatureFilters] = useState<string[]>([]);
 
@@ -89,11 +99,13 @@ export function useCollectionSettingsDraft(
     const ownLights = parseLightPresets(settings.lightPresets);
     setLightPresets(ownLights?.length ? ownLights : undefined);
     setConditions(settings.conditions ?? []);
+    const loaded = collectionResources(settings);
+    loadedResources.current = loaded;
+    setResources(loaded);
     setDice(settings.dice);
     setSystemPresetId(settings.systemPresetId);
     setLootBases(settings.lootBases ?? []);
     setLootCurrency(settings.lootCurrency ?? '');
-    setLoadedDefaultWidgets(settings.defaultWidgets);
     setCustomCreatureFilters(parseCreatureFilters(settings.customCreatureFilters));
     setHiddenCreatureFilters(parseHiddenCreatureFilters(settings.hiddenCreatureFilters));
   }, [isOpen, collectionId, assetService]);
@@ -102,6 +114,7 @@ export function useCollectionSettingsDraft(
     const rules = rulesOfPreset(preset);
     setGridDefaults(rules.gridDefaults);
     setConditions(rules.conditions);
+    setResources(keepingPlayerVisibility(rules.resources, resources));
     setDefaultWidgets(rules.defaultWidgets);
     setDice(rules.dice);
     setDefaultTokenVision(rules.defaultTokenVision);
@@ -115,6 +128,7 @@ export function useCollectionSettingsDraft(
     const vanilla = vanillaSystemSettings();
     setGridDefaults(vanilla.gridDefaults);
     setConditions(vanilla.conditions);
+    setResources(vanilla.resources);
     setDefaultWidgets(vanilla.defaultWidgets);
     setDice(vanilla.dice);
     setDefaultTokenVision(vanilla.defaultTokenVision);
@@ -123,21 +137,25 @@ export function useCollectionSettingsDraft(
     setSystemPresetId(undefined);
   };
 
-  const toSettings = (): Partial<CollectionSettings> => ({
-    gridDefaults,
-    defaultWidgets,
-    defaultTokenVision: hasVisionDefaults(defaultTokenVision) ? defaultTokenVision : undefined,
-    senses,
-    lightPresets,
-    conditions,
-    ...(dice && { dice: { ...dice, defaultRoll: dice.defaultRoll.trim() } }),
-    // Trimmed, with the field as label where none was typed.
-    customCreatureFilters: parseCreatureFilters(customCreatureFilters),
-    hiddenCreatureFilters,
-    systemPresetId,
-    lootBases,
-    lootCurrency: lootCurrency.trim() || undefined,
-  });
+  const toSettings = (): Partial<CollectionSettings> => {
+    const saved = savedResources(resources);
+    return {
+      gridDefaults,
+      defaultWidgets: withChangedBars(defaultWidgets, loadedResources.current, saved),
+      defaultTokenVision: hasVisionDefaults(defaultTokenVision) ? defaultTokenVision : undefined,
+      senses,
+      lightPresets,
+      conditions,
+      resources: saved,
+      ...(dice && { dice: { ...dice, defaultRoll: dice.defaultRoll.trim() } }),
+      // Trimmed, with the field as label where none was typed.
+      customCreatureFilters: parseCreatureFilters(customCreatureFilters),
+      hiddenCreatureFilters,
+      systemPresetId,
+      lootBases,
+      lootCurrency: lootCurrency.trim() || undefined,
+    };
+  };
 
   return {
     gridDefaults, setGridDefaults,
@@ -146,6 +164,7 @@ export function useCollectionSettingsDraft(
     senses, setSenses,
     lightPresets,
     conditions, setConditions,
+    resources, setResources,
     dice, setDice,
     customCreatureFilters, setCustomCreatureFilters,
     hiddenCreatureFilters, setHiddenCreatureFilters,
@@ -153,6 +172,5 @@ export function useCollectionSettingsDraft(
     lootBases, setLootBases,
     lootCurrency, setLootCurrency,
     applyPreset, clearSystem, toSettings,
-    tokenBarChanges: () => changedTokenBars(tokenBarsOf(loadedDefaultWidgets), tokenBarsOf(defaultWidgets)),
   };
 }

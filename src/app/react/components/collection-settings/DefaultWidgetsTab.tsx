@@ -17,16 +17,6 @@ const WIDGET_OPTIONS: { key: string; label: string; description: string }[] = [
     description: 'Turn-order tracker for combat encounters',
   },
   {
-    key: 'hpBar',
-    label: 'HP Bar',
-    description: 'Health bar displayed under tokens',
-  },
-  {
-    key: 'stressBar',
-    label: 'Secondary resource bar',
-    description: 'Secondary resource (stress, sanity, mana…) shown under tokens',
-  },
-  {
     key: 'timer',
     label: 'Timer',
     description: 'Countdown timer for timed encounters or breaks',
@@ -44,8 +34,7 @@ export function DefaultWidgetsTab({
   return (
     <>
       <p className="atlas-csm-hint">
-        Resource bars follow these settings in every scene of the collection,
-        also scenes that already exist. The other defaults apply to new maps.
+        These defaults apply to new maps of the collection.
       </p>
       {WIDGET_OPTIONS.map((w) => (
         <div key={w.key} className="atlas-csm-toggle-row">

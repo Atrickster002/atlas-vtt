@@ -5,6 +5,9 @@
  * hover effects, context menus, and path recording for smooth animations.
  */
 
+import type { ResourceDefsProvider } from '../../resources/resourceTypes';
+import { isKillable, resetLabel } from '../../resources/resourceValues';
+import { visibleResources } from '../../resources/visibleResources';
 import React from 'react';
 import { Container, FederatedPointerEvent } from 'pixi.js';
 import { Viewport } from 'pixi-viewport';
@@ -14,7 +17,7 @@ import { STATBLOCK_UNLINK_UPDATES } from './statblockFrontmatter';
 import { openContextMenuGlobal, closeContextMenuGlobal, type ContextMenuEntry } from '../../react/root/ContextMenuContext';
 import { DestructiveActionRow } from './DestructiveActionRow';
 import type { ITokenInteractionController, TokenGroupContainer } from './types';
-import type { TokenEntity } from '../../types';
+import type { Character, TokenEntity } from '../../types';
 import type { ViewAtlasState } from '../../storeFactory';
 import type { StoreApi } from 'zustand';
 import type { GridSystem } from '../../grid/GridSystem';
@@ -63,6 +66,8 @@ export class InteractionController implements ITokenInteractionController {
   
   // Condition definitions provider — wired by PixiRendererOrchestrator
   public conditionDefsProvider: (() => ConditionDefinition[]) | null = null;
+  /** The resources of the map's collection, for Kill and Reset. */
+  public resourceDefsProvider: ResourceDefsProvider = () => [];
   
   // Drag state
   private dragState: DragState = {
@@ -204,9 +209,7 @@ export class InteractionController implements ITokenInteractionController {
             type: 'token',
             // Vitals travel with the pin so the preview can mirror them.
             name: token.name,
-            hp: token.hp,
-            stress: token.stress,
-            maxStress: token.maxStress,
+            resources: token.resources,
             imagePath: token.imagePath,
             ringColor: token.ringColor,
             showRing: token.showRing,
@@ -724,13 +727,13 @@ export class InteractionController implements ITokenInteractionController {
       })),
     });
 
-    // Reset (only if token has HP)
-    if (character?.hp !== undefined) {
+    // Reset (only if the token tracks resources)
+    if (this.hasResources(character)) {
       entries.push({
         type: 'item',
-        label: 'Reset (Full HP, Clear Status)',
+        label: resetLabel(this.resourceDefsProvider()),
         icon: 'rotate-ccw',
-        onClick: () => this.store.getState().resetTokens([token.id]),
+        onClick: () => this.store.getState().resetTokens([token.id], this.resourceDefsProvider()),
       });
     }
 
@@ -793,11 +796,16 @@ export class InteractionController implements ITokenInteractionController {
     this.dragRuler = ruler;
   }
 
+  private hasResources(character: Character | undefined): boolean {
+    return character !== undefined && visibleResources(character, this.resourceDefsProvider(), 'dm').length > 0;
+  }
+
   private renderDestructiveRow(token: TokenEntity): React.ReactNode {
     return React.createElement(DestructiveActionRow, {
       tokenId: token.id,
       store: this.store,
-      hasHp: token.kind === 'character' && token.hp !== undefined,
+      canKill: token.kind === 'character' && isKillable(token, this.resourceDefsProvider()),
+      definitions: this.resourceDefsProvider(),
       onClose: () => closeContextMenuGlobal(),
     });
   }
@@ -826,7 +834,7 @@ export class InteractionController implements ITokenInteractionController {
   }
 
   private showEditTokenModal(token: TokenEntity): void {
-    openEditTokenModal(token, this.store, this.obsApp);
+    openEditTokenModal(token, this.store, this.obsApp, this.resourceDefsProvider());
   }
 
   destroyAll(): void {

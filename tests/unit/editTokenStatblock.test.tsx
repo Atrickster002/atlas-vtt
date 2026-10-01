@@ -27,7 +27,7 @@ function open(senses: string | undefined, vision: TokenVision = { enabled: true 
   const store = createViewAtlasStore(current.app, `edit-token-statblock-${Math.random()}`);
   const token = { id: 't', kind: 'character', name: 'Goblin', imagePath: 't.png', x: 0, y: 0, vision, ...(linked && { statblockPath: GOBLIN }) } as TokenEntity;
   store.setState({ persistenceEnabled: false, objects: { ...store.getState().objects, tokens: { t: token } } });
-  act(() => openEditTokenModal(token, store, current.app));
+  act(() => openEditTokenModal(token, store, current.app, []));
   return () => store.getState().objects.tokens.t!;
 }
 

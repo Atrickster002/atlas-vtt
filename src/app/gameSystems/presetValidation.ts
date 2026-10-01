@@ -4,6 +4,7 @@
  * that cannot be used is left out instead of breaking the list.
  */
 
+import { HP_RESOURCE, parseResourceDefinitions, withLegacyBars } from '../resources/resourceDefinitions';
 import { isValidRangeBandThreshold } from '../grid/measurementFormat';
 import {
   CONDITION_EFFECTS,
@@ -139,6 +140,10 @@ export function parseUserPreset(raw: unknown): SystemPreset | null {
     : [];
   const defaultWidgets = parseEnabledFlags(raw.rules.defaultWidgets);
   const dice = parseDiceRules(raw.rules.dice);
+  // A preset saved before resources existed tracks the bars its default widgets switched on.
+  const resources = Array.isArray(raw.rules.resources)
+    ? parseResourceDefinitions(raw.rules.resources)
+    : withLegacyBars([{ ...HP_RESOURCE }], defaultWidgets);
   const senses = parseSenseDefinitions(raw.rules.senses);
   const lightPresets = parseLightPresets(raw.rules.lightPresets);
   // A collection set from the preset has these senses, so only they can be a default.
@@ -153,6 +158,7 @@ export function parseUserPreset(raw: unknown): SystemPreset | null {
       ...(widgets.length > 0 && { widgets }),
       ...(Object.keys(defaultWidgets).length > 0 && { defaultWidgets }),
       ...(dice && { dice }),
+      ...(resources.length > 0 && { resources }),
       ...(defaultTokenVision && { defaultTokenVision }),
       ...(senses && { senses }),
       ...(lightPresets?.length && { lightPresets }),

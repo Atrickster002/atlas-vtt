@@ -571,6 +571,22 @@ describe('TokenRenderer Integration Tests', () => {
       viewport.emit('pointerup', rightClick(902, 900));
       expect(fogClickHandler).toHaveBeenCalledExactlyOnceWith('fog-1', expect.objectContaining({ clientX: 1202 }));
     });
+
+    it('leaves a right press with the wall tool to the pan and opens the wall menu only when it is released in place', () => {
+      const wallMenu = vi.fn();
+      tokenRenderer.setWallContextMenuHandler(wallMenu);
+      store.setState({ activeTool: 'wall' }); // the tool is behind a feature flag
+
+      viewport.emit('pointerdown', rightClick(900, 900));
+      viewport.emit('pointermove', rightClick(960, 900));
+      viewport.emit('pointerup', rightClick(960, 900));
+      expect(wallMenu).not.toHaveBeenCalled();
+
+      viewport.emit('pointerdown', rightClick(900, 900));
+      expect(wallMenu).not.toHaveBeenCalled();
+      viewport.emit('pointerup', rightClick(902, 900));
+      expect(wallMenu).toHaveBeenCalledExactlyOnceWith(900, 900, 1202, 940);
+    });
   });
 
   describe('Hover', () => {

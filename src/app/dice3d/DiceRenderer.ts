@@ -24,7 +24,7 @@ import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment
 import type { DieSides } from './dieGeometry';
 import { dieAssets } from './dieMesh';
 import type { DieAnim } from './dieMotion';
-import { FLOOR_Y, restHeight } from './dieTour';
+import { FLOOR_Y } from './dieTour';
 import { chainLengthFor, GhostTrail } from './ghostTrail';
 import { landingSparks, wallSparks, type Crit } from './impactSparks';
 import { Sparks } from './sparks';
@@ -275,7 +275,7 @@ export class DiceRenderer {
     // watched.
     let height = 0;
     for (const die of dice) {
-      height = Math.max(height, (die.anim.p[1] - restHeight(die.anim.radius)) / (die.anim.radius * 2.6));
+      height = Math.max(height, (die.anim.p[1] - die.anim.floor) / (die.anim.radius * 2.6));
     }
     const softness = Math.min(1, Math.max(0, height));
     this.key.shadow.radius = SHADOW_SHARP.blur + (SHADOW_SOFT.blur - SHADOW_SHARP.blur) * softness;

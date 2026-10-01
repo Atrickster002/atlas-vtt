@@ -1,6 +1,7 @@
 import type { SystemPreset } from '../../types/systemPresetTypes';
 import { SHADOWDARK_LIGHTS } from '../lightPresets/shadowdark';
 import type { TimerWidget } from '../../types/widgetTypes';
+import { HP_RESOURCE } from '../../resources/resourceDefinitions';
 import { SHADOWDARK_SENSES } from '../senses/shadowdark';
 import { builtInPresetId, conditionsOf } from './presetHelpers';
 
@@ -61,6 +62,6 @@ export const SHADOWDARK: SystemPreset = {
     senses: SHADOWDARK_SENSES,
     lightPresets: SHADOWDARK_LIGHTS,
     widgets: [SHADOWDARK_TORCH],
-    defaultWidgets: { hpBar: true },
+    resources: [{ ...HP_RESOURCE }],
   },
 };

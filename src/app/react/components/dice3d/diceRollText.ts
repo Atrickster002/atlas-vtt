@@ -1,10 +1,12 @@
 import type { DiceScene } from '../../../dice3d/diceScene';
 import type { DiceRollResult } from '../../../tools/DiceTool';
 
-/** Who rolled what, e.g. "Goblin · Scimitar"; plain rolls from the tray are just a roll. */
+/**
+ * What was rolled, e.g. "Scimitar"; a roll without an action is just a roll.
+ * Never who rolled it: the creature's portrait beside the label says that.
+ */
 export function rollLabel(result: DiceRollResult): string {
-  const source = result.source;
-  return [source?.tokenName, source?.abilityName].filter(Boolean).join(' · ') || 'Roll';
+  return result.source?.abilityName || 'Roll';
 }
 
 /** ` + 3` or ` − 3`; nothing without a modifier. */

@@ -29,8 +29,15 @@ export class SceneFileWriter<V> {
    */
   private readonly generations = new Map<string, number>();
 
-  /** @param isBoundTo Whether the store is still bound to the scene at `path`; only then may its file be created. */
-  constructor(private readonly app: App, private readonly isBoundTo: (path: string) => boolean) {}
+  /**
+   * @param isBoundTo Whether the store is still bound to the scene at `path`; only then may its file be created.
+   * @param serialize The content of the file for a snapshot.
+   */
+  constructor(
+    private readonly app: App,
+    private readonly isBoundTo: (path: string) => boolean,
+    private readonly serialize: (snapshot: V) => string = JSON.stringify,
+  ) {}
 
   /** Schedules `snapshot` as the next content of the scene at `path`. */
   schedule(path: string, snapshot: V): void {
@@ -85,7 +92,7 @@ export class SceneFileWriter<V> {
   private async write(path: string, snapshot: V, generation: number): Promise<void> {
     const isLatest = (): boolean => this.generations.get(path) === generation;
     try {
-      const data = JSON.stringify(snapshot);
+      const data = this.serialize(snapshot);
       const dataPath = getDataFilePath(path);
       await ensureFolder(this.app, dataPath.substring(0, dataPath.lastIndexOf('/')));
 

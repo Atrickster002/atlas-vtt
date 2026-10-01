@@ -8,7 +8,8 @@
 
 $dice-roll-width: 21rem;
 $dice-roll-row-height: 3.4rem;
-$dice-roll-avatar: 24px;
+// The portrait alone says who rolled, so it is large enough to recognise at a glance.
+$dice-roll-avatar: 72px;
 // The engraving fades towards the rim, as if printed and rubbed off with use.
 $dice-roll-engraving-fade: radial-gradient(ellipse 74% 74% at 50% 50%, #000 38%, rgb(0 0 0 / 0.45) 76%, rgb(0 0 0 / 0) 100%);
 
@@ -111,11 +112,35 @@ $dice-roll-engraving-fade: radial-gradient(ellipse 74% 74% at 50% 50%, #000 38%,
   z-index: 2;
 }
 
+// The portrait holds the top left corner as the close button holds the top
+// right, both $close-button-gap inside the border; the action stands between
+// them, centred on the panel and level with the close button. The portrait
+// reaches down over the floor: the dice come to rest in the middle of the
+// panel, clear of it.
 .atlas-dice-roll__header {
   position: relative;
   display: flex;
   justify-content: center;
-  padding: $spacing-m calc(#{$close-button-size} + 2 * #{$close-button-gap}) 0;
+  padding: $close-button-gap calc(#{$dice-roll-avatar} + 2 * #{$close-button-gap}) 0;
+
+  .atlas-dice-roll__who {
+    min-height: $close-button-size;
+  }
+
+  .atlas-dice-roll__avatar {
+    position: absolute;
+    top: $close-button-gap;
+    left: $close-button-gap;
+  }
+
+  // Between the corners there is room for few letters, so a long action takes a second line.
+  .atlas-dice-roll__label {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    white-space: normal;
+    text-align: center;
+  }
 }
 
 .atlas-dice-roll__who {
@@ -234,6 +259,12 @@ $dice-roll-engraving-fade: radial-gradient(ellipse 74% 74% at 50% 50%, #000 38%,
 
   .atlas-dice-roll__who {
     flex: 1;
+  }
+
+  // As much of the portrait as the row holds inside its padding.
+  .atlas-dice-roll__avatar {
+    width: calc(#{$dice-roll-row-height} - 2 * #{$spacing-s});
+    height: calc(#{$dice-roll-row-height} - 2 * #{$spacing-s});
   }
 }
 

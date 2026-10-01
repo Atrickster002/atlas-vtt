@@ -29,8 +29,10 @@ export interface TokenResourceValue {
 export interface BaseToken {
   /** False preserves the whole artwork without an Atlas frame. Defaults to true. */
   showRing?: boolean;
-  /** Per-instance resources imported from a statblock beyond HP, stress and hope. */
-  statblockResources?: Record<string, TokenResourceValue>;
+  /** Expendable resources by definition key; see `src/app/resources/`. */
+  resources?: Record<string, TokenResourceValue>;
+  /** Resource keys whose maximum was set by hand and no longer follows the statblock. */
+  overriddenMax?: string[];
   id: string;
   x: number;
   y: number;
@@ -68,20 +70,11 @@ export interface Token extends BaseToken {
 }
 
 /**
- * Character with HP, name, and optional note link
+ * Character with a name and optional note and statblock links
  */
 export interface Character extends BaseToken {
   kind: 'character';
   name: string;
-  /** Only set when the token has a statblock or its HP was entered in Edit Token; without it no HP bar shows. */
-  hp?: number | { current: number; max: number };
-  stress?: number | { current: number; max: number }; // Current stress level
-  maxStress?: number; // Maximum stress (defaults to 10)
-  /** Max HP was set on this token; statblock edits no longer replace it. */
-  maxHpOverridden?: boolean;
-  /** Max stress was set on this token; statblock edits no longer replace it. */
-  maxStressOverridden?: boolean;
-  hope?: number | { current: number; max: number }; // Hope tokens for player characters
   difficulty?: string; // CR or tier from statblock
   notePath?: string;
   statblockPath?: string; // Path to linked statblock note

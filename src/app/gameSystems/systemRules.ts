@@ -12,6 +12,8 @@ import type {
 import type { TokenVisionDefaults } from '../types/lightingTypes';
 import type { SystemPreset, SystemRules } from '../types/systemPresetTypes';
 import type { AnyWidget } from '../types/widgetTypes';
+import { HP_RESOURCE, sameResourceDefinitions } from '../resources/resourceDefinitions';
+import { barWidgets } from '../resources/sceneVisibility';
 import { conditionEffect } from './conditionEffects';
 import { DEFAULT_DICE_RULES, sameDiceRules } from './diceRules';
 import { sameLightPresets } from './lightPresetRules';
@@ -28,19 +30,21 @@ export const DEFAULT_GRID_DEFAULTS: Readonly<CollectionGridDefaults> = {
 };
 
 /** What a game system sets in a collection's settings. */
-export type SystemSettings = Required<Pick<CollectionSettings, 'gridDefaults' | 'conditions' | 'defaultWidgets' | 'dice'>>
+export type SystemSettings = Required<Pick<CollectionSettings, 'gridDefaults' | 'conditions' | 'defaultWidgets' | 'dice' | 'resources'>>
   & Pick<CollectionSettings, 'systemPresetId' | 'defaultTokenVision' | 'senses' | 'lightPresets'>;
 
 /**
- * A collection without a game system: default measurement and dice, no conditions, no default
- * widgets, no default vision, and no senses or light presets of its own, so it uses the generic ones.
+ * A collection without a game system: default measurement and dice, HP as its only resource
+ * (its bar on for new scenes), no conditions, no default widgets, no default vision, and no
+ * senses or light presets of its own, so it uses the generic ones.
  */
 export function vanillaSystemSettings(): SystemSettings {
   return {
     gridDefaults: structuredClone(DEFAULT_GRID_DEFAULTS),
     conditions: [],
-    defaultWidgets: {},
+    defaultWidgets: barWidgets([HP_RESOURCE]),
     dice: { ...DEFAULT_DICE_RULES },
+    resources: [{ ...HP_RESOURCE }],
     systemPresetId: undefined,
     defaultTokenVision: undefined,
     senses: undefined,
@@ -58,13 +62,15 @@ export function vanillaSystemSettings(): SystemSettings {
  */
 export function rulesOfPreset(
   preset: SystemPreset,
-): Required<Pick<SystemRules, 'gridDefaults' | 'conditions' | 'defaultWidgets' | 'dice'>> & Pick<SystemRules, 'defaultTokenVision'> {
+): Required<Pick<SystemRules, 'gridDefaults' | 'conditions' | 'defaultWidgets' | 'dice' | 'resources'>> & Pick<SystemRules, 'defaultTokenVision'> {
   const vision: TokenVisionDefaults | undefined = preset.rules.defaultTokenVision;
   return {
     gridDefaults: structuredClone(preset.rules.gridDefaults),
     conditions: structuredClone(preset.rules.conditions),
-    defaultWidgets: { ...preset.rules.defaultWidgets },
+    // The bars new scenes show, which older versions of Atlas read too
+    defaultWidgets: { ...barWidgets(preset.rules.resources ?? []), ...preset.rules.defaultWidgets },
     dice: { ...(preset.rules.dice ?? DEFAULT_DICE_RULES) },
+    resources: structuredClone(preset.rules.resources ?? []),
     ...(hasVisionDefaults(vision) && { defaultTokenVision: structuredClone(vision) }),
   };
 }
@@ -88,9 +94,12 @@ function sameCondition(a: ConditionDefinition, b: ConditionDefinition): boolean 
     && conditionEffect(a) === conditionEffect(b);
 }
 
+/** The bar switches older versions kept among the default widgets; resources replaced them. */
+const LEGACY_BAR_WIDGETS = new Set(['hpBar', 'stressBar']);
+
 /** The default widgets that are on, as a comparable key. */
 function enabledWidgets(defaultWidgets: Record<string, boolean> | undefined): string {
-  return Object.keys(defaultWidgets ?? {}).filter((key) => defaultWidgets?.[key]).sort().join();
+  return Object.keys(defaultWidgets ?? {}).filter((key) => defaultWidgets?.[key] && !LEGACY_BAR_WIDGETS.has(key)).sort().join();
 }
 
 /**
@@ -100,6 +109,7 @@ function enabledWidgets(defaultWidgets: Record<string, boolean> | undefined): st
 export function sameSystemRules(preset: SystemRules, rules: SystemRules): boolean {
   return sameGridDefaults(preset.gridDefaults, rules.gridDefaults)
     && sameDiceRules(preset.dice, rules.dice)
+    && sameResourceDefinitions(preset.resources, rules.resources)
     && enabledWidgets(preset.defaultWidgets) === enabledWidgets(rules.defaultWidgets)
     && sameVisionDefaults(preset.defaultTokenVision, rules.defaultTokenVision)
     && (rules.senses === undefined || sameSenses(preset.senses, rules.senses))
@@ -122,8 +132,11 @@ export function describeSystemRules(rules: SystemRules): string {
     : `${grid.unitDistance} ${SQUARE_UNIT[grid.unitType]} squares`;
   const widgets = (rules.widgets ?? []).map((widget) => `${widget.label} ${widget.type}`);
   const senses = rules.senses?.length ? [count(rules.senses.length, 'sense')] : [];
+  // HP alone is what every system tracks; only a system's further resources tell it apart.
+  const names = (rules.resources ?? []).map((resource) => resource.name);
+  const resources = names.length > 1 ? [names.join(', ')] : [];
   const vision = hasVisionDefaults(rules.defaultTokenVision) ? ['Default vision'] : [];
-  return [measurement, count(rules.conditions.length, 'condition'), ...senses, ...vision, ...widgets].join(' · ');
+  return [measurement, count(rules.conditions.length, 'condition'), ...senses, ...resources, ...vision, ...widgets].join(' · ');
 }
 
 /**

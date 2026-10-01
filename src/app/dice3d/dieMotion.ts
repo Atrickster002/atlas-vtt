@@ -18,7 +18,7 @@
  */
 
 import { qAxisAngle, qIdentity, qMul, qNormalize, qSlerp, vScale, type Quat, type Vec3 } from './vectorMath';
-import { cellOf, damp, fold, planTour, randomAxis, restHeight, STAGE_X, STAGE_Z, wallSide } from './dieTour';
+import { cellOf, damp, fold, planTour, randomAxis, restHeight, STAGE_X, STAGE_Z, TUMBLE_HEIGHT, wallSide } from './dieTour';
 import type { DieTour, Rng } from './dieTour';
 
 /** `throw` runs its path, `rest` lies still. Nothing lies between. */
@@ -51,6 +51,10 @@ export interface DieAnim {
   /** The die's spot: start and end of every throw. */
   home: readonly [number, number];
   radius: number;
+  /** How high the centre lies above the table once the die lies on a face, as a share of the radius. */
+  lie: number;
+  /** Where the table holds the centre right now (see `floorAt`). */
+  floor: number;
   /** Half the stage in world units: the walls stand here. */
   stage: readonly [number, number];
   /** Delay until launch, so several dice set off staggered. */
@@ -84,23 +88,41 @@ const ROCK_TURNS = 3;
 /** The share of the throw from which it counts as arrived, for sparks and sound. */
 const LANDED_AT = 0.95;
 
-/** A die lying still and visible on its spot until `beginRoll` launches it. */
+/**
+ * **Where the table holds the die's centre at point `s` of the throw.**
+ *
+ * A tumbling body rolls over its edges and corners, so its centre stays high;
+ * a lying one rests on a face, lower, and much lower on a d4. The height comes
+ * down with the bounce (`damp`): by the time the die no longer hops, it lies.
+ */
+function floorAt(die: DieAnim, s: number): number {
+  return restHeight(die.radius, die.lie + (TUMBLE_HEIGHT - die.lie) * damp(s));
+}
+
+/**
+ * A die lying still and visible on its spot until `beginRoll` launches it.
+ * `lie` is its body's height when lying on a face (`lyingHeight`).
+ */
 export function makeDie(
   rng: Rng,
   home: readonly [number, number] = [0, 0],
   radius = 0.92,
   stage: readonly [number, number] = [STAGE_X, STAGE_Z],
+  lie = TUMBLE_HEIGHT,
 ): DieAnim {
   let q = qAxisAngle(randomAxis(rng), rng() * Math.PI * 2);
   q = qNormalize(qMul(qAxisAngle(randomAxis(rng), rng() * Math.PI), q));
+  const floor = restHeight(radius, lie);
   return {
     phase: 'rest',
-    p: [home[0], restHeight(radius), home[1]],
+    p: [home[0], floor, home[1]],
     v: [0, 0, 0],
     q,
     w: [0, 0, 0],
     home,
     radius,
+    lie,
+    floor,
     stage,
     delay: 0,
     target: q,
@@ -159,7 +181,8 @@ function angularVelocity(from: Quat, to: Quat, dt: number): Vec3 {
  */
 export function beginRoll(die: DieAnim, target: Quat, delay: number, rng: Rng, maxWallHits = Infinity): void {
   die.phase = 'throw';
-  die.p = [die.home[0], restHeight(die.radius) + 0.02, die.home[1]];
+  die.floor = restHeight(die.radius);
+  die.p = [die.home[0], die.floor + 0.02, die.home[1]];
   die.tour = planTour(die.home, die.radius, die.stage, rng, maxWallHits);
   die.cellX = cellOf(die.home[0], die.tour.wallX);
   die.cellZ = cellOf(die.home[1], die.tour.wallZ);
@@ -241,9 +264,12 @@ export function stepDie(die: DieAnim, dt: number, rng: Rng): void {
   const z = fold(uz, wallZ);
 
   // **The height** stays ballistics: fall, hit, hop shorter.
+  // The table gives way under a die that lies down (`floorAt`); the die rides
+  // it, so sinking onto its face is no fall and no impact.
+  const floor = floorAt(die, s);
   let vy = die.v[1] - GRAVITY * dt;
-  let y = die.p[1] + vy * dt;
-  const floor = restHeight(die.radius);
+  let y = die.p[1] - die.floor + floor + vy * dt;
+  die.floor = floor;
   if (y <= floor && vy < 0) {
     // **Resting is not an impact**, or every frame on the table would rattle.
     const impactSpeed = -vy;
@@ -308,7 +334,8 @@ export function restImmediately(die: DieAnim, target: Quat): void {
   die.phase = 'rest';
   die.q = target;
   die.target = target;
-  die.p = [die.home[0], restHeight(die.radius), die.home[1]];
+  die.floor = restHeight(die.radius, die.lie);
+  die.p = [die.home[0], die.floor, die.home[1]];
   die.v = [0, 0, 0];
   die.w = [0, 0, 0];
   die.wobble = qIdentity();

@@ -23,7 +23,7 @@ function open(overrides: Partial<TokenEntity> = {}): { store: ViewAtlasStore; sa
   const store = createViewAtlasStore(app, `edit-token-${Math.random()}`);
   const token: TokenEntity = { id: 't', kind: 'token', imagePath: 't.png', x: 0, y: 0, ...overrides };
   store.setState({ persistenceEnabled: false, objects: { ...store.getState().objects, tokens: { t: token } } });
-  act(() => openEditTokenModal(token, store, app));
+  act(() => openEditTokenModal(token, store, app, []));
   return { store, saved: () => store.getState().objects.tokens.t! };
 }
 
