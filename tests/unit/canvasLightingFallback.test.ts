@@ -1,18 +1,20 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { Container, type Graphics } from 'pixi.js';
+import { Container, Graphics } from 'pixi.js';
 import type { Viewport } from 'pixi-viewport';
 import { createViewAtlasStore, type ViewAtlasStore } from '../../src/app/storeFactory';
 import { CanvasLightingFallback } from '../../src/app/pixi/lighting/CanvasLightingFallback';
 import { holdTokens } from '../../src/app/lighting/sightOnDrop';
 import type { TokenEntity } from '../../src/app/types';
 import type { SceneLighting } from '../../src/app/types/lightingTypes';
+import { BUILT_IN_SENSES } from '../../src/app/gameSystems/senses';
+import type { SightRules } from '../../src/app/vision/sightRules';
 import { createInMemoryApp } from '../mocks/inMemoryVault';
 import { stubJsdomGraphics } from '../mocks/jsdomGraphics';
 
 let restore: (() => void) | undefined;
 afterEach(() => { restore?.(); restore = undefined; });
 
-function setup(tokens: Record<string, TokenEntity>, lighting: Partial<SceneLighting> = {}, onSightChange?: () => void): { fallback: CanvasLightingFallback; viewport: Container; store: ViewAtlasStore } {
+function setup(tokens: Record<string, TokenEntity>, lighting: Partial<SceneLighting> = {}, onSightChange?: () => void, rules?: SightRules): { fallback: CanvasLightingFallback; viewport: Container; store: ViewAtlasStore } {
   restore = stubJsdomGraphics();
   const { app } = createInMemoryApp();
   const store = createViewAtlasStore(app, `canvas-lighting-${Math.random()}`);
@@ -25,6 +27,7 @@ function setup(tokens: Record<string, TokenEntity>, lighting: Partial<SceneLight
     measurement: () => ({ mode: 'grid', unitType: 'feet', unitDistance: 5, diagonalRule: 'chebyshev', rangeBands: [] }) as never,
     bounds: () => ({ width: 1000, height: 1000 }),
     ...(onSightChange && { onSightChange }),
+    ...(rules && { rules: () => rules }),
   });
   return { fallback, viewport, store };
 }
@@ -32,6 +35,72 @@ function setup(tokens: Record<string, TokenEntity>, lighting: Partial<SceneLight
 const hero: TokenEntity = { id: 'hero', kind: 'token', imagePath: 'h.png', x: 100, y: 100, vision: { enabled: true, range: 10 } };
 
 describe('CanvasLightingFallback', () => {
+  it('works sight out by the senses and conditions of the map\'s collection', () => {
+    const seer: TokenEntity = { ...hero, vision: { enabled: true, senses: [{ id: 'pathfinder2e-darkvision' }, { id: 'blindsight', range: 10 }] }, conditions: ['blind'] };
+    const generic = setup({ seer }).fallback.currentSight();
+    expect(generic.regions.map((region) => region.sense.id)).toEqual(['sight', 'blindsight']);
+    restore?.();
+    const rules: SightRules = { definitions: BUILT_IN_SENSES['builtin:pathfinder2e']!, conditions: [{ id: 'blind', name: 'Blinded', color: '#000000', effect: 'blinded' }] };
+    const pathfinder = setup({ seer }, {}, undefined, rules).fallback.currentSight();
+    expect(pathfinder.regions.map((region) => region.sense.id)).toEqual(['blindsight']);
+    restore?.();
+    const sighted = setup({ seer: { ...seer, conditions: [] } }, {}, undefined, rules).fallback.currentSight();
+    expect(sighted.regions.map((region) => region.sense.id)).toEqual(['sight', 'pathfinder2e-darkvision', 'blindsight']);
+  });
+
+  it('cuts the darkness open at a party token no sense shows, and at a token that only a precise creature sense sees', () => {
+    const rules: SightRules = { definitions: BUILT_IN_SENSES['builtin:pathfinder2e']!, conditions: [{ id: 'blind', name: 'Blinded', color: '#000000', effect: 'blinded' }] };
+    const bat: TokenEntity = { ...hero, vision: { enabled: true, senses: [{ id: 'pathfinder2e-echolocation', range: 40 }] }, conditions: ['blind'] };
+    const prey: TokenEntity = { id: 'prey', kind: 'token', imagePath: 'p.png', x: 150, y: 100 };
+    /** The centres of the footprints cut out: each is the polygon of what its token's centre has in a clear line. */
+    const cuts = (tokens: Record<string, TokenEntity>): number[][] => {
+      const poly = vi.spyOn(Graphics.prototype, 'poly');
+      setup(tokens, {}, undefined, rules);
+      const centres = poly.mock.calls.map(([points]) => {
+        const flat = points as number[];
+        const xs = flat.filter((_, index) => index % 2 === 0);
+        const ys = flat.filter((_, index) => index % 2 === 1);
+        return [Math.round((Math.min(...xs) + Math.max(...xs)) / 2), Math.round((Math.min(...ys) + Math.max(...ys)) / 2), Math.round((Math.max(...xs) - Math.min(...xs)) / 2)];
+      });
+      poly.mockRestore();
+      restore?.();
+      return centres;
+    };
+    // The bat is blinded: it is shown in its own footprint, like the prey its echolocation finds.
+    expect(cuts({ bat })).toEqual([[100, 100, 31]]);
+    expect(cuts({ bat, prey })).toEqual([[100, 100, 31], [150, 100, 31]]);
+    expect(cuts({ bat, prey: { ...prey, x: 900 } })).toEqual([[100, 100, 31]]);
+  });
+
+  it('cuts a footprint by the walls its token stands at, and cuts none for a token whose condition hides it from every sense', () => {
+    const rules: SightRules = {
+      definitions: BUILT_IN_SENSES['builtin:pathfinder2e']!,
+      conditions: [{ id: 'blind', name: 'Blinded', color: '#000000', effect: 'blinded' }, { id: 'gone', name: 'Undetected', color: '#000000', effect: 'undetected' }],
+    };
+    const bat: TokenEntity = { ...hero, vision: { enabled: true, senses: [{ id: 'pathfinder2e-echolocation', range: 40 }] }, conditions: ['blind'] };
+    const prey: TokenEntity = { id: 'prey', kind: 'token', imagePath: 'p.png', x: 150, y: 100 };
+    const poly = vi.spyOn(Graphics.prototype, 'poly');
+    /** The x reach of every footprint cut out since the last call. */
+    const cuts = (): number[][] => {
+      const reach = poly.mock.calls.map(([points]) => {
+        const xs = (points as number[]).filter((_, index) => index % 2 === 0);
+        return [Math.round(Math.min(...xs)), Math.round(Math.max(...xs))];
+      });
+      poly.mockClear();
+      return reach;
+    };
+    const { store } = setup({ bat, prey }, {}, undefined, rules);
+    expect(cuts()).toEqual([[69, 131], [119, 181]]);
+    // A wall 8 px right of the bat's centre ends its footprint; the prey behind it is out of the echo's line.
+    store.getState().addWall({ type: 'solid', p1: { x: 108, y: 0 }, p2: { x: 108, y: 400 }, closed: true });
+    expect(cuts()).toEqual([[69, 108]]);
+    store.setState({ objects: { ...store.getState().objects, walls: {} } });
+    expect(cuts()).toHaveLength(2);
+    store.getState().updateToken('prey', { conditions: ['gone'] });
+    expect(cuts()).toEqual([[69, 131]]);
+    poly.mockRestore();
+  });
+
   it('blacks out the map outside sight in the player frame only', () => {
     const { fallback, viewport } = setup({ hero });
     const darkness = viewport.children[0]!;
@@ -48,25 +117,49 @@ describe('CanvasLightingFallback', () => {
     const onSightChange = vi.fn();
     const { fallback, store } = setup({ hero }, {}, onSightChange);
     expect(onSightChange).toHaveBeenCalledTimes(1);
-    onSightChange.mockImplementation(() => seen.push(fallback.currentSight().origins[0]!.x));
+    onSightChange.mockImplementation(() => seen.push(fallback.currentSight().regions[0]!.origin.x));
     store.getState().updateToken('hero', { x: 300 });
     expect(seen).toEqual([300]);
+  });
+
+  it('reports nothing for store changes sight does not read, and keeps its sight and its light reaches the same objects while they are the same', () => {
+    const prey: TokenEntity = { id: 'prey', kind: 'token', imagePath: 'p.png', x: 150, y: 100 };
+    const onSightChange = vi.fn();
+    const { fallback, store } = setup({ hero, prey }, {}, onSightChange);
+    // What the perception memo compares: the same objects while nothing changed.
+    expect(fallback.lightReaches()).toBe(fallback.lightReaches());
+    const sight = fallback.currentSight();
+    onSightChange.mockClear();
+    store.getState().setActiveTool('wall');
+    store.getState().setSelection(['hero']);
+    store.getState().setGMView(false);
+    expect(onSightChange).not.toHaveBeenCalled();
+    // A token without vision moved: who is seen may differ, the regions do not.
+    store.getState().updateToken('prey', { x: 160 });
+    expect(onSightChange).toHaveBeenCalledTimes(1);
+    expect(fallback.currentSight()).toBe(sight);
+    store.getState().updateToken('hero', { x: 300 });
+    expect(onSightChange).toHaveBeenCalledTimes(2);
+    expect(fallback.currentSight()).not.toBe(sight);
+    // The map's size is asked anew when the view says so.
+    fallback.refreshBounds();
+    expect(onSightChange).toHaveBeenCalledTimes(3);
   });
 
   it('keeps a held vision token\'s sight where it was taken until it is let go', () => {
     const { fallback, store } = setup({ hero });
     holdTokens(store, ['hero']);
     store.getState().setTokenPositions([{ id: 'hero', x: 300, y: 100 }]);
-    expect(fallback.currentSight().origins).toEqual([{ x: 100, y: 100 }]);
+    expect(fallback.currentSight().regions.map((region) => region.origin)).toEqual([{ x: 100, y: 100 }]);
     holdTokens(store, []);
-    expect(fallback.currentSight().origins).toEqual([{ x: 300, y: 100 }]);
+    expect(fallback.currentSight().regions.map((region) => region.origin)).toEqual([{ x: 300, y: 100 }]);
   });
 
   it('follows a held vision token when the scene switches sight on drop off', () => {
     const { fallback, store } = setup({ hero }, { sightOnDrop: false });
     holdTokens(store, ['hero']);
     store.getState().setTokenPositions([{ id: 'hero', x: 300, y: 100 }]);
-    expect(fallback.currentSight().origins).toEqual([{ x: 300, y: 100 }]);
+    expect(fallback.currentSight().regions.map((region) => region.origin)).toEqual([{ x: 300, y: 100 }]);
   });
 
   it('renders a thumbnail in the GM view while the canvas shows the players, and leaves the canvas on theirs', () => {

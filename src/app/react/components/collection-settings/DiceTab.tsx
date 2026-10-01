@@ -5,6 +5,7 @@
 import React from 'react';
 import { ObsidianMenuDropdown } from '../ObsidianMenuDropdown';
 import { isValidDefaultRoll } from '../../../gameSystems/diceRules';
+import { DefaultDiceInfo } from './DefaultDiceInfo';
 import { ExplodingDiceFields } from './ExplodingDiceFields';
 import type { CritRule, DiceRules } from '../../../types/diceRulesTypes';
 
@@ -17,6 +18,7 @@ const CRIT_OPTIONS: Record<CritRule, string> = {
   natural: 'Natural',
   'roll-under': 'Roll-under',
   doubles: 'Doubles',
+  'high-total': 'High total',
   none: 'None',
 };
 
@@ -24,6 +26,7 @@ const CRIT_DESCRIPTIONS: Record<CritRule, string> = {
   natural: 'The highest face is a critical success, a 1 a critical failure (natural 20 and natural 1).',
   'roll-under': 'A 1 is a critical success, the highest face a critical failure (percentile systems).',
   doubles: 'Default dice that all show the same number are a critical success (duality dice).',
+  'high-total': 'Default dice that add up to their highest total or one below it are a critical success (19 or 20 on 2d10 in Draw Steel).',
   none: 'Rolls are never critical.',
 };
 
@@ -38,7 +41,10 @@ export function DiceTab({ dice, onChange }: DiceTabProps): React.ReactElement {
       </p>
 
       <div className="atlas-csm-field">
-        <label className="atlas-csm-label" htmlFor="atlas-csm-default-roll">Default Roll</label>
+        <div className="atlas-csm-label-row">
+          <label className="atlas-csm-label" htmlFor="atlas-csm-default-roll">Default Roll</label>
+          <DefaultDiceInfo defaultRoll={dice.defaultRoll} />
+        </div>
         <input
           id="atlas-csm-default-roll"
           type="text"

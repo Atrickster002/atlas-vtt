@@ -4,6 +4,7 @@ import { vi } from 'vitest';
 import type { ViewAtlasState, ViewAtlasStore } from '../../../storeFactory';
 import type { MeasurementSettings } from '../../../grid/measurementFormat';
 import type { TokenEntity } from '../../../types';
+import type { SightRules } from '../../../vision/sightRules';
 import { createTestRenderer, readRgba } from '../engine/__tests__/gpuTestUtils';
 import { ExploredTexture } from '../ExploredTexture';
 import { LightingRenderer, type LightingRendererDeps } from '../LightingRenderer';
@@ -40,6 +41,8 @@ interface HarnessOptions {
   failFirstDecode?: boolean;
   attempt?: LightingRendererDeps['attempt'];
   onUnavailable?: LightingRendererDeps['onUnavailable'];
+  /** The sight rules of the map's collection; unset, the generic ones. */
+  rules?: () => SightRules;
 }
 
 /** A token with vision; a range (in game units) limits what it sees to a circle. */
@@ -97,7 +100,7 @@ async function fullMask(renderer: WebGLRenderer): Promise<string> {
   return mask;
 }
 
-export async function createHarness({ patch = {}, holdFirstDecode = false, failFirstDecode = false, attempt, onUnavailable }: HarnessOptions = {}): Promise<Harness> {
+export async function createHarness({ patch = {}, holdFirstDecode = false, failFirstDecode = false, attempt, onUnavailable, rules }: HarnessOptions = {}): Promise<Harness> {
   const renderer = await createTestRenderer(SIZE);
   const setExploredMask = vi.fn();
   const listeners = new Set<(state: ViewAtlasState) => void>();
@@ -139,6 +142,7 @@ export async function createHarness({ patch = {}, holdFirstDecode = false, failF
     albedo: () => null,
     ...(attempt ? { attempt } : {}),
     ...(onUnavailable ? { onUnavailable } : {}),
+    ...(rules ? { rules } : {}),
   });
   const explored = (): ExploredTexture => (lighting as unknown as { memory: { texture: ExploredTexture } }).memory.texture;
   const stageTarget = RenderTexture.create({ width: SIZE, height: SIZE });

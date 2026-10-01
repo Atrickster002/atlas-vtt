@@ -1,39 +1,24 @@
-import React, { useCallback, useEffect, useId, useMemo, useRef } from 'react';
-import { AnimatePresence, motion, useIsPresent, type MotionStyle } from 'framer-motion';
+import React, { useCallback, useEffect, useMemo, useRef } from 'react';
+import { AnimatePresence, motion, useIsPresent } from 'framer-motion';
 import { Lightbulb, LightbulbOff, Trash2 } from 'lucide-react';
 import { unitLabelFor } from '../../grid/measurementFormat';
-import { editEmission } from '../../lighting/lightEmissionForm';
 import { unitScaleOf } from '../../lighting/lightingUnits';
 import { maxLightRange } from '../../lighting/lightRanges';
 import { Button } from '../../packages/components/primitives/button';
 import { useAnchoredPopoverVariants } from '../../packages/components/primitives/dialogMotion';
-import { Select } from '../../packages/components/primitives/Select';
 import { TooltipProvider } from '../../packages/components/primitives/tooltip';
 import { useAtlasStore, useViewStoreHook } from '../../react/ViewStoreContext';
 import { useAtlasUI } from '../../react/root/AtlasUIContext';
 import { AssetService } from '../../services/AssetService';
 import { mapMeasurementSettings } from '../../services/mapMeasurementSettings';
 import { beginHistoryTransaction, endHistoryTransaction } from '../../stores/history';
-import type { LightAnimation, LightEmission } from '../../types/lightingTypes';
-import { SliderField } from './lightingPanelFields';
-import { lightMarkerLook } from './lightMarker';
-import { lightMarkerTheme } from './LightMarkers';
-import { ColorSwatches, KindChips, RangeFields } from './lightPopoverFields';
+import type { LightEmission } from '../../types/lightingTypes';
+import { useMapLightPresets } from '../../react/hooks/useMapLightPresets';
+import { LightEmissionFields } from './LightEmissionFields';
 import { useLightPopoverPosition } from './useLightPopoverPosition';
-
-const FLICKERS: { value: LightAnimation; label: string }[] = [
-  { value: 'none', label: 'Steady' },
-  { value: 'torch', label: 'Torch' },
-  { value: 'candle', label: 'Candle' },
-  { value: 'pulse', label: 'Pulse' },
-  { value: 'magic', label: 'Shimmer' },
-];
 
 /** Keys the popover's controls use themselves; they must not reach the map's shortcuts (Tab, Space, arrows). */
 const OWN_KEYS = new Set([' ', 'Enter', 'Tab', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End', 'PageUp', 'PageDown']);
-const AT_REST = { hovered: false, selected: false, dragging: false };
-
-const cssColor = (color: number): string => `#${color.toString(16).padStart(6, '0')}`;
 
 /**
  * The popover of the light the GM edits (store `lightPopover`), beside its marker on the map.
@@ -61,8 +46,8 @@ function LightPopover({ lightId }: { lightId: string }): React.ReactElement | nu
   const shown = useRef(current);
   if (current) shown.current = current;
   const light = shown.current;
+  const presets = useMapLightPresets();
   const ref = useRef<HTMLElement>(null);
-  const flickerId = useId();
   const present = useIsPresent();
   const variants = useAnchoredPopoverVariants();
   useLightPopoverPosition(ref, lightId, unitDistance);
@@ -90,16 +75,11 @@ function LightPopover({ lightId }: { lightId: string }): React.ReactElement | nu
     if (next !== emission) store.getState().updateLight(light.id, { emission: next });
   };
   const close = (): void => store.getState().closeLightPopover();
-  // The chosen kind's chip is the marker in small: the theme's badge, glyph and ring in the light's colour.
-  const theme = lightMarkerTheme();
-  const look = lightMarkerLook({ ...light, hidden: false }, AT_REST, theme);
-  const style = { '--atlas-light-badge': cssColor(theme.background), '--atlas-light-tint': cssColor(look.glyphTint) } as MotionStyle;
 
   return (
     <motion.section
       ref={ref}
       className="atlas-light-popover"
-      style={style}
       variants={variants}
       initial="hidden"
       animate="visible"
@@ -111,28 +91,24 @@ function LightPopover({ lightId }: { lightId: string }): React.ReactElement | nu
       onKeyDown={(event) => {
         if (event.key === 'Escape') {
           event.stopPropagation();
-          // A list inside (the flicker select) closed itself with this key.
+          // A list inside (the flicker select, the menu of more lights) closed itself with this key.
           if (!event.defaultPrevented) close();
         } else if (OWN_KEYS.has(event.key)) {
           event.stopPropagation();
         }
       }}
     >
-      <KindChips emission={emission} onChange={update} />
-      <div className="atlas-light-popover__section">
-        <ColorSwatches color={emission.color} onChange={(color) => update({ ...emission, color })} onPickStart={beginPick} onPickEnd={endPick} />
-      </div>
-      <div className="atlas-light-popover__section">
-        <RangeFields emission={emission} unit={unitLabelFor(unitType)} unitDistance={unitDistance} maxRange={maxRange} onChange={update} onSliderPointerDown={onSliderPointerDown} />
-        <SliderField label="Intensity" value={emission.intensity} min={0} max={2} step={0.05} display={`${Math.round(emission.intensity * 100)} %`}
-          onPointerDown={onSliderPointerDown} onChange={(value) => update(editEmission(emission, 'intensity', String(value)))} />
-        <SliderField label="Softness" value={emission.sourceRadius ?? 1} min={0} max={5} step={0.25} display={String(emission.sourceRadius ?? 1)}
-          onPointerDown={onSliderPointerDown} onChange={(value) => update(editEmission(emission, 'sourceRadius', String(value)))} />
-        <div className="atlas-light-popover__flicker">
-          <span id={flickerId}>Flicker</span>
-          <Select value={emission.animation} options={FLICKERS} labelledBy={flickerId} onChange={(animation) => update({ ...emission, animation })} />
-        </div>
-      </div>
+      <LightEmissionFields
+        emission={emission}
+        onChange={update}
+        presets={presets}
+        unit={unitLabelFor(unitType)}
+        unitDistance={unitDistance}
+        maxRange={maxRange}
+        onSliderPointerDown={onSliderPointerDown}
+        onPickStart={beginPick}
+        onPickEnd={endPick}
+      />
       <div className="atlas-light-popover__section atlas-light-popover__actions">
         <Button variant="ghost" size="sm" onClick={() => store.getState().updateLight(light.id, { hidden: !light.hidden })}>
           {light.hidden ? <Lightbulb /> : <LightbulbOff />}

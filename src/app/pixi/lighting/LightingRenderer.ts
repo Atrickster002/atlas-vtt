@@ -4,6 +4,7 @@ import type { ViewAtlasState, ViewAtlasStore } from '../../storeFactory';
 import type { MeasurementSettings } from '../../grid/measurementFormat';
 import { sceneLook, type SceneLook } from '../../lighting/sceneLightingOptions';
 import { SEES_ALL, type AmbientLight, type LightReach, type Sight } from '../../vision/sight';
+import type { SightRules } from '../../vision/sightRules';
 import type { MapBounds } from '../../vision/visibility';
 import type { HideableLayer } from '../playerSafeFrame';
 import { requestRender } from '../RenderScheduler';
@@ -13,7 +14,7 @@ import type { EngineScene, SceneFrame } from './engine/types';
 import { ExploredMemory } from './ExploredMemory';
 import type { LightingAttempt } from './lightingAttempts';
 import { PlayerView } from './PlayerView';
-import { SceneModelBuilder, type SceneModel } from './sceneModel';
+import { SceneModelBuilder, SceneSpots, type SceneModel } from './sceneModel';
 import type { SceneLightingView } from './sceneLightingView';
 
 /** Above tokens, below their nameplates and bars (100): the GM keeps readable labels in the dark. */
@@ -32,6 +33,8 @@ export interface LightingRendererDeps {
   bounds: () => MapBounds | null;
   /** The map image, covering world `[0, width] × [0, height]`; bounce reads its colours. */
   albedo: () => Texture | null;
+  /** The senses and conditions of the map's collection; the generic ones without it. */
+  rules?: () => SightRules;
   /** The device-local record of attempts to light this map; without one every attempt is made. */
   attempt?: LightingAttempt;
   /** The engine cannot light this view. The renderer has stopped; its owner replaces and destroys it. */
@@ -65,6 +68,7 @@ export class LightingRenderer implements SceneLightingView {
   private readonly memory: ExploredMemory;
   /** What the scene is built from, and when it is built anew (`SceneModelBuilder`). */
   private readonly model = new SceneModelBuilder();
+  private readonly spots = new SceneSpots();
   private reaches: LightReach[] = [];
   private sight: Sight = SEES_ALL;
   /** The last scene without its look (`SceneLook`), reused while only the look changes. */
@@ -182,9 +186,10 @@ export class LightingRenderer implements SceneLightingView {
     this.engine.setEnabled(true);
     this.memory.sync(bounds, state.exploredMask);
 
-    const { model, rebuilt } = this.model.update(state, bounds, this.deps.measurement);
+    const { model, rebuilt } = this.model.update(state, bounds, this.deps.measurement, this.deps.rules);
     const base = rebuilt || !this.lastScene ? (this.lastScene = this.takeModel(model, state, bounds)) : this.lastScene;
-    this.engine.update({ ...base, ...sceneLook(lighting) });
+    const spots = this.spots.update(model, state, this.deps.measurement, this.deps.rules);
+    this.engine.update({ ...base, spots, ...sceneLook(lighting) });
     requestRender(this.deps.app);
   }
 

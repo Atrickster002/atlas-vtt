@@ -1,5 +1,4 @@
 import type { LightEmission } from '../types/lightingTypes';
-import { LIGHT_PRESETS, type LightPresetId } from './lightPresets';
 
 export type EmissionNumberField = 'bright' | 'dim' | 'intensity' | 'sourceRadius';
 
@@ -38,8 +37,4 @@ function typedNumber(input: string, locale?: string): number {
 export function editEmission(emission: LightEmission, field: EmissionNumberField, input: string, maxRange?: number, locale?: string): LightEmission {
   const parsed = typedNumber(input, locale);
   return Number.isFinite(parsed) ? withEmissionValue(emission, field, parsed, maxRange) : emission;
-}
-
-export function emissionOfPreset(id: LightPresetId): LightEmission {
-  return { ...LIGHT_PRESETS[id].emission };
 }

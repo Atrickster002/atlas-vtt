@@ -64,6 +64,15 @@ export function sameSenses(a: readonly SenseDefinition[] | undefined, b: readonl
 }
 
 /**
+ * Whether the sense shows the map with the tokens on it: only a sense walls stop. One that
+ * reaches through walls senses creatures, whatever its stored `reveals` says, so nothing of the
+ * map is ever drawn or remembered past a wall.
+ */
+export function showsMap(sense: Pick<SenseDefinition, 'reveals' | 'lineOfSight'>): boolean {
+  return sense.reveals === 'all' && sense.lineOfSight;
+}
+
+/**
  * The light level a point at `level` counts as for a token perceiving it through `sense`:
  * `bright`, `dim`, or null when the sense perceives nothing there.
  */

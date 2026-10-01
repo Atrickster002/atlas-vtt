@@ -1,4 +1,5 @@
 import type { SystemPreset } from '../../types/systemPresetTypes';
+import { SHADOWDARK_LIGHTS } from '../lightPresets/shadowdark';
 import type { TimerWidget } from '../../types/widgetTypes';
 import { HP_RESOURCE } from '../../resources/resourceDefinitions';
 import { SHADOWDARK_SENSES } from '../senses/shadowdark';
@@ -59,6 +60,7 @@ export const SHADOWDARK: SystemPreset = {
       { name: 'Focus', color: '#7c3aed', icon: 'meditation' },
     ]),
     senses: SHADOWDARK_SENSES,
+    lightPresets: SHADOWDARK_LIGHTS,
     widgets: [SHADOWDARK_TORCH],
     resources: [{ ...HP_RESOURCE }],
   },

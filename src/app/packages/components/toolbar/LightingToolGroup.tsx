@@ -2,7 +2,9 @@ import React, { useState } from "react"
 import { BrickWall, Flame, FlameKindling, Lamp, Lightbulb, MousePointer2, Pencil, Sparkles } from "lucide-react"
 import { useHotkeyLabels } from "../../../keyboard/useMapHotkeys"
 import { useAtlasStore } from "../../../react/ViewStoreContext"
-import { LIGHT_PRESETS, LIGHT_PRESET_IDS, type LightPresetId } from "../../../lighting/lightPresets"
+import { chosenLightPreset } from "../../../lighting/lightPresetChoice"
+import { useMapLightPresets } from "../../../react/hooks/useMapLightPresets"
+import type { LightKind } from "../../../types/lightingTypes"
 import type { WallToolMode, WallToolSubMode } from "../../../tools/WallTool"
 import { DropdownMenuItem, type DropdownMenuItemProps } from "../primitives/DropdownMenuItem"
 import { SceneLightingSection } from "./SceneLightingSection"
@@ -23,11 +25,13 @@ const DRAW_MODES: readonly { value: WallToolMode; icon: RowIcon; label: string }
   { value: 'freeform', icon: Pencil, label: 'Freehand' },
 ]
 
-const PRESET_ICONS: Record<LightPresetId, RowIcon> = {
+/** A row's icon for each kind of light a preset can be. */
+const KIND_ICONS: Record<LightKind, RowIcon> = {
   candle: Flame,
   torch: FlameKindling,
   lantern: Lamp,
   magical: Sparkles,
+  custom: Lightbulb,
 }
 
 /** Walls, lights and the scene's lighting in one place. DM only, behind WALLS_AND_LIGHTING_ENABLED. */
@@ -39,7 +43,10 @@ export function LightingToolGroup({ activeTool, selectTool, menuOpen, toggleMenu
   const setSceneLightingPanelOpen = useAtlasStore((state) => state.setSceneLightingPanelOpen)
   const [subMode, setSubMode] = useState<WallToolSubMode>('draw')
   const [drawMode, setDrawMode] = useState<WallToolMode>('point-to-point')
-  const [preset, setPreset] = useState<LightPresetId>('torch')
+  const presets = useMapLightPresets()
+  // The chosen preset's id; the collection's torch until one is chosen, and again once the collection no longer has it.
+  const [presetId, setPresetId] = useState<string | null>(null)
+  const preset = chosenLightPreset(presets, presetId)
   const face = lightingToolFace(activeTool)
 
   return (
@@ -81,14 +88,14 @@ export function LightingToolGroup({ activeTool, selectTool, menuOpen, toggleMenu
               emit('wall-mode-changed', value)
             }}
           />
-        )) : LIGHT_PRESET_IDS.map((id) => (
+        )) : presets.map(({ id, name, kind }) => (
           <DropdownMenuItem
             key={id}
-            icon={PRESET_ICONS[id]}
-            label={LIGHT_PRESETS[id].label}
-            isActive={id === preset}
+            icon={KIND_ICONS[kind]}
+            label={name}
+            isActive={id === preset.id}
             onClick={() => {
-              setPreset(id)
+              setPresetId(id)
               emit('lighting-preset-changed', id)
             }}
           />

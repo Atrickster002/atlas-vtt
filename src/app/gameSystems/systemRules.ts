@@ -16,6 +16,7 @@ import { HP_RESOURCE, sameResourceDefinitions } from '../resources/resourceDefin
 import { barWidgets } from '../resources/sceneVisibility';
 import { conditionEffect } from './conditionEffects';
 import { DEFAULT_DICE_RULES, sameDiceRules } from './diceRules';
+import { sameLightPresets } from './lightPresetRules';
 import { sameSenses } from './senseRules';
 import { hasVisionDefaults, sameVisionDefaults } from './visionDefaults';
 
@@ -30,12 +31,12 @@ export const DEFAULT_GRID_DEFAULTS: Readonly<CollectionGridDefaults> = {
 
 /** What a game system sets in a collection's settings. */
 export type SystemSettings = Required<Pick<CollectionSettings, 'gridDefaults' | 'conditions' | 'defaultWidgets' | 'dice' | 'resources'>>
-  & Pick<CollectionSettings, 'systemPresetId' | 'defaultTokenVision' | 'senses'>;
+  & Pick<CollectionSettings, 'systemPresetId' | 'defaultTokenVision' | 'senses' | 'lightPresets'>;
 
 /**
  * A collection without a game system: default measurement and dice, HP as its only resource
  * (its bar on for new scenes), no conditions, no default widgets, no default vision, and no
- * senses of its own, so it uses the generic ones.
+ * senses or light presets of its own, so it uses the generic ones.
  */
 export function vanillaSystemSettings(): SystemSettings {
   return {
@@ -47,6 +48,7 @@ export function vanillaSystemSettings(): SystemSettings {
     systemPresetId: undefined,
     defaultTokenVision: undefined,
     senses: undefined,
+    lightPresets: undefined,
   };
 }
 
@@ -55,7 +57,8 @@ export function vanillaSystemSettings(): SystemSettings {
  * conditions with their own ids, and of its default token vision when it sets one. Conditions
  * from the previous system never carry over; the ones tokens still have are removed when the
  * collection is saved. Senses are not copied: the collection reads its preset's
- * (`collectionSenses`) until the GM edits them, so a corrected built-in sense reaches it.
+ * (`collectionSenses`) until the GM edits them, so a corrected built-in sense reaches it; its
+ * light presets are read the same way (`collectionLightPresets`).
  */
 export function rulesOfPreset(
   preset: SystemPreset,
@@ -101,7 +104,7 @@ function enabledWidgets(defaultWidgets: Record<string, boolean> | undefined): st
 
 /**
  * Whether a collection's `rules` play as `preset` does; condition ids do not matter. Rules
- * without senses of their own read the preset's, so they are the same in that.
+ * without senses or light presets of their own read the preset's, so they are the same in that.
  */
 export function sameSystemRules(preset: SystemRules, rules: SystemRules): boolean {
   return sameGridDefaults(preset.gridDefaults, rules.gridDefaults)
@@ -110,6 +113,7 @@ export function sameSystemRules(preset: SystemRules, rules: SystemRules): boolea
     && enabledWidgets(preset.defaultWidgets) === enabledWidgets(rules.defaultWidgets)
     && sameVisionDefaults(preset.defaultTokenVision, rules.defaultTokenVision)
     && (rules.senses === undefined || sameSenses(preset.senses, rules.senses))
+    && (rules.lightPresets === undefined || sameLightPresets(preset.lightPresets, rules.lightPresets))
     && preset.conditions.length === rules.conditions.length
     && preset.conditions.every((condition, i) => sameCondition(condition, rules.conditions[i]!));
 }

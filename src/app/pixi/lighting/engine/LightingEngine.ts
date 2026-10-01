@@ -7,6 +7,7 @@ import type { CapsuleField } from './CapsuleField';
 import { createCompositeFilter, type CompositeFilter, type LightingMode } from './compositeFilter';
 import { contextLost, glOf } from './gpu';
 import { LightingWorld } from './LightingWorld';
+import { ambientLift, darkLooks } from './senseDrawing';
 import { describeShaderFailures, failedEngineShaders } from './shaderCheck';
 import { SightMeshes } from './SightMeshes';
 import type { EngineScene, SceneFrame } from './types';
@@ -35,6 +36,7 @@ export class LightingEngine {
   /** An off-screen render holds the composite on its own view (`renderFrame`). */
   private viewHeld = false;
   private sight: Sight | null = null;
+  private spots: EngineScene['spots'];
   private scene: EngineScene | null = null;
   private enabled = false;
   private ownsBackBuffer = false;
@@ -93,12 +95,19 @@ export class LightingEngine {
       this.boundField = world.fieldAll();
       composite.setWorld(world);
     }
-    if (scene.sight !== this.sight) {
+    const newSight = scene.sight !== this.sight;
+    const newSpots = scene.spots !== this.spots;
+    if (newSight) {
       this.sight = scene.sight;
       this.sightMeshes.draw(scene.sight, scene.sightRadius);
       composite.setAllSeen(scene.sight.all);
     }
-    composite.setAmbient(scene.ambient, scene.ambientColor);
+    if (newSpots) {
+      this.spots = scene.spots;
+      this.sightMeshes.drawSpots(scene.sight.all ? [] : scene.spots ?? []);
+    }
+    if (newSight || newSpots) composite.setDarkLooks(darkLooks(scene.sight, !!scene.spots?.length));
+    composite.setAmbient(scene.ambient, scene.ambientColor, ambientLift(scene));
     composite.setMemoryShown(exploredMemoryOn(scene));
     composite.setMemoryColours(scene.exploredColor, scene.unexploredColor);
   }

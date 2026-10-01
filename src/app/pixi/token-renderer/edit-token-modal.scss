@@ -55,3 +55,8 @@
   padding: $spacing-xs;
   line-height: 1;
 }
+
+// The carried light's fields are the light popover's, in its spacing.
+.atlas-edit-token__light {
+  @include atlas-flex-col($spacing-s);
+}

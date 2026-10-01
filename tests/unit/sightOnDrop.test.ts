@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createViewAtlasStore, type ViewAtlasState, type ViewAtlasStore } from '../../src/app/storeFactory';
 import { InteractionController } from '../../src/app/pixi/token-renderer/InteractionController';
-import { tokenSeenPredicate } from '../../src/app/pixi/lighting/playerLightingLayers';
+import { tokenPerception } from '../../src/app/pixi/lighting/playerLightingLayers';
 import { SceneModelBuilder } from '../../src/app/pixi/lighting/sceneModel';
 import { heldForSight, holdTokens } from '../../src/app/lighting/sightOnDrop';
 import { getHistoryStore } from '../../src/app/stores/history';
@@ -11,7 +11,9 @@ import type { LightEmission, SceneLighting } from '../../src/app/types/lightingT
 import type { WallSegment } from '../../src/app/types/wallTypes';
 import type { ExploredShapes } from '../../src/app/vision/exploredShapes';
 import { SEES_ALL, type LightReach, type Sight } from '../../src/app/vision/sight';
-import { pointInPolygon } from '../../src/app/vision/visibility';
+import { pointInPolygon, type Polygon } from '../../src/app/vision/visibility';
+import { NORMAL_SIGHT } from '../../src/app/gameSystems/senses';
+import type { Point } from '../../src/app/types/visionTypes';
 import { createInMemoryApp } from '../mocks/inMemoryVault';
 
 const BOUNDS = { width: 1000, height: 600 };
@@ -43,7 +45,9 @@ const hero = (extra: Partial<TokenEntity> = {}): TokenEntity => token('hero', LE
  */
 class SceneRig {
   rebuilds = 0;
-  sight: Sight = SEES_ALL;
+  /** The sight of the vision tokens: where each sees from and what, one entry per token. */
+  sight: { all: boolean; origins: Point[]; polygons: (Polygon | null)[] } = { all: true, origins: [], polygons: [] };
+  private perceived: Sight = SEES_ALL;
   reaches: LightReach[] = [];
   lightsAt: Array<{ key: string; x: number; y: number }> = [];
   readonly recorded: ExploredShapes[] = [];
@@ -58,7 +62,9 @@ class SceneRig {
     const { model, rebuilt } = this.model.update(state, BOUNDS, () => MEASUREMENT);
     if (!rebuilt) return;
     this.rebuilds++;
-    this.sight = model.sight;
+    this.perceived = model.sight;
+    const seeing = model.sight.regions.filter((region) => region.sense === NORMAL_SIGHT);
+    this.sight = { all: model.sight.all, origins: seeing.map((region) => region.origin), polygons: seeing.map((region) => region.polygon) };
     this.reaches = model.reaches;
     this.lightsAt = model.lights.map(({ key, x, y }) => ({ key, x, y }));
     if (model.explored) this.recorded.push(model.explored);
@@ -72,7 +78,7 @@ class SceneRig {
   /** Whether the players see the token, as their frame and session view decide. */
   seen(tokenId: string): boolean {
     const state = this.store.getState();
-    return tokenSeenPredicate(this.sight, state.lighting, this.reaches, state.objects.tokens, heldForSight(state))(tokenId);
+    return tokenPerception(this.perceived, state.lighting, this.reaches, state.objects.tokens, { held: heldForSight(state) })(tokenId) !== 'unseen';
   }
 }
 

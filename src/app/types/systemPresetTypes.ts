@@ -7,6 +7,7 @@ import type { ResourceDefinition } from '../resources/resourceTypes';
 import type { CollectionGridDefaults, ConditionDefinition } from './collectionSettingsTypes';
 import type { DiceRules } from './diceRulesTypes';
 import type { TokenVisionDefaults } from './lightingTypes';
+import type { LightPresetDefinition } from './lightPresetTypes';
 import type { SenseDefinition } from './senseTypes';
 import type { AnyWidget } from './widgetTypes';
 
@@ -39,6 +40,11 @@ export interface SystemRules {
    * its collections use the generic senses (`collectionSenses`).
    */
   senses?: readonly SenseDefinition[];
+  /**
+   * The lights the system's rules name. Unset for a system whose rules name none: its
+   * collections offer the generic ones (`collectionLightPresets`).
+   */
+  lightPresets?: readonly LightPresetDefinition[];
 }
 
 /** Built-in preset ids start with this; user presets never do. */

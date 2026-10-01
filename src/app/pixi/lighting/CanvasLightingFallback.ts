@@ -1,13 +1,17 @@
 import { Graphics } from 'pixi.js';
 import type { Viewport } from 'pixi-viewport';
 import type { ViewAtlasState, ViewAtlasStore } from '../../storeFactory';
+import type { WallSegment } from '../../types/wallTypes';
 import type { MeasurementSettings } from '../../grid/measurementFormat';
 import { unitScaleOf } from '../../lighting/lightingUnits';
 import { sealedWalls } from '../../lighting/sealWalls';
 import { worldTexel } from '../../lighting/lightingConstants';
-import { SightTokens } from '../../lighting/sightOnDrop';
+import { showsMap } from '../../gameSystems/senseRules';
+import { SightTokens, heldForSight } from '../../lighting/sightOnDrop';
 import { SEES_ALL, SightCache, sceneSight, sightSources, type AmbientLight, type LightReach, type Sight } from '../../vision/sight';
 import { wallList } from '../../vision/wallList';
+import { seenSpots, type SeenSpot } from '../../vision/perception';
+import type { SightRules } from '../../vision/sightRules';
 import type { MapBounds } from '../../vision/visibility';
 import type { HideableLayer } from '../playerSafeFrame';
 import { destroyTree } from '../utils/destroyTree';
@@ -18,13 +22,17 @@ import type { SceneLightingView } from './sceneLightingView';
 
 /** Full ambient light: everything in sight counts as lit. */
 const FULL_DAYLIGHT: AmbientLight = { ambient: 1 };
+/** The fallback has no lights. One list, so whoever compares it (`PerceptionMemo`) finds it unchanged. */
+const NO_REACHES: LightReach[] = [];
 
 export interface CanvasLightingDeps {
   viewport: Viewport;
   store: ViewAtlasStore;
   measurement: () => MeasurementSettings;
   bounds: () => MapBounds | null;
-  /** What the tokens see was worked out anew. */
+  /** The senses and conditions of the map's collection; the generic ones without it. */
+  rules?: () => SightRules;
+  /** What the tokens see, or what sight goes by (tokens, walls, lighting, rules), changed. */
   onSightChange?: () => void;
 }
 
@@ -42,6 +50,10 @@ export class CanvasLightingFallback implements SceneLightingView {
   private readonly cache = new SightCache();
   private readonly sightTokens = new SightTokens();
   private sight: Sight = SEES_ALL;
+  /** What the last update read: a store change that touches none of it works nothing out. */
+  private inputs: readonly unknown[] = [];
+  /** The walls with their bridges, kept while the drawn walls and the map's size stay, so the sight cache knows them. */
+  private sealed: { drawn: ViewAtlasState['objects']['walls']; texel: number; walls: readonly WallSegment[] } | null = null;
   private readonly playerView = new PlayerView((shown) => { this.darkness.visible = shown; });
   private readonly unsubscribe: () => void;
 
@@ -56,9 +68,12 @@ export class CanvasLightingFallback implements SceneLightingView {
 
   isEnabled(): boolean { return this.deps.store.getState().lighting.enabled; }
   currentSight(): Sight { return this.sight; }
-  lightReaches(): LightReach[] { return []; }
+  lightReaches(): LightReach[] { return NO_REACHES; }
   ambientLight(): AmbientLight { return FULL_DAYLIGHT; }
-  refreshBounds(): void { this.update(this.deps.store.getState()); }
+  refreshBounds(): void {
+    this.inputs = [];
+    this.update(this.deps.store.getState());
+  }
   resetExplored(): void { /* The fallback keeps no explored memory. */ }
   beforeMapUnload(): void { /* Nothing is pending in the fallback. */ }
 
@@ -75,23 +90,45 @@ export class CanvasLightingFallback implements SceneLightingView {
 
   private update(state: ViewAtlasState): void {
     const bounds = this.deps.bounds();
+    const rules = this.deps.rules?.();
+    const measurement = this.deps.measurement();
+    const held = heldForSight(state);
+    const inputs = [state.lighting, state.objects.tokens, state.objects.walls, state.grid, held, rules, bounds?.width, bounds?.height, measurement.unitDistance];
+    if (inputs.every((input, i) => input === this.inputs[i]) && inputs.length === this.inputs.length) return;
+    this.inputs = inputs;
     if (!state.lighting.enabled || !bounds) {
       this.darkness.clear();
       return;
     }
-    const scale = unitScaleOf(this.deps.measurement(), state.grid);
-    const walls = sealedWalls(wallList(state.objects.walls), worldTexel(bounds));
-    this.sight = sceneSight(state.lighting, sightSources(this.sightTokens.read(state), scale, bounds), walls, this.cache);
-    this.drawDarkness(bounds);
+    const scale = unitScaleOf(measurement, state.grid);
+    const walls = this.sealedWalls(state.objects.walls, worldTexel(bounds));
+    const tokens = this.sightTokens.read(state);
+    const sight = sceneSight(state.lighting, sightSources(tokens, scale, bounds, rules), walls, this.cache);
+    // The same regions are the same sight: what was worked out from it (who is seen) stays good.
+    if (!sameSight(sight, this.sight)) this.sight = sight;
+    const spots = seenSpots(this.sight, FULL_DAYLIGHT, NO_REACHES, state.objects.tokens, scale.cellSize, walls, { conditions: rules?.conditions ?? [], held });
+    this.drawDarkness(bounds, spots);
     this.deps.onSightChange?.();
   }
 
-  private drawDarkness(bounds: MapBounds): void {
+  private sealedWalls(drawn: ViewAtlasState['objects']['walls'], texel: number): readonly WallSegment[] {
+    const kept = this.sealed;
+    if (kept && kept.drawn === drawn && kept.texel === texel) return kept.walls;
+    const walls = sealedWalls(wallList(drawn), texel);
+    this.sealed = { drawn, texel, walls };
+    return walls;
+  }
+
+  /** Black over the map, cut open where a sense shows it and at each token seen without the map around it. */
+  private drawDarkness(bounds: MapBounds, spots: readonly SeenSpot[]): void {
     const g = this.darkness;
     g.clear();
     if (this.sight.all) return;
     g.rect(0, 0, bounds.width, bounds.height).fill({ color: 0x000000 });
-    for (const polygon of this.sight.polygons) {
+    for (const { sense, polygon } of this.sight.regions) {
+      if (showsMap(sense) && polygon && polygon.length >= 3) g.poly(polygon.flatMap((p) => [p.x, p.y])).cut();
+    }
+    for (const { polygon } of spots) {
       if (polygon.length >= 3) g.poly(polygon.flatMap((p) => [p.x, p.y])).cut();
     }
     this.darkness.visible = this.playerView.visible;
@@ -101,4 +138,8 @@ export class CanvasLightingFallback implements SceneLightingView {
     this.unsubscribe();
     destroyTree(this.darkness);
   }
+}
+
+function sameSight(a: Sight, b: Sight): boolean {
+  return a.all === b.all && a.regions.length === b.regions.length && a.regions.every((region, i) => region === b.regions[i]);
 }

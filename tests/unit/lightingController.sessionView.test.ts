@@ -2,7 +2,7 @@ import { EventEmitter } from 'events';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Application, EventSystem, FederatedPointerEvent } from 'pixi.js';
 import { Viewport } from 'pixi-viewport';
-import { emissionOfPreset } from '../../src/app/lighting/lightEmissionForm';
+import { genericLight } from '../mocks/lights';
 import { holdTokens } from '../../src/app/lighting/sightOnDrop';
 import { LightingController } from '../../src/app/pixi/lighting/LightingController';
 import type { LightPointerHandlers } from '../../src/app/pixi/lighting/LightInteraction';
@@ -12,6 +12,10 @@ import type { TokenRenderer } from '../../src/app/pixi/TokenRenderer';
 import { createViewAtlasStore, type ViewAtlasStore } from '../../src/app/storeFactory';
 import { getHistoryStore } from '../../src/app/stores/history';
 import { SEES_ALL, computeSight, type Sight } from '../../src/app/vision/sight';
+import { AssetService } from '../../src/app/services/AssetService';
+import { GENERIC_SIGHT_RULES } from '../../src/app/vision/sightRules';
+import type { TokenSensesResolver } from '../../src/app/creatures/tokenSensesResolver';
+import type { App } from 'obsidian';
 import { createInMemoryApp } from '../mocks/inMemoryVault';
 import { stubJsdomGraphics } from '../mocks/jsdomGraphics';
 
@@ -19,19 +23,21 @@ const lighting = vi.hoisted(() => ({
   sight: null as unknown,
   deps: null as unknown,
   modeLayer: { visible: false },
+  refreshBounds: (): void => {},
 }));
 
 vi.mock('../../src/app/pixi/lighting/createSceneLighting', () => ({
   createSceneLighting: (deps: SceneLightingDeps): SceneLightingView => {
     lighting.deps = deps;
     lighting.modeLayer = { visible: false };
+    lighting.refreshBounds = vi.fn();
     return {
       modeLayer: lighting.modeLayer,
       isEnabled: () => deps.store.getState().lighting.enabled,
       currentSight: () => lighting.sight as Sight,
       lightReaches: () => [],
       ambientLight: () => ({ ambient: 1 }),
-      refreshBounds: vi.fn(),
+      refreshBounds: () => lighting.refreshBounds(),
       resetExplored: vi.fn(),
       beforeMapUnload: vi.fn(),
       renderForFrame: (_frame, render) => render(),
@@ -55,14 +61,23 @@ interface Wired {
   contextMenu: (x: number, y: number, screenX: number, screenY: number) => void;
   cursor: (x: number, y: number) => string;
   doorClick: (x: number, y: number) => boolean;
-  playerSight: () => ((tokenId: string) => boolean) | undefined;
+  playerSight: () => ((tokenId: string) => string) | undefined;
   refreshPlayerSight: ReturnType<typeof vi.fn>;
+  /** The layer of the sensed tokens' outlines, as the token renderer gives it. */
+  sensedOutlines: { visible: boolean };
+  /** The hover card's line, as the controller words it. */
+  sightLine: (tokenId: string) => string | null;
+  /** Refreshes an open hover card. */
+  refreshSightLine: ReturnType<typeof vi.fn>;
 }
 
 interface Setup {
   controller: LightingController;
   store: ViewAtlasStore;
   eventBus: EventEmitter;
+  obsApp: App;
+  /** Tells the controller a collection's settings changed, as `AssetService` does through the workspace. */
+  collectionSettingsChanged: () => void;
   wired: Wired;
   click: (x: number, y: number, keys?: { shift?: boolean }) => boolean;
 }
@@ -74,7 +89,9 @@ afterEach(() => {
   cleanup = null;
 });
 
-function setup(): Setup {
+const nextFrame = (): Promise<void> => new Promise((resolve) => window.requestAnimationFrame(() => resolve()));
+
+function setup(extra: Partial<ConstructorParameters<typeof LightingController>[0]> = {}): Setup {
   const restoreGraphics = stubJsdomGraphics();
   lighting.sight = SEES_ALL;
   const events = { domElement: document.createElement('canvas') } as unknown as EventSystem;
@@ -93,8 +110,9 @@ function setup(): Setup {
     viewId: 'session-view',
     bounds: () => ({ width: 1000, height: 1000 }),
     albedo: () => null,
+    ...extra,
   });
-  const wired = { refreshPlayerSight: vi.fn() } as Wired;
+  const wired = { refreshPlayerSight: vi.fn(), sensedOutlines: { visible: false }, refreshSightLine: vi.fn() } as Wired;
   controller.wire({
     setWallPointerDownHandler: (fn: Wired['pointerDown']) => { wired.pointerDown = fn; },
     setWallPointerMoveHandler: (fn: Wired['pointerMove']) => { wired.pointerMove = fn; },
@@ -106,6 +124,11 @@ function setup(): Setup {
     setLightHandlers: (handlers: LightPointerHandlers) => { wired.light = handlers; },
     setPlayerSightProvider: (fn: Wired['playerSight']) => { wired.playerSight = fn; },
     refreshPlayerSight: wired.refreshPlayerSight,
+    getSensedOutlineLayer: () => wired.sensedOutlines,
+    setSightLineProvider: (fn: Wired['sightLine']) => {
+      wired.sightLine = fn;
+      return wired.refreshSightLine;
+    },
   } as unknown as TokenRenderer);
   cleanup = () => {
     controller.destroy();
@@ -114,7 +137,11 @@ function setup(): Setup {
   };
   const click = (x: number, y: number, keys: { shift?: boolean } = {}): boolean =>
     wired.pointerDown(x, y, { shiftKey: !!keys.shift, ctrlKey: false, metaKey: false } as FederatedPointerEvent);
-  return { controller, store, eventBus, wired, click };
+  const collectionSettingsChanged = (): void => {
+    const calls = vi.mocked(obsApp.workspace.on).mock.calls as unknown as [string, (collectionId: string) => void][];
+    calls.find(([name]) => name === 'atlas-vtt:collection-settings-changed')?.[1]('dungeon');
+  };
+  return { controller, store, eventBus, obsApp, collectionSettingsChanged, wired, click };
 }
 
 function addWall(store: ViewAtlasStore, x1: number, x2: number): string {
@@ -143,16 +170,33 @@ describe('LightingController in session view', () => {
     store.getState().setSceneLighting({ enabled: true });
     store.getState().setGMView(false);
     const layers = controller.playerLayers();
-    expect(layers).toHaveLength(5);
+    expect(layers).toHaveLength(7);
     for (const { layer, visible } of layers) expect(layer.visible).toBe(visible);
     expect(lighting.modeLayer.visible).toBe(true);
+  });
+
+  it('shows the outlines of sensed tokens in session view and while peeking, never in GM view or an unlit scene', () => {
+    const { store, wired } = setup();
+    store.getState().setSceneLighting({ enabled: true });
+    expect(wired.sensedOutlines.visible).toBe(false);
+    store.getState().setGMView(false);
+    expect(wired.sensedOutlines.visible).toBe(true);
+    store.getState().setGMView(true);
+    expect(wired.sensedOutlines.visible).toBe(false);
+    pressPeek('keydown');
+    expect(wired.sensedOutlines.visible).toBe(true);
+    pressPeek('keyup');
+    expect(wired.sensedOutlines.visible).toBe(false);
+    store.getState().setGMView(false);
+    store.getState().setSceneLighting({ enabled: false });
+    expect(wired.sensedOutlines.visible).toBe(false);
   });
 
   it('keeps them hidden when lights change, a door opens or the tool changes in session view', () => {
     const { controller, store } = setup();
     store.getState().setSceneLighting({ enabled: true });
     store.getState().setGMView(false);
-    store.getState().addLight({ x: 50, y: 50, emission: emissionOfPreset('torch') });
+    store.getState().addLight({ x: 50, y: 50, emission: genericLight('torch') });
     const door = store.getState().addWall({ type: 'door', p1: { x: 0, y: 0 }, p2: { x: 100, y: 0 }, closed: true });
     store.getState().toggleDoor(door);
     store.getState().setActiveTool('wall');
@@ -211,7 +255,7 @@ describe('the lighting tool while its editor is hidden', () => {
   it('drags no handle it does not show', () => {
     const { store, wired, click } = setup();
     const wall = addWall(store, 100, 300);
-    const light = store.getState().addLight({ x: 500, y: 500, emission: emissionOfPreset('torch') });
+    const light = store.getState().addLight({ x: 500, y: 500, emission: genericLight('torch') });
     store.getState().setActiveTool('wall');
     store.getState().setGMView(false);
     expect(click(100, 100)).toBe(false);
@@ -254,7 +298,7 @@ describe('the lighting tool while its editor is hidden', () => {
   it('offers no handle cursor, context menu, light settings or keyboard edits', () => {
     const { controller, store, wired } = setup();
     const wall = addWall(store, 100, 300);
-    const light = store.getState().addLight({ x: 500, y: 500, emission: emissionOfPreset('torch') });
+    const light = store.getState().addLight({ x: 500, y: 500, emission: genericLight('torch') });
     store.getState().setActiveTool('wall');
     expect(wired.cursor(100, 100)).toBe('grab');
     wired.pointerDown(200, 100, { shiftKey: false, ctrlKey: false, metaKey: false } as FederatedPointerEvent);
@@ -291,13 +335,198 @@ describe('tokens in session view', () => {
     store.getState().setSceneLighting({ enabled: true });
     store.getState().addToken({ x: 100, y: 100, imagePath: 'h.png', vision: { enabled: true } });
     const lurker = store.getState().addToken({ x: 400, y: 100, imagePath: 'l.png' });
-    lighting.sight = computeSight([{ tokenId: 'hero', origin: { x: 100, y: 100 }, range: 1000, darkvision: 0 }], [wall]);
+    lighting.sight = computeSight([{ tokenId: 'hero', origin: { x: 100, y: 100 }, range: 1000, senses: [] }], [wall]);
     return { ...made, lurker };
   }
 
   it('hides nothing by sight in GM view', () => {
     const { wired } = scene();
     expect(wired.playerSight()).toBeUndefined();
+  });
+
+  it('gives the lighting the sight rules of the map, and works sight out anew only when they differ', async () => {
+    const { collectionSettingsChanged, obsApp } = scene();
+    const { rules } = lighting.deps as SceneLightingDeps;
+    const first = rules?.();
+    expect(first).toMatchObject({ definitions: GENERIC_SIGHT_RULES.definitions, conditions: [] });
+    expect(rules?.()).toBe(first);
+    // Another collection's settings are none of this map's business.
+    collectionSettingsChanged();
+    await nextFrame();
+    expect(lighting.refreshBounds).not.toHaveBeenCalled();
+
+    const assets = AssetService.getInstance(obsApp);
+    const collection = vi.spyOn(assets, 'getCollectionForMap').mockReturnValue('dungeon');
+    const settings = vi.spyOn(assets, 'getCollectionSettings');
+    const prone = { id: 'prone', name: 'Prone', color: '#000000' };
+    // Ten saves that change nothing sight goes by: a widget, a renamed condition, a new list of the same conditions.
+    for (let save = 0; save < 10; save++) {
+      settings.mockReturnValue({ conditions: [{ ...prone, name: `Prone ${save}` }], defaultWidgets: { hpBar: save % 2 === 0 } });
+      collectionSettingsChanged();
+      await nextFrame();
+    }
+    expect(lighting.refreshBounds).not.toHaveBeenCalled();
+    expect(rules?.()).toBe(first);
+
+    // A condition that now hides its token does.
+    settings.mockReturnValue({ conditions: [{ ...prone, effect: 'invisible' }] });
+    collectionSettingsChanged();
+    expect(lighting.refreshBounds).not.toHaveBeenCalled();
+    await nextFrame();
+    expect(lighting.refreshBounds).toHaveBeenCalledTimes(1);
+    expect(rules?.()).not.toBe(first);
+    expect(rules?.().conditions).toEqual([{ ...prone, effect: 'invisible' }]);
+
+    // So do other senses, and the same senses in a new list do not.
+    const senses = [{ ...GENERIC_SIGHT_RULES.definitions[0]!, id: 'own' }];
+    settings.mockReturnValue({ conditions: [{ ...prone, effect: 'invisible' }], senses });
+    collectionSettingsChanged();
+    await nextFrame();
+    expect(lighting.refreshBounds).toHaveBeenCalledTimes(2);
+    const withSenses = rules?.();
+    settings.mockReturnValue({ conditions: [{ ...prone, effect: 'invisible' }], senses: structuredClone(senses) });
+    collectionSettingsChanged();
+    await nextFrame();
+    expect(lighting.refreshBounds).toHaveBeenCalledTimes(2);
+    expect(rules?.()).toBe(withSenses);
+    collection.mockRestore();
+    settings.mockRestore();
+  });
+
+  it('works sight out anew once per frame, however many statblocks are announced, and no more after it is destroyed', async () => {
+    const listeners = new Set<() => void>();
+    const senses: TokenSensesResolver = {
+      visionOf: () => ({ senses: [], source: 'none', blindBeyond: false, pending: false, key: '' }),
+      sensesOf: () => [],
+      subscribe: (listener) => (listeners.add(listener), () => listeners.delete(listener)),
+    };
+    const { controller } = setup({ senses });
+    expect(listeners.size).toBe(1);
+    const announce = (): void => listeners.forEach((listener) => listener());
+    announce();
+    announce();
+    announce();
+    expect(lighting.refreshBounds).not.toHaveBeenCalled();
+    await nextFrame();
+    expect(lighting.refreshBounds).toHaveBeenCalledTimes(1);
+    announce();
+    await nextFrame();
+    expect(lighting.refreshBounds).toHaveBeenCalledTimes(2);
+
+    announce();
+    controller.destroy();
+    cleanup = null;
+    expect(listeners.size).toBe(0);
+    await nextFrame();
+    expect(lighting.refreshBounds).toHaveBeenCalledTimes(2);
+  });
+
+  it('asks the resolver how each token perceives', () => {
+    const visionOf = vi.fn(() => ({ senses: [{ id: 'blindsight', range: 10 }], source: 'statblock' as const, blindBeyond: false, pending: false, key: 'k' }));
+    setup({ senses: { visionOf, sensesOf: () => [], subscribe: () => () => undefined } });
+    const { rules } = lighting.deps as SceneLightingDeps;
+    const token = { id: 't', kind: 'token' as const, imagePath: 't.png', x: 0, y: 0 };
+    expect(rules?.().visionOf?.(token)).toMatchObject({ senses: [{ id: 'blindsight', range: 10 }] });
+    expect(visionOf).toHaveBeenCalledWith(token);
+  });
+
+  it('reads the conditions of the token looked at', async () => {
+    const { controller, store, lurker, obsApp, collectionSettingsChanged } = scene();
+    store.getState().setGMView(false);
+    store.getState().updateToken(lurker, { x: 150, conditions: ['dnd5e-invisible'] });
+    expect(controller.playerSight()?.(lurker)).toBe('seen');
+    const assets = AssetService.getInstance(obsApp);
+    const settings = vi.spyOn(assets, 'getCollectionSettings').mockReturnValue({ conditions: [{ id: 'dnd5e-invisible', name: 'Invisible', color: '#000000' }] });
+    const collection = vi.spyOn(assets, 'getCollectionForMap').mockReturnValue('dungeon');
+    collectionSettingsChanged();
+    await nextFrame();
+    expect(controller.playerSight()?.(lurker)).toBe('unseen');
+    settings.mockRestore();
+    collection.mockRestore();
+  });
+
+  it('marks for the GM the tokens the players do not see, follows their sight, and shows none of it in the players\' view', async () => {
+    const { controller, store, lurker } = scene();
+    const { sightAids } = controller.gmOverlays();
+    const { onSightChange } = lighting.deps as SceneLightingDeps;
+    const marks = (): unknown[] => controller.sightAids.marks.shown();
+    const walled = lighting.sight;
+    await nextFrame();
+    expect(marks()).toEqual([[lurker, 'unseen']]);
+    expect(sightAids.visible).toBe(true);
+    // New sight is looked at once, in the next frame.
+    lighting.sight = SEES_ALL;
+    onSightChange?.();
+    onSightChange?.();
+    expect(marks()).toHaveLength(1);
+    await nextFrame();
+    expect(marks()).toEqual([]);
+    lighting.sight = walled;
+    onSightChange?.();
+    await nextFrame();
+    expect(marks()).toHaveLength(1);
+
+    expect(controller.playerLayers()).toContainEqual({ layer: sightAids, visible: false });
+    store.getState().setGMView(false);
+    expect(sightAids.visible).toBe(false);
+    expect(marks()).toEqual([]);
+    store.getState().setGMView(true);
+    expect(sightAids.visible).toBe(true);
+    expect(marks()).toHaveLength(1);
+    pressPeek('keydown');
+    expect(sightAids.visible).toBe(false);
+    pressPeek('keyup');
+    expect(sightAids.visible).toBe(true);
+    store.getState().setSceneLighting({ enabled: false });
+    await nextFrame();
+    expect(marks()).toEqual([]);
+  });
+
+  it('draws the ranges of a selected vision token for the GM alone', async () => {
+    const { controller, store } = scene();
+    const hero = Object.keys(store.getState().objects.tokens)[0]!;
+    store.getState().updateToken(hero, { vision: { enabled: true, range: 30, senses: [{ id: 'darkvision', range: 15 }] } });
+    store.getState().setSelection([hero]);
+    await nextFrame();
+    // A map without a unit counts squares: 30 units are six of five.
+    expect(controller.sightAids.rings.labels()).toEqual(['Sight 6 sq', 'Darkvision 3 sq']);
+    store.getState().setGMView(false);
+    expect(controller.sightAids.rings.labels()).toEqual([]);
+  });
+
+  it('words the hover card\'s line for the GM, and refreshes an open card when the sight changes', async () => {
+    const { store, wired, lurker } = scene();
+    const { onSightChange } = lighting.deps as SceneLightingDeps;
+    expect(wired.sightLine(lurker)).toBe('Bright light · Not seen by the players');
+    store.getState().updateToken(lurker, { x: 150, y: 100 });
+    expect(wired.sightLine(lurker)).toBe('Bright light · Seen by a token: Sight');
+    await nextFrame();
+    wired.refreshSightLine.mockClear();
+    onSightChange?.();
+    await nextFrame();
+    expect(wired.refreshSightLine).toHaveBeenCalledTimes(1);
+    store.getState().setGMView(false);
+    expect(wired.sightLine(lurker)).toBeNull();
+  });
+
+  it('gives what names tokens beside the map the players\' perception only where their tokens decide what is seen, and tells when it changes', () => {
+    const { controller, store, lurker } = scene();
+    const { onSightChange } = lighting.deps as SceneLightingDeps;
+    const walled = lighting.sight;
+    expect(controller.tokenSight()?.(lurker)).toBe('unseen');
+    const heard = vi.fn();
+    const stop = controller.onSightChanged(heard);
+    onSightChange?.();
+    expect(heard).toHaveBeenCalledTimes(1);
+    // No token sees, or token vision is off: line of sight hides nothing, so the list leaves nothing out.
+    lighting.sight = SEES_ALL;
+    expect(controller.tokenSight()).toBeUndefined();
+    lighting.sight = walled;
+    store.getState().setSceneLighting({ enabled: false });
+    expect(controller.tokenSight()).toBeUndefined();
+    stop();
+    onSightChange?.();
+    expect(heard).toHaveBeenCalledTimes(1);
   });
 
   it('hides nothing by sight while the scene has no lighting', () => {
@@ -310,29 +539,29 @@ describe('tokens in session view', () => {
   it('tells which tokens the players see, by the player frame\'s own predicate', () => {
     const { controller, store, wired, lurker } = scene();
     store.getState().setGMView(false);
-    expect(wired.playerSight()?.(lurker)).toBe(false);
-    expect(controller.playerSight()?.(lurker)).toBe(false);
+    expect(wired.playerSight()?.(lurker)).toBe('unseen');
+    expect(controller.playerSight()?.(lurker)).toBe('unseen');
   });
 
   it('leaves a dragged vision token out of the players\' frame where the sight that stayed behind does not reach', () => {
     const { controller, store } = scene();
     const hero = Object.keys(store.getState().objects.tokens)[0]!;
     holdTokens(store, [hero]);
-    expect(controller.playerSight()?.(hero)).toBe(true);
+    expect(controller.playerSight()?.(hero)).toBe('seen');
     store.getState().setTokenPositions([{ id: hero, x: 400, y: 100 }]);
-    expect(controller.playerSight()?.(hero)).toBe(false);
+    expect(controller.playerSight()?.(hero)).toBe('unseen');
     store.getState().setSceneLighting({ sightOnDrop: false });
-    expect(controller.playerSight()?.(hero)).toBe(true);
+    expect(controller.playerSight()?.(hero)).toBe('seen');
     store.getState().setSceneLighting({ sightOnDrop: true });
     holdTokens(store, []);
-    expect(controller.playerSight()?.(hero)).toBe(true);
+    expect(controller.playerSight()?.(hero)).toBe('seen');
   });
 
   it('follows a token that moves into sight', () => {
     const { store, wired, lurker } = scene();
     store.getState().setGMView(false);
     store.getState().updateToken(lurker, { x: 150, y: 100 });
-    expect(wired.playerSight()?.(lurker)).toBe(true);
+    expect(wired.playerSight()?.(lurker)).toBe('seen');
   });
 
   it('shows and hides tokens again whenever sight changes or the view is switched', () => {

@@ -12,8 +12,11 @@ export const DEFAULT_AMBIENT_COLOR = '#ffffff';
 export const DEFAULT_EXPLORED_COLOR = '#ffffff';
 export const DEFAULT_UNEXPLORED_COLOR = '#000000';
 
-/** The scene options the composite draws with; the others decide what is seen and recorded. */
-export type SceneLook = Pick<SceneLighting, 'ambient' | 'ambientColor' | 'exploredMemory' | 'exploredColor' | 'unexploredColor'>;
+/**
+ * The scene options the composite draws with; the others decide what is seen and recorded. The
+ * thresholds are among them: where dim light is perceived as bright, dim ambient light is raised.
+ */
+export type SceneLook = Pick<SceneLighting, 'ambient' | 'ambientColor' | 'exploredMemory' | 'exploredColor' | 'unexploredColor' | 'litThreshold' | 'brightThreshold'>;
 
 export function tokenVisionOn(lighting: Pick<SceneLighting, 'tokenVision'>): boolean {
   return lighting.tokenVision !== false;
@@ -57,13 +60,15 @@ export function brightThresholdOf(lighting: Pick<SceneLighting, 'litThreshold' |
 }
 
 /** The options `lighting` sets for the composite; unset ones stay unset, so the composite keeps its defaults. */
-export function sceneLook({ ambient, ambientColor, exploredMemory, exploredColor, unexploredColor }: SceneLighting): SceneLook {
+export function sceneLook({ ambient, ambientColor, exploredMemory, exploredColor, unexploredColor, litThreshold, brightThreshold }: SceneLighting): SceneLook {
   return {
     ambient,
     ...(ambientColor !== undefined && { ambientColor }),
     ...(exploredMemory !== undefined && { exploredMemory }),
     ...(exploredColor !== undefined && { exploredColor }),
     ...(unexploredColor !== undefined && { unexploredColor }),
+    ...(litThreshold !== undefined && { litThreshold }),
+    ...(brightThreshold !== undefined && { brightThreshold }),
   };
 }
 

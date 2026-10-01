@@ -8,15 +8,21 @@ import { CloseButton } from '../../packages/components/primitives/CloseButton';
 import { Button } from '../../packages/components/primitives/button';
 import { ToggleSwitch } from '../../packages/components/primitives/Toggle';
 import { TooltipProvider } from '../../packages/components/primitives/tooltip';
+import { AssetService } from '../../services/AssetService';
+import type { SenseRules } from '../../creatures/tokenSensesResolver';
+import { mapLightPresets } from '../../services/mapCollectionRules';
+import { mapSenseRules } from '../../services/mapSenseRules';
+import { useStatblockSenses, type StatblockLink } from './useStatblockSenses';
 import { NumberOverrideField, parseNumberInput } from './NumberOverrideField';
 import { buildResourceEdits } from '../../resources/resourceEdits';
 import type { ResourceDefinition, ResourceValue } from '../../resources/resourceTypes';
 import { startingResources } from '../../resources/statblockResourceValues';
-import { TokenLightingFields, type LightChoice } from './TokenLightingFields';
+import { TokenLightingFields, type TokenLightingContext } from './TokenLightingFields';
 import { WALLS_AND_LIGHTING_ENABLED } from '../../featureFlags';
 import { unitLabelFor } from '../../grid/measurementFormat';
-import { presetOf } from '../../lighting/lightPresets';
-import { carriedLight, visionForm, visionFromForm, type VisionForm } from '../../lighting/tokenLighting';
+import { unitScaleOf } from '../../lighting/lightingUnits';
+import { maxLightRange } from '../../lighting/lightRanges';
+import { lightForm, lightFromForm, visionForm, visionFromForm, type LightForm, type VisionForm } from '../../lighting/tokenLighting';
 import { numberText } from '../../utils/numberInput';
 
 interface EditTokenValues {
@@ -25,7 +31,7 @@ interface EditTokenValues {
   /** Maximum per resource key; undefined follows the statblock, or removes a resource the statblock lacks. */
   maxima: Record<string, number | undefined>;
   vision: VisionForm;
-  light: LightChoice;
+  light: LightForm;
 }
 
 interface EditTokenModalProps {
@@ -34,7 +40,9 @@ interface EditTokenModalProps {
   definitions: readonly ResourceDefinition[];
   /** What the linked statblock gives each resource. */
   resourceDefaults: Record<string, ResourceValue>;
-  unit: string;
+  lighting: TokenLightingContext;
+  /** The statblock the token links, whose senses it follows while it has none of its own. */
+  statblock: StatblockLink | null;
   onSave: (values: EditTokenValues) => void;
   onClose: () => void;
 }
@@ -42,7 +50,8 @@ interface EditTokenModalProps {
 const defaultPlaceholder = (value: number | undefined): string =>
   value === undefined ? 'None' : `Statblock default: ${value}`;
 
-function EditTokenModalInner({ initial, definitions, resourceDefaults, unit, onSave, onClose }: EditTokenModalProps): React.ReactElement {
+function EditTokenModalInner({ initial, definitions, resourceDefaults, lighting, statblock, onSave, onClose }: EditTokenModalProps): React.ReactElement {
+  const inherited = useStatblockSenses(statblock);
   const nameplateId = useId();
   const [name, setName] = useState(initial.name);
   const [showNameplate, setShowNameplate] = useState(initial.showNameplate);
@@ -72,12 +81,13 @@ function EditTokenModalInner({ initial, definitions, resourceDefaults, unit, onS
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent): void => {
+      // A control that took the key itself (a switch, an open list) has prevented the default.
+      if (e.defaultPrevented) return;
       if (e.key === 'Escape') {
         e.preventDefault();
         e.stopPropagation();
         onClose();
-      } else if (e.key === 'Enter' && !e.defaultPrevented) {
-        // A control that took the key itself (a switch) has prevented the default.
+      } else if (e.key === 'Enter' && !takesEnter(e.target)) {
         e.preventDefault();
         handleSave();
       }
@@ -85,7 +95,6 @@ function EditTokenModalInner({ initial, definitions, resourceDefaults, unit, onS
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   });
-
 
   return (
     <div className="atlas-modal-overlay" onClick={onClose}>
@@ -130,7 +139,7 @@ function EditTokenModalInner({ initial, definitions, resourceDefaults, unit, onS
             </>
           )}
           {WALLS_AND_LIGHTING_ENABLED && (
-            <TokenLightingFields vision={vision} onVisionChange={setVision} light={light} onLightChange={setLight} unit={unit} />
+            <TokenLightingFields vision={vision} onVisionChange={setVision} light={light} onLightChange={setLight} context={{ ...lighting, inherited }} />
           )}
         </div>
 
@@ -143,10 +152,23 @@ function EditTokenModalInner({ initial, definitions, resourceDefaults, unit, onS
   );
 }
 
-function lightingUpdates(vision: VisionForm, light: LightChoice): Pick<TokenUpdates, 'vision' | 'light'> {
+/**
+ * Enter on a button presses it and on a colour cell opens the picker; anywhere else in the modal
+ * it saves. A popout's elements are not `instanceof` this window's classes.
+ */
+function takesEnter(target: EventTarget | null): boolean {
+  return (target as Element | null)?.closest?.('button, input[type="color"]') != null;
+}
+
+/** What the token's map and its collection say about vision and light. */
+function lightingContext(state: ViewAtlasState, app: App, rules: SenseRules): TokenLightingContext {
+  const { unitType, unitDistance } = rules.unit;
   return {
-    vision: visionFromForm(vision),
-    ...(light !== 'custom' && { light: carriedLight(light === 'none' ? null : light) }),
+    unit: unitLabelFor(unitType),
+    unitDistance,
+    maxLightRange: maxLightRange(unitScaleOf({ unitDistance }, state.grid)),
+    senses: rules.definitions,
+    lightPresets: mapLightPresets(app, state),
   };
 }
 
@@ -167,6 +189,10 @@ export function openEditTokenModal(
   definitions: readonly ResourceDefinition[],
 ): void {
   const character = token.kind === 'character' ? token : undefined;
+  // The senses of the map's collection and what it measures in, as its statblocks are read with.
+  const rules = mapSenseRules(app, AssetService.getInstance(app), store.getState());
+  const lighting = lightingContext(store.getState(), app, rules);
+  const statblock = character?.statblockPath ? { app, path: character.statblockPath, rules } : null;
   const resourceDefaults = readResourceDefaults(app, character?.statblockPath, definitions);
   const container = document.body.createDiv({ cls: 'atlas-vtt-plugin atlas-vtt-root' });
   const root = createRoot(container);
@@ -176,13 +202,35 @@ export function openEditTokenModal(
     container.remove();
   };
 
-  const handleSave = ({ name, showNameplate, maxima, vision, light }: EditTokenValues): void => {
-    store.getState().updateToken(token.id, {
-      name,
-      showNameplate,
-      ...(WALLS_AND_LIGHTING_ENABLED ? lightingUpdates(vision, light) : {}),
-      ...buildResourceEdits(character ?? {}, definitions.map((definition) => ({ definition, max: maxima[definition.key] })), resourceDefaults),
-    });
+  const initial: EditTokenValues = {
+    name: character?.name ?? '',
+    showNameplate: token.showNameplate ?? false,
+    maxima: Object.fromEntries(definitions.map(({ key }) => [key, character?.resources?.[key]?.max])),
+    vision: visionForm(token.vision, lighting.senses),
+    light: lightForm(token.light, lighting.lightPresets),
+  };
+
+  /**
+   * Saves what the form changed onto the token as the store has it now: the map goes on while
+   * the modal is open (damage, a carried light, a move), and a field the GM did not touch must
+   * not put back what the token had when the modal opened.
+   */
+  const handleSave = (values: EditTokenValues): void => {
+    const current = store.getState().objects.tokens[token.id];
+    const changed = <K extends keyof EditTokenValues>(key: K): boolean => JSON.stringify(values[key]) !== JSON.stringify(initial[key]);
+    const maxima = definitions.filter(({ key }) => values.maxima[key] !== initial.maxima[key]);
+    const updates: TokenUpdates = {
+      ...(changed('name') && { name: values.name }),
+      ...(changed('showNameplate') && { showNameplate: values.showNameplate }),
+      ...(WALLS_AND_LIGHTING_ENABLED && changed('vision') && { vision: visionFromForm(values.vision) }),
+      ...(WALLS_AND_LIGHTING_ENABLED && changed('light') && { light: lightFromForm(values.light) }),
+      ...(maxima.length > 0 && current && buildResourceEdits(
+        current.kind === 'character' ? current : {},
+        maxima.map((definition) => ({ definition, max: values.maxima[definition.key] })),
+        resourceDefaults,
+      )),
+    };
+    if (current && Object.keys(updates).length > 0) store.getState().updateToken(token.id, updates);
     cleanup();
   };
 
@@ -190,14 +238,9 @@ export function openEditTokenModal(
   root.render(
     <TooltipProvider delayDuration={300}>
       <EditTokenModalInner
-        initial={{
-          name: character?.name ?? '',
-          showNameplate: token.showNameplate ?? false,
-          maxima: Object.fromEntries(definitions.map(({ key }) => [key, character?.resources?.[key]?.max])),
-          vision: visionForm(token.vision),
-          light: token.light ? presetOf(token.light) ?? 'custom' : 'none',
-        }}
-        unit={unitLabelFor(store.getState().grid?.unitType)}
+        initial={initial}
+        lighting={lighting}
+        statblock={statblock}
         definitions={definitions}
         resourceDefaults={resourceDefaults}
         onSave={handleSave}

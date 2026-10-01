@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { ambientLevel, isLit, lightLevelAt } from '../lightLevels';
-import { computeSight, isSeen, lightReach, type AmbientLight, type LightReach } from '../sight';
+import { ambientLevel, lightLevelAt } from '../lightLevels';
+import { perceivedLevel } from '../../gameSystems/senseRules';
+import { NORMAL_SIGHT } from '../../gameSystems/senses';
+import { lightReach, type AmbientLight, type LightReach } from '../sight';
 import { pointInPolygon } from '../visibility';
 import type { WallSegment } from '../../types/wallTypes';
 
@@ -83,25 +85,27 @@ describe('lightLevelAt', () => {
   });
 });
 
-/** `isLit` as `sight.ts` had it before light levels existed. */
+/** Whether a point counted as lit before light levels existed, as `sight.ts` had it. */
 function isLitBefore(point: { x: number; y: number }, ambient: AmbientLight, lights: readonly LightReach[]): boolean {
   const threshold = ambient.litThreshold === undefined ? 0.25 : Math.min(1, Math.max(0, ambient.litThreshold));
   if (ambient.ambient >= threshold) return true;
   return lights.some((light) => Math.hypot(point.x - light.origin.x, point.y - light.origin.y) <= light.dim && pointInPolygon(point, light.polygon));
 }
 
-describe('isLit', () => {
+describe('what normal sight sees by the light level', () => {
   const points = [{ x: 100, y: 100 }, { x: 100, y: 150 }, { x: 100, y: 151 }, { x: 100, y: 195 }, { x: 100, y: 201 }, { x: 250, y: 100 }, { x: 190, y: 100 }];
   const ambients = [0, 0.05, 0.1, 0.12, 0.125, 0.13, 0.2, 0.24, 0.25, 0.26, 0.5, 0.74, 0.75, 1];
   const thresholds = [undefined, 0, 0.1, 0.5, 1, 7];
+  const lit = (point: { x: number; y: number }, scene: AmbientLight, lights: readonly LightReach[]): boolean =>
+    perceivedLevel(NORMAL_SIGHT, lightLevelAt(point, scene, lights)) !== null;
 
-  it('gives the same answer as before light levels existed, for every scene', () => {
+  it('is what counted as lit before light levels existed, for every scene', () => {
     for (const lights of [[], [torch], [torch, lightReach({ x: 250, y: 100 }, 30, [wall])]]) {
       for (const litThreshold of thresholds) {
         for (const brightThreshold of [undefined, 0.3, 1]) {
           for (const ambient of ambients) {
             const scene: AmbientLight = { ambient, ...(litThreshold !== undefined && { litThreshold }), ...(brightThreshold !== undefined && { brightThreshold }) };
-            for (const point of points) expect(isLit(point, scene, lights)).toBe(isLitBefore(point, scene, lights));
+            for (const point of points) expect(lit(point, scene, lights)).toBe(isLitBefore(point, scene, lights));
           }
         }
       }
@@ -109,24 +113,7 @@ describe('isLit', () => {
   });
 
   it('is lit from the lit threshold itself', () => {
-    expect(isLit({ x: 100, y: 400 }, { ambient: 0.1, litThreshold: 0.1 }, [])).toBe(true);
-    expect(isLit({ x: 100, y: 400 }, { ambient: 0.1 }, [])).toBe(false);
-  });
-
-  it('is whatever is not dark: dim light counts', () => {
-    for (const ambient of [0, 0.15, 0.5, 1]) {
-      for (const point of points) expect(isLit(point, { ambient }, [torch])).toBe(lightLevelAt(point, { ambient }, [torch]) !== 'dark');
-    }
-    expect(isLit({ x: 100, y: 130 }, dark, [torch])).toBe(true);
-    expect(isLit({ x: 100, y: 190 }, dark, [torch])).toBe(true);
-    expect(isLit({ x: 100, y: 210 }, dark, [torch])).toBe(false);
-  });
-
-  it('leaves which tokens are seen at night and at dusk as it was', () => {
-    const sight = computeSight([{ tokenId: 't', origin: { x: 100, y: 100 }, range: 1000, darkvision: 0 }], []);
-    expect(isSeen({ x: 400, y: 400 }, sight, { ambient: 0.15 }, [])).toBe(false);
-    expect(isSeen({ x: 400, y: 400 }, sight, { ambient: 0.24 }, [])).toBe(false);
-    expect(isSeen({ x: 400, y: 400 }, sight, { ambient: 0.25 }, [])).toBe(true);
-    expect(isSeen({ x: 400, y: 400 }, sight, { ambient: 0.5 }, [])).toBe(true);
+    expect(lit({ x: 100, y: 400 }, { ambient: 0.1, litThreshold: 0.1 }, [])).toBe(true);
+    expect(lit({ x: 100, y: 400 }, { ambient: 0.1 }, [])).toBe(false);
   });
 });

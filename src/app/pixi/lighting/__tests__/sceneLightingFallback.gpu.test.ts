@@ -55,7 +55,7 @@ describe('scene lighting on a graphics device that cannot run the engine', () =>
     expect(darkness(viewport)?.visible).toBe(true);
     expect(host.modeLayer).toBe(modeLayer);
     expect(host.currentSight().all).toBe(false);
-    expect(host.currentSight().polygons).toHaveLength(1);
+    expect(host.currentSight().regions).toHaveLength(1);
     expect(host.lightReaches()).toEqual([]);
     modeLayer.visible = false;
     expect(darkness(viewport)?.visible).toBe(false);

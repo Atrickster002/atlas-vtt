@@ -46,6 +46,14 @@ export function coneAngle(angle: unknown): number | undefined {
   return degrees !== undefined && degrees < FULL_TURN_DEGREES ? Math.max(1, degrees) : undefined;
 }
 
+/** Whether `point` lies in the cone of a viewer at `origin`, or within its own space. */
+export function coneContains(cone: VisionCone, origin: Point, point: Point): boolean {
+  if (Math.hypot(point.x - origin.x, point.y - origin.y) <= (cone.apex ?? 0)) return true;
+  const start = cone.facing - cone.angle / 2;
+  const turned = (((Math.atan2(point.y - origin.y, point.x - origin.x) - start) % TURN) + TURN) % TURN;
+  return turned <= cone.angle + EDGE_SLACK || turned >= TURN - EDGE_SLACK;
+}
+
 /**
  * The part of `polygon` (star-shaped around `origin`) inside the cone: its vertices within the
  * cone, closed through the origin by the cone's two edges. The edges end where they cross the

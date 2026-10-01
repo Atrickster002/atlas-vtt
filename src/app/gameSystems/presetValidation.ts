@@ -21,6 +21,7 @@ import { WIDGET_ICON_PATHS, resolveWidgetIcon, type WidgetIcon } from '../types/
 import type { AnyWidget } from '../types/widgetTypes';
 import { isValidClockSegments } from '../utils/clockWidget';
 import { CRIT_RULES, isValidDefaultRoll, parseExplodeRule } from './diceRules';
+import { parseLightPresets } from './lightPresetValidation';
 import { GENERIC_SENSES } from './senses/generic';
 import { parseSenseDefinitions } from './senseValidation';
 import { parseVisionDefaults } from './visionDefaults';
@@ -75,7 +76,7 @@ function parseCondition(raw: unknown): ConditionDefinition | null {
     color: raw.color,
     ...(icon && { icon }),
     ...(raw.valued === true && { valued: true }),
-    ...(isOneOf(CONDITION_EFFECTS, raw.effect) && { effect: raw.effect }),
+    ...((isOneOf(CONDITION_EFFECTS, raw.effect) || raw.effect === 'none') && { effect: raw.effect }),
   };
 }
 
@@ -146,6 +147,7 @@ export function parseUserPreset(raw: unknown): SystemPreset | null {
     ? parseResourceDefinitions(raw.rules.resources)
     : withLegacyBars([{ ...HP_RESOURCE }], defaultWidgets);
   const senses = parseSenseDefinitions(raw.rules.senses);
+  const lightPresets = parseLightPresets(raw.rules.lightPresets);
   // A collection set from the preset has these senses, so only they can be a default.
   const defaultTokenVision = parseVisionDefaults(raw.rules.defaultTokenVision, senses ?? GENERIC_SENSES);
   return {
@@ -161,6 +163,7 @@ export function parseUserPreset(raw: unknown): SystemPreset | null {
       ...(resources.length > 0 && { resources }),
       ...(defaultTokenVision && { defaultTokenVision }),
       ...(senses && { senses }),
+      ...(lightPresets?.length && { lightPresets }),
     },
   };
 }

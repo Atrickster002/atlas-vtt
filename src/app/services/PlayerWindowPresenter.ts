@@ -172,6 +172,8 @@ async function waitForRenderedFrameSource(view: AtlasView): Promise<PlayerFrameS
     canvas,
     store: view.atlasStore,
     withPlayerSafeFrame: (capture, settings, camera) => renderer.withPlayerSafeFrame(capture, settings, camera),
+    tokenSight: () => renderer.playerTokenSight(),
+    onTokenSightChange: (listener) => renderer.onPlayerSightChange(listener),
     ...(rendersOnChange(app) ? {
       beforeRender: {
         listen: (listener) => setBeforeRender(app, listener),

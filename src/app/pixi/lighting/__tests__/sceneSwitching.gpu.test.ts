@@ -70,7 +70,7 @@ describe('switching between lit scenes in one map view', () => {
         expect(engineLayer(scene.viewport)).toBe(engine);
         expect(engine?.visible).toBe(true);
         expect(engine?.filters).toHaveLength(1);
-        expect(scene.host.currentSight().origins).toEqual([{ x: map.saved.objects.tokens.t!.x, y: map.saved.objects.tokens.t!.y }]);
+        expect(scene.host.currentSight().regions.map((region) => region.origin)).toEqual([{ x: map.saved.objects.tokens.t!.x, y: map.saved.objects.tokens.t!.y }]);
         expect(scene.noted()).toEqual([map.path]);
         frames(3);
         expect(scene.noted()).toBeNull();

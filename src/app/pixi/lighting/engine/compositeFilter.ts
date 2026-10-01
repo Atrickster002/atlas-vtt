@@ -15,6 +15,8 @@ import { srgbToLinear } from '../../../lighting/srgb';
 import { ENGINE_SHADERS } from './engineShaders';
 import { engineProgram } from './gpu';
 import type { LightingWorld } from './LightingWorld';
+import { darkLooks, type DarkLooks } from './senseDrawing';
+import { SEES_ALL } from '../../../vision/sight';
 
 export type LightingMode = 'gm' | 'player';
 
@@ -23,8 +25,13 @@ export interface CompositeFilter {
   filter: Filter;
   /** Binds `world`'s textures; call before the previous world is destroyed. */
   setWorld(world: LightingWorld): void;
-  /** The colour is picked in sRGB; the composite adds light in linear light. */
-  setAmbient(level: number, color: string | undefined): void;
+  /**
+   * The colour is picked in sRGB; the composite adds light in linear light. `lift` is how much
+   * the ambient light is raised where dim light is perceived as bright (`ambientLift`).
+   */
+  setAmbient(level: number, color: string | undefined, lift: number): void;
+  /** How what is perceived without light is drawn. */
+  setDarkLooks(looks: DarkLooks): void;
   setMode(mode: LightingMode): void;
   /** No token has vision: line of sight hides nothing. */
   setAllSeen(all: boolean): void;
@@ -73,6 +80,7 @@ export function createCompositeFilter(world: LightingWorld, explored: Texture): 
   const ambient = new Float32Array(3);
   const exploredTint = new Float32Array([1, 1, 1]);
   const unexplored = new Float32Array(3);
+  const greyTint = new Float32Array(3);
   const group = new UniformGroup({
     uScreenToWorld: { value: screenToWorld, type: 'mat3x3<f32>' },
     uPixelWorld: { value: 1, type: 'f32' },
@@ -91,6 +99,10 @@ export function createCompositeFilter(world: LightingWorld, explored: Texture): 
     uMemory: { value: 1, type: 'f32' },
     uExploredTint: { value: exploredTint, type: 'vec3<f32>' },
     uUnexplored: { value: unexplored, type: 'vec3<f32>' },
+    uGreyKeep: { value: 0, type: 'f32' },
+    uGreyTint: { value: greyTint, type: 'vec3<f32>' },
+    uColourLevel: { value: 0, type: 'f32' },
+    uAmbientLift: { value: 1, type: 'f32' },
     uFluSpacing: { value: BOUNCE.probe, type: 'f32' },
   });
   const u = group.uniforms;
@@ -117,8 +129,15 @@ export function createCompositeFilter(world: LightingWorld, explored: Texture): 
       Object.assign(filter.resources, { uLightMap: next.lightMap.texture.source, uFluence: next.cascades.fluence.source, ...next.fieldAll().resources() });
       group.update();
     },
-    setAmbient(level, color): void {
+    setAmbient(level, color, lift): void {
       setLinear(ambient, color ?? DEFAULT_AMBIENT_COLOR, level);
+      u.uAmbientLift = lift;
+      group.update();
+    },
+    setDarkLooks(looks): void {
+      u.uGreyKeep = looks.greyKeep;
+      greyTint.set(looks.greyTint);
+      u.uColourLevel = looks.colourLevel;
       group.update();
     },
     setMode(mode): void {
@@ -148,6 +167,7 @@ export function createCompositeFilter(world: LightingWorld, explored: Texture): 
     },
   };
   composite.setWorld(world);
+  composite.setDarkLooks(darkLooks(SEES_ALL));
   return composite;
 }
 

@@ -36,8 +36,3 @@ export function lightLevelAt(point: Point, ambient: AmbientLight, lights: readon
   const fromLights = levelFromLights(point, lights);
   return fromLights === 'dark' ? fromAmbient : fromLights;
 }
-
-/** Whether normal sight sees `point` by its light: at any light level but dark. */
-export function isLit(point: Point, ambient: AmbientLight, lights: readonly LightReach[]): boolean {
-  return lightLevelAt(point, ambient, lights) !== 'dark';
-}

@@ -14,13 +14,25 @@ vi.mock('../../src/app/react/root/AtlasUIContext', () => ({
   useAtlasUI: () => ({ view: { serviceManager: { getEventBus: () => bus.current } } }),
 }));
 
+const lights = vi.hoisted(() => ({ current: null as readonly unknown[] | null }));
+
+// Without an Obsidian app the hook gives the generic presets; a test sets a game system's.
+vi.mock('../../src/app/react/hooks/useMapLightPresets', async (importOriginal) => {
+  const original = await importOriginal<typeof import('../../src/app/react/hooks/useMapLightPresets')>();
+  return { useMapLightPresets: () => lights.current ?? original.useMapLightPresets() };
+});
+
 vi.mock('../../src/app/keyboard/useMapHotkeys', () => ({
   useHotkeyLabels: () => (id: string) => `key:${id}`,
 }));
 
+import { BUILT_IN_SYSTEM_PRESETS } from '../../src/app/gameSystems/builtInPresets';
 import { LightingToolGroup } from '../../src/app/packages/components/toolbar/LightingToolGroup';
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  lights.current = null;
+});
 
 interface Rendered {
   store: ViewAtlasStore;
@@ -107,6 +119,32 @@ describe('LightingToolGroup', () => {
     expect(events).toContainEqual(['lighting-preset-changed', 'lantern']);
     expect(checked('Lantern')).toBe(true);
     expect(checked('Torch')).toBe(false);
+  });
+
+  it('offers the light presets of the map\'s collection, its torch chosen until another is', () => {
+    const dnd5e = BUILT_IN_SYSTEM_PRESETS.find((preset) => preset.name === 'D&D 5e')!.rules.lightPresets!;
+    lights.current = dnd5e;
+    const { events } = renderGroup('wall');
+    fireEvent.click(row('Place lights'));
+    for (const preset of dnd5e) row(preset.name);
+    expect(screen.queryByText('Magical light')).toBeNull();
+    expect(checked('Torch')).toBe(true);
+    fireEvent.click(row('Daylight'));
+    expect(events).toContainEqual(['lighting-preset-changed', 'dnd5e-daylight']);
+    expect(checked('Daylight')).toBe(true);
+    expect(checked('Torch')).toBe(false);
+  });
+
+  it('goes back to the collection\'s torch when the chosen preset is no longer one of its lights', () => {
+    const systems = BUILT_IN_SYSTEM_PRESETS.filter((preset) => preset.name === 'D&D 5e' || preset.name === 'Cairn');
+    lights.current = systems.find((preset) => preset.name === 'D&D 5e')!.rules.lightPresets!;
+    const { rerender } = renderGroup('wall');
+    fireEvent.click(row('Place lights'));
+    fireEvent.click(row('Daylight'));
+    lights.current = systems.find((preset) => preset.name === 'Cairn')!.rules.lightPresets!;
+    rerender('wall');
+    expect(screen.queryByText('Daylight')).toBeNull();
+    expect(checked('Torch')).toBe(true);
   });
 
   it('ticks how walls are drawn and tells the tool', () => {

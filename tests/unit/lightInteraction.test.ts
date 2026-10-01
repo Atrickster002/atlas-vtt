@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { EventSystem } from 'pixi.js';
 import { Viewport } from 'pixi-viewport';
-import { emissionOfPreset } from '../../src/app/lighting/lightEmissionForm';
+import { genericLight } from '../mocks/lights';
 import { LightInteraction } from '../../src/app/pixi/lighting/LightInteraction';
 import { LightMarkers } from '../../src/app/pixi/lighting/LightMarkers';
 import { LightRangeRings, ringHandleAt, ringHandlePoint } from '../../src/app/pixi/lighting/LightRangeRings';
@@ -46,7 +46,7 @@ function setup(doc: Document = document): Setup {
   store.getState().setPersistenceEnabled(false);
   store.getState().setMapPath('maps/lights.atlasmap');
   store.getState().setSceneLighting({ enabled: true });
-  const torch = store.getState().addLight({ x: 400, y: 300, emission: { ...emissionOfPreset('torch'), kind: 'torch' } });
+  const torch = store.getState().addLight({ x: 400, y: 300, emission: { ...genericLight('torch'), kind: 'torch' } });
   const markers = new LightMarkers(viewport, store);
   const rings = new LightRangeRings(viewport, store, () => FEET);
   const tool = { active: false };
@@ -219,7 +219,7 @@ describe('the range rings of the open light', () => {
   it('follow the light\'s ranges when the popover changes them', () => {
     const { store, rings, torch } = setup();
     store.getState().openLightPopover(torch);
-    store.getState().updateLight(torch, { emission: { ...emissionOfPreset('torch'), bright: 10, dim: 15 } });
+    store.getState().updateLight(torch, { emission: { ...genericLight('torch'), bright: 10, dim: 15 } });
     expect(rings.geometry()?.radius).toEqual({ bright: 140, dim: 210 });
   });
 
@@ -260,7 +260,7 @@ describe('the range rings of the open light', () => {
 
   it('never leave dim below bright: the dragged ring takes the other along', () => {
     const { store, torch, press, move, up } = setup();
-    store.getState().updateLight(torch, { emission: { ...emissionOfPreset('torch'), bright: 10, dim: 15 } });
+    store.getState().updateLight(torch, { emission: { ...genericLight('torch'), bright: 10, dim: 15 } });
     store.getState().openLightPopover(torch);
     press(400, 160);
     move(400, 20);
@@ -291,7 +291,7 @@ describe('the range rings of the open light', () => {
 
   it('end the drag when the popover moves to another light', () => {
     const { store, torch, press, move, steps } = setup();
-    const lantern = store.getState().addLight({ x: 100, y: 500, emission: emissionOfPreset('lantern') });
+    const lantern = store.getState().addLight({ x: 100, y: 500, emission: genericLight('lantern') });
     getHistoryStore(store)!.getState().clear();
     store.getState().openLightPopover(torch);
     press(400, 20);
@@ -322,7 +322,7 @@ describe('the range rings of the open light', () => {
 
   it('leave a press on the marker of a light without bright range to the marker', () => {
     const { store, torch, tool, press, move, up } = setup();
-    store.getState().updateLight(torch, { emission: { ...emissionOfPreset('torch'), bright: 0 } });
+    store.getState().updateLight(torch, { emission: { ...genericLight('torch'), bright: 0 } });
     store.getState().openLightPopover(torch);
     tool.active = true;
     press(400, 300);

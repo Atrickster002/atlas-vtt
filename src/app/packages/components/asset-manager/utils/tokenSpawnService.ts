@@ -17,6 +17,7 @@ import type { TokenInput } from '../../../../storeFactory';
 import { loadAtlasView } from '../../../../plugin/atlasLeaves';
 import { tokenFromFile } from '../../../../resources/resourceFileFormat';
 import { mapVisionDefaults } from '../../../../gameSystems/visionDefaults';
+import { systemPresetsOf } from '../../../../services/mapCollectionRules';
 import type { TokenVision, TokenVisionDefaults } from '../../../../types/lightingTypes';
 import { placementVision } from '../../../../creatures/placementVision';
 
@@ -180,7 +181,9 @@ async function resolveTokenSource(ctx: SpawnContext, ref: TokenSourceRef): Promi
 
 /** What new tokens start with in the scene they are spawned into, from its collection. */
 function spawnVisionDefaults(ctx: SpawnContext, target: SpawnTarget): TokenVisionDefaults | undefined {
-  return ctx.assetService ? mapVisionDefaults(ctx.assetService, target.view.getStore().getState().mapPath) : undefined;
+  return ctx.assetService
+    ? mapVisionDefaults(ctx.assetService, target.view.getStore().getState().mapPath, systemPresetsOf(ctx.app))
+    : undefined;
 }
 
 /** Builds a token from its asset; `visionDefaults` (the placing collection's) start vision off (`placementVision`). */

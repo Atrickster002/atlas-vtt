@@ -30,6 +30,7 @@ import { DrawingInteraction } from "./pixi/DrawingInteraction";
 import { TextRenderer } from "./pixi/TextRenderer"; // Import TextRenderer
 import { TextTool } from "./tools/TextTool"; // Import TextTool
 import { LightingController } from './pixi/lighting/LightingController';
+import type { TokenPerception } from './pixi/lighting/playerLightingLayers';
 import type { SceneFrame } from './pixi/lighting/engine/types';
 import { captureSceneFrame } from './pixi/sceneFrameCapture';
 import { WALLS_AND_LIGHTING_ENABLED } from './featureFlags';
@@ -740,6 +741,16 @@ export class PixiRendererOrchestrator { // Renamed class
     const playerCamera = camera && viewport ? { target: viewport, camera } : undefined;
     const captureFrame = renderFollows ? captureBeforeRender : captureWithLayerVisibility;
     captureFrame(layers, () => app.renderer.render(app.stage), capture, playerCamera);
+  }
+
+  /** How the players perceive each token where their tokens' sight decides it; undefined where it hides nothing (`LightingController.tokenSight`). */
+  public playerTokenSight(): TokenPerception | undefined {
+    return this.lighting?.tokenSight();
+  }
+
+  /** Calls `listener` when what the players' tokens see changed; returns the unsubscribe. */
+  public onPlayerSightChange(listener: () => void): () => void {
+    return this.lighting?.onSightChanged(listener) ?? ((): void => undefined);
   }
 
   /** The GM's markers on the map: neither the players nor a picture of the scene show them. */

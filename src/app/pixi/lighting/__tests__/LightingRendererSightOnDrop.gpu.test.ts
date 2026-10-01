@@ -85,11 +85,11 @@ describe('LightingRenderer sight on drop', () => {
     const before = memory(h);
 
     drag(h);
-    expect(h.lighting.currentSight().origins).toEqual([START]);
+    expect(h.lighting.currentSight().regions.map((region) => region.origin)).toEqual([START]);
     expect(changedSince(before, h)).toBe(0);
 
     h.change({ heldTokens: {} });
-    expect(h.lighting.currentSight().origins).toEqual([END]);
+    expect(h.lighting.currentSight().regions.map((region) => region.origin)).toEqual([END]);
     expect(h.redAt(RIGHT_CORNER.x, RIGHT_CORNER.y)).toBe(255);
     h.renderStage();
     expect(watch!.findings).toEqual([]);
@@ -112,7 +112,7 @@ describe('LightingRenderer sight on drop', () => {
 
     h.change({ heldTokens: {} });
     expect(watch!.draws()).toBeGreaterThan(draws);
-    expect(h.lighting.currentSight().origins).toEqual([END]);
+    expect(h.lighting.currentSight().regions.map((region) => region.origin)).toEqual([END]);
     expect(h.lighting.lightReaches()[0]?.origin).toEqual(END);
     expect(watch!.findings).toEqual([]);
   });
@@ -184,7 +184,7 @@ describe('LightingRenderer sight on drop', () => {
   it('records along the way when the scene switches sight on drop off', async () => {
     const h = await setup({ sightOnDrop: false });
     drag(h);
-    expect(h.lighting.currentSight().origins).toEqual([END]);
+    expect(h.lighting.currentSight().regions.map((region) => region.origin)).toEqual([END]);
     expect(h.redAt(RIGHT_CORNER.x, RIGHT_CORNER.y)).toBe(255);
     expect(watch!.findings).toEqual([]);
   });

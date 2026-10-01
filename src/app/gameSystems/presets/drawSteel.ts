@@ -19,8 +19,8 @@ export const DRAW_STEEL: SystemPreset = {
       diagonalRule: 'equidistant',
       abstractRangeBands: [],
     },
-    // A power roll is 2d10. Its critical hit is a 19 or 20 on the two dice together, which no crit rule reads.
-    dice: { defaultRoll: '2d10', crit: 'none' },
+    // A power roll is 2d10; a 19 or 20 on the two dice together, before any bonus, is a critical hit.
+    dice: { defaultRoll: '2d10', crit: 'high-total' },
     conditions: conditionsOf('drawsteel', [
       { name: 'Bleeding', color: '#b91c1c', icon: 'bleeding-wound' },
       { name: 'Dazed', color: '#facc15', icon: 'knocked-out-stars' },

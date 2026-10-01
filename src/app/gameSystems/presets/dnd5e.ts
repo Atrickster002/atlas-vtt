@@ -1,4 +1,5 @@
 import type { SystemPreset } from '../../types/systemPresetTypes';
+import { DND_5E_LIGHTS } from '../lightPresets/dnd5e';
 import { HP_RESOURCE } from '../../resources/resourceDefinitions';
 import { DND_5E_SENSES } from '../senses/dnd5e';
 import { builtInPresetId, conditionsOf } from './presetHelpers';
@@ -36,5 +37,6 @@ export const DND_5E: SystemPreset = {
     ]),
     resources: [{ ...HP_RESOURCE }],
     senses: DND_5E_SENSES,
+    lightPresets: DND_5E_LIGHTS,
   },
 };

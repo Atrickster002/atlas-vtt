@@ -90,6 +90,7 @@ export interface SenseDefinition {
   look: SenseLook;
   /**
    * `all`: the map and the tokens on it; what it perceives is drawn and recorded as explored.
+   * Only for a sense with `lineOfSight`: one that walls do not stop is read as `creatures`.
    * `creatures`: tokens only; the map, the light and explored memory stay as they are.
    */
   reveals: 'all' | 'creatures';

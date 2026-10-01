@@ -3,6 +3,7 @@ import { BUILT_IN_SYSTEM_PRESETS } from '../../src/app/gameSystems/builtInPreset
 import { DEFAULT_DICE_RULES, collectionDiceRules, isValidDefaultRoll, parseExplodeRule, sameDiceRules, withExplodeScope } from '../../src/app/gameSystems/diceRules';
 import { parseUserPresets } from '../../src/app/gameSystems/presetValidation';
 import { describeExplodeRule, highFaceNames, lowFaceNames } from '../../src/app/gameSystems/explodeRuleText';
+import { defaultDiceExplanation } from '../../src/app/react/components/collection-settings/DefaultDiceInfo';
 import { sameSystemRules } from '../../src/app/gameSystems/systemRules';
 
 const cthulhu = BUILT_IN_SYSTEM_PRESETS.find((preset) => preset.id === 'builtin:coc7e')!;
@@ -116,6 +117,15 @@ describe('exploding dice in words', () => {
     expect(describeExplodeRule({ dice: 'all', repeats: false, highFaces: 2, lowFaces: 1 }, 6)).toBe(
       'Every die that shows one of its 2 highest faces is rolled again and the new die is added: a d6 on 5 or 6, a d20 on 19 or 20. One that shows its lowest face is rolled again and the new die is subtracted. The new die does not explode.',
     );
+  });
+});
+
+describe('default dice explained', () => {
+  it('says what they are with the collection\'s own roll, and with 1d20 while that is not valid', () => {
+    expect(defaultDiceExplanation(' 2d12 ')).toBe(
+      'The default dice are the dice of the default roll, 2d12. Atlas rolls them when a statblock gives only a bonus without dice: +3 rolls 2d12+3, −3 rolls 2d12−3.',
+    );
+    expect(defaultDiceExplanation('2d')).toContain('+3 rolls 1d20+3');
   });
 });
 

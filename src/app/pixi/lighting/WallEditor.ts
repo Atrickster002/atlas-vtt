@@ -1,8 +1,8 @@
 import type { EventEmitter } from 'events';
 import type { Container } from 'pixi.js';
 import type { Viewport } from 'pixi-viewport';
-import { emissionOfPreset } from '../../lighting/lightEmissionForm';
-import type { LightPresetId } from '../../lighting/lightPresets';
+import { chosenLightPreset, emissionOf } from '../../lighting/lightPresetChoice';
+import type { LightPresetDefinition } from '../../types/lightPresetTypes';
 import type { ViewAtlasStore } from '../../storeFactory';
 import { runHistoryTransaction } from '../../stores/history';
 import { WallTool, type WallToolMode, type WallToolSubMode } from '../../tools/WallTool';
@@ -29,8 +29,14 @@ export class WallEditor {
   private readonly drawing: WallDrawingSession;
   private readonly cleanups: Array<() => void> = [];
 
-  /** `onLightSelection` shows the selected lights on their markers. */
-  constructor(viewport: Viewport, private readonly store: ViewAtlasStore, eventBus: EventEmitter, onLightSelection: (lightIds: string[]) => void) {
+  /** `onLightSelection` shows the selected lights on their markers; `lightPresets` are the lights of the map's collection. */
+  constructor(
+    viewport: Viewport,
+    private readonly store: ViewAtlasStore,
+    eventBus: EventEmitter,
+    onLightSelection: (lightIds: string[]) => void,
+    private readonly lightPresets: () => readonly LightPresetDefinition[],
+  ) {
     this.renderer = new WallRenderer(viewport, store);
     this.walls = new WallInteraction(store, this.renderer, onLightSelection);
     this.tool = new WallTool(eventBus);
@@ -80,7 +86,7 @@ export class WallEditor {
       return true;
     }
     if (settings.subMode === 'place-light') {
-      const emission = { ...emissionOfPreset(settings.lightPreset), kind: settings.lightPreset };
+      const emission = emissionOf(chosenLightPreset(this.lightPresets(), settings.lightPreset));
       this.store.getState().addLight({ x: point.x, y: point.y, emission });
       return true;
     }
@@ -203,7 +209,7 @@ export class WallEditor {
     on('wall-submode-changed', (subMode: WallToolSubMode) => this.tool.setSubMode(subMode));
     on('wall-type-changed', (type: WallType) => this.tool.setWallType(type));
     on('wall-mode-changed', (mode: WallToolMode) => this.tool.setMode(mode));
-    on('lighting-preset-changed', (preset: LightPresetId) => this.tool.setLightPreset(preset));
+    on('lighting-preset-changed', (preset: string) => this.tool.setLightPreset(preset));
     on('wall-chain-start', (point: Point) => {
       this.drawing.start();
       this.renderer.setPreviewAnchor(point);

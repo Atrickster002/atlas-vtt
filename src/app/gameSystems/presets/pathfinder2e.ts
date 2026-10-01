@@ -1,4 +1,5 @@
 import type { SystemPreset } from '../../types/systemPresetTypes';
+import { PATHFINDER_2E_LIGHTS } from '../lightPresets/pathfinder2e';
 import { HP_RESOURCE } from '../../resources/resourceDefinitions';
 import { PATHFINDER_2E_SENSES } from '../senses/pathfinder2e';
 import { builtInPresetId, conditionsOf } from './presetHelpers';
@@ -62,5 +63,6 @@ export const PATHFINDER_2E: SystemPreset = {
     ]),
     resources: [{ ...HP_RESOURCE }],
     senses: PATHFINDER_2E_SENSES,
+    lightPresets: PATHFINDER_2E_LIGHTS,
   },
 };

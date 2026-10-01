@@ -52,7 +52,9 @@ describe('scene lighting options', () => {
   });
 
   it('passes the composite only the options it draws, and only those that are set', () => {
-    expect(sceneLook({ ...DEFAULT_SCENE_LIGHTING, tokenVision: false, litThreshold: 0.5 })).toEqual({ ambient: DEFAULT_SCENE_LIGHTING.ambient });
+    expect(sceneLook({ ...DEFAULT_SCENE_LIGHTING, tokenVision: false })).toEqual({ ambient: DEFAULT_SCENE_LIGHTING.ambient });
+    // The thresholds decide where dim ambient light is raised for senses that see dim light as bright.
+    expect(sceneLook({ ...DEFAULT_SCENE_LIGHTING, litThreshold: 0.5, brightThreshold: 0.9 })).toEqual({ ambient: DEFAULT_SCENE_LIGHTING.ambient, litThreshold: 0.5, brightThreshold: 0.9 });
     expect(sceneLook({ enabled: true, ambient: 0.3, ambientColor: '#ffeedd', exploredMemory: false, exploredColor: '#ff0000', unexploredColor: '#0000ff' }))
       .toEqual({ ambient: 0.3, ambientColor: '#ffeedd', exploredMemory: false, exploredColor: '#ff0000', unexploredColor: '#0000ff' });
   });

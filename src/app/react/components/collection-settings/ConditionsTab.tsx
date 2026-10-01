@@ -2,11 +2,13 @@
  * ConditionsTab — CRUD list of user-defined token conditions with their badge colour and icon.
  */
 
-import React, { useState } from 'react';
+import React, { useId, useState } from 'react';
 import { Hash, Plus, Trash2 } from 'lucide-react';
 import { Button } from '../../../packages/components/primitives/button';
+import { Select, type SelectOption } from '../../../packages/components/primitives/Select';
 import { LabelTooltip } from '../../../packages/components/primitives/tooltip';
-import type { ConditionDefinition } from '../../../types/collectionSettingsTypes';
+import { CONDITION_EFFECTS, type ConditionDefinition, type ConditionEffect } from '../../../types/collectionSettingsTypes';
+import { conditionEffect, withConditionEffect } from '../../../gameSystems/conditionEffects';
 import { conditionGlyph } from '../../../utils/conditionGlyph';
 import { WidgetIconPicker } from '../WidgetIconPicker';
 import { ConditionBadgePreview } from './ConditionBadgePreview';
@@ -15,6 +17,20 @@ interface ConditionsTabProps {
   conditions: ConditionDefinition[];
   onChange: (conditions: ConditionDefinition[]) => void;
 }
+
+type EffectChoice = ConditionEffect | 'none';
+
+const EFFECT_LABELS: Record<ConditionEffect, string> = {
+  blinded: 'Blinded',
+  invisible: 'Invisible',
+  airborne: 'Airborne',
+  undetected: 'Undetected',
+};
+
+const EFFECT_OPTIONS: SelectOption<EffectChoice>[] = [
+  { value: 'none', label: 'None' },
+  ...CONDITION_EFFECTS.map((effect) => ({ value: effect, label: EFFECT_LABELS[effect] })),
+];
 
 /** Generate a random hex colour string. */
 function randomColor(): string {
@@ -29,6 +45,7 @@ export function ConditionsTab({
   onChange,
 }: ConditionsTabProps): React.ReactElement {
   const [iconPickerId, setIconPickerId] = useState<string | null>(null);
+  const effectLabel = useId();
 
   const updateCondition = (
     index: number,
@@ -78,9 +95,18 @@ export function ConditionsTab({
         badge to give it an icon, and turn on # for conditions that carry a number,
         like Frightened 2.
       </p>
+      <p className="atlas-csm-hint">
+        Effects on sight: Blinded takes a token&apos;s sight; Invisible hides it from
+        sight that cannot see the invisible; Airborne hides it from tremorsense;
+        Undetected hides it from the players.
+      </p>
 
       {conditions.length > 0 ? (
         <div className="atlas-csm-condition-list">
+          <div className="atlas-csm-condition-head" aria-hidden="true">
+            <span>Condition</span>
+            <span>Effect on sight</span>
+          </div>
           {conditions.map((cond, i) => (
             <div key={cond.id} className="atlas-csm-condition">
               <div className="atlas-csm-condition-row">
@@ -101,6 +127,15 @@ export function ConditionsTab({
                   value={cond.name}
                   onChange={(e) => updateCondition(i, { name: e.target.value })}
                 />
+                <div className={`atlas-csm-condition-effect${conditionEffect(cond) ? '' : ' atlas-csm-condition-effect--none'}`}>
+                  <span id={`${effectLabel}-${cond.id}`} hidden>Effect on sight of {cond.name.trim() || 'this condition'}</span>
+                  <Select
+                    value={conditionEffect(cond) ?? 'none'}
+                    options={EFFECT_OPTIONS}
+                    labelledBy={`${effectLabel}-${cond.id}`}
+                    onChange={(effect) => onChange(conditions.map((c, index) => (index === i ? withConditionEffect(c, effect) : c)))}
+                  />
+                </div>
                 <div
                   className="atlas-csm-color-swatch"
                   style={{ backgroundColor: cond.color }}

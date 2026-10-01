@@ -2,13 +2,13 @@ import { describe, expect, it, vi } from 'vitest';
 import { PixiRendererOrchestrator } from '../../src/app/PixiRendererOrchestrator';
 import type { LayerVisibility } from '../../src/app/pixi/playerSafeFrame';
 
-const SETTINGS = { showGrid: true, showTokenHP: false, showTokenStress: false, showTokenNameplates: true } as never;
+const SETTINGS = { showGrid: true, showTokenNameplates: true } as never;
 
 interface Harness {
   renderer: PixiRendererOrchestrator;
   overlay: { visible: boolean };
   modeLayer: { visible: boolean };
-  isSeen: (tokenId: string) => boolean;
+  isSeen: (tokenId: string) => 'seen' | 'unseen';
   getPlayerViewLayers: ReturnType<typeof vi.fn>;
   render: ReturnType<typeof vi.fn>;
 }
@@ -17,7 +17,7 @@ interface Harness {
 function harness(lighting: boolean): Harness {
   const overlay = { visible: true };
   const modeLayer = { visible: false };
-  const isSeen = (tokenId: string): boolean => tokenId === 'hero';
+  const isSeen = (tokenId: string): 'seen' | 'unseen' => (tokenId === 'hero' ? 'seen' : 'unseen');
   const getPlayerViewLayers = vi.fn((): LayerVisibility[] => []);
   const render = vi.fn();
   const renderer = Object.assign(Object.create(PixiRendererOrchestrator.prototype) as PixiRendererOrchestrator, {

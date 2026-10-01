@@ -8,6 +8,7 @@
 import type { ResourceDefinition } from '../resources/resourceTypes';
 import type { CreatureFilterDefinition } from './creatureFilterTypes';
 import type { DiceRules } from './diceRulesTypes';
+import type { LightPresetDefinition } from './lightPresetTypes';
 import type { TokenVisionDefaults } from './lightingTypes';
 import type { SenseDefinition } from './senseTypes';
 import type { AnyWidget } from './widgetTypes';
@@ -29,10 +30,11 @@ export interface ConditionDefinition {
   /** The condition carries a number on each token, like Frightened 2 or Exhaustion 3. */
   valued?: boolean;
   /**
-   * What the condition does to sight. Read with `conditionEffect`, which also knows the built-in
-   * conditions that collections copied before effects existed.
+   * What the condition does to sight. `none` says it does nothing, which a built-in condition
+   * that changes sight stores when the GM switches its effect off. Read with `conditionEffect`,
+   * which also knows the built-in conditions that collections copied before effects existed.
    */
-  effect?: ConditionEffect;
+  effect?: ConditionEffect | 'none';
 }
 
 /**
@@ -78,6 +80,11 @@ export interface CollectionSettings {
    * preset; read with `collectionSenses`.
    */
   senses?: readonly SenseDefinition[] | undefined;
+  /**
+   * The lights offered in the collection, stored only once the collection has its own. Unset
+   * while it takes those of its preset; read with `collectionLightPresets`.
+   */
+  lightPresets?: readonly LightPresetDefinition[] | undefined;
   /** The game system preset the rules were last taken from or saved to; they may have been edited since. */
   systemPresetId?: string | undefined;
   /** Default roll and critical rule. Read with `collectionDiceRules`. */

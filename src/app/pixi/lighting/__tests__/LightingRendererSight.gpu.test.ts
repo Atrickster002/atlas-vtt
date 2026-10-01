@@ -11,7 +11,7 @@ describe('the lighting engine reports new sight', () => {
   it('when a vision token moves, with the new sight already in place', async () => {
     const origins: number[] = [];
     const onSightChange = vi.fn(() => {
-      if (scene) origins.push(scene.host.currentSight().origins[0]!.x);
+      if (scene) origins.push(scene.host.currentSight().regions[0]!.origin.x);
     });
     scene = await createScene({ enabled: true, onSightChange });
     expect(onSightChange).toHaveBeenCalled();
