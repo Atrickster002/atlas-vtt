@@ -44,6 +44,13 @@ function tokenUI({ showResources = true, zoom }: { showResources?: boolean; zoom
 /** The anchor the wheels hang from: past the resize button, on the token's bottom edge. */
 const beside = (ui: TokenUIRenderer): Container => ui.getContainer().children[1] as Container;
 const wheelsView = (ui: TokenUIRenderer): Container => beside(ui).children[0] as Container;
+const MANA = { ...AMMO, key: 'mana', name: 'Mana', field: 'mana', color: '#8b5cf6' };
+const GRIT = { ...AMMO, key: 'grit', name: 'Grit', field: 'grit', color: '#84cc16' };
+const SIX = [...DEFINITIONS, MANA, GRIT];
+const veteran: Character = { ...hero, resources: { ...hero.resources, mana: { current: 3, max: 9 }, grit: { current: 1, max: 2 } } };
+/** The anchor of the wheels on the token's left: the mirror of `beside`. */
+const leftOf = (ui: TokenUIRenderer): Container => ui.getContainer().children[2] as Container;
+const leftSlots = (ui: TokenUIRenderer): ReturnType<TokenUIRenderer['getResourceSlots']> => ui.getResourceSlots().filter((slot) => slot.kind === 'wheel-left');
 const wheelSlots = (ui: TokenUIRenderer): ReturnType<TokenUIRenderer['getResourceSlots']> => ui.getResourceSlots().filter((slot) => slot.kind === 'wheel');
 
 describe('resource wheels on a token', () => {
@@ -174,6 +181,96 @@ describe('resource wheels on a token', () => {
       expect(early.above).toBeGreaterThan(0);
       expect(early.below).toBeCloseTo(24 * 2.25);
     } finally { ui.destroy(); }
+  });
+
+  it('hangs a fifth and sixth resource on the token\'s left, as a mirror of the right side', () => {
+    const { ui } = tokenUI({ zoom: 1 });
+    ui.resourceDefsProvider = () => SIX;
+    try {
+      ui.update(veteran, 62);
+      expect(ui.getResourceSlots().map((slot) => [slot.key, slot.kind])).toEqual(
+        [['hp', 'bar'], ['str', 'bar'], ['ammo', 'wheel'], ['luck', 'wheel'], ['mana', 'wheel-left'], ['grit', 'wheel-left']]);
+      expect(leftOf(ui).position.x).toBeCloseTo(-beside(ui).position.x);
+      expect(leftOf(ui).position.y).toBeCloseTo(beside(ui).position.y);
+      expect((leftOf(ui).children[0] as Container).visible).toBe(false);
+      ui.setSelectionState(true);
+      settle();
+      expect((leftOf(ui).children[0] as Container).visible).toBe(true);
+      expect(leftOf(ui).scale.x).toBeCloseTo(beside(ui).scale.x);
+      // Above the nameplate at the selected size too, like the right side
+      const scale = leftOf(ui).scale.x;
+      for (const slot of leftSlots(ui)) {
+        expect(leftOf(ui).position.y + (slot.top + slot.height) * scale).toBeLessThanOrEqual(62 / 2 - NAMEPLATE_HEIGHT * scale + 1e-6);
+      }
+    } finally { ui.destroy(); }
+  });
+
+  it.each([1, 1.5, 2.5])('keeps the left wheels clear of the left resize button on any token size (%s)', (size) => {
+    const { ui } = tokenUI();
+    ui.resourceDefsProvider = () => SIX;
+    try {
+      const sprite = computeTokenPixelSize(70, size);
+      ui.update({ ...veteran, size }, sprite);
+      const handleReach = getTokenRingCenterRadius(sprite, 4, 1) + (RESIZE_HANDLE_SIZE / 2) * tokenUIScale(sprite);
+      const slot = leftSlots(ui)[0]!;
+      const wheelRight = leftOf(ui).position.x + (slot.left + slot.width) * leftOf(ui).scale.x;
+      expect(wheelRight).toBeLessThan(-handleReach);
+    } finally { ui.destroy(); }
+  });
+
+  it('reports how far the left wheels reach, for the selection frame', () => {
+    const { ui } = tokenUI();
+    try {
+      ui.update(hero, 62);
+      expect(ui.getResourcesExtent().left).toBe(0);
+      ui.resourceDefsProvider = () => SIX;
+      ui.update(veteran, 62);
+      const { left, right } = ui.getResourcesExtent();
+      expect(left).toBeCloseTo(right);
+      expect(left).toBeGreaterThan(20.4);
+    } finally { ui.destroy(); }
+  });
+
+  it('puts the controls of a left wheel on it, with its stepper on the outer side', async () => {
+    await loadEnvironmentExtensions(false);
+    const { ui, store } = tokenUI({ zoom: 1 });
+    ui.resourceDefsProvider = () => SIX;
+    store.setState({ objects: { ...store.getState().objects, tokens: { hero: veteran } } });
+    const canvas = document.body.createEl('canvas');
+    const viewport = Object.assign(new Container(), { options: { events: { domElement: canvas } } }) as Viewport;
+    const stage = new Container({ isRenderGroup: true });
+    stage.addChild(viewport);
+    viewport.addChild(ui.getContainer());
+    const controls = new TokenControlsUI(viewport, store);
+    controls.resourceDefsProvider = () => SIX;
+    controls.slotsProvider = () => ui.getResourceSlots();
+    ui.onScaleChange = (scale) => controls.setScaleFor('hero', scale);
+    try {
+      ui.update(veteran, 62);
+      controls.show('hero', 0, 0, 62, ui.getUIScale());
+      ui.setSelectionState(true);
+      settle();
+      updateRenderGroupTransforms(stage.renderGroup!, true);
+
+      const everything = (node: Container): Container[] => node.children.flatMap((child) => [child, ...everything(child)]);
+      const hits = everything(controls.getContainer()).filter((c): c is ResourceBarHitArea => c instanceof ResourceBarHitArea);
+      expect(hits).toHaveLength(6);
+      type Rect = { left: number; top: number; width: number; height: number };
+      const slotOf = (hit: ResourceBarHitArea): Rect => (hit as unknown as { slot: Rect }).slot;
+      (leftOf(ui).children[0] as Container).children.forEach((wheel, index) => {
+        const hit = hits[4 + index]!;
+        const { left, top, width, height } = slotOf(hit);
+        const control = hit.parent!.toGlobal({ x: left + width / 2, y: top + height / 2 });
+        const drawn = wheel.getGlobalPosition();
+        expect([control.x, control.y].map(Math.round)).toEqual([drawn.x, drawn.y].map(Math.round));
+        // Minus and plus follow the click area among its anchor's children; both lie left of the wheel, away from the token
+        const siblings = hit.parent!.children;
+        for (const button of [siblings[siblings.indexOf(hit) + 1]!, siblings[siblings.indexOf(hit) + 2]!]) {
+          expect(button.visible).toBe(true);
+          expect(button.getGlobalPosition().x).toBeLessThan(drawn.x - (width / 2) * leftOf(ui).scale.x);
+        }
+      });
+    } finally { controls.destroy(); ui.destroy(); stage.destroy({ children: true }); }
   });
 
   it('puts a selected token\'s wheel controls on its wheels and leaves the bars\' buttons their clicks', async () => {

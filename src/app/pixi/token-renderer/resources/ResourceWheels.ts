@@ -5,30 +5,49 @@ import { NAMEPLATE_HEIGHT } from '../tokenSizing';
 import { ResourceWheelView, WHEEL_SIZE } from './ResourceWheelView';
 
 export { WHEEL_SIZE };
-/** Space between the two wheels, in UI units. */
+/** Space between the two wheels of a side, in UI units. */
 const WHEEL_GAP = 1.6;
-/** Space between the anchor's left edge and the wheels, in UI units. */
+/** Space between an anchor and its wheels, in UI units. */
 const WHEEL_MARGIN = 1.5;
 /** Bottom of the lower wheel above the anchor: clear of the nameplate, which lies on the token's bottom edge. */
 const WHEEL_BASE = NAMEPLATE_HEIGHT + 1;
+/** Wheels on each side of the token. */
+const WHEELS_PER_SIDE = 2;
 /** The +/- stepper a selected token's wheel gets on its outer side: distance from the wheel and button diameter. */
 export const WHEEL_STEPPER = { gap: 2, size: 10 } as const;
 
-/** Where the wheel of `slot` sits. A wheel keeps its own place even when the other slot is empty. */
+/**
+ * Where the wheel of `slot` sits, in the units of its side's anchor: the first two wheel
+ * slots on the token's right, the next two on its left, as a mirror. The first of a side is
+ * the upper one. A wheel keeps its own place even when the other slots are empty.
+ */
 export function wheelSlot(key: string, slot: number): ResourceSlot {
-  const row = slot === BAR_SLOTS ? 1 : 0;
-  return { key, kind: 'wheel', left: WHEEL_MARGIN, top: -WHEEL_BASE - WHEEL_SIZE - row * (WHEEL_GAP + WHEEL_SIZE), width: WHEEL_SIZE, height: WHEEL_SIZE };
+  const index = slot - BAR_SLOTS;
+  const onLeft = index >= WHEELS_PER_SIDE;
+  const row = index % WHEELS_PER_SIDE === 0 ? 1 : 0;
+  return {
+    key,
+    kind: onLeft ? 'wheel-left' : 'wheel',
+    left: onLeft ? -WHEEL_MARGIN - WHEEL_SIZE : WHEEL_MARGIN,
+    top: -WHEEL_BASE - WHEEL_SIZE - row * (WHEEL_GAP + WHEEL_SIZE),
+    width: WHEEL_SIZE,
+    height: WHEEL_SIZE,
+  };
 }
 
+/** How far a side's wheels and their steppers reach from its anchor, in UI units. */
+const SIDE_REACH = WHEEL_MARGIN + WHEEL_SIZE + WHEEL_STEPPER.gap + WHEEL_STEPPER.size;
+
 /**
- * A token's wheels to its right, in the units of an anchor past the resize button on the
- * token's bottom edge (`wheelAnchor`). The stack stands on the nameplate's top line and
- * grows upward with the anchor's scale, as the bars grow downward: at no size can it meet
- * the nameplate or the bars. The first wheel slot is the upper one. They show only while
- * revealed (`setAlpha`), on hover and selection.
+ * A token's wheels beside it: `right` in the units of an anchor past the right resize
+ * button on the token's bottom edge (`wheelAnchor`), `left` in those of its mirror on the
+ * left. Each stack stands on the nameplate's top line and grows upward with its anchor's
+ * scale, as the bars grow downward: at no size can it meet the nameplate or the bars. They
+ * show only while revealed (`setAlpha`), on hover and selection.
  */
 export class ResourceWheels {
-  readonly view = new Container({ eventMode: 'none', interactiveChildren: false });
+  readonly right = new Container({ eventMode: 'none', interactiveChildren: false });
+  readonly left = new Container({ eventMode: 'none', interactiveChildren: false });
   private readonly views = new Map<string, ResourceWheelView>();
   private slots: ResourceSlot[] = [];
   private resolution: number | undefined;
@@ -46,28 +65,34 @@ export class ResourceWheels {
     }
     this.slots = resources.map((resource) => {
       const slot = wheelSlot(resource.definition.key, resource.slot);
-      this.viewFor(slot.key).update(resource, slot.left + WHEEL_SIZE / 2, slot.top + WHEEL_SIZE / 2);
+      const view = this.viewFor(slot.key);
+      // Reordering the collection's resources can move one to the other side
+      (slot.kind === 'wheel-left' ? this.left : this.right).addChild(view.view);
+      view.update(resource, slot.left + WHEEL_SIZE / 2, slot.top + WHEEL_SIZE / 2);
       return slot;
     });
   }
 
-  /** Where each wheel sits, for the click areas and steppers; the same at every scale of the anchor. */
+  /** Where each wheel sits, for the click areas and steppers; the same at every scale of the anchors. */
   layout(): readonly ResourceSlot[] {
     return this.slots;
   }
 
-  /** How far the wheels and their steppers reach right of the anchor and above it, in UI units; 0 without wheels. */
-  extent(): { right: number; up: number } {
-    if (this.slots.length === 0) return { right: 0, up: 0 };
+  /** How far the wheels and their steppers reach from the right and the left anchor and above them, in UI units; 0 where there are none. */
+  extent(): { right: number; left: number; up: number } {
+    const has = (kind: ResourceSlot['kind']): boolean => this.slots.some((slot) => slot.kind === kind);
     return {
-      right: WHEEL_MARGIN + WHEEL_SIZE + WHEEL_STEPPER.gap + WHEEL_STEPPER.size,
-      up: Math.max(...this.slots.map((slot) => -slot.top)),
+      right: has('wheel') ? SIDE_REACH : 0,
+      left: has('wheel-left') ? SIDE_REACH : 0,
+      up: Math.max(0, ...this.slots.map((slot) => -slot.top)),
     };
   }
 
   setAlpha(alpha: number): void {
-    this.view.alpha = alpha;
-    this.view.visible = alpha > 0;
+    for (const side of [this.right, this.left]) {
+      side.alpha = alpha;
+      side.visible = alpha > 0;
+    }
   }
 
   /** Rasterisation resolution of the numbers, also of wheels created later. */
@@ -79,7 +104,8 @@ export class ResourceWheels {
   destroy(): void {
     for (const view of this.views.values()) view.destroy();
     this.views.clear();
-    this.view.destroy();
+    this.right.destroy();
+    this.left.destroy();
   }
 
   private viewFor(key: string): ResourceWheelView {
@@ -88,7 +114,6 @@ export class ResourceWheels {
     const view = new ResourceWheelView();
     if (this.resolution !== undefined) view.setResolution(this.resolution);
     this.views.set(key, view);
-    this.view.addChild(view.view);
     return view;
   }
 }

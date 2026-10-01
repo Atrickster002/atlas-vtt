@@ -1,6 +1,6 @@
 /**
  * ResourcesTab — the expendable resources tokens of a collection track (HP, Stress, ammunition…),
- * in the order of their slots on a token: two bars, then two wheels.
+ * in the order of their slots on a token: two bars, then four wheels.
  */
 import React from 'react';
 import { Plus } from 'lucide-react';
@@ -46,8 +46,8 @@ export function ResourcesTab({ resources, onChange, fieldSuggestions }: Resource
     <>
       <p className="atlas-csm-hint">
         Resources are the values tokens spend during play, like HP, Stress or ammunition. A token
-        shows up to four: the first two as bars below it, the next two as wheels beside it while you
-        hover or select it. Each one reads its maximum from a statblock field, and tokens whose
+        shows up to six: the first two as bars below it, the others as wheels beside it while you
+        hover or select it (two on its right, then two on its left). Each one reads its maximum from a statblock field, and tokens whose
         statblock lacks that field don&apos;t show it. A draining resource starts full and counts
         down, a filling one starts empty and counts up; switching that later reads the stored
         values the other way round.

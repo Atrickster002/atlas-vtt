@@ -7,12 +7,13 @@ import type { ViewAtlasState, ViewAtlasStore } from '../storeFactory';
 import { EventEmitter } from 'events';
 import { getDrawingBounds, type DrawingBounds } from './drawingGeometry';
 import type { LayerVisibility } from './playerSafeFrame';
+import { NO_RESOURCES_EXTENT, type ResourcesExtent } from './TokenUIRenderer';
 
 export class SelectionManager {
   private viewport: Viewport;
   private tokenRendererProvider: () => ({ [id: string]: Container });
   /** How far a selected token's bars and wheels reach beyond its edges, in world units. */
-  public resourcesExtentProvider: (tokenId: string) => { below: number; right: number; above: number } = () => ({ below: 0, right: 0, above: 0 });
+  public resourcesExtentProvider: (tokenId: string) => Readonly<ResourcesExtent> = () => NO_RESOURCES_EXTENT;
   private fogSpriteProvider: () => ({ [id: string]: Container });
   private hitTestTokensProvider?: (worldX: number, worldY: number) => string | null;
 
@@ -386,9 +387,9 @@ export class SelectionManager {
           // we use the tokenGroup's position and the sprite's dimensions
           const halfWidth = sprite.width / 2;
           const halfHeight = sprite.height / 2;
-          const spriteLeft = tokenGroup.position.x - halfWidth;
           // The selection reaches around the resources drawn below and beside the token
           const extent = this.resourcesExtentProvider(id);
+          const spriteLeft = tokenGroup.position.x - halfWidth - extent.left;
           const spriteTop = tokenGroup.position.y - halfHeight - extent.above;
           const spriteRight = tokenGroup.position.x + halfWidth + extent.right;
           const spriteBottom = tokenGroup.position.y + halfHeight + extent.below;
