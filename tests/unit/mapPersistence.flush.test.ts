@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Notice } from 'obsidian';
-import { createAtlasStorage, STALLED_SAVE_MS } from '../../src/app/services/MapPersistence';
+import { createAtlasStorage } from '../../src/app/services/MapPersistence';
+import { STALLED_SAVE_MS } from '../../src/app/services/sceneFileWriter';
 import { createInMemoryApp } from '../mocks/inMemoryVault';
 
 vi.mock('obsidian', async (importOriginal) => ({ ...(await importOriginal<typeof import('obsidian')>()), Notice: vi.fn() }));
@@ -115,6 +116,41 @@ describe('map save flushing', () => {
     await storage.setItem('atlas', { state: { revision: 2 }, version: 4 });
     await storage.flush();
     expect(JSON.parse(files.get(path)!).state.revision).toBe(2);
+  });
+
+  it.each([
+    ['a newer save of the scene', 'save'],
+    ['the scene was loaded again', 'load'],
+  ])('lets a write the flush gave up on change nothing once %s', async (_label, then) => {
+    vi.useFakeTimers();
+    const content = JSON.stringify({ version: 4, state: { revision: 0 } });
+    const { app, files } = createInMemoryApp({ files: { [path]: content } });
+    app.vault.getFileByPath = app.vault.getAbstractFileByPath;
+    const process = vi.mocked(app.vault.process).getMockImplementation()!;
+    const stuck = deferred();
+    // Obsidian gets to the stuck write's file only later
+    vi.spyOn(app.vault, 'process').mockImplementationOnce(async (file, change) => {
+      await stuck.promise;
+      return process(file, change);
+    });
+    const storage = createAtlasStorage(app, { getState: () => ({ mapPath: path }) });
+
+    await storage.setItem('atlas', { state: { revision: 1 }, version: 4 });
+    void storage.flush();
+    await vi.advanceTimersByTimeAsync(STALLED_SAVE_MS);
+    if (then === 'save') {
+      await storage.setItem('atlas', { state: { revision: 2 }, version: 4 });
+      await storage.flush();
+    } else {
+      await storage.getItem('atlas');
+    }
+    const afterwards = files.get(path);
+
+    stuck.resolve();
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(files.get(path)).toBe(afterwards);
+    expect(JSON.parse(files.get(path)!).state.revision).toBe(then === 'save' ? 2 : 0);
   });
 
   it('still creates the file of a new map on its first save', async () => {

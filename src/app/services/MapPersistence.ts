@@ -1,19 +1,17 @@
 import type { PersistStorage, StorageValue } from 'zustand/middleware';
-import { App, Notice, TFile } from 'obsidian';
+import type { App } from 'obsidian';
 import type { TokenEntity, TextElement, DrawingStroke, NotePin } from '../types';
 import type { WallSegment } from '../types/wallTypes';
 import type { LightSource } from '../types/lightingTypes';
 import type { WidgetSettings } from '../types/widgetTypes';
 import type { HexNumberFormat } from '../grid/hexNumbering';
 import type AtlasVTTPlugin from '../../../main';
-import { debounce, type DebouncedFunction } from '../../utils/debounce';
 import { migrateWidgetsToCollection, needsWidgetMigration } from '../utils/widgetMigration';
 import { normalizeImagePath } from '../utils/pathUtils';
 import { fixMapTokenPaths } from '../utils/fixMapPaths';
 import { getDataFilePath } from '../utils/dataFileMigration';
-import { ensureFolder } from '../plugin/vaultFolders';
 import { preserveDamagedSceneFile, SceneFileError } from './sceneFileProblems';
-import { settledWithin } from '../utils/settledWithin';
+import { SceneFileWriter } from './sceneFileWriter';
 
 // Type definitions
 export interface CameraState {
@@ -160,11 +158,6 @@ export function parseSceneFile(content: string): LoadableMapEnvelope {
   return { ...raw, state: raw.state };
 }
 
-/** How long a flush waits for a file write before it reports the save as stuck. */
-export const STALLED_SAVE_MS = 5000;
-
-const sceneNameOf = (path: string): string => path.slice(path.lastIndexOf('/') + 1).replace(/\.[^.]+$/, '');
-
 export type AtlasPersistStorage<S> = PersistStorage<S> & { flush: () => Promise<void> };
 
 /**
@@ -180,10 +173,8 @@ export function createAtlasStorage<T extends { mapPath: string | null; mapLoaded
   store: { getState: () => T },
   plugin?: AtlasVTTPlugin
 ): AtlasPersistStorage<S> {
-  const pendingWrites = new Map<string, Promise<void>>();
-  // Create a map of debounced save functions per file path
-  const debouncedSavers = new Map<string, DebouncedFunction<[path: string, value: StorageValue<S>]>>();
-  
+  const writer = new SceneFileWriter<StorageValue<S>>(app, (path) => store.getState().mapPath === path);
+
   return {
     /**
      * Reads and parses the map file based on the current mapPath in the store.
@@ -198,6 +189,7 @@ export function createAtlasStorage<T extends { mapPath: string | null; mapLoaded
         return null;
       }
 
+      writer.supersedeWrites(mapPath);
       const mapFile = app.vault.getFileByPath(getDataFilePath(mapPath));
       if (!mapFile) {
         return null;
@@ -281,67 +273,7 @@ export function createAtlasStorage<T extends { mapPath: string | null; mapLoaded
         return;
       }
 
-      // Get or create a debounced saver for this path
-      if (!debouncedSavers.has(mapPath)) {
-        const saveFunction = async (path: string, value: StorageValue<S>): Promise<void> => {
-          try {
-            const data = JSON.stringify(value);
-
-            // Check if file exists
-            const dataPath = getDataFilePath(path);
-            
-            await ensureFolder(app, dataPath.substring(0, dataPath.lastIndexOf('/')));
-
-            const existingFile = app.vault.getAbstractFileByPath(dataPath);
-            if (existingFile instanceof TFile) {
-              await app.vault.process(existingFile, () => data);
-            } else if (store.getState().mapPath === path) {
-              await app.vault.create(dataPath, data);
-            }
-            // Otherwise the map was renamed while this save waited; the store has
-            // already scheduled its state for the new path, so recreating the old
-            // file would only leave a stale copy under the old name.
-          } catch (error) {
-            console.error(`[AtlasStorage] Error writing map file ${path}:`, error);
-          }
-        };
-        
-        // Create debounced version with 500ms delay
-        debouncedSavers.set(mapPath, debounce((path, snapshot) => {
-          // Preserve snapshot order even when a previous disk write is still running.
-          const previous = pendingWrites.get(path) ?? Promise.resolve();
-          const write = previous.then(() => saveFunction(path, snapshot));
-          pendingWrites.set(path, write);
-          void write.then(() => {
-            if (pendingWrites.get(path) === write) pendingWrites.delete(path);
-          });
-        }, 500));
-      }
-      
-      // Call the debounced save function
-      const debouncedSave = debouncedSavers.get(mapPath)!;
-      debouncedSave(mapPath, value);
-      
-      // Clean up old debounced savers to prevent memory leaks
-      // Keep only the most recent 5 map paths
-      if (debouncedSavers.size > 5) {
-        const pathsToKeep = new Set([mapPath]);
-        const allPaths = Array.from(debouncedSavers.keys());
-        // Keep the 4 most recently added (excluding current)
-        for (let i = allPaths.length - 1; i >= 0 && pathsToKeep.size < 5; i--) {
-          const path = allPaths[i];
-          if (path) {
-            pathsToKeep.add(path);
-          }
-        }
-        // Remove old entries
-        for (const path of allPaths) {
-          if (!pathsToKeep.has(path)) {
-            debouncedSavers.get(path)?.flush();
-            debouncedSavers.delete(path);
-          }
-        }
-      }
+      writer.schedule(mapPath, value);
     },
 
     /**
@@ -355,24 +287,7 @@ export function createAtlasStorage<T extends { mapPath: string | null; mapLoaded
     /**
      * Flush any pending debounced saves immediately
      */
-    async flush(): Promise<void> {
-      // Flush ALL pending saves, not just the current map path
-      // This is important when switching maps to ensure old map saves complete
-      for (const debouncedSave of debouncedSavers.values()) {
-        debouncedSave.flush();
-      }
-      // A timer may already have started a save before flush was called.
-      while (pendingWrites.size > 0) {
-        if (await settledWithin(Promise.all(pendingWrites.values()), STALLED_SAVE_MS)) continue;
-        // Whoever waits for the flush (a scene switch, closing the view) must not wait forever.
-        // The stuck writes are let go, so later saves of these maps are not queued behind them.
-        for (const path of pendingWrites.keys()) {
-          console.error(`[AtlasStorage] Saving ${path} did not finish`);
-          new Notice(`Atlas VTT could not finish saving ${sceneNameOf(path)}. Its latest changes may be missing from its file.`, 0);
-        }
-        pendingWrites.clear();
-      }
-    },
+    flush: () => writer.flush(),
   };
 }
 

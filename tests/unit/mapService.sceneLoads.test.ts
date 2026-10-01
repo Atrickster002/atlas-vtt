@@ -9,7 +9,8 @@ vi.mock('../../src/app/MapLoader', () => ({ MapLoader: { load: vi.fn() } }));
 
 import { MapLoader, type LoadedMap } from '../../src/app/MapLoader';
 import { createViewAtlasStore, type ViewAtlasState, type ViewAtlasStore } from '../../src/app/storeFactory';
-import { migrateMapFile, STALLED_SAVE_MS, type PersistedMapEnvelope } from '../../src/app/services/MapPersistence';
+import { migrateMapFile, type PersistedMapEnvelope } from '../../src/app/services/MapPersistence';
+import { STALLED_SAVE_MS } from '../../src/app/services/sceneFileWriter';
 import { MapService } from '../../src/app/services/MapService';
 import type { RendererService } from '../../src/app/services/RendererService';
 import { STALLED_JOB_MS } from '../../src/app/services/latestRequestQueue';
