@@ -30,11 +30,14 @@ export interface InitiativeEntry {
   /** Initiative modifier from statblock/character */
   initiativeModifier: number;
 
-  /** Health points */
-  hp: {
+  /**
+   * Hit points of the token. A token without hit points (no statblock) has none and shows
+   * no HP bar; `undefined` clears them when patched
+   */
+  hp?: {
     current: number;
     max: number;
-  };
+  } | undefined;
 
   /** Stress points (optional, for systems like Daggerheart); `undefined` clears them when patched */
   stress?: {

@@ -15,11 +15,11 @@ import { openContextMenuGlobal, closeContextMenuGlobal, type ContextMenuEntry } 
 import { DestructiveActionRow } from './DestructiveActionRow';
 import type { ITokenInteractionController, TokenGroupContainer } from './types';
 import type { TokenEntity } from '../../types';
-import type { InitiativeEntry } from '../../types/initiativeTypes';
 import type { ViewAtlasState } from '../../storeFactory';
 import type { StoreApi } from 'zustand';
 import type { GridSystem } from '../../grid/GridSystem';
 import { beginHistoryTransaction, endHistoryTransaction } from '../../stores/history';
+import { initiativeEntryForToken } from '../../stores/initiativeEntries';
 import { EventEmitter } from 'events';
 import { StatblockDialogService } from '../../services/StatblockDialogService';
 import { TokenStatblockLinkService } from '../../services/TokenStatblockLinkService';
@@ -766,39 +766,7 @@ export class InteractionController implements ITokenInteractionController {
       const entry = initiativeEntries.find((e) => e.tokenId === token.id);
       if (entry) this.store.getState().removeFromInitiative(entry.id);
     } else {
-      const character = token.kind === 'character' ? token : undefined;
-
-      let hp: { current: number; max: number };
-      if (character?.hp) {
-        hp = typeof character.hp === 'object'
-          ? { current: character.hp.current, max: character.hp.max }
-          : { current: character.hp, max: character.hp };
-      } else {
-        hp = { current: 10, max: 10 };
-      }
-
-      const entry: Omit<InitiativeEntry, 'id' | 'order' | 'isActive'> = {
-        tokenId: token.id,
-        name: character ? character.name : 'Token',
-        initiative: 0,
-        initiativeModifier: 0,
-        hp,
-        imagePath: token.imagePath,
-        isDefeated: hp.current <= 0,
-        isNPC: !character?.playerLinked,
-      };
-
-      if (character?.stress !== undefined) {
-        entry.stress = typeof character.stress === 'object'
-          ? { current: character.stress.current, max: character.stress.max }
-          : { current: character.stress, max: character.maxStress ?? 10 };
-      }
-
-      if (character?.statblockPath) {
-        entry.statblockPath = character.statblockPath;
-      }
-
-      this.store.getState().addToInitiative(entry);
+      this.store.getState().addToInitiative(initiativeEntryForToken(token));
     }
   }
 

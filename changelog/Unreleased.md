@@ -41,3 +41,4 @@
 - A roll such as d20+2d6 no longer adds a stray +2 to its total, and subtracted dice (2d6-1d4) now subtract
 - A natural 1 or 20 counts as critical even when a modifier is added, and a maxed damage die never does
 - Edit Token opens again instead of crashing on its Vision switch
+- The initiative tracker no longer crashes for tokens without hit points. Their cards show no HP bar instead of a made-up full one

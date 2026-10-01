@@ -6,6 +6,7 @@
 import type { TokenEntity } from '../types';
 import type { InitiativeState, InitiativeEntry, InitiativeConfig } from '../types/initiativeTypes';
 import { createDefaultInitiativeState } from '../types/initiativeTypes';
+import { isDefeatedAt } from './initiativeEntries';
 
 /**
  * Initiative slice state interface
@@ -326,8 +327,7 @@ export function createInitiativeActions(
           }
         }
 
-        // Check defeated status
-        entry.isDefeated = entry.hp.current <= 0;
+        entry.isDefeated = isDefeatedAt(entry.hp);
       });
     }),
   };

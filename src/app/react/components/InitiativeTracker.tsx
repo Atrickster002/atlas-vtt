@@ -14,8 +14,7 @@ import { InitiativeCard } from './InitiativeCard';
 import { EndCombatIcon } from './EndCombatIcon';
 import { StatblockHoverPreview, useStatblockHoverPreview } from './StatblockHoverPreview';
 import type { InitiativeEntry } from '../../types/initiativeTypes';
-import type { Character } from '../../types';
-import type { ViewAtlasState } from '../../storeFactory';
+import { initiativeEntryForToken, initiativeHp, initiativeStress, isDefeatedAt, sameVitals } from '../../stores/initiativeEntries';
 import './initiative-tracker.scss';
 
 /**
@@ -110,24 +109,6 @@ function EditInitiativePopup({
   );
 }
 
-type NewInitiativeEntry = Parameters<ViewAtlasState['addToInitiative']>[0];
-type Vitals = { current: number; max: number };
-
-/** Characters store HP either as a single number or as current/max. */
-function readHp(character: Character): Vitals | null {
-  if (!character.hp) return null;
-  return typeof character.hp === 'object'
-    ? { current: character.hp.current, max: character.hp.max }
-    : { current: character.hp, max: character.hp };
-}
-
-function readStress(character: Character): Vitals | undefined {
-  if (character.stress === undefined) return undefined;
-  return typeof character.stress === 'object'
-    ? { current: character.stress.current, max: character.stress.max }
-    : { current: character.stress, max: character.maxStress ?? 10 };
-}
-
 /**
  * Initiative Tracker Panel
  * Modern minimal design with floating cards - auto-syncs with map tokens
@@ -195,24 +176,7 @@ export const InitiativeTracker: React.FC = () => {
       const token = tokens[tokenId];
       if (!token) return;
 
-      const character = token.kind === 'character' ? token : null;
-      const hp = (character && readHp(character)) ?? { current: 10, max: 10 };
-      const stress = character ? readStress(character) : undefined;
-
-      const entry: NewInitiativeEntry = {
-        tokenId,
-        name: character ? character.name : 'Token',
-        initiative: 0,
-        initiativeModifier: 0,
-        hp,
-        imagePath: token.imagePath,
-        isDefeated: hp.current <= 0,
-        isNPC: !character?.playerLinked,
-        ...(stress ? { stress } : {}),
-        ...(character?.statblockPath ? { statblockPath: character.statblockPath } : {}),
-      };
-
-      addToInitiative(entry);
+      addToInitiative(initiativeEntryForToken(token));
     });
 
     // Also remove entries for tokens that no longer exist
@@ -236,27 +200,20 @@ export const InitiativeTracker: React.FC = () => {
         updates.imagePath = token.imagePath;
       }
 
+      const hp = initiativeHp(token);
+      if (!sameVitals(entry.hp, hp)) {
+        updates.hp = hp;
+        updates.isDefeated = isDefeatedAt(hp);
+      }
+
       if (token.kind === 'character') {
         if (entry.name !== token.name) {
           updates.name = token.name;
         }
 
-        const tokenHp = readHp(token);
-        if (tokenHp && (entry.hp.current !== tokenHp.current || entry.hp.max !== tokenHp.max)) {
-          updates.hp = tokenHp;
-          updates.isDefeated = tokenHp.current <= 0;
-        }
-
-        const stressUpdate = readStress(token);
-        const existingStress = entry.stress;
-        const stressChanged = stressUpdate
-          ? !existingStress
-            || existingStress.current !== stressUpdate.current
-            || existingStress.max !== stressUpdate.max
-          : existingStress !== undefined;
-
-        if (stressChanged) {
-          updates.stress = stressUpdate;
+        const stress = initiativeStress(token);
+        if (!sameVitals(entry.stress, stress)) {
+          updates.stress = stress;
         }
 
         const tokenStatblockPath = token.statblockPath?.trim() ? token.statblockPath : undefined;

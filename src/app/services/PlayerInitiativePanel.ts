@@ -68,7 +68,7 @@ export class PlayerInitiativePanel extends PlayerSceneOverlay<InitiativeScene> {
     if (settings.showTokenNameplates) {
       card.createSpan({ cls: 'atlas-player-initiative__name', text: entry.name });
     }
-    if (settings.showTokenHP && entry.hp.max > 0) {
+    if (settings.showTokenHP && entry.hp && entry.hp.max > 0) {
       card.createEl('progress', {
         cls: 'atlas-player-initiative__hp',
         attr: { max: entry.hp.max, value: Math.max(0, entry.hp.current), 'aria-label': 'HP' },
