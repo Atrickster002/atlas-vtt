@@ -11,7 +11,7 @@ import { CELL } from './atlasCell';
 import type { DiceFont } from './diceLook';
 import { dieGeometry, faceIndexForValue, type DieSides } from './dieGeometry';
 import { faceOutline } from './faceFrame';
-import { placeNumeral, type InkBox, type NumeralPlacement } from './numeralPlacement';
+import { fitNumeral, type InkBox } from './numeralFit';
 
 const SHEET_CELL = 160;
 const SHEET_COLS = 6;
@@ -53,7 +53,7 @@ interface NumeralSheet {
 
 const sheets = new Map<DiceFont, NumeralSheet>();
 const pending = new Map<DiceFont, Promise<void>>();
-const placements = new Map<string, NumeralPlacement>();
+const scales = new Map<string, number>();
 /** One cell of scratch space, for colouring a numeral before it goes onto a face. */
 let scratch: HTMLCanvasElement | null = null;
 
@@ -167,17 +167,17 @@ export function numeralCell(sides: DieSides, value: number): number {
   return value - 1;
 }
 
-/** Size and position of a numeral on its face; see `numeralPlacement.ts`. */
-function placementFor(font: DiceFont, sides: DieSides, value: number, ink: InkBox, pxPerSheetPx: number): NumeralPlacement {
+/** How far a numeral is shrunk to fit its face; see `numeralFit.ts`. */
+function scaleFor(font: DiceFont, sides: DieSides, value: number, ink: InkBox, pxPerSheetPx: number): number {
   const key = `${font}:${sides}:${value}`;
-  let placement = placements.get(key);
-  if (!placement) {
+  let scale = scales.get(key);
+  if (scale === undefined) {
     const geometry = dieGeometry(sides);
     const outline = faceOutline(geometry, faceIndexForValue(geometry, value), CELL);
-    placement = placeNumeral(outline, (ink.x1 - ink.x0) * pxPerSheetPx, (ink.y1 - ink.y0) * pxPerSheetPx);
-    placements.set(key, placement);
+    scale = fitNumeral(outline, (ink.x1 - ink.x0) * pxPerSheetPx, (ink.y1 - ink.y0) * pxPerSheetPx);
+    scales.set(key, scale);
   }
-  return placement;
+  return scale;
 }
 
 /** The sheet cell of a numeral, in `ink`, or as drawn when `ink` is null. */
@@ -211,10 +211,9 @@ export function paintNumeral(
   const cell = numeralCell(sides, value);
   const box = sheet.ink?.[cell] ?? NOMINAL_INK;
   const pxPerSheetPx = numeralSize(sides) / SHEET_FILL / SHEET_CELL;
-  const { scale, shift } = placementFor(font, sides, value, box, pxPerSheetPx);
-  const k = pxPerSheetPx * scale;
+  const k = pxPerSheetPx * scaleFor(font, sides, value, box, pxPerSheetPx);
   const source = numeralSource(sheet, cell, ink);
-  // The ink centre lands on the face centre, moved `shift` towards the numeral's top (up the canvas).
+  // The ink centre, not the cell's, lands on the face centre.
   ctx.drawImage(
     source.image,
     source.sx,
@@ -222,7 +221,7 @@ export function paintNumeral(
     SHEET_CELL,
     SHEET_CELL,
     x - ((box.x0 + box.x1) / 2) * k,
-    y - shift - ((box.y0 + box.y1) / 2) * k,
+    y - ((box.y0 + box.y1) / 2) * k,
     SHEET_CELL * k,
     SHEET_CELL * k,
   );
