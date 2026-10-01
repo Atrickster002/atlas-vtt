@@ -14,11 +14,13 @@ import type { ResourceDefinition } from '../../src/app/resources/resourceTypes';
  * macOS), which the theme below does too.
  */
 const THEME = `
-  body { margin: 0; --background-primary: #1e1e1e; --background-secondary: #262626; --background-modifier-border: #363636;
+  body { margin: 0; font: 13px/1.5 -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; --background-primary: #1e1e1e; --background-secondary: #262626; --background-modifier-border: #363636;
     --background-modifier-hover: rgba(255, 255, 255, 0.075); --text-normal: #dadada; --text-muted: #b3b3b3; --text-faint: #777;
     --interactive-accent: #7f6df2; --radius-m: 8px; --radius-l: 12px; --radius-xl: 16px; --font-ui-smaller: 12px; --font-ui-small: 13px;
     --corner-shape: squircle; }
+  /* Obsidian's own button look: its corner shape and a fixed height */
   button, input { corner-shape: var(--corner-shape); }
+  button { height: 30px; }
 `;
 const NAMES = ['HP', 'STR', 'Ammo', 'Luck', 'Mana', 'Grit'];
 const h = React.createElement;
@@ -28,10 +30,12 @@ function Dialog(): React.ReactElement {
     NAMES.map((name, slot) => ({ ...HP_RESOURCE, key: name.toLowerCase(), name, slot })));
   return h('div', { className: 'atlas-vtt-plugin' },
     h('div', { className: 'atlas-collection-settings-modal' },
+      h('div', { className: 'atlas-collection-settings-header' }, h('h3', null, 'Collection Settings')),
       h('div', { className: 'atlas-collection-settings-body' },
         h('div', { className: 'atlas-collection-settings-sidebar' }),
         h('div', { className: 'atlas-collection-settings-content' },
-          h(ResourcesTab, { resources, onChange: setResources, fieldSuggestions: ['hp', 'ammo'] })))));
+          h(ResourcesTab, { resources, onChange: setResources, fieldSuggestions: ['hp', 'ammo'] }))),
+      h('div', { className: 'atlas-collection-settings-footer' }, h('button', null, 'Cancel'), h('button', null, 'Save'))));
 }
 
 describe('the socket editor of the Resources tab', () => {
@@ -62,6 +66,32 @@ describe('the socket editor of the Resources tab', () => {
       expect(item.left).toBeGreaterThanOrEqual(stage.left);
       expect(item.right).toBeLessThanOrEqual(stage.right);
     }
+  });
+
+  it('lays the twenty colours out in two rows of ten, centred and inside the card', async () => {
+    await userEvent.click(page.getByRole('button', { name: /^HP: / }));
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    const card = document.querySelector('.atlas-csm-resource-card')!.getBoundingClientRect();
+    const swatches = [...document.querySelectorAll('.atlas-csm-resource-card .atlas-swatch')].map((swatch) => swatch.getBoundingClientRect());
+    expect(swatches).toHaveLength(20);
+    for (const swatch of swatches) {
+      expect(swatch.left).toBeGreaterThanOrEqual(card.left);
+      expect(swatch.right).toBeLessThanOrEqual(card.right);
+      expect(swatch.width).toBeCloseTo(swatch.height, 0);
+    }
+    const rows = [...new Set(swatches.map((swatch) => Math.round(swatch.top)))];
+    expect(rows).toHaveLength(2);
+    expect(swatches.filter((swatch) => Math.round(swatch.top) === rows[0]).length).toBe(10);
+    // Centred: as much room left of the first swatch as right of the tenth
+    const [first, tenth] = [swatches[0]!, swatches[9]!];
+    expect(first.left - card.left).toBeCloseTo(card.right - tenth.right, 0);
+  });
+
+  it('fits the dialog with a card open: the tab does not scroll', async () => {
+    await userEvent.click(page.getByRole('button', { name: /^HP: / }));
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    const content = document.querySelector('.atlas-collection-settings-content')!;
+    expect(content.scrollHeight).toBeLessThanOrEqual(content.clientHeight);
   });
 
   it('lets the name and the statblock field take a click: nothing lies over the card', async () => {

@@ -108,10 +108,9 @@ export function ResourcesTab({ resources, onChange, fieldSuggestions }: Resource
     <MotionConfig reducedMotion="user">
       <div className="atlas-csm-resources" onKeyDown={onKeyDown}>
         <p className="atlas-csm-hint">
-          Resources are the values tokens spend during play, like HP, Stress or ammunition. Click a
-          socket to put one there, and drag it to another socket to move it. Each resource reads its
-          maximum from a field of the token&apos;s statblock; tokens whose statblock lacks that field
-          don&apos;t show it. A static resource shows that number as it is, like an armour class.
+          Click a socket to put a resource there, and drag it to another socket to move it. Each
+          resource reads its number from a field of the token&apos;s statblock; tokens whose statblock
+          lacks that field don&apos;t show it.
         </p>
 
         <div className={cn('atlas-csm-token-stage', selected !== null && 'atlas-focused', lifted !== null && 'atlas-dragging')}
