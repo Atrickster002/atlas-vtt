@@ -1,3 +1,4 @@
+import type { TokenPerception } from '../pixi/lighting/playerLightingLayers';
 import type { StoreApi } from 'zustand';
 import type { PlayerCameraState } from '../local-player-view';
 import type { ViewAtlasState } from '../storeFactory';
@@ -45,6 +46,15 @@ export interface PlayerFrameSource {
   withPlayerSafeFrame: PlayerSafeFrame;
   /** Without it the canvas is captured on every display frame of the player window. */
   beforeRender?: BeforeRenderCapture;
+  /**
+   * How the players perceive each token of the scene, as the canvas hides and outlines them
+   * (`LightingController.tokenSight`); undefined while sight hides nothing (an unlit scene, no
+   * token that sees). What the player window shows beside the map reads it, so a token the
+   * map leaves out is not named there.
+   */
+  tokenSight?(): TokenPerception | undefined;
+  /** Calls `listener` when that perception may have changed without a change of the scene's store; returns the unsubscribe. */
+  onTokenSightChange?(listener: () => void): () => void;
 }
 
 /**
