@@ -1,13 +1,16 @@
-import { dimThresholdOf, litThresholdOf } from '../lighting/sceneLightingOptions';
+import { brightThresholdOf, litThresholdOf } from '../lighting/sceneLightingOptions';
 import type { LightLevel } from '../types/senseTypes';
 import type { Point } from '../types/visionTypes';
 import type { AmbientLight, LightReach } from './sight';
 import { pointInPolygon } from './visibility';
 
-/** The light level the scene's ambient light alone gives every point. */
+/**
+ * The light level the scene's ambient light alone gives every point: dark below the lit
+ * threshold, bright from the bright threshold, dim between them (day is bright, dusk dim, night dark).
+ */
 export function ambientLevel(light: AmbientLight): LightLevel {
-  if (light.ambient >= litThresholdOf(light)) return 'bright';
-  return light.ambient >= dimThresholdOf(light) ? 'dim' : 'dark';
+  if (light.ambient < litThresholdOf(light)) return 'dark';
+  return light.ambient >= brightThresholdOf(light) ? 'bright' : 'dim';
 }
 
 /** The light level the lights give `point`: bright within a bright radius, dim within a dim one, where no wall is between. */
@@ -34,11 +37,7 @@ export function lightLevelAt(point: Point, ambient: AmbientLight, lights: readon
   return fromLights === 'dark' ? fromAmbient : fromLights;
 }
 
-/**
- * Whether normal sight sees `point` by its light: any light level but dark, except that dim
- * ambient light does not count. Ambient light below the lit threshold lit nothing before light
- * levels existed, and sight keeps to that until it reads the levels themselves.
- */
+/** Whether normal sight sees `point` by its light: at any light level but dark. */
 export function isLit(point: Point, ambient: AmbientLight, lights: readonly LightReach[]): boolean {
-  return ambientLevel(ambient) === 'bright' || levelFromLights(point, lights) !== 'dark';
+  return lightLevelAt(point, ambient, lights) !== 'dark';
 }
