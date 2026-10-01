@@ -30,7 +30,7 @@ import { discoverResourceFields } from '../../resources/resourceFields';
 import { LootTab } from './collection-settings/LootTab';
 import { SystemTab } from './collection-settings/SystemTab';
 import { DiceTab } from './collection-settings/DiceTab';
-import { collectionDiceRules, isValidDefaultRoll } from '../../gameSystems/diceRules';
+import { collectionDiceRules, isValidDiceRules } from '../../gameSystems/diceRules';
 import { collectionLightPresets } from '../../gameSystems/lightPresetRules';
 import { editedSenses, sensesAreValid } from '../../gameSystems/senseEditing';
 import { collectionSenses } from '../../gameSystems/senseRules';
@@ -126,7 +126,7 @@ export function CollectionSettingsModal({
   // What the collection's game system gives it; an edit that ends up there again stores nothing.
   const systemSenses = collectionSenses({ systemPresetId: draft.systemPresetId }, systemPresets.presets);
   const canSave = areRangeBandsValid(gridDefaults.abstractRangeBands)
-    && isValidDefaultRoll(dice.defaultRoll)
+    && isValidDiceRules(dice)
     && sensesAreValid(senses)
     && draft.customCreatureFilters.every(isCompleteCreatureFilter)
     // A resource without a name or a statblock field could never show

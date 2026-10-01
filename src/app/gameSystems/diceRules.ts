@@ -19,7 +19,8 @@ export const DEFAULT_EXPLODE_RULE: Readonly<ExplodeRule> = { dice: 'all', repeat
 /** The most faces of a die a rule may name; the roll leaves every die one face that does not explode. */
 export const MAX_EXPLODING_FACES = 99;
 
-function isFaceCount(value: unknown, least: number): value is number {
+/** Whether `value` is a number of faces a rule may name: whole, from `least` to the most a rule allows. */
+export function isFaceCount(value: unknown, least: number): value is number {
   return typeof value === 'number' && Number.isInteger(value) && value >= least && value <= MAX_EXPLODING_FACES;
 }
 
@@ -30,6 +31,14 @@ export function parseExplodeRule(raw: unknown): ExplodeRule | null {
   if (!EXPLODE_SCOPES.includes(dice as ExplodeScope) || typeof repeats !== 'boolean') return null;
   if (!isFaceCount(highFaces, 1) || !isFaceCount(lowFaces, 0)) return null;
   return { dice: dice as ExplodeScope, repeats, highFaces, lowFaces };
+}
+
+/**
+ * Whether dice rules can be saved as they stand. While they are edited they
+ * may hold what was typed so far: half a default roll, or no face count yet.
+ */
+export function isValidDiceRules(dice: DiceRules): boolean {
+  return isValidDefaultRoll(dice.defaultRoll) && (dice.explode === undefined || parseExplodeRule(dice.explode) !== null);
 }
 
 /** What the settings offer for exploding dice: none, or the dice that explode. */

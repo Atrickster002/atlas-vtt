@@ -7,10 +7,17 @@
 
 import React, { useState } from 'react';
 import { ObsidianMenuDropdown } from '../ObsidianMenuDropdown';
-import { MAX_EXPLODING_FACES, parseDefaultRoll, withExplodeScope, type ExplodeChoice } from '../../../gameSystems/diceRules';
+import {
+  MAX_EXPLODING_FACES,
+  isFaceCount,
+  parseDefaultRoll,
+  parseExplodeRule,
+  withExplodeScope,
+  type ExplodeChoice,
+} from '../../../gameSystems/diceRules';
 import { describeExplodeRule, highFaceNames, lowFaceNames } from '../../../gameSystems/explodeRuleText';
-import { DefaultDiceInfo } from './DefaultDiceInfo';
 import type { DiceRules, ExplodeRule } from '../../../types/diceRulesTypes';
+import { DefaultDiceInfo } from './DefaultDiceInfo';
 
 interface ExplodingDiceFieldsProps {
   dice: DiceRules;
@@ -28,10 +35,9 @@ const OFF_HINT = 'No die rolls again. A single roll can still explode: write ! a
 /** The die the settings speak of where the default roll is not valid yet. */
 const FALLBACK_SIDES = 20;
 
-/** A whole number of faces from what was typed, kept within the rule's limits. */
-function faceCount(text: string, least: number): number {
-  const count = Math.round(Number(text));
-  return Number.isNaN(count) ? least : Math.min(MAX_EXPLODING_FACES, Math.max(least, count));
+/** A count as the texts read it while its field is empty or holds no face count: 1, the least it allows. */
+function readableFaceCount(count: number | undefined): number {
+  return isFaceCount(count, 1) ? count : 1;
 }
 
 interface SwitchRowProps {
@@ -56,6 +62,51 @@ function SwitchRow({ label, hint, checked, onChange }: SwitchRowProps): React.Re
   );
 }
 
+interface FaceCountFieldProps {
+  id: string;
+  label: string;
+  /** What was typed: any number, or NaN for an empty field. Save stays disabled until it is a face count. */
+  count: number;
+  /** The faces of the collection's die a valid count means, e.g. `9 or 10`. */
+  faces: string;
+  sides: number;
+  onChange: (count: number) => void;
+}
+
+/**
+ * A number of faces, kept as typed: the field can be emptied and typed anew,
+ * and says what it wants while what it holds is no face count.
+ */
+function FaceCountField({ id, label, count, faces, sides, onChange }: FaceCountFieldProps): React.ReactElement {
+  const valid = isFaceCount(count, 1);
+  return (
+    <div className="atlas-csm-field">
+      <label className="atlas-csm-label" htmlFor={id}>{label}</label>
+      <input
+        id={id}
+        type="number"
+        className="atlas-csm-input atlas-csm-input--number"
+        min={1}
+        max={MAX_EXPLODING_FACES}
+        step={1}
+        aria-invalid={!valid || undefined}
+        value={Number.isNaN(count) ? '' : count}
+        onChange={(e) => {
+          const typed = e.target.value.trim();
+          onChange(typed === '' ? NaN : Number(typed));
+        }}
+      />
+      {valid ? (
+        <p className="atlas-csm-hint">On a d{sides}: {faces || 'none'}.</p>
+      ) : (
+        <p className="atlas-csm-hint atlas-csm-hint--error" role="alert">
+          Enter a whole number from 1 to {MAX_EXPLODING_FACES}.
+        </p>
+      )}
+    </div>
+  );
+}
+
 export function ExplodingDiceFields({ dice, onChange }: ExplodingDiceFieldsProps): React.ReactElement {
   const rule = dice.explode;
   const sides = parseDefaultRoll(dice.defaultRoll)?.sides ?? FALLBACK_SIDES;
@@ -66,6 +117,12 @@ export function ExplodingDiceFields({ dice, onChange }: ExplodingDiceFieldsProps
   // hidden, and then stay open: stepping a count back to 1 must not fold away the field being edited.
   const [facesShown, setFacesShown] = useState(false);
   if (rule && (rule.highFaces > 1 || rule.lowFaces > 1) && !facesShown) setFacesShown(true);
+
+  const highFaces = readableFaceCount(rule?.highFaces);
+  const lowFaces = readableFaceCount(rule?.lowFaces);
+  // 0 alone means off: an emptied field is still switched on.
+  const subtracts = rule !== undefined && rule.lowFaces !== 0;
+  const complete = rule !== undefined && parseExplodeRule(rule) !== null;
 
   return (
     <>
@@ -80,7 +137,8 @@ export function ExplodingDiceFields({ dice, onChange }: ExplodingDiceFieldsProps
           options={SCOPE_OPTIONS}
           onChange={(value) => onChange(withExplodeScope(dice, value as ExplodeChoice))}
         />
-        <p className="atlas-csm-hint">{rule ? describeExplodeRule(rule, sides) : OFF_HINT}</p>
+        {!rule && <p className="atlas-csm-hint">{OFF_HINT}</p>}
+        {rule && complete && <p className="atlas-csm-hint">{describeExplodeRule(rule, sides)}</p>}
       </div>
 
       {rule && (
@@ -93,42 +151,30 @@ export function ExplodingDiceFields({ dice, onChange }: ExplodingDiceFieldsProps
           />
           <SwitchRow
             label="Lowest face rolls again and subtracts"
-            hint={`A d${sides} that shows ${lowFaceNames(sides, Math.max(1, rule.lowFaces), rule.highFaces) || '1'} is rolled again and the new die is taken off the roll.`}
-            checked={rule.lowFaces > 0}
+            hint={`A d${sides} that shows ${lowFaceNames(sides, lowFaces, highFaces) || '1'} is rolled again and the new die is taken off the roll.`}
+            checked={subtracts}
             onChange={(on) => update({ lowFaces: on ? 1 : 0 })}
           />
 
           <details className="atlas-csm-details" open={facesShown} onToggle={(e) => setFacesShown(e.currentTarget.open)}>
             <summary>Explode on more than one face</summary>
-            <div className="atlas-csm-field">
-              <label className="atlas-csm-label" htmlFor="atlas-csm-explode-high">Highest faces that explode</label>
-              <input
-                id="atlas-csm-explode-high"
-                type="number"
-                className="atlas-csm-input atlas-csm-input--number"
-                min={1}
-                max={MAX_EXPLODING_FACES}
-                step={1}
-                value={rule.highFaces}
-                onChange={(e) => update({ highFaces: faceCount(e.target.value, 1) })}
+            <FaceCountField
+              id="atlas-csm-explode-high"
+              label="Highest faces that explode"
+              count={rule.highFaces}
+              faces={highFaceNames(sides, highFaces)}
+              sides={sides}
+              onChange={(count) => update({ highFaces: count })}
+            />
+            {subtracts && (
+              <FaceCountField
+                id="atlas-csm-explode-low"
+                label="Lowest faces that subtract"
+                count={rule.lowFaces}
+                faces={lowFaceNames(sides, lowFaces, highFaces)}
+                sides={sides}
+                onChange={(count) => update({ lowFaces: count })}
               />
-              <p className="atlas-csm-hint">On a d{sides}: {highFaceNames(sides, rule.highFaces)}.</p>
-            </div>
-            {rule.lowFaces > 0 && (
-              <div className="atlas-csm-field">
-                <label className="atlas-csm-label" htmlFor="atlas-csm-explode-low">Lowest faces that subtract</label>
-                <input
-                  id="atlas-csm-explode-low"
-                  type="number"
-                  className="atlas-csm-input atlas-csm-input--number"
-                  min={1}
-                  max={MAX_EXPLODING_FACES}
-                  step={1}
-                  value={rule.lowFaces}
-                  onChange={(e) => update({ lowFaces: faceCount(e.target.value, 1) })}
-                />
-                <p className="atlas-csm-hint">On a d{sides}: {lowFaceNames(sides, rule.lowFaces, rule.highFaces) || 'none'}.</p>
-              </div>
             )}
           </details>
         </>
