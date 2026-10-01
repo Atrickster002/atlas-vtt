@@ -10,6 +10,7 @@ import { SEES_ALL, SightCache, sceneSight, sightOptionsChanged, sightSources, ty
 import type { SightRules } from '../../vision/sightRules';
 import { wallList } from '../../vision/wallList';
 import { exploredShapes } from '../../vision/exploredShapes';
+import { seenSpots } from '../../vision/perception';
 import type { MapBounds } from '../../vision/visibility';
 import type { HideableLayer } from '../playerSafeFrame';
 import { requestRender } from '../RenderScheduler';
@@ -209,7 +210,8 @@ export class LightingRenderer implements SceneLightingView {
     const walls = sealedWalls(wallList(state.objects.walls), worldTexel(bounds));
     const lights = activeLights(state.objects.lights, state.objects.tokens).map((light) => engineLight(light, scale));
     this.reaches = this.lightReachCache.sync(lights, walls);
-    this.sight = sceneSight(state.lighting, sightSources(state.objects.tokens, scale, bounds, this.deps.rules?.()), walls, this.sightCache);
+    const rules = this.deps.rules?.();
+    this.sight = sceneSight(state.lighting, sightSources(state.objects.tokens, scale, bounds, rules), walls, this.sightCache);
     this.sightChanged = true;
     const shapes = exploredShapes(this.sight, state.lighting, this.reaches);
     if (shapes) this.memory.record(shapes);
@@ -219,6 +221,7 @@ export class LightingRenderer implements SceneLightingView {
       walls,
       lights,
       sight: this.sight,
+      spots: seenSpots(this.sight, state.lighting, this.reaches, state.objects.tokens, rules?.conditions ?? [], scale.cellSize),
       sightRadius: (state.grid?.size ?? DEFAULT_CELL_SIZE) * 0.5,
     };
   }

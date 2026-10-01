@@ -1,19 +1,14 @@
 import { Buffer, BufferImageSource, BufferUsage, Container, Geometry, Mesh, UniformGroup, type Shader } from 'pixi.js';
-import { perceivedLevel } from '../../../gameSystems/senseRules';
-import { NORMAL_SIGHT } from '../../../gameSystems/senses/generic';
 import type { Point } from '../../../types/visionTypes';
+import type { SeenSpot } from '../../../vision/perception';
 import type { Sight } from '../../../vision/sight';
 import { sightWedges, type SightWedge } from '../../../vision/sightWedges';
 import type { Polygon } from '../../../vision/visibility';
 import { destroyTree } from '../../utils/destroyTree';
 import { ENGINE_SHADERS } from './engineShaders';
 import { createShader } from './gpu';
+import { SPOT_CHANNELS, sightChannels, type SightChannels } from './senseDrawing';
 import { MAX_WEDGES } from './sightShader';
-
-type Channel = readonly [number, number, number, number];
-
-const RED: Channel = [1, 0, 0, 0];
-const GREEN: Channel = [0, 1, 0, 0];
 
 /** A sight mesh with the GPU objects it owns besides the mesh itself. */
 interface SightMesh {
@@ -23,26 +18,27 @@ interface SightMesh {
 
 /**
  * What vision tokens see, drawn into the lighting layer (so each render, including the player
- * window's own camera, draws it with its camera): red = in sight, green = darkvision.
- * Tokens combine with `max`. A visibility polygon is star-shaped around its origin, so a
- * triangle fan from the origin covers it exactly.
+ * window's own camera, draws it with its camera): one mesh per token and sense, in the channels
+ * `sightChannels` gives the sense (red = seen by light, green and blue = perceived without
+ * light, alpha = dim light as bright). Meshes combine with `max`. A visibility polygon is
+ * star-shaped around its origin, so a triangle fan from the origin covers it exactly.
  */
 export class SightMeshes {
   readonly view = new Container({ label: 'sight' });
   private meshes: SightMesh[] = [];
 
-  draw(sight: Sight, radius: number): void {
+  draw(sight: Sight, radius: number, spots: readonly SeenSpot[] = []): void {
     this.clear();
     if (sight.all) return;
-    // Sight first, then what sees in darkness, as the meshes were ordered before senses.
-    const shown = sight.regions.filter((region) => region.sense.reveals === 'all' && region.polygon);
-    for (const { sense, polygon, origin, apex } of shown) if (sense === NORMAL_SIGHT) this.add(polygon!, origin, apex, radius, RED);
-    for (const { sense, polygon, origin, apex } of shown) {
-      if (sense !== NORMAL_SIGHT && perceivedLevel(sense, 'dark') !== null) this.add(polygon!, origin, apex, radius, GREEN);
+    for (const region of sight.regions) {
+      const channels = sightChannels(region);
+      if (channels && region.polygon) this.add(region.polygon, region.origin, region.apex, radius, channels);
     }
+    // A disc has no shadow edges, so no wedge softens it.
+    for (const spot of spots) this.add(disc(spot), spot, 0, radius, SPOT_CHANNELS);
   }
 
-  private add(polygon: Polygon, origin: Point, apex: number, radius: number, channel: Channel): void {
+  private add(polygon: Polygon, origin: Point, apex: number, radius: number, channel: SightChannels): void {
     if (polygon.length < 3) return;
     const wedges = sightWedges(origin, polygon, radius, apex).slice(0, MAX_WEDGES);
     const wedgeSource = wedgeTexture(wedges);
@@ -72,6 +68,15 @@ export class SightMeshes {
     this.clear();
     destroyTree(this.view);
   }
+}
+
+const DISC_STEPS = 32;
+
+function disc({ x, y, radius }: SeenSpot): Polygon {
+  return Array.from({ length: DISC_STEPS }, (_, i) => {
+    const angle = (i / DISC_STEPS) * 2 * Math.PI;
+    return { x: x + Math.cos(angle) * radius, y: y + Math.sin(angle) * radius };
+  });
 }
 
 /** Two rows of `rgba32float` texels, one column per wedge: corner and edge, then side and angle. */

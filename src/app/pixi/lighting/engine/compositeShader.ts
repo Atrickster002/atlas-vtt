@@ -3,8 +3,15 @@ import { GLSL_VERSION, SRGB_GLSL, TRACE_GLSL, fieldGlsl } from './glsl';
 import { WALL_PUSH_GLSL } from './wallPushGlsl';
 
 /**
- * The lighting layer's final pass. uTexture is the layer itself (red = in sight, green =
- * darkvision); uBackTexture the scene beneath (map and tokens, sRGB). World textures are read
+ * The lighting layer's final pass. uTexture is the layer itself, what the vision tokens
+ * perceive (`SightMeshes`, `sightChannels`):
+ * - red: seen by light, as the light shows it;
+ * - green: perceived without light, in the scene's look without colour (uGreyKeep, uGreyTint:
+ *   the grey of darkvision, black and white, or heat tones);
+ * - blue: perceived without light, in colour, at uColourLevel;
+ * - alpha: dim light is perceived as bright (`litAsBright`).
+ * Where two looks meet on a pixel, the brighter one shows (`brighter`).
+ * uBackTexture is the scene beneath (map and tokens, sRGB). World textures are read
  * through uScreenToWorld, so every render (GM or player camera) lights its own view;
  * uPixelWorld is the size of a screen pixel in world pixels.
  * uAreaOrigin is where the filter's area starts on screen (PIXI's uOutputFrame holds it only
@@ -38,6 +45,10 @@ uniform float uAllSeen;
 uniform float uMemory;
 uniform vec3 uExploredTint;
 uniform vec3 uUnexplored;
+uniform float uGreyKeep;
+uniform vec3 uGreyTint;
+uniform float uColourLevel;
+uniform float uAmbientLift;
 ${fieldGlsl('uField')}
 float clearance(vec2 w) { return uFieldClearance(w); }
 ${TRACE_GLSL}
@@ -91,6 +102,19 @@ vec3 brighter(vec3 a, vec3 b) {
   return mix(a, b, smoothstep(-0.02, 0.02, dot(b - a, LUMA)));
 }
 
+// Senses: the scene where dim light is perceived as bright. Every light is taken at its bright
+// level (the light map's alpha is its luminance there), dim ambient light raised to bright
+// (uAmbientLift); bounce stays as it is. No light, no change: darkness is not lit by this.
+vec3 litAsBright(vec3 albedo, vec4 lamps, vec3 bounce) {
+  vec3 direct = lamps.rgb * (lamps.a / max(dot(lamps.rgb, LUMA), 1e-4));
+  vec3 light = uAmbient * uAmbientLift + (direct + bounce * uBounceGain) * uExposure;
+  float level = dot(light, LUMA);
+  vec3 lit = neutral(albedo * light);
+  float fill = 1.0 - lamps.a * uExposure / max(level, 1e-4);
+  float night = (1.0 - smoothstep(0.03, 0.35, level)) * uPurkinje * fill;
+  return mix(lit, vec3(dot(lit, LUMA)) * vec3(0.86, 0.96, 1.18), night);
+}
+
 void main() {
   vec2 screen = vTextureCoord * uInputSize.xy + uAreaOrigin;
   vec2 world = (uScreenToWorld * vec3(screen, 1.0)).xy;
@@ -109,7 +133,8 @@ void main() {
     bounce = mix(bounce, bounceAt(floorAt), front);
   }
   vec4 sight = textureLod(uTexture, vTextureCoord, 0.0);
-  float seen = max(uAllSeen, sight.r);
+  // Senses: what is perceived without light is seen too.
+  float seen = max(uAllSeen, max(sight.r, max(sight.g, sight.b)));
   vec3 direct = lamps.rgb;
   vec3 light = uAmbient + (direct + bounce * uBounceGain) * uExposure;
   float level = dot(light, LUMA);
@@ -124,9 +149,14 @@ void main() {
   float night = (1.0 - smoothstep(0.03, 0.35, level)) * uPurkinje * fill;
   lit = mix(lit, vec3(dot(lit, LUMA)) * vec3(0.86, 0.96, 1.18), night);
 
+  // Senses: dim light as bright.
+  if (sight.a > 0.0) lit = mix(lit, litAsBright(albedo, lamps, bounce), sight.a);
+
   float grey = dot(albedo, LUMA);
-  vec3 darkSight = mix(vec3(grey), albedo, 0.15) * 0.15;
+  vec3 darkSight = mix(vec3(grey), albedo, uGreyKeep) * uGreyTint;
   vec3 visible = mix(lit, brighter(lit, darkSight), sight.g);
+  // Senses: perceived without light, in colour.
+  visible = mix(visible, brighter(visible, albedo * uColourLevel), sight.b);
   float explored = uMode > 0.5 && uMemory > 0.5 && seen < 1.0 ? exploredAt(world) : 0.0;
   vec3 memory = mix(uUnexplored, vec3(grey) * 0.07 * uExploredTint, explored);
   vec3 player = mix(memory, visible, seen);

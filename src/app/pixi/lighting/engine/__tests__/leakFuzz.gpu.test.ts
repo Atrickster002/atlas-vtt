@@ -7,12 +7,24 @@ import { sealWalls } from '../../../../lighting/sealWalls';
 import { placeLight } from '../../../../lighting/lightPlacement';
 import { allSegments, splitBlocking } from '../../../../lighting/segments';
 import { LIGHT_REACH, sealTolerance, worldTexel } from '../../../../lighting/lightingConstants';
-import { SEES_ALL, computeSight } from '../../../../vision/sight';
+import { SEES_ALL, computeSight, type SenseSource } from '../../../../vision/sight';
+import { darkvision, senseSource } from '../../../../vision/__tests__/senseSources';
+import { BUILT_IN_SENSES, GENERIC_SENSES } from '../../../../gameSystems/senses';
+import type { SenseDefinition } from '../../../../types/senseTypes';
 import type { MapBounds } from '../../../../vision/visibility';
 import { createTestRenderer, readRgba } from './gpuTestUtils';
 import { distToOutline, fuzzRooms, insidePolygon, rng, roomOutline, type P } from './fuzzRooms';
 
 const SIZE = 384;
+const sense = (id: string): SenseDefinition => [...GENERIC_SENSES, ...Object.values(BUILT_IN_SENSES).flat()].find((candidate) => candidate.id === id)!;
+/** The senses with line of sight that draw the map, in every channel: one set per room in turn. */
+const SENSE_SETS: SenseSource[][] = [
+  [darkvision(4000)],
+  [senseSource('blindsight', 4000), senseSource('low-light-vision', 4000)],
+  [senseSource('truesight', 4000)],
+  [{ definition: sense('pathfinder2e-greater-darkvision'), range: 4000 }, { definition: sense('dnd5e-devils-sight'), range: 4000 }],
+  [{ definition: sense('ose-infravision'), range: 4000 }, { definition: sense('dnd5e-darkvision'), range: 4000 }],
+];
 const TRIALS = Number(import.meta.env.VITE_LEAK_TRIALS ?? 24);
 
 interface Report {
@@ -25,6 +37,10 @@ interface Report {
   leaks: number;
   sightChecked: number;
   sightLeaks: number;
+  /** Pixels past the walls shown by a sense that perceives without light. */
+  senseLeaks: number;
+  /** Pixels inside the room that only such a sense shows: beyond every light's reach, without bounce. */
+  senseInside: number;
   litInside: number;
   /** Lit pixels inside the room beyond every light's reach: only bounce lights them. */
   bounceInside: number;
@@ -43,8 +59,11 @@ interface FuzzOptions {
 /**
  * Renders every room through the real engine at a random camera and counts pixels past the
  * room's walls (as drawn, joined by their bridges) that are not black: light (direct + bounce,
- * player mode, everything seen, no ambient) and sight (ambient 1, a token at each light; sight
- * stops at the centre line, so only filtering may show past it: 1.5 screen px).
+ * player mode, everything seen, no ambient), sight (ambient 1, a token at each light; sight
+ * stops at the centre line, so only filtering may show past it: 1.5 screen px) and senses (no
+ * ambient, the lights on, each token with the senses of one room in turn: darkvision in grey,
+ * blindsight and truesight in colour, black-and-white darkvision without a distance, low-light
+ * vision; held to the same line as sight).
  */
 async function fuzz({ seed, trials, gap = false, bounds = { width: 2048, height: 2048 }, resolution = 1 }: FuzzOptions): Promise<Report> {
   const renderer = await createTestRenderer(SIZE, resolution);
@@ -55,7 +74,7 @@ async function fuzz({ seed, trials, gap = false, bounds = { width: 2048, height:
     engine.setEnabled(true);
     engine.setMode('player');
     const rand = rng(seed + 1);
-    const report: Report = { rooms: 0, doors: 0, oneWay: 0, twoLights: 0, checked: 0, leaks: 0, sightChecked: 0, sightLeaks: 0, litInside: 0, bounceInside: 0 };
+    const report: Report = { rooms: 0, doors: 0, oneWay: 0, twoLights: 0, checked: 0, leaks: 0, sightChecked: 0, sightLeaks: 0, senseLeaks: 0, senseInside: 0, litInside: 0, bounceInside: 0 };
     for (const room of fuzzRooms(seed, trials, gap)) {
       const texel = worldTexel(bounds);
       const walls = sealWalls(room.walls, sealTolerance(texel));
@@ -86,6 +105,10 @@ async function fuzz({ seed, trials, gap = false, bounds = { width: 2048, height:
       };
       const lit = shoot(false);
       const seen = shoot(true);
+      const senses = SENSE_SETS[report.rooms % SENSE_SETS.length]!;
+      engine.update({ bounds, albedo: null, walls, lights, sight: computeSight(sources.map((source) => ({ ...source, senses })), walls), sightRadius, ambient: 0 });
+      engine.flush();
+      const sensed = renderView(renderer, engine, target, bounds, scale, x, y);
       // Direct light ends at the reach around where the engine places each light (plus the light map's bilinear texel).
       const placed = lights.map((l) => ({ at: placeLight(l.x, l.y, l.flame, allSegments(splitBlocking(walls)), texel), reach: l.dim * LIGHT_REACH + 2 * texel }));
       const beyondReach = (p: P): boolean => placed.every(({ at, reach }) => !at || Math.hypot(p[0] - at.x, p[1] - at.y) > reach);
@@ -107,7 +130,9 @@ async function fuzz({ seed, trials, gap = false, bounds = { width: 2048, height:
           if (!inside && d > 1.5 / scale + 0.01) {
             report.sightChecked++;
             if (seen[o]! + seen[o + 1]! + seen[o + 2]! > 0) report.sightLeaks++;
+            if (sensed[o]! + sensed[o + 1]! + sensed[o + 2]! > 0) report.senseLeaks++;
           }
+          if (inside && lit[o]! === 0 && sensed[o]! + sensed[o + 1]! + sensed[o + 2]! > 0) report.senseInside++;
         }
       }
     }
@@ -140,7 +165,7 @@ function renderView(renderer: WebGLRenderer, engine: LightingEngine, target: Ren
 }
 
 describe('leak fuzz', () => {
-  it('lets no light, bounce or sight past the walls of closed rooms', { timeout: 3_600_000 }, async () => {
+  it('lets no light, bounce, sight or sense past the walls of closed rooms', { timeout: 3_600_000 }, async () => {
     const report = await fuzz({ seed: 11, trials: TRIALS });
     console.info(`leak fuzz: ${JSON.stringify({ trials: TRIALS, ...report })}`);
     expect(report.rooms).toBeGreaterThan(TRIALS * 0.8);
@@ -148,7 +173,8 @@ describe('leak fuzz', () => {
     expect(report.checked).toBeGreaterThan(TRIALS * 1000);
     expect(report.litInside).toBeGreaterThan(TRIALS * 100);
     expect(report.bounceInside).toBeGreaterThan(TRIALS * 10);
-    expect(report).toMatchObject({ leaks: 0, sightLeaks: 0 });
+    expect(report.senseInside).toBeGreaterThan(TRIALS * 100);
+    expect(report).toMatchObject({ leaks: 0, sightLeaks: 0, senseLeaks: 0 });
   });
 
   it('holds on a map large enough for coarser texels', { timeout: 600_000 }, async () => {
@@ -159,7 +185,8 @@ describe('leak fuzz', () => {
     expect(Math.min(report.doors, report.oneWay, report.twoLights)).toBeGreaterThan(0);
     expect(report.checked).toBeGreaterThan(8000);
     expect(report.litInside).toBeGreaterThan(800);
-    expect(report).toMatchObject({ leaks: 0, sightLeaks: 0 });
+    expect(report.senseInside).toBeGreaterThan(800);
+    expect(report).toMatchObject({ leaks: 0, sightLeaks: 0, senseLeaks: 0 });
   });
 
   it('holds at renderer resolution 2', { timeout: 600_000 }, async () => {
@@ -167,7 +194,7 @@ describe('leak fuzz', () => {
     console.info(`leak fuzz (resolution 2): ${JSON.stringify(report)}`);
     expect(report.checked).toBeGreaterThan(8 * 4000);
     expect(report.litInside).toBeGreaterThan(800);
-    expect(report).toMatchObject({ leaks: 0, sightLeaks: 0 });
+    expect(report).toMatchObject({ leaks: 0, sightLeaks: 0, senseLeaks: 0 });
   });
 
   it('finds light and sight past a wall with a gap (the check can fail)', async () => {
@@ -176,5 +203,6 @@ describe('leak fuzz', () => {
     console.info(`negative control: ${JSON.stringify(report)}`);
     expect(report.leaks).toBeGreaterThan(1000);
     expect(report.sightLeaks).toBeGreaterThan(1000);
+    expect(report.senseLeaks).toBeGreaterThan(1000);
   });
 });

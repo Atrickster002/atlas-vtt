@@ -7,6 +7,7 @@ import { sealedWalls } from '../../lighting/sealWalls';
 import { worldTexel } from '../../lighting/lightingConstants';
 import { SEES_ALL, SightCache, sceneSight, sightSources, type AmbientLight, type LightReach, type Sight } from '../../vision/sight';
 import { wallList } from '../../vision/wallList';
+import { seenSpots, type SeenSpot } from '../../vision/perception';
 import type { SightRules } from '../../vision/sightRules';
 import type { MapBounds } from '../../vision/visibility';
 import type { HideableLayer } from '../playerSafeFrame';
@@ -82,12 +83,14 @@ export class CanvasLightingFallback implements SceneLightingView {
     }
     const scale = unitScaleOf(this.deps.measurement(), state.grid);
     const walls = sealedWalls(wallList(state.objects.walls), worldTexel(bounds));
-    this.sight = sceneSight(state.lighting, sightSources(state.objects.tokens, scale, bounds, this.deps.rules?.()), walls, this.cache);
-    this.drawDarkness(bounds);
+    const rules = this.deps.rules?.();
+    this.sight = sceneSight(state.lighting, sightSources(state.objects.tokens, scale, bounds, rules), walls, this.cache);
+    this.drawDarkness(bounds, seenSpots(this.sight, FULL_DAYLIGHT, [], state.objects.tokens, rules?.conditions ?? [], scale.cellSize));
     this.deps.onSightChange?.();
   }
 
-  private drawDarkness(bounds: MapBounds): void {
+  /** Black over the map, cut open where a sense shows it and at each token seen without the map around it. */
+  private drawDarkness(bounds: MapBounds, spots: readonly SeenSpot[]): void {
     const g = this.darkness;
     g.clear();
     if (this.sight.all) return;
@@ -95,6 +98,7 @@ export class CanvasLightingFallback implements SceneLightingView {
     for (const { sense, polygon } of this.sight.regions) {
       if (sense.reveals === 'all' && polygon && polygon.length >= 3) g.poly(polygon.flatMap((p) => [p.x, p.y])).cut();
     }
+    for (const { x, y, radius } of spots) g.circle(x, y, radius).cut();
     this.darkness.visible = this.playerView.visible;
   }
 

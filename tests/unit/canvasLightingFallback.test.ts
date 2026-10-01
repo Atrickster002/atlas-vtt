@@ -1,17 +1,19 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { Container, type Graphics } from 'pixi.js';
+import { Container, Graphics } from 'pixi.js';
 import type { Viewport } from 'pixi-viewport';
 import { createViewAtlasStore, type ViewAtlasStore } from '../../src/app/storeFactory';
 import { CanvasLightingFallback } from '../../src/app/pixi/lighting/CanvasLightingFallback';
 import type { TokenEntity } from '../../src/app/types';
 import type { SceneLighting } from '../../src/app/types/lightingTypes';
+import { BUILT_IN_SENSES } from '../../src/app/gameSystems/senses';
+import type { SightRules } from '../../src/app/vision/sightRules';
 import { createInMemoryApp } from '../mocks/inMemoryVault';
 import { stubJsdomGraphics } from '../mocks/jsdomGraphics';
 
 let restore: (() => void) | undefined;
 afterEach(() => { restore?.(); restore = undefined; });
 
-function setup(tokens: Record<string, TokenEntity>, lighting: Partial<SceneLighting> = {}, onSightChange?: () => void): { fallback: CanvasLightingFallback; viewport: Container; store: ViewAtlasStore } {
+function setup(tokens: Record<string, TokenEntity>, lighting: Partial<SceneLighting> = {}, onSightChange?: () => void, rules?: SightRules): { fallback: CanvasLightingFallback; viewport: Container; store: ViewAtlasStore } {
   restore = stubJsdomGraphics();
   const { app } = createInMemoryApp();
   const store = createViewAtlasStore(app, `canvas-lighting-${Math.random()}`);
@@ -24,6 +26,7 @@ function setup(tokens: Record<string, TokenEntity>, lighting: Partial<SceneLight
     measurement: () => ({ mode: 'grid', unitType: 'feet', unitDistance: 5, diagonalRule: 'chebyshev', rangeBands: [] }) as never,
     bounds: () => ({ width: 1000, height: 1000 }),
     ...(onSightChange && { onSightChange }),
+    ...(rules && { rules: () => rules }),
   });
   return { fallback, viewport, store };
 }
@@ -31,6 +34,36 @@ function setup(tokens: Record<string, TokenEntity>, lighting: Partial<SceneLight
 const hero: TokenEntity = { id: 'hero', kind: 'token', imagePath: 'h.png', x: 100, y: 100, vision: { enabled: true, range: 10 } };
 
 describe('CanvasLightingFallback', () => {
+  it('works sight out by the senses and conditions of the map\'s collection', () => {
+    const seer: TokenEntity = { ...hero, vision: { enabled: true, senses: [{ id: 'pathfinder2e-darkvision' }, { id: 'blindsight', range: 10 }] }, conditions: ['blind'] };
+    const generic = setup({ seer }).fallback.currentSight();
+    expect(generic.regions.map((region) => region.sense.id)).toEqual(['sight', 'blindsight']);
+    restore?.();
+    const rules: SightRules = { definitions: BUILT_IN_SENSES['builtin:pathfinder2e']!, conditions: [{ id: 'blind', name: 'Blinded', color: '#000000', effect: 'blinded' }] };
+    const pathfinder = setup({ seer }, {}, undefined, rules).fallback.currentSight();
+    expect(pathfinder.regions.map((region) => region.sense.id)).toEqual(['blindsight']);
+    restore?.();
+    const sighted = setup({ seer: { ...seer, conditions: [] } }, {}, undefined, rules).fallback.currentSight();
+    expect(sighted.regions.map((region) => region.sense.id)).toEqual(['sight', 'pathfinder2e-darkvision', 'blindsight']);
+  });
+
+  it('cuts the darkness open at a token that only a precise creature sense sees', () => {
+    const rules: SightRules = { definitions: BUILT_IN_SENSES['builtin:pathfinder2e']!, conditions: [{ id: 'blind', name: 'Blinded', color: '#000000', effect: 'blinded' }] };
+    const bat: TokenEntity = { ...hero, vision: { enabled: true, senses: [{ id: 'pathfinder2e-echolocation', range: 40 }] }, conditions: ['blind'] };
+    const prey: TokenEntity = { id: 'prey', kind: 'token', imagePath: 'p.png', x: 150, y: 100 };
+    const cuts = (tokens: Record<string, TokenEntity>): unknown[][] => {
+      const circle = vi.spyOn(Graphics.prototype, 'circle');
+      setup(tokens, {}, undefined, rules);
+      const calls = circle.mock.calls.map((call) => [...call]);
+      circle.mockRestore();
+      restore?.();
+      return calls;
+    };
+    expect(cuts({ bat })).toEqual([]);
+    expect(cuts({ bat, prey })).toEqual([[150, 100, 31]]);
+    expect(cuts({ bat, prey: { ...prey, x: 900 } })).toEqual([]);
+  });
+
   it('blacks out the map outside sight in the player frame only', () => {
     const { fallback, viewport } = setup({ hero });
     const darkness = viewport.children[0]!;

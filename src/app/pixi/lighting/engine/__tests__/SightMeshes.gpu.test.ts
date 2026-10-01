@@ -5,7 +5,7 @@ import { computeSight } from '../../../../vision/sight';
 import type { WallSegment } from '../../../../types/wallTypes';
 import type { VisionCone } from '../../../../vision/visionCone';
 import { createTestRenderer, readRgba } from './gpuTestUtils';
-import { darkvision } from '../../../../vision/__tests__/senseSources';
+import { darkvision, senseSource } from '../../../../vision/__tests__/senseSources';
 
 describe('SightMeshes', () => {
   it('draws sight crisp at the wall, soft past its corner, nothing behind it', async () => {
@@ -113,6 +113,33 @@ describe('SightMeshes', () => {
       expect(meshes.view.children).toHaveLength(0);
       const cleared = render();
       expect(cleared[(128 * 256 + 100) * 4]).toBe(0);
+    } finally {
+      meshes.destroy();
+      target.destroy(true);
+      stage.destroy({ children: true });
+      renderer.destroy();
+    }
+  });
+
+  it('writes each sense into its channels, alpha included, and a seen token\'s footprint into red and blue', async () => {
+    const renderer = await createTestRenderer(256);
+    const meshes = new SightMeshes();
+    const stage = new Container();
+    const target = RenderTexture.create({ width: 256, height: 256 });
+    try {
+      stage.addChild(new Graphics().rect(0, 0, 256, 256).fill({ color: 0, alpha: 0 }), meshes.view);
+      // Sight to 100 px, low-light vision as far, blindsight to 40 px.
+      const source = { tokenId: 'a', origin: { x: 100, y: 128 }, range: 100, senses: [senseSource('low-light-vision', 4000), senseSource('blindsight', 40)] };
+      meshes.draw(computeSight([source], []), 20, [{ x: 230, y: 30, radius: 12 }]);
+      renderer.render({ container: stage, target, clear: true, clearColor: [0, 0, 0, 0] });
+      const px = readRgba(renderer, target);
+      const at = (x: number, y: number): number[] => Array.from(px.slice((y * 256 + x) * 4, (y * 256 + x) * 4 + 4));
+      expect(at(120, 128)).toEqual([255, 0, 255, 255]);
+      expect(at(170, 128)).toEqual([255, 0, 0, 255]);
+      expect(at(210, 128)).toEqual([0, 0, 0, 0]);
+      expect(at(230, 30)).toEqual([255, 0, 255, 0]);
+      expect(at(230, 50)).toEqual([0, 0, 0, 0]);
+      expect(meshes.view.children).toHaveLength(4);
     } finally {
       meshes.destroy();
       target.destroy(true);

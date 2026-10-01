@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { sealTolerance, worldTexel } from '../../../../lighting/lightingConstants';
 import { sealWalls } from '../../../../lighting/sealWalls';
 import type { WallSegment } from '../../../../types/wallTypes';
-import { SEES_ALL, computeSight, type Sight, type SightSource } from '../../../../vision/sight';
+import { SEES_ALL, computeSight, type SenseSource, type Sight, type SightSource } from '../../../../vision/sight';
 import { visionCone } from '../../../../vision/visionCone';
 import { resetContext } from '../../__tests__/rendererHarness';
 import { ExploredTexture } from '../../ExploredTexture';
@@ -12,7 +12,9 @@ import type { EngineLight, EngineScene } from '../types';
 import { fuzzRooms } from './fuzzRooms';
 import { createTestRenderer, renderThroughEngine } from './gpuTestUtils';
 import { watchGl, type GlWatch } from './strictGl';
-import { darkvision } from '../../../../vision/__tests__/senseSources';
+import { darkvision, senseSource } from '../../../../vision/__tests__/senseSources';
+import { BUILT_IN_SENSES } from '../../../../gameSystems/senses';
+import type { SenseDefinition } from '../../../../types/senseTypes';
 
 const SIZE = 256;
 const MAP = 1024;
@@ -33,6 +35,10 @@ function scene(overrides: Partial<EngineScene> = {}): EngineScene {
 /** Walls 1..n of a comb left of x = 600, the first `oneWay` of them one-way. */
 function comb(n: number, oneWay = 0): WallSegment[] {
   return Array.from({ length: n }, (_, i) => wall(`w${i}`, 400 + i * 40, 150, 400 + i * 40, 450, i < oneWay ? 'left' : undefined));
+}
+
+function senseOf(id: string): SenseDefinition {
+  return Object.values(BUILT_IN_SENSES).flat().find((sense) => sense.id === id)!;
 }
 
 function sightOf(walls: readonly WallSegment[], cone = false): Sight {
@@ -122,6 +128,26 @@ describe('strict GL: every uniform and draw of the lighting engine is valid', ()
       engine.update(scene({ walls, lights: [light('a', 300, 300), light('b', 700, 300)], sight: sightOf(walls) }));
       engine.flush();
       shoot();
+    }
+    expectClean(watch);
+  });
+
+  it('with every way a sense is drawn: grey, black and white, heat, colour, dim as bright, under dim ambient light', async () => {
+    const { engine, watch, shoot } = await setup();
+    const walls = comb(3);
+    const looks: SenseSource[][] = [
+      [senseSource('blindsight', 300), senseSource('low-light-vision', 4000)],
+      [darkvision(200), senseSource('truesight', 250)],
+      [{ definition: senseOf('pathfinder2e-greater-darkvision'), range: 4000 }],
+      [{ definition: senseOf('ose-infravision'), range: 300 }, { definition: senseOf('dnd5e-darkvision'), range: 200 }],
+    ];
+    for (const senses of looks) {
+      for (const ambient of [0, 0.5]) {
+        const sight = computeSight([{ tokenId: 't', origin: { x: 320, y: 320 }, range: 400, senses }, { tokenId: 'u', origin: { x: 700, y: 640 }, range: 250, senses: [], blinded: true }], walls);
+        engine.update(scene({ walls, sight, ambient }));
+        engine.flush();
+        shoot();
+      }
     }
     expectClean(watch);
   });
