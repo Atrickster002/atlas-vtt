@@ -8,8 +8,8 @@
 
 $dice-roll-width: 21rem;
 $dice-roll-row-height: 3.4rem;
-// The portrait alone says who rolled, so it is large enough to recognise; a row still holds it.
-$dice-roll-avatar: 36px;
+// The portrait alone says who rolled, so it is large enough to recognise at a glance.
+$dice-roll-avatar: 72px;
 // The engraving fades towards the rim, as if printed and rubbed off with use.
 $dice-roll-engraving-fade: radial-gradient(ellipse 74% 74% at 50% 50%, #000 38%, rgb(0 0 0 / 0.45) 76%, rgb(0 0 0 / 0) 100%);
 
@@ -235,6 +235,12 @@ $dice-roll-engraving-fade: radial-gradient(ellipse 74% 74% at 50% 50%, #000 38%,
 
   .atlas-dice-roll__who {
     flex: 1;
+  }
+
+  // As much of the portrait as the row holds inside its padding.
+  .atlas-dice-roll__avatar {
+    width: calc(#{$dice-roll-row-height} - 2 * #{$spacing-s});
+    height: calc(#{$dice-roll-row-height} - 2 * #{$spacing-s});
   }
 }
 
