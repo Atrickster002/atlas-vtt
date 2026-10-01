@@ -24,14 +24,14 @@ $fan-button: 34px;
   position: relative;
   flex-shrink: 0;
   // Room for the fan of the lowest socket; nothing is clipped, so a tooltip may reach past the edge
-  height: 332px;
+  height: 304px;
 }
 
 // Everything is placed from the token's centre
 .atlas-csm-token-rig {
   position: absolute;
   left: 50%;
-  top: 122px;
+  top: 110px;
   width: 0;
   height: 0;
 }
@@ -308,7 +308,7 @@ $fan-button: 34px;
 .atlas-csm-resource-dock {
   position: relative;
   flex-shrink: 0;
-  min-height: 196px;
+  min-height: 218px;
 }
 
 .atlas-csm-resource-dock__idle {
@@ -333,7 +333,7 @@ $fan-button: 34px;
   @include atlas-inset-surface;
   @include atlas-flex-col($spacing-m);
   padding: $spacing-m;
-  min-height: 196px;
+  min-height: 218px;
 }
 
 .atlas-csm-resource-card__head {
@@ -367,9 +367,18 @@ $fan-button: 34px;
   }
 }
 
-// The curated colours in one row (DropdownSwatchGrid lays out eight to a row in a menu)
+// The curated colours in two centred rows of ten (DropdownSwatchGrid lays out eight to a row in a
+// menu). The swatches have a size of their own here: Obsidian gives every button a height.
+$swatch: 24px;
+
 .atlas-csm-resource-card .atlas-swatch-grid {
-  grid-template-columns: repeat(20, 1fr);
+  grid-template-columns: repeat(10, $swatch);
+  justify-content: center;
+}
+
+.atlas-csm-resource-card .atlas-swatch {
+  width: $swatch;
+  height: $swatch;
 }
 
 .atlas-csm-resource-card .atlas-dropdown-swatches__label {
