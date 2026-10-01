@@ -1,0 +1,83 @@
+import '../setup/obsidianDom';
+import React, { useState } from 'react';
+import { cleanup, render } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { page, userEvent } from 'vitest/browser';
+import css from '../../styles/main.scss?inline';
+import { ResourcesTab } from '../../src/app/react/components/collection-settings/ResourcesTab';
+import { HP_RESOURCE } from '../../src/app/resources/resourceDefinitions';
+import type { ResourceDefinition } from '../../src/app/resources/resourceTypes';
+
+/**
+ * The Resources tab as the collection settings dialog shows it, styled by the plugin's real
+ * stylesheet. Obsidian gives every button and input its corner shape (a superellipse on
+ * macOS), which the theme below does too.
+ */
+const THEME = `
+  body { margin: 0; --background-primary: #1e1e1e; --background-secondary: #262626; --background-modifier-border: #363636;
+    --background-modifier-hover: rgba(255, 255, 255, 0.075); --text-normal: #dadada; --text-muted: #b3b3b3; --text-faint: #777;
+    --interactive-accent: #7f6df2; --radius-m: 8px; --radius-l: 12px; --radius-xl: 16px; --font-ui-smaller: 12px; --font-ui-small: 13px;
+    --corner-shape: squircle; }
+  button, input { corner-shape: var(--corner-shape); }
+`;
+const NAMES = ['HP', 'STR', 'Ammo', 'Luck', 'Mana', 'Grit'];
+const h = React.createElement;
+
+function Dialog(): React.ReactElement {
+  const [resources, setResources] = useState<ResourceDefinition[]>(
+    NAMES.map((name, slot) => ({ ...HP_RESOURCE, key: name.toLowerCase(), name, slot })));
+  return h('div', { className: 'atlas-vtt-plugin' },
+    h('div', { className: 'atlas-collection-settings-modal' },
+      h('div', { className: 'atlas-collection-settings-body' },
+        h('div', { className: 'atlas-collection-settings-sidebar' }),
+        h('div', { className: 'atlas-collection-settings-content' },
+          h(ResourcesTab, { resources, onChange: setResources, fieldSuggestions: ['hp', 'ammo'] })))));
+}
+
+describe('the socket editor of the Resources tab', () => {
+  const style = document.createElement('style');
+  style.textContent = THEME + css;
+
+  beforeEach(async () => {
+    await page.viewport(760, 860);
+    document.head.append(style);
+    render(h(Dialog));
+  });
+
+  afterEach(() => {
+    cleanup();
+    style.remove();
+  });
+
+  it.each(NAMES)('shows the whole fan of %s inside the picture of the token', async (name) => {
+    await userEvent.click(page.getByRole('button', { name: new RegExp(`^${name}: `) }));
+    // The buttons travel from the socket to their places
+    await new Promise((resolve) => setTimeout(resolve, 600));
+    const stage = document.querySelector('.atlas-csm-token-stage')!.getBoundingClientRect();
+    const items = [...document.querySelectorAll('.atlas-csm-fan__item')].map((item) => item.getBoundingClientRect());
+    expect(items).toHaveLength(5);
+    for (const item of items) {
+      expect(item.top).toBeGreaterThanOrEqual(stage.top);
+      expect(item.bottom).toBeLessThanOrEqual(stage.bottom);
+      expect(item.left).toBeGreaterThanOrEqual(stage.left);
+      expect(item.right).toBeLessThanOrEqual(stage.right);
+    }
+  });
+
+  it('keeps the fan\'s buttons and the field chips round where Obsidian shapes buttons as squircles', async () => {
+    if (!CSS.supports('corner-shape', 'round')) return;
+    const shapeOf = (element: Element): string => getComputedStyle(element).getPropertyValue('corner-shape');
+    const reference = document.body.createDiv();
+    reference.style.setProperty('corner-shape', 'round');
+    const round = shapeOf(reference);
+    // The theme's shape does reach buttons that do not say otherwise
+    expect(shapeOf(page.getByRole('button', { name: /^HP: / }).element())).not.toBe(round);
+
+    await userEvent.click(page.getByRole('button', { name: /^HP: / }));
+    const controls = [...document.querySelectorAll('.atlas-csm-fan__button, .atlas-csm-fan__swatch, .atlas-csm-field-chip')];
+    // Five in the fan and the two field chips of the card
+    expect(controls).toHaveLength(7);
+    for (const control of controls) expect(shapeOf(control)).toBe(round);
+    reference.remove();
+  });
+});
