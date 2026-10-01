@@ -29,7 +29,7 @@ describe('tokenSensesResolver on the creature index', () => {
     current = creatureVault();
     current.frontmatter[GOBLIN]!.senses = 'darkvision 60 ft., passive Perception 9';
     const index = CreatureIndex.forApp(current.app);
-    const resolver = tokenSensesResolver(index, () => FEET);
+    const resolver = tokenSensesResolver(index, { get: () => FEET });
     const sight = vi.fn(() => named(resolver.sensesOf({ vision: { enabled: true }, statblockPath: GOBLIN })));
     const stop = resolver.subscribe(sight);
 
