@@ -1391,8 +1391,8 @@ export class TokenRenderer {
     ];
   }
 
-  /** How far a token's resources reach beyond its bottom and right edges, in world units. */
-  public resourcesExtent(tokenId: string): { below: number; right: number } {
+  /** How far a selected token's resources reach beyond its bottom, right and top edges, in world units. */
+  public resourcesExtent(tokenId: string): { below: number; right: number; above: number } {
     return this.uiManager.resourcesExtent(tokenId);
   }
 

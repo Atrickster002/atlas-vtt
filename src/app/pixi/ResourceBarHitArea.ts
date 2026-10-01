@@ -16,7 +16,7 @@ export class ResourceBarHitArea extends Graphics {
     this.on('pointerout', () => this.setHovered(false));
   }
 
-  /** Places the overlay on the resource drawn in `slot`, in bar-local units. */
+  /** Places the overlay on the resource drawn in `slot`, in the units of the slot's anchor. */
   layout(slot: ResourceSlot): void {
     this.slot = slot;
     this.visible = true;

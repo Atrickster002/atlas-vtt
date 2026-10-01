@@ -255,7 +255,7 @@ export interface ViewAtlasState {
   // Token settings
   tokenSettings: {
     showNameplates: boolean;
-    /** Off hides every resource bar and badge on this map. */
+    /** Off hides every resource bar and wheel on this map. */
     showResources: boolean;
     showInstanceBadges: boolean;
     tokenRingSize: number;

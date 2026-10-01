@@ -95,7 +95,8 @@ describe('resource bar controls', () => {
       // A stepper on the outer side: + above -, both right of the wheel
       expect(plus(ammo!).y).toBeLessThan(minus(ammo!).y);
       expect(plus(ammo!).x).toBe(minus(ammo!).x);
-      expect(plus(ammo!).x).toBeGreaterThan(13.5 + 20.4);
+      const slot = (ammo as unknown as { slot: { left: number; width: number } }).slot;
+      expect(plus(ammo!).x).toBeGreaterThan(slot.left + slot.width);
       press(minus(ammo!));
       press(plus(luck!));
       expect(stored().resources).toEqual({ hp: { current: 3, max: 8 }, str: { current: 12, max: 14 }, ammo: { current: 3, max: 6 }, luck: { current: 3, max: 5 } });

@@ -2,7 +2,7 @@ import { BUILT_IN_SYSTEM_PRESETS } from '../gameSystems/builtInPresets';
 import type { CollectionSettings } from '../types/collectionSettingsTypes';
 import type { SystemPreset } from '../types/systemPresetTypes';
 import { HP_RESOURCE, withLegacyBars } from './resourceDefinitions';
-import type { ResourceDefinition } from './resourceTypes';
+import { MAX_RESOURCES, type ResourceDefinition } from './resourceTypes';
 
 /**
  * The resources of a collection. One saved before resources existed (or
@@ -12,7 +12,8 @@ import type { ResourceDefinition } from './resourceTypes';
 export function collectionResources(
   settings: Pick<CollectionSettings, 'resources' | 'defaultWidgets' | 'systemPresetId'>,
 ): ResourceDefinition[] {
-  return settings.resources ?? legacyCollectionResources(settings, BUILT_IN_SYSTEM_PRESETS);
+  // Capped here too: settings can arrive without passing the index's parser (an import in this session)
+  return (settings.resources ?? legacyCollectionResources(settings, BUILT_IN_SYSTEM_PRESETS)).slice(0, MAX_RESOURCES);
 }
 
 /**

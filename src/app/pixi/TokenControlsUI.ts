@@ -11,6 +11,7 @@ import { ResourceBarHitArea } from './ResourceBarHitArea';
 import { destroyTree } from './utils/destroyTree';
 import type { ResourceSlot } from './token-renderer/resources/ResourceStack';
 import { WHEEL_STEPPER } from './token-renderer/resources/ResourceWheels';
+import { wheelAnchor } from './token-renderer/resources/wheelAnchor';
 import { colorNumber } from './token-renderer/resources/ResourceBarView';
 import type { ResourceDefinition, ResourceDefsProvider } from '../resources/resourceTypes';
 import { resourceUpdate, withCurrent } from '../resources/resourceValues';
@@ -19,6 +20,9 @@ import { visibleResources } from '../resources/visibleResources';
 type ControlIconType = 'plus' | 'minus';
 
 /** The click-to-edit overlay and the +/- buttons of one resource. */
+/** Diameter of a +/- button, in UI units: a bar's height. */
+const BUTTON_SIZE = 10;
+
 interface ResourceControl {
   hit: ResourceBarHitArea;
   minus: ControlButton;
@@ -64,7 +68,7 @@ export class TokenControlsUI {
     </svg>`
   };
   
-  /** Anchors on the token's bottom and right edges, scaled like the token UI's; controls live in the anchor of what they edit. */
+  /** The token UI's two anchors again, scaled like them: below the token for bars, `wheelAnchor` for wheels. Controls live in the anchor of what they edit. */
   private readonly below = new Container();
   private readonly beside = new Container();
 
@@ -216,7 +220,7 @@ export class TokenControlsUI {
     const strokeAlpha = isDarkMode ? 0.4 : 0.3;
     
     // Draw background - circular like status badges
-    const size = 10; // Small button size to match bar height better
+    const size = BUTTON_SIZE;
     const radius = size / 2;
     
     // Background fill
@@ -252,7 +256,7 @@ export class TokenControlsUI {
     }
   }
   
-  /** Shows the controls under a token whose bars are drawn at `uiScale`. */
+  /** Shows the controls of a token whose bars and wheels are drawn at `uiScale`. */
   public show(tokenId: string, worldX: number, worldY: number, tokenSize: number, uiScale: number): void {
     const state = this.store.getState();
     const token = state.objects.tokens[tokenId] as Character | undefined;
@@ -305,11 +309,13 @@ export class TokenControlsUI {
     return this.container.visible;
   }
 
-  /** Puts the anchors on the bottom and right edges of the token centred at (`worldX`, `worldY`). */
+  /** Puts the anchors where the token UI has its own: below the token centred at (`worldX`, `worldY`), and where its wheels hang. */
   private place(worldX: number, worldY: number, tokenSize: number): void {
+    const { grid, tokenSettings } = this.store.getState();
+    const beside = wheelAnchor(tokenSize, grid?.size ?? 70, tokenSettings?.tokenRingSize ?? 1);
     this.container.position.set(worldX, worldY);
     this.below.position.set(0, tokenSize / 2);
-    this.beside.position.set(tokenSize / 2, 0);
+    this.beside.position.set(beside.x, beside.y);
   }
 
   private setScale(uiScale: number): void {
@@ -317,7 +323,7 @@ export class TokenControlsUI {
     this.beside.scale.set(uiScale);
   }
 
-  /** A bar's controls hang from the token's bottom edge, a wheel's from its right edge. */
+  /** A bar's controls hang from the token's bottom edge, a wheel's from the wheels' anchor. */
   private anchorOf(slot: ResourceSlot): Container {
     return slot.kind === 'wheel' ? this.beside : this.below;
   }
@@ -369,14 +375,14 @@ export class TokenControlsUI {
   ): void {
     // Reordering the collection's resources can move one between bar and wheel, so the anchor is chosen here
     this.anchorOf(slot).addChild(hit, minus, plus);
-    const buttonSize = WHEEL_STEPPER.size;
-    const gap = barDimensions.token.gap;
     const centerY = slot.top + slot.height / 2;
-    const outer = slot.left + slot.width + gap + buttonSize / 2;
+    const right = slot.left + slot.width;
     const positions = slot.kind === 'wheel'
       // A stepper on the wheel's outer side: + above -
-      ? [[minus, -1, outer, centerY + (buttonSize + 1) / 2], [plus, 1, outer, centerY - (buttonSize + 1) / 2]] as const
-      : [[minus, -1, slot.left - buttonSize / 2 - gap, centerY], [plus, 1, outer, centerY]] as const;
+      ? [[minus, -1, right + WHEEL_STEPPER.gap + WHEEL_STEPPER.size / 2, centerY + (WHEEL_STEPPER.size + 1) / 2],
+        [plus, 1, right + WHEEL_STEPPER.gap + WHEEL_STEPPER.size / 2, centerY - (WHEEL_STEPPER.size + 1) / 2]] as const
+      : [[minus, -1, slot.left - BUTTON_SIZE / 2 - barDimensions.token.gap, centerY],
+        [plus, 1, right + BUTTON_SIZE / 2 + barDimensions.token.gap, centerY]] as const;
     for (const [button, delta, x, y] of positions) {
       button.visible = true;
       this.drawButtonState(button, false);

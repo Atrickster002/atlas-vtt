@@ -10,11 +10,12 @@ import type { ConditionDefinition } from '../types/collectionSettingsTypes';
 import type { TokenGestureEventDetail } from '../types/atlasWindowEvents';
 import { ResourceStack, type ResourceSlot } from './token-renderer/resources/ResourceStack';
 import { ResourceWheels } from './token-renderer/resources/ResourceWheels';
+import { wheelAnchor } from './token-renderer/resources/wheelAnchor';
 import type { ResourceDefsProvider, ResourceViewer, VisibleResource } from '../resources/resourceTypes';
 import { isDefeated, isSpent } from '../resources/resourceValues';
 import { shapeOf, visibleResources } from '../resources/visibleResources';
 import { destroyTree } from './utils/destroyTree';
-import { computeTokenStrokeWidth, RESIZE_HANDLE_SIZE, restingTokenUIScale, selectedTokenUIScale, tokenUIScale } from './token-renderer/tokenSizing';
+import { computeTokenStrokeWidth, NAMEPLATE_HEIGHT, restingTokenUIScale, selectedTokenUIScale } from './token-renderer/tokenSizing';
 import { getTokenRingCenterRadius } from './token-renderer/tokenRingMetrics';
 import { ValueTransition } from './utils/ValueTransition';
 import { MOTION_SLOW_MS, prefersReducedMotion } from '../utils/motion';
@@ -27,8 +28,6 @@ import { MOTION_SLOW_MS, prefersReducedMotion } from '../utils/motion';
  */
 const TEXT_RESOLUTION = 3;
 const MAX_TEXT_RESOLUTION = 12;
-/** Gap between the resize button and the wheels, in UI units. */
-const WHEEL_MARGIN = 1.5;
 
 function textResolutionFor(uiScale: number): number {
   return Math.min(TEXT_RESOLUTION * Math.max(1, uiScale), MAX_TEXT_RESOLUTION);
@@ -42,7 +41,7 @@ export class TokenUIRenderer {
   private emphasis: ValueTransition;
   /** The resources of the bar slots, one view per resource. */
   private resources: ResourceStack;
-  /** Anchor on the token's right edge, scaled like `belowToken`; holds the wheels. */
+  /** Anchor past the resize button on the token's bottom edge (`wheelAnchor`), scaled like `belowToken`; holds the wheels. */
   private besideToken: Container;
   /** The resources of the wheel slots, shown on hover and selection. */
   private wheels = new ResourceWheels();
@@ -310,7 +309,9 @@ export class TokenUIRenderer {
     const showNameplate = playerSettings ? playerSettings.showTokenNameplates : isNameplateVisible(token, tokenSettings?.showNameplates ?? false);
     const conditionsKey = `${token.conditions?.join(',') ?? ''}${JSON.stringify(token.conditionValues ?? {})}`;
     const defeated = isDefeated(token, definitions);
-    const updateKey = `${resourcesKey}_${defeated}_${spriteWidth}_${this.isHovered}_${this.isSelected}_${token.name || ''}_${showNameplate}_${token.statblockName || ''}_${conditionsKey}`;
+    // The ring's size setting moves the resize buttons, and with them the wheels
+    const ringScale = tokenSettings?.tokenRingSize ?? 1;
+    const updateKey = `${resourcesKey}_${defeated}_${spriteWidth}_${ringScale}_${this.isHovered}_${this.isSelected}_${token.name || ''}_${showNameplate}_${token.statblockName || ''}_${conditionsKey}`;
 
     // Skip update if nothing has changed
     if (this.lastUpdateData === updateKey) {
@@ -338,7 +339,8 @@ export class TokenUIRenderer {
 
     // Anchor the UI on the token's edges; everything below is laid out from there in UI units
     this.belowToken.position.set(0, spriteWidth / 2);
-    this.besideToken.position.set(spriteWidth / 2, 0);
+    const anchor = this.wheelAnchor();
+    this.besideToken.position.set(anchor.x, anchor.y);
     this.layoutUIScale();
     this.refreshConditions();
     this.conditionUI.setHidden(this.isHiddenDuringResize || this.isHiddenDuringRotation);
@@ -395,7 +397,7 @@ export class TokenUIRenderer {
       const scaledWidth = textBounds.width * scaledTextScale;
       const padding = 6; // Fixed padding
       const badgeWidth = Math.max(scaledWidth + padding * 2, 40); // Fixed min width
-      const badgeHeight = 14; // Fixed height
+      const badgeHeight = NAMEPLATE_HEIGHT;
       const badgeRadius = badgeHeight / 2;
       
       // Position the name badge so its bottom edge aligns with the token's bottom edge
@@ -442,13 +444,20 @@ export class TokenUIRenderer {
     ];
   }
 
-  /** How far the resources reach beyond the token's bottom and right edges, in world units. */
-  public getResourcesExtent(): { below: number; right: number } {
-    const scale = this.getUIScale();
+  /**
+   * How far the resources of this token, selected, reach beyond its bottom, right and top
+   * edges, in world units. Taken at the selected size itself, not at the size the UI is
+   * still growing from, so the selection frame drawn when the selection changes fits.
+   */
+  public getResourcesExtent(): { below: number; right: number; above: number } {
+    const scale = this.selectedScale();
     const bars = this.resources.view.visible ? this.resources.layout() : [];
+    const wheels = this.besideToken.visible ? this.wheels.extent() : { right: 0, up: 0 };
+    const anchor = this.wheelAnchor();
     return {
       below: Math.max(0, ...bars.map((slot) => slot.top + slot.height)) * scale,
-      right: (this.besideToken.visible ? this.wheels.extent() : 0) * scale,
+      right: wheels.right > 0 ? anchor.x - this.currentTokenSize / 2 + wheels.right * scale : 0,
+      above: Math.max(0, wheels.up * scale - this.currentTokenSize),
     };
   }
 
@@ -496,13 +505,9 @@ export class TokenUIRenderer {
     return getTokenRingCenterRadius(this.currentTokenSize * ringScale, computeTokenStrokeWidth(state?.grid?.size ?? 70), ringScale);
   }
 
-  /**
-   * Free space between the token's right edge and the wheels, in UI units: just past the
-   * resize button, which sits on the ring and scales with the token, not with the UI.
-   */
-  private wheelClearance(scale: number): number {
-    const handleReach = this.ringRadius() + (RESIZE_HANDLE_SIZE / 2) * tokenUIScale(this.currentTokenSize);
-    return Math.max(0, handleReach - this.currentTokenSize / 2) / scale + WHEEL_MARGIN;
+  private wheelAnchor(): { x: number; y: number } {
+    const state = this.store?.getState();
+    return wheelAnchor(this.currentTokenSize, state?.grid?.size ?? 70, state?.tokenSettings?.tokenRingSize ?? 1);
   }
 
   /** Marks the pointer as down on this token; a held or dragged token keeps its UI at rest. */
@@ -521,18 +526,22 @@ export class TokenUIRenderer {
     else this.emphasis.animateTo(target);
   }
 
+  /** The scale of a selected token's UI: its constant size on screen, never below the resting size. */
+  private selectedScale(): number {
+    const resting = restingTokenUIScale(this.store?.getState().grid?.size ?? 70);
+    const zoom = this.zoomProvider?.();
+    return zoom ? selectedTokenUIScale(resting, zoom) : resting;
+  }
+
   /**
    * Scales both anchors between `restingTokenUIScale` and `selectedTokenUIScale` by the
    * current emphasis. The selected size follows the zoom, so it is recomputed on every call.
    */
   private layoutUIScale(): void {
     const resting = restingTokenUIScale(this.store?.getState().grid?.size ?? 70);
-    const zoom = this.zoomProvider?.();
-    const selected = zoom ? selectedTokenUIScale(resting, zoom) : resting;
-    const scale = resting + (selected - resting) * this.emphasis.value;
+    const scale = resting + (this.selectedScale() - resting) * this.emphasis.value;
     this.belowToken.scale.set(scale);
     this.besideToken.scale.set(scale);
-    this.wheels.setClearance(this.wheelClearance(scale));
     // A selected token's text keeps a constant screen size, which the resting resolution covers
     this.setTextResolution(textResolutionFor(resting));
     this.onScaleChange?.(scale);

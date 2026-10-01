@@ -430,9 +430,9 @@ export class UIManager implements ITokenUIManager {
     this.updateAllTokenSettings();
   }
 
-  /** How far a token's resources reach beyond its bottom and right edges, in world units. */
-  public resourcesExtent(tokenId: string): { below: number; right: number } {
-    return this.tokenUIs[tokenId]?.getResourcesExtent() ?? { below: 0, right: 0 };
+  /** How far a selected token's resources reach beyond its bottom, right and top edges, in world units. */
+  public resourcesExtent(tokenId: string): { below: number; right: number; above: number } {
+    return this.tokenUIs[tokenId]?.getResourcesExtent() ?? { below: 0, right: 0, above: 0 };
   }
 
   private updateAllTokenSettings(): void {
