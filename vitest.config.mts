@@ -27,6 +27,8 @@ export default defineConfig({
       },
       {
         extends: true,
+        // The Obsidian mock imports `yaml`; found only while a test runs, it would reload that test.
+        optimizeDeps: { include: ['yaml'] },
         test: {
           name: 'gpu',
           include: ['src/**/*.gpu.test.ts'],

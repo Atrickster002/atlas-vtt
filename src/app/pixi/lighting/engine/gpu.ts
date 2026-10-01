@@ -1,4 +1,4 @@
-import { Buffer, BufferUsage, Geometry, GlProgram, RenderTexture, Shader, type Container, type Renderer, type TextureSource, type TEXTURE_FORMATS, type UniformGroup } from 'pixi.js';
+import { Buffer, BufferUsage, Geometry, GlProgram, RenderTexture, Shader, type Container, type Renderer, type TextureSource, type TEXTURE_FORMATS, type UniformGroup, type WebGLRenderer } from 'pixi.js';
 import type { EngineShaderSource } from './engineShaders';
 
 export const HIGHP = 'highp';
@@ -50,6 +50,16 @@ export function engineProgram({ vertex, fragment, name }: EngineShaderSource): G
 
 export function createShader(source: EngineShaderSource, resources: Record<string, UniformGroup | TextureSource>): Shader {
   return new Shader({ glProgram: engineProgram(source), resources });
+}
+
+/** The engine's WebGL context, or null on a renderer without one. */
+export function glOf(renderer: Renderer): WebGLRenderer['gl'] | null {
+  return renderer.name === 'webgl' ? (renderer as WebGLRenderer).gl : null;
+}
+
+/** While its context is lost a renderer draws nothing, and PIXI throws when asked for a new program. */
+export function contextLost(renderer: Renderer): boolean {
+  return glOf(renderer)?.isContextLost() ?? false;
 }
 
 /** Renders `container` into `target` outside the stage's render, like `ExploredTexture` does. */

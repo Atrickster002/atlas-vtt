@@ -108,20 +108,15 @@ describe('LightingEngine', () => {
     expect(engine.layer.visible).toBe(true);
   });
 
-  it('rebuilds its world from the last scene when the WebGL context is restored', async () => {
-    const renderer = await createTestRenderer(SIZE);
-    cleanup.push(() => renderer.destroy());
-    const restored = vi.fn();
-    const engine = new LightingEngine(renderer, restored);
-    cleanup.push(() => engine.destroy());
-    engine.setEnabled(true);
+  it('rebuilds its world from the last scene after the WebGL context is restored', async () => {
+    const { renderer, engine } = await setup();
     engine.setMode('player');
     engine.update(scene({ walls: room }));
     engine.flush();
     expect(render(engine, renderer, 0.5, -22, -22)(128, 128)).toBeGreaterThan(150);
     // PIXI's systems forget every GL object, as after a real restore: render textures come back blank.
     renderer.runners.contextChange.emit(renderer.gl);
-    expect(restored).toHaveBeenCalledOnce();
+    expect(engine.takeRestored()).toBe(true);
     engine.flush();
     expect(render(engine, renderer, 0.5, -22, -22)(128, 128)).toBeGreaterThan(150);
   });
@@ -129,18 +124,19 @@ describe('LightingEngine', () => {
   it('reports a restored context while lighting is off, with no world to rebuild', async () => {
     const renderer = await createTestRenderer(SIZE);
     cleanup.push(() => renderer.destroy());
-    const restored = vi.fn();
-    const engine = new LightingEngine(renderer, restored);
+    const engine = new LightingEngine(renderer);
     cleanup.push(() => engine.destroy());
     renderer.runners.contextChange.emit(renderer.gl);
-    expect(restored).toHaveBeenCalledTimes(1);
+    expect(engine.takeRestored()).toBe(true);
 
     engine.setEnabled(true);
     engine.update(scene({ walls: room }));
     engine.setEnabled(false);
     renderer.runners.contextChange.emit(renderer.gl);
-    expect(restored).toHaveBeenCalledTimes(2);
+    expect(engine.takeRestored()).toBe(true);
+    engine.flush();
     expect(engine.busy()).toBe(false);
+    expect(engine.hasWorld()).toBe(false);
     expect(engine.layer.filters).toBeNull();
   });
 

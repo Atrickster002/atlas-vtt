@@ -28,6 +28,7 @@ export class TileTracer {
   private readonly placeholder: RenderTexture = createPlaceholder();
   /** Bound when a light has no one-way walls, so the program always has both fields. */
   private readonly noOneWay: CapsuleField;
+  private noOneWayBuilt = false;
   /**
    * The raw traces' targets, used in turn so a trace never waits for the previous tile's
    * smoothing to finish reading; freed by `release`, grown to the largest tile each held.
@@ -37,7 +38,6 @@ export class TileTracer {
 
   constructor(private readonly renderer: Renderer, private readonly field: CapsuleField) {
     this.noOneWay = new CapsuleField(renderer, [0, 0, 1, 1], 1, 0, 'uOneWay');
-    this.noOneWay.build([]);
     const resources = { tileUniforms: this.uniforms, ...field.resources(), ...this.noOneWay.resources() };
     this.shader = createShader(ENGINE_SHADERS.tile, resources);
     this.smoothShader = createShader(ENGINE_SHADERS.tileSmooth, { ...resources, uRaw: this.placeholder.source });
@@ -48,6 +48,11 @@ export class TileTracer {
   /** `rect` must be snapped to the field's texel grid; `oneWay` holds this light's one-way walls. */
   trace(at: readonly [number, number], flame: number, rect: Rect, oneWay: CapsuleField | null): RenderTexture {
     const { texel } = this.field;
+    // Built here, not in the constructor, which draws nothing (see `LightingWorld`).
+    if (!this.noOneWayBuilt) {
+      this.noOneWay.build([]);
+      this.noOneWayBuilt = true;
+    }
     const tile = createTarget(rect[2] / texel, rect[3] / texel, 'r8unorm', 'nearest');
     const { pixelWidth: width, pixelHeight: height } = tile.source;
     this.turn = 1 - this.turn;

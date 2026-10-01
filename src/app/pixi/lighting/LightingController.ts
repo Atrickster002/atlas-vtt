@@ -17,13 +17,11 @@ import type { Point } from '../../types/visionTypes';
 import type { WallType } from '../../types/wallTypes';
 import type { MapBounds } from '../../vision/visibility';
 import type { TokenRenderer } from '../TokenRenderer';
-import { usesCanvasRenderer } from '../utils/rendererType';
 import { WallInteraction } from '../vision/WallInteraction';
 import { WallRenderer } from '../vision/WallRenderer';
-import { CanvasLightingFallback } from './CanvasLightingFallback';
+import { createSceneLighting } from './createSceneLighting';
 import { DoorIcons } from './DoorIcons';
 import { showWallMenu, type LightingMenuContext } from './lightingMenus';
-import { LightingRenderer } from './LightingRenderer';
 import { LightMarkers } from './LightMarkers';
 import type { GmOverlays } from './playerLightingLayers';
 import type { SceneLightingView } from './sceneLightingView';
@@ -65,9 +63,7 @@ export class LightingController {
     const { viewport, app, store, obsApp } = deps;
     const assetService = AssetService.getInstance(obsApp);
     const measurement = (): MeasurementSettings => mapMeasurementSettings(assetService, store.getState());
-    this.renderer = usesCanvasRenderer(app.renderer)
-      ? new CanvasLightingFallback({ viewport, store, measurement, bounds: deps.bounds })
-      : new LightingRenderer({ viewport, app, store, measurement, bounds: deps.bounds, albedo: deps.albedo });
+    this.renderer = createSceneLighting({ viewport, app, store, obsApp, measurement, bounds: deps.bounds, albedo: deps.albedo });
     this.wallRenderer = new WallRenderer(viewport, store);
     this.walls = new WallInteraction(store, this.wallRenderer);
     this.tool = new WallTool(deps.eventBus);
