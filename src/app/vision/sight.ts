@@ -87,7 +87,14 @@ export interface LightReach {
   dim: number;
   /** What the light reaches within `dim`, clipped by walls. */
   polygon: Polygon;
+  /** A source of magical darkness: nothing within `dim` is lit, by it or by a light that does not outrank it. */
+  darkness?: boolean;
+  /** Which of a light and a darkness that meet wins: the higher one, the darkness when equal. Unset is 0. */
+  priority?: number;
 }
+
+/** What a reach is besides its radii. */
+export type LightReachKind = Pick<LightReach, 'darkness' | 'priority'>;
 
 /**
  * Every token with vision on, with its ranges converted to world pixels. A blinded token keeps
@@ -217,8 +224,13 @@ export function computeSight(sources: readonly SightSource[], walls: readonly Wa
 }
 
 /** Where a light at `origin` reaches: its `dim` radius clipped by `walls`. Without `bright` it has no bright part. */
-export function lightReach(origin: Point, dim: number, walls: readonly WallSegment[], bright = 0): LightReach {
-  return { origin, bright, dim, polygon: computeVisibility(origin, dim, walls) };
+export function lightReach(origin: Point, dim: number, walls: readonly WallSegment[], bright = 0, kind: LightReachKind = {}): LightReach {
+  return { origin, bright, dim, polygon: computeVisibility(origin, dim, walls), ...kindOf(kind) };
+}
+
+/** The fields of `kind` that say something: a light without them is stored as it always was. */
+export function kindOf({ darkness, priority }: LightReachKind): LightReachKind {
+  return { ...(darkness && { darkness }), ...(priority !== undefined && priority !== 0 && { priority }) };
 }
 
 /**

@@ -75,4 +75,32 @@ describe('exploredShapes', () => {
     const eyeless = region({ ...infravision, worksWhileBlinded: true }, square(1));
     expect(exploredShapes({ all: false, regions: [eyeless] }, { ambient: 0 }, [torch])).toBeNull();
   });
+
+  describe('with magical darkness', () => {
+    const darkness: LightReach = { origin: { x: 5, y: 5 }, bright: 0, dim: 10, polygon: square(6), darkness: true };
+    const truesight = region(generic('truesight'), square(7));
+
+    it('records nothing inside a darkness source: its area is taken out of what the light and darkvision show', () => {
+      expect(exploredShapes(sight, { ambient: 1 }, [torch, darkness])).toEqual({ polygons: [seen.polygon, dark.polygon], clip: null, except: { areas: [darkness.polygon], unless: [] } });
+      expect(exploredShapes(sight, { ambient: 0 }, [torch, darkness])).toEqual({
+        polygons: [torch.polygon, dark.polygon], clip: [seen.polygon, dark.polygon], except: { areas: [darkness.polygon], unless: [] },
+      });
+    });
+
+    it('never records a darkness source as light', () => {
+      expect(exploredShapes({ all: false, regions: [seen] }, { ambient: 0 }, [darkness])).toBeNull();
+    });
+
+    it('records the darkness where a sense that sees in magical darkness perceives it', () => {
+      const piercing: Sight = { all: false, regions: [seen, dark, truesight] };
+      expect(exploredShapes(piercing, { ambient: 0 }, [darkness])?.except).toEqual({ areas: [darkness.polygon], unless: [truesight.polygon] });
+      // A sense that shows no map pierces nothing for the memory.
+      const felt = region({ ...generic('tremorsense'), lineOfSight: true }, square(8));
+      expect(exploredShapes({ all: false, regions: [seen, felt] }, { ambient: 1 }, [darkness])?.except).toEqual({ areas: [darkness.polygon], unless: [] });
+    });
+
+    it('records as before without a darkness source', () => {
+      expect(exploredShapes(sight, { ambient: 0 }, [torch])).not.toHaveProperty('except');
+    });
+  });
 });

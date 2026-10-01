@@ -5,10 +5,15 @@ import { ambientLevel } from './lightLevels';
 import type { AmbientLight, LightReach, Sight, SightRegion } from './sight';
 import type { Polygon } from './visibility';
 
-/** What explored memory records: `polygons`, drawn only inside `clip` when it is set. */
+/**
+ * What explored memory records: `polygons`, drawn only inside `clip` when it is set, and without
+ * the `areas` of `except` (magical darkness), which are recorded only inside `unless` (what a
+ * sense that sees in magical darkness perceives).
+ */
 export interface ExploredShapes {
   polygons: Polygon[];
   clip: Polygon[] | null;
+  except?: { areas: Polygon[]; unless: Polygon[] };
 }
 
 /** A region whose sense shows the map, with the area it covers. */
@@ -46,14 +51,27 @@ export function exploredShapes(
 ): ExploredShapes | null {
   if (!exploredMemoryOn(scene) || sight.all) return null;
   const regions = sight.regions.filter(isMapRegion);
+  const except = magicalDarkness(regions, lights);
   const level = ambientLevel(scene);
   if (level !== 'dark') {
     const seen = regions.filter(({ sense }) => perceivedLevel(sense, level) !== null).map((region) => region.polygon);
-    return seen.length > 0 ? { polygons: seen, clip: null } : null;
+    return seen.length > 0 ? { polygons: seen, clip: null, ...except } : null;
   }
   const byLight = regions.filter(seesByLight).map((region) => region.polygon);
   const inDarkness = regions.filter(seesInDarkness).map((region) => region.polygon);
-  const seen = [...(byLight.length > 0 ? lights.map((light) => light.polygon) : []), ...inDarkness];
+  const shining = lights.filter((light) => !light.darkness);
+  const seen = [...(byLight.length > 0 ? shining.map((light) => light.polygon) : []), ...inDarkness];
   // The light polygons count only inside a region that sees by light; a region that sees in darkness is seen whole.
-  return seen.length > 0 ? { polygons: seen, clip: [...new Set([...byLight, ...inDarkness])] } : null;
+  return seen.length > 0 ? { polygons: seen, clip: [...new Set([...byLight, ...inDarkness])], ...except } : null;
+}
+
+/**
+ * The darkness sources of the scene, whose areas no sense records unless it sees in magical
+ * darkness; nothing without one, so a scene without darkness records exactly as before.
+ */
+// ponytail: a light that outranks a darkness lights the players' picture inside it but is not recorded there; subtract the darkness per priority if a table misses it.
+function magicalDarkness(regions: readonly MapRegion[], lights: readonly LightReach[]): Pick<ExploredShapes, 'except'> {
+  const areas = lights.filter((light) => light.darkness).map((light) => light.polygon);
+  if (areas.length === 0) return {};
+  return { except: { areas, unless: regions.filter(({ sense }) => perceivedLevel(sense, 'magical-dark') !== null).map((region) => region.polygon) } };
 }

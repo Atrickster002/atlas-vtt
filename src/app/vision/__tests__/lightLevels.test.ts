@@ -117,3 +117,53 @@ describe('what normal sight sees by the light level', () => {
     expect(lit({ x: 100, y: 400 }, { ambient: 0.1 }, [])).toBe(false);
   });
 });
+
+describe('magical darkness', () => {
+  /** A Darkness of 60 px at (130, 100): it covers the torch's centre and part of its dim range. */
+  const darkness = lightReach({ x: 130, y: 100 }, 60, [wall], 0, { darkness: true });
+  const day: AmbientLight = { ambient: 1 };
+
+  it('is magically dark inside a darkness source, whatever the ambient light and the lights of its priority or below', () => {
+    expect(lightLevelAt({ x: 100, y: 100 }, dark, [torch, darkness])).toBe('magical-dark');
+    expect(lightLevelAt({ x: 100, y: 100 }, day, [torch, darkness])).toBe('magical-dark');
+    expect(lightLevelAt({ x: 100, y: 100 }, day, [darkness, torch])).toBe('magical-dark');
+    expect(lightLevelAt({ x: 100, y: 100 }, dark, [{ ...torch, priority: -1 }, darkness])).toBe('magical-dark');
+    expect(lightLevelAt({ x: 189, y: 100 }, day, [darkness])).toBe('magical-dark');
+  });
+
+  it('leaves everything outside its radius as it was, and nothing behind a wall is darkened', () => {
+    // 40 px left of the torch: 70 px from the darkness.
+    expect(lightLevelAt({ x: 60, y: 100 }, dark, [torch, darkness])).toBe('bright');
+    expect(lightLevelAt({ x: 20, y: 100 }, dark, [torch, darkness])).toBe('dim');
+    expect(lightLevelAt({ x: 20, y: 300 }, day, [torch, darkness])).toBe('bright');
+    // 59 px from a darkness that stands 30 px left of the wall, on the wall's other side.
+    const atWall = lightReach({ x: 170, y: 100 }, 60, [wall], 0, { darkness: true });
+    expect(lightLevelAt({ x: 229, y: 100 }, day, [atWall])).toBe('bright');
+    expect(lightLevelAt({ x: 199, y: 100 }, day, [atWall])).toBe('magical-dark');
+  });
+
+  it('is no light: a darkness source lights nothing', () => {
+    expect(lightLevelAt({ x: 300, y: 300 }, dark, [darkness])).toBe('dark');
+    expect(lightLevelAt({ x: 140, y: 100 }, dark, [{ ...darkness, darkness: false }])).toBe('dim');
+  });
+
+  it('gives way to a light of higher priority, which lights it at its own level; a tie goes to the darkness', () => {
+    const daylight: LightReach = { ...torch, priority: 1 };
+    expect(lightLevelAt({ x: 100, y: 100 }, dark, [daylight, darkness])).toBe('bright');
+    expect(lightLevelAt({ x: 100, y: 160 }, dark, [daylight, darkness])).toBe('dim');
+    // Inside the darkness and beyond the daylight's reach: the ambient light stays swallowed.
+    const candle: LightReach = { ...lightReach({ x: 180, y: 100 }, 10, [wall], 5), priority: 1 };
+    expect(lightLevelAt({ x: 100, y: 100 }, day, [candle, darkness])).toBe('magical-dark');
+    expect(lightLevelAt({ x: 100, y: 100 }, dark, [daylight, { ...darkness, priority: 1 }])).toBe('magical-dark');
+    expect(lightLevelAt({ x: 100, y: 100 }, dark, [daylight, { ...darkness, priority: 2 }, darkness])).toBe('magical-dark');
+    expect(lightLevelAt({ x: 100, y: 100 }, dark, [{ ...torch, priority: 3 }, { ...darkness, priority: 2 }])).toBe('bright');
+  });
+
+  it('decides as before for lights without the new fields', () => {
+    for (const point of [{ x: 100, y: 130 }, { x: 100, y: 180 }, { x: 260, y: 100 }, { x: 100, y: 400 }]) {
+      for (const ambient of [0, 0.5, 1]) {
+        expect(lightLevelAt(point, { ambient }, [torch])).toBe(lightLevelAt(point, { ambient }, [{ ...torch, priority: 0, darkness: false }]));
+      }
+    }
+  });
+});

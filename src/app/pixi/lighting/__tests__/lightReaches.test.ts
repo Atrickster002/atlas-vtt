@@ -40,6 +40,19 @@ describe('LightReaches', () => {
     expect(cache.sync([light('a', 0, 100, 80)], walls)[0]).toBe(after);
   });
 
+  it('carries what a light is: a darkness and its priority, taken without tracing it again', () => {
+    const cache = new LightReaches();
+    const [before] = cache.sync([light('a', 0)], walls);
+    expect(before).not.toHaveProperty('darkness');
+    const [dark] = cache.sync([{ ...light('a', 0), darkness: true, priority: 1 }], walls);
+    expect(dark).toMatchObject({ darkness: true, priority: 1 });
+    expect(dark!.polygon).toBe(before!.polygon);
+    expect(cache.sync([{ ...light('a', 0), darkness: true, priority: 1 }], walls)[0]).toBe(dark);
+    const [again] = cache.sync([light('a', 0)], walls);
+    expect(again).not.toHaveProperty('darkness');
+    expect(again).not.toHaveProperty('priority');
+  });
+
   it('drops lights that are gone', () => {
     const cache = new LightReaches();
     cache.sync([light('a', 0), light('b', 200)], walls);

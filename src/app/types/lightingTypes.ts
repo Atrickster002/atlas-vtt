@@ -28,7 +28,7 @@ export const DEFAULT_SCENE_LIGHTING: SceneLighting = { enabled: false, ambient: 
 export type LightAnimation = 'none' | 'torch' | 'candle' | 'pulse' | 'magic';
 
 /** What a placed light is: it picks the light's marker. `custom` is any other light. */
-export type LightKind = 'candle' | 'torch' | 'lantern' | 'magical' | 'custom';
+export type LightKind = 'candle' | 'torch' | 'lantern' | 'magical' | 'darkness' | 'custom';
 
 /** What a light gives off. Distances are game units (feet, metres…), converted at render time. */
 export interface LightEmission {
@@ -44,6 +44,17 @@ export interface LightEmission {
   sourceRadius?: number;
   /** The kind the GM gave the light; lights without one are read by `lightKindOf`. */
   kind?: LightKind;
+  /**
+   * A source of magical darkness: within its `dim` radius, as far as walls let it, nothing is
+   * lit, by the scene's ambient light or by a light of its priority or lower. `bright`, colour,
+   * intensity and flicker say nothing for it.
+   */
+  darkness?: boolean;
+  /**
+   * Which wins where a light and a darkness meet: the one with the higher priority, the darkness
+   * when they are equal. Unset is 0.
+   */
+  priority?: number;
   /**
    * Id of the collection's light preset the light was made from (`LightPresetDefinition.id`); it
    * stays while the light's values are edited. Read with `lightPresetOf`, which also reads lights

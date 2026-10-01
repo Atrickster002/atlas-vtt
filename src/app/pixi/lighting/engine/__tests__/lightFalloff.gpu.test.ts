@@ -2,6 +2,9 @@ import { BufferImageSource, Texture } from 'pixi.js';
 import { afterEach, describe, expect, it } from 'vitest';
 import { LIGHT_REACH } from '../../../../lighting/lightingConstants';
 import { LIGHT_PRESETS, LIGHT_PRESET_IDS } from '../../../../lighting/lightPresets';
+
+/** The presets that give light: a darkness has no falloff. */
+const SHINING = LIGHT_PRESET_IDS.filter((id) => !LIGHT_PRESETS[id].emission.darkness);
 import type { UnitScale } from '../../../../lighting/lightingUnits';
 import { srgbToLinear } from '../../../../lighting/srgb';
 import type { LightEmission } from '../../../../types/lightingTypes';
@@ -121,7 +124,7 @@ describe('light falloff as the players see it', () => {
     return { bright: light.bright, dim: light.dim, reach: light.dim * LIGHT_REACH, step, at, saturationAt };
   }
 
-  it.each(LIGHT_PRESET_IDS)('lights the dim range of a %s out to its edge: never under a quarter of the bright level', async (id) => {
+  it.each(SHINING)('lights the dim range of a %s out to its edge: never under a quarter of the bright level', async (id) => {
     const profile = await profileOf(LIGHT_PRESETS[id].emission);
     const floor = dimFloor(profile);
     console.info(`${id}: dim range floor ${(floor * 100).toFixed(1)}% of the bright level`);
@@ -206,7 +209,7 @@ describe('light falloff as the players see it', () => {
     expect(profile.at(profile.dim - 2)).toBeGreaterThan(1.3 * grey);
   });
 
-  it.each(LIGHT_PRESET_IDS)('shows no ring around a %s: light only falls with distance, and nowhere steeply', async (id) => {
+  it.each(SHINING)('shows no ring around a %s: light only falls with distance, and nowhere steeply', async (id) => {
     const profile = await profileOf(LIGHT_PRESETS[id].emission);
     const level = brightLevel(profile);
     let steepest = 0;

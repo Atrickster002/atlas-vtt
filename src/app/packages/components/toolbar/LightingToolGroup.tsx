@@ -1,5 +1,5 @@
 import React, { useState } from "react"
-import { BrickWall, Flame, FlameKindling, Lamp, Lightbulb, MousePointer2, Pencil, Sparkles } from "lucide-react"
+import { BrickWall, Flame, FlameKindling, Lamp, Lightbulb, Moon, MousePointer2, Pencil, Sparkles } from "lucide-react"
 import { useHotkeyLabels } from "../../../keyboard/useMapHotkeys"
 import { useAtlasStore } from "../../../react/ViewStoreContext"
 import { chosenLightPreset } from "../../../lighting/lightPresetChoice"
@@ -31,6 +31,7 @@ const KIND_ICONS: Record<LightKind, RowIcon> = {
   torch: FlameKindling,
   lantern: Lamp,
   magical: Sparkles,
+  darkness: Moon,
   custom: Lightbulb,
 }
 

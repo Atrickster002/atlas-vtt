@@ -4,6 +4,7 @@ import type { LightEmission, LightSource } from '../../types/lightingTypes';
 import { gameUnitsToWorld, type UnitScale } from '../../lighting/lightingUnits';
 import { MIN_SOFTNESS, TINT_TO_WHITE } from '../../lighting/lightingConstants';
 import { srgbToLinear } from '../../lighting/srgb';
+import { kindOf } from '../../vision/sight';
 import type { EngineLight } from './engine/types';
 
 /** A light that shines right now: placed on the map or carried by a token. */
@@ -29,7 +30,8 @@ export function activeLights(lights: Record<string, LightSource>, tokens: Record
 /** A light in world pixels for the engine; its colour mixed towards white and linearised. */
 export function engineLight(light: ActiveLight, scale: UnitScale): EngineLight {
   const { emission } = light;
-  const bright = gameUnitsToWorld(Math.max(0, emission.bright), scale);
+  // A darkness has one radius, its dim one: nothing in it is bright.
+  const bright = emission.darkness ? 0 : gameUnitsToWorld(Math.max(0, emission.bright), scale);
   const dim = Math.max(bright, gameUnitsToWorld(Math.max(0, emission.dim), scale));
   return {
     key: light.key,
@@ -41,7 +43,9 @@ export function engineLight(light: ActiveLight, scale: UnitScale): EngineLight {
     flame: Math.max(gameUnitsToWorld(emission.sourceRadius ?? 1, scale), dim * MIN_SOFTNESS),
     color: tintedLinear(emission.color),
     intensity: emission.intensity,
-    animation: emission.animation,
+    // Darkness does not flicker: its edge is where the rules end it.
+    animation: emission.darkness ? 'none' : emission.animation,
+    ...kindOf(emission),
   };
 }
 

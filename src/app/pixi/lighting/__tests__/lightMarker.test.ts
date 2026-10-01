@@ -17,7 +17,8 @@ describe('light kinds', () => {
   it('has a glyph of its own for every kind, none of them offered as a pin except the shared torch', () => {
     const pinPaths = new Set<string>(Object.values(PIN_ICON_PATHS));
     for (const kind of LIGHT_KINDS) {
-      expect(LIGHT_GLYPH_PATHS[kind].length).toBeGreaterThan(100);
+      // Silhouettes from game-icons.net are long paths; the crescent of darkness is Atlas' own, two arcs.
+      expect(LIGHT_GLYPH_PATHS[kind].length).toBeGreaterThan(kind === 'darkness' ? 40 : 100);
       expect(pinPaths.has(LIGHT_GLYPH_PATHS[kind])).toBe(kind === 'torch');
     }
     expect(new Set(Object.values(LIGHT_GLYPH_PATHS)).size).toBe(LIGHT_KINDS.length);

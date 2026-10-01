@@ -32,4 +32,14 @@ describe('engineLight', () => {
     expect(light.color[0]).toBe(1);
     expect(light.color[1]).toBeCloseTo(((0.5 + 0.055) / 1.055) ** 2.4, 6);
   });
+
+  it('makes a darkness a source without a bright part and without flicker, and carries its priority', () => {
+    const darkness = engineLight({ key: 'd', x: 0, y: 0, emission: { ...LIGHT_PRESETS.darkness.emission, bright: 10, animation: 'magic', priority: 2 } }, scale);
+    expect(darkness).toMatchObject({ bright: 0, dim: 210, animation: 'none', darkness: true, priority: 2 });
+    // A light without the new fields is the light it always was.
+    const plain = engineLight({ key: 'k', x: 0, y: 0, emission: torch }, scale);
+    expect(plain).not.toHaveProperty('darkness');
+    expect(plain).not.toHaveProperty('priority');
+    expect(engineLight({ key: 'k', x: 0, y: 0, emission: { ...torch, priority: 1 } }, scale).priority).toBe(1);
+  });
 });

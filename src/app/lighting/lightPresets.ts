@@ -2,6 +2,9 @@ import type { LightEmission, LightKind } from '../types/lightingTypes';
 
 export type LightPresetId = Exclude<LightKind, 'custom'>;
 
+/** The colour a darkness source's marker and rings take; its emission has no light to colour. */
+export const DARKNESS_COLOR = '#8f7cf0';
+
 export interface LightPreset {
   label: string;
   emission: LightEmission;
@@ -16,6 +19,8 @@ export const LIGHT_PRESETS: Record<LightPresetId, LightPreset> = {
   torch: { label: 'Torch', emission: { bright: 20, dim: 40, color: '#ff9a3c', intensity: 1, animation: 'torch', sourceRadius: 2 } },
   lantern: { label: 'Lantern', emission: { bright: 30, dim: 60, color: '#ffd28a', intensity: 1, animation: 'none', sourceRadius: 1.5 } },
   magical: { label: 'Magical light', emission: { bright: 20, dim: 40, color: '#8fb8ff', intensity: 1, animation: 'magic', sourceRadius: 2.5 } },
+  // Magical darkness, three squares wide like the Darkness spell: it swallows light instead of giving any.
+  darkness: { label: 'Darkness', emission: { bright: 0, dim: 15, color: DARKNESS_COLOR, intensity: 1, animation: 'none', sourceRadius: 1, darkness: true } },
 };
 
 export const LIGHT_PRESET_IDS = Object.keys(LIGHT_PRESETS) as LightPresetId[];
@@ -23,7 +28,8 @@ export const LIGHT_PRESET_IDS = Object.keys(LIGHT_PRESETS) as LightPresetId[];
 /** Whether two lights shine alike; their kind and the preset they record are not compared. */
 export function sameEmission(a: LightEmission, b: LightEmission): boolean {
   return a.bright === b.bright && a.dim === b.dim && a.color.toLowerCase() === b.color.toLowerCase()
-    && a.intensity === b.intensity && a.animation === b.animation && (a.sourceRadius ?? 0) === (b.sourceRadius ?? 0);
+    && a.intensity === b.intensity && a.animation === b.animation && (a.sourceRadius ?? 0) === (b.sourceRadius ?? 0)
+    && !!a.darkness === !!b.darkness && (a.priority ?? 0) === (b.priority ?? 0);
 }
 
 /** The preset an emission is identical to, or null once any field was edited. */

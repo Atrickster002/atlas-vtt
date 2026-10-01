@@ -7,6 +7,7 @@ import type { LightLevel } from '../../types/senseTypes';
 import type { WallSegment } from '../../types/wallTypes';
 import type { TokenVision } from '../../types/lightingTypes';
 import { exploredShapes } from '../exploredShapes';
+import { lightLevelAt } from '../lightLevels';
 import { perceive, regionContains, seenSpots, type PerceivedTarget, type Perception } from '../perception';
 import { computeSight, lightReach, sceneSight, sightSources, type SightRegion } from '../sight';
 import { pointInPolygon } from '../visibility';
@@ -423,5 +424,39 @@ describe('a sense that walls do not stop', () => {
     const tokens = { viewer, lurker: token('lurker', BEHIND) };
     const spots = seenSpots(sight, dark, [], tokens, scale.cellSize, [wall], { conditions });
     expect(spots.map(({ x, y }) => ({ x, y }))).toEqual([VIEWER, BEHIND]);
+  });
+});
+
+describe('in a source of magical darkness', () => {
+  /** A Darkness around the creature 40 units from the viewer; the viewer stands outside it. */
+  const darkness = lightReach(NEAR, 30, [wall], 0, { darkness: true });
+  const day = { ambient: 1 };
+  const perceived = (id: string | null, at = NEAR): Perception => {
+    const sight = computeSight(sightSources({ viewer: viewerWith(id) }, scale, bounds, rules), [wall]);
+    return perceive(at, sight, () => lightLevelAt(at, day, [darkness]));
+  };
+
+  it('hides a creature from normal sight and from darkvision that does not see in magical darkness, in daylight too', () => {
+    expect(lightLevelAt(NEAR, day, [darkness])).toBe('magical-dark');
+    expect(perceived(null)).toBe('unseen');
+    expect(perceived('dnd5e-darkvision')).toBe('unseen');
+    expect(perceived('darkvision')).toBe('unseen');
+    expect(perceived('ose-infravision')).toBe('unseen');
+    // Beside the darkness the day shows everything.
+    expect(perceived(null, { x: NEAR.x, y: NEAR.y + 40 })).toBe('seen');
+  });
+
+  it('shows it to the senses that see in magical darkness, and senses it through those that need no sight', () => {
+    for (const id of ['dnd5e-truesight', 'dnd5e-devils-sight', 'dnd5e-blindsight', 'pathfinder2e-darkvision', 'pathfinder2e-greater-darkvision', 'truesight', 'blindsight']) {
+      expect([id, perceived(id)]).toEqual([id, 'seen']);
+    }
+    expect(perceived('dnd5e-tremorsense')).toBe('sensed');
+  });
+
+  it('still shows a party token inside it within its footprint, and no other token', () => {
+    const tokens = { viewer: viewerWith(null), friend: token('friend', NEAR, { vision: { enabled: true } }), foe: token('foe', { x: NEAR.x, y: NEAR.y + 10 }) };
+    const sight = computeSight(sightSources(tokens, scale, bounds, rules), [wall]);
+    const spots = seenSpots(sight, day, [darkness], tokens, 70, [wall], { conditions });
+    expect(spots.map((spot) => [spot.x, spot.y])).toEqual([[NEAR.x, NEAR.y]]);
   });
 });

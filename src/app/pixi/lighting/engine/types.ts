@@ -17,6 +17,10 @@ export interface EngineLight {
   color: readonly [number, number, number];
   intensity: number;
   animation: LightAnimation;
+  /** A source of magical darkness: it swallows light within `dim` instead of giving any. */
+  darkness?: boolean;
+  /** Which of a light and a darkness that meet wins (`LightEmission.priority`); unset is 0. */
+  priority?: number;
 }
 
 /**
