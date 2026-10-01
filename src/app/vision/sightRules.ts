@@ -11,10 +11,20 @@ export interface SightRules {
   /** Its conditions, for those that change sight. */
   conditions: readonly ConditionDefinition[];
   /**
-   * The senses of a token. Unset, they are read from its vision (`tokenSenses`); set, this is
-   * the one place sight gets them from, for senses that follow a linked statblock.
+   * How a token perceives. Unset, that is read from its vision alone (`tokenSenses`, its
+   * `range`); set, this is the one place sight gets it from, for tokens that follow a linked
+   * statblock (`tokenSensesResolver`).
    */
-  sensesOf?: (token: TokenEntity) => readonly TokenSense[];
+  visionOf?: (token: TokenEntity) => TokenSight;
+}
+
+/** How one token perceives, as sight reads it. */
+export interface TokenSight {
+  senses: readonly TokenSense[];
+  /** How far its normal sight reaches, in game units: unset is unlimited, 0 is no normal sight at all. */
+  sightRange?: number;
+  /** Not known yet (its statblock is still being read): the token sees and senses nothing until it is. */
+  pending?: boolean;
 }
 
 /** A scene without a collection: the generic senses, no conditions. */

@@ -8,6 +8,9 @@ import { DEFAULT_MAP_HOTKEYS } from '../../keyboard/mapHotkeys';
 import { AssetService } from '../../services/AssetService';
 import { mapMeasurementSettings } from '../../services/mapMeasurementSettings';
 import { heldForSight } from '../../lighting/sightOnDrop';
+import { CreatureIndex } from '../../creatures/CreatureIndex';
+import { tokenSensesResolver, type TokenSensesResolver } from '../../creatures/tokenSensesResolver';
+import { mapSenseRulesSource } from '../../services/mapSenseRules';
 import { mapSightRules } from '../../services/mapSightRules';
 import { SettingsService } from '../../services/SettingsService';
 import type { ViewAtlasState, ViewAtlasStore } from '../../storeFactory';
@@ -38,6 +41,8 @@ export interface LightingControllerDeps {
   bounds: () => MapBounds | null;
   /** The map image, for the colours light bounces off. */
   albedo: () => Texture | null;
+  /** How each token perceives; unset, by its own vision and its linked statblock (`tokenSensesResolver`). */
+  senses?: TokenSensesResolver;
 }
 
 /**
@@ -57,13 +62,18 @@ export class LightingController {
   private readonly session: SessionLighting;
   private readonly cleanups: Array<() => void> = [];
   private tokens: TokenRenderer | null = null;
-  /** The sight rules of the map's collection, read once per map and again when settings change. */
+  /** The sight rules of the map's collection, read once per map and again when they may have changed. */
   private rules: { mapPath: string | null; rules: SightRules } | null = null;
+  /** How each token perceives: by its own vision, else by its linked statblock. */
+  private readonly senses: TokenSensesResolver;
+  /** The frame in which sight is worked out anew by changed rules, while one is waited for. */
+  private sightRefresh: number | null = null;
 
   constructor(private readonly deps: LightingControllerDeps) {
     const { viewport, app, store, eventBus, obsApp } = deps;
     const assetService = AssetService.getInstance(obsApp);
     const measurement = (): MeasurementSettings => mapMeasurementSettings(assetService, store.getState());
+    this.senses = deps.senses ?? tokenSensesResolver(CreatureIndex.forApp(obsApp), mapSenseRulesSource(obsApp, assetService, () => store.getState()));
     this.renderer = createSceneLighting({
       viewport, app, store, obsApp, measurement, bounds: deps.bounds, albedo: deps.albedo,
       rules: () => this.sightRules(),
@@ -151,18 +161,33 @@ export class LightingController {
     return playerTokenSight(this.renderer, state.objects.tokens, { conditions: this.sightRules().conditions, held: heldForSight(state) });
   }
 
-  /** The senses and conditions of the map's collection. */
+  /** The senses and conditions of the map's collection, and how each token perceives. */
   private sightRules(): SightRules {
-    const { mapPath } = this.deps.store.getState();
-    if (this.rules?.mapPath !== mapPath) this.rules = { mapPath, rules: mapSightRules(this.deps.obsApp, mapPath) };
+    const state = this.deps.store.getState();
+    if (this.rules?.mapPath !== state.mapPath) {
+      this.rules = { mapPath: state.mapPath, rules: mapSightRules(this.deps.obsApp, state, (token) => this.senses.visionOf(token)) };
+    }
     return this.rules.rules;
   }
 
-  /** A collection's settings or the game system presets changed: sight is worked out by the new rules. */
-  private refreshSightRules(): void {
-    this.rules = null;
-    // Rebuilds the scene from the store, as after a new map image.
-    this.renderer.refreshBounds();
+  /**
+   * The rules sight goes by may have changed: the collection's settings, a game system preset, or
+   * a statblock that was read or edited. Sight is worked out anew once, in the next frame,
+   * however many changes arrive until then (a bestiary announces its statblocks one by one).
+   */
+  private scheduleSightRefresh(): void {
+    if (this.sightRefresh !== null) return;
+    this.sightRefresh = this.frames().requestAnimationFrame(() => {
+      this.sightRefresh = null;
+      this.rules = null;
+      // Rebuilds the scene from the store, as after a new map image.
+      this.renderer.refreshBounds();
+    });
+  }
+
+  /** The window the canvas is in: a popout has its own frames. */
+  private frames(): Window {
+    return this.deps.app.canvas.ownerDocument?.defaultView ?? window;
   }
 
   /** Escape cancels a light or ring being dragged and closes the light popover; else it is the wall editor's. */
@@ -240,10 +265,17 @@ export class LightingController {
       if (leaf !== findAtlasLeafByViewId(obsApp.workspace, viewId)) stopEditing();
     });
     this.cleanups.push(() => obsApp.workspace.offref(leafChange));
-    const settingsChange = obsApp.workspace.on('atlas-vtt:collection-settings-changed', () => this.refreshSightRules());
+    // The collection's conditions decide sight too; its senses and the statblocks are the resolver's to announce.
+    const settingsChange = obsApp.workspace.on('atlas-vtt:collection-settings-changed', (collectionId) => {
+      const { mapPath } = store.getState();
+      if (mapPath && AssetService.getInstance(obsApp).getCollectionForMap(mapPath) === collectionId) this.scheduleSightRefresh();
+    });
     this.cleanups.push(() => obsApp.workspace.offref(settingsChange));
-    const stopPresets = SettingsService.forApp(obsApp)?.onChange(() => this.refreshSightRules());
-    if (stopPresets) this.cleanups.push(stopPresets);
+    this.cleanups.push(this.senses.subscribe(() => this.scheduleSightRefresh()));
+    this.cleanups.push(() => {
+      if (this.sightRefresh !== null) this.frames().cancelAnimationFrame(this.sightRefresh);
+      this.sightRefresh = null;
+    });
   }
 
   destroy(): void {

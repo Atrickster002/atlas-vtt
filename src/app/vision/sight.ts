@@ -39,7 +39,7 @@ export interface SightSource {
   cone?: VisionCone;
   /** What it perceives beyond its sight; of a blinded token, only the senses that work while blinded. */
   senses: SenseSource[];
-  /** The token is blinded: it has no sight, only its senses. */
+  /** The token is blinded: it has no sight, only its senses. One whose `range` is 0 has no sight either, and keeps what it senses without the eyes. */
   blinded?: true;
   /** Its eyes see invisible things: its sight and every sense of the eyes. */
   seesInvisible?: true;
@@ -92,7 +92,9 @@ export interface LightReach {
 /**
  * Every token with vision on, with its ranges converted to world pixels. A blinded token keeps
  * only its senses that work while blinded; a sense that lets the eyes see invisible things is
- * not a sense of its own.
+ * not a sense of its own. A token whose way of perceiving is not known yet (`TokenSight.pending`)
+ * is a source that perceives nothing: it must not see, or record as explored, what its statblock
+ * may be about to rule out, and the scene still has a vision token, so nothing is shown for want of one.
  */
 export function sightSources(
   tokens: Record<string, TokenEntity>,
@@ -104,16 +106,22 @@ export function sightSources(
   const sources: SightSource[] = [];
   for (const token of Object.values(tokens)) {
     if (!token.vision?.enabled) continue;
-    const { range, angle } = token.vision;
-    const cone = visionCone(token.rotation, angle, computeTokenPixelSize(scale.cellSize, token.size || 1) / 2);
+    const origin = { x: token.x, y: token.y };
+    const how = rules.visionOf?.(token) ?? { senses: tokenSenses(token.vision, rules.definitions), ...(token.vision.range !== undefined && { sightRange: token.vision.range }) };
+    if (how.pending) {
+      sources.push({ tokenId: token.id, origin, range: 0, senses: [] });
+      continue;
+    }
+    const range = how.sightRange;
+    const cone = visionCone(token.rotation, token.vision.angle, computeTokenPixelSize(scale.cellSize, token.size || 1) / 2);
     const blinded = tokenEffects(token, rules.conditions).has('blinded');
-    const resolved = resolveSenses(rules.sensesOf?.(token) ?? tokenSenses(token.vision, rules.definitions), rules.definitions);
+    const resolved = resolveSenses(how.senses, rules.definitions);
     const senses = resolved
       .filter(({ definition }) => !definition.grants && (!blinded || definition.worksWhileBlinded))
       .map(({ definition, range: reach }) => ({ definition, range: reach === undefined ? unlimited : gameUnitsToWorld(reach, scale) }));
     sources.push({
       tokenId: token.id,
-      origin: { x: token.x, y: token.y },
+      origin,
       range: range === undefined ? unlimited : gameUnitsToWorld(range, scale),
       ...(cone && { cone }),
       senses,
@@ -186,10 +194,11 @@ function regionsOf(source: SightSource, walls: readonly WallSegment[]): SightReg
       seesInvisible: sense.seesInvisible || (eyes && !!source.seesInvisible),
     };
   };
+  // A sense that reaches nowhere has no region: the sight of a token without normal sight, and its senses of the eyes.
   return [
     ...(source.blinded ? [] : [regionOf(NORMAL_SIGHT, source.range)]),
     ...source.senses.map(({ definition, range }) => regionOf(definition, range)),
-  ];
+  ].filter((region) => region.radius > 0);
 }
 
 /** The scene's sight: that of its vision tokens, or everything while the scene has token vision off. */

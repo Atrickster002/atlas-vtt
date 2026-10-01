@@ -53,13 +53,30 @@ describe('sightSources', () => {
     expect(only!.senses.map((sense) => [sense.definition.id, Math.round(sense.range)])).toEqual([['pathfinder2e-darkvision', 1414], ['pathfinder2e-scent', 420]]);
   });
 
-  it('asks for a token\'s senses where the rules give them, instead of reading its vision', () => {
-    const sensesOf = (asked: TokenEntity): { id: string; range: number }[] => (asked.id === 'a' ? [{ id: 'blindsight', range: 10 }] : []);
+  it('asks how a token perceives where the rules say, instead of reading its vision', () => {
+    const visionOf = (asked: TokenEntity): { senses: { id: string; range: number }[]; sightRange?: number } =>
+      (asked.id === 'a' ? { senses: [{ id: 'blindsight', range: 10 }], sightRange: 10 } : { senses: [] });
     const sources = sightSources({
-      a: token('a', 0, 0, { enabled: true, darkvision: 60 }),
-      b: token('b', 0, 0, { enabled: true, darkvision: 60 }),
-    }, scale, bounds, { definitions: GENERIC_SENSES, conditions: [], sensesOf });
+      a: token('a', 0, 0, { enabled: true, darkvision: 60, range: 60 }),
+      b: token('b', 0, 0, { enabled: true, darkvision: 60, range: 60 }),
+    }, scale, bounds, { definitions: GENERIC_SENSES, conditions: [], visionOf });
     expect(sources.map((each) => each.senses.map((sense) => sense.definition.id))).toEqual([['blindsight'], []]);
+    expect(sources.map((each) => Math.round(each.range))).toEqual([140, 1414]);
+  });
+
+  it('gives a token whose way of perceiving is not known yet no sight and no senses, and keeps it a source', () => {
+    const rules = { definitions: GENERIC_SENSES, conditions: [], visionOf: (): { senses: { id: string; range: number }[]; pending: boolean } => ({ senses: [{ id: 'darkvision', range: 60 }], pending: true }) };
+    const sources = sightSources({ a: token('a', 10, 20, { enabled: true }) }, scale, bounds, rules);
+    expect(sources).toEqual([{ tokenId: 'a', origin: { x: 10, y: 20 }, range: 0, senses: [] }]);
+    const sight = computeSight(sources, []);
+    expect(sight).toEqual({ all: false, regions: [] });
+    expect(perceive({ x: 12, y: 20 }, sight, 'bright')).toBe('unseen');
+  });
+
+  it('gives a token without normal sight no region of sight and none for its senses of the eyes, and keeps the others', () => {
+    const rules = { definitions: GENERIC_SENSES, conditions: [], visionOf: (): { senses: { id: string; range: number }[]; sightRange: number } => ({ senses: [{ id: 'blindsight', range: 30 }, { id: 'darkvision', range: 60 }], sightRange: 0 }) };
+    const sight = computeSight(sightSources({ a: token('a', 500, 500, { enabled: true }) }, scale, bounds, rules), []);
+    expect(sight.regions.map((region) => [region.sense.id, region.radius])).toEqual([['blindsight', 420]]);
   });
 
   it('leaves a blinded token only the senses that work while blinded', () => {

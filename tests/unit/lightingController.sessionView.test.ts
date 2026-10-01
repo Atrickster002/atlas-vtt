@@ -14,6 +14,7 @@ import { getHistoryStore } from '../../src/app/stores/history';
 import { SEES_ALL, computeSight, type Sight } from '../../src/app/vision/sight';
 import { AssetService } from '../../src/app/services/AssetService';
 import { GENERIC_SIGHT_RULES } from '../../src/app/vision/sightRules';
+import type { TokenSensesResolver } from '../../src/app/creatures/tokenSensesResolver';
 import type { App } from 'obsidian';
 import { createInMemoryApp } from '../mocks/inMemoryVault';
 import { stubJsdomGraphics } from '../mocks/jsdomGraphics';
@@ -84,7 +85,9 @@ afterEach(() => {
   cleanup = null;
 });
 
-function setup(): Setup {
+const nextFrame = (): Promise<void> => new Promise((resolve) => window.requestAnimationFrame(() => resolve()));
+
+function setup(extra: Partial<ConstructorParameters<typeof LightingController>[0]> = {}): Setup {
   const restoreGraphics = stubJsdomGraphics();
   lighting.sight = SEES_ALL;
   const events = { domElement: document.createElement('canvas') } as unknown as EventSystem;
@@ -103,6 +106,7 @@ function setup(): Setup {
     viewId: 'session-view',
     bounds: () => ({ width: 1000, height: 1000 }),
     albedo: () => null,
+    ...extra,
   });
   const wired = { refreshPlayerSight: vi.fn(), sensedOutlines: { visible: false } } as Wired;
   controller.wire({
@@ -332,21 +336,63 @@ describe('tokens in session view', () => {
     expect(wired.playerSight()).toBeUndefined();
   });
 
-  it('gives the lighting the sight rules of the map, read once and again when settings change', () => {
-    const { collectionSettingsChanged } = scene();
+  it('gives the lighting the sight rules of the map, read once and again when the collection\'s settings change', async () => {
+    const { collectionSettingsChanged, obsApp } = scene();
     const { rules } = lighting.deps as SceneLightingDeps;
-    expect(rules?.()).toBe(GENERIC_SIGHT_RULES);
-    const read = vi.spyOn(AssetService, 'getInstance');
-    rules?.();
-    expect(read).not.toHaveBeenCalled();
+    const first = rules?.();
+    expect(first).toMatchObject({ definitions: GENERIC_SIGHT_RULES.definitions, conditions: [] });
+    expect(rules?.()).toBe(first);
+    // Another collection's settings are none of this map's business.
     collectionSettingsChanged();
+    await nextFrame();
+    expect(lighting.refreshBounds).not.toHaveBeenCalled();
+    const collection = vi.spyOn(AssetService.getInstance(obsApp), 'getCollectionForMap').mockReturnValue('dungeon');
+    collectionSettingsChanged();
+    expect(lighting.refreshBounds).not.toHaveBeenCalled();
+    await nextFrame();
     expect(lighting.refreshBounds).toHaveBeenCalledTimes(1);
-    rules?.();
-    expect(read).toHaveBeenCalledTimes(1);
-    read.mockRestore();
+    expect(rules?.()).not.toBe(first);
+    collection.mockRestore();
   });
 
-  it('reads the conditions of the token looked at', () => {
+  it('works sight out anew once per frame, however many statblocks are announced, and no more after it is destroyed', async () => {
+    const listeners = new Set<() => void>();
+    const senses: TokenSensesResolver = {
+      visionOf: () => ({ senses: [], source: 'none', blindBeyond: false, pending: false, key: '' }),
+      sensesOf: () => [],
+      subscribe: (listener) => (listeners.add(listener), () => listeners.delete(listener)),
+    };
+    const { controller } = setup({ senses });
+    expect(listeners.size).toBe(1);
+    const announce = (): void => listeners.forEach((listener) => listener());
+    announce();
+    announce();
+    announce();
+    expect(lighting.refreshBounds).not.toHaveBeenCalled();
+    await nextFrame();
+    expect(lighting.refreshBounds).toHaveBeenCalledTimes(1);
+    announce();
+    await nextFrame();
+    expect(lighting.refreshBounds).toHaveBeenCalledTimes(2);
+
+    announce();
+    controller.destroy();
+    cleanup = null;
+    expect(listeners.size).toBe(0);
+    await nextFrame();
+    expect(lighting.refreshBounds).toHaveBeenCalledTimes(2);
+  });
+
+  it('asks the resolver how each token perceives', () => {
+    const visionOf = vi.fn(() => ({ senses: [{ id: 'blindsight', range: 10 }], source: 'statblock' as const, blindBeyond: false, pending: false, key: 'k' }));
+    setup({ senses: { visionOf, sensesOf: () => [], subscribe: () => () => undefined } });
+    const { rules } = lighting.deps as SceneLightingDeps;
+    const token = { id: 't', kind: 'token' as const, imagePath: 't.png', x: 0, y: 0 };
+    expect(rules?.().visionOf?.(token)).toMatchObject({ senses: [{ id: 'blindsight', range: 10 }] });
+    expect(visionOf).toHaveBeenCalledWith(token);
+  });
+
+  it('reads the conditions of the token looked at', async () => {
     const { controller, store, lurker, obsApp, collectionSettingsChanged } = scene();
     store.getState().setGMView(false);
     store.getState().updateToken(lurker, { x: 150, conditions: ['dnd5e-invisible'] });
@@ -355,6 +401,7 @@ describe('tokens in session view', () => {
     const settings = vi.spyOn(assets, 'getCollectionSettings').mockReturnValue({ conditions: [{ id: 'dnd5e-invisible', name: 'Invisible', color: '#000000' }] });
     const collection = vi.spyOn(assets, 'getCollectionForMap').mockReturnValue('dungeon');
     collectionSettingsChanged();
+    await nextFrame();
     expect(controller.playerSight()?.(lurker)).toBe('unseen');
     settings.mockRestore();
     collection.mockRestore();
