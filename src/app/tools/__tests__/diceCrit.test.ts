@@ -39,6 +39,18 @@ describe('getDiceCrit', () => {
     expect(getDiceCrit([die(12, 7)], rules)).toBeNull();
   });
 
+  it('high-total: the highest total of the default dice or one below it is high, never low', () => {
+    const rules: DiceRules = { defaultRoll: '2d10', crit: 'high-total' };
+    expect(getDiceCrit([die(10, 10), die(10, 10)], rules)).toBe('high');
+    expect(getDiceCrit([die(10, 10), die(10, 9)], rules)).toBe('high');
+    expect(getDiceCrit([die(10, 9), die(10, 9)], rules)).toBeNull();
+    expect(getDiceCrit([die(10, 1), die(10, 1)], rules)).toBeNull();
+    // A third d10 is no default die of 2d10, and one d10 is too few.
+    expect(getDiceCrit([die(10, 4), die(10, 5), die(10, 10)], rules)).toBeNull();
+    expect(getDiceCrit([die(10, 10)], rules)).toBeNull();
+    expect(getDiceCrit([die(20, 19)], { defaultRoll: '1d20', crit: 'high-total' })).toBe('high');
+  });
+
   it('none: never critical', () => {
     expect(getDiceCrit([die(20, 20)], { defaultRoll: '1d20', crit: 'none' })).toBeNull();
   });

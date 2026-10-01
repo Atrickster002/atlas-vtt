@@ -7,9 +7,10 @@
  * - `natural`: the highest face of a default die is a critical success, a 1 a failure (d20 systems).
  * - `roll-under`: a 1 is a critical success, the highest face a failure (Call of Cthulhu, Cairn).
  * - `doubles`: matching default dice are a critical success (Daggerheart's duality dice).
+ * - `high-total`: default dice that add up to their highest total or one below it are a critical success (19 or 20 on Draw Steel's 2d10).
  * - `none`: no critical results.
  */
-export type CritRule = 'natural' | 'roll-under' | 'doubles' | 'none';
+export type CritRule = 'natural' | 'roll-under' | 'doubles' | 'high-total' | 'none';
 
 /** Which dice of a roll explode: its default dice, as for criticals, or every die. */
 export type ExplodeScope = 'default' | 'all';
