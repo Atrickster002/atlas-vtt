@@ -5,13 +5,14 @@
  */
 
 import { isValidRangeBandThreshold } from '../grid/measurementFormat';
-import type {
-  CollectionGridDefaults,
-  ConditionDefinition,
-  DiagonalRule,
-  GridUnitType,
-  MeasurementMode,
-  RangeBand,
+import {
+  CONDITION_EFFECTS,
+  type CollectionGridDefaults,
+  type ConditionDefinition,
+  type DiagonalRule,
+  type GridUnitType,
+  type MeasurementMode,
+  type RangeBand,
 } from '../types/collectionSettingsTypes';
 import type { DiceRules } from '../types/diceRulesTypes';
 import { BUILT_IN_ID_PREFIX, type SystemPreset } from '../types/systemPresetTypes';
@@ -67,7 +68,14 @@ function parseCondition(raw: unknown): ConditionDefinition | null {
   if (!isRecord(raw) || !isNonEmptyString(raw.id) || typeof raw.name !== 'string') return null;
   if (!isHexColor(raw.color)) return null;
   const icon = typeof raw.icon === 'string' && raw.icon in WIDGET_ICON_PATHS ? (raw.icon as WidgetIcon) : undefined;
-  return { id: raw.id, name: raw.name, color: raw.color, ...(icon && { icon }), ...(raw.valued === true && { valued: true }) };
+  return {
+    id: raw.id,
+    name: raw.name,
+    color: raw.color,
+    ...(icon && { icon }),
+    ...(raw.valued === true && { valued: true }),
+    ...(isOneOf(CONDITION_EFFECTS, raw.effect) && { effect: raw.effect }),
+  };
 }
 
 function isNumber(value: unknown): value is number {

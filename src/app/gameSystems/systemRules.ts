@@ -81,7 +81,8 @@ function sameCondition(a: ConditionDefinition, b: ConditionDefinition): boolean 
   return a.name === b.name
     && a.color.toLowerCase() === b.color.toLowerCase()
     && a.icon === b.icon
-    && (a.valued ?? false) === (b.valued ?? false);
+    && (a.valued ?? false) === (b.valued ?? false)
+    && a.effect === b.effect;
 }
 
 /** The default widgets that are on, as a comparable key. */

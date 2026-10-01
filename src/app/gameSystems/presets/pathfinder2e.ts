@@ -23,7 +23,7 @@ export const PATHFINDER_2E: SystemPreset = {
     },
     dice: { defaultRoll: '1d20', crit: 'natural' },
     conditions: conditionsOf('pathfinder2e', [
-      { name: 'Blinded', color: '#475569', icon: 'blindfold' },
+      { name: 'Blinded', color: '#475569', icon: 'blindfold', effect: 'blinded' },
       { name: 'Clumsy', color: '#ca8a04', icon: 'falling', valued: true },
       { name: 'Concealed', color: '#64748b', icon: 'fog' },
       { name: 'Confused', color: '#c026d3', icon: 'spiral-bloom' },
@@ -42,7 +42,7 @@ export const PATHFINDER_2E: SystemPreset = {
       { name: 'Grabbed', color: '#ea580c', icon: 'grab' },
       { name: 'Hidden', color: '#475569', icon: 'hidden' },
       { name: 'Immobilized', color: '#0f766e', icon: 'spider-web' },
-      { name: 'Invisible', color: '#c7d2fe', icon: 'invisible' },
+      { name: 'Invisible', color: '#c7d2fe', icon: 'invisible', effect: 'invisible' },
       { name: 'Off-Guard', color: '#dc2626', icon: 'cracked-shield' },
       { name: 'Paralyzed', color: '#38bdf8', icon: 'frozen-body' },
       { name: 'Persistent Damage', color: '#f97316', icon: 'flame' },

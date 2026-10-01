@@ -378,3 +378,62 @@ describe('senses', () => {
     }
   });
 });
+
+describe('conditions that change sight', () => {
+  const stored = (conditions: unknown[]) => ({
+    id: 'p1',
+    name: 'Homebrew',
+    rules: { gridDefaults: { unitType: 'feet', unitDistance: 5, measurementMode: 'metric' }, conditions },
+  });
+
+  it('are marked in the built-in presets where the system has such a condition, under their old ids', () => {
+    const effects = Object.fromEntries(BUILT_IN_SYSTEM_PRESETS.flatMap((preset) => preset.rules.conditions)
+      .filter((condition) => condition.effect !== undefined)
+      .map((condition) => [condition.id, condition.effect]));
+    expect(effects).toEqual({
+      'dnd5e-blinded': 'blinded',
+      'dnd5e-invisible': 'invisible',
+      'pathfinder2e-blinded': 'blinded',
+      'pathfinder2e-invisible': 'invisible',
+      'shadowdark-blinded': 'blinded',
+      'shadowdark-invisible': 'invisible',
+      'ose-blinded': 'blinded',
+      'ose-invisible': 'invisible',
+    });
+  });
+
+  it('are the only conditions named Blinded or Invisible', () => {
+    for (const condition of BUILT_IN_SYSTEM_PRESETS.flatMap((preset) => preset.rules.conditions)) {
+      const expected = { Blinded: 'blinded', Invisible: 'invisible' }[condition.name];
+      expect(condition.effect).toBe(expected);
+    }
+  });
+
+  it('are read from stored presets, and an effect Atlas does not know is dropped without the condition', () => {
+    const [preset] = parseUserPresets([stored([
+      { id: 'c1', name: 'Blind', color: '#123456', effect: 'blinded' },
+      { id: 'c2', name: 'Unseen', color: '#123456', effect: 'invisible', valued: true },
+      { id: 'c3', name: 'Flying', color: '#123456', effect: 'airborne' },
+      { id: 'c4', name: 'Deaf', color: '#123456', effect: 'deafened' },
+      { id: 'c5', name: 'Prone', color: '#123456', effect: true },
+    ])]);
+    expect(preset?.rules.conditions).toEqual([
+      { id: 'c1', name: 'Blind', color: '#123456', effect: 'blinded' },
+      { id: 'c2', name: 'Unseen', color: '#123456', valued: true, effect: 'invisible' },
+      { id: 'c3', name: 'Flying', color: '#123456', effect: 'airborne' },
+      { id: 'c4', name: 'Deaf', color: '#123456' },
+      { id: 'c5', name: 'Prone', color: '#123456' },
+    ]);
+  });
+
+  it('mark a preset as edited when the effect of a condition changes; condition ids still do not matter', () => {
+    const blind = { id: 'x', name: 'Blind', color: '#123456', effect: 'blinded' as const };
+    expect(sameSystemRules(rules([blind]), rules([{ ...blind, id: 'y' }]))).toBe(true);
+    expect(sameSystemRules(rules([blind]), rules([{ ...blind, effect: 'invisible' }]))).toBe(false);
+    expect(sameSystemRules(rules([blind]), rules([{ id: 'x', name: 'Blind', color: '#123456' }]))).toBe(false);
+  });
+
+  it('are copied by rulesOfPreset with the conditions', () => {
+    expect(rulesOfPreset(dnd5e).conditions.find((condition) => condition.name === 'Blinded')?.effect).toBe('blinded');
+  });
+});
