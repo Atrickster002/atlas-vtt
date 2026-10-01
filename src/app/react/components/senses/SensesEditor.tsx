@@ -49,8 +49,11 @@ export function SensesEditor({ senses, onChange, definitions, unit, emptyText, i
   const rows = senses ?? [];
   const available = following ? [] : definitions.filter((definition) => !rows.some((row) => row.id === definition.id));
 
+  // The list opens below the button, where a scrolling dialog may not show it yet.
   useEffect(() => {
-    if (adding) offer.current?.querySelector('button')?.focus();
+    if (!adding) return;
+    void offer.current?.scrollIntoView?.({ block: 'nearest' });
+    offer.current?.querySelector('button')?.focus({ preventScroll: true });
   }, [adding]);
 
   // The sense just added takes the focus in its range field, or the list's button when it has none.

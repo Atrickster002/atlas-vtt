@@ -105,10 +105,12 @@ export function ConditionsTab({
         Define conditions that can be toggled on tokens. Each one shows as a badge
         on the token&apos;s edge, and hovering the token lists them by name. Click a
         badge to give it an icon, and turn on # for conditions that carry a number,
-        like Frightened 2. A condition can change sight: a Blinded token loses its
-        sight, an Invisible one shows only to senses that see the invisible, and an
-        Airborne one is not felt by tremorsense. An Undetected one is never shown
-        to the players.
+        like Frightened 2.
+      </p>
+      <p className="atlas-csm-hint">
+        Effects on sight: Blinded takes a token&apos;s sight; Invisible hides it from
+        sight that cannot see the invisible; Airborne hides it from tremorsense;
+        Undetected hides it from the players.
       </p>
 
       {conditions.length > 0 ? (

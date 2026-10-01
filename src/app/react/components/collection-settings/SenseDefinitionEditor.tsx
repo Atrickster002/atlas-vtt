@@ -1,4 +1,4 @@
-import React, { useId } from 'react';
+import React, { useEffect, useId, useRef } from 'react';
 import { senseKind, senseNameProblem, senseProblem, withSenseKind, type SenseKind } from '../../../gameSystems/senseEditing';
 import { withUnit } from '../../../lighting/tokenLighting';
 import { Select, type SelectOption } from '../../../packages/components/primitives/Select';
@@ -78,8 +78,15 @@ export function SenseDefinitionEditor({ sense, all, unit, onChange }: SenseDefin
   const nameId = useId();
   const rangeId = useId();
   const problemId = useId();
+  const fields = useRef<HTMLDivElement>(null);
   const problem = senseProblem(sense, all);
   const isSense = senseKind(sense) === 'sense';
+
+  // The fields open at the end of a list that scrolls. Newer browsers return a promise from
+  // scrollIntoView, which an effect must not hand back.
+  useEffect(() => {
+    void fields.current?.scrollIntoView?.({ block: 'nearest' });
+  }, []);
   const set = (changes: Partial<SenseDefinition>): void => onChange({ ...sense, ...changes });
 
   const setRange = (range: SenseRange): void => {
@@ -95,7 +102,7 @@ export function SenseDefinitionEditor({ sense, all, unit, onChange }: SenseDefin
   };
 
   return (
-    <div className="atlas-csm-sense-editor">
+    <div ref={fields} className="atlas-csm-sense-editor">
       <div className="atlas-csm-field atlas-csm-sense-editor__wide">
         <label className="atlas-csm-label" htmlFor={nameId}>Name</label>
         <input

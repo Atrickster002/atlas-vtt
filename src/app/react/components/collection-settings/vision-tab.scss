@@ -6,8 +6,11 @@
 @use '../../../../../styles/tokens' as *;
 @use '../../../../../styles/mixins' as *;
 
+// The second part of the tab, set off from what new tokens start with.
 .atlas-csm-senses {
   @include atlas-flex-col($spacing-s);
+  padding-top: $spacing-l;
+  border-top: $border-width-s solid var(--background-modifier-border);
 }
 
 .atlas-csm-senses__title {
@@ -17,41 +20,41 @@
   color: var(--text-normal);
 }
 
+// One list: each sense's name, and beside it what the sense does.
+$name-width: 128px;
+
 .atlas-csm-sense-list {
-  @include atlas-flex-col($spacing-xs);
+  @include atlas-inset-surface;
+  @include atlas-flex-col($spacing-s);
   margin: 0;
-  padding: 0;
+  padding: $spacing-s;
   list-style: none;
 }
 
-// Name above what the sense does; a sense of the collection's own has its buttons beside both.
 .atlas-csm-sense {
-  @include atlas-inset-surface;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: $name-width minmax(0, 1fr) auto;
   column-gap: $spacing-s;
-  align-items: center;
-  padding: $spacing-s;
+  align-items: baseline;
 }
 
 .atlas-csm-sense__name {
-  grid-column: 1;
   font-size: $font-ui-small;
   font-weight: $font-weight-medium;
   color: var(--text-normal);
+  overflow-wrap: anywhere;
 }
 
 .atlas-csm-sense__text {
-  grid-column: 1;
   font-size: $font-ui-smaller;
   line-height: var(--line-height-tight);
   color: var(--text-muted);
 }
 
+// A sense of the collection's own has its buttons at the end of its row.
 .atlas-csm-sense__actions {
-  grid-column: 2;
-  grid-row: 1 / span 2;
   display: flex;
+  align-self: start;
   gap: $spacing-xs;
 
   .btn--icon {
@@ -76,8 +79,12 @@
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: $spacing-s;
   margin-top: $spacing-s;
-  padding-top: $spacing-s;
-  border-top: $border-width-s solid var(--background-modifier-border);
+  padding: $spacing-s;
+  border: $border-width-s solid var(--background-modifier-border);
+  border-radius: $radius-m;
+  background: var(--background-primary);
+  // Scrolled into view when it opens: clear of the list's padding and the tab's edge.
+  scroll-margin-block: $spacing-l;
 
   // As tall as the selects beside them.
   .atlas-csm-input {

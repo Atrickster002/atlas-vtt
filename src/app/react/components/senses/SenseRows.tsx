@@ -50,7 +50,6 @@ export function SenseRowFields({ row, definition, unit, fromStatblock, inputRef,
           <input
             ref={inputRef}
             type="number"
-            className="atlas-input"
             aria-labelledby={rangeLabel}
             value={row.range}
             min={0}

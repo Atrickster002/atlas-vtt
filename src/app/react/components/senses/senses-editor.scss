@@ -41,10 +41,11 @@ $gap: $spacing-s;
 
 .atlas-sense-row__name {
   display: flex;
+  flex-wrap: wrap;
   align-items: baseline;
   flex: 1;
   min-width: 0;
-  gap: $gap;
+  column-gap: $gap;
 }
 
 .atlas-sense-row__tag {
@@ -111,6 +112,8 @@ $gap: $spacing-s;
   @include atlas-inset-surface;
   @include atlas-flex-col($spacing-xs);
   padding: $spacing-xs;
+  // Scrolled into view when it opens, clear of the dialog's edge.
+  scroll-margin-block: $spacing-l;
 }
 
 .atlas-sense-offer {

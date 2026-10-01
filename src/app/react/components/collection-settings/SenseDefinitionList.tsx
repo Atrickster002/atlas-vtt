@@ -32,6 +32,9 @@ export function SenseDefinitionList({ senses, unit, onChange, onDelete }: SenseD
   return (
     <section className="atlas-csm-senses">
       <h4 id={headingId} className="atlas-csm-senses__title">Senses of this game system</h4>
+      <p className="atlas-csm-hint">
+        Tokens of this collection can have these senses. Add your own for a homebrew system.
+      </p>
       <ul className="atlas-csm-sense-list" role="list" aria-labelledby={headingId}>
         {senses.map((sense) => {
           if (isBuiltInSense(sense)) {
