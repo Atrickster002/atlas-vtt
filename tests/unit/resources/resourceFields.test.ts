@@ -40,4 +40,8 @@ describe('resource fields', () => {
     expect(discoverResourceFields([{ name: 'Troll', hp: 14, stats: [14, 12, 4], attacks: 'bite (d10)' }, { hp: 3, stress: '2/6' }]))
       .toEqual(['hp', 'stats.0', 'stats.1', 'stats.2', 'stress']);
   });
+
+  it('leaves out the bookkeeping fields statblock notes carry', () => {
+    expect(discoverResourceFields([{ hp: 14, mtime: 1790000000000, columns: 2 }])).toEqual(['hp']);
+  });
 });

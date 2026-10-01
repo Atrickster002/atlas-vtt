@@ -153,16 +153,23 @@
 
   // Scene tabs and widgets share one row so they can never overlap:
   // the tab strip shrinks and scrolls, the widget bar keeps its width.
+  //
+  // The row is no layer of its own (absolute and without a z-index, where a
+  // fixed element always is one): its bars stand at 100, below the map's
+  // overlays, while the dice rolls hanging from its right end stand above them.
   .atlas-top-bar-row {
-    position: fixed;
+    position: absolute;
     top: $spacing-s;
     left: $spacing-s;
     right: $spacing-s;
     display: flex;
     align-items: flex-start;
     gap: $spacing-s;
-    z-index: 100;
     pointer-events: none;
+
+    > :not(.atlas-top-bar-end) {
+      z-index: 100;
+    }
 
     // The right end holds the widget bar and, below it, the DM's dice rolls
     // (dice-roll.scss). Without widgets it is empty and the rolls start at the
@@ -175,7 +182,10 @@
       // The row positions the widget bar here; its fixed placement in
       // widget-bar.scss is for the player window.
       > .atlas-widget-bar {
-        position: static;
+        position: relative;
+        top: auto;
+        right: auto;
+        z-index: 100;
       }
     }
   }
