@@ -1,10 +1,10 @@
 import React from 'react';
 import { motion, useIsPresent } from 'framer-motion';
-import { ArrowDown, ArrowUp, Eye, EyeOff, Skull, Trash2 } from 'lucide-react';
+import { ArrowDown, ArrowUp, Eye, EyeOff, Hash, Skull, Trash2 } from 'lucide-react';
 import { cn } from '../../../../../utils/cn';
 import { EASE_OUT_CONTROL_POINTS } from '../../../../utils/motion';
 import { LabelTooltip } from '../../../../packages/components/primitives/tooltip';
-import type { ResourceDefinition } from '../../../../resources/resourceTypes';
+import type { ResourceDefinition, ResourceDirection } from '../../../../resources/resourceTypes';
 import { fanOffsets, type SocketPlace } from './resourceSockets';
 
 interface ResourceFanProps {
@@ -24,27 +24,39 @@ interface FanButton {
   icon: React.ReactNode;
   pressed?: boolean;
   danger?: boolean;
+  disabled?: boolean;
   onClick: () => void;
 }
 
+/** How a resource counts, in the order the button steps through them. */
+const DIRECTIONS: ReadonlyArray<{ direction: ResourceDirection; label: string; icon: React.ReactNode }> = [
+  { direction: 'drains', label: 'Drains: starts full and counts down', icon: <ArrowDown /> },
+  { direction: 'fills', label: 'Fills: starts empty and counts up', icon: <ArrowUp /> },
+  { direction: 'static', label: 'Static: a fixed value, like an armour class', icon: <Hash /> },
+];
+
 /**
- * The round buttons that fan out of a selected socket: colour, how the resource counts,
- * whether it defeats its token, whether players see it, and remove. They leave the socket
+ * The round buttons that fan out of a selected socket: colour, how the resource counts
+ * (drains, fills, or a static value), whether it defeats its token, whether players see it, and remove. They leave the socket
  * one after the other along an arc on its outer side.
  */
 export function ResourceFan({ place, resource, onChange, onRemove }: ResourceFanProps): React.ReactElement {
   const isPresent = useIsPresent();
-  const drains = resource.direction === 'drains';
-  const defeats = resource.defeatedWhenSpent === true;
+  const step = DIRECTIONS.findIndex(({ direction }) => direction === resource.direction);
+  const counting = DIRECTIONS[step] ?? DIRECTIONS[0]!;
+  const next = DIRECTIONS[(step + 1) % DIRECTIONS.length]!.direction;
+  const fixed = resource.direction === 'static';
+  const defeats = resource.defeatedWhenSpent === true && !fixed;
   const buttons: FanButton[] = [
     {
-      label: drains ? 'Drains: starts full and counts down' : 'Fills: starts empty and counts up',
-      icon: drains ? <ArrowDown /> : <ArrowUp />,
-      onClick: () => onChange({ direction: drains ? 'fills' : 'drains' }),
+      label: counting.label,
+      icon: counting.icon,
+      // A static value is never spent, so it cannot defeat its token
+      onClick: () => onChange(next === 'static' ? { direction: next, defeatedWhenSpent: false } : { direction: next }),
     },
     {
-      label: defeats ? 'Defeats the token when spent' : 'Does not defeat the token',
-      icon: <Skull />, pressed: defeats,
+      label: fixed ? 'A static value never defeats the token' : defeats ? 'Defeats the token when spent' : 'Does not defeat the token',
+      icon: <Skull />, pressed: defeats, disabled: fixed,
       onClick: () => onChange({ defeatedWhenSpent: !defeats }),
     },
     {
@@ -84,6 +96,7 @@ export function ResourceFan({ place, resource, onChange, onRemove }: ResourceFan
               type="button"
               className={cn('atlas-csm-fan__button', button.pressed && 'atlas-pressed', button.danger && 'atlas-danger')}
               aria-pressed={button.pressed}
+              disabled={button.disabled}
               onClick={button.onClick}
             >
               {button.icon}

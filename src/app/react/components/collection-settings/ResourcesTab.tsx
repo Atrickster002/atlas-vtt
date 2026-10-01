@@ -34,6 +34,8 @@ export function ResourcesTab({ resources, onChange, fieldSuggestions }: Resource
   const [lifted, setLifted] = useState<number | null>(null);
   /** The socket whose resource is pressed, until the pointer is released. */
   const pressed = useRef<number | null>(null);
+  /** The press that is under way began while the colour picker was open: it only closes the picker. */
+  const closingPicker = useRef(false);
   const bySocket = resourcesBySocket(resources);
   const current = selected === null ? undefined : bySocket[selected];
   const place = selected === null ? undefined : SOCKETS[selected];
@@ -111,11 +113,13 @@ export function ResourcesTab({ resources, onChange, fieldSuggestions }: Resource
           Resources are the values tokens spend during play, like HP, Stress or ammunition. Click a
           socket to put one there, and drag it to another socket to move it. Each resource reads its
           maximum from a field of the token&apos;s statblock; tokens whose statblock lacks that field
-          don&apos;t show it.
+          don&apos;t show it. A static resource shows that number as it is, like an armour class.
         </p>
 
         <div className={cn('atlas-csm-token-stage', selected !== null && 'atlas-focused', lifted !== null && 'atlas-dragging')}
-          role="presentation" onClick={(event) => { if (event.target === event.currentTarget) close(); }}>
+          role="presentation"
+          onPointerDownCapture={(event) => { closingPicker.current = event.currentTarget.ownerDocument.activeElement?.matches('input[type="color"]') === true; }}
+          onClick={(event) => { if (event.target === event.currentTarget && !closingPicker.current) close(); }}>
           <div className="atlas-csm-token-rig" role="group" aria-label="Resource sockets">
             <span className="atlas-csm-token-art" aria-hidden="true"><UserRound /></span>
             <span className="atlas-csm-token-nameplate" aria-hidden="true">Name</span>

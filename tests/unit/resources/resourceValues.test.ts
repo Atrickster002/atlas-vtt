@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { clampValue, defeatedResources, isDefeated, isSpent, resetLabel, resourceUpdate, restedResources, startingValue, withCurrent } from '../../../src/app/resources/resourceValues';
 import type { ResourceDefinition } from '../../../src/app/resources/resourceTypes';
-import { HP, STR, STRESS } from '../../mocks/resourceFixtures';
+import { ARMOR, HP, STR, STRESS } from '../../mocks/resourceFixtures';
 
 const drains: ResourceDefinition = { key: 'hp', name: 'HP', field: 'hp', direction: 'drains', color: '#22c55e', defeatedWhenSpent: true, visibleToPlayers: true };
 const fills: ResourceDefinition = { ...drains, key: 'stress', name: 'Stress', field: 'stress', direction: 'fills', defeatedWhenSpent: false };
@@ -75,3 +75,11 @@ describe('resetLabel', () => {
   });
 });
 
+describe('a static value', () => {
+  it('starts at its value and is never spent, whatever a stored flag says', () => {
+    expect(startingValue(ARMOR, 15)).toEqual({ current: 15, max: 15 });
+    expect(isSpent(ARMOR, { current: 15, max: 15 })).toBe(false);
+    expect(isSpent(ARMOR, { current: 0, max: 15 })).toBe(false);
+    expect(isDefeated({ resources: { armor: { current: 15, max: 15 } } }, [{ ...ARMOR, defeatedWhenSpent: true }])).toBe(false);
+  });
+});

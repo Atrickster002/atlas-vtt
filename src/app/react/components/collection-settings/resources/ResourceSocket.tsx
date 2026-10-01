@@ -17,19 +17,20 @@ interface ResourceSocketProps {
   onEnter: () => void;
 }
 
-/** Share of a bar or ring that is filled in the picture: enough to read as a gauge. */
+/** Share of a bar or ring that is filled in the picture: enough to read as a gauge. A static value shows whole. */
 const SAMPLE_FILL = 0.68;
+const sampleFill = (resource: ResourceDefinition): number => (resource.direction === 'static' ? 1 : SAMPLE_FILL);
 const RING = { radius: 15, width: 6 } as const;
 
 /** The ring of a wheel socket, as the map draws it: a faint groove and the fill in the resource's colour. */
-function WheelRing({ color }: { color: string }): React.ReactElement {
+function WheelRing({ color, fill }: { color: string; fill: number }): React.ReactElement {
   const size = SOCKET_SIZE.wheel.width;
   const circumference = 2 * Math.PI * RING.radius;
   return (
     <svg className="atlas-csm-socket__ring" viewBox={`0 0 ${size} ${size}`} aria-hidden="true">
       <circle className="atlas-csm-socket__groove" cx={size / 2} cy={size / 2} r={RING.radius} fill="none" strokeWidth={RING.width} />
       <circle cx={size / 2} cy={size / 2} r={RING.radius} fill="none" stroke={color} strokeWidth={RING.width}
-        strokeDasharray={`${circumference * SAMPLE_FILL} ${circumference}`} transform={`rotate(-90 ${size / 2} ${size / 2})`} />
+        strokeDasharray={`${circumference * fill} ${circumference}`} transform={`rotate(-90 ${size / 2} ${size / 2})`} />
     </svg>
   );
 }
@@ -60,8 +61,10 @@ export function ResourceSocket({ place, resource, selected, lifted, dropTarget, 
       onPointerEnter={onEnter}
     >
       <span className="atlas-csm-socket__shape">
-        {resource && place.shape === 'bar' && <span className="atlas-csm-socket__fill" style={{ width: `${SAMPLE_FILL * 100}%`, backgroundColor: resource.color }} />}
-        {resource && place.shape === 'wheel' && <WheelRing color={resource.color} />}
+        {resource && place.shape === 'bar' && (
+          <span className="atlas-csm-socket__fill" style={{ width: `calc(${sampleFill(resource) * 100}% - ${sampleFill(resource) * 4}px)`, backgroundColor: resource.color }} />
+        )}
+        {resource && place.shape === 'wheel' && <WheelRing color={resource.color} fill={sampleFill(resource)} />}
       </span>
       {resource
         ? <span className="atlas-csm-socket__label">{resource.name.trim() || 'Unnamed'}</span>

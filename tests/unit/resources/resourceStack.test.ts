@@ -3,6 +3,7 @@ import { Container, Text } from 'pixi.js';
 import { stubJsdomGraphics } from '../../mocks/jsdomGraphics';
 import { ResourceStack } from '../../../src/app/pixi/token-renderer/resources/ResourceStack';
 import { HP_RESOURCE } from '../../../src/app/resources/resourceDefinitions';
+import { ARMOR } from '../../mocks/resourceFixtures';
 
 const STR = { ...HP_RESOURCE, key: 'str', name: 'STR', color: '#dc2626', defeatedWhenSpent: false };
 
@@ -39,5 +40,15 @@ describe('ResourceStack', () => {
     stack.update([{ definition: HP_RESOURCE, value: { current: 2, max: 8 }, slot: 0 }], 0, false);
     expect(stack.view.children).toHaveLength(1);
     expect(stack.view.children[0]).toBe(hpView);
+  });
+
+  it('writes a static value as one number, not as "current / maximum"', () => {
+    const stack = new ResourceStack(null);
+    stack.update([{ definition: ARMOR, value: { current: 15, max: 15 }, slot: 0 }], 2, false);
+    const texts = (node: Container): Text[] => node.children.flatMap((child) => (child instanceof Text ? [child] : texts(child as Container)));
+    expect(texts(stack.view).filter((text) => text.visible).map((text) => text.text)).toEqual(['15']);
+    stack.update([{ definition: HP_RESOURCE, value: { current: 3, max: 8 }, slot: 0 }], 2, false);
+    expect(texts(stack.view).filter((text) => text.visible).map((text) => text.text)).toEqual(['3', '/', '8']);
+    stack.destroy();
   });
 });

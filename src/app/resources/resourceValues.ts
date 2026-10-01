@@ -9,14 +9,14 @@ export function withCurrent(value: ResourceValue, current: number): ResourceValu
   return clampValue({ current: Number.isFinite(current) ? current : value.current, max: value.max });
 }
 
-/** A fresh value: full when the resource drains, empty when it fills. */
+/** A fresh value: full when the resource drains (a static value is that number), empty when it fills. */
 export function startingValue(definition: ResourceDefinition, max: number): ResourceValue {
-  return { current: definition.direction === 'drains' ? max : 0, max };
+  return { current: definition.direction === 'fills' ? 0 : max, max };
 }
 
 /** Used up: 0 when draining, full when filling. A value without a maximum is never spent. */
 export function isSpent(definition: ResourceDefinition, value: ResourceValue): boolean {
-  if (value.max <= 0) return false;
+  if (value.max <= 0 || definition.direction === 'static') return false;
   return definition.direction === 'drains' ? value.current <= 0 : value.current >= value.max;
 }
 
