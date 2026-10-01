@@ -152,6 +152,15 @@ export function ambientLights(light: AmbientLight): boolean {
   return light.ambient >= litThresholdOf(light);
 }
 
+/**
+ * Changes to what tokens see or what explored memory records, for which the scene is rebuilt:
+ * the options, and the ambient light crossing the lit threshold (choosing "Day" records at once).
+ */
+export function sightOptionsChanged(a: SceneLighting, b: SceneLighting): boolean {
+  return a.tokenVision !== b.tokenVision || a.exploredMemory !== b.exploredMemory || a.litThreshold !== b.litThreshold
+    || ambientLights(a) !== ambientLights(b);
+}
+
 function isLit(point: Point, ambient: AmbientLight, lights: readonly LightReach[]): boolean {
   if (ambientLights(ambient)) return true;
   return lights.some((light) => Math.hypot(point.x - light.origin.x, point.y - light.origin.y) <= light.dim && pointInPolygon(point, light.polygon));

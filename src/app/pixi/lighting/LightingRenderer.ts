@@ -6,8 +6,7 @@ import { unitScaleOf } from '../../lighting/lightingUnits';
 import { sealedWalls } from '../../lighting/sealWalls';
 import { worldTexel } from '../../lighting/lightingConstants';
 import { sceneLook, type SceneLook } from '../../lighting/sceneLightingOptions';
-import type { SceneLighting } from '../../types/lightingTypes';
-import { SEES_ALL, SightCache, ambientLights, sceneSight, sightSources, type AmbientLight, type LightReach, type Sight } from '../../vision/sight';
+import { SEES_ALL, SightCache, sceneSight, sightOptionsChanged, sightSources, type AmbientLight, type LightReach, type Sight } from '../../vision/sight';
 import { wallList } from '../../vision/wallList';
 import { exploredShapes } from '../../vision/exploredShapes';
 import type { MapBounds } from '../../vision/visibility';
@@ -290,13 +289,4 @@ export class LightingRenderer implements SceneLightingView {
     this.engine.destroy();
     this.memory.destroy();
   }
-}
-
-/**
- * Changes to what tokens see or what explored memory records, so the scene is rebuilt: the
- * options, and the ambient light crossing the lit threshold (choosing "Day" records at once).
- */
-function sightOptionsChanged(a: SceneLighting, b: SceneLighting): boolean {
-  return a.tokenVision !== b.tokenVision || a.exploredMemory !== b.exploredMemory || a.litThreshold !== b.litThreshold
-    || ambientLights(a) !== ambientLights(b);
 }
