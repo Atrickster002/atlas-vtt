@@ -14,27 +14,34 @@ export interface SensedToken {
   y: number;
   /** Diameter in world pixels. */
   size: number;
+  /** The pointer holds it: its outline is for the players' frame only (`heldView`). */
+  held?: boolean;
 }
 
 interface Outline {
   graphics: Graphics;
   size: number;
+  held: boolean;
 }
 
 /**
  * Tokens the players only sense (by tremorsense, hearing, scent): each is drawn as the outline
  * of its footprint with ripples inside, without art, nameplate, bars or conditions. Part of the
  * players' picture only: the layer is hidden unless the players' view shows it
- * (`playerLightingLayers`), and a picture of the scene hides it again.
+ * (`playerLightingLayers`), and a picture of the scene hides it again. The outline of a token
+ * the pointer holds is in `heldView`, which only a players' frame switches on: on the GM's
+ * canvas the token itself stays under the pointer.
  */
 export class SensedOutlines {
   readonly view = new Container({ label: 'sensedOutlines' });
+  readonly heldView = new Container({ label: 'sensedOutlinesHeld', visible: false });
   private readonly outlines = new Map<string, Outline>();
 
   constructor() {
     this.view.zIndex = SENSED_OUTLINE_Z_INDEX;
     this.view.eventMode = 'none';
     this.view.visible = false;
+    this.view.addChild(this.heldView);
   }
 
   /** Shows exactly `tokens`: new ones are drawn, the others moved, resized or removed. */
@@ -45,12 +52,15 @@ export class SensedOutlines {
       destroyTree(outline.graphics);
       this.outlines.delete(id);
     }
-    for (const { id, x, y, size } of tokens) {
+    for (const { id, x, y, size, held = false } of tokens) {
       let outline = this.outlines.get(id);
       if (!outline) {
-        outline = { graphics: new Graphics(), size: 0 };
+        outline = { graphics: new Graphics(), size: 0, held: !held };
         this.outlines.set(id, outline);
-        this.view.addChild(outline.graphics);
+      }
+      if (outline.held !== held) {
+        (held ? this.heldView : this.view).addChild(outline.graphics);
+        outline.held = held;
       }
       if (outline.size !== size) {
         drawOutline(outline.graphics, size);

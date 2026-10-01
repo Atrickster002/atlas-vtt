@@ -17,6 +17,9 @@ describe('SensedOutlines', () => {
     restore();
   });
 
+  /** The outlines on the canvas, without the layer of the held ones. */
+  const drawn = (): Graphics[] => outlines.view.children.filter((child) => child !== outlines.heldView) as Graphics[];
+
   it('is a layer between the lighting and the token UI that shows only once it is switched on and takes no pointer', () => {
     expect(outlines.view.visible).toBe(false);
     expect(outlines.view.eventMode).toBe('none');
@@ -28,7 +31,7 @@ describe('SensedOutlines', () => {
   it('draws one outline per sensed token, at the token and as wide as it', () => {
     outlines.sync([{ id: 'a', x: 100, y: 200, size: 62 }, { id: 'b', x: 300, y: 50, size: 124 }]);
     expect(outlines.shown()).toEqual(['a', 'b']);
-    const [a, b] = outlines.view.children as Graphics[];
+    const [a, b] = drawn();
     expect([a!.x, a!.y]).toEqual([100, 200]);
     expect(a!.getLocalBounds().width).toBeGreaterThan(60);
     expect(a!.getLocalBounds().width).toBeLessThan(66);
@@ -38,11 +41,10 @@ describe('SensedOutlines', () => {
 
   it('moves an outline with its token without drawing it again, and draws it again when the token changes size', () => {
     outlines.sync([{ id: 'a', x: 100, y: 200, size: 62 }]);
-    const graphics = outlines.view.children[0] as Graphics;
-    const drawn = graphics.context;
-    const instructions = drawn.instructions.length;
+    const graphics = drawn()[0]!;
+    const instructions = graphics.context.instructions.length;
     outlines.sync([{ id: 'a', x: 140, y: 210, size: 62 }]);
-    expect(outlines.view.children[0]).toBe(graphics);
+    expect(drawn()[0]).toBe(graphics);
     expect([graphics.x, graphics.y]).toEqual([140, 210]);
     expect(graphics.context.instructions).toHaveLength(instructions);
     outlines.sync([{ id: 'a', x: 140, y: 210, size: 124 }]);
@@ -51,12 +53,27 @@ describe('SensedOutlines', () => {
 
   it('removes the outline of a token that is no longer sensed', () => {
     outlines.sync([{ id: 'a', x: 0, y: 0, size: 62 }, { id: 'b', x: 10, y: 10, size: 62 }]);
-    const gone = outlines.view.children[0] as Graphics;
+    const gone = drawn()[0]!;
     outlines.sync([{ id: 'b', x: 10, y: 10, size: 62 }]);
     expect(outlines.shown()).toEqual(['b']);
-    expect(outlines.view.children).toHaveLength(1);
+    expect(drawn()).toHaveLength(1);
     expect(gone.destroyed).toBe(true);
     outlines.sync([]);
-    expect(outlines.view.children).toHaveLength(0);
+    expect(drawn()).toHaveLength(0);
+  });
+
+  it('keeps the outline of a token the pointer holds apart, for the players\' frame alone', () => {
+    outlines.sync([{ id: 'a', x: 0, y: 0, size: 62 }, { id: 'b', x: 10, y: 10, size: 62, held: true }]);
+    expect(outlines.heldView.visible).toBe(false);
+    expect(outlines.heldView.parent).toBe(outlines.view);
+    expect(outlines.heldView.children).toHaveLength(1);
+    expect(outlines.view.children.filter((child) => child !== outlines.heldView)).toHaveLength(1);
+    const held = outlines.heldView.children[0];
+    // Released, it joins the others; taken, another one leaves them.
+    outlines.sync([{ id: 'a', x: 0, y: 0, size: 62, held: true }, { id: 'b', x: 10, y: 10, size: 62 }]);
+    expect(outlines.heldView.children).toHaveLength(1);
+    expect(outlines.heldView.children[0]).not.toBe(held);
+    expect(held!.parent).toBe(outlines.view);
+    expect(outlines.shown()).toEqual(['a', 'b']);
   });
 });

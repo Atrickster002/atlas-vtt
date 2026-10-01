@@ -776,7 +776,13 @@ describe('TokenRenderer Integration Tests', () => {
         });
 
         describe('a token the players only sense', () => {
-          const outlines = (): Container => tokenRenderer.getSensedOutlineLayer() as Container;
+          const outlineLayer = (): Container => tokenRenderer.getSensedOutlineLayer() as Container;
+          const heldOutlines = (): Container => outlineLayer().getChildByLabel('sensedOutlinesHeld')!;
+          /** The layer with the outlines on it, without the group of the held ones. */
+          const outlines = (): { children: Container[]; visible: boolean; zIndex: number } => {
+            const layer = outlineLayer();
+            return { children: layer.children.filter((child) => child !== heldOutlines()) as Container[], visible: layer.visible, zIndex: layer.zIndex };
+          };
           const sensedSetup = async (): Promise<void> => {
             tokenRenderer.setPlayerSightProvider(() => (id) => (id === 'token-1' ? 'sensed' : id === 'token-2' ? 'unseen' : 'seen'));
             store.getState().addToken(token({ id: 'token-1', kind: 'character', statblockPath: 'Goblin.md', name: 'Goblin', showNameplate: true }));
@@ -854,14 +860,36 @@ describe('TokenRenderer Integration Tests', () => {
             expect(playerUi['token-1']!.getContainer().renderable).toBe(false);
           });
 
+          it('should keep the outline of a sensed token the pointer holds for the players\' frame: the canvas shows the token under the pointer', async () => {
+            // The GM drags in GM view while the player window mirrors the canvas.
+            tokenRenderer.setPlayerSightProvider(() => undefined);
+            store.getState().addToken(token({ id: 'token-1' }));
+            await waitForTokens('token-1');
+            viewport.emit('pointerdown', pointerEvent(100, 100));
+            const layers = tokenRenderer.getPlayerViewLayers(
+              { showTokenHP: true, showTokenStress: true, showTokenNameplates: true } as Parameters<typeof tokenRenderer.getPlayerViewLayers>[0],
+              () => 'sensed',
+            );
+            expect(tokenGroup('token-1').visible).toBe(true);
+            expect(outlines().children).toHaveLength(0);
+            expect(heldOutlines().children).toHaveLength(1);
+            expect(heldOutlines().visible).toBe(false);
+            expect(layers).toContainEqual({ layer: heldOutlines(), visible: true });
+            expect(layers).toContainEqual({ layer: tokenGroup('token-1'), visible: false });
+            viewport.emit('pointerup', pointerEvent(100, 100));
+            tokenRenderer.getPlayerViewLayers({ showTokenHP: true, showTokenStress: true, showTokenNameplates: true } as Parameters<typeof tokenRenderer.getPlayerViewLayers>[0], () => 'sensed');
+            expect(heldOutlines().children).toHaveLength(0);
+            expect(outlines().children).toHaveLength(1);
+          });
+
           it('should leave it out of a picture of the scene, which shows the token itself', async () => {
             await sensedSetup();
-            outlines().visible = true;
+            outlineLayer().visible = true;
             const picture = captureSceneFrame({ gmViewLayers: tokenRenderer.getGmViewLayers(), markerLayers: [], lighting: undefined }, { x: 0, y: 0, resolution: 1 }, () => ({
-              outlines: outlines().visible, token: tokenGroup('token-1').visible,
+              outlines: outlineLayer().visible, token: tokenGroup('token-1').visible,
             }));
             expect(picture).toEqual({ outlines: false, token: true });
-            expect(outlines().visible).toBe(true);
+            expect(outlineLayer().visible).toBe(true);
             expect(tokenGroup('token-1').visible).toBe(false);
           });
         });
