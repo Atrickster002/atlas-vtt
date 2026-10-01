@@ -18,7 +18,9 @@ import { PlayerWindowService } from './src/app/services/PlayerWindowService';
 import { AssetService } from './src/app/services/AssetService';
 import { SettingsService } from './src/app/services/SettingsService';
 import { addStarterTokens } from './src/app/services/starterTokens';
+import { storeLegacyResources } from './src/app/resources/legacyResourcesMigration';
 import { migratePlayerResourceVisibility } from './src/app/resources/playerVisibilityMigration';
+import { collectionMapFiles } from './src/app/services/collectionScenes';
 import type { WidgetSyncService } from './src/app/services/WidgetSyncService';
 import { AtlasSettingTab } from './src/app/settings/AtlasSettingTab';
 import { changelogSettingsSection } from './src/app/settings/changelogSettingsSection';
@@ -116,15 +118,21 @@ export default class AtlasVTTPlugin extends Plugin {
       registerStatusBarVisibility(this);
       this.changelogService?.showUpdates();
       runInBackground(addStarterTokens(this.app, AssetService.getInstance(this.app), this.settingsService), 'Adding the starter tokens');
-      runInBackground(this.migratePlayerVisibility(), 'Carrying over the player bar settings');
+      runInBackground(this.carryOverTokenBars(), 'Carrying over the token bar settings');
     });
   }
 
-  /** Once: what the old player-window switches showed becomes "visible to players" on the collections' resources. */
-  private async migratePlayerVisibility(): Promise<void> {
+  /**
+   * Once per collection and vault: the HP and secondary bars of collections saved before
+   * resources existed become their resources, and what the old player-window switches
+   * showed becomes "visible to players" on them.
+   */
+  private async carryOverTokenBars(): Promise<void> {
     await this.settingsService.initialize();
     const assets = AssetService.getInstance(this.app);
     await assets.initialize();
+    await storeLegacyResources(assets, (collectionId) =>
+      Promise.all(collectionMapFiles(this.app, collectionId).map((file) => this.app.vault.cachedRead(file))));
     await migratePlayerResourceVisibility(this.settingsService, assets);
   }
 

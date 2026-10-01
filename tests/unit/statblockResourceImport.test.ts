@@ -35,3 +35,34 @@ it('uses inline resources when assigning a statblock link to existing tokens', a
   const data = await service.extractStatblockData(path);
   expect(startingResources(data.record, DEFINITIONS)).toEqual({ hp: { current: 12, max: 27 }, stress: { current: 0, max: 3 } });
 });
+
+describe('linking a statblock to the tokens of closed maps', () => {
+  const mapPath = 'atlas-vtt/collections/Own/scenes/Cave.atlasmap';
+  const mage = { id: 't1', kind: 'character', imagePath: 'mage.webp', x: 0, y: 0, hp: { current: 3, max: 9 }, stress: 4, maxStress: 6, maxHpOverridden: true, statblockResources: { mana: { current: 1, max: 8 } } };
+  const other = { id: 't2', kind: 'character', imagePath: 'ogre.webp', x: 0, y: 0, hp: { current: 5, max: 5 } };
+
+  const rewrite = async (statblockPath: string | null): Promise<Record<string, Record<string, unknown>>> => {
+    const scene = JSON.stringify({ version: 4, state: { version: 4, objects: { tokens: { t1: mage, t2: other } } } });
+    const { app, files } = createInMemoryApp({ files: { [path]: '```statblock\nname: Mage\nhp: 27\nstress: 3\n```', [mapPath]: scene } });
+    app.vault.cachedRead = app.vault.read;
+    Object.assign(window, { FantasyStatblocks: { getBestiaryCreatures: () => [], hasCreature: () => false } });
+    const assetService = { getCollectionForMap: () => 'Own', getCollectionSettings: () => ({ conditions: [], resources: DEFINITIONS }) };
+    const service = Object.assign(Object.create(TokenStatblockLinkService.prototype), { app, assetService });
+    await service.updateAllSpawnedTokens('mage.webp', statblockPath);
+    return JSON.parse(files.get(mapPath)!).state.objects.tokens;
+  };
+
+  it('writes the new values in the fields every Atlas reads, and nothing of the token\'s old values', async () => {
+    const tokens = await rewrite(path);
+    expect(tokens.t1).toEqual({
+      id: 't1', kind: 'character', imagePath: 'mage.webp', x: 0, y: 0, name: 'Mage', statblockPath: path,
+      hp: { current: 27, max: 27 }, stress: { current: 0, max: 3 }, maxStress: 3,
+    });
+    expect(tokens.t2).toEqual(other);
+  });
+
+  it('clears every resource field when the link is removed', async () => {
+    const tokens = await rewrite(null);
+    expect(tokens.t1).toEqual({ id: 't1', kind: 'character', imagePath: 'mage.webp', x: 0, y: 0 });
+  });
+});

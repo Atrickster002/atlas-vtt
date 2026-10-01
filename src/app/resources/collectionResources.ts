@@ -5,9 +5,9 @@ import { HP_RESOURCE, withLegacyBars } from './resourceDefinitions';
 import { MAX_RESOURCES, type ResourceDefinition } from './resourceTypes';
 
 /**
- * The resources of a collection. One saved before resources existed (or
- * imported from such a vault) reads as its preset's, else as the bars its
- * default widgets switched on.
+ * The resources of a collection. One saved before resources existed reads as its
+ * preset's with the secondary bar its default widgets switched on, until
+ * `storeLegacyResources` has looked at its scenes and stored the list.
  */
 export function collectionResources(
   settings: Pick<CollectionSettings, 'resources' | 'defaultWidgets' | 'systemPresetId'>,
@@ -18,16 +18,17 @@ export function collectionResources(
 
 /**
  * Definitions for a collection saved before resources existed: its recorded
- * preset's (HP without one), with the bars the collection's own default
- * widgets switched on or off.
+ * preset's (HP without one), with the secondary bar the collection's own default
+ * widgets switched on or off, or one of its scenes shows (`usedInScenes`).
  */
 export function legacyCollectionResources(
   settings: Pick<CollectionSettings, 'defaultWidgets' | 'systemPresetId'>,
   presets: readonly SystemPreset[],
+  usedInScenes = false,
 ): ResourceDefinition[] {
   const preset = presets.find((p) => p.id === settings.systemPresetId);
   const resources = preset?.rules.resources ? structuredClone(preset.rules.resources) : [{ ...HP_RESOURCE }];
-  return withLegacyBars(resources, settings.defaultWidgets);
+  return withLegacyBars(resources, settings.defaultWidgets, usedInScenes);
 }
 
 /** The part of the asset service that tells a map's collection and its settings. */

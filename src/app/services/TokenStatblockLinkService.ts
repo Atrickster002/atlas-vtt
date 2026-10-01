@@ -4,6 +4,7 @@ import { EventEmitter } from 'events';
 import { AssetService, type TokenAsset } from './AssetService';
 import { resolveLinkedCreature } from '../creatures/linkedCreature';
 import { mapResources } from '../resources/collectionResources';
+import { tokenFromFile, tokenToFile } from '../resources/resourceFileFormat';
 import type { ResourceDefinition } from '../resources/resourceTypes';
 import { startingResources } from '../resources/statblockResourceValues';
 import { isPersistedMapEnvelope } from './MapPersistence';
@@ -15,20 +16,12 @@ export interface TokenStatblockLink {
   statblockPath: string;
 }
 
-const LEGACY_RESOURCE_FIELDS = ['hp', 'maxHp', 'stress', 'maxStress', 'hope', 'statblockResources', 'maxHpOverridden', 'maxStressOverridden'] as const;
-
 /**
- * The statblock-derived fields of a token as stored in a map file. Linking
+ * The statblock-derived fields of a token read from a map file. Linking
  * writes them onto the token whatever its `kind`, so all are optional here.
  */
 type StoredStatblockFields = Pick<BaseToken, 'imagePath'>
-  & Partial<Pick<Character, 'name' | 'difficulty' | 'statblockPath' | 'statblockName' | 'resources' | 'overriddenMax'>>
-  & Partial<Record<typeof LEGACY_RESOURCE_FIELDS[number], unknown>>;
-
-/** Fields maps written before resources still carry; a relinked or unlinked token drops them. */
-function dropLegacyResourceFields(token: StoredStatblockFields): void {
-  for (const field of LEGACY_RESOURCE_FIELDS) delete token[field];
-}
+  & Partial<Pick<Character, 'name' | 'difficulty' | 'statblockPath' | 'statblockName' | 'resources' | 'overriddenMax'>>;
 
 function nonEmpty<T extends object>(record: T): T | undefined {
   return Object.keys(record).length > 0 ? record : undefined;
@@ -339,32 +332,31 @@ export class TokenStatblockLinkService extends EventEmitter {
 
       let modified = false;
 
-      for (const token of Object.values<StoredStatblockFields>(tokens)) {
-        if (token.imagePath === tokenImagePath) {
-          if (statblockPath) {
-            token.statblockPath = statblockPath;
+      for (const [id, stored] of Object.entries<StoredStatblockFields>(tokens)) {
+        if (stored.imagePath !== tokenImagePath) continue;
+        const token = tokenFromFile(stored);
+        if (statblockPath) {
+          token.statblockPath = statblockPath;
 
-            if (statblockData) {
-              token.name = statblockData.name;
-              setOrDelete(token, 'resources', nonEmpty(startingResources(statblockData.record, definitions)));
-              setOrDelete(token, 'difficulty', statblockData.difficulty);
-              delete token.overriddenMax;
-              dropLegacyResourceFields(token);
-            }
-          } else {
-            // Unlink from statblock - clear ALL statblock-derived data
-            delete token.statblockPath;
-            delete token.name;
-            delete token.statblockName;
-            delete token.resources;
+          if (statblockData) {
+            token.name = statblockData.name;
+            setOrDelete(token, 'resources', nonEmpty(startingResources(statblockData.record, definitions)));
+            setOrDelete(token, 'difficulty', statblockData.difficulty);
             delete token.overriddenMax;
-            dropLegacyResourceFields(token);
-            delete token.difficulty;
           }
-          modified = true;
+        } else {
+          // Unlink from statblock - clear ALL statblock-derived data
+          delete token.statblockPath;
+          delete token.name;
+          delete token.statblockName;
+          delete token.resources;
+          delete token.overriddenMax;
+          delete token.difficulty;
         }
+        (tokens as Record<string, object>)[id] = tokenToFile(token);
+        modified = true;
       }
-      
+
       return modified ? JSON.stringify(mapData, null, 2) : null;
     };
 

@@ -48,9 +48,10 @@ describe('SettingsService startup', () => {
     expect(JSON.parse(write.mock.calls[0][1] as string).navigation.inputMode).toBe('mouse');
   });
 
-  it('reports the old player bar switches until they are cleared', async () => {
+  it('reports the old player bar switches until they are carried over, and keeps them for an older Atlas', async () => {
     const stored = { localPlayerView: { showTokenHP: true, showTokenStress: false, showGrid: false } };
-    const app = { vault: { adapter: { exists: async () => true, read: async () => JSON.stringify(stored), write: vi.fn(async () => undefined) } } };
+    const write = vi.fn(async (_path: string, _content: string) => undefined);
+    const app = { vault: { adapter: { exists: async () => true, read: async () => JSON.stringify(stored), write } } };
     const settings = new SettingsService(app as never);
     await settings.initialize();
 
@@ -58,8 +59,15 @@ describe('SettingsService startup', () => {
     expect(settings.legacyPlayerBars()).toEqual({ hp: true, stress: false });
     settings.clearLegacyPlayerBars();
     expect(settings.legacyPlayerBars()).toBeNull();
-    expect(settings.getLocalPlayerViewSettings()).not.toHaveProperty('showTokenHP');
     expect(settings.getLocalPlayerViewSettings().showGrid).toBe(false);
+
+    await settings.saveSettingsNow();
+    const saved = JSON.parse(write.mock.calls.at(-1)![1]).localPlayerView;
+    expect(saved).toMatchObject({ showTokenHP: true, showTokenStress: false, tokenBarsCarriedOver: true });
+
+    const reopened = new SettingsService({ vault: { adapter: { exists: async () => true, read: async () => JSON.stringify({ localPlayerView: saved }), write } } } as never);
+    await reopened.initialize();
+    expect(reopened.legacyPlayerBars()).toBeNull();
   });
 
   it('has no old switches to hand over in a fresh vault', async () => {

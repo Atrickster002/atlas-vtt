@@ -15,7 +15,7 @@ import {
 import type { AtlasView } from '../../../../atlas-view';
 import type { TokenInput } from '../../../../storeFactory';
 import { loadAtlasView } from '../../../../plugin/atlasLeaves';
-import { migrateTokenState } from '../../../../resources/resourceMigration';
+import { tokenFromFile } from '../../../../resources/resourceFileFormat';
 import { mapVisionDefaults } from '../../../../gameSystems/visionDefaults';
 import type { TokenVision, TokenVisionDefaults } from '../../../../types/lightingTypes';
 
@@ -307,7 +307,7 @@ export async function spawnEncounterTokens(
     // assets rebuild from the asset, so they follow its current image, size and ring.
     if (token.state) {
       if (imageExists(ctx.app, token.imagePath)) {
-        tokens.push({ ...migrateTokenState(token.state), imagePath: token.imagePath, x: pos.x, y: pos.y });
+        tokens.push({ ...tokenFromFile(token.state), imagePath: token.imagePath, x: pos.x, y: pos.y });
       }
       continue;
     }

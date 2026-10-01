@@ -13,11 +13,15 @@ describe('legacyCollectionResources', () => {
     expect(parseResourceDefinitions([{ key: 'hp', name: 'HP', field: 'hp', direction: 'drains', color: '#22c55e', visibleToPlayers: true }, { key: 'hp', name: 'Dup' }, null]).map((d) => d.key)).toEqual(['hp']);
   });
 
-  it('falls back to the bars the old default widgets switched on', () => {
+  it('adds the secondary bar the old default widgets switched on', () => {
     expect(legacyCollectionResources({ defaultWidgets: { hpBar: true, stressBar: true } }, []).map((d) => d.key)).toEqual(['hp', 'stress']);
-    expect(legacyCollectionResources({ defaultWidgets: { hpBar: false, stressBar: true } }, []).map((d) => d.key)).toEqual(['stress']);
     expect(legacyCollectionResources({ defaultWidgets: { initiativeTracker: true } }, []).map((d) => d.key)).toEqual(['hp']);
     expect(legacyCollectionResources({}, []).map((d) => d.key)).toEqual(['hp']);
+  });
+
+  it('keeps hit points where the old HP bar was switched off: Edit Token and the DM screen still showed them', () => {
+    expect(legacyCollectionResources({ defaultWidgets: { hpBar: false, stressBar: true } }, []).map((d) => d.key)).toEqual(['hp', 'stress']);
+    expect(legacyCollectionResources({ systemPresetId: 'builtin:dnd5e', defaultWidgets: { hpBar: false } }, BUILT_IN_SYSTEM_PRESETS).map((d) => d.key)).toEqual(['hp']);
   });
 
   it('keeps the bars the collection itself switched on or off, whatever its preset lists', () => {
@@ -26,6 +30,20 @@ describe('legacyCollectionResources', () => {
     expect(keys('builtin:coc7e', { hpBar: true, stressBar: true })).toEqual(['hp', 'stress']);
     expect(keys('builtin:daggerheart', { hpBar: true, stressBar: false })).toEqual(['hp']);
     expect(keys('builtin:cairn', { hpBar: true })).toEqual(['hp', 'str']);
+  });
+
+  it('adds the secondary bar a scene shows, though the collection never switched it on', () => {
+    const names = (settings: Parameters<typeof legacyCollectionResources>[0]): string[] =>
+      legacyCollectionResources(settings, BUILT_IN_SYSTEM_PRESETS, true).map((d) => d.name);
+    expect(names({ systemPresetId: 'builtin:dnd5e', defaultWidgets: { hpBar: true } })).toEqual(['HP', 'Secondary resource']);
+    expect(names({ defaultWidgets: { hpBar: true, stressBar: false } })).toEqual(['HP', 'Secondary resource']);
+    // The preset names it
+    expect(names({ systemPresetId: 'builtin:daggerheart', defaultWidgets: { hpBar: true, stressBar: false } })).toEqual(['HP', 'Stress']);
+  });
+
+  it('calls the secondary bar what the old settings called it, and keeps its key', () => {
+    const [, secondary] = legacyCollectionResources({ defaultWidgets: { stressBar: true } }, []);
+    expect(secondary).toMatchObject({ key: 'stress', name: 'Secondary resource', field: 'stress', direction: 'fills' });
   });
 
   it('reads a collection that never stored resources the same way', () => {

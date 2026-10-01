@@ -12,16 +12,23 @@ export const STRESS_RESOURCE: Readonly<ResourceDefinition> = {
   color: '#a855f7', visibleToPlayers: false,
 };
 
+/** The second bar of collections whose game has no name for it, as the old settings called it. */
+const SECONDARY_RESOURCE: Readonly<ResourceDefinition> = { ...STRESS_RESOURCE, name: 'Secondary resource' };
+
 /**
- * `resources` as the old Default Widgets bar switches had them: a bar switched
- * off goes, and the secondary bar switched on adds Stress.
+ * `resources` of a collection (or preset) saved before resources existed. Hit points stay
+ * whatever the old "HP Bar" switch said: it only hid the bar on the map. The secondary bar
+ * counts when its switch was on or a scene shows it (`usedInScenes`), and goes when it was
+ * switched off and no scene shows it.
  */
 export function withLegacyBars(
   resources: readonly ResourceDefinition[],
   widgets: Record<string, boolean> | undefined,
+  usedInScenes = false,
 ): ResourceDefinition[] {
-  const kept = resources.filter(({ key }) => !(key === 'hp' && widgets?.hpBar === false) && !(key === 'stress' && widgets?.stressBar === false));
-  if (widgets?.stressBar === true && !kept.some(({ key }) => key === 'stress')) kept.push({ ...STRESS_RESOURCE });
+  const wanted = usedInScenes || widgets?.stressBar === true;
+  const kept = resources.filter(({ key }) => key !== STRESS_RESOURCE.key || wanted || widgets?.stressBar !== false);
+  if (wanted && !kept.some(({ key }) => key === STRESS_RESOURCE.key)) kept.push({ ...SECONDARY_RESOURCE });
   return kept;
 }
 

@@ -9,8 +9,8 @@ const LEGACY_SWITCHES = { showHPBars: 'hp', showStressBars: 'stress' } as const;
 
 /** `hidden` with `key` in or out. */
 function withHidden(hidden: readonly string[], key: string, isHidden: boolean): string[] {
-  const rest = hidden.filter((other) => other !== key);
-  return isHidden ? [...rest, key] : rest;
+  if (hidden.includes(key) === isHidden) return [...hidden];
+  return isHidden ? [...hidden, key] : hidden.filter((other) => other !== key);
 }
 
 /** The hidden list after the GM switched `key` on or off in the scene's settings. */
