@@ -20,7 +20,7 @@ import { BUILT_IN_ID_PREFIX, type SystemPreset } from '../types/systemPresetType
 import { WIDGET_ICON_PATHS, resolveWidgetIcon, type WidgetIcon } from '../types/widgetIcons';
 import type { AnyWidget } from '../types/widgetTypes';
 import { isValidClockSegments } from '../utils/clockWidget';
-import { CRIT_RULES, isValidDefaultRoll } from './diceRules';
+import { CRIT_RULES, isValidDefaultRoll, parseExplodeRule } from './diceRules';
 import { GENERIC_SENSES } from './senses/generic';
 import { parseSenseDefinitions } from './senseValidation';
 import { parseVisionDefaults } from './visionDefaults';
@@ -118,7 +118,9 @@ function parseWidget(raw: unknown): AnyWidget | null {
 
 function parseDiceRules(raw: unknown): DiceRules | null {
   if (!isRecord(raw) || typeof raw.defaultRoll !== 'string' || !isValidDefaultRoll(raw.defaultRoll)) return null;
-  return isOneOf(CRIT_RULES, raw.crit) ? { defaultRoll: raw.defaultRoll.trim(), crit: raw.crit } : null;
+  if (!isOneOf(CRIT_RULES, raw.crit)) return null;
+  const explode = parseExplodeRule(raw.explode);
+  return { defaultRoll: raw.defaultRoll.trim(), crit: raw.crit, ...(explode && { explode }) };
 }
 
 /** The keys of `raw` that are `true`; anything else is left out. */

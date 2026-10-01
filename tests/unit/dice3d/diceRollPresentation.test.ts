@@ -64,6 +64,16 @@ describe('panel text', () => {
     expect(rollLabel(result('a', [d20(3)]))).toBe('Roll');
   });
 
+  it('writes out a chain of exploded dice, and a die that subtracts', () => {
+    const d6 = (value: number, more: object = {}): DiceRollResult['rolls'][number] => ({ die: 'd6', value, max: 6, ...more });
+    const aces = result('a', [d6(6), d6(6, { exploded: true }), d6(2, { exploded: true }), d6(3)], 2);
+    expect(rollBreakdown(aces, sceneFromRolls(aces.rolls)!)).toBe('6! + 6! + 2 + 3 + 2');
+
+    const fumble = result('b', [{ die: 'd10', value: 1, max: 10 }, { die: 'd10', value: 7, max: 10, exploded: true, negative: true }], 4);
+    expect(fumble.total).toBe(-2);
+    expect(rollBreakdown(fumble, sceneFromRolls(fumble.rolls)!)).toBe('1! − 7 + 4');
+  });
+
   it('breaks the total down', () => {
     const attack = result('a', [d20(14)], 5);
     expect(rollBreakdown(attack, sceneFromRolls(attack.rolls)!)).toBe('14 + 5');

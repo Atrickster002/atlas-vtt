@@ -1,10 +1,11 @@
 /**
- * DiceTab — The collection's default roll and critical rule.
+ * DiceTab — The collection's default roll, critical rule and exploding dice.
  */
 
 import React from 'react';
 import { ObsidianMenuDropdown } from '../ObsidianMenuDropdown';
 import { isValidDefaultRoll } from '../../../gameSystems/diceRules';
+import { ExplodingDiceFields } from './ExplodingDiceFields';
 import type { CritRule, DiceRules } from '../../../types/diceRulesTypes';
 
 interface DiceTabProps {
@@ -65,6 +66,8 @@ export function DiceTab({ dice, onChange }: DiceTabProps): React.ReactElement {
         />
         <p className="atlas-csm-hint">{CRIT_DESCRIPTIONS[dice.crit]}</p>
       </div>
+
+      <ExplodingDiceFields dice={dice} onChange={onChange} />
     </>
   );
 }

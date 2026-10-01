@@ -20,9 +20,13 @@ import { ATLAS_VIEW_TYPE } from '../atlas-view';
  * Dice expressions (`2d8+3`) plus bare attack bonuses (`+4`, `ATK: +4`). A
  * bare sign must sit directly on its digits and must not open a dice term, so
  * the dash in "Very Close - 1d12+2" is punctuation rather than a -1 roll.
+ *
+ * Dice may carry the exploding notation (`1d6!i`, `1d6!3`, `1d6!!`). A single
+ * `!` is left out: in running text it ends a sentence far more often than it
+ * means a die that explodes once.
  */
 const DICE_PATTERN =
-  /((?<![a-z])\d*d\d+(?:\s*[+-]\s*\d+)*|(?:ATK|Attack)\s*:\s*[+-]\d+|(?<!\w)[+-]\d+(?!\s*d\d))/gi;
+  /((?<![a-z])\d*d\d+(?:!!?(?:\d+|i(?![a-z]))|!!)?(?:\s*[+-]\s*\d+)*|(?:ATK|Attack)\s*:\s*[+-]\d+|(?<!\w)[+-]\d+(?!\s*d\d))/gi;
 
 const LINK_CLASS = 'atlas-dice-link';
 
