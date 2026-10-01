@@ -1,6 +1,7 @@
 import { EventEmitter } from 'events';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Texture } from 'pixi.js';
+import type { App } from 'obsidian';
 import { createInMemoryApp } from '../mocks/inMemoryVault';
 
 vi.mock('obsidian', async (importOriginal) => ({ ...(await importOriginal<typeof import('obsidian')>()), Notice: vi.fn() }));
@@ -11,6 +12,7 @@ import { createViewAtlasStore, type ViewAtlasState, type ViewAtlasStore } from '
 import { migrateMapFile, type PersistedMapEnvelope } from '../../src/app/services/MapPersistence';
 import { MapService } from '../../src/app/services/MapService';
 import type { RendererService } from '../../src/app/services/RendererService';
+import { STALLED_JOB_MS } from '../../src/app/services/latestRequestQueue';
 
 const CAVE = 'maps/cave.atlasmap';
 const TOWER = 'maps/tower.atlasmap';
@@ -39,6 +41,7 @@ function deferred(): Deferred {
 }
 
 interface Harness {
+  app: App;
   service: MapService;
   store: ViewAtlasStore;
   files: Map<string, string>;
@@ -78,6 +81,7 @@ function setup(): Harness {
   vi.spyOn(console, 'error').mockImplementation(() => {});
   vi.spyOn(console, 'warn').mockImplementation(() => {});
   return {
+    app,
     service: new MapService(app, eventBus, store),
     store, files, eventBus, shown,
     rendererService: { getRenderer: () => renderer } as unknown as RendererService,
@@ -270,6 +274,41 @@ describe('MapService scene loads', () => {
       await editAndSave(store);
       expect(tokenIds(savedState(files, TOWER))).toEqual(['mage']);
       expect(files.get(CAVE)).toBe(cave);
+    });
+
+    it('drops what a stalled load reads from its file after the next scene took over', async () => {
+      const { app, service, store, files, rendererService } = setup();
+      const cave = files.get(CAVE);
+      const tower = files.get(TOWER);
+      // Cave's file is read by the store once the image is shown; that read hangs
+      const read = vi.mocked(app.vault.read).getMockImplementation()!;
+      const caveRead = deferred();
+      vi.spyOn(app.vault, 'read').mockImplementation(async (file) => {
+        if (file.path === CAVE) await caveRead.promise;
+        return read(file);
+      });
+
+      const stalled = service.loadMap(rendererService, CAVE);
+      await vi.advanceTimersByTimeAsync(0);
+      const opening = service.loadMap(rendererService, TOWER);
+      await vi.advanceTimersByTimeAsync(STALLED_JOB_MS);
+      expect(await opening).not.toBeNull();
+      await vi.advanceTimersByTimeAsync(600);
+      const towerSaved = files.get(TOWER);
+
+      caveRead.resolve();
+      expect(await stalled).toBeNull();
+
+      expect(store.getState().mapPath).toBe(TOWER);
+      expect(store.getState().mapLoaded).toBe(true);
+      expect(tokenIds(store.getState())).toEqual(['mage']);
+      store.getState().setDMNotePath('notes/tower.md');
+      await vi.advanceTimersByTimeAsync(600);
+      await store.flushStorage();
+      expect(files.get(CAVE)).toBe(cave);
+      expect(savedState(files, TOWER)).toMatchObject({ mapPath: TOWER, dmNotePath: 'notes/tower.md' });
+      expect(tokenIds(savedState(files, TOWER))).toEqual(['mage']);
+      expect(tower && towerSaved).toBeTruthy();
     });
 
     it('runs only the latest of several requests', async () => {

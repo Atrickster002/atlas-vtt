@@ -132,7 +132,7 @@ export class MapService {
         
         // Re-hydrate persisted state for this map now that the path is known. A file whose
         // state the store did not take fails the load here: the store must not be saved over it.
-        await this.store.rehydrateFromFile();
+        await this.store.rehydrateFromFile(isSuperseded);
         // Rehydration that was under way has written to the store; the load that replaced this one clears it
         if (isSuperseded()) return null;
 
