@@ -24,14 +24,14 @@ function ResourceControl({ quantity, onChange }: {
   quantity: TokenQuantity;
   onChange: (value: number) => void;
 }): React.JSX.Element {
-  const { label, fills, boxes: pips, value: { current, max } } = quantity;
+  const { label, fills, boxes, value: { current, max } } = quantity;
   // Boxes mark what is used up: damage on a quantity that drains, the value itself on one that fills.
   const marked = fills ? current : max - current;
   const labelId = useId();
   return (
     <div className="atlas-sb-token-resource">
-      <span id={labelId} className="atlas-sb-token-resource-label">{label}{pips ? ` (${max})` : ''}</span>
-      {pips ? (
+      <span id={labelId} className="atlas-sb-token-resource-label">{label}{boxes ? ` (${max})` : ''}</span>
+      {boxes ? (
         <div className="atlas-sb-token-pips">
           {Array.from({ length: max }, (_, index) => (
             <LabelTooltip key={index} label={`${label}${fills ? '' : ' damage'} ${index + 1} of ${max}`}>

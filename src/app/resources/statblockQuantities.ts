@@ -1,4 +1,5 @@
 import type { StatblockItem, StatblockLayout, StatblockMonster } from '../react/components/statblock/statblockTypes';
+import { isRecord } from '../services/assetMetadataGuards';
 import { isHitPointsKey, normalizedKey, parseResourceValue } from './resourceFields';
 import type { ResourceDefinition, ResourceHolder, ResourceValue } from './resourceTypes';
 import { visibleResources } from './visibleResources';
@@ -30,8 +31,11 @@ const labelOf = (name: string): string => (canonical(name) === 'hp' ? 'HP' : nam
 const fitsBoxes = (max: number): boolean => Number.isInteger(max) && max <= MAX_BOXES;
 
 function layoutItems(items: StatblockItem[]): StatblockItem[] {
-  return items.flatMap((item) => [item, ...layoutItems(item.nested ?? []),
-    ...(item.conditions ?? []).flatMap((condition) => layoutItems(condition.nested))]);
+  return items.flatMap((item) => [
+    item,
+    ...layoutItems(item.nested ?? []),
+    ...(item.conditions ?? []).flatMap((condition) => layoutItems(condition.nested)),
+  ]);
 }
 
 function isBounded(value: unknown): boolean {
@@ -52,6 +56,7 @@ export function tokenQuantities(
   definitions: readonly ResourceDefinition[],
 ): TokenQuantity[] {
   const items = layoutItems(layout.blocks);
+  // A Daggerheart layout under another id is known by the script that draws the name and the checkbox tracks
   const drawsTracks = layout.id === 'daggerheart-adversary' || items.some((item) =>
     item.type === 'javascript' && item.code?.includes('adversary-name') && item.code.includes('checkbox'));
   const quantities = new Map<string, TokenQuantity>();
@@ -82,7 +87,7 @@ export function tokenQuantities(
     } else if (QUANTITY_NAMES.has(key) || isBounded(raw)) {
       const display = items.find((item) => item.type === 'property' && item.properties?.includes(field))?.display;
       add(key, field, raw, display ? display.replace(/:\s*$/, '') : labelOf(field));
-    } else if (key === 'resources' && raw !== null && typeof raw === 'object' && !Array.isArray(raw)) {
+    } else if (key === 'resources' && isRecord(raw)) {
       for (const [name, entry] of Object.entries(raw)) add(`resources.${name}`, `${field}.${name}`, entry, labelOf(name));
     }
   }

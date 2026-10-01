@@ -17,6 +17,10 @@ describe('sceneShowsSecondaryBar', () => {
     expect(sceneShowsSecondaryBar(scene(true, { b: { ...cultist, stress: { current: 0, max: 6 } } }))).toBe(true);
   });
 
+  it('is true for a scene without token settings, which showed both bars', () => {
+    expect(sceneShowsSecondaryBar(JSON.stringify({ version: 4, state: { objects: { tokens: { b: cultist } } } }))).toBe(true);
+  });
+
   it('is false while the switch is off or no token has a value', () => {
     expect(sceneShowsSecondaryBar(scene(false, { b: cultist }))).toBe(false);
     expect(sceneShowsSecondaryBar(scene(undefined, { b: cultist }))).toBe(false);

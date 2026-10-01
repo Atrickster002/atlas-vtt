@@ -58,14 +58,21 @@ function PlayerBarToggles({ app }: { app: App }): React.ReactElement | null {
   if (!collectionId) return null;
 
   const toggle = (key: string): void => {
-    const next = resources.map((resource) => (resource.key === key ? { ...resource, visibleToPlayers: !resource.visibleToPlayers } : resource));
+    const next = resources.map((resource) => (
+      resource.key === key ? { ...resource, visibleToPlayers: !resource.visibleToPlayers } : resource
+    ));
     runInBackground(assets.updateCollectionSettings(collectionId, { resources: next }), 'Saving what players see');
   };
 
   return (
     <>
       {resources.slice(0, BAR_SLOTS).map((resource) => (
-        <SettingToggleRow key={resource.key} label={`Show ${resource.name} bars`} value={resource.visibleToPlayers} onToggle={() => toggle(resource.key)} />
+        <SettingToggleRow
+          key={resource.key}
+          label={`Show ${resource.name} bars`}
+          value={resource.visibleToPlayers}
+          onToggle={() => toggle(resource.key)}
+        />
       ))}
     </>
   );
@@ -111,7 +118,7 @@ export function LocalPlayerViewSettingsPanel(): React.ReactElement {
 
       <div className="atlas-command-palette-panel-column">
         <h3 className="atlas-command-palette-panel-heading">Tokens</h3>
-        {app && <PlayerBarToggles app={app} />}
+        <PlayerBarToggles app={app} />
         {TOKEN_TOGGLES.map(renderToggle)}
         <SettingRow label="Note previews" hint="Note previews are not shared with the player window.">{null}</SettingRow>
 

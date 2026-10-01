@@ -5,7 +5,7 @@
  * entries), so every version of Atlas reads every file. In memory a token holds
  * `resources` and a scene `hiddenResources`; nothing but this module knows the file's fields.
  */
-import { legacySwitches, withHiddenResources } from './sceneVisibility';
+import { isFiniteNumber, isRecord } from '../services/assetMetadataGuards';
 import type { ResourceHolder, ResourceValue } from './resourceTypes';
 
 /** Maxima the old bars showed for values stored as bare numbers; a larger number is its own maximum. */
@@ -18,12 +18,8 @@ const STRESS = 'stress';
 const HOPE = 'hope';
 const FILE_FIELDS = [HP, STRESS, 'maxStress', HOPE, 'statblockResources', 'maxHpOverridden', 'maxStressOverridden'] as const;
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
 function valueOf(raw: unknown, bareMax: number): ResourceValue | null {
-  if (typeof raw === 'number' && Number.isFinite(raw)) return { current: raw, max: Math.max(raw, bareMax) };
+  if (isFiniteNumber(raw)) return { current: raw, max: Math.max(raw, bareMax) };
   if (isRecord(raw) && typeof raw.current === 'number' && typeof raw.max === 'number') return { current: raw.current, max: raw.max };
   return null;
 }
@@ -39,8 +35,9 @@ export function tokenFromFile<T extends object>(token: T): T & ResourceHolder {
 
   const resources: Record<string, ResourceValue> = {};
   const put = (key: string, value: ResourceValue | null): void => { if (value) resources[key] = value; };
+  const bareStressMax = typeof file.maxStress === 'number' && file.maxStress > 0 ? file.maxStress : BARE_STRESS_MAX;
   put(HP, valueOf(file.hp, BARE_HP_MAX));
-  put(STRESS, valueOf(file.stress, typeof file.maxStress === 'number' && file.maxStress > 0 ? file.maxStress : BARE_STRESS_MAX));
+  put(STRESS, valueOf(file.stress, bareStressMax));
   put(HOPE, valueOf(file.hope, BARE_STRESS_MAX));
   if (isRecord(file.statblockResources)) {
     for (const [key, value] of Object.entries(file.statblockResources)) {
@@ -68,7 +65,7 @@ export function tokenToFile<T extends ResourceHolder>(token: T): object {
   const { resources, overriddenMax, ...rest } = token;
   if (!resources && !overriddenMax) return token;
 
-  const { [HP]: hp, [STRESS]: stress, [HOPE]: hope, ...others } = resources ?? {};
+  const { hp, stress, hope, ...others } = resources ?? {};
   const overridden = overriddenMax ?? [];
   const otherOverrides = overridden.filter((key) => key !== HP && key !== STRESS);
   return {
@@ -83,15 +80,47 @@ export function tokenToFile<T extends ResourceHolder>(token: T): object {
   };
 }
 
-/** The parts of a scene that hold resources. Each may be missing; a store without a scene persists nothing. */
-interface SceneParts {
-  objects?: { tokens?: Record<string, object> | undefined } | null | undefined;
-  tokenSettings?: object | undefined;
-  initiative?: { entries?: unknown } | null | undefined;
+/** `hidden` with `key` in or out. */
+function withHidden(hidden: readonly string[], key: string, isHidden: boolean): string[] {
+  if (hidden.includes(key) === isHidden) return [...hidden];
+  return isHidden ? [...hidden, key] : hidden.filter((other) => other !== key);
 }
 
-type InitiativeEntryLike = { tokenId?: unknown };
+/**
+ * A scene's token settings as they are in memory, with `hiddenResources`. The two switches
+ * of the file decide for HP and the secondary resource; the secondary bar was off unless
+ * switched on. Settings that hold no switch are returned as they are.
+ */
+export function tokenSettingsFromFile(settings: Record<string, unknown>): Record<string, unknown> {
+  const { showHPBars, showStressBars, showResources, ...rest } = settings;
+  const hasSwitches = 'showHPBars' in settings || 'showStressBars' in settings;
+  if (!hasSwitches && !('showResources' in settings)) return settings;
 
+  let hidden = Array.isArray(rest.hiddenResources) ? rest.hiddenResources.filter((key): key is string => typeof key === 'string') : [];
+  if (hasSwitches) {
+    hidden = withHidden(hidden, HP, showHPBars === false);
+    hidden = withHidden(hidden, STRESS, showStressBars !== true);
+  } else if (showResources === false) {
+    // Builds of this feature had one switch for all resources
+    hidden = [HP, STRESS];
+  }
+  return { ...rest, hiddenResources: hidden };
+}
+
+/** A scene's token settings as its file holds them: with the two switches, beside the list that names every hidden resource. */
+export function tokenSettingsToFile(settings: Record<string, unknown>): Record<string, unknown> {
+  const hidden: unknown[] = Array.isArray(settings.hiddenResources) ? settings.hiddenResources : [];
+  return { ...settings, showHPBars: !hidden.includes(HP), showStressBars: !hidden.includes(STRESS) };
+}
+
+/** The parts of a scene that hold resources. Each may be missing; a store without a scene persists nothing. */
+interface SceneParts {
+  objects?: { tokens?: Record<string, object> } | null;
+  tokenSettings?: object;
+  initiative?: { entries?: unknown } | null;
+}
+
+/** The scene's `objects` with every token converted, to spread over the scene; nothing when it has no tokens. */
 function mapTokens(scene: SceneParts, convert: (token: object) => object): Pick<SceneParts, 'objects'> | undefined {
   const tokens = scene.objects?.tokens;
   if (!isRecord(tokens)) return undefined;
@@ -99,7 +128,8 @@ function mapTokens(scene: SceneParts, convert: (token: object) => object): Pick<
   return { objects: { ...scene.objects, tokens: converted } };
 }
 
-function mapEntries(scene: SceneParts, convert: (entry: InitiativeEntryLike) => object): Pick<SceneParts, 'initiative'> | undefined {
+/** The scene's `initiative` with every entry converted, to spread over the scene; nothing when it has no entries. */
+function mapEntries(scene: SceneParts, convert: (entry: Record<string, unknown>) => object): Pick<SceneParts, 'initiative'> | undefined {
   const entries = scene.initiative?.entries;
   if (!Array.isArray(entries)) return undefined;
   const converted = entries.map((entry: unknown) => (isRecord(entry) ? convert(entry) : entry));
@@ -111,25 +141,23 @@ export function sceneFromFile<S extends SceneParts>(scene: S): S {
   return {
     ...scene,
     ...mapTokens(scene, tokenFromFile),
-    ...(isRecord(scene.tokenSettings) && { tokenSettings: withHiddenResources(scene.tokenSettings) }),
+    ...(isRecord(scene.tokenSettings) && { tokenSettings: tokenSettingsFromFile(scene.tokenSettings) }),
     // The tracker reads a token's resources from the token
-    ...mapEntries(scene, ({ hp: _hp, stress: _stress, isDefeated: _isDefeated, ...entry }: Record<string, unknown>) => entry),
+    ...mapEntries(scene, ({ hp: _hp, stress: _stress, isDefeated: _isDefeated, ...entry }) => entry),
   };
 }
 
 /** A scene's state as its file holds it; `sceneFromFile` reads it back unchanged. */
 export function sceneToFile<S extends SceneParts>(scene: S): S {
-  const tokens = scene.objects?.tokens ?? {};
+  const tokens: Record<string, ResourceHolder> = scene.objects?.tokens ?? {};
   const vitalsOf = (tokenId: unknown): object => {
-    const { hp, stress } = (typeof tokenId === 'string' ? (tokens[tokenId] as ResourceHolder | undefined)?.resources : undefined) ?? {};
+    const { hp, stress } = (typeof tokenId === 'string' ? tokens[tokenId]?.resources : undefined) ?? {};
     return { ...(hp && { hp }), ...(stress && { stress }), isDefeated: !!hp && hp.current <= 0 };
   };
   return {
     ...scene,
     ...mapTokens(scene, tokenToFile),
-    ...(isRecord(scene.tokenSettings) && {
-      tokenSettings: { ...scene.tokenSettings, ...legacySwitches(scene.tokenSettings.hiddenResources as string[] | undefined) },
-    }),
+    ...(isRecord(scene.tokenSettings) && { tokenSettings: tokenSettingsToFile(scene.tokenSettings) }),
     ...mapEntries(scene, (entry) => ({ ...entry, ...vitalsOf(entry.tokenId) })),
   };
 }

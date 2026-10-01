@@ -1,6 +1,9 @@
 import { BUILT_IN_SYSTEM_PRESETS } from '../gameSystems/builtInPresets';
 import type { CollectionSettings } from '../types/collectionSettingsTypes';
 import { legacyCollectionResources } from './collectionResources';
+import { STRESS_RESOURCE } from './resourceDefinitions';
+import { sceneFromFile } from './resourceFileFormat';
+import type { ResourceHolder } from './resourceTypes';
 
 interface Collections {
   getCollections(): Promise<Array<{ id: string; settings?: CollectionSettings }>>;
@@ -8,14 +11,18 @@ interface Collections {
 }
 
 /**
- * Whether a scene file shows the old secondary bar: its switch is on and a token has a
- * value for it. Any collection could use the bar that way, without its default widget.
+ * Whether a scene file shows the old secondary bar: the scene does not hide it and a token
+ * has a value for it. Any collection could use the bar that way, without its default widget.
  */
 export function sceneShowsSecondaryBar(content: string): boolean {
   try {
-    const state = (JSON.parse(content) as { state?: { tokenSettings?: { showStressBars?: unknown }; objects?: { tokens?: unknown } } } | null)?.state;
-    if (state?.tokenSettings?.showStressBars !== true) return false;
-    return Object.values(state.objects?.tokens ?? {}).some((token) => (token as { stress?: unknown } | null)?.stress != null);
+    const { state } = JSON.parse(content) as { state?: Parameters<typeof sceneFromFile>[0] };
+    if (!state) return false;
+    const scene = sceneFromFile(state);
+    const hidden: { hiddenResources?: unknown } | undefined = scene.tokenSettings;
+    if (Array.isArray(hidden?.hiddenResources) && hidden.hiddenResources.includes(STRESS_RESOURCE.key)) return false;
+    const tokens: Record<string, ResourceHolder | null> = scene.objects?.tokens ?? {};
+    return Object.values(tokens).some((token) => token?.resources?.[STRESS_RESOURCE.key] !== undefined);
   } catch {
     return false;
   }

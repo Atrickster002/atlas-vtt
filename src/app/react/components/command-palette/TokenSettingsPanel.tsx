@@ -34,8 +34,13 @@ export function TokenSettingsPanel({ view }: TokenSettingsPanelProps): React.Rea
     <div className="atlas-command-palette-panel">
       <div className="atlas-command-palette-panel-column">
         {TOGGLES.map(({ key, label, hint }) => (
-          <SettingToggleRow key={key} label={label} hint={hint} value={Boolean(tokenSettings[key])}
-            onToggle={() => change({ [key]: !tokenSettings[key] })} />
+          <SettingToggleRow
+            key={key}
+            label={label}
+            hint={hint}
+            value={Boolean(tokenSettings[key])}
+            onToggle={() => change({ [key]: !tokenSettings[key] })}
+          />
         ))}
       </div>
       <div className="atlas-command-palette-panel-column">

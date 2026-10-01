@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { sceneFromFile, sceneToFile, tokenFromFile, tokenToFile } from '../../../src/app/resources/resourceFileFormat';
+import { sceneFromFile, sceneToFile, tokenFromFile, tokenSettingsFromFile, tokenSettingsToFile, tokenToFile } from '../../../src/app/resources/resourceFileFormat';
 
 describe('tokenFromFile', () => {
   it('reads object HP and numeric stress as resources', () => {
@@ -161,3 +161,17 @@ describe('sceneToFile', () => {
     expect(sceneToFile({})).toEqual({});
   });
 });
+
+describe('token settings in a file', () => {
+  it('tell an older Atlas the two switches it knows', () => {
+    expect(tokenSettingsToFile({ hiddenResources: [] })).toEqual({ hiddenResources: [], showHPBars: true, showStressBars: true });
+    expect(tokenSettingsToFile({ hiddenResources: ['stress', 'ammo'] })).toMatchObject({ showHPBars: true, showStressBars: false });
+    expect(tokenSettingsToFile({ showNameplates: true })).toEqual({ showNameplates: true, showHPBars: true, showStressBars: true });
+  });
+
+  it('are left alone when they hold neither switches nor a list', () => {
+    const current = { showNameplates: true, hiddenResources: ['stress'] };
+    expect(tokenSettingsFromFile(current)).toBe(current);
+  });
+});
+

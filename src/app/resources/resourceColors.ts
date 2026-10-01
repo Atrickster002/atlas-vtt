@@ -15,8 +15,8 @@ export function remainingShare(definition: ResourceDefinition, value: ResourceVa
 
 /**
  * The colour a resource shows in, as `#rrggbb`. A resource that defeats its token when
- * spent warns as it runs low, the way the HP bar always did: its own colour, yellow
- * below 70%, red below 30%. Every other resource keeps its colour.
+ * spent warns as it runs low: its own colour, yellow below 70%, red below 30%. Every
+ * other resource keeps its colour.
  */
 export function resourceColor(definition: ResourceDefinition, value: ResourceValue): string {
   if (!definition.defeatedWhenSpent) return definition.color;
