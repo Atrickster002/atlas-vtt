@@ -6,9 +6,11 @@ export const MAP_HOTKEYS = [
   { id: 'help', label: 'Keyboard shortcuts', group: 'Map', defaultKey: '?' },
   { id: 'palette', label: 'Command palette', group: 'Map', defaultKey: 'Space' },
   { id: 'assets', label: 'Asset manager', group: 'Map', defaultKey: 'a', dmOnly: true },
-  { id: 'dashboard', label: 'GM dashboard', group: 'Map', defaultKey: 'Tab', dmOnly: true },
+  // The id stays `dashboard` (the DM screen's former name): custom keys are saved under it.
+  { id: 'dashboard', label: 'DM screen', group: 'Map', defaultKey: 'Tab', dmOnly: true },
   { id: 'gmView', label: 'Toggle GM view', group: 'Map', defaultKey: 'd', dmOnly: true },
   { id: 'sceneSwitcher', label: 'Switch between open maps', group: 'Map', defaultKey: 'g', dmOnly: true },
+  { id: 'lightingPeek', label: 'Hold to see what the players see', group: 'Map', defaultKey: 'h', dmOnly: true, enabled: WALLS_AND_LIGHTING_ENABLED },
   { id: 'fitMap', label: 'Fit map to view', group: 'Map', defaultKey: 'Shift+1' },
   { id: 'fitToken', label: 'Zoom to selected token', group: 'Map', defaultKey: 'Shift+2' },
   { id: 'move', label: 'Move / selection tools', group: 'Tools', defaultKey: 'v' },
@@ -18,7 +20,7 @@ export const MAP_HOTKEYS = [
   { id: 'text', label: 'Text tool', group: 'Tools', defaultKey: 't', dmOnly: true },
   { id: 'measure', label: 'Measure tools', group: 'Tools', defaultKey: 'm' },
   { id: 'pin', label: 'Note pin', group: 'Tools', defaultKey: 'p', dmOnly: true },
-  { id: 'wall', label: 'Walls and lighting', group: 'Tools', defaultKey: 'w', dmOnly: true, enabled: WALLS_AND_LIGHTING_ENABLED },
+  { id: 'wall', label: 'Lighting (walls and lights)', group: 'Tools', defaultKey: 'w', dmOnly: true, enabled: WALLS_AND_LIGHTING_ENABLED },
   { id: 'audio', label: 'Ambient audio', group: 'Tools', defaultKey: 's', dmOnly: true, enabled: AMBIENT_AUDIO_ENABLED },
   { id: 'selectAll', label: 'Select all tokens', group: 'Editing', defaultKey: 'Mod+a', dmOnly: true },
   { id: 'copy', label: 'Copy selection', group: 'Editing', defaultKey: 'Mod+c', dmOnly: true, yieldsToTextSelection: true },
@@ -83,6 +85,6 @@ export function canRunMapHotkeys(event: KeyboardEvent, viewId?: string): boolean
   if (event.defaultPrevented || event.isComposing || !isActiveAtlasLeaf(viewId)) return false;
   const target = event.target as Element | null;
   if (target?.closest?.('input, textarea, select, [contenteditable]:not([contenteditable="false"]), .cm-editor, [role="textbox"]')) return false;
-  if (document.querySelector('.modal-container, .prompt, .suggestion-container, .menu, .atlas-asset-manager-modal, .atlas-command-palette-overlay, .atlas-onboarding-overlay, .atlas-hotkey-help, .atlas-text-dialog-backdrop, .atlas-dm-dashboard-wrapper, .atlas-grid-alignment-panel, [aria-modal="true"]')) return false;
+  if (document.querySelector('.modal-container, .prompt, .suggestion-container, .menu, .atlas-asset-manager-modal, .atlas-command-palette-overlay, .atlas-onboarding-overlay, .atlas-hotkey-help, .atlas-text-dialog-backdrop, .atlas-dm-screen-wrapper, .atlas-grid-alignment-panel, [aria-modal="true"]')) return false;
   return true;
 }
