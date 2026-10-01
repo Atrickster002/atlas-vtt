@@ -44,6 +44,11 @@
   box-shadow: $shadow-elevated;
   @include atlas-keep-in-view;
 
+  // The menu's text edge: where the content of its rows begins and ends. Row labels, switch
+  // labels, slider names and values and section labels all start on it; tracks and grids span
+  // the menu's width.
+  --atlas-menu-text-inset: #{$spacing-m};
+
   // Every row runs concentric with the menu's corners, so all rows match. A segmented control
   // is one such row: its track takes the rows' radius, and its options, $spacing-xs inside the
   // track, run concentric with it. `:where` leaves the rows' rule as specific as it was.
@@ -146,8 +151,7 @@
   align-items: center;
   justify-content: space-between;
   gap: $spacing-m;
-  // The label starts where the rows' check marks do.
-  padding-left: $spacing-m;
+  padding-left: var(--atlas-menu-text-inset, 0px);
 
   .atlas-toggle {
     flex-shrink: 0;
@@ -160,6 +164,36 @@
   white-space: nowrap;
   font-size: $font-ui-small;
   color: var(--text-normal);
+}
+
+/* A label of a section or control, on the menu's text edge */
+.atlas-dropdown-label {
+  padding-inline: var(--atlas-menu-text-inset, 0px);
+  font-size: $font-ui-small;
+  color: var(--text-normal);
+}
+
+/* Slider row: name and value on the text edge, the track across the menu */
+.atlas-dropdown-slider-row {
+  @include atlas-flex-col($spacing-s);
+  padding-bottom: $spacing-m;
+}
+
+.atlas-dropdown-slider-row__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+
+  .atlas-dropdown-label {
+    padding-inline-end: 0;
+  }
+}
+
+.atlas-dropdown-slider-row__value {
+  padding-inline-end: var(--atlas-menu-text-inset, 0px);
+  font-size: $font-ui-smaller;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
 }
 
 .atlas-dropdown-separator {
@@ -248,11 +282,13 @@
 }
 
 .atlas-dropdown-swatches__label {
+  padding-inline: var(--atlas-menu-text-inset, 0px);
   font-size: $font-ui-small;
   color: var(--text-normal);
 }
 
 .atlas-dropdown-swatches__hint {
+  padding-inline: var(--atlas-menu-text-inset, 0px);
   font-size: $font-ui-smaller;
   color: var(--text-muted);
 }

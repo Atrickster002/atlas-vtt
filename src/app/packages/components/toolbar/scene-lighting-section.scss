@@ -22,6 +22,11 @@
     min-width: 0;
   }
 
+  // The swatch ends the row, so the value beside it needs no inset of its own.
+  .atlas-dropdown-slider-row__value {
+    padding-inline-end: 0;
+  }
+
   // Level with the slider's track: the slider row keeps 0.75rem below it.
   .atlas-swatch {
     margin-bottom: $spacing-s;

@@ -83,7 +83,11 @@ export class LightingController {
       onChange: () => this.afterLayerSync(),
     });
     const peekKey = (): string => (SettingsService.forApp(obsApp)?.getHotkeys() ?? DEFAULT_MAP_HOTKEYS).lightingPeek;
-    this.cleanups.push(bindHoldHotkey(window, peekKey, deps.viewId, (held) => this.session.setPeeking(held)));
+    this.cleanups.push(bindHoldHotkey(window, peekKey, deps.viewId, (held) => {
+      // A light is not edited in the players' view: the peek closes its popover, as session view does.
+      if (held) store.getState().closeLightPopover();
+      this.session.setPeeking(held);
+    }));
     // Subscribed after the overlays' own subscriptions, so the players' view is set last.
     this.cleanups.push(store.subscribe((state, previous) => {
       if (state.activeTool !== previous.activeTool || state.lighting.enabled !== previous.lighting.enabled) this.session.sync();

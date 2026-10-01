@@ -1,4 +1,4 @@
-import React, { FC } from "react"
+import React, { FC, useId } from "react"
 import { Slider } from "./slider"
 
 export interface DropdownSliderRowProps {
@@ -11,8 +11,7 @@ export interface DropdownSliderRowProps {
   onChange: (value: number) => void
 }
 
-const ROW_STYLE: React.CSSProperties = { paddingBottom: '0.75rem' }
-
+/** A menu row with a slider: its name and value on the menu's text edge, the track across the menu. */
 export const DropdownSliderRow: FC<DropdownSliderRowProps> = ({
   label,
   value,
@@ -21,19 +20,22 @@ export const DropdownSliderRow: FC<DropdownSliderRowProps> = ({
   step = 1,
   unit = "px",
   onChange,
-}) => (
-  <div className="space-y-2" style={ROW_STYLE}>
-    <div className="flex justify-between">
-      <span className="text-sm text-[var(--text-normal)]">{label}</span>
-      <span className="text-xs text-[var(--text-muted)]">{value}{unit}</span>
+}) => {
+  const labelId = useId()
+  return (
+    <div className="atlas-dropdown-slider-row">
+      <div className="atlas-dropdown-slider-row__head">
+        <span id={labelId} className="atlas-dropdown-label">{label}</span>
+        <span className="atlas-dropdown-slider-row__value">{value}{unit}</span>
+      </div>
+      <Slider
+        aria-labelledby={labelId}
+        value={[value]}
+        min={min}
+        max={max}
+        step={step}
+        onValueChange={(v: number[]) => onChange(v[0] ?? value)}
+      />
     </div>
-    <Slider
-      value={[value]}
-      min={min}
-      max={max}
-      step={step}
-      onValueChange={(v: number[]) => onChange(v[0] ?? value)}
-      className="w-full"
-    />
-  </div>
-)
+  )
+}

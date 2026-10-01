@@ -62,7 +62,7 @@ function LightPopover({ lightId }: { lightId: string }): React.ReactElement | nu
   const flickerId = useId();
   const present = useIsPresent();
   const variants = useAnchoredPopoverVariants();
-  useLightPopoverPosition(ref, lightId);
+  useLightPopoverPosition(ref, lightId, unitDistance);
   useFocusWhileOpen(ref, present);
 
   // A slider drag writes on every move; the transaction makes the whole drag one undo step.

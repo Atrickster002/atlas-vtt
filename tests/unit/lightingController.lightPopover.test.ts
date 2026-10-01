@@ -190,6 +190,14 @@ describe('closing the light popover', () => {
     expect(store.getState().lightPopover).toBeNull();
   });
 
+  it('closes when a peek at the players\' view starts', () => {
+    const { store, torch } = setup();
+    store.getState().openLightPopover(torch);
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'h', code: 'KeyH', bubbles: true }));
+    expect(store.getState().lightPopover).toBeNull();
+    window.dispatchEvent(new KeyboardEvent('keyup', { key: 'h', code: 'KeyH', bubbles: true }));
+  });
+
   it('closes in session view', () => {
     const { store, torch } = setup();
     store.getState().openLightPopover(torch);
@@ -221,15 +229,17 @@ describe('the range rings', () => {
     expect(controller.playerLayers()).toContainEqual({ layer: rangeRings, visible: false });
   });
 
-  it('are hidden while the peek key is held and back when it is released, with the popover still open', () => {
+  it('go with the popover when a peek starts, and stay away when it ends', () => {
     const { controller, store, torch } = setup();
     store.getState().openLightPopover(torch);
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'h', code: 'KeyH', bubbles: true }));
+    expect(store.getState().lightPopover).toBeNull();
     expect(controller.gmOverlays().rangeRings.visible).toBe(false);
     expect(controller.gmOverlays().lightMarkers.visible).toBe(false);
     window.dispatchEvent(new KeyboardEvent('keyup', { key: 'h', code: 'KeyH', bubbles: true }));
-    expect(controller.gmOverlays().rangeRings.visible).toBe(true);
-    expect(store.getState().lightPopover).toBe(torch);
+    expect(controller.gmOverlays().rangeRings.visible).toBe(false);
+    expect(controller.gmOverlays().lightMarkers.visible).toBe(true);
+    expect(store.getState().lightPopover).toBeNull();
   });
 
   it('resize the open light from the map, as one undo step', () => {

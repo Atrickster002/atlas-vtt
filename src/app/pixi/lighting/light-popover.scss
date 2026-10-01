@@ -52,7 +52,8 @@ $gap: $spacing-s;
 }
 
 // A chip per kind, rounded like every control $gap inside the popover's border. The chosen one
-// is the light's marker in small: the theme's badge with glyph and ring in the light's colour.
+// is the light's selected marker in small: the theme's badge with the glyph in the light's
+// colour, ringed in the accent like every chosen control.
 .atlas-light-kind {
   flex: 1;
   display: flex;
@@ -82,7 +83,7 @@ $gap: $spacing-s;
   &[aria-pressed='true'] {
     background: var(--atlas-light-badge);
     color: var(--atlas-light-tint);
-    box-shadow: inset 0 0 0 1.5px var(--atlas-light-tint);
+    box-shadow: inset 0 0 0 1.5px var(--interactive-accent);
   }
 
   @include atlas-focus-ring;
