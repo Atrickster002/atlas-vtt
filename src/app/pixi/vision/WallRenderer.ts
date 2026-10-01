@@ -69,11 +69,6 @@ export class WallRenderer {
     this.redraw(state);
   }
 
-  setVisible(visible: boolean): void {
-    this.container.visible = visible;
-    if (visible) this.forceRedraw();
-  }
-
   setSelectedWalls(ids: string[]): void {
     this.selectedWallIds = new Set(ids);
     this.forceRedraw();

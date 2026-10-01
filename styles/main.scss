@@ -334,9 +334,10 @@
     }
   }
 
-  // Pointer focus stays quiet; keyboard focus gets the shared ring
-  .atlas-vtt-toolbar button.btn:focus:not(#{$own-look}),
-  .atlas-vtt-toolbar button.btn--toolbar:focus {
+  // Pointer focus stays quiet; keyboard focus gets the shared ring. The quiet rule leaves
+  // :focus-visible alone: as `:focus:not(…)` it outranked the ring's rule below.
+  .atlas-vtt-toolbar button.btn:focus:not(:focus-visible):not(#{$own-look}),
+  .atlas-vtt-toolbar button.btn--toolbar:focus:not(:focus-visible) {
     outline: none !important;
     box-shadow: none !important;
   }

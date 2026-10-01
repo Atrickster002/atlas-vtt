@@ -21,6 +21,8 @@ export interface SceneOptions {
   /** Lighting notes an earlier session left in this device's local storage. */
   noted?: string[] | null;
   exploredMask?: string | null;
+  /** Told when the view worked out new sight, as `LightingController` is. */
+  onSightChange?: () => void;
 }
 
 /** `createSceneLighting` over a real renderer, with the store, storage and ticker a map view gives it. */
@@ -33,6 +35,10 @@ export interface Scene {
   /** The lighting notes in this device's local storage. */
   noted: () => unknown;
   switchLighting: (enabled: boolean) => void;
+  /** The vision token is moved, as a drag writes it to the store. */
+  moveToken: (x: number, y: number) => void;
+  /** A change to the scene's lighting that leaves sight as it is, e.g. `{ ambientColor }`. */
+  setLighting: (changes: Partial<ViewAtlasState['lighting']>) => void;
   /** The store writes and lighting calls of `MapService.loadMap`, in its order. */
   loadMap: (path: string, saved: SavedScene, bounds: MapBounds) => void;
   /** `loadMap` up to the rehydrated scene: the store holds it, and the loading screen is still up. */
@@ -52,7 +58,7 @@ export function litScene(tokenX: number, tokenY: number): SavedScene {
   } as unknown as SavedScene;
 }
 
-export async function createScene({ enabled, noted = null, exploredMask = null }: SceneOptions): Promise<Scene> {
+export async function createScene({ enabled, noted = null, exploredMask = null, onSightChange }: SceneOptions): Promise<Scene> {
   const renderer = await createTestRenderer(SIZE);
   const viewport = new Container();
   const target = RenderTexture.create({ width: SIZE, height: SIZE });
@@ -103,6 +109,7 @@ export async function createScene({ enabled, noted = null, exploredMask = null }
     measurement: () => ({ unitDistance: 5 }) as unknown as MeasurementSettings,
     bounds: () => bounds,
     albedo: () => null,
+    ...(onSightChange && { onSightChange }),
   });
   return {
     renderer,
@@ -112,6 +119,8 @@ export async function createScene({ enabled, noted = null, exploredMask = null }
     setExploredMask,
     noted: () => storage.get(LIGHTING_ATTEMPTS_KEY) ?? null,
     switchLighting: (on) => write({ lighting: { ...state.lighting, enabled: on } }),
+    moveToken: (x, y) => write({ objects: { ...state.objects, tokens: { t: visionToken(x, y, 5) } } }),
+    setLighting: (changes) => write({ lighting: { ...state.lighting, ...changes } }),
     loadMap: (path, saved, mapBounds) => {
       startLoad(path, saved, mapBounds);
       finishLoad();

@@ -365,11 +365,9 @@ export class UIManager implements ITokenUIManager {
     this.tokenResizeUI?.updateHandlePositions();
   }
 
+  /** Shows or hides a token's UI with its token; while hidden, no later update of the token shows it again. */
   setTokenUIVisibility(tokenId: string, visible: boolean): void {
-    const ui = this.tokenUIs[tokenId];
-    if (ui) {
-      ui.getContainer().visible = visible;
-    }
+    this.tokenUIs[tokenId]?.setHiddenWithToken(!visible);
   }
 
   private setupUIHoverHandlers(tokenId: string, tokenGroup: Container): void {

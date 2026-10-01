@@ -533,8 +533,8 @@ describe('TokenRenderer Integration Tests', () => {
 
         it('should hide a token the players do not see, with its nameplate and bars', async () => {
           tokenRenderer.setPlayerSightProvider(() => (id) => id !== 'token-1');
-          store.getState().addToken(token({ id: 'token-1', kind: 'character', statblockPath: 'Goblin.md' }));
-          store.getState().addToken(token({ id: 'token-2', x: 300, kind: 'character', statblockPath: 'Goblin.md' }));
+          store.getState().addToken(token({ id: 'token-1', kind: 'character', statblockPath: 'Goblin.md', name: 'Goblin', showNameplate: true }));
+          store.getState().addToken(token({ id: 'token-2', x: 300, kind: 'character', statblockPath: 'Goblin.md', name: 'Orc', showNameplate: true }));
           await waitForTokens('token-1', 'token-2');
 
           expect(tokenGroup('token-1').visible).toBe(false);
@@ -547,7 +547,7 @@ describe('TokenRenderer Integration Tests', () => {
         it('should show the token once the players see it, and hide it again when they lose it', async () => {
           let seen = false;
           tokenRenderer.setPlayerSightProvider(() => () => seen);
-          store.getState().addToken(token({ id: 'token-1', kind: 'character', statblockPath: 'Goblin.md' }));
+          store.getState().addToken(token({ id: 'token-1', kind: 'character', statblockPath: 'Goblin.md', name: 'Goblin', showNameplate: true }));
           await waitForTokens('token-1');
           expect(tokenGroup('token-1').visible).toBe(false);
 
@@ -561,6 +561,89 @@ describe('TokenRenderer Integration Tests', () => {
           tokenRenderer.refreshPlayerSight();
           expect(tokenGroup('token-1').visible).toBe(false);
           expect(tokenUi('token-1').visible).toBe(false);
+        });
+
+        it('should keep the nameplate and bars of an unseen token hidden when the token changes', async () => {
+          tokenRenderer.setPlayerSightProvider(() => (id) => id !== 'token-1');
+          store.getState().addToken(token({ id: 'token-1', kind: 'character', statblockPath: 'Goblin.md', name: 'Goblin', showNameplate: true }));
+          await waitForTokens('token-1');
+          expect(tokenUi('token-1').visible).toBe(false);
+
+          store.getState().updateToken('token-1', { name: 'Goblin boss', conditions: ['prone'] });
+          await new Promise((resolve) => setTimeout(resolve, 20));
+
+          expect(tokenGroup('token-1').visible).toBe(false);
+          expect(tokenUi('token-1').visible).toBe(false);
+        });
+
+        it('should show a seen token\'s nameplate again after it changed while unseen', async () => {
+          let seen = false;
+          tokenRenderer.setPlayerSightProvider(() => () => seen);
+          store.getState().addToken(token({ id: 'token-1', kind: 'character', statblockPath: 'Goblin.md', name: 'Goblin', showNameplate: true }));
+          await waitForTokens('token-1');
+          store.getState().updateToken('token-1', { name: 'Goblin boss' });
+          await new Promise((resolve) => setTimeout(resolve, 20));
+
+          seen = true;
+          tokenRenderer.refreshPlayerSight();
+          expect(tokenUi('token-1').visible).toBe(true);
+        });
+
+        it('should drop a token from the selection when the players lose sight of it', async () => {
+          let seen = true;
+          tokenRenderer.setPlayerSightProvider(() => () => seen);
+          store.getState().addToken(token({ id: 'token-1' }));
+          store.getState().addToken(token({ id: 'token-2', x: 300, isHidden: false }));
+          await waitForTokens('token-1', 'token-2');
+          store.getState().setSelection(['token-1', 'token-2']);
+
+          seen = false;
+          tokenRenderer.setPlayerSightProvider(() => (id) => id === 'token-2');
+          tokenRenderer.refreshPlayerSight();
+
+          expect(store.getState().selectedIds).toEqual(['token-2']);
+        });
+
+        it('should offer only the tokens the canvas shows for selecting all', async () => {
+          tokenRenderer.setPlayerSightProvider(() => (id) => id === 'token-2');
+          store.getState().addToken(token({ id: 'token-1' }));
+          store.getState().addToken(token({ id: 'token-2', x: 300 }));
+          await waitForTokens('token-1', 'token-2');
+
+          expect(tokenRenderer.visibleTokenIds()).toEqual(['token-2']);
+        });
+
+        it('should keep a token that is being dragged visible until it is released, then follow sight', async () => {
+          let seen = true;
+          tokenRenderer.setPlayerSightProvider(() => () => seen);
+          store.getState().addToken(token({ id: 'token-1', x: 105, y: 105 }));
+          await waitForTokens('token-1');
+
+          viewport.emit('pointerdown', pointerEvent(105, 105));
+          viewport.emit('pointermove', pointerEvent(180, 105));
+          seen = false;
+          tokenRenderer.refreshPlayerSight();
+          expect(tokenGroup('token-1').visible).toBe(true);
+          expect(store.getState().selectedIds).toEqual(['token-1']);
+
+          viewport.emit('pointerup', pointerEvent(180, 105));
+          expect(tokenGroup('token-1').visible).toBe(false);
+          expect(store.getState().selectedIds).toEqual([]);
+        });
+
+        it('should list what the canvas hides as layers, with what the GM\'s view shows of them', async () => {
+          tokenRenderer.setPlayerSightProvider(() => (id) => id !== 'token-1');
+          store.getState().setGMView(false);
+          store.getState().addToken(token({ id: 'token-1', kind: 'character', statblockPath: 'Goblin.md', name: 'Goblin', showNameplate: true }));
+          store.getState().addToken(token({ id: 'token-2', x: 300, isHidden: true }));
+          store.getState().addToken(token({ id: 'token-3', x: 500 }));
+          await waitForTokens('token-1', 'token-2', 'token-3');
+
+          const layers = tokenRenderer.getGmViewLayers();
+          expect(layers).toContainEqual({ layer: tokenGroup('token-1'), visible: true, alpha: 1 });
+          expect(layers).toContainEqual({ layer: tokenUi('token-1'), visible: true });
+          expect(layers).toContainEqual({ layer: tokenGroup('token-2'), visible: true, alpha: 0.5 });
+          expect(layers.some(({ layer }) => layer === tokenGroup('token-3'))).toBe(false);
         });
 
         it('should hide nothing by sight while the canvas shows the GM\'s view', async () => {

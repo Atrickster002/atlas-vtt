@@ -14,6 +14,8 @@ const closeAssetManager = vi.fn();
 const setInitiativeTrackerOpen = vi.fn();
 
 let capturedShortcuts: Record<string, (event: KeyboardEvent) => void> = {};
+/** The tokens the canvas shows; session view hides some of the store's. */
+let visibleTokenIds: string[] = [];
 
 const storeState = {
   activeTool: 'move',
@@ -62,6 +64,7 @@ vi.mock('../../src/app/react/root/AtlasUIContext', () => ({
       clearAllFog: vi.fn(),
     },
     mapData: null,
+    renderer: { getTokenRenderer: () => ({ visibleTokenIds: () => visibleTokenIds }) },
   }),
 }));
 
@@ -148,6 +151,15 @@ describe('MainToolbar text tool', () => {
     capturedShortcuts.text(new KeyboardEvent('keydown', { key: 't' }));
 
     expect(setActiveTool).toHaveBeenCalledWith('text');
+  });
+
+  it('selects only the tokens the canvas shows with select all', () => {
+    visibleTokenIds = ['hero'];
+    render(<MainToolbar viewId="view-1" />);
+
+    capturedShortcuts.selectAll(new KeyboardEvent('keydown', { key: 'a', metaKey: true }));
+
+    expect(setSelection).toHaveBeenCalledWith(['hero']);
   });
 
   it('renders the text tool button enabled', () => {

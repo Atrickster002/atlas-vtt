@@ -111,6 +111,8 @@ export class TokenRenderer {
   private doorClickHandler?: (worldX: number, worldY: number) => boolean;
   private playerSightProvider?: () => ((tokenId: string) => boolean) | undefined;
   private lightHandlers?: LightPointerHandlers;
+  /** Tokens the pointer holds or drags; they stay on the canvas until released, whatever the players see. */
+  private heldTokenIds: ReadonlySet<string> = new Set();
   private lastHoveredPinId: string | null = null;
 
   // Wall provider pattern — wired by PixiRendererOrchestrator
@@ -189,7 +191,12 @@ export class TokenRenderer {
     this.interactionController.setHandlePositionUpdater(() => 
       this.uiManager.updateHandlePositions()
     );
-    this.interactionController.setTokensHeldCallback((tokenIds) => this.uiManager.setTokensHeld(tokenIds));
+    this.interactionController.setTokensHeldCallback((tokenIds) => {
+      this.uiManager.setTokensHeld(tokenIds);
+      this.heldTokenIds = new Set(tokenIds);
+      // A token released out of the players' sight now follows it.
+      this.refreshPlayerSight();
+    });
     this.interactionController.setSelectionUpdateCallback(() => {
       if (typeof this.selectionOverlayUpdater === 'function') {
         this.selectionOverlayUpdater();
@@ -688,7 +695,14 @@ export class TokenRenderer {
    * the players do not see while the canvas shows their lighting (`setPlayerSightProvider`).
    */
   private hidesToken(token: TokenEntity, isSeen = this.playerSightProvider?.()): boolean {
-    return ((token.isHidden ?? false) && this.isInPlayerMode()) || (!!isSeen && !isSeen(token.id));
+    if ((token.isHidden ?? false) && this.isInPlayerMode()) return true;
+    return !!isSeen && !isSeen(token.id) && !this.heldTokenIds.has(token.id);
+  }
+
+  /** A token the canvas no longer shows cannot stay selected: its handles would float over nothing. */
+  private deselect(tokenId: string): void {
+    const { selectedIds, setSelection } = this.store.getState();
+    if (selectedIds.includes(tokenId)) setSelection(selectedIds.filter((id) => id !== tokenId));
   }
 
   private applyTokenVisibilityPolicy(
@@ -703,6 +717,7 @@ export class TokenRenderer {
       tokenGroup.visible = false;
       tokenGroup.alpha = 1.0;
       this.uiManager.setTokenUIVisibility(token.id, false);
+      this.deselect(token.id);
       return;
     }
 
@@ -748,6 +763,31 @@ export class TokenRenderer {
    */
   public setPlayerSightProvider(provider: () => ((tokenId: string) => boolean) | undefined): void {
     this.playerSightProvider = provider;
+  }
+
+  /** The tokens the canvas shows: those a selection may take. */
+  public visibleTokenIds(): string[] {
+    return Object.entries(this.tokenSprites).filter(([, tokenGroup]) => tokenGroup?.visible).map(([id]) => id);
+  }
+
+  /**
+   * The tokens the canvas hides in the players' perspective (hidden ones, and those the players
+   * do not see), as layers with what the GM's view shows of them: the sprite, translucent when
+   * hidden from players, and the nameplate and bars. For a capture that needs the GM's picture
+   * while the canvas is in session view.
+   */
+  public getGmViewLayers(): LayerVisibility[] {
+    const tokens = this.store.getState().objects.tokens;
+    const uis = this.uiManager.getTokenUIs();
+    const layers: LayerVisibility[] = [];
+    for (const [id, tokenGroup] of Object.entries(this.tokenSprites)) {
+      const token = tokens[id];
+      if (!token || !tokenGroup || tokenGroup.visible) continue;
+      layers.push({ layer: tokenGroup, visible: true, alpha: token.isHidden ? 0.5 : 1 });
+      const ui = uis[id];
+      if (ui) layers.push({ layer: ui.getContainer(), visible: ui.showsContent });
+    }
+    return layers;
   }
 
   /** The players' sight changed, or whether the canvas shows it: tokens entering or leaving it show or hide. */

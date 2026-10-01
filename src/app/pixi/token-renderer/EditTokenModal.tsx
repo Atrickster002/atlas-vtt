@@ -1,5 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { X, Check } from 'lucide-react';
+import React, { useId, useState, useRef, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
 import { TFile, type App } from 'obsidian';
 import type { StoreApi } from 'zustand';
@@ -7,6 +6,7 @@ import type { TokenUpdates, ViewAtlasState } from '../../storeFactory';
 import type { TokenEntity } from '../../types';
 import { CloseButton } from '../../packages/components/primitives/CloseButton';
 import { Button } from '../../packages/components/primitives/button';
+import { ToggleSwitch } from '../../packages/components/primitives/Toggle';
 import { TooltipProvider } from '../../packages/components/primitives/tooltip';
 import { NumberOverrideField, parseNumberInput } from './NumberOverrideField';
 import { readStatblockVitals } from './statblockFrontmatter';
@@ -39,6 +39,7 @@ const defaultPlaceholder = (value: number | undefined): string =>
   value === undefined ? 'None' : `Statblock default: ${value}`;
 
 function EditTokenModalInner({ initial, resourceDefaults, unit, onSave, onClose }: EditTokenModalProps): React.ReactElement {
+  const nameplateId = useId();
   const [name, setName] = useState(initial.name);
   const [showNameplate, setShowNameplate] = useState(initial.showNameplate);
   const [maxHpInput, setMaxHpInput] = useState(numberText(initial.maxHp));
@@ -71,7 +72,8 @@ function EditTokenModalInner({ initial, resourceDefaults, unit, onSave, onClose 
         e.preventDefault();
         e.stopPropagation();
         onClose();
-      } else if (e.key === 'Enter') {
+      } else if (e.key === 'Enter' && !e.defaultPrevented) {
+        // A control that took the key itself (a switch) has prevented the default.
         e.preventDefault();
         handleSave();
       }
@@ -103,14 +105,8 @@ function EditTokenModalInner({ initial, resourceDefaults, unit, onSave, onClose 
           </div>
 
           <div className="atlas-edit-token__field atlas-edit-token__field--row">
-            <label className="atlas-edit-token__label">Show Nameplate</label>
-            <div className="atlas-toggle" onClick={() => setShowNameplate(!showNameplate)}>
-              <div className={`atlas-toggle__switch atlas-toggle__switch--${showNameplate ? 'on' : 'off'}`}>
-                <div className={`atlas-toggle__thumb atlas-toggle__thumb--${showNameplate ? 'on' : 'off'}`}>
-                  {showNameplate ? <Check className="atlas-toggle__icon" /> : <X className="atlas-toggle__icon" />}
-                </div>
-              </div>
-            </div>
+            <span id={nameplateId} className="atlas-edit-token__label">Show Nameplate</span>
+            <ToggleSwitch value={showNameplate} onChange={() => setShowNameplate(!showNameplate)} labelledBy={nameplateId} />
           </div>
 
           <div className="atlas-edit-token__section-divider" />
