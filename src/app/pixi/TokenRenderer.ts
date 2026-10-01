@@ -4,7 +4,7 @@ import { fillMissingResources, syncedResources } from '../resources/statblockRes
 import { runUntracked } from '../stores/history';
 import { fitTokenArtwork, syncTokenArtwork } from './token-renderer/tokenArtwork';
 import type { AtlasSettings } from '../services/SettingsService';
-import { hiddenTokenLayers, type LayerVisibility } from './playerSafeFrame';
+import { HIDDEN_TOKEN_ALPHA, gmTokenLayers, hiddenTokenLayers, type LayerVisibility } from './playerSafeFrame';
 import { Sprite, Container, Graphics, Application, FederatedPointerEvent } from "pixi.js";
 import { Viewport } from "pixi-viewport";
 import { App as ObsidianApp, TFile, parseYaml } from 'obsidian';
@@ -42,6 +42,7 @@ import { setCanvasCursor } from './utils/canvasCursor';
 import { markHandled, resetHandled } from './utils/handledEvents';
 import { watchClick } from './utils/clickRelease';
 import type { HexLinkPointerHandlers } from './hexLinks/HexLinkInteraction';
+import type { LightPointerHandlers } from './lighting/LightInteraction';
 import { runInBackground } from '../utils/backgroundTask';
 import { isModHeld } from '../keyboard/modKey';
 
@@ -117,13 +118,17 @@ export class TokenRenderer {
   /** Ends the watch on a right press that opens a hex or fog menu on release. */
   private stopMenuPress?: () => void;
   private doorClickHandler?: (worldX: number, worldY: number) => boolean;
+  private playerSightProvider?: () => ((tokenId: string) => boolean) | undefined;
+  private lightHandlers?: LightPointerHandlers;
+  /** Tokens the pointer holds or drags; they stay on the canvas until released, whatever the players see. */
+  private heldTokenIds: ReadonlySet<string> = new Set();
   private lastHoveredPinId: string | null = null;
 
   // Wall provider pattern — wired by PixiRendererOrchestrator
   private wallPointerDownHandler?: (worldX: number, worldY: number, e: FederatedPointerEvent) => boolean;
   private wallPointerMoveHandler?: (worldX: number, worldY: number, e: FederatedPointerEvent) => void;
   private wallPointerUpHandler?: () => void;
-  private wallDoubleClickHandler?: (worldX: number, worldY: number) => void;
+  private wallDoubleClickHandler?: () => void;
   private wallContextMenuHandler?: (worldX: number, worldY: number, screenX: number, screenY: number) => void;
   private wallCursorProvider?: (worldX: number, worldY: number) => string;
 
@@ -195,7 +200,12 @@ export class TokenRenderer {
     this.interactionController.setHandlePositionUpdater(() => 
       this.uiManager.updateHandlePositions()
     );
-    this.interactionController.setTokensHeldCallback((tokenIds) => this.uiManager.setTokensHeld(tokenIds));
+    this.interactionController.setTokensHeldCallback((tokenIds) => {
+      this.uiManager.setTokensHeld(tokenIds);
+      this.heldTokenIds = new Set(tokenIds);
+      // A token released out of the players' sight now follows it.
+      this.refreshPlayerSight();
+    });
     this.interactionController.setSelectionUpdateCallback(() => {
       if (typeof this.selectionOverlayUpdater === 'function') {
         this.selectionOverlayUpdater();
@@ -681,23 +691,40 @@ export class TokenRenderer {
     return this.isLocalPlayerMode || isPlayerView || !isGMView;
   }
 
+  /**
+   * Whether the canvas leaves `token` out: a hidden one in the players' perspective, and one
+   * the players do not see while the canvas shows their lighting (`setPlayerSightProvider`).
+   */
+  private hidesToken(token: TokenEntity, isSeen = this.playerSightProvider?.()): boolean {
+    if ((token.isHidden ?? false) && this.isInPlayerMode()) return true;
+    return !!isSeen && !isSeen(token.id) && !this.heldTokenIds.has(token.id);
+  }
+
+  /** A token the canvas no longer shows cannot stay selected: its handles would float over nothing. */
+  private deselect(tokenId: string): void {
+    const { selectedIds, setSelection } = this.store.getState();
+    if (selectedIds.includes(tokenId)) setSelection(selectedIds.filter((id) => id !== tokenId));
+  }
+
   private applyTokenVisibilityPolicy(
     token: TokenEntity,
     tokenGroup: Container,
-    prevToken?: TokenEntity
+    prevToken?: TokenEntity,
+    isSeen = this.playerSightProvider?.(),
   ): void {
     const isHidden = token.isHidden ?? false;
 
-    if (isHidden && this.isInPlayerMode()) {
+    if (this.hidesToken(token, isSeen)) {
       tokenGroup.visible = false;
       tokenGroup.alpha = 1.0;
       this.uiManager.setTokenUIVisibility(token.id, false);
+      this.deselect(token.id);
       return;
     }
 
     tokenGroup.visible = true;
     this.uiManager.setTokenUIVisibility(token.id, true);
-    tokenGroup.alpha = isHidden ? 0.5 : 1.0;
+    tokenGroup.alpha = isHidden ? HIDDEN_TOKEN_ALPHA : 1.0;
 
     this.hiddenTokenIcon.update(tokenGroup, isHidden);
 
@@ -722,11 +749,37 @@ export class TokenRenderer {
    */
   private refreshTokenVisibility(): void {
     const tokens = this.store.getState().objects.tokens;
+    const isSeen = this.playerSightProvider?.();
     for (const [id, tokenGroup] of Object.entries(this.tokenSprites)) {
       const token = tokens[id];
       if (token && tokenGroup) {
-        this.applyTokenVisibilityPolicy(token, tokenGroup);
+        this.applyTokenVisibilityPolicy(token, tokenGroup, undefined, isSeen);
       }
+    }
+  }
+
+  /**
+   * `provider` answers which tokens the players see while this canvas shows their view of a
+   * lit scene (session view, the peek key), and nothing otherwise. Tokens they do not see are
+   * left out with their nameplates and bars, as in the player frame.
+   */
+  public setPlayerSightProvider(provider: () => ((tokenId: string) => boolean) | undefined): void {
+    this.playerSightProvider = provider;
+  }
+
+  /** The tokens the canvas shows: those a selection may take. */
+  public visibleTokenIds(): string[] {
+    return Object.entries(this.tokenSprites).filter(([, tokenGroup]) => tokenGroup?.visible).map(([id]) => id);
+  }
+
+  /** The players' sight changed, or whether the canvas shows it: tokens entering or leaving it show or hide. */
+  public refreshPlayerSight(): void {
+    const tokens = this.store.getState().objects.tokens;
+    const isSeen = this.playerSightProvider?.();
+    for (const [id, tokenGroup] of Object.entries(this.tokenSprites)) {
+      const token = tokens[id];
+      if (!token || !tokenGroup || tokenGroup.visible !== this.hidesToken(token, isSeen)) continue;
+      this.applyTokenVisibilityPolicy(token, tokenGroup, token, isSeen);
     }
   }
 
@@ -1396,6 +1449,11 @@ export class TokenRenderer {
     return this.uiManager.resourcesExtent(tokenId);
   }
 
+  /** Tokens and their bars and nameplates as the GM view shows them, whatever view the canvas is in: for a picture of the scene. */
+  public getGmViewLayers(): LayerVisibility[] {
+    return [...gmTokenLayers(this.store.getState().objects.tokens, this.tokenSprites), ...this.uiManager.getGmViewLayers()];
+  }
+
   /** Get all token sprites for external systems like SelectionManager. */
   public getTokenSprites(): Record<string, TokenGroupContainer> {
     return this.tokenSprites as Record<string, TokenGroupContainer>;
@@ -1447,6 +1505,11 @@ export class TokenRenderer {
   }
 
   /** Door badges: the GM opens and closes doors with a click from any tool but the wall tool, which edits them. */
+  /** Placed lights: their markers and range rings take the pointer with any tool, after pins and door badges. */
+  public setLightHandlers(handlers: LightPointerHandlers): void {
+    this.lightHandlers = handlers;
+  }
+
   public setDoorClickHandler(handler: (worldX: number, worldY: number) => boolean): void {
     this.doorClickHandler = handler;
   }
@@ -1463,7 +1526,7 @@ export class TokenRenderer {
     this.wallPointerUpHandler = fn;
   }
 
-  public setWallDoubleClickHandler(fn: (worldX: number, worldY: number) => void): void {
+  public setWallDoubleClickHandler(fn: () => void): void {
     this.wallDoubleClickHandler = fn;
   }
 
@@ -1657,6 +1720,12 @@ export class TokenRenderer {
       return;
     }
 
+    // ── Light markers and range rings: a light's popover and its drags, from any tool ──
+    if (e.button === 0 && this.lightHandlers?.pointerDown(worldPos.x, worldPos.y, e)) {
+      markHandled(e);
+      return;
+    }
+
     // ── Wall tool: drawing, vertex drag, selection ─────────────────────
     if (activeTool === 'wall' && e.button === 0 && this.wallPointerDownHandler) {
       const handled = this.wallPointerDownHandler(worldPos.x, worldPos.y, e);
@@ -1759,6 +1828,7 @@ export class TokenRenderer {
       this.lastHoveredPinId = null;
     }
     this.hexLinkHandlers?.hover(null);
+    this.lightHandlers?.leave();
     this.interactionController.handleViewportTokenHover(null);
     this.uiManager.setHoverState(null);
   };
@@ -1801,12 +1871,23 @@ export class TokenRenderer {
       this.lastHoveredPinId = null;
     }
 
+    // Light markers and range rings: hover and cursor from any tool
+    const lightCursor = this.lightHandlers?.cursorAt(worldPos.x, worldPos.y) ?? null;
+
     // Wall tool: pointer move for vertex dragging, freeform drawing, and hover cursors
     if (activeTool === 'wall' && this.wallPointerMoveHandler) {
       this.wallPointerMoveHandler(worldPos.x, worldPos.y, e);
 
       const wallCursor = this.wallCursorProvider?.(worldPos.x, worldPos.y) ?? 'crosshair';
-      this.applyCursor(wallCursor);
+      this.applyCursor(lightCursor ?? wallCursor);
+      return;
+    }
+
+    if (lightCursor) {
+      this.interactionController.handleViewportTokenHover(null);
+      this.uiManager.setHoverState(null);
+      this.hexLinkHandlers?.hover(null, e);
+      this.applyCursor(lightCursor);
       return;
     }
 
@@ -1850,11 +1931,8 @@ export class TokenRenderer {
     }
   };
 
-  private onCanvasDoubleClick = (ev: MouseEvent): void => {
-    if (this.store.getState().activeTool === 'wall') {
-      const worldPos = this.viewport.toWorld(ev.offsetX, ev.offsetY);
-      this.wallDoubleClickHandler?.(worldPos.x, worldPos.y);
-    }
+  private onCanvasDoubleClick = (): void => {
+    if (this.store.getState().activeTool === 'wall') this.wallDoubleClickHandler?.();
   };
 
   /**

@@ -232,9 +232,9 @@ export class SelectionManager {
         this.lassoPoints.push({ x: firstPoint.x, y: firstPoint.y });
       }
 
-      // Check which tokens are inside the lasso polygon
+      // Check which tokens are inside the lasso polygon; a token the canvas hides (session view) is not selectable
       for (const [id, tokenGroup] of Object.entries(tokenSprites)) {
-        if (tokenGroup) {
+        if (tokenGroup?.visible) {
           const tokenX = tokenGroup.position.x;
           const tokenY = tokenGroup.position.y;
 
@@ -271,7 +271,7 @@ export class SelectionManager {
       );
 
       for (const [id, tokenGroup] of Object.entries(tokenSprites)) {
-        if (tokenGroup) {
+        if (tokenGroup?.visible) {
           const halfSize = 35;
           const tokenBounds = {
             x: tokenGroup.position.x - halfSize,
@@ -378,7 +378,7 @@ export class SelectionManager {
 
     for (const id of selectedIds) {
       const tokenGroup = tokenSprites[id];
-      if (tokenGroup) {
+      if (tokenGroup?.visible) {
         // Get the actual sprite from the tokenGroup (should be the first child)
         const sprite = tokenGroup.children[0];
         if (sprite && sprite.width && sprite.height) {

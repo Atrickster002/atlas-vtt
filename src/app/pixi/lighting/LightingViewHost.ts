@@ -1,6 +1,7 @@
 import type { ViewAtlasStore } from '../../storeFactory';
 import type { AmbientLight, LightReach, Sight } from '../../vision/sight';
 import type { HideableLayer } from '../playerSafeFrame';
+import type { SceneFrame } from './engine/types';
 import type { LightingUnavailable } from './LightingRenderer';
 import type { SceneLightingView } from './sceneLightingView';
 
@@ -15,29 +16,31 @@ export interface LightingViewHostDeps {
   forgetAttempt: () => void;
   /** Tells the GM that line of sight stands in for dynamic lighting; `canRetry` when switching it off and on tries again. */
   notify: (canRetry: boolean) => void;
+  /** The view was swapped: sight and light now come from another one. */
+  onSightChange?: () => void;
 }
 
-/** The player-frame switch the map view holds on to, whichever view draws at the moment. */
+/** The switch to the players' view the map view holds on to, whichever view draws at the moment. */
 class ModeLayer implements HideableLayer {
-  private capturing = false;
+  private shown = false;
 
   constructor(private readonly current: () => SceneLightingView) {}
 
   get visible(): boolean {
-    return this.capturing;
+    return this.shown;
   }
 
-  set visible(capturing: boolean) {
-    this.capturing = capturing;
-    this.current().modeLayer.visible = capturing;
+  set visible(shown: boolean) {
+    this.shown = shown;
+    this.current().modeLayer.visible = shown;
   }
 }
 
 /**
  * The scene lighting of one map view, on the GPU engine while the graphics device can run it
  * and on the line-of-sight fallback when it cannot. Everything outside talks to this one
- * object, so the player-frame capture, the preview and the sight the tokens are checked
- * against carry over when the view behind it is swapped.
+ * object, so the players' view (captured or held in session view) and the sight the tokens are
+ * checked against carry over when the view behind it is swapped.
  *
  * The engine's view is replaced when it reports itself unavailable: `failed` (its shaders do
  * not compile here, or a pass threw) for the rest of this view's life, `unfinished` (its last
@@ -49,7 +52,6 @@ class ModeLayer implements HideableLayer {
 export class LightingViewHost implements SceneLightingView {
   readonly modeLayer: HideableLayer = new ModeLayer(() => this.view);
   private view: SceneLightingView;
-  private previewing = false;
   /** The fallback stands in for an unfinished attempt, not for an engine that failed. */
   private heldBack = false;
   /** The map whose unfinished attempt the GM was last told about, so a reload does not say it again. */
@@ -79,9 +81,10 @@ export class LightingViewHost implements SceneLightingView {
   resetExplored(): void { this.view.resetExplored(); }
   beforeMapUnload(): void { this.view.beforeMapUnload(); }
 
-  setPreview(on: boolean): void {
-    this.previewing = on;
-    this.view.setPreview(on);
+  /** An engine that fails while it prepares the frame is replaced during the call: the picture is then the fallback's. */
+  renderForFrame<T>(frame: SceneFrame, render: () => T): T {
+    const view = this.view;
+    return view.renderForFrame(frame, () => (this.view === view ? render() : this.view.renderForFrame(frame, render)));
   }
 
   destroy(): void {
@@ -127,8 +130,8 @@ export class LightingViewHost implements SceneLightingView {
     const last = this.view;
     this.view = next;
     next.modeLayer.visible = this.modeLayer.visible;
-    next.setPreview(this.previewing);
     this.release(last);
+    this.deps.onSightChange?.();
   }
 
   /**

@@ -371,11 +371,9 @@ export class UIManager implements ITokenUIManager {
     this.tokenResizeUI?.updateHandlePositions();
   }
 
+  /** Shows or hides a token's UI with its token; while hidden, no later update of the token shows it again. */
   setTokenUIVisibility(tokenId: string, visible: boolean): void {
-    const ui = this.tokenUIs[tokenId];
-    if (ui) {
-      ui.getContainer().visible = visible;
-    }
+    this.tokenUIs[tokenId]?.setHiddenWithToken(!visible);
   }
 
   private setupUIHoverHandlers(tokenId: string, tokenGroup: Container): void {
@@ -458,6 +456,15 @@ export class UIManager implements ITokenUIManager {
 
   setTokenSpriteProvider(provider: (tokenId: string) => TokenGroupContainer | null): void {
     this.getTokenSprite = provider;
+  }
+
+  /** The GM's token UI, shown for every token that has any (also those session view hides), and never the players' copy of it. */
+  getGmViewLayers(): LayerVisibility[] {
+    return [
+      { layer: this.uiContainer, visible: true },
+      ...(this.playerUIContainer ? [{ layer: this.playerUIContainer, visible: false }] : []),
+      ...Object.values(this.tokenUIs).map((ui) => ({ layer: ui.getContainer(), visible: ui.showsContent })),
+    ];
   }
 
   /** Cached player overlays keep player preferences independent of the DM UI. */

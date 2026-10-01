@@ -1,13 +1,18 @@
 import type { AmbientLight, LightReach, Sight } from '../../vision/sight';
 import type { HideableLayer } from '../playerSafeFrame';
+import type { SceneFrame } from './engine/types';
 
 /** What the map view needs from scene lighting, on the GPU or in the Canvas fallback. */
 export interface SceneLightingView {
-  /** Flipped by the player-frame capture: visible means the player's view. */
+  /** Visible means the players' view: flipped by the player-frame capture, held in session view. */
   readonly modeLayer: HideableLayer;
   isEnabled(): boolean;
-  /** Shows the GM exactly what the players see. */
-  setPreview(on: boolean): void;
+  /**
+   * Runs `render`, a render of `frame` (a thumbnail), with the scene lit for that frame as the GM
+   * sees it, whatever camera and view the canvas shows. Lighting that fails here leaves the
+   * render unlit.
+   */
+  renderForFrame<T>(frame: SceneFrame, render: () => T): T;
   currentSight(): Sight;
   lightReaches(): LightReach[];
   /** The ambient light the CPU checks tokens against. */

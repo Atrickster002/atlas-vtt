@@ -6,6 +6,11 @@ export const FIELD_MAX = 128;
 export const BASE_TEXEL = 2;
 /** Longest side of a world-space texture; larger maps get coarser texels. */
 export const MAX_TEXELS = 4096;
+/**
+ * Farthest a light may reach, in world pixels: the side of the largest map lit at full
+ * resolution. A light's tile is cut to the map, so the engine never traces more than this.
+ */
+export const MAX_LIGHT_REACH = MAX_TEXELS * BASE_TEXEL;
 /** Rays traced across a light's flame per tile texel in its penumbra. */
 export const TILE_RAYS = 32;
 /**

@@ -11,6 +11,11 @@ const ICON_SPACE = 512;
  * showing the icon shares one texture. Null where no 2D canvas is available.
  */
 export function createPinIconTexture(id: PinIconId): Texture | null {
+  return createGlyphTexture(PIN_ICON_PATHS[id]);
+}
+
+/** The white raster of a glyph path drawn on the icons' 512×512 canvas, with mipmaps. */
+export function createGlyphTexture(path: string): Texture | null {
   const canvas = createEl('canvas');
   canvas.width = PIN_ICON_TEXTURE_SIZE;
   canvas.height = PIN_ICON_TEXTURE_SIZE;
@@ -19,9 +24,9 @@ export function createPinIconTexture(id: PinIconId): Texture | null {
 
   ctx.fillStyle = '#ffffff';
   ctx.scale(PIN_ICON_TEXTURE_SIZE / ICON_SPACE, PIN_ICON_TEXTURE_SIZE / ICON_SPACE);
-  ctx.fill(new Path2D(PIN_ICON_PATHS[id]));
+  ctx.fill(new Path2D(path));
 
-  // Mipmaps keep the glyph clean when the map is zoomed out and pins grow small on screen
+  // Mipmaps keep the glyph clean when the map is zoomed out and markers grow small on screen
   return new Texture({
     source: new CanvasSource({ resource: canvas, autoGenerateMipmaps: true, scaleMode: 'linear' }),
   });

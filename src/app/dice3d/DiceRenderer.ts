@@ -112,14 +112,9 @@ export class DiceRenderer {
   /** Who has landed already: the landing fires only once. */
   private landed: boolean[] = [];
   private readonly floorMat: THREE.ShadowMaterial;
-  /** How much stronger the shadow stands on a dark page (see above). */
-  private readonly shadowGain: number;
   private lastTime: number | null = null;
 
   constructor(canvas: HTMLCanvasElement) {
-    const night = nightSheet(canvas);
-    this.shadowGain = night ? NIGHT_SHADOW_GAIN : 1;
-
     this.renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.shadowMap.enabled = true;
@@ -157,10 +152,7 @@ export class DiceRenderer {
     this.scene.add(fill);
 
     // The table: invisible except for the shadow falling on it.
-    this.floorMat = new THREE.ShadowMaterial({
-      color: night ? 0x000000 : INK,
-      opacity: SHADOW_SHARP.opacity * this.shadowGain,
-    });
+    this.floorMat = new THREE.ShadowMaterial({ color: INK, opacity: SHADOW_SHARP.opacity });
     const floor = new THREE.Mesh(new THREE.PlaneGeometry(24, 24), this.floorMat);
     floor.rotation.x = -Math.PI / 2;
     floor.position.y = FLOOR_Y;
@@ -287,8 +279,12 @@ export class DiceRenderer {
     }
     const softness = Math.min(1, Math.max(0, height));
     this.key.shadow.radius = SHADOW_SHARP.blur + (SHADOW_SOFT.blur - SHADOW_SHARP.blur) * softness;
+    // Read on every frame: the renderer is pooled and outlives a theme switch.
+    const night = nightSheet(this.renderer.domElement);
+    const shadowGain = night ? NIGHT_SHADOW_GAIN : 1;
+    this.floorMat.color.setHex(night ? 0x000000 : INK);
     this.floorMat.opacity =
-      (SHADOW_SHARP.opacity + (SHADOW_SOFT.opacity - SHADOW_SHARP.opacity) * softness) * this.shadowGain;
+      (SHADOW_SHARP.opacity + (SHADOW_SOFT.opacity - SHADOW_SHARP.opacity) * softness) * shadowGain;
 
     this.placeCamera(dice, dt);
     this.sparks.step(dt);

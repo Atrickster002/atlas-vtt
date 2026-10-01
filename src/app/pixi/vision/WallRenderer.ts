@@ -5,28 +5,24 @@ import type { Viewport } from 'pixi-viewport';
 import type { StoreApi } from 'zustand';
 import type { ViewAtlasState } from '../../storeFactory';
 import type { WallSegment } from '../../types/wallTypes';
-import type { LightSource } from '../../types/lightingTypes';
 import { cssColorToHexNumber } from '../utils/colorUtils';
 import { destroyTree } from '../utils/destroyTree';
 
 const VERTEX_HANDLE_RADIUS = 4;
-const LIGHT_ICON_RADIUS = 14;
 const HIT_TOLERANCE = 6;
 
 /**
- * Renders GM-only wall editor visuals: wall lines, door icons,
- * light source icons, vertex handles, and selection highlights.
- * Only visible when wall tool is active or GM is peeking.
+ * Renders GM-only wall editor visuals: wall lines, door icons, vertex handles and
+ * selection highlights. Lights have their own markers (`LightMarkers`).
+ * Only visible while the lighting tool is active in the GM's view.
  */
 export class WallRenderer {
   private container: Container;
   private wallGraphics: Graphics;
   private handleGraphics: Graphics;
-  private lightGraphics: Graphics;
   private previewGraphics: Graphics;
   private store: StoreApi<ViewAtlasState>;
   private selectedWallIds: Set<string> = new Set();
-  private selectedLightIds: Set<string> = new Set();
   private accentColor = 0x7f6df2;
   private _unsubscribe?: () => void;
 
@@ -54,11 +50,9 @@ export class WallRenderer {
 
     this.wallGraphics = new Graphics();
     this.handleGraphics = new Graphics();
-    this.lightGraphics = new Graphics();
     this.previewGraphics = new Graphics();
 
     this.container.addChild(this.wallGraphics);
-    this.container.addChild(this.lightGraphics);
     this.container.addChild(this.handleGraphics);
     this.container.addChild(this.previewGraphics);
 
@@ -75,18 +69,8 @@ export class WallRenderer {
     this.redraw(state);
   }
 
-  setVisible(visible: boolean): void {
-    this.container.visible = visible;
-    if (visible) this.forceRedraw();
-  }
-
   setSelectedWalls(ids: string[]): void {
     this.selectedWallIds = new Set(ids);
-    this.forceRedraw();
-  }
-
-  setSelectedLights(ids: string[]): void {
-    this.selectedLightIds = new Set(ids);
     this.forceRedraw();
   }
 
@@ -249,17 +233,9 @@ export class WallRenderer {
     );
     this.wallGraphics.clear();
     this.handleGraphics.clear();
-    this.lightGraphics.clear();
 
-    const walls = state.objects.walls;
-    const lights = state.objects.lights;
-
-    for (const wall of Object.values(walls)) {
+    for (const wall of Object.values(state.objects.walls)) {
       this.drawWall(wall);
-    }
-
-    for (const light of Object.values(lights)) {
-      this.drawLight(light);
     }
   }
 
@@ -316,26 +292,6 @@ export class WallRenderer {
     h.circle(wall.p2.x, wall.p2.y, VERTEX_HANDLE_RADIUS);
     h.fill({ color: handleColor, alpha: 0.8 });
     h.stroke({ width: 1, color: baseColor });
-  }
-
-  private drawLight(light: LightSource): void {
-    const isSelected = this.selectedLightIds.has(light.id);
-    const color = isSelected ? 0x7f6df2 : 0xffcc33;
-
-    const g = this.lightGraphics;
-
-    // Outer glow ring
-    g.circle(light.x, light.y, LIGHT_ICON_RADIUS + 6);
-    g.fill({ color: 0xffaa00, alpha: 0.15 });
-
-    // Main icon: filled warm yellow circle with white border
-    g.circle(light.x, light.y, LIGHT_ICON_RADIUS);
-    g.fill({ color, alpha: 0.9 });
-    g.stroke({ width: 2, color: 0xffffff, alpha: 0.8 });
-
-    // Inner dot for visual weight
-    g.circle(light.x, light.y, 4);
-    g.fill({ color: 0xffffff, alpha: 0.6 });
   }
 
   private getWallColor(wall: WallSegment): number {
@@ -443,19 +399,6 @@ export class WallRenderer {
     return null;
   }
 
-  /** Hit-test light sources at a world coordinate. Returns light id or null. */
-  hitTestLights(worldX: number, worldY: number): string | null {
-    const lights = this.store.getState().objects.lights;
-    for (const light of Object.values(lights)) {
-      const dx = worldX - light.x;
-      const dy = worldY - light.y;
-      if (dx * dx + dy * dy < LIGHT_ICON_RADIUS * LIGHT_ICON_RADIUS * 4) {
-        return light.id;
-      }
-    }
-    return null;
-  }
-
   /** Hit-test wall vertex handles. Returns { wallId, vertex } or null. */
   hitTestVertices(worldX: number, worldY: number): { wallId: string; vertex: 'p1' | 'p2' } | null {
     const walls = this.store.getState().objects.walls;
@@ -496,7 +439,6 @@ export class WallRenderer {
     this._unsubscribe?.();
     this.wallGraphics.destroy();
     this.handleGraphics.destroy();
-    this.lightGraphics.destroy();
     this.previewGraphics.destroy();
     destroyTree(this.container);
   }

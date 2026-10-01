@@ -20,20 +20,24 @@ export interface SceneLightingDeps {
   bounds: () => MapBounds | null;
   /** The map image, for the colours light bounces off. */
   albedo: () => Texture | null;
+  /** What the tokens see, or which light reaches them, changed (`playerTokenSight`). */
+  onSightChange?: () => void;
 }
 
 /**
  * The scene lighting of a map view: the GPU engine where the graphics device runs it, the
  * line-of-sight fallback where it does not (`LightingViewHost` swaps them).
  */
-export function createSceneLighting({ viewport, app, store, obsApp, measurement, bounds, albedo }: SceneLightingDeps): LightingViewHost {
+export function createSceneLighting({ viewport, app, store, obsApp, measurement, bounds, albedo, onSightChange }: SceneLightingDeps): LightingViewHost {
   const attempt = new StoredLightingAttempt(obsApp, () => store.getState().mapPath);
+  const sight = onSightChange ? { onSightChange } : {};
   return new LightingViewHost({
     store,
     canvasRenderer: usesCanvasRenderer(app.renderer),
-    createEngineView: (onUnavailable) => new LightingRenderer({ viewport, app, store, measurement, bounds, albedo, attempt, onUnavailable }),
-    createFallback: () => new CanvasLightingFallback({ viewport, store, measurement, bounds }),
+    createEngineView: (onUnavailable) => new LightingRenderer({ viewport, app, store, measurement, bounds, albedo, attempt, onUnavailable, ...sight }),
+    createFallback: () => new CanvasLightingFallback({ viewport, store, measurement, bounds, ...sight }),
     forgetAttempt: () => attempt.forget(),
     notify: showLightingUnavailableNotice,
+    ...sight,
   });
 }

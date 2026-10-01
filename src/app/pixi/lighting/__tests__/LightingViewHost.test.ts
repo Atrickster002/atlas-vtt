@@ -7,23 +7,32 @@ import type { SceneLightingView } from '../sceneLightingView';
 
 interface FakeView extends SceneLightingView {
   modeLayer: { visible: boolean };
-  preview: boolean;
   destroyed: boolean;
+  /** How many pictures this view rendered. */
+  pictures: number;
+  /** What the view does before it renders a frame, such as an engine failing while it prepares it. */
+  beforeFrame: () => void;
 }
 
 function fakeView(sight: Sight = SEES_ALL): FakeView {
   const view: FakeView = {
     modeLayer: { visible: false },
-    preview: false,
     destroyed: false,
+    pictures: 0,
+    beforeFrame: () => undefined,
     isEnabled: () => true,
-    setPreview: (on) => { view.preview = on; },
     currentSight: () => sight,
     lightReaches: () => [],
     ambientLight: () => ({ ambient: 1 }),
     refreshBounds: vi.fn(),
     resetExplored: vi.fn(),
     beforeMapUnload: vi.fn(),
+    renderForFrame: (_frame, render) => {
+      view.beforeFrame();
+      const picture = render();
+      view.pictures++;
+      return picture;
+    },
     destroy: () => { view.destroyed = true; },
   };
   return view;
@@ -44,6 +53,7 @@ interface Setup {
   loadMap: (path: string) => void;
   forgetAttempt: ReturnType<typeof vi.fn>;
   notify: ReturnType<typeof vi.fn>;
+  onSightChange: ReturnType<typeof vi.fn>;
 }
 
 function setup(options: { canvasRenderer?: boolean; givesUpAtStart?: LightingUnavailable } = {}): Setup {
@@ -64,6 +74,7 @@ function setup(options: { canvasRenderer?: boolean; givesUpAtStart?: LightingUna
   } as unknown as ViewAtlasStore;
   const forgetAttempt = vi.fn();
   const notify = vi.fn();
+  const onSightChange = vi.fn();
   let startsBroken = options.givesUpAtStart;
   const host = new LightingViewHost({
     store,
@@ -83,6 +94,7 @@ function setup(options: { canvasRenderer?: boolean; givesUpAtStart?: LightingUna
     },
     forgetAttempt,
     notify,
+    onSightChange,
   });
   return {
     host,
@@ -101,6 +113,7 @@ function setup(options: { canvasRenderer?: boolean; givesUpAtStart?: LightingUna
     },
     forgetAttempt,
     notify,
+    onSightChange,
   };
 }
 
@@ -132,25 +145,29 @@ describe('LightingViewHost', () => {
     expect(forgetAttempt).toHaveBeenCalledOnce();
   });
 
-  it('keeps the player frame, the preview and its consumers working through the swap', () => {
+  it('keeps the players\' view and its consumers working through the swap', () => {
     const { host, fallbacks, giveUp } = setup();
     const modeLayer = host.modeLayer;
-    host.setPreview(true);
     modeLayer.visible = true;
 
     giveUp('failed');
 
     expect(host.modeLayer).toBe(modeLayer);
     expect(fallbacks[0]!.modeLayer.visible).toBe(true);
-    expect(fallbacks[0]!.preview).toBe(true);
     modeLayer.visible = false;
-    host.setPreview(false);
     expect(fallbacks[0]!.modeLayer.visible).toBe(false);
-    expect(fallbacks[0]!.preview).toBe(false);
     host.refreshBounds();
     host.beforeMapUnload();
     expect(fallbacks[0]!.refreshBounds).toHaveBeenCalledOnce();
     expect(fallbacks[0]!.beforeMapUnload).toHaveBeenCalledOnce();
+  });
+
+  it('reports the sight of the view it swapped in, once that view answers for the host', () => {
+    const { host, giveUp, onSightChange } = setup();
+    const seen: Sight[] = [];
+    onSightChange.mockImplementation(() => seen.push(host.currentSight()));
+    giveUp('failed');
+    expect(seen).toEqual([FALLBACK_SIGHT]);
   });
 
   it('stays on the fallback for the rest of the view after a failure, whatever the GM switches', () => {
@@ -175,14 +192,14 @@ describe('LightingViewHost', () => {
 
   it('forgets the unfinished attempt and brings the engine back when the GM switches lighting off', () => {
     const { host, engines, fallbacks, switchLighting, forgetAttempt, notify } = setup({ givesUpAtStart: 'unfinished' });
-    host.setPreview(true);
+    host.modeLayer.visible = true;
 
     switchLighting(false);
 
     expect(forgetAttempt).toHaveBeenCalledOnce();
     expect(engines).toHaveLength(2);
     expect(engines[1]!.destroyed).toBe(false);
-    expect(engines[1]!.preview).toBe(true);
+    expect(engines[1]!.modeLayer.visible).toBe(true);
     expect(fallbacks[0]!.destroyed).toBe(true);
     expect(host.currentSight()).toBe(SEES_ALL);
     switchLighting(true);
@@ -278,5 +295,26 @@ describe('LightingViewHost', () => {
     expect(engines).toHaveLength(1);
     expect(() => giveUp('failed')).not.toThrow();
     expect(fallbacks).toHaveLength(1);
+  });
+
+  it('renders a frame through the view that lights the map', () => {
+    const { host, engines, fallbacks } = setup();
+    expect(host.renderForFrame({ x: 0, y: 0, resolution: 0.5 }, () => 'picture')).toBe('picture');
+    expect(engines[0]!.pictures).toBe(1);
+    expect(fallbacks).toHaveLength(0);
+  });
+
+  it('takes the picture through the fallback when the engine fails while it prepares the frame', () => {
+    const { host, engines, fallbacks, giveUp } = setup();
+    host.modeLayer.visible = true;
+    engines[0]!.beforeFrame = () => giveUp('failed');
+    const render = vi.fn(() => 'picture');
+
+    expect(host.renderForFrame({ x: 0, y: 0, resolution: 0.5 }, render)).toBe('picture');
+    // The fallback, which keeps the darkness of the players' view on the canvas out, rendered it, once.
+    expect(fallbacks).toHaveLength(1);
+    expect(fallbacks[0]!.pictures).toBe(1);
+    expect(fallbacks[0]!.modeLayer.visible).toBe(true);
+    expect(render).toHaveBeenCalledTimes(1);
   });
 });

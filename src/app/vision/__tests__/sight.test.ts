@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { SEES_ALL, SightCache, computeSight, isFelt, isSeen, lightReach, sceneSight, sightSources, type SightSource } from '../sight';
+import { SEES_ALL, SightCache, computeSight, isFelt, isSeen, lightReach, sceneSight, sightOptionsChanged, sightSources, type SightSource } from '../sight';
 import type { TokenEntity } from '../../types';
 import type { WallSegment } from '../../types/wallTypes';
 
@@ -216,5 +216,21 @@ describe('sceneSight', () => {
     const sight = sceneSight({ tokenVision: false }, [source()], [wall]);
     expect(sight).toBe(SEES_ALL);
     expect(isSeen({ x: 300, y: 100 }, sight, { ambient: 1 }, [])).toBe(true);
+  });
+});
+
+describe('sightOptionsChanged', () => {
+  const night = { enabled: true, ambient: 0.1 };
+
+  it('is true for the options that decide what is seen and recorded', () => {
+    expect(sightOptionsChanged(night, { ...night, tokenVision: false })).toBe(true);
+    expect(sightOptionsChanged(night, { ...night, exploredMemory: false })).toBe(true);
+    expect(sightOptionsChanged(night, { ...night, litThreshold: 0.5 })).toBe(true);
+  });
+
+  it('is true when the ambient light crosses the lit threshold, and false for other ambient changes and for colours', () => {
+    expect(sightOptionsChanged(night, { ...night, ambient: 0.25 })).toBe(true);
+    expect(sightOptionsChanged(night, { ...night, ambient: 0.2 })).toBe(false);
+    expect(sightOptionsChanged(night, { ...night, ambientColor: '#ffeecc', exploredColor: '#112233' })).toBe(false);
   });
 });

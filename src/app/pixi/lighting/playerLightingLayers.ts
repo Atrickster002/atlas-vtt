@@ -1,14 +1,17 @@
 import type { TokenEntity } from '../../types';
 import { isFelt, isSeen, type AmbientLight, type LightReach, type Sight } from '../../vision/sight';
 import type { HideableLayer, LayerVisibility } from '../playerSafeFrame';
+import type { SceneLightingView } from './sceneLightingView';
 
 /** Things only the GM may see. A type, not an interface, so `Object.values` knows its layers. */
 export type GmOverlays = {
-  /** Wall lines and light handles, shown with the lighting tool. */
+  /** Wall lines and their handles, shown with the lighting tool. */
   wallEditor: HideableLayer;
   doorBadges: HideableLayer;
-  /** Faint light icons, shown without the lighting tool. */
+  /** The badges on placed lights. */
   lightMarkers: HideableLayer;
+  /** The range rings of the light whose popover is open. */
+  rangeRings: HideableLayer;
 };
 
 export interface PlayerLightingInput {
@@ -18,7 +21,11 @@ export interface PlayerLightingInput {
   gmOverlays: GmOverlays;
 }
 
-/** Layer changes for a player frame: the GM's overlays never show; with lighting on, the player's view. */
+/**
+ * Layer changes for the players' view: the GM's overlays never show; with lighting on, the
+ * player's view. The one list of them: a player frame applies it for one capture, the GM's own
+ * canvas holds it in session view (`SessionLighting`).
+ */
 export function playerLightingLayers({ enabled, modeLayer, gmOverlays }: PlayerLightingInput): LayerVisibility[] {
   const hidden = Object.values<HideableLayer>(gmOverlays).map((layer) => ({ layer, visible: false }));
   return enabled ? [{ layer: modeLayer, visible: true }, ...hidden] : hidden;
@@ -40,4 +47,16 @@ export function tokenSeenPredicate(
     const at = { x: token.x, y: token.y };
     return !!token.vision?.enabled || isFelt(at, sight) || isSeen(at, sight, ambient, lights);
   };
+}
+
+/**
+ * Which tokens the players see by a scene's lighting, for their frame and for the GM's canvas
+ * in session view alike. Undefined while the scene is unlit: sight hides nothing then.
+ */
+export function playerTokenSight(
+  lighting: Pick<SceneLightingView, 'isEnabled' | 'currentSight' | 'ambientLight' | 'lightReaches'>,
+  tokens: Record<string, TokenEntity>,
+): ((tokenId: string) => boolean) | undefined {
+  if (!lighting.isEnabled()) return undefined;
+  return tokenSeenPredicate(lighting.currentSight(), lighting.ambientLight(), lighting.lightReaches(), tokens);
 }

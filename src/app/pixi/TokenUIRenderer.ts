@@ -35,6 +35,9 @@ function textResolutionFor(uiScale: number): number {
 
 export class TokenUIRenderer {
   private container: Container;
+  /** `update` found a bar, nameplate or condition to show. */
+  private hasContent = true;
+  private hiddenWithToken = false;
   /** Bars and nameplate, anchored at the token's bottom edge and scaled with the token. */
   private belowToken: Container;
   /** Eases the UI between its resting scale (0) and a selected token's on-screen size (1). */
@@ -350,12 +353,9 @@ export class TokenUIRenderer {
     this.resources.update(bars, baseGap, this.canAnimateValues());
     this.wheels.update(wheels);
 
-    if (!hasResources && !showNameplate && !hasConditions) {
-      this.container.visible = false;
-      return;
-    }
-    
-    this.container.visible = true;
+    this.hasContent = hasResources || showNameplate || hasConditions;
+    this.container.visible = this.hasContent && !this.hiddenWithToken;
+    if (!this.hasContent) return;
 
     // A defeated token's first defeating bar is darkened
     const defeatedSlot = defeated ? this.defeatedSlot(shown) : undefined;
@@ -508,6 +508,20 @@ export class TokenUIRenderer {
   private wheelAnchor(): { x: number; y: number } {
     const state = this.store?.getState();
     return wheelAnchor(this.currentTokenSize, state?.grid?.size ?? 70, state?.tokenSettings?.tokenRingSize ?? 1);
+  }
+
+  /**
+   * The canvas leaves the token out (hidden, or unseen by the players in session view): its UI
+   * stays hidden through every `update`, until the token shows again.
+   */
+  public setHiddenWithToken(hidden: boolean): void {
+    this.hiddenWithToken = hidden;
+    this.container.visible = this.hasContent && !hidden;
+  }
+
+  /** Whether the UI has something to show: what the GM's view shows of it. */
+  public get showsContent(): boolean {
+    return this.hasContent;
   }
 
   /** Marks the pointer as down on this token; a held or dragged token keeps its UI at rest. */

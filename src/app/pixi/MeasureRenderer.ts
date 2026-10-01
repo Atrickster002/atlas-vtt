@@ -7,6 +7,7 @@ import { pathLengthInCells } from '../grid/gridDistance';
 import { formatDistance, resolveMeasurementSettings, type MeasurementSettings } from '../grid/measurementFormat';
 import type { ViewAtlasState } from '../storeFactory';
 import type { StoreApi } from 'zustand';
+import { isHandled } from './utils/handledEvents';
 import { createMeasureLabelText, drawMeasureCircle, drawMeasureLabel, drawMeasurePath, drawMeasurePoint, measureLabelFontSize } from './utils/measureDrawing';
 
 interface PersistentMeasurement {
@@ -169,8 +170,8 @@ export class MeasureRenderer {
       return;
     }
     
-    // Left click - measure tool
-    if (e.button === 0) {
+    // Left click - measure tool, unless a pin, door badge or light marker took the press
+    if (e.button === 0 && !isHandled(e)) {
       e.stopPropagation();
       
       const point = this.measurePoint(e);

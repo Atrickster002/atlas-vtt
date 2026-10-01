@@ -1,16 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import { Container } from 'pixi.js';
-import { playerLightingLayers, tokenSeenPredicate, type GmOverlays } from '../playerLightingLayers';
+import { playerLightingLayers, playerTokenSight, tokenSeenPredicate, type GmOverlays } from '../playerLightingLayers';
 import { hiddenTokenLayers } from '../../playerSafeFrame';
 import { computeSight } from '../../../vision/sight';
 import type { TokenEntity } from '../../../types';
 
 describe('playerLightingLayers', () => {
   function overlays(): GmOverlays {
-    return { wallEditor: new Container(), doorBadges: new Container(), lightMarkers: new Container() };
+    return { wallEditor: new Container(), doorBadges: new Container(), lightMarkers: new Container(), rangeRings: new Container() };
   }
 
-  it('switches the lighting to the player view and hides every GM overlay, light markers included', () => {
+  it('switches the lighting to the player view and hides every GM overlay, light markers and range rings included', () => {
     const modeLayer = { visible: false };
     const gm = overlays();
     expect(playerLightingLayers({ enabled: true, modeLayer, gmOverlays: gm })).toEqual([
@@ -18,6 +18,7 @@ describe('playerLightingLayers', () => {
       { layer: gm.wallEditor, visible: false },
       { layer: gm.doorBadges, visible: false },
       { layer: gm.lightMarkers, visible: false },
+      { layer: gm.rangeRings, visible: false },
     ]);
   });
 
@@ -27,6 +28,7 @@ describe('playerLightingLayers', () => {
       { layer: gm.wallEditor, visible: false },
       { layer: gm.doorBadges, visible: false },
       { layer: gm.lightMarkers, visible: false },
+      { layer: gm.rangeRings, visible: false },
     ]);
   });
 });
@@ -57,6 +59,28 @@ describe('tokenSeenPredicate', () => {
 
   it('treats unknown tokens as unseen', () => {
     expect(tokenSeenPredicate(sight, { ambient: 1 }, [], tokens)('missing')).toBe(false);
+  });
+});
+
+describe('playerTokenSight', () => {
+  const wall = { id: 'w', kind: 'wall' as const, type: 'solid' as const, p1: { x: 200, y: 0 }, p2: { x: 200, y: 400 } };
+  const sight = computeSight([{ tokenId: 'hero', origin: { x: 100, y: 100 }, range: 1000, darkvision: 0 }], [wall]);
+  const lurker: TokenEntity = { id: 'lurker', kind: 'token', imagePath: 'l.png', x: 400, y: 100 };
+
+  function lighting(enabled: boolean): Parameters<typeof playerTokenSight>[0] {
+    return { isEnabled: () => enabled, currentSight: () => sight, ambientLight: () => ({ ambient: 1 }), lightReaches: () => [] };
+  }
+
+  it('hides nothing by sight while the scene has no lighting', () => {
+    expect(playerTokenSight(lighting(false), { lurker })).toBeUndefined();
+  });
+
+  it('is the seen predicate of the scene\'s sight and light', () => {
+    expect(playerTokenSight(lighting(true), { lurker })?.('lurker')).toBe(false);
+  });
+
+  it('follows a token that moved into sight', () => {
+    expect(playerTokenSight(lighting(true), { lurker: { ...lurker, x: 150 } })?.('lurker')).toBe(true);
   });
 });
 

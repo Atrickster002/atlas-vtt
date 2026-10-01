@@ -22,6 +22,7 @@ import { canInteractWithFog, resolveFogPreviewAlpha } from './fogVisibilityPolic
 import type { LayerVisibility } from '../playerSafeFrame';
 import { destroyTree } from '../utils/destroyTree';
 import { requestRender } from '../RenderScheduler';
+import { isHandled } from '../utils/handledEvents';
 import { openContextMenuGlobal } from '../../react/root/ContextMenuContext';
 
 const DEFAULT_BOUNDS: FogBounds = { x: -2000, y: -2000, width: 4000, height: 4000 };
@@ -194,6 +195,11 @@ export class FogOfWarRenderer {
       { layer: this.lassoGraphics, visible: false },
       { layer: this.rectPreviewGraphics, visible: false },
     ];
+  }
+
+  /** The fog as translucent as the GM view shows it, also while the canvas is in session view: for a picture of the scene. */
+  getGmViewLayers(): LayerVisibility[] {
+    return [{ layer: this.previewSprite, visible: this.previewSprite.visible, alpha: resolveFogPreviewAlpha({ isPlayerView: false, isGMView: true }) }];
   }
 
   /** Returns a map of fog sprite IDs → Containers for SelectionManager. */
@@ -742,6 +748,8 @@ export class FogOfWarRenderer {
   private onPointerDown(event: PIXI.FederatedPointerEvent): void {
     const tool = this.store.getState().activeTool;
     if (tool !== 'fog' && tool !== 'eraser') return;
+    // A press a pin, door badge or light marker took paints no fog.
+    if (isHandled(event)) return;
 
     const worldPos = this.viewport.toWorld(event.global);
 

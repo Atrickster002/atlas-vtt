@@ -31,7 +31,8 @@ import { isViewportPanEnabled } from "./pixi/utils/viewportPan";
 import { TextRenderer } from "./pixi/TextRenderer"; // Import TextRenderer
 import { TextTool } from "./tools/TextTool"; // Import TextTool
 import { LightingController } from './pixi/lighting/LightingController';
-import { playerLightingLayers, tokenSeenPredicate } from './pixi/lighting/playerLightingLayers';
+import type { SceneFrame } from './pixi/lighting/engine/types';
+import { captureSceneFrame } from './pixi/sceneFrameCapture';
 import { WALLS_AND_LIGHTING_ENABLED } from './featureFlags';
 import { AudioTool } from './tools/AudioTool';
 import { openAudioConfigPanel } from './pixi/audio/AudioConfigPanel';
@@ -733,18 +734,12 @@ export class PixiRendererOrchestrator { // Renamed class
   public withPlayerSafeFrame(capture: () => void, settings: AtlasSettings['localPlayerView'], camera?: PlayerCameraState, renderFollows = false): void {
     const app = this.pixiAppManager.getApp();
     if (!app?.renderer) return;
-    const layers: LayerVisibility[] = [];
-    if (this.pinRenderer) layers.push({ layer: this.pinRenderer.getPinContainer(), visible: false });
-    if (this.hexLinkRenderer) layers.push({ layer: this.hexLinkRenderer.container, visible: false });
+    const layers = this.markerLayers();
     const grid = this.gridSystem?.getGridSprite();
     if (grid) layers.push({ layer: grid, visible: settings.showGrid });
-    const lighting = this.lighting?.renderer;
-    const lit = !!lighting?.isEnabled();
-    const isSeen = lighting && lit
-      ? tokenSeenPredicate(lighting.currentSight(), lighting.ambientLight(), lighting.lightReaches(), this.store.getState().objects.tokens)
-      : undefined;
-    layers.push(...(this.tokenRenderer?.getPlayerViewLayers(settings, isSeen) ?? []));
-    if (this.lighting) layers.push(...playerLightingLayers({ enabled: lit, modeLayer: this.lighting.renderer.modeLayer, gmOverlays: this.lighting.gmOverlays() }));
+    // The lighting's part is the list session view holds on this canvas (`SessionLighting`).
+    layers.push(...(this.tokenRenderer?.getPlayerViewLayers(settings, this.lighting?.playerSight()) ?? []));
+    layers.push(...(this.lighting?.playerLayers() ?? []));
     layers.push(...(this.fogRenderer?.getPlayerViewLayers() ?? []));
     layers.push(...(this.selectionManager?.getPlayerViewLayers() ?? []));
     for (const overlay of this.dmScreenOverlays) layers.push({ layer: overlay, visible: false });
@@ -752,6 +747,31 @@ export class PixiRendererOrchestrator { // Renamed class
     const playerCamera = camera && viewport ? { target: viewport, camera } : undefined;
     const captureFrame = renderFollows ? captureBeforeRender : captureWithLayerVisibility;
     captureFrame(layers, () => app.renderer.render(app.stage), capture, playerCamera);
+  }
+
+  /** The GM's markers on the map: neither the players nor a picture of the scene show them. */
+  private markerLayers(): LayerVisibility[] {
+    const layers: LayerVisibility[] = [];
+    if (this.pinRenderer) layers.push({ layer: this.pinRenderer.getPinContainer(), visible: false });
+    if (this.hexLinkRenderer) layers.push({ layer: this.hexLinkRenderer.container, visible: false });
+    return layers;
+  }
+
+  /**
+   * Runs `render`, the off-screen render of a thumbnail's `frame`: always the GM's picture
+   * (`gmViewLayers`), lit as the GM sees the scene, without the GM's overlays.
+   */
+  public captureSceneFrame<T>(frame: SceneFrame, render: () => T): T {
+    return captureSceneFrame({ gmViewLayers: this.gmViewLayers(), markerLayers: this.markerLayers(), lighting: this.lighting }, frame, render);
+  }
+
+  /**
+   * Tokens and fog as the GM view shows them, for a picture taken while the canvas is in session
+   * view. Session view must hide through these layers' `visible` and `alpha`; what it hides in
+   * another way is added here.
+   */
+  private gmViewLayers(): LayerVisibility[] {
+    return [...(this.tokenRenderer?.getGmViewLayers() ?? []), ...(this.fogRenderer?.getGmViewLayers() ?? [])];
   }
 
   getViewportInstance(): Viewport | null { return this.pixiAppManager.getViewport(); }
