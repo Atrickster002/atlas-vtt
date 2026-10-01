@@ -87,6 +87,8 @@ export class TokenUIRenderer {
   /** Condition badges on the token's ring and the card naming them on hover. */
   private conditionUI = new TokenConditionsUI();
   public conditionDefsProvider: (() => ConditionDefinition[]) | null = null;
+  /** A line for the GM on the hover card (`TokenConditionsUI`): the light a token stands in and how the players perceive it. */
+  public sightLineProvider: ((tokenId: string) => string | null) | null = null;
   /** Viewport zoom, for the constant on-screen size of a selected token's UI; none in the player view. */
   public zoomProvider: (() => number) | null = null;
   /** Receives every new UI scale, so the +/- controls can match the bars. */
@@ -581,10 +583,19 @@ export class TokenUIRenderer {
     this.conditionUI.setCardScale(ringRadius, cardScale);
   }
 
+  private sightLine(): string | null {
+    return this.currentToken ? this.sightLineProvider?.(this.currentToken.id) ?? null : null;
+  }
+
+  /** The players' sight changed: an open hover card takes its new line. */
+  public refreshSightLine(): void {
+    this.conditionUI.setNote(this.sightLine());
+  }
+
   /** Redraws the condition badges from the current definitions, e.g. after an icon or colour was edited. */
   public refreshConditions(): void {
     if (!this.currentToken || this.currentTokenSize <= 0) return;
-    this.conditionUI.update(this.currentToken, this.conditionDefsProvider?.() ?? [], this.conditionsLayout());
+    this.conditionUI.update(this.currentToken, this.conditionDefsProvider?.() ?? [], this.conditionsLayout(), this.sightLine());
   }
 
   /**
@@ -666,7 +677,7 @@ export class TokenUIRenderer {
 
   /** The conditions card is for looking at a token: selecting, pressing or dragging it hides the card. */
   private updateConditionCard(): void {
-    this.conditionUI.setHovered(this.isPlainHover && !this.isSelected && !this.isHeld);
+    this.conditionUI.setHovered(this.isPlainHover && !this.isSelected && !this.isHeld, () => this.sightLine());
   }
   
   public setSelectionState(selected: boolean): void {

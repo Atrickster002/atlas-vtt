@@ -782,9 +782,9 @@ export class TokenRenderer {
   }
 
   /** The layer of the sensed tokens' outlines, for the list of what the players' view shows. */
-  public getSensedOutlineLayer(): HideableLayer {
-    return this.playerSight.outlineLayer;
-  }
+  public getSensedOutlineLayer(): HideableLayer { return this.playerSight.outlineLayer; }
+  /** A line for the GM on a token's hover card (`UIManager.setSightLineProvider`); returns the refresh for when sight changed. */
+  public setSightLineProvider(provider: ((tokenId: string) => string | null) | null): () => void { return this.uiManager.setSightLineProvider(provider); }
 
   private syncTokens = async (
     tokensRecord: Record<string, TokenEntity>,

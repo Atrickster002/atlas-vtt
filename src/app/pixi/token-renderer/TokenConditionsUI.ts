@@ -26,17 +26,27 @@ export class TokenConditionsUI {
   private ring = new ConditionBadgeRing();
   private card = new ConditionHoverPanel();
   private conditions: ActiveCondition[] = [];
+  /** A line under the conditions on the hover card; the card shows for it alone too. */
+  private note: string | null = null;
   private isHovered = false;
 
   constructor() {
     this.container.addChild(this.ring.container, this.card.container);
   }
 
-  update(token: TokenConditionState, definitions: readonly ConditionDefinition[], layout: TokenConditionsLayout): void {
+  update(token: TokenConditionState, definitions: readonly ConditionDefinition[], layout: TokenConditionsLayout, note: string | null = null): void {
     this.conditions = resolveActiveConditions(token, definitions);
+    this.note = note;
     this.ring.update(this.conditions, layout.ringRadius, layout.badgeScale, this.canAnimate());
     this.card.place(layout.ringRadius, layout.cardScale);
-    if (this.isHovered) this.card.show(this.conditions, false);
+    if (this.isHovered) this.card.show(this.conditions, false, this.note);
+  }
+
+  /** The note changed while the card may be open (the players' sight did): the card follows without its entrance. */
+  setNote(note: string | null): void {
+    if (this.note === note) return;
+    this.note = note;
+    if (this.isHovered) this.card.show(this.conditions, false, note);
   }
 
   /** Keeps the card at a constant screen size while the viewport zooms. */
@@ -44,10 +54,12 @@ export class TokenConditionsUI {
     this.card.place(ringRadius, cardScale);
   }
 
-  setHovered(hovered: boolean): void {
+  /** `note` is read when the hover begins, so it is as fresh as the card. */
+  setHovered(hovered: boolean, note: () => string | null = () => this.note): void {
     if (this.isHovered === hovered) return;
     this.isHovered = hovered;
-    if (hovered) this.card.show(this.conditions, this.canAnimate());
+    if (hovered) this.note = note();
+    if (hovered) this.card.show(this.conditions, this.canAnimate(), this.note);
     else this.card.hide(this.canAnimate());
   }
 
