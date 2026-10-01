@@ -25,6 +25,17 @@ describe('playerLightingLayers', () => {
     ]);
   });
 
+  it('shows the outlines of sensed tokens in the players\' view of a lit scene, and nowhere else', () => {
+    const modeLayer = { visible: false };
+    const sensedOutlines = new Container();
+    const gm = overlays();
+    expect(playerLightingLayers({ enabled: true, modeLayer, gmOverlays: gm, sensedOutlines }).slice(0, 2)).toEqual([
+      { layer: modeLayer, visible: true },
+      { layer: sensedOutlines, visible: true },
+    ]);
+    expect(playerLightingLayers({ enabled: false, modeLayer, gmOverlays: gm, sensedOutlines })[0]).toEqual({ layer: sensedOutlines, visible: false });
+  });
+
   it('still hides the GM overlays while the scene has no lighting', () => {
     const gm = overlays();
     expect(playerLightingLayers({ enabled: false, modeLayer: { visible: false }, gmOverlays: gm })).toEqual([
@@ -182,10 +193,10 @@ describe('tokenPerception with tremorsense', () => {
 });
 
 describe('hiddenTokenLayers with a perception', () => {
-  it('hides unseen tokens as well as hidden ones, and keeps sensed ones', () => {
+  it('hides unseen tokens as well as hidden ones, and sensed ones, whose outline stands for them', () => {
     const [a, b, c, d] = [new Container(), new Container(), new Container(), new Container()];
     const perception = (id: string): Perception => (id === 'b' ? 'unseen' : id === 'd' ? 'sensed' : 'seen');
     const layers = hiddenTokenLayers({ a: { isHidden: true }, b: {}, c: {}, d: {} }, { a, b, c, d }, perception);
-    expect(layers).toEqual([{ layer: a, visible: false }, { layer: b, visible: false }]);
+    expect(layers).toEqual([{ layer: a, visible: false }, { layer: b, visible: false }, { layer: d, visible: false }]);
   });
 });

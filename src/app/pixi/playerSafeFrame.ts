@@ -40,7 +40,8 @@ export function setLayerVisibility(layers: readonly LayerVisibility[]): void {
 
 /**
  * Sprites of tokens players must not see: hidden ones (the DM sees them translucent) and,
- * with dynamic lighting, those no player token perceives (`perception`).
+ * with dynamic lighting, those no player token sees (`perception`). A token the players only
+ * sense is left out too: its outline stands for it (`SensedOutlines`).
  */
 export function hiddenTokenLayers(
   tokens: Record<string, { isHidden?: boolean }>,
@@ -49,7 +50,7 @@ export function hiddenTokenLayers(
 ): LayerVisibility[] {
   const layers: LayerVisibility[] = [];
   for (const [tokenId, sprite] of Object.entries(sprites)) {
-    if (sprite && (tokens[tokenId]?.isHidden || perception(tokenId) === 'unseen')) layers.push({ layer: sprite, visible: false });
+    if (sprite && (tokens[tokenId]?.isHidden || perception(tokenId) !== 'seen')) layers.push({ layer: sprite, visible: false });
   }
   return layers;
 }

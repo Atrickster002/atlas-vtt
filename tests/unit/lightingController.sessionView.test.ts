@@ -61,6 +61,8 @@ interface Wired {
   doorClick: (x: number, y: number) => boolean;
   playerSight: () => ((tokenId: string) => string) | undefined;
   refreshPlayerSight: ReturnType<typeof vi.fn>;
+  /** The layer of the sensed tokens' outlines, as the token renderer gives it. */
+  sensedOutlines: { visible: boolean };
 }
 
 interface Setup {
@@ -101,7 +103,7 @@ function setup(): Setup {
     bounds: () => ({ width: 1000, height: 1000 }),
     albedo: () => null,
   });
-  const wired = { refreshPlayerSight: vi.fn() } as Wired;
+  const wired = { refreshPlayerSight: vi.fn(), sensedOutlines: { visible: false } } as Wired;
   controller.wire({
     setWallPointerDownHandler: (fn: Wired['pointerDown']) => { wired.pointerDown = fn; },
     setWallPointerMoveHandler: (fn: Wired['pointerMove']) => { wired.pointerMove = fn; },
@@ -113,6 +115,7 @@ function setup(): Setup {
     setLightHandlers: (handlers: LightPointerHandlers) => { wired.light = handlers; },
     setPlayerSightProvider: (fn: Wired['playerSight']) => { wired.playerSight = fn; },
     refreshPlayerSight: wired.refreshPlayerSight,
+    getSensedOutlineLayer: () => wired.sensedOutlines,
   } as unknown as TokenRenderer);
   cleanup = () => {
     controller.destroy();
@@ -154,9 +157,26 @@ describe('LightingController in session view', () => {
     store.getState().setSceneLighting({ enabled: true });
     store.getState().setGMView(false);
     const layers = controller.playerLayers();
-    expect(layers).toHaveLength(5);
+    expect(layers).toHaveLength(6);
     for (const { layer, visible } of layers) expect(layer.visible).toBe(visible);
     expect(lighting.modeLayer.visible).toBe(true);
+  });
+
+  it('shows the outlines of sensed tokens in session view and while peeking, never in GM view or an unlit scene', () => {
+    const { store, wired } = setup();
+    store.getState().setSceneLighting({ enabled: true });
+    expect(wired.sensedOutlines.visible).toBe(false);
+    store.getState().setGMView(false);
+    expect(wired.sensedOutlines.visible).toBe(true);
+    store.getState().setGMView(true);
+    expect(wired.sensedOutlines.visible).toBe(false);
+    pressPeek('keydown');
+    expect(wired.sensedOutlines.visible).toBe(true);
+    pressPeek('keyup');
+    expect(wired.sensedOutlines.visible).toBe(false);
+    store.getState().setGMView(false);
+    store.getState().setSceneLighting({ enabled: false });
+    expect(wired.sensedOutlines.visible).toBe(false);
   });
 
   it('keeps them hidden when lights change, a door opens or the tool changes in session view', () => {

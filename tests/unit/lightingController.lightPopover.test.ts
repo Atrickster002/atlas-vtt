@@ -77,12 +77,14 @@ function setup(): Setup {
   });
   const wired = {} as Pick<Setup, 'light' | 'wallDown' | 'contextMenu'>;
   const ignore = (): void => undefined;
+  const sensedOutlines = { visible: false };
   controller.wire({
     setLightHandlers: (handlers: LightPointerHandlers) => { wired.light = handlers; },
     setWallPointerDownHandler: (fn: Setup['wallDown']) => { wired.wallDown = fn; },
     setWallContextMenuHandler: (fn: Setup['contextMenu']) => { wired.contextMenu = fn; },
     setWallPointerMoveHandler: ignore, setWallPointerUpHandler: ignore, setWallDoubleClickHandler: ignore, setWallCursorProvider: ignore,
     setDoorClickHandler: ignore, setPlayerSightProvider: ignore, refreshPlayerSight: ignore,
+    getSensedOutlineLayer: () => sensedOutlines,
   } as unknown as TokenRenderer);
   const torch = store.getState().addLight({ x: 400, y: 300, emission: { ...emissionOfPreset('torch'), kind: 'torch' } });
   const lantern = store.getState().addLight({ x: 600, y: 300, emission: { ...emissionOfPreset('lantern'), kind: 'lantern' } });

@@ -23,16 +23,19 @@ export interface PlayerLightingInput {
   /** `LightingRenderer.modeLayer`: visible renders the player's view. */
   modeLayer: HideableLayer;
   gmOverlays: GmOverlays;
+  /** The outlines of tokens the players sense without seeing them; only the players' view shows them. */
+  sensedOutlines?: HideableLayer | undefined;
 }
 
 /**
  * Layer changes for the players' view: the GM's overlays never show; with lighting on, the
- * player's view. The one list of them: a player frame applies it for one capture, the GM's own
- * canvas holds it in session view (`SessionLighting`).
+ * player's view and the outlines of the tokens they only sense. The one list of them: a player
+ * frame applies it for one capture, the GM's own canvas holds it in session view (`SessionLighting`).
  */
-export function playerLightingLayers({ enabled, modeLayer, gmOverlays }: PlayerLightingInput): LayerVisibility[] {
+export function playerLightingLayers({ enabled, modeLayer, gmOverlays, sensedOutlines }: PlayerLightingInput): LayerVisibility[] {
   const hidden = Object.values<HideableLayer>(gmOverlays).map((layer) => ({ layer, visible: false }));
-  return enabled ? [{ layer: modeLayer, visible: true }, ...hidden] : hidden;
+  const outlines = sensedOutlines ? [{ layer: sensedOutlines, visible: enabled }] : [];
+  return enabled ? [{ layer: modeLayer, visible: true }, ...outlines, ...hidden] : [...outlines, ...hidden];
 }
 
 /** How the players perceive each token. */

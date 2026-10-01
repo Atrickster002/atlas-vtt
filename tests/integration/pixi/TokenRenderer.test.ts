@@ -775,6 +775,97 @@ describe('TokenRenderer Integration Tests', () => {
           expect(tokenRenderer.visibleTokenIds()).toEqual(['token-3']);
         });
 
+        describe('a token the players only sense', () => {
+          const outlines = (): Container => tokenRenderer.getSensedOutlineLayer() as Container;
+          const sensedSetup = async (): Promise<void> => {
+            tokenRenderer.setPlayerSightProvider(() => (id) => (id === 'token-1' ? 'sensed' : id === 'token-2' ? 'unseen' : 'seen'));
+            store.getState().addToken(token({ id: 'token-1', kind: 'character', statblockPath: 'Goblin.md', name: 'Goblin', showNameplate: true }));
+            store.getState().addToken(token({ id: 'token-2', x: 300 }));
+            store.getState().addToken(token({ id: 'token-3', x: 500 }));
+            await waitForTokens('token-1', 'token-2', 'token-3');
+            tokenRenderer.refreshPlayerSight();
+          };
+
+          it('should show as an outline of its footprint, without art, nameplate or bars, and take no pointer', async () => {
+            await sensedSetup();
+            expect(tokenGroup('token-1').visible).toBe(false);
+            expect(tokenUi('token-1').visible).toBe(false);
+            expect(outlines().children).toHaveLength(1);
+            expect(outlines().children[0]!.position).toMatchObject({ x: tokenGroup('token-1').x, y: tokenGroup('token-1').y });
+            expect(tokenRenderer.hitTestTokens(100, 100)).toBeNull();
+            expect(tokenRenderer.visibleTokenIds()).toEqual(['token-3']);
+          });
+
+          it('should keep its outline layer off until the players\' view switches it on', async () => {
+            await sensedSetup();
+            expect(outlines().visible).toBe(false);
+            expect(outlines().zIndex).toBeGreaterThan(90);
+            expect(outlines().zIndex).toBeLessThan(100);
+          });
+
+          it('should follow the players\' sight: seen it shows itself, unseen nothing', async () => {
+            let perceived: 'seen' | 'sensed' | 'unseen' = 'sensed';
+            tokenRenderer.setPlayerSightProvider(() => () => perceived);
+            store.getState().addToken(token({ id: 'token-1' }));
+            await waitForTokens('token-1');
+            tokenRenderer.refreshPlayerSight();
+            expect(outlines().children).toHaveLength(1);
+
+            perceived = 'seen';
+            tokenRenderer.refreshPlayerSight();
+            expect(tokenGroup('token-1').visible).toBe(true);
+            expect(outlines().children).toHaveLength(0);
+
+            perceived = 'unseen';
+            tokenRenderer.refreshPlayerSight();
+            expect(tokenGroup('token-1').visible).toBe(false);
+            expect(outlines().children).toHaveLength(0);
+          });
+
+          it('should never outline a hidden token', async () => {
+            tokenRenderer.setPlayerSightProvider(() => () => 'sensed');
+            store.getState().addToken(token({ id: 'token-1', isHidden: true }));
+            await waitForTokens('token-1');
+            tokenRenderer.refreshPlayerSight();
+            expect(outlines().children).toHaveLength(0);
+          });
+
+          it('should draw no outline once the canvas shows the GM\'s view again', async () => {
+            await sensedSetup();
+            tokenRenderer.setPlayerSightProvider(() => undefined);
+            tokenRenderer.refreshPlayerSight();
+            expect(outlines().children).toHaveLength(0);
+            expect(tokenGroup('token-1').visible).toBe(true);
+          });
+
+          it('should outline it for the players\' frame and hide its art, nameplate and bars there', async () => {
+            tokenRenderer.setPlayerSightProvider(() => undefined);
+            store.getState().addToken(token({ id: 'token-1', kind: 'character', statblockPath: 'Goblin.md', name: 'Goblin', showNameplate: true }));
+            store.getState().addToken(token({ id: 'token-2', x: 300 }));
+            await waitForTokens('token-1', 'token-2');
+            const layers = tokenRenderer.getPlayerViewLayers(
+              { showTokenHP: true, showTokenStress: true, showTokenNameplates: true } as Parameters<typeof tokenRenderer.getPlayerViewLayers>[0],
+              (id) => (id === 'token-1' ? 'sensed' : 'seen'),
+            );
+            expect(layers).toContainEqual({ layer: tokenGroup('token-1'), visible: false });
+            expect(layers).not.toContainEqual({ layer: tokenGroup('token-2'), visible: false });
+            expect(outlines().children).toHaveLength(1);
+            const playerUi = (tokenRenderer as unknown as { uiManager: { playerTokenUIs: Record<string, { getContainer(): Container }> } }).uiManager.playerTokenUIs;
+            expect(playerUi['token-1']!.getContainer().renderable).toBe(false);
+          });
+
+          it('should leave it out of a picture of the scene, which shows the token itself', async () => {
+            await sensedSetup();
+            outlines().visible = true;
+            const picture = captureSceneFrame({ gmViewLayers: tokenRenderer.getGmViewLayers(), markerLayers: [], lighting: undefined }, { x: 0, y: 0, resolution: 1 }, () => ({
+              outlines: outlines().visible, token: tokenGroup('token-1').visible,
+            }));
+            expect(picture).toEqual({ outlines: false, token: true });
+            expect(outlines().visible).toBe(true);
+            expect(tokenGroup('token-1').visible).toBe(false);
+          });
+        });
+
         it('should hide nothing by sight while the canvas shows the GM\'s view', async () => {
           tokenRenderer.setPlayerSightProvider(() => undefined);
           store.getState().addToken(token({ id: 'token-1', isHidden: true }));

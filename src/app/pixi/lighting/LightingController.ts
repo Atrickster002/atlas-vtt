@@ -126,6 +126,8 @@ export class LightingController {
       if (doorId) this.doors.toggle(doorId);
       return !!doorId;
     });
+    // The token renderer brings the outlines of sensed tokens, which the view now shows or hides.
+    this.session.sync();
   }
 
   gmOverlays(): GmOverlays {
@@ -134,7 +136,12 @@ export class LightingController {
 
   /** What the players' view changes about the lighting: for their frame, and held in session view. */
   playerLayers(): LayerVisibility[] {
-    return playerLightingLayers({ enabled: this.renderer.isEnabled(), modeLayer: this.renderer.modeLayer, gmOverlays: this.gmOverlays() });
+    return playerLightingLayers({
+      enabled: this.renderer.isEnabled(),
+      modeLayer: this.renderer.modeLayer,
+      gmOverlays: this.gmOverlays(),
+      sensedOutlines: this.tokens?.getSensedOutlineLayer(),
+    });
   }
 
   /** How the players perceive each token, for their frame and for session view; sight hides nothing in an unlit scene. */
@@ -186,8 +193,10 @@ export class LightingController {
   private gmLayers(): LayerVisibility[] {
     const { activeTool, lighting } = this.deps.store.getState();
     const tool = activeTool === 'wall';
+    const outlines = this.tokens?.getSensedOutlineLayer();
     return [
       { layer: this.renderer.modeLayer, visible: false },
+      ...(outlines ? [{ layer: outlines, visible: false }] : []),
       { layer: this.editor.layer, visible: tool },
       { layer: this.doors.view, visible: tool || lighting.enabled },
     ];
