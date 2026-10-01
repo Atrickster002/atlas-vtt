@@ -51,6 +51,8 @@ function reaches(lights: readonly EngineLight[], walls: readonly WallSegment[]):
   return lights.map((light) => lightReach({ x: light.x, y: light.y }, light.dim, walls, light.bright, light));
 }
 
+/** Brighter than the veil of magical darkness, darker than anything a light shows. */
+const VEIL = 14;
 const luminance = ([r, g, b]: readonly number[]): number => 0.2126 * r! + 0.7152 * g! + 0.0722 * b!;
 const chroma = (pixel: readonly number[]): number => Math.max(...pixel) - Math.min(...pixel);
 
@@ -82,7 +84,7 @@ describe('magical darkness in the composite', () => {
     const without = await render(sightWith([]), { lights: [lamp] });
     const at = await render(sightWith([]));
     expect(luminance(without(SWALLOWED))).toBeGreaterThan(80);
-    expect(luminance(at(SWALLOWED))).toBeLessThan(8);
+    expect(luminance(at(SWALLOWED))).toBeLessThan(VEIL);
     // Outside it only the bounce of the swallowed light is missing: a step of the 255 at most.
     for (const point of [LIT, UNLIT]) {
       at(point).forEach((channel, i) => expect(Math.abs(channel - without(point)[i]!)).toBeLessThanOrEqual(2));
@@ -92,7 +94,7 @@ describe('magical darkness in the composite', () => {
 
   it('swallows daylight too', async () => {
     const at = await render(sightWith([]), { ambient: 1, lights: [darkness] });
-    expect(luminance(at(SWALLOWED))).toBeLessThan(8);
+    expect(luminance(at(SWALLOWED))).toBeLessThan(VEIL);
     expect(luminance(at(UNLIT))).toBeGreaterThan(100);
   });
 
@@ -125,7 +127,7 @@ describe('magical darkness in the composite', () => {
         const shown = luminance(at(point));
         if (level === 'magical-dark') {
           dark++;
-          expect([x, y, shown < 8]).toEqual([x, y, true]);
+          expect([x, y, shown < VEIL]).toEqual([x, y, true]);
         } else if (level !== 'dark') {
           lit++;
           expect([x, y, shown > 25]).toEqual([x, y, true]);
@@ -158,7 +160,7 @@ describe('magical darkness in the composite', () => {
     expect(luminance(dim(SWALLOWED))).toBeGreaterThan(20);
     expect(luminance(dim(SWALLOWED))).toBeLessThan(luminance(dim(UNLIT)) * 0.75);
     const greater = await render(sightWith(sense('pathfinder2e-greater-darkvision')));
-    expect(Math.abs(luminance(greater(SWALLOWED)) - luminance(greater(UNLIT)))).toBeLessThan(8);
+    expect(Math.abs(luminance(greater(SWALLOWED)) - luminance(greater(UNLIT)))).toBeLessThan(VEIL);
   });
 
   it('gives way to a light of higher priority, and wins against one of its own', async () => {
@@ -166,7 +168,7 @@ describe('magical darkness in the composite', () => {
     const outshone = await render(sightWith([]), { lights: [{ ...lamp, priority: 1 }, darkness] });
     expect(Math.abs(luminance(outshone(SWALLOWED)) - luminance(without(SWALLOWED)))).toBeLessThan(10);
     const tied = await render(sightWith([]), { lights: [{ ...lamp, priority: 1 }, { ...darkness, priority: 1 }] });
-    expect(luminance(tied(SWALLOWED))).toBeLessThan(8);
+    expect(luminance(tied(SWALLOWED))).toBeLessThan(VEIL);
     // The order the lights are listed in decides nothing.
     const reversed = await render(sightWith([]), { lights: [darkness, { ...lamp, priority: 1 }] });
     expect(reversed(SWALLOWED)).toEqual(outshone(SWALLOWED));
@@ -184,7 +186,7 @@ describe('magical darkness in the composite', () => {
     const atWall: EngineLight = { ...darkness, x: 800, y: 512, dim: 120 };
     const at = await render(SEES_ALL, { ambient: 1, lights: [atWall] });
     const without = await render(SEES_ALL, { ambient: 1, lights: [] });
-    expect(luminance(at({ x: 820, y: 512 }))).toBeLessThan(8);
+    expect(luminance(at({ x: 820, y: 512 }))).toBeLessThan(VEIL);
     expect(at({ x: 880, y: 512 })).toEqual(without({ x: 880, y: 512 }));
   });
 
@@ -198,7 +200,7 @@ describe('magical darkness in the composite', () => {
     const at = await render(sight, { lights, spots });
     expect(luminance(at(SWALLOWED))).toBeGreaterThan(60);
     // Beside the footprint the darkness is as dark as without the token.
-    expect(luminance(at({ x: SWALLOWED.x, y: SWALLOWED.y + 60 }))).toBeLessThan(8);
+    expect(luminance(at({ x: SWALLOWED.x, y: SWALLOWED.y + 60 }))).toBeLessThan(VEIL);
   });
 
   it('shows the GM the map under a tinted veil, never black', async () => {

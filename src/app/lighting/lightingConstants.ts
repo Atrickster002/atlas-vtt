@@ -49,7 +49,7 @@ export const PURKINJE = 0.55;
  */
 export const DARKNESS = {
   softEdge: 0.1,
-  veil: [0.0018, 0.0015, 0.0065],
+  veil: [0.003, 0.0026, 0.011],
   gmVeil: [0.03, 0.022, 0.085],
 } as const;
 

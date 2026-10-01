@@ -248,7 +248,8 @@ async function fuzz({ seed, trials, gap = false, bounds = { width: 2048, height:
             && Math.hypot(p[0] - source.x, p[1] - source.y) < darkness.dim * (1 - 2 * DARKNESS.softEdge)
             && clearPath(p, [source.x, source.y], walls, shadow)) {
             report.darkInside++;
-            if (darkened[o]! + darkened[o + 1]! + darkened[o + 2]! > 36) report.darkRevealed++;
+            // The veil is about (10, 9, 27).
+            if (darkened[o]! + darkened[o + 1]! + darkened[o + 2]! > 60) report.darkRevealed++;
           }
           if (inside && lit[o]! === 0 && sensed[o]! + sensed[o + 1]! + sensed[o + 2]! > 0) report.senseInside++;
         }
