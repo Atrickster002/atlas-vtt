@@ -42,3 +42,4 @@
 - A natural 1 or 20 counts as critical even when a modifier is added, and a maxed damage die never does
 - Edit Token opens again instead of crashing on its Vision switch
 - A map with dynamic lighting opens even when the graphics device cannot run the lighting. Atlas says so once and shows the players' line of sight without light and shadow, instead of a blank map
+- Maps open with software rendering when WebGL cannot start, instead of staying blank
