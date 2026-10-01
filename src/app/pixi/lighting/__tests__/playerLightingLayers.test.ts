@@ -147,6 +147,13 @@ describe('tokenPerception with conditions', () => {
     expect(perceived('ally', 0)).toBe('seen');
   });
 
+  it('shows every lit token, invisible and undetected ones too, while no token has vision or the scene has token vision off', () => {
+    const everything = computeSight([], [wall]);
+    const perception = tokenPerception(everything, { ambient: 1 }, [], tokens, { conditions });
+    expect(['invisible', 'undetected', 'flying', 'prone'].map(perception)).toEqual(['seen', 'seen', 'seen', 'seen']);
+    expect(tokenPerception(everything, { ambient: 0 }, [], tokens, { conditions })('invisible')).toBe('unseen');
+  });
+
   it('reads no conditions without the collection\'s definitions', () => {
     expect(tokenPerception(sight, { ambient: 1 }, [], tokens)('undetected')).toBe('seen');
   });

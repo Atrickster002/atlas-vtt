@@ -1,4 +1,4 @@
-import { perceivedLevel } from '../gameSystems/senseRules';
+import { perceivedLevel, showsMap } from '../gameSystems/senseRules';
 import { movedWhileHeld, type HeldTokens } from '../lighting/sightOnDrop';
 import { NORMAL_SIGHT } from '../gameSystems/senses/generic';
 import type { TokenEntity } from '../types';
@@ -68,11 +68,12 @@ export function perceivingRegion(point: Point, sight: Sight, level: LightLevel, 
 
 /**
  * How `sight` perceives something at `point`, where the light is at `level` (`perceivingRegion`).
- * Without vision tokens (`sight.all`) normal sight reaches everywhere.
+ * Without vision tokens, or with the scene's token vision off (`sight.all`), whatever is lit is
+ * seen, wherever it is and whatever its conditions: invisible and undetected act only while
+ * sight is the tokens'.
  */
 export function perceive(point: Point, sight: Sight, level: LightLevel, target: PerceivedTarget = {}): Perception {
-  if (target.undetected) return 'unseen';
-  if (sight.all) return !target.invisible && perceivedLevel(NORMAL_SIGHT, level) !== null ? 'seen' : 'unseen';
+  if (sight.all) return perceivedLevel(NORMAL_SIGHT, level) !== null ? 'seen' : 'unseen';
   const region = perceivingRegion(point, sight, level, target);
   if (!region) return 'unseen';
   return region.sense.precise ? 'seen' : 'sensed';
@@ -119,8 +120,8 @@ export function seenSpots(
   { conditions = [], held = {} }: PerceptionOptions = {},
 ): SeenSpot[] {
   if (sight.all) return [];
-  const withMap: Sight = { all: false, regions: sight.regions.filter(({ sense }) => sense.reveals === 'all') };
-  const seesCreatures = sight.regions.some(({ sense }) => sense.precise && sense.reveals === 'creatures');
+  const withMap: Sight = { all: false, regions: sight.regions.filter(({ sense }) => showsMap(sense)) };
+  const seesCreatures = sight.regions.some(({ sense }) => sense.precise && !showsMap(sense));
   const spots: SeenSpot[] = [];
   for (const token of Object.values(tokens)) {
     const party = !!token.vision?.enabled;

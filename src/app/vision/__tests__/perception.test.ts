@@ -6,6 +6,7 @@ import type { ConditionDefinition } from '../../types/collectionSettingsTypes';
 import type { LightLevel } from '../../types/senseTypes';
 import type { WallSegment } from '../../types/wallTypes';
 import type { TokenVision } from '../../types/lightingTypes';
+import { exploredShapes } from '../exploredShapes';
 import { perceive, regionContains, seenSpots, type PerceivedTarget, type Perception } from '../perception';
 import { computeSight, lightReach, sceneSight, sightSources } from '../sight';
 import type { SightRules } from '../sightRules';
@@ -186,8 +187,12 @@ describe('perceive without vision tokens', () => {
     expect(perceive(BEHIND, everything, 'dark')).toBe('unseen');
   });
 
-  it('does not see an invisible creature', () => {
-    expect(perceive(NEAR, everything, 'bright', { invisible: true })).toBe('unseen');
+  it('ignores the conditions of what is looked at: invisible and undetected act only while sight is the tokens\'', () => {
+    expect(perceive(NEAR, everything, 'bright', { invisible: true })).toBe('seen');
+    expect(perceive(NEAR, everything, 'dim', { undetected: true, airborne: true })).toBe('seen');
+    expect(perceive(NEAR, everything, 'dark', { invisible: true })).toBe('unseen');
+    const off = sceneSight({ tokenVision: false }, sightSources({ viewer: viewerWith(null) }, scale, bounds, rules), [wall]);
+    expect(perceive(BEHIND, off, 'bright', { invisible: true, undetected: true })).toBe('seen');
   });
 
   it('is what a scene with token vision off gets, whatever its tokens sense', () => {
@@ -351,5 +356,25 @@ describe('seenSpots and walls', () => {
     expect(perceive({ x: 100, y: 160 }, sight, 'dark')).toBe('sensed');
     const spots = seenSpots(sight, dark, [], tokens, scale.cellSize, [wall], { conditions });
     expect(spots.map(({ x, y }) => ({ x, y }))).toEqual([VIEWER]);
+  });
+});
+
+describe('a sense that walls do not stop', () => {
+  // Stored data may say it shows the map; sight never draws or records it.
+  const xray = { ...findSense(ALL_SENSES, 'blindsight')!, id: 'xray', lineOfSight: false };
+  const viewer = token('viewer', VIEWER, { vision: { enabled: true, senses: [{ id: 'xray', range: 100 }] } });
+  const sight = computeSight(sightSources({ viewer }, scale, bounds, { definitions: [xray], conditions }), [wall]);
+
+  it('has a disc for a region, never an area of the map', () => {
+    const region = sight.regions.find((candidate) => candidate.sense.id === 'xray')!;
+    expect(region.polygon).toBeNull();
+    expect(perceive(BEHIND, sight, 'dark')).toBe('seen');
+  });
+
+  it('shows no map: no explored memory, and a token it sees behind a wall only within its footprint', () => {
+    expect(exploredShapes(sight, dark, [])).toBeNull();
+    const tokens = { viewer, lurker: token('lurker', BEHIND) };
+    const spots = seenSpots(sight, dark, [], tokens, scale.cellSize, [wall], { conditions });
+    expect(spots.map(({ x, y }) => ({ x, y }))).toEqual([VIEWER, BEHIND]);
   });
 });

@@ -72,6 +72,11 @@ describe('parseSenseDefinitions', () => {
     expect(parseSenseDefinitions([{ ...valid, grants: 'see-everything' }])).toEqual([valid]);
   });
 
+  it('never lets a sense that walls do not stop show the map: it senses creatures only', () => {
+    const through = parseSenseDefinitions([{ ...valid, lineOfSight: false }, { ...valid, id: 'b', lineOfSight: false, reveals: 'creatures' }, { ...valid, id: 'c' }])!;
+    expect(through.map((sense) => [sense.lineOfSight, sense.reveals])).toEqual([[false, 'creatures'], [false, 'creatures'], [true, 'all']]);
+  });
+
   it('keeps a default distance only when it is above 0', () => {
     const defaults = parseSenseDefinitions([0, -1, Number.NaN, Infinity, '60', 45].map((defaultRange, i) => ({ id: `s${i}`, name: 'S', defaultRange })));
     expect(defaults?.map((sense) => sense.defaultRange)).toEqual([undefined, undefined, undefined, undefined, undefined, 45]);

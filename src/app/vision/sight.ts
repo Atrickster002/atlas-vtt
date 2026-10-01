@@ -54,8 +54,8 @@ export interface SightRegion {
   /** How far the sense reaches. */
   radius: number;
   /**
-   * What the sense reaches within `radius`: stopped by walls for a sense with line of sight.
-   * Null for a sense that walls do not stop and that shows no map: the whole disc.
+   * What the sense reaches within `radius`, as walls leave it. Null for a sense that walls do
+   * not stop: the whole disc, in which it senses creatures and never shows the map (`showsMap`).
    */
   polygon: Polygon | null;
   /** Radius of the viewer's own space around a vision cone; 0 without one. */
@@ -173,24 +173,23 @@ function sameSource(a: SightSource, b: SightSource): boolean {
 function regionsOf(source: SightSource, walls: readonly WallSegment[]): SightRegion[] {
   const { tokenId, origin, cone } = source;
   const polygons = new Map<string, Polygon>();
-  const polygonOf = (radius: number, blocked: boolean, eyes: boolean): Polygon => {
-    const key = `${radius}|${blocked}|${eyes}`;
-    const polygon = polygons.get(key) ?? computeVisibility(origin, radius, blocked ? walls : [], eyes ? cone : undefined);
+  const polygonOf = (radius: number, eyes: boolean): Polygon => {
+    const key = `${radius}|${eyes}`;
+    const polygon = polygons.get(key) ?? computeVisibility(origin, radius, walls, eyes ? cone : undefined);
     polygons.set(key, polygon);
     return polygon;
   };
   const regionOf = (sense: SenseDefinition, reach: number): SightRegion => {
     const eyes = !sense.worksWhileBlinded;
     const radius = eyes ? Math.min(reach, source.range) : reach;
-    const drawn = sense.lineOfSight || sense.reveals === 'all';
     return {
       tokenId,
       sense,
       origin,
       radius,
-      polygon: drawn ? polygonOf(radius, sense.lineOfSight, eyes) : null,
+      polygon: sense.lineOfSight ? polygonOf(radius, eyes) : null,
       apex: eyes ? cone?.apex ?? 0 : 0,
-      ...(eyes && !drawn && cone && { cone }),
+      ...(eyes && !sense.lineOfSight && cone && { cone }),
       seesInvisible: sense.seesInvisible || (eyes && !!source.seesInvisible),
     };
   };
@@ -220,11 +219,6 @@ export function computeSight(sources: readonly SightSource[], walls: readonly Wa
 /** Where a light at `origin` reaches: its `dim` radius clipped by `walls`. Without `bright` it has no bright part. */
 export function lightReach(origin: Point, dim: number, walls: readonly WallSegment[], bright = 0): LightReach {
   return { origin, bright, dim, polygon: computeVisibility(origin, dim, walls) };
-}
-
-/** Whether the ambient light alone lights everything in sight. */
-export function ambientLights(light: AmbientLight): boolean {
-  return ambientLevel(light) !== 'dark';
 }
 
 /**

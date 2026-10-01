@@ -55,6 +55,13 @@ describe('sightChannels', () => {
     `);
   });
 
+  it('draws nothing for a sense that walls do not stop, whatever it says it shows', () => {
+    const region = sightWith('blindsight').regions[1]!;
+    expect(sightChannels(region)).toEqual([1, 0, 1, 1]);
+    expect(sightChannels({ ...region, sense: { ...region.sense, lineOfSight: false } })).toBeNull();
+    expect(sightChannels({ ...region, sense: { ...region.sense, lineOfSight: false }, polygon: null })).toBeNull();
+  });
+
   it('draws the generic darkvision in green alone, as darkvision was drawn before senses', () => {
     const [sight, darkvision] = sightWith('darkvision').regions;
     expect([sightChannels(sight!), sightChannels(darkvision!)]).toEqual([[1, 0, 0, 0], [0, 1, 0, 0]]);

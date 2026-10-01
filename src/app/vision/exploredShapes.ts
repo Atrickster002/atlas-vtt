@@ -1,4 +1,4 @@
-import { perceivedLevel } from '../gameSystems/senseRules';
+import { perceivedLevel, showsMap } from '../gameSystems/senseRules';
 import type { SceneLighting } from '../types/lightingTypes';
 import { exploredMemoryOn } from '../lighting/sceneLightingOptions';
 import { ambientLevel } from './lightLevels';
@@ -14,8 +14,8 @@ export interface ExploredShapes {
 /** A region whose sense shows the map, with the area it covers. */
 type MapRegion = SightRegion & { polygon: Polygon };
 
-function showsMap(region: SightRegion): region is MapRegion {
-  return region.sense.reveals === 'all' && region.polygon !== null;
+function isMapRegion(region: SightRegion): region is MapRegion {
+  return showsMap(region.sense) && region.polygon !== null;
 }
 
 function seesByLight({ sense }: SightRegion): boolean {
@@ -45,7 +45,7 @@ export function exploredShapes(
   lights: readonly LightReach[],
 ): ExploredShapes | null {
   if (!exploredMemoryOn(scene) || sight.all) return null;
-  const regions = sight.regions.filter(showsMap);
+  const regions = sight.regions.filter(isMapRegion);
   const level = ambientLevel(scene);
   if (level !== 'dark') {
     const seen = regions.filter(({ sense }) => perceivedLevel(sense, level) !== null).map((region) => region.polygon);

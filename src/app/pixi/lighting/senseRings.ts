@@ -1,3 +1,4 @@
+import { showsMap } from '../../gameSystems/senseRules';
 import { NORMAL_SIGHT } from '../../gameSystems/senses/generic';
 import type { SightSource } from '../../vision/sight';
 import type { VisionCone } from '../../vision/visionCone';
@@ -40,7 +41,7 @@ export function senseRings(source: SightSource, unlimited: number, distance: (ra
   };
   if (!source.blinded) add(NORMAL_SIGHT.name, source.range, true, 'sight');
   for (const { definition, range } of source.senses) {
-    add(definition.name, range, !definition.worksWhileBlinded, definition.reveals === 'all' ? 'sense' : 'creatures');
+    add(definition.name, range, !definition.worksWhileBlinded, showsMap(definition) ? 'sense' : 'creatures');
   }
   rings.sort((a, b) => b.radius - a.radius);
   return { center: source.origin, rings, ...(source.cone && !source.blinded && { cone: source.cone }), unbounded };

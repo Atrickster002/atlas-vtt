@@ -5,6 +5,7 @@ import type { MeasurementSettings } from '../../grid/measurementFormat';
 import { unitScaleOf } from '../../lighting/lightingUnits';
 import { sealedWalls } from '../../lighting/sealWalls';
 import { worldTexel } from '../../lighting/lightingConstants';
+import { showsMap } from '../../gameSystems/senseRules';
 import { SightTokens, heldForSight } from '../../lighting/sightOnDrop';
 import { SEES_ALL, SightCache, sceneSight, sightSources, type AmbientLight, type LightReach, type Sight } from '../../vision/sight';
 import { wallList } from '../../vision/wallList';
@@ -100,7 +101,7 @@ export class CanvasLightingFallback implements SceneLightingView {
     if (this.sight.all) return;
     g.rect(0, 0, bounds.width, bounds.height).fill({ color: 0x000000 });
     for (const { sense, polygon } of this.sight.regions) {
-      if (sense.reveals === 'all' && polygon && polygon.length >= 3) g.poly(polygon.flatMap((p) => [p.x, p.y])).cut();
+      if (showsMap(sense) && polygon && polygon.length >= 3) g.poly(polygon.flatMap((p) => [p.x, p.y])).cut();
     }
     for (const { polygon } of spots) {
       if (polygon.length >= 3) g.poly(polygon.flatMap((p) => [p.x, p.y])).cut();

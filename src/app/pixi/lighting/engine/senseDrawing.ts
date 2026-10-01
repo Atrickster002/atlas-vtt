@@ -1,4 +1,4 @@
-import { perceivedLevel } from '../../../gameSystems/senseRules';
+import { perceivedLevel, showsMap } from '../../../gameSystems/senseRules';
 import { NORMAL_SIGHT } from '../../../gameSystems/senses/generic';
 import { brightThresholdOf } from '../../../lighting/sceneLightingOptions';
 import type { SenseDefinition, SenseLook } from '../../../types/senseTypes';
@@ -28,14 +28,14 @@ function seesByLight(sense: SenseDefinition): boolean {
 
 /**
  * The channels the region of a sense is drawn into, or null when it draws nothing: a sense
- * that shows no map, or one without an area.
+ * that shows no map (`showsMap`: never one that walls do not stop), or one without an area.
  * - Red, seen by light: the token's sight, and a sense that needs no eyes. A sense of the eyes
  *   lies within the sight of its token, which is red already.
  * - Green or blue, perceived without light: green for a look without colour, blue in colour.
  * - Alpha: dim light is perceived as bright.
  */
 export function sightChannels({ sense, polygon }: SightRegion): SightChannels | null {
-  if (sense.reveals !== 'all' || !polygon) return null;
+  if (!showsMap(sense) || !polygon) return null;
   const inDarkness = perceivedLevel(sense, 'dark') !== null;
   const channels: SightChannels = [
     sense === NORMAL_SIGHT || (sense.worksWhileBlinded && seesByLight(sense)) ? 1 : 0,
