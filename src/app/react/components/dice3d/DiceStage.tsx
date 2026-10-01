@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useImperativeHandle, useMemo, useRef } from 'react';
-import { useReducedMotion } from 'framer-motion';
+import { motion, useReducedMotion } from 'framer-motion';
 import { dieGeometry, faceIndexForValue, restingQuaternion } from '../../../dice3d/dieGeometry';
 import { beginRoll, makeDie, restImmediately, stepDie } from '../../../dice3d/dieMotion';
 import { STAGE_X, type Rng } from '../../../dice3d/dieTour';
@@ -261,5 +261,8 @@ export function DiceStage({ scene, crit, onSettled, muted, style, frame, seed, l
     if (!muted) rollEnd(wheelRef.current);
   }, [muted]);
 
-  return <div ref={holderRef} role="img" aria-label={label} className={className} />;
+  // The panel morphs between large and row by scaling itself, which stretches
+  // everything inside it. `layout` takes that scale back out for the stage, and
+  // `position` lets its size change at once: the dice are drawn for the new size.
+  return <motion.div ref={holderRef} layout="position" role="img" aria-label={label} className={className} />;
 }
