@@ -11,10 +11,10 @@ import { computeTokenPixelSize } from '../pixi/token-renderer/tokenSizing';
 
 /**
  * The scene's light without its sources: at or above `litThreshold` (unset: 0.25) ambient light,
- * every point in sight counts as lit, so a token standing there can be seen. From `dimThreshold`
- * (unset: half the lit threshold) it is dimly lit (`lightLevelAt`).
+ * every point in sight counts as lit, so a token standing there can be seen. It is dimly lit up
+ * to `brightThreshold` (unset: 0.75) and brightly from there (`lightLevelAt`).
  */
-export type AmbientLight = Pick<SceneLighting, 'ambient' | 'litThreshold' | 'dimThreshold'>;
+export type AmbientLight = Pick<SceneLighting, 'ambient' | 'litThreshold' | 'brightThreshold'>;
 
 /** A token that sees, in world pixels. */
 export interface SightSource {
@@ -156,7 +156,7 @@ export function lightReach(origin: Point, dim: number, walls: readonly WallSegme
 
 /** Whether the ambient light alone lights everything in sight. */
 export function ambientLights(light: AmbientLight): boolean {
-  return ambientLevel(light) === 'bright';
+  return ambientLevel(light) !== 'dark';
 }
 
 /**

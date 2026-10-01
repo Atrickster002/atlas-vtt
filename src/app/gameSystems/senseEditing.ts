@@ -7,20 +7,23 @@ import type { SenseDefinition, SenseLook } from '../types/senseTypes';
 import { BUILT_IN_SYSTEM_PRESETS } from './builtInPresets';
 import { sameSenses } from './senseRules';
 import { GENERIC_SENSES } from './senses/generic';
+import { granting } from './senses/senseHelpers';
 
 /** A sense of its own, or an entry that only lets the token's sight see invisible tokens. */
 export type SenseKind = 'sense' | 'see-invisible';
 
 export function senseKind(sense: SenseDefinition): SenseKind {
-  return sense.grants === 'see-invisible' ? 'see-invisible' : 'sense';
+  return sense.grants ?? 'sense';
 }
 
-/** `sense` as the other kind; an entry that only lets sight see the invisible takes no distance. */
+/**
+ * `sense` as the other kind, keeping its id, name and description: a modifier has the fixed
+ * fields every modifier has (`granting`), and a sense made from one starts as a new sense does.
+ */
 export function withSenseKind(sense: SenseDefinition, kind: SenseKind): SenseDefinition {
-  const { grants: _grants, ...rest } = sense;
-  if (kind === 'sense') return rest;
-  const { defaultRange: _defaultRange, ...modifier } = rest;
-  return { ...modifier, grants: 'see-invisible', seesInvisible: true, range: 'unlimited' };
+  if (kind === senseKind(sense)) return sense;
+  const named = { id: sense.id, name: sense.name, description: sense.description };
+  return kind === 'see-invisible' ? { ...named, ...granting('see-invisible') } : { ...newSense(sense.id), ...named };
 }
 
 /** Whether a token gives the sense a distance. */

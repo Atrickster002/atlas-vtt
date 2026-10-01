@@ -1,15 +1,16 @@
 import { Container, Mesh, UniformGroup, type Geometry, type Renderer, type RenderTexture, type Shader } from 'pixi.js';
-import { FALLOFF_HEIGHT, HALO } from '../../../lighting/lightingConstants';
+import { HALO, LIGHT_LEVELS } from '../../../lighting/lightingConstants';
 import type { MapBounds } from '../../../vision/visibility';
 import { destroyTree } from '../../utils/destroyTree';
 import { ENGINE_SHADERS } from './engineShaders';
 import { createPlaceholder, createQuad, createShader, createTarget, destroyQuad, quadGeometry, renderInto, type Quad } from './gpu';
 import type { Tile } from './TileCache';
 
-/** One light's contribution this frame (radii already scaled by flicker). */
+/** One light's contribution this frame (bright radius and intensity already flickered). */
 export interface DrawnLight {
   tile: Tile;
   bright: number;
+  dim: number;
   reach: number;
   color: readonly [number, number, number];
   intensity: number;
@@ -53,6 +54,7 @@ export class LightMap {
       slot.light[0] = light.tile.x;
       slot.light[1] = light.tile.y;
       u.uBright = light.bright;
+      u.uDim = light.dim;
       u.uReach = light.reach;
       u.uIntensity = light.intensity;
       slot.color.set(light.color);
@@ -71,10 +73,12 @@ export class LightMap {
       uMapWorld: { value: new Float32Array(this.world), type: 'vec2<f32>' },
       uLight: { value: light, type: 'vec2<f32>' },
       uBright: { value: 0, type: 'f32' },
+      uDim: { value: 0, type: 'f32' },
       uReach: { value: 1, type: 'f32' },
       uIntensity: { value: 1, type: 'f32' },
       uLightColor: { value: color, type: 'vec3<f32>' },
-      uHeight: { value: FALLOFF_HEIGHT, type: 'f32' },
+      uBrightLevel: { value: LIGHT_LEVELS.bright, type: 'f32' },
+      uDimLevel: { value: LIGHT_LEVELS.dim, type: 'f32' },
       uHaloGain: { value: HALO.gain, type: 'f32' },
       uHaloSize: { value: HALO.size, type: 'f32' },
       uTexel: { value: this.texel, type: 'f32' },

@@ -92,12 +92,10 @@ describe('senses', () => {
     expect(result.current.toSettings()).toHaveProperty('senses', undefined);
   });
 
-  it('takes the senses of an applied preset, and none from a system that has none', () => {
-    const cairn = BUILT_IN_SYSTEM_PRESETS.find((preset) => preset.name === 'Cairn')!;
-    const { result } = draftFor({ ...structuredClone(shadowdark.rules), systemPresetId: shadowdark.id });
+  it('drops its own senses when a preset is applied, so the collection reads the preset\'s', () => {
+    const { result } = draftFor({ ...structuredClone(shadowdark.rules), senses: [witchSight], systemPresetId: shadowdark.id });
+    expect(result.current.toSettings().senses).toEqual([witchSight]);
     act(() => result.current.applyPreset(dnd5e));
-    expect(result.current.toSettings().senses).toEqual(dnd5e.rules.senses);
-    act(() => result.current.applyPreset(cairn));
     expect(result.current.toSettings()).toHaveProperty('senses', undefined);
   });
 

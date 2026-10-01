@@ -39,6 +39,7 @@ function sameSense(a: SenseDefinition, b: SenseDefinition): boolean {
   return a.id === b.id
     && a.name === b.name
     && a.description === b.description
+    && a.grants === b.grants
     && a.lineOfSight === b.lineOfSight
     && a.sees.bright === b.sees.bright
     && a.sees.dim === b.sees.dim

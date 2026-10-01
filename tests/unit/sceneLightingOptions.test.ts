@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { clampLitThreshold, dimThresholdOf, exploredMemoryOn, litThresholdOf, readSceneLighting, sceneLook, tokenVisionOn } from '../../src/app/lighting/sceneLightingOptions';
+import { brightThresholdOf, clampLitThreshold, exploredMemoryOn, litThresholdOf, readSceneLighting, sceneLook, tokenVisionOn } from '../../src/app/lighting/sceneLightingOptions';
 import { DEFAULT_SCENE_LIGHTING } from '../../src/app/types/lightingTypes';
 
 describe('scene lighting options', () => {
@@ -23,20 +23,19 @@ describe('scene lighting options', () => {
     expect(clampLitThreshold(Number.NaN)).toBe(0.25);
   });
 
-  it('counts ambient light as dim from half the lit threshold unless the scene sets its own dim threshold', () => {
-    expect(dimThresholdOf(DEFAULT_SCENE_LIGHTING)).toBe(0.125);
-    expect(dimThresholdOf({ litThreshold: 0.6 })).toBe(0.3);
-    expect(dimThresholdOf({ litThreshold: 7 })).toBe(0.5);
-    expect(dimThresholdOf({ dimThreshold: 0.05 })).toBe(0.05);
-    expect(dimThresholdOf({ litThreshold: 0.6, dimThreshold: 0.4 })).toBe(0.4);
+  it('counts ambient light as bright from 75 % unless the scene sets its own bright threshold', () => {
+    expect(brightThresholdOf(DEFAULT_SCENE_LIGHTING)).toBe(0.75);
+    expect(brightThresholdOf({ brightThreshold: 0.6 })).toBe(0.6);
+    expect(brightThresholdOf({ litThreshold: 0.5, brightThreshold: 0.9 })).toBe(0.9);
   });
 
-  it('keeps the dim threshold between 0 and the lit threshold, and replaces non-numbers with the default', () => {
-    expect(dimThresholdOf({ dimThreshold: -1 })).toBe(0);
-    expect(dimThresholdOf({ dimThreshold: 0.9 })).toBe(0.25);
-    expect(dimThresholdOf({ litThreshold: 0.6, dimThreshold: 0.9 })).toBe(0.6);
-    expect(dimThresholdOf({ litThreshold: 0.6, dimThreshold: Number.NaN })).toBe(0.3);
-    expect(dimThresholdOf({ litThreshold: 0, dimThreshold: 0.2 })).toBe(0);
+  it('never puts the bright threshold below the lit threshold or above 1, and replaces non-numbers with the default', () => {
+    expect(brightThresholdOf({ brightThreshold: 0.1 })).toBe(0.25);
+    expect(brightThresholdOf({ litThreshold: 0.9 })).toBe(0.9);
+    expect(brightThresholdOf({ litThreshold: 0.5, brightThreshold: 0.2 })).toBe(0.5);
+    expect(brightThresholdOf({ brightThreshold: 7 })).toBe(1);
+    expect(brightThresholdOf({ brightThreshold: Number.NaN })).toBe(0.75);
+    expect(brightThresholdOf({ litThreshold: 0.9, brightThreshold: Number.NaN })).toBe(0.9);
   });
 
   it('reads saved lighting with defaults for missing fields and without unreadable colours', () => {

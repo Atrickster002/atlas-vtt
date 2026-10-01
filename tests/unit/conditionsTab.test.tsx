@@ -3,21 +3,16 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 import { BUILT_IN_SYSTEM_PRESETS } from '../../src/app/gameSystems/builtInPresets';
 import { ConditionsTab } from '../../src/app/react/components/collection-settings/ConditionsTab';
-import { CONDITION_EFFECTS, type ConditionDefinition, type ConditionEffect } from '../../src/app/types/collectionSettingsTypes';
+import { CONDITION_EFFECTS, type ConditionDefinition } from '../../src/app/types/collectionSettingsTypes';
 
 const dnd5e = BUILT_IN_SYSTEM_PRESETS.find((preset) => preset.name === 'D&D 5e')!.rules.conditions;
 const own: ConditionDefinition = { id: 'own-1', name: 'Levitating', color: '#336699' };
 
-interface HarnessProps {
-  initial: ConditionDefinition[];
-  resolveEffect?: (condition: ConditionDefinition) => ConditionEffect | undefined;
-}
-
-function Harness({ initial, resolveEffect }: HarnessProps): React.ReactElement {
+function Harness({ initial }: { initial: ConditionDefinition[] }): React.ReactElement {
   const [conditions, setConditions] = useState(initial);
   return (
     <>
-      <ConditionsTab conditions={conditions} onChange={setConditions} {...(resolveEffect && { resolveEffect })} />
+      <ConditionsTab conditions={conditions} onChange={setConditions} />
       <output data-testid="conditions">{JSON.stringify(conditions)}</output>
     </>
   );
@@ -48,7 +43,7 @@ describe('ConditionsTab: effect on sight', () => {
     fireEvent.click(effect('Levitating'));
     const offered = screen.getAllByRole('option').map((option) => option.textContent);
     expect(offered).toHaveLength(CONDITION_EFFECTS.length + 1);
-    expect(offered.slice(0, 4)).toEqual(['None', 'Blinded', 'Invisible', 'Airborne']);
+    expect(offered).toEqual(['None', 'Blinded', 'Invisible', 'Airborne', 'Undetected']);
   });
 
   it('gives a condition an effect and takes it away again, leaving no empty field behind', () => {
@@ -60,15 +55,21 @@ describe('ConditionsTab: effect on sight', () => {
     expect(saved()[0]).not.toHaveProperty('effect');
   });
 
-  it('shows the effect a resolver finds for a condition that stores none, and stores one only when it is changed', () => {
+  it('shows a built-in condition that stores no effect with the effect it has, and stores one only when it is changed', () => {
     const stored = dnd5e.map(({ effect: _effect, ...condition }) => condition);
-    const builtIn = (condition: ConditionDefinition): ConditionEffect | undefined =>
-      condition.effect ?? dnd5e.find((candidate) => candidate.id === condition.id)?.effect;
-    render(<Harness initial={stored} resolveEffect={builtIn} />);
+    render(<Harness initial={stored} />);
     expect(effect('Blinded').textContent).toBe('Blinded');
     expect(saved().some((condition) => 'effect' in condition)).toBe(false);
     choose('Poisoned', 'Blinded');
     expect(saved().filter((condition) => 'effect' in condition).map((condition) => condition.name)).toEqual(['Poisoned']);
+    choose('Blinded', 'Invisible');
+    expect(saved().find((condition) => condition.name === 'Blinded')!.effect).toBe('invisible');
+  });
+
+  it('offers no "None" for a built-in condition that changes sight, since it would take its own effect again', () => {
+    render(<Harness initial={[...dnd5e]} />);
+    fireEvent.click(effect('Blinded'));
+    expect(screen.getAllByRole('option').map((option) => option.textContent)).toEqual(['Blinded', 'Invisible', 'Airborne', 'Undetected']);
   });
 
   it('names every row\'s select and has no native tooltip', () => {

@@ -12,6 +12,7 @@ import {
   withSenseKind,
 } from '../senseEditing';
 import { senseWithRole } from '../senseRules';
+import { granting } from '../senses/senseHelpers';
 import { GENERIC_SENSES } from '../senses/generic';
 import type { SenseDefinition } from '../../types/senseTypes';
 
@@ -91,9 +92,19 @@ describe('the kind of a sense', () => {
     expect(senseKind(witchSight)).toBe('sense');
     const modifier = withSenseKind({ ...witchSight, defaultRange: 60 }, 'see-invisible');
     expect(senseKind(modifier)).toBe('see-invisible');
-    expect(modifier).toMatchObject({ seesInvisible: true, range: 'unlimited' });
-    expect(modifier).not.toHaveProperty('defaultRange');
-    expect(senseKind(withSenseKind(modifier, 'sense'))).toBe('sense');
+    expect(modifier).toEqual({ id: witchSight.id, name: 'Witch sight', description: '', ...granting('see-invisible') });
+    expect(withSenseKind(modifier, 'see-invisible')).toBe(modifier);
+  });
+
+  it('starts a modifier that becomes a sense as a new sense, with its name', () => {
+    const modifier = withSenseKind(witchSight, 'see-invisible');
+    expect(withSenseKind(modifier, 'sense')).toEqual({ ...newSense(witchSight.id), name: 'Witch sight' });
+  });
+
+  it('counts the modifiers Atlas ships as its own', () => {
+    const shipped = BUILT_IN_SYSTEM_PRESETS.flatMap((preset) => preset.rules.senses ?? []).filter((sense) => sense.grants);
+    expect(shipped.length).toBeGreaterThan(0);
+    for (const sense of shipped) expect(isBuiltInSense(sense)).toBe(true);
   });
 
   it('decides whether a token gives the sense a distance', () => {

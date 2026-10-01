@@ -153,7 +153,8 @@ export class LightingWorld {
       const tile = tiles.get(light.key);
       if (!tile) continue;
       const { intensity, radiusScale } = sample(light);
-      drawn.push({ tile, bright: light.bright * radiusScale, reach: light.dim * LIGHT_REACH * radiusScale, color: light.color, intensity: light.intensity * intensity });
+      // Flicker breathes the bright radius only: where a light ends is where the rules end it.
+      drawn.push({ tile, bright: light.bright * radiusScale, dim: light.dim, reach: light.dim * LIGHT_REACH, color: light.color, intensity: light.intensity * intensity });
     }
     this.lightMap.draw(drawn);
   }

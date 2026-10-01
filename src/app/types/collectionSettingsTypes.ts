@@ -27,7 +27,10 @@ export interface ConditionDefinition {
   icon?: WidgetIcon;
   /** The condition carries a number on each token, like Frightened 2 or Exhaustion 3. */
   valued?: boolean;
-  /** What the condition does to sight; conditions without one change nothing. */
+  /**
+   * What the condition does to sight. Read with `conditionEffect`, which also knows the built-in
+   * conditions that collections copied before effects existed.
+   */
   effect?: ConditionEffect;
 }
 
@@ -36,10 +39,13 @@ export interface ConditionDefinition {
  * - `blinded`: a token with vision keeps only its senses that work while blinded.
  * - `invisible`: only senses that see invisible tokens perceive the token.
  * - `airborne`: senses that ignore airborne tokens (tremorsense) do not perceive it.
+ * - `undetected`: no sense perceives the token.
+ *
+ * A token with vision is shown to the players whatever its conditions.
  */
-export type ConditionEffect = 'blinded' | 'invisible' | 'airborne';
+export type ConditionEffect = 'blinded' | 'invisible' | 'airborne' | 'undetected';
 
-export const CONDITION_EFFECTS: readonly ConditionEffect[] = ['blinded', 'invisible', 'airborne'];
+export const CONDITION_EFFECTS: readonly ConditionEffect[] = ['blinded', 'invisible', 'airborne', 'undetected'];
 
 export type MeasurementMode = 'metric' | 'abstract';
 export type GridUnitType = 'feet' | 'yards' | 'meters' | 'units' | 'custom';

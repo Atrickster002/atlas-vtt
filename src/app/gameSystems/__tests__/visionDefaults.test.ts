@@ -29,9 +29,14 @@ describe('mapVisionDefaults', () => {
     expect(mapVisionDefaults(assets(settings), 'maps/cave.atlasmap', BUILT_IN_SYSTEM_PRESETS)).toEqual({ senses: [{ id: 'home-1' }] });
   });
 
-  it('knows the generic senses in a collection without a game system, and keeps old distances', () => {
-    const settings = { defaultTokenVision: { darkvision: 30, senses: [{ id: genericDarkvision.id }] } };
-    expect(mapVisionDefaults(assets(settings), 'maps/cave.atlasmap', BUILT_IN_SYSTEM_PRESETS)).toEqual({ darkvision: 30, senses: [{ id: genericDarkvision.id }] });
+  it('knows the generic senses in a collection without a game system', () => {
+    const settings = { defaultTokenVision: { angle: 90, senses: [{ id: genericDarkvision.id }] } };
+    expect(mapVisionDefaults(assets(settings), 'maps/cave.atlasmap', BUILT_IN_SYSTEM_PRESETS)).toEqual({ angle: 90, senses: [{ id: genericDarkvision.id }] });
+  });
+
+  it('keeps the old distances of a default saved before senses, for the token to read as senses', () => {
+    const settings = { systemPresetId: dnd5e.id, defaultTokenVision: { darkvision: 30, tremorsense: 10 } };
+    expect(mapVisionDefaults(assets(settings), 'maps/cave.atlasmap', BUILT_IN_SYSTEM_PRESETS)).toEqual({ darkvision: 30, tremorsense: 10 });
   });
 
   it('is nothing for a map outside every collection, or when only unknown senses are left', () => {

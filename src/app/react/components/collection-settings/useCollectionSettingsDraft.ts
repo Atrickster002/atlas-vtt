@@ -97,7 +97,8 @@ export function useCollectionSettingsDraft(
     setDefaultWidgets(rules.defaultWidgets);
     setDice(rules.dice);
     setDefaultTokenVision(rules.defaultTokenVision);
-    setSenses(rules.senses);
+    // The collection reads its preset's senses until they are edited.
+    setSenses(undefined);
     setSystemPresetId(preset.id);
   };
 

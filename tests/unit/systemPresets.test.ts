@@ -17,6 +17,7 @@ import { visionDefaultsForm, visionDefaultsFromForm } from '../../src/app/lighti
 import { visionCone } from '../../src/app/vision/visionCone';
 import { BUILT_IN_SENSES, GENERIC_SENSES } from '../../src/app/gameSystems/senses';
 import type { SenseDefinition } from '../../src/app/types/senseTypes';
+import { conditionEffect } from '../../src/app/gameSystems/conditionEffects';
 
 const [daggerheart, dnd5e] = BUILT_IN_SYSTEM_PRESETS as [SystemPreset, SystemPreset];
 
@@ -129,7 +130,7 @@ describe('comparing and describing rules', () => {
   });
 
   it('summarises measurement and conditions', () => {
-    expect(describeSystemRules(dnd5e.rules)).toBe('5 ft squares · 15 conditions · 5 senses');
+    expect(describeSystemRules(dnd5e.rules)).toBe('5 ft squares · 15 conditions · 6 senses');
     expect(describeSystemRules(daggerheart.rules)).toBe('5 range bands · 3 conditions');
   });
 
@@ -316,16 +317,11 @@ describe('senses', () => {
     rules: { gridDefaults: { unitType: 'feet', unitDistance: 5, measurementMode: 'metric' }, conditions: [], ...extra },
   });
 
-  it('are copied by rulesOfPreset, not shared with the preset', () => {
-    const copied = rulesOfPreset(dnd5e);
-    expect(copied.senses).toEqual(BUILT_IN_SENSES[dnd5e.id]);
-    expect(copied.senses).not.toBe(dnd5e.rules.senses);
-    expect(copied.senses![0]).not.toBe(dnd5e.rules.senses![0]);
-    expect(copied.senses![0]!.sees).not.toBe(dnd5e.rules.senses![0]!.sees);
-  });
-
-  it('are left out of rulesOfPreset for a system that has none, so the collection falls back to the generic ones', () => {
+  it('are never copied into a collection by rulesOfPreset: it reads those of its preset until the GM edits them', () => {
+    expect(rulesOfPreset(dnd5e)).not.toHaveProperty('senses');
     expect(rulesOfPreset(daggerheart)).not.toHaveProperty('senses');
+    const user: SystemPreset = { id: 'user', name: 'Homebrew', builtIn: false, rules: withSenses([witchSight]) };
+    expect(rulesOfPreset(user)).not.toHaveProperty('senses');
   });
 
   it('are cleared by the vanilla settings', () => {
@@ -338,13 +334,22 @@ describe('senses', () => {
     expect(describeSystemRules(daggerheart.rules)).toBe('5 range bands · 3 conditions');
   });
 
-  it('mark a preset as edited when they change, and count none as the generic set', () => {
+  it('mark a preset as edited when they change, and count a preset without senses as having the generic set', () => {
     expect(sameSystemRules(withSenses([witchSight]), withSenses([structuredClone(witchSight)]))).toBe(true);
     expect(sameSystemRules(withSenses([witchSight]), withSenses([{ ...witchSight, seesInvisible: true }]))).toBe(false);
-    expect(sameSystemRules(withSenses([witchSight]), withSenses(undefined))).toBe(false);
+    expect(sameSystemRules(withSenses([witchSight]), withSenses([]))).toBe(false);
+    expect(sameSystemRules(withSenses(undefined), withSenses([witchSight]))).toBe(false);
     expect(sameSystemRules(withSenses(undefined), withSenses([...GENERIC_SENSES]))).toBe(true);
     expect(sameSystemRules(withSenses(undefined), withSenses([]))).toBe(false);
     expect(sameSystemRules(dnd5e.rules, { ...structuredClone(dnd5e.rules), senses: [...GENERIC_SENSES] })).toBe(false);
+  });
+
+  it('count a collection without senses of its own as unedited, whatever its preset has', () => {
+    const { senses: _senses, ...following } = structuredClone(dnd5e.rules);
+    expect(sameSystemRules(dnd5e.rules, following)).toBe(true);
+    expect(sameSystemRules(dnd5e.rules, { ...following, senses: structuredClone(BUILT_IN_SENSES[dnd5e.id]!) })).toBe(true);
+    expect(sameSystemRules(dnd5e.rules, rulesOfPreset(dnd5e))).toBe(true);
+    expect(findActivePreset(BUILT_IN_SYSTEM_PRESETS, undefined, rulesOfPreset(dnd5e))?.id).toBe(dnd5e.id);
   });
 
   it('are read sense by sense from stored presets: an unusable one is left out and the rest of the preset stays', () => {
@@ -363,7 +368,7 @@ describe('senses', () => {
   });
 
   it('decide which default senses a stored preset may give new tokens', () => {
-    const defaultTokenVision = { senses: [{ id: 'home-1', range: 30 }, { id: 'blindsight', range: 10 }, { id: 'dnd5e:truesight', range: 120 }] };
+    const defaultTokenVision = { senses: [{ id: 'home-1', range: 30 }, { id: 'blindsight', range: 10 }, { id: 'dnd5e-truesight', range: 120 }] };
     expect(parseUserPresets([stored({ senses: [witchSight], defaultTokenVision })])[0]?.rules.defaultTokenVision)
       .toEqual({ senses: [{ id: 'home-1', range: 30 }, { id: 'blindsight', range: 10 }] });
     // A preset without senses of its own uses the generic ones.
@@ -395,6 +400,8 @@ describe('conditions that change sight', () => {
       'dnd5e-invisible': 'invisible',
       'pathfinder2e-blinded': 'blinded',
       'pathfinder2e-invisible': 'invisible',
+      'pathfinder2e-undetected': 'undetected',
+      'pathfinder2e-unnoticed': 'undetected',
       'shadowdark-blinded': 'blinded',
       'shadowdark-invisible': 'invisible',
       'ose-blinded': 'blinded',
@@ -402,10 +409,31 @@ describe('conditions that change sight', () => {
     });
   });
 
-  it('are the only conditions named Blinded or Invisible', () => {
+  it('are every condition named Blinded, Invisible, Undetected or Unnoticed, and no other; Hidden depends on who looks', () => {
     for (const condition of BUILT_IN_SYSTEM_PRESETS.flatMap((preset) => preset.rules.conditions)) {
-      const expected = { Blinded: 'blinded', Invisible: 'invisible' }[condition.name];
+      const expected = { Blinded: 'blinded', Invisible: 'invisible', Undetected: 'undetected', Unnoticed: 'undetected' }[condition.name];
       expect(condition.effect).toBe(expected);
+    }
+  });
+
+  it('apply to a collection that copied the conditions before they were marked, by the condition\'s id', () => {
+    const { effect: _effect, ...copied } = dnd5e.rules.conditions.find((condition) => condition.name === 'Blinded')!;
+    expect(conditionEffect(copied)).toBe('blinded');
+    expect(conditionEffect({ ...copied, name: 'Renamed by the GM' })).toBe('blinded');
+    expect(conditionEffect({ id: 'pathfinder2e-unnoticed', name: 'Unnoticed', color: '#000000' })).toBe('undetected');
+    expect(conditionEffect({ id: 'c1', name: 'Blinded', color: '#000000' })).toBeUndefined();
+    expect(conditionEffect({ id: 'dnd5e-prone', name: 'Prone', color: '#000000' })).toBeUndefined();
+  });
+
+  it('take the effect a condition sets itself before the one of its id', () => {
+    expect(conditionEffect({ id: 'dnd5e-blinded', name: 'Blinded', color: '#000000', effect: 'invisible' })).toBe('invisible');
+    expect(conditionEffect({ id: 'c1', name: 'Flying', color: '#000000', effect: 'airborne' })).toBe('airborne');
+  });
+
+  it('leave a collection that copied the conditions before they were marked unedited', () => {
+    for (const preset of BUILT_IN_SYSTEM_PRESETS) {
+      const before = { ...structuredClone(preset.rules), conditions: preset.rules.conditions.map(({ effect: _effect, ...condition }) => condition) };
+      expect(sameSystemRules(preset.rules, before)).toBe(true);
     }
   });
 
@@ -416,6 +444,7 @@ describe('conditions that change sight', () => {
       { id: 'c3', name: 'Flying', color: '#123456', effect: 'airborne' },
       { id: 'c4', name: 'Deaf', color: '#123456', effect: 'deafened' },
       { id: 'c5', name: 'Prone', color: '#123456', effect: true },
+      { id: 'c6', name: 'Gone', color: '#123456', effect: 'undetected' },
     ])]);
     expect(preset?.rules.conditions).toEqual([
       { id: 'c1', name: 'Blind', color: '#123456', effect: 'blinded' },
@@ -423,6 +452,7 @@ describe('conditions that change sight', () => {
       { id: 'c3', name: 'Flying', color: '#123456', effect: 'airborne' },
       { id: 'c4', name: 'Deaf', color: '#123456' },
       { id: 'c5', name: 'Prone', color: '#123456' },
+      { id: 'c6', name: 'Gone', color: '#123456', effect: 'undetected' },
     ]);
   });
 

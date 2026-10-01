@@ -1,5 +1,5 @@
 import type { SenseDefinition } from '../../types/senseTypes';
-import { BY_LIGHT, IN_ANY_LIGHT, seeing, sensing } from './senseHelpers';
+import { BY_LIGHT, IN_ANY_LIGHT, granting, seeing, sensing } from './senseHelpers';
 
 /**
  * The sight every token with vision has: what is lit, as far as its sight range. Not a sense a
@@ -58,5 +58,11 @@ export const GENERIC_SENSES: readonly SenseDefinition[] = [
     ...seeing(IN_ANY_LIGHT),
     seesInvisible: true,
     range: 'required',
+  },
+  {
+    id: 'see-invisible',
+    name: 'See invisible',
+    description: 'Sees invisible creatures wherever its eyes see.',
+    ...granting('see-invisible'),
   },
 ];

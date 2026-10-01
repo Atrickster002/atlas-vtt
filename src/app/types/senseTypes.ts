@@ -54,15 +54,31 @@ export type SenseRange = 'unlimited' | 'required' | 'optional';
 /** Which of the token fields that senses replaced a definition stands for. */
 export type SenseRole = 'darkvision' | 'tremorsense';
 
+/**
+ * What a sense gives the token's other senses instead of perceiving by itself:
+ * `see-invisible` lets its eyes (normal sight and every sense that does not work while blinded)
+ * perceive tokens with a condition whose effect is `invisible`. A blinded token has no use of it.
+ */
+export type SenseGrant = 'see-invisible';
+
 export interface SenseDefinition {
   /**
-   * `darkvision` for a generic sense, `<preset key>:<sense>` for a game system's (`dnd5e:darkvision`).
-   * Never changed once shipped: tokens, collections and presets record it.
+   * `darkvision` for a generic sense, `<preset key>-<sense>` for a game system's (`dnd5e-darkvision`),
+   * as condition ids are made. `sight` is reserved for normal sight. Never changed once shipped:
+   * tokens, collections and presets record it.
    */
   id: string;
   name: string;
   /** One line in plain words: what the sense lets the players see. */
   description: string;
+  /**
+   * Set, the entry is a modifier, not a way of perceiving: it changes the token's eye senses
+   * (`SenseGrant`) and perceives nothing itself. Its other fields then hold fixed values that say
+   * so (`sees` is `none` at every level, `range` is `unlimited`), and readers that work out what
+   * a token perceives skip it as a sense of its own. A token lists it like any sense, without a
+   * distance.
+   */
+  grants?: SenseGrant;
   /**
    * Walls stop the sense: it perceives only what the token has a clear line to. False: it
    * perceives everything within its distance, whatever lies between.
@@ -83,7 +99,7 @@ export interface SenseDefinition {
    * bars or conditions.
    */
   precise: boolean;
-  /** It perceives tokens with a condition whose effect is `invisible`. */
+  /** It perceives tokens with a condition whose effect is `invisible`, itself (see `grants` for a sense that lets the eyes do so). */
   seesInvisible: boolean;
   /**
    * The sense does not use the eyes: a token with a condition whose effect is `blinded` keeps
@@ -98,12 +114,6 @@ export interface SenseDefinition {
   ignores?: 'airborne';
   /** The collection's sense an old `TokenVision.darkvision` or `tremorsense` number is read as. */
   role?: SenseRole;
-  /**
-   * The entry is no sense of its own: it lets the token's sight see invisible tokens (See
-   * Invisibility, See the Unseen). It takes no distance and its light levels are not read.
-   * Read and set through `senseKind` and `withSenseKind` (`gameSystems/senseEditing.ts`).
-   */
-  grants?: 'see-invisible';
 }
 
 /** One sense of a token, by the id of its definition. */

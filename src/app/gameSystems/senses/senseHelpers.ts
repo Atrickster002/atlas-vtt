@@ -1,9 +1,9 @@
-import type { SenseDefinition, SenseSight } from '../../types/senseTypes';
+import type { SenseDefinition, SenseGrant, SenseSight } from '../../types/senseTypes';
 
 /** A sense as a built-in list defines it; the id is derived from the preset and the sense's key. */
 export type BuiltInSense = Omit<SenseDefinition, 'id'>;
 
-type Behaviour = Omit<SenseDefinition, 'id' | 'name' | 'description' | 'range'>;
+type Behaviour = Omit<SenseDefinition, 'id' | 'name' | 'description' | 'range' | 'grants'>;
 
 /** Perceiving in full whatever the light: darkness, magical darkness and dim light all as bright light. */
 export const IN_ANY_LIGHT: SenseSight = { bright: 'normal', dim: 'as-bright', dark: 'as-bright', magicalDark: 'as-bright' };
@@ -25,9 +25,27 @@ export function sensing(precise = false): Behaviour {
 }
 
 /**
- * Senses with ids made of the preset's key and their own (`dnd5e:darkvision`). Never change a
- * key: tokens, collections and presets record the ids.
+ * A modifier: it perceives nothing itself and gives the token's eye senses `grants`. These are
+ * the fixed values every such entry has, so nothing reads it as a sense of its own.
+ */
+export function granting(grants: SenseGrant): Behaviour & Pick<SenseDefinition, 'range' | 'grants'> {
+  return {
+    grants,
+    lineOfSight: true,
+    sees: { bright: 'none', dim: 'none', dark: 'none', magicalDark: 'none' },
+    look: 'colour',
+    reveals: 'creatures',
+    precise: false,
+    seesInvisible: false,
+    worksWhileBlinded: false,
+    range: 'unlimited',
+  };
+}
+
+/**
+ * Senses with ids made like condition ids: the preset's key, a hyphen, their own key
+ * (`dnd5e-darkvision`). Never change a key: tokens, collections and presets record the ids.
  */
 export function sensesOf(presetKey: string, senses: Readonly<Record<string, BuiltInSense>>): readonly SenseDefinition[] {
-  return Object.entries(senses).map(([key, sense]) => ({ id: `${presetKey}:${key}`, ...sense }));
+  return Object.entries(senses).map(([key, sense]) => ({ id: `${presetKey}-${key}`, ...sense }));
 }

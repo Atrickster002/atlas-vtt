@@ -20,21 +20,27 @@ describe('lightReach', () => {
 });
 
 describe('ambientLevel', () => {
-  it('is bright from the lit threshold, dim from half of it, dark below', () => {
-    expect(ambientLevel({ ambient: 1 })).toBe('bright');
-    expect(ambientLevel({ ambient: 0.25 })).toBe('bright');
-    expect(ambientLevel({ ambient: 0.24 })).toBe('dim');
-    expect(ambientLevel({ ambient: 0.125 })).toBe('dim');
-    expect(ambientLevel({ ambient: 0.12 })).toBe('dark');
+  it('is dark below the lit threshold, dim from there, bright from the bright threshold', () => {
     expect(ambientLevel({ ambient: 0 })).toBe('dark');
+    expect(ambientLevel({ ambient: 0.24 })).toBe('dark');
+    expect(ambientLevel({ ambient: 0.25 })).toBe('dim');
+    expect(ambientLevel({ ambient: 0.74 })).toBe('dim');
+    expect(ambientLevel({ ambient: 0.75 })).toBe('bright');
+    expect(ambientLevel({ ambient: 1 })).toBe('bright');
+  });
+
+  it('reads the time-of-day presets as the rules do: day bright, dusk dim, night and pitch black dark', () => {
+    expect([1, 0.5, 0.15, 0].map((ambient) => ambientLevel({ ambient }))).toEqual(['bright', 'dim', 'dark', 'dark']);
   });
 
   it('follows the scene\'s own thresholds', () => {
-    expect(ambientLevel({ ambient: 0.4, litThreshold: 0.8 })).toBe('dim');
-    expect(ambientLevel({ ambient: 0.39, litThreshold: 0.8 })).toBe('dark');
-    expect(ambientLevel({ ambient: 0.1, litThreshold: 0.8, dimThreshold: 0.05 })).toBe('dim');
-    expect(ambientLevel({ ambient: 0.3, litThreshold: 0.8, dimThreshold: 0.5 })).toBe('dark');
-    expect(ambientLevel({ ambient: 0, litThreshold: 0 })).toBe('bright');
+    expect(ambientLevel({ ambient: 0.4, litThreshold: 0.5 })).toBe('dark');
+    expect(ambientLevel({ ambient: 0.5, litThreshold: 0.5 })).toBe('dim');
+    expect(ambientLevel({ ambient: 0.5, brightThreshold: 0.5 })).toBe('bright');
+    expect(ambientLevel({ ambient: 0.8, brightThreshold: 0.9 })).toBe('dim');
+    expect(ambientLevel({ ambient: 0.9, litThreshold: 0.9 })).toBe('bright');
+    expect(ambientLevel({ ambient: 0, litThreshold: 0 })).toBe('dim');
+    expect(ambientLevel({ ambient: 0, litThreshold: 0, brightThreshold: 0 })).toBe('bright');
   });
 });
 
@@ -63,14 +69,15 @@ describe('lightLevelAt', () => {
     expect(lightLevelAt({ x: 100, y: 185 }, dark, [torch, candle])).toBe('bright');
     expect(lightLevelAt({ x: 100, y: 185 }, dark, [candle, torch])).toBe('bright');
     expect(lightLevelAt({ x: 100, y: 165 }, dark, [candle, torch])).toBe('dim');
-    expect(lightLevelAt({ x: 100, y: 400 }, { ambient: 0.2 }, [torch])).toBe('dim');
-    expect(lightLevelAt({ x: 100, y: 130 }, { ambient: 0.2 }, [torch])).toBe('bright');
-    expect(lightLevelAt({ x: 100, y: 400 }, { ambient: 0.5 }, [torch])).toBe('bright');
-    expect(lightLevelAt({ x: 300, y: 100 }, { ambient: 0.5 }, [torch])).toBe('bright');
+    expect(lightLevelAt({ x: 100, y: 400 }, { ambient: 0.5 }, [torch])).toBe('dim');
+    expect(lightLevelAt({ x: 100, y: 130 }, { ambient: 0.5 }, [torch])).toBe('bright');
+    expect(lightLevelAt({ x: 100, y: 180 }, { ambient: 0.1 }, [torch])).toBe('dim');
+    expect(lightLevelAt({ x: 100, y: 400 }, { ambient: 0.8 }, [torch])).toBe('bright');
+    expect(lightLevelAt({ x: 300, y: 100 }, { ambient: 0.8 }, [torch])).toBe('bright');
   });
 
   it('never reports magical darkness, which only darkness sources will make', () => {
-    for (const ambient of [0, 0.2, 1]) {
+    for (const ambient of [0, 0.5, 1]) {
       for (const y of [100, 180, 500]) expect(lightLevelAt({ x: 100, y }, { ambient }, [torch])).not.toBe('magical-dark');
     }
   });
@@ -84,38 +91,42 @@ function isLitBefore(point: { x: number; y: number }, ambient: AmbientLight, lig
 }
 
 describe('isLit', () => {
-  const points = [{ x: 100, y: 100 }, { x: 100, y: 150 }, { x: 100, y: 151 }, { x: 100, y: 200 }, { x: 100, y: 201 }, { x: 250, y: 100 }, { x: 190, y: 100 }];
-  const ambients = [0, 0.05, 0.12, 0.125, 0.13, 0.2, 0.24, 0.25, 0.26, 0.5, 1];
+  const points = [{ x: 100, y: 100 }, { x: 100, y: 150 }, { x: 100, y: 151 }, { x: 100, y: 195 }, { x: 100, y: 201 }, { x: 250, y: 100 }, { x: 190, y: 100 }];
+  const ambients = [0, 0.05, 0.1, 0.12, 0.125, 0.13, 0.2, 0.24, 0.25, 0.26, 0.5, 0.74, 0.75, 1];
   const thresholds = [undefined, 0, 0.1, 0.5, 1, 7];
 
-  it('gives the same answer as before for every scene without a dim threshold', () => {
+  it('gives the same answer as before light levels existed, for every scene', () => {
     for (const lights of [[], [torch], [torch, lightReach({ x: 250, y: 100 }, 30, [wall])]]) {
       for (const litThreshold of thresholds) {
-        for (const ambient of ambients) {
-          const scene: AmbientLight = { ambient, ...(litThreshold !== undefined && { litThreshold }) };
-          for (const point of points) expect(isLit(point, scene, lights)).toBe(isLitBefore(point, scene, lights));
+        for (const brightThreshold of [undefined, 0.3, 1]) {
+          for (const ambient of ambients) {
+            const scene: AmbientLight = { ambient, ...(litThreshold !== undefined && { litThreshold }), ...(brightThreshold !== undefined && { brightThreshold }) };
+            for (const point of points) expect(isLit(point, scene, lights)).toBe(isLitBefore(point, scene, lights));
+          }
         }
       }
     }
   });
 
-  it('does not count dim ambient light as lit: between the two thresholds a point is lit only by a light', () => {
-    const dusk: AmbientLight = { ambient: 0.2 };
-    expect(lightLevelAt({ x: 100, y: 400 }, dusk, [])).toBe('dim');
-    expect(isLit({ x: 100, y: 400 }, dusk, [])).toBe(false);
-    expect(isLit({ x: 100, y: 180 }, dusk, [torch])).toBe(true);
-    expect(isLit({ x: 100, y: 400 }, { ambient: 0.2, dimThreshold: 0.05 }, [])).toBe(false);
+  it('is lit from the lit threshold itself', () => {
+    expect(isLit({ x: 100, y: 400 }, { ambient: 0.1, litThreshold: 0.1 }, [])).toBe(true);
+    expect(isLit({ x: 100, y: 400 }, { ambient: 0.1 }, [])).toBe(false);
   });
 
-  it('counts a light\'s dim and bright parts as lit', () => {
+  it('is whatever is not dark: dim light counts', () => {
+    for (const ambient of [0, 0.15, 0.5, 1]) {
+      for (const point of points) expect(isLit(point, { ambient }, [torch])).toBe(lightLevelAt(point, { ambient }, [torch]) !== 'dark');
+    }
     expect(isLit({ x: 100, y: 130 }, dark, [torch])).toBe(true);
     expect(isLit({ x: 100, y: 190 }, dark, [torch])).toBe(true);
     expect(isLit({ x: 100, y: 210 }, dark, [torch])).toBe(false);
   });
 
-  it('leaves what tokens see unchanged in dim ambient light', () => {
+  it('leaves which tokens are seen at night and at dusk as it was', () => {
     const sight = computeSight([{ tokenId: 't', origin: { x: 100, y: 100 }, range: 1000, darkvision: 0 }], []);
-    expect(isSeen({ x: 400, y: 400 }, sight, { ambient: 0.2 }, [])).toBe(false);
+    expect(isSeen({ x: 400, y: 400 }, sight, { ambient: 0.15 }, [])).toBe(false);
+    expect(isSeen({ x: 400, y: 400 }, sight, { ambient: 0.24 }, [])).toBe(false);
     expect(isSeen({ x: 400, y: 400 }, sight, { ambient: 0.25 }, [])).toBe(true);
+    expect(isSeen({ x: 400, y: 400 }, sight, { ambient: 0.5 }, [])).toBe(true);
   });
 });
