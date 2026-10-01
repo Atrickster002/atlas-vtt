@@ -34,14 +34,6 @@ export function presetOf(emission: LightEmission): LightPresetId | null {
 /** Every kind of light, in the order they are offered. */
 export const LIGHT_KINDS: readonly LightKind[] = [...LIGHT_PRESET_IDS, 'custom'];
 
-export const LIGHT_KIND_LABELS: Record<LightKind, string> = {
-  candle: LIGHT_PRESETS.candle.label,
-  torch: LIGHT_PRESETS.torch.label,
-  lantern: LIGHT_PRESETS.lantern.label,
-  magical: LIGHT_PRESETS.magical.label,
-  custom: 'Custom light',
-};
-
 /**
  * The light's kind: the one it was given, else the preset it still equals, else custom. A stored
  * kind this version does not know (a newer Atlas, a hand-edited file) counts as none.

@@ -32,6 +32,7 @@ import type { DragRuler } from './DragRuler';
 import { runInBackground } from '../../utils/backgroundTask';
 import { tokenSizeSubmenu } from '../../react/components/context-menu/tokenSizeMenu';
 import { tokenLightingEntries } from '../../react/components/context-menu/tokenLightingMenu';
+import { mapLightPresets } from '../../services/mapCollectionRules';
 import { conditionsSubmenu } from '../../react/components/context-menu/conditionsMenu';
 
 interface DragState {
@@ -543,7 +544,8 @@ export class InteractionController implements ITokenInteractionController {
 
     // Vision and carried light, for the selection the token belongs to
     if (WALLS_AND_LIGHTING_ENABLED && !this.isPlayerView) {
-      entries.push(...tokenLightingEntries(this.store, token.id, this.contextMenuTargets(token.id)));
+      const lightPresets = mapLightPresets(this.obsApp, this.store.getState().mapPath);
+      entries.push(...tokenLightingEntries(this.store, token.id, this.contextMenuTargets(token.id), lightPresets));
     }
 
 

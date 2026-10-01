@@ -3,7 +3,9 @@ import { createViewAtlasStore } from '../../src/app/storeFactory';
 import { getHistoryStore } from '../../src/app/stores/history';
 import { tokenLightingEntries } from '../../src/app/react/components/context-menu/tokenLightingMenu';
 import type { ContextMenuEntry } from '../../src/app/react/components/context-menu/AtlasContextMenu';
-import { LIGHT_PRESETS } from '../../src/app/lighting/lightPresets';
+import { BUILT_IN_SYSTEM_PRESETS } from '../../src/app/gameSystems/builtInPresets';
+import { GENERIC_LIGHT_PRESETS } from '../../src/app/gameSystems/lightPresets/generic';
+import { emissionOf } from '../../src/app/lighting/lightPresetChoice';
 import type { TokenEntity } from '../../src/app/types';
 import { createInMemoryApp } from '../mocks/inMemoryVault';
 
@@ -15,6 +17,16 @@ function setup(): ReturnType<typeof createViewAtlasStore> {
   const token = (id: string): TokenEntity => ({ id, kind: 'token', imagePath: `${id}.png`, x: 0, y: 0 });
   store.setState({ persistenceEnabled: false, objects: { ...store.getState().objects, tokens: { a: token('a'), b: token('b') } } });
   return store;
+}
+
+const dnd5e = BUILT_IN_SYSTEM_PRESETS.find((preset) => preset.name === 'D&D 5e')!.rules.lightPresets!;
+const generic = (name: string) => GENERIC_LIGHT_PRESETS.find((preset) => preset.name === name)!;
+
+function labels(entries: ContextMenuEntry[], submenu: string): string[] {
+  const entry = entries.find((candidate) => candidate.type === 'submenu' && candidate.label === submenu);
+  if (entry?.type !== 'submenu') throw new Error(`no ${submenu}`);
+  const children = typeof entry.children === 'function' ? entry.children() : entry.children;
+  return children.flatMap((child) => (child.type === 'item' ? [child.label] : []));
 }
 
 function item(entries: ContextMenuEntry[], label: string): Item {
@@ -34,7 +46,7 @@ describe('tokenLightingEntries', () => {
     const store = setup();
     const steps = getHistoryStore(store)!;
     const before = steps.getState().pastStates.length;
-    item(tokenLightingEntries(store, 'a', ['a', 'b']), 'Vision').onClick?.();
+    item(tokenLightingEntries(store, 'a', ['a', 'b'], GENERIC_LIGHT_PRESETS), 'Vision').onClick?.();
     const { tokens } = store.getState().objects;
     expect(tokens.a!.vision).toEqual({ enabled: true });
     expect(tokens.b!.vision).toEqual({ enabled: true });
@@ -43,11 +55,33 @@ describe('tokenLightingEntries', () => {
 
   it('hands every selected token a torch and takes it away again', () => {
     const store = setup();
-    item(tokenLightingEntries(store, 'a', ['a', 'b']), 'Torch').onClick?.();
-    expect(store.getState().objects.tokens.b!.light).toEqual(LIGHT_PRESETS.torch.emission);
-    const entries = tokenLightingEntries(store, 'a', ['a', 'b']);
+    item(tokenLightingEntries(store, 'a', ['a', 'b'], GENERIC_LIGHT_PRESETS), 'Torch').onClick?.();
+    expect(store.getState().objects.tokens.b!.light).toEqual(emissionOf(generic('Torch')));
+    const entries = tokenLightingEntries(store, 'a', ['a', 'b'], GENERIC_LIGHT_PRESETS);
     expect(item(entries, 'Torch').checked).toBe(true);
     item(entries, 'None').onClick?.();
     expect(store.getState().objects.tokens.a!.light).toBeUndefined();
+  });
+
+  it('lists the light presets of the map\'s collection', () => {
+    const store = setup();
+    expect(labels(tokenLightingEntries(store, 'a', ['a'], GENERIC_LIGHT_PRESETS), 'Carry light')).toEqual(['None', 'Candle', 'Torch', 'Lantern', 'Magical light']);
+    expect(labels(tokenLightingEntries(store, 'a', ['a'], dnd5e), 'Carry light')).toEqual(['None', ...dnd5e.map((preset) => preset.name)]);
+    item(tokenLightingEntries(store, 'a', ['a'], dnd5e), 'Lamp').onClick?.();
+    expect(store.getState().objects.tokens.a!.light).toMatchObject({ bright: 15, dim: 45, kind: 'lantern' });
+  });
+
+  it('ticks the preset a carried light came from, also once the light was edited, and nothing for a custom light', () => {
+    const store = setup();
+    const lamp = dnd5e.find((preset) => preset.name === 'Lamp')!;
+    store.getState().updateToken('a', { light: { ...emissionOf(lamp), bright: 25 } });
+    const ticked = (): string[] => {
+      const entry = tokenLightingEntries(store, 'a', ['a'], dnd5e).find((candidate) => candidate.type === 'submenu');
+      const children = entry?.type === 'submenu' && Array.isArray(entry.children) ? entry.children : [];
+      return children.flatMap((child) => (child.type === 'item' && child.checked ? [child.label] : []));
+    };
+    expect(ticked()).toEqual(['Lamp']);
+    store.getState().updateToken('a', { light: { ...emissionOf(lamp), kind: 'custom' } });
+    expect(ticked()).toEqual([]);
   });
 });
