@@ -1,4 +1,5 @@
 import { Container, Graphics, Text } from 'pixi.js';
+import { resourceColor } from '../../../resources/resourceColors';
 import type { VisibleResource } from '../../../resources/resourceTypes';
 import { destroyTree } from '../../utils/destroyTree';
 import { colorNumber } from './ResourceBarView';
@@ -43,10 +44,11 @@ export class ResourceWheelView {
     if (this.text.text !== label) this.text.text = label;
     this.text.scale.set(TEXT_SCALE * Math.min(1, FULL_SIZE_CHARACTERS / label.length));
 
-    const key = `${definition.color}|${value.current}|${value.max}`;
+    const lit = resourceColor(definition, value);
+    const key = `${lit}|${value.current}|${value.max}`;
     if (key === this.drawn) return;
     this.drawn = key;
-    const color = colorNumber(definition.color);
+    const color = colorNumber(lit);
     this.ring.clear().circle(0, 0, WHEEL_SIZE / 2).fill({ color: 0x141414, alpha: 0.94 });
     for (const { start, end, lit } of wheelArcs(value)) {
       // A stroke ends the path, so each arc starts at its own first point

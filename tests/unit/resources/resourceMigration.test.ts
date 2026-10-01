@@ -47,11 +47,24 @@ describe('migrateTokenState', () => {
 });
 
 describe('migrateTokenSettings', () => {
-  it('turns the two bar switches into one', () => {
-    expect(migrateTokenSettings({ showHPBars: false, showStressBars: false, showNameplates: true })).toEqual({ showResources: false, showNameplates: true });
-    expect(migrateTokenSettings({ showHPBars: true, showStressBars: false })).toEqual({ showResources: true });
-    expect(migrateTokenSettings({ showResources: false })).toEqual({ showResources: false });
-    expect(migrateTokenSettings({ showNameplates: true })).toEqual({ showNameplates: true });
+  it('keeps what each of the two old switches hid on the map', () => {
+    expect(migrateTokenSettings({ showHPBars: false, showStressBars: false, showNameplates: true })).toEqual({ showNameplates: true, hiddenResources: ['hp', 'stress'] });
+    expect(migrateTokenSettings({ showHPBars: true, showStressBars: false })).toEqual({ hiddenResources: ['stress'] });
+    expect(migrateTokenSettings({ showHPBars: true, showStressBars: true })).toEqual({ hiddenResources: [] });
+    // A scene that showed only the secondary bar keeps hiding HP
+    expect(migrateTokenSettings({ showHPBars: false, showStressBars: true })).toEqual({ hiddenResources: ['hp'] });
+  });
+
+  it('lets the old switches decide when they disagree with the list: an older Atlas changed them', () => {
+    expect(migrateTokenSettings({ hiddenResources: ['ammo'], showHPBars: false, showStressBars: true })).toEqual({ hiddenResources: ['ammo', 'hp'] });
+    expect(migrateTokenSettings({ hiddenResources: ['hp', 'stress', 'ammo'], showHPBars: true, showStressBars: true })).toEqual({ hiddenResources: ['ammo'] });
+  });
+
+  it('reads the single switch of earlier builds of this feature and leaves current settings alone', () => {
+    expect(migrateTokenSettings({ showResources: false })).toEqual({ hiddenResources: ['hp', 'stress'] });
+    expect(migrateTokenSettings({ showResources: true })).toEqual({ hiddenResources: [] });
+    const current = { showNameplates: true, hiddenResources: ['stress'] };
+    expect(migrateTokenSettings(current)).toBe(current);
   });
 });
 

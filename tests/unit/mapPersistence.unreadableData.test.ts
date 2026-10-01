@@ -107,8 +107,8 @@ describe('a map saved before tokens had resources', () => {
     expect(tokens.a).not.toHaveProperty('hp');
     expect(tokens.a).not.toHaveProperty('maxStress');
     expect(tokens.b!.resources).toEqual({ hp: { current: 12, max: 100 } });
-    // Both bar switches were off, so resources stay hidden on this map
-    expect((loaded?.state as { tokenSettings: unknown }).tokenSettings).toEqual({ showNameplates: true, showResources: false, showInstanceBadges: true, tokenRingSize: 1 });
+    // Both bar switches were off, so both stay hidden on this map
+    expect((loaded?.state as { tokenSettings: unknown }).tokenSettings).toEqual({ showNameplates: true, hiddenResources: ['hp', 'stress'], showInstanceBadges: true, tokenRingSize: 1 });
     // An older Atlas loads a map with a newer version empty and saves that over the file
     expect((loaded?.state as { version: number }).version).toBe(4);
     expect(loaded?.version).toBe(4);

@@ -35,7 +35,7 @@ function tokenUI({ showResources = true, zoom }: { showResources?: boolean; zoom
   const { app } = createInMemoryApp({ files: {} });
   const store = createViewAtlasStore(app, `wheels-${Math.random()}`);
   store.setState({ persistenceEnabled: false, grid: { ...store.getState().grid, size: 70 },
-    tokenSettings: { ...store.getState().tokenSettings, showResources } });
+    tokenSettings: { ...store.getState().tokenSettings, hiddenResources: showResources ? [] : DEFINITIONS.map(({ key }) => key) } });
   const ui = new TokenUIRenderer(store);
   ui.resourceDefsProvider = () => DEFINITIONS;
   if (zoom !== undefined) ui.zoomProvider = () => zoom;

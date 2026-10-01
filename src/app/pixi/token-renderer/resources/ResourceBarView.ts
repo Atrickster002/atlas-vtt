@@ -1,5 +1,6 @@
 import { Container, Graphics, type Ticker } from 'pixi.js';
 import { barDimensions } from '../../../styles/designTokens';
+import { resourceColor } from '../../../resources/resourceColors';
 import type { VisibleResource } from '../../../resources/resourceTypes';
 import { ResourceBarLabel } from '../../ResourceBarLabel';
 import { destroyTree } from '../../utils/destroyTree';
@@ -32,7 +33,7 @@ export class ResourceBarView {
   /** Shows `resource` with the bar's top edge at `top`; returns the height it takes. */
   update({ definition, value }: VisibleResource, top: number, animate: boolean): number {
     const { width, height } = barDimensions.token;
-    this.color = colorNumber(definition.color);
+    this.color = colorNumber(resourceColor(definition, value));
     const inner = { x: -width / 2 + BORDER / 2, y: top + BORDER / 2, width: width - BORDER, height: height - BORDER };
     if (this.drawnTop !== top) {
       this.drawnTop = top;

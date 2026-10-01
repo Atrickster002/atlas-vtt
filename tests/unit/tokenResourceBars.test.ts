@@ -21,7 +21,7 @@ function setup() {
   const { app } = createInMemoryApp({ files: {} });
   const store = createViewAtlasStore(app, 'resource-bars');
   store.setState({ persistenceEnabled: false, grid: { ...store.getState().grid, size: 70 },
-    tokenSettings: { ...store.getState().tokenSettings, showResources: true },
+    tokenSettings: { ...store.getState().tokenSettings, hiddenResources: [] },
     objects: { ...store.getState().objects, tokens: { hero } } });
   return store;
 }
@@ -39,19 +39,32 @@ const tokenUI = (): TokenUIRenderer => {
 };
 
 describe('resources hidden on a map', () => {
-  it('leaves no slots for controls once Show resources is switched off', () => {
-    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({
-      createLinearGradient: () => ({ addColorStop: vi.fn() }), fillRect: vi.fn(),
-    } as CanvasRenderingContext2D);
+  const context = (): CanvasRenderingContext2D => ({ createLinearGradient: () => ({ addColorStop: vi.fn() }), fillRect: vi.fn() }) as unknown as CanvasRenderingContext2D;
+
+  it('leaves no slots for controls once every bar is hidden', () => {
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(context());
     const store = setup();
     const ui = new TokenUIRenderer(store);
     ui.resourceDefsProvider = () => DEFINITIONS;
     try {
       ui.update(hero, 70);
       expect(ui.getResourceSlots()).toHaveLength(2);
-      store.setState({ tokenSettings: { ...store.getState().tokenSettings, showResources: false } });
+      store.setState({ tokenSettings: { ...store.getState().tokenSettings, hiddenResources: ['hp', 'stress'] } });
       ui.update(hero, 70);
       expect(ui.getResourceSlots()).toEqual([]);
+    } finally { ui.destroy(); }
+  });
+
+  it('hides each resource on its own, as the two old switches did', () => {
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(context());
+    const store = setup();
+    const ui = new TokenUIRenderer(store);
+    ui.resourceDefsProvider = () => DEFINITIONS;
+    try {
+      store.setState({ tokenSettings: { ...store.getState().tokenSettings, hiddenResources: ['hp'] } });
+      ui.update(hero, 70);
+      // The bar that stays moves up to the first place, as before
+      expect(ui.getResourceSlots().map((slot) => [slot.key, slot.top])).toEqual([['stress', 2]]);
     } finally { ui.destroy(); }
   });
 });

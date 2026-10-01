@@ -255,8 +255,8 @@ export interface ViewAtlasState {
   // Token settings
   tokenSettings: {
     showNameplates: boolean;
-    /** Off hides every resource bar and wheel on this map. */
-    showResources: boolean;
+    /** Keys of the collection's resources this map does not show to the GM; see `resources/sceneVisibility.ts`. */
+    hiddenResources: string[];
     showInstanceBadges: boolean;
     tokenRingSize: number;
   };
@@ -340,7 +340,7 @@ const createDefaultWidgets = (): WidgetSettings => ({
 /** Token display settings of a map that never set its own. */
 export const DEFAULT_TOKEN_SETTINGS: Readonly<ViewAtlasState['tokenSettings']> = {
   showNameplates: false,
-  showResources: true,
+  hiddenResources: [],
   showInstanceBadges: true,
   tokenRingSize: 1,
 };
@@ -381,7 +381,7 @@ const createInitialState = (): Pick<ViewAtlasState, 'schema' | 'version' | 'mapP
   dmNotePath: null, // DM note linking
   tokenSettings: {
     showNameplates: false,
-    showResources: true,
+    hiddenResources: [],
     showInstanceBadges: true,
     tokenRingSize: 1
   },

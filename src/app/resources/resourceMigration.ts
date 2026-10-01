@@ -1,4 +1,5 @@
 import { resourceKey } from './resourceDefinitions';
+import { withHiddenResources } from './sceneVisibility';
 import type { ResourceHolder, ResourceValue } from './resourceTypes';
 
 /** Maxima the old bars showed for values stored as bare numbers; a larger number is its own maximum. */
@@ -53,11 +54,9 @@ export function migrateTokenState<T extends object>(token: T): T & ResourceHolde
   return next as T & ResourceHolder;
 }
 
-/** Map token settings: the two bar switches become one `showResources`. */
+/** Map token settings: the two bar switches become the list of resources the map hides. */
 export function migrateTokenSettings(settings: Record<string, unknown>): Record<string, unknown> {
-  if (!('showHPBars' in settings || 'showStressBars' in settings)) return settings;
-  const { showHPBars, showStressBars, ...rest } = settings;
-  return { ...rest, showResources: showHPBars !== false || showStressBars === true };
+  return withHiddenResources(settings);
 }
 
 /** Initiative entries used to copy HP, Stress and "defeated" from their tokens; they read the token now. */

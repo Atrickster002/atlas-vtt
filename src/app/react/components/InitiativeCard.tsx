@@ -1,6 +1,7 @@
 import { useMapResources } from '../../resources/useMapResources';
 import { isDefeated } from '../../resources/resourceValues';
-import { shapeOf, visibleResources } from '../../resources/visibleResources';
+import { resourceColor } from '../../resources/resourceColors';
+import { visibleResources } from '../../resources/visibleResources';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { GripVertical, Skull, User, Bot } from 'lucide-react';
 import type { InitiativeEntry } from '../../types/initiativeTypes';
@@ -53,10 +54,10 @@ export const InitiativeCard: React.FC<InitiativeCardProps> = ({
     return sameImageCount >= 2 ? token.instanceNumber : null;
   }, [tokens, entry.tokenId, tokenSettings?.showInstanceBadges]);
 
-  // The token's resources, read live: the bars of its collection, and whether one of them defeats it
+  // Read live from the token: the resources that defeat it (hit points), and whether one of them has
   const definitions = useMapResources();
   const token = tokens[entry.tokenId];
-  const bars = token ? visibleResources(token, definitions, 'dm').filter(({ slot }) => shapeOf(slot) === 'bar') : [];
+  const bars = token ? visibleResources(token, definitions, 'dm').filter(({ definition }) => definition.defeatedWhenSpent) : [];
   const defeated = token !== undefined && isDefeated(token, definitions);
 
   // Get image URL from vault path
@@ -269,7 +270,7 @@ export const InitiativeCard: React.FC<InitiativeCardProps> = ({
             >
               <div
                 className="atlas-initiative-card__hp-fill"
-                style={{ width: `${Math.max(0, Math.min(100, (value.current / value.max) * 100))}%`, '--atlas-resource-color': definition.color } as React.CSSProperties}
+                style={{ width: `${Math.max(0, Math.min(100, (value.current / value.max) * 100))}%`, '--atlas-resource-color': resourceColor(definition, value) } as React.CSSProperties}
               />
             </div>
           ))}

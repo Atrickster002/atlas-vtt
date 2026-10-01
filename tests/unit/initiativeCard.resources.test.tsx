@@ -30,11 +30,21 @@ function renderCard(resources: Record<string, { current: number; max: number }>)
 }
 
 describe('InitiativeCard resources', () => {
-  it('shows the token\'s bars live, in the collection\'s order, without its badges', () => {
+  it('shows the hit points of its token live, and no other resource, as the card always did', () => {
     renderCard({ str: { current: 12, max: 14 }, hp: { current: 3, max: 8 }, ammo: { current: 2, max: 6 } });
     const meters = screen.getAllByRole('meter');
-    expect(meters.map((meter) => meter.getAttribute('aria-label'))).toEqual(['HP', 'STR']);
-    expect(meters.map((meter) => [meter.getAttribute('aria-valuenow'), meter.getAttribute('aria-valuemax')])).toEqual([['3', '8'], ['12', '14']]);
+    expect(meters.map((meter) => meter.getAttribute('aria-label'))).toEqual(['HP']);
+    expect(meters.map((meter) => [meter.getAttribute('aria-valuenow'), meter.getAttribute('aria-valuemax')])).toEqual([['3', '8']]);
+  });
+
+  it('turns the bar yellow and red as hit points run low', () => {
+    const fill = (current: number): string => {
+      const { container, unmount } = renderCard({ hp: { current, max: 10 } });
+      const color = container.querySelector<HTMLElement>('.atlas-initiative-card__hp-fill')!.style.getPropertyValue('--atlas-resource-color');
+      unmount();
+      return color;
+    };
+    expect([fill(10), fill(5), fill(1)]).toEqual(['#22c55e', '#eab308', '#ef4444']);
   });
 
   it('marks the card defeated when a defeating resource is spent', () => {

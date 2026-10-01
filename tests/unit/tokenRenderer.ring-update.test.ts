@@ -21,7 +21,7 @@ describe('TokenRenderer ring updates', () => {
         getState: () => ({
           tokenSettings: {
             showNameplates: false,
-            showResources: true,
+            hiddenResources: [],
             tokenRingSize: 1.4,
             showInstanceBadges: true,
           },

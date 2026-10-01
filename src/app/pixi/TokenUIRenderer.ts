@@ -299,9 +299,9 @@ export class TokenUIRenderer {
     // Players see the resources their definitions allow, whatever the DM hides on this map.
     const viewer: ResourceViewer = playerSettings ? 'player' : 'dm';
     const definitions = this.resourceDefsProvider();
-    const shown = playerSettings || (tokenSettings?.showResources ?? true)
-      ? visibleResources(token, definitions, viewer)
-      : [];
+    // The map's own switches hide resources from the GM; the player view never reads them
+    const hidden = playerSettings ? [] : tokenSettings?.hiddenResources ?? [];
+    const shown = visibleResources(token, definitions, viewer).filter(({ definition }) => !hidden.includes(definition.key));
 
     const bars = shown.filter(({ slot }) => shapeOf(slot) === 'bar');
     // Wheels answer the game master's hover and selection; the player view has neither
