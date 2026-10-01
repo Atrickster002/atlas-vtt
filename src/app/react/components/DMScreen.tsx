@@ -10,6 +10,7 @@ import { App, TFile, Component, WorkspaceLeaf } from 'obsidian';
 import { getActiveWorkspaceLeaf, suppressActiveLeaf } from '../../utils/embeddedLeafFocus';
 import FantasyStatblock from './FantasyStatblock';
 import LinkedNotePicker from './LinkedNotePicker';
+import { StatblockFeeds } from './dm-screen/StatblockFeeds';
 import { Button } from '../../packages/components/primitives/button';
 import { LabelTooltip } from '../../packages/components/primitives/tooltip';
 import { addTokenHighlight, zoomToTokenWithHighlight } from '../../pixi/utils/tokenHighlight';
@@ -233,15 +234,6 @@ export default function DMScreen({ isOpen, onClose }: DMScreenProps) {
   const [isNoteFocused, setIsNoteFocused] = useState(false);
   const componentRef = useRef<Component>(new Component());
   const screenRef = useRef<HTMLDivElement>(null);
-  const [columnCount, setColumnCount] = useState(() => {
-    if (typeof window === 'undefined') return 2;
-    const width = window.innerWidth;
-    if (width >= 2400) return 4;
-    if (width >= 1400) return 3;
-    if (width >= 768) return 2;
-    return 1;
-  });
-
   // Animated close: play exit animation, then call the real onClose
   const handleClose = useCallback((): void => {
     if (closing) return;
@@ -251,25 +243,6 @@ export default function DMScreen({ isOpen, onClose }: DMScreenProps) {
       onClose();
     }, 200); // matches CSS animation duration
   }, [closing, onClose]);
-
-  // Handle window resize to update column count
-  useEffect(() => {
-    const handleResize = () => {
-      const width = window.innerWidth;
-      let newColumnCount: number;
-      if (width >= 2400) newColumnCount = 4;
-      else if (width >= 1400) newColumnCount = 3;
-      else if (width >= 768) newColumnCount = 2;
-      else newColumnCount = 1;
-      setColumnCount(newColumnCount);
-    };
-
-    window.addEventListener('resize', handleResize);
-
-    return () => {
-      window.removeEventListener('resize', handleResize);
-    };
-  }, []);
 
   // Get unique statblocks from tokens on the map
   useEffect(() => {
@@ -497,42 +470,26 @@ export default function DMScreen({ isOpen, onClose }: DMScreenProps) {
                     <p>No statblocks currently in use on this map.</p>
                   </div>
                 ) : (
-                  (() => {
-                    // Create columns array based on state
-                    const columns: Array<Array<[string, LoadedStatblock]>> = Array.from({ length: columnCount }, () => []);
-
-                    // Distribute statblocks across columns
-                    Array.from(statblocks.entries()).forEach(([path, statblock], index) => {
-                      columns[index % columnCount]!.push([path, statblock]);
-                    });
-
-                    return (
-                      <div className="atlas-dm-statblocks-masonry">
-                        {columns.map((column, columnIndex) => (
-                          <div key={columnIndex} className="atlas-dm-statblocks-column">
-                            {column.map(([path, statblock]) => (
-                              <FantasyStatblock
-                                key={path}
-                                notePath={path}
-                                app={app}
-                                tokens={statblock.tokens.map(toTokenVitals)}
-                                tokenActions={{
-                                  onUpdateToken: (id, updates) => updateToken(id, updates),
-                                  onHoverToken: (id) => addTokenHighlight(view, id, { highlightDuration: 800 }),
-                                  onLocateToken: (id) => {
-                                    const token = tokens[id];
-                                    if (!token) return;
-                                    zoomToTokenWithHighlight(view, id, { x: token.x, y: token.y });
-                                    handleClose();
-                                  },
-                                }}
-                              />
-                            ))}
-                          </div>
-                        ))}
-                      </div>
-                    );
-                  })()
+                  <StatblockFeeds>
+                    {Array.from(statblocks.entries(), ([path, statblock]) => (
+                      <FantasyStatblock
+                        key={path}
+                        notePath={path}
+                        app={app}
+                        tokens={statblock.tokens.map(toTokenVitals)}
+                        tokenActions={{
+                          onUpdateToken: (id, updates) => updateToken(id, updates),
+                          onHoverToken: (id) => addTokenHighlight(view, id, { highlightDuration: 800 }),
+                          onLocateToken: (id) => {
+                            const token = tokens[id];
+                            if (!token) return;
+                            zoomToTokenWithHighlight(view, id, { x: token.x, y: token.y });
+                            handleClose();
+                          },
+                        }}
+                      />
+                    ))}
+                  </StatblockFeeds>
                 )}
               </div>
             )}

@@ -27,5 +27,6 @@
 
 ## Fixed
 
+- The DM screen shows its statblocks side by side again. As many columns as fit share the space, and each statblock goes into the column with the first free space, so no column stays empty
 - Collections can be deleted again when some of their files were already removed outside Obsidian, for example by git
 - Edit Token opens again instead of crashing on its Vision switch
