@@ -46,23 +46,35 @@ export function withinReach(point: Point, sight: Sight): boolean {
 }
 
 /**
- * How `sight` perceives something at `point`, where the light is at `level`: each region asks
- * its sense whether it perceives at that level, and the target's conditions rule senses out.
- * Without vision tokens (`sight.all`) normal sight reaches everywhere.
+ * The region through which something at `point` is perceived best, where the light is at
+ * `level`: each region asks its sense whether it perceives at that level, and the target's
+ * conditions rule senses out. A precise sense comes before an imprecise one; null when no
+ * region perceives it (also without vision tokens, when there are no regions).
  */
-export function perceive(point: Point, sight: Sight, level: LightLevel, target: PerceivedTarget = {}): Perception {
-  if (target.undetected) return 'unseen';
-  if (sight.all) return !target.invisible && perceivedLevel(NORMAL_SIGHT, level) !== null ? 'seen' : 'unseen';
-  let sensed = false;
+export function perceivingRegion(point: Point, sight: Sight, level: LightLevel, target: PerceivedTarget = {}): SightRegion | null {
+  if (target.undetected) return null;
+  let sensing: SightRegion | null = null;
   for (const region of sight.regions) {
     const { sense } = region;
     if (target.invisible && !region.seesInvisible) continue;
     if (target.airborne && sense.ignores === 'airborne') continue;
     if (perceivedLevel(sense, level) === null || !regionContains(region, point)) continue;
-    if (sense.precise) return 'seen';
-    sensed = true;
+    if (sense.precise) return region;
+    sensing ??= region;
   }
-  return sensed ? 'sensed' : 'unseen';
+  return sensing;
+}
+
+/**
+ * How `sight` perceives something at `point`, where the light is at `level` (`perceivingRegion`).
+ * Without vision tokens (`sight.all`) normal sight reaches everywhere.
+ */
+export function perceive(point: Point, sight: Sight, level: LightLevel, target: PerceivedTarget = {}): Perception {
+  if (target.undetected) return 'unseen';
+  if (sight.all) return !target.invisible && perceivedLevel(NORMAL_SIGHT, level) !== null ? 'seen' : 'unseen';
+  const region = perceivingRegion(point, sight, level, target);
+  if (!region) return 'unseen';
+  return region.sense.precise ? 'seen' : 'sensed';
 }
 
 /** What perception reads besides sight and light. */
