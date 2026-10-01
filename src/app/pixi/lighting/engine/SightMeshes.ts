@@ -16,26 +16,50 @@ interface SightMesh {
   wedges: BufferImageSource;
 }
 
+/** An area to draw, with everything the senses that share it write. */
+interface Area {
+  origin: Point;
+  apex: number;
+  channels: [number, number, number, number];
+}
+
 /**
  * What vision tokens see, drawn into the lighting layer (so each render, including the player
- * window's own camera, draws it with its camera): one mesh per token and sense, in the channels
- * `sightChannels` gives the sense (red = seen by light, green and blue = perceived without
- * light, alpha = dim light as bright). Meshes combine with `max`. A visibility polygon is
- * star-shaped around its origin, so a triangle fan from the origin covers it exactly.
+ * window's own camera, draws it with its camera), in the channels `sightChannels` gives each
+ * sense (red = seen by light, green and blue = perceived without light, alpha = dim light as
+ * bright). There is one mesh per area: senses of a token that reach as far share their polygon
+ * (`SightCache`) and are drawn once, with their channels together. A mesh is kept while its
+ * polygon stays, so a moved token draws only its own areas anew. Meshes combine with `max`. A
+ * visibility polygon is star-shaped around its origin, so a triangle fan from the origin covers
+ * it exactly.
  */
 export class SightMeshes {
   readonly view = new Container({ label: 'sight' });
-  private meshes: SightMesh[] = [];
+  private meshes = new Map<Polygon, SightMesh>();
+  /** The footprint radius the wedges of the kept meshes were worked out for. */
+  private radius = 0;
   /** The footprints of tokens shown where no sense shows the map: drawn apart, since they follow a dragged token. */
   private spots: SightMesh[] = [];
 
   draw(sight: Sight, radius: number): void {
-    this.clear(this.meshes);
-    this.meshes = [];
-    if (sight.all) return;
-    for (const region of sight.regions) {
+    const areas = new Map<Polygon, Area>();
+    for (const region of sight.all ? [] : sight.regions) {
       const channels = sightChannels(region);
-      if (channels && region.polygon) this.add(this.meshes, region.polygon, region.origin, region.apex, radius, channels);
+      if (!channels || !region.polygon || region.polygon.length < 3) continue;
+      const area = areas.get(region.polygon);
+      if (area) channels.forEach((value, i) => { area.channels[i] = Math.max(area.channels[i]!, value); });
+      else areas.set(region.polygon, { origin: region.origin, apex: region.apex, channels: [...channels] });
+    }
+    for (const [polygon, kept] of this.meshes) {
+      if (areas.has(polygon) && radius === this.radius) continue;
+      this.release(kept);
+      this.meshes.delete(polygon);
+    }
+    this.radius = radius;
+    for (const [polygon, { origin, apex, channels }] of areas) {
+      // A kept polygon is drawn as it was: the cache hands out a new one whenever a token or its senses change.
+      if (this.meshes.has(polygon)) continue;
+      this.meshes.set(polygon, this.create(polygon, origin, sightWedges(origin, polygon, radius, apex).slice(0, MAX_WEDGES), channels));
     }
   }
 
@@ -45,39 +69,35 @@ export class SightMeshes {
    * sight, and a footprint is too small for one.
    */
   drawSpots(spots: readonly SeenSpot[]): void {
-    this.clear(this.spots);
-    this.spots = [];
-    for (const spot of spots) this.add(this.spots, spot.polygon, spot, 0, 0, SPOT_CHANNELS, false);
+    for (const spot of this.spots) this.release(spot);
+    this.spots = spots.filter((spot) => spot.polygon.length >= 3).map((spot) => this.create(spot.polygon, spot, [], SPOT_CHANNELS));
   }
 
-  private add(list: SightMesh[], polygon: Polygon, origin: Point, apex: number, radius: number, channel: SightChannels, soft = true): void {
-    if (polygon.length < 3) return;
-    const wedges = soft ? sightWedges(origin, polygon, radius, apex).slice(0, MAX_WEDGES) : [];
+  private create(polygon: Polygon, origin: Point, wedges: readonly SightWedge[], channels: SightChannels): SightMesh {
     const wedgeSource = wedgeTexture(wedges);
     const uniforms = new UniformGroup({
       uWedgeCount: { value: wedges.length, type: 'i32' },
-      uChannel: { value: new Float32Array(channel), type: 'vec4<f32>' },
+      uChannel: { value: new Float32Array(channels), type: 'vec4<f32>' },
     });
     const shader = createShader(ENGINE_SHADERS.sight, { sightUniforms: uniforms, uWedges: wedgeSource });
     const mesh = new Mesh({ geometry: fanGeometry(origin, polygon), shader });
     mesh.blendMode = 'max';
     this.view.addChild(mesh);
-    list.push({ mesh, wedges: wedgeSource });
+    return { mesh, wedges: wedgeSource };
   }
 
-  private clear(list: readonly SightMesh[]): void {
-    for (const { mesh, wedges } of list) {
-      this.view.removeChild(mesh);
-      mesh.geometry.destroy(true);
-      mesh.shader?.destroy();
-      wedges.destroy();
-      mesh.destroy();
-    }
+  private release({ mesh, wedges }: SightMesh): void {
+    this.view.removeChild(mesh);
+    mesh.geometry.destroy(true);
+    mesh.shader?.destroy();
+    wedges.destroy();
+    mesh.destroy();
   }
 
   destroy(): void {
-    this.clear(this.meshes);
-    this.clear(this.spots);
+    for (const mesh of [...this.meshes.values(), ...this.spots]) this.release(mesh);
+    this.meshes.clear();
+    this.spots = [];
     destroyTree(this.view);
   }
 }
