@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { Container } from 'pixi.js';
-import { playerLightingLayers, playerTokenSight, tokenSeenPredicate, type GmOverlays } from '../playerLightingLayers';
+import { playerLightingLayers, playerTokenSight, tokenPerception, type GmOverlays } from '../playerLightingLayers';
 import { hiddenTokenLayers } from '../../playerSafeFrame';
-import { computeSight } from '../../../vision/sight';
+import { computeSight, sightSources } from '../../../vision/sight';
+import type { Perception } from '../../../vision/perception';
+import { tremorsense } from '../../../vision/__tests__/senseSources';
+import type { ConditionDefinition } from '../../../types/collectionSettingsTypes';
 import type { TokenEntity } from '../../../types';
 
 describe('playerLightingLayers', () => {
@@ -33,38 +36,104 @@ describe('playerLightingLayers', () => {
   });
 });
 
-describe('tokenSeenPredicate', () => {
+const wall = { id: 'w', kind: 'wall' as const, type: 'solid' as const, p1: { x: 200, y: 0 }, p2: { x: 200, y: 400 } };
+const conditions: ConditionDefinition[] = [
+  { id: 'blind', name: 'Blinded', color: '#000000', effect: 'blinded' },
+  { id: 'unseen', name: 'Invisible', color: '#000000', effect: 'invisible' },
+  { id: 'flying', name: 'Flying', color: '#000000', effect: 'airborne' },
+  { id: 'gone', name: 'Undetected', color: '#000000', effect: 'undetected' },
+  { id: 'prone', name: 'Prone', color: '#000000' },
+];
+
+describe('tokenPerception', () => {
   const tokens: Record<string, TokenEntity> = {
     hero: { id: 'hero', kind: 'token', imagePath: 'h.png', x: 100, y: 100, vision: { enabled: true } },
     lurker: { id: 'lurker', kind: 'token', imagePath: 'l.png', x: 400, y: 100 },
   };
-  const wall = { id: 'w', kind: 'wall' as const, type: 'solid' as const, p1: { x: 200, y: 0 }, p2: { x: 200, y: 400 } };
-  const sight = computeSight([{ tokenId: 'hero', origin: { x: 100, y: 100 }, range: 1000, darkvision: 0 }], [wall]);
+  const sight = computeSight([{ tokenId: 'hero', origin: { x: 100, y: 100 }, range: 1000, senses: [] }], [wall]);
 
   it('hides tokens out of sight, even in daylight', () => {
-    const isSeen = tokenSeenPredicate(sight, { ambient: 1 }, [], tokens);
-    expect(isSeen('hero')).toBe(true);
-    expect(isSeen('lurker')).toBe(false);
+    const perception = tokenPerception(sight, { ambient: 1 }, [], tokens);
+    expect(perception('hero')).toBe('seen');
+    expect(perception('lurker')).toBe('unseen');
   });
 
   it('always shows the tokens that see, even in the dark', () => {
-    expect(tokenSeenPredicate(sight, { ambient: 0 }, [], tokens)('hero')).toBe(true);
+    expect(tokenPerception(sight, { ambient: 0 }, [], tokens)('hero')).toBe('seen');
   });
 
   it('hides tokens in sight while the ambient light is below the scene\'s threshold', () => {
     const inSight = { ...tokens, guard: { id: 'guard', kind: 'token' as const, imagePath: 'g.png', x: 150, y: 150 } };
-    expect(tokenSeenPredicate(sight, { ambient: 0.5 }, [], inSight)('guard')).toBe(true);
-    expect(tokenSeenPredicate(sight, { ambient: 0.5, litThreshold: 0.75 }, [], inSight)('guard')).toBe(false);
+    expect(tokenPerception(sight, { ambient: 0.5 }, [], inSight)('guard')).toBe('seen');
+    expect(tokenPerception(sight, { ambient: 0.5, litThreshold: 0.75 }, [], inSight)('guard')).toBe('unseen');
+  });
+
+  it('shows tokens at dusk and hides them at night, as before light levels', () => {
+    const inSight = { ...tokens, guard: { id: 'guard', kind: 'token' as const, imagePath: 'g.png', x: 150, y: 150 } };
+    expect(tokenPerception(sight, { ambient: 0.5 }, [], inSight)('guard')).toBe('seen');
+    expect(tokenPerception(sight, { ambient: 0.15 }, [], inSight)('guard')).toBe('unseen');
   });
 
   it('treats unknown tokens as unseen', () => {
-    expect(tokenSeenPredicate(sight, { ambient: 1 }, [], tokens)('missing')).toBe(false);
+    expect(tokenPerception(sight, { ambient: 1 }, [], tokens)('missing')).toBe('unseen');
+  });
+
+  it('reads each token from the record it is given, wherever the store has it', () => {
+    const moved = { ...tokens, lurker: { ...tokens.lurker!, x: 150 } };
+    expect(tokenPerception(sight, { ambient: 1 }, [], moved)('lurker')).toBe('seen');
+  });
+});
+
+describe('tokenPerception with conditions', () => {
+  const near = { x: 150, y: 100 };
+  const behind = { x: 300, y: 100 };
+  const at = (id: string, point: { x: number; y: number }, extra: { conditions?: string[]; vision?: TokenEntity['vision'] } = {}): TokenEntity =>
+    ({ id, kind: 'token', imagePath: `${id}.png`, ...point, ...(extra.conditions && { conditions: extra.conditions }), ...(extra.vision && { vision: extra.vision }) });
+  const tokens: Record<string, TokenEntity> = {
+    hero: at('hero', { x: 100, y: 100 }, { vision: { enabled: true, tremorsense: 60 } }),
+    invisible: at('invisible', near, { conditions: ['unseen'] }),
+    flying: at('flying', behind, { conditions: ['flying'] }),
+    undetected: at('undetected', near, { conditions: ['gone'] }),
+    prone: at('prone', near, { conditions: ['prone', 'no-such-condition'] }),
+    ally: at('ally', behind, { vision: { enabled: true }, conditions: ['unseen', 'blind', 'gone'] }),
+    off: at('off', behind, { vision: { enabled: false }, conditions: ['gone'] }),
+  };
+  const scale = { unitDistance: 5, cellSize: 5 };
+  // Tremorsense 60 units is 60 px here; the token behind the wall at x = 300 is 200 px away.
+  const sight = computeSight(sightSources({ hero: { ...tokens.hero!, vision: { enabled: true, tremorsense: 250 } } }, scale, { width: 1000, height: 1000 }), [wall]);
+  const perceived = (id: string, ambient = 1): string => tokenPerception(sight, { ambient }, [], tokens, conditions)(id);
+
+  it('shows an invisible token only to senses that perceive invisible things: here it is sensed, not seen', () => {
+    expect(perceived('invisible')).toBe('sensed');
+    expect(tokenPerception(computeSight([{ tokenId: 'hero', origin: { x: 100, y: 100 }, range: 1000, senses: [] }], [wall]), { ambient: 1 }, [], tokens, conditions)('invisible')).toBe('unseen');
+  });
+
+  it('does not sense a flying token by tremorsense', () => {
+    expect(perceived('flying')).toBe('unseen');
+    expect(tokenPerception(sight, { ambient: 1 }, [], { ...tokens, flying: at('flying', behind) }, conditions)('flying')).toBe('sensed');
+  });
+
+  it('never shows an undetected token', () => {
+    expect(perceived('undetected')).toBe('unseen');
+    expect(perceived('off')).toBe('unseen');
+  });
+
+  it('ignores conditions that do nothing to sight, and ones the collection does not define', () => {
+    expect(perceived('prone')).toBe('seen');
+    expect(perceived('prone', 0)).toBe('sensed');
+  });
+
+  it('always shows a token with vision: invisible, blinded, undetected, behind a wall and in the dark', () => {
+    expect(perceived('ally', 0)).toBe('seen');
+  });
+
+  it('reads no conditions without the collection\'s definitions', () => {
+    expect(tokenPerception(sight, { ambient: 1 }, [], tokens)('undetected')).toBe('seen');
   });
 });
 
 describe('playerTokenSight', () => {
-  const wall = { id: 'w', kind: 'wall' as const, type: 'solid' as const, p1: { x: 200, y: 0 }, p2: { x: 200, y: 400 } };
-  const sight = computeSight([{ tokenId: 'hero', origin: { x: 100, y: 100 }, range: 1000, darkvision: 0 }], [wall]);
+  const sight = computeSight([{ tokenId: 'hero', origin: { x: 100, y: 100 }, range: 1000, senses: [] }], [wall]);
   const lurker: TokenEntity = { id: 'lurker', kind: 'token', imagePath: 'l.png', x: 400, y: 100 };
 
   function lighting(enabled: boolean): Parameters<typeof playerTokenSight>[0] {
@@ -75,43 +144,48 @@ describe('playerTokenSight', () => {
     expect(playerTokenSight(lighting(false), { lurker })).toBeUndefined();
   });
 
-  it('is the seen predicate of the scene\'s sight and light', () => {
-    expect(playerTokenSight(lighting(true), { lurker })?.('lurker')).toBe(false);
+  it('is how the scene\'s sight and light perceive each token', () => {
+    expect(playerTokenSight(lighting(true), { lurker })?.('lurker')).toBe('unseen');
   });
 
   it('follows a token that moved into sight', () => {
-    expect(playerTokenSight(lighting(true), { lurker: { ...lurker, x: 150 } })?.('lurker')).toBe(true);
+    expect(playerTokenSight(lighting(true), { lurker: { ...lurker, x: 150 } })?.('lurker')).toBe('seen');
+  });
+
+  it('reads the conditions it is given', () => {
+    const hidden = { lurker: { ...lurker, x: 150, conditions: ['unseen'] } };
+    expect(playerTokenSight(lighting(true), hidden, conditions)?.('lurker')).toBe('unseen');
   });
 });
 
-describe('tokenSeenPredicate with tremorsense', () => {
-  const wall = { id: 'w', kind: 'wall' as const, type: 'solid' as const, p1: { x: 200, y: 0 }, p2: { x: 200, y: 400 } };
+describe('tokenPerception with tremorsense', () => {
   const tokens: Record<string, TokenEntity> = {
     hero: { id: 'hero', kind: 'token', imagePath: 'h.png', x: 100, y: 100, vision: { enabled: true, tremorsense: 30 } },
     near: { id: 'near', kind: 'token', imagePath: 'n.png', x: 300, y: 100 },
     far: { id: 'far', kind: 'token', imagePath: 'f.png', x: 600, y: 100 },
   };
-  const hero = { tokenId: 'hero', origin: { x: 100, y: 100 }, range: 1000, darkvision: 0 };
-  const sight = computeSight([{ ...hero, tremorsense: 300 }], [wall]);
+  const hero = { tokenId: 'hero', origin: { x: 100, y: 100 }, range: 1000, senses: [] };
+  const sight = computeSight([{ ...hero, senses: [tremorsense(300)] }], [wall]);
 
   it('senses tokens within range through walls, even in the dark', () => {
-    expect(tokenSeenPredicate(sight, { ambient: 1 }, [], tokens)('near')).toBe(true);
-    expect(tokenSeenPredicate(sight, { ambient: 0 }, [], tokens)('near')).toBe(true);
+    expect(tokenPerception(sight, { ambient: 1 }, [], tokens)('near')).toBe('sensed');
+    expect(tokenPerception(sight, { ambient: 0 }, [], tokens)('near')).toBe('sensed');
   });
 
   it('does not sense tokens out of range', () => {
-    expect(tokenSeenPredicate(sight, { ambient: 1 }, [], tokens)('far')).toBe(false);
+    expect(tokenPerception(sight, { ambient: 1 }, [], tokens)('far')).toBe('unseen');
   });
 
   it('leaves the sight polygon as it is', () => {
-    expect(sight.polygons).toEqual(computeSight([hero], [wall]).polygons);
+    expect(sight.regions[0]!.polygon).toEqual(computeSight([hero], [wall]).regions[0]!.polygon);
   });
 });
 
-describe('hiddenTokenLayers with a seen predicate', () => {
-  it('hides unseen tokens as well as hidden ones', () => {
-    const [a, b, c] = [new Container(), new Container(), new Container()];
-    const layers = hiddenTokenLayers({ a: { isHidden: true }, b: {}, c: {} }, { a, b, c }, (id) => id !== 'b');
+describe('hiddenTokenLayers with a perception', () => {
+  it('hides unseen tokens as well as hidden ones, and keeps sensed ones', () => {
+    const [a, b, c, d] = [new Container(), new Container(), new Container(), new Container()];
+    const perception = (id: string): Perception => (id === 'b' ? 'unseen' : id === 'd' ? 'sensed' : 'seen');
+    const layers = hiddenTokenLayers({ a: { isHidden: true }, b: {}, c: {}, d: {} }, { a, b, c, d }, perception);
     expect(layers).toEqual([{ layer: a, visible: false }, { layer: b, visible: false }]);
   });
 });

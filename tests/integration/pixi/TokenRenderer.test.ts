@@ -653,7 +653,7 @@ describe('TokenRenderer Integration Tests', () => {
             .uiManager.getTokenUIs()[id]!.getContainer();
 
         it('should hide a token the players do not see, with its nameplate and bars', async () => {
-          tokenRenderer.setPlayerSightProvider(() => (id) => id !== 'token-1');
+          tokenRenderer.setPlayerSightProvider(() => (id) => (id !== 'token-1' ? 'seen' : 'unseen'));
           store.getState().addToken(token({ id: 'token-1', kind: 'character', statblockPath: 'Goblin.md', name: 'Goblin', showNameplate: true }));
           store.getState().addToken(token({ id: 'token-2', x: 300, kind: 'character', statblockPath: 'Goblin.md', name: 'Orc', showNameplate: true }));
           await waitForTokens('token-1', 'token-2');
@@ -667,7 +667,7 @@ describe('TokenRenderer Integration Tests', () => {
 
         it('should show the token once the players see it, and hide it again when they lose it', async () => {
           let seen = false;
-          tokenRenderer.setPlayerSightProvider(() => () => seen);
+          tokenRenderer.setPlayerSightProvider(() => () => (seen ? 'seen' : 'unseen'));
           store.getState().addToken(token({ id: 'token-1', kind: 'character', statblockPath: 'Goblin.md', name: 'Goblin', showNameplate: true }));
           await waitForTokens('token-1');
           expect(tokenGroup('token-1').visible).toBe(false);
@@ -685,7 +685,7 @@ describe('TokenRenderer Integration Tests', () => {
         });
 
         it('should keep the nameplate and bars of an unseen token hidden when the token changes', async () => {
-          tokenRenderer.setPlayerSightProvider(() => (id) => id !== 'token-1');
+          tokenRenderer.setPlayerSightProvider(() => (id) => (id !== 'token-1' ? 'seen' : 'unseen'));
           store.getState().addToken(token({ id: 'token-1', kind: 'character', statblockPath: 'Goblin.md', name: 'Goblin', showNameplate: true }));
           await waitForTokens('token-1');
           expect(tokenUi('token-1').visible).toBe(false);
@@ -699,7 +699,7 @@ describe('TokenRenderer Integration Tests', () => {
 
         it('should show a seen token\'s nameplate again after it changed while unseen', async () => {
           let seen = false;
-          tokenRenderer.setPlayerSightProvider(() => () => seen);
+          tokenRenderer.setPlayerSightProvider(() => () => (seen ? 'seen' : 'unseen'));
           store.getState().addToken(token({ id: 'token-1', kind: 'character', statblockPath: 'Goblin.md', name: 'Goblin', showNameplate: true }));
           await waitForTokens('token-1');
           store.getState().updateToken('token-1', { name: 'Goblin boss' });
@@ -712,21 +712,21 @@ describe('TokenRenderer Integration Tests', () => {
 
         it('should drop a token from the selection when the players lose sight of it', async () => {
           let seen = true;
-          tokenRenderer.setPlayerSightProvider(() => () => seen);
+          tokenRenderer.setPlayerSightProvider(() => () => (seen ? 'seen' : 'unseen'));
           store.getState().addToken(token({ id: 'token-1' }));
           store.getState().addToken(token({ id: 'token-2', x: 300, isHidden: false }));
           await waitForTokens('token-1', 'token-2');
           store.getState().setSelection(['token-1', 'token-2']);
 
           seen = false;
-          tokenRenderer.setPlayerSightProvider(() => (id) => id === 'token-2');
+          tokenRenderer.setPlayerSightProvider(() => (id) => (id === 'token-2' ? 'seen' : 'unseen'));
           tokenRenderer.refreshPlayerSight();
 
           expect(store.getState().selectedIds).toEqual(['token-2']);
         });
 
         it('should offer only the tokens the canvas shows for selecting all', async () => {
-          tokenRenderer.setPlayerSightProvider(() => (id) => id === 'token-2');
+          tokenRenderer.setPlayerSightProvider(() => (id) => (id === 'token-2' ? 'seen' : 'unseen'));
           store.getState().addToken(token({ id: 'token-1' }));
           store.getState().addToken(token({ id: 'token-2', x: 300 }));
           await waitForTokens('token-1', 'token-2');
@@ -736,7 +736,7 @@ describe('TokenRenderer Integration Tests', () => {
 
         it('should keep a token that is being dragged visible until it is released, then follow sight', async () => {
           let seen = true;
-          tokenRenderer.setPlayerSightProvider(() => () => seen);
+          tokenRenderer.setPlayerSightProvider(() => () => (seen ? 'seen' : 'unseen'));
           store.getState().addToken(token({ id: 'token-1', x: 105, y: 105 }));
           await waitForTokens('token-1');
 
@@ -753,7 +753,7 @@ describe('TokenRenderer Integration Tests', () => {
         });
 
         it('should give a picture of the scene the GM\'s tokens in session view, and be in session view afterwards', async () => {
-          tokenRenderer.setPlayerSightProvider(() => (id) => id !== 'token-1');
+          tokenRenderer.setPlayerSightProvider(() => (id) => (id !== 'token-1' ? 'seen' : 'unseen'));
           store.getState().setGMView(false);
           store.getState().addToken(token({ id: 'token-1', kind: 'character', statblockPath: 'Goblin.md', name: 'Goblin', showNameplate: true }));
           store.getState().addToken(token({ id: 'token-2', x: 300, isHidden: true }));

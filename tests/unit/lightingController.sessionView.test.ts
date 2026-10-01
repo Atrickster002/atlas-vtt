@@ -54,7 +54,7 @@ interface Wired {
   contextMenu: (x: number, y: number, screenX: number, screenY: number) => void;
   cursor: (x: number, y: number) => string;
   doorClick: (x: number, y: number) => boolean;
-  playerSight: () => ((tokenId: string) => boolean) | undefined;
+  playerSight: () => ((tokenId: string) => string) | undefined;
   refreshPlayerSight: ReturnType<typeof vi.fn>;
 }
 
@@ -290,7 +290,7 @@ describe('tokens in session view', () => {
     store.getState().setSceneLighting({ enabled: true });
     store.getState().addToken({ x: 100, y: 100, imagePath: 'h.png', vision: { enabled: true } });
     const lurker = store.getState().addToken({ x: 400, y: 100, imagePath: 'l.png' });
-    lighting.sight = computeSight([{ tokenId: 'hero', origin: { x: 100, y: 100 }, range: 1000, darkvision: 0 }], [wall]);
+    lighting.sight = computeSight([{ tokenId: 'hero', origin: { x: 100, y: 100 }, range: 1000, senses: [] }], [wall]);
     return { ...made, lurker };
   }
 
@@ -309,15 +309,15 @@ describe('tokens in session view', () => {
   it('tells which tokens the players see, by the player frame\'s own predicate', () => {
     const { controller, store, wired, lurker } = scene();
     store.getState().setGMView(false);
-    expect(wired.playerSight()?.(lurker)).toBe(false);
-    expect(controller.playerSight()?.(lurker)).toBe(false);
+    expect(wired.playerSight()?.(lurker)).toBe('unseen');
+    expect(controller.playerSight()?.(lurker)).toBe('unseen');
   });
 
   it('follows a token that moves into sight', () => {
     const { store, wired, lurker } = scene();
     store.getState().setGMView(false);
     store.getState().updateToken(lurker, { x: 150, y: 100 });
-    expect(wired.playerSight()?.(lurker)).toBe(true);
+    expect(wired.playerSight()?.(lurker)).toBe('seen');
   });
 
   it('shows and hides tokens again whenever sight changes or the view is switched', () => {

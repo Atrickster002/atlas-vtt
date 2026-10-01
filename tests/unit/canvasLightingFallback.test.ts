@@ -47,7 +47,7 @@ describe('CanvasLightingFallback', () => {
     const onSightChange = vi.fn();
     const { fallback, store } = setup({ hero }, {}, onSightChange);
     expect(onSightChange).toHaveBeenCalledTimes(1);
-    onSightChange.mockImplementation(() => seen.push(fallback.currentSight().origins[0]!.x));
+    onSightChange.mockImplementation(() => seen.push(fallback.currentSight().regions[0]!.origin.x));
     store.getState().updateToken('hero', { x: 300 });
     expect(seen).toEqual([300]);
   });

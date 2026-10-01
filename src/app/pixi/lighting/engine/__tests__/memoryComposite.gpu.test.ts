@@ -6,6 +6,7 @@ import { LightingEngine } from '../LightingEngine';
 import type { LightingMode } from '../compositeFilter';
 import type { EngineLight, EngineScene } from '../types';
 import { createTestRenderer, renderThroughEngine, type PixelReader } from './gpuTestUtils';
+import { darkvision } from '../../../../vision/__tests__/senseSources';
 
 const SIZE = 256;
 const MAP = 1024;
@@ -18,7 +19,7 @@ const lights: EngineLight[] = [
 ];
 const walls: WallSegment[] = [{ id: 'w', kind: 'wall', type: 'solid', p1: { x: 640, y: 150 }, p2: { x: 640, y: 450 } }];
 /** A token right of the wall that sees 250 px, darkvision 120 px. */
-const sight = computeSight([{ tokenId: 't', origin: { x: 780, y: 300 }, range: 250, darkvision: 120 }], walls);
+const sight = computeSight([{ tokenId: 't', origin: { x: 780, y: 300 }, range: 250, senses: [darkvision(120)] }], walls);
 
 type MemoryOptions = Pick<EngineScene, 'exploredMemory' | 'exploredColor' | 'unexploredColor'>;
 

@@ -9,6 +9,7 @@ import { SEES_ALL, computeSight, type Sight } from '../../../../vision/sight';
 import { engineLight } from '../../lightSources';
 import { LightingEngine } from '../LightingEngine';
 import { createTestRenderer, renderThroughEngine } from './gpuTestUtils';
+import { darkvision } from '../../../../vision/__tests__/senseSources';
 
 const SIZE = 512;
 const LUMA = [0.2126, 0.7152, 0.0722] as const;
@@ -198,7 +199,7 @@ describe('light falloff as the players see it', () => {
 
   it('keeps the dim range brighter than the grey of darkvision beside it', async () => {
     // A token at the flame that sees 500 px, all of it with darkvision.
-    const sight = computeSight([{ tokenId: 't', origin: { x: 512, y: 512 }, range: 500, darkvision: 500 }], []);
+    const sight = computeSight([{ tokenId: 't', origin: { x: 512, y: 512 }, range: 500, senses: [darkvision(500)] }], []);
     const profile = await profileOf(LIGHT_PRESETS.torch.emission, { sight });
     const grey = profile.at(profile.reach + 40);
     expect(grey).toBeGreaterThan(0);

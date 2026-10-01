@@ -20,7 +20,7 @@ import { showWallMenu, type LightingMenuContext } from './lightingMenus';
 import { LightInteraction } from './LightInteraction';
 import { LightMarkers, lightMarkersShown } from './LightMarkers';
 import { LightRangeRings } from './LightRangeRings';
-import { playerLightingLayers, playerTokenSight, type GmOverlays } from './playerLightingLayers';
+import { playerLightingLayers, playerTokenSight, type GmOverlays, type TokenPerception } from './playerLightingLayers';
 import type { SceneLightingView } from './sceneLightingView';
 import { SessionLighting } from './SessionLighting';
 import { WallEditor } from './WallEditor';
@@ -132,8 +132,8 @@ export class LightingController {
     return playerLightingLayers({ enabled: this.renderer.isEnabled(), modeLayer: this.renderer.modeLayer, gmOverlays: this.gmOverlays() });
   }
 
-  /** Which tokens the players see, for their frame and for session view; sight hides nothing in an unlit scene. */
-  playerSight(): ((tokenId: string) => boolean) | undefined {
+  /** How the players perceive each token, for their frame and for session view; sight hides nothing in an unlit scene. */
+  playerSight(): TokenPerception | undefined {
     return playerTokenSight(this.renderer, this.deps.store.getState().objects.tokens);
   }
 

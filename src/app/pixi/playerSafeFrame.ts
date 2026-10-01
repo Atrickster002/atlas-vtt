@@ -1,4 +1,5 @@
 import type { PlayerCameraState } from '../local-player-view';
+import type { Perception } from '../vision/perception';
 
 /** Anything whose `visible` flag decides whether it is part of the next render. */
 export interface HideableLayer {
@@ -39,16 +40,16 @@ export function setLayerVisibility(layers: readonly LayerVisibility[]): void {
 
 /**
  * Sprites of tokens players must not see: hidden ones (the DM sees them translucent) and,
- * with dynamic lighting, those no player token sees (`isSeen`).
+ * with dynamic lighting, those no player token perceives (`perception`).
  */
 export function hiddenTokenLayers(
   tokens: Record<string, { isHidden?: boolean }>,
   sprites: Record<string, HideableLayer | null>,
-  isSeen: (tokenId: string) => boolean = () => true,
+  perception: (tokenId: string) => Perception = () => 'seen',
 ): LayerVisibility[] {
   const layers: LayerVisibility[] = [];
   for (const [tokenId, sprite] of Object.entries(sprites)) {
-    if (sprite && (tokens[tokenId]?.isHidden || !isSeen(tokenId))) layers.push({ layer: sprite, visible: false });
+    if (sprite && (tokens[tokenId]?.isHidden || perception(tokenId) === 'unseen')) layers.push({ layer: sprite, visible: false });
   }
   return layers;
 }

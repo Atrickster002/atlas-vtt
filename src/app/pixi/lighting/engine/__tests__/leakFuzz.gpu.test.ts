@@ -75,7 +75,7 @@ async function fuzz({ seed, trials, gap = false, bounds = { width: 2048, height:
       const x = SIZE / 2 - first![0] * scale + (rand() - 0.5) * 200;
       const y = SIZE / 2 - first![1] * scale + (rand() - 0.5) * 200;
       const sightRadius = 20 + rand() * 40;
-      const sources = lights.map((light) => ({ tokenId: light.key, origin: { x: light.x, y: light.y }, range: 4000, darkvision: 0 }));
+      const sources = lights.map((light) => ({ tokenId: light.key, origin: { x: light.x, y: light.y }, range: 4000, senses: [] }));
       const shoot = (sightOn: boolean): Uint8ClampedArray => {
         engine.update({
           bounds, albedo: null, walls, lights: sightOn ? [] : lights,

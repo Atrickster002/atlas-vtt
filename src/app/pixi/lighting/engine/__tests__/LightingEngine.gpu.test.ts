@@ -197,7 +197,7 @@ describe('LightingEngine', () => {
     const camera = { size: SIZE, scale: 1, x: -172, y: -172 };
     const frame = { x: 72, y: 172, resolution: 1 };
     /** A token whose sight (100 px) never reaches the light: the players' view of it is black. */
-    const farSight = computeSight([{ tokenId: 't', origin: { x: 850, y: 850 }, range: 100, darkvision: 0 }], []);
+    const farSight = computeSight([{ tokenId: 't', origin: { x: 850, y: 850 }, range: 100, senses: [] }], []);
 
     it('stays on the GM view of its frame while the canvas camera and mode are set, and gives them back', async () => {
       const { renderer, engine } = await setup();

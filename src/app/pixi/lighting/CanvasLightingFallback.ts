@@ -89,8 +89,8 @@ export class CanvasLightingFallback implements SceneLightingView {
     g.clear();
     if (this.sight.all) return;
     g.rect(0, 0, bounds.width, bounds.height).fill({ color: 0x000000 });
-    for (const polygon of this.sight.polygons) {
-      if (polygon.length >= 3) g.poly(polygon.flatMap((p) => [p.x, p.y])).cut();
+    for (const { sense, polygon } of this.sight.regions) {
+      if (sense.reveals === 'all' && polygon && polygon.length >= 3) g.poly(polygon.flatMap((p) => [p.x, p.y])).cut();
     }
     this.darkness.visible = this.playerView.visible;
   }

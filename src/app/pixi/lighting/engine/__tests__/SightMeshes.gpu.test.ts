@@ -5,12 +5,13 @@ import { computeSight } from '../../../../vision/sight';
 import type { WallSegment } from '../../../../types/wallTypes';
 import type { VisionCone } from '../../../../vision/visionCone';
 import { createTestRenderer, readRgba } from './gpuTestUtils';
+import { darkvision } from '../../../../vision/__tests__/senseSources';
 
 describe('SightMeshes', () => {
   it('draws sight crisp at the wall, soft past its corner, nothing behind it', async () => {
     const renderer = await createTestRenderer(256);
     const wall: WallSegment = { id: 'w', kind: 'wall', type: 'solid', p1: { x: 128, y: 40 }, p2: { x: 128, y: 120 } };
-    const sight = computeSight([{ tokenId: 't', origin: { x: 60, y: 80 }, range: 400, darkvision: 0 }], [wall]);
+    const sight = computeSight([{ tokenId: 't', origin: { x: 60, y: 80 }, range: 400, senses: [] }], [wall]);
     const meshes = new SightMeshes();
     const stage = new Container();
     const target = RenderTexture.create({ width: 256, height: 256 });
@@ -47,7 +48,7 @@ describe('SightMeshes', () => {
     const stage = new Container();
     const target = RenderTexture.create({ width: 256, height: 256 });
     const render = (cone?: VisionCone): Uint8ClampedArray => {
-      meshes.draw(computeSight([{ tokenId: 't', origin: { x: 128, y: 128 }, range: 400, darkvision: 0, ...(cone && { cone }) }], [wall]), 20);
+      meshes.draw(computeSight([{ tokenId: 't', origin: { x: 128, y: 128 }, range: 400, senses: [], ...(cone && { cone }) }], [wall]), 20);
       renderer.render({ container: stage, target, clear: true, clearColor: [0, 0, 0, 0] });
       return readRgba(renderer, target);
     };
@@ -94,8 +95,8 @@ describe('SightMeshes', () => {
     try {
       stage.addChild(new Graphics().rect(0, 0, 256, 256).fill({ color: 0, alpha: 0 }), meshes.view);
       const sources = [
-        { tokenId: 'a', origin: { x: 60, y: 128 }, range: 60, darkvision: 0 },
-        { tokenId: 'b', origin: { x: 100, y: 128 }, range: 60, darkvision: 30 },
+        { tokenId: 'a', origin: { x: 60, y: 128 }, range: 60, senses: [] },
+        { tokenId: 'b', origin: { x: 100, y: 128 }, range: 60, senses: [darkvision(30)] },
       ];
       meshes.draw(computeSight(sources, []), 20);
       const px = render();

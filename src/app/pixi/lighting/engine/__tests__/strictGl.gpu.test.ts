@@ -12,6 +12,7 @@ import type { EngineLight, EngineScene } from '../types';
 import { fuzzRooms } from './fuzzRooms';
 import { createTestRenderer, renderThroughEngine } from './gpuTestUtils';
 import { watchGl, type GlWatch } from './strictGl';
+import { darkvision } from '../../../../vision/__tests__/senseSources';
 
 const SIZE = 256;
 const MAP = 1024;
@@ -36,8 +37,8 @@ function comb(n: number, oneWay = 0): WallSegment[] {
 
 function sightOf(walls: readonly WallSegment[], cone = false): Sight {
   const facing = cone ? visionCone(40, 90, 20) : undefined;
-  const first: SightSource = { tokenId: 't', origin: { x: 320, y: 320 }, range: 400, darkvision: 150, ...(facing ? { cone: facing } : {}) };
-  return computeSight([first, { tokenId: 'u', origin: { x: 700, y: 640 }, range: 250, darkvision: 0 }], walls);
+  const first: SightSource = { tokenId: 't', origin: { x: 320, y: 320 }, range: 400, senses: [darkvision(150)], ...(facing ? { cone: facing } : {}) };
+  return computeSight([first, { tokenId: 'u', origin: { x: 700, y: 640 }, range: 250, senses: [] }], walls);
 }
 
 describe('strict GL: every uniform and draw of the lighting engine is valid', () => {
@@ -86,7 +87,7 @@ describe('strict GL: every uniform and draw of the lighting engine is valid', ()
       engine.update({ bounds, albedo: null, walls, lights, sight: SEES_ALL, sightRadius: 30, ambient: 0 });
       engine.flush();
       shoot();
-      const sources = lights.map((l) => ({ tokenId: l.key, origin: { x: l.x, y: l.y }, range: 4000, darkvision: 0 }));
+      const sources = lights.map((l) => ({ tokenId: l.key, origin: { x: l.x, y: l.y }, range: 4000, senses: [] }));
       engine.update({ bounds, albedo: null, walls, lights: [], sight: computeSight(sources, walls), sightRadius: 30, ambient: 1 });
       engine.flush();
       shoot();
@@ -158,8 +159,9 @@ describe('strict GL: every uniform and draw of the lighting engine is valid', ()
     const sight = sightOf(walls);
     engine.update(scene({ walls, sight, exploredColor: '#ffcc99', unexploredColor: '#112233' }));
     engine.flush();
-    explored.add({ polygons: sight.polygons, clip: null });
-    explored.add({ polygons: [[{ x: 600, y: 600 }, { x: 900, y: 620 }, { x: 760, y: 900 }]], clip: sight.polygons });
+    const seen = sight.regions.flatMap((region) => (region.polygon ? [region.polygon] : []));
+    explored.add({ polygons: seen, clip: null });
+    explored.add({ polygons: [[{ x: 600, y: 600 }, { x: 900, y: 620 }, { x: 760, y: 900 }]], clip: seen });
     shoot();
     engine.update(scene({ walls, sight, exploredMemory: false }));
     shoot();

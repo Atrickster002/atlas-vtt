@@ -1,5 +1,9 @@
 import type { TokenEntity } from '../../types';
-import { isFelt, isSeen, type AmbientLight, type LightReach, type Sight } from '../../vision/sight';
+import type { ConditionDefinition } from '../../types/collectionSettingsTypes';
+import { lightLevelAt } from '../../vision/lightLevels';
+import { perceive, targetOf, type Perception } from '../../vision/perception';
+import type { AmbientLight, LightReach, Sight } from '../../vision/sight';
+import { tokenEffects } from '../../vision/sightRules';
 import type { HideableLayer, LayerVisibility } from '../playerSafeFrame';
 import type { SceneLightingView } from './sceneLightingView';
 
@@ -31,32 +35,40 @@ export function playerLightingLayers({ enabled, modeLayer, gmOverlays }: PlayerL
   return enabled ? [{ layer: modeLayer, visible: true }, ...hidden] : hidden;
 }
 
+/** How the players perceive each token. */
+export type TokenPerception = (tokenId: string) => Perception;
+
 /**
- * Whether the viewer sees each token, by its centre. The viewer's own tokens always show, lit or
- * not, and so do tokens within a vision token's tremorsense, whatever walls or darkness lie between.
+ * How the vision tokens perceive each token, by its centre, the light there and its conditions.
+ * A token with vision is always shown, whatever its conditions and the light: the players'
+ * window is one shared screen, and they are the party. `tokens` is the record the positions are
+ * read from, so a caller may pass tokens at other places than the store's.
  */
-export function tokenSeenPredicate(
+export function tokenPerception(
   sight: Sight,
   ambient: AmbientLight,
   lights: readonly LightReach[],
   tokens: Record<string, TokenEntity>,
-): (tokenId: string) => boolean {
+  conditions: readonly ConditionDefinition[] = [],
+): TokenPerception {
   return (tokenId) => {
     const token = tokens[tokenId];
-    if (!token) return false;
+    if (!token) return 'unseen';
+    if (token.vision?.enabled) return 'seen';
     const at = { x: token.x, y: token.y };
-    return !!token.vision?.enabled || isFelt(at, sight) || isSeen(at, sight, ambient, lights);
+    return perceive(at, sight, lightLevelAt(at, ambient, lights), targetOf(tokenEffects(token, conditions)));
   };
 }
 
 /**
- * Which tokens the players see by a scene's lighting, for their frame and for the GM's canvas
- * in session view alike. Undefined while the scene is unlit: sight hides nothing then.
+ * How the players perceive the tokens by a scene's lighting, for their frame and for the GM's
+ * canvas in session view alike. Undefined while the scene is unlit: sight hides nothing then.
  */
 export function playerTokenSight(
   lighting: Pick<SceneLightingView, 'isEnabled' | 'currentSight' | 'ambientLight' | 'lightReaches'>,
   tokens: Record<string, TokenEntity>,
-): ((tokenId: string) => boolean) | undefined {
+  conditions: readonly ConditionDefinition[] = [],
+): TokenPerception | undefined {
   if (!lighting.isEnabled()) return undefined;
-  return tokenSeenPredicate(lighting.currentSight(), lighting.ambientLight(), lighting.lightReaches(), tokens);
+  return tokenPerception(lighting.currentSight(), lighting.ambientLight(), lighting.lightReaches(), tokens, conditions);
 }

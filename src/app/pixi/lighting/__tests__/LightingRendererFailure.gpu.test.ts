@@ -244,7 +244,7 @@ describe('LightingRenderer on a graphics device that cannot run the lighting', (
       expect(build).toHaveBeenCalledOnce();
       expect(h.lighting.layer.visible).toBe(true);
       expect(h.lighting.layer.filters).toHaveLength(1);
-      expect(h.lighting.currentSight().origins).toEqual([{ x: 60, y: 128 }]);
+      expect(h.lighting.currentSight().regions.map((region) => region.origin)).toEqual([{ x: 60, y: 128 }]);
       expect(h.redAt(60, 128)).toBe(255);
       expect(onUnavailable).not.toHaveBeenCalled();
     });

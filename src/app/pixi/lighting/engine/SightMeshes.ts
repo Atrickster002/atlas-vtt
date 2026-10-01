@@ -1,4 +1,6 @@
 import { Buffer, BufferImageSource, BufferUsage, Container, Geometry, Mesh, UniformGroup, type Shader } from 'pixi.js';
+import { perceivedLevel } from '../../../gameSystems/senseRules';
+import { NORMAL_SIGHT } from '../../../gameSystems/senses/generic';
 import type { Point } from '../../../types/visionTypes';
 import type { Sight } from '../../../vision/sight';
 import { sightWedges, type SightWedge } from '../../../vision/sightWedges';
@@ -32,8 +34,12 @@ export class SightMeshes {
   draw(sight: Sight, radius: number): void {
     this.clear();
     if (sight.all) return;
-    sight.polygons.forEach((polygon, i) => this.add(polygon, sight.origins[i]!, sight.apexes[i] ?? 0, radius, RED));
-    sight.darkvision.forEach((polygon, i) => this.add(polygon, sight.darkvisionOrigins[i]!, sight.darkvisionApexes[i] ?? 0, radius, GREEN));
+    // Sight first, then what sees in darkness, as the meshes were ordered before senses.
+    const shown = sight.regions.filter((region) => region.sense.reveals === 'all' && region.polygon);
+    for (const { sense, polygon, origin, apex } of shown) if (sense === NORMAL_SIGHT) this.add(polygon!, origin, apex, radius, RED);
+    for (const { sense, polygon, origin, apex } of shown) {
+      if (sense !== NORMAL_SIGHT && perceivedLevel(sense, 'dark') !== null) this.add(polygon!, origin, apex, radius, GREEN);
+    }
   }
 
   private add(polygon: Polygon, origin: Point, apex: number, radius: number, channel: Channel): void {

@@ -1,11 +1,15 @@
 import type { TokenEntity } from '../types';
 import type { SceneLighting } from '../types/lightingTypes';
+import type { SenseDefinition } from '../types/senseTypes';
 import type { Point } from '../types/visionTypes';
 import type { WallSegment } from '../types/wallTypes';
+import { NORMAL_SIGHT } from '../gameSystems/senses/generic';
 import { gameUnitsToWorld, type UnitScale } from '../lighting/lightingUnits';
 import { tokenVisionOn } from '../lighting/sceneLightingOptions';
-import { ambientLevel, isLit } from './lightLevels';
-import { computeVisibility, pointInPolygon, type MapBounds, type Polygon } from './visibility';
+import { ambientLevel } from './lightLevels';
+import { GENERIC_SIGHT_RULES, tokenEffects, type SightRules } from './sightRules';
+import { resolveSenses, tokenSenses } from './tokenSenses';
+import { computeVisibility, type MapBounds, type Polygon } from './visibility';
 import { visionCone, type VisionCone } from './visionCone';
 import { computeTokenPixelSize } from '../pixi/token-renderer/tokenSizing';
 
@@ -16,45 +20,63 @@ import { computeTokenPixelSize } from '../pixi/token-renderer/tokenSizing';
  */
 export type AmbientLight = Pick<SceneLighting, 'ambient' | 'litThreshold' | 'brightThreshold'>;
 
+/** One sense of a token that sees, with its reach in world pixels. */
+export interface SenseSource {
+  definition: SenseDefinition;
+  range: number;
+}
+
 /** A token that sees, in world pixels. */
 export interface SightSource {
   tokenId: string;
   origin: Point;
+  /** How far its sight reaches; senses of the eyes reach no farther. */
   range: number;
-  /** 0 without darkvision. */
-  darkvision: number;
   /**
-   * Where the token looks; unset, it sees all around. Clips its sight and darkvision, except
-   * within `cone.apex`, the token's own radius, which it always sees (walls permitting).
+   * Where the token looks; unset, it sees all around. Clips its sight and its senses of the eyes,
+   * except within `cone.apex`, the token's own radius, which it always sees (walls permitting).
    */
   cone?: VisionCone;
-  /** Radius within which it senses tokens through walls and darkness; unset without tremorsense. */
-  tremorsense?: number;
+  /** What it perceives beyond its sight; of a blinded token, only the senses that work while blinded. */
+  senses: SenseSource[];
+  /** The token is blinded: it has no sight, only its senses. */
+  blinded?: true;
+  /** Its eyes see invisible things: its sight and every sense of the eyes. */
+  seesInvisible?: true;
 }
 
-/** Tokens within `radius` of `origin` are sensed, whatever lies between. */
-export interface TremorSense {
+/** Where one token perceives through one of its senses. */
+export interface SightRegion {
+  tokenId: string;
+  /** How it perceives there: `NORMAL_SIGHT` for the token's sight. */
+  sense: SenseDefinition;
   origin: Point;
+  /** How far the sense reaches. */
   radius: number;
+  /**
+   * What the sense reaches within `radius`: stopped by walls for a sense with line of sight.
+   * Null for a sense that walls do not stop and that shows no map: the whole disc.
+   */
+  polygon: Polygon | null;
+  /** Radius of the viewer's own space around a vision cone; 0 without one. */
+  apex: number;
+  /** The cone a disc is cut to: only for a sense of the eyes without a polygon. */
+  cone?: VisionCone;
+  /** The sense perceives invisible tokens, by itself or because the token's eyes do. */
+  seesInvisible: boolean;
 }
 
-/** What a viewer sees. `all` means no token has vision, so nothing is hidden by line of sight. */
+/**
+ * What the vision tokens perceive, a region per token and sense. `all` means no token has
+ * vision (or the scene has token vision off): normal sight reaches everywhere.
+ */
 export interface Sight {
   all: boolean;
-  polygons: Polygon[];
-  /** Where each polygon is seen from, aligned with `polygons`. */
-  origins: Point[];
-  /** Radius of each viewer's own space around a vision cone (0 without a cone), aligned with `polygons`. */
-  apexes: number[];
-  darkvision: Polygon[];
-  darkvisionOrigins: Point[];
-  darkvisionApexes: number[];
-  /** Tremorsense of the vision tokens: reveals tokens only, never the map, light or explored memory. */
-  tremors: TremorSense[];
+  regions: SightRegion[];
 }
 
 /** Sight of a viewer without a vision token: line of sight hides nothing. */
-export const SEES_ALL: Sight = { all: true, polygons: [], origins: [], apexes: [], darkvision: [], darkvisionOrigins: [], darkvisionApexes: [], tremors: [] };
+export const SEES_ALL: Sight = { all: true, regions: [] };
 
 /** The area a light illuminates, for deciding on the CPU how well a point is lit. World pixels. */
 export interface LightReach {
@@ -67,21 +89,36 @@ export interface LightReach {
   polygon: Polygon;
 }
 
-/** Every token with vision on, with its ranges converted to world pixels. */
-export function sightSources(tokens: Record<string, TokenEntity>, scale: UnitScale, bounds: MapBounds): SightSource[] {
+/**
+ * Every token with vision on, with its ranges converted to world pixels. A blinded token keeps
+ * only its senses that work while blinded; a sense that lets the eyes see invisible things is
+ * not a sense of its own.
+ */
+export function sightSources(
+  tokens: Record<string, TokenEntity>,
+  scale: UnitScale,
+  bounds: MapBounds,
+  rules: SightRules = GENERIC_SIGHT_RULES,
+): SightSource[] {
   const unlimited = Math.hypot(bounds.width, bounds.height);
   const sources: SightSource[] = [];
   for (const token of Object.values(tokens)) {
     if (!token.vision?.enabled) continue;
-    const { range, darkvision, tremorsense, angle } = token.vision;
+    const { range, angle } = token.vision;
     const cone = visionCone(token.rotation, angle, computeTokenPixelSize(scale.cellSize, token.size || 1) / 2);
+    const blinded = tokenEffects(token, rules.conditions).has('blinded');
+    const resolved = resolveSenses(rules.sensesOf?.(token) ?? tokenSenses(token.vision, rules.definitions), rules.definitions);
+    const senses = resolved
+      .filter(({ definition }) => !definition.grants && (!blinded || definition.worksWhileBlinded))
+      .map(({ definition, range: reach }) => ({ definition, range: reach === undefined ? unlimited : gameUnitsToWorld(reach, scale) }));
     sources.push({
       tokenId: token.id,
       origin: { x: token.x, y: token.y },
       range: range === undefined ? unlimited : gameUnitsToWorld(range, scale),
-      darkvision: darkvision ? gameUnitsToWorld(darkvision, scale) : 0,
       ...(cone && { cone }),
-      ...(tremorsense !== undefined && tremorsense > 0 && { tremorsense: gameUnitsToWorld(tremorsense, scale) }),
+      senses,
+      ...(blinded && { blinded }),
+      ...(!blinded && resolved.some(({ definition }) => definition.grants === 'see-invisible') && { seesInvisible: true as const }),
     });
   }
   return sources;
@@ -90,25 +127,19 @@ export function sightSources(tokens: Record<string, TokenEntity>, scale: UnitSca
 interface CachedSight {
   source: SightSource;
   walls: readonly WallSegment[];
-  polygon: Polygon;
-  darkvision: Polygon | null;
+  regions: SightRegion[];
 }
 
-/** Keeps each token's polygons until the token or the walls change, so only moved tokens recompute. */
+/** Keeps each token's regions until the token, its senses or the walls change, so only those recompute. */
 export class SightCache {
   private readonly entries = new Map<string, CachedSight>();
 
-  get(source: SightSource, walls: readonly WallSegment[]): CachedSight {
+  get(source: SightSource, walls: readonly WallSegment[]): SightRegion[] {
     const cached = this.entries.get(source.tokenId);
-    if (cached && cached.walls === walls && sameSource(cached.source, source)) return cached;
-    const entry: CachedSight = {
-      source,
-      walls,
-      polygon: computeVisibility(source.origin, source.range, walls, source.cone),
-      darkvision: source.darkvision > 0 ? computeVisibility(source.origin, Math.min(source.darkvision, source.range), walls, source.cone) : null,
-    };
-    this.entries.set(source.tokenId, entry);
-    return entry;
+    if (cached && cached.walls === walls && sameSource(cached.source, source)) return cached.regions;
+    const regions = regionsOf(source, walls);
+    this.entries.set(source.tokenId, { source, walls, regions });
+    return regions;
   }
 
   /** Drops tokens that no longer see. */
@@ -118,8 +149,47 @@ export class SightCache {
 }
 
 function sameSource(a: SightSource, b: SightSource): boolean {
-  return a.origin.x === b.origin.x && a.origin.y === b.origin.y && a.range === b.range && a.darkvision === b.darkvision
-    && a.cone?.facing === b.cone?.facing && a.cone?.angle === b.cone?.angle && a.cone?.apex === b.cone?.apex;
+  return a.origin.x === b.origin.x && a.origin.y === b.origin.y && a.range === b.range
+    && a.cone?.facing === b.cone?.facing && a.cone?.angle === b.cone?.angle && a.cone?.apex === b.cone?.apex
+    && a.blinded === b.blinded && a.seesInvisible === b.seesInvisible
+    && a.senses.length === b.senses.length
+    && a.senses.every((sense, i) => sense.definition === b.senses[i]!.definition && sense.range === b.senses[i]!.range);
+}
+
+/**
+ * The regions of one token: its sight unless it is blinded, then one per sense. A sense of the
+ * eyes (one that does not work while blinded) reaches no farther than the token's sight and is
+ * clipped by its cone; the others reach their own distance all around. Senses that reach as far
+ * with the same cone share one polygon.
+ */
+function regionsOf(source: SightSource, walls: readonly WallSegment[]): SightRegion[] {
+  const { tokenId, origin, cone } = source;
+  const polygons = new Map<string, Polygon>();
+  const polygonOf = (radius: number, blocked: boolean, eyes: boolean): Polygon => {
+    const key = `${radius}|${blocked}|${eyes}`;
+    const polygon = polygons.get(key) ?? computeVisibility(origin, radius, blocked ? walls : [], eyes ? cone : undefined);
+    polygons.set(key, polygon);
+    return polygon;
+  };
+  const regionOf = (sense: SenseDefinition, reach: number): SightRegion => {
+    const eyes = !sense.worksWhileBlinded;
+    const radius = eyes ? Math.min(reach, source.range) : reach;
+    const drawn = sense.lineOfSight || sense.reveals === 'all';
+    return {
+      tokenId,
+      sense,
+      origin,
+      radius,
+      polygon: drawn ? polygonOf(radius, sense.lineOfSight, eyes) : null,
+      apex: eyes ? cone?.apex ?? 0 : 0,
+      ...(eyes && !drawn && cone && { cone }),
+      seesInvisible: sense.seesInvisible || (eyes && !!source.seesInvisible),
+    };
+  };
+  return [
+    ...(source.blinded ? [] : [regionOf(NORMAL_SIGHT, source.range)]),
+    ...source.senses.map(({ definition, range }) => regionOf(definition, range)),
+  ];
 }
 
 /** The scene's sight: that of its vision tokens, or everything while the scene has token vision off. */
@@ -135,18 +205,7 @@ export function sceneSight(
 export function computeSight(sources: readonly SightSource[], walls: readonly WallSegment[], cache: SightCache = new SightCache()): Sight {
   if (sources.length === 0) return SEES_ALL;
   cache.retain(new Set(sources.map((source) => source.tokenId)));
-  const entries = sources.map((source) => cache.get(source, walls));
-  const withDarkvision = entries.filter((entry) => entry.darkvision);
-  return {
-    all: false,
-    polygons: entries.map((entry) => entry.polygon),
-    origins: entries.map((entry) => entry.source.origin),
-    apexes: entries.map((entry) => entry.source.cone?.apex ?? 0),
-    darkvision: withDarkvision.map((entry) => entry.darkvision!),
-    darkvisionOrigins: withDarkvision.map((entry) => entry.source.origin),
-    darkvisionApexes: withDarkvision.map((entry) => entry.source.cone?.apex ?? 0),
-    tremors: sources.flatMap(({ origin, tremorsense }) => (tremorsense ? [{ origin, radius: tremorsense }] : [])),
-  };
+  return { all: false, regions: sources.flatMap((source) => cache.get(source, walls)) };
 }
 
 /** Where a light at `origin` reaches: its `dim` radius clipped by `walls`. Without `bright` it has no bright part. */
@@ -161,20 +220,9 @@ export function ambientLights(light: AmbientLight): boolean {
 
 /**
  * Changes to what tokens see or what explored memory records, for which the scene is rebuilt:
- * the options, and the ambient light crossing the lit threshold (choosing "Day" records at once).
+ * the options, and the ambient light crossing a threshold (choosing "Day" records at once).
  */
 export function sightOptionsChanged(a: SceneLighting, b: SceneLighting): boolean {
   return a.tokenVision !== b.tokenVision || a.exploredMemory !== b.exploredMemory || a.litThreshold !== b.litThreshold
-    || ambientLights(a) !== ambientLights(b);
-}
-
-/** Whether a vision token senses a token at `point` by tremorsense, through walls and darkness. */
-export function isFelt(point: Point, sight: Sight): boolean {
-  return sight.tremors.some(({ origin, radius }) => Math.hypot(point.x - origin.x, point.y - origin.y) <= radius);
-}
-
-/** Whether a viewer can see `point`: in line of sight and lit, or within darkvision. */
-export function isSeen(point: Point, sight: Sight, ambient: AmbientLight, lights: readonly LightReach[]): boolean {
-  if (!sight.all && !sight.polygons.some((polygon) => pointInPolygon(point, polygon))) return false;
-  return isLit(point, ambient, lights) || sight.darkvision.some((polygon) => pointInPolygon(point, polygon));
+    || a.brightThreshold !== b.brightThreshold || ambientLevel(a) !== ambientLevel(b);
 }
