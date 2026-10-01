@@ -27,7 +27,6 @@ import { MeasureRenderer } from "./pixi/MeasureRenderer"; // Import MeasureRende
 import { LaserPointerRenderer } from "./pixi/LaserPointerRenderer"; // Import LaserPointerRenderer
 import { DrawingRenderer } from "./pixi/DrawingRenderer"; // Import DrawingRenderer
 import { DrawingInteraction } from "./pixi/DrawingInteraction";
-import { isViewportPanEnabled } from "./pixi/utils/viewportPan";
 import { TextRenderer } from "./pixi/TextRenderer"; // Import TextRenderer
 import { TextTool } from "./tools/TextTool"; // Import TextTool
 import { LightingController } from './pixi/lighting/LightingController';
@@ -156,15 +155,8 @@ export class PixiRendererOrchestrator { // Renamed class
       this._unsubscribeFromToolChanges = this.store.subscribe(
         (state: ViewAtlasState) => state.activeTool,
         (tool) => {
-          // Use getter to always get current viewport, not the one from closure
-          const vp = this.viewport;
-          if (!vp) return;
-          if (isViewportPanEnabled(tool)) {
-            vp.plugins.resume('drag');
-          } else {
-            vp.plugins.pause('drag');
-          }
-          
+          if (!this.viewport) return;
+
           // Handle text tool activation/deactivation
           if (tool === 'text' && this.textTool) {
             this.textTool.activate();
