@@ -10,8 +10,6 @@ function renderSection(overrides: Partial<React.ComponentProps<typeof SceneLight
   const props = {
     lighting: { ...DEFAULT_SCENE_LIGHTING, enabled: true },
     onChange: vi.fn(),
-    preview: false,
-    onPreviewChange: vi.fn(),
     onResetExplored: vi.fn(),
     onOpenSettings: vi.fn(),
     ...overrides,
@@ -39,12 +37,15 @@ describe('SceneLightingSection', () => {
     expect(screen.queryByText('Forget explored areas')).toBeNull();
   });
 
-  it('forgets explored areas and previews the players view', () => {
+  it('forgets explored areas', () => {
     const props = renderSection();
     fireEvent.click(screen.getByText('Forget explored areas'));
     expect(props.onResetExplored).toHaveBeenCalled();
-    fireEvent.click(screen.getByText('Preview player view').parentElement!.querySelector('.atlas-toggle')!);
-    expect(props.onPreviewChange).toHaveBeenCalledWith(true);
+  });
+
+  it('has no preview of its own: the GM view switch shows the players\' lighting', () => {
+    renderSection();
+    expect(screen.queryByText('Preview player view')).toBeNull();
   });
 
   it('tints the ambient light with the colour beside its slider', () => {

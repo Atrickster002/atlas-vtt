@@ -32,7 +32,6 @@ export function LightingToolGroup({ activeTool, selectTool, menuOpen, toggleMenu
   const [subMode, setSubMode] = useState<'draw' | 'place-light'>('draw')
   const [drawMode, setDrawMode] = useState<'point-to-point' | 'freeform'>('point-to-point')
   const [preset, setPreset] = useState<LightPresetId>('torch')
-  const [preview, setPreview] = useState(false)
   const face = lightingToolFace(activeTool)
 
   return (
@@ -87,11 +86,6 @@ export function LightingToolGroup({ activeTool, selectTool, menuOpen, toggleMenu
       <SceneLightingSection
         lighting={lighting}
         onChange={setSceneLighting}
-        preview={preview}
-        onPreviewChange={(next) => {
-          setPreview(next)
-          emit('lighting-preview', next)
-        }}
         onResetExplored={() => {
           emit('lighting-reset-explored')
           closeMenu()

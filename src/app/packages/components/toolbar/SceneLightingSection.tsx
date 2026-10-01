@@ -20,16 +20,13 @@ const TIMES_OF_DAY: { value: TimeOfDay; label: string; ambient: number }[] = [
 interface SceneLightingSectionProps {
   lighting: SceneLighting
   onChange: (changes: Partial<SceneLighting>) => void
-  /** The GM's canvas shows exactly what the players see. */
-  preview: boolean
-  onPreviewChange: (preview: boolean) => void
   onResetExplored: () => void
   /** Opens the panel with the scene's other lighting options. */
   onOpenSettings: () => void
 }
 
-/** Scene-wide lighting in the lighting tool's menu: on or off, how dark, and the players' view. */
-export function SceneLightingSection({ lighting, onChange, preview, onPreviewChange, onResetExplored, onOpenSettings }: SceneLightingSectionProps): React.ReactElement {
+/** Scene-wide lighting in the lighting tool's menu: on or off, and how dark. */
+export function SceneLightingSection({ lighting, onChange, onResetExplored, onOpenSettings }: SceneLightingSectionProps): React.ReactElement {
   const time = TIMES_OF_DAY.find((stop) => stop.ambient === lighting.ambient)?.value ?? 'custom'
   return (
     <div className="atlas-dropdown-section">
@@ -63,7 +60,6 @@ export function SceneLightingSection({ lighting, onChange, preview, onPreviewCha
               />
             </LabelTooltip>
           </div>
-          <DropdownToggleRow label="Preview player view" value={preview} onChange={() => onPreviewChange(!preview)} />
           <DropdownMenuItem icon={RotateCcw} label="Forget explored areas" onClick={onResetExplored} />
           <DropdownMenuItem icon={SlidersHorizontal} label="Lighting settings…" onClick={onOpenSettings} />
         </>

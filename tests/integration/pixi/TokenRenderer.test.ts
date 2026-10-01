@@ -458,6 +458,54 @@ describe('TokenRenderer Integration Tests', () => {
 
         expect(tokenGroup('token-1').visible).toBe(true);
       });
+
+      // With dynamic lighting the canvas hides what the players' tokens do not see, as their frame does.
+      describe('with the players\' sight', () => {
+        const tokenUi = (id: string): Container =>
+          (tokenRenderer as unknown as { uiManager: { getTokenUIs(): Record<string, { getContainer(): Container }> } })
+            .uiManager.getTokenUIs()[id]!.getContainer();
+
+        it('should hide a token the players do not see, with its nameplate and bars', async () => {
+          tokenRenderer.setPlayerSightProvider(() => (id) => id !== 'token-1');
+          store.getState().addToken(token({ id: 'token-1', kind: 'character', statblockPath: 'Goblin.md' }));
+          store.getState().addToken(token({ id: 'token-2', x: 300, kind: 'character', statblockPath: 'Goblin.md' }));
+          await waitForTokens('token-1', 'token-2');
+
+          expect(tokenGroup('token-1').visible).toBe(false);
+          expect(tokenUi('token-1').visible).toBe(false);
+          expect(tokenGroup('token-2').visible).toBe(true);
+          expect(tokenUi('token-2').visible).toBe(true);
+          expect(tokenRenderer.hitTestTokens(100, 100)).toBeNull();
+        });
+
+        it('should show the token once the players see it, and hide it again when they lose it', async () => {
+          let seen = false;
+          tokenRenderer.setPlayerSightProvider(() => () => seen);
+          store.getState().addToken(token({ id: 'token-1', kind: 'character', statblockPath: 'Goblin.md' }));
+          await waitForTokens('token-1');
+          expect(tokenGroup('token-1').visible).toBe(false);
+
+          seen = true;
+          tokenRenderer.refreshPlayerSight();
+          expect(tokenGroup('token-1').visible).toBe(true);
+          expect(tokenGroup('token-1').alpha).toBe(1);
+          expect(tokenUi('token-1').visible).toBe(true);
+
+          seen = false;
+          tokenRenderer.refreshPlayerSight();
+          expect(tokenGroup('token-1').visible).toBe(false);
+          expect(tokenUi('token-1').visible).toBe(false);
+        });
+
+        it('should hide nothing by sight while the canvas shows the GM\'s view', async () => {
+          tokenRenderer.setPlayerSightProvider(() => undefined);
+          store.getState().addToken(token({ id: 'token-1', isHidden: true }));
+          await waitForTokens('token-1');
+
+          expect(tokenGroup('token-1').visible).toBe(true);
+          expect(tokenGroup('token-1').alpha).toBe(0.5);
+        });
+      });
     });
   });
 

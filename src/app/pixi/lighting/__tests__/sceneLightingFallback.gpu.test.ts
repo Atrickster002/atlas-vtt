@@ -42,7 +42,7 @@ describe('scene lighting on a graphics device that cannot run the engine', () =>
     const scene = await setup({ enabled: false });
     const { renderer, viewport, host } = scene;
     const modeLayer = host.modeLayer;
-    host.setPreview(true);
+    modeLayer.visible = true;
     breakLinking(renderer);
 
     expect(() => scene.switchLighting(true)).not.toThrow();
@@ -51,13 +51,13 @@ describe('scene lighting on a graphics device that cannot run the engine', () =>
     expect(notices).toEqual(['Dynamic lighting could not run on this graphics device. Atlas shows line of sight without light and shadow.']);
     expect(engineLayer(viewport)).toBeUndefined();
     expect(renderer.backBuffer.useBackBuffer).toBe(false);
-    // The players still see only what the token sees: the preview carried over to the fallback.
+    // The players still see only what the token sees: session view carried over to the fallback.
     expect(darkness(viewport)?.visible).toBe(true);
     expect(host.modeLayer).toBe(modeLayer);
     expect(host.currentSight().all).toBe(false);
     expect(host.currentSight().polygons).toHaveLength(1);
     expect(host.lightReaches()).toEqual([]);
-    host.setPreview(false);
+    modeLayer.visible = false;
     expect(darkness(viewport)?.visible).toBe(false);
     modeLayer.visible = true;
     expect(darkness(viewport)?.visible).toBe(true);

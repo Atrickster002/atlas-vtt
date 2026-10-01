@@ -9,7 +9,7 @@
 - Open Lighting settings from the lighting menu to adjust a scene: switch token vision off so players see everything the light shows, stop remembering explored areas (what was already explored comes back when you switch it on again), pick the colours of explored and unexplored areas, and choose from which brightness a scene counts as lit.
 - Tint a scene's ambient light with the colour swatch next to the Ambient light slider in the lighting menu.
 - Areas the players have explored stay on their screen, dim and grey, and are saved with the scene. Forget them from the Lighting tool's menu.
-- The GM sees the whole map with its lighting. Hold H, or switch on Preview player view, to see exactly what the players see.
+- The GM sees the whole map with its lighting. Hold H, or switch from GM view to session view, to see exactly what the players see.
 - Open and close doors by clicking the door badges, with any tool.
 - Double-click a light, or right-click it, to change its kind, colour, range, brightness, softness and flicker.
 - Dice rolls are thrown as 3D dice in a panel at the top right of the map (top centre in the player window): they bounce off the panel's edges, clatter, spark when they land, and a modifier clicks onto the total. Click a roll or press Escape to dismiss it. Critical results get a bigger burst of sparks and their own sound. Rolls with dice that have no real shape (such as d7) still show as a result card. Choose between result cards, fast dice and dice under Settings → Dice or in the command palette's new Dice settings. The player window shows the same dice when it shows rolls
@@ -28,6 +28,7 @@
 - Flickering lights take about a quarter of the graphics card time they did on a 120 Hz display, and half on a 60 Hz one
 - Dynamic lighting costs far less on high-density displays such as Retina screens, so panning a lit map stays smooth
 - An open player window costs far less, so the GM view stays smooth on large maps with lighting
+- Session view (the GM view switch in the toolbar, D) now also shows the players' lighting: the map as their tokens see it, without the tokens they cannot see, door badges, light markers and wall lines. It replaces Preview player view in the lighting menu
 
 ## Fixed
 

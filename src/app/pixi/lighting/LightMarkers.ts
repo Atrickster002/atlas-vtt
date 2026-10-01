@@ -45,7 +45,7 @@ export class LightMarkers {
   readonly view = new Container({ label: 'light-markers', zIndex: LIGHT_MARKERS_Z_INDEX, eventMode: 'none', interactiveChildren: false });
   private readonly markers = new Map<string, Marker>();
   private readonly unsubscribe: () => void;
-  /** The GM previews the players' view, which has no markers. */
+  /** The canvas shows the players' view, which has no markers. */
   private suppressed = false;
   private readonly rescale = (): void => {
     const scale = this.scale();
@@ -66,7 +66,7 @@ export class LightMarkers {
     this.sync(store.getState());
   }
 
-  /** Hides the markers while the GM previews the players' view (toolbar switch or peek key). */
+  /** Hides the markers while the canvas shows the players' view (session view or the peek key). */
   setSuppressed(on: boolean): void {
     this.suppressed = on;
     this.sync(this.store.getState());

@@ -31,7 +31,6 @@ import { isViewportPanEnabled } from "./pixi/utils/viewportPan";
 import { TextRenderer } from "./pixi/TextRenderer"; // Import TextRenderer
 import { TextTool } from "./tools/TextTool"; // Import TextTool
 import { LightingController } from './pixi/lighting/LightingController';
-import { playerLightingLayers, tokenSeenPredicate } from './pixi/lighting/playerLightingLayers';
 import { WALLS_AND_LIGHTING_ENABLED } from './featureFlags';
 import { AudioTool } from './tools/AudioTool';
 import { openAudioConfigPanel } from './pixi/audio/AudioConfigPanel';
@@ -737,13 +736,9 @@ export class PixiRendererOrchestrator { // Renamed class
     if (this.hexLinkRenderer) layers.push({ layer: this.hexLinkRenderer.container, visible: false });
     const grid = this.gridSystem?.getGridSprite();
     if (grid) layers.push({ layer: grid, visible: settings.showGrid });
-    const lighting = this.lighting?.renderer;
-    const lit = !!lighting?.isEnabled();
-    const isSeen = lighting && lit
-      ? tokenSeenPredicate(lighting.currentSight(), lighting.ambientLight(), lighting.lightReaches(), this.store.getState().objects.tokens)
-      : undefined;
-    layers.push(...(this.tokenRenderer?.getPlayerViewLayers(settings, isSeen) ?? []));
-    if (this.lighting) layers.push(...playerLightingLayers({ enabled: lit, modeLayer: this.lighting.renderer.modeLayer, gmOverlays: this.lighting.gmOverlays() }));
+    // The lighting's part is the list session view holds on this canvas (`SessionLighting`).
+    layers.push(...(this.tokenRenderer?.getPlayerViewLayers(settings, this.lighting?.playerSight()) ?? []));
+    layers.push(...(this.lighting?.playerLayers() ?? []));
     layers.push(...(this.fogRenderer?.getPlayerViewLayers() ?? []));
     layers.push(...(this.selectionManager?.getPlayerViewLayers() ?? []));
     for (const overlay of this.dmScreenOverlays) layers.push({ layer: overlay, visible: false });

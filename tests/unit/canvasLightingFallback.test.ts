@@ -1,7 +1,7 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Container, type Graphics } from 'pixi.js';
 import type { Viewport } from 'pixi-viewport';
-import { createViewAtlasStore } from '../../src/app/storeFactory';
+import { createViewAtlasStore, type ViewAtlasStore } from '../../src/app/storeFactory';
 import { CanvasLightingFallback } from '../../src/app/pixi/lighting/CanvasLightingFallback';
 import type { TokenEntity } from '../../src/app/types';
 import type { SceneLighting } from '../../src/app/types/lightingTypes';
@@ -11,7 +11,7 @@ import { stubJsdomGraphics } from '../mocks/jsdomGraphics';
 let restore: (() => void) | undefined;
 afterEach(() => { restore?.(); restore = undefined; });
 
-function setup(tokens: Record<string, TokenEntity>, lighting: Partial<SceneLighting> = {}): { fallback: CanvasLightingFallback; viewport: Container } {
+function setup(tokens: Record<string, TokenEntity>, lighting: Partial<SceneLighting> = {}, onSightChange?: () => void): { fallback: CanvasLightingFallback; viewport: Container; store: ViewAtlasStore } {
   restore = stubJsdomGraphics();
   const { app } = createInMemoryApp();
   const store = createViewAtlasStore(app, `canvas-lighting-${Math.random()}`);
@@ -23,8 +23,9 @@ function setup(tokens: Record<string, TokenEntity>, lighting: Partial<SceneLight
     store,
     measurement: () => ({ mode: 'grid', unitType: 'feet', unitDistance: 5, diagonalRule: 'chebyshev', rangeBands: [] }) as never,
     bounds: () => ({ width: 1000, height: 1000 }),
+    ...(onSightChange && { onSightChange }),
   });
-  return { fallback, viewport };
+  return { fallback, viewport, store };
 }
 
 const hero: TokenEntity = { id: 'hero', kind: 'token', imagePath: 'h.png', x: 100, y: 100, vision: { enabled: true, range: 10 } };
@@ -39,6 +40,16 @@ describe('CanvasLightingFallback', () => {
     expect(fallback.currentSight().all).toBe(false);
     fallback.modeLayer.visible = false;
     expect(darkness.visible).toBe(false);
+  });
+
+  it('reports the sight it worked out, at the start and when a token moves', () => {
+    const seen: number[] = [];
+    const onSightChange = vi.fn();
+    const { fallback, store } = setup({ hero }, {}, onSightChange);
+    expect(onSightChange).toHaveBeenCalledTimes(1);
+    onSightChange.mockImplementation(() => seen.push(fallback.currentSight().origins[0]!.x));
+    store.getState().updateToken('hero', { x: 300 });
+    expect(seen).toEqual([300]);
   });
 
   it('hides nothing while no token has vision', () => {

@@ -22,6 +22,8 @@ export interface CanvasLightingDeps {
   store: ViewAtlasStore;
   measurement: () => MeasurementSettings;
   bounds: () => MapBounds | null;
+  /** What the tokens see was worked out anew. */
+  onSightChange?: () => void;
 }
 
 /**
@@ -37,7 +39,7 @@ export class CanvasLightingFallback implements SceneLightingView {
   private readonly darkness = new Graphics();
   private readonly cache = new SightCache();
   private sight: Sight = SEES_ALL;
-  private readonly playerView = new PlayerView((active) => { this.darkness.visible = active; });
+  private readonly playerView = new PlayerView((shown) => { this.darkness.visible = shown; });
   private readonly unsubscribe: () => void;
 
   constructor(private readonly deps: CanvasLightingDeps) {
@@ -50,7 +52,6 @@ export class CanvasLightingFallback implements SceneLightingView {
   }
 
   isEnabled(): boolean { return this.deps.store.getState().lighting.enabled; }
-  setPreview(on: boolean): void { this.playerView.setPreview(on); }
   currentSight(): Sight { return this.sight; }
   lightReaches(): LightReach[] { return []; }
   ambientLight(): AmbientLight { return FULL_DAYLIGHT; }
@@ -67,6 +68,11 @@ export class CanvasLightingFallback implements SceneLightingView {
     const scale = unitScaleOf(this.deps.measurement(), state.grid);
     const walls = sealedWalls(wallList(state.objects.walls), worldTexel(bounds));
     this.sight = sceneSight(state.lighting, sightSources(state.objects.tokens, scale, bounds), walls, this.cache);
+    this.drawDarkness(bounds);
+    this.deps.onSightChange?.();
+  }
+
+  private drawDarkness(bounds: MapBounds): void {
     const g = this.darkness;
     g.clear();
     if (this.sight.all) return;
@@ -74,7 +80,7 @@ export class CanvasLightingFallback implements SceneLightingView {
     for (const polygon of this.sight.polygons) {
       if (polygon.length >= 3) g.poly(polygon.flatMap((p) => [p.x, p.y])).cut();
     }
-    this.darkness.visible = this.playerView.active;
+    this.darkness.visible = this.playerView.visible;
   }
 
   destroy(): void {

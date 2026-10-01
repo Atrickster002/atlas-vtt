@@ -26,6 +26,18 @@ export interface LayerVisibility {
 }
 
 /**
+ * Sets each layer's visibility and leaves it so, for a view that lasts longer than one captured
+ * frame. Of two entries for one layer the later decides.
+ */
+export function setLayerVisibility(layers: readonly LayerVisibility[]): void {
+  const wanted = new Map<HideableLayer, boolean>();
+  for (const { layer, visible } of layers) wanted.set(layer, visible);
+  for (const [layer, visible] of wanted) {
+    if (layer.visible !== visible) layer.visible = visible;
+  }
+}
+
+/**
  * Sprites of tokens players must not see: hidden ones (the DM sees them translucent) and,
  * with dynamic lighting, those no player token sees (`isSeen`).
  */

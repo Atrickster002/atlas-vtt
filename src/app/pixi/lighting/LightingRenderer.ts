@@ -43,6 +43,8 @@ export interface LightingRendererDeps {
   attempt?: LightingAttempt;
   /** The engine cannot light this view. The renderer has stopped; its owner replaces and destroys it. */
   onUnavailable?: (reason: LightingUnavailable) => void;
+  /** What the tokens see or which light reaches them was worked out anew. */
+  onSightChange?: () => void;
 }
 
 type Watched = Pick<ViewAtlasState, 'objects' | 'lighting' | 'grid' | 'exploredMask'>;
@@ -65,7 +67,7 @@ type AttemptState = 'none' | 'begun' | 'drawn' | 'executed' | 'done';
  */
 export class LightingRenderer implements SceneLightingView {
   readonly layer: Container;
-  /** Flipped by the player-frame capture: visible means the player's view. */
+  /** Visible means the players' view: flipped by the player-frame capture, held in session view. */
   readonly modeLayer: HideableLayer;
   private readonly engine: LightingEngine;
   private readonly memory: ExploredMemory;
@@ -78,8 +80,10 @@ export class LightingRenderer implements SceneLightingView {
   private lastScene: SceneWithoutLook | null = null;
   private attemptState: AttemptState = 'none';
   private stopped = false;
+  /** A scene build worked out new sight; reported once the guarded work is over. */
+  private sightChanged = false;
   private readonly onContextLost = (): void => this.memory.holdSaves();
-  private readonly playerView = new PlayerView((active) => this.engine.setMode(active ? 'player' : 'gm'));
+  private readonly playerView = new PlayerView((shown) => this.engine.setMode(shown ? 'player' : 'gm'));
   private readonly unsubscribe: () => void;
   private readonly tick = (): void => this.run(() => this.animate());
 
@@ -102,12 +106,6 @@ export class LightingRenderer implements SceneLightingView {
     this.unsubscribe = deps.store.subscribe((state) => this.run(() => this.update(state)));
     deps.app.ticker.add(this.tick);
     this.run(() => this.update(deps.store.getState()));
-  }
-
-  /** Shows the GM exactly what the players see. */
-  setPreview(on: boolean): void {
-    this.playerView.setPreview(on);
-    requestRender(this.deps.app);
   }
 
   isEnabled(): boolean {
@@ -140,7 +138,8 @@ export class LightingRenderer implements SceneLightingView {
   /**
    * Runs lighting work that reaches the GPU. Nothing is drawn while the context is lost; the
    * first call after its restore rebuilds; an error stops the engine and reports the view
-   * unavailable, once.
+   * unavailable, once. New sight is reported afterwards, outside the guard: what its listener
+   * does is not the engine's to fail on.
    */
   private run(work: () => void): void {
     if (this.stopped) return;
@@ -152,6 +151,9 @@ export class LightingRenderer implements SceneLightingView {
       this.engine.fail(error);
     }
     if (this.engine.failed) this.stop('failed');
+    if (!this.sightChanged) return;
+    this.sightChanged = false;
+    if (!this.stopped) this.deps.onSightChange?.();
   }
 
   private stop(reason: LightingUnavailable): void {
@@ -200,6 +202,7 @@ export class LightingRenderer implements SceneLightingView {
     const lights = activeLights(state.objects.lights, state.objects.tokens).map((light) => engineLight(light, scale));
     this.reaches = this.lightReachCache.sync(lights, walls);
     this.sight = sceneSight(state.lighting, sightSources(state.objects.tokens, scale, bounds), walls, this.sightCache);
+    this.sightChanged = true;
     const shapes = exploredShapes(this.sight, state.lighting, this.reaches);
     if (shapes) this.memory.record(shapes);
     return {

@@ -108,6 +108,7 @@ export class TokenRenderer {
   private pinHoverHandler?: (type: 'over' | 'out', pinId: string, e?: FederatedPointerEvent) => void;
   private hexLinkHandlers?: HexLinkPointerHandlers;
   private doorClickHandler?: (worldX: number, worldY: number) => boolean;
+  private playerSightProvider?: () => ((tokenId: string) => boolean) | undefined;
   private lastHoveredPinId: string | null = null;
 
   // Wall provider pattern — wired by PixiRendererOrchestrator
@@ -680,14 +681,23 @@ export class TokenRenderer {
     return this.isLocalPlayerMode || isPlayerView || !isGMView;
   }
 
+  /**
+   * Whether the canvas leaves `token` out: a hidden one in the players' perspective, and one
+   * the players do not see while the canvas shows their lighting (`setPlayerSightProvider`).
+   */
+  private hidesToken(token: TokenEntity, isSeen = this.playerSightProvider?.()): boolean {
+    return ((token.isHidden ?? false) && this.isInPlayerMode()) || (!!isSeen && !isSeen(token.id));
+  }
+
   private applyTokenVisibilityPolicy(
     token: TokenEntity,
     tokenGroup: Container,
-    prevToken?: TokenEntity
+    prevToken?: TokenEntity,
+    isSeen = this.playerSightProvider?.(),
   ): void {
     const isHidden = token.isHidden ?? false;
 
-    if (isHidden && this.isInPlayerMode()) {
+    if (this.hidesToken(token, isSeen)) {
       tokenGroup.visible = false;
       tokenGroup.alpha = 1.0;
       this.uiManager.setTokenUIVisibility(token.id, false);
@@ -720,11 +730,32 @@ export class TokenRenderer {
    */
   private refreshTokenVisibility(): void {
     const tokens = this.store.getState().objects.tokens;
+    const isSeen = this.playerSightProvider?.();
     for (const [id, tokenGroup] of Object.entries(this.tokenSprites)) {
       const token = tokens[id];
       if (token && tokenGroup) {
-        this.applyTokenVisibilityPolicy(token, tokenGroup);
+        this.applyTokenVisibilityPolicy(token, tokenGroup, undefined, isSeen);
       }
+    }
+  }
+
+  /**
+   * `provider` answers which tokens the players see while this canvas shows their view of a
+   * lit scene (session view, the peek key), and nothing otherwise. Tokens they do not see are
+   * left out with their nameplates and bars, as in the player frame.
+   */
+  public setPlayerSightProvider(provider: () => ((tokenId: string) => boolean) | undefined): void {
+    this.playerSightProvider = provider;
+  }
+
+  /** The players' sight changed, or whether the canvas shows it: tokens entering or leaving it show or hide. */
+  public refreshPlayerSight(): void {
+    const tokens = this.store.getState().objects.tokens;
+    const isSeen = this.playerSightProvider?.();
+    for (const [id, tokenGroup] of Object.entries(this.tokenSprites)) {
+      const token = tokens[id];
+      if (!token || !tokenGroup || tokenGroup.visible !== this.hidesToken(token, isSeen)) continue;
+      this.applyTokenVisibilityPolicy(token, tokenGroup, token, isSeen);
     }
   }
 
