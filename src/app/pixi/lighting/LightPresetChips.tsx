@@ -17,7 +17,7 @@ const AT_REST = { hovered: false, selected: false, dragging: false };
 const cssColor = (color: number): string => `#${color.toString(16).padStart(6, '0')}`;
 
 /** The glyph of a kind of light, as on its map marker; it takes the text colour. */
-export function LightGlyph({ kind }: { kind: LightKind }): React.ReactElement {
+function LightGlyph({ kind }: { kind: LightKind }): React.ReactElement {
   return (
     <svg className="atlas-light-glyph" viewBox={LIGHT_GLYPH_VIEW_BOX} aria-hidden="true">
       <path d={LIGHT_GLYPH_PATHS[kind]} fill="currentColor" />

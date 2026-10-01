@@ -52,7 +52,7 @@ it('gives the GM\'s token UI the line of its hover card, never the players\' cop
   const sprite = new Container();
   manager.setTokenSpriteProvider(() => sprite);
   manager.createTokenUI('hero', sprite, token as never);
-  manager.getPlayerViewLayers({ showTokenHP: true, showTokenStress: true, showTokenNameplates: true });
+  manager.getPlayerViewLayers({ showTokenNameplates: true });
   const { tokenUIs, playerTokenUIs } = manager as unknown as { tokenUIs: Record<string, FakeUI>; playerTokenUIs: Record<string, FakeUI> };
 
   // Before a provider is set there is no line; a UI made before it takes it all the same.

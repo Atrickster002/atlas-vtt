@@ -1,7 +1,7 @@
 import type { LightPresetDefinition, LightPresetUnit } from '../../types/lightPresetTypes';
 
 /** A light as a built-in table defines it; the id is derived from the preset and the light's key, the unit is the table's. */
-export type BuiltInLight = Omit<LightPresetDefinition, 'id' | 'unit'>;
+type BuiltInLight = Omit<LightPresetDefinition, 'id' | 'unit'>;
 
 /**
  * The lights of a table whose distances are in `unit`, as its rulebook writes them, with ids

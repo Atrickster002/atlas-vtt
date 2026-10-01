@@ -56,7 +56,7 @@ function withinArea(region: SightRegion, point: Point): boolean {
 }
 
 /** The light at a point, or how to find it: finding it costs a look at every light, so it waits until a sense reaches as far as the point. */
-export type LevelAt = LightLevel | (() => LightLevel);
+type LevelAt = LightLevel | (() => LightLevel);
 
 /** Whether some sense of a vision token reaches `point`, whatever the light there. */
 export function withinReach(point: Point, sight: Sight): boolean {

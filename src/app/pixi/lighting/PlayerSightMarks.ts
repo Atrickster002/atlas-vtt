@@ -5,7 +5,7 @@ import { destroyTree } from '../utils/destroyTree';
 import type { SightMark } from './sightMarks';
 
 /** UI units (a medium token on a 70 px grid is 62 across): a small badge on the token's edge. */
-export const SIGHT_MARK_RADIUS = 11;
+const SIGHT_MARK_RADIUS = 11;
 const GLYPH_SIZE = 15;
 
 interface Badge {

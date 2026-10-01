@@ -866,7 +866,7 @@ describe('TokenRenderer Integration Tests', () => {
             store.getState().addToken(token({ id: 'token-2', x: 300 }));
             await waitForTokens('token-1', 'token-2');
             const layers = tokenRenderer.getPlayerViewLayers(
-              { showTokenHP: true, showTokenStress: true, showTokenNameplates: true } as Parameters<typeof tokenRenderer.getPlayerViewLayers>[0],
+              { showTokenNameplates: true } as Parameters<typeof tokenRenderer.getPlayerViewLayers>[0],
               (id) => (id === 'token-1' ? 'sensed' : 'seen'),
             );
             expect(layers).toContainEqual({ layer: tokenGroup('token-1'), visible: false });
@@ -883,7 +883,7 @@ describe('TokenRenderer Integration Tests', () => {
             await waitForTokens('token-1');
             viewport.emit('pointerdown', pointerEvent(100, 100));
             const layers = tokenRenderer.getPlayerViewLayers(
-              { showTokenHP: true, showTokenStress: true, showTokenNameplates: true } as Parameters<typeof tokenRenderer.getPlayerViewLayers>[0],
+              { showTokenNameplates: true } as Parameters<typeof tokenRenderer.getPlayerViewLayers>[0],
               () => 'sensed',
             );
             expect(tokenGroup('token-1').visible).toBe(true);
@@ -893,7 +893,7 @@ describe('TokenRenderer Integration Tests', () => {
             expect(layers).toContainEqual({ layer: heldOutlines(), visible: true });
             expect(layers).toContainEqual({ layer: tokenGroup('token-1'), visible: false });
             viewport.emit('pointerup', pointerEvent(100, 100));
-            tokenRenderer.getPlayerViewLayers({ showTokenHP: true, showTokenStress: true, showTokenNameplates: true } as Parameters<typeof tokenRenderer.getPlayerViewLayers>[0], () => 'sensed');
+            tokenRenderer.getPlayerViewLayers({ showTokenNameplates: true } as Parameters<typeof tokenRenderer.getPlayerViewLayers>[0], () => 'sensed');
             expect(heldOutlines().children).toHaveLength(0);
             expect(outlines().children).toHaveLength(1);
           });
