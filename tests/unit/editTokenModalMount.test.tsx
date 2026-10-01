@@ -74,6 +74,15 @@ describe('openEditTokenModal', () => {
     expect(saved().vision).toEqual({ enabled: true, senses: [{ id: darkvision.id, range: 60 }] });
   });
 
+  it('saves no list of senses when one is added and removed again, so the token still follows its statblock', () => {
+    const { saved } = open({ vision: { enabled: true } });
+    fireEvent.click(screen.getByRole('button', { name: 'Add sense' }));
+    fireEvent.click(screen.getByRole('button', { name: /^Darkvision/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Remove Darkvision' }));
+    save();
+    expect(saved().vision).toEqual({ enabled: true });
+  });
+
   it('keeps what is set while vision is switched off', () => {
     const { saved } = open({ vision: { enabled: true, range: 30, senses: [{ id: darkvision.id, range: 60 }] } });
     fireEvent.click(vision());

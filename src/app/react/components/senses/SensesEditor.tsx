@@ -45,6 +45,13 @@ export function SensesEditor({ senses, onChange, definitions, unit, emptyText, i
   const offer = useRef<HTMLDivElement>(null);
   const ranges = useRef(new Map<string, HTMLInputElement>());
 
+  // Whether the token's own list stands in place of its statblock's by the GM's choice: it came
+  // with one beside a statblock, or "Edit senses" took the statblock's. Only then is an emptied
+  // list kept ("no senses, whatever the statblock says"); otherwise the token has no list again.
+  const cameWithOwn = useRef(senses !== null);
+  const [chosen, setChosen] = useState<boolean | null>(null);
+  const detached = chosen ?? (cameWithOwn.current && inheritedSenses.length > 0);
+
   const following = senses === null && inheritedSenses.length > 0;
   const rows = senses ?? [];
   const available = following ? [] : definitions.filter((definition) => !rows.some((row) => row.id === definition.id));
@@ -56,7 +63,8 @@ export function SensesEditor({ senses, onChange, definitions, unit, emptyText, i
     offer.current?.querySelector('button')?.focus({ preventScroll: true });
   }, [adding]);
 
-  // The sense just added takes the focus in its range field, or the list's button when it has none.
+  // The sense just added takes the focus in its range field, or the list's button when it has
+  // none; so does the button when a sense was removed, whose own button is gone.
   useEffect(() => {
     if (focusId === null) return;
     (ranges.current.get(focusId) ?? addButton.current)?.focus();
@@ -67,6 +75,13 @@ export function SensesEditor({ senses, onChange, definitions, unit, emptyText, i
     onChange([...rows, { id: definition.id, range: '' }]);
     setAdding(false);
     setFocusId(definition.id);
+  };
+
+  const remove = (index: number): void => {
+    const next = rows.filter((_, i) => i !== index);
+    onChange(next.length > 0 || detached ? next : null);
+    setAdding(false);
+    setFocusId(rows[index]?.id ?? null);
   };
 
   const onOfferKeyDown = (event: React.KeyboardEvent): void => {
@@ -105,7 +120,7 @@ export function SensesEditor({ senses, onChange, definitions, unit, emptyText, i
                   else ranges.current.delete(row.id);
                 }}
                 onRangeChange={(range) => onChange(rows.map((other, i) => (i === index ? { ...other, range } : other)))}
-                onRemove={() => onChange(rows.filter((_, i) => i !== index))}
+                onRemove={() => remove(index)}
               />
             ))}
         </ul>
@@ -116,7 +131,7 @@ export function SensesEditor({ senses, onChange, definitions, unit, emptyText, i
       {(following || available.length > 0 || (senses !== null && inheritedSenses.length > 0)) && (
         <div className="atlas-senses__actions">
           {following && (
-            <Button variant="ghost" className="atlas-senses__action" onClick={() => onChange(senseRows(inheritedSenses))}>
+            <Button variant="ghost" className="atlas-senses__action" onClick={() => { setChosen(true); onChange(senseRows(inheritedSenses)); }}>
               <Pencil />
               Edit senses
             </Button>
@@ -128,7 +143,7 @@ export function SensesEditor({ senses, onChange, definitions, unit, emptyText, i
             </Button>
           )}
           {senses !== null && inheritedSenses.length > 0 && (
-            <Button variant="ghost" className="atlas-senses__action" onClick={() => { setAdding(false); onChange(null); }}>
+            <Button variant="ghost" className="atlas-senses__action" onClick={() => { setAdding(false); setChosen(false); onChange(null); }}>
               <RotateCcw />
               Follow statblock
             </Button>

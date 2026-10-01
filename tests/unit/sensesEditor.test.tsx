@@ -80,8 +80,25 @@ describe('SensesEditor', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Remove Darkvision' }));
     expect(saved()).toEqual([{ id: tremorsense.id, range: '' }]);
     fireEvent.click(screen.getByRole('button', { name: 'Remove Tremorsense' }));
-    expect(saved()).toEqual([]);
+    expect(saved()).toBeNull();
     expect(screen.getByText('No senses beyond sight.')).toBeTruthy();
+  });
+
+  it('moves the focus to "Add sense" when a sense is removed', () => {
+    render(<Harness initial={[{ id: darkvision.id, range: '60' }, { id: tremorsense.id, range: '' }]} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Remove Darkvision' }));
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Add sense' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Remove Tremorsense' }));
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Add sense' }));
+  });
+
+  it('has no list of its own again when a sense is added to a token without one and removed', () => {
+    render(<Harness initial={null} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Add sense' }));
+    fireEvent.click(screen.getByRole('button', { name: /^Darkvision/ }));
+    expect(saved()).toEqual([{ id: darkvision.id, range: '' }]);
+    fireEvent.click(screen.getByRole('button', { name: 'Remove Darkvision' }));
+    expect(saved()).toBeNull();
   });
 
   it('offers the collection\'s senses the token lacks, each with its description, and adds the chosen one', () => {
@@ -118,7 +135,7 @@ describe('SensesEditor', () => {
     render(<Harness initial={[{ id: 'other-system-echo', range: '30' }]} />);
     expect(within(rows()[0]!).getByText('Unknown sense')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Remove Unknown sense' }));
-    expect(saved()).toEqual([]);
+    expect(saved()).toBeNull();
   });
 });
 
@@ -151,6 +168,29 @@ describe('SensesEditor with senses from the statblock', () => {
     expect(within(rows()[1]!).queryByText('from statblock')).toBeNull();
     fireEvent.change(range('Darkvision'), { target: { value: '90' } });
     expect(within(rows()[0]!).queryByText('from statblock')).toBeNull();
+  });
+
+  it('keeps an empty list once "Edit senses" took the statblock\'s and all were removed: no senses, whatever the statblock says', () => {
+    render(<Harness initial={null} inherited={inherited} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Edit senses' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Remove Darkvision' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Remove Blindsight' }));
+    expect(saved()).toEqual([]);
+    expect(screen.getByText('No senses beyond sight.')).toBeTruthy();
+    expect(screen.queryByText('from statblock')).toBeNull();
+    screen.getByRole('button', { name: 'Follow statblock' });
+  });
+
+  it('keeps an empty list on a token that already had senses of its own beside a statblock', () => {
+    render(<Harness initial={[{ id: tremorsense.id, range: '15' }]} inherited={inherited} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Remove Tremorsense' }));
+    expect(saved()).toEqual([]);
+  });
+
+  it('has no list of its own again when the last sense of a token without a statblock is removed', () => {
+    render(<Harness initial={[{ id: tremorsense.id, range: '15' }]} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Remove Tremorsense' }));
+    expect(saved()).toBeNull();
   });
 
   it('goes back to following the statblock', () => {
