@@ -17,6 +17,8 @@ export interface SceneLighting {
   unexploredColor?: string;
   /** Ambient light (0–1) from which everything in sight counts as lit; unset is 0.25. */
   litThreshold?: number;
+  /** Ambient light (0–1) from which the scene is dimly lit; unset is half the lit threshold, and it never lies above it. */
+  dimThreshold?: number;
 }
 
 export const DEFAULT_SCENE_LIGHTING: SceneLighting = { enabled: false, ambient: 0.1 };

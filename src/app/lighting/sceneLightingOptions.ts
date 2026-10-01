@@ -39,6 +39,16 @@ export function litThresholdOf(lighting: Pick<SceneLighting, 'litThreshold'>): n
   return lighting.litThreshold === undefined ? DEFAULT_LIT_THRESHOLD : clampLitThreshold(lighting.litThreshold);
 }
 
+/**
+ * Ambient light from which the scene is dimly lit: the scene's own, kept between 0 and the lit
+ * threshold, or half the lit threshold when it sets none or something that is not a number.
+ */
+export function dimThresholdOf(lighting: Pick<SceneLighting, 'litThreshold' | 'dimThreshold'>): number {
+  const lit = litThresholdOf(lighting);
+  const dim = lighting.dimThreshold;
+  return dim === undefined || !Number.isFinite(dim) ? lit / 2 : Math.min(lit, Math.max(0, dim));
+}
+
 /** The options `lighting` sets for the composite; unset ones stay unset, so the composite keeps its defaults. */
 export function sceneLook({ ambient, ambientColor, exploredMemory, exploredColor, unexploredColor }: SceneLighting): SceneLook {
   return {
