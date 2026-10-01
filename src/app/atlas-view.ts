@@ -561,15 +561,19 @@ export class AtlasView extends FileView {
     const tabId = this.loadedTabId();
     if (tabId) this.saveViewportState(tabId);
 
-    this.store.getState().setPersistenceEnabled(false);
+    // Nothing the store holds may be saved over the rewritten file. A load that is still
+    // running is stopped as well: finishing meanwhile, it would mark the store as loaded
+    // with the content from before and queue that for saving.
+    this._serviceManager.getMapService().suspendForRewrite();
     try {
       await rewrite(file);
     } catch (error) {
-      this.store.getState().setPersistenceEnabled(true);
+      // The store went out of use above; the scene comes back from its file as it is now
+      if (request === this.sceneRequests) await this.performSceneLoad(file);
       throw error;
     }
 
-    // A tab switch made meanwhile shows its own scene; its load switches saving back on
+    // A tab switch made meanwhile shows its own scene
     if (request !== this.sceneRequests) return;
     if (!(await this.performSceneLoad(file))) return;
     this.showLoadedTab();

@@ -247,6 +247,18 @@ export class MapService {
     if (previous) backgroundTextureCache.release(previous);
   }
 
+  /**
+   * Takes the store out of use before the scene's file is rewritten from outside: loads that
+   * wait or run are stopped, and the store, left like a scene that is being closed, is no
+   * longer saved. The caller loads the scene again afterwards.
+   */
+  public suspendForRewrite(): void {
+    this.loads.cancel();
+    const state = this.store.getState();
+    if (state.mapLoaded) this.eventBus.emit('map-unloading');
+    state.setMapLoaded(false);
+  }
+
   /** Stops waiting and running loads and releases resources held for the loaded map. */
   public destroy(): void {
     this.loads.cancel();

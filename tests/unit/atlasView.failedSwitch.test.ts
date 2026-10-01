@@ -20,9 +20,8 @@ function setup(options: { sceneLoads: boolean; mapLoaded: boolean; isMapLoading?
     // Cave is the active tab; its scene is in the store when one is loaded
     store: { getState: () => ({
       mapLoaded: options.mapLoaded, isMapLoading: options.isMapLoading ?? false, mapPath: options.mapLoaded ? CAVE.path : null,
-      setMapLoaded: vi.fn(), setPersistenceEnabled: vi.fn(),
     }) },
-    _serviceManager: { getMapService: () => ({ cancelLoads: vi.fn() }) },
+    _serviceManager: { getMapService: () => ({ suspendForRewrite: vi.fn() }) },
     flushPendingSaves: vi.fn().mockResolvedValue(undefined),
     saveTemporalState: vi.fn(), saveViewportState: vi.fn(),
     restoreTemporalState: vi.fn(), restoreViewportState: vi.fn(),
