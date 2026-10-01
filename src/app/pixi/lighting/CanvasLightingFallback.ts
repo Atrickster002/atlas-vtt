@@ -7,6 +7,7 @@ import { sealedWalls } from '../../lighting/sealWalls';
 import { worldTexel } from '../../lighting/lightingConstants';
 import { SEES_ALL, SightCache, sceneSight, sightSources, type AmbientLight, type LightReach, type Sight } from '../../vision/sight';
 import { wallList } from '../../vision/wallList';
+import type { SightRules } from '../../vision/sightRules';
 import type { MapBounds } from '../../vision/visibility';
 import type { HideableLayer } from '../playerSafeFrame';
 import { destroyTree } from '../utils/destroyTree';
@@ -23,6 +24,8 @@ export interface CanvasLightingDeps {
   store: ViewAtlasStore;
   measurement: () => MeasurementSettings;
   bounds: () => MapBounds | null;
+  /** The senses and conditions of the map's collection; the generic ones without it. */
+  rules?: () => SightRules;
   /** What the tokens see was worked out anew. */
   onSightChange?: () => void;
 }
@@ -79,7 +82,7 @@ export class CanvasLightingFallback implements SceneLightingView {
     }
     const scale = unitScaleOf(this.deps.measurement(), state.grid);
     const walls = sealedWalls(wallList(state.objects.walls), worldTexel(bounds));
-    this.sight = sceneSight(state.lighting, sightSources(state.objects.tokens, scale, bounds), walls, this.cache);
+    this.sight = sceneSight(state.lighting, sightSources(state.objects.tokens, scale, bounds, this.deps.rules?.()), walls, this.cache);
     this.drawDarkness(bounds);
     this.deps.onSightChange?.();
   }

@@ -7,6 +7,7 @@ import { sealedWalls } from '../../lighting/sealWalls';
 import { worldTexel } from '../../lighting/lightingConstants';
 import { sceneLook, type SceneLook } from '../../lighting/sceneLightingOptions';
 import { SEES_ALL, SightCache, sceneSight, sightOptionsChanged, sightSources, type AmbientLight, type LightReach, type Sight } from '../../vision/sight';
+import type { SightRules } from '../../vision/sightRules';
 import { wallList } from '../../vision/wallList';
 import { exploredShapes } from '../../vision/exploredShapes';
 import type { MapBounds } from '../../vision/visibility';
@@ -38,6 +39,8 @@ export interface LightingRendererDeps {
   bounds: () => MapBounds | null;
   /** The map image, covering world `[0, width] × [0, height]`; bounce reads its colours. */
   albedo: () => Texture | null;
+  /** The senses and conditions of the map's collection; the generic ones without it. */
+  rules?: () => SightRules;
   /** The device-local record of attempts to light this map; without one every attempt is made. */
   attempt?: LightingAttempt;
   /** The engine cannot light this view. The renderer has stopped; its owner replaces and destroys it. */
@@ -206,7 +209,7 @@ export class LightingRenderer implements SceneLightingView {
     const walls = sealedWalls(wallList(state.objects.walls), worldTexel(bounds));
     const lights = activeLights(state.objects.lights, state.objects.tokens).map((light) => engineLight(light, scale));
     this.reaches = this.lightReachCache.sync(lights, walls);
-    this.sight = sceneSight(state.lighting, sightSources(state.objects.tokens, scale, bounds), walls, this.sightCache);
+    this.sight = sceneSight(state.lighting, sightSources(state.objects.tokens, scale, bounds, this.deps.rules?.()), walls, this.sightCache);
     this.sightChanged = true;
     const shapes = exploredShapes(this.sight, state.lighting, this.reaches);
     if (shapes) this.memory.record(shapes);

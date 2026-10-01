@@ -7,9 +7,11 @@ import { bindHoldHotkey } from '../../keyboard/holdHotkey';
 import { DEFAULT_MAP_HOTKEYS } from '../../keyboard/mapHotkeys';
 import { AssetService } from '../../services/AssetService';
 import { mapMeasurementSettings } from '../../services/mapMeasurementSettings';
+import { mapSightRules } from '../../services/mapSightRules';
 import { SettingsService } from '../../services/SettingsService';
 import type { ViewAtlasState, ViewAtlasStore } from '../../storeFactory';
 import { findAtlasLeafByViewId } from '../../utils/atlasLeafLookup';
+import type { SightRules } from '../../vision/sightRules';
 import type { MapBounds } from '../../vision/visibility';
 import type { LayerVisibility } from '../playerSafeFrame';
 import { requestRender } from '../RenderScheduler';
@@ -54,6 +56,8 @@ export class LightingController {
   private readonly session: SessionLighting;
   private readonly cleanups: Array<() => void> = [];
   private tokens: TokenRenderer | null = null;
+  /** The sight rules of the map's collection, read once per map and again when settings change. */
+  private rules: { mapPath: string | null; rules: SightRules } | null = null;
 
   constructor(private readonly deps: LightingControllerDeps) {
     const { viewport, app, store, eventBus, obsApp } = deps;
@@ -61,6 +65,7 @@ export class LightingController {
     const measurement = (): MeasurementSettings => mapMeasurementSettings(assetService, store.getState());
     this.renderer = createSceneLighting({
       viewport, app, store, obsApp, measurement, bounds: deps.bounds, albedo: deps.albedo,
+      rules: () => this.sightRules(),
       onSightChange: () => this.onSightChange(),
     });
     this.lightMarkers = new LightMarkers(viewport, store);
@@ -134,7 +139,21 @@ export class LightingController {
 
   /** How the players perceive each token, for their frame and for session view; sight hides nothing in an unlit scene. */
   playerSight(): TokenPerception | undefined {
-    return playerTokenSight(this.renderer, this.deps.store.getState().objects.tokens);
+    return playerTokenSight(this.renderer, this.deps.store.getState().objects.tokens, this.sightRules().conditions);
+  }
+
+  /** The senses and conditions of the map's collection. */
+  private sightRules(): SightRules {
+    const { mapPath } = this.deps.store.getState();
+    if (this.rules?.mapPath !== mapPath) this.rules = { mapPath, rules: mapSightRules(this.deps.obsApp, mapPath) };
+    return this.rules.rules;
+  }
+
+  /** A collection's settings or the game system presets changed: sight is worked out by the new rules. */
+  private refreshSightRules(): void {
+    this.rules = null;
+    // Rebuilds the scene from the store, as after a new map image.
+    this.renderer.refreshBounds();
   }
 
   /** Escape cancels a light or ring being dragged and closes the light popover; else it is the wall editor's. */
@@ -210,6 +229,10 @@ export class LightingController {
       if (leaf !== findAtlasLeafByViewId(obsApp.workspace, viewId)) stopEditing();
     });
     this.cleanups.push(() => obsApp.workspace.offref(leafChange));
+    const settingsChange = obsApp.workspace.on('atlas-vtt:collection-settings-changed', () => this.refreshSightRules());
+    this.cleanups.push(() => obsApp.workspace.offref(settingsChange));
+    const stopPresets = SettingsService.forApp(obsApp)?.onChange(() => this.refreshSightRules());
+    if (stopPresets) this.cleanups.push(stopPresets);
   }
 
   destroy(): void {

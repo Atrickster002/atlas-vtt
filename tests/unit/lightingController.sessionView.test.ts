@@ -11,6 +11,9 @@ import type { TokenRenderer } from '../../src/app/pixi/TokenRenderer';
 import { createViewAtlasStore, type ViewAtlasStore } from '../../src/app/storeFactory';
 import { getHistoryStore } from '../../src/app/stores/history';
 import { SEES_ALL, computeSight, type Sight } from '../../src/app/vision/sight';
+import { AssetService } from '../../src/app/services/AssetService';
+import { GENERIC_SIGHT_RULES } from '../../src/app/vision/sightRules';
+import type { App } from 'obsidian';
 import { createInMemoryApp } from '../mocks/inMemoryVault';
 import { stubJsdomGraphics } from '../mocks/jsdomGraphics';
 
@@ -18,19 +21,21 @@ const lighting = vi.hoisted(() => ({
   sight: null as unknown,
   deps: null as unknown,
   modeLayer: { visible: false },
+  refreshBounds: (): void => {},
 }));
 
 vi.mock('../../src/app/pixi/lighting/createSceneLighting', () => ({
   createSceneLighting: (deps: SceneLightingDeps): SceneLightingView => {
     lighting.deps = deps;
     lighting.modeLayer = { visible: false };
+    lighting.refreshBounds = vi.fn();
     return {
       modeLayer: lighting.modeLayer,
       isEnabled: () => deps.store.getState().lighting.enabled,
       currentSight: () => lighting.sight as Sight,
       lightReaches: () => [],
       ambientLight: () => ({ ambient: 1 }),
-      refreshBounds: vi.fn(),
+      refreshBounds: () => lighting.refreshBounds(),
       resetExplored: vi.fn(),
       beforeMapUnload: vi.fn(),
       renderForFrame: (_frame, render) => render(),
@@ -62,6 +67,9 @@ interface Setup {
   controller: LightingController;
   store: ViewAtlasStore;
   eventBus: EventEmitter;
+  obsApp: App;
+  /** Tells the controller a collection's settings changed, as `AssetService` does through the workspace. */
+  collectionSettingsChanged: () => void;
   wired: Wired;
   click: (x: number, y: number, keys?: { shift?: boolean }) => boolean;
 }
@@ -113,7 +121,11 @@ function setup(): Setup {
   };
   const click = (x: number, y: number, keys: { shift?: boolean } = {}): boolean =>
     wired.pointerDown(x, y, { shiftKey: !!keys.shift, ctrlKey: false, metaKey: false } as FederatedPointerEvent);
-  return { controller, store, eventBus, wired, click };
+  const collectionSettingsChanged = (): void => {
+    const calls = vi.mocked(obsApp.workspace.on).mock.calls as unknown as [string, (collectionId: string) => void][];
+    calls.find(([name]) => name === 'atlas-vtt:collection-settings-changed')?.[1]('dungeon');
+  };
+  return { controller, store, eventBus, obsApp, collectionSettingsChanged, wired, click };
 }
 
 function addWall(store: ViewAtlasStore, x1: number, x2: number): string {
@@ -297,6 +309,34 @@ describe('tokens in session view', () => {
   it('hides nothing by sight in GM view', () => {
     const { wired } = scene();
     expect(wired.playerSight()).toBeUndefined();
+  });
+
+  it('gives the lighting the sight rules of the map, read once and again when settings change', () => {
+    const { collectionSettingsChanged } = scene();
+    const { rules } = lighting.deps as SceneLightingDeps;
+    expect(rules?.()).toBe(GENERIC_SIGHT_RULES);
+    const read = vi.spyOn(AssetService, 'getInstance');
+    rules?.();
+    expect(read).not.toHaveBeenCalled();
+    collectionSettingsChanged();
+    expect(lighting.refreshBounds).toHaveBeenCalledTimes(1);
+    rules?.();
+    expect(read).toHaveBeenCalledTimes(1);
+    read.mockRestore();
+  });
+
+  it('reads the conditions of the token looked at', () => {
+    const { controller, store, lurker, obsApp, collectionSettingsChanged } = scene();
+    store.getState().setGMView(false);
+    store.getState().updateToken(lurker, { x: 150, conditions: ['dnd5e-invisible'] });
+    expect(controller.playerSight()?.(lurker)).toBe('seen');
+    const assets = AssetService.getInstance(obsApp);
+    const settings = vi.spyOn(assets, 'getCollectionSettings').mockReturnValue({ conditions: [{ id: 'dnd5e-invisible', name: 'Invisible', color: '#000000' }] });
+    const collection = vi.spyOn(assets, 'getCollectionForMap').mockReturnValue('dungeon');
+    collectionSettingsChanged();
+    expect(controller.playerSight()?.(lurker)).toBe('unseen');
+    settings.mockRestore();
+    collection.mockRestore();
   });
 
   it('hides nothing by sight while the scene has no lighting', () => {
