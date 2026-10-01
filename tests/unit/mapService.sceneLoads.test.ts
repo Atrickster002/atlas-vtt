@@ -11,7 +11,7 @@ import { MapLoader, type LoadedMap } from '../../src/app/MapLoader';
 import { createViewAtlasStore, type ViewAtlasState, type ViewAtlasStore } from '../../src/app/storeFactory';
 import { migrateMapFile, type PersistedMapEnvelope } from '../../src/app/services/MapPersistence';
 import { STALLED_SAVE_MS } from '../../src/app/services/sceneFileWriter';
-import { MapService } from '../../src/app/services/MapService';
+import { MapService, STALLED_LOAD_MS } from '../../src/app/services/MapService';
 import type { RendererService } from '../../src/app/services/RendererService';
 import { STALLED_JOB_MS } from '../../src/app/services/latestRequestQueue';
 import { getHistoryStore } from '../../src/app/stores/history';
@@ -221,6 +221,27 @@ describe('MapService scene loads', () => {
 
       expect(store.getState().background).toBe('maps/cave.png');
       expect(clearBackgroundSprite).not.toHaveBeenCalled();
+    });
+
+    it('gives up on a scene that never finishes loading, so the loading overlay does not block the view for good', async () => {
+      const { service, store, files, rendererService, holdBack } = setup();
+      const tower = files.get(TOWER);
+      holdBack(TOWER);
+
+      let result: unknown = 'pending';
+      void service.loadMap(rendererService, TOWER).then((map) => { result = map; });
+      await vi.advanceTimersByTimeAsync(STALLED_LOAD_MS - 1);
+      expect(store.getState().isMapLoading).toBe(true);
+      await vi.advanceTimersByTimeAsync(1);
+
+      expect(result).toBeNull();
+      expect(Notice).toHaveBeenCalledWith('Atlas VTT could not open the scene tower (The scene took too long to load).', 0);
+      expect(store.getState()).toMatchObject({ isMapLoading: false, mapLoaded: false, mapPath: null });
+
+      expect(await service.loadMap(rendererService, CAVE)).not.toBeNull();
+      await editAndSave(store);
+      expect(tokenIds(savedState(files, CAVE))).toEqual(['bat']);
+      expect(files.get(TOWER)).toBe(tower);
     });
 
     it('lets the GM open a scene again afterwards', async () => {

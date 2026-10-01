@@ -8,8 +8,13 @@ import { getHistoryStore } from '../stores/history';
 import { autoDetectGridOnFirstLoad } from './gridAutoDetect';
 import { backgroundTextureCache } from '../pixi/backgroundTextureCache';
 import { describeError } from '../utils/errors';
+import { sceneNameOf } from '../utils/sceneName';
+import { settledWithin } from '../utils/settledWithin';
 import { LatestRequestQueue } from './latestRequestQueue';
 import { fillStoreFromMapFile } from './mapFileFallback';
+
+/** How long a scene may take to load before the load is given up. */
+export const STALLED_LOAD_MS = 30_000;
 
 export class MapService {
   private currentMapFilePath: string | null = null;
@@ -19,19 +24,6 @@ export class MapService {
   private eventBus: EventEmitter;
   private readonly loads = new LatestRequestQueue();
 
-  /** Map files carry no name of their own; the file name is the map name. */
-  private resolveMapName(mapPath: string | null): string {
-    if (typeof mapPath === 'string' && mapPath.trim().length > 0) {
-      const normalized = mapPath.replace(/\\/g, '/');
-      const filename = normalized.split('/').pop() || normalized;
-      const withoutExtension = filename.replace(/\.[^.]+$/, '').trim();
-      if (withoutExtension.length > 0) {
-        return withoutExtension;
-      }
-    }
-    return 'Untitled Map';
-  }
-  
   constructor(private app: App, eventBus: EventEmitter, private store: ViewAtlasStore) {
     this.eventBus = eventBus;
   }
@@ -44,7 +36,16 @@ export class MapService {
    * @returns The loaded map data, or null when loading failed or a later request replaced this one
    */
   public loadMap(rendererService: RendererService, filePath: string, restoreCamera: boolean = false): Promise<MapFile | null> {
-    return this.loads.run((isSuperseded) => this.runLoad(rendererService, filePath, restoreCamera, isSuperseded));
+    return this.loads.run(async (isSuperseded) => {
+      const load = this.runLoad(rendererService, filePath, restoreCamera, isSuperseded);
+      if (await settledWithin(load, STALLED_LOAD_MS)) return load;
+      if (isSuperseded()) return null;
+      // The loading overlay covers the whole view, its tabs included: a load that never ends
+      // (a file or an image that never arrives) is given up, and stopped should it wake up.
+      this.loads.cancel();
+      this.recoverFromFailedLoad(rendererService, filePath, new Error('The scene took too long to load'));
+      return null;
+    });
   }
 
   /**
@@ -178,7 +179,7 @@ export class MapService {
       
       const mapInitData = {
         mapPath: this.currentMapFilePath || '',
-        mapName: this.resolveMapName(this.currentMapFilePath),
+        mapName: sceneNameOf(this.currentMapFilePath),
         background: this.currentMapData?.background,
         grid: currentGridSettings || this.currentMapData?.grid, // Use live grid settings if available
         tokens: finalState.objects?.tokens ?? {},
@@ -213,7 +214,7 @@ export class MapService {
   private recoverFromFailedLoad(rendererService: RendererService, filePath: string, error: unknown): void {
     // Without this the view only shows an empty canvas
     const reason = describeError(error).replace(/^\[\w+\]\s*/, '');
-    new Notice(`Atlas VTT could not open the scene ${this.resolveMapName(filePath)} (${reason}).`, 0);
+    new Notice(`Atlas VTT could not open the scene ${sceneNameOf(filePath)} (${reason}).`, 0);
 
     // A load that failed before it switched the store leaves the previous map open and saved as before
     const mapStillLoaded = this.store.getState().mapLoaded;
@@ -265,29 +266,17 @@ export class MapService {
     this.holdBackground(null);
   }
 
-  /**
-   * Load a map from a TFile
-   * @param rendererService The RendererService instance
-   * @param file The TFile object
-   * @param restoreCamera Whether to restore camera position from saved state
-   * @returns A promise that resolves with the loaded map data
-   */
+  /** `loadMap` for a file of the vault. */
   public async loadMapFromFile(rendererService: RendererService, file: TFile, restoreCamera: boolean = false): Promise<MapFile | null> {
     return this.loadMap(rendererService, file.path, restoreCamera);
   }
 
-  /**
-   * Get the current map data
-   * @returns The current map data or null if no map is loaded
-   */
+  /** The data of the loaded map, or null if none is loaded. */
   public getCurrentMapData(): MapFile | null {
     return this.currentMapData;
   }
   
-  /**
-   * Get the current map file path
-   * @returns The current map file path or null if no map is loaded
-   */
+  /** The path of the loaded map, or null if none is loaded. */
   public getCurrentMapFilePath(): string | null {
     return this.currentMapFilePath;
   }
@@ -297,10 +286,6 @@ export class MapService {
     if (this.currentMapFilePath === oldPath) this.currentMapFilePath = newPath;
   }
   
-  /**
-   * Check if a map is loaded
-   * @returns True if a map is loaded
-   */
   public isMapLoaded(): boolean {
     return this.currentMapData !== null;
   }

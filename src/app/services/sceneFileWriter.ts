@@ -2,6 +2,7 @@ import { Notice, TFile, type App } from 'obsidian';
 import { debounce, type DebouncedFunction } from '../../utils/debounce';
 import { ensureFolder } from '../plugin/vaultFolders';
 import { getDataFilePath } from '../utils/dataFileMigration';
+import { sceneNameOf } from '../utils/sceneName';
 import { settledWithin } from '../utils/settledWithin';
 
 /** How long a flush waits for a file write before it reports the save as stuck. */
@@ -10,8 +11,6 @@ export const STALLED_SAVE_MS = 5000;
 const SAVE_DELAY_MS = 500;
 /** Scenes whose debounced saver is kept; older ones are flushed and dropped. */
 const KEPT_SAVERS = 5;
-
-const sceneNameOf = (path: string): string => path.slice(path.lastIndexOf('/') + 1).replace(/\.[^.]+$/, '');
 
 /**
  * Writes scene snapshots to their files: debounced per scene, one write after the other,
