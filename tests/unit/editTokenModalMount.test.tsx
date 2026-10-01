@@ -162,6 +162,14 @@ describe('openEditTokenModal: the carried light', () => {
     expect(saved().light).toMatchObject({ bright: 20, dim: 50 });
   });
 
+  it('leaves Enter on the colour cell to the colour picker', () => {
+    const { saved } = open({ light: emissionOf(torch) });
+    fireEvent.click(screen.getByRole('button', { name: 'Arcane blue' }));
+    fireEvent.keyDown(screen.getByLabelText('Custom colour'), { key: 'Enter' });
+    expect(screen.getByText('Vision & light')).toBeTruthy();
+    expect(saved().light).toEqual(emissionOf(torch));
+  });
+
   it('takes the light away when it is switched off, and leaves an untouched light as it was', () => {
     const edited = { ...emissionOf(torch), bright: 12, intensity: 0.4 };
     const kept = open({ light: edited });

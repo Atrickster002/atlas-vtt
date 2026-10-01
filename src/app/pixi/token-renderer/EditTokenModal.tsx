@@ -88,7 +88,7 @@ function EditTokenModalInner({ initial, resourceDefaults, lighting, onSave, onCl
         e.preventDefault();
         e.stopPropagation();
         onClose();
-      } else if (e.key === 'Enter' && !isButton(e.target)) {
+      } else if (e.key === 'Enter' && !takesEnter(e.target)) {
         e.preventDefault();
         handleSave();
       }
@@ -153,9 +153,12 @@ function EditTokenModalInner({ initial, resourceDefaults, lighting, onSave, onCl
   );
 }
 
-/** Enter on a button presses it; anywhere else in the modal it saves. A popout's elements are not `instanceof` this window's classes. */
-function isButton(target: EventTarget | null): boolean {
-  return (target as Element | null)?.closest?.('button') != null;
+/**
+ * Enter on a button presses it and on a colour cell opens the picker; anywhere else in the modal
+ * it saves. A popout's elements are not `instanceof` this window's classes.
+ */
+function takesEnter(target: EventTarget | null): boolean {
+  return (target as Element | null)?.closest?.('button, input[type="color"]') != null;
 }
 
 function lightingUpdates(vision: VisionForm, light: LightForm): Pick<TokenUpdates, 'vision' | 'light'> {
