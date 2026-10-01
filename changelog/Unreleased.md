@@ -21,11 +21,14 @@
 - Click a light on the map to edit it in a popover right beside it: its kind, colour, bright and dim range, intensity, softness and flicker, or to switch it off or delete it. While the popover is open, the light's ranges show as rings on the map: drag a ring's handle to resize it (hold Alt for fine steps). With the Lighting tool, drag a light to move it.
 - Dice rolls are thrown as 3D dice in a panel at the top right of the map (top centre in the player window): they bounce off the panel's edges, clatter, spark when they land, and a modifier clicks onto the total. Click a roll or press Escape to dismiss it. Critical results get a bigger burst of sparks and their own sound. Rolls with dice that have no real shape (such as d7) still show as a result card. Choose between result cards, fast dice and dice under Settings → Dice or in the command palette's new Dice settings. The player window shows the same dice when it shows rolls
 - Cairn is a built-in game system preset, with 5-foot squares, d20 saves where a 1 always succeeds and a 20 always fails, and its conditions: Deprived, Fatigue, Critical Damage, Paralyzed, Delirious and Fleeing
-- Each collection has dice rules in its settings (new Dice tab): the default roll and how critical results are recognised (natural, roll-under, doubles or none). A bare bonus in a statblock, such as +3, now rolls with the collection's default roll, e.g. 1d10+3 in Cyberpunk RED. Every game system preset sets them
-- Tokens can track up to four resources: each game system brings its own (Cairn's STR, Daggerheart's Stress) and you can add more, like ammunition, in the collection settings' new Resources tab. The first two show as bars below the token; a third and fourth show as wheels beside it while you hover or select the token. Each resource reads its maximum from a statblock field. A scene's token settings show or hide each resource on that map, and the player view settings choose which bars players see
+- Draw Steel is a built-in game system preset, with distances in squares, 2d10 power rolls that are critical on a 19 or 20, a Stamina bar and its nine conditions. Contributed by jSQrD-dev
+- Each collection has dice rules in its settings (new Dice tab): the default roll and how critical results are recognised (natural, roll-under, doubles, high total or none). A bare bonus in a statblock, such as +3, now rolls with the collection's default roll, e.g. 1d10+3 in Cyberpunk RED. Every game system preset sets them
+- Dice can explode. In a collection's Dice settings, choose whether its default dice or all dice roll again on their highest face, once or again and again, and whether a lowest face rolls again and subtracts; Cyberpunk RED is set up this way. A single roll explodes with ! after its dice, such as 2d6! (once) or 2d6!i (again and again). Each extra die is thrown when the die before it has landed
+- Tokens can track up to six resources: each game system brings its own (Cairn's STR, Daggerheart's Stress) and you can add more, like ammunition, in the collection settings' new Resources tab. The first two show as bars below the token; the others show as wheels beside it while you hover or select the token, two on its right and two on its left. Each resource reads its maximum from a statblock field. A scene's token settings show or hide each resource on that map, and the player view settings choose which bars players see
 
 ## Improved
 
+- A map larger than 8192 pixels on a side is scaled down when you add it. Its card now shows the new size, so you know before saving that small labels may be harder to read
 - Token resource bars have a flat fill; the glossy gradient is gone
 - A token with vision is always shown to the players. In darkness it shows within its own space, and nothing shows past a wall it stands at.
 - Darkvision follows each game system's rules. In a D&D 5e collection it also shows dim light as bright, Pathfinder 2e's shows darkness in black and white, and Old-School Essentials' infravision shows it in heat tones.
@@ -33,6 +36,8 @@
 - A collection's HP and secondary resource bars are now set in its new Resources tab instead of Default Widgets. Collections, scenes and tokens keep their bars, values and switches
 - Choose how the dice look in the command palette's Dice settings: light card, dark with light numbers, or your Obsidian accent colour (the numbers turn dark or light to stay readable), each shown as a d20. Sci-fi numbers suit futuristic games; the choice also sets the font of roll totals
 - The dice tray (R) shows drawn dice, has a modifier you can step up and down, and always shows the formula it will roll. Take a die back with the − under it
+- An exported collection carries every note its pinned notes lead to: the notes they link to, the notes those link to, and the images and PDFs they show. The export dialog lists each note below the note that led to it and says why it is there; untick a note to leave out everything only it links to. The images and PDFs have a list of their own
+- Imported notes keep the folders they had, so the links between them still work
 - The GM dashboard is now called the DM screen. Press Tab on a map to open it; a custom key you set for it is kept
 - Large token imports are much faster. 1,000 tokens from Fantasy Statblocks now take about 40 seconds instead of 11 minutes, and imports of thousands of tokens no longer slow down as they go
 - The token creator and the Fantasy Statblocks list stay smooth with thousands of images
@@ -48,6 +53,7 @@
 
 ## Fixed
 
+- An SVG map you add is drawn at the full map size of 8192 pixels instead of 2048, so it stays sharp when you zoom in. Add an SVG map from before again to get it at that size
 - The DM screen shows its statblocks side by side again. As many columns as fit share the space, and each statblock goes into the column with the first free space, so no column stays empty
 - Collections can be deleted again when some of their files were already removed outside Obsidian, for example by git
 - The description and steps boxes of the issue report form no longer slide under the rows below them in a short window, such as the settings window. The form scrolls instead
@@ -56,7 +62,7 @@
 - Dragging with the right mouse button pans the map again when the pointer is over fog of war or a linked hex. Their menus open when you release the button without dragging
 - Starting a circle measurement no longer stops the map from drawing when Obsidian runs without hardware acceleration, so tokens and encounters added afterwards show up again
 - Spawn on Map and Spawn Multiple now work in the asset manager opened from the scene browser, the dashboard or a command: tokens and encounters go to the open scene, and when no scene is open Atlas says so instead of doing nothing
-- You can create a scene from the asset manager's Create menu (+) and by right-clicking a map. Before, a scene could only be made by double-clicking a map, which nothing pointed to
+- You can create a scene by right-clicking a map. Before, a scene could only be made by double-clicking a map, which nothing pointed to
 - The dice tray no longer shows on top of the asset manager and the DM dashboard
 - Panels in the player window, such as dice rolls and widgets, follow Obsidian's light or dark theme and its accent colour. Before, they stayed dark
 - A roll such as d20+2d6 no longer adds a stray +2 to its total, and subtracted dice (2d6-1d4) now subtract

@@ -1,5 +1,5 @@
 import type { ImageJob, ImageJobResult, ImageLayout, ThumbnailSpec } from './imageJob';
-import { fitWithin, frameImageRect, frameSize, type Size } from './imageLayout';
+import { fitWithin, frameImageRect, frameSize, scaleDown, type Size } from './imageLayout';
 
 /**
  * Runs inside an image worker: one decode per job, scaling on a 2D canvas,
@@ -132,9 +132,10 @@ export async function renderImageJob(job: ImageJob): Promise<ImageJobResult> {
       return { image: job.source, sourcePreview, ...await renderCopies(bitmap, job) };
     }
     const canvas = render(bitmap, job.layout);
+    const scaledDown = scaleDown(job.layout, bitmap, canvas);
     // The output no longer needs the decoded source; free it before the slow encode.
     bitmap.close();
-    return { image: await encode(canvas, job.quality), sourcePreview, ...await renderCopies(canvas, job) };
+    return { image: await encode(canvas, job.quality), sourcePreview, ...await renderCopies(canvas, job), scaledDown };
   } finally {
     bitmap.close();
   }

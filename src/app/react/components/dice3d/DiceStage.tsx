@@ -1,14 +1,15 @@
 import React, { useCallback, useEffect, useImperativeHandle, useMemo, useRef } from 'react';
 import { useReducedMotion } from 'framer-motion';
 import { dieGeometry, faceIndexForValue, lyingHeight, REST_YAW, restingQuaternion } from '../../../dice3d/dieGeometry';
-import { beginRoll, makeDie, restImmediately, stepDie } from '../../../dice3d/dieMotion';
+import { makeDie, restImmediately, stepDie } from '../../../dice3d/dieMotion';
+import { beginThrow, burstOf } from '../../../dice3d/throwChain';
 import { STAGE_X, type Rng } from '../../../dice3d/dieTour';
 import { throwRandom } from '../../../dice3d/throwSeed';
 import { layoutDice, type DiceScene, type RestingFrame } from '../../../dice3d/diceScene';
 import { loadDiceArtwork } from '../../../dice3d/dieArtwork';
 import type { DiceRenderer, StageDie } from '../../../dice3d/DiceRenderer';
 import { borrowStage, returnStage } from '../../../dice3d/stagePool';
-import { bank, rattle, rollEnd, rollStart } from '../../../dice3d/audio/diceSounds';
+import { bank, burst, rattle, rollEnd, rollStart } from '../../../dice3d/audio/diceSounds';
 import type { DiceCrit } from '../../../tools/diceCrit';
 import type { ThrowStyle } from '../../../dice3d/diceDisplay';
 
@@ -52,8 +53,6 @@ interface DiceStageProps {
  * freezes mid-shower.
  */
 const AFTERGLOW = 1.45;
-/** Dice leave one after another, as from one hand, not in chorus. */
-const STAGGER = 0.075;
 
 /**
  * The stage: a canvas and a clock. The clock lives here, the maths in
@@ -105,6 +104,8 @@ export function DiceStage({ scene, crit, onSettled, muted, style, frame, seed, l
     diceRef.current = scene.plan.map((die, i) => ({
       anim: makeDie(throwRandom(seed, -1 - i), offsets[i], radius, stage, lyingHeight(dieGeometry(die.sides))),
       sides: die.sides,
+      waits: die.follows !== undefined,
+      burst: burstOf(scene.plan, i),
     }));
     stepRandoms.current = scene.plan.map((_, i) => throwRandom(seed, 1000 + i));
     rendererRef.current?.setPlan(scene.plan.map((die) => die.sides));
@@ -124,14 +125,22 @@ export function DiceStage({ scene, crit, onSettled, muted, style, frame, seed, l
   const advance = useCallback((dt: number): boolean => {
     for (const [i, die] of diceRef.current.entries()) {
       const wasResting = die.anim.phase === 'rest';
+      const wasWaiting = die.anim.delay > 0;
       stepDie(die.anim, dt * speed, stepRandoms.current[i] ?? Math.random);
+      // A die thrown for an explosion sets the wheel running again, for its own flight.
+      if (die.waits && wasWaiting && die.anim.delay <= 0 && !wasResting && !muted) {
+        wheelRef.current = rollStart(die.anim.tour.duration / speed);
+      }
       // Two events make a sound, not three: the rim cracks where it was hit
       // (panned across the stage) and the landing rattles. The floor stays
       // silent; while the die flies, the wheel owns the air.
       const hit = die.anim.impact;
       if (hit && !wasResting && !muted) {
         if (hit.kind === 'wall') bank(hit.strength, Math.max(-1, Math.min(1, hit.at[0] / STAGE_X)));
-        else if (hit.kind === 'settle') rattle();
+        else if (hit.kind === 'settle') {
+          rattle();
+          if (die.burst) burst(die.burst === 'low');
+        }
       }
     }
 
@@ -231,14 +240,15 @@ export function DiceStage({ scene, crit, onSettled, muted, style, frame, seed, l
   }, [paint]);
 
   useEffect(() => {
-    diceRef.current.forEach((die, i) => {
+    const targets = diceRef.current.map((die, i) => {
       const geometry = dieGeometry(die.sides);
       // Each die lies turned a little differently, as thrown dice do; from the seed, like the rest of the throw.
       const yaw = (throwRandom(seed, 2000 + i)() * 2 - 1) * REST_YAW;
-      const target = restingQuaternion(geometry, faceIndexForValue(geometry, scene.faces[i] ?? 1), yaw);
-      if (reduced) restImmediately(die.anim, target);
-      else beginRoll(die.anim, target, i * STAGGER, throwRandom(seed, i), maxWallHits);
+      return restingQuaternion(geometry, faceIndexForValue(geometry, scene.faces[i] ?? 1), yaw);
     });
+    const anims = diceRef.current.map((die) => die.anim);
+    if (reduced) anims.forEach((anim, i) => restImmediately(anim, targets[i]!));
+    else beginThrow(anims, scene.plan, targets, (i) => throwRandom(seed, i), maxWallHits);
     settledRef.current = false;
 
     if (reduced) {
@@ -251,7 +261,9 @@ export function DiceStage({ scene, crit, onSettled, muted, style, frame, seed, l
       return;
     }
     // The wheel gets the real duration of this throw: the latest die decides.
-    if (!muted) wheelRef.current = rollStart(Math.max(...diceRef.current.map((die) => die.anim.delay + die.anim.tour.duration)) / speed);
+    // A die thrown later for an explosion starts the wheel again (`advance`).
+    const together = diceRef.current.filter((die) => !die.waits);
+    if (!muted) wheelRef.current = rollStart(Math.max(...together.map((die) => die.anim.delay + die.anim.tour.duration)) / speed);
     start();
   }, [scene, reduced, muted, speed, maxWallHits, seed, start, paint]);
 

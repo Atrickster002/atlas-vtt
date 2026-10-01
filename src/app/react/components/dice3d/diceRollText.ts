@@ -1,4 +1,5 @@
 import type { DiceScene } from '../../../dice3d/diceScene';
+import { diceSum } from '../../../tools/diceLabels';
 import type { DiceRollResult } from '../../../tools/DiceTool';
 
 /**
@@ -24,16 +25,16 @@ function modifierSuffix(modifier: number): string {
 export function rollBreakdown(result: DiceRollResult, scene: DiceScene): string | null {
   const suffix = modifierSuffix(result.modifiers);
   const values = result.rolls.map((roll) => roll.value);
-  const diceSum = result.total - result.modifiers;
+  const diceTotal = result.total - result.modifiers;
 
   if (scene.plan[0]?.role === 'tens') {
     return `Tens ${(scene.faces[0]! - 1) * 10}, units ${scene.faces[1]! % 10}${suffix}`;
   }
-  if (values.length > 6) return `${values.length} dice, ${diceSum}${suffix}`;
+  if (values.length > 6) return `${values.length} dice, ${diceTotal}${suffix}`;
   if (scene.plan.some((die) => die.fold !== undefined)) {
     return `${scene.faces.join(' + ')} on the d${scene.plan[0]!.sides} counts ${values.join(' + ')}${suffix}`;
   }
-  return values.length > 1 || suffix !== '' ? `${values.join(' + ')}${suffix}` : null;
+  return values.length > 1 || suffix !== '' ? `${diceSum(result.rolls)}${suffix}` : null;
 }
 
 /** Whether a breakdown line will show, known before landing so the panel never grows. */

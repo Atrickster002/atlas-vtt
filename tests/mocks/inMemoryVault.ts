@@ -177,14 +177,31 @@ export function createInMemoryApp(seed: InMemoryVaultSeed = {}): InMemoryApp {
     trigger: vi.fn(),
   };
 
+  const linkDestination = (linkpath: string): string | undefined =>
+    [...files.keys()].find((candidate) => candidate === linkpath || candidate.endsWith(`/${linkpath}`));
+
   app.metadataCache = {
     on: vi.fn(() => ({})),
     offref: vi.fn(),
     getFileCache: vi.fn(() => null),
     getFirstLinkpathDest: vi.fn((linkpath: string): TFile | null => {
-      const path = [...files.keys()].find((candidate) => candidate === linkpath || candidate.endsWith(`/${linkpath}`));
+      const path = linkDestination(linkpath);
       return path ? new TFile(path) : null;
     }),
+    /** The wikilinks of every note, resolved as Obsidian does: by name or by the end of the path. */
+    get resolvedLinks(): Record<string, Record<string, number>> {
+      const links: Record<string, Record<string, number>> = {};
+      for (const [path, text] of files) {
+        if (!path.endsWith('.md')) continue;
+        for (const [, link = ''] of text.matchAll(/\[\[([^\]|#]+)/g)) {
+          const target = linkDestination(link) ?? linkDestination(`${link}.md`);
+          if (!target) continue;
+          const targets = (links[path] ??= {});
+          targets[target] = (targets[target] ?? 0) + 1;
+        }
+      }
+      return links;
+    },
   };
 
   return { app, files, folders };

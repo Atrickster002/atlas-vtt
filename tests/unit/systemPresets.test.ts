@@ -146,6 +146,28 @@ describe('built-in presets', () => {
     expect(formatDistance(6, settings)).toBe('30ft');
   });
 
+  it('measure Draw Steel in 1-unit squares with every diagonal counting 1 unit', () => {
+    const drawSteel = BUILT_IN_SYSTEM_PRESETS.find((preset) => preset.name === 'Draw Steel')!;
+    const settings = resolveMeasurementSettings(drawSteel.rules.gridDefaults, null);
+    expect(settings.diagonalRule).toBe('equidistant');
+    // Speed 5 covers 5 squares.
+    expect(formatDistance(5, settings)).toBe('5u');
+    expect(describeSystemRules(drawSteel.rules)).toBe('1 unit squares · 9 conditions');
+    expect(drawSteel.id).toBe('builtin:drawsteel');
+    expect(drawSteel.rules.conditions.map((c) => c.id)).toContain('drawsteel-bleeding');
+  });
+
+  it('roll Draw Steel power rolls on 2d10 with a critical hit on 19 or 20, and track Stamina in place of hit points', () => {
+    const drawSteel = BUILT_IN_SYSTEM_PRESETS.find((preset) => preset.name === 'Draw Steel')!;
+    expect(drawSteel.rules.dice).toEqual({ defaultRoll: '2d10', crit: 'high-total' });
+    const power = (first: number, second: number): ReturnType<typeof getDiceCrit> =>
+      getDiceCrit([{ die: 'd10', value: first, max: 10 }, { die: 'd10', value: second, max: 10 }], drawSteel.rules.dice!);
+    // A 10 on one die is no critical hit, and no roll is a critical failure.
+    expect([power(10, 10), power(9, 10), power(9, 9), power(10, 1), power(1, 1)]).toEqual(['high', 'high', null, null, null]);
+    expect(drawSteel.rules.resources?.map((r) => [r.key, r.name, r.field, r.direction])).toEqual([['hp', 'Stamina', 'stamina', 'drains']]);
+    expect(rulesOfPreset(drawSteel).defaultWidgets).toMatchObject({ hpBar: true, stressBar: false });
+  });
+
   it('carry the core conditions of each system with known icons and unique ids', () => {
     expect(daggerheart.rules.conditions.map((c) => c.name)).toEqual(['Hidden', 'Restrained', 'Vulnerable']);
     expect(dnd5e.rules.conditions).toHaveLength(15);

@@ -25,7 +25,6 @@ import { useHeldWhile } from './hooks/useHeldWhile';
 import { useSidebarLayout } from './hooks/useSidebarLayout';
 import { useRememberedPlace } from './hooks/useRememberedPlace';
 import { sortAssets } from './utils/assetSort';
-import { startSceneCreation } from './utils/sceneCreation';
 import { filterFolders, type AssetFilter } from './utils/assetFilter';
 import { useCreatureFilters } from './hooks/useCreatureFilters';
 import { useCollectionFilterDefinitions } from './hooks/useCollectionFilterDefinitions';
@@ -163,15 +162,6 @@ export default function AssetManager({ isOpen, onClose, initialTab, onExitComple
 
   const anyModalOpen = crud.isTokenCreatorOpen || crud.isMapCreatorOpen;
 
-  function handleCreateScene(): void {
-    const selectedAssets = data.assets.filter((asset) => sel.selectedAssetIds.includes(asset.id));
-    startSceneCreation(selectedAssets, data.assetCounts.maps, {
-      openCreateScene: crud.openCreateSceneModalFromMap,
-      addMap: crud.handleCreateMap,
-      showMaps: () => changeTab('maps'),
-    });
-  }
-
   return (
     <>
       {/* Stays mounted while closed so the window can animate out. */}
@@ -228,7 +218,6 @@ export default function AssetManager({ isOpen, onClose, initialTab, onExitComple
                 assetCounts={data.assetCounts}
                 onCreateTokens={() => crud.setIsTokenCreatorOpen(true)}
                 onCreateMap={crud.handleCreateMap}
-                onCreateScene={handleCreateScene}
                 onCreateCollection={crud.handleCreateCollection}
                 onCreateFolder={crud.handleCreateFolder}
                 onRefresh={() => { void crud.handleRefresh(); }}

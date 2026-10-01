@@ -21,10 +21,10 @@ describe('resource definitions', () => {
     expect(parseResourceDefinition('ammo')).toBeNull();
   });
 
-  it('reads lists saved with looks and keeps the first four', () => {
-    const stored = ['hp', 'str', 'ammo', 'luck', 'mana'].map((key) => ({ key, name: key, field: key, direction: 'drains', look: 'badge', color: '#22c55e', visibleToPlayers: false }));
+  it('reads lists saved with looks and keeps the first six', () => {
+    const stored = ['hp', 'str', 'ammo', 'luck', 'mana', 'grit', 'fuel'].map((key) => ({ key, name: key, field: key, direction: 'drains', look: 'badge', color: '#22c55e', visibleToPlayers: false }));
     const parsed = parseResourceDefinitions(stored);
-    expect(parsed.map((d) => d.key)).toEqual(['hp', 'str', 'ammo', 'luck']);
+    expect(parsed.map((d) => d.key)).toEqual(['hp', 'str', 'ammo', 'luck', 'mana', 'grit']);
     expect(parsed[0]).not.toHaveProperty('look');
   });
 

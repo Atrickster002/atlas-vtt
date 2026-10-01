@@ -6,8 +6,18 @@ import { ResourceBarLabel } from '../../ResourceBarLabel';
 import { destroyTree } from '../../utils/destroyTree';
 import { AnimatedBarFill } from '../AnimatedBarFill';
 
-const BORDER = 0.75;
-const FILL_INSET = 1;
+/** The look every resource shares, bar or wheel: a thin grey border, a dark track, a fill set in from the border, faint ticks. */
+export const BAR_LOOK = {
+  border: 0.75,
+  borderColor: 0x888888,
+  trackColor: 0x1a1a1a,
+  fillInset: 1,
+  tickColor: 0x333333,
+  tickAlpha: 0.5,
+} as const;
+
+const BORDER = BAR_LOOK.border;
+const FILL_INSET = BAR_LOOK.fillInset;
 
 /** `#rrggbb` as the number PIXI takes. */
 export function colorNumber(color: string): number {
@@ -71,15 +81,15 @@ export class ResourceBarView {
     const { width, height } = barDimensions.token;
     this.track.clear()
       .roundRect(-width / 2, top, width, height, height / 2)
-      .stroke({ width: BORDER, color: 0x888888, alpha: 1 })
+      .stroke({ width: BORDER, color: BAR_LOOK.borderColor, alpha: 1 })
       .roundRect(inner.x, inner.y, inner.width, inner.height, inner.height / 2)
-      .fill({ color: 0x1a1a1a, alpha: 1 });
+      .fill({ color: BAR_LOOK.trackColor, alpha: 1 });
     const tick = inner.width / 10;
     for (let i = 1; i < 10; i++) {
       this.track
         .moveTo(inner.x + tick * i, inner.y + 1)
         .lineTo(inner.x + tick * i, inner.y + inner.height - 1)
-        .stroke({ width: 0.5, color: 0x333333, alpha: 0.5 });
+        .stroke({ width: 0.5, color: BAR_LOOK.tickColor, alpha: BAR_LOOK.tickAlpha });
     }
   }
 }

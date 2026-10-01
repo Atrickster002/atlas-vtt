@@ -134,6 +134,21 @@ describe('linkDiceIn + attachDiceRolling', () => {
     ]);
   });
 
+  it('takes the exploding notation into the roll, but not an exclamation mark that ends a sentence', () => {
+    expect(splitDiceSegments('Shiv 1d6!i+2 damage')).toEqual([
+      { text: 'Shiv ', dice: false },
+      { text: '1d6!i+2', dice: true },
+      { text: ' damage', dice: false },
+    ]);
+    expect(splitDiceSegments('d8!3 and 2d6!!')[0]).toEqual({ text: 'd8!3', dice: true });
+    expect(splitDiceSegments('d8!3 and 2d6!!')[2]).toEqual({ text: '2d6!!', dice: true });
+    expect(splitDiceSegments('Take 2d6!')).toEqual([
+      { text: 'Take ', dice: false },
+      { text: '2d6', dice: true },
+      { text: '!', dice: false },
+    ]);
+  });
+
   it('splits text into plain and dice segments for the React renderer', () => {
     expect(splitDiceSegments('Bite 1d4+1 slashing')).toEqual([
       { text: 'Bite ', dice: false },

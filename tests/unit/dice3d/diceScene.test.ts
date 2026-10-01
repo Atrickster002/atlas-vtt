@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { DIE_BODIES, layoutDice, restingFrame, sceneFromRolls } from '../../../src/app/dice3d/diceScene';
+import { chainDepth, DIE_BODIES, layoutDice, restingFrame, sceneFromRolls } from '../../../src/app/dice3d/diceScene';
 
 /** Dolmenwood's percentile reading: tens `(face − 1) · 10`, units with 10 as 0, 00 + 0 = 100. */
 function readPercentile(faces: number[]): number {
@@ -165,3 +165,25 @@ describe('restingFrame', () => {
     expect(restingFrame(offsets, radius)).toEqual({ halfWidth: expect.closeTo(1.16, 1), aspect: 1 });
   });
 });
+
+describe('exploded dice on the stage', () => {
+  const d6 = (value: number, more: object = {}): { max: number; value: number } => ({ max: 6, value, ...more });
+
+  it('plans each extra die after the die it was rolled for', () => {
+    const scene = sceneFromRolls([d6(6), d6(6, { exploded: true }), d6(2, { exploded: true }), d6(3)]);
+    expect(scene?.plan.map((die) => die.follows)).toEqual([undefined, 0, 1, undefined]);
+    expect(scene?.faces).toEqual([6, 6, 2, 3]);
+    expect(chainDepth(scene!.plan)).toBe(2);
+  });
+
+  it('shows a die that an explosion subtracts, but no other subtracted die', () => {
+    const fumble = sceneFromRolls([{ max: 10, value: 1 }, { max: 10, value: 7, exploded: true, negative: true }]);
+    expect(fumble?.plan[1]).toEqual({ sides: 10, role: 'plain', follows: 0, subtracts: true });
+    expect(sceneFromRolls([d6(4), { max: 4, value: 2, negative: true }])).toBeNull();
+  });
+
+  it('has no chain without an explosion', () => {
+    expect(chainDepth(sceneFromRolls([d6(4), d6(6)])!.plan)).toBe(0);
+  });
+});
+

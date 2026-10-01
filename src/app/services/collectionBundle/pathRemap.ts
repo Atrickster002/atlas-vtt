@@ -1,5 +1,5 @@
 import { COLLECTIONS_DIR, ATLAS_VTT_DIR, GLOBAL_ASSETS_DIR } from '../AssetService';
-import { REUSABLE_FILE_ROLES, type BundleFile } from './bundleFormat';
+import { REUSABLE_FILE_ROLES, type BundleFile, type BundleFileRole } from './bundleFormat';
 import { sceneThumbnailPath } from './collectionReferences';
 import { baseName, parentPath } from '../../utils/pathUtils';
 import { snapshotFolderFor } from '../../snapshots/snapshotPaths';
@@ -26,10 +26,19 @@ export function remapPaths<T>(value: T, map: PathMap): T {
   return mapStrings(value, (text) => map.get(text) ?? remapLink(text, map));
 }
 
-/** Where a file without a place of its own in the target collection is copied to, by what it is. */
+const NOTE_ROLES: ReadonlySet<BundleFileRole> = new Set<BundleFileRole>(['linked-note', 'note-attachment']);
+
+/**
+ * Where a file without a place of its own in the target collection is copied
+ * to, by what it is. Notes and the pictures they show keep the folders they
+ * had below `notes`: Obsidian finds a link's target by its name or by the end
+ * of its path, so the links between them resolve without rewriting any note.
+ */
 function copyFolder(file: BundleFile, collectionId: string): string {
-  const folder = REUSABLE_FILE_ROLES.has(file.role) ? 'statblocks' : file.vaultPath.endsWith('.md') ? 'notes' : 'files';
-  return `${COLLECTIONS_DIR}/${collectionId}/${folder}`;
+  const collection = `${COLLECTIONS_DIR}/${collectionId}`;
+  if (REUSABLE_FILE_ROLES.has(file.role)) return `${collection}/statblocks`;
+  if (NOTE_ROLES.has(file.role)) return [collection, 'notes', parentPath(file.vaultPath)].filter(Boolean).join('/');
+  return `${collection}/files`;
 }
 
 /** The file's own name in `folder`, or `goblin-2.png`, `goblin-3.png`, … while that name is taken. */

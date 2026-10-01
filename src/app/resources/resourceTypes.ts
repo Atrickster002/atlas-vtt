@@ -32,8 +32,8 @@ export type ResourceViewer = 'dm' | 'player';
 export type ResourceDefsProvider = () => readonly ResourceDefinition[];
 
 /** A token shows at most this many resources. */
-export const MAX_RESOURCES = 4;
-/** The first slots are bars below the token; the rest are wheels beside it, shown on hover and selection. */
+export const MAX_RESOURCES = 6;
+/** The first slots are bars below the token; the rest are wheels beside it (two on its right, two on its left), shown on hover and selection. */
 export const BAR_SLOTS = 2;
 
 export type ResourceShape = 'bar' | 'wheel';

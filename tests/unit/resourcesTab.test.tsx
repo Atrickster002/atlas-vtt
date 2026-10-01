@@ -30,11 +30,14 @@ describe('ResourcesTab', () => {
     expect(onChange.mock.calls.at(-1)![0][0].visibleToPlayers).toBe(true);
   });
 
-  it('names each row by its shape and stops at four resources', () => {
-    const four = ['HP', 'STR', 'Ammo', 'Luck'].map((name) => ({ ...HP_RESOURCE, key: name.toLowerCase(), name }));
-    render(<ResourcesTab resources={four} onChange={vi.fn()} fieldSuggestions={[]} />);
+  it('names each row by its shape and stops at six resources', () => {
+    const five = ['HP', 'STR', 'Ammo', 'Luck', 'Mana'].map((name) => ({ ...HP_RESOURCE, key: name.toLowerCase(), name }));
+    const { rerender } = render(<ResourcesTab resources={five} onChange={vi.fn()} fieldSuggestions={[]} />);
+    expect((screen.getByRole('button', { name: /add resource/i }) as HTMLButtonElement).disabled).toBe(false);
+    const six = [...five, { ...HP_RESOURCE, key: 'grit', name: 'Grit' }];
+    rerender(<ResourcesTab resources={six} onChange={vi.fn()} fieldSuggestions={[]} />);
     expect(screen.getAllByText('Bar')).toHaveLength(2);
-    expect(screen.getAllByText('Wheel, on hover')).toHaveLength(2);
+    expect(screen.getAllByText('Wheel, on hover')).toHaveLength(4);
     expect((screen.getByRole('button', { name: /add resource/i }) as HTMLButtonElement).disabled).toBe(true);
   });
 });

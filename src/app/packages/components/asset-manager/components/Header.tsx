@@ -1,7 +1,7 @@
 import React from 'react';
 import {
   X, Plus, ChevronLeft, ChevronRight, FolderPlus, RefreshCw, PanelLeft,
-  Map as MapIcon, FolderOpen, Clapperboard,
+  Map as MapIcon, FolderOpen,
 } from 'lucide-react';
 import { Button } from '../../primitives/button';
 import { LabelTooltip } from '../../primitives/tooltip';
@@ -26,7 +26,6 @@ export interface HeaderProps {
   assetCounts: Record<Tab, number>;
   onCreateTokens?: () => void;
   onCreateMap?: () => void;
-  onCreateScene?: () => void;
   onCreateCollection?: () => void;
   onCreateFolder: () => void;
   onRefresh: () => void;
@@ -55,7 +54,6 @@ export function Header({
   assetCounts,
   onCreateTokens,
   onCreateMap,
-  onCreateScene,
   onCreateCollection,
   onCreateFolder,
   onRefresh,
@@ -159,7 +157,6 @@ export function Header({
             items={[
               { key: 'token', label: 'Create Token', icon: <TokenIcon />, onSelect: onCreateTokens },
               { key: 'map', label: 'Add Map', icon: <MapIcon />, onSelect: onCreateMap },
-              { key: 'scene', label: 'Create Scene', icon: <Clapperboard />, onSelect: onCreateScene },
               { key: 'collection', label: 'Create Collection', icon: <FolderOpen />, separated: true, onSelect: onCreateCollection },
             ]}
           />

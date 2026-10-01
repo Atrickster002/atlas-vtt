@@ -6,8 +6,8 @@ import { ResourceBarView } from './ResourceBarView';
 /** Where one resource sits on its token, in the units of its anchor; the click areas and +/- controls lay out from it. */
 export interface ResourceSlot {
   key: string;
-  /** A bar hangs from the token's bottom edge, a wheel from its right edge. */
-  kind: 'bar' | 'wheel';
+  /** The anchor it hangs from: a bar from the token's bottom edge, a wheel from the anchor on its right, a left wheel from the one on its left. */
+  kind: 'bar' | 'wheel' | 'wheel-left';
   top: number;
   left: number;
   width: number;

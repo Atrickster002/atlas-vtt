@@ -22,7 +22,8 @@ export const CYBERPUNK_RED: SystemPreset = {
       diagonalRule: 'equidistant',
       abstractRangeBands: [],
     },
-    dice: { defaultRoll: '1d10', crit: 'natural' },
+    // A 10 rolls one more d10 and adds it, a 1 rolls one more and subtracts it; neither goes on.
+    dice: { defaultRoll: '1d10', crit: 'natural', explode: { dice: 'default', repeats: false, highFaces: 1, lowFaces: 1 } },
     conditions: conditionsOf('cyberpunkred', [
       { name: 'Seriously Wounded', color: '#dc2626', icon: 'bleeding-wound' },
       { name: 'Mortally Wounded', color: '#7f1d1d', icon: 'heartbeat' },
