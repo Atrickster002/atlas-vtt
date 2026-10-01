@@ -163,6 +163,33 @@ describe('closing the light popover', () => {
     expect(controller.handleEscape()).toBe(false);
   });
 
+  it('cancels a ring drag under way with Escape, putting the range back', () => {
+    const { controller, store, light, viewport, torch } = setup();
+    store.getState().openLightPopover(torch);
+    light.pointerDown(400, 20, event(400, 20));
+    viewport.emit('pointermove', event(400, 90) as never);
+    expect(store.getState().objects.lights[torch]!.emission.bright).toBe(15);
+    expect(controller.handleEscape()).toBe(true);
+    viewport.emit('pointermove', event(400, 230) as never);
+    expect(store.getState().lightPopover).toBeNull();
+    expect(store.getState().objects.lights[torch]!.emission.bright).toBe(20);
+    expect(getHistoryStore(store)!.getState().pastStates).toHaveLength(0);
+  });
+
+  it('cancels a light being dragged with Escape, putting it back', () => {
+    const { controller, store, light, viewport, torch } = setup();
+    store.getState().setActiveTool('wall');
+    light.pointerDown(400, 300, event(400, 300));
+    viewport.emit('pointermove', event(470, 330) as never);
+    expect(store.getState().objects.lights[torch]).toMatchObject({ x: 470, y: 330 });
+    expect(controller.handleEscape()).toBe(true);
+    viewport.emit('pointermove', event(600, 400) as never);
+    viewport.emit('pointerup', {} as never);
+    expect(store.getState().objects.lights[torch]).toMatchObject({ x: 400, y: 300 });
+    expect(getHistoryStore(store)!.getState().pastStates).toHaveLength(0);
+    expect(store.getState().lightPopover).toBeNull();
+  });
+
   it('closes when its light is deleted', () => {
     const { store, torch } = setup();
     store.getState().openLightPopover(torch);

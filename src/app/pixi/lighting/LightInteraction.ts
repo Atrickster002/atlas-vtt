@@ -3,7 +3,7 @@ import type { Viewport } from 'pixi-viewport';
 import { worldToGameUnits } from '../../lighting/lightingUnits';
 import { dragRange, type RangeField } from '../../lighting/lightRanges';
 import type { ViewAtlasStore } from '../../storeFactory';
-import { beginHistoryTransaction, endHistoryTransaction } from '../../stores/history';
+import { abandonHistoryTransaction, beginHistoryTransaction, endHistoryTransaction } from '../../stores/history';
 import type { Point } from '../../types/visionTypes';
 import type { LightMarkers } from './LightMarkers';
 import type { LightRangeRings } from './LightRangeRings';
@@ -36,20 +36,49 @@ export interface LightInteractionDeps {
   select: (lightId: string, add: boolean) => void;
 }
 
+/** A press or drag under way. */
+interface Gesture {
+  /** The light whose ring is dragged; the drag is cancelled when the popover leaves that light. */
+  ring: string | null;
+  /** Something is being changed: a light moves or a range is resized. */
+  dragging: () => boolean;
+  /** Ends it: a release commits what it changed as one undo step, a cancel puts it back and leaves none. */
+  end: (commit: boolean) => void;
+}
+
 /**
  * The pointer on placed lights: a click on a marker opens the light's popover with any tool,
  * a drag moves the light with the lighting tool, and the handles of the open light's range
- * rings resize its ranges. A drag is one undo step, opened only once it starts. A press
- * anywhere else closes the popover.
+ * rings resize its ranges. A drag is one undo step, opened only once it starts. Only the
+ * pointer's release commits a drag: Escape, a pointer cancel, the window losing focus, the
+ * popover leaving the light or the canvas showing the players' view cancel it, which puts back
+ * what it changed. A press anywhere else closes the popover.
  */
 export class LightInteraction {
-  /** Ends the press or drag under way. */
-  private release: (() => void) | null = null;
+  private gesture: Gesture | null = null;
+  /** A store write is being announced: a cancel in it closes its undo step only once that write is done. */
+  private inStoreWrite = false;
   private readonly doc: Document;
+  private readonly unsubscribe: () => void;
+  private readonly abort = (): void => this.cancel();
 
   constructor(private readonly deps: LightInteractionDeps) {
     this.doc = deps.canvas.ownerDocument;
     this.doc.addEventListener('pointerdown', this.onDocumentPointerDown, true);
+    this.unsubscribe = deps.store.subscribe((state, previous) => {
+      if (state.lightPopover === previous.lightPopover || !this.gesture?.ring || this.gesture.ring === state.lightPopover) return;
+      this.inStoreWrite = true;
+      try {
+        this.cancel();
+      } finally {
+        this.inStoreWrite = false;
+      }
+    });
+  }
+
+  /** A light is being moved or a range resized. */
+  get dragging(): boolean {
+    return !!this.gesture?.dragging();
   }
 
   /**
@@ -87,9 +116,9 @@ export class LightInteraction {
     this.deps.markers.setHovered(null);
   }
 
-  /** Ends a press or drag under way; a drag keeps what it changed, as its one undo step. */
+  /** Cancels a press or drag under way: what a drag changed is put back, and it leaves no undo step. */
   cancel(): void {
-    this.release?.();
+    this.gesture?.end(false);
   }
 
   private pressMarker(lightId: string, event: Press): void {
@@ -117,15 +146,17 @@ export class LightInteraction {
       const at = viewport.toWorld(move.global.x, move.global.y);
       store.getState().updateLight(lightId, { x: origin.x + at.x - grabbed.x, y: origin.y + at.y - grabbed.y });
     };
-    const onUp = (): void => {
-      const clicked = !moved && !add;
-      this.release?.();
-      if (clicked) store.getState().openLightPopover(lightId);
-    };
-    this.track(onMove, onUp, () => {
-      if (!dragging) return;
-      markers.setDragging(null);
-      endHistoryTransaction(store);
+    this.track({
+      ring: null,
+      dragging: () => dragging,
+      onMove,
+      end: (commit) => {
+        if (dragging) {
+          markers.setDragging(null);
+          this.settle(commit, () => store.getState().updateLight(lightId, origin), lightId);
+        }
+        if (commit && !moved && !add) store.getState().openLightPopover(lightId);
+      },
     });
   }
 
@@ -133,7 +164,8 @@ export class LightInteraction {
     const { viewport, store, rings } = this.deps;
     const lightId = store.getState().lightPopover;
     const geometry = rings.geometry();
-    if (!lightId || !geometry) return;
+    const emission = lightId ? store.getState().objects.lights[lightId]?.emission : undefined;
+    if (!lightId || !geometry || !emission) return;
     // The handle keeps its distance to the pointer, so it does not jump when grabbed off-centre.
     const offset = Math.hypot(grabbedAt.x - geometry.center.x, grabbedAt.y - geometry.center.y) - geometry.radius[field];
     beginHistoryTransaction(store);
@@ -144,27 +176,55 @@ export class LightInteraction {
       if (!light) return;
       const at = viewport.toWorld(move.global.x, move.global.y);
       const radius = Math.max(0, Math.hypot(at.x - light.x, at.y - light.y) - offset);
-      const emission = dragRange(light.emission, field, worldToGameUnits(radius, rings.unitScale()), move.altKey);
-      if (emission !== light.emission) store.getState().updateLight(lightId, { emission });
+      const next = dragRange(light.emission, field, worldToGameUnits(radius, rings.unitScale()), move.altKey);
+      if (next !== light.emission) store.getState().updateLight(lightId, { emission: next });
     };
-    this.track(onMove, () => this.release?.(), () => {
-      rings.setDragging(null);
-      endHistoryTransaction(store);
+    this.track({
+      ring: lightId,
+      dragging: () => true,
+      onMove,
+      end: (commit) => {
+        rings.setDragging(null);
+        this.settle(commit, () => store.getState().updateLight(lightId, { emission }), lightId);
+      },
     });
   }
 
-  /** Follows the pointer on the viewport until it is released; `finish` runs once, however the gesture ends. */
-  private track(onMove: (event: FederatedPointerEvent) => void, onUp: () => void, finish: () => void): void {
-    const { viewport } = this.deps;
+  /** Closes a drag's undo step: recorded on a commit; on a cancel `restore` puts the light back and no step is left. */
+  private settle(commit: boolean, restore: () => void, lightId: string): void {
+    const { store } = this.deps;
+    if (commit) {
+      endHistoryTransaction(store);
+      return;
+    }
+    if (store.getState().objects.lights[lightId]) restore();
+    // The history looks at a write once its listeners are done: closed inside one, the step
+    // would be left for the write that cancelled the drag, with the drag's state as its past.
+    if (this.inStoreWrite) queueMicrotask(() => abandonHistoryTransaction(store));
+    else abandonHistoryTransaction(store);
+  }
+
+  /** Follows the pointer on the viewport until it is released, or the gesture is cancelled. */
+  private track({ onMove, ...gesture }: Gesture & { onMove: (event: FederatedPointerEvent) => void }): void {
+    const { viewport, canvas } = this.deps;
+    const win = this.doc.defaultView;
+    const onUp = (): void => this.gesture?.end(true);
     viewport.on('pointermove', onMove);
     viewport.on('pointerup', onUp);
     viewport.on('pointerupoutside', onUp);
-    this.release = (): void => {
-      this.release = null;
-      viewport.off('pointermove', onMove);
-      viewport.off('pointerup', onUp);
-      viewport.off('pointerupoutside', onUp);
-      finish();
+    canvas.addEventListener('pointercancel', this.abort);
+    win?.addEventListener('blur', this.abort);
+    this.gesture = {
+      ...gesture,
+      end: (commit) => {
+        this.gesture = null;
+        viewport.off('pointermove', onMove);
+        viewport.off('pointerup', onUp);
+        viewport.off('pointerupoutside', onUp);
+        canvas.removeEventListener('pointercancel', this.abort);
+        win?.removeEventListener('blur', this.abort);
+        gesture.end(commit);
+      },
     };
   }
 
@@ -176,7 +236,7 @@ export class LightInteraction {
   private readonly onDocumentPointerDown = (event: PointerEvent): void => {
     const { store, canvas, viewport, markers, rings } = this.deps;
     if (!store.getState().lightPopover) return;
-    const target = event.target instanceof Element ? event.target : null;
+    const target = elementOf(event.target);
     if (target?.closest('.atlas-light-popover')) return;
     if (target === canvas) {
       const rect = canvas.getBoundingClientRect();
@@ -188,6 +248,16 @@ export class LightInteraction {
 
   destroy(): void {
     this.cancel();
+    this.unsubscribe();
     this.doc.removeEventListener('pointerdown', this.onDocumentPointerDown, true);
   }
+}
+
+/**
+ * The element an event came from. `instanceof Element` fails in a popout window, whose elements
+ * belong to that window's classes; Obsidian's `instanceOf` asks the node's own window.
+ */
+function elementOf(target: EventTarget | null): Element | null {
+  const node = target as Node | null;
+  return node && typeof node.instanceOf === 'function' && node.instanceOf(Element) ? node : null;
 }

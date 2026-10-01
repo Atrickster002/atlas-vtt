@@ -153,6 +153,16 @@ describe('LightPopover', () => {
     expect(light().emission.intensity).toBe(1);
   });
 
+  it('raises a bright range of nothing again, which has no ring handle on the map', () => {
+    const { store, torch, light } = renderPopover();
+    act(() => store.getState().updateLight(torch, { emission: { ...light().emission, bright: 0 } }));
+    const bright = screen.getByLabelText('Bright') as HTMLInputElement;
+    expect(bright.value).toBe('0');
+    fireEvent.change(bright, { target: { value: '10' } });
+    fireEvent.keyDown(bright, { key: 'Enter' });
+    expect(light().emission.bright).toBe(10);
+  });
+
   it('steps a range from the keyboard with its slider thumb', () => {
     const { light } = renderPopover();
     const bright = screen.getByRole('slider', { name: 'Bright range' });

@@ -156,7 +156,8 @@ function useFocusWhileOpen(ref: React.RefObject<HTMLElement | null>, present: bo
     if (present) {
       before.current = element.ownerDocument.activeElement;
       element.focus({ preventScroll: true });
-    } else if (before.current instanceof HTMLElement && before.current.isConnected) {
+    } else if (before.current?.instanceOf(HTMLElement) && before.current.isConnected) {
+      // `instanceOf`: in a popout window the element belongs to that window's classes.
       before.current.focus({ preventScroll: true });
     }
   }, [ref, present]);

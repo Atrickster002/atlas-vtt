@@ -6,7 +6,7 @@ import { LightInteraction } from '../../src/app/pixi/lighting/LightInteraction';
 import { LightMarkers } from '../../src/app/pixi/lighting/LightMarkers';
 import { LightRangeRings, ringHandleAt, ringHandlePoint } from '../../src/app/pixi/lighting/LightRangeRings';
 import { createViewAtlasStore, type ViewAtlasStore } from '../../src/app/storeFactory';
-import { getHistoryStore } from '../../src/app/stores/history';
+import { beginHistoryTransaction, endHistoryTransaction, getHistoryStore } from '../../src/app/stores/history';
 import { createInMemoryApp } from '../mocks/inMemoryVault';
 import { stubJsdomGraphics } from '../mocks/jsdomGraphics';
 
@@ -35,10 +35,10 @@ interface Setup {
   undo: () => void;
 }
 
-function setup(): Setup {
+function setup(doc: Document = document): Setup {
   const restoreGraphics = stubJsdomGraphics();
   window.matchMedia = (() => ({ matches: true })) as never;
-  const canvas = document.body.appendChild(document.createElement('canvas'));
+  const canvas = doc.body.appendChild(doc.createElement('canvas'));
   const events = { domElement: canvas } as unknown as EventSystem;
   const viewport = new Viewport({ screenWidth: 800, screenHeight: 600, events });
   const { app } = createInMemoryApp({ files: {} });
@@ -145,14 +145,47 @@ describe('a press on a light marker', () => {
     expect(store.getState().lightPopover).toBeNull();
   });
 
-  it('ends a drag under way when cancelled, keeping it as its undo step', () => {
-    const { store, torch, tool, lights, press, move, steps } = setup();
+  it('puts the light back when the drag is cancelled, and leaves no undo step', () => {
+    const { store, torch, tool, lights, markers, press, move, steps } = setup();
     tool.active = true;
     press(400, 300);
     move(450, 300);
+    expect(lights.dragging).toBe(true);
     lights.cancel();
     move(700, 300);
-    expect(store.getState().objects.lights[torch]).toMatchObject({ x: 450, y: 300 });
+    expect(lights.dragging).toBe(false);
+    expect(store.getState().objects.lights[torch]).toMatchObject({ x: 400, y: 300 });
+    expect(steps()).toBe(0);
+    expect(markers.view.children[0]!.scale.x).toBe(1);
+  });
+
+  it('cancels the drag when the window loses focus or the pointer is cancelled', () => {
+    const { store, torch, tool, canvas, press, move, up, steps } = setup();
+    tool.active = true;
+    press(400, 300);
+    move(450, 300);
+    window.dispatchEvent(new Event('blur'));
+    move(700, 300);
+    expect(store.getState().objects.lights[torch]).toMatchObject({ x: 400, y: 300 });
+    press(400, 300);
+    move(450, 300);
+    canvas.dispatchEvent(new Event('pointercancel', { bubbles: true }));
+    up();
+    expect(store.getState().objects.lights[torch]).toMatchObject({ x: 400, y: 300 });
+    expect(steps()).toBe(0);
+    expect(store.getState().lightPopover).toBeNull();
+  });
+
+  it('keeps an outer undo step open when a drag inside it is cancelled', () => {
+    const { store, torch, tool, lights, press, move, steps } = setup();
+    tool.active = true;
+    beginHistoryTransaction(store);
+    store.getState().updateLight(torch, { hidden: true });
+    press(400, 300);
+    move(450, 300);
+    lights.cancel();
+    endHistoryTransaction(store);
+    expect(store.getState().objects.lights[torch]).toMatchObject({ x: 400, y: 300, hidden: true });
     expect(steps()).toBe(1);
   });
 });
@@ -228,6 +261,66 @@ describe('the range rings of the open light', () => {
     expect(store.getState().objects.lights[torch]!.emission).toMatchObject({ bright: 5, dim: 5 });
   });
 
+  it('put the range back when the popover closes under the drag, and leave no undo step', async () => {
+    const { store, torch, lights, press, move, steps } = setup();
+    store.getState().openLightPopover(torch);
+    press(400, 20);
+    move(400, 90);
+    expect(store.getState().objects.lights[torch]!.emission.bright).toBe(15);
+    store.getState().closeLightPopover();
+    expect(lights.dragging).toBe(false);
+    move(400, 230);
+    expect(store.getState().objects.lights[torch]!.emission).toMatchObject({ bright: 20, dim: 40 });
+    await Promise.resolve();
+    expect(steps()).toBe(0);
+    // The drag's undo step is closed: the next edit is a step of its own.
+    store.getState().updateLight(torch, { hidden: true });
+    expect(steps()).toBe(1);
+  });
+
+  it('end the drag when the popover moves to another light', () => {
+    const { store, torch, press, move, steps } = setup();
+    const lantern = store.getState().addLight({ x: 100, y: 500, emission: emissionOfPreset('lantern') });
+    getHistoryStore(store)!.getState().clear();
+    store.getState().openLightPopover(torch);
+    press(400, 20);
+    move(400, 90);
+    store.getState().openLightPopover(lantern);
+    move(400, 230);
+    expect(store.getState().objects.lights[torch]!.emission.bright).toBe(20);
+    expect(store.getState().objects.lights[lantern]!.emission.bright).toBe(30);
+    expect(steps()).toBe(0);
+  });
+
+  it('cancel the drag on a pointer cancel', () => {
+    const { store, torch, canvas, press, move, steps } = setup();
+    store.getState().openLightPopover(torch);
+    press(400, 20);
+    move(400, 90);
+    canvas.dispatchEvent(new Event('pointercancel', { bubbles: true }));
+    move(400, 230);
+    expect(store.getState().objects.lights[torch]!.emission.bright).toBe(20);
+    expect(steps()).toBe(0);
+  });
+
+  it('have no handle for a range of nothing, which would sit on the marker', () => {
+    const geometry = { center: { x: 400, y: 300 }, radius: { bright: 0, dim: 560 } };
+    expect(ringHandleAt(geometry, { x: 400, y: 300 }, 1)).toBeNull();
+    expect(ringHandleAt(geometry, { x: 400, y: 860 }, 1)).toBe('dim');
+  });
+
+  it('leave a press on the marker of a light without bright range to the marker', () => {
+    const { store, torch, tool, press, move, up } = setup();
+    store.getState().updateLight(torch, { emission: { ...emissionOfPreset('torch'), bright: 0 } });
+    store.getState().openLightPopover(torch);
+    tool.active = true;
+    press(400, 300);
+    move(460, 340);
+    up();
+    expect(store.getState().objects.lights[torch]).toMatchObject({ x: 460, y: 340 });
+    expect(store.getState().objects.lights[torch]!.emission.bright).toBe(0);
+  });
+
   it('keep the handle at the distance it was grabbed at', () => {
     const { store, torch, press, move, up } = setup();
     store.getState().openLightPopover(torch);
@@ -266,6 +359,30 @@ describe('a press outside the popover', () => {
     store.getState().openLightPopover(torch);
     pressOn(canvas, 100, 100);
     expect(store.getState().lightPopover).toBeNull();
+  });
+
+  it('keeps it for a press inside it in a popout window, whose elements are another window\'s', () => {
+    const frame = document.body.appendChild(document.createElement('iframe'));
+    const popout = frame.contentWindow!;
+    // Obsidian gives every window's nodes `instanceOf`, which asks that window's own classes.
+    Object.defineProperty((popout as unknown as { Node: typeof Node }).Node.prototype, 'instanceOf', {
+      configurable: true,
+      value(this: Node, type: { name: string }) {
+        return this instanceof ((this.ownerDocument?.defaultView as unknown as Record<string, typeof Node>)[type.name]!);
+      },
+    });
+    const doc = frame.contentDocument!;
+    const { store, torch } = setup(doc);
+    store.getState().openLightPopover(torch);
+    const popover = doc.body.appendChild(doc.createElement('div'));
+    popover.className = 'atlas-light-popover';
+    const control = popover.appendChild(doc.createElement('button'));
+    expect(control instanceof Element).toBe(false);
+    control.dispatchEvent(new popout.MouseEvent('pointerdown', { bubbles: true }));
+    expect(store.getState().lightPopover).toBe(torch);
+    doc.body.dispatchEvent(new popout.MouseEvent('pointerdown', { bubbles: true }));
+    expect(store.getState().lightPopover).toBeNull();
+    frame.remove();
   });
 
   it('keeps it for a press inside it, on a light\'s marker or on a ring handle', () => {

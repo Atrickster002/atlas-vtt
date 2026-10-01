@@ -43,6 +43,8 @@ export function ringHandleAt(geometry: RingGeometry, point: Point, zoom: number)
   let nearest: RangeField | null = null;
   let best = HANDLE_HIT_RADIUS / zoom;
   for (const field of RANGE_FIELDS) {
+    // A range of nothing has no ring and no handle: it would sit on the marker and take its presses.
+    if (geometry.radius[field] <= 0) continue;
     const handle = ringHandlePoint(geometry, field);
     const distance = Math.hypot(point.x - handle.x, point.y - handle.y);
     if (distance <= best) {

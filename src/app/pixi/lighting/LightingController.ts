@@ -136,10 +136,12 @@ export class LightingController {
     return playerTokenSight(this.renderer, this.deps.store.getState().objects.tokens);
   }
 
-  /** Escape closes the light popover, else it is the wall editor's. */
+  /** Escape cancels a light or ring being dragged and closes the light popover; else it is the wall editor's. */
   handleEscape(): boolean {
     const state = this.deps.store.getState();
-    if (!state.lightPopover) return this.editor.handleEscape();
+    const dragging = this.lights.dragging;
+    if (!dragging && !state.lightPopover) return this.editor.handleEscape();
+    this.lights.cancel();
     state.closeLightPopover();
     return true;
   }
