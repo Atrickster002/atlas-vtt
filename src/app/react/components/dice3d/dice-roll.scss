@@ -9,7 +9,7 @@
 $dice-roll-width: 21rem;
 $dice-roll-row-height: 3.4rem;
 // The portrait alone says who rolled, so it is large enough to recognise at a glance.
-$dice-roll-avatar: 56px;
+$dice-roll-avatar: 44px;
 // The engraving fades towards the rim, as if printed and rubbed off with use.
 $dice-roll-engraving-fade: radial-gradient(ellipse 74% 74% at 50% 50%, #000 38%, rgb(0 0 0 / 0.45) 76%, rgb(0 0 0 / 0) 100%);
 
@@ -112,20 +112,34 @@ $dice-roll-engraving-fade: radial-gradient(ellipse 74% 74% at 50% 50%, #000 38%,
   z-index: 2;
 }
 
-// The portrait and the action stand together in the middle of the header, clear
-// of the close button on either side.
+// The action stands in the middle of the panel. The portrait hangs on its left
+// and takes no part in the centring, so the action is centred with or without
+// one. The sides keep room for the portrait and, on the right, the close button.
 .atlas-dice-roll__header {
   position: relative;
   display: flex;
   justify-content: center;
-  padding: $spacing-m calc(#{$close-button-size} + 2 * #{$close-button-gap}) 0;
+  padding: $spacing-m calc(max(#{$dice-roll-avatar}, #{$close-button-size}) + 2 * #{$close-button-gap}) 0;
 
-  // Beside the portrait there is room for few letters, so a long action takes a second line.
+  .atlas-dice-roll__who {
+    position: relative;
+    min-height: $dice-roll-avatar;
+  }
+
+  .atlas-dice-roll__avatar {
+    position: absolute;
+    top: 50%;
+    right: calc(100% + #{$spacing-s});
+    translate: 0 -50%;
+  }
+
+  // Between the sides there is room for few letters, so a long action takes a second line.
   .atlas-dice-roll__label {
     display: -webkit-box;
     -webkit-box-orient: vertical;
     -webkit-line-clamp: 2;
     white-space: normal;
+    text-align: center;
   }
 }
 
