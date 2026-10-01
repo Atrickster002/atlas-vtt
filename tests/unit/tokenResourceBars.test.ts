@@ -10,15 +10,18 @@ import { createViewAtlasStore } from '../../src/app/storeFactory';
 import type { Character } from '../../src/app/types';
 import { createInMemoryApp } from '../mocks/inMemoryVault';
 import { barDimensions } from '../../src/app/styles/designTokens';
+import { HP, STRESS, wireControls } from '../mocks/resourceFixtures';
+
+const DEFINITIONS = [HP, STRESS];
 
 const hero: Character = { id: 'hero', kind: 'character', name: '', imagePath: 'hero.png', x: 0, y: 0,
-  hp: { current: 1, max: 50 }, stress: 1, maxStress: 50 };
+  resources: { hp: { current: 1, max: 50 }, stress: { current: 1, max: 50 } } };
 
 function setup() {
   const { app } = createInMemoryApp({ files: {} });
   const store = createViewAtlasStore(app, 'resource-bars');
   store.setState({ persistenceEnabled: false, grid: { ...store.getState().grid, size: 70 },
-    tokenSettings: { ...store.getState().tokenSettings, showHPBars: true, showStressBars: true },
+    tokenSettings: { ...store.getState().tokenSettings, showResources: true },
     objects: { ...store.getState().objects, tokens: { hero } } });
   return store;
 }
@@ -27,17 +30,24 @@ afterEach(() => { vi.restoreAllMocks(); document.body.replaceChildren(); });
 
 /** The UI drawn below the token, laid out from the token's bottom edge. */
 const belowToken = (ui: TokenUIRenderer): Container => ui.getContainer().children[0] as Container;
+/** One container per drawn bar: its track, its fill layer and its label. */
+const barViews = (ui: TokenUIRenderer): Container[] => (belowToken(ui).children.find((c) => c.zIndex === 10) as Container).children as Container[];
+const tokenUI = (): TokenUIRenderer => {
+  const ui = new TokenUIRenderer(setup());
+  ui.resourceDefsProvider = () => DEFINITIONS;
+  return ui;
+};
 
 describe('resource fill geometry', () => {
-  it('refreshes the secondary bar when only its maximum changes', () => {
+  it('refreshes a bar when only its maximum changes', () => {
     vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({
       createLinearGradient: () => ({ addColorStop: vi.fn() }), fillRect: vi.fn(),
     } as CanvasRenderingContext2D);
-    const ui = new TokenUIRenderer(setup());
+    const ui = tokenUI();
     try {
       ui.update(hero, 70);
-      ui.update({ ...hero, maxStress: 100 }, 70);
-      const labels = belowToken(ui).children.flatMap(c => c.children).filter((c): c is Text => c instanceof Text && c.label === 'resource-max').map(c => c.text);
+      ui.update({ ...hero, resources: { ...hero.resources, stress: { current: 1, max: 100 } } }, 70);
+      const labels = barViews(ui).flatMap((bar) => bar.children[2]!.children).filter((c): c is Text => c instanceof Text && c.label === 'resource-max').map(c => c.text);
       expect(labels).toContain('100');
     } finally { ui.destroy(); }
   });
@@ -46,11 +56,11 @@ describe('resource fill geometry', () => {
     vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({
       createLinearGradient: () => ({ addColorStop: vi.fn() }), fillRect: vi.fn(),
     } as CanvasRenderingContext2D);
-    const ui = new TokenUIRenderer(setup());
+    const ui = tokenUI();
     try {
       ui.update(hero, 70);
       // Each fill layer holds the loss/gain trail and then the fill itself
-      const fills = belowToken(ui).children.filter((c) => c.zIndex === 11).map((layer) => layer.children[1]);
+      const fills = barViews(ui).map((bar) => (bar.children[1] as Container).children[1]);
       const fill = fills[index] as Graphics;
       const x = -32 + 0.375 + 1;
       const y = 2 + index * 12 + 0.375 + 1;
@@ -86,6 +96,7 @@ describe('resource value popover editing', () => {
     const viewport = Object.assign(new Container(), { options: { events: { domElement: canvas } } }) as Viewport;
     const store = setup();
     const controls = new TokenControlsUI(viewport, store);
+    wireControls(controls, store, DEFINITIONS);
     controls.show('hero', 0, 0, 70, 1);
     const bars = controls.getContainer().children.filter((c): c is ResourceBarHitArea => c instanceof ResourceBarHitArea);
     const click = (index: number, x = 0): void => {
@@ -127,7 +138,7 @@ describe('resource value popover editing', () => {
     try {
       click(index, 20);
       const popover = document.querySelector<HTMLElement>('.atlas-token-value-editor')!;
-      expect(popover.getAttribute('aria-label')).toBe(`Edit ${index === 0 ? 'HP' : 'secondary resource'}`);
+      expect(popover.getAttribute('aria-label')).toBe(`Edit ${index === 0 ? 'HP' : 'Stress'}`);
       const [current, max] = inputs();
       expect(current!.value).toBe('1');
       expect(max!.value).toBe('50');
@@ -146,16 +157,15 @@ describe('resource value popover editing', () => {
       current!.value = '7';
       max!.value = '60';
       key(max!, 'Enter');
-      expect(token().hp).toEqual({ current: 7, max: 60 });
-      expect(token().maxHpOverridden).toBe(true);
+      expect(token().resources?.hp).toEqual({ current: 7, max: 60 });
+      expect(token().overriddenMax).toEqual(['hp']);
       expect(document.querySelector('.atlas-token-value-editor')).toBeNull();
 
       click(1);
       inputs()[0]!.value = '+3';
       key(inputs()[0]!, 'Enter');
-      expect(token().stress).toBe(4);
-      expect(token().maxStress).toBe(50);
-      expect(token().maxStressOverridden).toBeUndefined();
+      expect(token().resources?.stress).toEqual({ current: 4, max: 50 });
+      expect(token().overriddenMax).toEqual(['hp']);
     } finally { controls.destroy(); viewport.destroy(); }
   });
 
@@ -182,7 +192,7 @@ describe('resource value popover editing', () => {
       expect(document.querySelector('.atlas-token-value-editor')).not.toBeNull();
       expect(max!.hasAttribute('aria-invalid')).toBe(true);
       expect(document.activeElement).toBe(max);
-      expect(token().hp).toEqual({ current: 1, max: 50 });
+      expect(token().resources?.hp).toEqual({ current: 1, max: 50 });
     } finally { controls.destroy(); viewport.destroy(); }
   });
 
@@ -193,13 +203,13 @@ describe('resource value popover editing', () => {
       inputs()[0]!.value = '9';
       key(inputs()[0]!, 'Escape');
       expect(document.querySelector('.atlas-token-value-editor')).toBeNull();
-      expect(token().hp.current).toBe(1);
+      expect(token().resources?.hp?.current).toBe(1);
 
       click(0);
       inputs()[0]!.value = '9';
       canvas.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true }));
       expect(document.querySelector('.atlas-token-value-editor')).toBeNull();
-      expect(token().hp.current).toBe(9);
+      expect(token().resources?.hp?.current).toBe(9);
     } finally { controls.destroy(); viewport.destroy(); }
   });
 

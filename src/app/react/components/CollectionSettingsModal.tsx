@@ -18,7 +18,6 @@ import { AssetService } from '../../services/AssetService';
 import type { SystemPreset } from '../../types/systemPresetTypes';
 import { deleteSystemPreset } from '../../services/systemPresetDeletion';
 import { syncCollectionSystem } from '../../services/collectionSystemSync';
-import { applyTokenBars } from '../../services/collectionTokenBars';
 import { useSystemPresets } from '../hooks/useSystemPresets';
 import { useCollectionSettingsDraft } from './collection-settings/useCollectionSettingsDraft';
 
@@ -129,7 +128,6 @@ export function CollectionSettingsModal({
       await assetService.updateCollectionSettings(collectionId, draft.toSettings());
       // Widgets and token conditions follow the saved game system in every scene.
       await syncCollectionSystem(app, collectionId, systemPresets.presets);
-      await applyTokenBars(app, collectionId, draft.tokenBarChanges());
       onClose();
     } catch (err) {
       console.error('[CollectionSettingsModal] Failed to save:', err);

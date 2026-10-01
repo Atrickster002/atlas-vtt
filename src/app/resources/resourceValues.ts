@@ -27,6 +27,11 @@ export function isDefeated(token: ResourceHolder, definitions: readonly Resource
   });
 }
 
+/** Whether the token holds a resource that defeats it when spent. */
+export function isKillable(token: ResourceHolder, definitions: readonly ResourceDefinition[]): boolean {
+  return definitions.some((definition) => definition.defeatedWhenSpent === true && token.resources?.[definition.key] !== undefined);
+}
+
 /** The token update that sets one resource; a hand-set maximum is remembered in `overriddenMax`. */
 export function resourceUpdate(
   token: ResourceHolder,
@@ -38,4 +43,30 @@ export function resourceUpdate(
   const overridden = token.overriddenMax ?? [];
   if (!maxEdited || overridden.includes(key)) return { resources };
   return { resources, overriddenMax: [...overridden, key] };
+}
+
+function mapDefined(
+  token: ResourceHolder,
+  definitions: readonly ResourceDefinition[],
+  change: (definition: ResourceDefinition, value: ResourceValue) => ResourceValue,
+): Record<string, ResourceValue> | undefined {
+  if (!token.resources) return undefined;
+  const next = { ...token.resources };
+  for (const definition of definitions) {
+    const value = next[definition.key];
+    if (value) next[definition.key] = change(definition, value);
+  }
+  return next;
+}
+
+/** The token's resources with every one that defeats it spent. */
+export function defeatedResources(token: ResourceHolder, definitions: readonly ResourceDefinition[]): Record<string, ResourceValue> | undefined {
+  return mapDefined(token, definitions, (definition, value) => (definition.defeatedWhenSpent
+    ? { current: definition.direction === 'drains' ? 0 : value.max, max: value.max }
+    : value));
+}
+
+/** The token's resources with every defined one back at its start: full when draining, empty when filling. */
+export function restedResources(token: ResourceHolder, definitions: readonly ResourceDefinition[]): Record<string, ResourceValue> | undefined {
+  return mapDefined(token, definitions, (definition, value) => startingValue(definition, value.max));
 }

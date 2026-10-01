@@ -61,7 +61,7 @@ describe('a map saved before tokens had resources', () => {
     const v4 = { version: 4, state: { schema: 'atlas-vtt', version: 4, mapPath: MAP_PATH, objects: { tokens: {
       a: { id: 'a', kind: 'character', x: 0, y: 0, imagePath: 'a.webp', hp: { current: 5, max: 12 }, stress: 2, maxStress: 6 },
       b: { id: 'b', kind: 'character', x: 0, y: 0, imagePath: 'b.webp', hp: 12 },
-    } } } };
+    } }, tokenSettings: { showNameplates: true, showHPBars: false, showStressBars: false, showInstanceBadges: true, tokenRingSize: 1 } } };
     const { storage, files } = createStorage(JSON.stringify(v4));
 
     const loaded = await storage.getItem('atlas');
@@ -71,6 +71,8 @@ describe('a map saved before tokens had resources', () => {
     expect(tokens.a).not.toHaveProperty('hp');
     expect(tokens.a).not.toHaveProperty('maxStress');
     expect(tokens.b!.resources).toEqual({ hp: { current: 12, max: 100 } });
+    // Both bar switches were off, so resources stay hidden on this map
+    expect((loaded?.state as { tokenSettings: unknown }).tokenSettings).toEqual({ showNameplates: true, showResources: false, showInstanceBadges: true, tokenRingSize: 1 });
     expect((loaded?.state as { version: number }).version).toBe(5);
     expect(loaded?.version).toBe(5);
     expect(backupsOf(files)).toHaveLength(0);

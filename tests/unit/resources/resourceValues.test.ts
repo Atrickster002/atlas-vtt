@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { clampValue, isDefeated, isSpent, resourceUpdate, startingValue, withCurrent } from '../../../src/app/resources/resourceValues';
+import { clampValue, defeatedResources, isDefeated, isSpent, resourceUpdate, restedResources, startingValue, withCurrent } from '../../../src/app/resources/resourceValues';
 import type { ResourceDefinition } from '../../../src/app/resources/resourceTypes';
 
 const drains: ResourceDefinition = { key: 'hp', name: 'HP', field: 'hp', direction: 'drains', look: 'bar', color: '#22c55e', defeatedWhenSpent: true, visibleToPlayers: true };
@@ -43,5 +43,22 @@ describe('resource values', () => {
     expect(resourceUpdate(token, 'hp', { current: 3, max: 8 }, false)).toEqual({
       resources: { hp: { current: 3, max: 8 }, str: { current: 12, max: 12 } },
     });
+  });
+
+  it('kills a token by spending every resource that defeats it', () => {
+    const token = { resources: { hp: { current: 5, max: 8 }, stress: { current: 2, max: 6 }, mana: { current: 1, max: 4 } } };
+    expect(defeatedResources(token, [drains, fills])).toEqual({ hp: { current: 0, max: 8 }, stress: { current: 2, max: 6 }, mana: { current: 1, max: 4 } });
+    const marked = { ...fills, key: 'hp', defeatedWhenSpent: true };
+    expect(defeatedResources({ resources: { hp: { current: 1, max: 6 } } }, [marked])).toEqual({ hp: { current: 6, max: 6 } });
+  });
+
+  it('rests a token by returning every defined resource to its start', () => {
+    const token = { resources: { hp: { current: 1, max: 8 }, stress: { current: 5, max: 6 }, mana: { current: 1, max: 4 } } };
+    expect(restedResources(token, [drains, fills])).toEqual({ hp: { current: 8, max: 8 }, stress: { current: 0, max: 6 }, mana: { current: 1, max: 4 } });
+  });
+
+  it('leaves a token without resources without any', () => {
+    expect(defeatedResources({}, [drains])).toBeUndefined();
+    expect(restedResources({}, [drains])).toBeUndefined();
   });
 });

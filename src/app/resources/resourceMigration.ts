@@ -51,8 +51,8 @@ export function migrateTokenState<T extends object>(token: T): T & ResourceHolde
 }
 
 /** Map token settings: the two bar switches become one `showResources`. */
-export function migrateTokenSettings(settings: Record<string, unknown> | undefined): Record<string, unknown> | undefined {
-  if (!settings || !('showHPBars' in settings || 'showStressBars' in settings)) return settings;
+export function migrateTokenSettings(settings: Record<string, unknown>): Record<string, unknown> {
+  if (!('showHPBars' in settings || 'showStressBars' in settings)) return settings;
   const { showHPBars, showStressBars, ...rest } = settings;
   return { ...rest, showResources: showHPBars !== false || showStressBars === true };
 }

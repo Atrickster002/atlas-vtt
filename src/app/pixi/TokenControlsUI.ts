@@ -9,9 +9,20 @@ import type { TokenGestureEventDetail } from '../types/atlasWindowEvents';
 import { openResourceEditor, type BarAnchor, type ResourceEditor, type ResourceValue } from './tokenValueEditor';
 import { ResourceBarHitArea } from './ResourceBarHitArea';
 import { destroyTree } from './utils/destroyTree';
-import { resourceUpdates, visibleResourceBars } from './token-renderer/tokenResources';
+import type { ResourceSlot } from './token-renderer/resources/ResourceStack';
+import { colorNumber } from './token-renderer/resources/ResourceBarView';
+import type { ResourceDefinition, ResourceDefsProvider } from '../resources/resourceTypes';
+import { resourceUpdate, withCurrent } from '../resources/resourceValues';
+import { visibleResources } from '../resources/visibleResources';
 
 type ControlIconType = 'plus' | 'minus';
+
+/** The click-to-edit overlay and the +/- buttons of one resource. */
+interface ResourceControl {
+  hit: ResourceBarHitArea;
+  minus: ControlButton;
+  plus: ControlButton;
+}
 
 /** Round +/- button; keeps what `drawButtonState` needs to redraw it. */
 interface ControlButton extends Container {
@@ -30,27 +41,17 @@ export class TokenControlsUI {
   private isHiddenDuringRotation: boolean = false;
   private isDestroyed: boolean = false;
 
-  // Button containers
-  private hpMinusBtn: ControlButton;
-  private hpPlusBtn: ControlButton;
-  private stressMinusBtn: ControlButton;
-  private stressPlusBtn: ControlButton;
-
-  // Overlays on the bars; click opens the value popover below the bar
-  private hpHit: ResourceBarHitArea;
-  private stressHit: ResourceBarHitArea;
+  /** Controls per resource key, created when the resource first shows and reused after. */
+  private resourceControls = new Map<string, ResourceControl>();
   private editor: ResourceEditor | null = null;
   private followEditor: (() => void) | null = null;
+  /** The resources of the map's collection, in the order they show. */
+  public resourceDefsProvider: ResourceDefsProvider = () => [];
+  /** Where a token's resources are drawn, from its `TokenUIRenderer`, so each control sits on its resource. */
+  public slotsProvider: (tokenId: string) => readonly ResourceSlot[] = () => [];
 
-  // Colors from design tokens
-  private readonly HP_COLOR = colors.health.healthy;
-  private readonly STRESS_COLOR = colors.stress.fill;
   private readonly DANGER_COLOR = colors.health.critical;
 
-  // Bar geometry from design tokens
-  private barHeight: number = barDimensions.token.height;
-  private barWidth: number = barDimensions.token.width;
-  
   // Icon SVG definitions (Lucide React Plus and Minus icons)
   private readonly ICON_SVGS = {
     plus: `<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
@@ -77,53 +78,16 @@ export class TokenControlsUI {
 
     // Don't stop propagation at container level - let individual buttons handle it
     
-    // Create buttons first (without icons)
-    this.hpMinusBtn = this.createButton('minus', this.DANGER_COLOR);
-    this.hpPlusBtn = this.createButton('plus', this.HP_COLOR);
-    this.stressMinusBtn = this.createButton('minus', this.DANGER_COLOR);
-    this.stressPlusBtn = this.createButton('plus', this.STRESS_COLOR);
-    
-    // Initialize icon textures and redraw buttons when ready
+    // The icons load asynchronously; buttons created before then are redrawn with them
     this.initializeIconTextures().then(() => {
-      // Check if instance was destroyed while textures were loading
-      if (this.isDestroyed) {
-        return;
-      }
-      
-      // Ensure buttons still exist before redrawing (might be destroyed during map switch)
-      if (this.hpMinusBtn && !this.hpMinusBtn.destroyed) {
-        this.drawButtonState(this.hpMinusBtn, false);
-      }
-      if (this.hpPlusBtn && !this.hpPlusBtn.destroyed) {
-        this.drawButtonState(this.hpPlusBtn, false);
-      }
-      if (this.stressMinusBtn && !this.stressMinusBtn.destroyed) {
-        this.drawButtonState(this.stressMinusBtn, false);
-      }
-      if (this.stressPlusBtn && !this.stressPlusBtn.destroyed) {
-        this.drawButtonState(this.stressPlusBtn, false);
+      if (this.isDestroyed) return;
+      for (const button of this.buttons) {
+        if (!button.destroyed) this.drawButtonState(button, false);
       }
     }).catch(err => {
       console.error('[TokenControlsUI] Failed to initialize textures:', err);
     });
-    
-    this.hpHit = new ResourceBarHitArea(this.HP_COLOR);
-    this.stressHit = new ResourceBarHitArea(this.STRESS_COLOR);
-    this.container.addChild(this.hpHit);
-    this.container.addChild(this.stressHit);
 
-    // Add all buttons to container
-    this.container.addChild(this.hpMinusBtn);
-    this.container.addChild(this.hpPlusBtn);
-    this.container.addChild(this.stressMinusBtn);
-    this.container.addChild(this.stressPlusBtn);
-    
-    // Initially hide all buttons
-    this.hpMinusBtn.visible = false;
-    this.hpPlusBtn.visible = false;
-    this.stressMinusBtn.visible = false;
-    this.stressPlusBtn.visible = false;
-    
     // Add to viewport
     this.viewport.addChild(this.container);
     
@@ -137,52 +101,38 @@ export class TokenControlsUI {
   }
   
   private async initializeIconTextures(): Promise<void> {
-    // Create textures for each icon type and color combination
-    const colors = [
-      { name: 'danger', hex: this.DANGER_COLOR },
-      { name: 'hp', hex: this.HP_COLOR },
-      { name: 'stress', hex: this.STRESS_COLOR }
-    ];
-    
+    // One white texture per icon; each button tints it with its colour
     const svgSize = 48; // Match status badge icon size
-    
+
     for (const [iconType, svgTemplate] of Object.entries(this.ICON_SVGS)) {
-      for (const color of colors) {
-        const key = `${iconType}-${color.name}`;
-        const colorHex = `#${color.hex.toString(16).padStart(6, '0')}`;
-        const svg = svgTemplate.replace(/currentColor/g, colorHex);
-        
-        // Create canvas following TokenUIRenderer pattern
-        const canvas = createEl('canvas');
-        canvas.width = svgSize;
-        canvas.height = svgSize;
-        const ctx = canvas.getContext('2d');
-        
-        if (ctx) {
-          const img = new Image();
-          await new Promise<void>((resolve, reject) => {
-            img.onload = () => {
-              try {
-                ctx.drawImage(img, 0, 0, svgSize, svgSize);
-                const texture = Texture.from(canvas);
-                this.iconTextureCache.set(key, texture);
-                resolve();
-              } catch (err) {
-                console.error(`[TokenControlsUI] Failed to create texture for ${key}:`, err);
-                reject(toError(err, 'Failed to build icon texture'));
-              }
-            };
-            img.onerror = (err) => {
-              console.error(`[TokenControlsUI] Failed to load SVG for ${key}:`, err);
-              reject(toError(err, 'Failed to build icon texture'));
-            };
-            img.src = `data:image/svg+xml,${encodeURIComponent(svg)}`;
-          });
-        }
-      }
+      const svg = svgTemplate.replace(/currentColor/g, '#ffffff');
+      const canvas = createEl('canvas');
+      canvas.width = svgSize;
+      canvas.height = svgSize;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) continue;
+
+      const img = new Image();
+      await new Promise<void>((resolve, reject) => {
+        img.onload = () => {
+          try {
+            ctx.drawImage(img, 0, 0, svgSize, svgSize);
+            this.iconTextureCache.set(iconType, Texture.from(canvas));
+            resolve();
+          } catch (err) {
+            console.error(`[TokenControlsUI] Failed to create texture for ${iconType}:`, err);
+            reject(toError(err, 'Failed to build icon texture'));
+          }
+        };
+        img.onerror = (err) => {
+          console.error(`[TokenControlsUI] Failed to load SVG for ${iconType}:`, err);
+          reject(toError(err, 'Failed to build icon texture'));
+        };
+        img.src = `data:image/svg+xml,${encodeURIComponent(svg)}`;
+      });
     }
   }
-  
+
   private createButton(iconType: ControlIconType, iconColor: number): ControlButton {
     const bg = new Graphics();
     const button: ControlButton = Object.assign(new Container(), { bg, iconType, iconColor });
@@ -201,26 +151,26 @@ export class TokenControlsUI {
     return button;
   }
   
-  /** Wires a bar overlay so clicking it opens the popover for `value` under that bar. */
-  private bindBarEditor(hit: ResourceBarHitArea, barTop: number, value: ResourceValue, resourceLabel: string, onCommit: (next: ResourceValue) => void): void {
-    hit.layout(barTop);
+  /** Wires a resource overlay so clicking it opens the popover for `value` under that resource. */
+  private bindEditor(hit: ResourceBarHitArea, slot: ResourceSlot, value: ResourceValue, resourceLabel: string, onCommit: (next: ResourceValue) => void): void {
+    hit.layout(slot);
     hit.on('pointerdown', (e) => {
       e.preventDefault(); // Keep the canvas's default focus from stealing the popover's focus.
       e.stopPropagation();
-      this.openEditor(hit, barTop, value, resourceLabel, onCommit);
+      this.openEditor(hit, slot, value, resourceLabel, onCommit);
     });
   }
 
-  private openEditor(hit: ResourceBarHitArea, barTop: number, value: ResourceValue, resourceLabel: string, onCommit: (next: ResourceValue) => void): void {
+  private openEditor(hit: ResourceBarHitArea, slot: ResourceSlot, value: ResourceValue, resourceLabel: string, onCommit: (next: ResourceValue) => void): void {
     this.editor?.close();
     hit.setActive(true);
-    const follow = (): void => this.editor?.reposition(this.barAnchor(barTop));
+    const follow = (): void => this.editor?.reposition(this.slotAnchor(slot));
     this.followEditor = follow;
     this.viewport.on('moved', follow);
     this.viewport.on('zoomed', follow);
     this.editor = openResourceEditor({
       anchorEl: this.viewport.options.events.domElement,
-      anchor: this.barAnchor(barTop),
+      anchor: this.slotAnchor(slot),
       value,
       resourceLabel,
       onCommit,
@@ -234,10 +184,10 @@ export class TokenControlsUI {
     });
   }
 
-  /** Screen-space anchor of the bar at `barTop`, in canvas-local pixels. */
-  private barAnchor(barTop: number): BarAnchor {
-    const topLeft = this.container.toGlobal({ x: -this.barWidth / 2, y: barTop });
-    const bottomRight = this.container.toGlobal({ x: this.barWidth / 2, y: barTop + this.barHeight });
+  /** Screen-space anchor of the resource drawn in `slot`, in canvas-local pixels. */
+  private slotAnchor(slot: ResourceSlot): BarAnchor {
+    const topLeft = this.container.toGlobal({ x: slot.left, y: slot.top });
+    const bottomRight = this.container.toGlobal({ x: slot.left + slot.width, y: slot.top + slot.height });
     return { x: (topLeft.x + bottomRight.x) / 2, top: topLeft.y, bottom: bottomRight.y };
   }
 
@@ -281,14 +231,12 @@ export class TokenControlsUI {
       }
     }
     
-    // Add icon sprite
-    const colorName = iconColor === this.DANGER_COLOR ? 'danger' : 
-                     iconColor === this.HP_COLOR ? 'hp' : 'stress';
-    const textureKey = `${iconType}-${colorName}`;
-    const iconTexture = this.iconTextureCache.get(textureKey);
-    
+    // Add the icon, tinted with the button's colour
+    const iconTexture = this.iconTextureCache.get(iconType);
+
     if (iconTexture) {
       const iconSprite = new Sprite(iconTexture);
+      iconSprite.tint = iconColor;
       iconSprite.anchor.set(0.5);
       iconSprite.scale.set(size * 0.5 / 48); // Scale from 48px SVG to fit button
       iconSprite.position.set(0, 0);
@@ -302,7 +250,7 @@ export class TokenControlsUI {
     const state = this.store.getState();
     const token = state.objects.tokens[tokenId] as Character | undefined;
     
-    if (!token || visibleResourceBars(token, this.barSettings()).length === 0) {
+    if (!token || this.slotsProvider(tokenId).length === 0) {
       this.hide();
       return;
     }
@@ -322,16 +270,9 @@ export class TokenControlsUI {
     this.currentTokenId = null;
     this.container.visible = false;
     this.editor?.close();
-    this.hpHit.hide();
-    this.stressHit.hide();
-    
-    // Remove all click handlers
-    this.hpMinusBtn.removeAllListeners('pointerdown');
-    this.hpPlusBtn.removeAllListeners('pointerdown');
-    this.stressMinusBtn.removeAllListeners('pointerdown');
-    this.stressPlusBtn.removeAllListeners('pointerdown');
+    for (const control of this.resourceControls.values()) this.hideControl(control);
   }
-  
+
   public updatePosition(worldX: number, worldY: number, tokenSize: number): void {
     if (!this.isVisible) return;
     
@@ -363,59 +304,64 @@ export class TokenControlsUI {
   }
   
   private updateButtons(token: Character): void {
-    // Clear existing handlers
-    this.hpMinusBtn.removeAllListeners('pointerdown');
-    this.hpPlusBtn.removeAllListeners('pointerdown');
-    this.stressMinusBtn.removeAllListeners('pointerdown');
-    this.stressPlusBtn.removeAllListeners('pointerdown');
-    this.hpHit.removeAllListeners('pointerdown');
-    this.stressHit.removeAllListeners('pointerdown');
-    this.hideResourceBar(this.hpHit, this.hpMinusBtn, this.hpPlusBtn);
-    this.hideResourceBar(this.stressHit, this.stressMinusBtn, this.stressPlusBtn);
+    for (const control of this.resourceControls.values()) this.hideControl(control);
+    if (!this.currentTokenId) return;
 
-    // Same bars, order and offsets as TokenUIRenderer, so each overlay sits on its bar
-    let barTop = 2;
-    for (const { kind, value } of visibleResourceBars(token, this.barSettings())) {
-      const apply = (next: ResourceValue): TokenUpdates => resourceUpdates(token, kind, value, next);
-      const setCurrent = (delta: number): void =>
-        this.setTokenValue(apply({ ...value, current: Math.max(0, Math.min(value.max, value.current + delta)) }));
-      if (kind === 'hp') {
-        this.bindResourceBar(this.hpHit, this.hpMinusBtn, this.hpPlusBtn, barTop, value, 'HP', setCurrent, (next) => this.setTokenValue(apply(next)));
-      } else {
-        this.bindResourceBar(this.stressHit, this.stressMinusBtn, this.stressPlusBtn, barTop, value, 'secondary resource', setCurrent, (next) => this.setTokenValue(apply(next)));
-      }
-      barTop += this.barHeight + barDimensions.token.gap;
+    // Same resources and places as TokenUIRenderer drew them, so each overlay sits on its resource
+    const slots = this.slotsProvider(this.currentTokenId);
+    for (const { definition, value } of visibleResources(token, this.resourceDefsProvider(), 'dm')) {
+      const slot = slots.find((candidate) => candidate.key === definition.key);
+      if (!slot) continue;
+      const set = (next: ResourceValue, maxEdited: boolean): void =>
+        this.setTokenValue(resourceUpdate(token, definition.key, next, maxEdited));
+      this.bindResource(this.controlFor(definition), slot, value, definition.name,
+        (delta) => set(withCurrent(value, value.current + delta), false),
+        (next) => set(next, next.max !== value.max));
     }
   }
 
-  private barSettings(): { showHPBars: boolean; showStressBars: boolean } {
-    const { showHPBars = true, showStressBars = true } = this.store.getState().tokenSettings ?? {};
-    return { showHPBars, showStressBars };
+  /** The controls of `definition`, in its colour; created once per resource key. */
+  private controlFor(definition: ResourceDefinition): ResourceControl {
+    const color = colorNumber(definition.color);
+    let control = this.resourceControls.get(definition.key);
+    if (!control) {
+      control = {
+        hit: new ResourceBarHitArea(color),
+        minus: this.createButton('minus', this.DANGER_COLOR),
+        plus: this.createButton('plus', color),
+      };
+      this.resourceControls.set(definition.key, control);
+      this.container.addChild(control.hit, control.minus, control.plus);
+    }
+    control.plus.iconColor = color;
+    return control;
   }
 
-  /** Shows one bar's +/- buttons beside it and its click-to-edit overlay on top of it. */
-  private bindResourceBar(
-    hit: ResourceBarHitArea, minusBtn: ControlButton, plusBtn: ControlButton, barTop: number,
+  /** Shows one resource's +/- buttons beside it and its click-to-edit overlay on top of it. */
+  private bindResource(
+    { hit, minus, plus }: ResourceControl, slot: ResourceSlot,
     value: ResourceValue, resourceLabel: string, onDelta: (delta: number) => void, onCommit: (next: ResourceValue) => void,
   ): void {
     const buttonSize = 10;
-    const buttonOffset = this.barWidth / 2 + buttonSize / 2 + barDimensions.token.gap;
-    const barCenterY = barTop + this.barHeight / 2;
-    for (const [button, delta] of [[minusBtn, -1], [plusBtn, 1]] as const) {
+    const gap = barDimensions.token.gap;
+    const centerY = slot.top + slot.height / 2;
+    const positions = [[minus, -1, slot.left - buttonSize / 2 - gap], [plus, 1, slot.left + slot.width + buttonSize / 2 + gap]] as const;
+    for (const [button, delta, x] of positions) {
       button.visible = true;
       this.drawButtonState(button, false);
-      button.position.set(Math.sign(delta) * buttonOffset, barCenterY);
+      button.position.set(x, centerY);
       button.on('pointerdown', (e) => {
         e.stopPropagation();
         onDelta(delta);
       });
     }
-    this.bindBarEditor(hit, barTop, value, resourceLabel, onCommit);
+    this.bindEditor(hit, slot, value, resourceLabel, onCommit);
   }
 
-  private hideResourceBar(hit: ResourceBarHitArea, minusBtn: ControlButton, plusBtn: ControlButton): void {
-    minusBtn.visible = false;
-    plusBtn.visible = false;
+  private hideControl({ hit, minus, plus }: ResourceControl): void {
+    for (const part of [hit, minus, plus]) part.removeAllListeners('pointerdown');
+    minus.visible = false;
+    plus.visible = false;
     hit.hide();
   }
 

@@ -386,6 +386,7 @@ export class PixiRendererOrchestrator { // Renamed class
         this.store,
         this.eventBus
     );
+    this.selectionManager.resourcesExtentProvider = (tokenId) => this.tokenRenderer?.resourcesExtent(tokenId) ?? 0;
 
     // Initialize FogOfWarRenderer after pins so it can be on top when active
     this.fogRenderer = new FogOfWarRenderer(viewport, this.app, this.eventBus, this.store);

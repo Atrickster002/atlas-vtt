@@ -2,7 +2,7 @@ import React from 'react';
 import { SettingToggleRow } from './SettingRows';
 import type { AtlasView } from '../../../atlas-view';
 
-type TokenToggleKey = 'showNameplates' | 'showHPBars' | 'showStressBars' | 'showInstanceBadges';
+type TokenToggleKey = 'showNameplates' | 'showResources' | 'showInstanceBadges';
 
 interface TokenToggle {
   key: TokenToggleKey;
@@ -10,15 +10,13 @@ interface TokenToggle {
   hint?: string;
 }
 
-// `showStressBars` is the persisted key; the resource is system-agnostic in the UI.
 const LEFT_TOGGLES: ReadonlyArray<TokenToggle> = [
   { key: 'showNameplates', label: 'Show nameplates' },
   { key: 'showInstanceBadges', label: 'Show instance badges', hint: 'Numbers tokens that share an image' },
 ];
 
 const RIGHT_TOGGLES: ReadonlyArray<TokenToggle> = [
-  { key: 'showHPBars', label: 'Show HP bars' },
-  { key: 'showStressBars', label: 'Show secondary resource bars' },
+  { key: 'showResources', label: 'Show resources', hint: 'HP and the other resources of the collection' },
 ];
 
 interface TokenSettingsPanelProps {
@@ -28,8 +26,7 @@ interface TokenSettingsPanelProps {
 export function TokenSettingsPanel({ view }: TokenSettingsPanelProps): React.ReactElement {
   const tokenSettings = view?.atlasStore?.getState()?.tokenSettings || {
     showNameplates: false,
-    showHPBars: true,
-    showStressBars: false,
+    showResources: true,
     showInstanceBadges: true,
   };
 

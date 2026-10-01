@@ -39,6 +39,6 @@ describe('migrateTokenSettings', () => {
     expect(migrateTokenSettings({ showHPBars: false, showStressBars: false, showNameplates: true })).toEqual({ showResources: false, showNameplates: true });
     expect(migrateTokenSettings({ showHPBars: true, showStressBars: false })).toEqual({ showResources: true });
     expect(migrateTokenSettings({ showResources: false })).toEqual({ showResources: false });
-    expect(migrateTokenSettings(undefined)).toBeUndefined();
+    expect(migrateTokenSettings({ showNameplates: true })).toEqual({ showNameplates: true });
   });
 });

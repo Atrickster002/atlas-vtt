@@ -11,7 +11,6 @@ import type {
 import type { CreatureFilterDefinition } from '../../../types/creatureFilterTypes';
 import type { DiceRules } from '../../../types/diceRulesTypes';
 import type { SystemPreset } from '../../../types/systemPresetTypes';
-import { changedTokenBars, tokenBarsOf, type TokenBars } from '../../../services/collectionTokenBars';
 
 export interface CollectionSettingsDraft {
   gridDefaults: CollectionGridDefaults;
@@ -43,7 +42,6 @@ export interface CollectionSettingsDraft {
   /** The draft as the settings to save. */
   toSettings: () => Partial<CollectionSettings>;
   /** The resource bars saving turns on or off in every scene, when the draft changed them. */
-  tokenBarChanges: () => TokenBars;
 }
 
 /** The collection's settings as edited in the modal; nothing is written until the caller saves. */
@@ -60,7 +58,6 @@ export function useCollectionSettingsDraft(
   const [systemPresetId, setSystemPresetId] = useState<string | undefined>(undefined);
   const [lootBases, setLootBases] = useState<string[]>([]);
   const [lootCurrency, setLootCurrency] = useState('');
-  const [loadedDefaultWidgets, setLoadedDefaultWidgets] = useState<Record<string, boolean> | undefined>(undefined);
   const [customCreatureFilters, setCustomCreatureFilters] = useState<CreatureFilterDefinition[]>([]);
   const [hiddenCreatureFilters, setHiddenCreatureFilters] = useState<string[]>([]);
 
@@ -75,7 +72,6 @@ export function useCollectionSettingsDraft(
     setSystemPresetId(settings.systemPresetId);
     setLootBases(settings.lootBases ?? []);
     setLootCurrency(settings.lootCurrency ?? '');
-    setLoadedDefaultWidgets(settings.defaultWidgets);
     setCustomCreatureFilters(parseCreatureFilters(settings.customCreatureFilters));
     setHiddenCreatureFilters(parseHiddenCreatureFilters(settings.hiddenCreatureFilters));
   }, [isOpen, collectionId, assetService]);
@@ -124,6 +120,5 @@ export function useCollectionSettingsDraft(
     lootBases, setLootBases,
     lootCurrency, setLootCurrency,
     applyPreset, clearSystem, toSettings,
-    tokenBarChanges: () => changedTokenBars(tokenBarsOf(loadedDefaultWidgets), tokenBarsOf(defaultWidgets)),
   };
 }

@@ -11,9 +11,10 @@ import { createViewAtlasStore, type ViewAtlasState } from '../../src/app/storeFa
 import type { Character } from '../../src/app/types';
 import { createInMemoryApp } from '../mocks/inMemoryVault';
 import { MOTION_SLOW_MS } from '../../src/app/utils/motion';
+import { HP } from '../mocks/resourceFixtures';
 
 const hero: Character = { id: 'hero', kind: 'character', name: '', imagePath: 'hero.png', x: 0, y: 0, size: 1, rotation: 0,
-  hp: { current: 5, max: 10 } };
+  resources: { hp: { current: 5, max: 10 } } };
 
 const medium = computeTokenPixelSize(70, 1);
 const gargantuan = computeTokenPixelSize(70, 2.5);
@@ -57,6 +58,7 @@ describe('token UI scale', () => {
     tokenLayer.addChild(tokenGroup);
     viewport.addChild(tokenLayer);
     const uiManager = new UIManager(viewport as unknown as Viewport, store, 'token-ui-scale');
+    uiManager.resourceDefsProvider = () => [HP];
     uiManager.setTokenSpriteProvider(() => tokenGroup as unknown as TokenGroupContainer);
     uiManager.createTokenUI('hero', tokenGroup as unknown as TokenGroupContainer, token);
     const belowToken = uiManager.getTokenUIs().hero!.getContainer().children[0] as Container;

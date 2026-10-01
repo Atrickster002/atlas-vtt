@@ -11,6 +11,8 @@ import type { LayerVisibility } from './playerSafeFrame';
 export class SelectionManager {
   private viewport: Viewport;
   private tokenRendererProvider: () => ({ [id: string]: Container });
+  /** How far a token's resource bars and badges reach below it, in world units. */
+  public resourcesExtentProvider: (tokenId: string) => number = () => 0;
   private fogSpriteProvider: () => ({ [id: string]: Container });
   private hitTestTokensProvider?: (worldX: number, worldY: number) => string | null;
 
@@ -389,29 +391,8 @@ export class SelectionManager {
           const spriteRight = tokenGroup.position.x + halfWidth;
           let spriteBottom = tokenGroup.position.y + halfHeight;
           
-          // Check if token has HP/stress bars and extend selection to include them
-          const token = this.store.getState().objects.tokens[id];
-          if (token) {
-            const hasStatblock = token.kind === 'character' && !!token.statblockPath;
-            const hasHP = token.kind === 'character' && hasStatblock && token.hp !== undefined;
-            const hasStress = token.kind === 'character' && hasStatblock && token.stress !== undefined;
-            
-            if (hasHP || hasStress) {
-              // UI elements are positioned below token
-              const tokenSize = sprite.width; // Assuming square tokens
-              const uiOffset = tokenSize / 2 + 4; // From TokenUIRenderer
-              const barHeight = 6;
-              const gap = 2;
-              
-              let barsHeight = 0;
-              if (hasHP) barsHeight += barHeight;
-              if (hasHP && hasStress) barsHeight += gap;
-              if (hasStress) barsHeight += barHeight;
-              
-              // Extend bottom to include bars
-              spriteBottom = tokenGroup.position.y + uiOffset + barsHeight;
-            }
-          }
+          // The selection reaches around the resources drawn below the token
+          spriteBottom += this.resourcesExtentProvider(id);
           
           minX = Math.min(minX, spriteLeft);
           minY = Math.min(minY, spriteTop);

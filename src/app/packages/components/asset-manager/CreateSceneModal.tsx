@@ -4,7 +4,6 @@ import { Notice, normalizePath } from 'obsidian';
 import { motion } from 'framer-motion';
 import { MapIcon } from 'lucide-react';
 import { AssetService } from '../../../services/AssetService';
-import { tokenBarsOf, withTokenBars } from '../../../services/collectionTokenBars';
 import { normalizeImagePath } from '../../../utils/pathUtils';
 import { ensureFolder } from '../../../plugin/vaultFolders';
 import { useAtlasUI } from '../../../react/root/AtlasUIContext';
@@ -142,8 +141,6 @@ export default function CreateSceneModal({
             measurementType: gd.measurementMode === 'abstract' ? 'abstract' as const : 'units' as const,
           });
         }
-        // The collection's resource bars, e.g. Daggerheart's Stress
-        Object.assign(mapData.state, { tokenSettings: withTokenBars(undefined, tokenBarsOf(settings.defaultWidgets)) });
       }
 
       const scenePath = normalizePath(`atlas-vtt/collections/${collectionId}/scenes/${sceneName.trim()}.atlasmap`);
