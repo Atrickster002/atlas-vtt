@@ -250,8 +250,7 @@ $fan-button: 34px;
   height: $fan-button;
 }
 
-.atlas-csm-fan__button,
-.atlas-csm-fan__swatch {
+.atlas-csm-fan__button {
   appearance: none;
   display: grid;
   place-items: center;
@@ -285,20 +284,6 @@ $fan-button: 34px;
   }
 }
 
-// The swatch shows the colour itself, in a ring of the button's surface
-.atlas-csm-fan__swatch {
-  border: 9px solid var(--background-primary) !important;
-  outline: $border-width-s solid var(--background-modifier-border);
-  overflow: hidden;
-
-  &::-webkit-color-swatch-wrapper { padding: 0; }
-
-  &::-webkit-color-swatch {
-    border: none;
-    border-radius: $radius-full;
-  }
-}
-
 .atlas-csm-fan__button.atlas-pressed {
   background-color: var(--interactive-accent) !important;
   border-color: var(--interactive-accent) !important;
@@ -323,7 +308,7 @@ $fan-button: 34px;
 .atlas-csm-resource-dock {
   position: relative;
   flex-shrink: 0;
-  min-height: 148px;
+  min-height: 196px;
 }
 
 .atlas-csm-resource-dock__idle {
@@ -335,16 +320,20 @@ $fan-button: 34px;
   border-radius: $radius-l;
   color: var(--text-faint);
   font-size: $font-ui-small;
+  // It lies under the card and never takes a click meant for it
+  pointer-events: none;
   transition: opacity $transition-normal $transition-ease;
 
   &.atlas-hidden { opacity: 0; }
 }
 
+.atlas-csm-resource-dock__card { position: relative; }
+
 .atlas-csm-resource-card {
   @include atlas-inset-surface;
   @include atlas-flex-col($spacing-m);
   padding: $spacing-m;
-  min-height: 148px;
+  min-height: 196px;
 }
 
 .atlas-csm-resource-card__head {
@@ -376,6 +365,16 @@ $fan-button: 34px;
 
     &[aria-invalid='true'] { border-color: var(--text-error); }
   }
+}
+
+// The curated colours in one row (DropdownSwatchGrid lays out eight to a row in a menu)
+.atlas-csm-resource-card .atlas-swatch-grid {
+  grid-template-columns: repeat(20, 1fr);
+}
+
+.atlas-csm-resource-card .atlas-dropdown-swatches__label {
+  color: var(--text-muted);
+  font-size: $font-ui-smaller;
 }
 
 .atlas-csm-resource-card__chips {
@@ -418,6 +417,5 @@ $fan-button: 34px;
 @media (prefers-reduced-motion: reduce) {
   .atlas-csm-socket,
   .atlas-csm-socket__plus,
-  .atlas-csm-fan__button,
-  .atlas-csm-fan__swatch { transition: none; }
+  .atlas-csm-fan__button { transition: none; }
 }

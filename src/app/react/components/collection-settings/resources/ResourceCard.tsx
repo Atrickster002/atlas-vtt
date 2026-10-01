@@ -1,5 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { cn } from '../../../../../utils/cn';
+import { DropdownSwatchGrid } from '../../../../packages/components/primitives/DropdownSwatchGrid';
+import { RESOURCE_COLORS } from '../../../../resources/resourceColors';
 import type { ResourceDefinition } from '../../../../resources/resourceTypes';
 import type { SocketPlace } from './resourceSockets';
 
@@ -17,8 +19,8 @@ interface ResourceCardProps {
 const heading = (where: string): string => where.replace(/^./, (first) => first.toUpperCase());
 
 /**
- * The name and statblock field of the selected socket's resource. The fields found in the
- * collection's statblocks are offered to click; typing in the field narrows them.
+ * The name, statblock field and colour of the selected socket's resource. The fields found
+ * in the collection's statblocks are offered to click; typing in the field narrows them.
  */
 export function ResourceCard({ place, resource, fieldSuggestions, focusName, onChange }: ResourceCardProps): React.ReactElement {
   const nameRef = useRef<HTMLInputElement>(null);
@@ -52,6 +54,7 @@ export function ResourceCard({ place, resource, fieldSuggestions, focusName, onC
             value={resource.field} onChange={(event) => onChange({ field: event.target.value })} />
         </label>
       </div>
+      <DropdownSwatchGrid label="Colour" swatches={RESOURCE_COLORS} value={resource.color} onChange={(color) => onChange({ color })} />
       {offered.length > 0 && (
         <div className="atlas-csm-resource-card__chips" role="group" aria-label="Fields in this collection's statblocks">
           {offered.map((field) => (

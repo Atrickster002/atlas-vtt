@@ -36,8 +36,8 @@ const DIRECTIONS: ReadonlyArray<{ direction: ResourceDirection; label: string; i
 ];
 
 /**
- * The round buttons that fan out of a selected socket: colour, how the resource counts
- * (drains, fills, or a static value), whether it defeats its token, whether players see it, and remove. They leave the socket
+ * The round buttons that fan out of a selected socket: how the resource counts (drains,
+ * fills, or a static value), whether it defeats its token, whether players see it, and remove. They leave the socket
  * one after the other along an arc on its outer side.
  */
 export function ResourceFan({ place, resource, onChange, onRemove }: ResourceFanProps): React.ReactElement {
@@ -66,8 +66,7 @@ export function ResourceFan({ place, resource, onChange, onRemove }: ResourceFan
     },
     { label: 'Remove', icon: <Trash2 />, danger: true, onClick: onRemove },
   ];
-  // The colour swatch leads the fan; the buttons follow
-  const offsets = fanOffsets(buttons.length + 1, place.fanSide);
+  const offsets = fanOffsets(buttons.length, place.fanSide);
   const motionOf = (index: number): React.ComponentProps<typeof motion.div> => ({
     initial: { opacity: 0, x: 0, y: 0, scale: 0.4 },
     animate: { opacity: 1, ...offsets[index]!, scale: 1, transition: { duration: ENTER_S, ease: EASE_OUT_CONTROL_POINTS, delay: index * STAGGER_S } },
@@ -77,19 +76,8 @@ export function ResourceFan({ place, resource, onChange, onRemove }: ResourceFan
   return (
     // A fan on its way out must not be found or clicked: the next one is already open
     <div className={cn('atlas-csm-fan', !isPresent && 'atlas-leaving')} style={{ left: place.fanX, top: place.y }} aria-hidden={isPresent ? undefined : true}>
-      <motion.div className="atlas-csm-fan__item" {...motionOf(0)}>
-        <LabelTooltip label="Colour" side={place.fanSide}>
-          <input
-            type="color"
-            className="atlas-csm-fan__swatch"
-            style={{ backgroundColor: resource.color }}
-            value={resource.color}
-            onChange={(event) => onChange({ color: event.target.value })}
-          />
-        </LabelTooltip>
-      </motion.div>
       {buttons.map((button, index) => (
-        <motion.div key={index} className="atlas-csm-fan__item" {...motionOf(index + 1)}>
+        <motion.div key={index} className="atlas-csm-fan__item" {...motionOf(index)}>
           {/* On the fan's outer side, so a tooltip never covers the buttons beside it */}
           <LabelTooltip label={button.label} side={place.fanSide}>
             <button
