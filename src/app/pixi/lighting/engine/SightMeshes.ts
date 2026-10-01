@@ -4,45 +4,9 @@ import type { Sight } from '../../../vision/sight';
 import { sightWedges, type SightWedge } from '../../../vision/sightWedges';
 import type { Polygon } from '../../../vision/visibility';
 import { destroyTree } from '../../utils/destroyTree';
-import { DISC_SHARE_GLSL, GLSL_VERSION } from './glsl';
+import { ENGINE_SHADERS } from './engineShaders';
 import { createShader } from './gpu';
-
-/** Wedges a fragment tests at most; more corners than this per token stay hard. */
-const MAX_WEDGES = 256;
-
-const vertex = `${GLSL_VERSION}
-in vec2 aPosition;
-out vec2 vWorld;
-uniform mat3 uProjectionMatrix;
-uniform mat3 uWorldTransformMatrix;
-uniform mat3 uTransformMatrix;
-void main() {
-  vWorld = aPosition;
-  mat3 mvp = uProjectionMatrix * uWorldTransformMatrix * uTransformMatrix;
-  gl_Position = vec4((mvp * vec3(aPosition, 1.0)).xy, 0.0, 1.0);
-}`;
-
-// Inside the polygon; each wedge (corner a, edge e, side, angle phi) fades sight from 0 on the
-// shadow edge to 1 at its inner side, following the viewer's round footprint. Only ever lowers.
-const fragment = `${GLSL_VERSION}
-in vec2 vWorld;
-uniform sampler2D uWedges;
-uniform int uWedgeCount;
-uniform vec4 uChannel;
-out vec4 finalColor;
-${DISC_SHARE_GLSL}
-void main() {
-  float seen = 1.0;
-  for (int i = 0; i < ${MAX_WEDGES}; i++) {
-    if (i >= uWedgeCount) break;
-    vec4 ae = texelFetch(uWedges, ivec2(i, 0), 0);
-    vec2 sp = texelFetch(uWedges, ivec2(i, 1), 0).xy;
-    vec2 v = vWorld - ae.xy;
-    float theta = atan(sp.x * (ae.z * v.y - ae.w * v.x), dot(ae.zw, v));
-    if (theta >= 0.0 && theta < sp.y) seen *= discShare(2.0 * theta / sp.y - 1.0);
-  }
-  finalColor = uChannel * seen;
-}`;
+import { MAX_WEDGES } from './sightShader';
 
 type Channel = readonly [number, number, number, number];
 
@@ -80,7 +44,7 @@ export class SightMeshes {
       uWedgeCount: { value: wedges.length, type: 'i32' },
       uChannel: { value: new Float32Array(channel), type: 'vec4<f32>' },
     });
-    const shader = createShader(vertex, fragment, 'atlas-sight', { sightUniforms: uniforms, uWedges: wedgeSource });
+    const shader = createShader(ENGINE_SHADERS.sight, { sightUniforms: uniforms, uWedges: wedgeSource });
     const mesh = new Mesh({ geometry: fanGeometry(origin, polygon), shader });
     mesh.blendMode = 'max';
     this.view.addChild(mesh);

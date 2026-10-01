@@ -1,9 +1,8 @@
 import { Mesh, UniformGroup, type Geometry, type Renderer, type RenderTexture, type Shader } from 'pixi.js';
 import type { Rect } from '../../../lighting/segments';
 import { CapsuleField } from './CapsuleField';
+import { ENGINE_SHADERS } from './engineShaders';
 import { createPlaceholder, createQuad, createShader, createTarget, destroyQuad, quadGeometry, renderInto, type Quad } from './gpu';
-import { tileFragment, tileVertex } from './tileShader';
-import { tileSmoothFragment } from './tileSmoothShader';
 
 /**
  * Traces one light's visibility tile (`r8unorm`, one texel per field texel) through the wall
@@ -40,8 +39,8 @@ export class TileTracer {
     this.noOneWay = new CapsuleField(renderer, [0, 0, 1, 1], 1, 0, 'uOneWay');
     this.noOneWay.build([]);
     const resources = { tileUniforms: this.uniforms, ...field.resources(), ...this.noOneWay.resources() };
-    this.shader = createShader(tileVertex, tileFragment, 'atlas-visibility-tile', resources);
-    this.smoothShader = createShader(tileVertex, tileSmoothFragment, 'atlas-visibility-tile-smooth', { ...resources, uRaw: this.placeholder.source });
+    this.shader = createShader(ENGINE_SHADERS.tile, resources);
+    this.smoothShader = createShader(ENGINE_SHADERS.tileSmooth, { ...resources, uRaw: this.placeholder.source });
     this.mesh = new Mesh({ geometry: this.geometry, shader: this.shader });
     this.smoothMesh = new Mesh({ geometry: this.geometry, shader: this.smoothShader });
   }

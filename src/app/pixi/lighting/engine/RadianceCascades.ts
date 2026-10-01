@@ -2,7 +2,7 @@ import { Mesh, TextureSource, UniformGroup, type Geometry, type Renderer, type R
 import { BOUNCE } from '../../../lighting/lightingConstants';
 import type { MapBounds } from '../../../vision/visibility';
 import type { CapsuleField } from './CapsuleField';
-import { cascadeFragment, cascadeVertex, emissionFragment, resolveFragment } from './cascadeShaders';
+import { ENGINE_SHADERS, type EngineShaderSource } from './engineShaders';
 import { createPlaceholder, createQuad, createShader, createTarget, destroyQuad, quadGeometry, renderInto, type Quad } from './gpu';
 import type { LightMap } from './LightMap';
 
@@ -65,9 +65,9 @@ export class RadianceCascades {
       uWallGain: { value: BOUNCE.wallGain, type: 'f32' },
     });
     const placeholder = this.placeholder.source;
-    this.emission = this.pass(emissionFragment, 'atlas-bounce-emission', { emissionUniforms: this.emissionUniforms, uLightMap: placeholder, uAlbedo: placeholder });
-    this.cascade = this.pass(cascadeFragment, 'atlas-bounce-cascade', { cascadeUniforms: this.cascadeUniforms, uEmit: this.emit.source, uUpper: this.fluence.source, ...this.idleFieldResources(field) });
-    this.resolve = this.pass(resolveFragment, 'atlas-bounce-resolve', { uC0: this.cascades[0]!.source });
+    this.emission = this.pass(ENGINE_SHADERS.bounceEmission, { emissionUniforms: this.emissionUniforms, uLightMap: placeholder, uAlbedo: placeholder });
+    this.cascade = this.pass(ENGINE_SHADERS.bounceCascade, { cascadeUniforms: this.cascadeUniforms, uEmit: this.emit.source, uUpper: this.fluence.source, ...this.idleFieldResources(field) });
+    this.resolve = this.pass(ENGINE_SHADERS.bounceResolve, { uC0: this.cascades[0]!.source });
   }
 
   /**
@@ -122,7 +122,7 @@ export class RadianceCascades {
     return Object.fromEntries(Object.entries(field.resources()).map(([name, resource]) => [name, resource instanceof TextureSource ? this.placeholder.source : resource]));
   }
 
-  private pass(fragment: string, name: string, resources: Record<string, UniformGroup | TextureSource>): Pass {
-    return new Mesh({ geometry: this.geometry, shader: createShader(cascadeVertex, fragment, name, resources) });
+  private pass(source: EngineShaderSource, resources: Record<string, UniformGroup | TextureSource>): Pass {
+    return new Mesh({ geometry: this.geometry, shader: createShader(source, resources) });
   }
 }
