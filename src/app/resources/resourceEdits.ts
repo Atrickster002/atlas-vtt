@@ -1,8 +1,8 @@
-import { clampValue } from './resourceValues';
-import type { ResourceHolder, ResourceValue } from './resourceTypes';
+import { clampValue, startingValue } from './resourceValues';
+import type { ResourceDefinition, ResourceHolder, ResourceValue } from './resourceTypes';
 
 export interface ResourceMaxInput {
-  key: string;
+  definition: ResourceDefinition;
   /** undefined: follow the statblock (or remove the resource when the statblock has none). */
   max: number | undefined;
 }
@@ -15,7 +15,8 @@ export function buildResourceEdits(
 ): { resources: Record<string, ResourceValue>; overriddenMax: string[] | undefined } {
   const resources: Record<string, ResourceValue> = { ...token.resources };
   const overridden = new Set(token.overriddenMax ?? []);
-  for (const { key, max } of inputs) {
+  for (const { definition, max } of inputs) {
+    const { key } = definition;
     const current = resources[key];
     const fallback = defaults[key];
     if (max === undefined) {
@@ -24,7 +25,8 @@ export function buildResourceEdits(
       else delete resources[key];
       continue;
     }
-    resources[key] = clampValue({ current: current?.current ?? max, max });
+    // A resource the token did not have starts full or empty by its direction
+    resources[key] = clampValue({ current: current?.current ?? startingValue(definition, max).current, max });
     // Back on the statblock's value: follow it again. A new value: set by hand. Unchanged: as it was.
     if (fallback?.max === max) overridden.delete(key);
     else if (current?.max !== max) overridden.add(key);

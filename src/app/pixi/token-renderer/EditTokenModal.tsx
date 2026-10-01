@@ -191,7 +191,7 @@ export function openEditTokenModal(token: TokenEntity, store: StoreApi<ViewAtlas
       showNameplate,
       visionInnerRadius,
       visionOuterRadius,
-      ...buildResourceEdits(character ?? {}, definitions.map(({ key }) => ({ key, max: maxima[key] })), resourceDefaults),
+      ...buildResourceEdits(character ?? {}, definitions.map((definition) => ({ definition, max: maxima[definition.key] })), resourceDefaults),
     });
     cleanup();
   };

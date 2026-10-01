@@ -90,10 +90,11 @@ export function parseResourceDefinitions(raw: unknown): ResourceDefinition[] {
   });
 }
 
+/** Whether two definitions play the same. What players see is the table's choice, not the game's rules. */
 function sameDefinition(a: ResourceDefinition, b: ResourceDefinition): boolean {
   return a.key === b.key && a.name === b.name && a.field === b.field && a.direction === b.direction
     && a.look === b.look && a.color.toLowerCase() === b.color.toLowerCase()
-    && !!a.defeatedWhenSpent === !!b.defeatedWhenSpent && a.visibleToPlayers === b.visibleToPlayers;
+    && !!a.defeatedWhenSpent === !!b.defeatedWhenSpent;
 }
 
 export function sameResourceDefinitions(

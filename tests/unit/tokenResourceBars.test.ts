@@ -38,6 +38,24 @@ const tokenUI = (): TokenUIRenderer => {
   return ui;
 };
 
+describe('resources hidden on a map', () => {
+  it('leaves no slots for controls once Show resources is switched off', () => {
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({
+      createLinearGradient: () => ({ addColorStop: vi.fn() }), fillRect: vi.fn(),
+    } as CanvasRenderingContext2D);
+    const store = setup();
+    const ui = new TokenUIRenderer(store);
+    ui.resourceDefsProvider = () => DEFINITIONS;
+    try {
+      ui.update(hero, 70);
+      expect(ui.getResourceSlots()).toHaveLength(2);
+      store.setState({ tokenSettings: { ...store.getState().tokenSettings, showResources: false } });
+      ui.update(hero, 70);
+      expect(ui.getResourceSlots()).toEqual([]);
+    } finally { ui.destroy(); }
+  });
+});
+
 describe('resource fill geometry', () => {
   it('refreshes a bar when only its maximum changes', () => {
     vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({

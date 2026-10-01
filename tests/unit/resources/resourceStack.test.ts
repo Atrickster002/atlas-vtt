@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { Container, Text } from 'pixi.js';
 import { stubJsdomGraphics } from '../../mocks/jsdomGraphics';
 import { ResourceStack } from '../../../src/app/pixi/token-renderer/resources/ResourceStack';
 import { HP_RESOURCE } from '../../../src/app/resources/resourceDefinitions';
@@ -24,6 +25,15 @@ describe('ResourceStack', () => {
     expect(slots[1]!.top).toBeGreaterThan(slots[0]!.top);
     expect(slots[2]!.top).toBeGreaterThan(slots[1]!.top);
     expect(slots[2]!.left + slots[2]!.width / 2).toBeCloseTo(0);
+  });
+
+  it('draws the text of views created later at the resolution set before', () => {
+    const stack = new ResourceStack(null);
+    stack.setResolution(6);
+    stack.update([{ definition: HP_RESOURCE, value: { current: 3, max: 8 } }, { definition: AMMO, value: { current: 4, max: 6 } }], 2, false);
+    const texts = (node: Container): Text[] => node.children.flatMap((child) => (child instanceof Text ? [child] : texts(child as Container)));
+    expect(texts(stack.view).length).toBeGreaterThan(0);
+    expect(texts(stack.view).map((text) => text.resolution)).not.toContain(3);
   });
 
   it('keeps a view per key and destroys only what disappeared', () => {

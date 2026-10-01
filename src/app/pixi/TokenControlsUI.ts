@@ -312,11 +312,18 @@ export class TokenControlsUI {
     for (const { definition, value } of visibleResources(token, this.resourceDefsProvider(), 'dm')) {
       const slot = slots.find((candidate) => candidate.key === definition.key);
       if (!slot) continue;
-      const set = (next: ResourceValue, maxEdited: boolean): void =>
-        this.setTokenValue(resourceUpdate(token, definition.key, next, maxEdited));
+      // The token may have changed since the controls were shown (dashboard, Kill, Edit Token), so
+      // every edit starts from the stored token: it must not write old values over other resources.
+      const edit = (change: (stored: ResourceValue) => ResourceValue): void => {
+        const live = this.currentTokenId ? this.store.getState().objects.tokens[this.currentTokenId] : undefined;
+        const stored = live?.resources?.[definition.key];
+        if (!live || !stored) return;
+        const next = change(stored);
+        this.setTokenValue(resourceUpdate(live, definition.key, next, next.max !== stored.max));
+      };
       this.bindResource(this.controlFor(definition), slot, value, definition.name,
-        (delta) => set(withCurrent(value, value.current + delta), false),
-        (next) => set(next, next.max !== value.max));
+        (delta) => edit((stored) => withCurrent(stored, stored.current + delta)),
+        (next) => edit(() => next));
     }
   }
 

@@ -29,6 +29,7 @@ export class ResourceStack {
   private readonly views = new Map<string, View>();
   private slots: ResourceSlot[] = [];
   private textAlpha = 0;
+  private resolution: number | undefined;
 
   constructor(private readonly ticker: Ticker | null) {}
 
@@ -79,7 +80,9 @@ export class ResourceStack {
     }
   }
 
+  /** Rasterisation resolution of the texts, also of views created later. */
   setResolution(resolution: number): void {
+    this.resolution = resolution;
     for (const entry of this.views.values()) entry.view.setResolution(resolution);
   }
 
@@ -94,6 +97,7 @@ export class ResourceStack {
     if (existing?.kind === 'bar') return existing.view;
     const view = new ResourceBarView(this.ticker);
     view.setTextAlpha(this.textAlpha);
+    if (this.resolution !== undefined) view.setResolution(this.resolution);
     this.views.set(viewId(resource), { kind: 'bar', view });
     this.view.addChild(view.view);
     return view;
@@ -103,6 +107,7 @@ export class ResourceStack {
     const existing = this.views.get(viewId(resource));
     if (existing?.kind === 'badge') return existing.view;
     const view = new ResourceBadgeView();
+    if (this.resolution !== undefined) view.setResolution(this.resolution);
     this.views.set(viewId(resource), { kind: 'badge', view });
     this.view.addChild(view.view);
     return view;

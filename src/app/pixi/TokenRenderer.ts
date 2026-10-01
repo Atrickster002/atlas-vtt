@@ -1260,9 +1260,6 @@ export class TokenRenderer {
     }
   }
 
-  /**
-   * Updates multiple tokens with data from a statblock
-   */
   /** Linked tokens start the collection's resources they do not hold yet, e.g. one defined after they were placed. */
   private fillMissingResources(): void {
     if (this.store.getState().isPlayerView) return;
@@ -1277,6 +1274,9 @@ export class TokenRenderer {
     ), 'Starting missing token resources');
   }
 
+  /**
+   * Updates multiple tokens with data from a statblock
+   */
   private async updateTokensWithStatblockData(tokenIds: string[], statblockPath: string): Promise<void> {
     try {
       const statblockFile = this.obsApp.vault.getAbstractFileByPath(statblockPath);

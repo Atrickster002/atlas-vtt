@@ -46,15 +46,14 @@ export interface CollectionSettingsDraft {
   clearSystem: () => void;
   /** The draft as the settings to save. */
   toSettings: () => Partial<CollectionSettings>;
-  /** The resource bars saving turns on or off in every scene, when the draft changed them. */
 }
 
-/** The collection's settings as edited in the modal; nothing is written until the caller saves. */
 /** Resources as they are stored: names and fields trimmed, and resources added in the dialog keyed by their name. */
 export function savedResources(resources: readonly ResourceDefinition[]): ResourceDefinition[] {
   return withFinalKeys(resources.map((resource) => ({ ...resource, name: resource.name.trim(), field: resource.field.trim() })));
 }
 
+/** The collection's settings as edited in the modal; nothing is written until the caller saves. */
 export function useCollectionSettingsDraft(
   assetService: AssetService | null,
   collectionId: string,

@@ -54,7 +54,7 @@ describe('resource bar controls', () => {
       input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
     };
     const stored = (): Character => store.getState().objects.tokens.hero as Character;
-    return { controls, viewport, hits, top, press, minus, commit, stored };
+    return { controls, viewport, hits, top, press, minus, commit, stored, store };
   }
 
   it('edits the resource whose bar was clicked', () => {
@@ -67,6 +67,16 @@ describe('resource bar controls', () => {
       commit('4');
       expect(stored().resources).toEqual({ hp: { current: 80, max: 100 }, stress: { current: 4, max: 10 } });
       expect(stored().overriddenMax).toBeUndefined();
+    } finally { controls.destroy(); viewport.destroy(); }
+  });
+
+  it('changes only its own resource when another one changed since the controls were shown', () => {
+    const { controls, viewport, hits, press, minus, stored, store } = mount({ hp: { current: 10, max: 10 }, stress: { current: 0, max: 6 } });
+    try {
+      // Stress marked elsewhere, e.g. in the DM Dashboard
+      store.getState().updateToken('hero', { resources: { hp: { current: 10, max: 10 }, stress: { current: 3, max: 6 } } });
+      press(minus(hits[0]!));
+      expect(stored().resources).toEqual({ hp: { current: 9, max: 10 }, stress: { current: 3, max: 6 } });
     } finally { controls.destroy(); viewport.destroy(); }
   });
 

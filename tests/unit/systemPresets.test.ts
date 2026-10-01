@@ -84,6 +84,15 @@ describe('built-in presets', () => {
     expect(preset?.rules.resources?.map((r) => r.key)).toEqual(['ammo']);
   });
 
+  it('does not count the old bar switches or what players see as an edit of the system', () => {
+    const daggerheart = BUILT_IN_SYSTEM_PRESETS.find((preset) => preset.id === 'builtin:daggerheart')!;
+    const rules = rulesOfPreset(daggerheart);
+    expect(sameSystemRules({ ...rules, defaultWidgets: { hpBar: true, stressBar: true } }, daggerheart.rules)).toBe(true);
+    expect(sameSystemRules({ ...rules, resources: rules.resources.map((r) => ({ ...r, visibleToPlayers: true })) }, daggerheart.rules)).toBe(true);
+    expect(sameSystemRules({ ...rules, resources: rules.resources.map((r) => ({ ...r, look: 'badge' as const })) }, daggerheart.rules)).toBe(false);
+    expect(sameSystemRules({ ...rules, defaultWidgets: { initiativeTracker: true } }, daggerheart.rules)).toBe(false);
+  });
+
   it('gives a user preset saved before resources the bars its default widgets switched on', () => {
     const rules = { gridDefaults: BUILT_IN_SYSTEM_PRESETS[0]!.rules.gridDefaults, conditions: [] };
     const [plain, both, emptied] = parseUserPresets([

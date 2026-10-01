@@ -72,9 +72,12 @@ function sameCondition(a: ConditionDefinition, b: ConditionDefinition): boolean 
     && (a.valued ?? false) === (b.valued ?? false);
 }
 
+/** The bar switches older versions kept among the default widgets; resources replaced them. */
+const LEGACY_BAR_WIDGETS = new Set(['hpBar', 'stressBar']);
+
 /** The default widgets that are on, as a comparable key. */
 function enabledWidgets(defaultWidgets: Record<string, boolean> | undefined): string {
-  return Object.keys(defaultWidgets ?? {}).filter((key) => defaultWidgets?.[key]).sort().join();
+  return Object.keys(defaultWidgets ?? {}).filter((key) => defaultWidgets?.[key] && !LEGACY_BAR_WIDGETS.has(key)).sort().join();
 }
 
 /** Whether two rule sets play the same; condition ids do not matter. */

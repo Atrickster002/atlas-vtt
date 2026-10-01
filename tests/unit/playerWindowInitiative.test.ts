@@ -27,7 +27,7 @@ function scene(name = 'Hero', initiativeTrackerOpen = true): StoreApi<ViewAtlasS
   })) as StoreApi<ViewAtlasState>;
 }
 
-function setup(initiativeTrackerOpen = true): { service: PlayerWindowService; settings: SettingsService; store: StoreApi<ViewAtlasState>; doc: Document; source: PlayerFrameSource } {
+function setup(initiativeTrackerOpen = true): { service: PlayerWindowService; settings: SettingsService; store: StoreApi<ViewAtlasState>; doc: Document; source: PlayerFrameSource; collectionChanged: () => void } {
   vi.useFakeTimers();
   vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null);
   const { app } = createInMemoryApp();
@@ -36,7 +36,10 @@ function setup(initiativeTrackerOpen = true): { service: PlayerWindowService; se
   const service = new PlayerWindowService(app, store, settings);
   const source = { canvas: createEl('canvas'), withPlayerSafeFrame: vi.fn(), store };
   const doc = attachFakePlayerWindow(service, source);
-  return { service, settings, store, doc, source };
+  const collectionChanged = (): void => vi.mocked(app.workspace.on).mock.calls
+    .filter(([name]) => (name as string) === 'atlas-vtt:collection-settings-changed')
+    .forEach(([, handler]) => (handler as (id: string) => void)('collection'));
+  return { service, settings, store, doc, source, collectionChanged };
 }
 
 describe('player initiative panel', () => {
@@ -93,6 +96,18 @@ describe('player initiative panel', () => {
     expect(panel()).toBeNull();
     store.setState({ objects: { ...objects, tokens: {} } });
     expect(panel()).toBeNull();
+  });
+
+  it('shows and hides HP as soon as the collection changes what players see', () => {
+    const { doc, collectionChanged } = setup();
+    const progress = (): Element | null => doc.querySelector('[aria-label="Initiative order"] progress');
+    expect(progress()).toBeNull();
+    collection.hpVisibleToPlayers = true;
+    collectionChanged();
+    expect(progress()).not.toBeNull();
+    collection.hpVisibleToPlayers = false;
+    collectionChanged();
+    expect(progress()).toBeNull();
   });
 
   it('holds the presented initiative while browsing and binds to a newly presented view', () => {

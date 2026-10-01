@@ -327,15 +327,16 @@ export class TokenUIRenderer {
     this.refreshConditions();
     this.conditionUI.setHidden(this.isHiddenDuringResize || this.isHiddenDuringRotation);
 
+    // Before the early return: the controls lay out from the stack's slots, which must empty with it
+    const baseGap = 2; // Gap between token and first bar
+    this.resources.update(shown, baseGap, this.canAnimateValues());
+
     if (!hasResources && !showNameplate && !hasConditions) {
       this.container.visible = false;
       return;
     }
     
     this.container.visible = true;
-
-    const baseGap = 2; // Gap between token and first bar
-    this.resources.update(shown, baseGap, this.canAnimateValues());
 
     // A defeated token's first defeating bar is darkened
     const defeatedSlot = defeated ? this.defeatedSlot(shown) : undefined;

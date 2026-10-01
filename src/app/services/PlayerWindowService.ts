@@ -300,7 +300,16 @@ export class PlayerWindowService {
       this.sceneOverlays.forEach((overlay) => overlay.mount(content));
       this.settingsUnsubscribe?.();
       // Player view settings decide which layers players see
-      this.settingsUnsubscribe = this.settingsService.onChange(() => { this.isMirrorStale = true; });
+      // So do the collection's settings: which resources they see
+      const collectionChanged = this.app.workspace.on('atlas-vtt:collection-settings-changed', () => {
+        this.isMirrorStale = true;
+        this.sceneOverlays.forEach((overlay) => overlay.refresh?.());
+      });
+      const unsubscribeSettings = this.settingsService.onChange(() => { this.isMirrorStale = true; });
+      this.settingsUnsubscribe = () => {
+        unsubscribeSettings();
+        this.app.workspace.offref(collectionChanged);
+      };
 
       // Create freeze indicator
       const freezeIndicator = content.createDiv();
