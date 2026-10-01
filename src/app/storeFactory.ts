@@ -231,7 +231,7 @@ export interface ViewAtlasState {
   isGMView: boolean;
   setGMView: (on: boolean) => void;
 
-  // DM Dashboard state
+  // DM screen state
   dmNotePath: string | null;
   setDMNotePath: (path: string | null) => void;
 
@@ -294,7 +294,7 @@ export interface ViewAtlasState {
 
   // --- Per-view UI visibility (from uiSlice.ts, NOT persisted) ---
   isGridSettingsOpen: UISlice['isGridSettingsOpen'];
-  isDMDashboardOpen: UISlice['isDMDashboardOpen'];
+  isDMScreenOpen: UISlice['isDMScreenOpen'];
   isGridAlignmentOpen: UISlice['isGridAlignmentOpen'];
   isDiceLogOpen: UISlice['isDiceLogOpen'];
   isAssetManagerOpen: UISlice['isAssetManagerOpen'];
@@ -307,7 +307,7 @@ export interface ViewAtlasState {
   isSceneLightingPanelOpen: UISlice['isSceneLightingPanelOpen'];
   setSceneLightingPanelOpen: UISlice['setSceneLightingPanelOpen'];
   setGridSettingsOpen: UISlice['setGridSettingsOpen'];
-  setDMDashboardOpen: UISlice['setDMDashboardOpen'];
+  setDMScreenOpen: UISlice['setDMScreenOpen'];
   setGridAlignmentOpen: UISlice['setGridAlignmentOpen'];
   setDiceLogOpen: UISlice['setDiceLogOpen'];
   openAssetManager: UISlice['openAssetManager'];
@@ -532,7 +532,7 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
           ...(plugin && { plugin }),
           currentCollectionId: 'default', // Default to 'default' collection
           
-          // DM Dashboard state
+          // DM screen state
           dmNotePath: null,
           
           // Token settings
@@ -928,7 +928,7 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
             }
           }),
           
-          // DM Dashboard actions
+          // DM screen actions
           setDMNotePath: (path) => set((draft) => {
             draft.dmNotePath = path;
           }),
