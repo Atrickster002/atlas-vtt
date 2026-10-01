@@ -168,22 +168,23 @@ describe('MapService scene loads', () => {
       ['clears the store for the scene', (store) => throwOnChange(store, (state) => state.grid)],
       // Saving is switched off first; it is back on once the scene data was restored
       ['has restored the scene data', (store) => throwOnChange(store, (state) => state.persistenceEnabled, (enabled) => enabled)],
-    ])('never saves over the scene when a store subscriber throws while the load %s', async (_stage, failAtStage) => {
+      ['marks the scene as loaded', (store) => throwOnChange(store, (state) => state.mapLoaded, (loaded) => loaded)],
+    ])('opens the scene although a store subscriber throws while the load %s', async (_stage, failAtStage) => {
       const { service, store, files, rendererService } = setup();
       await service.loadMap(rendererService, CAVE);
       await vi.advanceTimersByTimeAsync(600);
       const cave = files.get(CAVE);
-      const tower = files.get(TOWER);
+      vi.mocked(Notice).mockClear();
 
       failAtStage(store);
-      expect(await service.loadMap(rendererService, TOWER)).toBeNull();
+      expect(await service.loadMap(rendererService, TOWER)).not.toBeNull();
       await editAndSave(store);
 
+      expect(Notice).not.toHaveBeenCalled();
+      expect(store.getState().mapPath).toBe(TOWER);
       expect(tokenIds(savedState(files, TOWER))).toEqual(['mage']);
-      expect(files.get(TOWER)).toBe(tower);
+      expect(savedState(files, TOWER).lighting.enabled).toBe(true);
       expect(files.get(CAVE)).toBe(cave);
-      expect(store.getState().mapPath).toBeNull();
-      expect(store.getState().isMapLoading).toBe(false);
     });
 
     it('never saves over the scene when showing it fails after its data was restored', async () => {

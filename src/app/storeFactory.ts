@@ -35,6 +35,7 @@ import { isPinLabelKind, nextPinLabel } from './tools/pinLabels';
 import { movedPathOf, rewriteMapReferences } from './services/renamedPaths';
 import { conditionValue, removeCondition, setConditionValue } from './utils/conditionValues';
 import { HydrationTracker } from './stores/hydrationTracker';
+import { isolateListeners } from './stores/isolatedListeners';
 
 // Individual store state interface (same as AtlasState but isolated)
 export interface ViewAtlasState {
@@ -407,9 +408,8 @@ export type ViewAtlasStore = Mutate<
   flushStorage: () => Promise<void>;
   /**
    * Fills the store from the file at `mapPath`. Rejects when the store did not take the
-   * file's state completely (it cannot be read or loaded, or merging it failed); a path
-   * without a file is a new map and resolves with the store as it was. A subscriber that
-   * throws once the state is in the store is logged and does not fail the call. A read that returns after
+   * file's state (it cannot be read or loaded, or merging it failed); a path without a
+   * file is a new map and resolves with the store as it was. A read that returns after
    * `isSuperseded` turned true, or after a later call, is dropped instead of applied.
    */
   rehydrateFromFile: (isSuperseded?: () => boolean) => Promise<void>;
@@ -430,7 +430,7 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
   // Create a storage factory that will access the store once it's created
   let storeRef: Pick<StoreApi<ViewAtlasState>, 'getState'> | null = null;
 
-  const hydrations = new HydrationTracker(() => storeRef?.getState());
+  const hydrations = new HydrationTracker();
 
   // Keep a reference to the delayed storage so we can expose flush() on the store
   let delayedStorageRef: ReturnType<typeof createDelayedStorage> | null = null;
@@ -1480,13 +1480,13 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
           // The map file arrives unchecked; fields that need it are checked here, once per load.
           merge: (persisted, current): ViewAtlasState => {
             const saved: Partial<ViewAtlasState> = isRecord(persisted) ? persisted : {};
-            return hydrations.merged({
+            return {
               ...current,
               ...saved,
               lootRoller: readLootRollerState(saved.lootRoller),
               lighting: readSceneLighting(saved.lighting),
               exploredMask: readExploredMask(saved.exploredMask),
-            });
+            };
           },
 
           onRehydrateStorage: () => hydrations.reporter((error) => {
@@ -1504,6 +1504,11 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
 
   // Set the store reference after creation
   storeRef = store;
+
+  // A renderer that fails on some state must not keep the others, or a scene load, from going on
+  isolateListeners(store, (error) => {
+    console.error(`[ViewStore-${viewId}] A store subscriber failed:`, error);
+  });
 
   // Immer types `setState` with draft updaters, and WritableDraft<ViewAtlasState> is not
   // assignable back to ViewAtlasState because the state holds the Obsidian `plugin`.

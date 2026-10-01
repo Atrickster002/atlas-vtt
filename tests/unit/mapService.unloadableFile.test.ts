@@ -125,13 +125,19 @@ describe('a scene file that exists but does not load', () => {
     await expectLoadRefused(harness, GOOD, 'Explored areas are damaged');
   });
 
-  it('opens the scene when a store subscriber throws although its state was restored completely', async () => {
+  it('opens the scene when a store subscriber throws while its state is restored, and tells the subscribers after it', async () => {
     const harness = setup(GOOD);
     const logged = vi.mocked(console.error);
+    const seenByLaterSubscriber: string[][] = [];
     const unsubscribe = harness.store.subscribe((state) => state.objects.tokens, (tokens) => {
       if (!('mage' in tokens)) return;
       unsubscribe();
+      // A subscriber that writes and then throws
+      harness.store.getState().setDMNotePath('notes/written-meanwhile.md');
       throw new TypeError("Cannot read properties of null (reading 'x')");
+    });
+    harness.store.subscribe((state: ViewAtlasState, previous: ViewAtlasState) => {
+      if (state.objects.tokens !== previous.objects.tokens) seenByLaterSubscriber.push(Object.keys(state.objects.tokens));
     });
 
     expect(await harness.service.loadMap(harness.rendererService, SCENE)).not.toBeNull();
@@ -139,26 +145,10 @@ describe('a scene file that exists but does not load', () => {
 
     expect(vi.mocked(Notice).mock.calls.filter(([message]) => String(message).includes('could not open'))).toEqual([]);
     expect(harness.store.getState().mapLoaded).toBe(true);
-    expect(logged.mock.calls.filter(([message]) => String(message).includes('Hydration failed'))).toHaveLength(1);
+    expect(seenByLaterSubscriber).toContainEqual(['mage']);
+    expect(logged.mock.calls.filter(([message]) => String(message).includes('A store subscriber failed'))).toHaveLength(1);
     const saved = (JSON.parse(harness.files.get(SCENE) ?? '{}') as { state: ViewAtlasState }).state;
     expect(Object.keys(saved.objects.tokens)).toEqual(['mage']);
     expect(saved.lighting.enabled).toBe(true);
-  });
-
-  it('fails the load when a subscriber threw and the store no longer holds exactly the restored state', async () => {
-    const harness = setup(GOOD);
-    // An earlier subscriber reacts to the restored tokens with a write of its own
-    const stopWriting = harness.store.subscribe((state) => state.objects.tokens, (tokens) => {
-      if (!('mage' in tokens)) return;
-      stopWriting();
-      harness.store.getState().setDMNotePath('notes/written-meanwhile.md');
-    });
-    const stopThrowing = harness.store.subscribe((state) => state.objects.tokens, (tokens) => {
-      if (!('mage' in tokens)) return;
-      stopThrowing();
-      throw new TypeError("Cannot read properties of null (reading 'x')");
-    });
-
-    await expectLoadRefused(harness, GOOD, "Cannot read properties of null (reading 'x')");
   });
 });
