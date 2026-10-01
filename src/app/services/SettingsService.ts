@@ -8,6 +8,14 @@ import {
   type LaserPointerSettings,
 } from '../tools/laserPointerSettings';
 import { isDiceDisplay, type DiceDisplay } from '../dice3d/diceDisplay';
+import {
+  DEFAULT_DICE_LOOK,
+  isDiceColour,
+  isDiceFont,
+  type DiceColour,
+  type DiceFont,
+  type DiceLook,
+} from '../dice3d/diceLook';
 
 /**
  * How wheel events drive the map viewport.
@@ -36,6 +44,10 @@ export interface AtlasSettings {
   laserPointer: LaserPointerSettings;
   /** How rolls show: a result card, or 3D dice at double or normal speed. Read with `getDiceDisplay`. */
   diceDisplay: DiceDisplay;
+  /** Colour of the dice: card stock, dark or the accent colour. Read with `getDiceLook`. */
+  diceColour: DiceColour;
+  /** Face of the dice numerals and roll totals. Read with `getDiceLook`. */
+  diceFont: DiceFont;
   /** Game system presets the user saved, as stored; `SystemPresetService` validates them. */
   systemPresets: unknown[];
   localPlayerView: {
@@ -65,6 +77,8 @@ const DEFAULT_SETTINGS: AtlasSettings = {
   },
   laserPointer: DEFAULT_LASER_POINTER_SETTINGS,
   diceDisplay: 'full',
+  diceColour: DEFAULT_DICE_LOOK.colour,
+  diceFont: DEFAULT_DICE_LOOK.font,
   systemPresets: [],
   localPlayerView: {
     // UI element visibility defaults
@@ -313,6 +327,22 @@ export class SettingsService {
   setDiceDisplay(display: DiceDisplay): void {
     if (this.settings.diceDisplay === display) return;
     this.settings.diceDisplay = display;
+    this.commit();
+  }
+
+  /** The stored look, with the defaults for anything the file holds that Atlas does not know. */
+  getDiceLook(): DiceLook {
+    return {
+      colour: isDiceColour(this.settings.diceColour) ? this.settings.diceColour : DEFAULT_DICE_LOOK.colour,
+      font: isDiceFont(this.settings.diceFont) ? this.settings.diceFont : DEFAULT_DICE_LOOK.font,
+    };
+  }
+
+  setDiceLook(look: Partial<DiceLook>): void {
+    const next = { ...this.getDiceLook(), ...look };
+    if (next.colour === this.settings.diceColour && next.font === this.settings.diceFont) return;
+    this.settings.diceColour = next.colour;
+    this.settings.diceFont = next.font;
     this.commit();
   }
 

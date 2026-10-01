@@ -264,3 +264,10 @@ $dice-roll-engraving-fade: radial-gradient(ellipse 74% 74% at 50% 50%, #000 38%,
 .atlas-dice-roll__chip--applied .atlas-dice-roll__chip-amount {
   color: var(--text-normal);
 }
+
+// The dice font chosen in Dice settings, for everything that shows dice numbers.
+// Also on the plugin root itself: in the player window the roll column is the root.
+&.atlas-dice-font--scifi,
+.atlas-dice-font--scifi {
+  --atlas-dice-font: #{$font-dice-scifi};
+}

@@ -18,6 +18,7 @@
 
 ## Improved
 
+- Choose how the dice look in the command palette's Dice settings: light card, dark with light numbers, or your Obsidian accent colour (the numbers turn dark or light to stay readable), each shown as a d20. Sci-fi numbers suit futuristic games; the choice also sets the font of roll totals
 - The dice tray (R) shows drawn dice, has a modifier you can step up and down, and always shows the formula it will roll. Take a die back with the − under it
 - Large token imports are much faster. 1,000 tokens from Fantasy Statblocks now take about 40 seconds instead of 11 minutes, and imports of thousands of tokens no longer slow down as they go
 - The token creator and the Fantasy Statblocks list stay smooth with thousands of images

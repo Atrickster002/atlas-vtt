@@ -3,6 +3,8 @@ import { cn } from 'src/utils/cn';
 import { useKeepInView } from '../../../packages/components/primitives/useKeepInView';
 import { DiceTool } from '../../../tools/DiceTool';
 import { DiceTray } from './DiceTray';
+import { useAtlasUI } from '../../root/AtlasUIContext';
+import { diceFontClass, useDiceLook } from '../../hooks/useDiceLook';
 
 export interface DiceDropdownMenuProps {
   diceTool: DiceTool;
@@ -13,6 +15,8 @@ export interface DiceDropdownMenuProps {
 
 export function DiceDropdownMenu({ diceTool, isOpen, onToggle, triggerRef }: DiceDropdownMenuProps): React.ReactElement | null {
   const trayRef = useRef<HTMLDivElement>(null);
+  const { app } = useAtlasUI();
+  const look = useDiceLook(app ?? undefined);
   const keepInView = useKeepInView(trayRef, isOpen, 'top');
 
   // ── Click-outside ────────────────────────────
@@ -44,7 +48,7 @@ export function DiceDropdownMenu({ diceTool, isOpen, onToggle, triggerRef }: Dic
   return (
     <div
       ref={trayRef}
-      className={cn('atlas-dice-tray', keepInView.capped && 'atlas-keep-in-view--capped')}
+      className={cn('atlas-dice-tray', diceFontClass(look), keepInView.capped && 'atlas-keep-in-view--capped')}
       style={keepInView.style}
     >
       <div className="atlas-dice-panel">
