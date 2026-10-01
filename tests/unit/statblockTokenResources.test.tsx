@@ -2,13 +2,16 @@ import React from 'react';
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { StatblockTokenResources } from '../../src/app/react/components/statblock/StatblockTokenResources';
+import type { StatblockLayout } from '../../src/app/react/components/statblock/statblockTypes';
 import { AMMO, HP, STR, STRESS } from '../mocks/resourceFixtures';
 
 const definitions = [HP, STRESS];
+const layout: StatblockLayout = { id: 'daggerheart-adversary', name: 'Daggerheart Adversary', blocks: [] };
+const basic: StatblockLayout = { id: 'basic', name: 'Basic', blocks: [] };
 const monster = { name: 'Acid Burrower', hp: 8, stress: 3 };
 const tokens = [1, 2, 3, 4].map((n) => ({ id: `token-${n}`, name: monster.name, instanceNumber: n,
   resources: { hp: { current: n === 1 ? 5 : 8, max: 8 }, stress: { current: 0, max: 3 } } }));
-const actions = () => ({ onLocateToken: vi.fn(), onHoverToken: vi.fn(), onUpdateToken: vi.fn(), definitions });
+const actions = () => ({ onLocateToken: vi.fn(), onHoverToken: vi.fn(), onUpdateToken: vi.fn(), definitions, layout });
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
 describe('per-token statblock controls', () => {
@@ -39,8 +42,8 @@ describe('per-token statblock controls', () => {
     expect(handlers.onLocateToken).not.toHaveBeenCalled();
   });
 
-  it('gives maximums above ten gauges with bounded plus/minus controls', () => {
-    const handlers = { ...actions(), definitions: [HP, AMMO] };
+  it('gives every other statblock gauges with bounded plus/minus controls', () => {
+    const handlers = { ...actions(), definitions: [HP, AMMO], layout: basic };
     render(<StatblockTokenResources {...handlers} monster={{ name: 'Mage' }}
       tokens={[{ id: 'mage', resources: { hp: { current: 0, max: 27 }, ammo: { current: 12, max: 12 } } }]} />);
     expect((screen.getByRole('button', { name: 'Decrease HP' }) as HTMLButtonElement).disabled).toBe(true);
@@ -59,10 +62,20 @@ describe('per-token statblock controls', () => {
     expect(handlers.onUpdateToken).toHaveBeenCalledWith('t1', { resources: { hp: { current: 14, max: 14 }, str: { current: 13, max: 14 } } });
   });
 
-  it('never invents a resource from a statblock field the collection does not define', () => {
-    render(<StatblockTokenResources {...actions()} definitions={[HP]} monster={{ mana: 10 }}
+  it('shows small resources as gauges too where the statblock draws no tracks', () => {
+    render(<StatblockTokenResources {...actions()} layout={basic} monster={{ hp: 4 }}
+      tokens={[{ id: 't1', name: 'Rat', resources: { hp: { current: 4, max: 4 } } }]} />);
+    expect(screen.getByRole('meter', { name: 'HP' })).toBeTruthy();
+    expect(screen.queryByRole('checkbox')).toBeNull();
+  });
+
+  it('lists the further quantities of the statblock and keeps their numbers on the token', () => {
+    const handlers = { ...actions(), definitions: [HP], layout: basic };
+    render(<StatblockTokenResources {...handlers} monster={{ hp: 5, mana: 10 }}
       tokens={[{ id: 't1', name: 'Mage', resources: { hp: { current: 5, max: 5 }, mana: { current: 3, max: 10 } } }]} />);
-    expect(screen.queryByText(/mana/i)).toBeNull();
+    expect(screen.getByRole('meter', { name: 'Mana' }).getAttribute('aria-valuenow')).toBe('3');
+    fireEvent.click(screen.getByRole('button', { name: 'Increase Mana' }));
+    expect(handlers.onUpdateToken).toHaveBeenCalledWith('t1', { resources: { hp: { current: 5, max: 5 }, mana: { current: 4, max: 10 } } });
   });
 
   it('keeps map instance numbers after another token is removed', () => {

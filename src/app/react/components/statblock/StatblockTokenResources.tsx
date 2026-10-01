@@ -3,13 +3,10 @@ import { LocateFixed, Minus, Plus } from 'lucide-react';
 import { Button } from '../../../packages/components/primitives/button';
 import { LabelTooltip } from '../../../packages/components/primitives/tooltip';
 import { resourceUpdate, withCurrent } from '../../../resources/resourceValues';
-import { visibleResources } from '../../../resources/visibleResources';
-import type { ResourceDefinition, VisibleResource } from '../../../resources/resourceTypes';
-import type { StatblockMonster } from './statblockTypes';
+import { tokenQuantities, type TokenQuantity } from '../../../resources/statblockQuantities';
+import type { ResourceDefinition } from '../../../resources/resourceTypes';
+import type { StatblockLayout, StatblockMonster } from './statblockTypes';
 import type { TokenVitals } from '../../../services/statblockVitalsSync';
-
-/** Whole maximums up to this many show as one box each instead of a gauge. */
-const MAX_PIPS = 10;
 
 export interface StatblockTokenActions {
   /** The resources of the map's collection. */
@@ -20,17 +17,15 @@ export interface StatblockTokenActions {
 }
 export interface StatblockTokenResourcesProps extends StatblockTokenActions {
   monster: StatblockMonster;
+  layout: StatblockLayout;
   tokens: TokenVitals[];
 }
-function ResourceControl({ resource, onChange }: {
-  resource: VisibleResource;
+function ResourceControl({ quantity, onChange }: {
+  quantity: TokenQuantity;
   onChange: (value: number) => void;
 }): React.JSX.Element {
-  const { definition, value: { current, max } } = resource;
-  const label = definition.name;
-  const fills = definition.direction === 'fills';
-  const pips = Number.isInteger(max) && max <= MAX_PIPS;
-  // Boxes mark what is used up: damage on a resource that drains, the value itself on one that fills.
+  const { label, fills, boxes: pips, value: { current, max } } = quantity;
+  // Boxes mark what is used up: damage on a quantity that drains, the value itself on one that fills.
   const marked = fills ? current : max - current;
   const labelId = useId();
   return (
@@ -59,7 +54,7 @@ function ResourceControl({ resource, onChange }: {
           </LabelTooltip>
           <div className="atlas-sb-token-gauge" role="meter" aria-labelledby={labelId}
             aria-valuemin={0} aria-valuemax={max} aria-valuenow={current}>
-            <span className="atlas-sb-token-gauge-fill" style={{ width: `${current / max * 100}%` }} />
+            <span className="atlas-sb-token-gauge-fill" style={{ width: `${max > 0 ? current / max * 100 : 0}%` }} />
             <span className="atlas-sb-token-gauge-value">{current} / {max}</span>
           </div>
           <LabelTooltip label={`Increase ${label}`}>
@@ -72,7 +67,7 @@ function ResourceControl({ resource, onChange }: {
   );
 }
 
-export function StatblockTokenResources({ monster, definitions, tokens, onLocateToken, onHoverToken, onUpdateToken }: StatblockTokenResourcesProps): React.JSX.Element {
+export function StatblockTokenResources({ monster, layout, definitions, tokens, onLocateToken, onHoverToken, onUpdateToken }: StatblockTokenResourcesProps): React.JSX.Element {
   const listRef = useRef<HTMLDivElement>(null);
   const entryLabelId = useId();
   const identified = tokens.filter((token): token is TokenVitals & { id: string } => Boolean(token.id));
@@ -107,7 +102,7 @@ export function StatblockTokenResources({ monster, definitions, tokens, onLocate
     observer?.observe(list);
     Array.from(list.children).slice(0, 3).forEach((child) => observer?.observe(child));
     return () => observer?.disconnect();
-  }, [scrollable, tokens, definitions]);
+  }, [scrollable, tokens, definitions, monster, layout]);
 
   return (
     <div ref={listRef} className="atlas-sb-token-list" data-scrollable={scrollable}
@@ -121,9 +116,9 @@ export function StatblockTokenResources({ monster, definitions, tokens, onLocate
               <span id={`${entryLabelId}-${token.id}`}>{label}</span><LocateFixed aria-hidden="true" />
             </Button>
           </LabelTooltip>
-          {visibleResources(token, definitions, 'dm').map((resource) => (
-            <ResourceControl key={resource.definition.key} resource={resource}
-              onChange={(current) => onUpdateToken(token.id, resourceUpdate(token, resource.definition.key, withCurrent(resource.value, current), false))} />
+          {tokenQuantities(monster, layout, token, definitions).map((quantity) => (
+            <ResourceControl key={quantity.key} quantity={quantity}
+              onChange={(current) => onUpdateToken(token.id, resourceUpdate(token, quantity.key, withCurrent(quantity.value, current), false))} />
           ))}
         </div>
       ))}

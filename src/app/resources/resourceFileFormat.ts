@@ -92,18 +92,18 @@ interface SceneParts {
 
 type InitiativeEntryLike = { tokenId?: unknown };
 
-function mapTokens<S extends SceneParts>(scene: S, convert: (token: object) => object): Pick<S, 'objects'> | undefined {
+function mapTokens(scene: SceneParts, convert: (token: object) => object): Pick<SceneParts, 'objects'> | undefined {
   const tokens = scene.objects?.tokens;
   if (!isRecord(tokens)) return undefined;
   const converted = Object.fromEntries(Object.entries(tokens).map(([id, token]) => [id, isRecord(token) ? convert(token) : token]));
-  return { objects: { ...scene.objects, tokens: converted } } as Pick<S, 'objects'>;
+  return { objects: { ...scene.objects, tokens: converted } };
 }
 
-function mapEntries<S extends SceneParts>(scene: S, convert: (entry: InitiativeEntryLike) => object): Pick<S, 'initiative'> | undefined {
+function mapEntries(scene: SceneParts, convert: (entry: InitiativeEntryLike) => object): Pick<SceneParts, 'initiative'> | undefined {
   const entries = scene.initiative?.entries;
   if (!Array.isArray(entries)) return undefined;
   const converted = entries.map((entry: unknown) => (isRecord(entry) ? convert(entry) : entry));
-  return { initiative: { ...scene.initiative, entries: converted } } as Pick<S, 'initiative'>;
+  return { initiative: { ...scene.initiative, entries: converted } };
 }
 
 /** A scene's state as it is in memory. */

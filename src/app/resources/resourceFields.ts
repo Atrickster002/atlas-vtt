@@ -1,13 +1,14 @@
 import { clampValue } from './resourceValues';
 import type { ResourceValue } from './resourceTypes';
 
-const normalized = (key: string): string => key.toLowerCase().replace(/[\s_-]/g, '');
+/** A statblock key without case, spaces, underscores and hyphens: `Max Stress` and `max_stress` are one field. */
+export const normalizedKey = (key: string): string => key.toLowerCase().replace(/[\s_-]/g, '');
 
 const HIT_POINT_KEYS = ['hp', 'health', 'hitpoints'];
 
 /** Whether a statblock key or label ("hp", "Hit Points:", "Health") names hit points. */
 export function isHitPointsKey(key: string): boolean {
-  return HIT_POINT_KEYS.includes(normalized(key.replace(/:\s*$/, '')));
+  return HIT_POINT_KEYS.includes(normalizedKey(key.replace(/:\s*$/, '')));
 }
 
 /**
@@ -16,9 +17,9 @@ export function isHitPointsKey(key: string): boolean {
  */
 function lookup(record: Record<string, unknown>, key: string): unknown {
   if (key in record) return record[key];
-  const wanted = normalized(key);
+  const wanted = normalizedKey(key);
   const keys = Object.keys(record);
-  const match = keys.find((candidate) => normalized(candidate) === wanted)
+  const match = keys.find((candidate) => normalizedKey(candidate) === wanted)
     ?? (isHitPointsKey(key) ? keys.find(isHitPointsKey) : undefined);
   return match === undefined ? undefined : record[match];
 }

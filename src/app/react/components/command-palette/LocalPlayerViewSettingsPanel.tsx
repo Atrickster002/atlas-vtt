@@ -3,6 +3,11 @@ import { MonitorUp } from 'lucide-react';
 import { App, Notice } from 'obsidian';
 import { Button } from '../../../packages/components/primitives/button';
 import { useAtlasUI } from '../../root/AtlasUIContext';
+import { useAtlasStore } from '../../ViewStoreContext';
+import { BAR_SLOTS } from '../../../resources/resourceTypes';
+import { useMapResources } from '../../../resources/useMapResources';
+import { AssetService } from '../../../services/AssetService';
+import { runInBackground } from '../../../utils/backgroundTask';
 import { PlayerWindowService } from '../../../services/PlayerWindowService';
 import { presentActiveTabInPlayerWindow } from '../../../services/PlayerWindowPresenter';
 import { SettingsService, type AtlasSettings } from '../../../services/SettingsService';
@@ -39,6 +44,31 @@ function openPlayerWindow(app: App): void {
     return;
   }
   void presentActiveTabInPlayerWindow(app);
+}
+
+/**
+ * One switch per bar of the open scene's collection: whether players see it. Wheels show on
+ * hover and selection only, which the player window has not, so they have no switch.
+ */
+function PlayerBarToggles({ app }: { app: App }): React.ReactElement | null {
+  const resources = useMapResources();
+  const mapPath = useAtlasStore((state) => state.mapPath);
+  const assets = AssetService.getInstance(app);
+  const collectionId = mapPath ? assets.getCollectionForMap(mapPath) : null;
+  if (!collectionId) return null;
+
+  const toggle = (key: string): void => {
+    const next = resources.map((resource) => (resource.key === key ? { ...resource, visibleToPlayers: !resource.visibleToPlayers } : resource));
+    runInBackground(assets.updateCollectionSettings(collectionId, { resources: next }), 'Saving what players see');
+  };
+
+  return (
+    <>
+      {resources.slice(0, BAR_SLOTS).map((resource) => (
+        <SettingToggleRow key={resource.key} label={`Show ${resource.name} bars`} value={resource.visibleToPlayers} onToggle={() => toggle(resource.key)} />
+      ))}
+    </>
+  );
 }
 
 export function LocalPlayerViewSettingsPanel(): React.ReactElement {
@@ -81,8 +111,8 @@ export function LocalPlayerViewSettingsPanel(): React.ReactElement {
 
       <div className="atlas-command-palette-panel-column">
         <h3 className="atlas-command-palette-panel-heading">Tokens</h3>
+        {app && <PlayerBarToggles app={app} />}
         {TOKEN_TOGGLES.map(renderToggle)}
-        <SettingRow label="Resources" hint="Each resource says in the collection settings whether players see it.">{null}</SettingRow>
         <SettingRow label="Note previews" hint="Note previews are not shared with the player window.">{null}</SettingRow>
 
         <Button variant="default" size="sm" className="atlas-command-palette-cta" onClick={() => openPlayerWindow(app)}>

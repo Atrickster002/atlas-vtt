@@ -232,7 +232,7 @@ export function FantasyStatblock({
         portrait={portrait}
         replaceVitals={Boolean(tokenActions)}
         footer={tokenActions && tokens.length > 0 ? (
-          <StatblockTokenResources monster={monster} tokens={tokens} {...tokenActions} />
+          <StatblockTokenResources monster={monster} layout={layout} tokens={tokens} {...tokenActions} />
         ) : undefined}
         {...(editable ? { onAssignToken: assignToken } : {})}
       />

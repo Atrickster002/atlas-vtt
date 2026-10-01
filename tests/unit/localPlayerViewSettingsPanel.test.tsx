@@ -4,10 +4,15 @@ import { afterEach, expect, it, vi } from 'vitest';
 import { SettingsService } from '../../src/app/services/SettingsService';
 import { LocalPlayerViewSettingsPanel } from '../../src/app/react/components/command-palette/LocalPlayerViewSettingsPanel';
 
-const context = vi.hoisted(() => ({ settings: null as any }));
+import { AMMO, HP, STRESS } from '../mocks/resourceFixtures';
+
+const context = vi.hoisted(() => ({ settings: null as any, resources: [] as unknown[], collection: 'Own' as string | null, updateCollectionSettings: vi.fn(async () => undefined) }));
+vi.mock('../../src/app/resources/useMapResources', () => ({ useMapResources: () => context.resources }));
+vi.mock('../../src/app/react/ViewStoreContext', () => ({ useAtlasStore: (selector: (state: { mapPath: string }) => unknown) => selector({ mapPath: 'atlas-vtt/collections/Own/scenes/Cave.atlasmap' }) }));
+vi.mock('../../src/app/services/AssetService', () => ({ AssetService: { getInstance: () => ({ getCollectionForMap: () => context.collection, updateCollectionSettings: context.updateCollectionSettings }) } }));
 vi.mock('../../src/app/react/root/AtlasUIContext', () => ({ useAtlasUI: () => ({ app: {}, view: { serviceManager: { getSettingsService: () => context.settings } } }) }));
 vi.mock('../../src/app/services/PlayerWindowPresenter', () => ({ presentActiveTabInPlayerWindow: vi.fn() }));
-afterEach(() => { cleanup(); vi.useRealTimers(); });
+afterEach(() => { cleanup(); vi.useRealTimers(); context.resources = []; context.collection = 'Own'; context.updateCollectionSettings.mockClear(); });
 
 it('updates every supported setting and follows settings changed elsewhere', () => {
   vi.useFakeTimers();
@@ -26,8 +31,30 @@ it('updates every supported setting and follows settings changed elsewhere', () 
     expect(toggle.getAttribute('aria-checked')).toBe(String(before));
   }
   expect(screen.queryByRole('switch', { name: 'Show note previews' })).toBeNull();
-  // Which resources players see is set per resource in the collection, not here
-  expect(screen.queryByRole('switch', { name: 'Show HP bars' })).toBeNull();
-  expect(screen.queryByRole('switch', { name: 'Show secondary resource bars' })).toBeNull();
   expect(screen.getByText('Note previews are not shared with the player window.')).toBeTruthy();
+});
+
+it('offers the bar switches the player view always had, for the bars of the open scene\'s collection', () => {
+  context.settings = new SettingsService({} as never);
+  context.resources = [{ ...HP, visibleToPlayers: true }, STRESS, AMMO];
+  render(<LocalPlayerViewSettingsPanel />);
+
+  expect(screen.getByRole('switch', { name: 'Show HP bars' }).getAttribute('aria-checked')).toBe('true');
+  const stress = screen.getByRole('switch', { name: 'Show Stress bars' });
+  expect(stress.getAttribute('aria-checked')).toBe('false');
+  // Wheels show on hover and selection, which the player window has not
+  expect(screen.queryByRole('switch', { name: /Ammo/ })).toBeNull();
+
+  fireEvent.click(stress);
+  expect(context.updateCollectionSettings).toHaveBeenCalledWith('Own', {
+    resources: [{ ...HP, visibleToPlayers: true }, { ...STRESS, visibleToPlayers: true }, AMMO],
+  });
+});
+
+it('offers no bar switches for a scene outside every collection', () => {
+  context.settings = new SettingsService({} as never);
+  context.resources = [HP];
+  context.collection = null;
+  render(<LocalPlayerViewSettingsPanel />);
+  expect(screen.queryByRole('switch', { name: 'Show HP bars' })).toBeNull();
 });

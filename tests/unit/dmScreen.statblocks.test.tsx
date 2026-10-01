@@ -99,7 +99,8 @@ describe('DM screen token actions', () => {
   it('persists an independent resource update through the map store', async () => {
     showDMScreen([legacyPath, creaturePath, creaturePath]);
     const entry = await screen.findByRole('group', { name: 'Acid Burrower #2' });
-    fireEvent.click(within(entry).getByRole('checkbox', { name: 'HP damage 1 of 8' }));
+    // A basic layout draws no tracks, so hit points are a gauge
+    fireEvent.click(within(entry).getByRole('button', { name: 'Decrease HP' }));
     expect(state.updateToken).toHaveBeenLastCalledWith('2', { resources: { hp: { current: 7, max: 8 } } });
     expect(screen.getAllByRole('group')).toHaveLength(2);
   });

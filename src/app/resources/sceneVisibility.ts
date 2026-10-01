@@ -57,3 +57,19 @@ export function hiddenOnNewScenes(defaultWidgets: Record<string, boolean> | unde
     ...(defaultWidgets?.stressBar === false ? [LEGACY_SWITCHES.showStressBars] : []),
   ];
 }
+
+/**
+ * A scene file that shows the bars a new scene of its collection shows, for a scene that
+ * joins the collection; null when it already does. Written with the switches older
+ * versions read.
+ */
+export function showNewSceneBarsInJson(content: string, defaultWidgets: Record<string, boolean> | undefined): string | null {
+  const data = JSON.parse(content) as { state?: { tokenSettings?: Record<string, unknown> } } | null;
+  if (!data?.state) return null;
+  const current = withHiddenResources(data.state.tokenSettings ?? {});
+  const shown = Array.isArray(current.hiddenResources) ? (current.hiddenResources as string[]) : [];
+  const hidden = hiddenOnNewScenes(defaultWidgets);
+  if (shown.length === hidden.length && hidden.every((key) => shown.includes(key))) return null;
+  data.state.tokenSettings = { ...current, hiddenResources: hidden, ...legacySwitches(hidden) };
+  return JSON.stringify(data, null, 2);
+}

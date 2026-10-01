@@ -1,5 +1,6 @@
 import type { CollectionSettings } from '../../types/collectionSettingsTypes';
 import { dropUnknownConditionsFromJson } from '../collectionConditionCleanup';
+import { showNewSceneBarsInJson } from '../../resources/sceneVisibility';
 import { collectionIdOfPath } from '../assetPaths';
 import { dropSceneLinksFromJson } from '../sceneLinks';
 import { dropWidgetsFromJson } from '../sceneWidgetFiles';
@@ -36,10 +37,10 @@ function inOrder(...rewrites: TextRewrite[]): TextRewrite {
  * created there: its tokens lose the conditions the collection does not define,
  * it loses the widgets of its old collection and its pins to scenes of other
  * collections (in the map and in its snapshots; the new collection's widgets
- * come from its library when the scene loads). Tokens show the new collection's
- * resources without a rewrite, since those are defined by the collection. Run it
- * after the scene's paths follow the transfer, so links to scenes that came
- * along are kept.
+ * come from its library when the scene loads), and the map shows the bars a new
+ * scene of the collection shows. Tokens show the new collection's resources
+ * without a rewrite, since those are defined by the collection. Run it after the
+ * scene's paths follow the transfer, so links to scenes that came along are kept.
  */
 export function sceneAdoption(collectionId: string, settings: CollectionSettings): SceneAdoption {
   const defined = new Set(settings.conditions.map((condition) => condition.id));
@@ -47,8 +48,9 @@ export function sceneAdoption(collectionId: string, settings: CollectionSettings
   const conditions = unlessUnreadable((content) => dropUnknownConditionsFromJson(content, defined));
   const widgets = unlessUnreadable((content) => dropWidgetsFromJson(content, (id) => !library[id]));
   const links = unlessUnreadable((content) => dropSceneLinksFromJson(content, (mapPath) => collectionIdOfPath(mapPath) === collectionId));
+  const bars = unlessUnreadable((content) => showNewSceneBarsInJson(content, settings.defaultWidgets));
   return {
-    map: inOrder(conditions, widgets, links),
+    map: inOrder(conditions, widgets, links, bars),
     snapshot: inOrder(conditions, widgets, links),
   };
 }
