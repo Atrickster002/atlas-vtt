@@ -17,6 +17,10 @@ export interface UISlice {
   assetManagerInitialTab?: 'scenes' | 'maps' | 'encounters' | 'tokens' | undefined;
   isCommandPaletteOpen: boolean;
   isDiceTrayOpen: boolean;
+  /** The light whose settings panel is open, and the screen point (client pixels) it opened from. */
+  lightPanel: LightPanelTarget | null;
+  /** The scene lighting settings panel, opened from the lighting tool's menu. */
+  isSceneLightingPanelOpen: boolean;
 
   // Actions
   setGridSettingsOpen: (open: boolean) => void;
@@ -27,6 +31,15 @@ export interface UISlice {
   closeAssetManager: () => void;
   setCommandPaletteOpen: (open: boolean) => void;
   setDiceTrayOpen: (open: boolean) => void;
+  openLightPanel: (target: LightPanelTarget) => void;
+  closeLightPanel: () => void;
+  setSceneLightingPanelOpen: (open: boolean) => void;
+}
+
+export interface LightPanelTarget {
+  lightId: string;
+  clientX: number;
+  clientY: number;
 }
 
 /** Default state — all panels closed */
@@ -40,6 +53,8 @@ export function createInitialUIState(): Pick<
   | 'assetManagerInitialTab'
   | 'isCommandPaletteOpen'
   | 'isDiceTrayOpen'
+  | 'lightPanel'
+  | 'isSceneLightingPanelOpen'
 > {
   return {
     isGridSettingsOpen: false,
@@ -50,6 +65,8 @@ export function createInitialUIState(): Pick<
     assetManagerInitialTab: undefined,
     isCommandPaletteOpen: false,
     isDiceTrayOpen: false,
+    lightPanel: null,
+    isSceneLightingPanelOpen: false,
   };
 }
 
@@ -66,6 +83,9 @@ export function createUIActions(
   | 'closeAssetManager'
   | 'setCommandPaletteOpen'
   | 'setDiceTrayOpen'
+  | 'openLightPanel'
+  | 'closeLightPanel'
+  | 'setSceneLightingPanelOpen'
 > {
   return {
     setGridSettingsOpen: (open) => set((draft) => { draft.isGridSettingsOpen = open; }),
@@ -82,5 +102,8 @@ export function createUIActions(
     }),
     setCommandPaletteOpen: (open) => set((draft) => { draft.isCommandPaletteOpen = open; }),
     setDiceTrayOpen: (open) => set((draft) => { draft.isDiceTrayOpen = open; }),
+    openLightPanel: (target) => set((draft) => { draft.lightPanel = target; }),
+    closeLightPanel: () => set((draft) => { draft.lightPanel = null; }),
+    setSceneLightingPanelOpen: (open) => set((draft) => { draft.isSceneLightingPanelOpen = open; }),
   };
 }

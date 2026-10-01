@@ -1,0 +1,25 @@
+// ═══════════════════════════════════════════════════════════════════════════
+// Scene lighting in the lighting tool's menu: the ambient slider with its colour beside it
+// ═══════════════════════════════════════════════════════════════════════════
+// Imported inside the `.atlas-vtt-plugin` scope of styles/main.scss.
+
+@use '../../../../../styles/tokens' as *;
+@use '../../../../../styles/mixins' as *;
+
+.atlas-scene-lighting-ambient {
+  display: flex;
+  align-items: flex-end;
+  gap: $spacing-m;
+
+  > :first-child {
+    flex: 1;
+    min-width: 0;
+  }
+}
+
+// Level with the slider's track: the slider row keeps 0.75rem below it.
+.atlas-scene-lighting-ambient__swatch {
+  @include atlas-colour-input(24px);
+  flex-shrink: 0;
+  margin-bottom: $spacing-s;
+}

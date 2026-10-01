@@ -3,51 +3,53 @@ import { X, Check } from 'lucide-react';
 import { createRoot } from 'react-dom/client';
 import { TFile, type App } from 'obsidian';
 import type { StoreApi } from 'zustand';
-import type { ViewAtlasState } from '../../storeFactory';
+import type { TokenUpdates, ViewAtlasState } from '../../storeFactory';
 import type { TokenEntity } from '../../types';
-import { WALLS_AND_LIGHTING_ENABLED } from '../../featureFlags';
 import { CloseButton } from '../../packages/components/primitives/CloseButton';
 import { Button } from '../../packages/components/primitives/button';
+import { TooltipProvider } from '../../packages/components/primitives/tooltip';
 import { NumberOverrideField, parseNumberInput } from './NumberOverrideField';
 import { buildResourceEdits } from '../../resources/resourceEdits';
 import type { ResourceDefinition, ResourceValue } from '../../resources/resourceTypes';
 import { startingResources } from '../../resources/statblockResourceValues';
+import { TokenLightingFields, type LightChoice } from './TokenLightingFields';
+import { WALLS_AND_LIGHTING_ENABLED } from '../../featureFlags';
 import { unitLabelFor } from '../../grid/measurementFormat';
+import { presetOf } from '../../lighting/lightPresets';
+import { carriedLight, visionForm, visionFromForm, type VisionForm } from '../../lighting/tokenLighting';
+import { numberText } from '../../utils/numberInput';
 
 interface EditTokenValues {
   name: string;
   showNameplate: boolean;
   /** Maximum per resource key; undefined follows the statblock, or removes a resource the statblock lacks. */
   maxima: Record<string, number | undefined>;
-  visionInnerRadius: number | undefined;
-  visionOuterRadius: number | undefined;
+  vision: VisionForm;
+  light: LightChoice;
 }
 
 interface EditTokenModalProps {
   initial: EditTokenValues;
-  playerLinked: boolean;
   /** The resources of the map's collection, in the order they show. */
   definitions: readonly ResourceDefinition[];
   /** What the linked statblock gives each resource. */
   resourceDefaults: Record<string, ResourceValue>;
-  unitLabel: string;
+  unit: string;
   onSave: (values: EditTokenValues) => void;
   onClose: () => void;
 }
 
-const numberInput = (value: number | undefined): string => (value === undefined ? '' : String(value));
-
 const defaultPlaceholder = (value: number | undefined): string =>
   value === undefined ? 'None' : `Statblock default: ${value}`;
 
-function EditTokenModalInner({ initial, playerLinked, definitions, resourceDefaults, unitLabel, onSave, onClose }: EditTokenModalProps): React.ReactElement {
+function EditTokenModalInner({ initial, definitions, resourceDefaults, unit, onSave, onClose }: EditTokenModalProps): React.ReactElement {
   const [name, setName] = useState(initial.name);
   const [showNameplate, setShowNameplate] = useState(initial.showNameplate);
   const [maxInputs, setMaxInputs] = useState<Record<string, string>>(
-    () => Object.fromEntries(definitions.map(({ key }) => [key, numberInput(initial.maxima[key])])),
+    () => Object.fromEntries(definitions.map(({ key }) => [key, numberText(initial.maxima[key])])),
   );
-  const [visionInnerInput, setVisionInnerInput] = useState(numberInput(initial.visionInnerRadius));
-  const [visionOuterInput, setVisionOuterInput] = useState(numberInput(initial.visionOuterRadius));
+  const [vision, setVision] = useState(initial.vision);
+  const [light, setLight] = useState(initial.light);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -62,8 +64,8 @@ function EditTokenModalInner({ initial, playerLinked, definitions, resourceDefau
       name,
       showNameplate,
       maxima: Object.fromEntries(definitions.map(({ key }) => [key, parseNumberInput(maxInputs[key] ?? '')])),
-      visionInnerRadius: parseNumberInput(visionInnerInput),
-      visionOuterRadius: parseNumberInput(visionOuterInput),
+      vision,
+      light,
     });
   };
 
@@ -82,7 +84,6 @@ function EditTokenModalInner({ initial, playerLinked, definitions, resourceDefau
     return () => window.removeEventListener('keydown', handleKeyDown);
   });
 
-  const unitSuffix = unitLabel ? ` (${unitLabel})` : '';
 
   return (
     <div className="atlas-modal-overlay" onClick={onClose}>
@@ -132,26 +133,8 @@ function EditTokenModalInner({ initial, playerLinked, definitions, resourceDefau
               ))}
             </>
           )}
-
-          {WALLS_AND_LIGHTING_ENABLED && playerLinked && (
-            <>
-              <div className="atlas-edit-token__section-divider" />
-              <div className="atlas-edit-token__section-label">Vision Override</div>
-              <NumberOverrideField
-                label={`Bright Vision Range${unitSuffix}`}
-                value={visionInnerInput}
-                onChange={setVisionInnerInput}
-                placeholder="(collection default)"
-                resetLabel="Reset to collection default"
-              />
-              <NumberOverrideField
-                label={`Dim Vision Range${unitSuffix}`}
-                value={visionOuterInput}
-                onChange={setVisionOuterInput}
-                placeholder="(collection default)"
-                resetLabel="Reset to collection default"
-              />
-            </>
+          {WALLS_AND_LIGHTING_ENABLED && (
+            <TokenLightingFields vision={vision} onVisionChange={setVision} light={light} onLightChange={setLight} unit={unit} />
           )}
         </div>
 
@@ -164,6 +147,13 @@ function EditTokenModalInner({ initial, playerLinked, definitions, resourceDefau
   );
 }
 
+function lightingUpdates(vision: VisionForm, light: LightChoice): Pick<TokenUpdates, 'vision' | 'light'> {
+  return {
+    vision: visionFromForm(vision),
+    ...(light !== 'custom' && { light: carriedLight(light === 'none' ? null : light) }),
+  };
+}
+
 function readResourceDefaults(app: App, statblockPath: string | undefined, definitions: readonly ResourceDefinition[]): Record<string, ResourceValue> {
   const file = statblockPath ? app.vault.getAbstractFileByPath(statblockPath) : null;
   const frontmatter = file instanceof TFile ? app.metadataCache.getFileCache(file)?.frontmatter : undefined;
@@ -174,7 +164,12 @@ function readResourceDefaults(app: App, statblockPath: string | undefined, defin
  * Imperatively opens an Edit Token modal by mounting a React root.
  * Call from non-React code (e.g. InteractionController).
  */
-export function openEditTokenModal(token: TokenEntity, store: StoreApi<ViewAtlasState>, app: App, definitions: readonly ResourceDefinition[]): void {
+export function openEditTokenModal(
+  token: TokenEntity,
+  store: StoreApi<ViewAtlasState>,
+  app: App,
+  definitions: readonly ResourceDefinition[],
+): void {
   const character = token.kind === 'character' ? token : undefined;
   const resourceDefaults = readResourceDefaults(app, character?.statblockPath, definitions);
   const container = document.body.createDiv({ cls: 'atlas-vtt-plugin atlas-vtt-root' });
@@ -185,34 +180,33 @@ export function openEditTokenModal(token: TokenEntity, store: StoreApi<ViewAtlas
     container.remove();
   };
 
-  const handleSave = ({ name, showNameplate, maxima, visionInnerRadius, visionOuterRadius }: EditTokenValues): void => {
+  const handleSave = ({ name, showNameplate, maxima, vision, light }: EditTokenValues): void => {
     store.getState().updateToken(token.id, {
       name,
       showNameplate,
-      visionInnerRadius,
-      visionOuterRadius,
+      ...(WALLS_AND_LIGHTING_ENABLED ? lightingUpdates(vision, light) : {}),
       ...buildResourceEdits(character ?? {}, definitions.map((definition) => ({ definition, max: maxima[definition.key] })), resourceDefaults),
     });
     cleanup();
   };
 
-  const unitLabel = unitLabelFor(store.getState().grid?.unitType);
-
+  // Its own React root, so no provider above it: the vision switch's tooltip needs one.
   root.render(
-    <EditTokenModalInner
-      initial={{
-        name: character?.name ?? '',
-        showNameplate: token.showNameplate ?? false,
-        maxima: Object.fromEntries(definitions.map(({ key }) => [key, character?.resources?.[key]?.max])),
-        visionInnerRadius: token.visionInnerRadius,
-        visionOuterRadius: token.visionOuterRadius,
-      }}
-      playerLinked={character?.playerLinked ?? false}
-      definitions={definitions}
-      resourceDefaults={resourceDefaults}
-      unitLabel={unitLabel}
-      onSave={handleSave}
-      onClose={cleanup}
-    />,
+    <TooltipProvider delayDuration={300}>
+      <EditTokenModalInner
+        initial={{
+          name: character?.name ?? '',
+          showNameplate: token.showNameplate ?? false,
+          maxima: Object.fromEntries(definitions.map(({ key }) => [key, character?.resources?.[key]?.max])),
+          vision: visionForm(token.vision),
+          light: token.light ? presetOf(token.light) ?? 'custom' : 'none',
+        }}
+        unit={unitLabelFor(store.getState().grid?.unitType)}
+        definitions={definitions}
+        resourceDefaults={resourceDefaults}
+        onSave={handleSave}
+        onClose={cleanup}
+      />
+    </TooltipProvider>,
   );
 }

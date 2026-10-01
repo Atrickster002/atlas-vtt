@@ -8,10 +8,9 @@
 import type { ResourceDefinition } from '../resources/resourceTypes';
 import type { CreatureFilterDefinition } from './creatureFilterTypes';
 import type { DiceRules } from './diceRulesTypes';
-import type { VisionSettings } from './wallTypes';
+import type { TokenVisionDefaults } from './lightingTypes';
 import type { AnyWidget } from './widgetTypes';
 import type { WidgetIcon } from './widgetIcons';
-export type { VisionSettings } from './wallTypes';
 
 /** A user-defined abstract distance band for the measurement tool */
 export interface RangeBand {
@@ -53,7 +52,8 @@ export interface CollectionSettings {
   widgets?: Record<string, AnyWidget>;
   gridDefaults?: CollectionGridDefaults;
   conditions: ConditionDefinition[];
-  vision?: VisionSettings;
+  /** What new tokens placed from this collection's library start with; vision itself starts off. Unset: no vision on new tokens. */
+  defaultTokenVision?: TokenVisionDefaults | undefined;
   /** The game system preset the rules were last taken from or saved to; they may have been edited since. */
   systemPresetId?: string | undefined;
   /** Default roll and critical rule. Read with `collectionDiceRules`. */

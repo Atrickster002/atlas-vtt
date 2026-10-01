@@ -16,6 +16,8 @@ import type { AtlasView } from '../../../../atlas-view';
 import type { TokenInput } from '../../../../storeFactory';
 import { loadAtlasView } from '../../../../plugin/atlasLeaves';
 import { migrateTokenState } from '../../../../resources/resourceMigration';
+import { mapVisionDefaults } from '../../../../gameSystems/visionDefaults';
+import type { TokenVision, TokenVisionDefaults } from '../../../../types/lightingTypes';
 
 // ─── Viewport helpers ───────────────────────────────────────────────
 
@@ -134,6 +136,7 @@ interface TokenSpawnData extends StatblockOverrides {
   statblockPath?: string;
   size?: number;
   showRing?: boolean;
+  vision?: TokenVision;
 }
 
 /** What a spawned token inherits from its asset. */
@@ -174,11 +177,18 @@ async function resolveTokenSource(ctx: SpawnContext, ref: TokenSourceRef): Promi
   };
 }
 
+/** What new tokens start with in the scene they are spawned into, from its collection. */
+function spawnVisionDefaults(ctx: SpawnContext, target: SpawnTarget): TokenVisionDefaults | undefined {
+  return ctx.assetService ? mapVisionDefaults(ctx.assetService, target.view.getStore().getState().mapPath) : undefined;
+}
+
+/** Builds a token from its asset; `visionDefaults` (the placing collection's) start vision off. */
 async function buildTokenData(
   app: ObsidianApp,
   pos: { x: number; y: number },
   { imagePath, name, statblockPath, size, showRing }: TokenSource,
   definitions: readonly ResourceDefinition[],
+  visionDefaults: TokenVisionDefaults | undefined,
 ): Promise<TokenSpawnData> {
   const data: TokenSpawnData = {
     x: pos.x,
@@ -196,6 +206,8 @@ async function buildTokenData(
     const overrides = await loadStatblockOverrides(app, statblockPath, definitions);
     Object.assign(data, overrides);
   }
+
+  if (visionDefaults) data.vision = { enabled: false, ...visionDefaults };
 
   return data;
 }
@@ -239,7 +251,7 @@ export async function spawnTokenAsset(
   if (!source) return [];
 
   // The statblock is read once; every copy shares that data at its own position.
-  const template = await buildTokenData(ctx.app, center, source, targetResources(ctx, target));
+  const template = await buildTokenData(ctx.app, center, source, targetResources(ctx, target), spawnVisionDefaults(ctx, target));
   const tokens = Array.from({ length: count }, (_, i): TokenInput => ({
     ...structuredClone(template),
     ...gridPosition(i, count, center.x, center.y, pitch, gridSystem),
@@ -267,6 +279,7 @@ export async function spawnEncounterTokens(
     : null;
 
   const definitions = targetResources(ctx, target);
+  const visionDefaults = spawnVisionDefaults(ctx, target);
   const tokens: TokenInput[] = [];
   for (let i = 0; i < tokensToSpawn.length; i++) {
     const token = tokensToSpawn[i];
@@ -300,7 +313,7 @@ export async function spawnEncounterTokens(
     }
     const source = await resolveTokenSource(ctx, token);
     if (source && imageExists(ctx.app, source.imagePath)) {
-      tokens.push(await buildTokenData(ctx.app, pos, source, definitions));
+      tokens.push(await buildTokenData(ctx.app, pos, source, definitions, visionDefaults));
     }
   }
 
@@ -326,6 +339,7 @@ export async function spawnSelectedTokens(
   const tokensToSpawn = selectedAssets.filter(a => a.type === 'tokens');
 
   const definitions = targetResources(ctx, target);
+  const visionDefaults = spawnVisionDefaults(ctx, target);
   const tokens: TokenInput[] = [];
   for (let i = 0; i < tokensToSpawn.length; i++) {
     const tokenAsset = tokensToSpawn[i];
@@ -334,7 +348,7 @@ export async function spawnSelectedTokens(
     const source = await resolveTokenSource(ctx, tokenAsset);
     if (!source) continue;
     const pos = gridPosition(i, tokensToSpawn.length, center.x, center.y, pitch, gridSystem);
-    tokens.push(await buildTokenData(ctx.app, pos, source, definitions));
+    tokens.push(await buildTokenData(ctx.app, pos, source, definitions, visionDefaults));
   }
 
   return addSpawnedTokens(target, tokens);

@@ -464,7 +464,10 @@ export class UIManager implements ITokenUIManager {
   }
 
   /** Cached player overlays keep player preferences independent of the DM UI. */
-  getPlayerViewLayers(settings: Pick<AtlasSettings['localPlayerView'], 'showTokenNameplates'>): LayerVisibility[] {
+  getPlayerViewLayers(
+    settings: Pick<AtlasSettings['localPlayerView'], 'showTokenNameplates'>,
+    isSeen: (tokenId: string) => boolean = () => true,
+  ): LayerVisibility[] {
     if (!this.playerUIContainer) {
       this.playerUIContainer = new Container();
       this.playerUIContainer.zIndex = this.uiContainer.zIndex;
@@ -487,7 +490,7 @@ export class UIManager implements ITokenUIManager {
       ui.resourceDefsProvider = () => this.resourceDefsProvider();
       ui.update(token, sprite.tokenSize || 70, settings);
       ui.getContainer().position.copyFrom(sprite.position);
-      ui.getContainer().renderable = sprite.visible && !token.isHidden;
+      ui.getContainer().renderable = sprite.visible && !token.isHidden && isSeen(tokenId);
     }
     const dmControls: Container[] = [
       ...(this.tokenControlsUI ? [this.tokenControlsUI.getContainer()] : []),

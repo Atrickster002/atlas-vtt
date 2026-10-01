@@ -2,7 +2,7 @@
  * CollectionSettingsModal
  *
  * Vertical-tabbed modal for configuring per-collection settings:
- *   Game System | Dice | Grid & Measurement | Default Widgets | Conditions | Resources | Creature Filters | Loot | Vision
+ *   Game System | Dice | Grid & Measurement | Vision | Default Widgets | Conditions | Resources | Creature Filters | Loot
  *
  * Opens after collection creation and via a gear button in the sidebar.
  */
@@ -10,7 +10,7 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { motion } from 'framer-motion';
-import { Dice5, Dices, Gauge, Grid3X3, LayoutGrid, ListFilter, ShieldAlert, Eye } from 'lucide-react';
+import { Dice5, Dices, Eye, Gauge, Grid3X3, LayoutGrid, ListFilter, ShieldAlert } from 'lucide-react';
 import { CoinIcon } from './CoinIcon';
 import { Button } from '../../packages/components/primitives/button';
 import { useAtlasUI } from '../root/AtlasUIContext';
@@ -22,11 +22,11 @@ import { useSystemPresets } from '../hooks/useSystemPresets';
 import { savedResources, useCollectionSettingsDraft } from './collection-settings/useCollectionSettingsDraft';
 
 import { GridMeasurementTab } from './collection-settings/GridMeasurementTab';
+import { VisionTab } from './collection-settings/VisionTab';
 import { DefaultWidgetsTab } from './collection-settings/DefaultWidgetsTab';
 import { ConditionsTab } from './collection-settings/ConditionsTab';
 import { ResourcesTab } from './collection-settings/ResourcesTab';
 import { discoverResourceFields } from '../../resources/resourceFields';
-import { VisionTab } from './collection-settings/VisionTab';
 import { LootTab } from './collection-settings/LootTab';
 import { SystemTab } from './collection-settings/SystemTab';
 import { DiceTab } from './collection-settings/DiceTab';
@@ -34,8 +34,7 @@ import { collectionDiceRules, isValidDefaultRoll } from '../../gameSystems/diceR
 import { CreatureFiltersTab } from './collection-settings/CreatureFiltersTab';
 import { useCollectionCreatures } from './collection-settings/useCollectionCreatures';
 import { isCompleteCreatureFilter } from '../../creatures/creatureFilterDefinitions';
-import { WALLS_AND_LIGHTING_ENABLED } from '../../featureFlags';
-import { areRangeBandsValid, unitLabelFor } from '../../grid/measurementFormat';
+import { areRangeBandsValid } from '../../grid/measurementFormat';
 
 import { CloseButton } from '../../packages/components/primitives/CloseButton';
 import { dialogOverlayMotion, useDialogWindowVariants } from '../../packages/components/primitives/dialogMotion';
@@ -50,7 +49,7 @@ interface CollectionSettingsModalProps {
   initialTab?: CollectionSettingsTab;
 }
 
-export type CollectionSettingsTab = 'system' | 'dice' | 'grid' | 'widgets' | 'conditions' | 'resources' | 'creatureFilters' | 'loot' | 'vision';
+export type CollectionSettingsTab = 'system' | 'dice' | 'grid' | 'vision' | 'widgets' | 'conditions' | 'resources' | 'creatureFilters' | 'loot';
 
 interface TabDef {
   id: CollectionSettingsTab;
@@ -62,12 +61,12 @@ const TABS: TabDef[] = [
   { id: 'system', label: 'Game System', icon: <Dices size={16} /> },
   { id: 'dice', label: 'Dice', icon: <Dice5 size={16} /> },
   { id: 'grid', label: 'Grid & Measure', icon: <Grid3X3 size={16} /> },
+  { id: 'vision', label: 'Vision', icon: <Eye size={16} /> },
   { id: 'widgets', label: 'Default Widgets', icon: <LayoutGrid size={16} /> },
   { id: 'conditions', label: 'Conditions', icon: <ShieldAlert size={16} /> },
   { id: 'resources', label: 'Resources', icon: <Gauge size={16} /> },
   { id: 'creatureFilters', label: 'Creature Filters', icon: <ListFilter size={16} /> },
   { id: 'loot', label: 'Loot', icon: <CoinIcon size={16} /> },
-  ...(WALLS_AND_LIGHTING_ENABLED ? [{ id: 'vision' as const, label: 'Vision', icon: <Eye size={16} /> }] : []),
 ];
 
 // ── Component ──────────────────────────────────────────────────────────────
@@ -197,7 +196,14 @@ export function CollectionSettingsModal({
               <SystemTab
                 service={systemPresets.service}
                 presets={systemPresets.presets}
-                rules={{ gridDefaults, conditions, defaultWidgets: draft.defaultWidgets, dice, resources: savedResources(draft.resources) }}
+                rules={{
+                  gridDefaults,
+                  conditions,
+                  defaultWidgets: draft.defaultWidgets,
+                  dice,
+                  resources: savedResources(draft.resources),
+                  ...(draft.defaultTokenVision && { defaultTokenVision: draft.defaultTokenVision }),
+                }}
                 presetId={draft.systemPresetId}
                 onApplyPreset={draft.applyPreset}
                 onPresetIdChange={draft.setSystemPresetId}
@@ -211,6 +217,13 @@ export function CollectionSettingsModal({
               <GridMeasurementTab
                 gridDefaults={gridDefaults}
                 onChange={draft.setGridDefaults}
+              />
+            )}
+            {activeTab === 'vision' && (
+              <VisionTab
+                gridDefaults={gridDefaults}
+                vision={draft.defaultTokenVision}
+                onChange={draft.setDefaultTokenVision}
               />
             )}
             {activeTab === 'widgets' && (
@@ -249,13 +262,6 @@ export function CollectionSettingsModal({
                 onBasesChange={draft.setLootBases}
                 currency={draft.lootCurrency}
                 onCurrencyChange={draft.setLootCurrency}
-              />
-            )}
-            {activeTab === 'vision' && (
-              <VisionTab
-                vision={draft.vision}
-                onChange={draft.setVision}
-                unitLabel={unitLabelFor(gridDefaults.unitType)}
               />
             )}
           </div>

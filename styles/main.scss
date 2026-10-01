@@ -62,6 +62,7 @@
   @import '../src/app/packages/components/asset-manager/token-creator/token-creator.scss';
   @import '../src/app/packages/components/primitives/context-menu.scss';
   @import '../src/app/packages/components/primitives/dropdown-menu.scss';
+  @import '../src/app/packages/components/toolbar/scene-lighting-section.scss';
   @import '../src/app/packages/components/primitives/toggle.scss';
   @import '../src/app/packages/components/primitives/input-modal.scss';
   @import '../src/app/packages/components/primitives/select.scss';
@@ -83,6 +84,7 @@
   @import '../src/app/react/components/dashboard.scss';
   @import '../src/app/react/components/dice-log/dice-roll-log.scss';
   @import '../src/app/react/components/loot/loot-roller.scss';
+  @import '../src/app/pixi/lighting/light-panel.scss';
   @import '../src/app/react/components/loot/loot-source-tree.scss';
   @import '../src/app/react/components/loot/loot-roll-bar.scss';
   @import '../src/app/react/components/loot/loot-lists.scss';
