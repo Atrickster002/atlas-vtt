@@ -6,10 +6,11 @@ import type { EngineLight } from '../types';
 import { sealWalls } from '../../../../lighting/sealWalls';
 import { placeLight } from '../../../../lighting/lightPlacement';
 import { allSegments, splitBlocking } from '../../../../lighting/segments';
-import { LIGHT_REACH, sealTolerance, worldTexel } from '../../../../lighting/lightingConstants';
+import { DARKNESS, LIGHT_REACH, TILE_SMOOTH, sealTolerance, wallRadius, worldTexel } from '../../../../lighting/lightingConstants';
 import { SEES_ALL, computeSight, type SenseSource, type Sight } from '../../../../vision/sight';
 import type { SeenSpot } from '../../../../vision/perception';
 import { blocksFrom } from '../../../../vision/visibility';
+import { distSqToSegment } from '../../../../vision/visionGeometry';
 import type { MeasurementSettings } from '../../../../grid/measurementFormat';
 import type { TokenEntity } from '../../../../types';
 import { SceneSpots, type SceneModel } from '../../sceneModel';
@@ -71,6 +72,20 @@ const SENSE_SETS: SenseSource[][] = [
 ];
 const TRIALS = Number(import.meta.env.VITE_LEAK_TRIALS ?? 24);
 
+/**
+ * Whether the straight path from `from` to `to` keeps `margin` px clear of every wall: checked
+ * every 3 px along it, so a point for which this holds has the whole source in plain view.
+ */
+function clearPath(from: P, to: P, walls: readonly WallSegment[], margin: number): boolean {
+  const length = Math.hypot(to[0] - from[0], to[1] - from[1]);
+  const steps = Math.max(1, Math.ceil(length / 3));
+  for (let i = 0; i <= steps; i++) {
+    const point = { x: from[0] + ((to[0] - from[0]) * i) / steps, y: from[1] + ((to[1] - from[1]) * i) / steps };
+    for (const wall of walls) if (distSqToSegment(point, wall.p1, wall.p2) < margin * margin) return false;
+  }
+  return true;
+}
+
 interface Report {
   rooms: number;
   /** Rooms with a closed door, with one-way walls, with two lights among their outline. */
@@ -92,6 +107,13 @@ interface Report {
   litInside: number;
   /** Lit pixels inside the room beyond every light's reach: only bounce lights them. */
   bounceInside: number;
+  /** Rooms with a source of magical darkness, in daylight with every light on. */
+  darkRooms: number;
+  /** Pixels past the walls of such a room that differ from the same room without the darkness. */
+  darkLeaks: number;
+  /** Pixels in plain view of the darkness source, well within its radius, and those of them that show more than its veil. */
+  darkInside: number;
+  darkRevealed: number;
 }
 
 interface FuzzOptions {
@@ -104,6 +126,8 @@ interface FuzzOptions {
   resolution?: number;
   /** Draws each footprint as a whole disc, ignoring the walls (a negative control). */
   wholeFootprints?: boolean;
+  /** Gives every light a priority above the darkness, so it shines in it (a negative control). */
+  outshine?: boolean;
 }
 
 /**
@@ -116,8 +140,13 @@ interface FuzzOptions {
  * vision; held to the same line as sight) and the footprints of tokens shown where no sense
  * shows the map (a lit map, the lights on, no sight at all: tokens of size 1, 2 and 4 that hug a
  * wall, stand in a corner, straddle a door or stand anywhere; held to the same line as sight).
+ * Every other room also gets a source of magical darkness where its last light stands: in
+ * daylight with every light on, nothing past the walls may differ from the room without it
+ * (darkness ends at walls like light), and what the source has in plain view well within its
+ * radius shows nothing but its veil (the lights and the day are swallowed, not let through);
+ * that room's senses are fuzzed with the darkness in place, some of which see in it.
  */
-async function fuzz({ seed, trials, gap = false, bounds = { width: 2048, height: 2048 }, resolution = 1, wholeFootprints = false }: FuzzOptions): Promise<Report> {
+async function fuzz({ seed, trials, gap = false, bounds = { width: 2048, height: 2048 }, resolution = 1, wholeFootprints = false, outshine = false }: FuzzOptions): Promise<Report> {
   const renderer = await createTestRenderer(SIZE, resolution);
   const engine = new LightingEngine(renderer);
   const target = RenderTexture.create({ width: SIZE, height: SIZE, resolution });
@@ -126,7 +155,7 @@ async function fuzz({ seed, trials, gap = false, bounds = { width: 2048, height:
     engine.setEnabled(true);
     engine.setMode('player');
     const rand = rng(seed + 1);
-    const report: Report = { rooms: 0, doors: 0, oneWay: 0, twoLights: 0, checked: 0, leaks: 0, sightChecked: 0, sightLeaks: 0, senseLeaks: 0, senseInside: 0, spots: 0, spotLeaks: 0, spotInside: 0, litInside: 0, bounceInside: 0 };
+    const report: Report = { rooms: 0, doors: 0, oneWay: 0, twoLights: 0, checked: 0, leaks: 0, sightChecked: 0, sightLeaks: 0, senseLeaks: 0, senseInside: 0, spots: 0, spotLeaks: 0, spotInside: 0, litInside: 0, bounceInside: 0, darkRooms: 0, darkLeaks: 0, darkInside: 0, darkRevealed: 0 };
     for (const room of fuzzRooms(seed, trials, gap)) {
       const texel = worldTexel(bounds);
       const walls = sealWalls(room.walls, sealTolerance(texel));
@@ -158,9 +187,29 @@ async function fuzz({ seed, trials, gap = false, bounds = { width: 2048, height:
       const lit = shoot(false);
       const seen = shoot(true);
       const senses = SENSE_SETS[report.rooms % SENSE_SETS.length]!;
-      engine.update({ bounds, albedo: null, walls, lights, sight: computeSight(sources.map((source) => ({ ...source, senses })), walls), sightRadius, ambient: 0 });
+      const last = room.lights[room.lights.length - 1]!;
+      const darkness: EngineLight | null = report.rooms % 2 === 0
+        ? { key: 'darkness', x: last[0], y: last[1], bright: 0, dim: 100 + rand() * 400, flame: 2 + rand() * 40, color: [1, 1, 1], intensity: 1, animation: 'none', darkness: true }
+        : null;
+      const withDarkness = darkness ? [...lights.map((light) => (outshine ? { ...light, priority: 1 } : light)), darkness] : lights;
+      engine.update({ bounds, albedo: null, walls, lights: withDarkness, sight: computeSight(sources.map((source) => ({ ...source, senses })), walls), sightRadius, ambient: 0 });
       engine.flush();
       const sensed = renderView(renderer, engine, target, bounds, scale, x, y);
+      let day: Uint8ClampedArray | null = null;
+      let darkened: Uint8ClampedArray | null = null;
+      if (darkness) {
+        report.darkRooms++;
+        for (const list of [lights, withDarkness]) {
+          engine.update({ bounds, albedo: null, walls, lights: list, sight: SEES_ALL, sightRadius, ambient: 1 });
+          engine.flush();
+          const shot = renderView(renderer, engine, target, bounds, scale, x, y);
+          if (list === lights) day = shot;
+          else darkened = shot;
+        }
+      }
+      // Where the engine places the darkness, and how far its soft rim and a wall's shadow reach into what it covers.
+      const source = darkness && placeLight(darkness.x, darkness.y, darkness.flame, allSegments(splitBlocking(walls)), texel);
+      const shadow = source ? source.flame + wallRadius(texel) + (TILE_SMOOTH + 2) * texel : 0;
       const spots = footprints(room, outline, wholeFootprints ? [] : walls, rand);
       report.spots += spots.length;
       engine.update({ bounds, albedo: null, walls, lights, sight: NO_SIGHT, spots, sightRadius, ambient: 1 });
@@ -191,6 +240,16 @@ async function fuzz({ seed, trials, gap = false, bounds = { width: 2048, height:
             if (spotted[o]! + spotted[o + 1]! + spotted[o + 2]! > 0) report.spotLeaks++;
           }
           if (inside && spotted[o]! + spotted[o + 1]! + spotted[o + 2]! > 0) report.spotInside++;
+          if (day && darkened && !inside && d > 0.01) {
+            if (Math.abs(day[o]! - darkened[o]!) + Math.abs(day[o + 1]! - darkened[o + 1]!) + Math.abs(day[o + 2]! - darkened[o + 2]!) > 3) report.darkLeaks++;
+          }
+          // Every fourth pixel: the path to the source is walked for each.
+          if (darkened && darkness && source && inside && sx % 4 === 0 && sy % 4 === 0
+            && Math.hypot(p[0] - source.x, p[1] - source.y) < darkness.dim * (1 - 2 * DARKNESS.softEdge)
+            && clearPath(p, [source.x, source.y], walls, shadow)) {
+            report.darkInside++;
+            if (darkened[o]! + darkened[o + 1]! + darkened[o + 2]! > 36) report.darkRevealed++;
+          }
           if (inside && lit[o]! === 0 && sensed[o]! + sensed[o + 1]! + sensed[o + 2]! > 0) report.senseInside++;
         }
       }
@@ -235,7 +294,9 @@ describe('leak fuzz', () => {
     expect(report.senseInside).toBeGreaterThan(TRIALS * 100);
     expect(report.spots).toBeGreaterThan(TRIALS * 4);
     expect(report.spotInside).toBeGreaterThan(TRIALS * 100);
-    expect(report).toMatchObject({ leaks: 0, sightLeaks: 0, senseLeaks: 0, spotLeaks: 0 });
+    expect(report.darkRooms).toBeGreaterThan(TRIALS / 3);
+    expect(report.darkInside).toBeGreaterThan(TRIALS * 20);
+    expect(report).toMatchObject({ leaks: 0, sightLeaks: 0, senseLeaks: 0, spotLeaks: 0, darkLeaks: 0, darkRevealed: 0 });
   });
 
   it('holds on a map large enough for coarser texels', { timeout: 600_000 }, async () => {
@@ -261,11 +322,19 @@ describe('leak fuzz', () => {
 
   it('finds light and sight past a wall with a gap (the check can fail)', async () => {
     // Nine tenths of one wall open.
-    const report = await fuzz({ seed: 11, trials: 6, gap: 0.9 });
+    const report = await fuzz({ seed: 11, trials: 20, gap: 0.9 });
     console.info(`negative control: ${JSON.stringify(report)}`);
     expect(report.leaks).toBeGreaterThan(1000);
     expect(report.sightLeaks).toBeGreaterThan(1000);
     expect(report.senseLeaks).toBeGreaterThan(1000);
+    expect(report.darkLeaks).toBeGreaterThan(1000);
+  });
+
+  it('finds light inside a darkness that every light outranks (the check can fail)', async () => {
+    const report = await fuzz({ seed: 11, trials: 20, outshine: true });
+    console.info(`negative control (outshone darkness): ${JSON.stringify(report)}`);
+    expect(report.darkInside).toBeGreaterThan(100);
+    expect(report.darkRevealed).toBeGreaterThan(report.darkInside / 4);
   });
 
   it('finds a footprint past a wall when it is drawn as a whole disc (the check can fail)', async () => {
