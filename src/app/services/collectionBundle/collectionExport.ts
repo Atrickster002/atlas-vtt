@@ -171,6 +171,7 @@ export async function exportCollectionBundle(
       vaultPath: bundlePath,
       sha256: await sha256(data),
       ...(file.owners && { owners: file.owners.map(named) }),
+      ...(file.linkedFrom && { linkedFrom: file.linkedFrom.map(named) }),
       ...(file.statblockImage && { statblockImage: { ...file.statblockImage, path: named(file.statblockImage.path) } }),
     });
     zip.file(zipPathFor(bundlePath), data, { compression: STORED_EXTENSIONS.test(bundlePath) ? 'STORE' : 'DEFLATE' });

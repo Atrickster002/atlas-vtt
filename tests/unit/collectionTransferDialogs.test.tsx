@@ -220,6 +220,25 @@ describe('export options', () => {
     expect((screen.getByRole('button', { name: 'Export v3' }) as HTMLButtonElement).disabled).toBe(true);
   });
 
+  it('lists notes below the note that led to them, says why each is there, and leaves out what only an unticked note links to', () => {
+    const files: ExportPreview['files'] = [
+      { vaultPath: 'Lore/Cave.md', role: 'linked-note', owners: ['cave'] },
+      { vaultPath: 'Lore/Pelor.md', role: 'linked-note', linkedFrom: ['Lore/Cave.md'] },
+      { vaultPath: 'Lore/Sun.md', role: 'linked-note', linkedFrom: ['Lore/Pelor.md'] },
+      { vaultPath: 'Lore/sun.png', role: 'note-attachment', linkedFrom: ['Lore/Sun.md'] },
+    ];
+    const { container } = render(<ExportCollectionDialog media={media} preview={preview({ files })} onExport={vi.fn(async () => null)} onCancel={vi.fn()} />);
+    fireEvent.click(screen.getByRole('button', { name: /Notes/ }));
+    const rows = (): string[] => [...container.querySelectorAll('.atlas-transfer-item')].map((row) => row.textContent ?? '');
+    expect(rows()).toEqual(['CaveOpened in Cave2 linked notes', 'PelorLinked from Cave1 linked note', 'SunLinked from Pelor']);
+    expect(screen.getByText('5 items · 4 files · 0 Bytes')).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('checkbox', { name: /^Pelor/ }));
+    expect(screen.getByRole('button', { name: /Notes/ }).textContent).toContain('1 of 3');
+    expect(rows()[2]).toBe('SunOnly used by content you left out');
+    expect(screen.getByText('3 items · 1 file · 0 Bytes')).toBeTruthy();
+  });
+
   it('names nothing through aria-label or title, and shows no banner without a cover', () => {
     const { container } = render(<ExportCollectionDialog media={media} preview={preview({ publisher: 'other' })} onExport={vi.fn(async () => null)} onCancel={vi.fn()} />);
     expect(container.querySelectorAll('[aria-label], [title]')).toHaveLength(0);

@@ -70,7 +70,7 @@ function GroupRow({ group, media, selection }: GroupRowProps): React.JSX.Element
             <div className="atlas-transfer-group__items">
               {group.category === 'tokens'
                 ? <TokenGrid items={group.items} media={media} selection={selection} />
-                : <ItemGrid items={group.items} selection={selection} />}
+                : <ItemGrid items={group.items} selection={selection} tree={group.category === 'notes'} />}
             </div>
           )}
         </div>
