@@ -14,18 +14,22 @@ const CONTENT = JSON.stringify({ version: 4, state: { objects: { tokens: {} } } 
 
 afterEach(() => vi.restoreAllMocks());
 
-/** A map view showing `SCENE`'s tab, with or without the scene loaded into its store. */
-function setup(scene: { mapLoaded: boolean; mapPath: string | null }): { app: App; files: Map<string, string>; view: AtlasView; saveMap: ReturnType<typeof vi.fn> } {
-  const { app, files } = createInMemoryApp({ files: { [SCENE]: CONTENT } });
+/** A map view on `SCENE`'s tab, whose store is in the given state. */
+function setup(scene: { mapLoaded: boolean; mapPath: string | null }, otherFiles: Record<string, string> = {}): {
+  app: App; files: Map<string, string>; view: AtlasView; saveMap: ReturnType<typeof vi.fn>; reloadActiveScene: ReturnType<typeof vi.fn>;
+} {
+  const { app, files } = createInMemoryApp({ files: { [SCENE]: CONTENT, ...otherFiles } });
   const saveMap = vi.fn().mockResolvedValue(undefined);
+  const reloadActiveScene = vi.fn(async (rewrite: (file: TFile) => Promise<void>) => rewrite(new TFile(SCENE)));
   const view = Object.assign(Object.create(AtlasView.prototype) as AtlasView, {
     file: new TFile(SCENE),
     getStore: () => ({ getState: () => ({ isPlayerView: false, ...scene }) }),
     saveMap,
+    reloadActiveScene,
   });
   app.workspace = { getLeavesOfType: () => [{ view }] } as unknown as App['workspace'];
   vi.spyOn(AssetService, 'getInstance').mockReturnValue({ getCollectionForMap: () => 'umbra' } as unknown as AssetService);
-  return { app, files, view, saveMap };
+  return { app, files, view, saveMap, reloadActiveScene };
 }
 
 const update = (updateOpen = vi.fn()): { updateOpen: ReturnType<typeof vi.fn>; rewrite: (content: string) => string } => ({
@@ -53,6 +57,29 @@ describe('updating every scene of a collection', () => {
 
     expect(sceneUpdate.updateOpen).not.toHaveBeenCalled();
     expect(saveMap).not.toHaveBeenCalled();
+    expect(files.get(SCENE)).toContain('"updated":true');
+  });
+
+  it('goes by the scene a store holds, not by the tab: the tab may name a scene that did not open', async () => {
+    const other = 'atlas-vtt/collections/umbra/scenes/Inn.atlasmap';
+    const { app, files, view } = setup({ mapLoaded: true, mapPath: other }, { [other]: CONTENT });
+    const sceneUpdate = update();
+
+    await updateCollectionScenes(app, 'umbra', sceneUpdate);
+
+    expect(sceneUpdate.updateOpen.mock.calls).toEqual([[view]]);
+    expect(files.get(other)).toBe(CONTENT);
+    expect(files.get(SCENE)).toContain('"updated":true');
+  });
+
+  it('updates the file of a scene that is still loading through its view, so the load cannot finish on the old content', async () => {
+    const { app, files, reloadActiveScene } = setup({ mapLoaded: false, mapPath: SCENE });
+    const sceneUpdate = update();
+
+    await updateCollectionScenes(app, 'umbra', sceneUpdate);
+
+    expect(sceneUpdate.updateOpen).not.toHaveBeenCalled();
+    expect(reloadActiveScene).toHaveBeenCalledTimes(1);
     expect(files.get(SCENE)).toContain('"updated":true');
   });
 });
