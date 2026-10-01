@@ -59,15 +59,44 @@ export function tokenPerception(
   ambient: AmbientLight,
   lights: readonly LightReach[],
   tokens: Record<string, TokenEntity>,
-  { conditions = [], held = {} }: PerceptionOptions = {},
+  options: PerceptionOptions = {},
+  memo?: PerceptionMemo,
 ): TokenPerception {
+  const { conditions = [], held = {} } = options;
+  // Every consumer of a frame asks about every token: each is worked out once, and with a memo once for all frames.
+  const known = memo?.of(sight, ambient, lights, options) ?? new WeakMap<TokenEntity, Perception>();
+  const perceived = (token: TokenEntity): Perception => {
+    const at = { x: token.x, y: token.y };
+    if (token.vision?.enabled) return !movedWhileHeld(token, held) || withinReach(at, sight) ? 'seen' : 'unseen';
+    return perceive(at, sight, () => lightLevelAt(at, ambient, lights), targetOf(tokenEffects(token, conditions)));
+  };
   return (tokenId) => {
     const token = tokens[tokenId];
     if (!token) return 'unseen';
-    const at = { x: token.x, y: token.y };
-    if (token.vision?.enabled) return !movedWhileHeld(token, held) || withinReach(at, sight) ? 'seen' : 'unseen';
-    return perceive(at, sight, lightLevelAt(at, ambient, lights), targetOf(tokenEffects(token, conditions)));
+    let perception = known.get(token);
+    if (!perception) known.set(token, perception = perceived(token));
+    return perception;
   };
+}
+
+/**
+ * What `tokenPerception` worked out, kept from one call to the next while the sight, the light,
+ * the conditions and the held tokens are the same objects: a mirrored frame then looks every
+ * token up. Each answer is kept by its token, and the store hands out a new token whenever one
+ * changes, so only a changed token is worked out again.
+ */
+export class PerceptionMemo {
+  private inputs: readonly unknown[] = [];
+  private known = new WeakMap<TokenEntity, Perception>();
+
+  of(sight: Sight, ambient: AmbientLight, lights: readonly LightReach[], { conditions, held }: PerceptionOptions): WeakMap<TokenEntity, Perception> {
+    const inputs = [sight, ambient, lights, conditions, held];
+    if (inputs.some((input, i) => input !== this.inputs[i])) {
+      this.inputs = inputs;
+      this.known = new WeakMap();
+    }
+    return this.known;
+  }
 }
 
 /**
@@ -78,7 +107,8 @@ export function playerTokenSight(
   lighting: Pick<SceneLightingView, 'isEnabled' | 'currentSight' | 'ambientLight' | 'lightReaches'>,
   tokens: Record<string, TokenEntity>,
   options?: PerceptionOptions,
+  memo?: PerceptionMemo,
 ): TokenPerception | undefined {
   if (!lighting.isEnabled()) return undefined;
-  return tokenPerception(lighting.currentSight(), lighting.ambientLight(), lighting.lightReaches(), tokens, options);
+  return tokenPerception(lighting.currentSight(), lighting.ambientLight(), lighting.lightReaches(), tokens, options, memo);
 }

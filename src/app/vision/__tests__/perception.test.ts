@@ -8,7 +8,8 @@ import type { WallSegment } from '../../types/wallTypes';
 import type { TokenVision } from '../../types/lightingTypes';
 import { exploredShapes } from '../exploredShapes';
 import { perceive, regionContains, seenSpots, type PerceivedTarget, type Perception } from '../perception';
-import { computeSight, lightReach, sceneSight, sightSources } from '../sight';
+import { computeSight, lightReach, sceneSight, sightSources, type SightRegion } from '../sight';
+import { pointInPolygon } from '../visibility';
 import type { SightRules } from '../sightRules';
 
 /** One game unit is one world pixel. */
@@ -201,7 +202,45 @@ describe('perceive without vision tokens', () => {
   });
 });
 
+describe('perceive and the light level', () => {
+  const sight = computeSight(sightSources({ viewer: viewerWith('darkvision') }, scale, bounds, rules), [wall]);
+
+  it('asks for the light only where a sense reaches as far, and once', () => {
+    let asked = 0;
+    const level = (): LightLevel => { asked++; return 'dark'; };
+    const darkvisionOnly = { all: false, regions: sight.regions.slice(1) };
+    expect(perceive({ x: 900, y: 900 }, darkvisionOnly, level)).toBe('unseen');
+    expect(perceive(FAR, darkvisionOnly, level)).toBe('unseen');
+    expect(asked).toBe(0);
+    expect(perceive(NEAR, sight, level)).toBe('seen');
+    expect(asked).toBe(1);
+  });
+
+  it('looks at no polygon of a sense that perceives nothing in that light', () => {
+    const [seeing] = sight.regions;
+    const never = { ...seeing!, polygon: new Proxy(seeing!.polygon!, { get: () => { throw new Error('the polygon was read'); } }) };
+    expect(perceive(NEAR, { all: false, regions: [never] }, 'dark')).toBe('unseen');
+    expect(() => perceive(NEAR, { all: false, regions: [never] }, 'bright')).toThrow('the polygon was read');
+  });
+
+  it('answers the same whether it is given the level or asked to find it', () => {
+    for (const point of [NEAR, BEHIND, FAR, VIEWER, { x: 900, y: 900 }]) {
+      for (const level of LEVELS) expect(perceive(point, sight, () => level)).toBe(perceive(point, sight, level));
+    }
+  });
+});
+
 describe('regionContains', () => {
+  it('rules a point out by its distance before it looks at the polygon, with the same answer', () => {
+    const [seeing] = computeSight(sightSources({ viewer: { ...viewerWith(null), vision: { enabled: true, range: 80 } } }, scale, bounds, rules), [wall]).regions;
+    const never: SightRegion = { ...seeing!, polygon: new Proxy(seeing!.polygon!, { get: () => { throw new Error('the polygon was read'); } }) };
+    expect(regionContains(never, { x: 100, y: 181 })).toBe(false);
+    expect(regionContains(never, { x: 300, y: 300 })).toBe(false);
+    for (let x = 0; x <= 200; x += 7) {
+      for (let y = 0; y <= 200; y += 7) expect(regionContains(seeing!, { x, y })).toBe(pointInPolygon({ x, y }, seeing!.polygon!));
+    }
+  });
+
   it('reaches a disc for a sense that walls do not stop, a polygon for one they do', () => {
     const [sight, tremor] = computeSight(sightSources({ viewer: viewerWith('tremorsense') }, scale, bounds, rules), [wall]).regions;
     expect(regionContains(tremor!, { x: 200, y: 100 })).toBe(true);

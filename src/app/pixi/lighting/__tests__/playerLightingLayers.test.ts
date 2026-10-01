@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { Container } from 'pixi.js';
-import { playerLightingLayers, playerTokenSight, tokenPerception, type GmOverlays } from '../playerLightingLayers';
+import { PerceptionMemo, playerLightingLayers, playerTokenSight, tokenPerception, type GmOverlays } from '../playerLightingLayers';
 import { hiddenTokenLayers } from '../../playerSafeFrame';
-import { computeSight, sightSources } from '../../../vision/sight';
+import { computeSight, lightReach, sightSources, type LightReach } from '../../../vision/sight';
 import type { Perception } from '../../../vision/perception';
 import { tremorsense } from '../../../vision/__tests__/senseSources';
 import type { ConditionDefinition } from '../../../types/collectionSettingsTypes';
@@ -156,6 +156,75 @@ describe('tokenPerception with conditions', () => {
 
   it('reads no conditions without the collection\'s definitions', () => {
     expect(tokenPerception(sight, { ambient: 1 }, [], tokens)('undetected')).toBe('seen');
+  });
+});
+
+describe('PerceptionMemo', () => {
+  const tokens: Record<string, TokenEntity> = {
+    hero: { id: 'hero', kind: 'token', imagePath: 'h.png', x: 100, y: 100, vision: { enabled: true } },
+    guard: { id: 'guard', kind: 'token', imagePath: 'g.png', x: 150, y: 150 },
+    lurker: { id: 'lurker', kind: 'token', imagePath: 'l.png', x: 400, y: 100 },
+  };
+  const sight = computeSight([{ tokenId: 'hero', origin: { x: 100, y: 100 }, range: 1000, senses: [] }], [wall]);
+  const day = { ambient: 1 };
+  const NO_LIGHTS: never[] = [];
+  const night = { ambient: 0 };
+  /** A torch over the guard that counts how often the light at a token is worked out: once per perception that is not remembered. */
+  const counting = (): { lights: LightReach[]; reads: () => number } => {
+    let reads = 0;
+    const torch = lightReach({ x: 150, y: 150 }, 400, []);
+    return { lights: [{ ...torch, get dim(): number { reads++; return 400; } }], reads: () => reads };
+  };
+
+  it('works a token out once for all who ask in a frame, and once for all frames while nothing changes', () => {
+    const memo = new PerceptionMemo();
+    const { lights, reads } = counting();
+    const options = { conditions };
+    for (let frame = 0; frame < 5; frame++) {
+      const perception = tokenPerception(sight, night, lights, tokens, options, memo);
+      for (let consumer = 0; consumer < 3; consumer++) {
+        expect(['hero', 'guard', 'lurker'].map(perception)).toEqual(['seen', 'seen', 'unseen']);
+      }
+    }
+    // The hero is the party's and needs no light; the guard and the lurker are within the sight's range: once each.
+    expect(reads()).toBe(2);
+  });
+
+  it('works out again only the token that changed', () => {
+    const memo = new PerceptionMemo();
+    const { lights, reads } = counting();
+    tokenPerception(sight, night, lights, tokens, {}, memo)('guard');
+    const moved = { ...tokens, lurker: { ...tokens.lurker!, x: 150 } };
+    const perception = tokenPerception(sight, night, lights, moved, {}, memo);
+    expect(perception('guard')).toBe('seen');
+    expect(reads()).toBe(1);
+    expect(perception('lurker')).toBe('seen');
+    expect(reads()).toBe(2);
+  });
+
+  it('forgets everything when the sight, the light, the conditions or the held tokens change', () => {
+    const memo = new PerceptionMemo();
+    const inSight = { guard: tokens.guard! };
+    const read = (...args: [Parameters<typeof tokenPerception>[0], Parameters<typeof tokenPerception>[1], Parameters<typeof tokenPerception>[2], Parameters<typeof tokenPerception>[4]?]): string =>
+      tokenPerception(args[0], args[1], args[2], inSight, args[3], memo)('guard');
+    const options = { conditions, held: {} };
+    expect(read(sight, day, NO_LIGHTS, options)).toBe('seen');
+    expect(read(sight, { ambient: 0 }, NO_LIGHTS, options)).toBe('unseen');
+    expect(read(sight, day, NO_LIGHTS, options)).toBe('seen');
+    expect(read(computeSight([{ tokenId: 'hero', origin: { x: 600, y: 100 }, range: 1000, senses: [] }], [wall]), day, NO_LIGHTS, options)).toBe('unseen');
+    expect(read(sight, { ambient: 0 }, [lightReach({ x: 150, y: 150 }, 40, [])], options)).toBe('seen');
+    const cloaked = { guard: { ...tokens.guard!, conditions: ['unseen'] } };
+    expect(tokenPerception(sight, day, NO_LIGHTS, cloaked, options, memo)('guard')).toBe('unseen');
+    expect(tokenPerception(sight, day, NO_LIGHTS, cloaked, { conditions: [], held: options.held }, memo)('guard')).toBe('seen');
+  });
+
+  it('answers as without a memo for every token and scene', () => {
+    const memo = new PerceptionMemo();
+    for (const ambient of [{ ambient: 0 }, { ambient: 0.5 }, day]) {
+      for (const id of [...Object.keys(tokens), 'missing']) {
+        expect(tokenPerception(sight, ambient, NO_LIGHTS, tokens, { conditions }, memo)(id)).toBe(tokenPerception(sight, ambient, NO_LIGHTS, tokens, { conditions })(id));
+      }
+    }
   });
 });
 

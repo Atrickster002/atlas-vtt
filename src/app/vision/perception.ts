@@ -34,12 +34,29 @@ export function targetOf(effects: ReadonlySet<ConditionEffect>): PerceivedTarget
   return { invisible: effects.has('invisible'), airborne: effects.has('airborne'), undetected: effects.has('undetected') };
 }
 
-/** Whether `point` lies where the region's sense reaches. */
+/** A point this much farther than a region's radius is still looked up in its polygon: the sweep's own rounding. */
+const RADIUS_SLACK = 1e-6;
+
+/**
+ * Whether `point` lies where the region's sense reaches. A polygon never reaches beyond its
+ * radius, so the distance rules most points out before the polygon is looked at.
+ */
 export function regionContains(region: SightRegion, point: Point): boolean {
+  return withinRadius(region, point) && withinArea(region, point);
+}
+
+function withinRadius(region: SightRegion, point: Point): boolean {
+  return Math.hypot(point.x - region.origin.x, point.y - region.origin.y) <= region.radius + (region.polygon ? RADIUS_SLACK : 0);
+}
+
+/** For a point within the region's radius: whether walls and the cone leave it in reach. */
+function withinArea(region: SightRegion, point: Point): boolean {
   if (region.polygon) return pointInPolygon(point, region.polygon);
-  if (Math.hypot(point.x - region.origin.x, point.y - region.origin.y) > region.radius) return false;
   return !region.cone || coneContains(region.cone, region.origin, point);
 }
+
+/** The light at a point, or how to find it: finding it costs a look at every light, so it waits until a sense reaches as far as the point. */
+export type LevelAt = LightLevel | (() => LightLevel);
 
 /** Whether some sense of a vision token reaches `point`, whatever the light there. */
 export function withinReach(point: Point, sight: Sight): boolean {
@@ -50,16 +67,21 @@ export function withinReach(point: Point, sight: Sight): boolean {
  * The region through which something at `point` is perceived best, where the light is at
  * `level`: each region asks its sense whether it perceives at that level, and the target's
  * conditions rule senses out. A precise sense comes before an imprecise one; null when no
- * region perceives it (also without vision tokens, when there are no regions).
+ * region perceives it (also without vision tokens, when there are no regions). The cheap
+ * questions come first: the distance, then the light, and the polygon only for a sense that
+ * perceives in that light.
  */
-export function perceivingRegion(point: Point, sight: Sight, level: LightLevel, target: PerceivedTarget = {}): SightRegion | null {
+export function perceivingRegion(point: Point, sight: Sight, level: LevelAt, target: PerceivedTarget = {}): SightRegion | null {
   if (target.undetected) return null;
+  let found: LightLevel | undefined;
   let sensing: SightRegion | null = null;
   for (const region of sight.regions) {
     const { sense } = region;
     if (target.invisible && !region.seesInvisible) continue;
     if (target.airborne && sense.ignores === 'airborne') continue;
-    if (perceivedLevel(sense, level) === null || !regionContains(region, point)) continue;
+    if (!withinRadius(region, point)) continue;
+    found ??= typeof level === 'function' ? level() : level;
+    if (perceivedLevel(sense, found) === null || !withinArea(region, point)) continue;
     if (sense.precise) return region;
     sensing ??= region;
   }
@@ -72,8 +94,8 @@ export function perceivingRegion(point: Point, sight: Sight, level: LightLevel, 
  * seen, wherever it is and whatever its conditions: invisible and undetected act only while
  * sight is the tokens'.
  */
-export function perceive(point: Point, sight: Sight, level: LightLevel, target: PerceivedTarget = {}): Perception {
-  if (sight.all) return perceivedLevel(NORMAL_SIGHT, level) !== null ? 'seen' : 'unseen';
+export function perceive(point: Point, sight: Sight, level: LevelAt, target: PerceivedTarget = {}): Perception {
+  if (sight.all) return perceivedLevel(NORMAL_SIGHT, typeof level === 'function' ? level() : level) !== null ? 'seen' : 'unseen';
   const region = perceivingRegion(point, sight, level, target);
   if (!region) return 'unseen';
   return region.sense.precise ? 'seen' : 'sensed';

@@ -26,7 +26,7 @@ import { showWallMenu, type LightingMenuContext } from './lightingMenus';
 import { LightInteraction } from './LightInteraction';
 import { LightMarkers, lightMarkersShown } from './LightMarkers';
 import { LightRangeRings } from './LightRangeRings';
-import { playerLightingLayers, playerTokenSight, type GmOverlays, type TokenPerception } from './playerLightingLayers';
+import { PerceptionMemo, playerLightingLayers, playerTokenSight, type GmOverlays, type TokenPerception } from './playerLightingLayers';
 import type { SceneLightingView } from './sceneLightingView';
 import { SessionLighting } from './SessionLighting';
 import { WallEditor } from './WallEditor';
@@ -62,6 +62,8 @@ export class LightingController {
   private readonly session: SessionLighting;
   private readonly cleanups: Array<() => void> = [];
   private tokens: TokenRenderer | null = null;
+  /** What the players perceive of each token, kept between frames while sight and light stay. */
+  private readonly perceptions = new PerceptionMemo();
   /** The sight rules of the map's collection, read once per map and again when they may have changed. */
   private rules: { mapPath: string | null; rules: SightRules } | null = null;
   /** How each token perceives: by its own vision, else by its linked statblock. */
@@ -161,7 +163,7 @@ export class LightingController {
   /** How the players perceive each token, for their frame and for session view; sight hides nothing in an unlit scene. */
   playerSight(): TokenPerception | undefined {
     const state = this.deps.store.getState();
-    return playerTokenSight(this.renderer, state.objects.tokens, { conditions: this.sightRules().conditions, held: heldForSight(state) });
+    return playerTokenSight(this.renderer, state.objects.tokens, { conditions: this.sightRules().conditions, held: heldForSight(state) }, this.perceptions);
   }
 
   /** The senses and conditions of the map's collection, and how each token perceives. */
