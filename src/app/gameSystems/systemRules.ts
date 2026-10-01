@@ -12,6 +12,7 @@ import type {
 import type { TokenVisionDefaults } from '../types/lightingTypes';
 import type { SystemPreset, SystemRules } from '../types/systemPresetTypes';
 import type { AnyWidget } from '../types/widgetTypes';
+import { conditionEffect } from './conditionEffects';
 import { DEFAULT_DICE_RULES, sameDiceRules } from './diceRules';
 import { sameSenses } from './senseRules';
 import { hasVisionDefaults, sameVisionDefaults } from './visionDefaults';
@@ -47,22 +48,21 @@ export function vanillaSystemSettings(): SystemSettings {
 
 /**
  * The rules a collection gets from a preset: a copy of its measurement and of its
- * conditions with their own ids, and of its default token vision and its senses when it sets
- * any. Conditions from the previous system never carry over; the ones tokens still have are
- * removed when the collection is saved.
+ * conditions with their own ids, and of its default token vision when it sets one. Conditions
+ * from the previous system never carry over; the ones tokens still have are removed when the
+ * collection is saved. Senses are not copied: the collection reads its preset's
+ * (`collectionSenses`) until the GM edits them, so a corrected built-in sense reaches it.
  */
 export function rulesOfPreset(
   preset: SystemPreset,
-): Required<Pick<SystemRules, 'gridDefaults' | 'conditions' | 'defaultWidgets' | 'dice'>> & Pick<SystemRules, 'defaultTokenVision' | 'senses'> {
+): Required<Pick<SystemRules, 'gridDefaults' | 'conditions' | 'defaultWidgets' | 'dice'>> & Pick<SystemRules, 'defaultTokenVision'> {
   const vision: TokenVisionDefaults | undefined = preset.rules.defaultTokenVision;
-  const { senses } = preset.rules;
   return {
     gridDefaults: structuredClone(preset.rules.gridDefaults),
     conditions: structuredClone(preset.rules.conditions),
     defaultWidgets: { ...preset.rules.defaultWidgets },
     dice: { ...(preset.rules.dice ?? DEFAULT_DICE_RULES) },
     ...(hasVisionDefaults(vision) && { defaultTokenVision: structuredClone(vision) }),
-    ...(senses && { senses: structuredClone(senses) }),
   };
 }
 
@@ -82,7 +82,7 @@ function sameCondition(a: ConditionDefinition, b: ConditionDefinition): boolean 
     && a.color.toLowerCase() === b.color.toLowerCase()
     && a.icon === b.icon
     && (a.valued ?? false) === (b.valued ?? false)
-    && a.effect === b.effect;
+    && conditionEffect(a) === conditionEffect(b);
 }
 
 /** The default widgets that are on, as a comparable key. */
@@ -90,15 +90,18 @@ function enabledWidgets(defaultWidgets: Record<string, boolean> | undefined): st
   return Object.keys(defaultWidgets ?? {}).filter((key) => defaultWidgets?.[key]).sort().join();
 }
 
-/** Whether two rule sets play the same; condition ids do not matter. */
-export function sameSystemRules(a: SystemRules, b: SystemRules): boolean {
-  return sameGridDefaults(a.gridDefaults, b.gridDefaults)
-    && sameDiceRules(a.dice, b.dice)
-    && enabledWidgets(a.defaultWidgets) === enabledWidgets(b.defaultWidgets)
-    && sameVisionDefaults(a.defaultTokenVision, b.defaultTokenVision)
-    && sameSenses(a.senses, b.senses)
-    && a.conditions.length === b.conditions.length
-    && a.conditions.every((condition, i) => sameCondition(condition, b.conditions[i]!));
+/**
+ * Whether a collection's `rules` play as `preset` does; condition ids do not matter. Rules
+ * without senses of their own read the preset's, so they are the same in that.
+ */
+export function sameSystemRules(preset: SystemRules, rules: SystemRules): boolean {
+  return sameGridDefaults(preset.gridDefaults, rules.gridDefaults)
+    && sameDiceRules(preset.dice, rules.dice)
+    && enabledWidgets(preset.defaultWidgets) === enabledWidgets(rules.defaultWidgets)
+    && sameVisionDefaults(preset.defaultTokenVision, rules.defaultTokenVision)
+    && (rules.senses === undefined || sameSenses(preset.senses, rules.senses))
+    && preset.conditions.length === rules.conditions.length
+    && preset.conditions.every((condition, i) => sameCondition(condition, rules.conditions[i]!));
 }
 
 const SQUARE_UNIT: Record<GridUnitType, string> = { feet: 'ft', yards: 'yd', meters: 'm', units: 'unit', custom: 'unit' };

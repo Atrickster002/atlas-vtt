@@ -4,6 +4,8 @@ import { isHexColor } from '../utils/hexColor';
 
 /** Ambient light from which everything in sight counts as lit, when the scene sets none. */
 export const DEFAULT_LIT_THRESHOLD = 0.25;
+/** Ambient light from which the scene is brightly lit, when it sets none: dusk (0.5) is dim, day bright. */
+export const DEFAULT_BRIGHT_THRESHOLD = 0.75;
 /** Ambient light without a tint. */
 export const DEFAULT_AMBIENT_COLOR = '#ffffff';
 /** Remembered areas keep the map's own (dimmed, desaturated) colours. */
@@ -40,13 +42,14 @@ export function litThresholdOf(lighting: Pick<SceneLighting, 'litThreshold'>): n
 }
 
 /**
- * Ambient light from which the scene is dimly lit: the scene's own, kept between 0 and the lit
- * threshold, or half the lit threshold when it sets none or something that is not a number.
+ * Ambient light from which the scene is brightly lit, dimly below it down to the lit threshold:
+ * the scene's own, or the default when it sets none or something that is not a number, kept
+ * between the lit threshold and 1.
  */
-export function dimThresholdOf(lighting: Pick<SceneLighting, 'litThreshold' | 'dimThreshold'>): number {
-  const lit = litThresholdOf(lighting);
-  const dim = lighting.dimThreshold;
-  return dim === undefined || !Number.isFinite(dim) ? lit / 2 : Math.min(lit, Math.max(0, dim));
+export function brightThresholdOf(lighting: Pick<SceneLighting, 'litThreshold' | 'brightThreshold'>): number {
+  const bright = lighting.brightThreshold;
+  const wanted = bright === undefined || !Number.isFinite(bright) ? DEFAULT_BRIGHT_THRESHOLD : bright;
+  return Math.min(1, Math.max(litThresholdOf(lighting), wanted));
 }
 
 /** The options `lighting` sets for the composite; unset ones stay unset, so the composite keeps its defaults. */

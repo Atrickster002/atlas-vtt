@@ -15,6 +15,7 @@ function row(sense: SenseDefinition): string {
     sense.worksWhileBlinded && 'works while blinded',
     sense.ignores && `ignores ${sense.ignores}`,
     sense.role && `role ${sense.role}`,
+    sense.grants && `grants ${sense.grants}`,
   ].filter(Boolean).join(', ') || '-';
   return [
     sense.id,
@@ -38,50 +39,66 @@ describe('built-in senses', () => {
       blindsight | walls block | normal / as-bright / as-bright / as-bright | all | precise | colour | required | sees invisible, works while blinded
       tremorsense | through walls | normal / as-bright / as-bright / as-bright | creatures | imprecise | colour | required | sees invisible, works while blinded, ignores airborne, role tremorsense
       truesight | walls block | normal / as-bright / as-bright / as-bright | all | precise | colour | required | sees invisible
-      dnd5e:darkvision | walls block | normal / as-bright / as-dim / none | all | precise | monochrome | required (60) | role darkvision
-      dnd5e:blindsight | walls block | normal / as-bright / as-bright / as-bright | all | precise | colour | required (60) | sees invisible, works while blinded
-      dnd5e:tremorsense | through walls | normal / as-bright / as-bright / as-bright | creatures | imprecise | colour | required (60) | sees invisible, works while blinded, ignores airborne, role tremorsense
-      dnd5e:truesight | walls block | normal / as-bright / as-bright / as-bright | all | precise | colour | required (120) | sees invisible
-      dnd5e:devils-sight | walls block | normal / as-bright / as-bright / as-bright | all | precise | colour | required (120) | -
-      cyberpunkred:low-light-ir-uv | walls block | normal / as-bright / as-bright / none | all | precise | colour | unlimited | -
-      ose:infravision | walls block | none / none / as-dim / none | all | precise | heat | required (60) | role darkvision
-      pathfinder2e:low-light-vision | walls block | normal / as-bright / none / none | all | precise | colour | unlimited | -
-      pathfinder2e:darkvision | walls block | normal / as-bright / as-bright / none | all | precise | black-and-white | unlimited | role darkvision
-      pathfinder2e:greater-darkvision | walls block | normal / as-bright / as-bright / as-bright | all | precise | black-and-white | unlimited | -
-      pathfinder2e:tremorsense | through walls | normal / as-bright / as-bright / as-bright | creatures | imprecise | colour | required (30) | sees invisible, works while blinded, ignores airborne, role tremorsense
-      pathfinder2e:scent | through walls | normal / as-bright / as-bright / as-bright | creatures | imprecise | colour | required (30) | sees invisible, works while blinded
-      pathfinder2e:hearing | through walls | normal / as-bright / as-bright / as-bright | creatures | imprecise | colour | required | sees invisible, works while blinded
-      pathfinder2e:lifesense | through walls | normal / as-bright / as-bright / as-bright | creatures | imprecise | colour | required | sees invisible, works while blinded
-      pathfinder2e:wavesense | through walls | normal / as-bright / as-bright / as-bright | creatures | imprecise | colour | required | sees invisible, works while blinded
-      pathfinder2e:echolocation | through walls | normal / as-bright / as-bright / as-bright | creatures | precise | colour | required (20) | sees invisible, works while blinded
-      pathfinder2e:see-the-unseen | walls block | normal / normal / none / none | creatures | precise | colour | unlimited | sees invisible
-      shadowdark:darkness-adapted | walls block | normal / as-bright / as-bright / none | all | precise | colour | unlimited | -"
+      see-invisible | walls block | none / none / none / none | creatures | imprecise | colour | unlimited | grants see-invisible
+      dnd5e-darkvision | walls block | normal / as-bright / as-dim / none | all | precise | monochrome | required (60) | role darkvision
+      dnd5e-blindsight | walls block | normal / as-bright / as-bright / as-bright | all | precise | colour | required (60) | sees invisible, works while blinded
+      dnd5e-tremorsense | through walls | normal / as-bright / as-bright / as-bright | creatures | imprecise | colour | required (60) | sees invisible, works while blinded, ignores airborne, role tremorsense
+      dnd5e-truesight | walls block | normal / as-bright / as-bright / as-bright | all | precise | colour | required (120) | sees invisible
+      dnd5e-devils-sight | walls block | normal / as-bright / as-bright / as-bright | all | precise | colour | required (120) | -
+      dnd5e-see-invisibility | walls block | none / none / none / none | creatures | imprecise | colour | unlimited | grants see-invisible
+      cyberpunkred-low-light-ir-uv | walls block | normal / as-bright / as-bright / none | all | precise | colour | unlimited | -
+      ose-infravision | walls block | none / none / as-dim / none | all | precise | heat | required (60) | role darkvision
+      pathfinder2e-low-light-vision | walls block | normal / as-bright / none / none | all | precise | colour | unlimited | -
+      pathfinder2e-darkvision | walls block | normal / as-bright / as-bright / as-dim | all | precise | black-and-white | unlimited | role darkvision
+      pathfinder2e-greater-darkvision | walls block | normal / as-bright / as-bright / as-bright | all | precise | black-and-white | unlimited | -
+      pathfinder2e-tremorsense | through walls | normal / as-bright / as-bright / as-bright | creatures | imprecise | colour | required (30) | sees invisible, works while blinded, ignores airborne, role tremorsense
+      pathfinder2e-scent | through walls | normal / as-bright / as-bright / as-bright | creatures | imprecise | colour | required (30) | sees invisible, works while blinded
+      pathfinder2e-hearing | through walls | normal / as-bright / as-bright / as-bright | creatures | imprecise | colour | required | sees invisible, works while blinded
+      pathfinder2e-lifesense | through walls | normal / as-bright / as-bright / as-bright | creatures | imprecise | colour | required | sees invisible, works while blinded
+      pathfinder2e-wavesense | through walls | normal / as-bright / as-bright / as-bright | creatures | imprecise | colour | required | sees invisible, works while blinded
+      pathfinder2e-echolocation | walls block | normal / as-bright / as-bright / as-bright | creatures | precise | colour | required (20) | sees invisible, works while blinded
+      pathfinder2e-see-the-unseen | walls block | none / none / none / none | creatures | imprecise | colour | unlimited | grants see-invisible
+      shadowdark-darkness-adapted | walls block | normal / as-bright / as-bright / none | all | precise | colour | unlimited | -"
     `);
   });
 
   it('keep their ids for good: tokens, collections and presets record them', () => {
-    expect(GENERIC_SENSES.map((sense) => sense.id)).toEqual(['darkvision', 'low-light-vision', 'blindsight', 'tremorsense', 'truesight']);
+    expect(GENERIC_SENSES.map((sense) => sense.id)).toEqual(['darkvision', 'low-light-vision', 'blindsight', 'tremorsense', 'truesight', 'see-invisible']);
     expect(Object.fromEntries(Object.entries(BUILT_IN_SENSES).map(([presetId, senses]) => [presetId, senses.map((sense) => sense.id)]))).toEqual({
-      'builtin:dnd5e': ['dnd5e:darkvision', 'dnd5e:blindsight', 'dnd5e:tremorsense', 'dnd5e:truesight', 'dnd5e:devils-sight'],
+      'builtin:dnd5e': ['dnd5e-darkvision', 'dnd5e-blindsight', 'dnd5e-tremorsense', 'dnd5e-truesight', 'dnd5e-devils-sight', 'dnd5e-see-invisibility'],
       'builtin:pathfinder2e': [
-        'pathfinder2e:low-light-vision', 'pathfinder2e:darkvision', 'pathfinder2e:greater-darkvision', 'pathfinder2e:tremorsense',
-        'pathfinder2e:scent', 'pathfinder2e:hearing', 'pathfinder2e:lifesense', 'pathfinder2e:wavesense', 'pathfinder2e:echolocation',
-        'pathfinder2e:see-the-unseen',
+        'pathfinder2e-low-light-vision', 'pathfinder2e-darkvision', 'pathfinder2e-greater-darkvision', 'pathfinder2e-tremorsense',
+        'pathfinder2e-scent', 'pathfinder2e-hearing', 'pathfinder2e-lifesense', 'pathfinder2e-wavesense', 'pathfinder2e-echolocation',
+        'pathfinder2e-see-the-unseen',
       ],
-      'builtin:shadowdark': ['shadowdark:darkness-adapted'],
-      'builtin:ose': ['ose:infravision'],
-      'builtin:cyberpunkred': ['cyberpunkred:low-light-ir-uv'],
+      'builtin:shadowdark': ['shadowdark-darkness-adapted'],
+      'builtin:ose': ['ose-infravision'],
+      'builtin:cyberpunkred': ['cyberpunkred-low-light-ir-uv'],
     });
     expect(NORMAL_SIGHT.id).toBe('sight');
   });
 
-  it('have unique ids, the systems\' own prefixed with the key of their preset', () => {
+  it('have unique ids, the systems\' own made like their condition ids: the key of their preset, a hyphen, their own key', () => {
     const ids = ALL_SENSES.map((sense) => sense.id);
     expect(new Set(ids).size).toBe(ids.length);
-    for (const sense of GENERIC_SENSES) expect(sense.id).not.toContain(':');
+    const keys = BUILT_IN_SYSTEM_PRESETS.map((preset) => preset.id.slice(BUILT_IN_ID_PREFIX.length));
+    for (const sense of GENERIC_SENSES) expect(keys.some((key) => sense.id.startsWith(`${key}-`))).toBe(false);
     for (const [presetId, senses] of Object.entries(BUILT_IN_SENSES)) {
       const key = presetId.slice(BUILT_IN_ID_PREFIX.length);
-      for (const sense of senses) expect(sense.id.startsWith(`${key}:`)).toBe(true);
+      for (const sense of senses) expect(sense.id).toMatch(new RegExp(`^${key}-[a-z]+(-[a-z]+)*$`));
+    }
+    const preset = BUILT_IN_SYSTEM_PRESETS.find((candidate) => candidate.name === 'D&D 5e')!;
+    expect(preset.rules.conditions[0]!.id).toBe('dnd5e-blinded');
+    expect(preset.rules.senses![0]!.id).toBe('dnd5e-darkvision');
+  });
+
+  it('that only change how the eyes see perceive nothing themselves and take no distance', () => {
+    const modifiers = ALL_SENSES.filter((sense) => sense.grants !== undefined);
+    expect(modifiers.map((sense) => sense.id)).toEqual(['see-invisible', 'dnd5e-see-invisibility', 'pathfinder2e-see-the-unseen']);
+    for (const sense of modifiers) {
+      expect(sense.sees).toEqual({ bright: 'none', dim: 'none', dark: 'none', magicalDark: 'none' });
+      expect(sense).toMatchObject({ range: 'unlimited', seesInvisible: false, worksWhileBlinded: false });
+      expect(sense).not.toHaveProperty('defaultRange');
     }
   });
 
@@ -95,7 +112,11 @@ describe('built-in senses', () => {
   });
 
   it('are valid as stored: reading them back changes nothing', () => {
-    for (const sense of ALL_SENSES) expect(parseSenseDefinitions([sense])).toEqual([sense]);
+    for (const sense of [...GENERIC_SENSES, ...SYSTEM_SENSES]) expect(parseSenseDefinitions([sense])).toEqual([sense]);
+  });
+
+  it('keep the id of normal sight to itself: no stored sense may take it', () => {
+    expect(parseSenseDefinitions([NORMAL_SIGHT])).toEqual([]);
   });
 
   it('have a name and say in one line what they let the players see', () => {

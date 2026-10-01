@@ -61,7 +61,7 @@ describe('RadianceCascades', () => {
     field.build(splitBlocking(walls).twoWay);
     tiles.sync([{ key: 'l', x: 200, y: 256, bright: 120, dim: 240, flame: 20, color: [1, 1, 1], intensity: 1, animation: 'none' }], walls, 'all');
     const tile = tiles.tiles().get('l')!;
-    map.draw([{ tile, bright: 120, reach: 240 * 1.12, color: [1, 1, 1], intensity: 1 }]);
+    map.draw([{ tile, bright: 120, dim: 240, reach: 240 * 1.12, color: [1, 1, 1], intensity: 1 }]);
     cascades.build(map, albedo, field);
     const probes = readFloats(renderer, cascades.fluence);
     const width = cascades.fluence.source.pixelWidth;

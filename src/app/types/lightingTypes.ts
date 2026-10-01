@@ -15,10 +15,10 @@ export interface SceneLighting {
   exploredColor?: string;
   /** Fill of never-seen areas in the players' view; unset is black. */
   unexploredColor?: string;
-  /** Ambient light (0–1) from which everything in sight counts as lit; unset is 0.25. */
+  /** Ambient light (0–1) from which everything in sight counts as lit, dimly at least; below it the scene is dark. Unset is 0.25. */
   litThreshold?: number;
-  /** Ambient light (0–1) from which the scene is dimly lit; unset is half the lit threshold, and it never lies above it. */
-  dimThreshold?: number;
+  /** Ambient light (0–1) from which the scene is brightly lit; unset is 0.75, and it never lies below the lit threshold. */
+  brightThreshold?: number;
 }
 
 export const DEFAULT_SCENE_LIGHTING: SceneLighting = { enabled: false, ambient: 0.1 };

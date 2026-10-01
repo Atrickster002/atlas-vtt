@@ -1,4 +1,4 @@
-import { IN_ANY_LIGHT, seeing, sensing, sensesOf } from './senseHelpers';
+import { IN_ANY_LIGHT, granting, seeing, sensing, sensesOf } from './senseHelpers';
 
 /**
  * D&D 5e (SRD 5.2.1 glossary). Default distances are the most common ones in the SRD's
@@ -50,5 +50,11 @@ export const DND_5E_SENSES = sensesOf('dnd5e', {
     ...seeing(IN_ANY_LIGHT),
     range: 'required',
     defaultRange: 120,
+  },
+  // The spell: "you see creatures and objects that have the Invisible condition as if they were visible".
+  'see-invisibility': {
+    name: 'See Invisibility',
+    description: 'Sees invisible creatures wherever its eyes see.',
+    ...granting('see-invisible'),
   },
 });

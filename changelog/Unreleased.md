@@ -58,5 +58,6 @@
 - The player window follows again when you return to the scene it presents
 - When a scene cannot be saved, Atlas now says so after a few seconds instead of waiting without end
 - When one part of the map view fails to show, such as the initiative tracker, the map, the toolbar and the other parts now stay and Atlas tells you which part is missing. Before, the whole view went black
+- A light's dim range is now visibly lit out to its edge and the light ends just past it, so what looks dark on the map is dark. Before, the outer part of the dim range was drawn nearly black although tokens standing there still showed
 - Scene thumbnails and snapshot previews show a scene's dynamic lighting as the GM sees it. They also leave out pins, linked hexes, light markers, door badges and wall lines, and follow changes to the scene's lighting
 - A scene keeps its thumbnail when the graphics device resets or the scene could not be opened again, instead of getting a blank or outdated one

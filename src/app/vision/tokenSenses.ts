@@ -1,4 +1,5 @@
 import { findSense, senseWithRole } from '../gameSystems/senseRules';
+import { parseTokenSenses } from '../gameSystems/senseValidation';
 import type { TokenVision, TokenVisionDefaults } from '../types/lightingTypes';
 import type { SenseDefinition, SenseRole, TokenSense } from '../types/senseTypes';
 import { positiveNumber } from '../utils/numberInput';
@@ -7,16 +8,18 @@ import { positiveNumber } from '../utils/numberInput';
 const OLD_FIELDS: readonly SenseRole[] = ['darkvision', 'tremorsense'];
 
 /**
- * The senses of a token: its `senses` once it has any (even none), else its old `darkvision`
- * and `tremorsense` numbers read as the collection's senses of those kinds, or as the generic
- * ones where the collection has none, each with that number as its distance.
+ * The senses of a token: the usable entries of its `senses` once that is a list (even an empty
+ * one), else its old `darkvision` and `tremorsense` numbers read as the collection's senses of
+ * those kinds, or as the generic ones where the collection has none, each with that number as
+ * its distance. The list is stored data, so it is read as `parseTokenSenses` reads it.
  */
 export function tokenSenses(
   vision: TokenVision | TokenVisionDefaults | undefined,
   definitions: readonly SenseDefinition[],
 ): TokenSense[] {
   if (!vision) return [];
-  if (vision.senses) return vision.senses;
+  const senses = parseTokenSenses(vision.senses);
+  if (senses) return senses;
   return OLD_FIELDS.flatMap((role) => {
     const range = positiveNumber(vision[role]);
     return range === undefined ? [] : [{ id: senseWithRole(definitions, role).id, range }];
@@ -39,13 +42,14 @@ export interface ResolvedSense {
 /**
  * Each sense with its definition and its reach. A stored distance always limits the sense, so
  * an old darkvision number read as a sense without a distance reaches as far as before. Without
- * one, a sense that needs a distance takes its default. Left out: senses the collection does
- * not know, and senses that need a distance and have neither.
+ * one, a sense that needs a distance takes its default. A modifier (`grants`) has no reach.
+ * Left out: senses the collection does not know, and senses that need a distance and have neither.
  */
 export function resolveSenses(senses: readonly TokenSense[], definitions: readonly SenseDefinition[]): ResolvedSense[] {
   return senses.flatMap((sense) => {
     const definition = findSense(definitions, sense.id);
     if (!definition) return [];
+    if (definition.grants) return [{ definition, range: undefined }];
     const range = positiveNumber(sense.range) ?? (definition.range === 'required' ? definition.defaultRange : undefined);
     return definition.range === 'required' && range === undefined ? [] : [{ definition, range }];
   });
