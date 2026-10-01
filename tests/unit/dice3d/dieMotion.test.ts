@@ -4,6 +4,7 @@ import {
   dieGeometry,
   faceIndexForValue,
   faceQuaternion,
+  lyingHeight,
   restingQuaternion,
 } from '../../../src/app/dice3d/dieGeometry';
 import { beginRoll, makeDie, stepDie, type DieAnim } from '../../../src/app/dice3d/dieMotion';
@@ -220,6 +221,35 @@ describe('the throw', () => {
       if (falling && die.v[1] > 0) bounced = true;
     }
     expect(bounced).toBe(true);
+  });
+
+  // A d4 lying on a face has its centre a third of its radius above the table,
+  // far below where it tumbles. It gets there by lying down, not by falling.
+  it('ends lying on its face, and lying down is no impact', () => {
+    const geometry = dieGeometry(4);
+    const lie = lyingHeight(geometry);
+    expect(lie).toBeCloseTo(1 / 3, 6);
+
+    const throwOf = (share?: number): DieAnim => {
+      const rng = fixedRng(0.19, 0.71, 0.44, 0.36, 0.83, 0.27);
+      const die = makeDie(rng, [0, 0], 0.92, [STAGE_X, STAGE_Z], share);
+      beginRoll(die, restingQuaternion(geometry, 0), 0, rng);
+      return die;
+    };
+    const lying = throwOf(lie);
+    const tumbling = throwOf();
+    const rng = fixedRng(0.5);
+    let floorHits = 0;
+    while (lying.phase !== 'rest') {
+      stepDie(lying, 1 / 60, rng);
+      stepDie(tumbling, 1 / 60, rng);
+      if (lying.impact?.kind === 'floor') floorHits += 1;
+      expect(lying.p[1]).toBeGreaterThanOrEqual(restHeight(lying.radius, lie) - 1e-6);
+    }
+    expect(lying.p[1]).toBeCloseTo(restHeight(lying.radius, lie), 6);
+    // The same throw with the table at one height bounces exactly as often.
+    expect(floorHits).toBe(tumbling.bounces);
+    expect(lying.bounces).toBe(tumbling.bounces);
   });
 
   it('never falls through the table', () => {

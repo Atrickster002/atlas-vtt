@@ -6,7 +6,7 @@ import { fitNumeral } from '../../../src/app/dice3d/numeralFit';
 const CELL = 256;
 /** Ink bounds of the numeral sheet's cells (1 to 20, underlined 6 and 9), measured from `numerals.webp`. */
 const INK = [[58, 30, 99, 133], [44, 30, 118, 131], [53, 30, 109, 131], [46, 29, 117, 128], [48, 31, 115, 126], [46, 30, 114, 127], [49, 29, 111, 128], [49, 31, 112, 127], [46, 31, 115, 128], [32, 35, 131, 122], [45, 29, 114, 128], [31, 30, 129, 125], [39, 29, 123, 129], [31, 30, 132, 126], [32, 30, 130, 128], [32, 34, 131, 123], [32, 31, 129, 127], [35, 29, 126, 128], [40, 29, 123, 130], [32, 48, 132, 110], [46, 29, 116, 147], [44, 30, 116, 147]] as const;
-const NOMINAL = (sides: number): number => (sides === 4 ? 0.34 : sides >= 12 ? 0.36 : 0.44) * CELL / 0.6 / 160;
+const NOMINAL = (sides: number): number => (sides >= 12 ? 0.36 : 0.44) * CELL / 0.6 / 160;
 
 function inkOf(sides: number, value: number): readonly number[] {
   const underlined = sides >= 10 && (value === 6 || value === 9);
@@ -23,7 +23,8 @@ function inside(outline: [number, number][], corners: [number, number][]): boole
 }
 
 describe('fitNumeral', () => {
-  for (const sides of [4, 6, 8, 10, 12, 20] as DieSides[]) {
+  // The d4 writes its numbers at the corners of its faces: `faceMarks.test.ts`.
+  for (const sides of [6, 8, 10, 12, 20] as DieSides[]) {
     it(`keeps every numeral of the d${sides} inside its face`, () => {
       const geometry = dieGeometry(sides);
       for (const value of geometry.values) {

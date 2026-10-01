@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useImperativeHandle, useMemo, useRef } from 'react';
 import { useReducedMotion } from 'framer-motion';
-import { dieGeometry, faceIndexForValue, restingQuaternion } from '../../../dice3d/dieGeometry';
+import { dieGeometry, faceIndexForValue, lyingHeight, REST_YAW, restingQuaternion } from '../../../dice3d/dieGeometry';
 import { beginRoll, makeDie, restImmediately, stepDie } from '../../../dice3d/dieMotion';
 import { STAGE_X, type Rng } from '../../../dice3d/dieTour';
 import { throwRandom } from '../../../dice3d/throwSeed';
@@ -103,7 +103,7 @@ export function DiceStage({ scene, crit, onSettled, muted, style, frame, seed, l
   useEffect(() => {
     const stage = rendererRef.current?.stage();
     diceRef.current = scene.plan.map((die, i) => ({
-      anim: makeDie(throwRandom(seed, -1 - i), offsets[i], radius, stage),
+      anim: makeDie(throwRandom(seed, -1 - i), offsets[i], radius, stage, lyingHeight(dieGeometry(die.sides))),
       sides: die.sides,
     }));
     stepRandoms.current = scene.plan.map((_, i) => throwRandom(seed, 1000 + i));
@@ -233,7 +233,9 @@ export function DiceStage({ scene, crit, onSettled, muted, style, frame, seed, l
   useEffect(() => {
     diceRef.current.forEach((die, i) => {
       const geometry = dieGeometry(die.sides);
-      const target = restingQuaternion(geometry, faceIndexForValue(geometry, scene.faces[i] ?? 1));
+      // Each die lies turned a little differently, as thrown dice do; from the seed, like the rest of the throw.
+      const yaw = (throwRandom(seed, 2000 + i)() * 2 - 1) * REST_YAW;
+      const target = restingQuaternion(geometry, faceIndexForValue(geometry, scene.faces[i] ?? 1), yaw);
       if (reduced) restImmediately(die.anim, target);
       else beginRoll(die.anim, target, i * STAGGER, throwRandom(seed, i), maxWallHits);
     });

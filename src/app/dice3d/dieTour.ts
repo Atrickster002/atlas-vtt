@@ -81,10 +81,15 @@ export function damp(s: number): number {
   return Math.max(0, 1 - Math.max(0, (s - 0.55) / 0.35));
 }
 
-/** Where a die comes to rest: on the table, not in it. */
-export function restHeight(radius: number): number {
-  // Lying on a face, the centre sits lower than the circumradius.
-  return FLOOR_Y + radius * 0.78;
+/**
+ * How high a tumbling die's centre stays above the table, as a share of its
+ * radius: between lying on a face and standing on a corner.
+ */
+export const TUMBLE_HEIGHT = 0.78;
+
+/** Where the centre of a die is when the die touches the table: `share` of its radius above it. */
+export function restHeight(radius: number, share = TUMBLE_HEIGHT): number {
+  return FLOOR_Y + radius * share;
 }
 
 /**
