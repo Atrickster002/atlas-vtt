@@ -28,7 +28,7 @@ it('switching systems replaces every condition, even one with the same name', ()
 it('clearing the system leaves the vanilla settings', () => {
   const { result } = draftFor({ ...structuredClone(shadowdark.rules), defaultWidgets: { timer: true }, systemPresetId: shadowdark.id });
   act(() => result.current.clearSystem());
-  expect(result.current.toSettings()).toMatchObject({ conditions: [], defaultWidgets: {}, systemPresetId: undefined });
+  expect(result.current.toSettings()).toMatchObject({ conditions: [], defaultWidgets: { hpBar: true, stressBar: false }, systemPresetId: undefined });
 });
 
 it('loads and saves the collection’s own creature filters and the switched-off ones, whatever the system', () => {
@@ -91,4 +91,19 @@ describe('default token vision', () => {
     act(() => result.current.clearSystem());
     expect(result.current.toSettings().defaultTokenVision).toBeUndefined();
   });
+});
+
+it('keeps the bar switches of a collection whose resources stay, and switches a new bar on', () => {
+  const hp = { ...dnd5e.rules.resources![0]! };
+  const { result } = draftFor({ conditions: [], defaultWidgets: { hpBar: false }, resources: [hp] });
+  expect(result.current.toSettings().defaultWidgets).toEqual({ hpBar: false });
+
+  act(() => result.current.setResources([hp, { ...hp, key: draftResourceKey(), name: 'Stress', field: 'stress', direction: 'fills', defeatedWhenSpent: false }]));
+  expect(result.current.toSettings().defaultWidgets).toEqual({ hpBar: false, stressBar: true });
+});
+
+it('keeps what players see of a resource when its system is applied again', () => {
+  const { result } = draftFor({ ...structuredClone(dnd5e.rules), systemPresetId: dnd5e.id, resources: [{ ...dnd5e.rules.resources![0]!, visibleToPlayers: true }] });
+  act(() => result.current.applyPreset(dnd5e));
+  expect(result.current.toSettings().resources?.map((r) => [r.key, r.visibleToPlayers])).toEqual([['hp', true]]);
 });

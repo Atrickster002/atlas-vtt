@@ -340,7 +340,8 @@ export class TokenStatblockLinkService extends EventEmitter {
 
           if (statblockData) {
             token.name = statblockData.name;
-            setOrDelete(token, 'resources', nonEmpty(startingResources(statblockData.record, definitions)));
+            // As on an open map: what the statblock supplies starts anew, the rest stays
+            setOrDelete(token, 'resources', nonEmpty({ ...token.resources, ...startingResources(statblockData.record, definitions) }));
             setOrDelete(token, 'difficulty', statblockData.difficulty);
             delete token.overriddenMax;
           }

@@ -1,7 +1,8 @@
 import { collectionResources } from '../../../resources/collectionResources';
-import { withFinalKeys } from '../../../resources/resourceDefinitions';
+import { keepingPlayerVisibility, withFinalKeys } from '../../../resources/resourceDefinitions';
+import { withChangedBars } from '../../../resources/sceneVisibility';
 import type { ResourceDefinition } from '../../../resources/resourceTypes';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { hasVisionDefaults } from '../../../gameSystems/visionDefaults';
 import { DEFAULT_GRID_DEFAULTS, rulesOfPreset, vanillaSystemSettings } from '../../../gameSystems/systemRules';
 import { parseCreatureFilters, parseHiddenCreatureFilters } from '../../../creatures/creatureFilterDefinitions';
@@ -66,6 +67,8 @@ export function useCollectionSettingsDraft(
   const [defaultTokenVision, setDefaultTokenVision] = useState<TokenVisionDefaults | undefined>(undefined);
   const [conditions, setConditions] = useState<ConditionDefinition[]>([]);
   const [resources, setResources] = useState<ResourceDefinition[]>([]);
+  /** The resources the collection had when the draft opened; a bar switch follows only a resource that came or went. */
+  const loadedResources = useRef<readonly ResourceDefinition[]>([]);
   const [dice, setDice] = useState<DiceRules | undefined>(undefined);
   const [systemPresetId, setSystemPresetId] = useState<string | undefined>(undefined);
   const [lootBases, setLootBases] = useState<string[]>([]);
@@ -80,7 +83,9 @@ export function useCollectionSettingsDraft(
     setDefaultWidgets(settings.defaultWidgets ?? {});
     setDefaultTokenVision(settings.defaultTokenVision);
     setConditions(settings.conditions ?? []);
-    setResources(collectionResources(settings));
+    const loaded = collectionResources(settings);
+    loadedResources.current = loaded;
+    setResources(loaded);
     setDice(settings.dice);
     setSystemPresetId(settings.systemPresetId);
     setLootBases(settings.lootBases ?? []);
@@ -93,7 +98,7 @@ export function useCollectionSettingsDraft(
     const rules = rulesOfPreset(preset);
     setGridDefaults(rules.gridDefaults);
     setConditions(rules.conditions);
-    setResources(rules.resources);
+    setResources(keepingPlayerVisibility(rules.resources, resources));
     setDefaultWidgets(rules.defaultWidgets);
     setDice(rules.dice);
     setDefaultTokenVision(rules.defaultTokenVision);
@@ -111,20 +116,23 @@ export function useCollectionSettingsDraft(
     setSystemPresetId(undefined);
   };
 
-  const toSettings = (): Partial<CollectionSettings> => ({
-    gridDefaults,
-    defaultWidgets,
-    defaultTokenVision: hasVisionDefaults(defaultTokenVision) ? defaultTokenVision : undefined,
-    conditions,
-    resources: savedResources(resources),
-    ...(dice && { dice: { ...dice, defaultRoll: dice.defaultRoll.trim() } }),
-    // Trimmed, with the field as label where none was typed.
-    customCreatureFilters: parseCreatureFilters(customCreatureFilters),
-    hiddenCreatureFilters,
-    systemPresetId,
-    lootBases,
-    lootCurrency: lootCurrency.trim() || undefined,
-  });
+  const toSettings = (): Partial<CollectionSettings> => {
+    const saved = savedResources(resources);
+    return {
+      gridDefaults,
+      defaultWidgets: withChangedBars(defaultWidgets, loadedResources.current, saved),
+      defaultTokenVision: hasVisionDefaults(defaultTokenVision) ? defaultTokenVision : undefined,
+      conditions,
+      resources: saved,
+      ...(dice && { dice: { ...dice, defaultRoll: dice.defaultRoll.trim() } }),
+      // Trimmed, with the field as label where none was typed.
+      customCreatureFilters: parseCreatureFilters(customCreatureFilters),
+      hiddenCreatureFilters,
+      systemPresetId,
+      lootBases,
+      lootCurrency: lootCurrency.trim() || undefined,
+    };
+  };
 
   return {
     gridDefaults, setGridDefaults,

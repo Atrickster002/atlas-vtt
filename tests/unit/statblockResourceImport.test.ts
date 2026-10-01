@@ -52,11 +52,12 @@ describe('linking a statblock to the tokens of closed maps', () => {
     return JSON.parse(files.get(mapPath)!).state.objects.tokens;
   };
 
-  it('writes the new values in the fields every Atlas reads, and nothing of the token\'s old values', async () => {
+  it('writes the statblock\'s values in the fields every Atlas reads, and keeps what the token held beyond them', async () => {
     const tokens = await rewrite(path);
     expect(tokens.t1).toEqual({
       id: 't1', kind: 'character', imagePath: 'mage.webp', x: 0, y: 0, name: 'Mage', statblockPath: path,
       hp: { current: 27, max: 27 }, stress: { current: 0, max: 3 }, maxStress: 3,
+      statblockResources: { mana: { current: 1, max: 8 } },
     });
     expect(tokens.t2).toEqual(other);
   });

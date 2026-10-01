@@ -13,6 +13,7 @@ import type { TokenVisionDefaults } from '../types/lightingTypes';
 import type { SystemPreset, SystemRules } from '../types/systemPresetTypes';
 import type { AnyWidget } from '../types/widgetTypes';
 import { HP_RESOURCE, sameResourceDefinitions } from '../resources/resourceDefinitions';
+import { barWidgets } from '../resources/sceneVisibility';
 import { DEFAULT_DICE_RULES, sameDiceRules } from './diceRules';
 import { hasVisionDefaults, sameVisionDefaults } from './visionDefaults';
 
@@ -29,12 +30,12 @@ export const DEFAULT_GRID_DEFAULTS: Readonly<CollectionGridDefaults> = {
 export type SystemSettings = Required<Pick<CollectionSettings, 'gridDefaults' | 'conditions' | 'defaultWidgets' | 'dice' | 'resources'>>
   & Pick<CollectionSettings, 'systemPresetId' | 'defaultTokenVision'>;
 
-/** A collection without a game system: default measurement and dice, HP as its only resource, no conditions, no default widgets, no default vision. */
+/** A collection without a game system: default measurement and dice, HP as its only resource (its bar on for new scenes), no conditions, no default widgets, no default vision. */
 export function vanillaSystemSettings(): SystemSettings {
   return {
     gridDefaults: structuredClone(DEFAULT_GRID_DEFAULTS),
     conditions: [],
-    defaultWidgets: {},
+    defaultWidgets: barWidgets([HP_RESOURCE]),
     dice: { ...DEFAULT_DICE_RULES },
     resources: [{ ...HP_RESOURCE }],
     systemPresetId: undefined,
@@ -54,7 +55,8 @@ export function rulesOfPreset(
   return {
     gridDefaults: structuredClone(preset.rules.gridDefaults),
     conditions: structuredClone(preset.rules.conditions),
-    defaultWidgets: { ...preset.rules.defaultWidgets },
+    // The bars new scenes show, which older versions of Atlas read too
+    defaultWidgets: { ...barWidgets(preset.rules.resources ?? []), ...preset.rules.defaultWidgets },
     dice: { ...(preset.rules.dice ?? DEFAULT_DICE_RULES) },
     resources: structuredClone(preset.rules.resources ?? []),
     ...(hasVisionDefaults(vision) && { defaultTokenVision: { ...vision } }),

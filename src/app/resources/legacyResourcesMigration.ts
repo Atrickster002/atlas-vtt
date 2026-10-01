@@ -31,19 +31,24 @@ export function sceneShowsSecondaryBar(content: string): boolean {
 /**
  * Stores the resources of every collection saved before resources existed, so they are
  * decided once, with the scenes as they were, and never derived again. Collections that
- * have their list (an empty one too) are left alone.
+ * have their list (an empty one too) are left alone. A collection that cannot be read
+ * keeps reading as its preset's; the others are stored, and the call fails, so whatever
+ * builds on the stored lists waits for the next start.
  *
  * @param readScenes The content of the collection's scene files.
  */
 export async function storeLegacyResources(assets: Collections, readScenes: (collectionId: string) => Promise<string[]>): Promise<void> {
+  const failed: string[] = [];
   for (const { id, settings } of await assets.getCollections()) {
     if (settings?.resources) continue;
     try {
-      const usedInScenes = (await readScenes(id)).some(sceneShowsSecondaryBar);
+      // Its default widget already decides for the secondary bar: no scene needs reading
+      const usedInScenes = settings?.defaultWidgets?.stressBar === true || (await readScenes(id)).some(sceneShowsSecondaryBar);
       await assets.updateCollectionSettings(id, { resources: legacyCollectionResources(settings ?? {}, BUILT_IN_SYSTEM_PRESETS, usedInScenes) });
     } catch (error) {
-      // The collection keeps reading as its preset's until the next start
       console.error(`[Atlas] Could not store the resources of collection ${id}:`, error);
+      failed.push(id);
     }
   }
+  if (failed.length > 0) throw new Error(`The resources of ${failed.join(', ')} could not be stored`);
 }

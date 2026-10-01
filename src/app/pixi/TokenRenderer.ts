@@ -154,7 +154,8 @@ export class TokenRenderer {
     this.viewId = viewId || `tokenrenderer-${Date.now()}-${Math.random()}`;
     this.statblockDialogService = new StatblockDialogService(obsApp);
     this.assetService = AssetService.getInstance(obsApp);
-    this.assetService.initialize().catch(err => {
+    // Tokens drawn before the index is loaded read their collection's rules as unknown
+    this.assetService.initialize().then(() => this.refreshCollectionRules(), (err: unknown) => {
       console.error('[TokenRenderer] Failed to initialize AssetService:', err);
     });
     this.tokenStatblockLinkService = TokenStatblockLinkService.getInstance(obsApp);
@@ -436,11 +437,7 @@ export class TokenRenderer {
     // Condition badges follow edits to the map's collection conditions
     const handleCollectionSettingsChange = this.obsApp.workspace.on('atlas-vtt:collection-settings-changed', (collectionId) => {
       const mapPath = this.store.getState().mapPath;
-      if (mapPath && this.assetService.getCollectionForMap(mapPath) === collectionId) {
-        this.uiManager.refreshConditions();
-        this.uiManager.refreshResources();
-        this.fillMissingResources();
-      }
+      if (mapPath && this.assetService.getCollectionForMap(mapPath) === collectionId) this.refreshCollectionRules();
     });
 
     // Tokens show the new content of an edited image file, e.g. a re-cropped token
@@ -974,7 +971,7 @@ export class TokenRenderer {
                   ? this.obsApp.metadataCache.getFileCache(statblockFile)?.frontmatter
                   : undefined;
                 if (frontmatter) {
-                  character = { ...character, ...buildStatblockLinkUpdates(frontmatter, token.name, this.resourceDefsProvider()) };
+                  character = { ...character, ...buildStatblockLinkUpdates(frontmatter, token.name, this.resourceDefsProvider(), token.resources) };
                 }
               } catch (error) {
                 console.error(`[TokenRenderer] Failed to load statblock data for token ${token.id}:`, error);
@@ -1318,6 +1315,14 @@ export class TokenRenderer {
     }
   }
 
+  /** Redraws what tokens show of their collection's rules (conditions, resources) and starts the resources they lack. */
+  private refreshCollectionRules(): void {
+    if (this.isDestroyed) return;
+    this.uiManager.refreshConditions();
+    this.uiManager.refreshResources();
+    this.fillMissingResources();
+  }
+
   /** Linked tokens start the collection's resources they do not hold yet, e.g. one defined after they were placed. */
   private fillMissingResources(): void {
     if (this.store.getState().isPlayerView) return;
@@ -1353,7 +1358,7 @@ export class TokenRenderer {
           statblockPath,
           // Maxima set by hand belonged to the previous statblock.
           overriddenMax: undefined,
-          ...buildStatblockLinkUpdates(frontmatter, currentName, this.resourceDefsProvider())
+          ...buildStatblockLinkUpdates(frontmatter, currentName, this.resourceDefsProvider(), token.resources)
         });
       }
     } catch (error) {

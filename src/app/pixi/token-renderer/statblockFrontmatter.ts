@@ -3,7 +3,7 @@
  * Frontmatter is user-authored YAML, so every value is validated here once.
  */
 
-import type { ResourceDefinition } from '../../resources/resourceTypes';
+import type { ResourceDefinition, ResourceHolder } from '../../resources/resourceTypes';
 import { startingResources } from '../../resources/statblockResourceValues';
 import type { FrontMatterCache } from 'obsidian';
 import type { Character } from '../../types';
@@ -47,14 +47,18 @@ export function readStatblockVitals(frontmatter: FrontMatterCache): StatblockVit
   return vitals;
 }
 
-/** A freshly linked token starts every resource of its collection from the statblock. */
+/**
+ * A freshly linked token starts every resource its statblock supplies. What it holds of
+ * the others (`held`: hand-set hit points, the DM screen's quantities) stays.
+ */
 export function buildStatblockLinkUpdates(
   frontmatter: FrontMatterCache,
   currentName: string | undefined,
   definitions: readonly ResourceDefinition[],
+  held: ResourceHolder['resources'],
 ): StatblockLinkUpdates {
   const vitals = readStatblockVitals(frontmatter);
-  const updates: StatblockLinkUpdates = { resources: startingResources(frontmatter, definitions) };
+  const updates: StatblockLinkUpdates = { resources: { ...held, ...startingResources(frontmatter, definitions) } };
 
   const name = vitals.name || currentName;
   if (name !== undefined) {

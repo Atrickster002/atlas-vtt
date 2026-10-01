@@ -15,6 +15,14 @@ describe('the quantities the DM screen lists for a token', () => {
     ]);
   });
 
+  it('draws those tracks as boxes also where the collection defines neither', () => {
+    const token = { resources: { hp: { current: 6, max: 8 }, stress: { current: 1, max: 3 } } };
+    expect(tokenQuantities({ hp: 8, stress: 3 }, daggerheart, token, []).map((q) => [q.key, q.boxes, q.fills]))
+      .toEqual([['hp', true, false], ['stress', true, true]]);
+    expect(tokenQuantities({ hp: 8, stress: 3, mana: 4 }, daggerheart, {}, [HP]).map((q) => [q.key, q.boxes]))
+      .toEqual([['stress', true], ['mana', false]]);
+  });
+
   it('shows them as gauges on every other statblock, however small', () => {
     const token = { resources: { hp: { current: 2, max: 4 }, stress: { current: 0, max: 3 } } };
     expect(tokenQuantities({ hp: 4, stress: 3 }, basic, token, [HP, STRESS]).map((q) => q.boxes)).toEqual([false, false]);

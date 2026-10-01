@@ -112,3 +112,11 @@ export function sameResourceDefinitions(
   const right = b ?? [];
   return left.length === right.length && left.every((d, i) => sameDefinition(d, right[i]!));
 }
+
+/** `next` with each resource shown to players as `current` shows the one of its key: what players see is the table's choice. */
+export function keepingPlayerVisibility(next: readonly ResourceDefinition[], current: readonly ResourceDefinition[]): ResourceDefinition[] {
+  return next.map((resource) => {
+    const kept = current.find(({ key }) => key === resource.key);
+    return kept ? { ...resource, visibleToPlayers: kept.visibleToPlayers } : resource;
+  });
+}

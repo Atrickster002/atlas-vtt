@@ -4,7 +4,7 @@ import { Notice, normalizePath } from 'obsidian';
 import { motion } from 'framer-motion';
 import { MapIcon } from 'lucide-react';
 import { AssetService } from '../../../services/AssetService';
-import { hiddenOnNewScenes } from '../../../resources/sceneVisibility';
+import { newSceneTokenSettings } from '../../../resources/sceneVisibility';
 import { DEFAULT_TOKEN_SETTINGS } from '../../../storeFactory';
 import { normalizeImagePath } from '../../../utils/pathUtils';
 import { ensureFolder } from '../../../plugin/vaultFolders';
@@ -144,7 +144,7 @@ export default function CreateSceneModal({
           });
         }
         // A map file's token settings replace the defaults as a whole, so write complete settings
-        Object.assign(mapData.state, { tokenSettings: { ...DEFAULT_TOKEN_SETTINGS, hiddenResources: hiddenOnNewScenes(settings.defaultWidgets) } });
+        Object.assign(mapData.state, { tokenSettings: newSceneTokenSettings(settings.defaultWidgets, DEFAULT_TOKEN_SETTINGS) });
       }
 
       const scenePath = normalizePath(`atlas-vtt/collections/${collectionId}/scenes/${sceneName.trim()}.atlasmap`);

@@ -6,7 +6,7 @@
  */
 
 import type { ResourceDefsProvider } from '../../resources/resourceTypes';
-import { isKillable } from '../../resources/resourceValues';
+import { isKillable, resetLabel } from '../../resources/resourceValues';
 import { visibleResources } from '../../resources/visibleResources';
 import React from 'react';
 import { Container, FederatedPointerEvent } from 'pixi.js';
@@ -684,7 +684,7 @@ export class InteractionController implements ITokenInteractionController {
     if (this.hasResources(character)) {
       entries.push({
         type: 'item',
-        label: 'Reset (Restore Resources, Clear Status)',
+        label: resetLabel(this.resourceDefsProvider()),
         icon: 'rotate-ccw',
         onClick: () => this.store.getState().resetTokens([token.id], this.resourceDefsProvider()),
       });

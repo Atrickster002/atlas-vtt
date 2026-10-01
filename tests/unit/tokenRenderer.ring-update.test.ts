@@ -103,3 +103,26 @@ describe('TokenRenderer ring updates', () => {
     expect(refreshInstanceBadges).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('TokenRenderer and the collection of its map', () => {
+  const harness = (isDestroyed: boolean) => ({
+    isDestroyed,
+    uiManager: { refreshConditions: vi.fn(), refreshResources: vi.fn() },
+    fillMissingResources: vi.fn(),
+  });
+
+  it('redraws conditions and resources and starts missing ones once the collection\'s rules are known or change', () => {
+    const renderer = harness(false);
+    (TokenRenderer.prototype as any).refreshCollectionRules.call(renderer);
+    expect(renderer.uiManager.refreshConditions).toHaveBeenCalledOnce();
+    expect(renderer.uiManager.refreshResources).toHaveBeenCalledOnce();
+    expect(renderer.fillMissingResources).toHaveBeenCalledOnce();
+  });
+
+  it('does nothing after the view closed', () => {
+    const renderer = harness(true);
+    (TokenRenderer.prototype as any).refreshCollectionRules.call(renderer);
+    expect(renderer.uiManager.refreshResources).not.toHaveBeenCalled();
+    expect(renderer.fillMissingResources).not.toHaveBeenCalled();
+  });
+});

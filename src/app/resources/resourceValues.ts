@@ -70,3 +70,12 @@ export function defeatedResources(token: ResourceHolder, definitions: readonly R
 export function restedResources(token: ResourceHolder, definitions: readonly ResourceDefinition[]): Record<string, ResourceValue> | undefined {
   return mapDefined(token, definitions, (definition, value) => startingValue(definition, value.max));
 }
+
+/** The keys of the two bars every map had before resources were defined per collection. */
+const FIRST_BARS: readonly string[] = ['hp', 'stress'];
+
+/** The Reset entry of a token's menu: worded as it always was where the collection has no resource beyond those two bars. */
+export function resetLabel(definitions: readonly ResourceDefinition[]): string {
+  const onlyFirstBars = definitions.every(({ key }) => FIRST_BARS.includes(key));
+  return onlyFirstBars ? 'Reset (Full HP, Clear Status)' : 'Reset (Restore Resources, Clear Status)';
+}

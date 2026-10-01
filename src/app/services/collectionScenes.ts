@@ -1,5 +1,6 @@
 import type { App, TFile } from 'obsidian';
 import { AtlasView, ATLAS_VIEW_TYPE } from '../atlas-view';
+import { storeLegacyResources } from '../resources/legacyResourcesMigration';
 import { AssetService } from './AssetService';
 
 /** The game master's open map views; the player view only mirrors them. */
@@ -19,10 +20,18 @@ export function viewOnScene(app: App, path: string): AtlasView | undefined {
 }
 
 /** The map files of the collection's scenes. */
-export function collectionMapFiles(app: App, collectionId: string): TFile[] {
-  const assets = AssetService.getInstance(app);
+export function collectionMapFiles(app: App, collectionId: string, assets: AssetService = AssetService.getInstance(app)): TFile[] {
   return app.vault.getFiles()
     .filter((file) => file.extension === 'atlasmap' && assets.getCollectionForMap(file.path) === collectionId);
+}
+
+/**
+ * Stores the resources of the collections saved before resources existed (`storeLegacyResources`),
+ * reading their scenes for the secondary bar. Fails when a collection could not be read.
+ */
+export function storeLegacyCollectionResources(app: App, assets: AssetService = AssetService.getInstance(app)): Promise<void> {
+  return storeLegacyResources(assets, (collectionId) =>
+    Promise.all(collectionMapFiles(app, collectionId, assets).map((file) => app.vault.cachedRead(file))));
 }
 
 interface SceneUpdate {

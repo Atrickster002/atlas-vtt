@@ -166,6 +166,14 @@ describe('rulesOfPreset', () => {
   });
 });
 
+describe('the bar switches of a system', () => {
+  it('are on for the bars its resources define, so new scenes and older versions of Atlas show them', () => {
+    expect(rulesOfPreset(dnd5e).defaultWidgets).toMatchObject({ hpBar: true, stressBar: false });
+    expect(rulesOfPreset(daggerheart).defaultWidgets).toMatchObject({ hpBar: true, stressBar: true });
+    expect(vanillaSystemSettings().defaultWidgets).toEqual({ hpBar: true, stressBar: false });
+  });
+});
+
 describe('comparing and describing rules', () => {
   it('ignores condition ids and colour case', () => {
     const a = rules([{ id: 'x', name: 'Prone', color: '#AABBCC' }]);

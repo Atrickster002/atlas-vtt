@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { collectionResources, legacyCollectionResources } from '../../../src/app/resources/collectionResources';
+import { collectionResources, legacyCollectionResources, mapResources } from '../../../src/app/resources/collectionResources';
 import { parseResourceDefinitions } from '../../../src/app/resources/resourceDefinitions';
 import { BUILT_IN_SYSTEM_PRESETS } from '../../../src/app/gameSystems/builtInPresets';
 
@@ -55,5 +55,16 @@ describe('legacyCollectionResources', () => {
   it('never reads more resources than a token shows, wherever the settings came from', () => {
     const five = ['hp', 'str', 'ammo', 'luck', 'mana'].map((key) => ({ key, name: key, field: key, direction: 'drains' as const, color: '#22c55e', visibleToPlayers: false }));
     expect(collectionResources({ conditions: [], resources: five }).map((d) => d.key)).toEqual(['hp', 'str', 'ammo', 'luck']);
+  });
+
+  it('gives a map outside every collection the two bars every map had', () => {
+    const assets = { getCollectionForMap: () => null, getCollectionSettings: () => ({ conditions: [] }) };
+    expect(mapResources(assets, 'maps/old cave.atlasmap').map((d) => d.name)).toEqual(['HP', 'Secondary resource']);
+    expect(mapResources(assets, null).map((d) => d.name)).toEqual(['HP', 'Secondary resource']);
+  });
+
+  it('reads a collection\'s map as HP alone while the index does not know the collection yet', () => {
+    const assets = { getCollectionForMap: () => null, getCollectionSettings: () => ({ conditions: [] }) };
+    expect(mapResources(assets, 'atlas-vtt/collections/Own/scenes/Cave.atlasmap').map((d) => d.name)).toEqual(['HP']);
   });
 });

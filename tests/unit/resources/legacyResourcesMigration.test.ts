@@ -77,12 +77,24 @@ describe('storeLegacyResources', () => {
     expect(readScenes).not.toHaveBeenCalled();
   });
 
-  it('carries on with the other collections when one cannot be read', async () => {
+  it('stores the other collections when one cannot be read, and fails so the next start tries again', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
     const stored: string[] = [];
-    await storeLegacyResources({
+    await expect(storeLegacyResources({
       getCollections: async () => [{ id: 'Broken' }, { id: 'Fine' }],
       updateCollectionSettings: async (id) => { stored.push(id); },
-    }, async (id) => { if (id === 'Broken') throw new Error('unreadable'); return []; });
+    }, async (id) => { if (id === 'Broken') throw new Error('unreadable'); return []; })).rejects.toThrow('Broken');
     expect(stored).toEqual(['Fine']);
+  });
+
+  it('reads no scene of a collection whose default widgets already switch the secondary bar on', async () => {
+    const readScenes = vi.fn(async () => []);
+    const stored: Record<string, string[]> = {};
+    await storeLegacyResources({
+      getCollections: async () => [{ id: 'Daggerheart', settings: { conditions: [], systemPresetId: 'builtin:daggerheart', defaultWidgets: { hpBar: true, stressBar: true } } }],
+      updateCollectionSettings: async (id, settings) => { stored[id] = settings.resources!.map((d) => d.name); },
+    }, readScenes);
+    expect(stored).toEqual({ Daggerheart: ['HP', 'Stress'] });
+    expect(readScenes).not.toHaveBeenCalled();
   });
 });

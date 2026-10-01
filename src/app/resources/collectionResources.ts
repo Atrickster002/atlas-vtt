@@ -37,8 +37,17 @@ export interface CollectionLookup {
   getCollectionSettings(collectionId: string): CollectionSettings;
 }
 
-/** The resources tokens on a map track: its collection's, or HP alone for a map outside every collection. */
+/** How `AssetService.getCollectionForMap` recognises a map that lies in a collection's folder. */
+const COLLECTION_FOLDER = /collections\/[^/]+\//;
+
+/**
+ * The resources tokens on a map track: its collection's. A map outside every collection
+ * keeps the two bars every map had, each shown by the map's own switch. A map in a
+ * collection the index does not know (yet) tracks HP.
+ */
 export function mapResources(assets: CollectionLookup, mapPath: string | null | undefined): ResourceDefinition[] {
   const collectionId = mapPath ? assets.getCollectionForMap(mapPath) : null;
-  return collectionResources(collectionId ? assets.getCollectionSettings(collectionId) : {});
+  if (collectionId) return collectionResources(assets.getCollectionSettings(collectionId));
+  const outsideCollections = !mapPath || !COLLECTION_FOLDER.test(mapPath);
+  return outsideCollections ? withLegacyBars([{ ...HP_RESOURCE }], undefined, true) : [{ ...HP_RESOURCE }];
 }

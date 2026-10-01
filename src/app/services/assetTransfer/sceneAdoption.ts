@@ -1,3 +1,4 @@
+import { DEFAULT_TOKEN_SETTINGS } from '../../storeFactory';
 import type { CollectionSettings } from '../../types/collectionSettingsTypes';
 import { dropUnknownConditionsFromJson } from '../collectionConditionCleanup';
 import { showNewSceneBarsInJson } from '../../resources/sceneVisibility';
@@ -48,7 +49,7 @@ export function sceneAdoption(collectionId: string, settings: CollectionSettings
   const conditions = unlessUnreadable((content) => dropUnknownConditionsFromJson(content, defined));
   const widgets = unlessUnreadable((content) => dropWidgetsFromJson(content, (id) => !library[id]));
   const links = unlessUnreadable((content) => dropSceneLinksFromJson(content, (mapPath) => collectionIdOfPath(mapPath) === collectionId));
-  const bars = unlessUnreadable((content) => showNewSceneBarsInJson(content, settings.defaultWidgets));
+  const bars = unlessUnreadable((content) => showNewSceneBarsInJson(content, settings.defaultWidgets, DEFAULT_TOKEN_SETTINGS));
   return {
     map: inOrder(conditions, widgets, links, bars),
     snapshot: inOrder(conditions, widgets, links),

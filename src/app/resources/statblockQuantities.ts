@@ -72,9 +72,9 @@ export function tokenQuantities(
   const isDefined = (key: string, field: string): boolean =>
     definitions.some((definition) => definition.key === key || normalizedKey(definition.field) === normalizedKey(field));
 
-  const add = (key: string, field: string, raw: unknown, label: string, boxes = false): void => {
+  const add = (key: string, field: string, raw: unknown, label: string, boxes = drawsTracks && TRACKS.has(key)): void => {
     if (quantities.has(key) || isDefined(key, field)) return;
-    const fills = boxes || COUNTING_UP.has(key);
+    const fills = COUNTING_UP.has(key.split('.')[0]!);
     const value = token.resources?.[key] ?? parseResourceValue(raw, fills);
     if (value) quantities.set(key, { key, label, value, fills, boxes: boxes && fitsBoxes(value.max) });
   };
