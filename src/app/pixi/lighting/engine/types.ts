@@ -35,3 +35,13 @@ export interface EngineScene extends Pick<SceneLighting, 'ambientColor' | 'explo
   sightRadius: number;
   ambient: number;
 }
+
+/**
+ * A render of the viewport outside the stage's, without its camera (`generateTexture`): world
+ * point (x, y) is its first pixel, and `resolution` is its pixels per world pixel.
+ */
+export interface SceneFrame {
+  x: number;
+  y: number;
+  resolution: number;
+}

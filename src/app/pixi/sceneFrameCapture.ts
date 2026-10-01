@@ -1,0 +1,35 @@
+import type { GmOverlays } from './lighting/playerLightingLayers';
+import type { SceneFrame } from './lighting/engine/types';
+import type { SceneLightingView } from './lighting/sceneLightingView';
+import { captureWithLayerVisibility, type HideableLayer, type LayerVisibility } from './playerSafeFrame';
+
+/** Runs the off-screen render of a picture of the scene with what the scene needs around it, and returns its result. */
+export type SceneFrameCapture = <T>(frame: SceneFrame, render: () => T) => T;
+
+export interface SceneFrameParts {
+  /** The GM's markers on the map (pins, linked hexes): not part of a picture of the scene. */
+  markerLayers: readonly LayerVisibility[];
+  /** The scene's lighting and its editors and badges, which the player frame hides too; none on a view without lighting. */
+  lighting: { gmOverlays(): GmOverlays; readonly renderer: Pick<SceneLightingView, 'renderForFrame'> } | undefined;
+}
+
+/** A picture is rendered off-screen: the canvas keeps the GM's frame, so nothing is drawn on it. */
+const KEEP_CANVAS = (): void => undefined;
+
+/**
+ * Renders a picture of the scene (a thumbnail) outside the stage's render: without the GM's
+ * markers and editors, and lit for its own frame as the GM sees the scene. The layers are back
+ * when this returns and the canvas is never drawn meanwhile, so the GM sees no frame without
+ * them. The render consumes the stage's pending updates: the caller asks for a render after it.
+ */
+export function captureSceneFrame<T>({ markerLayers, lighting }: SceneFrameParts, frame: SceneFrame, render: () => T): T {
+  const hidden = [
+    ...markerLayers,
+    ...Object.values<HideableLayer>(lighting?.gmOverlays() ?? {}).map((layer) => ({ layer, visible: false })),
+  ];
+  let picture!: T;
+  captureWithLayerVisibility(hidden, KEEP_CANVAS, () => {
+    picture = lighting ? lighting.renderer.renderForFrame(frame, render) : render();
+  });
+  return picture;
+}

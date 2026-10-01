@@ -15,7 +15,7 @@ import type { HideableLayer } from '../playerSafeFrame';
 import { requestRender } from '../RenderScheduler';
 import { awaitGpu, contextLost } from './engine/gpu';
 import { LightingEngine } from './engine/LightingEngine';
-import type { EngineScene } from './engine/types';
+import type { EngineScene, SceneFrame } from './engine/types';
 import { ExploredMemory } from './ExploredMemory';
 import type { LightingAttempt } from './lightingAttempts';
 import { LightReaches } from './lightReaches';
@@ -117,6 +117,12 @@ export class LightingRenderer implements SceneLightingView {
   currentSight(): Sight { return this.sight; }
   lightReaches(): LightReach[] { return this.reaches; }
   ambientLight(): AmbientLight { return this.deps.store.getState().lighting; }
+
+  renderForFrame<T>(frame: SceneFrame, render: () => T): T {
+    // Bounce still to build after an edit belongs in the picture; so does a world a restored context took.
+    this.run(() => this.engine.flush());
+    return this.engine.renderFrame(frame, render);
+  }
 
   /** The map image changed size or finished loading. */
   refreshBounds(): void {

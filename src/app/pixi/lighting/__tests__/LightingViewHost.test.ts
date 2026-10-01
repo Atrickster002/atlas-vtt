@@ -24,6 +24,7 @@ function fakeView(sight: Sight = SEES_ALL): FakeView {
     refreshBounds: vi.fn(),
     resetExplored: vi.fn(),
     beforeMapUnload: vi.fn(),
+    renderForFrame: (_frame, render) => render(),
     destroy: () => { view.destroyed = true; },
   };
   return view;

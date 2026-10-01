@@ -32,6 +32,8 @@ import { TextRenderer } from "./pixi/TextRenderer"; // Import TextRenderer
 import { TextTool } from "./tools/TextTool"; // Import TextTool
 import { LightingController } from './pixi/lighting/LightingController';
 import { playerLightingLayers, tokenSeenPredicate } from './pixi/lighting/playerLightingLayers';
+import type { SceneFrame } from './pixi/lighting/engine/types';
+import { captureSceneFrame } from './pixi/sceneFrameCapture';
 import { WALLS_AND_LIGHTING_ENABLED } from './featureFlags';
 import { AudioTool } from './tools/AudioTool';
 import { openAudioConfigPanel } from './pixi/audio/AudioConfigPanel';
@@ -732,9 +734,7 @@ export class PixiRendererOrchestrator { // Renamed class
   public withPlayerSafeFrame(capture: () => void, settings: AtlasSettings['localPlayerView'], camera?: PlayerCameraState, renderFollows = false): void {
     const app = this.pixiAppManager.getApp();
     if (!app?.renderer) return;
-    const layers: LayerVisibility[] = [];
-    if (this.pinRenderer) layers.push({ layer: this.pinRenderer.getPinContainer(), visible: false });
-    if (this.hexLinkRenderer) layers.push({ layer: this.hexLinkRenderer.container, visible: false });
+    const layers = this.markerLayers();
     const grid = this.gridSystem?.getGridSprite();
     if (grid) layers.push({ layer: grid, visible: settings.showGrid });
     const lighting = this.lighting?.renderer;
@@ -751,6 +751,19 @@ export class PixiRendererOrchestrator { // Renamed class
     const playerCamera = camera && viewport ? { target: viewport, camera } : undefined;
     const captureFrame = renderFollows ? captureBeforeRender : captureWithLayerVisibility;
     captureFrame(layers, () => app.renderer.render(app.stage), capture, playerCamera);
+  }
+
+  /** The GM's markers on the map: neither the players nor a picture of the scene show them. */
+  private markerLayers(): LayerVisibility[] {
+    const layers: LayerVisibility[] = [];
+    if (this.pinRenderer) layers.push({ layer: this.pinRenderer.getPinContainer(), visible: false });
+    if (this.hexLinkRenderer) layers.push({ layer: this.hexLinkRenderer.container, visible: false });
+    return layers;
+  }
+
+  /** Runs `render`, the off-screen render of a thumbnail's `frame`: lit as the GM sees the scene, without the GM's overlays. */
+  public captureSceneFrame<T>(frame: SceneFrame, render: () => T): T {
+    return captureSceneFrame({ markerLayers: this.markerLayers(), lighting: this.lighting }, frame, render);
   }
 
   getViewportInstance(): Viewport | null { return this.pixiAppManager.getViewport(); }

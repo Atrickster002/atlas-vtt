@@ -41,6 +41,17 @@ describe('CanvasLightingFallback', () => {
     expect(darkness.visible).toBe(false);
   });
 
+  it('renders a thumbnail in the GM view while the canvas shows the players, and leaves the canvas on theirs', () => {
+    const { fallback, viewport } = setup({ hero });
+    const darkness = viewport.children[0]!;
+    fallback.setPreview(true);
+    expect(darkness.visible).toBe(true);
+    expect(fallback.renderForFrame({ x: 0, y: 0, resolution: 0.5 }, () => darkness.visible)).toBe(false);
+    expect(darkness.visible).toBe(true);
+    expect(() => fallback.renderForFrame({ x: 0, y: 0, resolution: 0.5 }, () => { throw new Error('Render failed'); })).toThrow('Render failed');
+    expect(darkness.visible).toBe(true);
+  });
+
   it('hides nothing while no token has vision', () => {
     const { fallback } = setup({});
     expect(fallback.currentSight().all).toBe(true);

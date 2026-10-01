@@ -2,6 +2,7 @@ import { App, TFile } from 'obsidian';
 import { Application, Container, Rectangle, type Texture } from 'pixi.js';
 import { mapThumbnailPath } from '../utils/dataFileMigration';
 import { requestRender } from '../pixi/RenderScheduler';
+import type { SceneFrameCapture } from '../pixi/sceneFrameCapture';
 import { trashHiddenPath } from '../utils/hiddenVaultFiles';
 
 /** The bytes of a base64 data URL, such as the JPEG `renderThumbnail` returns. */
@@ -27,6 +28,9 @@ const MAP_THUMBNAIL_SIZE: ThumbnailSize = { width: 400, height: 300 };
 /** Scene snapshot cards: 16:9 and sharp enough for their larger preview. */
 export const SNAPSHOT_THUMBNAIL_SIZE: ThumbnailSize = { width: 640, height: 360 };
 
+/** A map view without lighting or GM overlays to take care of: the render is the picture. */
+const PLAIN_CAPTURE: SceneFrameCapture = (_frame, render) => render();
+
 /** Renders a map view into a thumbnail and stores it next to the scene's map file. */
 export class MapThumbnailService {
   constructor(private readonly app: App) {}
@@ -34,8 +38,15 @@ export class MapThumbnailService {
   /**
    * Renders the map as it looks now into a JPEG data URL of `size` (400×300 by
    * default), framed on the map image. Returns null when there is nothing to frame.
+   * `capture` runs the off-screen render: the map view's hides the GM's overlays and lights the frame.
    */
-  renderThumbnail(pixiApp: Application, viewport: Container, background?: Container | null, size: ThumbnailSize = MAP_THUMBNAIL_SIZE): string | null {
+  renderThumbnail(
+    pixiApp: Application,
+    viewport: Container,
+    background?: Container | null,
+    size: ThumbnailSize = MAP_THUMBNAIL_SIZE,
+    capture: SceneFrameCapture = PLAIN_CAPTURE,
+  ): string | null {
     const contentBounds = this.calculateContentBounds(viewport, size, background);
     if (!contentBounds) return null;
 
@@ -46,13 +57,18 @@ export class MapThumbnailService {
       size.height / contentBounds.height
     );
 
-    const renderTexture: Texture = pixiApp.renderer.generateTexture({
-      target: viewport,
-      frame: contentBounds,
-      resolution: renderResolution,
-    });
-    // The off-screen render consumed pending stage updates; the canvas still needs them
-    requestRender(pixiApp);
+    const frame = { x: contentBounds.x, y: contentBounds.y, resolution: renderResolution };
+    let renderTexture: Texture;
+    try {
+      renderTexture = capture(frame, () => pixiApp.renderer.generateTexture({
+        target: viewport,
+        frame: contentBounds,
+        resolution: renderResolution,
+      }));
+    } finally {
+      // The off-screen render consumed pending stage updates; the canvas still needs them
+      requestRender(pixiApp);
+    }
     try {
       const sourceCanvas = this.extractRenderCanvas(pixiApp, renderTexture, size);
       const thumbnailCanvas = this.fitIntoThumbnailCanvas(sourceCanvas, size);

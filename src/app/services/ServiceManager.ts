@@ -184,7 +184,9 @@ export class ServiceManager {
     const viewport = renderer?.getViewportInstance();
     if (!renderer || !pixiApp || !viewport) return null;
 
-    const dataUrl = this.mapThumbnailService.renderThumbnail(pixiApp, viewport, renderer.getBackgroundSprite(), size);
+    const dataUrl = this.mapThumbnailService.renderThumbnail(
+      pixiApp, viewport, renderer.getBackgroundSprite(), size, (frame, render) => renderer.captureSceneFrame(frame, render),
+    );
     return dataUrl ? dataUrlToBytes(dataUrl) : null;
   }
 
