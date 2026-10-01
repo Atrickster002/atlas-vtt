@@ -173,8 +173,13 @@ export function isFelt(point: Point, sight: Sight): boolean {
   return sight.tremors.some(({ origin, radius }) => Math.hypot(point.x - origin.x, point.y - origin.y) <= radius);
 }
 
+/** Whether `point` is in a viewer's line of sight, lit or not. */
+export function inSight(point: Point, sight: Sight): boolean {
+  return sight.all || sight.polygons.some((polygon) => pointInPolygon(point, polygon));
+}
+
 /** Whether a viewer can see `point`: in line of sight and lit, or within darkvision. */
 export function isSeen(point: Point, sight: Sight, ambient: AmbientLight, lights: readonly LightReach[]): boolean {
-  if (!sight.all && !sight.polygons.some((polygon) => pointInPolygon(point, polygon))) return false;
+  if (!inSight(point, sight)) return false;
   return isLit(point, ambient, lights) || sight.darkvision.some((polygon) => pointInPolygon(point, polygon));
 }

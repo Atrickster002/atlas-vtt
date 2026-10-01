@@ -11,6 +11,7 @@ import {
   DEFAULT_UNEXPLORED_COLOR,
   exploredMemoryOn,
   litThresholdOf,
+  sightOnDropOn,
   tokenVisionOn,
 } from '../../lighting/sceneLightingOptions';
 import { ColorField, SliderField, ToggleField } from './lightingPanelFields';
@@ -77,6 +78,13 @@ function SceneLightingPanel(): React.ReactElement {
           tooltipOn="What tokens saw stays on the players' map"
           tooltipOff="Players see only what their tokens see now"
           onChange={(exploredMemory) => setSceneLighting({ exploredMemory })}
+        />
+        <ToggleField
+          label="Update sight when a token is dropped"
+          value={sightOnDropOn(lighting)}
+          tooltipOn="Dragging a token shows the players nothing new until you drop it"
+          tooltipOff="Players see everything a token passes while you drag it"
+          onChange={(sightOnDrop) => setSceneLighting({ sightOnDrop })}
         />
         <div className="atlas-light-panel__row atlas-light-panel__row--pair">
           <ColorField label="Explored colour" value={lighting.exploredColor ?? DEFAULT_EXPLORED_COLOR}

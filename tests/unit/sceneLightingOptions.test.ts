@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { brightThresholdOf, clampLitThreshold, exploredMemoryOn, litThresholdOf, readSceneLighting, sceneLook, tokenVisionOn } from '../../src/app/lighting/sceneLightingOptions';
+import { brightThresholdOf, clampLitThreshold, exploredMemoryOn, litThresholdOf, readSceneLighting, sceneLook, sightOnDropOn, tokenVisionOn } from '../../src/app/lighting/sceneLightingOptions';
 import { DEFAULT_SCENE_LIGHTING } from '../../src/app/types/lightingTypes';
 
 describe('scene lighting options', () => {
@@ -8,6 +8,13 @@ describe('scene lighting options', () => {
     expect(tokenVisionOn({ tokenVision: false })).toBe(false);
     expect(exploredMemoryOn(DEFAULT_SCENE_LIGHTING)).toBe(true);
     expect(exploredMemoryOn({ exploredMemory: false })).toBe(false);
+  });
+
+  it('updates sight on the drop unless the scene switches that off, and keeps the choice when loaded', () => {
+    expect(sightOnDropOn(DEFAULT_SCENE_LIGHTING)).toBe(true);
+    expect(sightOnDropOn({ sightOnDrop: true })).toBe(true);
+    expect(sightOnDropOn({ sightOnDrop: false })).toBe(false);
+    expect(sightOnDropOn(readSceneLighting({ enabled: true, sightOnDrop: false }))).toBe(false);
   });
 
   it('counts a scene as lit from 25 % ambient light unless it sets its own threshold', () => {

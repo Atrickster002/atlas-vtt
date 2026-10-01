@@ -57,6 +57,15 @@ describe('tokenSeenPredicate', () => {
     expect(tokenSeenPredicate(sight, { ambient: 0.5, litThreshold: 0.75 }, [], inSight)('guard')).toBe(false);
   });
 
+  it('shows a vision token the pointer has moved only in the line of sight that stayed behind, lit or not', () => {
+    const held = { hero: { x: 100, y: 100 } };
+    const moved = (x: number): Record<string, TokenEntity> => ({ ...tokens, hero: { ...tokens.hero!, x } });
+    expect(tokenSeenPredicate(sight, { ambient: 0 }, [], tokens, held)('hero')).toBe(true);
+    expect(tokenSeenPredicate(sight, { ambient: 0 }, [], moved(150), held)('hero')).toBe(true);
+    expect(tokenSeenPredicate(sight, { ambient: 1 }, [], moved(400), held)('hero')).toBe(false);
+    expect(tokenSeenPredicate(sight, { ambient: 1 }, [], moved(400))('hero')).toBe(true);
+  });
+
   it('treats unknown tokens as unseen', () => {
     expect(tokenSeenPredicate(sight, { ambient: 1 }, [], tokens)('missing')).toBe(false);
   });
@@ -97,6 +106,13 @@ describe('tokenSeenPredicate with tremorsense', () => {
   it('senses tokens within range through walls, even in the dark', () => {
     expect(tokenSeenPredicate(sight, { ambient: 1 }, [], tokens)('near')).toBe(true);
     expect(tokenSeenPredicate(sight, { ambient: 0 }, [], tokens)('near')).toBe(true);
+  });
+
+  it('shows a vision token the pointer has moved out of sight while another vision token feels it', () => {
+    const scout: TokenEntity = { id: 'scout', kind: 'token', imagePath: 's.png', x: 300, y: 100, vision: { enabled: true } };
+    const held = { scout: { x: 100, y: 300 } };
+    expect(tokenSeenPredicate(sight, { ambient: 0 }, [], { ...tokens, scout }, held)('scout')).toBe(true);
+    expect(tokenSeenPredicate(sight, { ambient: 0 }, [], { ...tokens, scout: { ...scout, x: 600 } }, held)('scout')).toBe(false);
   });
 
   it('does not sense tokens out of range', () => {
