@@ -13,18 +13,6 @@ body.atlas-player-window {
   -webkit-user-select: none;
   user-select: none;
 
-  --background-primary: #202020;
-  --background-secondary: #262626;
-  --background-secondary-alt: #1a1a1a;
-  --background-modifier-border: #414141;
-  --background-modifier-border-hover: #515151;
-  --background-modifier-hover: rgba(255, 255, 255, 0.05);
-  --text-normal: #dcddde;
-  --text-muted: #999;
-  --text-faint: #666;
-  --interactive-accent: #7f6df2;
-  --interactive-accent-hover: #8875ff;
-
   #atlas-player-canvas {
     position: absolute;
     top: 0;
