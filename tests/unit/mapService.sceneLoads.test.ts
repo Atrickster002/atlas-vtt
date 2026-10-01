@@ -68,8 +68,9 @@ function setup(): Harness {
   const reading: string[] = [];
   vi.mocked(MapLoader.load).mockImplementation(async (_app, path): Promise<LoadedMap> => {
     reading.push(path);
-    await gates.get(path)?.promise;
+    // The file is read first; the image then takes its time
     const envelope = JSON.parse(files.get(path) ?? '{}') as PersistedMapEnvelope;
+    await gates.get(path)?.promise;
     return { mapData: migrateMapFile(envelope.state), texture: Texture.WHITE, hasBackground: false, backgroundUrl: null };
   });
 
@@ -231,6 +232,44 @@ describe('MapService scene loads', () => {
       expect(tokenIds(store.getState())).toEqual(['bat']);
       expect(tokenIds(savedState(files, CAVE))).toEqual(['bat']);
       expect(savedState(files, CAVE).lighting.enabled).toBe(true);
+    });
+  });
+
+  describe('when the scene file moves while its image loads', () => {
+    it('opens a scene that was renamed meanwhile with everything it holds, and saves it under its new name', async () => {
+      const { app, service, store, files, rendererService, holdBack } = setup();
+      const renamed = 'maps/keep.atlasmap';
+      const image = holdBack(TOWER);
+
+      const opening = service.loadMap(rendererService, TOWER);
+      await vi.advanceTimersByTimeAsync(0);
+      // What the view does when the vault reports the rename
+      await app.vault.rename(app.vault.getFileByPath(TOWER)!, renamed);
+      store.getState().setMapPath(renamed);
+      service.handleFileRenamed(TOWER, renamed);
+      image.resolve();
+
+      expect(await opening).not.toBeNull();
+      expect(tokenIds(store.getState())).toEqual(['mage']);
+      await editAndSave(store);
+      expect(tokenIds(savedState(files, renamed))).toEqual(['mage']);
+      expect(files.has(TOWER)).toBe(false);
+    });
+
+    it('fails the load of a scene whose file is gone by then, and creates no file in its place', async () => {
+      const { service, store, files, rendererService, holdBack } = setup();
+      const image = holdBack(TOWER);
+
+      const opening = service.loadMap(rendererService, TOWER);
+      await vi.advanceTimersByTimeAsync(0);
+      files.delete(TOWER);
+      image.resolve();
+
+      expect(await opening).toBeNull();
+      expect(Notice).toHaveBeenCalledWith('Atlas VTT could not open the scene tower (The scene file was moved or deleted while it opened).', 0);
+      await editAndSave(store);
+      expect(store.getState().mapLoaded).toBe(false);
+      expect(files.has(TOWER)).toBe(false);
     });
   });
 

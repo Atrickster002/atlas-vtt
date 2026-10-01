@@ -136,10 +136,11 @@ export class MapService {
         // Rehydration that was under way has written to the store; the load that replaced this one clears it
         if (isSuperseded()) return null;
 
-        // If this is a new map (no file exists yet), ensure state is truly empty
-        // Rehydration with null data might leave old state intact
-        if (Object.keys(this.store.getState().objects?.tokens || {}).length > 0 && !this.app.vault.getAbstractFileByPath(filePath)) {
-          storeState.clearMapState();
+        // The file may have been renamed while the image loaded (the store follows it) or be gone.
+        // Without a file there was nothing to restore, and saving the store would create one.
+        const mapPath = this.store.getState().mapPath;
+        if (!mapPath || !this.app.vault.getAbstractFileByPath(mapPath)) {
+          throw new Error('[MapService] The scene file was moved or deleted while it opened');
         }
 
         // NOW re-enable persistence after successful rehydration
