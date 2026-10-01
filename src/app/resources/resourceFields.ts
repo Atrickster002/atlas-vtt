@@ -1,0 +1,40 @@
+import type { ResourceValue } from './resourceTypes';
+
+/** Reads a dotted path (`stats.0`, `resources.mana`) from a statblock record. */
+export function resolveField(record: Readonly<Record<string, unknown>>, path: string): unknown {
+  const parts = path.split('.').map((part) => part.trim()).filter(Boolean);
+  if (parts.length === 0) return undefined;
+  let value: unknown = record;
+  for (const part of parts) {
+    if (Array.isArray(value)) value = /^\d+$/.test(part) ? value[Number(part)] : undefined;
+    else if (value !== null && typeof value === 'object') value = (value as Record<string, unknown>)[part];
+    else return undefined;
+  }
+  return value;
+}
+
+function numeric(value: unknown): number | null {
+  if (typeof value === 'string' && /^\d+(?:\.\d+)?$/.test(value.trim())) value = Number(value);
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : null;
+}
+
+const clamp = (current: number, max: number): number => Math.max(0, Math.min(max, current));
+
+/** Only concrete quantities: never rolls a dice expression or guesses from prose. */
+export function parseResourceValue(value: unknown, spent = false): ResourceValue | null {
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    const record = value as Record<string, unknown>;
+    const max = numeric(record.max);
+    const current = numeric(record.current ?? record.value ?? (spent ? 0 : max));
+    return max !== null && current !== null ? { current: clamp(current, max), max } : null;
+  }
+  if (typeof value === 'string') {
+    const fraction = value.trim().match(/^(\d+(?:\.\d+)?)\s*\/\s*(\d+(?:\.\d+)?)$/);
+    if (fraction) return parseResourceValue({ current: fraction[1], max: fraction[2] });
+    // Common HP notation: average followed by its hit-dice formula.
+    const average = value.trim().match(/^(\d+)\s*\(\s*\d+d\d+(?:\s*[+-]\s*\d+)?\s*\)$/i);
+    if (average) value = average[1];
+  }
+  const max = numeric(value);
+  return max === null ? null : { current: spent ? 0 : max, max };
+}

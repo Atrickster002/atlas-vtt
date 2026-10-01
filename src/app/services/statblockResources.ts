@@ -1,6 +1,9 @@
 import type { StatblockItem, StatblockLayout, StatblockMonster } from '../react/components/statblock/statblockTypes';
 import type { Character, TokenResourceValue } from '../types';
 import type { TokenVitals } from './statblockVitalsSync';
+import { parseResourceValue } from '../resources/resourceFields';
+
+export { parseResourceValue };
 
 export interface StatblockResource extends TokenResourceValue {
   key: string;
@@ -26,25 +29,6 @@ const clamp = (current: number, max: number): number => Math.max(0, Math.min(max
 function numeric(value: unknown): number | null {
   if (typeof value === 'string' && /^\d+(?:\.\d+)?$/.test(value.trim())) value = Number(value);
   return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : null;
-}
-
-/** Only parse concrete quantities, never roll a dice expression or guess from prose. */
-export function parseResourceValue(value: unknown, spent = false): TokenResourceValue | null {
-  if (value && typeof value === 'object' && !Array.isArray(value)) {
-    const record = value as Record<string, unknown>;
-    const max = numeric(record.max);
-    const current = numeric(record.current ?? record.value ?? (spent ? 0 : max));
-    return max !== null && current !== null ? { current: clamp(current, max), max } : null;
-  }
-  if (typeof value === 'string') {
-    const fraction = value.trim().match(/^(\d+(?:\.\d+)?)\s*\/\s*(\d+(?:\.\d+)?)$/);
-    if (fraction) return parseResourceValue({ current: fraction[1], max: fraction[2] });
-    // Common HP notation: average followed by its hit-dice formula.
-    const average = value.trim().match(/^(\d+)\s*\(\s*\d+d\d+(?:\s*[+-]\s*\d+)?\s*\)$/i);
-    if (average) value = average[1];
-  }
-  const max = numeric(value);
-  return max === null ? null : { current: spent ? 0 : max, max };
 }
 
 function layoutItems(items: StatblockItem[]): StatblockItem[] {
