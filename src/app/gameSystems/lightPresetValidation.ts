@@ -9,6 +9,7 @@ import type { LightPresetDefinition, LightPresetUnit } from '../types/lightPrese
 import type { LightAnimation } from '../types/lightingTypes';
 import type { SystemPreset } from '../types/systemPresetTypes';
 import { isHexColor } from '../utils/hexColor';
+import { coneAngle } from '../vision/visionCone';
 import { collectionLightPresets } from './lightPresetRules';
 
 const ANIMATIONS: readonly LightAnimation[] = ['none', 'torch', 'candle', 'pulse', 'magic'];
@@ -41,6 +42,7 @@ function parseLightPreset(raw: unknown): LightPresetDefinition | null {
   const sourceRadius = within(raw.sourceRadius, MAX_SOURCE_RADIUS);
   const intensity = within(raw.intensity, MAX_INTENSITY);
   const unit = oneOf<LightPresetUnit | ''>(UNITS, raw.unit, '');
+  const angle = coneAngle(raw.angle);
   return {
     id: raw.id,
     name: raw.name.trim(),
@@ -52,6 +54,7 @@ function parseLightPreset(raw: unknown): LightPresetDefinition | null {
     kind: oneOf(LIGHT_KINDS, raw.kind, 'custom'),
     ...(sourceRadius !== undefined && { sourceRadius }),
     ...(intensity !== undefined && { intensity }),
+    ...(angle !== undefined && { angle }),
     ...(raw.darkness === true && { darkness: true }),
     ...(typeof raw.priority === 'number' && Number.isFinite(raw.priority) && raw.priority !== 0 && { priority: raw.priority }),
   };

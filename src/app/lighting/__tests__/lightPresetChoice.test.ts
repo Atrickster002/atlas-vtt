@@ -26,6 +26,14 @@ describe('emissionOf', () => {
     expect(emissionOf(named(dnd5e, 'Torch'))).not.toHaveProperty('priority');
   });
 
+  it('carries the angle of a light that shines one way', () => {
+    expect(emissionOf(named(dnd5e, 'Bullseye lantern'))).toMatchObject({ bright: 60, dim: 120, angle: 53, kind: 'lantern', preset: 'dnd5e-bullseye-lantern' });
+    expect(emissionOf(named(dnd5e, 'Hooded lantern'))).not.toHaveProperty('angle');
+    // A light of that kind without a record is the first of its kind that shines as it does.
+    const { preset: _preset, ...unrecorded } = emissionOf(named(dnd5e, 'Bullseye lantern'));
+    expect(lightPresetOf(unrecorded, dnd5e)?.name).toBe('Bullseye lantern');
+  });
+
   it('gives a generic preset the light it always had on a 5-foot grid', () => {
     for (const preset of lightPresetsOnMap(GENERIC_LIGHT_PRESETS, FEET, Infinity)) {
       const id = preset.id as keyof typeof LIGHT_PRESETS;
@@ -153,7 +161,7 @@ describe('lightPresetChips', () => {
   it('shows the first preset of each kind as a chip, so no two chips share a glyph, and the others under More', () => {
     const { chips, more } = lightPresetChips(dnd5e);
     expect(names(chips)).toEqual(['Candle', 'Torch', 'Hooded lantern', 'Light', 'Darkness']);
-    expect(names(more)).toEqual(['Lamp', 'Continual Flame', 'Daylight']);
+    expect(names(more)).toEqual(['Lamp', 'Continual Flame', 'Daylight', 'Bullseye lantern']);
   });
 
   it('fills up to five chips when the presets have fewer kinds, and keeps the chips in list order', () => {

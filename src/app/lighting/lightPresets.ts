@@ -1,4 +1,5 @@
 import type { LightEmission, LightKind } from '../types/lightingTypes';
+import { coneAngle } from '../vision/visionCone';
 
 export type LightPresetId = Exclude<LightKind, 'custom'>;
 
@@ -29,7 +30,7 @@ export const LIGHT_PRESET_IDS = Object.keys(LIGHT_PRESETS) as LightPresetId[];
 export function sameEmission(a: LightEmission, b: LightEmission): boolean {
   return a.bright === b.bright && a.dim === b.dim && a.color.toLowerCase() === b.color.toLowerCase()
     && a.intensity === b.intensity && a.animation === b.animation && (a.sourceRadius ?? 0) === (b.sourceRadius ?? 0)
-    && !!a.darkness === !!b.darkness && (a.priority ?? 0) === (b.priority ?? 0);
+    && !!a.darkness === !!b.darkness && (a.priority ?? 0) === (b.priority ?? 0) && coneAngle(a.angle) === coneAngle(b.angle);
 }
 
 /** The preset an emission is identical to, or null once any field was edited. */

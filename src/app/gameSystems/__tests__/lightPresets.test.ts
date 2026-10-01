@@ -33,7 +33,7 @@ describe('built-in light presets', () => {
     }
   });
 
-  it('lists D&D 5e\'s light sources (SRD 5.2.1), without the bullseye lantern', () => {
+  it('lists D&D 5e\'s light sources (SRD 5.2.1), its Darkness and the bullseye lantern\'s cone', () => {
     expect(rows(lights('D&D 5e'))).toEqual([
       ['dnd5e-candle', 'Candle', 5, 10, 'candle'],
       ['dnd5e-torch', 'Torch', 20, 40, 'torch'],
@@ -43,7 +43,11 @@ describe('built-in light presets', () => {
       ['dnd5e-continual-flame', 'Continual Flame', 20, 40, 'magical'],
       ['dnd5e-daylight', 'Daylight', 60, 120, 'magical'],
       ['dnd5e-darkness', 'Darkness', 0, 15, 'darkness'],
+      ['dnd5e-bullseye-lantern', 'Bullseye lantern', 60, 120, 'lantern'],
     ]);
+    // A 5e cone is as wide as it is long: 53°. Pathfinder's is a quarter circle.
+    expect(lights('D&D 5e').filter((light) => light.angle).map((light) => [light.id, light.angle])).toEqual([['dnd5e-bullseye-lantern', 53]]);
+    expect(lights('Pathfinder 2e').filter((light) => light.angle).map((light) => [light.id, light.bright, light.dim, light.angle])).toEqual([['pathfinder2e-bullseye-lantern', 60, 120, 90]]);
     // Darkness swallows the light of spells of its level or lower; Daylight, a level above, shines in it.
     const table = lights('D&D 5e');
     expect(table.find((light) => light.id === 'dnd5e-darkness')).toMatchObject({ darkness: true });
@@ -59,6 +63,7 @@ describe('built-in light presets', () => {
       ['pathfinder2e-everlight-crystal', 'Everlight crystal', 20, 40, 'magical'],
       ['pathfinder2e-glow-rod', 'Glow rod', 20, 60, 'magical'],
       ['pathfinder2e-darkness', 'Darkness', 0, 20, 'darkness'],
+      ['pathfinder2e-bullseye-lantern', 'Bull\'s-eye lantern', 60, 120, 'lantern'],
     ]);
   });
 
@@ -134,6 +139,11 @@ describe('parseLightPresets', () => {
   it('drops a preset without an id, a name or a reach, and the second of two with one id', () => {
     const list = [{ ...base, id: '' }, { ...base, id: 'b', name: '  ' }, { ...base, id: 'c', bright: 0, dim: 0 }, { ...base, id: 'd', dim: 'far' }, base, { ...base, name: 'Twin' }];
     expect(parseLightPresets(list)?.map((light) => light.name)).toEqual(['Brazier']);
+  });
+
+  it('keeps a beam angle of 1 to 359 degrees, and reads anything else as all around', () => {
+    expect(parseLightPresets([{ ...base, angle: 53 }])?.[0]!.angle).toBe(53);
+    for (const angle of [360, 0, -20, 'narrow', Number.NaN]) expect(parseLightPresets([{ ...base, angle }])?.[0]).not.toHaveProperty('angle');
   });
 
   it('keeps a darkness and a priority, and nothing of them that is not a switch or a number', () => {

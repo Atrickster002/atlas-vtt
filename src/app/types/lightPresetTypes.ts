@@ -38,4 +38,6 @@ export interface LightPresetDefinition {
   darkness?: boolean;
   /** Which wins where a light and a darkness meet (`LightEmission.priority`); unset is 0. */
   priority?: number;
+  /** Width of the beam in degrees of a light that shines one way (`LightEmission.angle`); unset shines all around. */
+  angle?: number;
 }

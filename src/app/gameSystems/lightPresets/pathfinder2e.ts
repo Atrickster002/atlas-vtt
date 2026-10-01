@@ -12,4 +12,6 @@ export const PATHFINDER_2E_LIGHTS = lightsOf('pathfinder2e', 'feet', {
   'everlight-crystal': { name: 'Everlight crystal', bright: 20, dim: 40, ...STEADY_MAGIC_LOOK },
   'glow-rod': { name: 'Glow rod', bright: 20, dim: 60, ...STEADY_MAGIC_LOOK, color: '#7ee0a8' },
   darkness: { name: 'Darkness', dim: 20, ...DARKNESS_LOOK },
+  // Bright light in a 60-foot cone, dim in the next 60 feet; a Pathfinder cone is a quarter circle.
+  'bullseye-lantern': { name: 'Bull\'s-eye lantern', bright: 60, dim: 120, ...LANTERN_LOOK, angle: 90 },
 });

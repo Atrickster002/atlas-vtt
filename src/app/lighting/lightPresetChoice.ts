@@ -36,6 +36,7 @@ export function emissionOf(preset: LightPresetDefinition): LightEmission {
     preset: preset.id,
     ...(preset.darkness && { darkness: true }),
     ...(preset.priority !== undefined && preset.priority !== 0 && { priority: preset.priority }),
+    ...(preset.angle !== undefined && { angle: preset.angle }),
   };
 }
 
