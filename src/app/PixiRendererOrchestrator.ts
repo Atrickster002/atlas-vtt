@@ -384,7 +384,7 @@ export class PixiRendererOrchestrator { // Renamed class
         eventBus: this.eventBus,
         obsApp: this.obsApp,
         viewId: this.viewId,
-        bounds: () => (this.backgroundSprite?.width ? { width: this.backgroundSprite.width, height: this.backgroundSprite.height } : null),
+        bounds: () => this.getMapRect(),
         albedo: () => (this.backgroundSprite && !this.backgroundSprite.destroyed ? this.backgroundSprite.texture : null),
       });
     }
@@ -470,7 +470,7 @@ export class PixiRendererOrchestrator { // Renamed class
 
       // Wait for sprite to be ready
       const checkAndInitGrid = () => {
-        if (this._isDestroyed) {
+        if (this._isDestroyed || this.backgroundSprite !== bgSprite) {
           this.gridInitRetryTimeout = null;
           return;
         }
@@ -593,15 +593,10 @@ export class PixiRendererOrchestrator { // Renamed class
     const currentViewport = this.viewport;
     if (!currentViewport) return;
 
-    // Remove old background from viewport if it's different from the new one
-    if (this.backgroundSprite && this.backgroundSprite !== sprite) {
-      if (this.backgroundSprite.parent) {
-        currentViewport.removeChild(this.backgroundSprite);
-      }
-      // Destroy the old sprite; its texture is unloaded by whoever loaded it
-      destroyTree(this.backgroundSprite);
-    }
+    const previous = this.backgroundSprite;
     this.backgroundSprite = sprite;
+    // The texture of the sprite it replaces is unloaded by whoever loaded it
+    if (previous && previous !== sprite) destroyTree(previous);
     this.lighting?.renderer.refreshBounds();
 
     // Ensure new background is at the bottom
@@ -625,6 +620,21 @@ export class PixiRendererOrchestrator { // Renamed class
       // Don't pass empty options - this would reset the grid settings!
       // The updateBackgroundSprite call should trigger recreation with current options
     }
+  }
+
+  /**
+   * Takes a background sprite off the map and destroys it. When it was the one
+   * shown, the map has no background until `setBackgroundSprite` brings the next:
+   * the grid and the lighting must not keep reading a destroyed sprite.
+   */
+  public removeBackgroundSprite(sprite: Sprite): void {
+    if (this.backgroundSprite === sprite) {
+      this.backgroundSprite = null;
+      this.gridSystem?.clearBackgroundSprite();
+      if (!this._isDestroyed) this.lighting?.renderer.refreshBounds();
+      this.eventBus.emit('background-sprite-updated', undefined);
+    }
+    destroyTree(sprite);
   }
 
   /** The map image in world space; null until it has loaded. */
@@ -999,18 +1009,7 @@ export class PixiRendererOrchestrator { // Renamed class
     this.gridSystem?.destroy(); // Destroy GridSystem
     this.selectionManager?.destroy(); // Destroy SelectionManager
     
-    // Clean up background sprite and texture
-    if (this.backgroundSprite) {
-      // Remove from parent if needed
-      if (this.backgroundSprite.parent) {
-        this.backgroundSprite.parent.removeChild(this.backgroundSprite);
-      }
-      
-      // Destroy the sprite
-      destroyTree(this.backgroundSprite);
-      this.backgroundSprite = null;
-      this.eventBus.emit('background-sprite-updated', undefined);
-    }
+    if (this.backgroundSprite) this.removeBackgroundSprite(this.backgroundSprite);
 
     this.pixiAppManager.destroy();
 

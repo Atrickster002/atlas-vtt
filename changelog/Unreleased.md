@@ -42,3 +42,4 @@
 - A natural 1 or 20 counts as critical even when a modifier is added, and a maxed damage die never does
 - Edit Token opens again instead of crashing on its Vision switch
 - The initiative tracker no longer crashes for tokens without hit points. Their cards show no HP bar instead of a made-up full one
+- Switching between scene tabs no longer leaves a scene black and unable to open
