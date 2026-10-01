@@ -17,6 +17,7 @@ import { visionDefaultsForm, visionDefaultsFromForm } from '../../src/app/lighti
 import { visionCone } from '../../src/app/vision/visionCone';
 import { BUILT_IN_SENSES, GENERIC_SENSES } from '../../src/app/gameSystems/senses';
 import type { SenseDefinition } from '../../src/app/types/senseTypes';
+import { conditionEffect } from '../../src/app/gameSystems/conditionEffects';
 
 const [daggerheart, dnd5e] = BUILT_IN_SYSTEM_PRESETS as [SystemPreset, SystemPreset];
 
@@ -395,6 +396,8 @@ describe('conditions that change sight', () => {
       'dnd5e-invisible': 'invisible',
       'pathfinder2e-blinded': 'blinded',
       'pathfinder2e-invisible': 'invisible',
+      'pathfinder2e-undetected': 'undetected',
+      'pathfinder2e-unnoticed': 'undetected',
       'shadowdark-blinded': 'blinded',
       'shadowdark-invisible': 'invisible',
       'ose-blinded': 'blinded',
@@ -402,10 +405,31 @@ describe('conditions that change sight', () => {
     });
   });
 
-  it('are the only conditions named Blinded or Invisible', () => {
+  it('are every condition named Blinded, Invisible, Undetected or Unnoticed, and no other; Hidden depends on who looks', () => {
     for (const condition of BUILT_IN_SYSTEM_PRESETS.flatMap((preset) => preset.rules.conditions)) {
-      const expected = { Blinded: 'blinded', Invisible: 'invisible' }[condition.name];
+      const expected = { Blinded: 'blinded', Invisible: 'invisible', Undetected: 'undetected', Unnoticed: 'undetected' }[condition.name];
       expect(condition.effect).toBe(expected);
+    }
+  });
+
+  it('apply to a collection that copied the conditions before they were marked, by the condition\'s id', () => {
+    const { effect: _effect, ...copied } = dnd5e.rules.conditions.find((condition) => condition.name === 'Blinded')!;
+    expect(conditionEffect(copied)).toBe('blinded');
+    expect(conditionEffect({ ...copied, name: 'Renamed by the GM' })).toBe('blinded');
+    expect(conditionEffect({ id: 'pathfinder2e-unnoticed', name: 'Unnoticed', color: '#000000' })).toBe('undetected');
+    expect(conditionEffect({ id: 'c1', name: 'Blinded', color: '#000000' })).toBeUndefined();
+    expect(conditionEffect({ id: 'dnd5e-prone', name: 'Prone', color: '#000000' })).toBeUndefined();
+  });
+
+  it('take the effect a condition sets itself before the one of its id', () => {
+    expect(conditionEffect({ id: 'dnd5e-blinded', name: 'Blinded', color: '#000000', effect: 'invisible' })).toBe('invisible');
+    expect(conditionEffect({ id: 'c1', name: 'Flying', color: '#000000', effect: 'airborne' })).toBe('airborne');
+  });
+
+  it('leave a collection that copied the conditions before they were marked unedited', () => {
+    for (const preset of BUILT_IN_SYSTEM_PRESETS) {
+      const before = { ...structuredClone(preset.rules), conditions: preset.rules.conditions.map(({ effect: _effect, ...condition }) => condition) };
+      expect(sameSystemRules(preset.rules, before)).toBe(true);
     }
   });
 
@@ -416,6 +440,7 @@ describe('conditions that change sight', () => {
       { id: 'c3', name: 'Flying', color: '#123456', effect: 'airborne' },
       { id: 'c4', name: 'Deaf', color: '#123456', effect: 'deafened' },
       { id: 'c5', name: 'Prone', color: '#123456', effect: true },
+      { id: 'c6', name: 'Gone', color: '#123456', effect: 'undetected' },
     ])]);
     expect(preset?.rules.conditions).toEqual([
       { id: 'c1', name: 'Blind', color: '#123456', effect: 'blinded' },
@@ -423,6 +448,7 @@ describe('conditions that change sight', () => {
       { id: 'c3', name: 'Flying', color: '#123456', effect: 'airborne' },
       { id: 'c4', name: 'Deaf', color: '#123456' },
       { id: 'c5', name: 'Prone', color: '#123456' },
+      { id: 'c6', name: 'Gone', color: '#123456', effect: 'undetected' },
     ]);
   });
 

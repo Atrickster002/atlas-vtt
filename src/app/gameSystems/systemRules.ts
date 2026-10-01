@@ -12,6 +12,7 @@ import type {
 import type { TokenVisionDefaults } from '../types/lightingTypes';
 import type { SystemPreset, SystemRules } from '../types/systemPresetTypes';
 import type { AnyWidget } from '../types/widgetTypes';
+import { conditionEffect } from './conditionEffects';
 import { DEFAULT_DICE_RULES, sameDiceRules } from './diceRules';
 import { sameSenses } from './senseRules';
 import { hasVisionDefaults, sameVisionDefaults } from './visionDefaults';
@@ -82,7 +83,7 @@ function sameCondition(a: ConditionDefinition, b: ConditionDefinition): boolean 
     && a.color.toLowerCase() === b.color.toLowerCase()
     && a.icon === b.icon
     && (a.valued ?? false) === (b.valued ?? false)
-    && a.effect === b.effect;
+    && conditionEffect(a) === conditionEffect(b);
 }
 
 /** The default widgets that are on, as a comparable key. */
