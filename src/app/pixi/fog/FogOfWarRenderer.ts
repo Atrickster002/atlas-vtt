@@ -261,7 +261,6 @@ export class FogOfWarRenderer {
     this.container.eventMode = 'static';
     this.container.interactiveChildren = true;
     this.container.visible = true;
-    this.viewport.pause = true;
 
     // Disable interaction on hit-test sprites during drawing
     this.setFogSpritesInteractive(false);
@@ -277,7 +276,6 @@ export class FogOfWarRenderer {
 
   disableFogMode(): void {
     this.container.interactiveChildren = false;
-    this.viewport.pause = false;
 
     // Reset drawing state
     this.isDrawing = false;
@@ -748,6 +746,8 @@ export class FogOfWarRenderer {
   private onPointerDown(event: PIXI.FederatedPointerEvent): void {
     const tool = this.store.getState().activeTool;
     if (tool !== 'fog' && tool !== 'eraser') return;
+    // Only the primary button paints; the right button pans the map.
+    if (event.button !== 0) return;
     // A press a pin, door badge or light marker took paints no fog.
     if (isHandled(event)) return;
 

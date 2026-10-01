@@ -1672,10 +1672,10 @@ export class TokenRenderer {
 
     // ── Right-click: check walls, fog, and pins ─────────────────────────
     if (e.button === 2) {
-      // Wall context menu (when wall tool is active)
+      // Wall context menu (when wall tool is active). It also opens beside the walls, for the selection,
+      // so like the area menus below it waits for a release in place and a right-drag pans.
       if (activeTool === 'wall' && this.wallContextMenuHandler) {
-        this.wallContextMenuHandler(worldPos.x, worldPos.y, e.clientX, e.clientY);
-        markHandled(e);
+        this.openMenuOnRelease(e, (up) => this.wallContextMenuHandler?.(worldPos.x, worldPos.y, up.clientX, up.clientY));
         return;
       }
 
