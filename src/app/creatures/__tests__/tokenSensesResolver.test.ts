@@ -78,8 +78,7 @@ describe('tokenSensesResolver', () => {
     const index = fakeIndex();
     index.set(GOBLIN, 'blindsight 30 ft. (blind beyond this radius)');
     const resolver = tokenSensesResolver(index, () => FEET);
-    expect(resolver.visionOf(token(GOBLIN))).toMatchObject({ source: 'statblock', blindBeyond: true, blindBeyondRange: 30 });
-    expect(resolver.visionOf(token(GOBLIN, { enabled: true, senses: [] }))).toEqual({ senses: [], source: 'token', blindBeyond: false });
+    expect(resolver.visionOf(token(GOBLIN))).toMatchObject({ source: 'statblock', blindBeyond: true, sightRange: 30 });
   });
 
   it('tells its listeners when a statblock it was asked about is read or changes, and only then', () => {

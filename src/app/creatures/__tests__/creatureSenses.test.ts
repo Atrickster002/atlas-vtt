@@ -4,7 +4,8 @@ import type { GameUnit } from '../../grid/statedDistance';
 import type { TokenVision } from '../../types/lightingTypes';
 import type { SenseDefinition, TokenSense } from '../../types/senseTypes';
 import * as parser from '../parseSenses';
-import { creatureSenses, effectiveSenses, effectiveVision, inheritedSensesOf, sensesTextOf, type SensedCreature } from '../creatureSenses';
+import { creatureSenses, effectiveSenses, effectiveVision, inheritedSensesOf, type SensedCreature } from '../creatureSenses';
+import { sensesTextOf } from '../sensesText';
 
 const FEET: GameUnit = { unitType: 'feet', unitDistance: 5 };
 const METRES: GameUnit = { unitType: 'meters', unitDistance: 1.5 };
@@ -122,7 +123,7 @@ describe('effectiveSenses', () => {
   it('are the token\'s own senses once it has any, whatever its statblock says', () => {
     const own = [sense('Truesight', 120)];
     expect(effectiveSenses(token({ enabled: true, senses: own }), GOBLIN, DND, FEET)).toEqual(own);
-    expect(effectiveVision(token({ enabled: true, senses: own }), GRIMLOCK, DND, FEET)).toEqual({ senses: own, source: 'token', blindBeyond: false });
+    expect(effectiveVision(token({ enabled: true, senses: own }), GOBLIN, DND, FEET)).toMatchObject({ senses: own, source: 'token', blindBeyond: false, pending: false });
   });
 
   it('are none for a token whose senses were emptied by hand', () => {
@@ -137,7 +138,7 @@ describe('effectiveSenses', () => {
 
   it('are the old darkvision and tremorsense fields before the statblock', () => {
     expect(named(effectiveSenses(token({ enabled: true, darkvision: 30, tremorsense: 15 }), GOBLIN, DND, FEET))).toEqual([['Darkvision', 30], ['Tremorsense', 15]]);
-    expect(effectiveVision(token({ enabled: true, tremorsense: 15 }), GRIMLOCK, DND, FEET)).toMatchObject({ source: 'token', blindBeyond: false });
+    expect(effectiveVision(token({ enabled: true, tremorsense: 15 }), GOBLIN, DND, FEET)).toMatchObject({ source: 'token', blindBeyond: false });
   });
 
   it('follow the linked statblock while the token has none of its own, with vision on or off', () => {
@@ -147,18 +148,22 @@ describe('effectiveSenses', () => {
     expect(effectiveVision(token({ enabled: true }), GOBLIN, DND, FEET)).toMatchObject({ source: 'statblock', blindBeyond: false });
   });
 
-  it('say where a creature is blind beyond its senses, only while they follow the statblock', () => {
-    const vision = effectiveVision(token({ enabled: true }), GRIMLOCK, DND, FEET);
-    expect(named(vision.senses)).toEqual([['Blindsight', 30]]);
-    expect(vision).toMatchObject({ source: 'statblock', blindBeyond: true, blindBeyondRange: 30 });
-    expect(effectiveVision(token({ enabled: true }), creature({ senses: 'no vision' }), DND, FEET)).toEqual({ senses: [], source: 'statblock', blindBeyond: true });
+  it('are none without a linked statblock, without a statblock in the note, or when it names no sense', () => {
+    const none = { senses: [], source: 'none', blindBeyond: false, pending: false };
+    expect(effectiveVision(token({ enabled: true }, null), GOBLIN, DND, FEET)).toMatchObject(none);
+    expect(effectiveVision(token({ enabled: true }), null, DND, FEET)).toMatchObject(none);
+    expect(effectiveVision(token({ enabled: true }), creature({ senses: 'passive Perception 10' }), DND, FEET)).toMatchObject(none);
   });
 
-  it('are none without a linked statblock, while it is unread, or when it names no sense', () => {
-    expect(effectiveVision(token({ enabled: true }, null), GOBLIN, DND, FEET)).toEqual({ senses: [], source: 'none', blindBeyond: false });
-    expect(effectiveVision(token({ enabled: true }), undefined, DND, FEET)).toEqual({ senses: [], source: 'none', blindBeyond: false });
-    expect(effectiveVision(token({ enabled: true }), null, DND, FEET)).toEqual({ senses: [], source: 'none', blindBeyond: false });
-    expect(effectiveVision(token({ enabled: true }), creature({ senses: 'passive Perception 10' }), DND, FEET)).toEqual({ senses: [], source: 'none', blindBeyond: false });
+  it('are pending while the statblock a token follows has not been read', () => {
+    expect(effectiveVision(token({ enabled: true }), undefined, DND, FEET)).toMatchObject({ senses: [], source: 'pending', pending: true });
+    expect(effectiveVision(token({ enabled: true, range: 60 }), undefined, DND, FEET)).toMatchObject({ source: 'pending', pending: true, sightRange: 60 });
+  });
+
+  it('wait for the statblock of a token with senses of its own only while it could still limit its sight', () => {
+    expect(effectiveVision(token({ enabled: true, senses: [] }), undefined, DND, FEET)).toMatchObject({ source: 'token', pending: true });
+    expect(effectiveVision(token({ enabled: true, senses: [], range: 60 }), undefined, DND, FEET)).toMatchObject({ source: 'token', pending: false });
+    expect(effectiveVision(token({ enabled: true, senses: [] }, null), undefined, DND, FEET)).toMatchObject({ source: 'token', pending: false });
   });
 
   it('never read vision as switched on by a statblock', () => {
@@ -170,6 +175,80 @@ describe('effectiveSenses', () => {
   it('give the same list for the same record, so sight can compare by reference', () => {
     const first = effectiveSenses(token({ enabled: true }), GOBLIN, DND, FEET);
     expect(effectiveSenses(token({ enabled: true, range: 30 }), GOBLIN, DND, FEET)).toBe(first);
+  });
+});
+
+describe('effectiveVision sight range', () => {
+  const NO_VISION = creature({ senses: 'Perception +3; motion sense 60 feet, no vision' });
+  const MANDRAKE = creature({ senses: 'tremorsense 60 ft. (blind beyond this radius), passive Perception 9' });
+
+  it('is unlimited for a creature that sees, and the token\'s own range where it has one', () => {
+    expect(effectiveVision(token({ enabled: true }), GOBLIN, DND, FEET)).not.toHaveProperty('sightRange');
+    expect(effectiveVision(token({ enabled: true, range: 120 }), GOBLIN, DND, FEET).sightRange).toBe(120);
+    expect(effectiveVision(token({ enabled: true, range: 120 }, null), null, DND, FEET).sightRange).toBe(120);
+  });
+
+  it('ends where the statblock says the creature is blind beyond', () => {
+    const vision = effectiveVision(token({ enabled: true }), GRIMLOCK, DND, FEET);
+    expect(named(vision.senses)).toEqual([['Blindsight', 30]]);
+    expect(vision).toMatchObject({ source: 'statblock', blindBeyond: true, sightRange: 30 });
+    expect(effectiveVision(token({ enabled: true }), GRIMLOCK, DND, METRES).sightRange).toBe(9);
+  });
+
+  it('is 0 for a creature without normal sight at all', () => {
+    expect(effectiveVision(token({ enabled: true }), NO_VISION, DND, FEET)).toMatchObject({ senses: [], source: 'statblock', blindBeyond: true, sightRange: 0 });
+    expect(effectiveVision(token({ enabled: true }), MANDRAKE, DND, FEET)).toMatchObject({ blindBeyond: true, sightRange: 0 });
+  });
+
+  it('stays limited once the token has senses of its own, even none', () => {
+    expect(effectiveVision(token({ enabled: true, senses: [] }), GRIMLOCK, DND, FEET)).toMatchObject({ senses: [], source: 'token', blindBeyond: true, sightRange: 30 });
+    expect(effectiveVision(token({ enabled: true, senses: [sense('Darkvision', 60)] }), NO_VISION, DND, FEET)).toMatchObject({ source: 'token', sightRange: 0 });
+    expect(effectiveVision(token({ enabled: true, darkvision: 60 }), GRIMLOCK, DND, FEET)).toMatchObject({ source: 'token', sightRange: 30 });
+  });
+
+  it('gives way to a sight range set on the token', () => {
+    expect(effectiveVision(token({ enabled: true, range: 90 }), GRIMLOCK, DND, FEET)).toMatchObject({ blindBeyond: true, sightRange: 90 });
+    expect(effectiveVision(token({ enabled: true, range: 90, senses: [] }), NO_VISION, DND, FEET).sightRange).toBe(90);
+  });
+});
+
+describe('effectiveVision key', () => {
+  const key = (vision: TokenVision | undefined, record: SensedCreature | null | undefined, unit = FEET): string => effectiveVision(token(vision), record, DND, unit).key;
+
+  it('is the same for the same senses and sight range, whoever asks', () => {
+    expect(key({ enabled: true }, GOBLIN)).toBe(key({ enabled: false, angle: 90 }, creature({ senses: 'Darkvision 60 ft.; Passive Perception 9' })));
+    expect(key({ enabled: true, senses: [sense('Darkvision', 60)] }, null)).toBe(key({ enabled: true }, GOBLIN));
+  });
+
+  it('changes with a sense, a distance, the sight range and the wait for the statblock', () => {
+    const keys = [
+      key({ enabled: true }, GOBLIN),
+      key({ enabled: true }, creature({ senses: 'darkvision 120 ft.' })),
+      key({ enabled: true }, creature({ senses: 'darkvision 60 ft., blindsight 10 ft.' })),
+      key({ enabled: true }, creature({ senses: 'blindsight 60 ft.' })),
+      key({ enabled: true }, GOBLIN, METRES),
+      key({ enabled: true, range: 30 }, GOBLIN),
+      key({ enabled: true }, GRIMLOCK),
+      key({ enabled: true }, undefined),
+      key({ enabled: true }, null),
+    ];
+    expect(new Set(keys).size).toBe(keys.length);
+  });
+});
+
+describe('creatureSenses for several collections', () => {
+  it('keeps one reading per senses and unit, so the lists keep their identity while two collections share a note', () => {
+    const parse = vi.spyOn(parser, 'parseSenses');
+    const record = creature({ senses: 'darkvision 60 ft., tremorsense 30 ft.' });
+    const dnd = creatureSenses(record, DND, FEET);
+    const pathfinder = creatureSenses(record, PATHFINDER, FEET);
+    const metres = creatureSenses(record, DND, METRES);
+    for (let rebuild = 0; rebuild < 3; rebuild++) {
+      expect(creatureSenses(record, DND, FEET)).toBe(dnd);
+      expect(creatureSenses(record, PATHFINDER, FEET)).toBe(pathfinder);
+      expect(creatureSenses(record, DND, METRES)).toBe(metres);
+    }
+    expect(parse).toHaveBeenCalledTimes(3);
   });
 });
 

@@ -8,9 +8,11 @@ import { sameSenses } from '../gameSystems/senseRules';
 import type { GameUnit } from '../grid/statedDistance';
 import type { TokenVision } from '../types/lightingTypes';
 import type { SenseDefinition, TokenSense } from '../types/senseTypes';
+import { positiveNumber } from '../utils/numberInput';
 import { tokenSenses } from '../vision/tokenSenses';
 import type { IndexedCreature } from './CreatureIndex';
 import { isPerceptionScore, parseSenses, type ParsedSenses } from './parseSenses';
+import { sensesTextOf } from './sensesText';
 
 /** What senses read of a token. */
 export interface SensedToken {
@@ -30,83 +32,40 @@ function deepFreeze(parsed: ParsedSenses): ParsedSenses {
   return Object.freeze(parsed);
 }
 
-function words(key: string): string {
-  return key.replace(/_/g, ' ');
-}
-
-/** One entry of a senses list as a phrase: text, a named entry (`name`, `desc`), or nothing. */
-function phraseOf(entry: unknown): string | null {
-  if (typeof entry === 'string') return entry.trim() || null;
-  if (typeof entry !== 'object' || entry === null) return null;
-  const { name, desc } = entry as { name?: unknown; desc?: unknown };
-  const parts = [name, desc].filter((part): part is string | number => (typeof part === 'string' && part.trim() !== '') || typeof part === 'number');
-  return parts.length > 0 ? parts.join(' ') : null;
-}
-
-/** Senses kept by name (`{ darkvision: "120 ft.", passive_perception: 20 }`) as a line. */
-function namedSenses(senses: Record<string, unknown>): string[] {
-  return Object.entries(senses).flatMap(([key, value]) => {
-    if (value === true) return [words(key)];
-    if (typeof value === 'number' || (typeof value === 'string' && value.trim() !== '')) return [`${words(key)} ${value}`];
-    return [];
-  });
-}
-
-/** The senses of a Pathfinder perception line, which follow its modifier: "+7; darkvision". */
-function afterModifier(perception: unknown): string | null {
-  const entries: unknown[] = Array.isArray(perception) ? perception : [perception];
-  const senses = entries.flatMap((entry) => {
-    const line = typeof entry === 'object' && entry !== null ? (entry as { desc?: unknown }).desc : entry;
-    const modifierEnd = typeof line === 'string' ? line.indexOf(';') : -1;
-    const after = typeof line === 'string' && modifierEnd >= 0 ? line.slice(modifierEnd + 1).trim() : '';
-    return after ? [after] : [];
-  });
-  return senses.length > 0 ? senses.join(', ') : null;
-}
-
-/**
- * The senses line of a statblock in any shape Fantasy Statblocks holds it: the `senses` text of
- * its Basic 5e and Pathfinder 2e Creature layouts (from frontmatter, a fence or the bestiary), a
- * list of such texts or of named entries, senses kept by name, or, without `senses`, what follows
- * the modifier in the `perception` trait of its Basic Pathfinder 2e layout. Null without one.
- */
-export function sensesTextOf(fields: Readonly<Record<string, unknown>>): string | null {
-  const { senses } = fields;
-  let phrases: string[] = [];
-  if (typeof senses === 'string') phrases = senses.trim() ? [senses.trim()] : [];
-  else if (Array.isArray(senses)) phrases = senses.flatMap((entry) => phraseOf(entry) ?? []);
-  else if (typeof senses === 'object' && senses !== null) phrases = namedSenses(senses as Record<string, unknown>);
-  return phrases.length > 0 ? phrases.join(', ') : afterModifier(fields.perception);
-}
-
-interface CachedSenses {
+/** One reading of a creature's senses line, with the rules it was read by. */
+interface Reading {
   definitions: readonly SenseDefinition[];
   unit: GameUnit;
   parsed: ParsedSenses;
 }
 
-/** The last reading of each creature record; a record the index replaced takes its reading with it. */
-const readings = new WeakMap<SensedCreature, CachedSenses>();
+/** Readings kept per creature record: more collections than this seldom share one note. */
+const MAX_READINGS = 4;
 
-function sameRules(cached: CachedSenses, definitions: readonly SenseDefinition[], unit: GameUnit): boolean {
-  return cached.unit.unitType === unit.unitType
-    && cached.unit.unitDistance === unit.unitDistance
-    && (cached.definitions === definitions || sameSenses(cached.definitions, definitions));
+/** The readings of each creature record, newest first; a record the index replaced takes them with it. */
+const readings = new WeakMap<SensedCreature, Reading[]>();
+
+function readBy(reading: Reading, definitions: readonly SenseDefinition[], unit: GameUnit): boolean {
+  return reading.unit.unitType === unit.unitType
+    && reading.unit.unitDistance === unit.unitDistance
+    && (reading.definitions === definitions || sameSenses(reading.definitions, definitions));
 }
 
 /**
  * What a creature's statblock says about its senses, read with the collection's senses and unit.
- * Read once per creature record: `CreatureIndex` hands out a new record whenever the note or the
- * bestiary changes, and a change of the collection's senses or unit reads it again. The result
- * is shared and frozen.
+ * Read once per creature record and rules: `CreatureIndex` hands out a new record whenever the
+ * note or the bestiary changes, and collections with other senses or another unit get a reading
+ * of their own, so each keeps its list while they share the note. The result is shared and frozen.
  */
 export function creatureSenses(creature: SensedCreature | null | undefined, definitions: readonly SenseDefinition[], unit: GameUnit): ParsedSenses {
   if (!creature) return NO_SENSES;
-  const cached = readings.get(creature);
-  if (cached && sameRules(cached, definitions, unit)) return cached.parsed;
+  const known = readings.get(creature) ?? [];
+  const reading = known.find((candidate) => readBy(candidate, definitions, unit));
+  if (reading) return reading.parsed;
   const text = sensesTextOf(creature.fields);
   const parsed = text === null ? NO_SENSES : deepFreeze(parseSenses(text, definitions, unit));
-  readings.set(creature, { definitions, unit: { unitType: unit.unitType, unitDistance: unit.unitDistance }, parsed });
+  const unitRead = { unitType: unit.unitType, unitDistance: unit.unitDistance };
+  readings.set(creature, [{ definitions, unit: unitRead, parsed }, ...known].slice(0, MAX_READINGS));
   return parsed;
 }
 
@@ -125,25 +84,44 @@ export function ownSenses(token: SensedToken, definitions: readonly SenseDefinit
   return Array.isArray(token.vision?.senses) || own.length > 0 ? own : null;
 }
 
-/** How a token perceives beyond normal sight, and where that comes from. */
+/** How a token perceives, and where that comes from. */
 export interface EffectiveVision {
   senses: TokenSense[];
-  /** `token`: its own senses or old fields. `statblock`: it follows its linked statblock. */
-  source: 'token' | 'statblock' | 'none';
   /**
-   * The statblock says the creature is blind beyond its senses. Sight should cap the token's
-   * normal sight at `blindBeyondRange` game units, or give it none where that is unset. Only
-   * ever true while the senses follow the statblock.
+   * `token`: its own senses or old fields. `statblock`: it follows its linked statblock.
+   * `pending`: it follows a statblock that has not been read yet. `none`: it has no senses.
    */
+  source: 'token' | 'statblock' | 'pending' | 'none';
+  /**
+   * How far the token's normal sight reaches, in game units; unset is unlimited. It is the
+   * token's own `vision.range` where that is set; else the radius its statblock says the creature
+   * is blind beyond, or 0 where the statblock gives it no normal sight at all. The statblock
+   * limits sight whatever the source of the senses, so a token edited by hand stays blind beyond
+   * its radius until the GM gives it a range.
+   */
+  sightRange?: number;
+  /** The statblock says the creature is blind beyond its senses, whether or not the token's own range overrides it. */
   blindBeyond: boolean;
-  blindBeyondRange?: number;
+  /**
+   * The linked statblock has not been read yet and could still change `senses` or `sightRange`:
+   * sight should show and record nothing for this token until it is (the resolver announces it).
+   */
+  pending: boolean;
+  /** Changes exactly when `senses`, `sightRange` or `pending` do: compare it instead of the list. */
+  key: string;
+}
+
+/** A list of senses as one value, in the order listed. */
+function sensesKey(senses: readonly TokenSense[]): string {
+  return senses.map((sense) => `${sense.id}=${sense.range ?? ''}`).join('|');
 }
 
 /**
- * A token's senses and what its statblock says about its sight, in this order: the token's own
- * `vision.senses` (even empty), else its old darkvision and tremorsense fields, else the senses
- * of its linked statblock. `creature` is the record of `token.statblockPath` in `CreatureIndex`
- * (undefined while unread, null without a statblock).
+ * How a token perceives. Its senses are, in this order: its own `vision.senses` (even empty),
+ * else its old darkvision and tremorsense fields, else those of its linked statblock. Its sight
+ * range follows the statblock where the token sets none (`EffectiveVision.sightRange`).
+ * `creature` is the record of `token.statblockPath` in `CreatureIndex`: undefined while unread,
+ * null for a note without a statblock.
  */
 export function effectiveVision(
   token: SensedToken,
@@ -152,14 +130,22 @@ export function effectiveVision(
   unit: GameUnit,
 ): EffectiveVision {
   const own = ownSenses(token, definitions);
-  if (own) return { senses: own, source: 'token', blindBeyond: false };
-  const parsed = token.statblockPath ? creatureSenses(creature, definitions, unit) : NO_SENSES;
-  if (!saysSomething(parsed)) return { senses: NO_SENSES.senses, source: 'none', blindBeyond: false };
+  const linked = Boolean(token.statblockPath);
+  const unread = linked && creature === undefined;
+  const parsed = linked ? creatureSenses(creature, definitions, unit) : NO_SENSES;
+  const blindBeyond = parsed.blindBeyond === true;
+  const ownRange = positiveNumber(token.vision?.range);
+  const sightRange = ownRange ?? (blindBeyond ? parsed.blindBeyondRange ?? 0 : undefined);
+  const pending = unread && (!own || ownRange === undefined);
+  const senses = own ?? parsed.senses;
+  const source = own ? 'token' : unread ? 'pending' : saysSomething(parsed) ? 'statblock' : 'none';
   return {
-    senses: parsed.senses,
-    source: 'statblock',
-    blindBeyond: parsed.blindBeyond === true,
-    ...(parsed.blindBeyondRange !== undefined && { blindBeyondRange: parsed.blindBeyondRange }),
+    senses,
+    source,
+    ...(sightRange !== undefined && { sightRange }),
+    blindBeyond,
+    pending,
+    key: `${sensesKey(senses)};${sightRange ?? ''};${pending ? 'pending' : ''}`,
   };
 }
 

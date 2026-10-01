@@ -1,6 +1,6 @@
 import { hasVisionDefaults } from '../gameSystems/visionDefaults';
 import type { TokenVision, TokenVisionDefaults } from '../types/lightingTypes';
-import { sensesTextOf } from './creatureSenses';
+import { sensesTextOf } from './sensesText';
 import { parseSenses } from './parseSenses';
 import type { SenseRules } from './tokenSensesResolver';
 
