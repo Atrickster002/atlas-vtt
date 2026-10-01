@@ -5,6 +5,7 @@ import { Viewport } from 'pixi-viewport';
 import { emissionOfPreset } from '../../src/app/lighting/lightEmissionForm';
 import { LightingController } from '../../src/app/pixi/lighting/LightingController';
 import type { LightPointerHandlers } from '../../src/app/pixi/lighting/LightInteraction';
+import { captureSceneFrame } from '../../src/app/pixi/sceneFrameCapture';
 import type { SceneLightingDeps } from '../../src/app/pixi/lighting/createSceneLighting';
 import type { SceneLightingView } from '../../src/app/pixi/lighting/sceneLightingView';
 import type { TokenRenderer } from '../../src/app/pixi/TokenRenderer';
@@ -24,6 +25,7 @@ vi.mock('../../src/app/pixi/lighting/createSceneLighting', () => ({
     refreshBounds: vi.fn(),
     resetExplored: vi.fn(),
     beforeMapUnload: vi.fn(),
+    renderForFrame: (_frame, render) => render(),
     destroy: vi.fn(),
   }),
 }));
@@ -240,5 +242,67 @@ describe('the range rings', () => {
     viewport.emit('pointerup', {} as never);
     expect(store.getState().objects.lights[torch]!.emission.bright).toBe(10);
     expect(getHistoryStore(store)!.getState().pastStates).toHaveLength(1);
+  });
+});
+
+describe('a picture of the scene (a thumbnail)', () => {
+  const FRAME = { x: 0, y: 0, resolution: 0.5 };
+  const PEEK = { key: 'h', code: 'KeyH', bubbles: true };
+
+  /** The GM overlays' visibility: on the canvas before, in the picture, and on the canvas after. */
+  function picture(controller: LightingController): Record<'before' | 'during' | 'after', Record<string, boolean>> {
+    const shown = (): Record<string, boolean> => Object.fromEntries(Object.entries(controller.gmOverlays()).map(([name, layer]) => [name, layer.visible]));
+    const before = shown();
+    const during = captureSceneFrame({ gmViewLayers: [], markerLayers: [], lighting: controller }, FRAME, shown);
+    return { before, during, after: shown() };
+  }
+  const NONE = { wallEditor: false, doorBadges: false, lightMarkers: false, rangeRings: false };
+
+  it('leaves the GM overlays out in GM view and has them back', () => {
+    const { controller } = setup();
+    const { before, during, after } = picture(controller);
+    expect(before).toEqual({ wallEditor: false, doorBadges: true, lightMarkers: true, rangeRings: false });
+    expect(during).toEqual(NONE);
+    expect(after).toEqual(before);
+  });
+
+  it('leaves the wall editor out with the lighting tool', () => {
+    const { controller, store } = setup();
+    store.getState().setActiveTool('wall');
+    const { before, during, after } = picture(controller);
+    expect(before).toEqual({ wallEditor: true, doorBadges: true, lightMarkers: true, rangeRings: false });
+    expect(during).toEqual(NONE);
+    expect(after).toEqual(before);
+  });
+
+  it('leaves the range rings out while a light\'s popover is open, and has them back', () => {
+    const { controller, store, torch } = setup();
+    store.getState().openLightPopover(torch);
+    const { before, during, after } = picture(controller);
+    expect(before.rangeRings).toBe(true);
+    expect(during).toEqual(NONE);
+    expect(after).toEqual(before);
+    expect(store.getState().lightPopover).toBe(torch);
+  });
+
+  it('shows none of them in session view, and leaves the canvas in session view', () => {
+    const { controller, store } = setup();
+    store.getState().setGMView(false);
+    const { before, during, after } = picture(controller);
+    expect(before).toEqual(NONE);
+    expect(during).toEqual(NONE);
+    expect(after).toEqual(NONE);
+    for (const { layer, visible } of controller.playerLayers()) expect(layer.visible).toBe(visible);
+  });
+
+  it('shows none of them during a peek, and leaves the canvas in the players\' view', () => {
+    const { controller } = setup();
+    window.dispatchEvent(new KeyboardEvent('keydown', PEEK));
+    const { during, after } = picture(controller);
+    expect(during).toEqual(NONE);
+    expect(after).toEqual(NONE);
+    for (const { layer, visible } of controller.playerLayers()) expect(layer.visible).toBe(visible);
+    window.dispatchEvent(new KeyboardEvent('keyup', PEEK));
+    expect(controller.gmOverlays().lightMarkers.visible).toBe(true);
   });
 });

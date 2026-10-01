@@ -33,6 +33,7 @@ vi.mock('../../src/app/pixi/lighting/createSceneLighting', () => ({
       refreshBounds: vi.fn(),
       resetExplored: vi.fn(),
       beforeMapUnload: vi.fn(),
+      renderForFrame: (_frame, render) => render(),
       destroy: vi.fn(),
     };
   },

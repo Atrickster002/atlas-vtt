@@ -1,6 +1,7 @@
 import type { ViewAtlasStore } from '../../storeFactory';
 import type { AmbientLight, LightReach, Sight } from '../../vision/sight';
 import type { HideableLayer } from '../playerSafeFrame';
+import type { SceneFrame } from './engine/types';
 import type { LightingUnavailable } from './LightingRenderer';
 import type { SceneLightingView } from './sceneLightingView';
 
@@ -79,6 +80,12 @@ export class LightingViewHost implements SceneLightingView {
   refreshBounds(): void { this.view.refreshBounds(); }
   resetExplored(): void { this.view.resetExplored(); }
   beforeMapUnload(): void { this.view.beforeMapUnload(); }
+
+  /** An engine that fails while it prepares the frame is replaced during the call: the picture is then the fallback's. */
+  renderForFrame<T>(frame: SceneFrame, render: () => T): T {
+    const view = this.view;
+    return view.renderForFrame(frame, () => (this.view === view ? render() : this.view.renderForFrame(frame, render)));
+  }
 
   destroy(): void {
     this.unsubscribe();

@@ -196,6 +196,11 @@ export class FogOfWarRenderer {
     ];
   }
 
+  /** The fog as translucent as the GM view shows it, also while the canvas is in session view: for a picture of the scene. */
+  getGmViewLayers(): LayerVisibility[] {
+    return [{ layer: this.previewSprite, visible: this.previewSprite.visible, alpha: resolveFogPreviewAlpha({ isPlayerView: false, isGMView: true }) }];
+  }
+
   /** Returns a map of fog sprite IDs → Containers for SelectionManager. */
   getFogSprites(): Record<string, PIXI.Container> {
     const result: Record<string, PIXI.Container> = {};

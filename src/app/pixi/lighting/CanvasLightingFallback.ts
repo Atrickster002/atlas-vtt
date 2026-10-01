@@ -10,6 +10,7 @@ import { wallList } from '../../vision/wallList';
 import type { MapBounds } from '../../vision/visibility';
 import type { HideableLayer } from '../playerSafeFrame';
 import { destroyTree } from '../utils/destroyTree';
+import type { SceneFrame } from './engine/types';
 import { LIGHTING_Z_INDEX } from './LightingRenderer';
 import { PlayerView } from './PlayerView';
 import type { SceneLightingView } from './sceneLightingView';
@@ -58,6 +59,17 @@ export class CanvasLightingFallback implements SceneLightingView {
   refreshBounds(): void { this.update(this.deps.store.getState()); }
   resetExplored(): void { /* The fallback keeps no explored memory. */ }
   beforeMapUnload(): void { /* Nothing is pending in the fallback. */ }
+
+  /** The GM's view is unlit, and so is its thumbnail: only the darkness of a players' view on the canvas is left out. */
+  renderForFrame<T>(_frame: SceneFrame, render: () => T): T {
+    const shown = this.darkness.visible;
+    this.darkness.visible = false;
+    try {
+      return render();
+    } finally {
+      this.darkness.visible = shown;
+    }
+  }
 
   private update(state: ViewAtlasState): void {
     const bounds = this.deps.bounds();

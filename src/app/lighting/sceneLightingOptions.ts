@@ -21,6 +21,15 @@ export function exploredMemoryOn(lighting: Pick<SceneLighting, 'exploredMemory'>
   return lighting.exploredMemory !== false;
 }
 
+/**
+ * Whether two lightings give the GM a different picture of the scene: lighting on or off, the
+ * ambient light, and token vision (what no token sees is faded). The other options change only
+ * what the players see and what is recorded.
+ */
+export function gmPictureDiffers(a: SceneLighting, b: SceneLighting): boolean {
+  return a !== b && (a.enabled !== b.enabled || a.ambient !== b.ambient || a.ambientColor !== b.ambientColor || tokenVisionOn(a) !== tokenVisionOn(b));
+}
+
 /** A threshold within 0..1; anything that is not a number falls back to the default. */
 export function clampLitThreshold(value: number): number {
   return Number.isFinite(value) ? Math.min(1, Math.max(0, value)) : DEFAULT_LIT_THRESHOLD;

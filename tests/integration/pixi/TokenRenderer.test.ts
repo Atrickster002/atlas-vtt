@@ -12,6 +12,7 @@ import {
 import { Viewport } from 'pixi-viewport';
 import { EventEmitter } from 'events';
 import { TokenRenderer } from '../../../src/app/pixi/token-renderer';
+import { captureSceneFrame } from '../../../src/app/pixi/sceneFrameCapture';
 import { AssetService } from '../../../src/app/services/AssetService';
 import { createViewAtlasStore } from '../../../src/app/storeFactory';
 import { computeTokenPixelSize } from '../../../src/app/pixi/token-renderer/tokenSizing';
@@ -631,19 +632,27 @@ describe('TokenRenderer Integration Tests', () => {
           expect(store.getState().selectedIds).toEqual([]);
         });
 
-        it('should list what the canvas hides as layers, with what the GM\'s view shows of them', async () => {
+        it('should give a picture of the scene the GM\'s tokens in session view, and be in session view afterwards', async () => {
           tokenRenderer.setPlayerSightProvider(() => (id) => id !== 'token-1');
           store.getState().setGMView(false);
           store.getState().addToken(token({ id: 'token-1', kind: 'character', statblockPath: 'Goblin.md', name: 'Goblin', showNameplate: true }));
           store.getState().addToken(token({ id: 'token-2', x: 300, isHidden: true }));
-          store.getState().addToken(token({ id: 'token-3', x: 500 }));
+          store.getState().addToken(token({ id: 'token-3', x: 500, kind: 'character', statblockPath: 'Goblin.md' }));
           await waitForTokens('token-1', 'token-2', 'token-3');
+          const look = (): unknown => ({
+            unseen: { visible: tokenGroup('token-1').visible, alpha: tokenGroup('token-1').alpha, ui: tokenUi('token-1').visible },
+            hidden: { visible: tokenGroup('token-2').visible, alpha: tokenGroup('token-2').alpha },
+            seen: { visible: tokenGroup('token-3').visible, ui: tokenUi('token-3').visible },
+          });
+          const onCanvas = look();
+          expect(onCanvas).toEqual({ unseen: { visible: false, alpha: 1, ui: false }, hidden: { visible: false, alpha: 1 }, seen: { visible: true, ui: false } });
 
-          const layers = tokenRenderer.getGmViewLayers();
-          expect(layers).toContainEqual({ layer: tokenGroup('token-1'), visible: true, alpha: 1 });
-          expect(layers).toContainEqual({ layer: tokenUi('token-1'), visible: true });
-          expect(layers).toContainEqual({ layer: tokenGroup('token-2'), visible: true, alpha: 0.5 });
-          expect(layers.some(({ layer }) => layer === tokenGroup('token-3'))).toBe(false);
+          const picture = captureSceneFrame({ gmViewLayers: tokenRenderer.getGmViewLayers(), markerLayers: [], lighting: undefined }, { x: 0, y: 0, resolution: 1 }, look);
+
+          // The GM's picture: every token, the hidden one translucent, and only the token UI that has something to show.
+          expect(picture).toEqual({ unseen: { visible: true, alpha: 1, ui: true }, hidden: { visible: true, alpha: 0.5 }, seen: { visible: true, ui: false } });
+          expect(look()).toEqual(onCanvas);
+          expect(tokenRenderer.visibleTokenIds()).toEqual(['token-3']);
         });
 
         it('should hide nothing by sight while the canvas shows the GM\'s view', async () => {

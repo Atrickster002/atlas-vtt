@@ -9,7 +9,7 @@ import { contextLost, glOf } from './gpu';
 import { LightingWorld } from './LightingWorld';
 import { describeShaderFailures, failedEngineShaders } from './shaderCheck';
 import { SightMeshes } from './SightMeshes';
-import type { EngineScene } from './types';
+import type { EngineScene, SceneFrame } from './types';
 
 /**
  * Scene lighting, independent of the store: world-space caches (`LightingWorld`), sight meshes
@@ -32,6 +32,8 @@ export class LightingEngine {
   private explored: Texture = Texture.EMPTY;
   private mode: LightingMode = 'gm';
   private view = { screenToWorld: new Matrix(), zoom: 1 };
+  /** An off-screen render holds the composite on its own view (`renderFrame`). */
+  private viewHeld = false;
   private sight: Sight | null = null;
   private scene: EngineScene | null = null;
   private enabled = false;
@@ -140,13 +142,36 @@ export class LightingEngine {
 
   setMode(mode: LightingMode): void {
     this.mode = mode;
-    this.composite?.setMode(mode);
+    if (!this.viewHeld) this.composite?.setMode(mode);
   }
 
   setView(screenToWorld: Matrix, zoom: number): void {
     this.view.screenToWorld.copyFrom(screenToWorld);
     this.view.zoom = zoom;
-    this.composite?.setView(screenToWorld, zoom);
+    if (!this.viewHeld) this.composite?.setView(screenToWorld, zoom);
+  }
+
+  /**
+   * Runs `render`, a render of the layer's scene outside the stage's (a thumbnail), with the
+   * composite on the GM's view of `frame` instead of the canvas's camera and mode. Those set
+   * meanwhile, as the layer's `onRender` does in every render, wait until it is done. The layer
+   * renders in the tree as on the canvas: PIXI copies any render target into a blend filter's
+   * back texture, and only the canvas needs the back buffer for that.
+   */
+  renderFrame<T>(frame: SceneFrame, render: () => T): T {
+    // Off or stopped, the engine has no composite: the render is as it is without lighting.
+    if (!this.composite) return render();
+    this.viewHeld = true;
+    this.composite.setMode('gm');
+    // Without a camera a frame pixel is 1 / resolution world pixels, counted from (x, y).
+    this.composite.setView(new Matrix(1, 0, 0, 1, frame.x, frame.y), frame.resolution);
+    try {
+      return render();
+    } finally {
+      this.viewHeld = false;
+      this.composite?.setMode(this.mode);
+      this.composite?.setView(this.view.screenToWorld, this.view.zoom);
+    }
   }
 
   /** The caller owns `texture`; set its replacement before destroying it. */
