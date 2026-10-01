@@ -21,6 +21,7 @@
 
 ## Improved
 
+- A map larger than 8192 pixels on a side is scaled down when you add it. Its card now shows the new size, so you know before saving that small labels may be harder to read
 - Token resource bars have a flat fill; the glossy gradient is gone
 - A collection's HP and secondary resource bars are now set in its new Resources tab instead of Default Widgets. Collections, scenes and tokens keep their bars, values and switches
 - Choose how the dice look in the command palette's Dice settings: light card, dark with light numbers, or your Obsidian accent colour (the numbers turn dark or light to stay readable), each shown as a d20. Sci-fi numbers suit futuristic games; the choice also sets the font of roll totals
@@ -40,6 +41,7 @@
 
 ## Fixed
 
+- An SVG map you add is drawn at the full map size of 8192 pixels instead of 2048, so it stays sharp when you zoom in. Add an SVG map from before again to get it at that size
 - The DM screen shows its statblocks side by side again. As many columns as fit share the space, and each statblock goes into the column with the first free space, so no column stays empty
 - Collections can be deleted again when some of their files were already removed outside Obsidian, for example by git
 - The description and steps boxes of the issue report form no longer slide under the rows below them in a short window, such as the settings window. The form scrolls instead
