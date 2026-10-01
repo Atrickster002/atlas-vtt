@@ -51,6 +51,27 @@ describe('parseSenseDefinitions', () => {
     expect(sees({ bright: 'none', dim: 'as-dim', dark: 'normal', magicalDark: 'normal' })).toEqual({ bright: 'none', dim: 'none', dark: 'none', magicalDark: 'none' });
   });
 
+  it('drops a sense with a blank id or the id of normal sight', () => {
+    expect(parseSenseDefinitions([{ ...valid, id: '   ' }, { ...valid, id: 'sight' }, { ...valid, id: 'sight-2' }])?.map((sense) => sense.id)).toEqual(['sight-2']);
+  });
+
+  it('lets only the first sense stand for old darkvision or tremorsense numbers', () => {
+    const parsed = parseSenseDefinitions([
+      { ...valid, id: 'a' }, { ...valid, id: 'b' }, { ...valid, id: 'c', role: 'tremorsense' }, { ...valid, id: 'd', role: 'tremorsense' },
+    ]);
+    expect(parsed?.map((sense) => [sense.id, sense.role])).toEqual([['a', 'darkvision'], ['b', undefined], ['c', 'tremorsense'], ['d', undefined]]);
+  });
+
+  it('reads a sense that lets the eyes see invisible things as one that perceives nothing itself', () => {
+    const [sense] = parseSenseDefinitions([{ ...valid, id: 'm', name: 'Second sight', grants: 'see-invisible' }])!;
+    expect(sense).toEqual({
+      id: 'm', name: 'Second sight', description: valid.description, grants: 'see-invisible', lineOfSight: true,
+      sees: { bright: 'none', dim: 'none', dark: 'none', magicalDark: 'none' }, look: 'colour', reveals: 'creatures', precise: false,
+      seesInvisible: false, worksWhileBlinded: false, range: 'unlimited',
+    });
+    expect(parseSenseDefinitions([{ ...valid, grants: 'see-everything' }])).toEqual([valid]);
+  });
+
   it('keeps a default distance only when it is above 0', () => {
     const defaults = parseSenseDefinitions([0, -1, Number.NaN, Infinity, '60', 45].map((defaultRange, i) => ({ id: `s${i}`, name: 'S', defaultRange })));
     expect(defaults?.map((sense) => sense.defaultRange)).toEqual([undefined, undefined, undefined, undefined, undefined, 45]);
@@ -73,8 +94,8 @@ describe('parseTokenSenses', () => {
   });
 
   it('drops senses the collection does not have once its senses are known; the generic ones are always known', () => {
-    const raw = [{ id: 'dnd5e:darkvision', range: 60 }, { id: 'pathfinder2e:scent', range: 30 }, { id: 'blindsight', range: 10 }, { id: 'made-up' }];
-    expect(parseTokenSenses(raw, BUILT_IN_SENSES['builtin:dnd5e'])).toEqual([{ id: 'dnd5e:darkvision', range: 60 }, { id: 'blindsight', range: 10 }]);
+    const raw = [{ id: 'dnd5e-darkvision', range: 60 }, { id: 'pathfinder2e-scent', range: 30 }, { id: 'blindsight', range: 10 }, { id: 'made-up' }];
+    expect(parseTokenSenses(raw, BUILT_IN_SENSES['builtin:dnd5e'])).toEqual([{ id: 'dnd5e-darkvision', range: 60 }, { id: 'blindsight', range: 10 }]);
     expect(parseTokenSenses(raw, [])).toEqual([{ id: 'blindsight', range: 10 }]);
     expect(parseTokenSenses(raw)).toHaveLength(4);
   });
@@ -87,18 +108,27 @@ describe('default vision with senses', () => {
   });
 
   it('keeps unknown sense ids while the collection is not known, and drops them once it is', () => {
-    const raw = { senses: [{ id: 'dnd5e:truesight', range: 120 }, { id: 'pathfinder2e:scent', range: 30 }] };
+    const raw = { senses: [{ id: 'dnd5e-truesight', range: 120 }, { id: 'pathfinder2e-scent', range: 30 }] };
     expect(parseVisionDefaults(raw)?.senses).toHaveLength(2);
-    expect(parseVisionDefaults(raw, BUILT_IN_SENSES['builtin:dnd5e'])).toEqual({ senses: [{ id: 'dnd5e:truesight', range: 120 }] });
+    expect(parseVisionDefaults(raw, BUILT_IN_SENSES['builtin:dnd5e'])).toEqual({ senses: [{ id: 'dnd5e-truesight', range: 120 }] });
     expect(parseVisionDefaults(raw, [])).toBeUndefined();
   });
 
   it('is no default when the list of senses is empty or unreadable', () => {
     expect(parseVisionDefaults({ senses: [] })).toBeUndefined();
     expect(parseVisionDefaults({ senses: 'darkvision' })).toBeUndefined();
-    expect(parseVisionDefaults({ darkvision: 60, senses: [] })).toEqual({ darkvision: 60 });
     expect(hasVisionDefaults({ senses: [] })).toBe(false);
     expect(hasVisionDefaults({ senses: [{ id: 'darkvision', range: 60 }] })).toBe(true);
+  });
+
+  it('lets a list of senses, even an empty one, replace the old fields, as it does on a token', () => {
+    expect(parseVisionDefaults({ darkvision: 60, tremorsense: 30, senses: [] })).toBeUndefined();
+    expect(parseVisionDefaults({ darkvision: 60, range: 120, senses: [] })).toEqual({ range: 120 });
+    expect(parseVisionDefaults({ darkvision: 60, senses: [{ id: 'blindsight', range: 10 }] })).toEqual({ senses: [{ id: 'blindsight', range: 10 }] });
+    expect(parseVisionDefaults({ darkvision: 60, senses: 'none' })).toEqual({ darkvision: 60 });
+    expect(hasVisionDefaults({ darkvision: 60, senses: [] })).toBe(false);
+    expect(sameVisionDefaults({ darkvision: 60, senses: [] }, undefined)).toBe(true);
+    expect(sameVisionDefaults({ darkvision: 60, senses: [] }, { darkvision: 60 })).toBe(false);
   });
 
   it('compares senses by id and distance, whatever their order; none and an empty list are the same', () => {

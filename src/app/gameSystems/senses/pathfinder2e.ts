@@ -1,4 +1,4 @@
-import { BY_LIGHT, IN_ANY_LIGHT, seeing, sensing, sensesOf } from './senseHelpers';
+import { IN_ANY_LIGHT, granting, seeing, sensing, sensesOf } from './senseHelpers';
 
 /**
  * Pathfinder 2e (Player Core, Monster Core). Vision has no distance; the other senses take the
@@ -12,17 +12,18 @@ export const PATHFINDER_2E_SENSES = sensesOf('pathfinder2e', {
     ...seeing({ bright: 'normal', dim: 'as-bright', dark: 'none', magicalDark: 'none' }),
     range: 'unlimited',
   },
-  // "Perfectly well in areas of darkness and dim light", "in black and white only"; 4th-rank darkness blocks it.
+  // "Perfectly well in areas of darkness and dim light", "in black and white only". In 4th-rank
+  // darkness it "can barely see through the darkness", with targets concealed.
   darkvision: {
     name: 'Darkvision',
     description: 'Sees in darkness and dim light as well as in bright light, in black and white.',
-    ...seeing({ bright: 'normal', dim: 'as-bright', dark: 'as-bright', magicalDark: 'none' }, 'black-and-white'),
+    ...seeing({ bright: 'normal', dim: 'as-bright', dark: 'as-bright', magicalDark: 'as-dim' }, 'black-and-white'),
     range: 'unlimited',
     role: 'darkvision',
   },
   'greater-darkvision': {
     name: 'Greater darkvision',
-    description: 'Sees like darkvision, and through magical darkness too.',
+    description: 'Sees like darkvision, and as well through magical darkness.',
     ...seeing(IN_ANY_LIGHT, 'black-and-white'),
     range: 'unlimited',
   },
@@ -43,9 +44,10 @@ export const PATHFINDER_2E_SENSES = sensesOf('pathfinder2e', {
     range: 'required',
     defaultRange: 30,
   },
+  // Atlas has no walls for sound, so hearing passes every wall.
   hearing: {
     name: 'Hearing',
-    description: 'Hears creatures within its range, through walls. They show as outlines.',
+    description: 'Hears creatures within its range, also through walls, but imprecisely: they show as outlines.',
     ...sensing(),
     range: 'required',
   },
@@ -61,21 +63,19 @@ export const PATHFINDER_2E_SENSES = sensesOf('pathfinder2e', {
     ...sensing(),
     range: 'required',
   },
-  // Hearing as a precise sense.
+  // Hearing as a precise sense: creatures are shown as they are, so walls stop it.
   echolocation: {
     name: 'Echolocation',
-    description: 'Shows creatures within its range by sound, through walls and in darkness.',
+    description: 'Hears creatures within its range well enough to show them, also in darkness. Walls stop it.',
     ...sensing(true),
+    lineOfSight: true,
     range: 'required',
     defaultRange: 20,
   },
-  // The spell lets sight see invisible creatures; they stay concealed, which Atlas does not draw.
+  // The spell lets the eyes see invisible creatures; they stay concealed, which Atlas does not draw.
   'see-the-unseen': {
     name: 'See the Unseen',
-    description: 'Sees invisible creatures wherever it sees by light.',
-    ...seeing(BY_LIGHT),
-    reveals: 'creatures',
-    seesInvisible: true,
-    range: 'unlimited',
+    description: 'Sees invisible creatures wherever its eyes see.',
+    ...granting('see-invisible'),
   },
 });

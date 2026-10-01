@@ -7,6 +7,8 @@ import type { DarkSeeing, SenseDefinition, SenseLook, SenseRange, SenseRole, Sen
 import { isRecord } from '../services/assetMetadataGuards';
 import { positiveNumber } from '../utils/numberInput';
 import { findSense } from './senseRules';
+import { NORMAL_SIGHT } from './senses/generic';
+import { granting } from './senses/senseHelpers';
 
 const BRIGHT: readonly SenseSight['bright'][] = ['none', 'normal'];
 const DIM: readonly SenseSight['dim'][] = ['none', 'normal', 'as-bright'];
@@ -30,19 +32,21 @@ function parseSight(raw: unknown): SenseSight {
 }
 
 /**
- * A stored sense, or null without an id or a name. Every other field that cannot be used takes
- * the value that shows the players less: walls stop the sense, it perceives nothing at that
- * light level, senses creatures only and imprecisely, sees nothing invisible, is lost while
- * blinded and needs a distance.
+ * A stored sense, or null without a usable id (blank, or the one reserved for normal sight) or
+ * a name. Every other field that cannot be used takes the value that shows the players less:
+ * walls stop the sense, it perceives nothing at that light level, senses creatures only and
+ * imprecisely, sees nothing invisible, is lost while blinded and needs a distance. A modifier
+ * (`grants`) keeps only its id, name and description.
  */
 function parseSenseDefinition(raw: unknown): SenseDefinition | null {
-  if (!isRecord(raw) || typeof raw.id !== 'string' || raw.id === '' || typeof raw.name !== 'string' || raw.name.trim() === '') return null;
+  if (!isRecord(raw) || typeof raw.id !== 'string' || raw.id.trim() === '' || raw.id === NORMAL_SIGHT.id) return null;
+  if (typeof raw.name !== 'string' || raw.name.trim() === '') return null;
+  const named = { id: raw.id, name: raw.name.trim(), description: typeof raw.description === 'string' ? raw.description : '' };
+  if (raw.grants === 'see-invisible') return { ...named, ...granting(raw.grants) };
   const defaultRange = positiveNumber(raw.defaultRange);
   const role = oneOf<SenseRole | ''>(ROLES, raw.role, '');
   return {
-    id: raw.id,
-    name: raw.name.trim(),
-    description: typeof raw.description === 'string' ? raw.description : '',
+    ...named,
     lineOfSight: raw.lineOfSight !== false,
     sees: parseSight(raw.sees),
     look: oneOf(LOOKS, raw.look, 'colour'),
@@ -57,14 +61,22 @@ function parseSenseDefinition(raw: unknown): SenseDefinition | null {
   };
 }
 
-/** Every usable sense in `raw`, the first one kept when ids repeat; undefined when `raw` is no list. */
+/**
+ * Every usable sense in `raw`, the first one kept when ids repeat; undefined when `raw` is no
+ * list. Only the first sense of a `role` keeps it, so an old number is read as one sense.
+ */
 export function parseSenseDefinitions(raw: unknown): SenseDefinition[] | undefined {
   if (!Array.isArray(raw)) return undefined;
-  const seen = new Set<string>();
+  const ids = new Set<string>();
+  const roles = new Set<SenseRole>();
   return raw.flatMap((entry) => {
     const sense = parseSenseDefinition(entry);
-    if (!sense || seen.has(sense.id)) return [];
-    seen.add(sense.id);
+    if (!sense || ids.has(sense.id)) return [];
+    ids.add(sense.id);
+    if (sense.role === undefined) return [sense];
+    const { role, ...withoutRole } = sense;
+    if (roles.has(role)) return [withoutRole];
+    roles.add(role);
     return [sense];
   });
 }
