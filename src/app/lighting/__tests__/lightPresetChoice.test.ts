@@ -1,13 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import { BUILT_IN_SYSTEM_PRESETS } from '../../gameSystems/builtInPresets';
 import { GENERIC_LIGHT_PRESETS } from '../../gameSystems/lightPresets/generic';
+import type { GameUnit } from '../../grid/statedDistance';
 import type { LightPresetDefinition } from '../../types/lightPresetTypes';
 import type { LightKind } from '../../types/lightingTypes';
-import { asCustomLight, chosenLightPreset, defaultLightPreset, emissionOf, lightPresetChips, lightPresetOf } from '../lightPresetChoice';
+import { asCustomLight, chosenLightPreset, defaultLightPreset, emissionOf, lightPresetChips, lightPresetOf, lightPresetsOnMap } from '../lightPresetChoice';
 import { LIGHT_PRESETS, lightKindOf } from '../lightPresets';
 
 const dnd5e = BUILT_IN_SYSTEM_PRESETS.find((preset) => preset.name === 'D&D 5e')!.rules.lightPresets!;
 const cairn = BUILT_IN_SYSTEM_PRESETS.find((preset) => preset.name === 'Cairn')!.rules.lightPresets!;
+const FEET: GameUnit = { unitType: 'feet', unitDistance: 5 };
 const named = (table: readonly LightPresetDefinition[], name: string): LightPresetDefinition => table.find((light) => light.name === name)!;
 const names = (table: readonly LightPresetDefinition[]): string[] => table.map((light) => light.name);
 
@@ -17,11 +19,57 @@ describe('emissionOf', () => {
     expect(emissionOf(lamp)).toEqual({ bright: 15, dim: 45, color: lamp.color, intensity: 1, animation: lamp.animation, sourceRadius: lamp.sourceRadius, kind: 'lantern', preset: lamp.id });
   });
 
-  it('gives a generic preset the light it always had', () => {
-    for (const preset of GENERIC_LIGHT_PRESETS) {
+  it('gives a generic preset the light it always had on a 5-foot grid', () => {
+    for (const preset of lightPresetsOnMap(GENERIC_LIGHT_PRESETS, FEET, Infinity)) {
       const id = preset.id as keyof typeof LIGHT_PRESETS;
       expect(emissionOf(preset)).toEqual({ ...LIGHT_PRESETS[id].emission, kind: id, preset: id });
     }
+  });
+});
+
+describe('lightPresetsOnMap', () => {
+  const reach = (table: readonly LightPresetDefinition[], unit: GameUnit, name: string, maxRange = Infinity): [number, number] => {
+    const light = named(lightPresetsOnMap(table, unit, maxRange), name);
+    return [light.bright, light.dim];
+  };
+  const gridOf = (name: string): GameUnit => BUILT_IN_SYSTEM_PRESETS.find((preset) => preset.name === name)!.rules.gridDefaults;
+
+  it('gives D&D 5e\'s lights in feet to a collection that measures in feet', () => {
+    expect(reach(dnd5e, FEET, 'Torch')).toEqual([20, 40]);
+    expect(reach(dnd5e, FEET, 'Lamp')).toEqual([15, 45]);
+  });
+
+  it('converts them for a collection in metres as the rulebooks do: 5 feet are 1.5 metres', () => {
+    const metres: GameUnit = { unitType: 'meters', unitDistance: 1.5 };
+    expect(reach(dnd5e, metres, 'Torch')).toEqual([6, 12]);
+    expect(reach(dnd5e, metres, 'Daylight')).toEqual([18, 36]);
+    expect(reach(dnd5e, metres, 'Candle')).toEqual([1.5, 3]);
+  });
+
+  it('counts a 5-foot rules square as one cell where a collection measures in squares', () => {
+    expect(reach(dnd5e, { unitType: 'units', unitDistance: 1 }, 'Torch')).toEqual([4, 8]);
+    expect(reach(dnd5e, { unitType: 'custom', unitDistance: 2 }, 'Hooded lantern')).toEqual([12, 24]);
+  });
+
+  it('gives the generic lights the same cells in every collection: Cyberpunk RED\'s 2 m squares, Call of Cthulhu\'s yards', () => {
+    expect(reach(GENERIC_LIGHT_PRESETS, gridOf('Cyberpunk RED'), 'Torch')).toEqual([8, 16]);
+    expect(reach(GENERIC_LIGHT_PRESETS, gridOf('Cyberpunk RED'), 'Candle')).toEqual([2, 4]);
+    expect(reach(GENERIC_LIGHT_PRESETS, gridOf('Call of Cthulhu'), 'Torch')).toEqual([4, 8]);
+    expect(reach(GENERIC_LIGHT_PRESETS, gridOf('Call of Cthulhu'), 'Lantern')).toEqual([6, 12]);
+    expect(reach(GENERIC_LIGHT_PRESETS, FEET, 'Magical light')).toEqual([20, 40]);
+  });
+
+  it('takes a preset without a unit as the collection\'s own numbers, and names no unit on what it gives', () => {
+    const own: LightPresetDefinition = { id: 'home-1', name: 'Glow moss', bright: 3, dim: 7, color: '#7ee0a8', animation: 'none', kind: 'magical' };
+    expect(reach([own], { unitType: 'meters', unitDistance: 2 }, 'Glow moss')).toEqual([3, 7]);
+    for (const light of lightPresetsOnMap([...dnd5e, own], FEET, Infinity)) expect(light).not.toHaveProperty('unit');
+  });
+
+  it('stops a preset at the farthest a light may reach on the map, bright never past dim', () => {
+    expect(reach(dnd5e, FEET, 'Daylight', 100)).toEqual([60, 100]);
+    expect(reach(dnd5e, FEET, 'Daylight', 45)).toEqual([45, 45]);
+    const endless: LightPresetDefinition = { id: 'home-2', name: 'Sun', bright: 1e9, dim: 1e12, color: '#ffffff', animation: 'none', kind: 'magical' };
+    expect(reach([endless], FEET, 'Sun', 585)).toEqual([585, 585]);
   });
 });
 
@@ -45,6 +93,12 @@ describe('lightPresetOf', () => {
     expect(lightPresetOf(old, dnd5e)).toBe(hooded);
     expect(lightPresetOf({ ...emissionOf(lamp), bright: 25 }, GENERIC_LIGHT_PRESETS)).toBe(named(GENERIC_LIGHT_PRESETS, 'Lantern'));
     expect(lightPresetOf({ ...old, kind: 'candle' }, cairn)).toBeNull();
+  });
+
+  it('is none for a light made custom, also where the collection has a preset with the plain marker that equals it', () => {
+    const lamppost: LightPresetDefinition = { id: 'home-post', name: 'Lamppost', bright: 10, dim: 30, color: '#fff1d6', animation: 'none', kind: 'custom' };
+    expect(lightPresetOf(emissionOf(lamppost), [...dnd5e, lamppost])).toBe(lamppost);
+    expect(lightPresetOf(asCustomLight(emissionOf(lamppost)), [...dnd5e, lamppost])).toBeNull();
   });
 
   it('is none for a custom light, whatever it equals, and for a light that matches nothing', () => {

@@ -1,14 +1,15 @@
-import type { LightPresetDefinition } from '../../types/lightPresetTypes';
+import type { LightPresetDefinition, LightPresetUnit } from '../../types/lightPresetTypes';
 
-/** A light as a built-in table defines it; the id is derived from the preset and the light's key. */
-export type BuiltInLight = Omit<LightPresetDefinition, 'id'>;
+/** A light as a built-in table defines it; the id is derived from the preset and the light's key, the unit is the table's. */
+export type BuiltInLight = Omit<LightPresetDefinition, 'id' | 'unit'>;
 
 /**
- * Lights with ids made like condition ids: the preset's key, a hyphen, their own key
- * (`dnd5e-torch`). Never change a key: lights on maps and tokens record the ids.
+ * The lights of a table whose distances are in `unit`, as its rulebook writes them, with ids
+ * made like condition ids: the preset's key, a hyphen, their own key (`dnd5e-torch`). Never
+ * change a key: lights on maps and tokens record the ids.
  */
-export function lightsOf(presetKey: string, lights: Readonly<Record<string, BuiltInLight>>): readonly LightPresetDefinition[] {
-  return Object.entries(lights).map(([key, light]) => ({ id: `${presetKey}-${key}`, ...light }));
+export function lightsOf(presetKey: string, unit: LightPresetUnit, lights: Readonly<Record<string, BuiltInLight>>): readonly LightPresetDefinition[] {
+  return Object.entries(lights).map(([key, light]) => ({ id: `${presetKey}-${key}`, unit, ...light }));
 }
 
 // The looks the tables share, so a torch is the same flame in every system.

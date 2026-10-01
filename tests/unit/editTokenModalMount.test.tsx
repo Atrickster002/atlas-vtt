@@ -2,7 +2,7 @@ import { act, fireEvent, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 import { GENERIC_LIGHT_PRESETS } from '../../src/app/gameSystems/lightPresets/generic';
 import { GENERIC_SENSES } from '../../src/app/gameSystems/senses/generic';
-import { emissionOf } from '../../src/app/lighting/lightPresetChoice';
+import { emissionOf, lightPresetsOnMap } from '../../src/app/lighting/lightPresetChoice';
 import { senseWithRole } from '../../src/app/gameSystems/senseRules';
 import { createViewAtlasStore, type ViewAtlasStore } from '../../src/app/storeFactory';
 import { openEditTokenModal } from '../../src/app/pixi/token-renderer/EditTokenModal';
@@ -110,8 +110,10 @@ describe('openEditTokenModal', () => {
 });
 
 describe('openEditTokenModal: the carried light', () => {
-  const torch = GENERIC_LIGHT_PRESETS.find((preset) => preset.id === 'torch')!;
-  const lantern = GENERIC_LIGHT_PRESETS.find((preset) => preset.id === 'lantern')!;
+  // The generic lights as a map on the default 5-foot grid offers them.
+  const onMap = lightPresetsOnMap(GENERIC_LIGHT_PRESETS, { unitType: 'feet', unitDistance: 5 }, Infinity);
+  const torch = onMap.find((preset) => preset.id === 'torch')!;
+  const lantern = onMap.find((preset) => preset.id === 'lantern')!;
   const carried = (): HTMLElement => screen.getByRole('switch', { name: 'Carried light' });
 
   it('is off for a token without one, with no light fields, and saves none', () => {

@@ -3,11 +3,27 @@
  * came from, the one a tool places, and which presets a row of chips has room for.
  */
 
+import { toGameUnits, type GameUnit } from '../grid/statedDistance';
 import type { LightPresetDefinition } from '../types/lightPresetTypes';
 import type { LightEmission, LightKind } from '../types/lightingTypes';
 import { LIGHT_KINDS, lightKindOf, sameEmission } from './lightPresets';
 
-/** The light a preset gives, with its kind and the preset recorded on it. */
+/**
+ * `presets` as a map offers them: their distances in what the map's collection measures in
+ * (`unit`), converted from the unit each preset is written in as rulebooks convert (a 5e torch
+ * is 20 and 40 feet, 6 and 12 metres, 4 and 8 squares), and stopped at `maxRange`, the farthest
+ * a light may reach on the map. Everything that offers or applies a preset reads this list, so
+ * what a preset shows and what it gives never differ.
+ */
+export function lightPresetsOnMap(presets: readonly LightPresetDefinition[], unit: GameUnit, maxRange: number): LightPresetDefinition[] {
+  return presets.map(({ unit: writtenIn, ...preset }) => {
+    const dim = Math.min(maxRange, toGameUnits({ value: preset.dim, unit: writtenIn ?? null }, unit));
+    const bright = Math.min(dim, toGameUnits({ value: preset.bright, unit: writtenIn ?? null }, unit));
+    return { ...preset, bright, dim };
+  });
+}
+
+/** The light a preset of the map gives (`lightPresetsOnMap`), with its kind and the preset recorded on it. */
 export function emissionOf(preset: LightPresetDefinition): LightEmission {
   return {
     bright: preset.bright,

@@ -9,6 +9,7 @@ import { AtlasUIContext, type AtlasUIContextValue } from '../../src/app/react/ro
 import { ViewStoreProvider } from '../../src/app/react/ViewStoreContext';
 import { AssetService } from '../../src/app/services/AssetService';
 import { createViewAtlasStore } from '../../src/app/storeFactory';
+import type { CollectionSettings } from '../../src/app/types/collectionSettingsTypes';
 import type { LightEmission } from '../../src/app/types/lightingTypes';
 import { createInMemoryApp } from '../mocks/inMemoryVault';
 
@@ -24,9 +25,9 @@ afterEach(() => {
 });
 
 /** The popover of a light on a map of a collection with the game system `presetName`. */
-function renderPopover(presetName: string, emission: LightEmission): () => LightEmission {
+function renderPopover(presetName: string, emission: LightEmission, settings: Partial<CollectionSettings> = {}): () => LightEmission {
   vi.spyOn(AssetService.prototype, 'getCollectionForMap').mockReturnValue('dungeon');
-  vi.spyOn(AssetService.prototype, 'getCollectionSettings').mockReturnValue({ conditions: [], systemPresetId: system(presetName).id });
+  vi.spyOn(AssetService.prototype, 'getCollectionSettings').mockReturnValue({ conditions: [], systemPresetId: system(presetName).id, ...settings });
   const { app } = createInMemoryApp({ files: {} });
   const store = createViewAtlasStore(app, `light-presets-${Math.random()}`);
   store.getState().setPersistenceEnabled(false);
@@ -94,5 +95,23 @@ describe('LightPopover with a game system\'s light presets', () => {
     cleanup();
     renderPopover('D&D 5e', { bright: 12, dim: 30, color: '#ffd28a', intensity: 1, animation: 'none', kind: 'candle' });
     expect(pressed('Candle')).toBe(true);
+  });
+
+  it('gives a preset in what the collection measures in: a 5e torch is 6 and 12 metres', () => {
+    const metres = { gridDefaults: { unitType: 'meters', unitDistance: 1.5, measurementMode: 'metric' } } as const;
+    const emission = renderPopover('D&D 5e', emissionOf(light5e('Candle')), metres);
+    fireEvent.click(screen.getByRole('button', { name: 'Torch' }));
+    expect(emission()).toMatchObject({ bright: 6, dim: 12, preset: light5e('Torch').id });
+    expect((screen.getByLabelText('Bright') as HTMLInputElement).value).toBe('6');
+    expect((screen.getByLabelText('Dim') as HTMLInputElement).value).toBe('12');
+    expect(screen.getByText('m')).toBeTruthy();
+    expect(pressed('Torch')).toBe(true);
+  });
+
+  it('opens the menu of more lights inside the popover, so a press in it is no press outside', () => {
+    renderPopover('D&D 5e', emissionOf(light5e('Torch')));
+    openMore();
+    const dialog = screen.getByRole('dialog', { name: 'Light' });
+    expect(dialog.contains(screen.getByRole('menu'))).toBe(true);
   });
 });

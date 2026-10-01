@@ -589,7 +589,7 @@ export class InteractionController implements ITokenInteractionController {
 
     // Vision and carried light, for the selection the token belongs to
     if (WALLS_AND_LIGHTING_ENABLED && !this.isPlayerView) {
-      const lightPresets = mapLightPresets(this.obsApp, this.store.getState().mapPath);
+      const lightPresets = mapLightPresets(this.obsApp, this.store.getState());
       entries.push(...tokenLightingEntries(this.store, token.id, this.contextMenuTargets(token.id), lightPresets));
     }
 

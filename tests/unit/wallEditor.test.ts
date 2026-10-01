@@ -4,6 +4,7 @@ import type { EventSystem } from 'pixi.js';
 import { Viewport } from 'pixi-viewport';
 import { BUILT_IN_SYSTEM_PRESETS } from '../../src/app/gameSystems/builtInPresets';
 import { GENERIC_LIGHT_PRESETS } from '../../src/app/gameSystems/lightPresets/generic';
+import { lightPresetsOnMap } from '../../src/app/lighting/lightPresetChoice';
 import { WallEditor } from '../../src/app/pixi/lighting/WallEditor';
 import type { LightPresetDefinition } from '../../src/app/types/lightPresetTypes';
 import { createViewAtlasStore, type ViewAtlasStore } from '../../src/app/storeFactory';
@@ -16,7 +17,9 @@ afterEach(() => {
   cleanup = null;
 });
 
-const lights = { current: GENERIC_LIGHT_PRESETS as readonly LightPresetDefinition[] };
+// The lights as a map on a 5-foot grid offers them.
+const onMap = (presets: readonly LightPresetDefinition[]): LightPresetDefinition[] => lightPresetsOnMap(presets, { unitType: 'feet', unitDistance: 5 }, Infinity);
+const lights = { current: onMap(GENERIC_LIGHT_PRESETS) as readonly LightPresetDefinition[] };
 
 function setup(): { editor: WallEditor; store: ViewAtlasStore; wall: string; bus: EventEmitter } {
   const restoreGraphics = stubJsdomGraphics();
@@ -34,7 +37,7 @@ function setup(): { editor: WallEditor; store: ViewAtlasStore; wall: string; bus
     editor.destroy();
     viewport.destroy();
     restoreGraphics();
-    lights.current = GENERIC_LIGHT_PRESETS;
+    lights.current = onMap(GENERIC_LIGHT_PRESETS);
   };
   return { editor, store, wall, bus };
 }
@@ -64,7 +67,7 @@ describe('WallEditor', () => {
     const cairn = BUILT_IN_SYSTEM_PRESETS.find((preset) => preset.name === 'Cairn')!.rules.lightPresets!;
     const { editor, store, bus } = setup();
     const placed = (): unknown[] => Object.values(store.getState().objects.lights).map((light) => light.emission);
-    lights.current = dnd5e;
+    lights.current = onMap(dnd5e);
     bus.emit('wall-submode-changed', 'place-light');
     editor.pointerDown({ x: 500, y: 400 }, false, false);
     expect(placed()).toMatchObject([{ bright: 20, dim: 40, kind: 'torch', preset: 'dnd5e-torch' }]);
@@ -72,7 +75,7 @@ describe('WallEditor', () => {
     editor.pointerDown({ x: 600, y: 400 }, false, false);
     expect(placed()[1]).toMatchObject({ bright: 60, dim: 120, kind: 'magical', preset: 'dnd5e-daylight' });
     // The collection's game system changed: the light chosen before is no longer one of its lights.
-    lights.current = cairn;
+    lights.current = onMap(cairn);
     editor.pointerDown({ x: 700, y: 400 }, false, false);
     expect(placed()[2]).toMatchObject({ bright: 40, dim: 40, preset: 'cairn-torch' });
   });

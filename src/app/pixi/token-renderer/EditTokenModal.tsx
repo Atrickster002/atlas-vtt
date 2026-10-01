@@ -171,7 +171,7 @@ function lightingContext(store: StoreApi<ViewAtlasState>, app: App, options: Edi
     unitDistance,
     maxLightRange: maxLightRange(unitScaleOf({ unitDistance }, state.grid)),
     senses: mapSenses(app, state.mapPath),
-    lightPresets: mapLightPresets(app, state.mapPath),
+    lightPresets: mapLightPresets(app, state),
     ...options,
   };
 }

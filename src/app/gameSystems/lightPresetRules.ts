@@ -21,6 +21,7 @@ export function collectionLightPresets(
 function sameLightPreset(a: LightPresetDefinition, b: LightPresetDefinition): boolean {
   return a.id === b.id
     && a.name === b.name
+    && a.unit === b.unit
     && a.bright === b.bright
     && a.dim === b.dim
     && a.color.toLowerCase() === b.color.toLowerCase()

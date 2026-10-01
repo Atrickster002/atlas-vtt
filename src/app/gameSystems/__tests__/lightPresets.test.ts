@@ -15,13 +15,20 @@ const lights = (name: string): readonly LightPresetDefinition[] => preset(name).
 const rows = (table: readonly LightPresetDefinition[]): unknown[] => table.map((light) => [light.id, light.name, light.bright, light.dim, light.kind]);
 
 describe('built-in light presets', () => {
-  it('keeps the generic four with their ids, and the magical light as the Light cantrip sheds it', () => {
+  it('keeps the generic four with their ids, counted in grid cells, the magical light as far as a torch', () => {
     expect(rows(GENERIC_LIGHT_PRESETS)).toEqual([
-      ['candle', 'Candle', 5, 10, 'candle'],
-      ['torch', 'Torch', 20, 40, 'torch'],
-      ['lantern', 'Lantern', 30, 60, 'lantern'],
-      ['magical', 'Magical light', 20, 40, 'magical'],
+      ['candle', 'Candle', 1, 2, 'candle'],
+      ['torch', 'Torch', 4, 8, 'torch'],
+      ['lantern', 'Lantern', 6, 12, 'lantern'],
+      ['magical', 'Magical light', 4, 8, 'magical'],
     ]);
+    expect(new Set(GENERIC_LIGHT_PRESETS.map((light) => light.unit))).toEqual(new Set(['squares']));
+  });
+
+  it('says of every game system\'s table that its numbers are feet', () => {
+    for (const name of ['D&D 5e', 'Pathfinder 2e', 'Shadowdark', 'Old-School Essentials', 'Cairn']) {
+      expect(new Set(lights(name).map((light) => light.unit))).toEqual(new Set(['feet']));
+    }
   });
 
   it('lists D&D 5e\'s light sources (SRD 5.2.1), without the bullseye lantern', () => {
@@ -105,6 +112,11 @@ describe('collectionLightPresets', () => {
 describe('parseLightPresets', () => {
   const base = { id: 'a', name: 'Brazier', bright: 10, dim: 20, color: '#FF9A3C', animation: 'torch', kind: 'torch', sourceRadius: 2, intensity: 1.2 };
 
+  it('keeps the unit a preset\'s numbers are in, and takes numbers without a known one as the collection\'s own', () => {
+    for (const unit of ['feet', 'yards', 'meters', 'squares']) expect(parseLightPresets([{ ...base, unit }])?.[0]!.unit).toBe(unit);
+    for (const unit of ['miles', 'cubits', 5, undefined]) expect(parseLightPresets([{ ...base, unit }])?.[0]).not.toHaveProperty('unit');
+  });
+
   it('keeps a complete preset and is undefined for anything but a list', () => {
     expect(parseLightPresets([base])).toEqual([{ ...base, color: '#ff9a3c' }]);
     expect(parseLightPresets(undefined)).toBeUndefined();
@@ -145,6 +157,7 @@ describe('light presets in a game system\'s rules', () => {
     expect(sameLightPresets(undefined, [own])).toBe(false);
     expect(sameLightPresets([{ ...own, color: '#7EE0A8' }], [own])).toBe(true);
     expect(sameLightPresets([{ ...own, intensity: 1 }], [own])).toBe(true);
+    expect(sameLightPresets([{ ...own, unit: 'feet' }], [own])).toBe(false);
   });
 
   it('are read from a user preset field by field, and left out when it has none', () => {

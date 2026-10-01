@@ -4,7 +4,7 @@ import { CANDLE_LOOK, LANTERN_LOOK, SPELL_LOOK, STEADY_MAGIC_LOOK, TORCH_LOOK, l
  * Pathfinder 2e (Player Core): "it sheds dim light to double that radius", except the candle,
  * which sheds dim light only, and the glow rod.
  */
-export const PATHFINDER_2E_LIGHTS = lightsOf('pathfinder2e', {
+export const PATHFINDER_2E_LIGHTS = lightsOf('pathfinder2e', 'feet', {
   candle: { name: 'Candle', bright: 0, dim: 10, ...CANDLE_LOOK },
   torch: { name: 'Torch', bright: 20, dim: 40, ...TORCH_LOOK },
   'hooded-lantern': { name: 'Hooded lantern', bright: 30, dim: 60, ...LANTERN_LOOK },

@@ -5,7 +5,7 @@ import { tokenLightingEntries } from '../../src/app/react/components/context-men
 import type { ContextMenuEntry } from '../../src/app/react/components/context-menu/AtlasContextMenu';
 import { BUILT_IN_SYSTEM_PRESETS } from '../../src/app/gameSystems/builtInPresets';
 import { GENERIC_LIGHT_PRESETS } from '../../src/app/gameSystems/lightPresets/generic';
-import { emissionOf } from '../../src/app/lighting/lightPresetChoice';
+import { emissionOf, lightPresetsOnMap } from '../../src/app/lighting/lightPresetChoice';
 import type { TokenEntity } from '../../src/app/types';
 import { createInMemoryApp } from '../mocks/inMemoryVault';
 
@@ -19,8 +19,11 @@ function setup(): ReturnType<typeof createViewAtlasStore> {
   return store;
 }
 
-const dnd5e = BUILT_IN_SYSTEM_PRESETS.find((preset) => preset.name === 'D&D 5e')!.rules.lightPresets!;
-const generic = (name: string) => GENERIC_LIGHT_PRESETS.find((preset) => preset.name === name)!;
+// The lights as a map on a 5-foot grid offers them.
+const FEET = { unitType: 'feet', unitDistance: 5 } as const;
+const dnd5e = lightPresetsOnMap(BUILT_IN_SYSTEM_PRESETS.find((preset) => preset.name === 'D&D 5e')!.rules.lightPresets!, FEET, Infinity);
+const GENERIC = lightPresetsOnMap(GENERIC_LIGHT_PRESETS, FEET, Infinity);
+const generic = (name: string) => GENERIC.find((preset) => preset.name === name)!;
 
 function labels(entries: ContextMenuEntry[], submenu: string): string[] {
   const entry = entries.find((candidate) => candidate.type === 'submenu' && candidate.label === submenu);
@@ -46,7 +49,7 @@ describe('tokenLightingEntries', () => {
     const store = setup();
     const steps = getHistoryStore(store)!;
     const before = steps.getState().pastStates.length;
-    item(tokenLightingEntries(store, 'a', ['a', 'b'], GENERIC_LIGHT_PRESETS), 'Vision').onClick?.();
+    item(tokenLightingEntries(store, 'a', ['a', 'b'], GENERIC), 'Vision').onClick?.();
     const { tokens } = store.getState().objects;
     expect(tokens.a!.vision).toEqual({ enabled: true });
     expect(tokens.b!.vision).toEqual({ enabled: true });
@@ -55,9 +58,9 @@ describe('tokenLightingEntries', () => {
 
   it('hands every selected token a torch and takes it away again', () => {
     const store = setup();
-    item(tokenLightingEntries(store, 'a', ['a', 'b'], GENERIC_LIGHT_PRESETS), 'Torch').onClick?.();
+    item(tokenLightingEntries(store, 'a', ['a', 'b'], GENERIC), 'Torch').onClick?.();
     expect(store.getState().objects.tokens.b!.light).toEqual(emissionOf(generic('Torch')));
-    const entries = tokenLightingEntries(store, 'a', ['a', 'b'], GENERIC_LIGHT_PRESETS);
+    const entries = tokenLightingEntries(store, 'a', ['a', 'b'], GENERIC);
     expect(item(entries, 'Torch').checked).toBe(true);
     item(entries, 'None').onClick?.();
     expect(store.getState().objects.tokens.a!.light).toBeUndefined();
@@ -65,7 +68,7 @@ describe('tokenLightingEntries', () => {
 
   it('lists the light presets of the map\'s collection', () => {
     const store = setup();
-    expect(labels(tokenLightingEntries(store, 'a', ['a'], GENERIC_LIGHT_PRESETS), 'Carry light')).toEqual(['None', 'Candle', 'Torch', 'Lantern', 'Magical light']);
+    expect(labels(tokenLightingEntries(store, 'a', ['a'], GENERIC), 'Carry light')).toEqual(['None', 'Candle', 'Torch', 'Lantern', 'Magical light']);
     expect(labels(tokenLightingEntries(store, 'a', ['a'], dnd5e), 'Carry light')).toEqual(['None', ...dnd5e.map((preset) => preset.name)]);
     item(tokenLightingEntries(store, 'a', ['a'], dnd5e), 'Lamp').onClick?.();
     expect(store.getState().objects.tokens.a!.light).toMatchObject({ bright: 15, dim: 45, kind: 'lantern' });

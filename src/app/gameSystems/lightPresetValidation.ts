@@ -5,13 +5,14 @@
 
 import { LIGHT_KINDS } from '../lighting/lightPresets';
 import { isRecord } from '../services/assetMetadataGuards';
-import type { LightPresetDefinition } from '../types/lightPresetTypes';
+import type { LightPresetDefinition, LightPresetUnit } from '../types/lightPresetTypes';
 import type { LightAnimation } from '../types/lightingTypes';
 import type { SystemPreset } from '../types/systemPresetTypes';
 import { isHexColor } from '../utils/hexColor';
 import { collectionLightPresets } from './lightPresetRules';
 
 const ANIMATIONS: readonly LightAnimation[] = ['none', 'torch', 'candle', 'pulse', 'magic'];
+const UNITS: readonly LightPresetUnit[] = ['feet', 'yards', 'meters', 'squares'];
 /** The ranges the light popover's sliders give intensity and softness. */
 const MAX_INTENSITY = 2;
 const MAX_SOURCE_RADIUS = 5;
@@ -27,9 +28,11 @@ function within(value: unknown, max: number): number | undefined {
 
 /**
  * A stored light preset, or null without an id, a name or a reach (a dim radius above 0). Every
- * other field that cannot be used is repaired: bright never ends past dim, an unknown colour is
- * white, an unknown flicker steady, an unknown kind the plain marker; intensity and softness
- * stay in their ranges and are left out when they are no numbers.
+ * other field that cannot be used is repaired: distances without a known unit are the
+ * collection's own, bright never ends past dim, an unknown colour is white, an unknown flicker
+ * steady, an unknown kind the plain marker; intensity and softness stay in their ranges and are
+ * left out when they are no numbers. How far a light may reach depends on the map, so the
+ * distances are limited where the preset is offered (`lightPresetsOnMap`).
  */
 function parseLightPreset(raw: unknown): LightPresetDefinition | null {
   if (!isRecord(raw) || typeof raw.id !== 'string' || raw.id.trim() === '' || typeof raw.name !== 'string' || raw.name.trim() === '') return null;
@@ -37,9 +40,11 @@ function parseLightPreset(raw: unknown): LightPresetDefinition | null {
   if (dim === undefined || dim === 0) return null;
   const sourceRadius = within(raw.sourceRadius, MAX_SOURCE_RADIUS);
   const intensity = within(raw.intensity, MAX_INTENSITY);
+  const unit = oneOf<LightPresetUnit | ''>(UNITS, raw.unit, '');
   return {
     id: raw.id,
     name: raw.name.trim(),
+    ...(unit !== '' && { unit }),
     bright: Math.min(dim, within(raw.bright, Infinity) ?? 0),
     dim,
     color: isHexColor(raw.color) ? raw.color.toLowerCase() : '#ffffff',
