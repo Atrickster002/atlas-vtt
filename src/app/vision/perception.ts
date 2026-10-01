@@ -5,11 +5,12 @@ import type { TokenEntity } from '../types';
 import type { ConditionDefinition, ConditionEffect } from '../types/collectionSettingsTypes';
 import type { LightLevel } from '../types/senseTypes';
 import type { Point } from '../types/visionTypes';
+import type { WallSegment } from '../types/wallTypes';
 import { computeTokenPixelSize } from '../pixi/token-renderer/tokenSizing';
 import { lightLevelAt } from './lightLevels';
 import type { AmbientLight, LightReach, Sight, SightRegion } from './sight';
 import { tokenEffects } from './sightRules';
-import { pointInPolygon } from './visibility';
+import { computeVisibility, pointInPolygon, type Polygon } from './visibility';
 import { coneContains } from './visionCone';
 
 /**
@@ -90,6 +91,11 @@ export interface SeenSpot {
   x: number;
   y: number;
   radius: number;
+  /**
+   * What is shown: the footprint as far as it is in a clear line from the token's centre. Walls
+   * cut it like any sight, so a token that stands at a wall shows nothing of the other side.
+   */
+  polygon: Polygon;
 }
 
 /**
@@ -100,7 +106,8 @@ export interface SeenSpot {
  *   the drop (`held`, as in `tokenPerception`).
  * - A token a precise sense that shows no map sees (echolocation).
  *
- * Never a hidden token. `tokens` is the record their places are read from.
+ * Never a hidden token. `tokens` is the record their places are read from, `walls` the sealed
+ * walls sight is worked out with: every footprint ends at them.
  */
 export function seenSpots(
   sight: Sight,
@@ -108,6 +115,7 @@ export function seenSpots(
   lights: readonly LightReach[],
   tokens: Record<string, TokenEntity>,
   cellSize: number,
+  walls: readonly WallSegment[],
   { conditions = [], held = {} }: PerceptionOptions = {},
 ): SeenSpot[] {
   if (sight.all) return [];
@@ -126,7 +134,8 @@ export function seenSpots(
       const target = targetOf(tokenEffects(token, conditions));
       if (perceive(at, sight, level, target) !== 'seen' || perceive(at, withMap, level, target) === 'seen') continue;
     }
-    spots.push({ ...at, radius: computeTokenPixelSize(cellSize, token.size || 1) / 2 });
+    const radius = computeTokenPixelSize(cellSize, token.size || 1) / 2;
+    spots.push({ ...at, radius, polygon: computeVisibility(at, radius, walls) });
   }
   return spots;
 }

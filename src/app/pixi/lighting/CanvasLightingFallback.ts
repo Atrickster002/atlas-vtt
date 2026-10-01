@@ -88,7 +88,7 @@ export class CanvasLightingFallback implements SceneLightingView {
     const rules = this.deps.rules?.();
     const tokens = this.sightTokens.read(state);
     this.sight = sceneSight(state.lighting, sightSources(tokens, scale, bounds, rules), walls, this.cache);
-    const spots = seenSpots(this.sight, FULL_DAYLIGHT, [], state.objects.tokens, scale.cellSize, { conditions: rules?.conditions ?? [], held: heldForSight(state) });
+    const spots = seenSpots(this.sight, FULL_DAYLIGHT, [], state.objects.tokens, scale.cellSize, walls, { conditions: rules?.conditions ?? [], held: heldForSight(state) });
     this.drawDarkness(bounds, spots);
     this.deps.onSightChange?.();
   }
@@ -102,7 +102,9 @@ export class CanvasLightingFallback implements SceneLightingView {
     for (const { sense, polygon } of this.sight.regions) {
       if (sense.reveals === 'all' && polygon && polygon.length >= 3) g.poly(polygon.flatMap((p) => [p.x, p.y])).cut();
     }
-    for (const { x, y, radius } of spots) g.circle(x, y, radius).cut();
+    for (const { polygon } of spots) {
+      if (polygon.length >= 3) g.poly(polygon.flatMap((p) => [p.x, p.y])).cut();
+    }
     this.darkness.visible = this.playerView.visible;
   }
 

@@ -104,7 +104,7 @@ export class LightingEngine {
     }
     if (newSpots) {
       this.spots = scene.spots;
-      this.sightMeshes.drawSpots(scene.sight.all ? [] : scene.spots ?? [], scene.sightRadius);
+      this.sightMeshes.drawSpots(scene.sight.all ? [] : scene.spots ?? []);
     }
     if (newSight || newSpots) composite.setDarkLooks(darkLooks(scene.sight, !!scene.spots?.length));
     composite.setAmbient(scene.ambient, scene.ambientColor, ambientLift(scene));

@@ -111,8 +111,9 @@ export class SceneSpots {
     this.inputs = inputs;
     if (last && (Object.keys(inputs) as (keyof SpotInputs)[]).every((key) => last[key] === inputs[key])) return this.spots;
     const { cellSize } = unitScaleOf(measurement(), state.grid);
-    const spots = seenSpots(model.sight, state.lighting, model.reaches, inputs.tokens, cellSize, { conditions: inputs.rules?.conditions ?? [], held: inputs.held });
-    if (!sameSpots(spots, this.spots)) this.spots = spots;
+    const spots = seenSpots(model.sight, state.lighting, model.reaches, inputs.tokens, cellSize, model.walls, { conditions: inputs.rules?.conditions ?? [], held: inputs.held });
+    // The footprints are cut by the walls: with other walls they are other footprints at the same places.
+    if (last?.model.walls !== model.walls || !sameSpots(spots, this.spots)) this.spots = spots;
     return this.spots;
   }
 }

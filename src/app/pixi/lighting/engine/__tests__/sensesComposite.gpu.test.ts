@@ -3,7 +3,9 @@ import { BUILT_IN_SENSES, GENERIC_SENSES } from '../../../../gameSystems/senses'
 import type { TokenEntity } from '../../../../types';
 import type { TokenSense } from '../../../../types/senseTypes';
 import type { WallSegment } from '../../../../types/wallTypes';
-import { seenSpots } from '../../../../vision/perception';
+import { seenSpots, type SeenSpot } from '../../../../vision/perception';
+import { computeVisibility } from '../../../../vision/visibility';
+import type { SenseDefinition } from '../../../../types/senseTypes';
 import { computeSight, sightSources, type Sight } from '../../../../vision/sight';
 import { LightingEngine } from '../LightingEngine';
 import type { LightingMode } from '../compositeFilter';
@@ -39,6 +41,11 @@ function sightWith(senses: TokenSense[]): Sight {
   return computeSight(sightSources({ v: viewer }, scale, { width: MAP, height: MAP }, { definitions: ALL_SENSES, conditions: [] }), [wall]);
 }
 
+/** The footprint of a token at `point`, as walls leave it. */
+function spotAt(point: { x: number; y: number }, radius = 31): SeenSpot {
+  return { ...point, radius, polygon: computeVisibility(point, radius, [wall]) };
+}
+
 /** The one sense `id`, 400 px far where it takes a distance. */
 function sense(id: string): TokenSense[] {
   const definition = ALL_SENSES.find((candidate) => candidate.id === id)!;
@@ -57,14 +64,18 @@ describe('senses in the composite', () => {
     while (cleanup.length) cleanup.pop()!();
   });
 
-  async function render(senses: TokenSense[], scene: Partial<EngineScene> = {}, mode: LightingMode = 'player'): Promise<(point: { x: number; y: number }) => readonly [number, number, number]> {
+  function render(senses: TokenSense[], scene: Partial<EngineScene> = {}, mode: LightingMode = 'player'): Promise<(point: { x: number; y: number }) => readonly [number, number, number]> {
+    return renderSight(sightWith(senses), scene, mode);
+  }
+
+  async function renderSight(sight: Sight, scene: Partial<EngineScene> = {}, mode: LightingMode = 'player'): Promise<(point: { x: number; y: number }) => readonly [number, number, number]> {
     const renderer = await createTestRenderer(SIZE);
     cleanup.push(() => renderer.destroy());
     const engine = new LightingEngine(renderer);
     cleanup.push(() => engine.destroy());
     engine.setEnabled(true);
     engine.setMode(mode);
-    engine.update({ bounds: { width: MAP, height: MAP }, albedo: null, walls: [wall], lights: [lamp], sight: sightWith(senses), sightRadius: 20, ambient: 0, ...scene });
+    engine.update({ bounds: { width: MAP, height: MAP }, albedo: null, walls: [wall], lights: [lamp], sight, sightRadius: 20, ambient: 0, ...scene });
     engine.flush();
     const at: PixelReader = renderThroughEngine(engine, renderer, camera);
     return (point) => at(Math.round(point.x * camera.scale), Math.round(point.y * camera.scale));
@@ -162,12 +173,12 @@ describe('senses in the composite', () => {
   });
 
   it('shows a token that only a precise creature sense sees within its footprint, in colour, and nothing around it', async () => {
-    const spots = [{ ...DARK, radius: 31 }];
+    const spots = [spotAt(DARK)];
     const at = await render(sense('pathfinder2e-echolocation'), { spots });
     const [r, , b] = at(DARK);
     expect(b - r).toBeGreaterThan(40);
     expect(isDark(at({ x: DARK.x + 60, y: DARK.y }))).toBe(true);
-    const behind = await render(sense('pathfinder2e-echolocation'), { spots: [{ ...BEHIND, radius: 31 }] });
+    const behind = await render(sense('pathfinder2e-echolocation'), { spots: [spotAt(BEHIND)] });
     expect(luminance(behind(BEHIND))).toBeGreaterThan(40);
     expect(behind({ x: BEHIND.x, y: BEHIND.y + 60 })).toEqual([0, 0, 0]);
   });
@@ -175,8 +186,8 @@ describe('senses in the composite', () => {
   it('shows a party token that stands in darkness within its footprint, in the players\' view and the GM\'s', async () => {
     const viewer: TokenEntity = { id: 'v', kind: 'token', imagePath: 'v.png', ...VIEWER, vision: { enabled: true } };
     const sight = sightWith([]);
-    const spots = seenSpots(sight, { ambient: 0 }, [], { v: viewer }, 70);
-    expect(spots).toEqual([{ ...VIEWER, radius: 31 }]);
+    const spots = seenSpots(sight, { ambient: 0 }, [], { v: viewer }, 70, [wall]);
+    expect(spots).toMatchObject([{ ...VIEWER, radius: 31 }]);
     const without = await render([]);
     expect(isDark(without(VIEWER))).toBe(true);
     for (const mode of ['player', 'gm'] as const) {
@@ -186,6 +197,29 @@ describe('senses in the composite', () => {
       expect(luminance(at(VIEWER))).toBeGreaterThan(luminance((await render([], {}, mode))({ x: VIEWER.x + 60, y: VIEWER.y })) + 40);
     }
     expect(isDark((await render([], { spots }))({ x: VIEWER.x + 60, y: VIEWER.y }))).toBe(true);
+  });
+
+  it('shows nothing past a wall of a footprint that reaches across it, however large the token', async () => {
+    // 8 px left of the wall at x = 850, in a lit scene: the map right of the wall must stay unseen.
+    const hugging = { x: 842, y: 512 };
+    for (const radius of [31, 93, 217]) {
+      const at = await render([], { spots: [spotAt(hugging, radius)], ambient: 1, lights: [] });
+      expect(luminance(at({ x: 830, y: 512 }))).toBeGreaterThan(40);
+      for (const past of [860, 870, 900, 1000]) expect(at({ x: past, y: 512 })).toEqual([0, 0, 0]);
+      expect(at({ x: 870, y: 400 })).toEqual([0, 0, 0]);
+    }
+  });
+
+  it('shows what only a sense without light and without the eyes perceives: such a region is seen, not remembered', async () => {
+    // A sense of its own kind: darkness only, and no need of the eyes, so its region is in no sight.
+    const eyeless: SenseDefinition = { ...ALL_SENSES.find((candidate) => candidate.id === 'ose-infravision')!, id: 'eyeless', worksWhileBlinded: true };
+    const viewer: TokenEntity = { id: 'v', kind: 'token', imagePath: 'v.png', ...VIEWER, vision: { enabled: true, senses: [{ id: 'eyeless', range: 400 }] }, conditions: ['blind'] };
+    const rules = { definitions: [eyeless], conditions: [{ id: 'blind', name: 'Blinded', color: '#000000', effect: 'blinded' as const }] };
+    const sight = computeSight(sightSources({ v: viewer }, scale, { width: MAP, height: MAP }, rules), [wall]);
+    expect(sight.regions.map((region) => region.sense.id)).toEqual(['eyeless']);
+    const at = await renderSight(sight);
+    expect(luminance(at(DARK))).toBeGreaterThan(8);
+    expect(at(BEHIND)).toEqual([0, 0, 0]);
   });
 
   it('shows the GM what a sense perceives in the dark too', async () => {

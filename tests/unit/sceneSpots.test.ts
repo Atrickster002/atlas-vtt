@@ -29,7 +29,7 @@ describe('SceneSpots', () => {
     const { spotsOf } = rig();
     const first = state({ hero });
     const spots = spotsOf(first);
-    expect(spots).toEqual([{ x: 200, y: 300, radius: 31 }]);
+    expect(spots).toMatchObject([{ x: 200, y: 300, radius: 31 }]);
     expect(spotsOf(first)).toBe(spots);
     expect(spotsOf({ ...first })).toBe(spots);
     expect(spotsOf(state({ hero: { ...hero } }))).toBe(spots);
@@ -39,7 +39,7 @@ describe('SceneSpots', () => {
     const { spotsOf } = rig();
     expect(spotsOf(state({ hero }, { lighting: { enabled: true, ambient: 1 } }))).toEqual([]);
     expect(spotsOf(state({ hero }))).toHaveLength(1);
-    expect(spotsOf(state({ hero: { ...hero, x: 400 } }))).toEqual([{ x: 400, y: 300, radius: 31 }]);
+    expect(spotsOf(state({ hero: { ...hero, x: 400 } }))).toMatchObject([{ x: 400, y: 300, radius: 31 }]);
   });
 
   it('follows a dragged party token while the model stays as it was, as far as the sight left behind reaches', () => {
@@ -48,22 +48,22 @@ describe('SceneSpots', () => {
     const held = { hero: { x: 200, y: 300 } };
     const at = (x: number): SceneState => state({ hero: { ...hero, x } }, { heldTokens: held });
     const start = builder.update(at(200), BOUNDS, measurement);
-    expect(spots.update(start.model, at(200), measurement)).toEqual([{ x: 200, y: 300, radius: 31 }]);
+    expect(spots.update(start.model, at(200), measurement)).toMatchObject([{ x: 200, y: 300, radius: 31 }]);
     // The hero sees 20 ft, 280 px: 150 px away it is still within the sight that stayed behind.
     const near = at(350);
     const moved = builder.update(near, BOUNDS, measurement);
     expect(moved.rebuilt).toBe(false);
-    expect(spots.update(moved.model, near, measurement)).toEqual([{ x: 350, y: 300, radius: 31 }]);
+    expect(spots.update(moved.model, near, measurement)).toMatchObject([{ x: 350, y: 300, radius: 31 }]);
     const far = at(700);
     expect(spots.update(builder.update(far, BOUNDS, measurement).model, far, measurement)).toEqual([]);
     const dropped = state({ hero: { ...hero, x: 700 } });
-    expect(spots.update(builder.update(dropped, BOUNDS, measurement).model, dropped, measurement)).toEqual([{ x: 700, y: 300, radius: 31 }]);
+    expect(spots.update(builder.update(dropped, BOUNDS, measurement).model, dropped, measurement)).toMatchObject([{ x: 700, y: 300, radius: 31 }]);
   });
 
   it('follows it at once with sight on drop off', () => {
     const builder = new SceneModelBuilder();
     const spots = new SceneSpots();
     const far = state({ hero: { ...hero, x: 700 } }, { heldTokens: { hero: { x: 200, y: 300 } }, lighting: { ...DARK, sightOnDrop: false } });
-    expect(spots.update(builder.update(far, BOUNDS, measurement).model, far, measurement)).toEqual([{ x: 700, y: 300, radius: 31 }]);
+    expect(spots.update(builder.update(far, BOUNDS, measurement).model, far, measurement)).toMatchObject([{ x: 700, y: 300, radius: 31 }]);
   });
 });

@@ -230,7 +230,7 @@ describe('seenSpots', () => {
   /** The spots of the creatures around a viewer with the sense `id`, without the viewer's own. */
   const creatureSpots = (id: string | null, ambient = 0): { x: number; y: number }[] => {
     const tokens = { viewer: viewerWith(id), ...others() };
-    return places(seenSpots(sightOf(tokens), { ambient }, [], tokens, scale.cellSize, { conditions })).filter((spot) => spot.x !== VIEWER.x);
+    return places(seenSpots(sightOf(tokens), { ambient }, [], tokens, scale.cellSize, [wall], { conditions })).filter((spot) => spot.x !== VIEWER.x);
   };
 
   it('are the tokens echolocation sees in the dark, where nothing shows the map: each is shown in its footprint', () => {
@@ -241,8 +241,8 @@ describe('seenSpots', () => {
   it('are as large as the token', () => {
     const tokens = { viewer: viewerWith('pathfinder2e-echolocation'), big: { ...token('big', NEAR), size: 2 } };
     const sight = sightOf(tokens);
-    const [, small] = seenSpots(sight, dark, [], { ...tokens, big: token('big', NEAR) }, 70, { conditions });
-    const [, large] = seenSpots(sight, dark, [], tokens, 70, { conditions });
+    const [, small] = seenSpots(sight, dark, [], { ...tokens, big: token('big', NEAR) }, 70, [wall], { conditions });
+    const [, large] = seenSpots(sight, dark, [], tokens, 70, [wall], { conditions });
     expect(small!.radius).toBe(31);
     expect(large!.radius).toBeGreaterThan(small!.radius * 1.9);
   });
@@ -250,22 +250,22 @@ describe('seenSpots', () => {
   it('are none where the map is shown: in light for sight, in the dark for a sense that shows the map', () => {
     expect(creatureSpots('pathfinder2e-echolocation', 1)).toEqual([NEAR]);
     const both = { ...others(), viewer: token('viewer', VIEWER, { vision: { enabled: true, senses: [{ id: 'pathfinder2e-echolocation', range: 100 }, { id: 'blindsight', range: 100 }] } }) };
-    expect(seenSpots(sightOf(both), dark, [], both, scale.cellSize, { conditions })).toEqual([]);
+    expect(seenSpots(sightOf(both), dark, [], both, scale.cellSize, [wall], { conditions })).toEqual([]);
   });
 
   it('are none of the creatures for senses that only sense, for sight alone, and none at all without vision tokens', () => {
     expect(creatureSpots('tremorsense')).toEqual([]);
     expect(creatureSpots('darkvision')).toEqual([]);
     expect(creatureSpots(null)).toEqual([]);
-    expect(seenSpots(sceneSight({}, [], [wall]), dark, [], others(), scale.cellSize, { conditions })).toEqual([]);
-    expect(seenSpots(sceneSight({ tokenVision: false }, sightSources({ viewer: viewerWith(null) }, scale, bounds, rules), [wall]), dark, [], { viewer: viewerWith(null) }, scale.cellSize)).toEqual([]);
+    expect(seenSpots(sceneSight({}, [], [wall]), dark, [], others(), scale.cellSize, [wall], { conditions })).toEqual([]);
+    expect(seenSpots(sceneSight({ tokenVision: false }, sightSources({ viewer: viewerWith(null) }, scale, bounds, rules), [wall]), dark, [], { viewer: viewerWith(null) }, scale.cellSize, [wall])).toEqual([]);
   });
 });
 
 describe('seenSpots of the party', () => {
   const sightOf = (tokens: Record<string, TokenEntity>): ReturnType<typeof computeSight> => computeSight(sightSources(tokens, scale, bounds, rules), [wall]);
   const spotsOf = (tokens: Record<string, TokenEntity>, ambient = 0, lights: ReturnType<typeof lightReach>[] = []): { x: number; y: number }[] =>
-    seenSpots(sightOf(tokens), { ambient }, lights, tokens, scale.cellSize, { conditions }).map(({ x, y }) => ({ x, y }));
+    seenSpots(sightOf(tokens), { ambient }, lights, tokens, scale.cellSize, [wall], { conditions }).map(({ x, y }) => ({ x, y }));
 
   it('show a token with vision that stands in darkness within its own footprint', () => {
     expect(spotsOf({ viewer: viewerWith(null) })).toEqual([VIEWER]);
@@ -304,10 +304,52 @@ describe('seenSpots of the party', () => {
     const sight = sightOf(start);
     const held = { viewer: VIEWER };
     const dragged = (at: { x: number; y: number }): { x: number; y: number }[] =>
-      seenSpots(sight, dark, [], { viewer: { ...start.viewer, ...at } }, scale.cellSize, { conditions, held }).map(({ x, y }) => ({ x, y }));
+      seenSpots(sight, dark, [], { viewer: { ...start.viewer, ...at } }, scale.cellSize, [wall], { conditions, held }).map(({ x, y }) => ({ x, y }));
     expect(dragged(NEAR)).toEqual([NEAR]);
     expect(dragged(BEHIND)).toEqual([]);
     // Without sight on drop nothing is held: the token is shown wherever the store has it.
-    expect(seenSpots(sight, dark, [], { viewer: { ...start.viewer, ...BEHIND } }, scale.cellSize, { conditions })).toHaveLength(1);
+    expect(seenSpots(sight, dark, [], { viewer: { ...start.viewer, ...BEHIND } }, scale.cellSize, [wall], { conditions })).toHaveLength(1);
+  });
+});
+
+describe('seenSpots and walls', () => {
+  /** A party token 8 px left of the wall at x = 160, in the dark. */
+  const hugging = (size: number): TokenEntity => ({ ...token('hugger', { x: 152, y: 100 }, { vision: { enabled: true } }), size });
+  const spotOf = (size: number, walls: WallSegment[] = [wall]): ReturnType<typeof seenSpots>[number] => {
+    const tokens = { hugger: hugging(size) };
+    return seenSpots(computeSight(sightSources(tokens, scale, bounds, rules), walls), dark, [], tokens, 70, walls)[0]!;
+  };
+
+  it('never show anything past a wall: the footprint of a token that hugs one ends at its centre line, whatever the token\'s size', () => {
+    for (const size of [1, 1.5, 2.5, 4]) {
+      const spot = spotOf(size);
+      expect(spot.radius).toBeGreaterThan(8);
+      // The wall runs from y = 0 to y = 220: beside it nothing lies past x = 160.
+      const beyond = spot.polygon.filter((point) => point.x > 160.001 && point.y > 0 && point.y < 220);
+      expect(beyond).toEqual([]);
+      expect(Math.min(...spot.polygon.map((point) => point.x))).toBeCloseTo(152 - spot.radius, 0);
+    }
+  });
+
+  it('are the whole footprint where no wall is near', () => {
+    const spot = spotOf(1, []);
+    for (const point of spot.polygon) expect(Math.hypot(point.x - 152, point.y - 100)).toBeCloseTo(31, 3);
+    expect(Math.max(...spot.polygon.map((point) => point.x))).toBeCloseTo(183, 0);
+  });
+
+  it('end at a wall for a token an echolocation sees, too', () => {
+    const tokens = { viewer: viewerWith('pathfinder2e-echolocation'), prey: { ...token('prey', { x: 150, y: 100 }), size: 2 } };
+    const spots = seenSpots(computeSight(sightSources(tokens, scale, bounds, rules), [wall]), dark, [], tokens, 70, [wall], { conditions });
+    const prey = spots.find((spot) => spot.x === 150)!;
+    expect(prey.polygon.every((point) => point.x <= 160.001 || point.y >= 220 || point.y <= 0)).toBe(true);
+  });
+
+  it('are not shown for a token that is only sensed, even where a precise creature sense is about', () => {
+    const viewer = token('viewer', VIEWER, { vision: { enabled: true, senses: [{ id: 'pathfinder2e-echolocation', range: 20 }, { id: 'tremorsense', range: 100 }] } });
+    const tokens = { viewer, sensed: token('sensed', { x: 100, y: 160 }) };
+    const sight = computeSight(sightSources(tokens, scale, bounds, rules), [wall]);
+    expect(perceive({ x: 100, y: 160 }, sight, 'dark')).toBe('sensed');
+    const spots = seenSpots(sight, dark, [], tokens, scale.cellSize, [wall], { conditions });
+    expect(spots.map(({ x, y }) => ({ x, y }))).toEqual([VIEWER]);
   });
 });

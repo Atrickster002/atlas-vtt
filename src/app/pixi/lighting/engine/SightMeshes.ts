@@ -39,16 +39,20 @@ export class SightMeshes {
     }
   }
 
-  /** A disc has no shadow edges, so no wedge softens it. */
-  drawSpots(spots: readonly SeenSpot[], radius: number): void {
+  /**
+   * Each footprint as walls leave it (`SeenSpot.polygon`): never the whole disc, which would show
+   * the far side of a wall the token stands at. Its edges stay hard: a wedge only ever softens
+   * sight, and a footprint is too small for one.
+   */
+  drawSpots(spots: readonly SeenSpot[]): void {
     this.clear(this.spots);
     this.spots = [];
-    for (const spot of spots) this.add(this.spots, disc(spot), spot, 0, radius, SPOT_CHANNELS);
+    for (const spot of spots) this.add(this.spots, spot.polygon, spot, 0, 0, SPOT_CHANNELS, false);
   }
 
-  private add(list: SightMesh[], polygon: Polygon, origin: Point, apex: number, radius: number, channel: SightChannels): void {
+  private add(list: SightMesh[], polygon: Polygon, origin: Point, apex: number, radius: number, channel: SightChannels, soft = true): void {
     if (polygon.length < 3) return;
-    const wedges = sightWedges(origin, polygon, radius, apex).slice(0, MAX_WEDGES);
+    const wedges = soft ? sightWedges(origin, polygon, radius, apex).slice(0, MAX_WEDGES) : [];
     const wedgeSource = wedgeTexture(wedges);
     const uniforms = new UniformGroup({
       uWedgeCount: { value: wedges.length, type: 'i32' },
@@ -76,15 +80,6 @@ export class SightMeshes {
     this.clear(this.spots);
     destroyTree(this.view);
   }
-}
-
-const DISC_STEPS = 32;
-
-function disc({ x, y, radius }: SeenSpot): Polygon {
-  return Array.from({ length: DISC_STEPS }, (_, i) => {
-    const angle = (i / DISC_STEPS) * 2 * Math.PI;
-    return { x: x + Math.cos(angle) * radius, y: y + Math.sin(angle) * radius };
-  });
 }
 
 /** Two rows of `rgba32float` texels, one column per wedge: corner and edge, then side and angle. */

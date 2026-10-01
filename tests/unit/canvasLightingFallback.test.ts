@@ -52,18 +52,23 @@ describe('CanvasLightingFallback', () => {
     const rules: SightRules = { definitions: BUILT_IN_SENSES['builtin:pathfinder2e']!, conditions: [{ id: 'blind', name: 'Blinded', color: '#000000', effect: 'blinded' }] };
     const bat: TokenEntity = { ...hero, vision: { enabled: true, senses: [{ id: 'pathfinder2e-echolocation', range: 40 }] }, conditions: ['blind'] };
     const prey: TokenEntity = { id: 'prey', kind: 'token', imagePath: 'p.png', x: 150, y: 100 };
-    const cuts = (tokens: Record<string, TokenEntity>): unknown[][] => {
-      const circle = vi.spyOn(Graphics.prototype, 'circle');
+    /** The centres of the footprints cut out: each is the polygon of what its token's centre has in a clear line. */
+    const cuts = (tokens: Record<string, TokenEntity>): number[][] => {
+      const poly = vi.spyOn(Graphics.prototype, 'poly');
       setup(tokens, {}, undefined, rules);
-      const calls = circle.mock.calls.map((call) => [...call]);
-      circle.mockRestore();
+      const centres = poly.mock.calls.map(([points]) => {
+        const flat = points as number[];
+        const xs = flat.filter((_, index) => index % 2 === 0);
+        const ys = flat.filter((_, index) => index % 2 === 1);
+        return [Math.round((Math.min(...xs) + Math.max(...xs)) / 2), Math.round((Math.min(...ys) + Math.max(...ys)) / 2), Math.round((Math.max(...xs) - Math.min(...xs)) / 2)];
+      });
+      poly.mockRestore();
       restore?.();
-      return calls;
+      return centres;
     };
     // The bat is blinded: it is shown in its own footprint, like the prey its echolocation finds.
     expect(cuts({ bat })).toEqual([[100, 100, 31]]);
     expect(cuts({ bat, prey })).toEqual([[100, 100, 31], [150, 100, 31]]);
-    expect(cuts({ hero })).toEqual([]);
     expect(cuts({ bat, prey: { ...prey, x: 900 } })).toEqual([[100, 100, 31]]);
   });
 

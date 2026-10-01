@@ -2,10 +2,14 @@ import { Container, Graphics, RenderTexture } from 'pixi.js';
 import { describe, expect, it } from 'vitest';
 import { SightMeshes } from '../SightMeshes';
 import { computeSight } from '../../../../vision/sight';
+import type { SeenSpot } from '../../../../vision/perception';
+import { computeVisibility } from '../../../../vision/visibility';
 import type { WallSegment } from '../../../../types/wallTypes';
 import type { VisionCone } from '../../../../vision/visionCone';
 import { createTestRenderer, readRgba } from './gpuTestUtils';
 import { darkvision, senseSource } from '../../../../vision/__tests__/senseSources';
+
+const spot = (x: number, y: number): SeenSpot => ({ x, y, radius: 12, polygon: computeVisibility({ x, y }, 12, []) });
 
 describe('SightMeshes', () => {
   it('draws sight crisp at the wall, soft past its corner, nothing behind it', async () => {
@@ -131,7 +135,7 @@ describe('SightMeshes', () => {
       // Sight to 100 px, low-light vision as far, blindsight to 40 px.
       const source = { tokenId: 'a', origin: { x: 100, y: 128 }, range: 100, senses: [senseSource('low-light-vision', 4000), senseSource('blindsight', 40)] };
       meshes.draw(computeSight([source], []), 20);
-      meshes.drawSpots([{ x: 230, y: 30, radius: 12 }], 20);
+      meshes.drawSpots([spot(230, 30)]);
       renderer.render({ container: stage, target, clear: true, clearColor: [0, 0, 0, 0] });
       const px = readRgba(renderer, target);
       const at = (x: number, y: number): number[] => Array.from(px.slice((y * 256 + x) * 4, (y * 256 + x) * 4 + 4));
@@ -143,7 +147,7 @@ describe('SightMeshes', () => {
       expect(meshes.view.children).toHaveLength(4);
       // The spots are drawn anew without the sight, and the sight without the spots.
       const sightMeshes = meshes.view.children.slice(0, 3);
-      meshes.drawSpots([{ x: 30, y: 230, radius: 12 }], 20);
+      meshes.drawSpots([spot(30, 230)]);
       expect(meshes.view.children.slice(0, 3)).toEqual(sightMeshes);
       renderer.render({ container: stage, target, clear: true, clearColor: [0, 0, 0, 0] });
       const moved = readRgba(renderer, target);
