@@ -551,7 +551,25 @@ describe('TokenRenderer Integration Tests', () => {
       expect(openContextMenuGlobal).toHaveBeenCalledWith(expect.any(Array), { x: 405, y: 145 });
 
       viewport.emit('pointerdown', rightClick(900, 900));
+      viewport.emit('pointerup', rightClick(900, 900));
       expect(fogClickHandler).toHaveBeenCalledWith('fog-1', expect.anything());
+    });
+
+    it('leaves a right press on fog to the pan and opens the fog menu only when it is released in place', () => {
+      const fogClickHandler = vi.fn();
+      tokenRenderer.setFogHitTestProvider(() => 'fog-1');
+      tokenRenderer.setFogClickHandler(fogClickHandler);
+
+      viewport.emit('pointerdown', rightClick(900, 900));
+      expect(fogClickHandler).not.toHaveBeenCalled();
+      viewport.emit('pointermove', rightClick(960, 900));
+      viewport.emit('pointerup', rightClick(960, 900));
+      expect(fogClickHandler).not.toHaveBeenCalled();
+
+      viewport.emit('pointerdown', rightClick(900, 900));
+      viewport.emit('pointermove', rightClick(902, 900));
+      viewport.emit('pointerup', rightClick(902, 900));
+      expect(fogClickHandler).toHaveBeenCalledExactlyOnceWith('fog-1', expect.objectContaining({ clientX: 1202 }));
     });
   });
 
