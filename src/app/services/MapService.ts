@@ -130,31 +130,17 @@ export class MapService {
           storeState.setBackground(this.currentMapData.background);
         }
         
-        // Re-hydrate persisted state for this map now that the path is known.
-        
-        try {
-          await this.store.persist.rehydrate();
-          const afterRehydration = this.store.getState();
-          
-          // If this is a new map (no file exists yet), ensure state is truly empty
-          // Rehydration with null data might leave old state intact
-          if (Object.keys(afterRehydration.objects?.tokens || {}).length > 0) {
-            // Check if the map file actually exists
-            const mapFile = this.app.vault.getAbstractFileByPath(filePath);
-            if (!mapFile) {
-              storeState.clearMapState();
-            }
-          }
-        } catch (err) {
-          console.error('[MapService] Rehydrate failed:', err);
-          // If rehydration fails, ensure state is clear for new maps
-          const mapFile = this.app.vault.getAbstractFileByPath(filePath);
-          if (!mapFile) {
-            storeState.clearMapState();
-          }
-        }
+        // Re-hydrate persisted state for this map now that the path is known. A file whose
+        // state the store did not take fails the load here: the store must not be saved over it.
+        await this.store.rehydrateFromFile();
         // Rehydration that was under way has written to the store; the load that replaced this one clears it
         if (isSuperseded()) return null;
+
+        // If this is a new map (no file exists yet), ensure state is truly empty
+        // Rehydration with null data might leave old state intact
+        if (Object.keys(this.store.getState().objects?.tokens || {}).length > 0 && !this.app.vault.getAbstractFileByPath(filePath)) {
+          storeState.clearMapState();
+        }
 
         // NOW re-enable persistence after successful rehydration
         storeState.setPersistenceEnabled(true);

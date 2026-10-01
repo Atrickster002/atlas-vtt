@@ -34,6 +34,7 @@ import { clampLitThreshold, readSceneLighting } from './lighting/sceneLightingOp
 import { isPinLabelKind, nextPinLabel } from './tools/pinLabels';
 import { movedPathOf, rewriteMapReferences } from './services/renamedPaths';
 import { conditionValue, removeCondition, setConditionValue } from './utils/conditionValues';
+import { toError } from './utils/errors';
 
 // Individual store state interface (same as AtlasState but isolated)
 export interface ViewAtlasState {
@@ -405,6 +406,12 @@ export type ViewAtlasStore = Mutate<
   [['zustand/subscribeWithSelector', never], ['zustand/persist', PersistedViewState]]
 > & {
   flushStorage: () => Promise<void>;
+  /**
+   * Fills the store from the file at `mapPath`. Rejects when the store did not take the
+   * file's state (it cannot be read or loaded, or applying it failed); a path without a
+   * file is a new map and resolves with the store as it was.
+   */
+  rehydrateFromFile: () => Promise<void>;
 };
 
 function applyTokenUpdates(token: TokenEntity | undefined, updates: TokenUpdates): void {
@@ -421,6 +428,9 @@ function applyTokenUpdates(token: TokenEntity | undefined, updates: TokenUpdates
 export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTTPlugin, isPlayerView: boolean = false): ViewAtlasStore {
   // Create a storage factory that will access the store once it's created
   let storeRef: Pick<StoreApi<ViewAtlasState>, 'getState'> | null = null;
+
+  // zustand reports a failed hydration only to `onRehydrateStorage`; `rehydrateFromFile` hands it to its caller
+  let hydrationError: unknown = null;
 
   // Keep a reference to the delayed storage so we can expose flush() on the store
   let delayedStorageRef: ReturnType<typeof createDelayedStorage> | null = null;
@@ -1480,8 +1490,10 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
           },
 
           onRehydrateStorage: () => {
+            hydrationError = null;
             return (_state, error) => {
               if (error) {
+                hydrationError = error;
                 console.error(`[ViewStore-${viewId}] Hydration failed:`, error);
               }
             };
@@ -1502,7 +1514,7 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
   // Immer types `setState` with draft updaters, and WritableDraft<ViewAtlasState> is not
   // assignable back to ViewAtlasState because the state holds the Obsidian `plugin`.
   // The public type keeps the plain StoreApi `setState`, which the Immer store also honours.
-  const publicStore = store as unknown as Omit<ViewAtlasStore, 'flushStorage'>;
+  const publicStore = store as unknown as Omit<ViewAtlasStore, 'flushStorage' | 'rehydrateFromFile'>;
 
   // Expose the storage flush method on the store for tab-switch save coordination
   return Object.assign(publicStore, {
@@ -1510,6 +1522,10 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
       if (delayedStorageRef && typeof delayedStorageRef.flush === 'function') {
         await delayedStorageRef.flush();
       }
+    },
+    rehydrateFromFile: async (): Promise<void> => {
+      await store.persist.rehydrate();
+      if (hydrationError) throw toError(hydrationError, 'The scene data could not be restored');
     },
   });
 }

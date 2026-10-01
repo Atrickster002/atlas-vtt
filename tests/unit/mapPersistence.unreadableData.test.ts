@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { TFile } from 'obsidian';
 import { createInMemoryApp } from '../mocks/inMemoryVault';
 import { createAtlasStorage } from '../../src/app/services/MapPersistence';
@@ -15,8 +15,11 @@ function createStorage(content: string): {
     files.set(newPath, files.get(file.path) ?? '');
     return file;
   });
+  vi.spyOn(console, 'error').mockImplementation(() => {});
   return { storage: createAtlasStorage(app, { getState: () => ({ mapPath: MAP_PATH }) }), files };
 }
+
+afterEach(() => vi.restoreAllMocks());
 
 function backupsOf(files: Map<string, string>): string[] {
   return [...files.keys()].filter((path) => path.startsWith(`${MAP_PATH}.`) && path.endsWith('.bak'));
@@ -24,16 +27,49 @@ function backupsOf(files: Map<string, string>): string[] {
 
 describe('map data that cannot be loaded', () => {
   it.each([
-    ['invalid JSON', '{"state": {"objects": '],
-    ['an unexpected structure', JSON.stringify({ version: 4, state: { objects: { tokens: ['not', 'a', 'record'] } } })],
-  ])('keeps a copy of a file with %s before the empty store can replace it', async (_label, content) => {
+    ['invalid JSON', '{"state": {"objects": ', 'The scene file is not valid JSON'],
+    ['an unexpected structure', JSON.stringify({ version: 4, state: { objects: { tokens: ['not', 'a', 'record'] } } }), 'The scene file has an unexpected structure'],
+    ['no saved state', '{}', 'The scene file has an unexpected structure'],
+  ])('refuses a file with %s instead of loading it as an empty map, and keeps a copy', async (_label, content, reason) => {
     const { storage, files } = createStorage(content);
 
-    expect(await storage.getItem('atlas')).toBeNull();
+    await expect(storage.getItem('atlas')).rejects.toThrow(reason);
 
     const backups = backupsOf(files);
     expect(backups).toHaveLength(1);
     expect(files.get(backups[0]!)).toBe(content);
+    expect(files.get(MAP_PATH)).toBe(content);
+  });
+
+  it.each([
+    ['the file', { version: 5, state: { mapPath: MAP_PATH, objects: { tokens: {} } } }],
+    ['its state', { version: 4, state: { version: 5, mapPath: MAP_PATH, objects: { tokens: {} } } }],
+  ])('refuses a file of a newer Atlas by the version of %s, and leaves it alone', async (_label, saved) => {
+    const content = JSON.stringify(saved);
+    const { storage, files } = createStorage(content);
+
+    await expect(storage.getItem('atlas')).rejects.toThrow('The scene was saved by a newer version of Atlas VTT');
+
+    expect(backupsOf(files)).toHaveLength(0);
+    expect(files.get(MAP_PATH)).toBe(content);
+  });
+
+  it('refuses a file that cannot be read', async () => {
+    const { app } = createInMemoryApp({ files: { [MAP_PATH]: '{}' } });
+    app.vault.getFileByPath = app.vault.getAbstractFileByPath;
+    vi.spyOn(app.vault, 'read').mockRejectedValue(new Error('EIO: i/o error'));
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const storage = createAtlasStorage(app, { getState: () => ({ mapPath: MAP_PATH }) });
+
+    await expect(storage.getItem('atlas')).rejects.toThrow('The scene file could not be read');
+  });
+
+  it('starts a map without a file empty', async () => {
+    const { app } = createInMemoryApp();
+    app.vault.getFileByPath = app.vault.getAbstractFileByPath;
+    const storage = createAtlasStorage(app, { getState: () => ({ mapPath: MAP_PATH }) });
+
+    expect(await storage.getItem('atlas')).toBeNull();
   });
 
   it('does not back up data it can load', async () => {
