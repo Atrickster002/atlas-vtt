@@ -24,7 +24,7 @@ function setup(): Setup {
     subscribe: (listener: (state: ViewAtlasState, previous: ViewAtlasState) => void) => (listeners.add(listener), () => listeners.delete(listener)),
   } as unknown as ViewAtlasStore;
   const modeLayer: HideableLayer = { visible: false };
-  const gm: GmOverlays = { wallEditor: { visible: false }, doorBadges: { visible: false }, lightMarkers: { visible: false } };
+  const gm: GmOverlays = { wallEditor: { visible: false }, doorBadges: { visible: false }, lightMarkers: { visible: false }, rangeRings: { visible: false } };
   let tool = false;
   const playerLayers = (): LayerVisibility[] => playerLightingLayers({ enabled: true, modeLayer, gmOverlays: gm });
   const onChange = vi.fn();

@@ -141,17 +141,21 @@ describe('LightMarkers', () => {
     expect(glyph.tint).toBe(0xff9a3c);
   });
 
-  it('rings a selected light in the accent', () => {
+  it('rings a selected light and the light whose popover is open in the accent', () => {
     const { markers, store } = setup();
     store.getState().setSceneLighting({ enabled: true });
     const a = addLight(store, 100, 200);
-    addLight(store, 300, 200);
+    const b = addLight(store, 300, 200);
     const rest = parts(markers.view.children[0]!).rings;
     markers.setSelected([a]);
     expect(parts(markers.view.children[0]!).rings).toBe(rest + 1);
     expect(parts(markers.view.children[1]!).rings).toBe(rest);
+    store.getState().openLightPopover(b);
+    expect(parts(markers.view.children[1]!).rings).toBe(rest + 1);
     markers.setSelected([]);
+    store.getState().closeLightPopover();
     expect(parts(markers.view.children[0]!).rings).toBe(rest);
+    expect(parts(markers.view.children[1]!).rings).toBe(rest);
   });
 
   it('keeps the same size on screen at any zoom, and is hit at that size', () => {

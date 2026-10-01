@@ -10,19 +10,24 @@ const RANGES: Record<EmissionNumberField, [number, number]> = {
   sourceRadius: [0, 5],
 };
 
+/** The emission with one number field set, clamped to its range; bright and dim push each other so dim ≥ bright. */
+export function withEmissionValue(emission: LightEmission, field: EmissionNumberField, value: number): LightEmission {
+  const [min, max] = RANGES[field];
+  const clamped = Math.min(max, Math.max(min, value));
+  if (clamped === (emission[field] ?? null)) return emission;
+  const next = { ...emission, [field]: clamped };
+  if (field === 'bright' && next.dim < clamped) next.dim = clamped;
+  if (field === 'dim' && next.bright > clamped) next.bright = clamped;
+  return next;
+}
+
 /**
  * The emission with one number field set from what the user typed. Text that is not a
- * number keeps the emission as it was; bright and dim push each other so dim ≥ bright.
+ * number keeps the emission as it was.
  */
 export function editEmission(emission: LightEmission, field: EmissionNumberField, input: string): LightEmission {
   const parsed = input.trim() === '' ? NaN : Number(input);
-  if (!Number.isFinite(parsed)) return emission;
-  const [min, max] = RANGES[field];
-  const value = Math.min(max, Math.max(min, parsed));
-  const next = { ...emission, [field]: value };
-  if (field === 'bright' && next.dim < value) next.dim = value;
-  if (field === 'dim' && next.bright > value) next.bright = value;
-  return next;
+  return Number.isFinite(parsed) ? withEmissionValue(emission, field, parsed) : emission;
 }
 
 export function emissionOfPreset(id: LightPresetId): LightEmission {

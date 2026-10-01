@@ -366,6 +366,72 @@ describe('TokenRenderer Integration Tests', () => {
     });
   });
 
+  describe('Light markers in the dispatch', () => {
+    const lightHandlers = (takes: boolean): { pointerDown: ReturnType<typeof vi.fn>; cursorAt: ReturnType<typeof vi.fn>; leave: ReturnType<typeof vi.fn> } => ({
+      pointerDown: vi.fn(() => takes),
+      cursorAt: vi.fn(() => (takes ? 'pointer' : null)),
+      leave: vi.fn(),
+    });
+
+    it('gives a left press to a light marker before the token beneath it, with the select tool', async () => {
+      store.getState().addToken(token({ id: 'token-1', x: 105, y: 105 }));
+      await waitForTokens('token-1');
+      const lights = lightHandlers(true);
+      tokenRenderer.setLightHandlers(lights);
+
+      viewport.emit('pointerdown', pointerEvent(105, 105));
+      viewport.emit('pointerup', pointerEvent(105, 105));
+
+      expect(lights.pointerDown).toHaveBeenCalledWith(105, 105, expect.anything());
+      expect(store.getState().selectedIds).toEqual([]);
+    });
+
+    it('lets the press through to the token where no marker takes it', async () => {
+      store.getState().addToken(token({ id: 'token-1', x: 105, y: 105 }));
+      await waitForTokens('token-1');
+      tokenRenderer.setLightHandlers(lightHandlers(false));
+
+      viewport.emit('pointerdown', pointerEvent(105, 105));
+      viewport.emit('pointerup', pointerEvent(105, 105));
+
+      expect(store.getState().selectedIds).toEqual(['token-1']);
+    });
+
+    it('asks pins and door badges first', () => {
+      const lights = lightHandlers(true);
+      tokenRenderer.setLightHandlers(lights);
+      const pinClick = vi.fn();
+      tokenRenderer.setPinHitTestProvider((x) => (x < 50 ? 'pin-1' : null));
+      tokenRenderer.setPinClickHandler(pinClick);
+      tokenRenderer.setDoorClickHandler((x) => x > 500);
+
+      viewport.emit('pointerdown', pointerEvent(20, 20));
+      viewport.emit('pointerdown', pointerEvent(600, 20));
+      expect(pinClick).toHaveBeenCalledTimes(1);
+      expect(lights.pointerDown).not.toHaveBeenCalled();
+
+      viewport.emit('pointerdown', pointerEvent(300, 20));
+      expect(lights.pointerDown).toHaveBeenCalledTimes(1);
+    });
+
+    it('leaves a right press to the menus', () => {
+      const lights = lightHandlers(true);
+      tokenRenderer.setLightHandlers(lights);
+      viewport.emit('pointerdown', { ...pointerEvent(300, 20), button: 2 } as unknown as FederatedPointerEvent);
+      expect(lights.pointerDown).not.toHaveBeenCalled();
+    });
+
+    it('shows the marker\'s cursor on hover and clears the hover when the pointer leaves the canvas', () => {
+      const lights = lightHandlers(true);
+      tokenRenderer.setLightHandlers(lights);
+      viewport.emit('pointermove', { ...pointerEvent(300, 20), clientX: 300, clientY: 20 });
+      expect(lights.cursorAt).toHaveBeenCalledWith(300, 20);
+      expect(viewport.cursor).toBe('pointer');
+      canvas.dispatchEvent(new Event('pointerleave'));
+      expect(lights.leave).toHaveBeenCalled();
+    });
+  });
+
   describe('Right-click', () => {
     const rightClick = (x: number, y: number): FederatedPointerEvent =>
       ({ ...pointerEvent(x, y), button: 2, clientX: x + 300, clientY: y + 40 }) as unknown as FederatedPointerEvent;

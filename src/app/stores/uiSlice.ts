@@ -17,8 +17,8 @@ export interface UISlice {
   assetManagerInitialTab?: 'scenes' | 'maps' | 'encounters' | 'tokens' | undefined;
   isCommandPaletteOpen: boolean;
   isDiceTrayOpen: boolean;
-  /** The light whose settings panel is open, and the screen point (client pixels) it opened from. */
-  lightPanel: LightPanelTarget | null;
+  /** The placed light whose popover is open, with its range rings on the map. */
+  lightPopover: string | null;
   /** The scene lighting settings panel, opened from the lighting tool's menu. */
   isSceneLightingPanelOpen: boolean;
 
@@ -31,15 +31,9 @@ export interface UISlice {
   closeAssetManager: () => void;
   setCommandPaletteOpen: (open: boolean) => void;
   setDiceTrayOpen: (open: boolean) => void;
-  openLightPanel: (target: LightPanelTarget) => void;
-  closeLightPanel: () => void;
+  openLightPopover: (lightId: string) => void;
+  closeLightPopover: () => void;
   setSceneLightingPanelOpen: (open: boolean) => void;
-}
-
-export interface LightPanelTarget {
-  lightId: string;
-  clientX: number;
-  clientY: number;
 }
 
 /** Default state — all panels closed */
@@ -53,7 +47,7 @@ export function createInitialUIState(): Pick<
   | 'assetManagerInitialTab'
   | 'isCommandPaletteOpen'
   | 'isDiceTrayOpen'
-  | 'lightPanel'
+  | 'lightPopover'
   | 'isSceneLightingPanelOpen'
 > {
   return {
@@ -65,7 +59,7 @@ export function createInitialUIState(): Pick<
     assetManagerInitialTab: undefined,
     isCommandPaletteOpen: false,
     isDiceTrayOpen: false,
-    lightPanel: null,
+    lightPopover: null,
     isSceneLightingPanelOpen: false,
   };
 }
@@ -83,8 +77,8 @@ export function createUIActions(
   | 'closeAssetManager'
   | 'setCommandPaletteOpen'
   | 'setDiceTrayOpen'
-  | 'openLightPanel'
-  | 'closeLightPanel'
+  | 'openLightPopover'
+  | 'closeLightPopover'
   | 'setSceneLightingPanelOpen'
 > {
   return {
@@ -102,8 +96,8 @@ export function createUIActions(
     }),
     setCommandPaletteOpen: (open) => set((draft) => { draft.isCommandPaletteOpen = open; }),
     setDiceTrayOpen: (open) => set((draft) => { draft.isDiceTrayOpen = open; }),
-    openLightPanel: (target) => set((draft) => { draft.lightPanel = target; }),
-    closeLightPanel: () => set((draft) => { draft.lightPanel = null; }),
+    openLightPopover: (lightId) => set((draft) => { draft.lightPopover = lightId; }),
+    closeLightPopover: () => set((draft) => { draft.lightPopover = null; }),
     setSceneLightingPanelOpen: (open) => set((draft) => { draft.isSceneLightingPanelOpen = open; }),
   };
 }

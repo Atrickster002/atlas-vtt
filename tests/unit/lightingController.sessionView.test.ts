@@ -4,6 +4,7 @@ import type { Application, EventSystem, FederatedPointerEvent } from 'pixi.js';
 import { Viewport } from 'pixi-viewport';
 import { emissionOfPreset } from '../../src/app/lighting/lightEmissionForm';
 import { LightingController } from '../../src/app/pixi/lighting/LightingController';
+import type { LightPointerHandlers } from '../../src/app/pixi/lighting/LightInteraction';
 import type { SceneLightingDeps } from '../../src/app/pixi/lighting/createSceneLighting';
 import type { SceneLightingView } from '../../src/app/pixi/lighting/sceneLightingView';
 import type { TokenRenderer } from '../../src/app/pixi/TokenRenderer';
@@ -47,7 +48,8 @@ interface Wired {
   pointerDown: (x: number, y: number, e: FederatedPointerEvent) => boolean;
   pointerMove: (x: number, y: number, e: FederatedPointerEvent) => void;
   pointerUp: () => void;
-  doubleClick: (x: number, y: number) => void;
+  doubleClick: () => void;
+  light: LightPointerHandlers;
   contextMenu: (x: number, y: number, screenX: number, screenY: number) => void;
   cursor: (x: number, y: number) => string;
   doorClick: (x: number, y: number) => boolean;
@@ -99,6 +101,7 @@ function setup(): Setup {
     setWallContextMenuHandler: (fn: Wired['contextMenu']) => { wired.contextMenu = fn; },
     setWallCursorProvider: (fn: Wired['cursor']) => { wired.cursor = fn; },
     setDoorClickHandler: (fn: Wired['doorClick']) => { wired.doorClick = fn; },
+    setLightHandlers: (handlers: LightPointerHandlers) => { wired.light = handlers; },
     setPlayerSightProvider: (fn: Wired['playerSight']) => { wired.playerSight = fn; },
     refreshPlayerSight: wired.refreshPlayerSight,
   } as unknown as TokenRenderer);
@@ -138,7 +141,7 @@ describe('LightingController in session view', () => {
     store.getState().setSceneLighting({ enabled: true });
     store.getState().setGMView(false);
     const layers = controller.playerLayers();
-    expect(layers).toHaveLength(4);
+    expect(layers).toHaveLength(5);
     for (const { layer, visible } of layers) expect(layer.visible).toBe(visible);
     expect(lighting.modeLayer.visible).toBe(true);
   });
@@ -211,9 +214,10 @@ describe('the lighting tool while its editor is hidden', () => {
     store.getState().setGMView(false);
     expect(click(100, 100)).toBe(false);
     wired.pointerMove(150, 250, {} as FederatedPointerEvent);
-    expect(click(500, 500)).toBe(false);
+    expect(wired.light.pointerDown(500, 500, { global: { x: 500, y: 500 } } as FederatedPointerEvent)).toBe(false);
     wired.pointerMove(600, 600, {} as FederatedPointerEvent);
     wired.pointerUp();
+    expect(wired.light.cursorAt(500, 500)).toBeNull();
     expect(store.getState().objects.walls[wall]?.p1).toEqual({ x: 100, y: 100 });
     expect(store.getState().objects.lights[light]).toMatchObject({ x: 500, y: 500 });
   });
@@ -257,8 +261,8 @@ describe('the lighting tool while its editor is hidden', () => {
     expect(wired.cursor(100, 100)).toBe('default');
     wired.contextMenu(200, 100, 10, 10);
     expect(openContextMenuGlobal).not.toHaveBeenCalled();
-    wired.doubleClick(500, 500);
-    expect(store.getState().lightPanel).toBeNull();
+    wired.doubleClick();
+    expect(store.getState().lightPopover).toBeNull();
     expect(controller.handleDelete()).toBe(false);
     expect(controller.handleEscape()).toBe(false);
     expect(store.getState().objects.walls[wall]).toBeDefined();

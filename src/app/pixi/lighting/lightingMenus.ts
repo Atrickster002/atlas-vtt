@@ -9,15 +9,13 @@ export interface LightingMenuContext {
   wallRenderer: WallRenderer;
   /** The light whose marker is at the world point. */
   lightAt: (worldX: number, worldY: number) => string | null;
-  /** Opens the light's settings next to the given screen point. */
-  configureLight: (lightId: string, screenX: number, screenY: number) => void;
 }
 
 export function showLightMenu(context: LightingMenuContext, lightId: string, screenX: number, screenY: number): void {
   const light = context.store.getState().objects.lights[lightId];
   if (!light) return;
   const entries: ContextMenuEntry[] = [
-    { type: 'item', label: 'Configure light…', icon: 'settings', onClick: () => context.configureLight(lightId, screenX, screenY) },
+    { type: 'item', label: 'Configure light…', icon: 'settings', onClick: () => context.store.getState().openLightPopover(lightId) },
     {
       type: 'item',
       label: light.hidden ? 'Turn on' : 'Turn off',

@@ -8,7 +8,7 @@ import { runHistoryTransaction } from '../../stores/history';
 import { WallTool, type WallToolMode, type WallToolSubMode } from '../../tools/WallTool';
 import type { Point } from '../../types/visionTypes';
 import type { WallType } from '../../types/wallTypes';
-import { WallInteraction, type LightHandles } from '../vision/WallInteraction';
+import { WallInteraction } from '../vision/WallInteraction';
 import { WallRenderer } from '../vision/WallRenderer';
 import { WallDrawingSession } from './WallDrawingSession';
 import { splitWall } from './wallEdits';
@@ -16,10 +16,11 @@ import { splitWall } from './wallEdits';
 interface SegmentEvent { p1: Point; p2: Point; type: WallType; chainId: string }
 
 /**
- * The lighting tool's editor: wall lines and their handles, and the tool's input to them and to
- * the lights' markers. It takes input only while its layer shows (`shown`); whoever owns the layer's
- * visibility calls `afterVisibilityChange`, which ends whatever was under way once it is hidden,
- * so nothing is drawn or dragged where no one sees it.
+ * The lighting tool's editor: wall lines and their handles, and the tool's input to them. Lights
+ * have their own markers, which take the pointer before the editor does (`LightInteraction`);
+ * the editor only keeps which of them are selected. It takes input only while its layer shows
+ * (`shown`); whoever owns the layer's visibility calls `afterVisibilityChange`, which ends
+ * whatever was under way once it is hidden, so nothing is drawn or dragged where no one sees it.
  */
 export class WallEditor {
   readonly renderer: WallRenderer;
@@ -28,10 +29,10 @@ export class WallEditor {
   private readonly drawing: WallDrawingSession;
   private readonly cleanups: Array<() => void> = [];
 
-  /** `lights`: the light markers, which draw the lights the tool selects and drags. */
-  constructor(viewport: Viewport, private readonly store: ViewAtlasStore, eventBus: EventEmitter, private readonly lights: LightHandles) {
+  /** `onLightSelection` shows the selected lights on their markers. */
+  constructor(viewport: Viewport, private readonly store: ViewAtlasStore, eventBus: EventEmitter, onLightSelection: (lightIds: string[]) => void) {
     this.renderer = new WallRenderer(viewport, store);
-    this.walls = new WallInteraction(store, this.renderer, lights);
+    this.walls = new WallInteraction(store, this.renderer, onLightSelection);
     this.tool = new WallTool(eventBus);
     this.drawing = new WallDrawingSession(store);
     this.listen(eventBus);
@@ -73,7 +74,7 @@ export class WallEditor {
         return true;
       }
     }
-    // Without Shift (or with Ctrl to multi-select), existing walls and lights take the click
+    // Without Shift (or with Ctrl to multi-select), existing walls take the click
     if ((!shift || ctrl) && this.walls.handlePointerDown(point.x, point.y, ctrl)) {
       this.renderer.clearPreview();
       return true;
@@ -117,18 +118,20 @@ export class WallEditor {
     this.finishStroke();
   }
 
-  /** A double click ends the chain being drawn, or names the light under it for its settings. */
-  doubleClick(point: Point): string | null {
-    if (!this.shown) return null;
-    const lightId = this.lights.at(point.x, point.y);
-    if (!lightId) this.tool.finishChain();
-    return lightId;
+  /** A double click ends the chain being drawn. */
+  doubleClick(): void {
+    if (this.shown) this.tool.finishChain();
   }
 
   cursorAt(point: Point): string {
     if (!this.shown) return 'default';
     if (this.renderer.hitTestVertices(point.x, point.y)) return 'grab';
-    return this.renderer.hitTestWalls(point.x, point.y) || this.lights.at(point.x, point.y) ? 'pointer' : 'crosshair';
+    return this.renderer.hitTestWalls(point.x, point.y) ? 'pointer' : 'crosshair';
+  }
+
+  /** A wall handle shows at the point: it is grabbed before a light's marker beneath it. */
+  handleAt(point: Point): boolean {
+    return this.shown && this.renderer.hitTestVertices(point.x, point.y) !== null;
   }
 
   /** Escape: stop placing a door, drop the chain being drawn, or clear the wall selection. */

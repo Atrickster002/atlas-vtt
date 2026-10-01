@@ -17,7 +17,7 @@ const DRAG_LIFT = 1.2;
 
 export interface LightMarkerState {
   hovered: boolean;
-  /** Selected with the lighting tool. */
+  /** Selected with the lighting tool, or the light whose popover is open. */
   selected: boolean;
   dragging: boolean;
 }

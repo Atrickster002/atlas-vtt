@@ -7,10 +7,10 @@ import type { TokenEntity } from '../../../types';
 
 describe('playerLightingLayers', () => {
   function overlays(): GmOverlays {
-    return { wallEditor: new Container(), doorBadges: new Container(), lightMarkers: new Container() };
+    return { wallEditor: new Container(), doorBadges: new Container(), lightMarkers: new Container(), rangeRings: new Container() };
   }
 
-  it('switches the lighting to the player view and hides every GM overlay, light markers included', () => {
+  it('switches the lighting to the player view and hides every GM overlay, light markers and range rings included', () => {
     const modeLayer = { visible: false };
     const gm = overlays();
     expect(playerLightingLayers({ enabled: true, modeLayer, gmOverlays: gm })).toEqual([
@@ -18,6 +18,7 @@ describe('playerLightingLayers', () => {
       { layer: gm.wallEditor, visible: false },
       { layer: gm.doorBadges, visible: false },
       { layer: gm.lightMarkers, visible: false },
+      { layer: gm.rangeRings, visible: false },
     ]);
   });
 
@@ -27,6 +28,7 @@ describe('playerLightingLayers', () => {
       { layer: gm.wallEditor, visible: false },
       { layer: gm.doorBadges, visible: false },
       { layer: gm.lightMarkers, visible: false },
+      { layer: gm.rangeRings, visible: false },
     ]);
   });
 });

@@ -15,18 +15,12 @@ interface VertexDragState {
   linkedVertices: Array<{ wallId: string; vertex: 'p1' | 'p2' }>;
 }
 
-interface LightDragState {
-  type: 'light';
-  lightId: string;
-  startX: number;
-  startY: number;
-}
-
-type DragState = VertexDragState | LightDragState;
+type DragState = VertexDragState;
 
 /**
- * Handles wall/light interaction: multi-selection, endpoint dragging,
- * door toggling, bulk type changes, and deletion.
+ * Handles wall interaction: multi-selection, endpoint dragging, door toggling,
+ * bulk type changes, and deletion. Lights join the selection through
+ * `selectLight` (their markers take the pointer themselves, see `LightInteraction`).
  *
  * Multi-select: Ctrl/Cmd+click toggles a wall chain in/out of the selection.
  * Plain click replaces the selection with the clicked chain.
@@ -41,15 +35,6 @@ interface DoorPlacementState {
 
 const DOOR_HALF_WIDTH = 20; // Half-width of the door segment in world pixels
 
-/** What the wall tool needs of the light markers. */
-export interface LightHandles {
-  /** The light whose marker is at the world point. */
-  at: (worldX: number, worldY: number) => string | null;
-  showSelection: (lightIds: string[]) => void;
-}
-
-const NO_LIGHTS: LightHandles = { at: () => null, showSelection: () => undefined };
-
 export class WallInteraction {
   private store: StoreApi<ViewAtlasState>;
   private wallRenderer: WallRenderer;
@@ -58,8 +43,8 @@ export class WallInteraction {
   private selectedLightIds: Set<string> = new Set();
   private doorPlacement: DoorPlacementState | null = null;
 
-  /** Lights are drawn by their markers: `lights` finds the one at a point and shows which are selected. */
-  constructor(store: StoreApi<ViewAtlasState>, wallRenderer: WallRenderer, private readonly lights: LightHandles = NO_LIGHTS) {
+  /** `onLightSelection` shows which lights are selected, on their markers. */
+  constructor(store: StoreApi<ViewAtlasState>, wallRenderer: WallRenderer, private readonly onLightSelection: (lightIds: string[]) => void = () => undefined) {
     this.store = store;
     this.wallRenderer = wallRenderer;
   }
@@ -88,14 +73,6 @@ export class WallInteraction {
       return true;
     }
 
-    // 3. Check lights (select + start drag)
-    const lightId = this.lights.at(worldX, worldY);
-    if (lightId) {
-      this.selectLight(lightId, addToSelection);
-      this.startDrag({ type: 'light', lightId, startX: worldX, startY: worldY });
-      return true;
-    }
-
     // Clicked on nothing — clear unless adding to selection
     if (!addToSelection) {
       this.clearSelection();
@@ -108,14 +85,10 @@ export class WallInteraction {
 
     const state = this.store.getState();
 
-    if (this.dragState.type === 'vertex') {
-      for (const link of this.dragState.linkedVertices) {
-        state.updateWall(link.wallId, {
-          [link.vertex]: { x: worldX, y: worldY },
-        });
-      }
-    } else if (this.dragState.type === 'light') {
-      state.updateLight(this.dragState.lightId, { x: worldX, y: worldY });
+    for (const link of this.dragState.linkedVertices) {
+      state.updateWall(link.wallId, {
+        [link.vertex]: { x: worldX, y: worldY },
+      });
     }
   }
 
@@ -154,7 +127,7 @@ export class WallInteraction {
         this.store.getState().deleteLight(id);
       }
       this.selectedLightIds.clear();
-      this.lights.showSelection([]);
+      this.onLightSelection([]);
     }
   }
 
@@ -323,7 +296,8 @@ export class WallInteraction {
     this.syncRendererSelection();
   }
 
-  private selectLight(lightId: string, addToSelection: boolean): void {
+  /** Selects a light; with `addToSelection` toggles it in or out. */
+  selectLight(lightId: string, addToSelection: boolean): void {
     if (addToSelection) {
       if (this.selectedLightIds.has(lightId)) {
         this.selectedLightIds.delete(lightId);
@@ -346,7 +320,7 @@ export class WallInteraction {
 
   private syncRendererSelection(): void {
     this.wallRenderer.setSelectedWalls(Array.from(this.selectedWallIds));
-    this.lights.showSelection(Array.from(this.selectedLightIds));
+    this.onLightSelection(Array.from(this.selectedLightIds));
   }
 
   private startVertexDrag(wallId: string, vertex: 'p1' | 'p2', worldX: number, worldY: number): void {

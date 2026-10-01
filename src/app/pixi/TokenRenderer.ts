@@ -37,6 +37,7 @@ import type { ConditionDefinition } from '../types/collectionSettingsTypes';
 import { setCanvasCursor } from './utils/canvasCursor';
 import { markHandled, resetHandled } from './utils/handledEvents';
 import type { HexLinkPointerHandlers } from './hexLinks/HexLinkInteraction';
+import type { LightPointerHandlers } from './lighting/LightInteraction';
 import { runInBackground } from '../utils/backgroundTask';
 import { isModHeld } from '../keyboard/modKey';
 
@@ -109,13 +110,14 @@ export class TokenRenderer {
   private hexLinkHandlers?: HexLinkPointerHandlers;
   private doorClickHandler?: (worldX: number, worldY: number) => boolean;
   private playerSightProvider?: () => ((tokenId: string) => boolean) | undefined;
+  private lightHandlers?: LightPointerHandlers;
   private lastHoveredPinId: string | null = null;
 
   // Wall provider pattern — wired by PixiRendererOrchestrator
   private wallPointerDownHandler?: (worldX: number, worldY: number, e: FederatedPointerEvent) => boolean;
   private wallPointerMoveHandler?: (worldX: number, worldY: number, e: FederatedPointerEvent) => void;
   private wallPointerUpHandler?: () => void;
-  private wallDoubleClickHandler?: (worldX: number, worldY: number) => void;
+  private wallDoubleClickHandler?: () => void;
   private wallContextMenuHandler?: (worldX: number, worldY: number, screenX: number, screenY: number) => void;
   private wallCursorProvider?: (worldX: number, worldY: number) => string;
 
@@ -1458,6 +1460,11 @@ export class TokenRenderer {
   }
 
   /** Door badges: the GM opens and closes doors with a click from any tool but the wall tool, which edits them. */
+  /** Placed lights: their markers and range rings take the pointer with any tool, after pins and door badges. */
+  public setLightHandlers(handlers: LightPointerHandlers): void {
+    this.lightHandlers = handlers;
+  }
+
   public setDoorClickHandler(handler: (worldX: number, worldY: number) => boolean): void {
     this.doorClickHandler = handler;
   }
@@ -1474,7 +1481,7 @@ export class TokenRenderer {
     this.wallPointerUpHandler = fn;
   }
 
-  public setWallDoubleClickHandler(fn: (worldX: number, worldY: number) => void): void {
+  public setWallDoubleClickHandler(fn: () => void): void {
     this.wallDoubleClickHandler = fn;
   }
 
@@ -1663,6 +1670,12 @@ export class TokenRenderer {
       return;
     }
 
+    // ── Light markers and range rings: a light's popover and its drags, from any tool ──
+    if (e.button === 0 && this.lightHandlers?.pointerDown(worldPos.x, worldPos.y, e)) {
+      markHandled(e);
+      return;
+    }
+
     // ── Wall tool: drawing, vertex drag, selection ─────────────────────
     if (activeTool === 'wall' && e.button === 0 && this.wallPointerDownHandler) {
       const handled = this.wallPointerDownHandler(worldPos.x, worldPos.y, e);
@@ -1765,6 +1778,7 @@ export class TokenRenderer {
       this.lastHoveredPinId = null;
     }
     this.hexLinkHandlers?.hover(null);
+    this.lightHandlers?.leave();
     this.interactionController.handleViewportTokenHover(null);
     this.uiManager.setHoverState(null);
   };
@@ -1807,12 +1821,23 @@ export class TokenRenderer {
       this.lastHoveredPinId = null;
     }
 
+    // Light markers and range rings: hover and cursor from any tool
+    const lightCursor = this.lightHandlers?.cursorAt(worldPos.x, worldPos.y) ?? null;
+
     // Wall tool: pointer move for vertex dragging, freeform drawing, and hover cursors
     if (activeTool === 'wall' && this.wallPointerMoveHandler) {
       this.wallPointerMoveHandler(worldPos.x, worldPos.y, e);
 
       const wallCursor = this.wallCursorProvider?.(worldPos.x, worldPos.y) ?? 'crosshair';
-      this.applyCursor(wallCursor);
+      this.applyCursor(lightCursor ?? wallCursor);
+      return;
+    }
+
+    if (lightCursor) {
+      this.interactionController.handleViewportTokenHover(null);
+      this.uiManager.setHoverState(null);
+      this.hexLinkHandlers?.hover(null, e);
+      this.applyCursor(lightCursor);
       return;
     }
 
@@ -1856,11 +1881,8 @@ export class TokenRenderer {
     }
   };
 
-  private onCanvasDoubleClick = (ev: MouseEvent): void => {
-    if (this.store.getState().activeTool === 'wall') {
-      const worldPos = this.viewport.toWorld(ev.offsetX, ev.offsetY);
-      this.wallDoubleClickHandler?.(worldPos.x, worldPos.y);
-    }
+  private onCanvasDoubleClick = (): void => {
+    if (this.store.getState().activeTool === 'wall') this.wallDoubleClickHandler?.();
   };
 
   /**

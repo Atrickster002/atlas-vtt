@@ -10,6 +10,8 @@ export type GmOverlays = {
   doorBadges: HideableLayer;
   /** The badges on placed lights. */
   lightMarkers: HideableLayer;
+  /** The range rings of the light whose popover is open. */
+  rangeRings: HideableLayer;
 };
 
 export interface PlayerLightingInput {

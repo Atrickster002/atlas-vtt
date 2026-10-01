@@ -8,8 +8,7 @@ import { DEFAULT_MAP_HOTKEYS } from '../../keyboard/mapHotkeys';
 import { AssetService } from '../../services/AssetService';
 import { mapMeasurementSettings } from '../../services/mapMeasurementSettings';
 import { SettingsService } from '../../services/SettingsService';
-import type { ViewAtlasStore } from '../../storeFactory';
-import type { Point } from '../../types/visionTypes';
+import type { ViewAtlasState, ViewAtlasStore } from '../../storeFactory';
 import type { MapBounds } from '../../vision/visibility';
 import type { LayerVisibility } from '../playerSafeFrame';
 import { requestRender } from '../RenderScheduler';
@@ -17,7 +16,9 @@ import type { TokenRenderer } from '../TokenRenderer';
 import { createSceneLighting } from './createSceneLighting';
 import { DoorIcons } from './DoorIcons';
 import { showWallMenu, type LightingMenuContext } from './lightingMenus';
-import { LightMarkers } from './LightMarkers';
+import { LightInteraction } from './LightInteraction';
+import { LightMarkers, lightMarkersShown } from './LightMarkers';
+import { LightRangeRings } from './LightRangeRings';
 import { playerLightingLayers, playerTokenSight, type GmOverlays } from './playerLightingLayers';
 import type { SceneLightingView } from './sceneLightingView';
 import { SessionLighting } from './SessionLighting';
@@ -37,15 +38,18 @@ export interface LightingControllerDeps {
 
 /**
  * Walls, lights and scene lighting for one map view: owns the lighting renderer, the wall editor
- * and the GM's overlays, and routes the wall tool's input. Walls follow the map's artwork, never
- * the grid. In session view and while the peek key is held, the canvas shows the players'
- * lighting (`SessionLighting`): the GM's overlays are hidden then, and the editor takes no input.
+ * and the GM's overlays (door badges, light markers, the open light's range rings), and routes
+ * the pointer to them. Walls follow the map's artwork, never the grid. In session view and while
+ * the peek key is held, the canvas shows the players' lighting (`SessionLighting`): the GM's
+ * overlays are hidden then, and take no input.
  */
 export class LightingController {
   readonly renderer: SceneLightingView;
   private readonly editor: WallEditor;
   private readonly doors: DoorIcons;
   private readonly lightMarkers: LightMarkers;
+  private readonly rangeRings: LightRangeRings;
+  private readonly lights: LightInteraction;
   private readonly session: SessionLighting;
   private readonly cleanups: Array<() => void> = [];
   private tokens: TokenRenderer | null = null;
@@ -59,12 +63,19 @@ export class LightingController {
       onSightChange: () => this.onSightChange(),
     });
     this.lightMarkers = new LightMarkers(viewport, store);
-    this.editor = new WallEditor(viewport, store, eventBus, {
-      at: (x, y) => this.lightMarkers.hitTest(x, y),
-      showSelection: (lightIds) => this.lightMarkers.setSelected(lightIds),
-    });
+    this.rangeRings = new LightRangeRings(viewport, store, measurement);
+    this.editor = new WallEditor(viewport, store, eventBus, (lightIds) => this.lightMarkers.setSelected(lightIds));
     this.doors = new DoorIcons(store);
     viewport.addChild(this.doors.view);
+    this.lights = new LightInteraction({
+      viewport,
+      canvas: app.canvas,
+      store,
+      markers: this.lightMarkers,
+      rings: this.rangeRings,
+      canMove: () => this.editor.shown,
+      select: (lightId, add) => this.editor.walls.selectLight(lightId, add),
+    });
     this.session = new SessionLighting({
       store,
       playerLayers: () => this.playerLayers(),
@@ -76,22 +87,26 @@ export class LightingController {
     // Subscribed after the overlays' own subscriptions, so the players' view is set last.
     this.cleanups.push(store.subscribe((state, previous) => {
       if (state.activeTool !== previous.activeTool || state.lighting.enabled !== previous.lighting.enabled) this.session.sync();
+      if (state.lightPopover && !mayEditLight(state, state.lightPopover)) state.closeLightPopover();
     }));
     this.listen();
     this.session.sync();
   }
 
-  /** Routes the wall tool's viewport input and door clicks from the token renderer's dispatch. */
+  /** Routes the pointer from the token renderer's dispatch: lights and door badges with any tool, walls with the lighting tool. */
   wire(tokens: TokenRenderer): void {
     this.tokens = tokens;
     tokens.setPlayerSightProvider(() => (this.session.active ? this.playerSight() : undefined));
+    tokens.setLightHandlers({
+      // With the lighting tool, a wall handle is grabbed before the marker beneath it, and Shift draws past lights.
+      pointerDown: (x, y, e) => this.lights.pointerDown({ x, y }, e, this.editor.handleAt({ x, y }) || (this.editor.shown && e.shiftKey && !e.ctrlKey && !e.metaKey)),
+      cursorAt: (x, y) => this.lights.cursorAt({ x, y }, this.editor.handleAt({ x, y })),
+      leave: () => this.lights.clearHover(),
+    });
     tokens.setWallPointerDownHandler((x, y, e) => this.editor.pointerDown({ x, y }, e.shiftKey, e.ctrlKey || e.metaKey));
     tokens.setWallPointerMoveHandler((x, y) => this.editor.pointerMove({ x, y }));
     tokens.setWallPointerUpHandler(() => this.editor.pointerUp());
-    tokens.setWallDoubleClickHandler((x, y) => {
-      const lightId = this.editor.doubleClick({ x, y });
-      if (lightId) this.configureLight(lightId, this.clientPoint({ x, y }));
-    });
+    tokens.setWallDoubleClickHandler(() => this.editor.doubleClick());
     tokens.setWallContextMenuHandler((x, y, screenX, screenY) => {
       if (this.editor.shown) showWallMenu(this.menuContext(), x, y, screenX, screenY);
     });
@@ -104,7 +119,7 @@ export class LightingController {
   }
 
   gmOverlays(): GmOverlays {
-    return { wallEditor: this.editor.layer, doorBadges: this.doors.view, lightMarkers: this.lightMarkers.view };
+    return { wallEditor: this.editor.layer, doorBadges: this.doors.view, lightMarkers: this.lightMarkers.view, rangeRings: this.rangeRings.view };
   }
 
   /** What the players' view changes about the lighting: for their frame, and held in session view. */
@@ -117,8 +132,12 @@ export class LightingController {
     return playerTokenSight(this.renderer, this.deps.store.getState().objects.tokens);
   }
 
+  /** Escape closes the light popover, else it is the wall editor's. */
   handleEscape(): boolean {
-    return this.editor.handleEscape();
+    const state = this.deps.store.getState();
+    if (!state.lightPopover) return this.editor.handleEscape();
+    state.closeLightPopover();
+    return true;
   }
 
   handleDelete(): boolean {
@@ -131,22 +150,13 @@ export class LightingController {
       walls: this.editor.walls,
       wallRenderer: this.editor.renderer,
       lightAt: (x, y) => this.lightMarkers.hitTest(x, y),
-      configureLight: (lightId, clientX, clientY) => this.configureLight(lightId, { x: clientX, y: clientY }),
     };
   }
 
-  private configureLight(lightId: string, client: Point): void {
-    this.deps.store.getState().openLightPanel({ lightId, clientX: client.x, clientY: client.y });
-  }
-
-  /** A world point in client pixels, where panels open from. */
-  private clientPoint(world: Point): Point {
-    const screen = this.deps.viewport.toScreen(world.x, world.y);
-    const canvas = this.deps.app.canvas.getBoundingClientRect();
-    return { x: canvas.left + screen.x, y: canvas.top + screen.y };
-  }
-
-  /** The layers the players' view changes, as the GM sees them. The light markers show by their own rule and follow `setSuppressed`. */
+  /**
+   * The layers the players' view changes, as the GM sees them. The light markers and the range
+   * rings show by their own rules and follow `setSuppressed`.
+   */
   private gmLayers(): LayerVisibility[] {
     const { activeTool, lighting } = this.deps.store.getState();
     const tool = activeTool === 'wall';
@@ -158,7 +168,10 @@ export class LightingController {
   }
 
   private afterLayerSync(): void {
-    this.lightMarkers.setSuppressed(this.session.active);
+    const players = this.session.active;
+    this.lightMarkers.setSuppressed(players);
+    this.rangeRings.setSuppressed(players);
+    if (players) this.lights.cancel();
     this.editor.afterVisibilityChange();
     this.tokens?.refreshPlayerSight();
     requestRender(this.deps.app);
@@ -170,7 +183,7 @@ export class LightingController {
   }
 
   private listen(): void {
-    const { eventBus } = this.deps;
+    const { eventBus, store } = this.deps;
     const on = (event: string, handler: () => void): void => {
       eventBus.on(event, handler);
       this.cleanups.push(() => eventBus.off(event, handler));
@@ -178,6 +191,8 @@ export class LightingController {
     on('lighting-reset-explored', () => this.renderer.resetExplored());
     on('map-unloading', () => {
       this.editor.cancelDrawing();
+      this.lights.cancel();
+      store.getState().closeLightPopover();
       this.renderer.beforeMapUnload();
     });
   }
@@ -185,9 +200,16 @@ export class LightingController {
   destroy(): void {
     for (const cleanup of this.cleanups) cleanup();
     this.session.destroy();
+    this.lights.destroy();
     this.editor.destroy();
     this.renderer.destroy();
     this.doors.destroy();
+    this.rangeRings.destroy();
     this.lightMarkers.destroy();
   }
+}
+
+/** A light's popover needs the light, its marker on the map and the GM's view of a loaded scene. */
+function mayEditLight(state: ViewAtlasState, lightId: string): boolean {
+  return !!state.objects.lights[lightId] && state.isGMView && !state.isMapLoading && lightMarkersShown(state);
 }

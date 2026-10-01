@@ -82,6 +82,7 @@ export class LightMarkers {
         state.objects.lights !== previous.objects.lights
         || state.lighting.enabled !== previous.lighting.enabled
         || state.activeTool !== previous.activeTool
+        || state.lightPopover !== previous.lightPopover
       ) this.sync();
     });
     // The badge and the accent follow the theme, like the pins.
@@ -112,7 +113,7 @@ export class LightMarkers {
     this.sync();
   }
 
-  /** The lights selected with the lighting tool. */
+  /** The lights selected with the lighting tool. The light whose popover is open counts as selected too. */
   setSelected(lightIds: readonly string[]): void {
     this.selected = new Set(lightIds);
     this.sync();
@@ -148,7 +149,7 @@ export class LightMarkers {
     for (const light of Object.values(lights)) {
       const look = lightMarkerLook(light, {
         hovered: this.hovered === light.id,
-        selected: this.selected.has(light.id),
+        selected: this.selected.has(light.id) || state.lightPopover === light.id,
         dragging: this.dragging === light.id,
       }, this.theme);
       const previous = this.markers.get(light.id);

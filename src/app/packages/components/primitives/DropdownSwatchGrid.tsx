@@ -14,10 +14,12 @@ interface DropdownSwatchGridProps {
   onChange: (value: string) => void
   /** A line of guidance under the swatches. */
   hint?: string
+  /** A last cell after the swatches, e.g. a picker for any other colour. */
+  children?: React.ReactNode
 }
 
-/** A labelled row of colour swatches for toolbar dropdowns; the current colour is ringed. */
-export function DropdownSwatchGrid({ label, swatches, value, onChange, hint }: DropdownSwatchGridProps): React.ReactElement {
+/** A labelled row of colour swatches for toolbar dropdowns and popovers; the current colour is ringed. */
+export function DropdownSwatchGrid({ label, swatches, value, onChange, hint, children }: DropdownSwatchGridProps): React.ReactElement {
   const current = value.toLowerCase()
   return (
     <div className="atlas-dropdown-swatches">
@@ -40,6 +42,7 @@ export function DropdownSwatchGrid({ label, swatches, value, onChange, hint }: D
             </LabelTooltip>
           )
         })}
+        {children}
       </div>
       {hint && <span className="atlas-dropdown-swatches__hint">{hint}</span>}
     </div>
