@@ -122,6 +122,30 @@ describe('CanvasLightingFallback', () => {
     expect(seen).toEqual([300]);
   });
 
+  it('reports nothing for store changes sight does not read, and keeps its sight and its light reaches the same objects while they are the same', () => {
+    const prey: TokenEntity = { id: 'prey', kind: 'token', imagePath: 'p.png', x: 150, y: 100 };
+    const onSightChange = vi.fn();
+    const { fallback, store } = setup({ hero, prey }, {}, onSightChange);
+    // What the perception memo compares: the same objects while nothing changed.
+    expect(fallback.lightReaches()).toBe(fallback.lightReaches());
+    const sight = fallback.currentSight();
+    onSightChange.mockClear();
+    store.getState().setActiveTool('wall');
+    store.getState().setSelection(['hero']);
+    store.getState().setGMView(false);
+    expect(onSightChange).not.toHaveBeenCalled();
+    // A token without vision moved: who is seen may differ, the regions do not.
+    store.getState().updateToken('prey', { x: 160 });
+    expect(onSightChange).toHaveBeenCalledTimes(1);
+    expect(fallback.currentSight()).toBe(sight);
+    store.getState().updateToken('hero', { x: 300 });
+    expect(onSightChange).toHaveBeenCalledTimes(2);
+    expect(fallback.currentSight()).not.toBe(sight);
+    // The map's size is asked anew when the view says so.
+    fallback.refreshBounds();
+    expect(onSightChange).toHaveBeenCalledTimes(3);
+  });
+
   it('keeps a held vision token\'s sight where it was taken until it is let go', () => {
     const { fallback, store } = setup({ hero });
     holdTokens(store, ['hero']);
