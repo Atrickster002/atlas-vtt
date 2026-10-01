@@ -203,34 +203,42 @@ export class MapService {
     } catch (error) {
       console.error('[MapService] Error loading map:', error);
       if (isSuperseded()) return null;
-      this.recoverFromFailedLoad(filePath, error);
+      this.recoverFromFailedLoad(rendererService, filePath, error);
       return null;
     }
   }
 
   /** Tells the user and leaves the view ready for another load. */
-  private recoverFromFailedLoad(filePath: string, error: unknown): void {
+  private recoverFromFailedLoad(rendererService: RendererService, filePath: string, error: unknown): void {
     // Without this the view only shows an empty canvas
     const reason = describeError(error).replace(/^\[\w+\]\s*/, '');
     new Notice(`Atlas VTT could not open the scene ${this.resolveMapName(filePath)} (${reason}).`, 0);
-    getHistoryStore(this.store)?.getState().resume();
 
     // A load that failed before it switched the store leaves the previous map open and saved as before
     const mapStillLoaded = this.store.getState().mapLoaded;
-    if (!mapStillLoaded) {
-      this.currentMapFilePath = null;
-      this.currentMapData = null;
-      this.holdBackground(null);
+    const history = getHistoryStore(this.store)?.getState();
+    try {
+      if (!mapStillLoaded) {
+        this.currentMapFilePath = null;
+        this.currentMapData = null;
+        this.holdBackground(null);
+        // The image of the map before must not stay on the canvas without its fog and tokens
+        rendererService.getRenderer()?.clearBackgroundSprite();
+      }
+      // One write, so a subscriber that throws cannot leave the store half reset. Unbinding
+      // it from the file states what `mapLoaded` already enforces: this state is not the map's.
+      this.store.setState({
+        ...(mapStillLoaded ? {} : { mapPath: null, background: null }),
+        persistenceEnabled: true,
+        isMapLoading: false,
+      });
+    } finally {
+      // Nothing of the load, nor its removal, is an edit to undo
+      if (!mapStillLoaded) history?.clear();
+      history?.resume();
     }
-    // One write, so a subscriber that throws cannot leave the store half reset. Unbinding
-    // it from the file states what `mapLoaded` already enforces: this state is not the map's.
-    this.store.setState({
-      ...(mapStillLoaded ? {} : { mapPath: null }),
-      persistenceEnabled: true,
-      isMapLoading: false,
-    });
   }
-  
+
   /** Swaps the held background reference, releasing the previous map's one. */
   private holdBackground(url: string | null): void {
     const previous = this.currentBackgroundUrl;

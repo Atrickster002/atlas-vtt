@@ -47,7 +47,7 @@ function setup(content: string): Harness {
   const eventBus = new EventEmitter();
   eventBus.on('wait-for-tokens-loaded', (done: () => void) => done());
   const renderer = {
-    setBackgroundSprite: vi.fn(), getGridSystem: () => null, initGrid: vi.fn(),
+    setBackgroundSprite: vi.fn(), clearBackgroundSprite: vi.fn(), getGridSystem: () => null, initGrid: vi.fn(),
     getViewportInstance: () => null, getBackgroundSprite: () => null,
   };
   vi.spyOn(console, 'error').mockImplementation(() => {});

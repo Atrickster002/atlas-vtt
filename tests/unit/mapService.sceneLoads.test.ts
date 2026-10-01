@@ -13,6 +13,7 @@ import { migrateMapFile, STALLED_SAVE_MS, type PersistedMapEnvelope } from '../.
 import { MapService } from '../../src/app/services/MapService';
 import type { RendererService } from '../../src/app/services/RendererService';
 import { STALLED_JOB_MS } from '../../src/app/services/latestRequestQueue';
+import { getHistoryStore } from '../../src/app/stores/history';
 
 const CAVE = 'maps/cave.atlasmap';
 const TOWER = 'maps/tower.atlasmap';
@@ -49,6 +50,8 @@ interface Harness {
   rendererService: RendererService;
   /** Scenes whose image the renderer was given, in order. */
   shown: string[];
+  /** Counts how often the renderer was told to take the map image off the canvas. */
+  clearBackgroundSprite: ReturnType<typeof vi.fn>;
   /** Holds back reading a scene's file until the returned gate is resolved or rejected. */
   holdBack: (path: string) => Deferred;
 }
@@ -71,7 +74,9 @@ function setup(): Harness {
   });
 
   const shown: string[] = [];
+  const clearBackgroundSprite = vi.fn();
   const renderer = {
+    clearBackgroundSprite,
     setBackgroundSprite: () => { shown.push(reading[reading.length - 1] ?? ''); },
     getGridSystem: () => null,
     initGrid: vi.fn(),
@@ -83,7 +88,7 @@ function setup(): Harness {
   return {
     app,
     service: new MapService(app, eventBus, store),
-    store, files, eventBus, shown,
+    store, files, eventBus, shown, clearBackgroundSprite,
     rendererService: { getRenderer: () => renderer } as unknown as RendererService,
     holdBack: (path) => {
       const gate = deferred();
@@ -189,6 +194,30 @@ describe('MapService scene loads', () => {
 
       expect(store.getState().mapPath).toBeNull();
       expect(files.get(TOWER)).toBe(tower);
+    });
+
+    it('takes the image of the scene before it off the canvas, so no map shows without its fog and tokens', async () => {
+      const { service, store, rendererService, clearBackgroundSprite, holdBack } = setup();
+      await service.loadMap(rendererService, CAVE);
+      store.getState().setBackground('maps/cave.png');
+      holdBack(TOWER).reject(new Error('[MapLoader] Map file not found'));
+
+      expect(await service.loadMap(rendererService, TOWER)).toBeNull();
+
+      expect(store.getState().background).toBeNull();
+      expect(clearBackgroundSprite).toHaveBeenCalledTimes(1);
+      expect(getHistoryStore(store)?.getState().pastStates).toEqual([]);
+    });
+
+    it('leaves the image of the open scene when the next one fails before the store was switched', async () => {
+      const { service, store, rendererService, clearBackgroundSprite } = setup();
+      await service.loadMap(rendererService, CAVE);
+      store.getState().setBackground('maps/cave.png');
+
+      await service.loadMap({ getRenderer: () => null } as unknown as RendererService, TOWER);
+
+      expect(store.getState().background).toBe('maps/cave.png');
+      expect(clearBackgroundSprite).not.toHaveBeenCalled();
     });
 
     it('lets the GM open a scene again afterwards', async () => {

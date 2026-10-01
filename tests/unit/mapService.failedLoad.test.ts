@@ -37,7 +37,7 @@ function setup(renderer: object | null): {
 
 describe('MapService.loadMap failure', () => {
   it('never saves the emptied store over a map that failed to load', async () => {
-    const { service, store, files, rendererService } = setup({});
+    const { service, store, files, rendererService } = setup({ clearBackgroundSprite: vi.fn() });
 
     expect(await service.loadMap(rendererService, BROKEN_MAP)).toBeNull();
     expect(store.getState().mapPath).toBeNull();
@@ -56,7 +56,7 @@ describe('MapService.loadMap failure', () => {
   });
 
   it('tells the user which scene failed and why, instead of leaving an empty canvas', async () => {
-    const { service, rendererService } = setup({});
+    const { service, rendererService } = setup({ clearBackgroundSprite: vi.fn() });
 
     await service.loadMap(rendererService, BROKEN_MAP);
 

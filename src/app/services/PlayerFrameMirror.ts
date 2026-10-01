@@ -47,6 +47,14 @@ export interface PlayerFrameSource {
   beforeRender?: BeforeRenderCapture;
 }
 
+/**
+ * Whether the canvas shows no loaded scene: one is loading or failed to load, so fog and
+ * tokens may be missing. Players keep the last frame until a scene is loaded again.
+ */
+function isBetweenScenes(source: PlayerFrameSource): boolean {
+  return source.store?.getState().mapLoaded === false;
+}
+
 /** What the mirror shows, read anew on every frame. */
 export interface MirrorInputs {
   source(): PlayerFrameSource | null;
@@ -110,6 +118,10 @@ export class PlayerFrameMirror {
       }
       if (this.lastHeld) this.stale = true;
       this.lastHeld = null;
+      if (isBetweenScenes(source)) {
+        this.stale = true;
+        return;
+      }
 
       if (!source.beforeRender) {
         this.mirror(source, source, now);
@@ -130,6 +142,10 @@ export class PlayerFrameMirror {
     const source = this.watched;
     // A canvas that is no longer presented, or stands behind a held frame, is not what players see
     if (!source?.beforeRender || source !== this.inputs.source() || this.inputs.heldFrame()) return;
+    if (isBetweenScenes(source)) {
+      this.stale = true;
+      return;
+    }
     if (!this.isDue(frameTime) || frameTime - this.lastFrameAt > ASLEEP_AFTER_MS) {
       this.stale = true;
       return;

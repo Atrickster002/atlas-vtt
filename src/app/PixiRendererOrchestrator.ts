@@ -637,6 +637,11 @@ export class PixiRendererOrchestrator { // Renamed class
     destroyTree(sprite);
   }
 
+  /** Takes the map image off the canvas, as when its scene could not be opened. */
+  public clearBackgroundSprite(): void {
+    if (this.backgroundSprite) this.removeBackgroundSprite(this.backgroundSprite);
+  }
+
   /** The map image in world space; null until it has loaded. */
   private getMapRect(): MapRect | null {
     const sprite = this.backgroundSprite;
@@ -1009,7 +1014,7 @@ export class PixiRendererOrchestrator { // Renamed class
     this.gridSystem?.destroy(); // Destroy GridSystem
     this.selectionManager?.destroy(); // Destroy SelectionManager
     
-    if (this.backgroundSprite) this.removeBackgroundSprite(this.backgroundSprite);
+    this.clearBackgroundSprite();
 
     this.pixiAppManager.destroy();
 

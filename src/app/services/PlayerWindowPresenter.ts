@@ -152,6 +152,8 @@ function findTab(view: AtlasView, tabId: string): SceneTab | undefined {
 async function waitForRenderedFrameSource(view: AtlasView): Promise<PlayerFrameSource | null> {
   await waitForMapLoaded(view.atlasStore);
   await nextAnimationFrames(2);
+  // A scene that failed to load leaves a canvas without fog and tokens; players must not see it
+  if (!view.atlasStore.getState().mapLoaded) return null;
   const renderer = view.serviceManager.getRendererService().getRenderer();
   const app = renderer?.getAppInstance();
   const canvas = app?.canvas;
