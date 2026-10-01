@@ -35,7 +35,7 @@ function createStore(grid: GridState = SQUARE) {
 }
 
 function addGoblin(store: ReturnType<typeof createStore>['store'], x: number, y: number): string {
-  return store.getState().addToken({ kind: 'character', x, y, imagePath: 'goblin.png', name: 'Goblin', hp: { current: 7, max: 7 }, conditions: ['prone'] } as never);
+  return store.getState().addToken({ kind: 'character', x, y, imagePath: 'goblin.png', name: 'Goblin', resources: { hp: { current: 7, max: 7 } }, conditions: ['prone'] } as never);
 }
 
 function tokenAt(store: ReturnType<typeof createStore>['store'], id: string): TokenEntity {
@@ -60,7 +60,7 @@ describe('map copy, paste and duplicate', () => {
     expect(store.getState().selectedIds).toEqual(copies);
     expect(copies.map((id) => [tokenAt(store, id).x, tokenAt(store, id).y])).toEqual([[75, 75], [175, 125]]);
     expect(copies.map((id) => tokenAt(store, id).instanceNumber)).toEqual([3, 4]);
-    expect(tokenAt(store, copies[0]!)).toMatchObject({ name: 'Goblin', hp: { current: 7, max: 7 }, conditions: ['prone'] });
+    expect(tokenAt(store, copies[0]!)).toMatchObject({ name: 'Goblin', resources: { hp: { current: 7, max: 7 } }, conditions: ['prone'] });
     expect(undoSteps(store)).toBe(steps + 1);
 
     getHistoryStore(store)!.getState().undo();

@@ -609,16 +609,9 @@ export class TokenRenderer {
   }
 
   private updateTokenRing(tokenId: string, tokenGroup: TokenGroupContainer, size: number, ringColor?: string): void {
-    const tokenSettings = this.store.getState().tokenSettings || {
-      showNameplates: false,
-      showHPBars: true,
-      showStressBars: false,
-      tokenRingSize: 1
-    };
-
     const current = this.store.getState().objects.tokens[tokenId];
     if (current) tokenGroup.tokenData = current;
-    const sizeWithMultiplier = size * tokenSettings.tokenRingSize;
+    const sizeWithMultiplier = size * (this.store.getState().tokenSettings?.tokenRingSize ?? 1);
     const resolvedRingColor = ringColor || '#ffffff';
 
     // Route all ring redraws through SpriteFactory to keep visuals consistent
@@ -1085,13 +1078,10 @@ export class TokenRenderer {
     if ((token.conditions ?? []).join() !== (prevToken.conditions ?? []).join()) return true;
     if (token.conditionValues !== prevToken.conditionValues) return true;
 
-    // Character data: name, HP and stress (compared by value) and statblock link
+    // Character data: name, resources (compared by value) and statblock link
     const character = token.kind === 'character' ? token : undefined;
     const prevCharacter = prevToken.kind === 'character' ? prevToken : undefined;
     if (character?.name !== prevCharacter?.name) return true;
-    if (JSON.stringify(character?.hp) !== JSON.stringify(prevCharacter?.hp)) return true;
-    if (JSON.stringify(character?.stress) !== JSON.stringify(prevCharacter?.stress)) return true;
-    if (character?.maxStress !== prevCharacter?.maxStress) return true;
     if (token.resources !== prevToken.resources && JSON.stringify(token.resources) !== JSON.stringify(prevToken.resources)) return true;
     if (character?.statblockPath !== prevCharacter?.statblockPath) return true;
 

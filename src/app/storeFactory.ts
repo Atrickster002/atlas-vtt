@@ -93,7 +93,6 @@ export interface ViewAtlasState {
     y: number;
     imagePath: string;
     name: string;
-    hp: number;
     notePath?: string;
     snapped?: boolean;
     ringColor?: string;
@@ -103,7 +102,7 @@ export interface ViewAtlasState {
   addTokenWithId: (
     id: string,
     data: { x: number; y: number; imagePath: string; snapped?: boolean },
-    extra: Pick<Character, 'name' | 'hp' | 'notePath'>
+    extra: Pick<Character, 'name' | 'notePath'>
   ) => void;
 
   moveToken: (id: string, x: number, y: number) => void;
@@ -624,7 +623,6 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
               y: data.y,
               imagePath: normalizedImagePath,
               name: data.name,
-              hp: data.hp,
               instanceNumber,
               ...(data.notePath && { notePath: data.notePath }),
               ...(data.snapped !== undefined && { snapped: data.snapped }),
@@ -650,7 +648,6 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
                 imagePath: normalizedImagePath,
                 name: extra.name,
                 instanceNumber,
-                ...(extra.hp !== undefined && { hp: extra.hp }),
                 ...(extra.notePath && { notePath: extra.notePath }),
                 ...(data.snapped !== undefined && { snapped: data.snapped }),
               };

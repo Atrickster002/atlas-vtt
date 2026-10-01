@@ -15,7 +15,7 @@ export interface StatblockHoverPreviewProps {
   className?: string | undefined;
   /** Enables click-to-roll on dice notation inside the statblock */
   app?: App | null | undefined;
-  /** Token/entry whose HP and stress the statblock should mirror */
+  /** Token whose resources the statblock should mirror */
   vitals?: TokenVitals | null;
   /** Whether the preview is visible */
   isVisible: boolean;

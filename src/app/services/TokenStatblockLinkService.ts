@@ -15,25 +15,19 @@ export interface TokenStatblockLink {
   statblockPath: string;
 }
 
+const LEGACY_RESOURCE_FIELDS = ['hp', 'maxHp', 'stress', 'maxStress', 'maxHpOverridden', 'maxStressOverridden'] as const;
+
 /**
  * The statblock-derived fields of a token as stored in a map file. Linking
  * writes them onto the token whatever its `kind`, so all are optional here.
  */
 type StoredStatblockFields = Pick<BaseToken, 'imagePath'>
-  & Partial<Pick<Character, 'name' | 'hp' | 'stress' | 'maxStress' | 'maxHpOverridden' | 'maxStressOverridden' | 'difficulty' | 'statblockPath' | 'statblockName' | 'resources' | 'overriddenMax'>>
-  & {
-    /** Written by older versions and never read; still stripped on unlink. */
-    maxHp?: number;
-  };
+  & Partial<Pick<Character, 'name' | 'difficulty' | 'statblockPath' | 'statblockName' | 'resources' | 'overriddenMax'>>
+  & Partial<Record<typeof LEGACY_RESOURCE_FIELDS[number], unknown>>;
 
 /** Fields maps written before resources still carry; a relinked or unlinked token drops them. */
 function dropLegacyResourceFields(token: StoredStatblockFields): void {
-  delete token.hp;
-  delete token.maxHp;
-  delete token.stress;
-  delete token.maxStress;
-  delete token.maxHpOverridden;
-  delete token.maxStressOverridden;
+  for (const field of LEGACY_RESOURCE_FIELDS) delete token[field];
 }
 
 function nonEmpty<T extends object>(record: T): T | undefined {

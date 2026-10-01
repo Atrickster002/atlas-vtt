@@ -12,7 +12,7 @@ import { HP_RESOURCE } from '../../src/app/resources/resourceDefinitions';
 
 afterEach(() => vi.restoreAllMocks());
 
-const hero = { kind: 'character', x: 0, y: 0, imagePath: 'hero.png', name: 'Hero', hp: { current: 8, max: 10 } } as const;
+const hero = { kind: 'character', x: 0, y: 0, imagePath: 'hero.png', name: 'Hero', resources: { hp: { current: 8, max: 10 } } } as const;
 
 function createMapStore(path: string) {
   const { app, files } = createInMemoryApp();

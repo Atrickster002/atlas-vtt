@@ -20,7 +20,7 @@ export interface SystemRules {
   widgets?: AnyWidget[];
   /**
    * What new scenes of the collection show and use, by key as in
-   * `CollectionSettings.defaultWidgets` (e.g. `stressBar` for Daggerheart's Stress).
+   * `CollectionSettings.defaultWidgets` (e.g. `initiativeTracker`).
    */
   defaultWidgets?: Record<string, boolean>;
   /** Default roll and critical rule. Unset means `DEFAULT_DICE_RULES`. */

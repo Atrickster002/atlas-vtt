@@ -11,7 +11,6 @@ function makeCharacter(overrides: Partial<Character> = {}): Character {
     y: 200,
     imagePath: 'test.png',
     name: 'Test',
-    hp: 10,
     hasVision: true,
     ...overrides,
   };

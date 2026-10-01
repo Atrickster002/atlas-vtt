@@ -188,7 +188,7 @@ export function FantasyStatblock({
     );
   }, [app, monster, notePath]);
 
-  // Mirror token HP/stress into any vitals track the layout renders.
+  // Mirror the tokens' resources into any vitals track the layout renders.
   useEffect(() => {
     if (ref.current && !tokenActions) {
       syncStatblockVitals(ref.current, tokensRef.current);
