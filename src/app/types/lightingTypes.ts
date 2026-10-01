@@ -1,3 +1,5 @@
+import type { TokenSense } from './senseTypes';
+
 /** Dynamic lighting of one scene. Saved in the map file, never undo-tracked. */
 export interface SceneLighting {
   enabled: boolean;
@@ -58,12 +60,23 @@ export interface TokenVision {
   enabled: boolean;
   /** Sight range; unset is unlimited. */
   range?: number;
-  /** Radius the token sees without light, drawn desaturated. */
+  /**
+   * Radius the token sees without light, drawn desaturated. Written before senses existed and
+   * read as one while `senses` is unset (`tokenSenses`); `withSenses` drops it.
+   */
   darkvision?: number;
-  /** Radius within which the token senses other tokens through walls and darkness; the map stays unseen. */
+  /**
+   * Radius within which the token senses other tokens through walls and darkness; the map stays
+   * unseen. Read and dropped like `darkvision`.
+   */
   tremorsense?: number;
   /** Width of the vision cone in degrees (1–360), facing the token's rotation; unset sees all around. */
   angle?: number;
+  /**
+   * What the token perceives beyond normal sight, by the senses of its collection. Once set, even
+   * empty, it replaces `darkvision` and `tremorsense`. Read with `tokenSenses`, write with `withSenses`.
+   */
+  senses?: TokenSense[];
 }
 
 /** What a collection or game system gives new tokens; vision itself always starts off. */

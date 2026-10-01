@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { BUILT_IN_SENSES } from '../senses';
 import { parseSenseDefinitions, parseTokenSenses } from '../senseValidation';
+import { parseVisionDefaults, hasVisionDefaults, sameVisionDefaults } from '../visionDefaults';
 import type { SenseDefinition } from '../../types/senseTypes';
 
 const valid: SenseDefinition = {
@@ -76,5 +77,39 @@ describe('parseTokenSenses', () => {
     expect(parseTokenSenses(raw, BUILT_IN_SENSES['builtin:dnd5e'])).toEqual([{ id: 'dnd5e:darkvision', range: 60 }, { id: 'blindsight', range: 10 }]);
     expect(parseTokenSenses(raw, [])).toEqual([{ id: 'blindsight', range: 10 }]);
     expect(parseTokenSenses(raw)).toHaveLength(4);
+  });
+});
+
+describe('default vision with senses', () => {
+  it('keeps the senses beside the other fields', () => {
+    expect(parseVisionDefaults({ range: 60, senses: [{ id: 'darkvision', range: 60 }, { id: 'low-light-vision', range: -1 }] }))
+      .toEqual({ range: 60, senses: [{ id: 'darkvision', range: 60 }, { id: 'low-light-vision' }] });
+  });
+
+  it('keeps unknown sense ids while the collection is not known, and drops them once it is', () => {
+    const raw = { senses: [{ id: 'dnd5e:truesight', range: 120 }, { id: 'pathfinder2e:scent', range: 30 }] };
+    expect(parseVisionDefaults(raw)?.senses).toHaveLength(2);
+    expect(parseVisionDefaults(raw, BUILT_IN_SENSES['builtin:dnd5e'])).toEqual({ senses: [{ id: 'dnd5e:truesight', range: 120 }] });
+    expect(parseVisionDefaults(raw, [])).toBeUndefined();
+  });
+
+  it('is no default when the list of senses is empty or unreadable', () => {
+    expect(parseVisionDefaults({ senses: [] })).toBeUndefined();
+    expect(parseVisionDefaults({ senses: 'darkvision' })).toBeUndefined();
+    expect(parseVisionDefaults({ darkvision: 60, senses: [] })).toEqual({ darkvision: 60 });
+    expect(hasVisionDefaults({ senses: [] })).toBe(false);
+    expect(hasVisionDefaults({ senses: [{ id: 'darkvision', range: 60 }] })).toBe(true);
+  });
+
+  it('compares senses by id and distance, whatever their order; none and an empty list are the same', () => {
+    const senses = [{ id: 'darkvision', range: 60 }, { id: 'low-light-vision' }];
+    expect(sameVisionDefaults({ senses }, { senses: [...senses].reverse() })).toBe(true);
+    expect(sameVisionDefaults({ senses }, { senses: [{ id: 'darkvision', range: 30 }, { id: 'low-light-vision' }] })).toBe(false);
+    expect(sameVisionDefaults({ senses }, { senses: [{ id: 'darkvision', range: 60 }] })).toBe(false);
+    expect(sameVisionDefaults({ senses }, { senses: [{ id: 'darkvision', range: 60 }, { id: 'low-light-vision', range: 60 }] })).toBe(false);
+    expect(sameVisionDefaults({ senses: [] }, undefined)).toBe(true);
+    expect(sameVisionDefaults({ senses: [] }, {})).toBe(true);
+    expect(sameVisionDefaults({ senses }, undefined)).toBe(false);
+    expect(sameVisionDefaults({ darkvision: 60 }, { senses: [{ id: 'darkvision', range: 60 }] })).toBe(false);
   });
 });

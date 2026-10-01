@@ -362,6 +362,14 @@ describe('senses', () => {
     expect(parseUserPresets([stored({ senses: [] })])[0]?.rules.senses).toEqual([]);
   });
 
+  it('decide which default senses a stored preset may give new tokens', () => {
+    const defaultTokenVision = { senses: [{ id: 'home-1', range: 30 }, { id: 'blindsight', range: 10 }, { id: 'dnd5e:truesight', range: 120 }] };
+    expect(parseUserPresets([stored({ senses: [witchSight], defaultTokenVision })])[0]?.rules.defaultTokenVision)
+      .toEqual({ senses: [{ id: 'home-1', range: 30 }, { id: 'blindsight', range: 10 }] });
+    // A preset without senses of its own uses the generic ones.
+    expect(parseUserPresets([stored({ defaultTokenVision })])[0]?.rules.defaultTokenVision).toEqual({ senses: [{ id: 'blindsight', range: 10 }] });
+  });
+
   it('of every built-in preset survive being stored as a user preset', () => {
     for (const preset of BUILT_IN_SYSTEM_PRESETS) {
       const [parsed] = parseUserPresets([{ id: 'copy', name: 'Copy', rules: structuredClone(preset.rules) }]);
