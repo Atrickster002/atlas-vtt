@@ -140,27 +140,50 @@ describe('LightingRenderer on a graphics device that cannot run the lighting', (
       return { begin: vi.fn(() => begins), finish: vi.fn() };
     }
 
-    it('begins one before the first build and finishes it the frame after the first lit render', async () => {
+    it('begins one before the first build and finishes it once the graphics process executed the first lit frame', async () => {
       const attempt = attemptThat(true);
       const build = vi.spyOn(LightingWorld.prototype, 'update');
       const h = await setup(attempt);
+      const executed = vi.spyOn(h.renderer.gl, 'finish');
       expect(attempt.begin).not.toHaveBeenCalled();
 
       switchOn(h);
       expect(attempt.begin).toHaveBeenCalledOnce();
       expect(attempt.begin.mock.invocationCallOrder[0]).toBeLessThan(build.mock.invocationCallOrder[0]!);
       h.tick();
+      h.tick();
       expect(attempt.finish).not.toHaveBeenCalled();
 
       h.renderStage();
+      expect(executed).not.toHaveBeenCalled();
+      // The frame after the render waits for the graphics process; the next one ends the attempt.
+      h.tick();
+      expect(executed).toHaveBeenCalledOnce();
       expect(attempt.finish).not.toHaveBeenCalled();
       h.tick();
       expect(attempt.finish).toHaveBeenCalledOnce();
       h.change({ objects: { ...h.state.objects, tokens: { t: visionToken(120) } } });
       h.renderStage();
       h.tick();
+      h.tick();
       expect(attempt.begin).toHaveBeenCalledOnce();
       expect(attempt.finish).toHaveBeenCalledOnce();
+      expect(executed).toHaveBeenCalledOnce();
+    });
+
+    it('leaves the attempt unfinished when the context is lost while its first frame is executed', async () => {
+      const attempt = attemptThat(true);
+      const h = await setup(attempt);
+      switchOn(h);
+      h.renderStage();
+      h.tick();
+
+      await resetContext(h.renderer, () => h.tick());
+      attempt.begin.mockReturnValue(false);
+      h.tick();
+
+      expect(attempt.finish).not.toHaveBeenCalled();
+      expect(onUnavailable.mock.calls).toEqual([['unfinished']]);
     });
 
     it('builds nothing and reports the attempt unfinished when the last one on this map never finished', async () => {
@@ -189,6 +212,41 @@ describe('LightingRenderer on a graphics device that cannot run the lighting', (
       expect(attempt.begin).toHaveBeenCalledTimes(2);
       h.lighting.beforeMapUnload();
       expect(attempt.finish).toHaveBeenCalledTimes(2);
+    });
+
+    it('lights nothing and begins no attempt while a map loads; the update that ends the load builds the scene', async () => {
+      const attempt = attemptThat(true);
+      const build = vi.spyOn(LightingWorld.prototype, 'update');
+      const h = await setup(attempt);
+      switchOn(h);
+      h.renderStage();
+      h.tick();
+      h.tick();
+      build.mockClear();
+
+      // `MapService.loadMap`: the outgoing scene, the next path, a cleared scene, the saved one.
+      h.lighting.beforeMapUnload();
+      const render = vi.spyOn(h.renderer, 'render');
+      h.change({ isMapLoading: true });
+      expect(h.lighting.layer.visible).toBe(false);
+      expect(h.renderer.backBuffer.useBackBuffer).toBe(false);
+      h.change({ mapPath: 'b.atlasmap' });
+      h.change({ lighting: { enabled: false, ambient: 0.1 }, exploredMask: null, objects: { walls: {}, lights: {}, tokens: {} } });
+      h.lighting.refreshBounds();
+      h.change({ lighting: { enabled: true, ambient: 1 }, ...tokens(visionToken(60)) });
+      h.tick();
+      expect(build).not.toHaveBeenCalled();
+      expect(render).not.toHaveBeenCalled();
+      expect(attempt.begin).toHaveBeenCalledOnce();
+
+      h.change({ isMapLoading: false });
+      expect(attempt.begin).toHaveBeenCalledTimes(2);
+      expect(build).toHaveBeenCalledOnce();
+      expect(h.lighting.layer.visible).toBe(true);
+      expect(h.lighting.layer.filters).toHaveLength(1);
+      expect(h.lighting.currentSight().origins).toEqual([{ x: 60, y: 128 }]);
+      expect(h.redAt(60, 128)).toBe(255);
+      expect(onUnavailable).not.toHaveBeenCalled();
     });
 
     it('begins again after a restored context, without finishing the attempt the loss cut short', async () => {

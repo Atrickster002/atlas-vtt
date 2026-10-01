@@ -62,6 +62,14 @@ export function contextLost(renderer: Renderer): boolean {
   return glOf(renderer)?.isContextLost() ?? false;
 }
 
+/**
+ * Returns once the graphics process has executed every command sent so far: a round trip,
+ * for the one moment that must know a frame was drawn, not merely queued.
+ */
+export function awaitGpu(renderer: Renderer): void {
+  glOf(renderer)?.finish();
+}
+
 /** Renders `container` into `target` outside the stage's render, like `ExploredTexture` does. */
 export function renderInto(renderer: Renderer, container: Container, target: RenderTexture, clearColor?: [number, number, number, number]): void {
   renderer.render(clearColor ? { container, target, clear: true, clearColor } : { container, target, clear: false });

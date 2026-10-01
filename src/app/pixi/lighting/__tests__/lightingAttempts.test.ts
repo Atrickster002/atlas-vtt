@@ -53,6 +53,22 @@ describe('StoredLightingAttempt', () => {
     expect(storage.stored()).toEqual(['maps/cave.atlasmap']);
   });
 
+  it('keeps refusing a map whose attempt was cut short, in this session and from any view', () => {
+    const storage = deviceStorage();
+    const attempt = attemptOn(storage);
+    attempt.begin();
+    attempt.begin();
+
+    expect(attempt.begin()).toBe(false);
+    expect(attemptOn(storage).begin()).toBe(false);
+    attempt.finish();
+    expect(storage.stored()).toEqual(['maps/cave.atlasmap']);
+
+    attempt.forget();
+    expect(storage.stored()).toBeNull();
+    expect(attempt.begin()).toBe(true);
+  });
+
   it('keeps the notes of other maps', () => {
     const storage = deviceStorage(['maps/crypt.atlasmap']);
     const attempt = attemptOn(storage);
@@ -68,6 +84,34 @@ describe('StoredLightingAttempt', () => {
     const second = attemptOn(storage);
     expect(first.begin()).toBe(true);
     expect(second.begin()).toBe(true);
+  });
+
+  it('keeps the note of a map until the last view attempting it is done', () => {
+    const storage = deviceStorage();
+    const first = attemptOn(storage);
+    const second = attemptOn(storage);
+    first.begin();
+    second.begin();
+
+    first.finish();
+    expect(storage.stored()).toEqual(['maps/cave.atlasmap']);
+    second.finish();
+    expect(storage.stored()).toBeNull();
+  });
+
+  it('leaves the note to a view still attempting the map when another one forgets it', () => {
+    const storage = deviceStorage();
+    const first = attemptOn(storage);
+    const second = attemptOn(storage);
+    first.begin();
+    second.begin();
+
+    first.forget();
+    expect(storage.stored()).toEqual(['maps/cave.atlasmap']);
+    expect(first.begin()).toBe(true);
+    first.finish();
+    second.finish();
+    expect(storage.stored()).toBeNull();
   });
 
   it('finishes the note of the map it began on, even after the view moved to another', () => {

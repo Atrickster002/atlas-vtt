@@ -32,14 +32,21 @@ function startRenderer(app: Application, options: Partial<ApplicationOptions>, n
   });
 }
 
-describe('PixiAppManager.init without WebGL', () => {
+describe('PixiAppManager.init when WebGL cannot start', () => {
   let manager: PixiAppManager;
   let container: HTMLElement;
   let error: ReturnType<typeof vi.spyOn>;
 
+  /** What a canvas made to ask for WebGL answers: a context, or none once WebGL is gone. */
+  function webglContexts(available: boolean): void {
+    const context = available ? { getExtension: (): null => null } : null;
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation(() => context as unknown as RenderingContext);
+  }
+
   beforeEach(() => {
     notices.length = 0;
     error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    webglContexts(true);
     manager = new PixiAppManager(800, 600);
     container = document.createElement('div');
   });
@@ -95,6 +102,19 @@ describe('PixiAppManager.init without WebGL', () => {
     await expect(manager.init(container)).rejects.toThrow('The canvas renderer could not start');
     expect(init).toHaveBeenCalledTimes(2);
     expect(error).toHaveBeenCalled();
+  });
+
+  it('starts the canvas renderer at once, on its own canvas, when no WebGL context can be created', async () => {
+    webglContexts(false);
+    const init = failWebGL(true);
+    const canvas = manager.getCanvasElement();
+
+    await manager.init(container);
+
+    expect(init).toHaveBeenCalledOnce();
+    expect(init.mock.calls[0]![0]).toMatchObject({ preference: ['canvas'], canvas });
+    expect(container.contains(canvas)).toBe(true);
+    expect(error).not.toHaveBeenCalled();
   });
 
   it('does not retry when WebGL starts', async () => {

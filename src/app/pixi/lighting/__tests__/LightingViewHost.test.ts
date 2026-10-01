@@ -30,6 +30,8 @@ function fakeView(sight: Sight = SEES_ALL): FakeView {
 }
 
 const FALLBACK_SIGHT: Sight = { ...SEES_ALL, all: false };
+const CAVE = 'maps/cave.atlasmap';
+const CRYPT = 'maps/crypt.atlasmap';
 
 interface Setup {
   host: LightingViewHost;
@@ -38,6 +40,8 @@ interface Setup {
   /** The latest engine view reports itself unavailable. */
   giveUp: (reason: LightingUnavailable) => void;
   switchLighting: (enabled: boolean) => void;
+  /** The store writes and view calls of `MapService.loadMap`, in its order. */
+  loadMap: (path: string) => void;
   forgetAttempt: ReturnType<typeof vi.fn>;
   notify: ReturnType<typeof vi.fn>;
 }
@@ -47,7 +51,13 @@ function setup(options: { canvasRenderer?: boolean; givesUpAtStart?: LightingUna
   const fallbacks: FakeView[] = [];
   const reports: ((reason: LightingUnavailable) => void)[] = [];
   const listeners = new Set<(state: ViewAtlasState, previous: ViewAtlasState) => void>();
-  let state = { lighting: { enabled: true, ambient: 1 } } as ViewAtlasState;
+  let state = { mapPath: CAVE, isMapLoading: false, lighting: { enabled: true, ambient: 1 } } as ViewAtlasState;
+  const write = (patch: Partial<ViewAtlasState>): void => {
+    const previous = state;
+    state = { ...state, ...patch };
+    // As zustand notifies: a listener removed by an earlier one in the round is not called.
+    listeners.forEach((listener) => listener(state, previous));
+  };
   const store = {
     getState: () => state,
     subscribe: (listener: (state: ViewAtlasState, previous: ViewAtlasState) => void) => (listeners.add(listener), () => listeners.delete(listener)),
@@ -79,10 +89,15 @@ function setup(options: { canvasRenderer?: boolean; givesUpAtStart?: LightingUna
     engines,
     fallbacks,
     giveUp: (reason) => reports.at(-1)!(reason),
-    switchLighting: (enabled) => {
-      const previous = state;
-      state = { ...state, lighting: { ...state.lighting, enabled } };
-      for (const listener of listeners) listener(state, previous);
+    switchLighting: (enabled) => write({ lighting: { ...state.lighting, enabled } }),
+    loadMap: (path) => {
+      host.beforeMapUnload(); // 'map-unloading'
+      write({ isMapLoading: true }); // setMapLoading(true, 0)
+      write({ mapPath: path }); // setMapPath
+      write({ lighting: { enabled: false, ambient: 0.1 } }); // clearMapState
+      host.refreshBounds(); // the map image is in
+      write({ lighting: { enabled: true, ambient: 1 } }); // persist.rehydrate
+      write({ isMapLoading: false }); // the loading screen goes
     },
     forgetAttempt,
     notify,
@@ -186,6 +201,73 @@ describe('LightingViewHost', () => {
     expect(notify.mock.calls).toEqual([[true], [false]]);
     switchLighting(false);
     expect(engines).toHaveLength(2);
+  });
+
+  it('keeps its one engine view through map loads, which pass through lighting off', () => {
+    const { engines, fallbacks, loadMap, forgetAttempt, notify } = setup();
+    loadMap(CRYPT);
+    loadMap(CAVE);
+    loadMap(CAVE);
+    expect(engines).toHaveLength(1);
+    expect(engines[0]!.destroyed).toBe(false);
+    expect(fallbacks).toHaveLength(0);
+    expect(forgetAttempt).not.toHaveBeenCalled();
+    expect(notify).not.toHaveBeenCalled();
+  });
+
+  it('does not take a map load for the GM\'s retry: reloading the marked map keeps its note', () => {
+    const { host, engines, fallbacks, giveUp, loadMap, forgetAttempt, notify } = setup({ givesUpAtStart: 'unfinished' });
+
+    loadMap(CAVE);
+
+    // The engine is back to decide for the map that arrived, and nothing was forgotten.
+    expect(forgetAttempt).not.toHaveBeenCalled();
+    expect(engines).toHaveLength(2);
+    expect(fallbacks[0]!.destroyed).toBe(true);
+    // Its attempt on the marked map is refused again; the GM was told about this map already.
+    giveUp('unfinished');
+    expect(engines[1]!.destroyed).toBe(true);
+    expect(fallbacks).toHaveLength(2);
+    expect(host.currentSight()).toBe(FALLBACK_SIGHT);
+    expect(forgetAttempt).not.toHaveBeenCalled();
+    expect(notify).toHaveBeenCalledOnce();
+  });
+
+  it('lights another map loaded into a view that was held back, and tells the GM when that one is marked too', () => {
+    const { host, engines, giveUp, loadMap, forgetAttempt, notify } = setup({ givesUpAtStart: 'unfinished' });
+    loadMap(CRYPT);
+    expect(engines).toHaveLength(2);
+    expect(host.currentSight()).toBe(SEES_ALL);
+    expect(notify).toHaveBeenCalledOnce();
+
+    giveUp('unfinished');
+    expect(notify.mock.calls).toEqual([[true], [true]]);
+    expect(forgetAttempt).not.toHaveBeenCalled();
+  });
+
+  it('still retries for the GM after a load: off forgets the note, and the next refusal is told again', () => {
+    const { engines, giveUp, loadMap, switchLighting, forgetAttempt, notify } = setup({ givesUpAtStart: 'unfinished' });
+    loadMap(CAVE);
+    giveUp('unfinished');
+
+    switchLighting(false);
+    expect(forgetAttempt).toHaveBeenCalledOnce();
+    expect(engines).toHaveLength(3);
+    switchLighting(true);
+    giveUp('unfinished');
+    expect(notify).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not let a view that cannot be torn down throw into the store or the ticker', () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const { host, engines, giveUp } = setup();
+    engines[0]!.destroy = (): void => {
+      throw new TypeError('the world was dropped halfway');
+    };
+    expect(() => giveUp('failed')).not.toThrow();
+    expect(host.currentSight()).toBe(FALLBACK_SIGHT);
+    expect(error).toHaveBeenCalledOnce();
+    error.mockRestore();
   });
 
   it('destroys whichever view it holds, and stops listening', () => {

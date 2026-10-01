@@ -1,16 +1,8 @@
-import type { App } from 'obsidian';
-import { Container, Graphics, RenderTexture, type Application, type WebGLRenderer } from 'pixi.js';
-import type { Viewport } from 'pixi-viewport';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { MeasurementSettings } from '../../../grid/measurementFormat';
-import type { ViewAtlasState, ViewAtlasStore } from '../../../storeFactory';
-import { createTestRenderer } from '../engine/__tests__/gpuTestUtils';
 import { watchGl } from '../engine/__tests__/strictGl';
 import { LightingWorld } from '../engine/LightingWorld';
-import { createSceneLighting } from '../createSceneLighting';
-import { LIGHTING_ATTEMPTS_KEY } from '../lightingAttempts';
-import type { LightingViewHost } from '../LightingViewHost';
-import { SAVE_DELAY, SIZE, visionToken } from './rendererHarness';
+import { SAVE_DELAY } from './rendererHarness';
+import { CAVE, breakLinking, createScene, darkness, engineLayer, litScene, type Scene, type SceneOptions } from './sceneLightingHarness';
 
 const notices = vi.hoisted(() => [] as string[]);
 vi.mock('obsidian', () => ({
@@ -21,20 +13,7 @@ vi.mock('obsidian', () => ({
   },
 }));
 
-const MAP = 'maps/cave.atlasmap';
 const SAVED_MASK = 'data:image/png;base64,AAAA';
-
-interface Scene {
-  renderer: WebGLRenderer;
-  viewport: Container;
-  host: LightingViewHost;
-  setExploredMask: ReturnType<typeof vi.fn>;
-  /** The lighting notes in this device's local storage. */
-  noted: () => unknown;
-  switchLighting: (enabled: boolean) => void;
-  tick: () => void;
-  renderStage: () => void;
-}
 
 describe('scene lighting on a graphics device that cannot run the engine', () => {
   const cleanup: (() => void)[] = [];
@@ -53,75 +32,10 @@ describe('scene lighting on a graphics device that cannot run the engine', () =>
     vi.unstubAllGlobals();
   });
 
-  async function setup({ enabled, noted = null }: { enabled: boolean; noted?: string[] | null }): Promise<Scene> {
-    const renderer = await createTestRenderer(SIZE);
-    const viewport = new Container();
-    const target = RenderTexture.create({ width: SIZE, height: SIZE });
-    const setExploredMask = vi.fn();
-    const listeners = new Set<(state: ViewAtlasState, previous: ViewAtlasState) => void>();
-    let state = {
-      mapPath: MAP,
-      lighting: { enabled, ambient: 0 },
-      objects: { walls: {}, lights: {}, tokens: { t: visionToken(100, 128, 5) } },
-      grid: null,
-      exploredMask: SAVED_MASK,
-      setExploredMask,
-    } as unknown as ViewAtlasState;
-    const store = {
-      getState: () => state,
-      subscribe: (listener: (state: ViewAtlasState, previous: ViewAtlasState) => void) => (listeners.add(listener), () => listeners.delete(listener)),
-    } as unknown as ViewAtlasStore;
-    const storage = new Map<string, unknown>([[LIGHTING_ATTEMPTS_KEY, noted]]);
-    const obsApp = {
-      loadLocalStorage: (key: string): unknown => storage.get(key) ?? null,
-      saveLocalStorage: (key: string, data: unknown): void => void storage.set(key, data),
-    } as unknown as App;
-    const ticks: (() => void)[] = [];
-    const app = { renderer, ticker: { add: (tick: () => void) => ticks.push(tick), remove: (tick: () => void) => ticks.splice(ticks.indexOf(tick), 1) } } as unknown as Application;
-    const host = createSceneLighting({
-      viewport: viewport as unknown as Viewport,
-      app,
-      store,
-      obsApp,
-      measurement: () => ({ unitDistance: 5 }) as unknown as MeasurementSettings,
-      bounds: () => ({ width: SIZE, height: SIZE }),
-      albedo: () => null,
-    });
-    cleanup.push(() => {
-      host.destroy();
-      viewport.destroy({ children: true });
-      target.destroy(true);
-      renderer.destroy();
-    });
-    return {
-      renderer,
-      viewport,
-      host,
-      setExploredMask,
-      noted: () => storage.get(LIGHTING_ATTEMPTS_KEY) ?? null,
-      switchLighting: (on) => {
-        const previous = state;
-        state = { ...state, lighting: { ...state.lighting, enabled: on } };
-        for (const listener of [...listeners]) listener(state, previous);
-      },
-      tick: () => [...ticks].forEach((tick) => tick()),
-      renderStage: () => renderer.render({ container: viewport, target, clear: true }),
-    };
-  }
-
-  /** Every program link fails from now on, as on a driver that rejects the shaders. */
-  function breakLinking(renderer: WebGLRenderer): void {
-    const { gl } = renderer;
-    const original = gl.getProgramParameter.bind(gl);
-    vi.spyOn(gl, 'getProgramParameter').mockImplementation((program: WebGLProgram, name: number): unknown => (name === gl.LINK_STATUS ? false : original(program, name)));
-  }
-
-  function engineLayer(viewport: Container): Container | undefined {
-    return viewport.children.find((child) => child.label === 'lighting');
-  }
-
-  function darkness(viewport: Container): Graphics | undefined {
-    return viewport.children.find((child): child is Graphics => child instanceof Graphics);
+  async function setup(options: SceneOptions): Promise<Scene> {
+    const scene = await createScene({ exploredMask: SAVED_MASK, ...options });
+    cleanup.push(scene.dispose);
+    return scene;
   }
 
   it('swaps to line of sight when the shaders do not link: one notice, clean renders, nothing saved', async () => {
@@ -169,7 +83,7 @@ describe('scene lighting on a graphics device that cannot run the engine', () =>
 
   it('starts with line of sight when the last attempt on this map never finished, and retries after off and on', async () => {
     const build = vi.spyOn(LightingWorld.prototype, 'update');
-    const scene = await setup({ enabled: true, noted: [MAP] });
+    const scene = await setup({ enabled: true, noted: [CAVE] });
     const { renderer, viewport, host } = scene;
 
     expect(notices).toEqual(['Dynamic lighting could not run on this graphics device. Atlas shows line of sight without light and shadow. Switch dynamic lighting off and on to try again.']);
@@ -177,7 +91,7 @@ describe('scene lighting on a graphics device that cannot run the engine', () =>
     expect(engineLayer(viewport)).toBeUndefined();
     expect(renderer.backBuffer.useBackBuffer).toBe(false);
     expect(host.currentSight().all).toBe(false);
-    expect(scene.noted()).toEqual([MAP]);
+    expect(scene.noted()).toEqual([CAVE]);
 
     scene.switchLighting(false);
     expect(scene.noted()).toBeNull();
@@ -187,21 +101,48 @@ describe('scene lighting on a graphics device that cannot run the engine', () =>
     expect(build).toHaveBeenCalled();
     expect(engineLayer(viewport)?.filters).toHaveLength(1);
     expect(renderer.backBuffer.useBackBuffer).toBe(true);
-    expect(scene.noted()).toEqual([MAP]);
+    expect(scene.noted()).toEqual([CAVE]);
 
     scene.renderStage();
+    scene.tick();
     scene.tick();
     expect(scene.noted()).toBeNull();
     expect(notices).toHaveLength(1);
   });
 
+  it('stays on line of sight when the marked map is loaded again in the view: a load is not the retry of the GM', async () => {
+    const build = vi.spyOn(LightingWorld.prototype, 'update');
+    const scene = await setup({ enabled: true, noted: [CAVE], exploredMask: null });
+
+    // `reloadActiveScene`, as after a snapshot restore or an asset transfer.
+    scene.loadMap(CAVE, litScene(100, 128), { width: 256, height: 256 });
+
+    expect(scene.noted()).toEqual([CAVE]);
+    expect(build).not.toHaveBeenCalled();
+    expect(engineLayer(scene.viewport)).toBeUndefined();
+    expect(darkness(scene.viewport)).toBeDefined();
+    expect(scene.host.currentSight().all).toBe(false);
+    expect(notices).toHaveLength(1);
+
+    // Another map in the same view is the engine's to light; coming back is refused again.
+    scene.loadMap('maps/crypt.atlasmap', litScene(60, 60), { width: 256, height: 256 });
+    expect(build).toHaveBeenCalled();
+    expect(engineLayer(scene.viewport)?.filters).toHaveLength(1);
+    scene.loadMap(CAVE, litScene(100, 128), { width: 256, height: 256 });
+    expect(engineLayer(scene.viewport)).toBeUndefined();
+    expect(scene.noted()).toEqual([CAVE]);
+    expect(notices).toHaveLength(1);
+  });
+
   it('notes the map only until the engine drew its first frame', async () => {
     const scene = await setup({ enabled: true });
-    expect(scene.noted()).toEqual([MAP]);
+    expect(scene.noted()).toEqual([CAVE]);
     expect(engineLayer(scene.viewport)?.filters).toHaveLength(1);
     scene.tick();
-    expect(scene.noted()).toEqual([MAP]);
+    expect(scene.noted()).toEqual([CAVE]);
     scene.renderStage();
+    scene.tick();
+    expect(scene.noted()).toEqual([CAVE]);
     scene.tick();
     expect(scene.noted()).toBeNull();
     expect(notices).toEqual([]);

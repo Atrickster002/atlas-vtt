@@ -4,6 +4,7 @@ import { SmoothDecelerate } from "./SmoothDecelerate";
 import { RenderScheduler } from "./RenderScheduler";
 import { destroyTree } from "./utils/destroyTree";
 import { usesCanvasRenderer } from "./utils/rendererType";
+import { webglAvailable } from "./utils/webglAvailable";
 import { showSoftwareRenderingNotice } from "./softwareRenderingNotice";
 
 type RendererPreference = 'webgl' | 'canvas';
@@ -94,11 +95,19 @@ export class PixiAppManager {
   /**
    * Atlas ships GLSL shaders only; without WebGL it draws with Canvas 2D instead of WebGPU.
    * PIXI picks Canvas 2D by itself only when WebGL is missing at its first check, whose answer
-   * it keeps: when a context cannot be created later (the graphics process gave up, the driver
-   * was reset), its init throws. Then Canvas 2D gets one try of its own, on a new canvas, since
-   * one that was asked for WebGL may never give a 2D context.
+   * it keeps, so Atlas asks again before every start (`webglAvailable`) and goes straight to
+   * Canvas 2D when WebGL is gone: PIXI never builds a WebGL renderer that cannot start.
+   *
+   * Should WebGL fail to start all the same, Canvas 2D gets one try of its own, on a new
+   * canvas, since one that was asked for WebGL may never give a 2D context. PIXI keeps no
+   * reference to the renderer whose start threw, so that one cannot be destroyed: its
+   * scheduler stays on PIXI's system ticker, with nothing to do.
    */
   private async initRenderer(): Promise<void> {
+    if (!webglAvailable()) {
+      await this.app.init(this.rendererOptions(['canvas']));
+      return;
+    }
     try {
       await this.app.init(this.rendererOptions(['webgl', 'canvas']));
     } catch (error) {

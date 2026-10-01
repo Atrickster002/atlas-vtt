@@ -13,7 +13,7 @@ import { exploredShapes } from '../../vision/exploredShapes';
 import type { MapBounds } from '../../vision/visibility';
 import type { HideableLayer } from '../playerSafeFrame';
 import { requestRender } from '../RenderScheduler';
-import { contextLost } from './engine/gpu';
+import { awaitGpu, contextLost } from './engine/gpu';
 import { LightingEngine } from './engine/LightingEngine';
 import type { EngineScene } from './engine/types';
 import { ExploredMemory } from './ExploredMemory';
@@ -47,8 +47,11 @@ export interface LightingRendererDeps {
 
 type Watched = Pick<ViewAtlasState, 'objects' | 'lighting' | 'grid' | 'exploredMask'>;
 type SceneWithoutLook = Omit<EngineScene, keyof SceneLook>;
-/** From the build that begins an attempt, over the first lit frame, to the tick after it. */
-type AttemptState = 'none' | 'begun' | 'drawn' | 'done';
+/**
+ * From the build that begins an attempt, over the first lit frame and the tick that waits for
+ * the graphics process to execute it, to the tick after that one.
+ */
+type AttemptState = 'none' | 'begun' | 'drawn' | 'executed' | 'done';
 
 /**
  * Scene lighting for one map view: feeds the store's walls, lights and vision tokens to the
@@ -163,7 +166,9 @@ export class LightingRenderer implements SceneLightingView {
 
   private update(state: ViewAtlasState): void {
     const { lighting } = state;
-    const bounds = lighting.enabled ? this.deps.bounds() : null;
+    // A load rewrites the store in steps (the next map's path, a cleared scene, the saved one):
+    // lighting is off for its duration, and the update that ends it builds the scene whole.
+    const bounds = lighting.enabled && !state.isMapLoading ? this.deps.bounds() : null;
     if (!bounds) {
       // Nothing is drawn while off; the next update after switching on rebuilds everything.
       this.engine.setEnabled(false);
@@ -233,8 +238,22 @@ export class LightingRenderer implements SceneLightingView {
 
   /** Lighting goes off or the map leaves: an attempt still open ends without a verdict. */
   private endAttempt(): void {
-    if (this.attemptState === 'begun' || this.attemptState === 'drawn') this.deps.attempt?.finish();
+    if (this.attemptState !== 'none' && this.attemptState !== 'done') this.deps.attempt?.finish();
     this.attemptState = 'none';
+  }
+
+  /**
+   * The frame after the first lit render waits until the graphics process has executed it
+   * (`awaitGpu`); the frame after that, which `run` skips on a lost context, ends the attempt.
+   */
+  private settleAttempt(): void {
+    if (this.attemptState === 'drawn') {
+      awaitGpu(this.deps.app.renderer);
+      this.attemptState = 'executed';
+    } else if (this.attemptState === 'executed') {
+      this.deps.attempt?.finish();
+      this.attemptState = 'done';
+    }
   }
 
   /** The composite maps screen pixels to the world with the camera of the frame being rendered. */
@@ -246,11 +265,7 @@ export class LightingRenderer implements SceneLightingView {
   }
 
   private animate(): void {
-    // A tick after the first lit frame: the device took it.
-    if (this.attemptState === 'drawn') {
-      this.deps.attempt?.finish();
-      this.attemptState = 'done';
-    }
+    this.settleAttempt();
     if (!this.layer.visible || !this.engine.busy()) return;
     // ponytail: animated lights redraw the whole light map even while off-screen; cull to the viewport if that gets slow.
     if (this.engine.animate(performance.now())) requestRender(this.deps.app);

@@ -12,8 +12,11 @@ export interface LightingAttempt {
 
 type LocalStorage = Pick<App, 'loadLocalStorage' | 'saveLocalStorage'>;
 
-/** Maps a view of this session is attempting now: their notes are not left over from a crash. */
-const running = new Set<string>();
+/**
+ * How many views of this session are attempting each map now: a note on such a map is not left
+ * over from a crash, and it stays until the last of them is done.
+ */
+const running = new Map<string, number>();
 
 /**
  * The crash-loop breaker of dynamic lighting. A graphics process that dies while the engine
@@ -32,29 +35,47 @@ export class StoredLightingAttempt implements LightingAttempt {
   begin(): boolean {
     const path = this.mapPath();
     if (!path) return true;
+    if (this.open === path) {
+      // This view's own attempt, begun again: a lost WebGL context cut it short. It no longer
+      // runs, and its note stays for every later start, in this session too.
+      this.stopRunning();
+      return false;
+    }
     const noted = this.read();
-    // This view's own attempt, begun again: a lost WebGL context cut it short.
-    if (this.open === path || (noted.includes(path) && !running.has(path))) return false;
+    if (noted.includes(path) && !running.has(path)) return false;
     this.finish();
     this.open = path;
-    running.add(path);
-    this.write([...noted.filter((other) => other !== path), path]);
+    running.set(path, (running.get(path) ?? 0) + 1);
+    if (!noted.includes(path)) this.write([...noted, path]);
     return true;
   }
 
   finish(): void {
-    if (this.open) this.drop(this.open);
+    const path = this.stopRunning();
+    if (path && !running.has(path)) this.erase(path);
   }
 
-  /** Drops the note on the view's map, whoever left it: the GM asks for another attempt. */
+  /**
+   * The GM asks for another attempt on the view's map: its note goes, whoever left it, unless
+   * another view is attempting the map right now (that view's finish removes it).
+   */
   forget(): void {
-    const path = this.open ?? this.mapPath();
-    if (path) this.drop(path);
+    const path = this.stopRunning() ?? this.mapPath();
+    if (path && !running.has(path)) this.erase(path);
   }
 
-  private drop(path: string): void {
+  /** Ends this view's part in the attempt it has open and returns that map's path. */
+  private stopRunning(): string | null {
+    const path = this.open;
+    if (!path) return null;
     this.open = null;
-    running.delete(path);
+    const others = (running.get(path) ?? 1) - 1;
+    if (others > 0) running.set(path, others);
+    else running.delete(path);
+    return path;
+  }
+
+  private erase(path: string): void {
     const noted = this.read();
     if (noted.includes(path)) this.write(noted.filter((other) => other !== path));
   }

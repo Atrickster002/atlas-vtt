@@ -11,7 +11,7 @@ export interface LightingViewHostDeps {
   /** The GPU engine's view; it calls `onUnavailable` once when it cannot light the map, and has stopped by then. */
   createEngineView: (onUnavailable: (reason: LightingUnavailable) => void) => SceneLightingView;
   createFallback: () => SceneLightingView;
-  /** Drops the device's note of an attempt on this map that never finished. */
+  /** Drops the device's note of an attempt on the view's map that never finished. */
   forgetAttempt: () => void;
   /** Tells the GM that line of sight stands in for dynamic lighting; `canRetry` when switching it off and on tries again. */
   notify: (canRetry: boolean) => void;
@@ -43,18 +43,31 @@ class ModeLayer implements HideableLayer {
  * not compile here, or a pass threw) for the rest of this view's life, `unfinished` (its last
  * attempt on this map never drew a frame, so it may have crashed the graphics process) until
  * the GM switches dynamic lighting off, which forgets that attempt and brings the engine back.
+ * A map load brings the engine back too, but forgets nothing: every load passes through
+ * lighting off, and the engine's attempt on the map that arrives decides again.
  */
 export class LightingViewHost implements SceneLightingView {
   readonly modeLayer: HideableLayer = new ModeLayer(() => this.view);
   private view: SceneLightingView;
   private previewing = false;
-  private retryOnSwitchOff = false;
+  /** The fallback stands in for an unfinished attempt, not for an engine that failed. */
+  private heldBack = false;
+  /** The map whose unfinished attempt the GM was last told about, so a reload does not say it again. */
+  private toldAbout: string | null = null;
   private readonly unsubscribe: () => void;
 
   constructor(private readonly deps: LightingViewHostDeps) {
     this.view = deps.canvasRenderer ? deps.createFallback() : this.startEngine();
     this.unsubscribe = deps.store.subscribe((state, previous) => {
-      if (this.retryOnSwitchOff && previous.lighting.enabled && !state.lighting.enabled) this.retryEngine();
+      if (!this.heldBack) return;
+      if (state.isMapLoading) {
+        if (!previous.isMapLoading) this.bringEngineBack();
+      } else if (previous.lighting.enabled && !state.lighting.enabled) {
+        // Only the GM switches lighting off outside a load: the attempt is theirs to repeat.
+        this.toldAbout = null;
+        this.deps.forgetAttempt();
+        this.bringEngineBack();
+      }
     });
   }
 
@@ -86,21 +99,26 @@ export class LightingViewHost implements SceneLightingView {
     start.done = true;
     if (!start.gaveUp) return view;
     const fallback = this.fallbackAfter(start.gaveUp);
-    view.destroy();
+    this.release(view);
     return fallback;
   }
 
   private fallbackAfter(reason: LightingUnavailable): SceneLightingView {
-    this.retryOnSwitchOff = reason === 'unfinished';
-    // A failure Atlas handled is no crash: the next session may try, and will be told again.
-    if (reason === 'failed') this.deps.forgetAttempt();
-    this.deps.notify(this.retryOnSwitchOff);
+    this.heldBack = reason === 'unfinished';
+    if (this.heldBack) {
+      const { mapPath } = this.deps.store.getState();
+      if (mapPath !== this.toldAbout) this.deps.notify(true);
+      this.toldAbout = mapPath;
+    } else {
+      // A failure Atlas handled is no crash: the next session may try, and will be told again.
+      this.deps.forgetAttempt();
+      this.deps.notify(false);
+    }
     return this.deps.createFallback();
   }
 
-  private retryEngine(): void {
-    this.retryOnSwitchOff = false;
-    this.deps.forgetAttempt();
+  private bringEngineBack(): void {
+    this.heldBack = false;
     this.replace(this.startEngine());
   }
 
@@ -110,6 +128,18 @@ export class LightingViewHost implements SceneLightingView {
     this.view = next;
     next.modeLayer.visible = this.modeLayer.visible;
     next.setPreview(this.previewing);
-    last.destroy();
+    this.release(last);
+  }
+
+  /**
+   * Destroys a view that was replaced. This runs inside a store notification or a tick: a view
+   * that cannot even be torn down (a world dropped halfway) must not throw into it.
+   */
+  private release(view: SceneLightingView): void {
+    try {
+      view.destroy();
+    } catch (error) {
+      console.error('Atlas: could not release the replaced lighting view', error);
+    }
   }
 }
