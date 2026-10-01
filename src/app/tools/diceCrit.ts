@@ -8,13 +8,14 @@ export type DiceCrit = 'high' | 'low' | null;
  * Classifies a roll for the toast highlight and the result sound. Only the
  * default dice count: the first dice of the default roll's size, as many as it
  * rolls. A roll with fewer of them, such as a d8 under a d20 rule, never crits.
+ * Dice rolled for an explosion are no default dice: the die that exploded is.
  */
 export function getDiceCrit(rolls: readonly RolledDie[], rules: DiceRules): DiceCrit {
   const roll = parseDefaultRoll(rules.defaultRoll);
   if (!roll || rules.crit === 'none') return null;
 
   const values = rolls
-    .filter((die) => !die.negative && die.max === roll.sides)
+    .filter((die) => !die.negative && !die.exploded && die.max === roll.sides)
     .slice(0, roll.count)
     .map((die) => die.value);
   if (values.length < roll.count) return null;

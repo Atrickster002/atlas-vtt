@@ -76,7 +76,7 @@ export class DiceTool {
   private parseAndRoll(formula: string): DiceRollResult {
     const rules = this.getDiceRules();
     const complete = hasDiceTerm(formula) ? formula : withDefaultRoll(formula, rules.defaultRoll);
-    const { rolls, modifiers, total } = rollFormula(complete);
+    const { rolls, modifiers, total } = rollFormula(complete, Math.random, rules);
 
     return {
       id: `roll_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`,

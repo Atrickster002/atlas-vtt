@@ -33,6 +33,10 @@ import { STAGE_FOV, StageCamera } from './stageCamera';
 export interface StageDie {
   anim: DieAnim;
   sides: DieSides;
+  /** Rolled for an explosion: not on the table until it is thrown. */
+  waits?: boolean;
+  /** The die exploded: it lands with this burst, whatever the roll as a whole is. */
+  burst?: Crit;
 }
 
 const KEY_INTENSITY = 0.95;
@@ -249,8 +253,10 @@ export class DiceRenderer {
       if (die === undefined) continue;
       const anim = die.anim;
       // The waiting die lies visibly in place; the delay hides nothing any
-      // more, it is the stillness before the push.
-      mesh.visible = true;
+      // more, it is the stillness before the push. Only a die rolled for an
+      // explosion is not there yet: it exists once the die before it burst.
+      mesh.visible = !(die.waits === true && anim.phase === 'throw' && anim.delay > 0);
+      if (!mesh.visible) continue;
       mesh.position.set(anim.p[0], anim.p[1], anim.p[2]);
       mesh.quaternion.set(anim.q.x, anim.q.y, anim.q.z, anim.q.w);
       mesh.scale.setScalar(anim.radius);
@@ -259,7 +265,7 @@ export class DiceRenderer {
       if (hit !== null) this.sparks.emit(hit);
       if (anim.impact?.kind === 'settle' && !this.landed[i]) {
         this.landed[i] = true;
-        this.sparks.emit(landingSparks(anim, crit));
+        this.sparks.emit(landingSparks(anim, die.burst ?? crit));
       } else if (anim.phase === 'throw' && anim.t < 0.2) {
         this.landed[i] = false;
       }

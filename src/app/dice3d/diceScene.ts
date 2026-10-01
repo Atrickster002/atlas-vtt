@@ -35,6 +35,13 @@ export interface DiePlan {
    * and rounded up. Without it the face counts as is.
    */
   fold?: number;
+  /**
+   * The die was rolled because the die at this place in the plan exploded: it
+   * is thrown only once that die has landed.
+   */
+  follows?: number;
+  /** The die of an explosion downwards: it subtracts. */
+  subtracts?: true;
 }
 
 /**
@@ -62,21 +69,25 @@ function isBody(sides: number): sides is DieSides {
  * real bodies.
  *
  * Subtracted dice are rejected: on the stage they would be a die whose pips
- * have to be subtracted without that being visible. A percentile roll only
+ * have to be subtracted without that being visible. The die of an explosion
+ * downwards is the exception: the die before it bursts as a failure and the
+ * die is thrown for it alone, which says what it does. A percentile roll only
  * stands alone, because its tens and units are read by their place.
  *
  * A mimicked die lands on the highest face of its band (a d2's 2 shows the
  * d6's 6), so the face always reads back as the value everyone sees.
  */
 export function sceneFromRolls(
-  rolls: readonly Pick<RolledDie, 'max' | 'value' | 'negative'>[],
+  rolls: readonly Pick<RolledDie, 'max' | 'value' | 'negative' | 'exploded'>[],
 ): DiceScene | null {
   if (rolls.length === 0) return null;
 
   const plan: DiePlan[] = [];
   const faces: number[] = [];
   for (const roll of rolls) {
-    if (roll.negative) return null;
+    const follower = roll.exploded === true && plan.length > 0;
+    if (roll.negative && !follower) return null;
+    const chain = follower ? { follows: plan.length - 1, ...(roll.negative && { subtracts: true as const }) } : {};
 
     if (roll.max === 100) {
       if (rolls.length !== 1) return null;
@@ -89,18 +100,29 @@ export function sceneFromRolls(
 
     const mimic = MIMIC[roll.max];
     if (mimic !== undefined) {
-      plan.push({ sides: mimic.body, role: 'plain', fold: mimic.fold });
+      plan.push({ sides: mimic.body, role: 'plain', fold: mimic.fold, ...chain });
       faces.push(roll.value * mimic.fold);
       continue;
     }
 
     if (!isBody(roll.max)) return null;
-    plan.push({ sides: roll.max, role: 'plain' });
+    plan.push({ sides: roll.max, role: 'plain', ...chain });
     faces.push(roll.value);
   }
 
   if (plan.length > MAX_DICE) return null;
   return { plan, faces };
+}
+
+/** How many dice the longest chain of explosions throws after its first die; 0 when nothing exploded. */
+export function chainDepth(plan: readonly DiePlan[]): number {
+  let longest = 0;
+  let current = 0;
+  for (const die of plan) {
+    current = die.follows === undefined ? 0 : current + 1;
+    longest = Math.max(longest, current);
+  }
+  return longest;
 }
 
 /** How wide the stage is relative to its depth (`STAGE_X`, `STAGE_Z`). */

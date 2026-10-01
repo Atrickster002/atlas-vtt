@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { motion, useReducedMotion } from 'framer-motion';
 import { cn } from '../../../../utils/cn';
 import { CloseButton } from '../../../packages/components/primitives/CloseButton';
-import { layoutDice, restingFrame, type DiceScene } from '../../../dice3d/diceScene';
+import { chainDepth, layoutDice, restingFrame, type DiceScene } from '../../../dice3d/diceScene';
 import type { ThrowStyle } from '../../../dice3d/diceDisplay';
 import { ratchet, reveal } from '../../../dice3d/audio/diceSounds';
 import type { DiceRollResult } from '../../../tools/DiceTool';
@@ -55,9 +55,13 @@ const LEAVE_REDUCED_MS = 130;
  */
 const MORPH = { type: 'spring', duration: 0.42, bounce: 0.16 } as const;
 
-/** How long the panel stays before it leaves on its own. */
-function lingerMs(landed: boolean, compact: boolean): number {
-  if (!landed) return LINGER_STUCK_MS;
+/**
+ * How long the panel stays before it leaves on its own. `throws` is how many
+ * throws follow one another: one, and one more for every die of the longest
+ * chain of explosions, each of which the ripcord has to wait out.
+ */
+function lingerMs(landed: boolean, compact: boolean, throws: number): number {
+  if (!landed) return LINGER_STUCK_MS * throws;
   return compact ? LINGER_COMPACT_MS : LINGER_MS;
 }
 
@@ -124,9 +128,9 @@ export function DiceRollPanel({ result, scene, compact: compactNow, leaving, mut
   // The clock runs from the start: if the dice never land, the ripcord pulls.
   useEffect(() => {
     if (leaving) return;
-    const timer = window.setTimeout(close, lingerMs(landed, compact));
+    const timer = window.setTimeout(close, lingerMs(landed, compact, 1 + chainDepth(scene.plan)));
     return (): void => window.clearTimeout(timer);
-  }, [landed, compact, leaving, close]);
+  }, [landed, compact, leaving, close, scene]);
 
   const tap = (): void => {
     if (stageRef.current?.skip()) return;

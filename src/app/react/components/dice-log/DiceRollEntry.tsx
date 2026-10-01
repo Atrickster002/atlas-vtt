@@ -5,6 +5,7 @@ import type { DiceRollResult } from '../../../tools/DiceTool';
 import { TokenPortrait } from '../../../packages/components/shared/TokenPortrait';
 import { useDiceAvatar } from '../dice/useDiceAvatar';
 import { LabelTooltip } from '../../../packages/components/primitives/tooltip';
+import { dieLabel } from '../../../tools/diceLabels';
 
 interface DiceRollEntryProps {
   result: DiceRollResult;
@@ -117,7 +118,7 @@ export function DiceRollEntry({ result, isNew, onRepeat }: DiceRollEntryProps): 
                   roll.value === 1 && 'dice-log-entry__badge--min',
                 )}
               >
-                {roll.die}: {roll.value}
+                {dieLabel(result.rolls, i)}
               </span>
             ))}
           </div>

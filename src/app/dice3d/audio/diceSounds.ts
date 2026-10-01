@@ -225,6 +225,33 @@ export function reveal(crit: 'high' | 'low' | null): void {
 }
 
 /**
+ * The burst of an exploding die: glass, the one material in the pool that
+ * breaks. Upwards it is bright and short, a pane cracking; downwards, where the
+ * next die will subtract, the same piece is pitched down and dulled, something
+ * giving way. A blink of metal gives both their edge.
+ */
+export function burst(downwards = false): void {
+  const c = audio();
+  if (c === null) return;
+  if (!whenReady(() => burst(downwards))) return;
+  voice({
+    urls: POOLS.glass,
+    rate: (downwards ? 0.62 : 1.25) * jitter(0.08),
+    gain: 0.5,
+    highpass: downwards ? 300 : 900,
+    ...(downwards && { lowpass: 3200 }),
+    decay: downwards ? 0.3 : 0.22,
+  });
+  voice({
+    urls: POOLS.metal,
+    rate: (downwards ? 0.8 : 1.9) * jitter(0.1),
+    gain: 0.16,
+    highpass: 1800,
+    decay: 0.12,
+  });
+}
+
+/**
  * A modifier clicking in: not a second roll or verdict but a ratchet, a short
  * hard strike like a counter advancing one place. Two layers like a wheel
  * tooth, shorter and brighter. Each further modifier sits a little higher than
