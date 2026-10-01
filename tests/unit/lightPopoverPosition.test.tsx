@@ -3,7 +3,7 @@ import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
 import { MotionGlobalConfig } from 'framer-motion';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import type { Application } from 'pixi.js';
-import { emissionOfPreset } from '../../src/app/lighting/lightEmissionForm';
+import { genericLight } from '../mocks/lights';
 import { LightPopoverHost } from '../../src/app/pixi/lighting/LightPopover';
 import { AtlasUIContext, type AtlasUIContextValue } from '../../src/app/react/root/AtlasUIContext';
 import { ViewStoreProvider } from '../../src/app/react/ViewStoreContext';
@@ -52,8 +52,8 @@ function setup(): Setup {
   store.getState().setPersistenceEnabled(false);
   store.getState().setSceneLighting({ enabled: true });
   // A candle (bright 5 ft: 70 px) so the popover's place beyond the ring is easy to follow.
-  const torch = store.getState().addLight({ x: 300, y: 400, emission: { ...emissionOfPreset('candle'), kind: 'candle' } });
-  const lantern = store.getState().addLight({ x: 900, y: 400, emission: { ...emissionOfPreset('candle'), kind: 'candle' } });
+  const torch = store.getState().addLight({ x: 300, y: 400, emission: { ...genericLight('candle'), kind: 'candle' } });
+  const lantern = store.getState().addLight({ x: 900, y: 400, emission: { ...genericLight('candle'), kind: 'candle' } });
   const camera = { x: 0, y: 0, zoom: 1 };
   const viewport = {
     scale: { get x() { return camera.zoom; } },
@@ -126,7 +126,7 @@ describe('the light popover on the map', () => {
     const { store, torch, frame, position } = setup();
     act(() => store.getState().openLightPopover(torch));
     const before = position();
-    act(() => store.getState().updateLight(torch, { emission: { ...emissionOfPreset('candle'), bright: 30, dim: 40 } }));
+    act(() => store.getState().updateLight(torch, { emission: { ...genericLight('candle'), bright: 30, dim: 40 } }));
     frame();
     expect(position()).toEqual(before);
   });
