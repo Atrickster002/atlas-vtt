@@ -21,13 +21,13 @@ describe('visibleResources', () => {
   });
 
   it('gives each resource the slot of its place in the collection, whatever the token holds', () => {
-    const four = [def('hp', true), def('str', true), def('ammo', true), def('luck', true), def('mana', true)];
-    const holder = { resources: { ammo: { current: 4, max: 6 }, mana: { current: 1, max: 1 }, hp: { current: 3, max: 8 } } };
-    // `str` has no value, so `ammo` keeps slot 2; a fifth definition is never shown
-    expect(visibleResources(holder, four, 'dm').map((r) => [r.definition.key, r.slot])).toEqual([['hp', 0], ['ammo', 2]]);
+    const seven = ['hp', 'str', 'ammo', 'luck', 'mana', 'grit', 'fuel'].map((key) => def(key, true));
+    const holder = { resources: { ammo: { current: 4, max: 6 }, grit: { current: 1, max: 1 }, fuel: { current: 2, max: 2 }, hp: { current: 3, max: 8 } } };
+    // `str` has no value, so `ammo` keeps slot 2; a seventh definition is never shown
+    expect(visibleResources(holder, seven, 'dm').map((r) => [r.definition.key, r.slot])).toEqual([['hp', 0], ['ammo', 2], ['grit', 5]]);
   });
 
-  it('draws the first two slots as bars and the next two as wheels', () => {
-    expect([0, 1, 2, 3].map(shapeOf)).toEqual(['bar', 'bar', 'wheel', 'wheel']);
+  it('draws the first two slots as bars and the other four as wheels', () => {
+    expect([0, 1, 2, 3, 4, 5].map(shapeOf)).toEqual(['bar', 'bar', 'wheel', 'wheel', 'wheel', 'wheel']);
   });
 });

@@ -16,7 +16,7 @@
 - Cairn is a built-in game system preset, with 5-foot squares, d20 saves where a 1 always succeeds and a 20 always fails, and its conditions: Deprived, Fatigue, Critical Damage, Paralyzed, Delirious and Fleeing
 - Draw Steel is a built-in game system preset, with distances in squares, 2d10 power rolls, a Stamina bar and its nine conditions. Contributed by jSQrD-dev
 - Each collection has dice rules in its settings (new Dice tab): the default roll and how critical results are recognised (natural, roll-under, doubles or none). A bare bonus in a statblock, such as +3, now rolls with the collection's default roll, e.g. 1d10+3 in Cyberpunk RED. Every game system preset sets them
-- Tokens can track up to four resources: each game system brings its own (Cairn's STR, Daggerheart's Stress) and you can add more, like ammunition, in the collection settings' new Resources tab. The first two show as bars below the token; a third and fourth show as wheels beside it while you hover or select the token. Each resource reads its maximum from a statblock field. A scene's token settings show or hide each resource on that map, and the player view settings choose which bars players see
+- Tokens can track up to six resources: each game system brings its own (Cairn's STR, Daggerheart's Stress) and you can add more, like ammunition, in the collection settings' new Resources tab. The first two show as bars below the token; the others show as wheels beside it while you hover or select the token, two on its right and two on its left. Each resource reads its maximum from a statblock field. A scene's token settings show or hide each resource on that map, and the player view settings choose which bars players see
 
 ## Improved
 

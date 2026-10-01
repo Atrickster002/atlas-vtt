@@ -45,6 +45,7 @@ import type { HexLinkPointerHandlers } from './hexLinks/HexLinkInteraction';
 import type { LightPointerHandlers } from './lighting/LightInteraction';
 import { runInBackground } from '../utils/backgroundTask';
 import { isModHeld } from '../keyboard/modKey';
+import type { ResourcesExtent } from './TokenUIRenderer';
 
 export class TokenRenderer {
   private obsApp: ObsidianApp;
@@ -1450,7 +1451,7 @@ export class TokenRenderer {
   }
 
   /** How far a selected token's resources reach beyond its bottom, right and top edges, in world units. */
-  public resourcesExtent(tokenId: string): { below: number; right: number; above: number } {
+  public resourcesExtent(tokenId: string): Readonly<ResourcesExtent> {
     return this.uiManager.resourcesExtent(tokenId);
   }
 

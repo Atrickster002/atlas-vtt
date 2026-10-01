@@ -68,9 +68,10 @@ export class TokenControlsUI {
     </svg>`
   };
   
-  /** The token UI's two anchors again, scaled like them: below the token for bars, `wheelAnchor` for wheels. Controls live in the anchor of what they edit. */
+  /** The token UI's anchors again, scaled like them: below the token for bars, `wheelAnchor` and its mirror on the left for wheels. Controls live in the anchor of what they edit. */
   private readonly below = new Container();
   private readonly beside = new Container();
+  private readonly leftOf = new Container();
 
   // Texture cache for icons
   private iconTextureCache: Map<string, Texture> = new Map();
@@ -84,7 +85,7 @@ export class TokenControlsUI {
     this.container.visible = false;
     this.container.eventMode = 'passive'; // Allow events to pass through to tokens
     this.container.sortableChildren = true;
-    this.container.addChild(this.below, this.beside);
+    this.container.addChild(this.below, this.beside, this.leftOf);
 
     // Don't stop propagation at container level - let individual buttons handle it
     
@@ -316,16 +317,18 @@ export class TokenControlsUI {
     this.container.position.set(worldX, worldY);
     this.below.position.set(0, tokenSize / 2);
     this.beside.position.set(beside.x, beside.y);
+    this.leftOf.position.set(-beside.x, beside.y);
   }
 
   private setScale(uiScale: number): void {
     this.below.scale.set(uiScale);
     this.beside.scale.set(uiScale);
+    this.leftOf.scale.set(uiScale);
   }
 
-  /** A bar's controls hang from the token's bottom edge, a wheel's from the wheels' anchor. */
+  /** A bar's controls hang from the token's bottom edge, a wheel's from the anchor of its side. */
   private anchorOf(slot: ResourceSlot): Container {
-    return slot.kind === 'wheel' ? this.beside : this.below;
+    return { bar: this.below, wheel: this.beside, 'wheel-left': this.leftOf }[slot.kind];
   }
 
   private updateButtons(token: Character): void {
@@ -377,10 +380,13 @@ export class TokenControlsUI {
     this.anchorOf(slot).addChild(hit, minus, plus);
     const centerY = slot.top + slot.height / 2;
     const right = slot.left + slot.width;
-    const positions = slot.kind === 'wheel'
-      // A stepper on the wheel's outer side: + above -
-      ? [[minus, -1, right + WHEEL_STEPPER.gap + WHEEL_STEPPER.size / 2, centerY + (WHEEL_STEPPER.size + 1) / 2],
-        [plus, 1, right + WHEEL_STEPPER.gap + WHEEL_STEPPER.size / 2, centerY - (WHEEL_STEPPER.size + 1) / 2]] as const
+    // A wheel's stepper stands on its outer side, away from the token: + above -
+    const stepperX = slot.kind === 'wheel-left'
+      ? slot.left - WHEEL_STEPPER.gap - WHEEL_STEPPER.size / 2
+      : right + WHEEL_STEPPER.gap + WHEEL_STEPPER.size / 2;
+    const positions = slot.kind !== 'bar'
+      ? [[minus, -1, stepperX, centerY + (WHEEL_STEPPER.size + 1) / 2],
+        [plus, 1, stepperX, centerY - (WHEEL_STEPPER.size + 1) / 2]] as const
       : [[minus, -1, slot.left - BUTTON_SIZE / 2 - barDimensions.token.gap, centerY],
         [plus, 1, right + BUTTON_SIZE / 2 + barDimensions.token.gap, centerY]] as const;
     for (const [button, delta, x, y] of positions) {
