@@ -56,12 +56,13 @@ describe('openEditTokenModal', () => {
     expect(screen.queryByLabelText(/^Darkvision \(/)).toBeNull();
   });
 
-  it('shows an old token\'s darkvision and tremorsense as senses and saves them as senses', () => {
+  it('shows an old token\'s darkvision and tremorsense as senses and saves them as senses once its vision is edited', () => {
     const { saved } = open({ vision: { enabled: true, range: 120, darkvision: 60, tremorsense: 10 } });
     expect((screen.getByLabelText('Darkvision range') as HTMLInputElement).value).toBe('60');
     expect((screen.getByLabelText('Tremorsense range') as HTMLInputElement).value).toBe('10');
+    fireEvent.change(screen.getByLabelText('Tremorsense range'), { target: { value: '15' } });
     save();
-    expect(saved().vision).toEqual({ enabled: true, range: 120, senses: [{ id: darkvision.id, range: 60 }, { id: tremorsense.id, range: 10 }] });
+    expect(saved().vision).toEqual({ enabled: true, range: 120, senses: [{ id: darkvision.id, range: 60 }, { id: tremorsense.id, range: 15 }] });
   });
 
   it('adds a sense with its range and saves it', () => {

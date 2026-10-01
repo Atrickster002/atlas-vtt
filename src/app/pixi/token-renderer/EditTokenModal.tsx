@@ -160,10 +160,6 @@ function takesEnter(target: EventTarget | null): boolean {
   return (target as Element | null)?.closest?.('button, input[type="color"]') != null;
 }
 
-function lightingUpdates(vision: VisionForm, light: LightForm): Pick<TokenUpdates, 'vision' | 'light'> {
-  return { vision: visionFromForm(vision), light: lightFromForm(light) };
-}
-
 /** What the token's map and its collection say about vision and light. */
 function lightingContext(state: ViewAtlasState, app: App, rules: SenseRules): TokenLightingContext {
   const { unitType, unitDistance } = rules.unit;
@@ -206,13 +202,35 @@ export function openEditTokenModal(
     container.remove();
   };
 
-  const handleSave = ({ name, showNameplate, maxima, vision, light }: EditTokenValues): void => {
-    store.getState().updateToken(token.id, {
-      name,
-      showNameplate,
-      ...(WALLS_AND_LIGHTING_ENABLED ? lightingUpdates(vision, light) : {}),
-      ...buildResourceEdits(character ?? {}, definitions.map((definition) => ({ definition, max: maxima[definition.key] })), resourceDefaults),
-    });
+  const initial: EditTokenValues = {
+    name: character?.name ?? '',
+    showNameplate: token.showNameplate ?? false,
+    maxima: Object.fromEntries(definitions.map(({ key }) => [key, character?.resources?.[key]?.max])),
+    vision: visionForm(token.vision, lighting.senses),
+    light: lightForm(token.light, lighting.lightPresets),
+  };
+
+  /**
+   * Saves what the form changed onto the token as the store has it now: the map goes on while
+   * the modal is open (damage, a carried light, a move), and a field the GM did not touch must
+   * not put back what the token had when the modal opened.
+   */
+  const handleSave = (values: EditTokenValues): void => {
+    const current = store.getState().objects.tokens[token.id];
+    const changed = <K extends keyof EditTokenValues>(key: K): boolean => JSON.stringify(values[key]) !== JSON.stringify(initial[key]);
+    const maxima = definitions.filter(({ key }) => values.maxima[key] !== initial.maxima[key]);
+    const updates: TokenUpdates = {
+      ...(changed('name') && { name: values.name }),
+      ...(changed('showNameplate') && { showNameplate: values.showNameplate }),
+      ...(WALLS_AND_LIGHTING_ENABLED && changed('vision') && { vision: visionFromForm(values.vision) }),
+      ...(WALLS_AND_LIGHTING_ENABLED && changed('light') && { light: lightFromForm(values.light) }),
+      ...(maxima.length > 0 && current && buildResourceEdits(
+        current.kind === 'character' ? current : {},
+        maxima.map((definition) => ({ definition, max: values.maxima[definition.key] })),
+        resourceDefaults,
+      )),
+    };
+    if (current && Object.keys(updates).length > 0) store.getState().updateToken(token.id, updates);
     cleanup();
   };
 
@@ -220,13 +238,7 @@ export function openEditTokenModal(
   root.render(
     <TooltipProvider delayDuration={300}>
       <EditTokenModalInner
-        initial={{
-          name: character?.name ?? '',
-          showNameplate: token.showNameplate ?? false,
-          maxima: Object.fromEntries(definitions.map(({ key }) => [key, character?.resources?.[key]?.max])),
-          vision: visionForm(token.vision, lighting.senses),
-          light: lightForm(token.light, lighting.lightPresets),
-        }}
+        initial={initial}
         lighting={lighting}
         statblock={statblock}
         definitions={definitions}
