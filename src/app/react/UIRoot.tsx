@@ -147,19 +147,19 @@ export const UIRoot: React.FC<UIRootProps> = ({ app, view, pixiApp }) => {
     <AtlasUIContext.Provider value={contextValue}>
       <ContextMenuProvider>
         {hotkeyHelpOpen && (
-          <PanelBoundary name="Hotkey help">
+          <PanelBoundary name="the hotkey help">
             <HotkeyHelp settings={settings} isPlayerView={isPlayerView} onClose={() => setHotkeyHelpOpen(false)} />
           </PanelBoundary>
         )}
         <div className="atlas-ui" style={{ position: 'relative', width: '100%', height: '100%' }}>
           {/* Every surface has its own boundary: one that fails must not take the map image or the others with it */}
-          {storeBackground && <PanelBoundary name="Map image"><BackgroundSprite imagePath={storeBackground} /></PanelBoundary>}
+          {storeBackground && <PanelBoundary name="the map image"><BackgroundSprite imagePath={storeBackground} /></PanelBoundary>}
 
           {/* Map chrome stays mounted while a scene loads; the loading overlay blocks input meanwhile */}
           {/* Top row — scene tabs (DM only) and widget bar share one flex row */}
           <div className="atlas-top-bar-row">
             {!isPlayerView && (
-              <PanelBoundary name="Scene tabs">
+              <PanelBoundary name="the scene tabs">
                 <SceneTabBar
                   onSwitchTab={switchTab}
                   onCloseTab={(tabId) => { if (view) runInBackground(view.closeTab(tabId), 'Closing scene tab'); }}
@@ -171,42 +171,42 @@ export const UIRoot: React.FC<UIRootProps> = ({ app, view, pixiApp }) => {
             )}
             {/* Widgets and the DM's dice rolls share the right end; rolls hang below the widgets */}
             <div className="atlas-top-bar-end">
-              <PanelBoundary name="Widgets">
+              <PanelBoundary name="the widgets">
                 <ResponsiveWidgetBar isPlayerView={isPlayerView} store={store} viewId={view?.viewId} />
               </PanelBoundary>
-              {!isPlayerView && <PanelBoundary name="Dice rolls"><DiceRollDisplay /></PanelBoundary>}
+              {!isPlayerView && <PanelBoundary name="the dice rolls"><DiceRollDisplay /></PanelBoundary>}
             </div>
           </div>
 
           {/* Bottom row — undo/redo docked left of the main toolbar, view actions (DM only) at the right edge */}
           <BottomToolbarRow
-            start={!isPlayerView && <PanelBoundary name="Undo and redo"><UndoRedoControls viewId={view?.viewId} /></PanelBoundary>}
-            end={!isPlayerView && <PanelBoundary name="View actions"><ViewActionsMenu app={app} filePath={view?.file?.path} /></PanelBoundary>}
+            start={!isPlayerView && <PanelBoundary name="undo and redo"><UndoRedoControls viewId={view?.viewId} /></PanelBoundary>}
+            end={!isPlayerView && <PanelBoundary name="the view actions"><ViewActionsMenu app={app} filePath={view?.file?.path} /></PanelBoundary>}
           >
-            <PanelBoundary name="Toolbar"><MainToolbar viewId={view?.viewId} /></PanelBoundary>
+            <PanelBoundary name="the toolbar"><MainToolbar viewId={view?.viewId} /></PanelBoundary>
           </BottomToolbarRow>
 
           {!isPlayerView && !isMapLoading && (
-            <PanelBoundary name="Scene switcher">
+            <PanelBoundary name="the scene switcher">
               <SceneSwitcher isOpen={isSceneSwitcherOpen} onOpenChange={setSceneSwitcherOpen} onSwitchTab={switchTab} onPresentTab={presentTab} />
             </PanelBoundary>
           )}
           
           {/* Grid Settings Modal - only render when needed */}
           {isGridSettingsOpen && (
-            <PanelBoundary name="Grid settings">
+            <PanelBoundary name="the grid settings">
               <GridSettingsModal isOpen={isGridSettingsOpen} onClose={() => setGridSettingsOpen(false)} view={view} />
             </PanelBoundary>
           )}
 
           {/* Grid Alignment Overlay - only render when needed */}
           {isGridAlignmentOpen && (
-            <PanelBoundary name="Grid alignment"><GridAlignmentOverlay onClose={() => setGridAlignmentOpen(false)} /></PanelBoundary>
+            <PanelBoundary name="the grid alignment"><GridAlignmentOverlay onClose={() => setGridAlignmentOpen(false)} /></PanelBoundary>
           )}
 
           {/* DM Dashboard - only for DM view */}
           {!isPlayerView && (
-            <PanelBoundary name="DM dashboard">
+            <PanelBoundary name="the DM dashboard">
               <DMDashboard
                 isOpen={isDMDashboardOpen}
                 onClose={() => {
@@ -218,20 +218,20 @@ export const UIRoot: React.FC<UIRootProps> = ({ app, view, pixiApp }) => {
           )}
 
           {/* Dice Roll Log - left side panel */}
-          <PanelBoundary name="Dice log"><DiceRollLog isOpen={isDiceLogOpen} onClose={() => setDiceLogOpen(false)} /></PanelBoundary>
+          <PanelBoundary name="the dice log"><DiceRollLog isOpen={isDiceLogOpen} onClose={() => setDiceLogOpen(false)} /></PanelBoundary>
 
           {/* Initiative Tracker - only for DM view */}
-          {!isPlayerView && <PanelBoundary name="Initiative tracker"><InitiativeTracker /></PanelBoundary>}
+          {!isPlayerView && <PanelBoundary name="the initiative tracker"><InitiativeTracker /></PanelBoundary>}
 
           {/* Loot Roller - floating window, DM only */}
-          {!isPlayerView && <PanelBoundary name="Loot roller"><LootRoller /></PanelBoundary>}
-          {!isPlayerView && WALLS_AND_LIGHTING_ENABLED && <PanelBoundary name="Light settings"><LightPanelHost /></PanelBoundary>}
-          {!isPlayerView && WALLS_AND_LIGHTING_ENABLED && <PanelBoundary name="Scene lighting"><SceneLightingPanelHost /></PanelBoundary>}
+          {!isPlayerView && <PanelBoundary name="the loot roller"><LootRoller /></PanelBoundary>}
+          {!isPlayerView && WALLS_AND_LIGHTING_ENABLED && <PanelBoundary name="the light settings"><LightPanelHost /></PanelBoundary>}
+          {!isPlayerView && WALLS_AND_LIGHTING_ENABLED && <PanelBoundary name="the scene lighting"><SceneLightingPanelHost /></PanelBoundary>}
 
           {/* Player Character Sheet - REMOVED: Players should only edit via their character sheet file */}
           
           {/* Loading overlay - renders last to be on top of everything */}
-          <PanelBoundary name="Loading overlay">
+          <PanelBoundary name="the loading overlay">
             <MapLoadingOverlay
               isLoading={isMapLoading}
               {...(mapLoadingProgress !== undefined ? { progress: mapLoadingProgress } : {})}

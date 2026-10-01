@@ -60,7 +60,7 @@ describe('the map UI when one of its panels cannot render', () => {
     const shown = Array.from(container.querySelectorAll('[data-surface]'), (element) => element.getAttribute('data-surface'));
     expect(shown).toEqual(expect.arrayContaining(['background', 'scene-tabs', 'widgets', 'dice', 'toolbar', 'undo-redo', 'view-actions', 'loot']));
     expect(backgroundUnmounted).not.toHaveBeenCalled();
-    const panelErrors = logged.mock.calls.filter(([message]) => message === '[Atlas VTT] Initiative tracker could not be shown:');
+    const panelErrors = logged.mock.calls.filter(([message]) => message === '[Atlas VTT] Could not show the initiative tracker:');
     expect(panelErrors).toHaveLength(1);
   });
 });
