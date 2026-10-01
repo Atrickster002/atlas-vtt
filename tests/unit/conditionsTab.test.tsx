@@ -66,10 +66,21 @@ describe('ConditionsTab: effect on sight', () => {
     expect(saved().find((condition) => condition.name === 'Blinded')!.effect).toBe('invisible');
   });
 
-  it('offers no "None" for a built-in condition that changes sight, since it would take its own effect again', () => {
+  it('switches off the effect of a built-in condition, which stores that it has none', () => {
     render(<Harness initial={[...dnd5e]} />);
     fireEvent.click(effect('Blinded'));
-    expect(screen.getAllByRole('option').map((option) => option.textContent)).toEqual(['Blinded', 'Invisible', 'Airborne', 'Undetected']);
+    expect(screen.getAllByRole('option').map((option) => option.textContent)).toEqual(['None', 'Blinded', 'Invisible', 'Airborne', 'Undetected']);
+    fireEvent.click(screen.getByRole('option', { name: 'None' }));
+    expect(effect('Blinded').textContent).toBe('None');
+    expect(saved().find((condition) => condition.name === 'Blinded')!.effect).toBe('none');
+  });
+
+  it('stores nothing again once a built-in condition is given back its own effect', () => {
+    const stored = dnd5e.map(({ effect: _effect, ...condition }) => condition);
+    render(<Harness initial={stored} />);
+    choose('Blinded', 'None');
+    choose('Blinded', 'Blinded');
+    expect(saved()).toEqual(stored);
   });
 
   it('names every row\'s select and has no native tooltip', () => {

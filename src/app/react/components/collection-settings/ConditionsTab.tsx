@@ -8,7 +8,7 @@ import { Button } from '../../../packages/components/primitives/button';
 import { Select, type SelectOption } from '../../../packages/components/primitives/Select';
 import { LabelTooltip } from '../../../packages/components/primitives/tooltip';
 import { CONDITION_EFFECTS, type ConditionDefinition, type ConditionEffect } from '../../../types/collectionSettingsTypes';
-import { conditionEffect } from '../../../gameSystems/conditionEffects';
+import { conditionEffect, withConditionEffect } from '../../../gameSystems/conditionEffects';
 import { conditionGlyph } from '../../../utils/conditionGlyph';
 import { WidgetIconPicker } from '../WidgetIconPicker';
 import { ConditionBadgePreview } from './ConditionBadgePreview';
@@ -27,22 +27,10 @@ const EFFECT_LABELS: Record<ConditionEffect, string> = {
   undetected: 'Undetected',
 };
 
-const NO_EFFECT: SelectOption<EffectChoice> = { value: 'none', label: 'None' };
-const EFFECTS: SelectOption<EffectChoice>[] = CONDITION_EFFECTS.map((effect) => ({ value: effect, label: EFFECT_LABELS[effect] }));
-
-/**
- * What the select offers for a condition. A built-in condition that changes sight has that
- * effect whenever it stores none (`conditionEffect`), so "None" cannot be chosen for it.
- */
-function effectOptions(condition: ConditionDefinition): SelectOption<EffectChoice>[] {
-  return conditionEffect({ id: condition.id }) === undefined ? [NO_EFFECT, ...EFFECTS] : EFFECTS;
-}
-
-/** `condition` with `effect` as what it does to sight; none leaves no field behind. */
-function withEffect(condition: ConditionDefinition, effect: EffectChoice): ConditionDefinition {
-  const { effect: _effect, ...rest } = condition;
-  return effect === 'none' ? rest : { ...rest, effect };
-}
+const EFFECT_OPTIONS: SelectOption<EffectChoice>[] = [
+  { value: 'none', label: 'None' },
+  ...CONDITION_EFFECTS.map((effect) => ({ value: effect, label: EFFECT_LABELS[effect] })),
+];
 
 /** Generate a random hex colour string. */
 function randomColor(): string {
@@ -143,9 +131,9 @@ export function ConditionsTab({
                   <span id={`${effectLabel}-${cond.id}`} hidden>Effect on sight of {cond.name.trim() || 'this condition'}</span>
                   <Select
                     value={conditionEffect(cond) ?? 'none'}
-                    options={effectOptions(cond)}
+                    options={EFFECT_OPTIONS}
                     labelledBy={`${effectLabel}-${cond.id}`}
-                    onChange={(effect) => onChange(conditions.map((c, index) => (index === i ? withEffect(c, effect) : c)))}
+                    onChange={(effect) => onChange(conditions.map((c, index) => (index === i ? withConditionEffect(c, effect) : c)))}
                   />
                 </div>
                 <div

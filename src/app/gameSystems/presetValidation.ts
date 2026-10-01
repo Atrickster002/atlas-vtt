@@ -75,7 +75,7 @@ function parseCondition(raw: unknown): ConditionDefinition | null {
     color: raw.color,
     ...(icon && { icon }),
     ...(raw.valued === true && { valued: true }),
-    ...(isOneOf(CONDITION_EFFECTS, raw.effect) && { effect: raw.effect }),
+    ...((isOneOf(CONDITION_EFFECTS, raw.effect) || raw.effect === 'none') && { effect: raw.effect }),
   };
 }
 
