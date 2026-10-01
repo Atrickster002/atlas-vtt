@@ -29,13 +29,21 @@ export function rollFace(sides: number, random: () => number): number {
 }
 
 /**
+ * How many faces of a die of `sides` really explode upwards and downwards.
+ * At least one face never explodes: a d2 whose two highest faces explode
+ * would roll for ever. The high faces go first.
+ */
+export function explodingFaces(sides: number, highFaces: number, lowFaces: number): { high: number; low: number } {
+  const high = Math.max(0, Math.min(highFaces, sides - 1));
+  return { high, low: Math.max(0, Math.min(lowFaces, sides - 1 - high)) };
+}
+
+/**
  * The dice rolled because `die` exploded, in the order they were rolled; none
- * when it did not. Faces are counted so that at least one face of the die
- * never explodes: a d2 whose two highest faces explode would roll for ever.
+ * when it did not.
  */
 export function rollExplosions(die: RolledDie, explosion: Explosion, random: () => number = Math.random): RolledDie[] {
-  const high = Math.max(0, Math.min(explosion.highFaces, die.max - 1));
-  const low = Math.max(0, Math.min(explosion.lowFaces, die.max - 1 - high));
+  const { high, low } = explodingFaces(die.max, explosion.highFaces, explosion.lowFaces);
   const isHigh = (value: number): boolean => value > die.max - high;
 
   const up = isHigh(die.value);
