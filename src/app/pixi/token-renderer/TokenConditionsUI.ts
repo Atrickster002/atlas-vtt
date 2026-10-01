@@ -49,6 +49,11 @@ export class TokenConditionsUI {
     if (this.isHovered) this.card.show(this.conditions, false, note);
   }
 
+  /** The hover card is open for its note: something to show on a token that has nothing else. */
+  get showsNote(): boolean {
+    return this.isHovered && this.note !== null;
+  }
+
   /** Keeps the card at a constant screen size while the viewport zooms. */
   setCardScale(ringRadius: number, cardScale: number): void {
     this.card.place(ringRadius, cardScale);
