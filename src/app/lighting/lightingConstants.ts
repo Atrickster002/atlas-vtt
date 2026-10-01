@@ -18,18 +18,22 @@ export const TILE_RAYS = 32;
  * ray counts into a ramp. Each texel smooths only within its wall clearance, so less near walls.
  */
 export const TILE_SMOOTH = 4;
-/** A light's glow ends at this multiple of its dim radius. */
+/** A light fades out from its dim radius to this multiple of it, where it ends. */
 export const LIGHT_REACH = 1.12;
-/** Tiles cover a little more than the reach, so flicker's radius breathing stays inside them. */
-export const TILE_MARGIN = 1.05;
-/** Height of the lamp above the floor, as a multiple of its bright radius. */
-export const FALLOFF_HEIGHT = 1;
+/**
+ * How much light a light gives in its two ranges (HDR, before exposure): `bright` up to the
+ * bright radius, `dim` from there to the dim radius, with a soft knee between them. Dim light
+ * is 40% of bright light, which a mid-grey floor shows at a quarter to a third of the bright
+ * range's luminance (the tonemap darkens low light more than in proportion): the least that
+ * `lightFalloff.gpu.test.ts` accepts at the edge of the dim range.
+ */
+export const LIGHT_LEVELS = { bright: 1.25, dim: 0.5 } as const;
 export const EXPOSURE = 0.9;
 /** Light colours are mixed this far towards white, so tinted light keeps the map readable. */
 export const TINT_TO_WHITE = 0.5;
 /** Smallest flame, as a share of the dim radius, so shadow edges never look cut out. */
 export const MIN_SOFTNESS = 0.12;
-/** Strength of the cool grey shift where light is low. */
+/** Strength of the cool grey shift where the light is low and none of it a light's own (ambient, bounce). */
 export const PURKINJE = 0.55;
 
 export const BOUNCE = {
@@ -38,7 +42,7 @@ export const BOUNCE = {
   cascades: 4,
   emitTexel: 4,
   spread: 250,
-  floorGain: 0.004,
+  floorGain: 0.001,
   wallGain: 0.6,
   gain: 1,
   /** While lights move, bounce is rebuilt at most this often. */
@@ -57,7 +61,7 @@ export const FLICKER_INTERVAL_MS = 30;
  * image-space bloom would blur light across walls. `gain` is its peak on top of the falloff
  * (HDR), `size` its Gaussian sigma as a share of the bright radius.
  */
-export const HALO = { gain: 0.6, size: 0.18 } as const;
+export const HALO = { gain: 0.8, size: 0.25 } as const;
 
 /** World pixels per texel for a map: 2 px, coarser on maps longer than 8,192 px. */
 export function worldTexel(bounds: MapBounds): number {

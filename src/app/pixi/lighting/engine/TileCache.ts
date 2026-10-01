@@ -1,6 +1,6 @@
 import type { Renderer, RenderTexture } from 'pixi.js';
 import type { WallSegment } from '../../../types/wallTypes';
-import { LIGHT_REACH, TILE_MARGIN, wallRadius } from '../../../lighting/lightingConstants';
+import { LIGHT_REACH, wallRadius } from '../../../lighting/lightingConstants';
 import { placeLight } from '../../../lighting/lightPlacement';
 import { allSegments, segOf, splitBlocking, type BlockingWalls, type Rect } from '../../../lighting/segments';
 import { blocksFrom, type MapBounds } from '../../../vision/visibility';
@@ -75,7 +75,7 @@ export class TileCache {
     const { texel } = this.field;
     const placed = placeLight(light.x, light.y, light.flame, allSegments(blocking), texel);
     if (!placed) return null;
-    const rect = this.tileRect(placed.x, placed.y, light.dim * LIGHT_REACH * TILE_MARGIN);
+    const rect = this.tileRect(placed.x, placed.y, light.dim * LIGHT_REACH);
     if (!rect) return null;
     const blockingOneWay = blocking.oneWay.filter((wall) => blocksFrom(wall, placed));
     let oneWayField: CapsuleField | null = null;

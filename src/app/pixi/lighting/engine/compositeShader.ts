@@ -111,7 +111,11 @@ void main() {
   float seen = max(uAllSeen, sight.r);
   vec3 light = uAmbient + (direct + bounce * uBounceGain) * uExposure;
   vec3 lit = neutral(albedo * light);
-  float night = (1.0 - smoothstep(0.03, 0.35, dot(light, LUMA))) * uPurkinje;
+  // Cool grey where the light is low, by the share of it that is no light's own (ambient and
+  // bounce): shifting a light's fade to black drew a pale ring around it.
+  float level = dot(light, LUMA);
+  float fill = 1.0 - dot(direct, LUMA) * uExposure / max(level, 1e-4);
+  float night = (1.0 - smoothstep(0.03, 0.35, level)) * uPurkinje * fill;
   lit = mix(lit, vec3(dot(lit, LUMA)) * vec3(0.86, 0.96, 1.18), night);
 
   float grey = dot(albedo, LUMA);
