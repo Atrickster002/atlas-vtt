@@ -27,6 +27,7 @@ export interface SceneOptions {
 export interface Scene {
   renderer: WebGLRenderer;
   viewport: Container;
+  store: ViewAtlasStore;
   host: LightingViewHost;
   setExploredMask: ReturnType<typeof vi.fn>;
   /** The lighting notes in this device's local storage. */
@@ -34,6 +35,10 @@ export interface Scene {
   switchLighting: (enabled: boolean) => void;
   /** The store writes and lighting calls of `MapService.loadMap`, in its order. */
   loadMap: (path: string, saved: SavedScene, bounds: MapBounds) => void;
+  /** `loadMap` up to the rehydrated scene: the store holds it, and the loading screen is still up. */
+  startLoad: (path: string, saved: SavedScene, bounds: MapBounds) => void;
+  /** The loading screen goes: the last write of a load. */
+  finishLoad: () => void;
   tick: () => void;
   renderStage: () => void;
   dispose: () => void;
@@ -73,6 +78,16 @@ export async function createScene({ enabled, noted = null, exploredMask = null }
     getState: () => state,
     subscribe: (listener: (state: ViewAtlasState, previous: ViewAtlasState) => void) => (listeners.add(listener), () => listeners.delete(listener)),
   } as unknown as ViewAtlasStore;
+  const startLoad = (path: string, saved: SavedScene, mapBounds: MapBounds): void => {
+    host.beforeMapUnload(); // 'map-unloading'
+    write({ isMapLoading: true }); // setMapLoading(true, 0)
+    write({ mapPath: path }); // setMapPath
+    write({ lighting: { enabled: false, ambient: 0.1 }, exploredMask: null, objects: { ...state.objects, walls: {}, lights: {}, tokens: {} } }); // clearMapState
+    bounds = mapBounds;
+    host.refreshBounds(); // the map image is in
+    write(saved); // persist.rehydrate
+  };
+  const finishLoad = (): void => write({ isMapLoading: false });
   const storage = new Map<string, unknown>([[LIGHTING_ATTEMPTS_KEY, noted]]);
   const obsApp = {
     loadLocalStorage: (key: string): unknown => storage.get(key) ?? null,
@@ -92,20 +107,17 @@ export async function createScene({ enabled, noted = null, exploredMask = null }
   return {
     renderer,
     viewport,
+    store,
     host,
     setExploredMask,
     noted: () => storage.get(LIGHTING_ATTEMPTS_KEY) ?? null,
     switchLighting: (on) => write({ lighting: { ...state.lighting, enabled: on } }),
     loadMap: (path, saved, mapBounds) => {
-      host.beforeMapUnload(); // 'map-unloading'
-      write({ isMapLoading: true }); // setMapLoading(true, 0)
-      write({ mapPath: path }); // setMapPath
-      write({ lighting: { enabled: false, ambient: 0.1 }, exploredMask: null, objects: { ...state.objects, walls: {}, lights: {}, tokens: {} } }); // clearMapState
-      bounds = mapBounds;
-      host.refreshBounds(); // the map image is in
-      write(saved); // persist.rehydrate
-      write({ isMapLoading: false }); // the loading screen goes
+      startLoad(path, saved, mapBounds);
+      finishLoad();
     },
+    startLoad,
+    finishLoad,
     tick: () => [...ticks].forEach((tick) => tick()),
     renderStage: () => renderer.render({ container: viewport, target, clear: true }),
     dispose: () => {
