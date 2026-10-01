@@ -1,4 +1,5 @@
 import type { SystemPreset } from '../../types/systemPresetTypes';
+import { OLD_SCHOOL_ESSENTIALS_LIGHTS } from '../lightPresets/oldSchoolEssentials';
 import { OLD_SCHOOL_ESSENTIALS_SENSES } from '../senses/oldSchoolEssentials';
 import { builtInPresetId, conditionsOf } from './presetHelpers';
 
@@ -35,6 +36,7 @@ export const OLD_SCHOOL_ESSENTIALS: SystemPreset = {
       { name: 'Surprised', color: '#f59e0b', icon: 'surprised' },
     ]),
     senses: OLD_SCHOOL_ESSENTIALS_SENSES,
+    lightPresets: OLD_SCHOOL_ESSENTIALS_LIGHTS,
     defaultWidgets: { hpBar: true },
   },
 };

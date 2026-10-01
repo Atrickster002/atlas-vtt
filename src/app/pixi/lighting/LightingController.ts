@@ -6,6 +6,7 @@ import type { MeasurementSettings } from '../../grid/measurementFormat';
 import { bindHoldHotkey } from '../../keyboard/holdHotkey';
 import { DEFAULT_MAP_HOTKEYS } from '../../keyboard/mapHotkeys';
 import { AssetService } from '../../services/AssetService';
+import { mapLightPresets } from '../../services/mapCollectionRules';
 import { mapMeasurementSettings } from '../../services/mapMeasurementSettings';
 import { heldForSight } from '../../lighting/sightOnDrop';
 import { CreatureIndex } from '../../creatures/CreatureIndex';
@@ -96,7 +97,7 @@ export class LightingController {
     });
     this.lightMarkers = new LightMarkers(viewport, store);
     this.rangeRings = new LightRangeRings(viewport, store, measurement);
-    this.editor = new WallEditor(viewport, store, eventBus, (lightIds) => this.lightMarkers.setSelected(lightIds));
+    this.editor = new WallEditor(viewport, store, eventBus, (lightIds) => this.lightMarkers.setSelected(lightIds), () => mapLightPresets(obsApp, store.getState()));
     this.doors = new DoorIcons(store);
     viewport.addChild(this.doors.view);
     this.lights = new LightInteraction({

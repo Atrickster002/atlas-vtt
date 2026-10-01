@@ -7,17 +7,21 @@ export interface LightPreset {
   emission: LightEmission;
 }
 
-/** Built-in lights, in feet-based game units like the D&D defaults. */
+/**
+ * The generic lights, in feet-based game units like the D&D defaults; the magical light is the
+ * Light cantrip's 20 and 40 feet. Offered as presets through `GENERIC_LIGHT_PRESETS`.
+ */
 export const LIGHT_PRESETS: Record<LightPresetId, LightPreset> = {
   candle: { label: 'Candle', emission: { bright: 5, dim: 10, color: '#ffb347', intensity: 0.9, animation: 'candle', sourceRadius: 1 } },
   torch: { label: 'Torch', emission: { bright: 20, dim: 40, color: '#ff9a3c', intensity: 1, animation: 'torch', sourceRadius: 2 } },
   lantern: { label: 'Lantern', emission: { bright: 30, dim: 60, color: '#ffd28a', intensity: 1, animation: 'none', sourceRadius: 1.5 } },
-  magical: { label: 'Magical light', emission: { bright: 15, dim: 30, color: '#8fb8ff', intensity: 1, animation: 'magic', sourceRadius: 2.5 } },
+  magical: { label: 'Magical light', emission: { bright: 20, dim: 40, color: '#8fb8ff', intensity: 1, animation: 'magic', sourceRadius: 2.5 } },
 };
 
 export const LIGHT_PRESET_IDS = Object.keys(LIGHT_PRESETS) as LightPresetId[];
 
-function sameEmission(a: LightEmission, b: LightEmission): boolean {
+/** Whether two lights shine alike; their kind and the preset they record are not compared. */
+export function sameEmission(a: LightEmission, b: LightEmission): boolean {
   return a.bright === b.bright && a.dim === b.dim && a.color.toLowerCase() === b.color.toLowerCase()
     && a.intensity === b.intensity && a.animation === b.animation && (a.sourceRadius ?? 0) === (b.sourceRadius ?? 0);
 }
@@ -29,14 +33,6 @@ export function presetOf(emission: LightEmission): LightPresetId | null {
 
 /** Every kind of light, in the order they are offered. */
 export const LIGHT_KINDS: readonly LightKind[] = [...LIGHT_PRESET_IDS, 'custom'];
-
-export const LIGHT_KIND_LABELS: Record<LightKind, string> = {
-  candle: LIGHT_PRESETS.candle.label,
-  torch: LIGHT_PRESETS.torch.label,
-  lantern: LIGHT_PRESETS.lantern.label,
-  magical: LIGHT_PRESETS.magical.label,
-  custom: 'Custom light',
-};
 
 /**
  * The light's kind: the one it was given, else the preset it still equals, else custom. A stored

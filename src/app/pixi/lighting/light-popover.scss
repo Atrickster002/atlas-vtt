@@ -27,15 +27,19 @@ $gap: $spacing-s;
   // It takes the focus itself when it opens; the ring belongs to its controls.
   outline: none;
 
-  // Eight swatches share the row, whatever height a button has by default.
-  .atlas-swatch {
-    height: auto;
-    min-width: 0;
-  }
-
   // Clicks pass through it while it leaves, as they would once it is gone.
   &[inert] {
     pointer-events: none;
+  }
+}
+
+// Eight swatches share the row, whatever height a button has by default; in the popover and
+// where Edit Token shows the same fields.
+.atlas-light-popover,
+.atlas-edit-token__light {
+  .atlas-swatch {
+    height: auto;
+    min-width: 0;
   }
 }
 
@@ -93,6 +97,31 @@ $gap: $spacing-s;
   width: 20px;
   height: 20px;
   flex-shrink: 0;
+}
+
+// The last chip of a collection with more lights than fit: it opens the others as a menu. It
+// shows three dots until one of them is the light's, then that light's glyph.
+.atlas-light-kind--more {
+  gap: 2px;
+}
+
+.atlas-light-kind__dots {
+  width: $icon-m;
+  height: $icon-m;
+}
+
+.atlas-light-kind__chevron {
+  width: $icon-xs;
+  height: $icon-xs;
+  flex-shrink: 0;
+  opacity: 0.7;
+}
+
+// The menu's rows start with the lights' glyphs, at the size of a menu icon.
+.atlas-light-more .atlas-light-glyph {
+  width: $icon-s;
+  height: $icon-s;
+  color: var(--text-muted);
 }
 
 // ── Colour ───────────────────────────────────────────────────────────────────

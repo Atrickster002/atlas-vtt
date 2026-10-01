@@ -2,7 +2,7 @@ import { EventEmitter } from 'events';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Application, EventSystem, FederatedPointerEvent } from 'pixi.js';
 import { Viewport } from 'pixi-viewport';
-import { emissionOfPreset } from '../../src/app/lighting/lightEmissionForm';
+import { genericLight } from '../mocks/lights';
 import { LightingController } from '../../src/app/pixi/lighting/LightingController';
 import type { LightPointerHandlers } from '../../src/app/pixi/lighting/LightInteraction';
 import { captureSceneFrame } from '../../src/app/pixi/sceneFrameCapture';
@@ -87,8 +87,8 @@ function setup(): Setup {
     getSensedOutlineLayer: () => sensedOutlines,
     setSightLineProvider: () => ignore,
   } as unknown as TokenRenderer);
-  const torch = store.getState().addLight({ x: 400, y: 300, emission: { ...emissionOfPreset('torch'), kind: 'torch' } });
-  const lantern = store.getState().addLight({ x: 600, y: 300, emission: { ...emissionOfPreset('lantern'), kind: 'lantern' } });
+  const torch = store.getState().addLight({ x: 400, y: 300, emission: { ...genericLight('torch'), kind: 'torch' } });
+  const lantern = store.getState().addLight({ x: 600, y: 300, emission: { ...genericLight('lantern'), kind: 'lantern' } });
   getHistoryStore(store)!.getState().clear();
   cleanup = () => {
     controller.destroy();
@@ -203,7 +203,7 @@ describe('closing the light popover', () => {
 
   it('closes when undo takes its light away', () => {
     const { store, click } = setup();
-    const placed = store.getState().addLight({ x: 100, y: 100, emission: emissionOfPreset('candle') });
+    const placed = store.getState().addLight({ x: 100, y: 100, emission: genericLight('candle') });
     click(100, 100);
     expect(store.getState().lightPopover).toBe(placed);
     getHistoryStore(store)!.getState().undo();

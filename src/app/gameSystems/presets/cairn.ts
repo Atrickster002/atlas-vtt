@@ -1,4 +1,5 @@
 import type { SystemPreset } from '../../types/systemPresetTypes';
+import { CAIRN_LIGHTS } from '../lightPresets/cairn';
 import { builtInPresetId, conditionsOf } from './presetHelpers';
 
 /**
@@ -32,5 +33,6 @@ export const CAIRN: SystemPreset = {
       { name: 'Fleeing', color: '#f59e0b', icon: 'run' },
     ]),
     defaultWidgets: { hpBar: true },
+    lightPresets: CAIRN_LIGHTS,
   },
 };

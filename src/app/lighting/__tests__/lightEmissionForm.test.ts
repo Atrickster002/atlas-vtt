@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { editEmission, emissionOfPreset } from '../lightEmissionForm';
+import { editEmission } from '../lightEmissionForm';
 import { LIGHT_PRESETS, presetOf } from '../lightPresets';
 
 const torch = LIGHT_PRESETS.torch.emission;
@@ -40,14 +40,5 @@ describe('editEmission', () => {
 
   it('makes an edited preset no longer count as that preset', () => {
     expect(presetOf(editEmission(torch, 'intensity', '0.5'))).toBeNull();
-  });
-});
-
-describe('emissionOfPreset', () => {
-  it('replaces the whole emission with a copy of the preset', () => {
-    const emission = emissionOfPreset('candle');
-    expect(emission).toEqual(LIGHT_PRESETS.candle.emission);
-    expect(emission).not.toBe(LIGHT_PRESETS.candle.emission);
-    expect(presetOf(emission)).toBe('candle');
   });
 });

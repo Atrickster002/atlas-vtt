@@ -2,50 +2,13 @@ import React, { useEffect, useId, useRef, useState } from 'react';
 import { DropdownSwatchGrid } from '../../packages/components/primitives/DropdownSwatchGrid';
 import { Slider } from '../../packages/components/primitives/slider';
 import { LabelTooltip } from '../../packages/components/primitives/tooltip';
-import { editEmission, emissionOfPreset, withEmissionValue } from '../../lighting/lightEmissionForm';
-import { LIGHT_GLYPH_PATHS, LIGHT_GLYPH_VIEW_BOX } from '../../lighting/lightGlyphs';
-import { LIGHT_KINDS, LIGHT_KIND_LABELS, lightKindOf } from '../../lighting/lightPresets';
+import { editEmission, withEmissionValue } from '../../lighting/lightEmissionForm';
 import { formatRange, rangeSliderScale, type RangeField } from '../../lighting/lightRanges';
-import type { LightEmission, LightKind } from '../../types/lightingTypes';
-
-/** The glyph of a kind of light, as on its map marker; it takes the text colour. */
-export function LightGlyph({ kind }: { kind: LightKind }): React.ReactElement {
-  return (
-    <svg className="atlas-light-glyph" viewBox={LIGHT_GLYPH_VIEW_BOX} aria-hidden="true">
-      <path d={LIGHT_GLYPH_PATHS[kind]} fill="currentColor" />
-    </svg>
-  );
-}
+import type { LightEmission } from '../../types/lightingTypes';
 
 interface EmissionFieldProps {
   emission: LightEmission;
   onChange: (next: LightEmission) => void;
-}
-
-/**
- * The kinds of light as chips with their marker glyphs. A kind brings its preset; "Custom"
- * keeps the light as it is and gives it the plain marker.
- */
-export function KindChips({ emission, onChange }: EmissionFieldProps): React.ReactElement {
-  const labelId = useId();
-  const current = lightKindOf(emission);
-  return (
-    <div className="atlas-light-popover__kinds" role="group" aria-labelledby={labelId}>
-      <span id={labelId} hidden>Kind of light</span>
-      {LIGHT_KINDS.map((kind) => (
-        <LabelTooltip key={kind} label={LIGHT_KIND_LABELS[kind]}>
-          <button
-            type="button"
-            className="atlas-light-kind"
-            aria-pressed={kind === current}
-            onClick={() => onChange(kind === 'custom' ? { ...emission, kind } : { ...emissionOfPreset(kind), kind })}
-          >
-            <LightGlyph kind={kind} />
-          </button>
-        </LabelTooltip>
-      ))}
-    </div>
-  );
 }
 
 /** Colours lights commonly have: the kinds' own, and a few for magic. */
@@ -160,7 +123,7 @@ interface RangeInputProps extends EmissionFieldProps {
 }
 
 /**
- * Commits on Enter or when it loses focus, so half-typed numbers never reach the map. A range
+ * Commits on Enter or when it loses focus, so half-typed numbers never reach the light. A range
  * past `maxRange` stops there and the field shows it; text that is no number puts the range back.
  */
 function RangeInput({ label, field, emission, maxRange, onChange }: RangeInputProps): React.ReactElement {
@@ -186,7 +149,12 @@ function RangeInput({ label, field, emission, maxRange, onChange }: RangeInputPr
         onChange={(event) => setText(event.target.value)}
         onFocus={(event) => event.target.select()}
         onBlur={commit}
-        onKeyDown={(event) => { if (event.key === 'Enter') commit(); }}
+        onKeyDown={(event) => {
+          if (event.key !== 'Enter') return;
+          // The field takes the key: a dialog around it does not save on it.
+          event.preventDefault();
+          commit();
+        }}
       />
     </label>
   );

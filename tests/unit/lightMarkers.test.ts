@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Container, EventSystem, Graphics, Sprite } from 'pixi.js';
 import { Viewport } from 'pixi-viewport';
-import { emissionOfPreset } from '../../src/app/lighting/lightEmissionForm';
+import { genericLight } from '../mocks/lights';
 import type { LightMarkerTheme } from '../../src/app/pixi/lighting/lightMarker';
 import { LightMarkers, lightMarkersShown } from '../../src/app/pixi/lighting/LightMarkers';
 import { createViewAtlasStore, type ViewAtlasStore } from '../../src/app/storeFactory';
@@ -30,7 +30,7 @@ function setup(readTheme: () => LightMarkerTheme = () => THEME): { markers: Ligh
 }
 
 function addLight(store: ViewAtlasStore, x: number, y: number, kind: LightKind = 'torch', hidden?: boolean): string {
-  const emission = kind === 'custom' ? { ...emissionOfPreset('torch'), kind } : { ...emissionOfPreset(kind), kind };
+  const emission = kind === 'custom' ? { ...genericLight('torch'), kind } : { ...genericLight(kind), kind };
   return store.getState().addLight({ x, y, emission, ...(hidden ? { hidden } : {}) });
 }
 
@@ -124,7 +124,7 @@ describe('LightMarkers', () => {
     const id = addLight(store, 100, 200, 'torch');
     const { glyph } = parts(markers.view.children[0]!);
     const torch = glyph.texture;
-    store.getState().updateLight(id, { emission: { ...emissionOfPreset('magical'), kind: 'magical' } });
+    store.getState().updateLight(id, { emission: { ...genericLight('magical'), kind: 'magical' } });
     expect(glyph.texture).not.toBe(torch);
     expect(glyph.tint).toBe(0x8fb8ff);
   });
@@ -135,8 +135,8 @@ describe('LightMarkers', () => {
     addLight(store, 100, 200, 'lantern');
     addLight(store, 200, 200, 'custom');
     const unknown = 'brazier' as LightKind;
-    store.getState().addLight({ x: 300, y: 200, emission: { ...emissionOfPreset('lantern'), kind: unknown } });
-    store.getState().addLight({ x: 400, y: 200, emission: { ...emissionOfPreset('lantern'), bright: 12, kind: unknown } });
+    store.getState().addLight({ x: 300, y: 200, emission: { ...genericLight('lantern'), kind: unknown } });
+    store.getState().addLight({ x: 400, y: 200, emission: { ...genericLight('lantern'), bright: 12, kind: unknown } });
     const [lantern, custom, equalsLantern, edited] = markers.view.children.map((marker) => parts(marker).glyph);
     expect(equalsLantern!.texture).toBe(lantern!.texture);
     expect(edited!.texture).toBe(custom!.texture);

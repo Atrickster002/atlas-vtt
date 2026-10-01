@@ -6,7 +6,8 @@
 import type { DarkSeeing, SenseDefinition, SenseLook, SenseRange, SenseRole, SenseSight, TokenSense } from '../types/senseTypes';
 import { isRecord } from '../services/assetMetadataGuards';
 import { positiveNumber } from '../utils/numberInput';
-import { findSense } from './senseRules';
+import type { SystemPreset } from '../types/systemPresetTypes';
+import { collectionSenses, findSense } from './senseRules';
 import { NORMAL_SIGHT } from './senses/generic';
 import { granting } from './senses/senseHelpers';
 
@@ -98,4 +99,15 @@ export function parseTokenSenses(raw: unknown, definitions?: readonly SenseDefin
     const range = positiveNumber(entry.range);
     return [{ id: entry.id, ...(range !== undefined && { range }) }];
   });
+}
+
+/**
+ * The senses of a collection from its stored settings: its own as far as they can be used
+ * (`parseSenseDefinitions`), else its preset's, else the generic set (`collectionSenses`).
+ */
+export function readCollectionSenses(
+  settings: { senses?: unknown; systemPresetId?: string | undefined },
+  presets: readonly SystemPreset[],
+): readonly SenseDefinition[] {
+  return collectionSenses({ senses: parseSenseDefinitions(settings.senses), systemPresetId: settings.systemPresetId }, presets);
 }

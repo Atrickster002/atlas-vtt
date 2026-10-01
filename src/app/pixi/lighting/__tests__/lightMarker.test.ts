@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { emissionOfPreset } from '../../../lighting/lightEmissionForm';
 import { LIGHT_GLYPH_PATHS } from '../../../lighting/lightGlyphs';
-import { LIGHT_KINDS, lightKindOf } from '../../../lighting/lightPresets';
+import { LIGHT_KINDS, LIGHT_PRESETS, lightKindOf } from '../../../lighting/lightPresets';
 import type { LightKind, LightSource } from '../../../types/lightingTypes';
 import { PIN_ICON_PATHS } from '../../../types/pinIcons';
 import { contrast, lightColorNumber, lightMarkerAt, lightMarkerLook, readableTint, type LightMarkerTheme } from '../lightMarker';
@@ -11,7 +10,7 @@ const LIGHT: LightMarkerTheme = { background: 0xe3e3e3, stroke: 0x000000, accent
 const REST = { hovered: false, selected: false, dragging: false };
 
 function light(overrides: Partial<LightSource> = {}): LightSource {
-  return { id: 'a', kind: 'light', x: 0, y: 0, emission: emissionOfPreset('torch'), ...overrides };
+  return { id: 'a', kind: 'light', x: 0, y: 0, emission: LIGHT_PRESETS.torch.emission, ...overrides };
 }
 
 describe('light kinds', () => {
@@ -25,32 +24,32 @@ describe('light kinds', () => {
   });
 
   it('reads the kind a light was given', () => {
-    expect(lightKindOf({ ...emissionOfPreset('torch'), kind: 'lantern' })).toBe('lantern');
-    expect(lightKindOf({ ...emissionOfPreset('torch'), bright: 3, kind: 'torch' })).toBe('torch');
+    expect(lightKindOf({ ...LIGHT_PRESETS.torch.emission, kind: 'lantern' })).toBe('lantern');
+    expect(lightKindOf({ ...LIGHT_PRESETS.torch.emission, bright: 3, kind: 'torch' })).toBe('torch');
   });
 
   it('reads a light without a kind by the preset it equals, else as custom', () => {
-    expect(lightKindOf(emissionOfPreset('candle'))).toBe('candle');
-    expect(lightKindOf({ ...emissionOfPreset('candle'), dim: 99 })).toBe('custom');
+    expect(lightKindOf(LIGHT_PRESETS.candle.emission)).toBe('candle');
+    expect(lightKindOf({ ...LIGHT_PRESETS.candle.emission, dim: 99 })).toBe('custom');
   });
 
   it('reads a kind it does not know, as a newer version or a hand-edited file may store, like no kind', () => {
     const unknown = 'brazier' as LightKind;
-    expect(lightKindOf({ ...emissionOfPreset('candle'), kind: unknown })).toBe('candle');
-    expect(lightKindOf({ ...emissionOfPreset('candle'), dim: 99, kind: unknown })).toBe('custom');
-    expect(lightKindOf({ ...emissionOfPreset('candle'), kind: 'toString' as LightKind })).toBe('candle');
+    expect(lightKindOf({ ...LIGHT_PRESETS.candle.emission, kind: unknown })).toBe('candle');
+    expect(lightKindOf({ ...LIGHT_PRESETS.candle.emission, dim: 99, kind: unknown })).toBe('custom');
+    expect(lightKindOf({ ...LIGHT_PRESETS.candle.emission, kind: 'toString' as LightKind })).toBe('candle');
   });
 });
 
 describe('lightMarkerLook', () => {
   it('shows the glyph of the light\'s kind', () => {
     for (const kind of LIGHT_KINDS) {
-      expect(lightMarkerLook(light({ emission: { ...emissionOfPreset('torch'), kind } }), REST, DARK).kind).toBe(kind);
+      expect(lightMarkerLook(light({ emission: { ...LIGHT_PRESETS.torch.emission, kind } }), REST, DARK).kind).toBe(kind);
     }
   });
 
   it('tints glyph and ring in the light\'s colour on the dark badge', () => {
-    const look = lightMarkerLook(light({ emission: { ...emissionOfPreset('torch'), color: '#ff9a3c' } }), REST, DARK);
+    const look = lightMarkerLook(light({ emission: { ...LIGHT_PRESETS.torch.emission, color: '#ff9a3c' } }), REST, DARK);
     expect(look.glyphTint).toBe(0xff9a3c);
     expect(look.ringColor).toBe(0xff9a3c);
     expect(look.glyphAlpha).toBe(1);
@@ -61,7 +60,7 @@ describe('lightMarkerLook', () => {
   it('deepens a pale colour on the light badge until it reads, keeping its hue', () => {
     const pale = lightColorNumber('#ffd28a');
     expect(contrast(pale, LIGHT.background)).toBeLessThan(3);
-    const look = lightMarkerLook(light({ emission: { ...emissionOfPreset('lantern'), color: '#ffd28a' } }), REST, LIGHT);
+    const look = lightMarkerLook(light({ emission: { ...LIGHT_PRESETS.lantern.emission, color: '#ffd28a' } }), REST, LIGHT);
     expect(contrast(look.glyphTint, LIGHT.background)).toBeGreaterThanOrEqual(3);
     const [r, g, b] = [(look.glyphTint >> 16) & 0xff, (look.glyphTint >> 8) & 0xff, look.glyphTint & 0xff];
     expect(r).toBeGreaterThan(g);

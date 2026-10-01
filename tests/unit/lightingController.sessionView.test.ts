@@ -2,7 +2,7 @@ import { EventEmitter } from 'events';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Application, EventSystem, FederatedPointerEvent } from 'pixi.js';
 import { Viewport } from 'pixi-viewport';
-import { emissionOfPreset } from '../../src/app/lighting/lightEmissionForm';
+import { genericLight } from '../mocks/lights';
 import { holdTokens } from '../../src/app/lighting/sightOnDrop';
 import { LightingController } from '../../src/app/pixi/lighting/LightingController';
 import type { LightPointerHandlers } from '../../src/app/pixi/lighting/LightInteraction';
@@ -196,7 +196,7 @@ describe('LightingController in session view', () => {
     const { controller, store } = setup();
     store.getState().setSceneLighting({ enabled: true });
     store.getState().setGMView(false);
-    store.getState().addLight({ x: 50, y: 50, emission: emissionOfPreset('torch') });
+    store.getState().addLight({ x: 50, y: 50, emission: genericLight('torch') });
     const door = store.getState().addWall({ type: 'door', p1: { x: 0, y: 0 }, p2: { x: 100, y: 0 }, closed: true });
     store.getState().toggleDoor(door);
     store.getState().setActiveTool('wall');
@@ -255,7 +255,7 @@ describe('the lighting tool while its editor is hidden', () => {
   it('drags no handle it does not show', () => {
     const { store, wired, click } = setup();
     const wall = addWall(store, 100, 300);
-    const light = store.getState().addLight({ x: 500, y: 500, emission: emissionOfPreset('torch') });
+    const light = store.getState().addLight({ x: 500, y: 500, emission: genericLight('torch') });
     store.getState().setActiveTool('wall');
     store.getState().setGMView(false);
     expect(click(100, 100)).toBe(false);
@@ -298,7 +298,7 @@ describe('the lighting tool while its editor is hidden', () => {
   it('offers no handle cursor, context menu, light settings or keyboard edits', () => {
     const { controller, store, wired } = setup();
     const wall = addWall(store, 100, 300);
-    const light = store.getState().addLight({ x: 500, y: 500, emission: emissionOfPreset('torch') });
+    const light = store.getState().addLight({ x: 500, y: 500, emission: genericLight('torch') });
     store.getState().setActiveTool('wall');
     expect(wired.cursor(100, 100)).toBe('grab');
     wired.pointerDown(200, 100, { shiftKey: false, ctrlKey: false, metaKey: false } as FederatedPointerEvent);
