@@ -36,6 +36,7 @@ import type { TokenGroupContainer } from './token-renderer/types';
 import type { ConditionDefinition } from '../types/collectionSettingsTypes';
 import { setCanvasCursor } from './utils/canvasCursor';
 import { markHandled, resetHandled } from './utils/handledEvents';
+import { watchClick } from './utils/clickRelease';
 import type { HexLinkPointerHandlers } from './hexLinks/HexLinkInteraction';
 import { runInBackground } from '../utils/backgroundTask';
 import { isModHeld } from '../keyboard/modKey';
@@ -107,6 +108,8 @@ export class TokenRenderer {
   private pinClickHandler?: (pinId: string, e: FederatedPointerEvent) => void;
   private pinHoverHandler?: (type: 'over' | 'out', pinId: string, e?: FederatedPointerEvent) => void;
   private hexLinkHandlers?: HexLinkPointerHandlers;
+  /** Ends the watch on a right press that opens a hex or fog menu on release. */
+  private stopMenuPress?: () => void;
   private doorClickHandler?: (worldX: number, worldY: number) => boolean;
   private lastHoveredPinId: string | null = null;
 
@@ -1166,6 +1169,7 @@ export class TokenRenderer {
     // Unsubscribe from store
     this._unsubscribeFromStore?.();
     this._unsubscribeFromViewport?.();
+    this.stopMenuPress?.();
     
     // Clean up sync service
     this.syncService.destroyAll();
@@ -1570,6 +1574,11 @@ export class TokenRenderer {
     }
   }
 
+  private openMenuOnRelease(down: FederatedPointerEvent, open: (up: FederatedPointerEvent) => void): void {
+    this.stopMenuPress?.();
+    this.stopMenuPress = watchClick(this.viewport, down, open);
+  }
+
   private onViewportPointerDown = (e: FederatedPointerEvent): void => {
     // PIXI v8 reuses FederatedPointerEvent objects — clear custom flags from previous events
     resetHandled(e);
@@ -1598,19 +1607,19 @@ export class TokenRenderer {
       // A token takes the right-click from a linked hex or fog beneath it, as it takes the left-click
       const tokenTools = activeTool === 'select' || activeTool === 'move';
       const onToken = tokenTools && this.hitTestTokens(worldPos.x, worldPos.y) !== null;
+      // Linked hexes and fog cover whole stretches of the map: their press stays unhandled, so a
+      // right-drag still pans, and the menu opens when the button is released in place
       if (tokenTools && !onToken && this.hexLinkHandlers) {
         const hexLinkId = this.hexLinkHandlers.hitTest(worldPos.x, worldPos.y);
         if (hexLinkId) {
-          markHandled(e);
-          this.hexLinkHandlers.openContextMenu(hexLinkId, e);
+          this.openMenuOnRelease(e, (up) => this.hexLinkHandlers?.openContextMenu(hexLinkId, up));
           return;
         }
       }
       if (!onToken && this.fogHitTestProvider && this.fogClickHandler) {
         const fogId = this.fogHitTestProvider(worldPos.x, worldPos.y);
         if (fogId) {
-          markHandled(e);
-          this.fogClickHandler(fogId, e);
+          this.openMenuOnRelease(e, (up) => this.fogClickHandler?.(fogId, up));
           return;
         }
       }
