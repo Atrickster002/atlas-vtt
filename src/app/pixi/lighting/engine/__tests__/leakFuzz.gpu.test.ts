@@ -9,7 +9,7 @@ import { allSegments, splitBlocking } from '../../../../lighting/segments';
 import { LIGHT_REACH, sealTolerance, worldTexel } from '../../../../lighting/lightingConstants';
 import { SEES_ALL, computeSight, type SenseSource, type Sight } from '../../../../vision/sight';
 import type { SeenSpot } from '../../../../vision/perception';
-import { computeVisibility } from '../../../../vision/visibility';
+import { blocksFrom, computeVisibility } from '../../../../vision/visibility';
 import type { WallSegment } from '../../../../types/wallTypes';
 import { darkvision, senseSource } from '../../../../vision/__tests__/senseSources';
 import { BUILT_IN_SENSES, GENERIC_SENSES } from '../../../../gameSystems/senses';
@@ -27,7 +27,9 @@ const FOOTPRINTS = [31, 93, 217];
 /**
  * Footprints of tokens inside the room, as walls leave them: at a wall (8, 2 and 0.5 px from
  * it), in corners (0.5 and 8 px from the corner), at the middle of a closed door if the room has
- * one, and where the lights stand; in the three sizes in turn.
+ * one, and where the lights stand; in the three sizes in turn. Like the lights, a token stands
+ * only where every one-way wall of the room blocks: from its other side a one-way wall lets
+ * sight out of the room by its own rule (an arm of a star-shaped room can lie there).
  */
 function footprints(room: FuzzRoom, outline: readonly P[], walls: readonly WallSegment[], rand: () => number): SeenSpot[] {
   const centre: P = [outline.reduce((sum, p) => sum + p[0], 0) / outline.length, outline.reduce((sum, p) => sum + p[1], 0) / outline.length];
@@ -47,7 +49,9 @@ function footprints(room: FuzzRoom, outline: readonly P[], walls: readonly WallS
     ...(door ? [inward([(door.p1.x + door.p2.x) / 2, (door.p1.y + door.p2.y) / 2], 1)] : []),
     ...room.lights,
   ];
-  return places.filter((p) => insidePolygon(p, outline)).map(([x, y], i) => {
+  const oneWay = room.walls.filter((wall) => wall.direction);
+  const kept = places.filter((p) => insidePolygon(p, outline) && oneWay.every((wall) => blocksFrom(wall, { x: p[0], y: p[1] })));
+  return kept.map(([x, y], i) => {
     const radius = FOOTPRINTS[i % FOOTPRINTS.length]!;
     return { x, y, radius, polygon: computeVisibility({ x, y }, radius, walls) };
   });

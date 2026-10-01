@@ -381,6 +381,14 @@ describe('seenSpots and walls', () => {
     expect(Math.max(...spot.polygon.map((point) => point.x))).toBeCloseTo(183, 0);
   });
 
+  it('follow a one-way wall as sight does: it ends the footprint from its blocking side, and from the other lets it through', () => {
+    // The wall runs down the map, so its 'left' side is x < 160, where the token stands.
+    const blocking: WallSegment = { ...wall, direction: 'left' };
+    expect(Math.max(...spotOf(1, [blocking]).polygon.filter((point) => point.y > 0 && point.y < 220).map((point) => point.x))).toBeLessThanOrEqual(160.001);
+    const open: WallSegment = { ...wall, direction: 'right' };
+    expect(Math.max(...spotOf(1, [open]).polygon.map((point) => point.x))).toBeCloseTo(183, 0);
+  });
+
   it('end at a wall for a token an echolocation sees, too', () => {
     const tokens = { viewer: viewerWith('pathfinder2e-echolocation'), prey: { ...token('prey', { x: 150, y: 100 }), size: 2 } };
     const spots = seenSpots(computeSight(sightSources(tokens, scale, bounds, rules), [wall]), dark, [], tokens, 70, [wall], { conditions });
