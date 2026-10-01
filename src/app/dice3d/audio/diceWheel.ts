@@ -52,12 +52,13 @@ const WHEEL_SNAP = 0.06;
 /** How far above the tooth the snap sits. A ratio, so it rises and falls with the tooth. */
 const WHEEL_SNAP_RATIO = 1.3;
 
-export function rollStart(expectedSeconds = 1.75): void {
+/** Starts the wheel for a roll and returns that roll's number, which `rollEnd` takes to stop it. */
+export function rollStart(expectedSeconds = 1.75): number {
+  rollEnd();
+  const serial = ++rollSerial;
   const c = audio();
   const master = masterGain();
-  if (c === null || master === null) return;
-  rollEnd(true);
-  const serial = ++rollSerial;
+  if (c === null || master === null) return serial;
   const now = c.currentTime;
 
   // Faded in, not switched on: without the fade the roll starts on the edge of
@@ -128,14 +129,19 @@ export function rollStart(expectedSeconds = 1.75): void {
   // scheduled after decoding; what has passed by then is missing, the rest runs
   // as planned.
   if (whenReady(schedule)) schedule();
+  return serial;
 }
 
 /**
  * Roll end: clear the wheel. A regular end and an abort do the same here: teeth
- * still in the future belong to a roll that is over. `quiet` stays as a
- * distinction callers rely on.
+ * still in the future belong to a roll that is over.
+ *
+ * Several rolls stand side by side and there is one wheel, the latest roll's.
+ * A roll that names itself stops only its own: an earlier roll that settles or
+ * whose panel closes must not silence the one still flying.
  */
-export function rollEnd(quiet = false): void {
+export function rollEnd(roll?: number): void {
+  if (roll !== undefined && roll !== rollSerial) return;
   // Also what is not scheduled yet: a wheel waiting for the samples to decode
   // must not start afterwards.
   rollSerial += 1;
@@ -147,5 +153,4 @@ export function rollEnd(quiet = false): void {
     }
   }
   wheel = [];
-  void quiet;
 }

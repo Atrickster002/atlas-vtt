@@ -27,7 +27,7 @@ let lastBank = 0;
  * they compare against the context's clock, which starts at zero again.
  */
 export function disposeDiceSounds(): void {
-  rollEnd(true);
+  rollEnd();
   disposeDiceSamples();
   lastBank = 0;
   lastRattle = -1;
