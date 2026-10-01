@@ -13,6 +13,11 @@ import { Viewport } from 'pixi-viewport';
 import { EventEmitter } from 'events';
 import { TokenRenderer } from '../../../src/app/pixi/token-renderer';
 import { captureSceneFrame } from '../../../src/app/pixi/sceneFrameCapture';
+import { DrawingRenderer } from '../../../src/app/pixi/DrawingRenderer';
+import { MeasureRenderer } from '../../../src/app/pixi/MeasureRenderer';
+import { PinRenderer } from '../../../src/app/pixi/PinRenderer';
+import { FogOfWarRenderer } from '../../../src/app/pixi/fog/FogOfWarRenderer';
+import { TextTool } from '../../../src/app/tools/TextTool';
 import { AssetService } from '../../../src/app/services/AssetService';
 import { createViewAtlasStore } from '../../../src/app/storeFactory';
 import { computeTokenPixelSize } from '../../../src/app/pixi/token-renderer/tokenSizing';
@@ -26,6 +31,9 @@ vi.mock('../../../src/app/react/root/ContextMenuContext', () => ({
   openContextMenuGlobal,
   closeContextMenuGlobal: vi.fn(),
 }));
+
+const promptForText = vi.hoisted(() => vi.fn(async () => null));
+vi.mock('../../../src/app/ui/textInputDialog', () => ({ promptForText }));
 
 // jsdom has no 2D canvas, so SVG icons cannot be rasterised here.
 vi.mock('../../../src/app/pixi/utils/lucideIconTexture', () => ({
@@ -430,6 +438,100 @@ describe('TokenRenderer Integration Tests', () => {
       expect(viewport.cursor).toBe('pointer');
       canvas.dispatchEvent(new Event('pointerleave'));
       expect(lights.leave).toHaveBeenCalled();
+    });
+  });
+
+  // A marker takes its click with any tool; the tool must not also draw, measure or place there.
+  describe('A click on a marker and the active tool', () => {
+    const MARKERS: [string, number][] = [['a note pin', 20], ['a door badge', 530], ['a light marker', 300]];
+    const OFF_MARKERS = 700;
+
+    beforeEach(() => {
+      tokenRenderer.setPinHitTestProvider((x) => (x < 50 ? 'pin-1' : null));
+      tokenRenderer.setPinClickHandler(vi.fn());
+      tokenRenderer.setDoorClickHandler((x) => x > 500 && x < 560);
+      tokenRenderer.setLightHandlers({ pointerDown: (x) => x > 290 && x < 310, cursorAt: () => null, leave: () => undefined });
+      promptForText.mockClear();
+    });
+
+    const click = (x: number): void => {
+      viewport.emit('pointerdown', pointerEvent(x, 200));
+      viewport.emit('pointerup', pointerEvent(x, 200));
+      viewport.emit('pointertap', pointerEvent(x, 200));
+    };
+
+    it.each(MARKERS)('draws no stroke and stamps no icon on %s', (_marker, x) => {
+      const drawing = new DrawingRenderer(viewport, eventBus, store);
+      try {
+        for (const tool of ['draw-pen', 'draw-icon'] as const) {
+          store.getState().setActiveTool(tool);
+          click(x);
+        }
+        expect(store.getState().objects.drawings).toEqual({});
+        click(OFF_MARKERS);
+        expect(Object.keys(store.getState().objects.drawings)).toHaveLength(1);
+      } finally {
+        drawing.destroy();
+      }
+    });
+
+    it.each(MARKERS)('starts no measurement on %s', (_marker, x) => {
+      const measure = new MeasureRenderer(viewport, eventBus, store, gridSystem);
+      const started = (): boolean => (measure as unknown as { isDrawing: boolean }).isDrawing;
+      try {
+        store.getState().setActiveTool('measure');
+        viewport.emit('pointerdown', pointerEvent(x, 200));
+        expect(started()).toBe(false);
+        viewport.emit('pointerup', pointerEvent(x, 200));
+        viewport.emit('pointerdown', pointerEvent(OFF_MARKERS, 200));
+        expect(started()).toBe(true);
+      } finally {
+        measure.destroy();
+      }
+    });
+
+    it.each(MARKERS)('paints no fog on %s', (_marker, x) => {
+      vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(new Proxy({}, { get: () => (): void => undefined }) as never);
+      const fog = new FogOfWarRenderer(viewport, {} as Application, eventBus as never, store);
+      try {
+        store.getState().setActiveTool('fog');
+        click(x);
+        expect(store.getState().objects.fog).toEqual({});
+        click(OFF_MARKERS);
+        expect(Object.keys(store.getState().objects.fog)).toHaveLength(1);
+      } finally {
+        fog.destroy();
+        vi.restoreAllMocks();
+      }
+    });
+
+    it.each(MARKERS)('opens no text box on %s', (_marker, x) => {
+      const text = new TextTool(viewport, store, gridSystem, eventBus);
+      try {
+        store.getState().setActiveTool('text');
+        text.activate();
+        click(x);
+        expect(promptForText).not.toHaveBeenCalled();
+        click(OFF_MARKERS);
+        expect(promptForText).toHaveBeenCalledTimes(1);
+      } finally {
+        text.deactivate();
+      }
+    });
+
+    it.each(MARKERS)('places no note pin on %s', (_marker, x) => {
+      const pins = new PinRenderer(viewport, eventBus, store);
+      const placed = vi.fn();
+      eventBus.on('canvas-click', placed);
+      try {
+        store.getState().setActiveTool('note-pin');
+        click(x);
+        expect(placed).not.toHaveBeenCalled();
+        click(OFF_MARKERS);
+        expect(placed).toHaveBeenCalledTimes(1);
+      } finally {
+        pins.destroy();
+      }
     });
   });
 
