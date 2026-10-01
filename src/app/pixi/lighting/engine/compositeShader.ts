@@ -73,14 +73,14 @@ float exploredAt(vec2 w) {
   vec2 size = vec2(textureSize(uExplored, 0));
   float texel = size.x >= size.y ? uMapSize.x / size.x : uMapSize.y / size.y;
   float r = min(2.0 * texel, clearance(w));
-  float sum = texture(uExplored, clamp(w / uMapSize, 0.0, 1.0)).r;
+  float sum = textureLod(uExplored, clamp(w / uMapSize, 0.0, 1.0), 0.0).r;
   if (r < 0.25 * texel) return sum;
   float weights = 1.0;
   for (int i = 0; i < 12; i++) {
     float t = sqrt((float(i) + 0.5) / 12.0);
     float a = float(i) * 2.39996323;
     float k = exp(-2.0 * t * t);
-    sum += k * texture(uExplored, clamp((w + vec2(cos(a), sin(a)) * t * r) / uMapSize, 0.0, 1.0)).r;
+    sum += k * textureLod(uExplored, clamp((w + vec2(cos(a), sin(a)) * t * r) / uMapSize, 0.0, 1.0), 0.0).r;
     weights += k;
   }
   return sum / weights;
@@ -94,8 +94,8 @@ vec3 brighter(vec3 a, vec3 b) {
 void main() {
   vec2 screen = vTextureCoord * uInputSize.xy + uAreaOrigin;
   vec2 world = (uScreenToWorld * vec3(screen, 1.0)).xy;
-  vec3 albedo = toLinear(texture(uBackTexture, vTextureCoord).rgb);
-  vec3 direct = texture(uLightMap, world / uLightWorld).rgb;
+  vec3 albedo = toLinear(textureLod(uBackTexture, vTextureCoord, 0.0).rgb);
+  vec3 direct = textureLod(uLightMap, world / uLightWorld, 0.0).rgb;
   vec3 bounce = bounceAt(world);
   // Tiles end at the capsule: from its core to the band a wall's face takes the light (direct
   // and bounce alike) of the floor in front of it, on its own side, then blends back to its own
@@ -104,10 +104,10 @@ void main() {
   float front = clamp((d - uCore) / uPixelWorld + 0.5, 0.0, 1.0) * (1.0 - smoothstep(uBand, uBand + uTexel, d));
   if (front > 0.0) {
     vec2 floorAt = climbFromWall(world, uBand);
-    direct = mix(direct, texture(uLightMap, floorAt / uLightWorld).rgb, front);
+    direct = mix(direct, textureLod(uLightMap, floorAt / uLightWorld, 0.0).rgb, front);
     bounce = mix(bounce, bounceAt(floorAt), front);
   }
-  vec4 sight = texture(uTexture, vTextureCoord);
+  vec4 sight = textureLod(uTexture, vTextureCoord, 0.0);
   float seen = max(uAllSeen, sight.r);
   vec3 light = uAmbient + (direct + bounce * uBounceGain) * uExposure;
   vec3 lit = neutral(albedo * light);

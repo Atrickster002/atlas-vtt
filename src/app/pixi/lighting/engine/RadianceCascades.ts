@@ -14,6 +14,16 @@ function intervalStart(i: number): number {
 }
 
 /**
+ * The mip level of `map` at which one texel spans an emission texel: the level implicit
+ * filtering would pick, named so that the read needs no screen-space gradient (Direct3D
+ * restricts those inside branches and loops). An image without mipmaps ignores it.
+ */
+function emissionLod(map: Texture, bounds: MapBounds): number {
+  const { pixelWidth, pixelHeight } = map.source;
+  return Math.max(0, Math.log2(Math.max(pixelWidth / bounds.width, pixelHeight / bounds.height) * BOUNCE.emitTexel));
+}
+
+/**
  * World-space Radiance Cascades over the wall field, from the light map (see `cascadeShaders`):
  * `fluence` holds the light arriving at each cascade-0 probe, `BOUNCE.probe` px apart.
  */
@@ -34,7 +44,7 @@ export class RadianceCascades {
   private readonly cascade: Pass;
   private readonly resolve: Pass;
 
-  constructor(private readonly renderer: Renderer, bounds: MapBounds, field: CapsuleField) {
+  constructor(private readonly renderer: Renderer, private readonly bounds: MapBounds, field: CapsuleField) {
     this.emit = createTarget(bounds.width / BOUNCE.emitTexel, bounds.height / BOUNCE.emitTexel, 'rgba16float');
     this.counts = Array.from({ length: BOUNCE.cascades }, (_, i) => {
       const spacing = BOUNCE.probe * 2 ** i;
@@ -48,6 +58,7 @@ export class RadianceCascades {
       uLightWorld: { value: this.lightWorld, type: 'vec2<f32>' },
       uMapSize: { value: new Float32Array([bounds.width, bounds.height]), type: 'vec2<f32>' },
       uHasAlbedo: { value: 0, type: 'f32' },
+      uAlbedoLod: { value: 0, type: 'f32' },
     });
     this.cascadeUniforms = new UniformGroup({
       uEmitWorld: { value: new Float32Array(emitWorld), type: 'vec2<f32>' },
@@ -80,6 +91,7 @@ export class RadianceCascades {
     const emission = this.emission.shader!;
     this.lightWorld.set(lightMap.world);
     this.emissionUniforms.uniforms.uHasAlbedo = map ? 1 : 0;
+    this.emissionUniforms.uniforms.uAlbedoLod = map ? emissionLod(map, this.bounds) : 0;
     emission.resources.uLightMap = lightMap.texture.source;
     if (map) emission.resources.uAlbedo = map.source;
     renderInto(this.renderer, this.emission, this.emit, [0, 0, 0, 0]);

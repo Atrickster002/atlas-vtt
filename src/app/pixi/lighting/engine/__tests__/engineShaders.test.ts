@@ -32,6 +32,13 @@ function uniformsOf(source: string): Map<string, string> {
   return declared;
 }
 
+/** Sampling and derivative calls that take the mip level from screen-space gradients. */
+const IMPLICIT_GRADIENT = /\b(?:texture(?:Offset|Proj|ProjOffset)?|texture2D|dFdx|dFdy|fwidth)\s*\(/g;
+
+function withoutComments(source: string): string {
+  return source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
+}
+
 describe('engine shader sources', () => {
   it('lists every engine program once', () => {
     const names = shaders.map(([name]) => name);
@@ -48,6 +55,18 @@ describe('engine shader sources', () => {
       }
     }
     expect(clashes).toEqual([]);
+  });
+
+  // ANGLE translates GLSL to HLSL for Direct3D, whose compiler rejects or unrolls loops and
+  // branches that sample with implicit gradients; every engine read names its level instead.
+  it.each(shaders)('%s samples every texture at an explicit level', (_name, shader) => {
+    const implicit = [shader.vertex, shader.fragment].flatMap((source) => withoutComments(source).match(IMPLICIT_GRADIENT) ?? []);
+    expect(implicit).toEqual([]);
+  });
+
+  it('finds implicit-gradient reads, and only those (the check can fail)', () => {
+    const source = 'a = texture(uMap, uv); // texture(in a comment)\nb = textureLod(uMap, uv, 0.0) + texelFetch(uMap, p, 0) + vec4(textureSize(uMap, 0), dFdx(uv));';
+    expect(withoutComments(source).match(IMPLICIT_GRADIENT)).toEqual(['texture(', 'dFdx(']);
   });
 
   it('finds the uniforms of a source (the check can fail)', () => {
