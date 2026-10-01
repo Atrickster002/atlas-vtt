@@ -8,6 +8,8 @@ import { CloseButton } from '../../packages/components/primitives/CloseButton';
 import { Button } from '../../packages/components/primitives/button';
 import { ToggleSwitch } from '../../packages/components/primitives/Toggle';
 import { TooltipProvider } from '../../packages/components/primitives/tooltip';
+import { mapSenses } from '../../services/mapCollectionRules';
+import type { SenseDefinition, TokenSense } from '../../types/senseTypes';
 import { NumberOverrideField, parseNumberInput } from './NumberOverrideField';
 import { readStatblockVitals } from './statblockFrontmatter';
 import { buildResourceUpdates, statblockResourceDefaults, type ResourceDefaults } from './tokenResourceEdits';
@@ -27,10 +29,21 @@ interface EditTokenValues {
   light: LightChoice;
 }
 
-interface EditTokenModalProps {
+/** What only the caller knows about the token being edited. */
+export interface EditTokenOptions {
+  /**
+   * The senses the token takes from its linked statblock while it has none of its own. The
+   * modal shows them marked "from statblock"; editing them copies them onto the token.
+   */
+  inheritedSenses?: readonly TokenSense[];
+}
+
+interface EditTokenModalProps extends EditTokenOptions {
   initial: EditTokenValues;
   resourceDefaults: ResourceDefaults;
   unit: string;
+  /** The senses of the map's collection. */
+  senses: readonly SenseDefinition[];
   onSave: (values: EditTokenValues) => void;
   onClose: () => void;
 }
@@ -38,7 +51,7 @@ interface EditTokenModalProps {
 const defaultPlaceholder = (value: number | undefined): string =>
   value === undefined ? 'None' : `Statblock default: ${value}`;
 
-function EditTokenModalInner({ initial, resourceDefaults, unit, onSave, onClose }: EditTokenModalProps): React.ReactElement {
+function EditTokenModalInner({ initial, resourceDefaults, unit, senses, inheritedSenses, onSave, onClose }: EditTokenModalProps): React.ReactElement {
   const nameplateId = useId();
   const [name, setName] = useState(initial.name);
   const [showNameplate, setShowNameplate] = useState(initial.showNameplate);
@@ -68,12 +81,13 @@ function EditTokenModalInner({ initial, resourceDefaults, unit, onSave, onClose 
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent): void => {
+      // A control that took the key itself (a switch, an open list) has prevented the default.
+      if (e.defaultPrevented) return;
       if (e.key === 'Escape') {
         e.preventDefault();
         e.stopPropagation();
         onClose();
-      } else if (e.key === 'Enter' && !e.defaultPrevented) {
-        // A control that took the key itself (a switch) has prevented the default.
+      } else if (e.key === 'Enter' && !isButton(e.target)) {
         e.preventDefault();
         handleSave();
       }
@@ -81,7 +95,6 @@ function EditTokenModalInner({ initial, resourceDefaults, unit, onSave, onClose 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   });
-
 
   return (
     <div className="atlas-modal-overlay" onClick={onClose}>
@@ -126,7 +139,15 @@ function EditTokenModalInner({ initial, resourceDefaults, unit, onSave, onClose 
             resetLabel="Reset to statblock default"
           />
           {WALLS_AND_LIGHTING_ENABLED && (
-            <TokenLightingFields vision={vision} onVisionChange={setVision} light={light} onLightChange={setLight} unit={unit} />
+            <TokenLightingFields
+              vision={vision}
+              onVisionChange={setVision}
+              light={light}
+              onLightChange={setLight}
+              unit={unit}
+              senses={senses}
+              {...(inheritedSenses && { inheritedSenses })}
+            />
           )}
         </div>
 
@@ -137,6 +158,11 @@ function EditTokenModalInner({ initial, resourceDefaults, unit, onSave, onClose 
       </div>
     </div>
   );
+}
+
+/** Enter on a button presses it; anywhere else in the modal it saves. A popout's elements are not `instanceof` this window's classes. */
+function isButton(target: EventTarget | null): boolean {
+  return (target as Element | null)?.closest?.('button') != null;
 }
 
 function lightingUpdates(vision: VisionForm, light: LightChoice): Pick<TokenUpdates, 'vision' | 'light'> {
@@ -156,8 +182,9 @@ function readResourceDefaults(app: App, statblockPath: string | undefined): Reso
  * Imperatively opens an Edit Token modal by mounting a React root.
  * Call from non-React code (e.g. InteractionController).
  */
-export function openEditTokenModal(token: TokenEntity, store: StoreApi<ViewAtlasState>, app: App): void {
+export function openEditTokenModal(token: TokenEntity, store: StoreApi<ViewAtlasState>, app: App, options: EditTokenOptions = {}): void {
   const character = token.kind === 'character' ? token : undefined;
+  const senses = mapSenses(app, store.getState().mapPath);
   const resourceDefaults = readResourceDefaults(app, character?.statblockPath);
   const container = document.body.createDiv({ cls: 'atlas-vtt-plugin atlas-vtt-root' });
   const root = createRoot(container);
@@ -186,10 +213,12 @@ export function openEditTokenModal(token: TokenEntity, store: StoreApi<ViewAtlas
           showNameplate: token.showNameplate ?? false,
           maxHp: typeof character?.hp === 'object' ? character.hp.max : character?.hp,
           maxStress: typeof character?.stress === 'object' ? character.stress.max : character?.maxStress,
-          vision: visionForm(token.vision),
+          vision: visionForm(token.vision, senses),
           light: token.light ? presetOf(token.light) ?? 'custom' : 'none',
         }}
         unit={unitLabelFor(store.getState().grid?.unitType)}
+        senses={senses}
+        {...options}
         resourceDefaults={resourceDefaults}
         onSave={handleSave}
         onClose={cleanup}

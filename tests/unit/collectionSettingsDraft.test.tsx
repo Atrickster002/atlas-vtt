@@ -106,4 +106,13 @@ describe('senses', () => {
     act(() => result.current.clearSystem());
     expect(result.current.toSettings()).toHaveProperty('senses', undefined);
   });
+
+  it('saves the senses once they are edited, and none again when the edit is taken back', () => {
+    const { senses: _senses, ...before } = structuredClone(dnd5e.rules);
+    const { result } = draftFor({ ...before, systemPresetId: dnd5e.id });
+    act(() => result.current.setSenses([...dnd5e.rules.senses!, witchSight]));
+    expect(result.current.toSettings().senses).toEqual([...dnd5e.rules.senses!, witchSight]);
+    act(() => result.current.setSenses(undefined));
+    expect(result.current.toSettings()).toHaveProperty('senses', undefined);
+  });
 });

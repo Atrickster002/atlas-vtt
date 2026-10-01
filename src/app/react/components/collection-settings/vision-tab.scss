@@ -1,0 +1,96 @@
+// ═══════════════════════════════════════════════════════════════════════════
+// Collection settings, Vision tab — the senses of the game system
+// ═══════════════════════════════════════════════════════════════════════════
+// Imported inside the `.atlas-vtt-plugin` scope of styles/main.scss.
+
+@use '../../../../../styles/tokens' as *;
+@use '../../../../../styles/mixins' as *;
+
+.atlas-csm-senses {
+  @include atlas-flex-col($spacing-s);
+}
+
+.atlas-csm-senses__title {
+  margin: 0;
+  font-size: $font-ui-small;
+  font-weight: $font-weight-semibold;
+  color: var(--text-normal);
+}
+
+.atlas-csm-sense-list {
+  @include atlas-flex-col($spacing-xs);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+// Name above what the sense does; a sense of the collection's own has its buttons beside both.
+.atlas-csm-sense {
+  @include atlas-inset-surface;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  column-gap: $spacing-s;
+  align-items: center;
+  padding: $spacing-s;
+}
+
+.atlas-csm-sense__name {
+  grid-column: 1;
+  font-size: $font-ui-small;
+  font-weight: $font-weight-medium;
+  color: var(--text-normal);
+}
+
+.atlas-csm-sense__text {
+  grid-column: 1;
+  font-size: $font-ui-smaller;
+  line-height: var(--line-height-tight);
+  color: var(--text-muted);
+}
+
+.atlas-csm-sense__actions {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  display: flex;
+  gap: $spacing-xs;
+
+  .btn--icon {
+    width: $button-height-s;
+    height: $button-height-s;
+  }
+}
+
+.atlas-csm-sense__edit {
+  color: var(--text-muted);
+
+  &[aria-expanded='true'] {
+    color: var(--text-accent);
+    background: color-mix(in srgb, var(--interactive-accent) 16%, transparent) !important;
+  }
+}
+
+// ── Fields of a sense of the collection's own ────────────────────────────────
+.atlas-csm-sense-editor {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: $spacing-s;
+  margin-top: $spacing-s;
+  padding-top: $spacing-s;
+  border-top: $border-width-s solid var(--background-modifier-border);
+
+  // As tall as the selects beside them.
+  .atlas-csm-input {
+    height: var(--input-height);
+  }
+}
+
+.atlas-csm-sense-editor__wide {
+  grid-column: 1 / -1;
+}
+
+.atlas-csm-sense-editor__switch {
+  @include atlas-flex-row($spacing-s);
+  justify-content: space-between;
+  min-height: var(--input-height);
+}

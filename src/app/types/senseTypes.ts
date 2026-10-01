@@ -98,6 +98,12 @@ export interface SenseDefinition {
   ignores?: 'airborne';
   /** The collection's sense an old `TokenVision.darkvision` or `tremorsense` number is read as. */
   role?: SenseRole;
+  /**
+   * The entry is no sense of its own: it lets the token's sight see invisible tokens (See
+   * Invisibility, See the Unseen). It takes no distance and its light levels are not read.
+   * Read and set through `senseKind` and `withSenseKind` (`gameSystems/senseEditing.ts`).
+   */
+  grants?: 'see-invisible';
 }
 
 /** One sense of a token, by the id of its definition. */

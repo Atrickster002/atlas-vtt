@@ -26,6 +26,8 @@ export interface CollectionSettingsDraft {
   setDefaultTokenVision: (vision: TokenVisionDefaults | undefined) => void;
   /** Unset while the collection takes the senses of its preset; read with `collectionSenses`. */
   senses: readonly SenseDefinition[] | undefined;
+  /** Set only once the GM edits the senses (`editedSenses`), so an untouched collection keeps following its preset. */
+  setSenses: (senses: readonly SenseDefinition[] | undefined) => void;
   conditions: ConditionDefinition[];
   setConditions: (conditions: ConditionDefinition[]) => void;
   /** Unset while the collection takes the dice of its preset; read with `collectionDiceRules`. */
@@ -129,7 +131,7 @@ export function useCollectionSettingsDraft(
     gridDefaults, setGridDefaults,
     defaultWidgets, setDefaultWidgets,
     defaultTokenVision, setDefaultTokenVision,
-    senses,
+    senses, setSenses,
     conditions, setConditions,
     dice, setDice,
     customCreatureFilters, setCustomCreatureFilters,
