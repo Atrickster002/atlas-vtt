@@ -21,9 +21,10 @@ interface DropdownSwatchGridProps {
 /** A labelled row of colour swatches for toolbar dropdowns and popovers; the current colour is ringed. */
 export function DropdownSwatchGrid({ label, swatches, value, onChange, hint, children }: DropdownSwatchGridProps): React.ReactElement {
   const current = value.toLowerCase()
+  const labelId = React.useId()
   return (
-    <div className="atlas-dropdown-swatches">
-      <span className="atlas-dropdown-swatches__label">{label}</span>
+    <div className="atlas-dropdown-swatches" role="group" aria-labelledby={labelId}>
+      <span id={labelId} className="atlas-dropdown-swatches__label">{label}</span>
       <div className="atlas-swatch-grid">
         {swatches.map((swatch) => {
           const isActive = current === swatch.value.toLowerCase()

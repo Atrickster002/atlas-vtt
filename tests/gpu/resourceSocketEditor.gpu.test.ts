@@ -55,13 +55,26 @@ describe('the socket editor of the Resources tab', () => {
     await new Promise((resolve) => setTimeout(resolve, 600));
     const stage = document.querySelector('.atlas-csm-token-stage')!.getBoundingClientRect();
     const items = [...document.querySelectorAll('.atlas-csm-fan__item')].map((item) => item.getBoundingClientRect());
-    expect(items).toHaveLength(5);
+    expect(items).toHaveLength(4);
     for (const item of items) {
       expect(item.top).toBeGreaterThanOrEqual(stage.top);
       expect(item.bottom).toBeLessThanOrEqual(stage.bottom);
       expect(item.left).toBeGreaterThanOrEqual(stage.left);
       expect(item.right).toBeLessThanOrEqual(stage.right);
     }
+  });
+
+  it('lets the name and the statblock field take a click: nothing lies over the card', async () => {
+    await userEvent.click(page.getByRole('button', { name: /^HP: / }));
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    for (const label of ['Name', 'Statblock field']) {
+      const input = page.getByRole('textbox', { name: label }).element();
+      const box = input.getBoundingClientRect();
+      expect(document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2)).toBe(input);
+    }
+    await userEvent.click(page.getByRole('textbox', { name: 'Name' }));
+    await userEvent.keyboard('!');
+    expect((page.getByRole('textbox', { name: 'Name' }).element() as HTMLInputElement).value).toBe('HP!');
   });
 
   it('keeps the fan\'s buttons and the field chips round where Obsidian shapes buttons as squircles', async () => {
@@ -74,9 +87,9 @@ describe('the socket editor of the Resources tab', () => {
     expect(shapeOf(page.getByRole('button', { name: /^HP: / }).element())).not.toBe(round);
 
     await userEvent.click(page.getByRole('button', { name: /^HP: / }));
-    const controls = [...document.querySelectorAll('.atlas-csm-fan__button, .atlas-csm-fan__swatch, .atlas-csm-field-chip')];
-    // Five in the fan and the two field chips of the card
-    expect(controls).toHaveLength(7);
+    const controls = [...document.querySelectorAll('.atlas-csm-fan__button, .atlas-csm-field-chip')];
+    // Four in the fan and the two field chips of the card
+    expect(controls).toHaveLength(6);
     for (const control of controls) expect(shapeOf(control)).toBe(round);
     reference.remove();
   });

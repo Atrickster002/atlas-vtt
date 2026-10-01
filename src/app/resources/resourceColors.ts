@@ -24,3 +24,31 @@ export function resourceColor(definition: ResourceDefinition, value: ResourceVal
   if (left >= WARN_BELOW) return definition.color;
   return left >= CRITICAL_BELOW ? WARN_COLOR : CRITICAL_COLOR;
 }
+
+/**
+ * The colours a resource may have, around the colour wheel and ending in two neutrals. Each
+ * reads on the dark track of a bar or wheel and apart from its neighbours. The warning
+ * yellow and red above are left out, so a low resource never looks like another one.
+ */
+export const RESOURCE_COLORS: ReadonlyArray<{ value: string; label: string }> = [
+  { value: '#dc2626', label: 'Red' },
+  { value: '#f43f5e', label: 'Rose' },
+  { value: '#ec4899', label: 'Pink' },
+  { value: '#d946ef', label: 'Fuchsia' },
+  { value: '#a855f7', label: 'Purple' },
+  { value: '#8b5cf6', label: 'Violet' },
+  { value: '#6366f1', label: 'Indigo' },
+  { value: '#3b82f6', label: 'Blue' },
+  { value: '#0ea5e9', label: 'Sky' },
+  { value: '#06b6d4', label: 'Cyan' },
+  { value: '#14b8a6', label: 'Teal' },
+  { value: '#10b981', label: 'Emerald' },
+  { value: '#22c55e', label: 'Green' },
+  { value: '#84cc16', label: 'Lime' },
+  { value: '#facc15', label: 'Yellow' },
+  { value: '#f59e0b', label: 'Amber' },
+  { value: '#f97316', label: 'Orange' },
+  { value: '#b45309', label: 'Brown' },
+  { value: '#94a3b8', label: 'Steel' },
+  { value: '#e5e7eb', label: 'White' },
+];

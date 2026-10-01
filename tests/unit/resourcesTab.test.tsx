@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ResourcesTab } from '../../src/app/react/components/collection-settings/ResourcesTab';
 import { HP_RESOURCE, isDraftResourceKey } from '../../src/app/resources/resourceDefinitions';
+import { RESOURCE_COLORS } from '../../src/app/resources/resourceColors';
 import { slottedResources } from '../../src/app/resources/resourceSlots';
 import type { ResourceDefinition } from '../../src/app/resources/resourceTypes';
 
@@ -60,8 +61,10 @@ describe('ResourcesTab', () => {
     expect(last(onChange).find((r) => r.key === 'str')!.visibleToPlayers).toBe(true);
     fireEvent.click(screen.getByRole('button', { name: 'Does not defeat the token' }));
     expect(last(onChange).find((r) => r.key === 'str')!.defeatedWhenSpent).toBe(true);
-    fireEvent.change(screen.getByLabelText('Colour'), { target: { value: '#112233' } });
-    expect(last(onChange).find((r) => r.key === 'str')!.color).toBe('#112233');
+    // The colour is one of the curated ones, picked in the card; no free colour picker
+    fireEvent.click(screen.getByRole('button', { name: 'Teal' }));
+    expect(last(onChange).find((r) => r.key === 'str')!.color).toBe('#14b8a6');
+    expect(document.querySelector('input[type="color"]')).toBeNull();
     // HP was never touched
     expect(last(onChange).find((r) => r.key === 'hp')).toEqual({ ...HP_RESOURCE, slot: 0 });
 
@@ -152,19 +155,16 @@ describe('ResourcesTab', () => {
     expect(last(onChange)[0]!.direction).toBe('drains');
   });
 
-  it('keeps the socket open when the click that closes the colour picker lands beside it', () => {
-    render(<Editor initial={[{ ...HP_RESOURCE }]} />);
+  it('shows which of the curated colours a resource has, and gives a new resource one that is still free', () => {
+    const onChange = vi.fn();
+    render(<Editor initial={[{ ...HP_RESOURCE }]} onChange={onChange} />);
     fireEvent.click(socket('HP: bar below the token'));
-    const stage = screen.getByRole('group', { name: 'Resource sockets' }).parentElement!;
-    const colour = screen.getByLabelText('Colour');
-    colour.focus();
-    fireEvent.pointerDown(stage);
-    colour.blur();
-    fireEvent.click(stage);
-    expect(screen.getByRole('textbox', { name: 'Name' })).toBeTruthy();
-    // The next click on the background closes it as usual
-    fireEvent.pointerDown(stage);
-    fireEvent.click(stage);
-    expect(socket('HP: bar below the token').getAttribute('aria-pressed')).toBe('false');
+    const swatches = within(screen.getByRole('group', { name: 'Colour' })).getAllByRole('button');
+    expect(swatches).toHaveLength(20);
+    expect(swatches.filter((swatch) => swatch.getAttribute('aria-pressed') === 'true').map((swatch) => swatch.getAttribute('aria-label'))).toEqual(['Green']);
+    fireEvent.click(within(screen.getByRole('group', { name: 'Resource sockets' })).getAllByRole('button', { name: 'Empty socket: wheel on the right' })[0]!);
+    const added = last(onChange).find((resource) => resource.key !== 'hp')!;
+    expect(added.color).not.toBe(HP_RESOURCE.color);
+    expect(RESOURCE_COLORS.map(({ value }) => value)).toContain(added.color);
   });
 });
