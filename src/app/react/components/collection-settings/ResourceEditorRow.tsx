@@ -2,10 +2,12 @@ import React, { useId } from 'react';
 import { ChevronDown, ChevronUp, Eye, EyeOff, Skull, Trash2 } from 'lucide-react';
 import { Button } from '../../../packages/components/primitives/button';
 import { LabelTooltip } from '../../../packages/components/primitives/tooltip';
-import type { ResourceDefinition, ResourceDirection, ResourceLook } from '../../../resources/resourceTypes';
+import type { ResourceDefinition, ResourceDirection, ResourceShape } from '../../../resources/resourceTypes';
 
 interface ResourceEditorRowProps {
   resource: ResourceDefinition;
+  /** Where the resource shows on a token, which its place in the list decides. */
+  shape: ResourceShape;
   fieldSuggestions: readonly string[];
   canMoveUp: boolean;
   canMoveDown: boolean;
@@ -17,11 +19,6 @@ interface ResourceEditorRowProps {
 const DIRECTIONS: ReadonlyArray<{ value: ResourceDirection; label: string; hint: string }> = [
   { value: 'drains', label: 'Drains', hint: 'Drains: starts full and counts down, like HP' },
   { value: 'fills', label: 'Fills', hint: 'Fills: starts empty and counts up, like Stress' },
-];
-
-const LOOKS: ReadonlyArray<{ value: ResourceLook; label: string; hint: string }> = [
-  { value: 'bar', label: 'Bar', hint: 'Bar: a bar under the token' },
-  { value: 'badge', label: 'Badge', hint: 'Badge: a compact label with its name and numbers' },
 ];
 
 /** Two or more exclusive choices as a row of toggle buttons. */
@@ -46,7 +43,7 @@ function Choice<T extends string>({ label, options, value, onChange }: {
 
 /** One resource of a collection: its name, statblock field, colour and how it counts and shows. */
 export function ResourceEditorRow({
-  resource, fieldSuggestions, canMoveUp, canMoveDown, onChange, onMove, onRemove,
+  resource, shape, fieldSuggestions, canMoveUp, canMoveDown, onChange, onMove, onRemove,
 }: ResourceEditorRowProps): React.ReactElement {
   const suggestionsId = useId();
   const defeats = resource.defeatedWhenSpent === true;
@@ -89,7 +86,7 @@ export function ResourceEditorRow({
 
       <div className="atlas-csm-resource-row">
         <Choice label="How it counts" options={DIRECTIONS} value={resource.direction} onChange={(direction) => onChange({ direction })} />
-        <Choice label="How it shows" options={LOOKS} value={resource.look} onChange={(look) => onChange({ look })} />
+        <span className="atlas-csm-resource-shape">{shape === 'bar' ? 'Bar' : 'Wheel, on hover'}</span>
         <div className="atlas-csm-resource-toggles">
           <LabelTooltip label={defeats ? 'A token is defeated when this is spent' : 'Mark tokens defeated when this is spent'}>
             <Button variant="ghost" size="icon" className="atlas-csm-condition-valued" aria-pressed={defeats}

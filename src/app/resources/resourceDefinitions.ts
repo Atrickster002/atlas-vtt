@@ -1,14 +1,14 @@
-import type { ResourceDefinition } from './resourceTypes';
+import { MAX_RESOURCES, type ResourceDefinition } from './resourceTypes';
 
 const HEX_COLOR = /^#[0-9a-f]{6}$/i;
 
 export const HP_RESOURCE: Readonly<ResourceDefinition> = {
-  key: 'hp', name: 'HP', field: 'hp', direction: 'drains', look: 'bar',
+  key: 'hp', name: 'HP', field: 'hp', direction: 'drains',
   color: '#22c55e', defeatedWhenSpent: true, visibleToPlayers: false,
 };
 
 export const STRESS_RESOURCE: Readonly<ResourceDefinition> = {
-  key: 'stress', name: 'Stress', field: 'stress', direction: 'fills', look: 'bar',
+  key: 'stress', name: 'Stress', field: 'stress', direction: 'fills',
   color: '#a855f7', visibleToPlayers: false,
 };
 
@@ -71,15 +71,15 @@ export function parseResourceDefinition(raw: unknown): ResourceDefinition | null
   const field = text(r.field);
   if (!key || !name || !field) return null;
   if (r.direction !== 'drains' && r.direction !== 'fills') return null;
-  if (r.look !== 'bar' && r.look !== 'badge') return null;
   if (typeof r.color !== 'string' || !HEX_COLOR.test(r.color)) return null;
   return {
-    key, name, field: field.trim(), direction: r.direction, look: r.look, color: r.color,
+    key, name, field: field.trim(), direction: r.direction, color: r.color,
     ...(r.defeatedWhenSpent === true && { defeatedWhenSpent: true }),
     visibleToPlayers: r.visibleToPlayers === true,
   };
 }
 
+/** The valid definitions of a stored list, without duplicates; a token shows no more than the first `MAX_RESOURCES`. */
 export function parseResourceDefinitions(raw: unknown): ResourceDefinition[] {
   if (!Array.isArray(raw)) return [];
   const seen = new Set<string>();
@@ -87,13 +87,13 @@ export function parseResourceDefinitions(raw: unknown): ResourceDefinition[] {
     if (!d || seen.has(d.key)) return false;
     seen.add(d.key);
     return true;
-  });
+  }).slice(0, MAX_RESOURCES);
 }
 
 /** Whether two definitions play the same. What players see is the table's choice, not the game's rules. */
 function sameDefinition(a: ResourceDefinition, b: ResourceDefinition): boolean {
   return a.key === b.key && a.name === b.name && a.field === b.field && a.direction === b.direction
-    && a.look === b.look && a.color.toLowerCase() === b.color.toLowerCase()
+    && a.color.toLowerCase() === b.color.toLowerCase()
     && !!a.defeatedWhenSpent === !!b.defeatedWhenSpent;
 }
 

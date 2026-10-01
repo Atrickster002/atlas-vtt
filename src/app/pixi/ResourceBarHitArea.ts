@@ -1,7 +1,7 @@
 import { Graphics } from 'pixi.js';
 import type { ResourceSlot } from './token-renderer/resources/ResourceStack';
 
-/** Clickable overlay on a token resource (bar or badge) that lights up on hover and while its editor is open. */
+/** Clickable overlay on a token resource (bar or wheel) that lights up on hover and while its editor is open. */
 export class ResourceBarHitArea extends Graphics {
   private slot: ResourceSlot | null = null;
   private hovered = false;

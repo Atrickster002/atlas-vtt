@@ -10,7 +10,7 @@ import { barDimensions } from '../../src/app/styles/designTokens';
 export const HP: ResourceDefinition = { ...HP_RESOURCE };
 export const STRESS: ResourceDefinition = { ...STRESS_RESOURCE };
 export const STR: ResourceDefinition = { ...HP_RESOURCE, key: 'str', name: 'STR', field: 'stats.0', color: '#dc2626', defeatedWhenSpent: false };
-export const AMMO: ResourceDefinition = { ...HP_RESOURCE, key: 'ammo', name: 'Ammo', field: 'ammo', look: 'badge', color: '#f59e0b', defeatedWhenSpent: false };
+export const AMMO: ResourceDefinition = { ...HP_RESOURCE, key: 'ammo', name: 'Ammo', field: 'ammo', color: '#f59e0b', defeatedWhenSpent: false };
 
 /** Where `TokenUIRenderer` draws bars for `keys`: stacked from 2 units below the token. */
 export function barSlots(keys: readonly string[]): ResourceSlot[] {

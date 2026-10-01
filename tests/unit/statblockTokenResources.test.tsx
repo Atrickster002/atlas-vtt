@@ -39,16 +39,16 @@ describe('per-token statblock controls', () => {
     expect(handlers.onLocateToken).not.toHaveBeenCalled();
   });
 
-  it('gives large maximums and badges gauges with bounded plus/minus controls', () => {
+  it('gives maximums above ten gauges with bounded plus/minus controls', () => {
     const handlers = { ...actions(), definitions: [HP, AMMO] };
     render(<StatblockTokenResources {...handlers} monster={{ name: 'Mage' }}
-      tokens={[{ id: 'mage', resources: { hp: { current: 0, max: 27 }, ammo: { current: 6, max: 6 } } }]} />);
+      tokens={[{ id: 'mage', resources: { hp: { current: 0, max: 27 }, ammo: { current: 12, max: 12 } } }]} />);
     expect((screen.getByRole('button', { name: 'Decrease HP' }) as HTMLButtonElement).disabled).toBe(true);
     expect(screen.getByRole('meter', { name: 'HP' }).getAttribute('aria-valuenow')).toBe('0');
     fireEvent.click(screen.getByRole('button', { name: 'Increase HP' }));
-    expect(handlers.onUpdateToken).toHaveBeenLastCalledWith('mage', { resources: { hp: { current: 1, max: 27 }, ammo: { current: 6, max: 6 } } });
+    expect(handlers.onUpdateToken).toHaveBeenLastCalledWith('mage', { resources: { hp: { current: 1, max: 27 }, ammo: { current: 12, max: 12 } } });
     fireEvent.click(screen.getByRole('button', { name: 'Decrease Ammo' }));
-    expect(handlers.onUpdateToken).toHaveBeenLastCalledWith('mage', { resources: { hp: { current: 0, max: 27 }, ammo: { current: 5, max: 6 } } });
+    expect(handlers.onUpdateToken).toHaveBeenLastCalledWith('mage', { resources: { hp: { current: 0, max: 27 }, ammo: { current: 11, max: 12 } } });
   });
 
   it('lists the collection resources of each token and edits the one clicked', () => {

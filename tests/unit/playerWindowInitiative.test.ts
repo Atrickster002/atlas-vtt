@@ -12,7 +12,7 @@ import { attachFakePlayerWindow } from '../mocks/playerPopout';
 vi.mock('../../src/app/atlas-view', () => ({ AtlasView: class {}, ATLAS_VIEW_TYPE: 'atlas-vtt' }));
 const collection = vi.hoisted(() => ({ hpVisibleToPlayers: false }));
 vi.mock('../../src/app/resources/collectionResources', () => ({
-  mapResources: () => [{ key: 'hp', name: 'HP', field: 'hp', direction: 'drains', look: 'bar', color: '#22c55e', defeatedWhenSpent: true, visibleToPlayers: collection.hpVisibleToPlayers }],
+  mapResources: () => [{ key: 'hp', name: 'HP', field: 'hp', direction: 'drains', color: '#22c55e', defeatedWhenSpent: true, visibleToPlayers: collection.hpVisibleToPlayers }],
 }));
 afterEach(() => { PlayerWindowService.getInstance()?.destroy(); vi.useRealTimers(); vi.restoreAllMocks(); collection.hpVisibleToPlayers = false; });
 

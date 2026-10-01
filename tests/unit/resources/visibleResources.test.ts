@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { visibleResources } from '../../../src/app/resources/visibleResources';
+import { shapeOf, visibleResources } from '../../../src/app/resources/visibleResources';
 import type { ResourceDefinition } from '../../../src/app/resources/resourceTypes';
 
-const def = (key: string, visibleToPlayers: boolean): ResourceDefinition => ({ key, name: key.toUpperCase(), field: key, direction: 'drains', look: 'bar', color: '#ffffff', visibleToPlayers });
+const def = (key: string, visibleToPlayers: boolean): ResourceDefinition => ({ key, name: key.toUpperCase(), field: key, direction: 'drains', color: '#ffffff', visibleToPlayers });
 
 describe('visibleResources', () => {
   const definitions = [def('hp', true), def('str', false), def('ammo', true)];
@@ -18,5 +18,16 @@ describe('visibleResources', () => {
 
   it('hides values without a usable maximum', () => {
     expect(visibleResources({ resources: { hp: { current: 0, max: 0 } } }, definitions, 'dm')).toEqual([]);
+  });
+
+  it('gives each resource the slot of its place in the collection, whatever the token holds', () => {
+    const four = [def('hp', true), def('str', true), def('ammo', true), def('luck', true), def('mana', true)];
+    const holder = { resources: { ammo: { current: 4, max: 6 }, mana: { current: 1, max: 1 }, hp: { current: 3, max: 8 } } };
+    // `str` has no value, so `ammo` keeps slot 2; a fifth definition is never shown
+    expect(visibleResources(holder, four, 'dm').map((r) => [r.definition.key, r.slot])).toEqual([['hp', 0], ['ammo', 2]]);
+  });
+
+  it('draws the first two slots as bars and the next two as wheels', () => {
+    expect([0, 1, 2, 3].map(shapeOf)).toEqual(['bar', 'bar', 'wheel', 'wheel']);
   });
 });

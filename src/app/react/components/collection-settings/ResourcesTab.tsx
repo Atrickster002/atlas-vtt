@@ -1,12 +1,13 @@
 /**
  * ResourcesTab — the expendable resources tokens of a collection track (HP, Stress, ammunition…),
- * in the order they show under a token.
+ * in the order of their slots on a token: two bars, then two wheels.
  */
 import React from 'react';
 import { Plus } from 'lucide-react';
 import { Button } from '../../../packages/components/primitives/button';
 import { draftResourceKey } from '../../../resources/resourceDefinitions';
-import type { ResourceDefinition } from '../../../resources/resourceTypes';
+import { MAX_RESOURCES, type ResourceDefinition } from '../../../resources/resourceTypes';
+import { shapeOf } from '../../../resources/visibleResources';
 import { ResourceEditorRow } from './ResourceEditorRow';
 
 interface ResourcesTabProps {
@@ -36,7 +37,6 @@ export function ResourcesTab({ resources, onChange, fieldSuggestions }: Resource
       name: '',
       field: '',
       direction: 'drains',
-      look: 'bar',
       color: '#3b82f6',
       visibleToPlayers: false,
     }]);
@@ -45,10 +45,12 @@ export function ResourcesTab({ resources, onChange, fieldSuggestions }: Resource
   return (
     <>
       <p className="atlas-csm-hint">
-        Resources are the values tokens spend during play, like HP, Stress or ammunition. Each one
-        reads its maximum from a statblock field, and tokens whose statblock lacks that field
-        don&apos;t show it. A draining resource starts full and counts down, a filling one starts
-        empty and counts up; switching that later reads the stored values the other way round.
+        Resources are the values tokens spend during play, like HP, Stress or ammunition. A token
+        shows up to four: the first two as bars below it, the next two as wheels beside it while you
+        hover or select it. Each one reads its maximum from a statblock field, and tokens whose
+        statblock lacks that field don&apos;t show it. A draining resource starts full and counts
+        down, a filling one starts empty and counts up; switching that later reads the stored
+        values the other way round.
       </p>
 
       {resources.length > 0 ? (
@@ -57,6 +59,7 @@ export function ResourcesTab({ resources, onChange, fieldSuggestions }: Resource
             <ResourceEditorRow
               key={resource.key}
               resource={resource}
+              shape={shapeOf(i)}
               fieldSuggestions={fieldSuggestions}
               canMoveUp={i > 0}
               canMoveDown={i < resources.length - 1}
@@ -70,7 +73,7 @@ export function ResourcesTab({ resources, onChange, fieldSuggestions }: Resource
         <div className="atlas-csm-empty">No resources defined. Tokens show no bars.</div>
       )}
 
-      <Button variant="ghost" className="atlas-csm-add-btn" onClick={add}>
+      <Button variant="ghost" className="atlas-csm-add-btn" onClick={add} disabled={resources.length >= MAX_RESOURCES}>
         <Plus />
         Add Resource
       </Button>

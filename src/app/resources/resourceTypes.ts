@@ -6,8 +6,6 @@
 /** How a resource counts: `drains` starts full and goes down, `fills` starts at 0 and goes up. */
 export type ResourceDirection = 'drains' | 'fills';
 
-export type ResourceLook = 'bar' | 'badge';
-
 export interface ResourceDefinition {
   /** Stable id derived from the name at creation; tokens key their values by it. Never renamed. */
   key: string;
@@ -15,7 +13,6 @@ export interface ResourceDefinition {
   /** Statblock field (dotted path) that supplies the maximum, e.g. `hp`, `stats.0`, `resources.mana`. */
   field: string;
   direction: ResourceDirection;
-  look: ResourceLook;
   /** `#rrggbb`. */
   color: string;
   /** Spent (0 when draining, max when filling) marks the token defeated. */
@@ -34,9 +31,18 @@ export type ResourceViewer = 'dm' | 'player';
 /** Supplies the resource definitions of the collection a map belongs to. */
 export type ResourceDefsProvider = () => readonly ResourceDefinition[];
 
+/** A token shows at most this many resources. */
+export const MAX_RESOURCES = 4;
+/** The first slots are bars below the token; the rest are wheels beside it, shown on hover and selection. */
+export const BAR_SLOTS = 2;
+
+export type ResourceShape = 'bar' | 'wheel';
+
 export interface VisibleResource {
   definition: ResourceDefinition;
   value: ResourceValue;
+  /** Place in the collection's list, which decides the shape. */
+  slot: number;
 }
 
 /** The part of a token that holds resources. */

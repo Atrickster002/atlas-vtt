@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { clampValue, defeatedResources, isDefeated, isSpent, resourceUpdate, restedResources, startingValue, withCurrent } from '../../../src/app/resources/resourceValues';
 import type { ResourceDefinition } from '../../../src/app/resources/resourceTypes';
 
-const drains: ResourceDefinition = { key: 'hp', name: 'HP', field: 'hp', direction: 'drains', look: 'bar', color: '#22c55e', defeatedWhenSpent: true, visibleToPlayers: true };
+const drains: ResourceDefinition = { key: 'hp', name: 'HP', field: 'hp', direction: 'drains', color: '#22c55e', defeatedWhenSpent: true, visibleToPlayers: true };
 const fills: ResourceDefinition = { ...drains, key: 'stress', name: 'Stress', field: 'stress', direction: 'fills', defeatedWhenSpent: false };
 
 describe('resource values', () => {

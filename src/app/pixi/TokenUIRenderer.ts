@@ -11,7 +11,7 @@ import type { TokenGestureEventDetail } from '../types/atlasWindowEvents';
 import { ResourceStack, type ResourceSlot } from './token-renderer/resources/ResourceStack';
 import type { ResourceDefsProvider, ResourceViewer, VisibleResource } from '../resources/resourceTypes';
 import { isDefeated, isSpent } from '../resources/resourceValues';
-import { visibleResources } from '../resources/visibleResources';
+import { shapeOf, visibleResources } from '../resources/visibleResources';
 import { destroyTree } from './utils/destroyTree';
 import { computeTokenStrokeWidth, restingTokenUIScale, selectedTokenUIScale } from './token-renderer/tokenSizing';
 import { getTokenRingCenterRadius } from './token-renderer/tokenRingMetrics';
@@ -37,7 +37,7 @@ export class TokenUIRenderer {
   private belowToken: Container;
   /** Eases the UI between its resting scale (0) and a selected token's on-screen size (1). */
   private emphasis: ValueTransition;
-  /** The token's resources as bars and badges, one view per resource. */
+  /** The resources of the bar slots, one view per resource. */
   private resources: ResourceStack;
   private difficultyBadge: Container;
   private difficultyText: Text;
@@ -290,8 +290,10 @@ export class TokenUIRenderer {
       ? visibleResources(token, definitions, viewer)
       : [];
 
-    const resourcesKey = shown.map(({ definition, value }) =>
-      `${definition.key}:${definition.look}:${definition.name}:${definition.color}:${value.current}/${value.max}`).join('|');
+    const bars = shown.filter(({ slot }) => shapeOf(slot) === 'bar');
+
+    const resourcesKey = shown.map(({ definition, value, slot }) =>
+      `${definition.key}:${slot}:${definition.name}:${definition.color}:${value.current}/${value.max}`).join('|');
     const showNameplate = playerSettings ? playerSettings.showTokenNameplates : isNameplateVisible(token, tokenSettings?.showNameplates ?? false);
     const conditionsKey = `${token.conditions?.join(',') ?? ''}${JSON.stringify(token.conditionValues ?? {})}`;
     const defeated = isDefeated(token, definitions);
@@ -329,7 +331,7 @@ export class TokenUIRenderer {
 
     // Before the early return: the controls lay out from the stack's slots, which must empty with it
     const baseGap = 2; // Gap between token and first bar
-    this.resources.update(shown, baseGap, this.canAnimateValues());
+    this.resources.update(bars, baseGap, this.canAnimateValues());
 
     if (!hasResources && !showNameplate && !hasConditions) {
       this.container.visible = false;
@@ -411,7 +413,7 @@ export class TokenUIRenderer {
   
   /** The bar of the first shown resource whose spending defeated the token. */
   private defeatedSlot(shown: readonly VisibleResource[]): ResourceSlot | undefined {
-    const key = shown.find(({ definition, value }) => definition.defeatedWhenSpent && definition.look === 'bar'
+    const key = shown.find(({ definition, value, slot }) => definition.defeatedWhenSpent && shapeOf(slot) === 'bar'
       && isSpent(definition, value))?.definition.key;
     return key === undefined ? undefined : this.resources.layout().find((slot) => slot.key === key);
   }

@@ -44,6 +44,12 @@
   }
 }
 
+// Where the resource shows on a token; its place in the list decides
+.atlas-csm-resource-shape {
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+}
+
 .atlas-csm-resource-toggles {
   @include atlas-flex-row($spacing-xs);
   margin-left: auto;

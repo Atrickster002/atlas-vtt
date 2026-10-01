@@ -82,7 +82,7 @@ describe('built-in presets', () => {
   it('keep valid resources of stored user presets and drop broken ones', () => {
     const [preset] = parseUserPresets([{ id: 'u1', name: 'Mine', builtIn: false, rules: {
       gridDefaults: BUILT_IN_SYSTEM_PRESETS[0]!.rules.gridDefaults, conditions: [],
-      resources: [{ key: 'ammo', name: 'Ammo', field: 'ammo', direction: 'drains', look: 'badge', color: '#f59e0b', visibleToPlayers: true }, { key: '', name: 'x' }],
+      resources: [{ key: 'ammo', name: 'Ammo', field: 'ammo', direction: 'drains', color: '#f59e0b', visibleToPlayers: true }, { key: '', name: 'x' }],
     } }]);
     expect(preset?.rules.resources?.map((r) => r.key)).toEqual(['ammo']);
   });
@@ -92,7 +92,7 @@ describe('built-in presets', () => {
     const rules = rulesOfPreset(daggerheart);
     expect(sameSystemRules({ ...rules, defaultWidgets: { hpBar: true, stressBar: true } }, daggerheart.rules)).toBe(true);
     expect(sameSystemRules({ ...rules, resources: rules.resources.map((r) => ({ ...r, visibleToPlayers: true })) }, daggerheart.rules)).toBe(true);
-    expect(sameSystemRules({ ...rules, resources: rules.resources.map((r) => ({ ...r, look: 'badge' as const })) }, daggerheart.rules)).toBe(false);
+    expect(sameSystemRules({ ...rules, resources: rules.resources.map((r) => ({ ...r, direction: 'fills' as const })) }, daggerheart.rules)).toBe(false);
     expect(sameSystemRules({ ...rules, defaultWidgets: { initiativeTracker: true } }, daggerheart.rules)).toBe(false);
   });
 

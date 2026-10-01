@@ -35,7 +35,7 @@ export const CAIRN: SystemPreset = {
     resources: [
       { ...HP_RESOURCE },
       // STR is the second health track: damage past 0 HP comes off it. The Cairn layout keeps it first in `stats`.
-      { key: 'str', name: 'STR', field: 'stats.0', direction: 'drains', look: 'bar', color: '#dc2626', visibleToPlayers: false },
+      { key: 'str', name: 'STR', field: 'stats.0', direction: 'drains', color: '#dc2626', visibleToPlayers: false },
     ],
   },
 };

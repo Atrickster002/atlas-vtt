@@ -29,7 +29,7 @@ function ResourceControl({ resource, onChange }: {
   const { definition, value: { current, max } } = resource;
   const label = definition.name;
   const fills = definition.direction === 'fills';
-  const pips = definition.look === 'bar' && Number.isInteger(max) && max <= MAX_PIPS;
+  const pips = Number.isInteger(max) && max <= MAX_PIPS;
   // Boxes mark what is used up: damage on a resource that drains, the value itself on one that fills.
   const marked = fills ? current : max - current;
   const labelId = useId();

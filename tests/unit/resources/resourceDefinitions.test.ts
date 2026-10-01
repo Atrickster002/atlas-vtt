@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { draftResourceKey, parseResourceDefinition, resourceKey, sameResourceDefinitions, withFinalKeys } from '../../../src/app/resources/resourceDefinitions';
+import { draftResourceKey, parseResourceDefinition, parseResourceDefinitions, resourceKey, sameResourceDefinitions, withFinalKeys } from '../../../src/app/resources/resourceDefinitions';
 
 describe('resource definitions', () => {
   it('derives a stable key from the name', () => {
@@ -11,7 +11,7 @@ describe('resource definitions', () => {
   });
 
   it('keeps valid definitions and drops broken ones', () => {
-    const valid = { key: 'ammo', name: 'Ammo', field: 'ammo', direction: 'drains', look: 'badge', color: '#f59e0b', visibleToPlayers: false };
+    const valid = { key: 'ammo', name: 'Ammo', field: 'ammo', direction: 'drains', color: '#f59e0b', visibleToPlayers: false };
     expect(parseResourceDefinition(valid)).toEqual(valid);
     expect(parseResourceDefinition({ ...valid, defeatedWhenSpent: true })).toEqual({ ...valid, defeatedWhenSpent: true });
     expect(parseResourceDefinition({ ...valid, key: '' })).toBeNull();
@@ -21,15 +21,22 @@ describe('resource definitions', () => {
     expect(parseResourceDefinition('ammo')).toBeNull();
   });
 
+  it('reads lists saved with looks and keeps the first four', () => {
+    const stored = ['hp', 'str', 'ammo', 'luck', 'mana'].map((key) => ({ key, name: key, field: key, direction: 'drains', look: 'badge', color: '#22c55e', visibleToPlayers: false }));
+    const parsed = parseResourceDefinitions(stored);
+    expect(parsed.map((d) => d.key)).toEqual(['hp', 'str', 'ammo', 'luck']);
+    expect(parsed[0]).not.toHaveProperty('look');
+  });
+
   it('compares definitions by content and order', () => {
-    const a = { key: 'hp', name: 'HP', field: 'hp', direction: 'drains' as const, look: 'bar' as const, color: '#22C55E', visibleToPlayers: true };
+    const a = { key: 'hp', name: 'HP', field: 'hp', direction: 'drains' as const, color: '#22C55E', visibleToPlayers: true };
     expect(sameResourceDefinitions([a], [{ ...a, color: '#22c55e' }])).toBe(true);
     expect(sameResourceDefinitions([a], [{ ...a, field: 'health' }])).toBe(false);
     expect(sameResourceDefinitions(undefined, [])).toBe(true);
   });
 
   it('gives a new resource its key from the name it is saved with', () => {
-    const hp = { key: 'hp', name: 'HP', field: 'hp', direction: 'drains' as const, look: 'bar' as const, color: '#22c55e', visibleToPlayers: true };
+    const hp = { key: 'hp', name: 'HP', field: 'hp', direction: 'drains' as const, color: '#22c55e', visibleToPlayers: true };
     const added = { ...hp, key: draftResourceKey(), name: 'Ammo', field: 'ammo' };
     const second = { ...hp, key: draftResourceKey(), name: 'HP', field: 'temp_hp' };
     expect(withFinalKeys([hp, added, second]).map((d) => d.key)).toEqual(['hp', 'ammo', 'hp-2']);

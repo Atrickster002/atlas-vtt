@@ -1,6 +1,6 @@
 import { useMapResources } from '../../resources/useMapResources';
 import { isDefeated } from '../../resources/resourceValues';
-import { visibleResources } from '../../resources/visibleResources';
+import { shapeOf, visibleResources } from '../../resources/visibleResources';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { GripVertical, Skull, User, Bot } from 'lucide-react';
 import type { InitiativeEntry } from '../../types/initiativeTypes';
@@ -56,7 +56,7 @@ export const InitiativeCard: React.FC<InitiativeCardProps> = ({
   // The token's resources, read live: the bars of its collection, and whether one of them defeats it
   const definitions = useMapResources();
   const token = tokens[entry.tokenId];
-  const bars = token ? visibleResources(token, definitions, 'dm').filter(({ definition }) => definition.look === 'bar') : [];
+  const bars = token ? visibleResources(token, definitions, 'dm').filter(({ slot }) => shapeOf(slot) === 'bar') : [];
   const defeated = token !== undefined && isDefeated(token, definitions);
 
   // Get image URL from vault path

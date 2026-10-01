@@ -10,7 +10,7 @@ describe('legacyCollectionResources', () => {
   });
 
   it('drops broken definitions when a collection index is loaded', () => {
-    expect(parseResourceDefinitions([{ key: 'hp', name: 'HP', field: 'hp', direction: 'drains', look: 'bar', color: '#22c55e', visibleToPlayers: true }, { key: 'hp', name: 'Dup' }, null]).map((d) => d.key)).toEqual(['hp']);
+    expect(parseResourceDefinitions([{ key: 'hp', name: 'HP', field: 'hp', direction: 'drains', color: '#22c55e', visibleToPlayers: true }, { key: 'hp', name: 'Dup' }, null]).map((d) => d.key)).toEqual(['hp']);
   });
 
   it('falls back to the bars the old default widgets switched on', () => {
