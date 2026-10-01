@@ -19,6 +19,9 @@ void main() {
 // of its reach. Radii are floored at 1 px so an empty light stays finite in the float target.
 // The tile is read with texelFetch: its rect sits on this map's texel grid, so a texel here is a
 // texel there.
+// Alpha holds the luminance the light would have here at its bright level (never less than it
+// has): the composite tonemaps a light at that level and scales the result back, so a floor
+// shows the dim range at the same share of the bright range whatever its colour.
 // The colour is `uLightColor`: PIXI sets `uColor` itself, as a vec4, on every mesh shader that declares it.
 export const lightMapFragment = `${GLSL_VERSION}
 in vec2 vWorld;
@@ -36,6 +39,7 @@ uniform float uHaloSize;
 uniform float uTexel;
 uniform sampler2D uTile;
 out vec4 finalColor;
+const vec3 LUMA = vec3(0.2126, 0.7152, 0.0722);
 void main() {
   ivec2 texel = ivec2(floor((vWorld - uRect.xy) / uTexel));
   ivec2 size = textureSize(uTile, 0);
@@ -47,7 +51,9 @@ void main() {
   float e = mix(uDimLevel, uBrightLevel, 1.0 / (1.0 + t2 * t2));
   float s = max(max(uBright, reach * 0.25) * uHaloSize, 1.0);
   e += uHaloGain * exp(-(d * d) / (2.0 * s * s));
+  float atBright = max(1.0, uBrightLevel / max(e, 1e-4));
   float u = clamp((reach - d) / max(reach - uDim, 1e-3), 0.0, 1.0);
   float fade = u * u * u * (u * (u * 6.0 - 15.0) + 10.0);
-  finalColor = vec4(uLightColor * uIntensity * e * fade * texelFetch(uTile, texel, 0).r, 1.0);
+  vec3 light = uLightColor * (uIntensity * e * fade * texelFetch(uTile, texel, 0).r);
+  finalColor = vec4(light, dot(light, LUMA) * atBright);
 }`;

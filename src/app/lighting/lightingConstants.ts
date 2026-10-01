@@ -18,16 +18,20 @@ export const TILE_RAYS = 32;
  * ray counts into a ramp. Each texel smooths only within its wall clearance, so less near walls.
  */
 export const TILE_SMOOTH = 4;
-/** A light fades out from its dim radius to this multiple of it, where it ends. */
-export const LIGHT_REACH = 1.12;
+/**
+ * A light fades out from its dim radius to this multiple of it, where it ends. The rules count
+ * nothing past the dim radius as lit, so the fade is as short as a soft edge allows: at 1.06 a
+ * candle looked cut out.
+ */
+export const LIGHT_REACH = 1.08;
 /**
  * How much light a light gives in its two ranges (HDR, before exposure): `bright` up to the
- * bright radius, `dim` from there to the dim radius, with a soft knee between them. Dim light
- * is 40% of bright light, which a mid-grey floor shows at a quarter to a third of the bright
- * range's luminance (the tonemap darkens low light more than in proportion): the least that
- * `lightFalloff.gpu.test.ts` accepts at the edge of the dim range.
+ * bright radius, `dim` from there to the dim radius, with a soft knee between them. The
+ * composite tonemaps a light at its bright level and scales the result back, so every floor
+ * shows the dim range at the same share of the bright range, about a third; it must not fall
+ * under a quarter (`lightFalloff.gpu.test.ts`).
  */
-export const LIGHT_LEVELS = { bright: 1.25, dim: 0.5 } as const;
+export const LIGHT_LEVELS = { bright: 1.25, dim: 0.4 } as const;
 export const EXPOSURE = 0.9;
 /** Light colours are mixed this far towards white, so tinted light keeps the map readable. */
 export const TINT_TO_WHITE = 0.5;

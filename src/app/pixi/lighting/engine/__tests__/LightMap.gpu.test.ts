@@ -105,6 +105,23 @@ describe('LightMap', () => {
     expect(at(texels, 200, 450)).toBe(0);
   });
 
+  it('holds in alpha the luminance the light would have at its bright level, never less than it has', async () => {
+    const { renderer, map } = await setup(512);
+    const tile = tileOf(renderer, 200, 200, [0, 0, 400, 400], 'all');
+    map.draw([light(tile, 40, 134, 150)]);
+    const texels = readFloats(renderer, map.texture);
+    const texel = (x: number, y: number): number => (Math.floor(y / 2) * map.texture.source.pixelWidth + Math.floor(x / 2)) * 4;
+    // In the dim range: the bright level. In the fade: the bright level, faded as the light is.
+    const dim = texel(331, 201);
+    expect(texels[dim + 3]).toBeCloseTo(LIGHT_LEVELS.bright, 2);
+    const fading = texel(345, 201);
+    expect(texels[fading + 3]! / texels[fading]!).toBeCloseTo(LIGHT_LEVELS.bright / (expected(Math.hypot(145, 1), 40, 134, 150) / fade(Math.hypot(145, 1), 134, 150)), 2);
+    // At the flame the halo lifts the light above its bright level: alpha is what it gives.
+    const flame = texel(200, 200);
+    expect(texels[flame + 3]).toBeCloseTo(texels[flame]!, 2);
+    expect(texels[texel(351, 201) + 3]).toBe(0);
+  });
+
   it('lights a light without a bright radius at its dim level', async () => {
     const { renderer, map, at } = await setup(512);
     const tile = tileOf(renderer, 200, 200, [0, 0, 400, 400], 'all');
