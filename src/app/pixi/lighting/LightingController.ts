@@ -9,6 +9,7 @@ import { AssetService } from '../../services/AssetService';
 import { mapMeasurementSettings } from '../../services/mapMeasurementSettings';
 import { SettingsService } from '../../services/SettingsService';
 import type { ViewAtlasState, ViewAtlasStore } from '../../storeFactory';
+import { findAtlasLeafByViewId } from '../../utils/atlasLeafLookup';
 import type { MapBounds } from '../../vision/visibility';
 import type { LayerVisibility } from '../playerSafeFrame';
 import { requestRender } from '../RenderScheduler';
@@ -189,18 +190,26 @@ export class LightingController {
   }
 
   private listen(): void {
-    const { eventBus, store } = this.deps;
+    const { eventBus, store, obsApp, viewId } = this.deps;
     const on = (event: string, handler: () => void): void => {
       eventBus.on(event, handler);
       this.cleanups.push(() => eventBus.off(event, handler));
     };
+    const stopEditing = (): void => {
+      this.lights.cancel();
+      store.getState().closeLightPopover();
+    };
     on('lighting-reset-explored', () => this.renderer.resetExplored());
     on('map-unloading', () => {
       this.editor.cancelDrawing();
-      this.lights.cancel();
-      store.getState().closeLightPopover();
+      stopEditing();
       this.renderer.beforeMapUnload();
     });
+    // Another Obsidian tab can come to the front by a key, without a press that would close the popover.
+    const leafChange = obsApp.workspace.on('active-leaf-change', (leaf) => {
+      if (leaf !== findAtlasLeafByViewId(obsApp.workspace, viewId)) stopEditing();
+    });
+    this.cleanups.push(() => obsApp.workspace.offref(leafChange));
   }
 
   destroy(): void {

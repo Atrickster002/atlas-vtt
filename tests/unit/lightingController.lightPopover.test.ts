@@ -36,6 +36,7 @@ vi.mock('../../src/app/react/root/ContextMenuContext', () => ({ openContextMenuG
 interface Setup {
   controller: LightingController;
   store: ViewAtlasStore;
+  obsApp: ReturnType<typeof createInMemoryApp>['app'];
   eventBus: EventEmitter;
   viewport: Viewport;
   light: LightPointerHandlers;
@@ -97,7 +98,7 @@ function setup(): Setup {
     viewport.emit('pointerup', {} as never);
     return taken;
   };
-  return { controller, store, eventBus, viewport, ...wired, torch, lantern, click };
+  return { controller, store, obsApp, eventBus, viewport, ...wired, torch, lantern, click };
 }
 
 describe('opening a light', () => {
@@ -223,6 +224,18 @@ describe('closing the light popover', () => {
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'h', code: 'KeyH', bubbles: true }));
     expect(store.getState().lightPopover).toBeNull();
     window.dispatchEvent(new KeyboardEvent('keyup', { key: 'h', code: 'KeyH', bubbles: true }));
+  });
+
+  it('closes when another Obsidian tab becomes active, which a key can do without a press', () => {
+    const { store, torch, obsApp } = setup();
+    const onLeafChange = vi.mocked(obsApp.workspace.on).mock.calls.find(([event]) => event === 'active-leaf-change')![1] as (leaf: unknown) => void;
+    const ownLeaf = { view: { viewId: 'popover-view' } };
+    vi.mocked(obsApp.workspace.getLeavesOfType).mockReturnValue([ownLeaf] as never);
+    store.getState().openLightPopover(torch);
+    onLeafChange(ownLeaf);
+    expect(store.getState().lightPopover).toBe(torch);
+    onLeafChange({ view: { viewId: 'a-note' } });
+    expect(store.getState().lightPopover).toBeNull();
   });
 
   it('closes in session view', () => {

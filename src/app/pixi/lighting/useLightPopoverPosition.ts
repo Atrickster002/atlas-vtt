@@ -121,7 +121,8 @@ export function useLightPopoverPosition(ref: React.RefObject<HTMLElement | null>
     ticker?.add(tick);
     const stopObserving = observeResize([element, container, ...bars], remeasure);
     return () => {
-      ticker?.remove(tick);
+      // A view that closes destroys its PIXI app, and with it this ticker, before the UI unmounts.
+      if (ticker && pixiApp?.ticker === ticker) ticker.remove(tick);
       stopObserving();
       place.current = null;
     };
