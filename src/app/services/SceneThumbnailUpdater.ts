@@ -1,3 +1,4 @@
+import { gmPictureDiffers } from '../lighting/sceneLightingOptions';
 import type { ViewAtlasState, ViewAtlasStore } from '../storeFactory';
 
 export interface SceneThumbnailPorts {
@@ -12,8 +13,10 @@ const AFTER_EDIT_MS = 3000;
 /** A scene without a thumbnail gets one shortly after it opens, once the opening has settled. */
 const AFTER_OPEN_MS = 1000;
 
+/** Walls, lights and tokens with vision or a light are `objects`; the scene's own lighting counts where the GM's picture shows it. */
 function contentChanged(state: ViewAtlasState, previous: ViewAtlasState): boolean {
-  return state.background !== previous.background || state.grid !== previous.grid || state.objects !== previous.objects;
+  return state.background !== previous.background || state.grid !== previous.grid || state.objects !== previous.objects
+    || gmPictureDiffers(state.lighting, previous.lighting);
 }
 
 /**
