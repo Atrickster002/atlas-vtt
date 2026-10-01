@@ -15,7 +15,7 @@ import { mapSightRules } from '../../services/mapSightRules';
 import { SettingsService } from '../../services/SettingsService';
 import type { ViewAtlasState, ViewAtlasStore } from '../../storeFactory';
 import { findAtlasLeafByViewId } from '../../utils/atlasLeafLookup';
-import type { SightRules } from '../../vision/sightRules';
+import { sameSightRules, type SightRules } from '../../vision/sightRules';
 import type { MapBounds } from '../../vision/visibility';
 import type { LayerVisibility } from '../playerSafeFrame';
 import { requestRender } from '../RenderScheduler';
@@ -68,6 +68,9 @@ export class LightingController {
   private readonly senses: TokenSensesResolver;
   /** The frame in which sight is worked out anew by changed rules, while one is waited for. */
   private sightRefresh: number | null = null;
+  /** A statblock or the rules it is read with changed: the next refresh works sight out anew whatever the rules compare to. */
+  private sensesChanged = false;
+  private readonly visionOf: NonNullable<SightRules['visionOf']> = (token) => this.senses.visionOf(token);
 
   constructor(private readonly deps: LightingControllerDeps) {
     const { viewport, app, store, eventBus, obsApp } = deps;
@@ -164,22 +167,30 @@ export class LightingController {
   /** The senses and conditions of the map's collection, and how each token perceives. */
   private sightRules(): SightRules {
     const state = this.deps.store.getState();
-    if (this.rules?.mapPath !== state.mapPath) {
-      this.rules = { mapPath: state.mapPath, rules: mapSightRules(this.deps.obsApp, state, (token) => this.senses.visionOf(token)) };
-    }
+    if (this.rules?.mapPath !== state.mapPath) this.rules = { mapPath: state.mapPath, rules: mapSightRules(this.deps.obsApp, state, this.visionOf) };
     return this.rules.rules;
   }
 
   /**
-   * The rules sight goes by may have changed: the collection's settings, a game system preset, or
-   * a statblock that was read or edited. Sight is worked out anew once, in the next frame,
-   * however many changes arrive until then (a bestiary announces its statblocks one by one).
+   * What sight goes by may have changed: the settings of the map's collection, or (`senses`) a
+   * statblock that was read or edited, or the senses and unit it is read with, which the
+   * resolver announces only when they differ. Looked at once, in the next frame, however many
+   * changes arrive until then (a bestiary announces its statblocks one by one). Sight is worked
+   * out anew only when the rules differ in what it goes by (`sameSightRules`): a save of other
+   * settings of the collection builds nothing, and the rules keep their senses, so the sight
+   * cache still knows its tokens.
    */
-  private scheduleSightRefresh(): void {
+  private scheduleSightRefresh(senses = false): void {
+    this.sensesChanged ||= senses;
     if (this.sightRefresh !== null) return;
     this.sightRefresh = this.frames().requestAnimationFrame(() => {
       this.sightRefresh = null;
-      this.rules = null;
+      const state = this.deps.store.getState();
+      const next = mapSightRules(this.deps.obsApp, state, this.visionOf);
+      const same = !this.sensesChanged && this.rules?.mapPath === state.mapPath && sameSightRules(this.rules.rules, next);
+      this.sensesChanged = false;
+      if (same) return;
+      this.rules = { mapPath: state.mapPath, rules: next };
       // Rebuilds the scene from the store, as after a new map image.
       this.renderer.refreshBounds();
     });
@@ -271,7 +282,7 @@ export class LightingController {
       if (mapPath && AssetService.getInstance(obsApp).getCollectionForMap(mapPath) === collectionId) this.scheduleSightRefresh();
     });
     this.cleanups.push(() => obsApp.workspace.offref(settingsChange));
-    this.cleanups.push(this.senses.subscribe(() => this.scheduleSightRefresh()));
+    this.cleanups.push(this.senses.subscribe(() => this.scheduleSightRefresh(true)));
     this.cleanups.push(() => {
       if (this.sightRefresh !== null) this.frames().cancelAnimationFrame(this.sightRefresh);
       this.sightRefresh = null;

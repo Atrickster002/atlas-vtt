@@ -1,4 +1,5 @@
 import { conditionEffect } from '../gameSystems/conditionEffects';
+import { sameSenses } from '../gameSystems/senseRules';
 import { GENERIC_SENSES } from '../gameSystems/senses/generic';
 import type { TokenEntity } from '../types';
 import type { ConditionDefinition, ConditionEffect } from '../types/collectionSettingsTypes';
@@ -25,6 +26,21 @@ export interface TokenSight {
   sightRange?: number;
   /** Not known yet (its statblock is still being read): the token sees and senses nothing until it is. */
   pending?: boolean;
+}
+
+/** The conditions that change sight, as a comparable key: what they are called or look like does not matter. */
+function effectsKey(conditions: readonly ConditionDefinition[]): string {
+  return conditions.flatMap((condition) => {
+    const effect = conditionEffect(condition);
+    return effect ? [`${condition.id}=${effect}`] : [];
+  }).sort().join('\n');
+}
+
+/** Whether sight works out the same by two sets of rules: the same senses, the same conditions that change sight, the same way of asking how a token perceives. */
+export function sameSightRules(a: SightRules, b: SightRules): boolean {
+  return (a.definitions === b.definitions || sameSenses(a.definitions, b.definitions))
+    && effectsKey(a.conditions) === effectsKey(b.conditions)
+    && a.visionOf === b.visionOf;
 }
 
 /** A scene without a collection: the generic senses, no conditions. */

@@ -336,7 +336,7 @@ describe('tokens in session view', () => {
     expect(wired.playerSight()).toBeUndefined();
   });
 
-  it('gives the lighting the sight rules of the map, read once and again when the collection\'s settings change', async () => {
+  it('gives the lighting the sight rules of the map, and works sight out anew only when they differ', async () => {
     const { collectionSettingsChanged, obsApp } = scene();
     const { rules } = lighting.deps as SceneLightingDeps;
     const first = rules?.();
@@ -346,13 +346,43 @@ describe('tokens in session view', () => {
     collectionSettingsChanged();
     await nextFrame();
     expect(lighting.refreshBounds).not.toHaveBeenCalled();
-    const collection = vi.spyOn(AssetService.getInstance(obsApp), 'getCollectionForMap').mockReturnValue('dungeon');
+
+    const assets = AssetService.getInstance(obsApp);
+    const collection = vi.spyOn(assets, 'getCollectionForMap').mockReturnValue('dungeon');
+    const settings = vi.spyOn(assets, 'getCollectionSettings');
+    const prone = { id: 'prone', name: 'Prone', color: '#000000' };
+    // Ten saves that change nothing sight goes by: a widget, a renamed condition, a new list of the same conditions.
+    for (let save = 0; save < 10; save++) {
+      settings.mockReturnValue({ conditions: [{ ...prone, name: `Prone ${save}` }], defaultWidgets: { hpBar: save % 2 === 0 } });
+      collectionSettingsChanged();
+      await nextFrame();
+    }
+    expect(lighting.refreshBounds).not.toHaveBeenCalled();
+    expect(rules?.()).toBe(first);
+
+    // A condition that now hides its token does.
+    settings.mockReturnValue({ conditions: [{ ...prone, effect: 'invisible' }] });
     collectionSettingsChanged();
     expect(lighting.refreshBounds).not.toHaveBeenCalled();
     await nextFrame();
     expect(lighting.refreshBounds).toHaveBeenCalledTimes(1);
     expect(rules?.()).not.toBe(first);
+    expect(rules?.().conditions).toEqual([{ ...prone, effect: 'invisible' }]);
+
+    // So do other senses, and the same senses in a new list do not.
+    const senses = [{ ...GENERIC_SIGHT_RULES.definitions[0]!, id: 'own' }];
+    settings.mockReturnValue({ conditions: [{ ...prone, effect: 'invisible' }], senses });
+    collectionSettingsChanged();
+    await nextFrame();
+    expect(lighting.refreshBounds).toHaveBeenCalledTimes(2);
+    const withSenses = rules?.();
+    settings.mockReturnValue({ conditions: [{ ...prone, effect: 'invisible' }], senses: structuredClone(senses) });
+    collectionSettingsChanged();
+    await nextFrame();
+    expect(lighting.refreshBounds).toHaveBeenCalledTimes(2);
+    expect(rules?.()).toBe(withSenses);
     collection.mockRestore();
+    settings.mockRestore();
   });
 
   it('works sight out anew once per frame, however many statblocks are announced, and no more after it is destroyed', async () => {
