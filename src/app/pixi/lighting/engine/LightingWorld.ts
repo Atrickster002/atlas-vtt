@@ -189,7 +189,7 @@ export class LightingWorld {
       }
       const { intensity, radiusScale } = sample(light);
       // Flicker breathes the bright radius only: where a light ends is where the rules end it.
-      drawn.push({ tile, bright: light.bright * radiusScale, dim: light.dim, reach: light.dim * LIGHT_REACH, color: light.color, intensity: light.intensity * intensity });
+      drawn.push({ tile, bright: light.bright * radiusScale, dim: light.dim, reach: light.dim * LIGHT_REACH, color: light.color, intensity: light.intensity * intensity, cone: light.cone });
     }
     this.lightMap.draw(drawn);
   }
@@ -200,7 +200,7 @@ function sameLights(a: readonly EngineLight[], b: readonly EngineLight[]): boole
     const y = b[i]!;
     return x.key === y.key && x.x === y.x && x.y === y.y && x.bright === y.bright && x.dim === y.dim && x.flame === y.flame
       && x.intensity === y.intensity && x.animation === y.animation && x.color.every((c, j) => c === y.color[j])
-      && !!x.darkness === !!y.darkness && (x.priority ?? 0) === (y.priority ?? 0);
+      && !!x.darkness === !!y.darkness && (x.priority ?? 0) === (y.priority ?? 0) && sameCone(x.cone, y.cone);
   });
 }
 
@@ -213,4 +213,8 @@ function byPriority(lights: readonly EngineLight[]): readonly EngineLight[] {
   if (!lights.some((light) => light.darkness)) return lights;
   const rank = (light: EngineLight): number => (light.priority ?? 0) * 2 + (light.darkness ? 1 : 0);
   return [...lights].sort((a, b) => rank(a) - rank(b));
+}
+
+function sameCone(a: EngineLight['cone'], b: EngineLight['cone']): boolean {
+  return a === b || (!!a && !!b && a.facing === b.facing && a.angle === b.angle && (a.apex ?? 0) === (b.apex ?? 0));
 }

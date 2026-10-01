@@ -53,6 +53,21 @@ describe('LightReaches', () => {
     expect(again).not.toHaveProperty('priority');
   });
 
+  it('traces a light again when its cone turns or widens, and clips its reach to the cone', () => {
+    const cache = new LightReaches();
+    const cone = { facing: Math.PI, angle: Math.PI / 2, apex: 5 };
+    const [all] = cache.sync([light('a', 0)], walls);
+    const [left] = cache.sync([{ ...light('a', 0), cone }], walls);
+    expect(left!.cone).toEqual(cone);
+    expect(left!.polygon).not.toBe(all!.polygon);
+    expect(Math.max(...left!.polygon.map((point) => point.x))).toBeLessThanOrEqual(5.001);
+    expect(cache.sync([{ ...light('a', 0), cone: { ...cone } }], walls)[0]).toBe(left);
+    const [turned] = cache.sync([{ ...light('a', 0), cone: { ...cone, facing: 0 } }], walls);
+    expect(turned!.polygon).not.toBe(left!.polygon);
+    expect(Math.min(...turned!.polygon.map((point) => point.x))).toBeGreaterThanOrEqual(-5.001);
+    expect(cache.sync([light('a', 0)], walls)[0]).not.toHaveProperty('cone');
+  });
+
   it('drops lights that are gone', () => {
     const cache = new LightReaches();
     cache.sync([light('a', 0), light('b', 200)], walls);

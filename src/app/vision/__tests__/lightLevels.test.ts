@@ -167,3 +167,39 @@ describe('magical darkness', () => {
     }
   });
 });
+
+describe('a directional light', () => {
+  /** A lantern at (100, 100) that shines right, 90° wide: bright to 50 px, dim to 100 px, the wall 100 px to its right. */
+  const cone = { facing: 0, angle: Math.PI / 2, apex: 10 };
+  const lantern = lightReach({ x: 100, y: 100 }, 100, [wall], 50, { cone });
+
+  it('lights only inside its cone, brightly and dimly by distance, and stops at walls', () => {
+    expect(lightLevelAt({ x: 140, y: 100 }, dark, [lantern])).toBe('bright');
+    expect(lightLevelAt({ x: 180, y: 100 }, dark, [lantern])).toBe('dim');
+    // 30° off its axis is inside, 60° is not; behind it nothing is lit.
+    expect(lightLevelAt({ x: 100 + 40 * Math.cos(Math.PI / 6), y: 100 + 40 * Math.sin(Math.PI / 6) }, dark, [lantern])).toBe('bright');
+    expect(lightLevelAt({ x: 100 + 40 * Math.cos(Math.PI / 3), y: 100 + 40 * Math.sin(Math.PI / 3) }, dark, [lantern])).toBe('dark');
+    expect(lightLevelAt({ x: 60, y: 100 }, dark, [lantern])).toBe('dark');
+    expect(lightLevelAt({ x: 100, y: 160 }, dark, [lantern])).toBe('dark');
+    expect(lightLevelAt({ x: 230, y: 100 }, dark, [lantern])).toBe('dark');
+  });
+
+  it('lights its own space all around, so whoever carries it stands in its light', () => {
+    expect(lightLevelAt({ x: 100, y: 100 }, dark, [lantern])).toBe('bright');
+    expect(lightLevelAt({ x: 92, y: 100 }, dark, [lantern])).toBe('bright');
+    expect(lightLevelAt({ x: 100, y: 108 }, dark, [lantern])).toBe('bright');
+    expect(lightLevelAt({ x: 88, y: 100 }, dark, [lantern])).toBe('dark');
+  });
+
+  it('turns with its facing', () => {
+    const left = lightReach({ x: 100, y: 100 }, 100, [wall], 50, { cone: { ...cone, facing: Math.PI } });
+    expect(lightLevelAt({ x: 60, y: 100 }, dark, [left])).toBe('bright');
+    expect(lightLevelAt({ x: 140, y: 100 }, dark, [left])).toBe('dark');
+  });
+
+  it('is the light it always was without a cone', () => {
+    expect(lightReach({ x: 100, y: 100 }, 100, [wall], 50, {})).toEqual(torch);
+    expect(torch).not.toHaveProperty('cone');
+  });
+});
+

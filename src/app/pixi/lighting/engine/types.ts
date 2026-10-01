@@ -4,6 +4,7 @@ import type { WallSegment } from '../../../types/wallTypes';
 import type { SeenSpot } from '../../../vision/perception';
 import type { Sight } from '../../../vision/sight';
 import type { MapBounds } from '../../../vision/visibility';
+import type { VisionCone } from '../../../vision/visionCone';
 
 /** A light in world pixels with its steady settings; colour is linear and already tinted. */
 export interface EngineLight {
@@ -21,6 +22,8 @@ export interface EngineLight {
   darkness?: boolean;
   /** Which of a light and a darkness that meet wins (`LightEmission.priority`); unset is 0. */
   priority?: number;
+  /** A light that shines one way: where it faces and how wide, with its own space around it (`apex`) lit all around. */
+  cone?: VisionCone;
 }
 
 /**

@@ -1,5 +1,6 @@
 import type { WallSegment } from '../../types/wallTypes';
 import { kindOf, lightReach, type LightReach } from '../../vision/sight';
+import type { VisionCone } from '../../vision/visionCone';
 import type { EngineLight } from './engine/types';
 
 interface Entry {
@@ -13,7 +14,7 @@ interface Entry {
 /**
  * Where each light reaches, for deciding on the CPU how well a point is lit. A light's polygon
  * is recomputed only when it moved, its reach changed or the walls changed, so dragging a token
- * does not retrace every light. A new bright radius, kind or priority keeps the polygon, which they do not shape.
+ * does not retrace every light, and again when its cone turned. A new bright radius, kind or priority keeps the polygon, which they do not shape.
  */
 export class LightReaches {
   private entries = new Map<string, Entry>();
@@ -23,7 +24,7 @@ export class LightReaches {
     for (const light of lights) {
       const { key, x, y, bright, dim } = light;
       const cached = this.entries.get(key);
-      const traced = cached && cached.walls === walls && cached.x === x && cached.y === y && cached.dim === dim;
+      const traced = cached && cached.walls === walls && cached.x === x && cached.y === y && cached.dim === dim && sameCone(cached.reach.cone, light.cone);
       if (!traced) next.set(key, { x, y, dim, walls, reach: lightReach({ x, y }, dim, walls, bright, light) });
       else if (cached.reach.bright === bright && sameKind(cached.reach, light)) next.set(key, cached);
       else next.set(key, { ...cached, reach: { origin: cached.reach.origin, dim, polygon: cached.reach.polygon, bright, ...kindOf(light) } });
@@ -35,4 +36,8 @@ export class LightReaches {
 
 function sameKind(reach: LightReach, light: EngineLight): boolean {
   return !!reach.darkness === !!light.darkness && (reach.priority ?? 0) === (light.priority ?? 0);
+}
+
+function sameCone(a: VisionCone | undefined, b: VisionCone | undefined): boolean {
+  return a === b || (!!a && !!b && a.facing === b.facing && a.angle === b.angle && (a.apex ?? 0) === (b.apex ?? 0));
 }

@@ -22,6 +22,15 @@ describe('activeLights', () => {
       { key: 'token:t', x: 5, y: 6, emission: torch },
     ]);
   });
+
+  it('turns a placed light as it was turned, and a carried one with its token', () => {
+    const lights: Record<string, LightSource> = { a: { id: 'a', kind: 'light', x: 1, y: 2, emission: torch, rotation: 45 } };
+    const tokens: Record<string, TokenEntity> = { t: { id: 't', kind: 'token', imagePath: 't.png', x: 5, y: 6, rotation: 180, light: torch } };
+    expect(activeLights(lights, tokens)).toEqual([
+      { key: 'light:a', x: 1, y: 2, emission: torch, rotation: 45 },
+      { key: 'token:t', x: 5, y: 6, emission: torch, rotation: 180 },
+    ]);
+  });
 });
 
 describe('engineLight', () => {
@@ -41,5 +50,17 @@ describe('engineLight', () => {
     expect(plain).not.toHaveProperty('darkness');
     expect(plain).not.toHaveProperty('priority');
     expect(engineLight({ key: 'k', x: 0, y: 0, emission: { ...torch, priority: 1 } }, scale).priority).toBe(1);
+  });
+
+  it('gives a light with an angle a cone that faces where the light is turned, with its own space half a cell around it', () => {
+    const lantern = { ...torch, angle: 90 };
+    // Rotation is the token renderer's: 0 faces up on the map, 90 right.
+    expect(engineLight({ key: 'k', x: 0, y: 0, emission: lantern, rotation: 90 }, scale).cone).toEqual({ facing: 0, angle: Math.PI / 2, apex: 35 });
+    expect(engineLight({ key: 'k', x: 0, y: 0, emission: lantern }, scale).cone?.facing).toBeCloseTo(-Math.PI / 2);
+    // All around is no cone: 360, nothing, or a number that is no angle.
+    for (const angle of [360, 400, 0, -5, Number.NaN]) expect(engineLight({ key: 'k', x: 0, y: 0, emission: { ...torch, angle }, rotation: 90 }, scale)).not.toHaveProperty('cone');
+    expect(engineLight({ key: 'k', x: 0, y: 0, emission: torch, rotation: 90 }, scale)).not.toHaveProperty('cone');
+    // A darkness is a sphere.
+    expect(engineLight({ key: 'd', x: 0, y: 0, emission: { ...LIGHT_PRESETS.darkness.emission, angle: 90 } }, scale)).not.toHaveProperty('cone');
   });
 });

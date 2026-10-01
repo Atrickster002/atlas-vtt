@@ -56,6 +56,12 @@ export interface LightEmission {
    */
   priority?: number;
   /**
+   * Width of the beam in degrees (1–359) of a light that shines one way, like a bullseye
+   * lantern; unset or 360 shines all around. It faces the `rotation` of the placed light, or of
+   * the token that carries it. Read with `coneAngle`.
+   */
+  angle?: number;
+  /**
    * Id of the collection's light preset the light was made from (`LightPresetDefinition.id`); it
    * stays while the light's values are edited. Read with `lightPresetOf`, which also reads lights
    * without one.
@@ -72,6 +78,8 @@ export interface LightSource {
   emission: LightEmission;
   /** Switched off by the GM. */
   hidden?: boolean;
+  /** Where a light with an `angle` shines, in degrees like a token's rotation: 0 faces up on the map, 90 right. Unset is 0. */
+  rotation?: number;
 }
 
 export type LightInput = Omit<LightSource, 'id' | 'kind'>;

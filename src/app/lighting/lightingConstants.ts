@@ -41,6 +41,15 @@ export const MIN_SOFTNESS = 0.12;
 export const PURKINJE = 0.55;
 
 /**
+ * A light that shines one way gives its full light inside its cone, where the rules count it,
+ * and spills past the cone's sides over this angle (radians), fading to nothing: light has no
+ * hard side as sight has. Its own space (the cone's apex) is lit all around and fades out over
+ * `CONE_APEX_FADE` times that radius.
+ */
+export const CONE_SPILL = 0.16;
+export const CONE_APEX_FADE = 1.6;
+
+/**
  * A source of magical darkness swallows all light up to its radius; over the last `softEdge` of
  * the radius, inside it, the light comes back, so its rim is soft and nothing beyond the radius
  * is darkened. `veil` is the faint cool tint (linear light) the players see in place of the map

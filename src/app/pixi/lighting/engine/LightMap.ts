@@ -1,5 +1,6 @@
 import { Container, Mesh, UniformGroup, type Geometry, type Renderer, type RenderTexture, type Shader } from 'pixi.js';
-import { HALO, LIGHT_LEVELS } from '../../../lighting/lightingConstants';
+import { CONE_APEX_FADE, CONE_SPILL, HALO, LIGHT_LEVELS } from '../../../lighting/lightingConstants';
+import type { VisionCone } from '../../../vision/visionCone';
 import type { MapBounds } from '../../../vision/visibility';
 import { destroyTree } from '../../utils/destroyTree';
 import { ENGINE_SHADERS } from './engineShaders';
@@ -17,6 +18,8 @@ export interface DrawnLight {
   intensity: number;
   /** A darkness source: it takes the light drawn before it out of its area instead of adding any. */
   darkness?: boolean;
+  /** A light that shines one way; unset shines all around. */
+  cone?: VisionCone | undefined;
 }
 
 /** A darkness source's slot: its coverage, drawn with `erase`. */
@@ -33,7 +36,11 @@ interface Slot {
   rect: Float32Array;
   light: Float32Array;
   color: Float32Array;
+  cone: Float32Array;
 }
+
+/** No cone: half an angle of a full turn, which the shader reads as all around. */
+const ALL_AROUND = [1, 0, 2 * Math.PI, 0] as const;
 
 /**
  * Every light's direct light over the map in world space (`rgba16float`, HDR): independent of
@@ -77,6 +84,8 @@ export class LightMap {
       u.uReach = light.reach;
       u.uIntensity = light.intensity;
       slot.color.set(light.color);
+      const { cone } = light;
+      slot.cone.set(cone ? [Math.cos(cone.facing), Math.sin(cone.facing), cone.angle / 2, cone.apex ?? 0] : ALL_AROUND);
       slot.mesh.shader!.resources.uTile = light.tile.texture.source;
     });
     this.darkSlots.forEach((slot, i) => {
@@ -113,6 +122,7 @@ export class LightMap {
     const rect = new Float32Array(4);
     const light = new Float32Array(2);
     const color = new Float32Array(3);
+    const cone = new Float32Array(ALL_AROUND);
     const uniforms = new UniformGroup({
       uRect: { value: rect, type: 'vec4<f32>' },
       uMapWorld: { value: new Float32Array(this.world), type: 'vec2<f32>' },
@@ -127,12 +137,14 @@ export class LightMap {
       uHaloGain: { value: HALO.gain, type: 'f32' },
       uHaloSize: { value: HALO.size, type: 'f32' },
       uTexel: { value: this.texel, type: 'f32' },
+      uCone: { value: cone, type: 'vec4<f32>' },
+      uSpill: { value: new Float32Array([CONE_SPILL, CONE_APEX_FADE]), type: 'vec2<f32>' },
     });
     const shader = createShader(ENGINE_SHADERS.lightMap, { lightUniforms: uniforms, uTile: this.placeholder.source });
     const mesh = new Mesh({ geometry: this.geometry, shader });
     mesh.blendMode = 'add';
     this.scene.addChild(mesh);
-    return { mesh, uniforms, rect, light, color };
+    return { mesh, uniforms, rect, light, color, cone };
   }
 
   destroy(): void {

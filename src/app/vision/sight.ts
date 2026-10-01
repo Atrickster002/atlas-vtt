@@ -91,10 +91,12 @@ export interface LightReach {
   darkness?: boolean;
   /** Which of a light and a darkness that meet wins: the higher one, the darkness when equal. Unset is 0. */
   priority?: number;
+  /** A light that shines one way: `polygon` is cut to it. */
+  cone?: VisionCone;
 }
 
 /** What a reach is besides its radii. */
-export type LightReachKind = Pick<LightReach, 'darkness' | 'priority'>;
+export type LightReachKind = Pick<LightReach, 'darkness' | 'priority' | 'cone'>;
 
 /**
  * Every token with vision on, with its ranges converted to world pixels. A blinded token keeps
@@ -223,14 +225,17 @@ export function computeSight(sources: readonly SightSource[], walls: readonly Wa
   return { all: false, regions: sources.flatMap((source) => cache.get(source, walls)) };
 }
 
-/** Where a light at `origin` reaches: its `dim` radius clipped by `walls`. Without `bright` it has no bright part. */
+/**
+ * Where a light at `origin` reaches: its `dim` radius clipped by `walls` and, for a light that
+ * shines one way, by its cone (with its own space around it). Without `bright` it has no bright part.
+ */
 export function lightReach(origin: Point, dim: number, walls: readonly WallSegment[], bright = 0, kind: LightReachKind = {}): LightReach {
-  return { origin, bright, dim, polygon: computeVisibility(origin, dim, walls), ...kindOf(kind) };
+  return { origin, bright, dim, polygon: computeVisibility(origin, dim, walls, kind.cone), ...kindOf(kind) };
 }
 
 /** The fields of `kind` that say something: a light without them is stored as it always was. */
-export function kindOf({ darkness, priority }: LightReachKind): LightReachKind {
-  return { ...(darkness && { darkness }), ...(priority !== undefined && priority !== 0 && { priority }) };
+export function kindOf({ darkness, priority, cone }: LightReachKind): LightReachKind {
+  return { ...(darkness && { darkness }), ...(priority !== undefined && priority !== 0 && { priority }), ...(cone && { cone }) };
 }
 
 /**

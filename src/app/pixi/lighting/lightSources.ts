@@ -5,6 +5,7 @@ import { gameUnitsToWorld, type UnitScale } from '../../lighting/lightingUnits';
 import { MIN_SOFTNESS, TINT_TO_WHITE } from '../../lighting/lightingConstants';
 import { srgbToLinear } from '../../lighting/srgb';
 import { kindOf } from '../../vision/sight';
+import { visionCone } from '../../vision/visionCone';
 import type { EngineLight } from './engine/types';
 
 /** A light that shines right now: placed on the map or carried by a token. */
@@ -14,22 +15,33 @@ export interface ActiveLight {
   x: number;
   y: number;
   emission: LightEmission;
+  /** Where a light that shines one way faces: the placed light's rotation, or that of the token carrying it. */
+  rotation?: number;
 }
 
 export function activeLights(lights: Record<string, LightSource>, tokens: Record<string, TokenEntity>): ActiveLight[] {
   const active: ActiveLight[] = [];
   for (const light of Object.values(lights)) {
-    if (!light.hidden) active.push({ key: `light:${light.id}`, x: light.x, y: light.y, emission: light.emission });
+    if (!light.hidden) active.push({ key: `light:${light.id}`, x: light.x, y: light.y, emission: light.emission, ...turned(light.rotation) });
   }
   for (const token of Object.values(tokens)) {
-    if (token.light) active.push({ key: `token:${token.id}`, x: token.x, y: token.y, emission: token.light });
+    if (token.light) active.push({ key: `token:${token.id}`, x: token.x, y: token.y, emission: token.light, ...turned(token.rotation) });
   }
   return active;
 }
 
-/** A light in world pixels for the engine; its colour mixed towards white and linearised. */
+function turned(rotation: number | undefined): Pick<ActiveLight, 'rotation'> {
+  return rotation === undefined ? {} : { rotation };
+}
+
+/**
+ * A light in world pixels for the engine; its colour mixed towards white and linearised. A
+ * light with an angle gets its cone (`visionCone`, as a token's sight does), with half a cell
+ * around it lit all around: the space of whoever carries it.
+ */
 export function engineLight(light: ActiveLight, scale: UnitScale): EngineLight {
   const { emission } = light;
+  const cone = emission.darkness ? undefined : visionCone(light.rotation, emission.angle, scale.cellSize / 2);
   // A darkness has one radius, its dim one: nothing in it is bright.
   const bright = emission.darkness ? 0 : gameUnitsToWorld(Math.max(0, emission.bright), scale);
   const dim = Math.max(bright, gameUnitsToWorld(Math.max(0, emission.dim), scale));
@@ -45,7 +57,7 @@ export function engineLight(light: ActiveLight, scale: UnitScale): EngineLight {
     intensity: emission.intensity,
     // Darkness does not flicker: its edge is where the rules end it.
     animation: emission.darkness ? 'none' : emission.animation,
-    ...kindOf(emission),
+    ...kindOf({ ...(emission.darkness && { darkness: true }), ...(emission.priority !== undefined && { priority: emission.priority }), ...(cone && { cone }) }),
   };
 }
 
