@@ -5,6 +5,20 @@ import { LIGHT_PRESETS, presetOf } from '../lightPresets';
 const torch = LIGHT_PRESETS.torch.emission;
 
 describe('editEmission', () => {
+  it('stops a typed range at the farthest a light may reach', () => {
+    expect(editEmission(torch, 'bright', '1e9', 585)).toMatchObject({ bright: 585, dim: 585 });
+    expect(editEmission(torch, 'dim', '586', 585).dim).toBe(585);
+    expect(editEmission(torch, 'dim', 'Infinity', 585)).toBe(torch);
+    expect(editEmission(torch, 'intensity', '1.5', 585).intensity).toBe(1.5);
+  });
+
+  it('reads a decimal comma where the locale writes one, and takes it for no number elsewhere', () => {
+    expect(editEmission(torch, 'bright', '7,5', 585, 'de-DE').bright).toBe(7.5);
+    expect(editEmission(torch, 'bright', '7.5', 585, 'de-DE').bright).toBe(7.5);
+    expect(editEmission(torch, 'bright', '7,5', 585, 'en-US')).toBe(torch);
+    expect(editEmission(torch, 'bright', '1,000', 585, 'en-US')).toBe(torch);
+  });
+
   it('raises dim to bright when bright grows past it', () => {
     expect(editEmission(torch, 'bright', '50')).toMatchObject({ bright: 50, dim: 50 });
   });

@@ -238,6 +238,17 @@ describe('the range rings of the open light', () => {
     expect(store.getState().objects.lights[torch]!.emission.bright).toBe(20);
   });
 
+  it('stop at the farthest a light may reach, however far the pointer goes', () => {
+    const { store, torch, press, move, up } = setup();
+    store.getState().openLightPopover(torch);
+    // The dim handle is below the light: 40 ft are 560 px.
+    expect(press(400, 860)).toBe(true);
+    move(400, 5e6);
+    up();
+    // 8,192 px on the 70 px, 5 ft grid
+    expect(store.getState().objects.lights[torch]!.emission).toMatchObject({ bright: 20, dim: 585 });
+  });
+
   it('keep tenths while Alt is held', () => {
     const { store, torch, press, move, up } = setup();
     store.getState().openLightPopover(torch);

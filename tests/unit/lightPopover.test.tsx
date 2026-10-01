@@ -8,7 +8,7 @@ import { AtlasUIContext, type AtlasUIContextValue } from '../../src/app/react/ro
 import { ViewStoreProvider } from '../../src/app/react/ViewStoreContext';
 import { createViewAtlasStore, type ViewAtlasStore } from '../../src/app/storeFactory';
 import { getHistoryStore } from '../../src/app/stores/history';
-import type { LightSource } from '../../src/app/types/lightingTypes';
+import type { LightKind, LightSource } from '../../src/app/types/lightingTypes';
 import { createInMemoryApp } from '../mocks/inMemoryVault';
 
 beforeAll(() => {
@@ -97,6 +97,15 @@ describe('LightPopover', () => {
     expect(light().emission.kind).toBe('torch');
   });
 
+  it('marks a light whose stored kind it does not know as the preset it equals, else as custom', () => {
+    const { store, torch, light } = renderPopover();
+    const unknown = 'brazier' as LightKind;
+    act(() => store.getState().updateLight(torch, { emission: { ...light().emission, kind: unknown } }));
+    expect(screen.getByRole('button', { name: 'Torch' }).getAttribute('aria-pressed')).toBe('true');
+    act(() => store.getState().updateLight(torch, { emission: { ...light().emission, bright: 12 } }));
+    expect(screen.getByRole('button', { name: 'Custom light' }).getAttribute('aria-pressed')).toBe('true');
+  });
+
   it('keeps the light as it is when it is made a custom light', () => {
     const { light } = renderPopover();
     fireEvent.click(screen.getByRole('button', { name: 'Custom light' }));
@@ -136,6 +145,29 @@ describe('LightPopover', () => {
     fireEvent.change(bright, { target: { value: 'far' } });
     fireEvent.blur(bright);
     expect(bright.value).toBe('55');
+  });
+
+  it('stops a typed range at the farthest a light may reach, and shows what it took', () => {
+    const { light } = renderPopover();
+    const bright = screen.getByLabelText('Bright') as HTMLInputElement;
+    fireEvent.change(bright, { target: { value: '1e9' } });
+    fireEvent.keyDown(bright, { key: 'Enter' });
+    // 8,192 px on the 70 px, 5 ft grid
+    expect(light().emission).toMatchObject({ bright: 585, dim: 585 });
+    expect(bright.value).toBe('585');
+    expect((screen.getByLabelText('Dim') as HTMLInputElement).value).toBe('585');
+  });
+
+  it('puts back the range when what was typed is not a number', () => {
+    const { light, steps } = renderPopover();
+    const bright = screen.getByLabelText('Bright') as HTMLInputElement;
+    for (const text of ['abc', '1,000', '']) {
+      fireEvent.change(bright, { target: { value: text } });
+      fireEvent.blur(bright);
+      expect(bright.value).toBe('20');
+    }
+    expect(light().emission.bright).toBe(20);
+    expect(steps()).toBe(0);
   });
 
   it('takes a whole slider drag as one undo step', () => {

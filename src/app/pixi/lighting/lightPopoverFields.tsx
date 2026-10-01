@@ -118,6 +118,8 @@ interface RangeFieldsProps extends EmissionFieldProps {
   unit: string;
   /** Game units one grid cell spans. */
   unitDistance: number;
+  /** The farthest a light may reach on this map (`maxLightRange`). */
+  maxRange: number;
   onSliderPointerDown: (event: React.PointerEvent) => void;
 }
 
@@ -125,26 +127,26 @@ interface RangeFieldsProps extends EmissionFieldProps {
  * Bright and dim range: typed exactly, or dragged on one slider whose two thumbs cannot cross,
  * as dim is never below bright. The rings on the map show the same two ranges.
  */
-export function RangeFields({ emission, unit, unitDistance, onChange, onSliderPointerDown }: RangeFieldsProps): React.ReactElement {
+export function RangeFields({ emission, unit, unitDistance, maxRange, onChange, onSliderPointerDown }: RangeFieldsProps): React.ReactElement {
   const { max, step } = rangeSliderScale(unitDistance, emission.dim);
   return (
     <div className="atlas-light-popover__field">
       <div className="atlas-light-popover__ranges">
-        <RangeInput label="Bright" field="bright" emission={emission} onChange={onChange} />
-        <RangeInput label="Dim" field="dim" emission={emission} onChange={onChange} />
+        <RangeInput label="Bright" field="bright" emission={emission} maxRange={maxRange} onChange={onChange} />
+        <RangeInput label="Dim" field="dim" emission={emission} maxRange={maxRange} onChange={onChange} />
         {unit && <span className="atlas-light-popover__unit">{unit}</span>}
       </div>
       <Slider
         value={[emission.bright, emission.dim]}
         min={0}
-        max={max}
+        max={Math.min(max, maxRange)}
         step={step}
         thumbLabels={['Bright range', 'Dim range']}
         getValueText={(value) => `${formatRange(value)} ${unit}`.trim()}
         onPointerDown={onSliderPointerDown}
         onValueChange={([bright, dim]) => {
-          if (bright !== undefined && bright !== emission.bright) onChange(withEmissionValue(emission, 'bright', bright));
-          else if (dim !== undefined && dim !== emission.dim) onChange(withEmissionValue(emission, 'dim', dim));
+          if (bright !== undefined && bright !== emission.bright) onChange(withEmissionValue(emission, 'bright', bright, maxRange));
+          else if (dim !== undefined && dim !== emission.dim) onChange(withEmissionValue(emission, 'dim', dim, maxRange));
         }}
       />
     </div>
@@ -154,18 +156,23 @@ export function RangeFields({ emission, unit, unitDistance, onChange, onSliderPo
 interface RangeInputProps extends EmissionFieldProps {
   label: string;
   field: RangeField;
+  maxRange: number;
 }
 
-/** Commits on Enter or when it loses focus, so half-typed numbers never reach the map. */
-function RangeInput({ label, field, emission, onChange }: RangeInputProps): React.ReactElement {
+/**
+ * Commits on Enter or when it loses focus, so half-typed numbers never reach the map. A range
+ * past `maxRange` stops there and the field shows it; text that is no number puts the range back.
+ */
+function RangeInput({ label, field, emission, maxRange, onChange }: RangeInputProps): React.ReactElement {
   const id = useId();
   const value = formatRange(emission[field]);
   const [text, setText] = useState(value);
   useEffect(() => setText(value), [value]);
   const commit = (): void => {
-    const next = editEmission(emission, field, text);
-    if (next === emission) setText(value);
-    else onChange(next);
+    const next = editEmission(emission, field, text, maxRange);
+    // Also when the range stays as it is: the field shows the range, not what was typed.
+    setText(formatRange(next[field]));
+    if (next !== emission) onChange(next);
   };
   return (
     <label className="atlas-light-popover__range" htmlFor={id}>

@@ -1,5 +1,7 @@
 import type { LightEmission } from '../types/lightingTypes';
 import { withEmissionValue } from './lightEmissionForm';
+import { MAX_LIGHT_REACH } from './lightingConstants';
+import { worldToGameUnits, type UnitScale } from './lightingUnits';
 
 /** The two ranges of a light: full light up to `bright`, fading out to `dim`. */
 export type RangeField = 'bright' | 'dim';
@@ -8,12 +10,20 @@ export const RANGE_FIELDS: readonly RangeField[] = ['bright', 'dim'];
 
 /**
  * The emission after its `field` ring was dragged to `units` game units from the light. The
- * radius snaps to whole units, or to tenths with `free` (Alt held); dim never ends below bright:
- * the dragged ring takes the other along.
+ * radius snaps to whole units, or to tenths with `free` (Alt held), and stops at `maxRange`; dim
+ * never ends below bright: the dragged ring takes the other along.
  */
-export function dragRange(emission: LightEmission, field: RangeField, units: number, free: boolean): LightEmission {
+export function dragRange(emission: LightEmission, field: RangeField, units: number, free: boolean, maxRange: number): LightEmission {
   const precision = free ? 10 : 1;
-  return withEmissionValue(emission, field, Math.round(Math.max(0, units) * precision) / precision);
+  return withEmissionValue(emission, field, Math.round(Math.max(0, units) * precision) / precision, maxRange);
+}
+
+/**
+ * The largest bright or dim range a light is given on a map, in whole game units
+ * (`MAX_LIGHT_REACH`: 585 ft on a 70 px, 5 ft grid). Typed ranges and dragged rings stop here.
+ */
+export function maxLightRange(scale: UnitScale): number {
+  return Math.floor(worldToGameUnits(MAX_LIGHT_REACH, scale));
 }
 
 /** A range for display: whole numbers as they are, others with one decimal. */

@@ -1,7 +1,7 @@
 import type { FederatedPointerEvent } from 'pixi.js';
 import type { Viewport } from 'pixi-viewport';
 import { worldToGameUnits } from '../../lighting/lightingUnits';
-import { dragRange, type RangeField } from '../../lighting/lightRanges';
+import { dragRange, maxLightRange, type RangeField } from '../../lighting/lightRanges';
 import type { ViewAtlasStore } from '../../storeFactory';
 import { abandonHistoryTransaction, beginHistoryTransaction, endHistoryTransaction } from '../../stores/history';
 import type { Point } from '../../types/visionTypes';
@@ -176,7 +176,8 @@ export class LightInteraction {
       if (!light) return;
       const at = viewport.toWorld(move.global.x, move.global.y);
       const radius = Math.max(0, Math.hypot(at.x - light.x, at.y - light.y) - offset);
-      const next = dragRange(light.emission, field, worldToGameUnits(radius, rings.unitScale()), move.altKey);
+      const scale = rings.unitScale();
+      const next = dragRange(light.emission, field, worldToGameUnits(radius, scale), move.altKey, maxLightRange(scale));
       if (next !== light.emission) store.getState().updateLight(lightId, { emission: next });
     };
     this.track({

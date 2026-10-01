@@ -3,6 +3,8 @@ import { AnimatePresence, motion, useIsPresent, type MotionStyle } from 'framer-
 import { Lightbulb, LightbulbOff, Trash2 } from 'lucide-react';
 import { unitLabelFor } from '../../grid/measurementFormat';
 import { editEmission } from '../../lighting/lightEmissionForm';
+import { unitScaleOf } from '../../lighting/lightingUnits';
+import { maxLightRange } from '../../lighting/lightRanges';
 import { Button } from '../../packages/components/primitives/button';
 import { useAnchoredPopoverVariants } from '../../packages/components/primitives/dialogMotion';
 import { Select } from '../../packages/components/primitives/Select';
@@ -53,6 +55,7 @@ function LightPopover({ lightId }: { lightId: string }): React.ReactElement | nu
   const assets = useMemo(() => AssetService.getInstance(app), [app]);
   const unitType = useAtlasStore((state) => mapMeasurementSettings(assets, state).unitType);
   const unitDistance = useAtlasStore((state) => mapMeasurementSettings(assets, state).unitDistance);
+  const maxRange = useAtlasStore((state) => maxLightRange(unitScaleOf({ unitDistance }, state.grid)));
   const current = useAtlasStore((state) => state.objects.lights[lightId]);
   // While it leaves, the popover still shows the light it had, also when that light was deleted.
   const shown = useRef(current);
@@ -120,7 +123,7 @@ function LightPopover({ lightId }: { lightId: string }): React.ReactElement | nu
         <ColorSwatches color={emission.color} onChange={(color) => update({ ...emission, color })} onPickStart={beginPick} onPickEnd={endPick} />
       </div>
       <div className="atlas-light-popover__section">
-        <RangeFields emission={emission} unit={unitLabelFor(unitType)} unitDistance={unitDistance} onChange={update} onSliderPointerDown={onSliderPointerDown} />
+        <RangeFields emission={emission} unit={unitLabelFor(unitType)} unitDistance={unitDistance} maxRange={maxRange} onChange={update} onSliderPointerDown={onSliderPointerDown} />
         <SliderField label="Intensity" value={emission.intensity} min={0} max={2} step={0.05} display={`${Math.round(emission.intensity * 100)} %`}
           onPointerDown={onSliderPointerDown} onChange={(value) => update(editEmission(emission, 'intensity', String(value)))} />
         <SliderField label="Softness" value={emission.sourceRadius ?? 1} min={0} max={5} step={0.25} display={String(emission.sourceRadius ?? 1)}
