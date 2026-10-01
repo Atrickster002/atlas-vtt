@@ -57,10 +57,10 @@ export const SENSES_FIXTURES: readonly SensesFixture[] = [
   {
     creature: 'Grimlock', source: VAULT,
     text: 'blindsight 30 ft. or 10 ft. while deafened (blind beyond this radius), passive Perception 13',
-    dnd5e: reads([['Blindsight', 30]], ['passive Perception 13'], 30),
+    dnd5e: reads([['Blindsight', 30]], ['or 10 ft. while deafened (blind beyond this radius)', 'passive Perception 13'], 30),
     pathfinder2e: reads([], ['blindsight 30 ft. or 10 ft. while deafened (blind beyond this radius)', 'passive Perception 13'], 30),
     ose: reads([], ['blindsight 30 ft. or 10 ft. while deafened (blind beyond this radius)', 'passive Perception 13'], 30),
-    generic: reads([['Blindsight', 30]], ['passive Perception 13'], 30),
+    generic: reads([['Blindsight', 30]], ['or 10 ft. while deafened (blind beyond this radius)', 'passive Perception 13'], 30),
   },
   {
     creature: 'Wererat', source: VAULT, text: 'darkvision 60 ft. (rat form only), passive Perception 12',

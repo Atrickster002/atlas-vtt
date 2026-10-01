@@ -1,45 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { BUILT_IN_SENSES, GENERIC_SENSES } from '../../gameSystems/senses';
-import type { GameUnit } from '../../grid/statedDistance';
-import type { SenseDefinition, TokenSense } from '../../types/senseTypes';
-import { parseSenses, type ParsedSenses } from '../parseSenses';
-import { SENSES_FIXTURES, type ExpectedSense, type ExpectedSenses, type FixtureSystem } from './sensesFixtures';
-
-const FEET: GameUnit = { unitType: 'feet', unitDistance: 5 };
-const METRES: GameUnit = { unitType: 'meters', unitDistance: 1.5 };
-const SQUARES: GameUnit = { unitType: 'units', unitDistance: 1 };
-
-const DND = BUILT_IN_SENSES['builtin:dnd5e']!;
-const PATHFINDER = BUILT_IN_SENSES['builtin:pathfinder2e']!;
-const OSE = BUILT_IN_SENSES['builtin:ose']!;
-const SHADOWDARK = BUILT_IN_SENSES['builtin:shadowdark']!;
-
-const SYSTEMS: Record<FixtureSystem, readonly SenseDefinition[]> = {
-  dnd5e: DND,
-  pathfinder2e: PATHFINDER,
-  ose: OSE,
-  generic: GENERIC_SENSES,
-};
-
-/** Parsed senses by the names of their definitions, so no test depends on an id. */
-function named(senses: readonly TokenSense[], definitions: readonly SenseDefinition[]): ExpectedSense[] {
-  return senses.map((sense) => {
-    const name = definitions.find((definition) => definition.id === sense.id)?.name ?? `? ${sense.id}`;
-    return sense.range === undefined ? [name] : [name, sense.range];
-  });
-}
-
-function summary(parsed: ParsedSenses, definitions: readonly SenseDefinition[]): ExpectedSenses {
-  return {
-    senses: named(parsed.senses, definitions),
-    unknown: parsed.unknown,
-    ...(parsed.blindBeyond && { blindBeyond: parsed.blindBeyondRange ?? true }),
-  };
-}
-
-function read(text: string, definitions: readonly SenseDefinition[], unit: GameUnit = FEET): ExpectedSenses {
-  return summary(parseSenses(text, definitions, unit), definitions);
-}
+import { GENERIC_SENSES } from '../../gameSystems/senses';
+import type { SenseDefinition } from '../../types/senseTypes';
+import { parseSenses } from '../parseSenses';
+import { SENSES_FIXTURES, type FixtureSystem } from './sensesFixtures';
+import { SENSES_REGRESSIONS } from './sensesRegressions';
+import { DND, FEET, METRES, OSE, PATHFINDER, SHADOWDARK, SQUARES, SYSTEMS, read } from './sensesTestHelpers';
 
 describe('parseSenses on published creatures', () => {
   it('has at least 25 lines, each from a named creature and source', () => {
@@ -57,6 +22,22 @@ describe('parseSenses on published creatures', () => {
       });
     });
   }
+});
+
+describe('parseSenses on lines it once read wrong', () => {
+  it.each(SENSES_REGRESSIONS.map((line) => [`${line.creature} (${line.source})`, line] as const))('%s', (_label, line) => {
+    const { senses, unknown, blindBeyond } = line;
+    expect(read(line.text, SYSTEMS[line.system])).toEqual({ senses, unknown, ...(blindBeyond !== undefined && { blindBeyond }) });
+  });
+
+  it('gives every creature whose bracket once became a distance the sense without one', () => {
+    const bracketed = SENSES_REGRESSIONS.filter((line) => /; \(\d+ [^)]*\) (?:greater )?(?:darkvision|low-light vision)/.test(line.text));
+    expect(bracketed.length).toBeGreaterThanOrEqual(23);
+    for (const line of bracketed) {
+      const first = parseSenses(line.text, SYSTEMS[line.system], FEET, 'en').senses[0]!;
+      expect(first, line.creature).not.toHaveProperty('range');
+    }
+  });
 });
 
 describe('parseSenses grammar', () => {
@@ -184,7 +165,31 @@ describe('parseSenses blind beyond', () => {
   });
 
   it('is the largest radius where several senses say so', () => {
-    expect(read('blindsight 30 ft. (blind beyond this radius), tremorsense 60 ft. (blind beyond this radius)', DND).blindBeyond).toBe(60);
+    expect(read('blindsight 30 ft. (blind beyond this radius), truesight 60 ft. (blind beyond this radius)', DND).blindBeyond).toBe(60);
+  });
+
+  it('has no radius after a sense that shows no map: the creature has no sight at all', () => {
+    expect(read('tremorsense 60 ft. (blind beyond this radius), passive Perception 11', DND))
+      .toEqual({ senses: [['Tremorsense', 60]], unknown: ['passive Perception 11'], blindBeyond: true });
+    expect(read('blindsight 30 ft. (blind beyond this radius), tremorsense 60 ft. (blind beyond this radius)', DND).blindBeyond).toBe(30);
+  });
+
+  it('keeps the radius after such a sense where the creature has eyes to see with', () => {
+    expect(read('darkvision 60 ft., tremorsense 120 ft. (blind beyond this radius), passive Perception 13', DND).blindBeyond).toBe(120);
+  });
+
+  it('is the radius of the sense an "or" clause belongs to', () => {
+    expect(read('blindsight 30 ft., or 10 ft. while deafened (blind beyond this radius), passive Perception 14', DND))
+      .toEqual({ senses: [['Blindsight', 30]], unknown: ['or 10 ft. while deafened (blind beyond this radius)', 'passive Perception 14'], blindBeyond: 30 });
+    expect(read('blindsight 60\' or 20\' while deafened (blind beyond), passive Perception 17', DND))
+      .toEqual({ senses: [['Blindsight', 60]], unknown: ['or 20\' while deafened (blind beyond)', 'passive Perception 17'], blindBeyond: 60 });
+  });
+
+  it('reads "can\'t sense beyond this radius" alike, also after a sense the collection lacks', () => {
+    expect(read('keensense 60 ft. (can\'t sense beyond this radius)', DND))
+      .toEqual({ senses: [], unknown: ['keensense 60 ft. (can\'t sense beyond this radius)'], blindBeyond: 60 });
+    expect(read('blindsight 30 ft. (can’t sense beyond this radius)', DND)).toEqual({ senses: [['Blindsight', 30]], unknown: [], blindBeyond: 30 });
+    expect(read('sight 20 ft. (blind beyond the radius of its own light), passive Perception 10', DND).blindBeyond).toBe(20);
   });
 
   it('takes the usual distance of a sense that gives none', () => {

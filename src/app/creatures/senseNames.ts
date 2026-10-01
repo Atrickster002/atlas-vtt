@@ -23,6 +23,7 @@ const ALIASES: readonly SenseAlias[] = [
   { phrases: ['blindsight', 'blindsense'], senses: ['blindsight'] },
   { phrases: ['tremorsense'], senses: ['tremorsense'], role: 'tremorsense' },
   { phrases: ['truesight', 'true seeing'], senses: ['truesight'] },
+  { phrases: ['devil sight'], senses: ['devil\'s sight'] },
   { phrases: ['see invisibility', 'see the unseen', 'see invisible', 'sees invisible'], senses: [], grants: 'see-invisible' },
 ];
 

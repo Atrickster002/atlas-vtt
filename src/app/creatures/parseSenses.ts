@@ -7,36 +7,59 @@
  *   distance takes none.
  * - Old-School Essentials: "infravision 60'".
  *
- * What a bracket says about a sense ("rat form only", "imprecise") is not read: the collection's
- * definition decides how the sense behaves.
+ * Everything outside brackets is either read as a sense or reported in `unknown`. A bracket
+ * after a sense is read for its distance (only one with a unit) and for "blind beyond this
+ * radius"; whatever else it says ("rat form only", "imprecise") is not read, since the
+ * collection's definition decides how the sense behaves.
  */
 
-import { readDistance, toGameUnits, type GameUnit } from '../grid/statedDistance';
+import { toGameUnits, readDistance, type GameUnit, type StatedDistance } from '../grid/statedDistance';
 import type { SenseDefinition, TokenSense } from '../types/senseTypes';
 import { plainText } from './creatureValues';
+import { splitPhrase, type PhraseText } from './sensePhrases';
 import { senseNamed } from './senseNames';
 
 export interface ParsedSenses {
   /** The senses the line names, each once, in the order written. */
   senses: TokenSense[];
   /**
-   * The creature has no normal sight: it is blind beyond its senses ("blind beyond this radius",
-   * "no vision"). Sight should end the token's normal sight at `blindBeyondRange`.
+   * The creature has no normal sight beyond its senses ("blind beyond this radius", "can't sense
+   * beyond this radius", "no vision"): its sight ends at `blindBeyondRange`.
    */
   blindBeyond?: boolean;
-  /** Game units beyond which it is blind; unset when the line gives no radius (no normal sight at all). */
+  /**
+   * Game units beyond which it is blind. Unset when it has no normal sight at all: the line gives
+   * no radius, or gives it for a sense that shows no map (tremorsense) to a creature without eyes.
+   */
   blindBeyondRange?: number;
-  /** Phrases that name no sense of the collection, as written ("passive Perception 12"). */
+  /** What names no sense of the collection, as written ("passive Perception 12", "or 10 ft. while deafened"). */
   unknown: string[];
 }
 
-const BLIND_BEYOND = /\bblind beyond\b/i;
+const BLIND_BEYOND = /\b(?:blind|can['’]?t sense|cannot sense) beyond\b/i;
 const NO_VISION = /^no (?:vision|sight)$/i;
 /** What a statblock writes where a creature has no senses to list. */
 const PLACEHOLDER = /^(?:[-–—]+|none|n\/a)\.?$/i;
+/** Words that join two senses. */
+const LEADING_CONNECTOR = /^(?:and|&|plus)(?=\s|$)\s*/i;
+const CONNECTOR = /\s(?:and|&|plus)\s/gi;
+/** Where a sense's name ends and what limits it begins: "tremorsense within their home". */
+const CLAUSE = /\s(?:within|while|when|if|only|except|but|in)\s/i;
+/** An alternative to the sense before it: "or 10 ft. while deafened". */
+const CONTINUES = /^or\b/i;
+const PERCEPTION_SCORE = /^(?:passive\s+)?perception\b/i;
+
+/** "passive Perception 12", "Perception +7 (+9 to Sense Motive)": part of a senses line, never a sense. */
+export function isPerceptionScore(phrase: string): boolean {
+  return PERCEPTION_SCORE.test(phrase);
+}
 
 function isDigit(char: string | undefined): boolean {
   return char !== undefined && char >= '0' && char <= '9';
+}
+
+function hasContent(text: string): boolean {
+  return /[\p{L}\p{N}]/u.test(text);
 }
 
 /** The phrases of a senses line: separated by commas and semicolons outside brackets and numbers ("1,000 feet"). */
@@ -57,69 +80,193 @@ function phrasesOf(text: string): string[] {
   return phrases.map((phrase) => phrase.trim()).filter((phrase) => phrase !== '' && !PLACEHOLDER.test(phrase));
 }
 
-interface Phrase {
-  /** The name of what it is about: its text without brackets and without the distance. */
-  name: string;
-  /** Game units; undefined when it states no distance. */
+interface SenseItem {
+  definition: SenseDefinition;
   range: number | undefined;
-  blindBeyond: boolean;
+  blind: boolean;
 }
 
-function readPhrase(phrase: string, unit: GameUnit): Phrase {
-  const outside = phrase.replace(/\([^()]*\)/g, ' ');
-  // A distance beside the name counts before one in brackets: "30 ft. (10 ft. while deafened)".
-  const beside = readDistance(outside);
-  const distance = beside ?? readDistance(phrase);
-  const before = beside ? outside.slice(0, beside.start) : outside;
+interface UnknownItem {
+  definition?: undefined;
+  text: string;
+  /** The first distance it states outside brackets. */
+  range: number | undefined;
+  blind: boolean;
+}
+
+type Item = SenseItem | UnknownItem;
+
+interface Rules {
+  definitions: readonly SenseDefinition[];
+  unit: GameUnit;
+  locale: string | undefined;
+}
+
+function gameUnits(distance: StatedDistance | null, unit: GameUnit): number | undefined {
+  return distance ? toGameUnits(distance, unit) : undefined;
+}
+
+function unknownItem(text: string, rules: Rules): UnknownItem {
+  const written = text.trim();
+  const distance = readDistance(splitPhrase(written).outside, rules.locale);
+  return { text: written, range: gameUnits(distance, rules.unit), blind: BLIND_BEYOND.test(written) };
+}
+
+/** A distance in one of the brackets, which counts only with its unit: "(60 ft.)", never "(4th rank)" or "(35 to Sense Motive)". */
+function bracketedDistance({ text, brackets }: PhraseText, rules: Rules): StatedDistance | null {
+  for (const bracket of brackets) {
+    const distance = readDistance(text.slice(bracket.start, bracket.end), rules.locale);
+    if (distance?.unit) return distance;
+  }
+  return null;
+}
+
+/** What a phrase begins with: a sense, or something unknown, and where that ends. */
+interface Head {
+  sense?: SenseItem;
+  end: number;
+}
+
+function readHead(phrase: string, rules: Rules): Head {
+  const split = splitPhrase(phrase);
+  const { outside, brackets } = split;
+  const first = outside.search(/\S/);
+  if (first < 0) return { end: phrase.length };
+  // A bracket before any name belongs to nothing that follows: "(35 to Sense Motive) darkvision".
+  if (brackets[0] && brackets[0].start < first) return { end: first };
+
+  let distance = readDistance(outside, rules.locale);
+  const nameFirst = !distance || /\p{L}/u.test(outside.slice(0, distance.start));
   // "60 ft. darkvision": the name follows the distance.
-  const name = beside && !/\p{L}/u.test(before) ? outside.slice(beside.end) : before;
-  return {
-    name,
-    range: distance ? toGameUnits(distance, unit) : undefined,
-    blindBeyond: BLIND_BEYOND.test(phrase),
-  };
+  const name = !distance ? outside : nameFirst ? outside.slice(0, distance.start) : outside.slice(distance.end);
+  let end = distance && nameFirst ? distance.end : phrase.length;
+  let definition = senseNamed(name, rules.definitions);
+  if (!definition && nameFirst) {
+    const clause = CLAUSE.exec(name);
+    definition = clause ? senseNamed(name.slice(0, clause.index), rules.definitions) : undefined;
+    if (definition && clause) {
+      end = clause.index;
+      distance = null;
+    }
+  }
+
+  // The brackets that follow at once still belong to it.
+  for (const bracket of brackets) {
+    if (bracket.start >= end && outside.slice(end, bracket.start).trim() === '') end = bracket.end;
+  }
+  const own = { text: phrase, outside, brackets: brackets.filter((bracket) => bracket.start < end) };
+  const stated = distance ?? bracketedDistance(own, rules);
+  if (!definition || (stated && stated.value <= 0)) return { end };
+  const blind = own.brackets.some((bracket) => BLIND_BEYOND.test(phrase.slice(bracket.start, bracket.end)));
+  return { end, sense: { definition, range: gameUnits(stated, rules.unit), blind } };
+}
+
+/** The parts of a phrase that "and" joins, outside brackets. */
+function joinedParts(phrase: string): string[] {
+  const { outside } = splitPhrase(phrase);
+  const parts: string[] = [];
+  let start = 0;
+  for (const match of outside.matchAll(CONNECTOR)) {
+    parts.push(phrase.slice(start, match.index));
+    start = match.index + match[0].length;
+  }
+  parts.push(phrase.slice(start));
+  return parts;
+}
+
+/**
+ * Everything a phrase says: usually one sense or one unknown phrase. A line that runs senses
+ * together ("blindsight 10 ft. darkvision 60 ft.", "darkvision 60 ft. and tremorsense 30 ft.")
+ * gives several, and what follows a sense without being one is reported, never dropped. A phrase
+ * that names no sense anywhere stays whole.
+ */
+function readPhrase(text: string, rules: Rules): Item[] {
+  const phrase = text.trim();
+  if (!hasContent(phrase)) return [];
+  const head = readHead(phrase, rules);
+  const rest = phrase.slice(head.end);
+  const following = readPhrase(rest.trim().replace(LEADING_CONNECTOR, ''), rules);
+  const more = following.some((item) => item.definition);
+  if (head.sense) return [head.sense, ...(more ? following : hasContent(rest) ? [unknownItem(rest, rules)] : [])];
+  if (more) return [unknownItem(phrase.slice(0, head.end), rules), ...following];
+
+  const parts = joinedParts(phrase);
+  const joined = parts.length > 1 ? parts.flatMap((part) => readPhrase(part, rules)) : [];
+  return joined.some((item) => item.definition) ? joined : [unknownItem(phrase, rules)];
+}
+
+/** Whether a phrase is nothing but a bracket. */
+function isNote(phrase: string): boolean {
+  return splitPhrase(phrase).outside.trim() === '';
 }
 
 /** The sense as a token lists it: with the distance stated, which a modifier (`grants`) never takes. */
-function senseOf(definition: SenseDefinition, range: number | undefined): TokenSense {
+function senseOf({ definition, range }: SenseItem): TokenSense {
   return range === undefined || definition.grants ? { id: definition.id } : { id: definition.id, range };
 }
 
-/** The usual reach of a sense whose phrase states none, where its definition names one. */
-function reachOf(definition: SenseDefinition | undefined, range: number | undefined): number | undefined {
-  return range ?? (definition?.range === 'required' ? definition.defaultRange : undefined);
+/** A sense the eyes see with: it shows the map and is lost while blinded. */
+function isEyeSense(definition: SenseDefinition): boolean {
+  return definition.reveals === 'all' && !definition.worksWhileBlinded && !definition.grants;
+}
+
+/** How far a creature that is blind beyond `item` perceives, and whether that is seeing the map. */
+function blindRadius(item: Item | undefined): { radius: number | undefined; seeing: boolean } {
+  if (!item) return { radius: undefined, seeing: false };
+  if (!item.definition) return { radius: item.range, seeing: true };
+  const { definition, range } = item;
+  const radius = range ?? (definition.range === 'required' ? definition.defaultRange : undefined);
+  return { radius, seeing: definition.reveals === 'all' && !definition.grants };
 }
 
 /**
  * The senses `text` names among `definitions` (the collection's, as `collectionSenses` gives
- * them), with their distances in the collection's game units (`unit`).
+ * them), with their distances in the collection's game units (`unit`). `locale` (the user's, by
+ * default) decides how "1.000" is read.
  */
-export function parseSenses(text: string, definitions: readonly SenseDefinition[], unit: GameUnit): ParsedSenses {
-  const senses = new Map<string, TokenSense>();
+export function parseSenses(text: string, definitions: readonly SenseDefinition[], unit: GameUnit, locale?: string): ParsedSenses {
+  const rules: Rules = { definitions, unit, locale };
+  const senses = new Map<string, SenseItem>();
   const unknown: string[] = [];
+  const blindRadii: Array<ReturnType<typeof blindRadius>> = [];
   let blindBeyond = false;
-  let blindBeyondRange: number | undefined;
+  let previous: Item | undefined;
+  /** Whether the item read last was the perception score. */
+  let perception = false;
 
   for (const phrase of phrasesOf(plainText(text))) {
     if (NO_VISION.test(phrase)) {
       blindBeyond = true;
       continue;
     }
-    const { name, range, blindBeyond: blind } = readPhrase(phrase, unit);
-    const definition = senseNamed(name, definitions);
-    if (!definition) unknown.push(phrase);
-    else if (!senses.has(definition.id)) senses.set(definition.id, senseOf(definition, range));
-    if (blind) {
-      blindBeyond = true;
-      const reach = reachOf(definition, range);
-      if (reach !== undefined) blindBeyondRange = Math.max(blindBeyondRange ?? 0, reach);
+    for (const item of readPhrase(phrase, rules)) {
+      if (item.definition) {
+        if (!senses.has(item.definition.id)) senses.set(item.definition.id, item);
+      } else if (perception && isNote(item.text)) {
+        // "Perception +33; (35 to Sense Motive) darkvision": the bracket is a note on the score.
+        unknown[unknown.length - 1] += ` ${item.text}`;
+        perception = false;
+        continue;
+      } else {
+        unknown.push(item.text);
+      }
+      perception = !item.definition && isPerceptionScore(item.text);
+      // "or 10 ft. while deafened (blind beyond this radius)" speaks of the sense before it.
+      const continues = !item.definition && (CONTINUES.test(item.text) || item.range === undefined);
+      if (item.blind) {
+        blindBeyond = true;
+        blindRadii.push(blindRadius(continues ? previous : item));
+      }
+      if (!continues) previous = item;
     }
   }
 
+  const hasEyes = [...senses.values()].some((item) => isEyeSense(item.definition));
+  const radii = blindRadii.flatMap(({ radius, seeing }) => (radius !== undefined && (seeing || hasEyes) ? [radius] : []));
   return {
-    senses: [...senses.values()],
+    senses: [...senses.values()].map(senseOf),
     ...(blindBeyond && { blindBeyond }),
-    ...(blindBeyondRange !== undefined && { blindBeyondRange }),
+    ...(radii.length > 0 && { blindBeyondRange: Math.max(...radii) }),
     unknown,
   };
 }

@@ -10,7 +10,7 @@ import type { TokenVision } from '../types/lightingTypes';
 import type { SenseDefinition, TokenSense } from '../types/senseTypes';
 import { tokenSenses } from '../vision/tokenSenses';
 import type { IndexedCreature } from './CreatureIndex';
-import { parseSenses, type ParsedSenses } from './parseSenses';
+import { isPerceptionScore, parseSenses, type ParsedSenses } from './parseSenses';
 
 /** What senses read of a token. */
 export interface SensedToken {
@@ -182,9 +182,6 @@ export interface InheritedSenses {
   blindBeyondRange?: number;
 }
 
-/** "passive Perception 12", "Perception +7": part of the senses line, never a sense. */
-const PERCEPTION_SCORE = /^(?:passive\s+)?perception\b/i;
-
 /**
  * The senses a token follows from its statblock, or null when it has senses of its own, links no
  * statblock, or the statblock's senses line says nothing to show. The lists are the caller's.
@@ -197,7 +194,7 @@ export function inheritedSensesOf(
 ): InheritedSenses | null {
   if (!token.statblockPath || ownSenses(token, definitions)) return null;
   const parsed = creatureSenses(creature, definitions, unit);
-  const notRecognised = parsed.unknown.filter((phrase) => !PERCEPTION_SCORE.test(phrase));
+  const notRecognised = parsed.unknown.filter((phrase) => !isPerceptionScore(phrase));
   if (!saysSomething(parsed) && notRecognised.length === 0) return null;
   return {
     senses: parsed.senses.map((sense) => ({ ...sense })),
