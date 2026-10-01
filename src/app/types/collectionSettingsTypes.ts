@@ -8,6 +8,7 @@
 import type { CreatureFilterDefinition } from './creatureFilterTypes';
 import type { DiceRules } from './diceRulesTypes';
 import type { TokenVisionDefaults } from './lightingTypes';
+import type { SenseDefinition } from './senseTypes';
 import type { AnyWidget } from './widgetTypes';
 import type { WidgetIcon } from './widgetIcons';
 
@@ -53,6 +54,11 @@ export interface CollectionSettings {
   conditions: ConditionDefinition[];
   /** What new tokens placed from this collection's library start with; vision itself starts off. Unset: no vision on new tokens. */
   defaultTokenVision?: TokenVisionDefaults | undefined;
+  /**
+   * The senses tokens of the collection can have. Unset while the collection takes those of its
+   * preset; read with `collectionSenses`.
+   */
+  senses?: readonly SenseDefinition[] | undefined;
   /** The game system preset the rules were last taken from or saved to; they may have been edited since. */
   systemPresetId?: string | undefined;
   /** Default roll and critical rule. Read with `collectionDiceRules`. */

@@ -15,6 +15,8 @@ import type { SystemPreset, SystemRules } from '../../src/app/types/systemPreset
 import { WIDGET_ICON_PATHS } from '../../src/app/types/widgetIcons';
 import { visionDefaultsForm, visionDefaultsFromForm } from '../../src/app/lighting/tokenLighting';
 import { visionCone } from '../../src/app/vision/visionCone';
+import { BUILT_IN_SENSES, GENERIC_SENSES } from '../../src/app/gameSystems/senses';
+import type { SenseDefinition } from '../../src/app/types/senseTypes';
 
 const [daggerheart, dnd5e] = BUILT_IN_SYSTEM_PRESETS as [SystemPreset, SystemPreset];
 
@@ -77,7 +79,7 @@ describe('built-in presets', () => {
     expect(settings.diagonalRule).toBe('equidistant');
     // MOVE 6 covers 6 squares, 12 m.
     expect(formatDistance(6, settings)).toBe('12m');
-    expect(describeSystemRules(cyberpunk.rules)).toBe('2 m squares · 9 conditions');
+    expect(describeSystemRules(cyberpunk.rules)).toBe('2 m squares · 9 conditions · 1 sense');
   });
 
   it('measure Call of Cthulhu in yards, one per square, along the exact distance', () => {
@@ -127,7 +129,7 @@ describe('comparing and describing rules', () => {
   });
 
   it('summarises measurement and conditions', () => {
-    expect(describeSystemRules(dnd5e.rules)).toBe('5 ft squares · 15 conditions');
+    expect(describeSystemRules(dnd5e.rules)).toBe('5 ft squares · 15 conditions · 5 senses');
     expect(describeSystemRules(daggerheart.rules)).toBe('5 range bands · 3 conditions');
   });
 
@@ -186,7 +188,7 @@ describe('preset widgets', () => {
 
   it('gives Shadowdark a shared one-hour torch timer', () => {
     expect(torch).toMatchObject({ type: 'timer', label: 'Torch', icon: 'torch', duration: 3600, value: 3600, scope: 'collection' });
-    expect(describeSystemRules(shadowdark.rules)).toBe('4 range bands · 10 conditions · Torch timer');
+    expect(describeSystemRules(shadowdark.rules)).toBe('4 range bands · 10 conditions · 1 sense · Torch timer');
   });
 
   it('gives a collection exactly its system\'s widgets and keeps the user\'s own', () => {
@@ -297,6 +299,74 @@ describe('default token vision', () => {
       if (!vision) continue;
       const [parsed] = parseUserPresets([{ ...stored(vision), id: 'copy' }]);
       expect(parsed?.rules.defaultTokenVision).toEqual(vision);
+    }
+  });
+});
+
+describe('senses', () => {
+  const witchSight: SenseDefinition = {
+    id: 'home-1', name: 'Witch sight', description: 'Sees in the dark within its range.', lineOfSight: true,
+    sees: { bright: 'normal', dim: 'normal', dark: 'as-dim', magicalDark: 'none' }, look: 'colour', reveals: 'all', precise: true,
+    seesInvisible: false, worksWhileBlinded: false, range: 'required',
+  };
+  const withSenses = (senses: SystemRules['senses']): SystemRules => ({ ...rules([]), ...(senses && { senses }) });
+  const stored = (extra: Record<string, unknown>) => ({
+    id: 'p1',
+    name: 'Homebrew',
+    rules: { gridDefaults: { unitType: 'feet', unitDistance: 5, measurementMode: 'metric' }, conditions: [], ...extra },
+  });
+
+  it('are copied by rulesOfPreset, not shared with the preset', () => {
+    const copied = rulesOfPreset(dnd5e);
+    expect(copied.senses).toEqual(BUILT_IN_SENSES[dnd5e.id]);
+    expect(copied.senses).not.toBe(dnd5e.rules.senses);
+    expect(copied.senses![0]).not.toBe(dnd5e.rules.senses![0]);
+    expect(copied.senses![0]!.sees).not.toBe(dnd5e.rules.senses![0]!.sees);
+  });
+
+  it('are left out of rulesOfPreset for a system that has none, so the collection falls back to the generic ones', () => {
+    expect(rulesOfPreset(daggerheart)).not.toHaveProperty('senses');
+  });
+
+  it('are cleared by the vanilla settings', () => {
+    expect(vanillaSystemSettings()).toHaveProperty('senses', undefined);
+  });
+
+  it('are counted in the preset summary when a system has its own', () => {
+    expect(describeSystemRules(withSenses([witchSight]))).toBe('5 ft squares · 0 conditions · 1 sense');
+    expect(describeSystemRules(withSenses([]))).toBe('5 ft squares · 0 conditions');
+    expect(describeSystemRules(daggerheart.rules)).toBe('5 range bands · 3 conditions');
+  });
+
+  it('mark a preset as edited when they change, and count none as the generic set', () => {
+    expect(sameSystemRules(withSenses([witchSight]), withSenses([structuredClone(witchSight)]))).toBe(true);
+    expect(sameSystemRules(withSenses([witchSight]), withSenses([{ ...witchSight, seesInvisible: true }]))).toBe(false);
+    expect(sameSystemRules(withSenses([witchSight]), withSenses(undefined))).toBe(false);
+    expect(sameSystemRules(withSenses(undefined), withSenses([...GENERIC_SENSES]))).toBe(true);
+    expect(sameSystemRules(withSenses(undefined), withSenses([]))).toBe(false);
+    expect(sameSystemRules(dnd5e.rules, { ...structuredClone(dnd5e.rules), senses: [...GENERIC_SENSES] })).toBe(false);
+  });
+
+  it('are read sense by sense from stored presets: an unusable one is left out and the rest of the preset stays', () => {
+    const [preset] = parseUserPresets([stored({ senses: [witchSight, { name: 'No id' }, 'garbage', { ...witchSight, id: 'home-2', range: 'far', addedLater: 1 }], dice: { defaultRoll: '2d6', crit: 'none' } })]);
+    expect(preset?.rules.senses).toEqual([witchSight, { ...witchSight, id: 'home-2' }]);
+    expect(preset?.rules.dice).toEqual({ defaultRoll: '2d6', crit: 'none' });
+  });
+
+  it('are absent from a stored preset that has none or an unreadable list, and kept when the list is empty', () => {
+    for (const senses of [undefined, null, 'darkvision', {}]) {
+      const [preset] = parseUserPresets([stored({ senses })]);
+      expect(preset).toBeDefined();
+      expect(preset?.rules).not.toHaveProperty('senses');
+    }
+    expect(parseUserPresets([stored({ senses: [] })])[0]?.rules.senses).toEqual([]);
+  });
+
+  it('of every built-in preset survive being stored as a user preset', () => {
+    for (const preset of BUILT_IN_SYSTEM_PRESETS) {
+      const [parsed] = parseUserPresets([{ id: 'copy', name: 'Copy', rules: structuredClone(preset.rules) }]);
+      expect(parsed?.rules.senses).toEqual(preset.rules.senses);
+      expect(sameSystemRules(parsed!.rules, preset.rules)).toBe(true);
     }
   });
 });

@@ -19,6 +19,7 @@ import { WIDGET_ICON_PATHS, resolveWidgetIcon, type WidgetIcon } from '../types/
 import type { AnyWidget } from '../types/widgetTypes';
 import { isValidClockSegments } from '../utils/clockWidget';
 import { CRIT_RULES, isValidDefaultRoll } from './diceRules';
+import { parseSenseDefinitions } from './senseValidation';
 import { parseVisionDefaults } from './visionDefaults';
 import { isHexColor } from '../utils/hexColor';
 
@@ -128,6 +129,7 @@ export function parseUserPreset(raw: unknown): SystemPreset | null {
     : [];
   const defaultWidgets = parseEnabledFlags(raw.rules.defaultWidgets);
   const dice = parseDiceRules(raw.rules.dice);
+  const senses = parseSenseDefinitions(raw.rules.senses);
   const defaultTokenVision = parseVisionDefaults(raw.rules.defaultTokenVision);
   return {
     id: raw.id,
@@ -140,6 +142,7 @@ export function parseUserPreset(raw: unknown): SystemPreset | null {
       ...(Object.keys(defaultWidgets).length > 0 && { defaultWidgets }),
       ...(dice && { dice }),
       ...(defaultTokenVision && { defaultTokenVision }),
+      ...(senses && { senses }),
     },
   };
 }

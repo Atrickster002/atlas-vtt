@@ -1,4 +1,5 @@
 import type { SystemPreset } from '../../types/systemPresetTypes';
+import { PATHFINDER_2E_SENSES } from '../senses/pathfinder2e';
 import { builtInPresetId, conditionsOf } from './presetHelpers';
 
 /**
@@ -58,6 +59,7 @@ export const PATHFINDER_2E: SystemPreset = {
       { name: 'Unnoticed', color: '#334155', icon: 'hood' },
       { name: 'Wounded', color: '#b91c1c', icon: 'bleeding-wound', valued: true },
     ]),
+    senses: PATHFINDER_2E_SENSES,
     defaultWidgets: { hpBar: true },
   },
 };

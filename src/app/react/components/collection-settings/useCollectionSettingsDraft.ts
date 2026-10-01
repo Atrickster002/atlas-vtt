@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { hasVisionDefaults } from '../../../gameSystems/visionDefaults';
+import { parseSenseDefinitions } from '../../../gameSystems/senseValidation';
 import { DEFAULT_GRID_DEFAULTS, rulesOfPreset, vanillaSystemSettings } from '../../../gameSystems/systemRules';
 import { parseCreatureFilters, parseHiddenCreatureFilters } from '../../../creatures/creatureFilterDefinitions';
 import type { AssetService } from '../../../services/AssetService';
@@ -11,6 +12,7 @@ import type {
 import type { CreatureFilterDefinition } from '../../../types/creatureFilterTypes';
 import type { DiceRules } from '../../../types/diceRulesTypes';
 import type { TokenVisionDefaults } from '../../../types/lightingTypes';
+import type { SenseDefinition } from '../../../types/senseTypes';
 import type { SystemPreset } from '../../../types/systemPresetTypes';
 import { changedTokenBars, tokenBarsOf, type TokenBars } from '../../../services/collectionTokenBars';
 
@@ -22,6 +24,8 @@ export interface CollectionSettingsDraft {
   /** What new tokens start with; undefined when the collection sets nothing. */
   defaultTokenVision: TokenVisionDefaults | undefined;
   setDefaultTokenVision: (vision: TokenVisionDefaults | undefined) => void;
+  /** Unset while the collection takes the senses of its preset; read with `collectionSenses`. */
+  senses: readonly SenseDefinition[] | undefined;
   conditions: ConditionDefinition[];
   setConditions: (conditions: ConditionDefinition[]) => void;
   /** Unset while the collection takes the dice of its preset; read with `collectionDiceRules`. */
@@ -57,6 +61,7 @@ export function useCollectionSettingsDraft(
   const [gridDefaults, setGridDefaults] = useState<CollectionGridDefaults>(() => structuredClone(DEFAULT_GRID_DEFAULTS));
   const [defaultWidgets, setDefaultWidgets] = useState<Record<string, boolean>>({});
   const [defaultTokenVision, setDefaultTokenVision] = useState<TokenVisionDefaults | undefined>(undefined);
+  const [senses, setSenses] = useState<readonly SenseDefinition[] | undefined>(undefined);
   const [conditions, setConditions] = useState<ConditionDefinition[]>([]);
   const [dice, setDice] = useState<DiceRules | undefined>(undefined);
   const [systemPresetId, setSystemPresetId] = useState<string | undefined>(undefined);
@@ -72,6 +77,7 @@ export function useCollectionSettingsDraft(
     setGridDefaults(settings.gridDefaults ?? structuredClone(DEFAULT_GRID_DEFAULTS));
     setDefaultWidgets(settings.defaultWidgets ?? {});
     setDefaultTokenVision(settings.defaultTokenVision);
+    setSenses(parseSenseDefinitions(settings.senses));
     setConditions(settings.conditions ?? []);
     setDice(settings.dice);
     setSystemPresetId(settings.systemPresetId);
@@ -89,6 +95,7 @@ export function useCollectionSettingsDraft(
     setDefaultWidgets(rules.defaultWidgets);
     setDice(rules.dice);
     setDefaultTokenVision(rules.defaultTokenVision);
+    setSenses(rules.senses);
     setSystemPresetId(preset.id);
   };
 
@@ -99,6 +106,7 @@ export function useCollectionSettingsDraft(
     setDefaultWidgets(vanilla.defaultWidgets);
     setDice(vanilla.dice);
     setDefaultTokenVision(vanilla.defaultTokenVision);
+    setSenses(vanilla.senses);
     setSystemPresetId(undefined);
   };
 
@@ -106,6 +114,7 @@ export function useCollectionSettingsDraft(
     gridDefaults,
     defaultWidgets,
     defaultTokenVision: hasVisionDefaults(defaultTokenVision) ? defaultTokenVision : undefined,
+    senses,
     conditions,
     ...(dice && { dice: { ...dice, defaultRoll: dice.defaultRoll.trim() } }),
     // Trimmed, with the field as label where none was typed.
@@ -120,6 +129,7 @@ export function useCollectionSettingsDraft(
     gridDefaults, setGridDefaults,
     defaultWidgets, setDefaultWidgets,
     defaultTokenVision, setDefaultTokenVision,
+    senses,
     conditions, setConditions,
     dice, setDice,
     customCreatureFilters, setCustomCreatureFilters,

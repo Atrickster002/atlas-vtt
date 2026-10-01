@@ -6,6 +6,7 @@
 import type { CollectionGridDefaults, ConditionDefinition } from './collectionSettingsTypes';
 import type { DiceRules } from './diceRulesTypes';
 import type { TokenVisionDefaults } from './lightingTypes';
+import type { SenseDefinition } from './senseTypes';
 import type { AnyWidget } from './widgetTypes';
 
 /** The parts of a collection's settings that a game system defines. */
@@ -26,10 +27,15 @@ export interface SystemRules {
   /** Default roll and critical rule. Unset means `DEFAULT_DICE_RULES`. */
   dice?: DiceRules;
   /**
-   * What new tokens start with (sight range, darkvision, tremorsense, cone), for systems
+   * What new tokens start with (sight range, senses, cone), for systems
    * where every character has a baseline. Unset: new tokens get no vision settings.
    */
   defaultTokenVision?: TokenVisionDefaults;
+  /**
+   * The senses the system's rules give creatures. Unset for a system whose rules have none:
+   * its collections use the generic senses (`collectionSenses`).
+   */
+  senses?: readonly SenseDefinition[];
 }
 
 /** Built-in preset ids start with this; user presets never do. */
