@@ -11,6 +11,7 @@ import { normalizeImagePath } from '../utils/pathUtils';
 import { fixMapTokenPaths } from '../utils/fixMapPaths';
 import { getDataFilePath } from '../utils/dataFileMigration';
 import { ensureFolder } from '../plugin/vaultFolders';
+import { migrateTokenState } from '../resources/resourceMigration';
 
 // Type definitions
 export interface CameraState {
@@ -53,7 +54,7 @@ export type Pin = NotePin;
 
 // Add constants for schema identification and versioning
 export const ATLAS_SCHEMA = 'atlas-vtt' as const;
-export const ATLAS_VERSION = 4;
+export const ATLAS_VERSION = 5;
 
 /**
  * Defines the structure of the persisted .atlasmap file.
@@ -225,6 +226,12 @@ export function createAtlasStorage<T extends { mapPath: string | null }, S = unk
           if (state?.objects && !state.objects.lights) {
             state.objects.lights = {};
           }
+          // v4 → v5 migration: token HP and Stress fields become resources
+          if (state?.objects?.tokens) {
+            for (const [id, token] of Object.entries(state.objects.tokens)) {
+              state.objects.tokens[id] = migrateTokenState(token);
+            }
+          }
           if (state?.version && state.version < ATLAS_VERSION) {
             state.version = ATLAS_VERSION;
           }
@@ -380,7 +387,7 @@ function migrateTokenPaths(tokens: Record<string, LegacyToken>): Record<string, 
       migratedToken.conditions = statuses;
     }
 
-    migratedTokens[id] = migratedToken;
+    migratedTokens[id] = migrateTokenState(migratedToken);
   }
   
   return migratedTokens;

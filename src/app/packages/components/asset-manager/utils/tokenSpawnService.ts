@@ -13,6 +13,7 @@ import {
 import type { AtlasView } from '../../../../atlas-view';
 import type { TokenInput } from '../../../../storeFactory';
 import { loadAtlasView } from '../../../../plugin/atlasLeaves';
+import { migrateTokenState } from '../../../../resources/resourceMigration';
 
 // ─── Viewport helpers ───────────────────────────────────────────────
 
@@ -283,11 +284,11 @@ export async function spawnEncounterTokens(
       pos = gridPosition(i, tokensToSpawn.length, center.x, center.y, pitch, gridSystem);
     }
 
-    // A saved state snapshot is restored verbatim. Encounters built from token
+    // A saved state snapshot is restored as saved (in today's token format). Encounters built from token
     // assets rebuild from the asset, so they follow its current image, size and ring.
     if (token.state) {
       if (imageExists(ctx.app, token.imagePath)) {
-        tokens.push({ ...token.state, imagePath: token.imagePath, x: pos.x, y: pos.y });
+        tokens.push({ ...migrateTokenState(token.state), imagePath: token.imagePath, x: pos.x, y: pos.y });
       }
       continue;
     }

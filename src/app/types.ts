@@ -29,6 +29,10 @@ export interface BaseToken {
   showRing?: boolean;
   /** Per-instance resources imported from a statblock beyond HP, stress and hope. */
   statblockResources?: Record<string, TokenResourceValue>;
+  /** Expendable resources by definition key; see `src/app/resources/`. */
+  resources?: Record<string, TokenResourceValue>;
+  /** Resource keys whose maximum was set by hand and no longer follows the statblock. */
+  overriddenMax?: string[];
   id: string;
   x: number;
   y: number;

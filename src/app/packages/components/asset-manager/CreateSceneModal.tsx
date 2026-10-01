@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { ATLAS_VERSION } from '../../../services/MapPersistence';
 import { Notice, normalizePath } from 'obsidian';
 import { motion } from 'framer-motion';
 import { MapIcon } from 'lucide-react';
@@ -98,7 +99,7 @@ export default function CreateSceneModal({
       const mapData = {
         state: {
           schema: "atlas-vtt",
-          version: 3,
+          version: ATLAS_VERSION,
           // If invoked from a map, prefill background (ensure vault-relative path)
           background: normalizedBackground,
           grid: {
@@ -127,7 +128,7 @@ export default function CreateSceneModal({
             scale: 1
           }
         },
-        version: 3
+        version: ATLAS_VERSION
       };
 
       // Apply collection grid defaults if available

@@ -30,8 +30,19 @@ export interface TokenVitals {
  * values locked rather than syncing anything.
  */
 export function toTokenVitals(entity: unknown): TokenVitals {
-  const { id, name, hp, stress, maxStress, imagePath, ringColor, showRing, instanceNumber, hope, statblockResources } = (entity ?? {}) as TokenVitals;
-  return { id, name, hp, stress, maxStress, imagePath, ringColor, showRing, instanceNumber, hope, statblockResources };
+  const { id, name, imagePath, ringColor, showRing, instanceNumber } = (entity ?? {}) as TokenVitals;
+  // Tokens store `resources`; the statblock views below still read the fields they replaced.
+  // This mapping goes when those views read resources themselves.
+  const { hp, stress, hope, ...statblockResources } = ((entity ?? {}) as { resources?: Record<string, TokenResourceValue> }).resources ?? {};
+  const legacy = (entity ?? {}) as TokenVitals;
+  return {
+    id, name, imagePath, ringColor, showRing, instanceNumber,
+    hp: legacy.hp ?? hp,
+    stress: legacy.stress ?? stress,
+    maxStress: legacy.maxStress ?? stress?.max,
+    hope: legacy.hope ?? hope,
+    statblockResources: legacy.statblockResources ?? (Object.keys(statblockResources).length > 0 ? statblockResources : undefined),
+  };
 }
 
 type TrackKind = 'hp' | 'stress';

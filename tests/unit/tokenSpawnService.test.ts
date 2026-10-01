@@ -111,6 +111,16 @@ describe('encounter spawning', () => {
     ]));
     expect(spawned[0]).toMatchObject({ imagePath: 'tokens/goblin.png', showRing: false });
   });
+
+  it('migrates the saved state of an encounter token written before resources', async () => {
+    const { ctx, spawned } = setup();
+    await spawnEncounterTokens(ctx, encounter([
+      { id: 'map-token', name: 'Goblin', imagePath: 'tokens/goblin.png', state: { kind: 'character', name: 'Goblin', imagePath: 'tokens/goblin.png', hp: { current: 4, max: 9 }, stress: 1, maxStress: 6 } },
+    ]));
+    expect(spawned[0]!.resources).toEqual({ hp: { current: 4, max: 9 }, stress: { current: 1, max: 6 } });
+    expect(spawned[0]).not.toHaveProperty('stress');
+    expect(spawned[0]).not.toHaveProperty('hp');
+  });
 });
 
 describe('spawning from the global asset manager', () => {
