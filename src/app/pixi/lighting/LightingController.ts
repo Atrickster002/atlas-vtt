@@ -11,11 +11,10 @@ import { heldForSight } from '../../lighting/sightOnDrop';
 import { CreatureIndex } from '../../creatures/CreatureIndex';
 import { tokenSensesResolver, type TokenSensesResolver } from '../../creatures/tokenSensesResolver';
 import { mapSenseRulesSource } from '../../services/mapSenseRules';
-import { mapSightRules } from '../../services/mapSightRules';
 import { SettingsService } from '../../services/SettingsService';
 import type { ViewAtlasState, ViewAtlasStore } from '../../storeFactory';
 import { findAtlasLeafByViewId } from '../../utils/atlasLeafLookup';
-import { sameSightRules, type SightRules } from '../../vision/sightRules';
+import type { SightRules } from '../../vision/sightRules';
 import type { MapBounds } from '../../vision/visibility';
 import type { LayerVisibility } from '../playerSafeFrame';
 import { requestRender } from '../RenderScheduler';
@@ -29,6 +28,7 @@ import { LightRangeRings } from './LightRangeRings';
 import { PerceptionMemo, playerLightingLayers, playerTokenSight, type GmOverlays, type TokenPerception } from './playerLightingLayers';
 import type { SceneLightingView } from './sceneLightingView';
 import { SessionLighting } from './SessionLighting';
+import { SightRulesWatch } from './SightRulesWatch';
 import { WallEditor } from './WallEditor';
 
 export interface LightingControllerDeps {
@@ -64,21 +64,21 @@ export class LightingController {
   private tokens: TokenRenderer | null = null;
   /** What the players perceive of each token, kept between frames while sight and light stay. */
   private readonly perceptions = new PerceptionMemo();
-  /** The sight rules of the map's collection, read once per map and again when they may have changed. */
-  private rules: { mapPath: string | null; rules: SightRules } | null = null;
-  /** How each token perceives: by its own vision, else by its linked statblock. */
-  private readonly senses: TokenSensesResolver;
-  /** The frame in which sight is worked out anew by changed rules, while one is waited for. */
-  private sightRefresh: number | null = null;
-  /** A statblock or the rules it is read with changed: the next refresh works sight out anew whatever the rules compare to. */
-  private sensesChanged = false;
-  private readonly visionOf: NonNullable<SightRules['visionOf']> = (token) => this.senses.visionOf(token);
+  /** The sight rules of the map's collection; sight is worked out anew when they differ. */
+  private readonly rules: SightRulesWatch;
 
   constructor(private readonly deps: LightingControllerDeps) {
     const { viewport, app, store, eventBus, obsApp } = deps;
     const assetService = AssetService.getInstance(obsApp);
     const measurement = (): MeasurementSettings => mapMeasurementSettings(assetService, store.getState());
-    this.senses = deps.senses ?? tokenSensesResolver(CreatureIndex.forApp(obsApp), mapSenseRulesSource(obsApp, assetService, () => store.getState()));
+    this.rules = new SightRulesWatch({
+      obsApp,
+      store,
+      senses: deps.senses ?? tokenSensesResolver(CreatureIndex.forApp(obsApp), mapSenseRulesSource(obsApp, assetService, () => store.getState())),
+      frames: () => this.frames(),
+      // Rebuilds the scene from the store, as after a new map image.
+      onChange: () => this.renderer.refreshBounds(),
+    });
     this.renderer = createSceneLighting({
       viewport, app, store, obsApp, measurement, bounds: deps.bounds, albedo: deps.albedo,
       rules: () => this.sightRules(),
@@ -168,34 +168,7 @@ export class LightingController {
 
   /** The senses and conditions of the map's collection, and how each token perceives. */
   private sightRules(): SightRules {
-    const state = this.deps.store.getState();
-    if (this.rules?.mapPath !== state.mapPath) this.rules = { mapPath: state.mapPath, rules: mapSightRules(this.deps.obsApp, state, this.visionOf) };
-    return this.rules.rules;
-  }
-
-  /**
-   * What sight goes by may have changed: the settings of the map's collection, or (`senses`) a
-   * statblock that was read or edited, or the senses and unit it is read with, which the
-   * resolver announces only when they differ. Looked at once, in the next frame, however many
-   * changes arrive until then (a bestiary announces its statblocks one by one). Sight is worked
-   * out anew only when the rules differ in what it goes by (`sameSightRules`): a save of other
-   * settings of the collection builds nothing, and the rules keep their senses, so the sight
-   * cache still knows its tokens.
-   */
-  private scheduleSightRefresh(senses = false): void {
-    this.sensesChanged ||= senses;
-    if (this.sightRefresh !== null) return;
-    this.sightRefresh = this.frames().requestAnimationFrame(() => {
-      this.sightRefresh = null;
-      const state = this.deps.store.getState();
-      const next = mapSightRules(this.deps.obsApp, state, this.visionOf);
-      const same = !this.sensesChanged && this.rules?.mapPath === state.mapPath && sameSightRules(this.rules.rules, next);
-      this.sensesChanged = false;
-      if (same) return;
-      this.rules = { mapPath: state.mapPath, rules: next };
-      // Rebuilds the scene from the store, as after a new map image.
-      this.renderer.refreshBounds();
-    });
+    return this.rules.current();
   }
 
   /** The window the canvas is in: a popout has its own frames. */
@@ -278,17 +251,7 @@ export class LightingController {
       if (leaf !== findAtlasLeafByViewId(obsApp.workspace, viewId)) stopEditing();
     });
     this.cleanups.push(() => obsApp.workspace.offref(leafChange));
-    // The collection's conditions decide sight too; its senses and the statblocks are the resolver's to announce.
-    const settingsChange = obsApp.workspace.on('atlas-vtt:collection-settings-changed', (collectionId) => {
-      const { mapPath } = store.getState();
-      if (mapPath && AssetService.getInstance(obsApp).getCollectionForMap(mapPath) === collectionId) this.scheduleSightRefresh();
-    });
-    this.cleanups.push(() => obsApp.workspace.offref(settingsChange));
-    this.cleanups.push(this.senses.subscribe(() => this.scheduleSightRefresh(true)));
-    this.cleanups.push(() => {
-      if (this.sightRefresh !== null) this.frames().cancelAnimationFrame(this.sightRefresh);
-      this.sightRefresh = null;
-    });
+    this.cleanups.push(() => this.rules.destroy());
   }
 
   destroy(): void {
