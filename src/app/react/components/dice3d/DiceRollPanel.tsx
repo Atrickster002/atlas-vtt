@@ -11,6 +11,7 @@ import { DiceRollHeader } from './DiceRollHeader';
 import { DiceRollEngraving } from './DiceRollEngraving';
 import { DiceRollChip } from './DiceRollChip';
 import { hasBreakdown, rollBreakdown, rollLabel } from './diceRollText';
+import { useElementHeight } from './useElementHeight';
 
 interface DiceRollPanelProps {
   result: DiceRollResult;
@@ -47,7 +48,11 @@ const TICK_EVERY_MS = 260;
 /** Close to the spring, so an invisible row never holds its place for long. */
 const LEAVE_MS = 430;
 const LEAVE_REDUCED_MS = 130;
-/** The morph between large and row: a spring, not a curtain. */
+/**
+ * The morph between large and row: a spring, not a curtain. The panel's real
+ * height is animated, never a scale: a scaled panel stretches its corners, its
+ * border, its shadow and the dice on it.
+ */
 const MORPH = { type: 'spring', duration: 0.42, bounce: 0.16 } as const;
 
 /** How long the panel stays before it leaves on its own. */
@@ -74,6 +79,7 @@ export function DiceRollPanel({ result, scene, compact: compactNow, leaving, mut
   const [applied, setApplied] = useState(0);
   const reduced = useReducedMotion() === true;
   const stageRef = useRef<DiceStageHandle>(null);
+  const [contentRef, contentHeight] = useElementHeight<HTMLDivElement>();
   const closeCb = useRef(onClose);
   const doneCb = useRef(onDone);
   useEffect(() => {
@@ -137,10 +143,11 @@ export function DiceRollPanel({ result, scene, compact: compactNow, leaving, mut
   const breakdown = rollBreakdown(result, scene);
   const slotRem = 3.2 + (hasBreakdown(result, scene) ? 1.05 : 0);
   const exit = reduced ? { opacity: 0 } : { opacity: 0, y: -14, scale: 0.96 };
+  const transition = reduced ? { duration: 0.12 } : MORPH;
 
   return (
     <motion.div
-      layout
+      layout="position"
       className={cn(
         'atlas-dice-roll',
         compact && 'atlas-dice-roll--compact',
@@ -149,7 +156,7 @@ export function DiceRollPanel({ result, scene, compact: compactNow, leaving, mut
       )}
       initial={reduced ? { opacity: 0 } : { opacity: 0, y: -28, scale: 0.92 }}
       animate={leaving ? exit : { opacity: 1, y: 0, scale: 1 }}
-      transition={reduced ? { duration: 0.12 } : MORPH}
+      transition={transition}
       onClick={tap}
     >
       <div className="atlas-dice-roll__sheet" style={{ '--atlas-dice-field-aspect': field.aspect } as React.CSSProperties}>
@@ -179,62 +186,67 @@ export function DiceRollPanel({ result, scene, compact: compactNow, leaving, mut
           />
         )}
 
-        {compact ? (
-          <motion.div layout className="atlas-dice-roll__row">
-            <DiceRollHeader result={result} label={label} />
-            <span className="atlas-dice-roll__total atlas-dice-roll__total--row">{shown ?? result.formula}</span>
-          </motion.div>
-        ) : (
-          <>
-            <motion.div layout="position" className="atlas-dice-roll__header">
-              <DiceRollHeader result={result} label={label} />
-            </motion.div>
-            {/* Holds the height where the dice come to rest; they roll over the whole panel. */}
-            <div className="atlas-dice-roll__floor" />
-            <div className="atlas-dice-roll__slot" style={{ height: `${slotRem}rem` }}>
-              {shown !== null ? (
-                <>
-                  <motion.span
-                    className="atlas-dice-roll__total"
-                    initial={reduced ? false : { opacity: 0, y: 10, scale: 0.8 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    transition={reduced ? { duration: 0.12 } : { type: 'spring', duration: 0.55, bounce: 0.3 }}
-                  >
-                    {/* Every step its own key: the counter jumps, it does not cross-fade. */}
+        {/* The sheet is as tall as this clip, which follows its content's height. */}
+        <motion.div initial={false} animate={{ height: contentHeight ?? 'auto' }} transition={transition}>
+          <div ref={contentRef} className="atlas-dice-roll__content">
+            {compact ? (
+              <div className="atlas-dice-roll__row">
+                <DiceRollHeader result={result} label={label} />
+                <span className="atlas-dice-roll__total atlas-dice-roll__total--row">{shown ?? result.formula}</span>
+              </div>
+            ) : (
+              <>
+                <div className="atlas-dice-roll__header">
+                  <DiceRollHeader result={result} label={label} />
+                </div>
+                {/* Holds the height where the dice come to rest; they roll over the whole panel. */}
+                <div className="atlas-dice-roll__floor" />
+                <div className="atlas-dice-roll__slot" style={{ height: `${slotRem}rem` }}>
+                  {shown !== null ? (
+                    <>
+                      <motion.span
+                        className="atlas-dice-roll__total"
+                        initial={reduced ? false : { opacity: 0, y: 10, scale: 0.8 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        transition={reduced ? { duration: 0.12 } : { type: 'spring', duration: 0.55, bounce: 0.3 }}
+                      >
+                        {/* Every step its own key: the counter jumps, it does not cross-fade. */}
+                        <motion.span
+                          key={shown}
+                          className="atlas-dice-roll__count"
+                          initial={reduced || appliedSteps === 0 ? false : { scale: 1.22 }}
+                          animate={{ scale: 1 }}
+                          transition={{ type: 'spring', duration: 0.34, bounce: 0.42 }}
+                        >
+                          {shown}
+                        </motion.span>
+                      </motion.span>
+                      {breakdown !== null && (
+                        <motion.span
+                          className="atlas-dice-roll__breakdown"
+                          initial={reduced ? false : { opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          transition={{ duration: 0.3, delay: reduced ? 0 : 0.12 }}
+                        >
+                          {breakdown}
+                        </motion.span>
+                      )}
+                    </>
+                  ) : (
                     <motion.span
-                      key={shown}
-                      className="atlas-dice-roll__count"
-                      initial={reduced || appliedSteps === 0 ? false : { scale: 1.22 }}
-                      animate={{ scale: 1 }}
-                      transition={{ type: 'spring', duration: 0.34, bounce: 0.42 }}
-                    >
-                      {shown}
-                    </motion.span>
-                  </motion.span>
-                  {breakdown !== null && (
-                    <motion.span
-                      className="atlas-dice-roll__breakdown"
+                      className="atlas-dice-roll__formula"
                       initial={reduced ? false : { opacity: 0 }}
                       animate={{ opacity: 1 }}
-                      transition={{ duration: 0.3, delay: reduced ? 0 : 0.12 }}
+                      transition={{ duration: 0.16 }}
                     >
-                      {breakdown}
+                      {result.formula}
                     </motion.span>
                   )}
-                </>
-              ) : (
-                <motion.span
-                  className="atlas-dice-roll__formula"
-                  initial={reduced ? false : { opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ duration: 0.16 }}
-                >
-                  {result.formula}
-                </motion.span>
-              )}
-            </div>
-          </>
-        )}
+                </div>
+              </>
+            )}
+          </div>
+        </motion.div>
 
         <DiceStage
           ref={stageRef}

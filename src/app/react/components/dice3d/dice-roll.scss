@@ -142,6 +142,11 @@ $dice-roll-engraving-fade: radial-gradient(ellipse 74% 74% at 50% 50%, #000 38%,
   color: var(--text-muted);
 }
 
+.atlas-dice-roll__content {
+  display: flex;
+  flex-direction: column;
+}
+
 // Holds the height where the dice come to rest; they roll over the whole panel.
 .atlas-dice-roll__floor {
   width: 100%;
@@ -205,8 +210,10 @@ $dice-roll-engraving-fade: radial-gradient(ellipse 74% 74% at 50% 50%, #000 38%,
 
 // A row gives the dice a square field at its start: a square shows more
 // depth than the tall panel, so dice thrown with the old walls stay in view.
+// As tall as the row from the first frame, not as the sheet still shrinking to it.
 .atlas-dice-roll--compact .atlas-dice-roll__stage {
-  inset: $spacing-xs auto $spacing-xs $spacing-xs;
+  inset: $spacing-xs auto auto $spacing-xs;
+  height: calc(#{$dice-roll-row-height} - 2 * #{$spacing-xs});
   aspect-ratio: var(--atlas-dice-field-aspect, 1);
 }
 
