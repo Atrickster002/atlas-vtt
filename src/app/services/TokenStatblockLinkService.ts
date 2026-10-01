@@ -380,6 +380,11 @@ export class TokenStatblockLinkService extends EventEmitter {
     }
   }
   
+  /** The fields of a statblock note, as resources read them; null when the note is no statblock. */
+  async readStatblockRecord(statblockPath: string): Promise<Record<string, unknown> | null> {
+    return (await this.extractStatblockData(statblockPath))?.record ?? null;
+  }
+
   /**
    * Extracts relevant data from a statblock.
    */

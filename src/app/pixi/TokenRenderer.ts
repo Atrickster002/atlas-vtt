@@ -1,6 +1,7 @@
 import { mapResources } from '../resources/collectionResources';
 import type { ResourceDefinition, ResourceDefsProvider } from '../resources/resourceTypes';
-import { syncedResources } from '../resources/statblockResourceSync';
+import { fillMissingResources, syncedResources } from '../resources/statblockResourceSync';
+import { runUntracked } from '../stores/history';
 import { fitTokenArtwork, syncTokenArtwork } from './token-renderer/tokenArtwork';
 import type { AtlasSettings } from '../services/SettingsService';
 import { hiddenTokenLayers, type LayerVisibility } from './playerSafeFrame';
@@ -334,6 +335,7 @@ export class TokenRenderer {
       this.evictUnusedArt();
       runInBackground(this.syncTokens(currentTokens, {}), 'Token sync after map change');
       this.onWhenAllTokensLoaded(() => this.updateAllTokenSizes());
+      this.fillMissingResources();
     };
     
     this.eventBus.on('map-loaded', handleMapLoaded);
@@ -423,6 +425,7 @@ export class TokenRenderer {
       if (mapPath && this.assetService.getCollectionForMap(mapPath) === collectionId) {
         this.uiManager.refreshConditions();
         this.uiManager.refreshResources();
+        this.fillMissingResources();
       }
     });
 
@@ -1260,6 +1263,20 @@ export class TokenRenderer {
   /**
    * Updates multiple tokens with data from a statblock
    */
+  /** Linked tokens start the collection's resources they do not hold yet, e.g. one defined after they were placed. */
+  private fillMissingResources(): void {
+    if (this.store.getState().isPlayerView) return;
+    runInBackground(fillMissingResources(
+      {
+        tokens: () => this.store.getState().objects.tokens,
+        // Not an edit of the game master's: it must not become an undo step.
+        apply: (entries) => runUntracked(this.store, () => this.store.getState().updateTokens(entries)),
+      },
+      this.resourceDefsProvider(),
+      (path) => this.tokenStatblockLinkService.readStatblockRecord(path),
+    ), 'Starting missing token resources');
+  }
+
   private async updateTokensWithStatblockData(tokenIds: string[], statblockPath: string): Promise<void> {
     try {
       const statblockFile = this.obsApp.vault.getAbstractFileByPath(statblockPath);
