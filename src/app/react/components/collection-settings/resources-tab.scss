@@ -1,0 +1,50 @@
+// ═══════════════════════════════════════════════════════════════════════════
+// Collection Settings: Resources tab
+// ═══════════════════════════════════════════════════════════════════════════
+
+@use '../../../../../styles/tokens' as *;
+@use '../../../../../styles/mixins' as *;
+
+.atlas-csm-resource-list {
+  @include atlas-flex-col($spacing-xs);
+}
+
+.atlas-csm-resource {
+  @include atlas-inset-surface;
+  @include atlas-flex-col($spacing-s);
+  padding: $spacing-s;
+}
+
+.atlas-csm-resource-row {
+  @include atlas-flex-row($spacing-s);
+  flex-wrap: wrap;
+
+  .atlas-csm-input {
+    flex: 1;
+    min-width: 0;
+    height: $input-height-s;
+
+    &[aria-invalid='true'] {
+      border-color: var(--text-error);
+    }
+  }
+}
+
+// Exclusive choices: the pressed one carries the accent, like a segmented control
+.atlas-csm-resource-choice {
+  @include atlas-flex-row($spacing-xs);
+
+  .btn {
+    color: var(--text-muted);
+
+    &[aria-pressed='true'] {
+      color: var(--text-accent);
+      background: color-mix(in srgb, var(--interactive-accent) 16%, transparent);
+    }
+  }
+}
+
+.atlas-csm-resource-toggles {
+  @include atlas-flex-row($spacing-xs);
+  margin-left: auto;
+}

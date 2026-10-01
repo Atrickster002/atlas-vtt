@@ -60,3 +60,22 @@ export function parseResourceValue(value: unknown, spent = false): ResourceValue
   const max = numeric(value);
   return max === null ? null : { current: spent ? 0 : max, max };
 }
+
+/** How deep `discoverResourceFields` looks: a field, a list entry (`stats.0`), a record inside a record. */
+const DISCOVERY_DEPTH = 2;
+
+/** The fields of the given statblocks that hold a quantity, as paths a resource definition can name. */
+export function discoverResourceFields(records: readonly Readonly<Record<string, unknown>>[]): string[] {
+  const found = new Set<string>();
+  const visit = (value: unknown, path: string, depth: number): void => {
+    if (path && parseResourceValue(value)) found.add(path);
+    if (depth >= DISCOVERY_DEPTH) return;
+    if (Array.isArray(value)) {
+      value.forEach((item, index) => visit(item, path ? `${path}.${index}` : String(index), depth + 1));
+    } else if (value !== null && typeof value === 'object') {
+      for (const [key, item] of Object.entries(value)) visit(item, path ? `${path}.${key}` : key, depth + 1);
+    }
+  };
+  for (const record of records) visit(record, '', 0);
+  return [...found].sort();
+}

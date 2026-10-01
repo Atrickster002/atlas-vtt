@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseResourceValue, resolveField } from '../../../src/app/resources/resourceFields';
+import { discoverResourceFields, parseResourceValue, resolveField } from '../../../src/app/resources/resourceFields';
 
 describe('resource fields', () => {
   it('reads dotted paths into objects and lists', () => {
@@ -29,5 +29,10 @@ describe('resource fields', () => {
     expect(parseResourceValue('2d6')).toBeNull();
     expect(parseResourceValue('lots')).toBeNull();
     expect(parseResourceValue(-1)).toBeNull();
+  });
+
+  it('discovers quantity fields for autocomplete', () => {
+    expect(discoverResourceFields([{ name: 'Troll', hp: 14, stats: [14, 12, 4], attacks: 'bite (d10)' }, { hp: 3, stress: '2/6' }]))
+      .toEqual(['hp', 'stats.0', 'stats.1', 'stats.2', 'stress']);
   });
 });

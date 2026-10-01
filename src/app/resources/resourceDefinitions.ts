@@ -22,6 +22,32 @@ export function resourceKey(name: string, taken: Iterable<string>): string {
   return `${base}-${n}`;
 }
 
+const DRAFT_KEY_PREFIX = 'new:';
+
+/** A placeholder key for a resource added in a dialog; `withFinalKeys` replaces it when the resource is saved. */
+export function draftResourceKey(): string {
+  return `${DRAFT_KEY_PREFIX}${crypto.randomUUID()}`;
+}
+
+export function isDraftResourceKey(key: string): boolean {
+  return key.startsWith(DRAFT_KEY_PREFIX);
+}
+
+/**
+ * `resources` as they are saved: one added in a dialog takes its key from the
+ * name it has now, so adding "Ammo" again after deleting it finds the values
+ * tokens still hold. Saved resources keep their key whatever they are renamed to.
+ */
+export function withFinalKeys(resources: readonly ResourceDefinition[]): ResourceDefinition[] {
+  const taken = resources.filter((resource) => !isDraftResourceKey(resource.key)).map((resource) => resource.key);
+  return resources.map((resource) => {
+    if (!isDraftResourceKey(resource.key)) return resource;
+    const key = resourceKey(resource.name, taken);
+    taken.push(key);
+    return { ...resource, key };
+  });
+}
+
 /** A stored or imported definition, or null when a required part is missing or invalid. */
 export function parseResourceDefinition(raw: unknown): ResourceDefinition | null {
   if (!raw || typeof raw !== 'object') return null;

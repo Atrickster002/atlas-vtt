@@ -1,3 +1,6 @@
+import { collectionResources } from '../../../resources/collectionResources';
+import { withFinalKeys } from '../../../resources/resourceDefinitions';
+import type { ResourceDefinition } from '../../../resources/resourceTypes';
 import { useEffect, useState } from 'react';
 import { DEFAULT_GRID_DEFAULTS, rulesOfPreset, vanillaSystemSettings } from '../../../gameSystems/systemRules';
 import { parseCreatureFilters, parseHiddenCreatureFilters } from '../../../creatures/creatureFilterDefinitions';
@@ -19,6 +22,8 @@ export interface CollectionSettingsDraft {
   setDefaultWidgets: (defaultWidgets: Record<string, boolean>) => void;
   conditions: ConditionDefinition[];
   setConditions: (conditions: ConditionDefinition[]) => void;
+  resources: ResourceDefinition[];
+  setResources: (resources: ResourceDefinition[]) => void;
   /** Unset while the collection takes the dice of its preset; read with `collectionDiceRules`. */
   dice: DiceRules | undefined;
   setDice: (dice: DiceRules) => void;
@@ -45,6 +50,11 @@ export interface CollectionSettingsDraft {
 }
 
 /** The collection's settings as edited in the modal; nothing is written until the caller saves. */
+/** Resources as they are stored: names and fields trimmed, and resources added in the dialog keyed by their name. */
+export function savedResources(resources: readonly ResourceDefinition[]): ResourceDefinition[] {
+  return withFinalKeys(resources.map((resource) => ({ ...resource, name: resource.name.trim(), field: resource.field.trim() })));
+}
+
 export function useCollectionSettingsDraft(
   assetService: AssetService | null,
   collectionId: string,
@@ -53,6 +63,7 @@ export function useCollectionSettingsDraft(
   const [gridDefaults, setGridDefaults] = useState<CollectionGridDefaults>(() => structuredClone(DEFAULT_GRID_DEFAULTS));
   const [defaultWidgets, setDefaultWidgets] = useState<Record<string, boolean>>({});
   const [conditions, setConditions] = useState<ConditionDefinition[]>([]);
+  const [resources, setResources] = useState<ResourceDefinition[]>([]);
   const [dice, setDice] = useState<DiceRules | undefined>(undefined);
   const [vision, setVision] = useState<VisionSettings | undefined>(undefined);
   const [systemPresetId, setSystemPresetId] = useState<string | undefined>(undefined);
@@ -67,6 +78,7 @@ export function useCollectionSettingsDraft(
     setGridDefaults(settings.gridDefaults ?? structuredClone(DEFAULT_GRID_DEFAULTS));
     setDefaultWidgets(settings.defaultWidgets ?? {});
     setConditions(settings.conditions ?? []);
+    setResources(collectionResources(settings));
     setDice(settings.dice);
     setVision(settings.vision);
     setSystemPresetId(settings.systemPresetId);
@@ -80,6 +92,7 @@ export function useCollectionSettingsDraft(
     const rules = rulesOfPreset(preset);
     setGridDefaults(rules.gridDefaults);
     setConditions(rules.conditions);
+    setResources(rules.resources);
     setDefaultWidgets(rules.defaultWidgets);
     setDice(rules.dice);
     setSystemPresetId(preset.id);
@@ -89,6 +102,7 @@ export function useCollectionSettingsDraft(
     const vanilla = vanillaSystemSettings();
     setGridDefaults(vanilla.gridDefaults);
     setConditions(vanilla.conditions);
+    setResources(vanilla.resources);
     setDefaultWidgets(vanilla.defaultWidgets);
     setDice(vanilla.dice);
     setSystemPresetId(undefined);
@@ -98,6 +112,7 @@ export function useCollectionSettingsDraft(
     gridDefaults,
     defaultWidgets,
     conditions,
+    resources: savedResources(resources),
     ...(dice && { dice: { ...dice, defaultRoll: dice.defaultRoll.trim() } }),
     // Trimmed, with the field as label where none was typed.
     customCreatureFilters: parseCreatureFilters(customCreatureFilters),
@@ -112,6 +127,7 @@ export function useCollectionSettingsDraft(
     gridDefaults, setGridDefaults,
     defaultWidgets, setDefaultWidgets,
     conditions, setConditions,
+    resources, setResources,
     dice, setDice,
     vision, setVision,
     customCreatureFilters, setCustomCreatureFilters,

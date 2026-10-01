@@ -1,6 +1,7 @@
 import { act, renderHook } from '@testing-library/react';
 import { expect, it } from 'vitest';
 import { BUILT_IN_SYSTEM_PRESETS } from '../../src/app/gameSystems/builtInPresets';
+import { draftResourceKey } from '../../src/app/resources/resourceDefinitions';
 import { useCollectionSettingsDraft } from '../../src/app/react/components/collection-settings/useCollectionSettingsDraft';
 import type { AssetService } from '../../src/app/services/AssetService';
 import type { CollectionSettings } from '../../src/app/types/collectionSettingsTypes';
@@ -36,4 +37,24 @@ it('loads and saves the collection’s own creature filters and the switched-off
   act(() => result.current.applyPreset(dnd5e));
   act(() => result.current.setHiddenCreatureFilters(['source', 'rarity']));
   expect(result.current.toSettings()).toMatchObject({ customCreatureFilters: custom, hiddenCreatureFilters: ['source', 'rarity'] });
+});
+
+it('carries the collection’s resources: the preset’s on a switch, HP alone without a system, edits on save', () => {
+  const cairn = BUILT_IN_SYSTEM_PRESETS.find((preset) => preset.name === 'Cairn')!;
+  // A collection saved before resources existed reads as its preset's
+  const { result } = draftFor({ conditions: [], systemPresetId: shadowdark.id });
+  expect(result.current.resources.map((r) => r.key)).toEqual(['hp']);
+
+  act(() => result.current.applyPreset(cairn));
+  expect(result.current.toSettings().resources?.map((r) => r.key)).toEqual(['hp', 'str']);
+
+  act(() => result.current.setResources([{ ...result.current.resources[0]!, name: ' Hit Protection ', field: ' hp ' }]));
+  expect(result.current.toSettings().resources).toMatchObject([{ key: 'hp', name: 'Hit Protection', field: 'hp' }]);
+
+  // A resource added in the dialog is keyed by the name it has when saved
+  act(() => result.current.setResources([...result.current.resources, { ...result.current.resources[0]!, key: draftResourceKey(), name: 'Ammo', field: 'ammo' }]));
+  expect(result.current.toSettings().resources?.map((r) => r.key)).toEqual(['hp', 'ammo']);
+
+  act(() => result.current.clearSystem());
+  expect(result.current.toSettings().resources?.map((r) => r.key)).toEqual(['hp']);
 });

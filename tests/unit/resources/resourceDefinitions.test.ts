@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseResourceDefinition, resourceKey, sameResourceDefinitions } from '../../../src/app/resources/resourceDefinitions';
+import { draftResourceKey, parseResourceDefinition, resourceKey, sameResourceDefinitions, withFinalKeys } from '../../../src/app/resources/resourceDefinitions';
 
 describe('resource definitions', () => {
   it('derives a stable key from the name', () => {
@@ -26,5 +26,16 @@ describe('resource definitions', () => {
     expect(sameResourceDefinitions([a], [{ ...a, color: '#22c55e' }])).toBe(true);
     expect(sameResourceDefinitions([a], [{ ...a, field: 'health' }])).toBe(false);
     expect(sameResourceDefinitions(undefined, [])).toBe(true);
+  });
+
+  it('gives a new resource its key from the name it is saved with', () => {
+    const hp = { key: 'hp', name: 'HP', field: 'hp', direction: 'drains' as const, look: 'bar' as const, color: '#22c55e', visibleToPlayers: true };
+    const added = { ...hp, key: draftResourceKey(), name: 'Ammo', field: 'ammo' };
+    const second = { ...hp, key: draftResourceKey(), name: 'HP', field: 'temp_hp' };
+    expect(withFinalKeys([hp, added, second]).map((d) => d.key)).toEqual(['hp', 'ammo', 'hp-2']);
+    // Deleted and added again under the same name: the same key, so stored values reappear
+    expect(withFinalKeys([{ ...added, key: draftResourceKey() }]).map((d) => d.key)).toEqual(['ammo']);
+    // Renaming a saved resource never changes its key
+    expect(withFinalKeys([{ ...hp, name: 'Hit Protection' }]).map((d) => d.key)).toEqual(['hp']);
   });
 });
