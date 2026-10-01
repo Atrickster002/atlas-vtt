@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { BUILT_IN_SYSTEM_PRESETS } from '../../src/app/gameSystems/builtInPresets';
 import { DEFAULT_DICE_RULES, collectionDiceRules, isValidDefaultRoll, parseExplodeRule, sameDiceRules, withExplodeScope } from '../../src/app/gameSystems/diceRules';
 import { parseUserPresets } from '../../src/app/gameSystems/presetValidation';
+import { describeExplodeRule, highFaceNames, lowFaceNames } from '../../src/app/gameSystems/explodeRuleText';
 import { sameSystemRules } from '../../src/app/gameSystems/systemRules';
 
 const cthulhu = BUILT_IN_SYSTEM_PRESETS.find((preset) => preset.id === 'builtin:coc7e')!;
@@ -91,3 +92,30 @@ describe('exploding dice rules', () => {
     expect(red.rules.dice?.explode).toEqual({ dice: 'default', repeats: false, highFaces: 1, lowFaces: 1 });
   });
 });
+
+describe('exploding dice in words', () => {
+  it('names the faces of a die that explode', () => {
+    expect(highFaceNames(10, 1)).toBe('10');
+    expect(highFaceNames(10, 2)).toBe('9 or 10');
+    expect(highFaceNames(100, 5)).toBe('96 to 100');
+    expect(lowFaceNames(10, 1, 1)).toBe('1');
+    expect(lowFaceNames(100, 5, 5)).toBe('1 to 5');
+    // As the roll counts them: one face of every die never explodes.
+    expect(highFaceNames(4, 9)).toBe('2 to 4');
+    expect(lowFaceNames(4, 9, 9)).toBe('');
+    expect(lowFaceNames(4, 9, 1)).toBe('1 or 2');
+  });
+
+  it('says what a rule does with the collection\'s own die', () => {
+    expect(describeExplodeRule({ dice: 'all', repeats: true, highFaces: 1, lowFaces: 0 }, 20)).toBe(
+      'Every die that shows its highest face is rolled again and the new die is added: a d20 on 20, a d6 on 6. The new die can explode too.',
+    );
+    expect(describeExplodeRule({ dice: 'default', repeats: false, highFaces: 1, lowFaces: 1 }, 10)).toBe(
+      'A default die (d10) that shows 10 is rolled again and the new die is added. One that shows 1 is rolled again and the new die is subtracted. The new die does not explode.',
+    );
+    expect(describeExplodeRule({ dice: 'all', repeats: false, highFaces: 2, lowFaces: 1 }, 6)).toBe(
+      'Every die that shows one of its 2 highest faces is rolled again and the new die is added: a d6 on 5 or 6, a d20 on 19 or 20. One that shows its lowest face is rolled again and the new die is subtracted. The new die does not explode.',
+    );
+  });
+});
+
