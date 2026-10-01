@@ -159,6 +159,28 @@ describe('LightingRenderer sight on drop', () => {
     expect(watch.findings).toEqual([]);
   });
 
+  it('draws nothing while a token that neither sees nor carries a light is dragged, alone or with the party', async () => {
+    const mule = { id: 'm', x: 60, y: 60 } as unknown as TokenEntity;
+    const scene = (dx: number, heroToo: boolean): Record<string, unknown> => ({
+      objects: { walls: WALLS, lights: NO_LIGHTS, tokens: { t: heroToo ? { ...HERO, x: START.x + dx } : HERO, m: { ...mule, x: 60 + dx } } },
+    });
+    harness = await createHarness({ patch: { exploredMask: null, lighting: { enabled: true, ambient: 1 }, ...scene(0, false) } });
+    const h = harness;
+    await h.settle();
+    watch = watchGl(h.renderer.gl);
+    h.renderStage();
+
+    for (const heroToo of [false, true]) {
+      h.change({ heldTokens: heroToo ? { t: START, m: { x: 60, y: 60 } } : { m: { x: 60, y: 60 } } });
+      const draws = watch.draws();
+      for (const dx of [30, 60, 90, 120]) h.change(scene(dx, heroToo));
+      expect(watch.draws()).toBe(draws);
+      h.change({ heldTokens: {} });
+      h.change(scene(0, false));
+    }
+    expect(watch.findings).toEqual([]);
+  });
+
   it('records along the way when the scene switches sight on drop off', async () => {
     const h = await setup({ sightOnDrop: false });
     drag(h);

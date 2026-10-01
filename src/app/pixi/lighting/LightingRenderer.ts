@@ -2,15 +2,8 @@ import { Matrix, type Application, type Container, type Texture } from 'pixi.js'
 import type { Viewport } from 'pixi-viewport';
 import type { ViewAtlasState, ViewAtlasStore } from '../../storeFactory';
 import type { MeasurementSettings } from '../../grid/measurementFormat';
-import type { TokenEntity } from '../../types';
-import { unitScaleOf } from '../../lighting/lightingUnits';
-import { sealedWalls } from '../../lighting/sealWalls';
-import { worldTexel } from '../../lighting/lightingConstants';
 import { sceneLook, type SceneLook } from '../../lighting/sceneLightingOptions';
-import { SightTokens } from '../../lighting/sightOnDrop';
-import { SEES_ALL, SightCache, sceneSight, sightOptionsChanged, sightSources, type AmbientLight, type LightReach, type Sight } from '../../vision/sight';
-import { wallList } from '../../vision/wallList';
-import { exploredShapes } from '../../vision/exploredShapes';
+import { SEES_ALL, type AmbientLight, type LightReach, type Sight } from '../../vision/sight';
 import type { MapBounds } from '../../vision/visibility';
 import type { HideableLayer } from '../playerSafeFrame';
 import { requestRender } from '../RenderScheduler';
@@ -19,9 +12,8 @@ import { LightingEngine } from './engine/LightingEngine';
 import type { EngineScene, SceneFrame } from './engine/types';
 import { ExploredMemory } from './ExploredMemory';
 import type { LightingAttempt } from './lightingAttempts';
-import { LightReaches } from './lightReaches';
-import { activeLights, engineLight } from './lightSources';
 import { PlayerView } from './PlayerView';
+import { SceneModelBuilder, type SceneModel } from './sceneModel';
 import type { SceneLightingView } from './sceneLightingView';
 
 /** Above tokens, below their nameplates and bars (100): the GM keeps readable labels in the dark. */
@@ -48,8 +40,6 @@ export interface LightingRendererDeps {
   onSightChange?: () => void;
 }
 
-/** `tokens` are the scene's as sight and light read them (`SightTokens`). */
-type Watched = Pick<ViewAtlasState, 'objects' | 'lighting' | 'grid' | 'exploredMask'> & { tokens: Record<string, TokenEntity> };
 type SceneWithoutLook = Omit<EngineScene, keyof SceneLook>;
 /**
  * From the build that begins an attempt, over the first lit frame and the tick that waits for
@@ -73,12 +63,10 @@ export class LightingRenderer implements SceneLightingView {
   readonly modeLayer: HideableLayer;
   private readonly engine: LightingEngine;
   private readonly memory: ExploredMemory;
-  private readonly sightCache = new SightCache();
-  private readonly lightReachCache = new LightReaches();
-  private readonly sightTokens = new SightTokens();
+  /** What the scene is built from, and when it is built anew (`SceneModelBuilder`). */
+  private readonly model = new SceneModelBuilder();
   private reaches: LightReach[] = [];
   private sight: Sight = SEES_ALL;
-  private previous: Watched | null = null;
   /** The last scene without its look (`SceneLook`), reused while only the look changes. */
   private lastScene: SceneWithoutLook | null = null;
   private attemptState: AttemptState = 'none';
@@ -128,7 +116,7 @@ export class LightingRenderer implements SceneLightingView {
   /** The map image changed size or finished loading. */
   refreshBounds(): void {
     this.run(() => {
-      this.previous = null;
+      this.model.reset();
       this.update(this.deps.store.getState());
     });
   }
@@ -140,7 +128,7 @@ export class LightingRenderer implements SceneLightingView {
   /** Before the map unloads: save the scene's pending memory into it, then start the next scene blank. */
   beforeMapUnload(): void {
     this.run(() => this.memory.beforeMapUnload());
-    this.previous = null;
+    this.model.reset();
     this.endAttempt();
   }
 
@@ -183,7 +171,7 @@ export class LightingRenderer implements SceneLightingView {
     if (!bounds) {
       // Nothing is drawn while off; the next update after switching on rebuilds everything.
       this.engine.setEnabled(false);
-      this.previous = null;
+      this.model.reset();
       this.endAttempt();
       return;
     }
@@ -192,37 +180,21 @@ export class LightingRenderer implements SceneLightingView {
       return;
     }
     this.engine.setEnabled(true);
-    const prev = this.previous;
-    const { walls, lights } = state.objects;
-    const tokens = this.sightTokens.read(state);
-    this.previous = { objects: state.objects, lighting, grid: state.grid, exploredMask: state.exploredMask, tokens };
     this.memory.sync(bounds, state.exploredMask);
 
-    const moved = !prev || prev.objects.walls !== walls || prev.objects.lights !== lights
-      || prev.tokens !== tokens || prev.grid !== state.grid || sightOptionsChanged(prev.lighting, lighting);
-    const base = moved || !this.lastScene ? (this.lastScene = this.buildScene(state, tokens, bounds)) : this.lastScene;
+    const { model, rebuilt } = this.model.update(state, bounds, this.deps.measurement);
+    const base = rebuilt || !this.lastScene ? (this.lastScene = this.takeModel(model, state, bounds)) : this.lastScene;
     this.engine.update({ ...base, ...sceneLook(lighting) });
     requestRender(this.deps.app);
   }
 
-  /** Recomputes lights, their reaches and sight with sealed walls, and records what tokens now see. */
-  private buildScene(state: ViewAtlasState, tokens: Record<string, TokenEntity>, bounds: MapBounds): SceneWithoutLook {
-    const scale = unitScaleOf(this.deps.measurement(), state.grid);
-    const walls = sealedWalls(wallList(state.objects.walls), worldTexel(bounds));
-    const lights = activeLights(state.objects.lights, tokens).map((light) => engineLight(light, scale));
-    this.reaches = this.lightReachCache.sync(lights, walls);
-    this.sight = sceneSight(state.lighting, sightSources(tokens, scale, bounds), walls, this.sightCache);
+  /** A model built anew: its sight and reaches are the view's, and what the tokens now see is recorded. */
+  private takeModel({ walls, lights, reaches, sight, explored }: SceneModel, state: ViewAtlasState, bounds: MapBounds): SceneWithoutLook {
+    this.reaches = reaches;
+    this.sight = sight;
     this.sightChanged = true;
-    const shapes = exploredShapes(this.sight, state.lighting, this.reaches);
-    if (shapes) this.memory.record(shapes);
-    return {
-      bounds,
-      albedo: this.deps.albedo(),
-      walls,
-      lights,
-      sight: this.sight,
-      sightRadius: (state.grid?.size ?? DEFAULT_CELL_SIZE) * 0.5,
-    };
+    if (explored) this.memory.record(explored);
+    return { bounds, albedo: this.deps.albedo(), walls, lights, sight, sightRadius: (state.grid?.size ?? DEFAULT_CELL_SIZE) * 0.5 };
   }
 
   /**

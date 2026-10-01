@@ -41,6 +41,8 @@ export function playerLightingLayers({ enabled, modeLayer, gmOverlays }: PlayerL
  * picture is dark or remembered, and the token goes with its nameplate, bars and conditions
  * rather than leaving them over the darkness.
  */
+// The `held` rule is sight on drop's and must survive a rework of this function: without it a
+// dragged vision token's nameplate and bars stand over the darkness that covers its sprite.
 export function tokenSeenPredicate(
   sight: Sight,
   ambient: AmbientLight,

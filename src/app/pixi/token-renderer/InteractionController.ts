@@ -39,6 +39,8 @@ interface DragState {
   isDragging: boolean;
   dragIds: string[];
   dragStartPointer: { x: number; y: number };
+  /** Where the pointer was last seen, in world pixels: a drag whose pointer is lost drops there. */
+  lastPointer?: { x: number; y: number };
   initialPositions: Record<string, { x: number; y: number }>;
   animationFrameId?: number;
   pendingUpdate: boolean;
@@ -85,6 +87,8 @@ export class InteractionController implements ITokenInteractionController {
   private onTokensHeldChange?: (tokenIds: string[]) => void;
   private updateHandlePositions?: () => void;
   private dragRuler?: DragRuler;
+  /** Where a lost pointer is heard while the pointer is down (`watchLostPointer`). */
+  private lostPointerTargets: { canvas: HTMLElement; win: Window | null } | null = null;
 
   constructor(
     viewport: Viewport,
@@ -220,6 +224,10 @@ export class InteractionController implements ITokenInteractionController {
   }
 
   private prepareInteraction(token: TokenEntity, e: FederatedPointerEvent): void {
+    // A second pointer (another finger) pressing during a drag is not a new gesture: taking it
+    // would let go of the held tokens and leave the drag's history transaction open.
+    if (this.dragState.isDragging && this.dragState.hasMoved) return;
+
     const { selectedIds, setSelection } = this.store.getState();
     const isTokenSelected = selectedIds.includes(token.id);
 
@@ -256,6 +264,7 @@ export class InteractionController implements ITokenInteractionController {
     // Initialize drag state
     const worldPos = this.viewport.toWorld(e.global);
     this.dragState.dragStartPointer = { x: worldPos.x, y: worldPos.y };
+    this.dragState.lastPointer = this.dragState.dragStartPointer;
     this.dragState.initialPositions = {};
     
     for (const id of this.dragState.dragIds) {
@@ -275,12 +284,32 @@ export class InteractionController implements ITokenInteractionController {
     this.viewport.on('pointermove', this.onPointerMove, this);
     this.viewport.on('pointerup', this.onPointerUp, this);
     this.viewport.on('pointerupoutside', this.onPointerUp, this);
+    this.watchLostPointer();
   }
+
+  /**
+   * No release follows a pointer the browser cancels (a touch taken over by a system gesture)
+   * or a press that outlasts the window's focus, and PIXI reports neither: the drag then ends
+   * where the token is, as a drop.
+   */
+  private watchLostPointer(): void {
+    const canvas = this.viewport.options?.events?.domElement;
+    if (!canvas) return;
+    const win = canvas.ownerDocument.defaultView;
+    canvas.addEventListener('pointercancel', this.dropWhereItIs);
+    win?.addEventListener('blur', this.dropWhereItIs);
+    this.lostPointerTargets = { canvas, win };
+  }
+
+  private readonly dropWhereItIs = (): void => {
+    this.endDrag(this.dragState.lastPointer ?? this.dragState.dragStartPointer);
+  };
 
   private onPointerMove = (e: FederatedPointerEvent) => {
     if (!this.dragState.isDragging) return;
     
     const worldPos = this.viewport.toWorld(e.global);
+    this.dragState.lastPointer = { x: worldPos.x, y: worldPos.y };
     const dx = worldPos.x - this.dragState.dragStartPointer.x;
     const dy = worldPos.y - this.dragState.dragStartPointer.y;
     const currentTime = Date.now();
@@ -392,9 +421,17 @@ export class InteractionController implements ITokenInteractionController {
     this.viewport.off('pointermove', this.onPointerMove, this);
     this.viewport.off('pointerup', this.onPointerUp, this);
     this.viewport.off('pointerupoutside', this.onPointerUp, this);
+    this.lostPointerTargets?.canvas.removeEventListener('pointercancel', this.dropWhereItIs);
+    this.lostPointerTargets?.win?.removeEventListener('blur', this.dropWhereItIs);
+    this.lostPointerTargets = null;
   }
 
-  private onPointerUp = (e: FederatedPointerEvent) => {
+  private onPointerUp = (e: FederatedPointerEvent): void => {
+    this.endDrag(this.viewport.toWorld(e.global));
+  };
+
+  /** Ends the press or drag with the pointer at `worldPos`: a drag drops its tokens there, as one undo step. */
+  private endDrag(worldPos: { x: number; y: number }): void {
     if (!this.dragState.isDragging) return;
     const wasDrag = this.dragState.hasMoved;
 
@@ -427,7 +464,6 @@ export class InteractionController implements ITokenInteractionController {
       }
       
       // Calculate final positions
-      const worldPos = this.viewport.toWorld(e.global);
       const dx = worldPos.x - this.dragState.dragStartPointer.x;
       const dy = worldPos.y - this.dragState.dragStartPointer.y;
       
@@ -506,7 +542,7 @@ export class InteractionController implements ITokenInteractionController {
       delete this.dragState.clickToken;
       this.reportHeld([]);
     }
-  };
+  }
 
   /** The store notes where the held tokens stand (`holdTokens`: sight waits there for the drop); then the token UI. */
   private reportHeld(tokenIds: string[]): void {

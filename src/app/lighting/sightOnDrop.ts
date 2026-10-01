@@ -43,13 +43,13 @@ export function movedWhileHeld(token: Pick<TokenEntity, 'id' | 'x' | 'y'>, held:
 
 /**
  * The tokens of a scene as its sight and light read them. With sight on drop (`sightOnDropOn`),
- * a token the pointer has moved counts as standing where it was taken if it sees or carries a
- * light: nothing along the way of a drag is seen, lit or remembered, and letting go shows its
- * new place at once. A token that neither sees nor carries a light, and every move that is not
- * a drag, is read as the store holds it.
+ * a token the pointer has moved counts as standing where it was taken: nothing along the way
+ * of a drag is seen, lit or remembered, and letting go shows its new place at once. Every move
+ * that is not a drag is read as the store holds it.
  *
- * While only such held tokens move, `read` returns the same record, so a view that compares
- * records works nothing out during the drag.
+ * Every held token is read so, also one that neither sees nor carries a light: while only held
+ * tokens move, `read` returns the same record, so a view that compares records works nothing
+ * out during a drag.
  */
 export class SightTokens {
   private last: Tokens | null = null;
@@ -64,7 +64,7 @@ export class SightTokens {
     let result = tokens;
     for (const [id, start] of Object.entries(held)) {
       const token = tokens[id];
-      if (!token || !(token.vision?.enabled || token.light) || !movedWhileHeld(token, held)) continue;
+      if (!token || !movedWhileHeld(token, held)) continue;
       const atStart = { ...token, x: start.x, y: start.y };
       const before = this.last?.[id];
       if (result === tokens) result = { ...tokens };

@@ -1,25 +1,21 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createViewAtlasStore, type ViewAtlasState, type ViewAtlasStore } from '../../src/app/storeFactory';
 import { InteractionController } from '../../src/app/pixi/token-renderer/InteractionController';
-import { LightReaches } from '../../src/app/pixi/lighting/lightReaches';
-import { activeLights, engineLight } from '../../src/app/pixi/lighting/lightSources';
 import { tokenSeenPredicate } from '../../src/app/pixi/lighting/playerLightingLayers';
-import { worldTexel } from '../../src/app/lighting/lightingConstants';
-import { unitScaleOf } from '../../src/app/lighting/lightingUnits';
-import { sealedWalls } from '../../src/app/lighting/sealWalls';
-import { SightTokens, heldForSight, holdTokens } from '../../src/app/lighting/sightOnDrop';
+import { SceneModelBuilder } from '../../src/app/pixi/lighting/sceneModel';
+import { heldForSight, holdTokens } from '../../src/app/lighting/sightOnDrop';
 import { getHistoryStore } from '../../src/app/stores/history';
+import type { MeasurementSettings } from '../../src/app/grid/measurementFormat';
 import type { TokenEntity } from '../../src/app/types';
 import type { LightEmission, SceneLighting } from '../../src/app/types/lightingTypes';
 import type { WallSegment } from '../../src/app/types/wallTypes';
-import { exploredShapes, type ExploredShapes } from '../../src/app/vision/exploredShapes';
-import { SEES_ALL, SightCache, sceneSight, sightOptionsChanged, sightSources, type LightReach, type Sight } from '../../src/app/vision/sight';
+import type { ExploredShapes } from '../../src/app/vision/exploredShapes';
+import { SEES_ALL, type LightReach, type Sight } from '../../src/app/vision/sight';
 import { pointInPolygon } from '../../src/app/vision/visibility';
-import { wallList } from '../../src/app/vision/wallList';
 import { createInMemoryApp } from '../mocks/inMemoryVault';
 
 const BOUNDS = { width: 1000, height: 600 };
-const MEASUREMENT = { mode: 'grid', unitType: 'feet', unitDistance: 5, diagonalRule: 'chebyshev', rangeBands: [] } as never;
+const MEASUREMENT: MeasurementSettings = { mode: 'grid', unitType: 'feet', unitDistance: 5, diagonalRule: 'chebyshev', rangeBands: [] };
 
 /** Two rooms, left and right of a wall at x = 500 with a doorway from y = 250 to 350. */
 const WALLS: Record<string, WallSegment> = {
@@ -41,9 +37,9 @@ function token(id: string, at: { x: number; y: number }, extra: Partial<TokenEnt
 const hero = (extra: Partial<TokenEntity> = {}): TokenEntity => token('hero', LEFT_ROOM, { vision: { enabled: true }, ...extra });
 
 /**
- * What `LightingRenderer` works out on the CPU for each store update, in its order: the scene is
- * rebuilt when the walls, the lights or the tokens sight reads change, and each rebuild records
- * what the tokens see as explored.
+ * The scene as `LightingRenderer` builds it from the store, through the builder it uses itself
+ * (`SceneModelBuilder`): each rebuild takes the model's sight and reaches and records what the
+ * tokens see as explored, as the renderer does.
  */
 class SceneRig {
   rebuilds = 0;
@@ -51,10 +47,7 @@ class SceneRig {
   reaches: LightReach[] = [];
   lightsAt: Array<{ key: string; x: number; y: number }> = [];
   readonly recorded: ExploredShapes[] = [];
-  private readonly sightTokens = new SightTokens();
-  private readonly sightCache = new SightCache();
-  private readonly lightReaches = new LightReaches();
-  private previous: { walls: unknown; lights: unknown; tokens: unknown; lighting: SceneLighting } | null = null;
+  private readonly model = new SceneModelBuilder();
 
   constructor(private readonly store: ViewAtlasStore) {
     store.subscribe((state) => this.update(state));
@@ -62,20 +55,13 @@ class SceneRig {
   }
 
   private update(state: ViewAtlasState): void {
-    const { walls, lights } = state.objects;
-    const tokens = this.sightTokens.read(state);
-    const prev = this.previous;
-    this.previous = { walls, lights, tokens, lighting: state.lighting };
-    if (prev && prev.walls === walls && prev.lights === lights && prev.tokens === tokens && !sightOptionsChanged(prev.lighting, state.lighting)) return;
+    const { model, rebuilt } = this.model.update(state, BOUNDS, () => MEASUREMENT);
+    if (!rebuilt) return;
     this.rebuilds++;
-    const scale = unitScaleOf(MEASUREMENT, state.grid);
-    const sealed = sealedWalls(wallList(walls), worldTexel(BOUNDS));
-    const active = activeLights(lights, tokens);
-    this.lightsAt = active.map(({ key, x, y }) => ({ key, x, y }));
-    this.reaches = this.lightReaches.sync(active.map((light) => engineLight(light, scale)), sealed);
-    this.sight = sceneSight(state.lighting, sightSources(tokens, scale, BOUNDS), sealed, this.sightCache);
-    const shapes = exploredShapes(this.sight, state.lighting, this.reaches);
-    if (shapes) this.recorded.push(shapes);
+    this.sight = model.sight;
+    this.reaches = model.reaches;
+    this.lightsAt = model.lights.map(({ key, x, y }) => ({ key, x, y }));
+    if (model.explored) this.recorded.push(model.explored);
   }
 
   explored(point: { x: number; y: number }): boolean {
@@ -100,6 +86,8 @@ interface Scene {
   dragTo: (point: { x: number; y: number }) => void;
   release: (point: { x: number; y: number }) => void;
   at: (tokenId: string) => { x: number; y: number };
+  /** The canvas the pointer events come from. */
+  canvas: HTMLCanvasElement;
 }
 
 let now = 0;
@@ -115,11 +103,14 @@ function createScene(tokens: TokenEntity[], lighting: Partial<SceneLighting> = {
   getHistoryStore(store)?.getState().clear();
 
   const handlers = new Map<string, (event: unknown) => void>();
+  const canvas = document.createElement('canvas');
+  document.body.appendChild(canvas);
   const viewport = {
     on: (name: string, handler: (event: unknown) => void) => handlers.set(name, handler),
     off: (name: string) => handlers.delete(name),
     toWorld: (point: { x: number; y: number }) => point,
     plugins: { pause: vi.fn(), resume: vi.fn() },
+    options: { events: { domElement: canvas } },
   };
   const gridSystem = { snapToCellCenter: (x: number, y: number) => ({ x, y }) };
   const controller = new InteractionController(viewport as never, store, gridSystem as never, {} as never, app, false);
@@ -136,6 +127,7 @@ function createScene(tokens: TokenEntity[], lighting: Partial<SceneLighting> = {
     store,
     rig: new SceneRig(store),
     controller,
+    canvas,
     press: (tokenId, modifiers = {}) => {
       const entry = store.getState().objects.tokens[tokenId]!;
       pressedAt = { x: entry.x, y: entry.y };
@@ -160,7 +152,11 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.restoreAllMocks();
+  document.body.replaceChildren();
 });
+
+/** Undo steps the store holds. */
+const undoSteps = (store: ViewAtlasStore): number => getHistoryStore(store)!.getState().pastStates.length;
 
 describe('sight on drop', () => {
   it('keeps sight, the seen tokens and explored memory where the drag of a vision token began', () => {
@@ -238,11 +234,68 @@ describe('sight on drop', () => {
     expect(store.getState().heldTokens).toEqual({});
   });
 
+  it.each(['pointercancel', 'blur'] as const)('drops the token where it is when the pointer is lost (%s)', (lost) => {
+    const { store, rig, controller, canvas, press, dragTo, at } = createScene([hero()]);
+    const steps = undoSteps(store);
+    press('hero');
+    dragTo({ x: 400, y: 300 });
+    dragTo(RIGHT_ROOM);
+
+    if (lost === 'blur') window.dispatchEvent(new Event('blur'));
+    else canvas.dispatchEvent(new Event('pointercancel'));
+
+    expect(controller.isDraggingTokens()).toBe(false);
+    expect(store.getState().isDragging).toBe(false);
+    expect(store.getState().heldTokens).toEqual({});
+    expect(at('hero')).toEqual(RIGHT_ROOM);
+    expect(rig.sight.origins).toEqual([RIGHT_ROOM]);
+    // The move is one undo step, and its transaction is closed: the next write is a step of its own.
+    expect(undoSteps(store)).toBe(steps + 1);
+    store.getState().moveToken('hero', 720, 300);
+    expect(undoSteps(store)).toBe(steps + 2);
+
+    // The pointer's release, should it still arrive, finds no drag.
+    window.dispatchEvent(new Event('blur'));
+    canvas.dispatchEvent(new Event('pointercancel'));
+    expect(at('hero')).toEqual({ x: 720, y: 300 });
+  });
+
+  it('lets go of a token that was only pressed when the pointer is lost', () => {
+    const { store, controller, canvas, press } = createScene([hero()]);
+    const steps = undoSteps(store);
+    press('hero');
+    canvas.dispatchEvent(new Event('pointercancel'));
+    expect(controller.isDraggingTokens()).toBe(false);
+    expect(store.getState().heldTokens).toEqual({});
+    expect(undoSteps(store)).toBe(steps);
+  });
+
+  it('ignores a second press while a drag is running', () => {
+    const { store, rig, press, dragTo, release, at } = createScene([hero()]);
+    const steps = undoSteps(store);
+    press('hero');
+    dragTo({ x: 400, y: 300 });
+
+    // A second touch on the dragged token.
+    press('hero');
+    expect(store.getState().heldTokens).toEqual({ hero: LEFT_ROOM });
+    dragTo(RIGHT_ROOM);
+    expect(rig.sight.origins).toEqual([LEFT_ROOM]);
+    release(RIGHT_ROOM);
+
+    expect(at('hero')).toEqual(RIGHT_ROOM);
+    expect(rig.sight.origins).toEqual([RIGHT_ROOM]);
+    expect(undoSteps(store)).toBe(steps + 1);
+    store.getState().moveToken('hero', 720, 300);
+    expect(undoSteps(store)).toBe(steps + 2);
+  });
+
   it('holds every vision token of a group drag, and moves the others as they go', () => {
     const scout = token('scout', { x: 200, y: 400 }, { vision: { enabled: true } });
     const mule = token('mule', { x: 300, y: 300 });
     const { store, rig, press, dragTo, release, at } = createScene([hero(), scout, mule]);
     store.getState().setSelection(['hero', 'scout', 'mule']);
+    const rebuilds = rig.rebuilds;
 
     press('hero');
     dragTo({ x: 450, y: 300 });
@@ -252,8 +305,9 @@ describe('sight on drop', () => {
     expect(at('mule')).toEqual({ x: 800, y: 300 });
     expect(rig.sight.origins).toEqual([LEFT_ROOM, { x: 200, y: 400 }]);
     expect(rig.explored(RIGHT_CORNER)).toBe(false);
+    // The token that neither sees nor carries a light is held for the lighting too: nothing is built.
+    expect(rig.rebuilds).toBe(rebuilds);
 
-    const rebuilds = rig.rebuilds;
     release(RIGHT_ROOM);
     expect(rig.sight.origins).toEqual([RIGHT_ROOM, { x: 700, y: 400 }]);
     expect(rig.explored(RIGHT_CORNER)).toBe(true);
@@ -263,6 +317,7 @@ describe('sight on drop', () => {
   it('shows and hides a dragged token without vision by the sight that stays as it is', () => {
     const { rig, press, dragTo, release } = createScene([hero(), token('goblin', RIGHT_CORNER)]);
     const polygon = rig.sight.polygons[0];
+    const rebuilds = rig.rebuilds;
     expect(rig.seen('goblin')).toBe(false);
 
     press('goblin');
@@ -270,6 +325,8 @@ describe('sight on drop', () => {
     expect(rig.seen('goblin')).toBe(true);
     dragTo({ x: 900, y: 550 });
     expect(rig.seen('goblin')).toBe(false);
+    // Its drag builds nothing: the lighting reads it where it was taken.
+    expect(rig.rebuilds).toBe(rebuilds);
     release({ x: 300, y: 200 });
 
     expect(rig.seen('goblin')).toBe(true);
