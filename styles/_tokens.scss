@@ -79,6 +79,9 @@ $z-atlas-modal: 10000;
 // Inside a map's UI layer: note previews stack above its bars (100) and below
 // its overlays, such as the DM screen (1000) and the command palette (999)
 $z-atlas-note-preview: 500;
+// Dice rolls stand above those overlays: a roll made from a statblock on the DM
+// screen must show. Menus (2000 and up) still open over them.
+$z-atlas-dice-rolls: 1100;
 
 // ── Transitions ──────────────────────────────────────────────────────────────
 $transition-fast: 100ms;
