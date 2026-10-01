@@ -442,6 +442,15 @@ export class UIManager implements ITokenUIManager {
     this.getTokenSprite = provider;
   }
 
+  /** The GM's token UI, shown for every token, and never the players' copy of it. */
+  getGmViewLayers(): LayerVisibility[] {
+    return [
+      { layer: this.uiContainer, visible: true },
+      ...(this.playerUIContainer ? [{ layer: this.playerUIContainer, visible: false }] : []),
+      ...Object.values(this.tokenUIs).map((ui) => ({ layer: ui.getContainer(), visible: true })),
+    ];
+  }
+
   /** Cached player overlays keep player preferences independent of the DM UI. */
   getPlayerViewLayers(
     settings: Pick<AtlasSettings['localPlayerView'], 'showTokenHP' | 'showTokenStress' | 'showTokenNameplates'>,

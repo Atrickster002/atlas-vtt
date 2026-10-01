@@ -79,7 +79,12 @@ export class LightingViewHost implements SceneLightingView {
   refreshBounds(): void { this.view.refreshBounds(); }
   resetExplored(): void { this.view.resetExplored(); }
   beforeMapUnload(): void { this.view.beforeMapUnload(); }
-  renderForFrame<T>(frame: SceneFrame, render: () => T): T { return this.view.renderForFrame(frame, render); }
+
+  /** An engine that fails while it prepares the frame is replaced during the call: the picture is then the fallback's. */
+  renderForFrame<T>(frame: SceneFrame, render: () => T): T {
+    const view = this.view;
+    return view.renderForFrame(frame, () => (this.view === view ? render() : this.view.renderForFrame(frame, render)));
+  }
 
   setPreview(on: boolean): void {
     this.previewing = on;

@@ -125,7 +125,7 @@ export async function createThumbnailScene(lighting: SceneLighting, antialias: b
   };
   const markerLayers = [{ layer: overlays.pins, visible: false }, { layer: overlays.hexLinks, visible: false }];
   const capture: SceneFrameCapture = (frame, render) =>
-    captureSceneFrame({ markerLayers, lighting: { gmOverlays: () => overlays.gmOverlays, renderer: host } }, frame, render);
+    captureSceneFrame({ gmViewLayers: [], markerLayers, lighting: { gmOverlays: () => overlays.gmOverlays, renderer: host } }, frame, render);
 
   return {
     renderer,

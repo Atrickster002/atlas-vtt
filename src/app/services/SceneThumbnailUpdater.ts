@@ -60,7 +60,7 @@ export class SceneThumbnailUpdater {
       this.shownPath = state.mapPath;
       if (reloaded) this.markStale(state.mapPath, AFTER_OPEN_MS);
       else this.ensureThumbnail(state.mapPath);
-    } else if (state.mapPath === previous.mapPath && contentChanged(state, previous)) {
+    } else if (state.mapLoaded && state.mapPath === previous.mapPath && contentChanged(state, previous)) {
       this.markStale(state.mapPath, AFTER_EDIT_MS);
     }
   }
@@ -83,12 +83,16 @@ export class SceneThumbnailUpdater {
     }, delay);
   }
 
-  /** Renders the stale scene if the view still shows it; another scene's pixels must never become its thumbnail. */
+  /**
+   * Renders the stale scene if the view still shows it; another scene's pixels must never become
+   * its thumbnail. Nor does a store that is out of use (`mapLoaded` false: the scene's file is
+   * being rewritten, or its load failed) show the scene: the thumbnail it has stays.
+   */
   private write(): void {
     const mapPath = this.stalePath;
     this.stalePath = null;
     const state = this.store.getState();
-    if (!mapPath || state.mapPath !== mapPath || state.isMapLoading) return;
+    if (!mapPath || state.mapPath !== mapPath || state.isMapLoading || !state.mapLoaded) return;
     let bytes: ArrayBuffer | null;
     try {
       bytes = this.ports.render();

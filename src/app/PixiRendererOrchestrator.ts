@@ -761,9 +761,21 @@ export class PixiRendererOrchestrator { // Renamed class
     return layers;
   }
 
-  /** Runs `render`, the off-screen render of a thumbnail's `frame`: lit as the GM sees the scene, without the GM's overlays. */
+  /**
+   * Runs `render`, the off-screen render of a thumbnail's `frame`: always the GM's picture
+   * (`gmViewLayers`), lit as the GM sees the scene, without the GM's overlays.
+   */
   public captureSceneFrame<T>(frame: SceneFrame, render: () => T): T {
-    return captureSceneFrame({ markerLayers: this.markerLayers(), lighting: this.lighting }, frame, render);
+    return captureSceneFrame({ gmViewLayers: this.gmViewLayers(), markerLayers: this.markerLayers(), lighting: this.lighting }, frame, render);
+  }
+
+  /**
+   * Tokens and fog as the GM view shows them, for a picture taken while the canvas is in session
+   * view. Session view must hide through these layers' `visible` and `alpha`; what it hides in
+   * another way is added here.
+   */
+  private gmViewLayers(): LayerVisibility[] {
+    return [...(this.tokenRenderer?.getGmViewLayers() ?? []), ...(this.fogRenderer?.getGmViewLayers() ?? [])];
   }
 
   getViewportInstance(): Viewport | null { return this.pixiAppManager.getViewport(); }

@@ -102,6 +102,13 @@ describe('scene thumbnail framing', () => {
     expect(requestRender).toHaveBeenCalledWith(app);
   });
 
+  test('renders nothing while the WebGL context is lost, so the thumbnail the scene has stays', async () => {
+    const { app, background, capture, generateTexture } = setup();
+    Object.assign(app.renderer, { name: 'webgl', gl: { isContextLost: () => true } });
+    expect(await capture(background)).toBeNull();
+    expect(generateTexture).not.toHaveBeenCalled();
+  });
+
   test('skips empty scenes instead of overwriting a preview with a blank image', async () => {
     const { viewport, capture, generateTexture } = setup();
     viewport.removeChildren();

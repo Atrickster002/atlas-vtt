@@ -1,6 +1,7 @@
 import { App, TFile } from 'obsidian';
 import { Application, Container, Rectangle, type Texture } from 'pixi.js';
 import { mapThumbnailPath } from '../utils/dataFileMigration';
+import { contextLost } from '../pixi/lighting/engine/gpu';
 import { requestRender } from '../pixi/RenderScheduler';
 import type { SceneFrameCapture } from '../pixi/sceneFrameCapture';
 import { trashHiddenPath } from '../utils/hiddenVaultFiles';
@@ -37,7 +38,8 @@ export class MapThumbnailService {
 
   /**
    * Renders the map as it looks now into a JPEG data URL of `size` (400×300 by
-   * default), framed on the map image. Returns null when there is nothing to frame.
+   * default), framed on the map image. Returns null when there is nothing to frame, or nothing
+   * can be drawn: a lost WebGL context renders blank, and that must not replace a thumbnail.
    * `capture` runs the off-screen render: the map view's hides the GM's overlays and lights the frame.
    */
   renderThumbnail(
@@ -47,6 +49,7 @@ export class MapThumbnailService {
     size: ThumbnailSize = MAP_THUMBNAIL_SIZE,
     capture: SceneFrameCapture = PLAIN_CAPTURE,
   ): string | null {
+    if (contextLost(pixiApp.renderer)) return null;
     const contentBounds = this.calculateContentBounds(viewport, size, background);
     if (!contentBounds) return null;
 

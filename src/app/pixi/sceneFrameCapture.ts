@@ -7,6 +7,12 @@ import { captureWithLayerVisibility, type HideableLayer, type LayerVisibility } 
 export type SceneFrameCapture = <T>(frame: SceneFrame, render: () => T) => T;
 
 export interface SceneFrameParts {
+  /**
+   * What the GM view shows of tokens and fog, forced for the render: the canvas may be in
+   * session view, which hides and dims by the players' sight. Whatever else a view of the
+   * canvas hides from the GM's picture belongs in here.
+   */
+  gmViewLayers: readonly LayerVisibility[];
   /** The GM's markers on the map (pins, linked hexes): not part of a picture of the scene. */
   markerLayers: readonly LayerVisibility[];
   /** The scene's lighting and its editors and badges, which the player frame hides too; none on a view without lighting. */
@@ -17,18 +23,20 @@ export interface SceneFrameParts {
 const KEEP_CANVAS = (): void => undefined;
 
 /**
- * Renders a picture of the scene (a thumbnail) outside the stage's render: without the GM's
- * markers and editors, and lit for its own frame as the GM sees the scene. The layers are back
+ * Renders a picture of the scene (a thumbnail) outside the stage's render. It is always the
+ * GM's picture, whatever view the canvas is in: tokens and fog as the GM view shows them, lit
+ * for its own frame in GM mode, without the GM's markers and editors. The layers are back
  * when this returns and the canvas is never drawn meanwhile, so the GM sees no frame without
  * them. The render consumes the stage's pending updates: the caller asks for a render after it.
  */
-export function captureSceneFrame<T>({ markerLayers, lighting }: SceneFrameParts, frame: SceneFrame, render: () => T): T {
-  const hidden = [
+export function captureSceneFrame<T>({ gmViewLayers, markerLayers, lighting }: SceneFrameParts, frame: SceneFrame, render: () => T): T {
+  const layers = [
+    ...gmViewLayers,
     ...markerLayers,
     ...Object.values<HideableLayer>(lighting?.gmOverlays() ?? {}).map((layer) => ({ layer, visible: false })),
   ];
   let picture!: T;
-  captureWithLayerVisibility(hidden, KEEP_CANVAS, () => {
+  captureWithLayerVisibility(layers, KEEP_CANVAS, () => {
     picture = lighting ? lighting.renderer.renderForFrame(frame, render) : render();
   });
   return picture;

@@ -1,6 +1,6 @@
 import { fitTokenArtwork, syncTokenArtwork } from './token-renderer/tokenArtwork';
 import type { AtlasSettings } from '../services/SettingsService';
-import { hiddenTokenLayers, type LayerVisibility } from './playerSafeFrame';
+import { HIDDEN_TOKEN_ALPHA, gmTokenLayers, hiddenTokenLayers, type LayerVisibility } from './playerSafeFrame';
 import { Sprite, Container, Graphics, Application, FederatedPointerEvent } from "pixi.js";
 import { Viewport } from "pixi-viewport";
 import { App as ObsidianApp, TFile, parseYaml } from 'obsidian';
@@ -696,7 +696,7 @@ export class TokenRenderer {
 
     tokenGroup.visible = true;
     this.uiManager.setTokenUIVisibility(token.id, true);
-    tokenGroup.alpha = isHidden ? 0.5 : 1.0;
+    tokenGroup.alpha = isHidden ? HIDDEN_TOKEN_ALPHA : 1.0;
 
     this.hiddenTokenIcon.update(tokenGroup, isHidden);
 
@@ -1374,6 +1374,11 @@ export class TokenRenderer {
       ...this.uiManager.getPlayerViewLayers(settings, isSeen),
       ...this.dragRuler.getPlayerViewLayers(),
     ];
+  }
+
+  /** Tokens and their bars and nameplates as the GM view shows them, whatever view the canvas is in: for a picture of the scene. */
+  public getGmViewLayers(): LayerVisibility[] {
+    return [...gmTokenLayers(this.store.getState().objects.tokens, this.tokenSprites), ...this.uiManager.getGmViewLayers()];
   }
 
   /** Get all token sprites for external systems like SelectionManager. */

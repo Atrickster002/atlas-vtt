@@ -9,6 +9,10 @@ interface FakeView extends SceneLightingView {
   modeLayer: { visible: boolean };
   preview: boolean;
   destroyed: boolean;
+  /** How many pictures this view rendered. */
+  pictures: number;
+  /** What the view does before it renders a frame, such as an engine failing while it prepares it. */
+  beforeFrame: () => void;
 }
 
 function fakeView(sight: Sight = SEES_ALL): FakeView {
@@ -16,6 +20,8 @@ function fakeView(sight: Sight = SEES_ALL): FakeView {
     modeLayer: { visible: false },
     preview: false,
     destroyed: false,
+    pictures: 0,
+    beforeFrame: () => undefined,
     isEnabled: () => true,
     setPreview: (on) => { view.preview = on; },
     currentSight: () => sight,
@@ -24,7 +30,12 @@ function fakeView(sight: Sight = SEES_ALL): FakeView {
     refreshBounds: vi.fn(),
     resetExplored: vi.fn(),
     beforeMapUnload: vi.fn(),
-    renderForFrame: (_frame, render) => render(),
+    renderForFrame: (_frame, render) => {
+      view.beforeFrame();
+      const picture = render();
+      view.pictures++;
+      return picture;
+    },
     destroy: () => { view.destroyed = true; },
   };
   return view;
@@ -279,5 +290,26 @@ describe('LightingViewHost', () => {
     expect(engines).toHaveLength(1);
     expect(() => giveUp('failed')).not.toThrow();
     expect(fallbacks).toHaveLength(1);
+  });
+
+  it('renders a frame through the view that lights the map', () => {
+    const { host, engines, fallbacks } = setup();
+    expect(host.renderForFrame({ x: 0, y: 0, resolution: 0.5 }, () => 'picture')).toBe('picture');
+    expect(engines[0]!.pictures).toBe(1);
+    expect(fallbacks).toHaveLength(0);
+  });
+
+  it('takes the picture through the fallback when the engine fails while it prepares the frame', () => {
+    const { host, engines, fallbacks, giveUp } = setup();
+    host.setPreview(true);
+    engines[0]!.beforeFrame = () => giveUp('failed');
+    const render = vi.fn(() => 'picture');
+
+    expect(host.renderForFrame({ x: 0, y: 0, resolution: 0.5 }, render)).toBe('picture');
+    // The fallback, which keeps the darkness of the previewed players' view out, rendered it, once.
+    expect(fallbacks).toHaveLength(1);
+    expect(fallbacks[0]!.pictures).toBe(1);
+    expect(fallbacks[0]!.preview).toBe(true);
+    expect(render).toHaveBeenCalledTimes(1);
   });
 });

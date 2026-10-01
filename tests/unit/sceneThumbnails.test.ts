@@ -11,6 +11,7 @@ const CRYPT = 'atlas-vtt/collections/default/scenes/Crypt.atlasmap';
 
 interface ViewState {
   mapPath: string | null;
+  mapLoaded: boolean;
   isMapLoading: boolean;
   isPlayerView: boolean;
   persistenceEnabled: boolean;
@@ -22,7 +23,7 @@ interface ViewState {
 
 function setup(thumbnails: Record<string, boolean> = {}) {
   const store = createStore<ViewState>(() => ({
-    mapPath: null, isMapLoading: false, isPlayerView: false, persistenceEnabled: true,
+    mapPath: null, mapLoaded: false, isMapLoading: false, isPlayerView: false, persistenceEnabled: true,
     background: null, grid: { size: 70 }, objects: { tokens: {} }, lighting: { enabled: false, ambient: 0.1 },
   }));
   const ports = {
@@ -36,6 +37,7 @@ function setup(thumbnails: Record<string, boolean> = {}) {
     store.setState({ isMapLoading: true, mapPath });
     store.setState({ background: `${mapPath}.webp`, objects: { tokens: {} } });
     store.setState({ isMapLoading: false });
+    store.setState({ mapLoaded: true });
     await vi.waitFor(() => expect(ports.hasThumbnail).toHaveBeenCalledWith(mapPath));
   };
   const edit = (): void => store.setState({ objects: { tokens: { [crypto.randomUUID()]: {} } } });
@@ -88,12 +90,38 @@ describe('SceneThumbnailUpdater', () => {
   it('refreshes the thumbnail when the view loads the same scene again, e.g. to restore a snapshot', async () => {
     const { store, ports, savedPaths } = setup({ [CAVE]: true });
     store.setState({ isMapLoading: true, mapPath: CAVE });
-    store.setState({ isMapLoading: false });
+    store.setState({ isMapLoading: false, mapLoaded: true });
     await vi.advanceTimersByTimeAsync(5000);
     expect(ports.render).not.toHaveBeenCalled();
 
     store.setState({ isMapLoading: true });
     store.setState({ isMapLoading: false });
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(savedPaths()).toEqual([CAVE]);
+  });
+
+  it('keeps the thumbnail of a scene whose file is being rewritten, also when it cannot be loaded again', async () => {
+    const { store, ports, updater, open, edit } = setup({ [CAVE]: true });
+    await open(CAVE);
+    edit();
+    // `suspendForRewrite`: the store is out of use, and the load that follows flushes first
+    store.setState({ mapLoaded: false });
+    updater.flush();
+    edit();
+    store.setState({ isMapLoading: true });
+    // The load fails before it switches the store: the scene stays unloaded
+    store.setState({ isMapLoading: false, mapPath: null });
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(ports.render).not.toHaveBeenCalled();
+  });
+
+  it('refreshes the thumbnail once a rewritten scene is loaded again', async () => {
+    const { store, updater, open, edit, savedPaths } = setup({ [CAVE]: true });
+    await open(CAVE);
+    edit();
+    store.setState({ mapLoaded: false });
+    updater.flush();
+    await open(CAVE);
     await vi.advanceTimersByTimeAsync(1000);
     expect(savedPaths()).toEqual([CAVE]);
   });
