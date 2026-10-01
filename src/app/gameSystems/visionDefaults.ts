@@ -1,9 +1,10 @@
 import type { AssetService } from '../services/AssetService';
 import type { TokenVisionDefaults } from '../types/lightingTypes';
 import type { SenseDefinition, TokenSense } from '../types/senseTypes';
+import type { SystemPreset } from '../types/systemPresetTypes';
 import { positiveNumber } from '../utils/numberInput';
 import { coneAngle } from '../vision/visionCone';
-import { parseTokenSenses } from './senseValidation';
+import { parseTokenSenses, readCollectionSenses } from './senseValidation';
 
 const DISTANCE_FIELDS = ['range', 'darkvision', 'tremorsense'] as const;
 
@@ -49,11 +50,17 @@ export function sameVisionDefaults(a: TokenVisionDefaults | undefined, b: TokenV
     && sensesKey(a?.senses) === sensesKey(b?.senses);
 }
 
-/** The default vision of the collection that holds `mapPath`; undefined when it or the map has none. */
+/**
+ * The default vision of the collection that holds `mapPath`, with the senses the collection
+ * knows (`collectionSenses`); undefined when it or the map has none.
+ */
 export function mapVisionDefaults(
   assetService: Pick<AssetService, 'getCollectionForMap' | 'getCollectionSettings'>,
   mapPath: string | null | undefined,
+  presets: readonly SystemPreset[],
 ): TokenVisionDefaults | undefined {
   const collectionId = mapPath ? assetService.getCollectionForMap(mapPath) : null;
-  return collectionId ? parseVisionDefaults(assetService.getCollectionSettings(collectionId).defaultTokenVision) : undefined;
+  if (!collectionId) return undefined;
+  const settings = assetService.getCollectionSettings(collectionId);
+  return parseVisionDefaults(settings.defaultTokenVision, readCollectionSenses(settings, presets));
 }
