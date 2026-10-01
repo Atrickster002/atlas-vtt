@@ -95,7 +95,8 @@ void main() {
   vec2 screen = vTextureCoord * uInputSize.xy + uAreaOrigin;
   vec2 world = (uScreenToWorld * vec3(screen, 1.0)).xy;
   vec3 albedo = toLinear(textureLod(uBackTexture, vTextureCoord, 0.0).rgb);
-  vec3 direct = textureLod(uLightMap, world / uLightWorld, 0.0).rgb;
+  // rgb: the lights' light; alpha: its luminance had every light its bright level here.
+  vec4 lamps = textureLod(uLightMap, world / uLightWorld, 0.0);
   vec3 bounce = bounceAt(world);
   // Tiles end at the capsule: from its core to the band a wall's face takes the light (direct
   // and bounce alike) of the floor in front of it, on its own side, then blends back to its own
@@ -104,14 +105,23 @@ void main() {
   float front = clamp((d - uCore) / uPixelWorld + 0.5, 0.0, 1.0) * (1.0 - smoothstep(uBand, uBand + uTexel, d));
   if (front > 0.0) {
     vec2 floorAt = climbFromWall(world, uBand);
-    direct = mix(direct, textureLod(uLightMap, floorAt / uLightWorld, 0.0).rgb, front);
+    lamps = mix(lamps, textureLod(uLightMap, floorAt / uLightWorld, 0.0), front);
     bounce = mix(bounce, bounceAt(floorAt), front);
   }
   vec4 sight = textureLod(uTexture, vTextureCoord, 0.0);
   float seen = max(uAllSeen, sight.r);
+  vec3 direct = lamps.rgb;
   vec3 light = uAmbient + (direct + bounce * uBounceGain) * uExposure;
-  vec3 lit = neutral(albedo * light);
-  float night = (1.0 - smoothstep(0.03, 0.35, dot(light, LUMA))) * uPurkinje;
+  float level = dot(light, LUMA);
+  // The tonemap's toe darkens low values more than in proportion, so on a dark floor a light's
+  // dim range showed far below its share of the bright range. A light is tonemapped at its
+  // bright level instead and the result scaled back to what it gives; without a light this is 1.
+  float lift = 1.0 + max(lamps.a - dot(direct, LUMA), 0.0) * uExposure / max(level, 1e-4);
+  vec3 lit = neutral(albedo * light * lift) / lift;
+  // Cool grey where the light is low, by the share of it that is no light's own (ambient and
+  // bounce): shifting a light's fade to black drew a pale ring around it.
+  float fill = 1.0 - dot(direct, LUMA) * uExposure / max(level, 1e-4);
+  float night = (1.0 - smoothstep(0.03, 0.35, level)) * uPurkinje * fill;
   lit = mix(lit, vec3(dot(lit, LUMA)) * vec3(0.86, 0.96, 1.18), night);
 
   float grey = dot(albedo, LUMA);

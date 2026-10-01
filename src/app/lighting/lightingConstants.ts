@@ -18,18 +18,26 @@ export const TILE_RAYS = 32;
  * ray counts into a ramp. Each texel smooths only within its wall clearance, so less near walls.
  */
 export const TILE_SMOOTH = 4;
-/** A light's glow ends at this multiple of its dim radius. */
-export const LIGHT_REACH = 1.12;
-/** Tiles cover a little more than the reach, so flicker's radius breathing stays inside them. */
-export const TILE_MARGIN = 1.05;
-/** Height of the lamp above the floor, as a multiple of its bright radius. */
-export const FALLOFF_HEIGHT = 1;
+/**
+ * A light fades out from its dim radius to this multiple of it, where it ends. The rules count
+ * nothing past the dim radius as lit, so the fade is as short as a soft edge allows: at 1.06 a
+ * candle looked cut out.
+ */
+export const LIGHT_REACH = 1.08;
+/**
+ * How much light a light gives in its two ranges (HDR, before exposure): `bright` up to the
+ * bright radius, `dim` from there to the dim radius, with a soft knee between them. The
+ * composite tonemaps a light at its bright level and scales the result back, so every floor
+ * shows the dim range at the same share of the bright range, about a third; it must not fall
+ * under a quarter (`lightFalloff.gpu.test.ts`).
+ */
+export const LIGHT_LEVELS = { bright: 1.25, dim: 0.4 } as const;
 export const EXPOSURE = 0.9;
 /** Light colours are mixed this far towards white, so tinted light keeps the map readable. */
 export const TINT_TO_WHITE = 0.5;
 /** Smallest flame, as a share of the dim radius, so shadow edges never look cut out. */
 export const MIN_SOFTNESS = 0.12;
-/** Strength of the cool grey shift where light is low. */
+/** Strength of the cool grey shift where the light is low and none of it a light's own (ambient, bounce). */
 export const PURKINJE = 0.55;
 
 export const BOUNCE = {
@@ -38,7 +46,7 @@ export const BOUNCE = {
   cascades: 4,
   emitTexel: 4,
   spread: 250,
-  floorGain: 0.004,
+  floorGain: 0.001,
   wallGain: 0.6,
   gain: 1,
   /** While lights move, bounce is rebuilt at most this often. */
@@ -57,7 +65,7 @@ export const FLICKER_INTERVAL_MS = 30;
  * image-space bloom would blur light across walls. `gain` is its peak on top of the falloff
  * (HDR), `size` its Gaussian sigma as a share of the bright radius.
  */
-export const HALO = { gain: 0.6, size: 0.18 } as const;
+export const HALO = { gain: 0.8, size: 0.25 } as const;
 
 /** World pixels per texel for a map: 2 px, coarser on maps longer than 8,192 px. */
 export function worldTexel(bounds: MapBounds): number {
