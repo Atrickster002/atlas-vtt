@@ -12,6 +12,15 @@ describe('resource fields', () => {
     expect(resolveField(creature, '')).toBeUndefined();
   });
 
+  it('finds a field whatever its spelling, and hit points under their usual names', () => {
+    expect(resolveField({ HP: 3 }, 'hp')).toBe(3);
+    expect(resolveField({ 'Hit Points': 9 }, 'hp')).toBe(9);
+    expect(resolveField({ Health: { current: 12, max: 27 } }, 'hp')).toEqual({ current: 12, max: 27 });
+    expect(resolveField({ max_stress: 6 }, 'Max Stress')).toBe(6);
+    expect(resolveField({ health: 5, hp: 8 }, 'hp')).toBe(8);
+    expect(resolveField({ hp: 8 }, 'stress')).toBeUndefined();
+  });
+
   it('parses concrete quantities only', () => {
     expect(parseResourceValue(8)).toEqual({ current: 8, max: 8 });
     expect(parseResourceValue('5/10')).toEqual({ current: 5, max: 10 });

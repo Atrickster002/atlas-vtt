@@ -419,6 +419,11 @@ export class UIManager implements ITokenUIManager {
     for (const ui of [...Object.values(this.tokenUIs), ...Object.values(this.playerTokenUIs)]) ui.refreshConditions();
   }
 
+  /** Redraws every token's resources, after the collection's resource definitions changed. */
+  public refreshResources(): void {
+    this.updateAllTokenSettings();
+  }
+
   private updateAllTokenSettings(): void {
     // Update all token UIs when settings change
     for (const tokenId in this.tokenUIs) {

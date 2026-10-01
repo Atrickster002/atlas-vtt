@@ -43,15 +43,15 @@ describe('rollHitPoints', () => {
       .toEqual([['2d6', 'a', 'Hit Points'], ['2d6', 'b', 'Hit Points']]);
     expect(updateTokens).toHaveBeenCalledOnce();
     expect(updateTokens).toHaveBeenCalledWith([
-      { id: 'a', changes: { hp: { current: 9, max: 9 }, maxHpOverridden: true } },
-      { id: 'b', changes: { hp: { current: 4, max: 4 }, maxHpOverridden: true } },
+      { id: 'a', changes: { resources: { hp: { current: 9, max: 9 } }, overriddenMax: ['hp'] } },
+      { id: 'b', changes: { resources: { hp: { current: 4, max: 4 } }, overriddenMax: ['hp'] } },
     ]);
   });
 
   it('never rolls a creature below 1 hit point', () => {
     const { view, updateTokens } = mapView([-1], ['a']);
     rollHitPoints(appWith(view), '1d4-3', 'Rat.md', [{ id: 'a' }]);
-    expect(updateTokens).toHaveBeenCalledWith([{ id: 'a', changes: { hp: { current: 1, max: 1 }, maxHpOverridden: true } }]);
+    expect(updateTokens).toHaveBeenCalledWith([{ id: 'a', changes: { resources: { hp: { current: 1, max: 1 } }, overriddenMax: ['hp'] } }]);
   });
 
   it('writes to the game master view, never a player view of the same map', () => {

@@ -40,6 +40,8 @@ function setup(records: Record<string, Partial<TokenAsset>> = {}) {
     view,
     assetService: {
       getAssetById: vi.fn(async (id: string) => (id in records ? { id, type: 'token', name: id, imagePath: `tokens/${id}.png`, ...records[id] } : null)),
+      getCollectionForMap: () => null,
+      getCollectionSettings: () => ({ conditions: [] }),
     } as unknown as AssetService,
   };
   return { ctx, spawned, addTokens, setSelection };
@@ -75,9 +77,10 @@ describe('token spawning keeps asset defaults', () => {
     expect(setSelection).toHaveBeenCalledWith(ids);
   });
 
-  it('spawns a token without a statblock with no hit points, so it shows no resource bar', async () => {
+  it('spawns a token without a statblock with no resources, so it shows no resource bar', async () => {
     const { ctx, spawned } = setup();
     await spawnTokenAsset(ctx, unframed, 1);
+    expect(spawned[0]).not.toHaveProperty('resources');
     expect(spawned[0]).not.toHaveProperty('hp');
   });
 

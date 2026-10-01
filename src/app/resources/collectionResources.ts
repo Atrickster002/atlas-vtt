@@ -32,3 +32,15 @@ export function legacyCollectionResources(
   if (widgets?.stressBar) resources.push({ ...STRESS_RESOURCE });
   return resources;
 }
+
+/** The part of the asset service that tells a map's collection and its settings. */
+export interface CollectionLookup {
+  getCollectionForMap(mapPath: string): string | null;
+  getCollectionSettings(collectionId: string): CollectionSettings;
+}
+
+/** The resources tokens on a map track: its collection's, or HP alone for a map outside every collection. */
+export function mapResources(assets: CollectionLookup, mapPath: string | null | undefined): ResourceDefinition[] {
+  const collectionId = mapPath ? assets.getCollectionForMap(mapPath) : null;
+  return collectionResources(collectionId ? assets.getCollectionSettings(collectionId) : {});
+}

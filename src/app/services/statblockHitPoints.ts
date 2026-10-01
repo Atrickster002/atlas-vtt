@@ -1,3 +1,4 @@
+import { resourceUpdate } from '../resources/resourceValues';
 import type { App } from 'obsidian';
 import { ATLAS_VIEW_TYPE } from '../atlas-view';
 import type { TokenUpdates, ViewAtlasStore } from '../storeFactory';
@@ -47,7 +48,8 @@ export function rollHitPoints(
     });
     if (!roll) continue;
     const hp = Math.max(1, roll.total);
-    entries.push({ id: token.id, changes: { hp: { current: hp, max: hp }, maxHpOverridden: true } });
+    const held = store.getState().objects.tokens[token.id] ?? {};
+    entries.push({ id: token.id, changes: resourceUpdate(held, 'hp', { current: hp, max: hp }, true) });
   }
   if (entries.length) store.getState().updateTokens(entries);
 }

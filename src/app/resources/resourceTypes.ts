@@ -31,6 +31,9 @@ export interface ResourceValue {
 
 export type ResourceViewer = 'dm' | 'player';
 
+/** Supplies the resource definitions of the collection a map belongs to. */
+export type ResourceDefsProvider = () => readonly ResourceDefinition[];
+
 export interface VisibleResource {
   definition: ResourceDefinition;
   value: ResourceValue;

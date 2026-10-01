@@ -1,7 +1,9 @@
+import { mapResources } from '../../../../resources/collectionResources';
+import type { ResourceDefinition } from '../../../../resources/resourceTypes';
 import { Notice, App as ObsidianApp } from 'obsidian';
 import type { TokenAsset, AnyAsset, EncounterAsset } from '../types';
 import { loadStatblockOverrides, type StatblockOverrides } from './statblockLoader';
-import type { AssetService } from '../../../../services/AssetService';
+import { AssetService } from '../../../../services/AssetService';
 import {
   FALLBACK_PITCH,
   cellPitch,
@@ -123,17 +125,13 @@ function encounterSlots(encounter: EncounterAsset): FormationSlot[] | null {
 
 // ─── Build token data ───────────────────────────────────────────────
 
-interface TokenSpawnData extends Omit<StatblockOverrides, 'hp'> {
+interface TokenSpawnData extends StatblockOverrides {
   x: number;
   y: number;
   imagePath: string;
   kind: 'character';
   name: string;
-  hp?: number | { current: number; max: number };
   statblockPath?: string;
-  stress?: number;
-  maxStress?: number;
-  difficulty?: string;
   size?: number;
   showRing?: boolean;
 }
@@ -179,7 +177,8 @@ async function resolveTokenSource(ctx: SpawnContext, ref: TokenSourceRef): Promi
 async function buildTokenData(
   app: ObsidianApp,
   pos: { x: number; y: number },
-  { imagePath, name, statblockPath, size, showRing }: TokenSource
+  { imagePath, name, statblockPath, size, showRing }: TokenSource,
+  definitions: readonly ResourceDefinition[],
 ): Promise<TokenSpawnData> {
   const data: TokenSpawnData = {
     x: pos.x,
@@ -194,11 +193,17 @@ async function buildTokenData(
 
   if (statblockPath) {
     data.statblockPath = statblockPath;
-    const overrides = await loadStatblockOverrides(app, statblockPath);
+    const overrides = await loadStatblockOverrides(app, statblockPath, definitions);
     Object.assign(data, overrides);
   }
 
   return data;
+}
+
+/** The resources of the collection the target map belongs to. */
+function targetResources(ctx: SpawnContext, target: SpawnTarget): ResourceDefinition[] {
+  const assets = ctx.assetService ?? AssetService.getInstance(ctx.app);
+  return mapResources(assets, target.view.getStore().getState().mapPath);
 }
 
 function imageExists(app: ObsidianApp, imagePath: string): boolean {
@@ -234,7 +239,7 @@ export async function spawnTokenAsset(
   if (!source) return [];
 
   // The statblock is read once; every copy shares that data at its own position.
-  const template = await buildTokenData(ctx.app, center, source);
+  const template = await buildTokenData(ctx.app, center, source, targetResources(ctx, target));
   const tokens = Array.from({ length: count }, (_, i): TokenInput => ({
     ...structuredClone(template),
     ...gridPosition(i, count, center.x, center.y, pitch, gridSystem),
@@ -261,6 +266,7 @@ export async function spawnEncounterTokens(
     ? placeFormation(slots, encounter.formation, center, grid)
     : null;
 
+  const definitions = targetResources(ctx, target);
   const tokens: TokenInput[] = [];
   for (let i = 0; i < tokensToSpawn.length; i++) {
     const token = tokensToSpawn[i];
@@ -294,7 +300,7 @@ export async function spawnEncounterTokens(
     }
     const source = await resolveTokenSource(ctx, token);
     if (source && imageExists(ctx.app, source.imagePath)) {
-      tokens.push(await buildTokenData(ctx.app, pos, source));
+      tokens.push(await buildTokenData(ctx.app, pos, source, definitions));
     }
   }
 
@@ -319,6 +325,7 @@ export async function spawnSelectedTokens(
   const center = getViewportCenter(viewport);
   const tokensToSpawn = selectedAssets.filter(a => a.type === 'tokens');
 
+  const definitions = targetResources(ctx, target);
   const tokens: TokenInput[] = [];
   for (let i = 0; i < tokensToSpawn.length; i++) {
     const tokenAsset = tokensToSpawn[i];
@@ -327,7 +334,7 @@ export async function spawnSelectedTokens(
     const source = await resolveTokenSource(ctx, tokenAsset);
     if (!source) continue;
     const pos = gridPosition(i, tokensToSpawn.length, center.x, center.y, pitch, gridSystem);
-    tokens.push(await buildTokenData(ctx.app, pos, source));
+    tokens.push(await buildTokenData(ctx.app, pos, source, definitions));
   }
 
   return addSpawnedTokens(target, tokens);

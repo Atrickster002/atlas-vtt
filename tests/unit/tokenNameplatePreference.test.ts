@@ -8,6 +8,7 @@ import { TokenUIRenderer } from '../../src/app/pixi/TokenUIRenderer';
 import { TokenStatblockLinkService } from '../../src/app/services/TokenStatblockLinkService';
 import { isNameplateVisible } from '../../src/app/pixi/token-renderer/nameplateVisibility';
 import { buildStatblockLinkUpdates, STATBLOCK_UNLINK_UPDATES } from '../../src/app/pixi/token-renderer/statblockFrontmatter';
+import { HP_RESOURCE } from '../../src/app/resources/resourceDefinitions';
 
 afterEach(() => vi.restoreAllMocks());
 
@@ -36,7 +37,7 @@ describe('per-token nameplate preference', () => {
     const hidden = store.getState().addToken({ ...hero, showNameplate: false } as never);
 
     store.getState().updateToken(shown, STATBLOCK_UNLINK_UPDATES);
-    store.getState().updateToken(hidden, buildStatblockLinkUpdates({ name: 'Goblin', hp: 7 }, 'Hero'));
+    store.getState().updateToken(hidden, buildStatblockLinkUpdates({ name: 'Goblin', hp: 7 }, 'Hero', [HP_RESOURCE]));
 
     expect(store.getState().objects.tokens[shown]?.showNameplate).toBe(true);
     expect(store.getState().objects.tokens[hidden]?.showNameplate).toBe(false);

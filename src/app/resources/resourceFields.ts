@@ -1,5 +1,27 @@
 import type { ResourceValue } from './resourceTypes';
 
+const normalized = (key: string): string => key.toLowerCase().replace(/[\s_-]/g, '');
+
+const HIT_POINT_KEYS = ['hp', 'health', 'hitpoints'];
+
+/** Whether a statblock key or label ("hp", "Hit Points:", "Health") names hit points. */
+export function isHitPointsKey(key: string): boolean {
+  return HIT_POINT_KEYS.includes(normalized(key.replace(/:\s*$/, '')));
+}
+
+/**
+ * The value under `key`: the exact key, else one spelled differently
+ * (`Max Stress` for `max_stress`), else, for hit points, any of their usual names.
+ */
+function lookup(record: Record<string, unknown>, key: string): unknown {
+  if (key in record) return record[key];
+  const wanted = normalized(key);
+  const keys = Object.keys(record);
+  const match = keys.find((candidate) => normalized(candidate) === wanted)
+    ?? (isHitPointsKey(key) ? keys.find(isHitPointsKey) : undefined);
+  return match === undefined ? undefined : record[match];
+}
+
 /** Reads a dotted path (`stats.0`, `resources.mana`) from a statblock record. */
 export function resolveField(record: Readonly<Record<string, unknown>>, path: string): unknown {
   const parts = path.split('.').map((part) => part.trim()).filter(Boolean);
@@ -7,7 +29,7 @@ export function resolveField(record: Readonly<Record<string, unknown>>, path: st
   let value: unknown = record;
   for (const part of parts) {
     if (Array.isArray(value)) value = /^\d+$/.test(part) ? value[Number(part)] : undefined;
-    else if (value !== null && typeof value === 'object') value = (value as Record<string, unknown>)[part];
+    else if (value !== null && typeof value === 'object') value = lookup(value as Record<string, unknown>, part);
     else return undefined;
   }
   return value;

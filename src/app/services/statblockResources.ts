@@ -1,9 +1,9 @@
 import type { StatblockItem, StatblockLayout, StatblockMonster } from '../react/components/statblock/statblockTypes';
 import type { Character, TokenResourceValue } from '../types';
 import type { TokenVitals } from './statblockVitalsSync';
-import { parseResourceValue } from '../resources/resourceFields';
+import { isHitPointsKey, parseResourceValue } from '../resources/resourceFields';
 
-export { parseResourceValue };
+export { isHitPointsKey, parseResourceValue };
 
 export interface StatblockResource extends TokenResourceValue {
   key: string;
@@ -17,10 +17,6 @@ export type StatblockResourceUpdate = Partial<Pick<Character, 'hp' | 'stress' | 
 
 const normalized = (key: string): string => key.toLowerCase().replace(/[\s_-]/g, '');
 
-/** Whether a statblock key or label ("hp", "Hit Points:", "Health") names hit points. */
-export function isHitPointsKey(key: string): boolean {
-  return ['hp', 'health', 'hitpoints'].includes(normalized(key.replace(/:\s*$/, '')));
-}
 
 const canonical = (key: string): string => isHitPointsKey(key) ? 'hp' : normalized(key);
 const resourceNames = new Set(['hp', 'stress', 'hope', 'mana', 'mp', 'stamina', 'energy', 'shield', 'shields', 'resolve', 'luck', 'focus', 'strain', 'wounds', 'ammo', 'charges']);

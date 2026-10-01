@@ -1,5 +1,4 @@
 import { parseResourceValue, resolveField } from './resourceFields';
-import { startingValue } from './resourceValues';
 import type { ResourceDefinition, ResourceValue } from './resourceTypes';
 
 /** The starting value a statblock gives one resource, or null when its field holds no quantity. */
@@ -7,8 +6,9 @@ export function statblockResourceValue(
   record: Readonly<Record<string, unknown>>,
   definition: ResourceDefinition,
 ): ResourceValue | null {
-  const parsed = parseResourceValue(resolveField(record, definition.field));
-  return parsed && parsed.max > 0 ? startingValue(definition, parsed.max) : null;
+  // A bare maximum starts full or empty by direction; a stated current ("12/27") is kept.
+  const parsed = parseResourceValue(resolveField(record, definition.field), definition.direction === 'fills');
+  return parsed && parsed.max > 0 ? parsed : null;
 }
 
 export function startingResources(

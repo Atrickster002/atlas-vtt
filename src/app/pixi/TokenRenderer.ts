@@ -1,3 +1,6 @@
+import { mapResources } from '../resources/collectionResources';
+import type { ResourceDefinition, ResourceDefsProvider } from '../resources/resourceTypes';
+import { syncedResources } from '../resources/statblockResourceSync';
 import { fitTokenArtwork, syncTokenArtwork } from './token-renderer/tokenArtwork';
 import type { AtlasSettings } from '../services/SettingsService';
 import { hiddenTokenLayers, type LayerVisibility } from './playerSafeFrame';
@@ -54,6 +57,8 @@ export class TokenRenderer {
   private eventBus: EventEmitter;
   private statblockDialogService: StatblockDialogService;
   private assetService: AssetService;
+  /** The resources of the map's collection; set once the asset service is wired. */
+  private resourceDefsProvider: ResourceDefsProvider = () => [];
   private assetValidationService?: AssetValidationService;
   private tokenStatblockLinkService: TokenStatblockLinkService;
   private spriteFactory: SpriteFactory;
@@ -202,6 +207,7 @@ export class TokenRenderer {
     };
     this.interactionController.conditionDefsProvider = conditionDefsProvider;
     this.uiManager.conditionDefsProvider = conditionDefsProvider;
+    this.resourceDefsProvider = (): readonly ResourceDefinition[] => mapResources(this.assetService, this.store.getState().mapPath);
 
     // Initialize sync service
     this.syncService = new SyncService(this.store, this.gridSystem, this.eventBus);
@@ -412,7 +418,10 @@ export class TokenRenderer {
     // Condition badges follow edits to the map's collection conditions
     const handleCollectionSettingsChange = this.obsApp.workspace.on('atlas-vtt:collection-settings-changed', (collectionId) => {
       const mapPath = this.store.getState().mapPath;
-      if (mapPath && this.assetService.getCollectionForMap(mapPath) === collectionId) this.uiManager.refreshConditions();
+      if (mapPath && this.assetService.getCollectionForMap(mapPath) === collectionId) {
+        this.uiManager.refreshConditions();
+        this.uiManager.refreshResources();
+      }
     });
 
     // Tokens show the new content of an edited image file, e.g. a re-cropped token
@@ -426,7 +435,8 @@ export class TokenRenderer {
       if (!metadata?.frontmatter) return;
       
       // Check if it's a character/statblock file (has HP or is marked as a character)
-      const isCharacter = metadata.frontmatter.hp !== undefined || 
+      const isCharacter = metadata.frontmatter.hp !== undefined ||
+                         metadata.frontmatter.statblock !== undefined ||
                          metadata.frontmatter.isCharacter === true ||
                          metadata.frontmatter.type === 'character';
       
@@ -471,22 +481,12 @@ export class TokenRenderer {
         for (const [tokenId, token] of Object.entries(tokens)) {
           if (token.kind !== 'character' || token.statblockPath !== statblockPath) continue;
 
-          // Refresh statblock-derived data but keep live values such as current HP and stress
+          // Refresh statblock-derived data but keep live values such as the current HP
           const updates: TokenUpdates = { name: vitals.name || token.name };
 
-          if (vitals.hp && !token.maxHpOverridden) {
-            const currentHp = typeof token.hp === 'object' ? token.hp.current : undefined;
-            updates.hp = {
-              current: currentHp ?? vitals.hp.current ?? vitals.hp.max ?? 0,
-              max: vitals.hp.max || vitals.hp.current || 0
-            };
-          }
-
-          if (vitals.maxStress !== undefined && !token.maxStressOverridden) {
-            updates.maxStress = vitals.maxStress;
-            if (token.stress === undefined) {
-              updates.stress = 0;
-            }
+          const resources = syncedResources(token, metadata.frontmatter, this.resourceDefsProvider());
+          if (JSON.stringify(resources) !== JSON.stringify(token.resources ?? {})) {
+            updates.resources = resources;
           }
 
           if (vitals.difficulty !== undefined) {
@@ -918,7 +918,7 @@ export class TokenRenderer {
                   ? this.obsApp.metadataCache.getFileCache(statblockFile)?.frontmatter
                   : undefined;
                 if (frontmatter) {
-                  character = { ...character, ...buildStatblockLinkUpdates(frontmatter, token.name) };
+                  character = { ...character, ...buildStatblockLinkUpdates(frontmatter, token.name, this.resourceDefsProvider()) };
                 }
               } catch (error) {
                 console.error(`[TokenRenderer] Failed to load statblock data for token ${token.id}:`, error);
@@ -1089,6 +1089,7 @@ export class TokenRenderer {
     if (JSON.stringify(character?.hp) !== JSON.stringify(prevCharacter?.hp)) return true;
     if (JSON.stringify(character?.stress) !== JSON.stringify(prevCharacter?.stress)) return true;
     if (character?.maxStress !== prevCharacter?.maxStress) return true;
+    if (token.resources !== prevToken.resources && JSON.stringify(token.resources) !== JSON.stringify(prevToken.resources)) return true;
     if (character?.statblockPath !== prevCharacter?.statblockPath) return true;
 
     // Texture source changes
@@ -1282,9 +1283,9 @@ export class TokenRenderer {
         const currentName = token.kind === 'character' ? token.name : undefined;
         this.store.getState().updateToken(tokenId, {
           statblockPath,
-          maxHpOverridden: undefined,
-          maxStressOverridden: undefined,
-          ...buildStatblockLinkUpdates(frontmatter, currentName)
+          // Maxima set by hand belonged to the previous statblock.
+          overriddenMax: undefined,
+          ...buildStatblockLinkUpdates(frontmatter, currentName, this.resourceDefsProvider())
         });
       }
     } catch (error) {

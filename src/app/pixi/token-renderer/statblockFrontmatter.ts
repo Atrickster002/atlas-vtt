@@ -3,6 +3,8 @@
  * Frontmatter is user-authored YAML, so every value is validated here once.
  */
 
+import type { ResourceDefinition } from '../../resources/resourceTypes';
+import { startingResources } from '../../resources/statblockResourceValues';
 import type { FrontMatterCache } from 'obsidian';
 import type { Character } from '../../types';
 
@@ -19,7 +21,7 @@ export interface StatblockVitals {
  * preferences such as `showNameplate` belong to the user and are not touched.
  */
 export type StatblockLinkUpdates =
-  Partial<Pick<Character, 'name' | 'hp' | 'stress' | 'maxStress' | 'difficulty'>>;
+  Partial<Pick<Character, 'name' | 'difficulty' | 'resources'>>;
 
 /** Clears every statblock-derived field when a token is unlinked; user preferences stay. */
 export const STATBLOCK_UNLINK_UPDATES = {
@@ -31,6 +33,8 @@ export const STATBLOCK_UNLINK_UPDATES = {
   maxStress: undefined,
   maxHpOverridden: undefined,
   maxStressOverridden: undefined,
+  resources: undefined,
+  overriddenMax: undefined,
   difficulty: undefined,
 } as const;
 
@@ -73,29 +77,18 @@ export function readStatblockVitals(frontmatter: FrontMatterCache): StatblockVit
   return vitals;
 }
 
-/** A freshly linked token starts at full health and zero stress. */
+/** A freshly linked token starts every resource of its collection from the statblock. */
 export function buildStatblockLinkUpdates(
   frontmatter: FrontMatterCache,
-  currentName: string | undefined
+  currentName: string | undefined,
+  definitions: readonly ResourceDefinition[],
 ): StatblockLinkUpdates {
   const vitals = readStatblockVitals(frontmatter);
-  const updates: StatblockLinkUpdates = {};
-
-  if (vitals.hp) {
-    updates.hp = {
-      current: vitals.hp.current || vitals.hp.max || 0,
-      max: vitals.hp.max || vitals.hp.current || 0,
-    };
-  }
+  const updates: StatblockLinkUpdates = { resources: startingResources(frontmatter, definitions) };
 
   const name = vitals.name || currentName;
   if (name !== undefined) {
     updates.name = name;
-  }
-
-  if (vitals.maxStress !== undefined) {
-    updates.stress = 0;
-    updates.maxStress = vitals.maxStress;
   }
 
   if (vitals.difficulty !== undefined) {

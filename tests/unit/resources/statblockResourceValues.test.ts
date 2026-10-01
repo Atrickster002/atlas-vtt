@@ -14,6 +14,12 @@ describe('statblock resource values', () => {
     expect(statblockResourceValue({ stress: 6 }, STRESS_RESOURCE)).toEqual({ current: 0, max: 6 });
   });
 
+  it('keeps a current value the statblock states', () => {
+    expect(statblockResourceValue({ hp: '12/27' }, HP_RESOURCE)).toEqual({ current: 12, max: 27 });
+    expect(statblockResourceValue({ Health: { current: 12, max: 27 } }, HP_RESOURCE)).toEqual({ current: 12, max: 27 });
+    expect(statblockResourceValue({ stress: '2/6' }, STRESS_RESOURCE)).toEqual({ current: 2, max: 6 });
+  });
+
   it('gives nothing for a missing or non-numeric field', () => {
     expect(statblockResourceValue({ hp: 8 }, STR)).toBeNull();
     expect(statblockResourceValue({ hp: '2d8' }, HP_RESOURCE)).toBeNull();
