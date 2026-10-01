@@ -71,3 +71,37 @@ describe('default token vision', () => {
     expect(result.current.toSettings().defaultTokenVision).toBeUndefined();
   });
 });
+
+describe('senses', () => {
+  const witchSight = {
+    id: 'home-1', name: 'Witch sight', description: 'Sees in the dark within its range.', lineOfSight: true,
+    sees: { bright: 'normal', dim: 'normal', dark: 'as-dim', magicalDark: 'none' }, look: 'colour', reveals: 'all', precise: true,
+    seesInvisible: false, worksWhileBlinded: false, range: 'required',
+  } as const;
+
+  it('loads the collection’s own senses, without what cannot be used, and saves them', () => {
+    const { result } = draftFor({ ...structuredClone(dnd5e.rules), senses: [witchSight, { name: 'No id' }] as never, systemPresetId: dnd5e.id });
+    expect(result.current.senses).toEqual([witchSight]);
+    expect(result.current.toSettings().senses).toEqual([witchSight]);
+  });
+
+  it('has none of its own in a collection saved before senses existed, and saves none, so it keeps following its preset', () => {
+    const { senses: _senses, ...before } = structuredClone(dnd5e.rules);
+    const { result } = draftFor({ ...before, systemPresetId: dnd5e.id });
+    expect(result.current.senses).toBeUndefined();
+    expect(result.current.toSettings()).toHaveProperty('senses', undefined);
+  });
+
+  it('drops its own senses when a preset is applied, so the collection reads the preset\'s', () => {
+    const { result } = draftFor({ ...structuredClone(shadowdark.rules), senses: [witchSight], systemPresetId: shadowdark.id });
+    expect(result.current.toSettings().senses).toEqual([witchSight]);
+    act(() => result.current.applyPreset(dnd5e));
+    expect(result.current.toSettings()).toHaveProperty('senses', undefined);
+  });
+
+  it('are cleared with the game system', () => {
+    const { result } = draftFor({ ...structuredClone(dnd5e.rules), systemPresetId: dnd5e.id });
+    act(() => result.current.clearSystem());
+    expect(result.current.toSettings()).toHaveProperty('senses', undefined);
+  });
+});

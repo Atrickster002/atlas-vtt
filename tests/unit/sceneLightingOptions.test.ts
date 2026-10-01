@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { clampLitThreshold, exploredMemoryOn, litThresholdOf, readSceneLighting, sceneLook, sightOnDropOn, tokenVisionOn } from '../../src/app/lighting/sceneLightingOptions';
+import { brightThresholdOf, clampLitThreshold, exploredMemoryOn, litThresholdOf, readSceneLighting, sceneLook, sightOnDropOn, tokenVisionOn } from '../../src/app/lighting/sceneLightingOptions';
 import { DEFAULT_SCENE_LIGHTING } from '../../src/app/types/lightingTypes';
 
 describe('scene lighting options', () => {
@@ -28,6 +28,21 @@ describe('scene lighting options', () => {
     expect(clampLitThreshold(0.4)).toBe(0.4);
     expect(clampLitThreshold(2)).toBe(1);
     expect(clampLitThreshold(Number.NaN)).toBe(0.25);
+  });
+
+  it('counts ambient light as bright from 75 % unless the scene sets its own bright threshold', () => {
+    expect(brightThresholdOf(DEFAULT_SCENE_LIGHTING)).toBe(0.75);
+    expect(brightThresholdOf({ brightThreshold: 0.6 })).toBe(0.6);
+    expect(brightThresholdOf({ litThreshold: 0.5, brightThreshold: 0.9 })).toBe(0.9);
+  });
+
+  it('never puts the bright threshold below the lit threshold or above 1, and replaces non-numbers with the default', () => {
+    expect(brightThresholdOf({ brightThreshold: 0.1 })).toBe(0.25);
+    expect(brightThresholdOf({ litThreshold: 0.9 })).toBe(0.9);
+    expect(brightThresholdOf({ litThreshold: 0.5, brightThreshold: 0.2 })).toBe(0.5);
+    expect(brightThresholdOf({ brightThreshold: 7 })).toBe(1);
+    expect(brightThresholdOf({ brightThreshold: Number.NaN })).toBe(0.75);
+    expect(brightThresholdOf({ litThreshold: 0.9, brightThreshold: Number.NaN })).toBe(0.9);
   });
 
   it('reads saved lighting with defaults for missing fields and without unreadable colours', () => {

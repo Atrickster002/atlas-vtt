@@ -1,3 +1,5 @@
+import type { TokenSense } from './senseTypes';
+
 /** Dynamic lighting of one scene. Saved in the map file, never undo-tracked. */
 export interface SceneLighting {
   enabled: boolean;
@@ -13,10 +15,12 @@ export interface SceneLighting {
   exploredColor?: string;
   /** Fill of never-seen areas in the players' view; unset is black. */
   unexploredColor?: string;
-  /** Ambient light (0–1) from which everything in sight counts as lit; unset is 0.25. */
+  /** Ambient light (0–1) from which everything in sight counts as lit, dimly at least; below it the scene is dark. Unset is 0.25. */
   litThreshold?: number;
   /** A dragged vision token sees from where its drag began until it is dropped; unset is on. Off, sight follows the drag. */
   sightOnDrop?: boolean;
+  /** Ambient light (0–1) from which the scene is brightly lit; unset is 0.75, and it never lies below the lit threshold. */
+  brightThreshold?: number;
 }
 
 export const DEFAULT_SCENE_LIGHTING: SceneLighting = { enabled: false, ambient: 0.1 };
@@ -60,12 +64,23 @@ export interface TokenVision {
   enabled: boolean;
   /** Sight range; unset is unlimited. */
   range?: number;
-  /** Radius the token sees without light, drawn desaturated. */
+  /**
+   * Radius the token sees without light, drawn desaturated. Written before senses existed and
+   * read as one while `senses` is unset (`tokenSenses`); `withSenses` drops it.
+   */
   darkvision?: number;
-  /** Radius within which the token senses other tokens through walls and darkness; the map stays unseen. */
+  /**
+   * Radius within which the token senses other tokens through walls and darkness; the map stays
+   * unseen. Read and dropped like `darkvision`.
+   */
   tremorsense?: number;
   /** Width of the vision cone in degrees (1–360), facing the token's rotation; unset sees all around. */
   angle?: number;
+  /**
+   * What the token perceives beyond normal sight, by the senses of its collection. Once set, even
+   * empty, it replaces `darkvision` and `tremorsense`. Read with `tokenSenses`, write with `withSenses`.
+   */
+  senses?: TokenSense[];
 }
 
 /** What a collection or game system gives new tokens; vision itself always starts off. */

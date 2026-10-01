@@ -1,4 +1,5 @@
 import type { SystemPreset } from '../../types/systemPresetTypes';
+import { CYBERPUNK_RED_SENSES } from '../senses/cyberpunkRed';
 import { builtInPresetId, conditionsOf } from './presetHelpers';
 
 /**
@@ -32,6 +33,7 @@ export const CYBERPUNK_RED: SystemPreset = {
       { name: 'Damaged Eye', color: '#475569', icon: 'bleeding-eye' },
       { name: 'Damaged Ear', color: '#0891b2', icon: 'hearing-disabled' },
     ]),
+    senses: CYBERPUNK_RED_SENSES,
     defaultWidgets: { hpBar: true },
   },
 };

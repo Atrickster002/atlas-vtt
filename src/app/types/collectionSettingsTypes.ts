@@ -8,6 +8,7 @@
 import type { CreatureFilterDefinition } from './creatureFilterTypes';
 import type { DiceRules } from './diceRulesTypes';
 import type { TokenVisionDefaults } from './lightingTypes';
+import type { SenseDefinition } from './senseTypes';
 import type { AnyWidget } from './widgetTypes';
 import type { WidgetIcon } from './widgetIcons';
 
@@ -26,7 +27,25 @@ export interface ConditionDefinition {
   icon?: WidgetIcon;
   /** The condition carries a number on each token, like Frightened 2 or Exhaustion 3. */
   valued?: boolean;
+  /**
+   * What the condition does to sight. Read with `conditionEffect`, which also knows the built-in
+   * conditions that collections copied before effects existed.
+   */
+  effect?: ConditionEffect;
 }
+
+/**
+ * How a condition changes what is seen:
+ * - `blinded`: a token with vision keeps only its senses that work while blinded.
+ * - `invisible`: only senses that see invisible tokens perceive the token.
+ * - `airborne`: senses that ignore airborne tokens (tremorsense) do not perceive it.
+ * - `undetected`: no sense perceives the token.
+ *
+ * A token with vision is shown to the players whatever its conditions.
+ */
+export type ConditionEffect = 'blinded' | 'invisible' | 'airborne' | 'undetected';
+
+export const CONDITION_EFFECTS: readonly ConditionEffect[] = ['blinded', 'invisible', 'airborne', 'undetected'];
 
 export type MeasurementMode = 'metric' | 'abstract';
 export type GridUnitType = 'feet' | 'yards' | 'meters' | 'units' | 'custom';
@@ -53,6 +72,11 @@ export interface CollectionSettings {
   conditions: ConditionDefinition[];
   /** What new tokens placed from this collection's library start with; vision itself starts off. Unset: no vision on new tokens. */
   defaultTokenVision?: TokenVisionDefaults | undefined;
+  /**
+   * The senses tokens of the collection can have. Unset while the collection takes those of its
+   * preset; read with `collectionSenses`.
+   */
+  senses?: readonly SenseDefinition[] | undefined;
   /** The game system preset the rules were last taken from or saved to; they may have been edited since. */
   systemPresetId?: string | undefined;
   /** Default roll and critical rule. Read with `collectionDiceRules`. */

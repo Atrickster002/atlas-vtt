@@ -12,7 +12,9 @@ import type {
 import type { TokenVisionDefaults } from '../types/lightingTypes';
 import type { SystemPreset, SystemRules } from '../types/systemPresetTypes';
 import type { AnyWidget } from '../types/widgetTypes';
+import { conditionEffect } from './conditionEffects';
 import { DEFAULT_DICE_RULES, sameDiceRules } from './diceRules';
+import { sameSenses } from './senseRules';
 import { hasVisionDefaults, sameVisionDefaults } from './visionDefaults';
 
 /** Measurement of a collection that never set any: 5-foot squares, every diagonal counts 1. */
@@ -26,9 +28,12 @@ export const DEFAULT_GRID_DEFAULTS: Readonly<CollectionGridDefaults> = {
 
 /** What a game system sets in a collection's settings. */
 export type SystemSettings = Required<Pick<CollectionSettings, 'gridDefaults' | 'conditions' | 'defaultWidgets' | 'dice'>>
-  & Pick<CollectionSettings, 'systemPresetId' | 'defaultTokenVision'>;
+  & Pick<CollectionSettings, 'systemPresetId' | 'defaultTokenVision' | 'senses'>;
 
-/** A collection without a game system: default measurement and dice, no conditions, no default widgets, no default vision. */
+/**
+ * A collection without a game system: default measurement and dice, no conditions, no default
+ * widgets, no default vision, and no senses of its own, so it uses the generic ones.
+ */
 export function vanillaSystemSettings(): SystemSettings {
   return {
     gridDefaults: structuredClone(DEFAULT_GRID_DEFAULTS),
@@ -37,13 +42,16 @@ export function vanillaSystemSettings(): SystemSettings {
     dice: { ...DEFAULT_DICE_RULES },
     systemPresetId: undefined,
     defaultTokenVision: undefined,
+    senses: undefined,
   };
 }
 
 /**
  * The rules a collection gets from a preset: a copy of its measurement and of its
- * conditions with their own ids, and its default token vision when it sets one. Conditions from the previous system never carry
- * over; the ones tokens still have are removed when the collection is saved.
+ * conditions with their own ids, and of its default token vision when it sets one. Conditions
+ * from the previous system never carry over; the ones tokens still have are removed when the
+ * collection is saved. Senses are not copied: the collection reads its preset's
+ * (`collectionSenses`) until the GM edits them, so a corrected built-in sense reaches it.
  */
 export function rulesOfPreset(
   preset: SystemPreset,
@@ -54,7 +62,7 @@ export function rulesOfPreset(
     conditions: structuredClone(preset.rules.conditions),
     defaultWidgets: { ...preset.rules.defaultWidgets },
     dice: { ...(preset.rules.dice ?? DEFAULT_DICE_RULES) },
-    ...(hasVisionDefaults(vision) && { defaultTokenVision: { ...vision } }),
+    ...(hasVisionDefaults(vision) && { defaultTokenVision: structuredClone(vision) }),
   };
 }
 
@@ -73,7 +81,8 @@ function sameCondition(a: ConditionDefinition, b: ConditionDefinition): boolean 
   return a.name === b.name
     && a.color.toLowerCase() === b.color.toLowerCase()
     && a.icon === b.icon
-    && (a.valued ?? false) === (b.valued ?? false);
+    && (a.valued ?? false) === (b.valued ?? false)
+    && conditionEffect(a) === conditionEffect(b);
 }
 
 /** The default widgets that are on, as a comparable key. */
@@ -81,14 +90,18 @@ function enabledWidgets(defaultWidgets: Record<string, boolean> | undefined): st
   return Object.keys(defaultWidgets ?? {}).filter((key) => defaultWidgets?.[key]).sort().join();
 }
 
-/** Whether two rule sets play the same; condition ids do not matter. */
-export function sameSystemRules(a: SystemRules, b: SystemRules): boolean {
-  return sameGridDefaults(a.gridDefaults, b.gridDefaults)
-    && sameDiceRules(a.dice, b.dice)
-    && enabledWidgets(a.defaultWidgets) === enabledWidgets(b.defaultWidgets)
-    && sameVisionDefaults(a.defaultTokenVision, b.defaultTokenVision)
-    && a.conditions.length === b.conditions.length
-    && a.conditions.every((condition, i) => sameCondition(condition, b.conditions[i]!));
+/**
+ * Whether a collection's `rules` play as `preset` does; condition ids do not matter. Rules
+ * without senses of their own read the preset's, so they are the same in that.
+ */
+export function sameSystemRules(preset: SystemRules, rules: SystemRules): boolean {
+  return sameGridDefaults(preset.gridDefaults, rules.gridDefaults)
+    && sameDiceRules(preset.dice, rules.dice)
+    && enabledWidgets(preset.defaultWidgets) === enabledWidgets(rules.defaultWidgets)
+    && sameVisionDefaults(preset.defaultTokenVision, rules.defaultTokenVision)
+    && (rules.senses === undefined || sameSenses(preset.senses, rules.senses))
+    && preset.conditions.length === rules.conditions.length
+    && preset.conditions.every((condition, i) => sameCondition(condition, rules.conditions[i]!));
 }
 
 const SQUARE_UNIT: Record<GridUnitType, string> = { feet: 'ft', yards: 'yd', meters: 'm', units: 'unit', custom: 'unit' };
@@ -97,15 +110,16 @@ function count(n: number, noun: string): string {
   return `${n} ${noun}${n === 1 ? '' : 's'}`;
 }
 
-/** One-line summary, e.g. "5 ft squares · 15 conditions · Default vision" or "4 range bands · 10 conditions · Torch timer". */
+/** One-line summary, e.g. "5 ft squares · 15 conditions · 5 senses · Default vision" or "4 range bands · 10 conditions · Torch timer". */
 export function describeSystemRules(rules: SystemRules): string {
   const grid = rules.gridDefaults;
   const measurement = grid.measurementMode === 'abstract'
     ? count(grid.abstractRangeBands?.length ?? 0, 'range band')
     : `${grid.unitDistance} ${SQUARE_UNIT[grid.unitType]} squares`;
   const widgets = (rules.widgets ?? []).map((widget) => `${widget.label} ${widget.type}`);
+  const senses = rules.senses?.length ? [count(rules.senses.length, 'sense')] : [];
   const vision = hasVisionDefaults(rules.defaultTokenVision) ? ['Default vision'] : [];
-  return [measurement, count(rules.conditions.length, 'condition'), ...vision, ...widgets].join(' · ');
+  return [measurement, count(rules.conditions.length, 'condition'), ...senses, ...vision, ...widgets].join(' · ');
 }
 
 /**
