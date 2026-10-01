@@ -4,6 +4,9 @@ import type { BundleFile, BundleFileRole } from './bundleFormat';
 /** Audio and video stay behind, like a collection's music: they would make a bundle too large to pass on. */
 const ATTACHMENT = /\.(png|jpe?g|webp|gif|avif|bmp|svg|pdf)$/i;
 
+/** The files whose links are followed: a loot item names the rules it comes from as a pinned note names its places. */
+const WALKED_ROLES: ReadonlySet<BundleFileRole> = new Set<BundleFileRole>(['linked-note', 'loot-item']);
+
 export interface LinkedFile {
   path: string;
   role: Extract<BundleFileRole, 'linked-note' | 'note-attachment'>;
@@ -24,14 +27,15 @@ export function linkedFiles(app: App, notePath: string): LinkedFile[] {
 
 /**
  * `files` with everything their notes lead to: the notes that pins and
- * characters open are read for links, then the notes found that way, until
- * none is new. Each file reached lists the notes that link to it. Statblock
- * notes are not read: their links lead into rulebooks. Only an export needs
- * this; inside a vault a link finds its note wherever a move or copy left it.
+ * characters open and the item notes of loot bases are read for links, then
+ * the notes found that way, until none is new. Each file reached lists the
+ * notes that link to it. Statblock notes are not read: their links lead into
+ * rulebooks. Only an export needs this; inside a vault a link finds its note
+ * wherever a move or copy left it.
  */
 export function withLinkedFiles(app: App, files: readonly BundleFile[]): BundleFile[] {
   const known = new Map(files.map((file): [string, BundleFile] => [file.vaultPath, { ...file, ...(file.linkedFrom && { linkedFrom: [...file.linkedFrom] }) }]));
-  const notes = files.filter((file) => file.role === 'linked-note').map((file) => file.vaultPath);
+  const notes = files.filter((file) => WALKED_ROLES.has(file.role) && file.vaultPath.toLowerCase().endsWith('.md')).map((file) => file.vaultPath);
   // Notes found on the way join the list, so the walk goes level by level and ends once every note was read.
   for (const note of notes) {
     for (const { path, role } of linkedFiles(app, note)) {

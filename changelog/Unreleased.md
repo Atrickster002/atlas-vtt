@@ -81,3 +81,4 @@
 - A light's dim range is now visibly lit out to its edge and the light ends just past it, so what looks dark on the map is dark. Before, the outer part of the dim range was drawn nearly black although tokens standing there still showed
 - Scene thumbnails and snapshot previews show a scene's dynamic lighting as the GM sees it. They also leave out pins, linked hexes, light markers, door badges and wall lines, and follow changes to the scene's lighting
 - A scene keeps its thumbnail when the graphics device resets or the scene could not be opened again, instead of getting a blank or outdated one
+- Exporting a collection now packs its loot tables: the bases picked in the collection's Loot settings and every item note they list. An import puts them into the collection's folder, where the loot roller finds them again. Before, the importing vault got the setting without the base or its items
