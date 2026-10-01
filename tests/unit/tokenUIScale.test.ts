@@ -66,7 +66,8 @@ describe('token UI scale', () => {
     return {
       store, viewport, uiManager, tokenGroup, barWorldWidth,
       barScreenWidth: () => barWorldWidth() * viewport.scale.x,
-      controlsScale: () => uiManager.getControlsUI()!.getContainer().scale.x,
+      // The controls scale in their anchor on the token's bottom edge, the container's first child
+      controlsScale: () => uiManager.getControlsUI()!.getContainer().children[0]!.scale.x,
     };
   }
 
@@ -184,7 +185,7 @@ describe('token UI scale', () => {
       uiManager.syncUIScale('hero', medium);
       window.dispatchEvent(new CustomEvent('atlas-token-resize-ended', { detail: { tokenIds: ['hero'] } }));
       expect(controls.getContainer().visible).toBe(true);
-      expect(controls.getContainer().position.y).toBe(100 + medium / 2);
+      expect(controls.getContainer().position.y + controls.getContainer().children[0]!.position.y).toBe(100 + medium / 2);
       expect(controlsScale()).toBeCloseTo(barWorldWidth() / 64, 6);
     } finally { uiManager.destroyAll(); }
   });

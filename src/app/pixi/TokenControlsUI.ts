@@ -10,6 +10,7 @@ import { openResourceEditor, type BarAnchor, type ResourceEditor, type ResourceV
 import { ResourceBarHitArea } from './ResourceBarHitArea';
 import { destroyTree } from './utils/destroyTree';
 import type { ResourceSlot } from './token-renderer/resources/ResourceStack';
+import { WHEEL_STEPPER } from './token-renderer/resources/ResourceWheels';
 import { colorNumber } from './token-renderer/resources/ResourceBarView';
 import type { ResourceDefinition, ResourceDefsProvider } from '../resources/resourceTypes';
 import { resourceUpdate, withCurrent } from '../resources/resourceValues';
@@ -63,6 +64,10 @@ export class TokenControlsUI {
     </svg>`
   };
   
+  /** Anchors on the token's bottom and right edges, scaled like the token UI's; controls live in the anchor of what they edit. */
+  private readonly below = new Container();
+  private readonly beside = new Container();
+
   // Texture cache for icons
   private iconTextureCache: Map<string, Texture> = new Map();
   
@@ -75,6 +80,7 @@ export class TokenControlsUI {
     this.container.visible = false;
     this.container.eventMode = 'passive'; // Allow events to pass through to tokens
     this.container.sortableChildren = true;
+    this.container.addChild(this.below, this.beside);
 
     // Don't stop propagation at container level - let individual buttons handle it
     
@@ -186,8 +192,9 @@ export class TokenControlsUI {
 
   /** Screen-space anchor of the resource drawn in `slot`, in canvas-local pixels. */
   private slotAnchor(slot: ResourceSlot): BarAnchor {
-    const topLeft = this.container.toGlobal({ x: slot.left, y: slot.top });
-    const bottomRight = this.container.toGlobal({ x: slot.left + slot.width, y: slot.top + slot.height });
+    const anchor = this.anchorOf(slot);
+    const topLeft = anchor.toGlobal({ x: slot.left, y: slot.top });
+    const bottomRight = anchor.toGlobal({ x: slot.left + slot.width, y: slot.top + slot.height });
     return { x: (topLeft.x + bottomRight.x) / 2, top: topLeft.y, bottom: bottomRight.y };
   }
 
@@ -256,8 +263,8 @@ export class TokenControlsUI {
     }
     
     this.currentTokenId = tokenId;
-    this.placeBelowToken(worldX, worldY, tokenSize);
-    this.container.scale.set(uiScale);
+    this.place(worldX, worldY, tokenSize);
+    this.setScale(uiScale);
 
     // Update button visibility and handlers
     this.updateButtons(token);
@@ -276,21 +283,21 @@ export class TokenControlsUI {
   public updatePosition(worldX: number, worldY: number, tokenSize: number): void {
     if (!this.isVisible) return;
     
-    this.placeBelowToken(worldX, worldY, tokenSize);
+    this.place(worldX, worldY, tokenSize);
     this.followEditor?.();
   }
 
   /** Lays the controls out for `tokenId`'s new size, also while a resize gesture hides them. */
   public followTokenSize(tokenId: string, worldX: number, worldY: number, tokenSize: number): void {
     if (tokenId !== this.currentTokenId) return;
-    this.placeBelowToken(worldX, worldY, tokenSize);
+    this.place(worldX, worldY, tokenSize);
     this.followEditor?.();
   }
 
   /** Matches the controls to the scale of `tokenId`'s bars as it changes. */
   public setScaleFor(tokenId: string, uiScale: number): void {
     if (tokenId !== this.currentTokenId) return;
-    this.container.scale.set(uiScale);
+    this.setScale(uiScale);
     this.followEditor?.();
   }
 
@@ -298,11 +305,23 @@ export class TokenControlsUI {
     return this.container.visible;
   }
 
-  /** Anchors the controls at the bottom edge of the token centred at (`worldX`, `worldY`), like its bars. */
-  private placeBelowToken(worldX: number, worldY: number, tokenSize: number): void {
-    this.container.position.set(worldX, worldY + tokenSize / 2);
+  /** Puts the anchors on the bottom and right edges of the token centred at (`worldX`, `worldY`). */
+  private place(worldX: number, worldY: number, tokenSize: number): void {
+    this.container.position.set(worldX, worldY);
+    this.below.position.set(0, tokenSize / 2);
+    this.beside.position.set(tokenSize / 2, 0);
   }
-  
+
+  private setScale(uiScale: number): void {
+    this.below.scale.set(uiScale);
+    this.beside.scale.set(uiScale);
+  }
+
+  /** A bar's controls hang from the token's bottom edge, a wheel's from its right edge. */
+  private anchorOf(slot: ResourceSlot): Container {
+    return slot.kind === 'wheel' ? this.beside : this.below;
+  }
+
   private updateButtons(token: Character): void {
     for (const control of this.resourceControls.values()) this.hideControl(control);
     if (!this.currentTokenId) return;
@@ -338,7 +357,6 @@ export class TokenControlsUI {
         plus: this.createButton('plus', color),
       };
       this.resourceControls.set(definition.key, control);
-      this.container.addChild(control.hit, control.minus, control.plus);
     }
     control.plus.iconColor = color;
     return control;
@@ -349,14 +367,20 @@ export class TokenControlsUI {
     { hit, minus, plus }: ResourceControl, slot: ResourceSlot,
     value: ResourceValue, resourceLabel: string, onDelta: (delta: number) => void, onCommit: (next: ResourceValue) => void,
   ): void {
-    const buttonSize = 10;
+    // Reordering the collection's resources can move one between bar and wheel, so the anchor is chosen here
+    this.anchorOf(slot).addChild(hit, minus, plus);
+    const buttonSize = WHEEL_STEPPER.size;
     const gap = barDimensions.token.gap;
     const centerY = slot.top + slot.height / 2;
-    const positions = [[minus, -1, slot.left - buttonSize / 2 - gap], [plus, 1, slot.left + slot.width + buttonSize / 2 + gap]] as const;
-    for (const [button, delta, x] of positions) {
+    const outer = slot.left + slot.width + gap + buttonSize / 2;
+    const positions = slot.kind === 'wheel'
+      // A stepper on the wheel's outer side: + above -
+      ? [[minus, -1, outer, centerY + (buttonSize + 1) / 2], [plus, 1, outer, centerY - (buttonSize + 1) / 2]] as const
+      : [[minus, -1, slot.left - buttonSize / 2 - gap, centerY], [plus, 1, outer, centerY]] as const;
+    for (const [button, delta, x, y] of positions) {
       button.visible = true;
       this.drawButtonState(button, false);
-      button.position.set(x, centerY);
+      button.position.set(x, y);
       button.on('pointerdown', (e) => {
         e.stopPropagation();
         onDelta(delta);

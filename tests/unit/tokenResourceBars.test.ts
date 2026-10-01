@@ -116,7 +116,8 @@ describe('resource value popover editing', () => {
     const controls = new TokenControlsUI(viewport, store);
     wireControls(controls, store, DEFINITIONS);
     controls.show('hero', 0, 0, 70, 1);
-    const bars = controls.getContainer().children.filter((c): c is ResourceBarHitArea => c instanceof ResourceBarHitArea);
+    // Bars' controls hang from the anchor on the token's bottom edge, the container's first child
+    const bars = (controls.getContainer().children[0] as Container).children.filter((c): c is ResourceBarHitArea => c instanceof ResourceBarHitArea);
     const click = (index: number, x = 0): void => {
       const target = bars[index]!;
       const event = new FederatedPointerEvent(new EventBoundary(viewport));

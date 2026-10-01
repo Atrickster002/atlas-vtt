@@ -38,23 +38,24 @@ describe('resource bar controls', () => {
     const controls = new TokenControlsUI(viewport, store);
     wireControls(controls, store, definitions);
     controls.show('hero', 0, 0, 70, 1);
-    /** The click areas in resource order; each is followed by its minus and plus buttons. */
-    const children = controls.getContainer().children;
-    const hits = children.filter((c): c is ResourceBarHitArea => c instanceof ResourceBarHitArea);
+    /** Every control, whichever anchor holds it; each click area is followed by its minus and plus buttons. */
+    const all = (node: Container): Container[] => node.children.flatMap((child) => [child, ...all(child)]);
+    const hits = all(controls.getContainer()).filter((c): c is ResourceBarHitArea => c instanceof ResourceBarHitArea);
     const top = (hit: ResourceBarHitArea): number => (hit as unknown as { slot: { top: number } }).slot.top;
     const press = (target: Container): void => {
       const event = new FederatedPointerEvent(new EventBoundary(viewport));
       event.nativeEvent = new MouseEvent('pointerdown', { cancelable: true });
       target.emit('pointerdown', event);
     };
-    const minus = (hit: ResourceBarHitArea): Container => children[children.indexOf(hit) + 1]!;
+    const minus = (hit: ResourceBarHitArea): Container => hit.parent!.children[hit.parent!.children.indexOf(hit) + 1]!;
+    const plus = (hit: ResourceBarHitArea): Container => hit.parent!.children[hit.parent!.children.indexOf(hit) + 2]!;
     const commit = (value: string): void => {
       const input = document.querySelector<HTMLInputElement>('.atlas-token-value-editor__input')!;
       input.value = value;
       input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
     };
     const stored = (): Character => store.getState().objects.tokens.hero as Character;
-    return { controls, viewport, hits, top, press, minus, commit, stored, store };
+    return { controls, viewport, hits, top, press, minus, plus, commit, stored, store };
   }
 
   it('edits the resource whose bar was clicked', () => {
@@ -80,12 +81,34 @@ describe('resource bar controls', () => {
     } finally { controls.destroy(); viewport.destroy(); }
   });
 
-  it('gives every defined resource of the token its own controls, badges included', () => {
-    const { controls, viewport, hits } = mount(
+  it('gives the bars and the wheels their own controls, each beside its resource', () => {
+    const LUCK = { ...AMMO, key: 'luck', name: 'Luck', field: 'luck' };
+    const { controls, viewport, hits, minus, plus, press, stored } = mount(
+      { hp: { current: 3, max: 8 }, str: { current: 12, max: 14 }, ammo: { current: 4, max: 6 }, luck: { current: 2, max: 5 } }, [HP, STR, AMMO, LUCK]);
+    try {
+      expect(hits).toHaveLength(4);
+      expect(hits.every((hit) => hit.visible)).toBe(true);
+      const [, , ammo, luck] = hits;
+      // Wheels hang from the token's right edge, bars from its bottom edge
+      expect(ammo!.parent).toBe(luck!.parent);
+      expect(ammo!.parent).not.toBe(hits[0]!.parent);
+      // A stepper on the outer side: + above -, both right of the wheel
+      expect(plus(ammo!).y).toBeLessThan(minus(ammo!).y);
+      expect(plus(ammo!).x).toBe(minus(ammo!).x);
+      expect(plus(ammo!).x).toBeGreaterThan(13.5 + 20.4);
+      press(minus(ammo!));
+      press(plus(luck!));
+      expect(stored().resources).toEqual({ hp: { current: 3, max: 8 }, str: { current: 12, max: 14 }, ammo: { current: 3, max: 6 }, luck: { current: 3, max: 5 } });
+    } finally { controls.destroy(); viewport.destroy(); }
+  });
+
+  it('opens the value editor from a wheel', () => {
+    const { controls, viewport, hits, press, commit, stored } = mount(
       { hp: { current: 3, max: 8 }, str: { current: 12, max: 14 }, ammo: { current: 4, max: 6 } }, [HP, STR, AMMO]);
     try {
-      expect(hits).toHaveLength(3);
-      expect(hits.every((hit) => hit.visible)).toBe(true);
+      press(hits[2]!);
+      commit('1');
+      expect(stored().resources!.ammo).toEqual({ current: 1, max: 6 });
     } finally { controls.destroy(); viewport.destroy(); }
   });
 
