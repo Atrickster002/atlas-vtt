@@ -12,7 +12,7 @@ export class SelectionManager {
   private viewport: Viewport;
   private tokenRendererProvider: () => ({ [id: string]: Container });
   /** How far a token's resource bars and badges reach below it, in world units. */
-  public resourcesExtentProvider: (tokenId: string) => number = () => 0;
+  public resourcesExtentProvider: (tokenId: string) => { below: number; right: number } = () => ({ below: 0, right: 0 });
   private fogSpriteProvider: () => ({ [id: string]: Container });
   private hitTestTokensProvider?: (worldX: number, worldY: number) => string | null;
 
@@ -388,11 +388,10 @@ export class SelectionManager {
           const halfHeight = sprite.height / 2;
           const spriteLeft = tokenGroup.position.x - halfWidth;
           const spriteTop = tokenGroup.position.y - halfHeight;
-          const spriteRight = tokenGroup.position.x + halfWidth;
-          let spriteBottom = tokenGroup.position.y + halfHeight;
-          
-          // The selection reaches around the resources drawn below the token
-          spriteBottom += this.resourcesExtentProvider(id);
+          // The selection reaches around the resources drawn below and beside the token
+          const extent = this.resourcesExtentProvider(id);
+          const spriteRight = tokenGroup.position.x + halfWidth + extent.right;
+          const spriteBottom = tokenGroup.position.y + halfHeight + extent.below;
           
           minX = Math.min(minX, spriteLeft);
           minY = Math.min(minY, spriteTop);

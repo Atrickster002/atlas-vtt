@@ -56,6 +56,9 @@ export function tokenUIScale(spriteSize: number): number {
   return spriteSize / TOKEN_UI_REFERENCE_SIZE;
 }
 
+/** Diameter of a resize or rotate handle before `tokenUIScale`; what sits beside the token must clear it. */
+export const RESIZE_HANDLE_SIZE = 20;
+
 /**
  * Scale of a token's bars, nameplate and condition markers while it is not selected or
  * is being dragged: a medium token's on a `gridSize` grid, whatever the token's size,

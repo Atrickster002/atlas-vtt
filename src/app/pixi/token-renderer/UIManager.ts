@@ -430,12 +430,9 @@ export class UIManager implements ITokenUIManager {
     this.updateAllTokenSettings();
   }
 
-  /** How far a token's resources reach below its bottom edge, in world units; 0 without any. */
-  public resourcesExtent(tokenId: string): number {
-    const ui = this.tokenUIs[tokenId];
-    if (!ui) return 0;
-    const bottom = Math.max(0, ...ui.getResourceSlots().map((slot) => slot.top + slot.height));
-    return bottom * ui.getUIScale();
+  /** How far a token's resources reach beyond its bottom and right edges, in world units. */
+  public resourcesExtent(tokenId: string): { below: number; right: number } {
+    return this.tokenUIs[tokenId]?.getResourcesExtent() ?? { below: 0, right: 0 };
   }
 
   private updateAllTokenSettings(): void {
