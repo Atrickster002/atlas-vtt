@@ -92,21 +92,6 @@ $gap: $spacing-s;
   gap: $gap;
 }
 
-.atlas-senses__action.btn {
-  height: auto;
-  gap: $spacing-xs;
-  padding: $spacing-xs $spacing-m;
-  border: $border-width-s solid var(--background-modifier-border);
-  border-radius: $radius-m;
-  font-size: $font-ui-small;
-  color: var(--text-normal);
-
-  svg {
-    width: $icon-xs;
-    height: $icon-xs;
-  }
-}
-
 // The senses to add, each with what it does: a list that opens in place under the button.
 .atlas-senses__offer {
   @include atlas-inset-surface;
@@ -116,27 +101,15 @@ $gap: $spacing-s;
   scroll-margin-block: $spacing-l;
 }
 
-.atlas-sense-offer {
+// A ghost button whose label is two lines: the sense's name, and what it does.
+.atlas-sense-offer.btn {
   display: block;
   width: 100%;
   height: auto;
   padding: $spacing-xs $spacing-s;
-  border: none;
   border-radius: $radius-s;
-  background: transparent;
-  box-shadow: none;
   text-align: left;
   white-space: normal;
-  cursor: pointer;
-  transition: background-color $transition-fast $transition-ease;
-
-  &:hover,
-  &:focus-visible {
-    background: var(--background-modifier-hover);
-    box-shadow: none;
-  }
-
-  @include atlas-focus-ring;
 }
 
 .atlas-sense-offer__name,

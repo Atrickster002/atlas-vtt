@@ -131,19 +131,19 @@ export function SensesEditor({ senses, onChange, definitions, unit, emptyText, i
       {(following || available.length > 0 || (senses !== null && inheritedSenses.length > 0)) && (
         <div className="atlas-senses__actions">
           {following && (
-            <Button variant="ghost" className="atlas-senses__action" onClick={() => { setChosen(true); onChange(senseRows(inheritedSenses)); }}>
+            <Button variant="outline" size="sm" onClick={() => { setChosen(true); onChange(senseRows(inheritedSenses)); }}>
               <Pencil />
               Edit senses
             </Button>
           )}
           {available.length > 0 && (
-            <Button ref={addButton} variant="ghost" className="atlas-senses__action" aria-expanded={adding} aria-controls={adding ? offerId : undefined} onClick={() => setAdding(!adding)}>
+            <Button ref={addButton} variant="outline" size="sm" aria-expanded={adding} aria-controls={adding ? offerId : undefined} onClick={() => setAdding(!adding)}>
               <Plus />
               Add sense
             </Button>
           )}
           {senses !== null && inheritedSenses.length > 0 && (
-            <Button variant="ghost" className="atlas-senses__action" onClick={() => { setAdding(false); setChosen(false); onChange(null); }}>
+            <Button variant="outline" size="sm" onClick={() => { setAdding(false); setChosen(false); onChange(null); }}>
               <RotateCcw />
               Follow statblock
             </Button>
@@ -155,10 +155,10 @@ export function SensesEditor({ senses, onChange, definitions, unit, emptyText, i
         <div ref={offer} id={offerId} className="atlas-senses__offer" role="group" aria-labelledby={`${offerId}-label`} onKeyDown={onOfferKeyDown}>
           <span id={`${offerId}-label`} hidden>Senses to add</span>
           {available.map((definition) => (
-            <button key={definition.id} type="button" className="atlas-sense-offer" onClick={() => add(definition)}>
+            <Button key={definition.id} variant="ghost" className="atlas-sense-offer" onClick={() => add(definition)}>
               <span className="atlas-sense-offer__name">{definition.name}</span>
               <span className="atlas-sense-offer__text">{senseSummary(definition)}</span>
-            </button>
+            </Button>
           ))}
         </div>
       )}

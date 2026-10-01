@@ -68,12 +68,13 @@ $name-width: 128px;
   }
 }
 
-.atlas-csm-sense__edit {
+// Written with the button's own class, so the open state outranks the ghost button's hover.
+.atlas-csm-sense__edit.btn {
   color: var(--text-muted);
 
   &[aria-expanded='true'] {
     color: var(--text-accent);
-    background: color-mix(in srgb, var(--interactive-accent) 16%, transparent) !important;
+    background: color-mix(in srgb, var(--interactive-accent) 16%, transparent);
   }
 }
 
