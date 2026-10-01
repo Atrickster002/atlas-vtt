@@ -9,7 +9,11 @@ import { createInMemoryApp } from '../mocks/inMemoryVault';
 import { attachFakePlayerWindow } from '../mocks/playerPopout';
 
 vi.mock('../../src/app/atlas-view', () => ({ AtlasView: class {}, ATLAS_VIEW_TYPE: 'atlas-vtt' }));
-afterEach(() => { PlayerWindowService.getInstance()?.destroy(); vi.useRealTimers(); vi.restoreAllMocks(); });
+const collection = vi.hoisted(() => ({ hpVisibleToPlayers: false }));
+vi.mock('../../src/app/resources/collectionResources', () => ({
+  mapResources: () => [{ key: 'hp', name: 'HP', field: 'hp', direction: 'drains', look: 'bar', color: '#22c55e', defeatedWhenSpent: true, visibleToPlayers: collection.hpVisibleToPlayers }],
+}));
+afterEach(() => { PlayerWindowService.getInstance()?.destroy(); vi.useRealTimers(); vi.restoreAllMocks(); collection.hpVisibleToPlayers = false; });
 
 function scene(name = 'Hero', initiativeTrackerOpen = true): StoreApi<ViewAtlasState> {
   const token: TokenEntity = { id: 'hero', kind: 'token', x: 0, y: 0, imagePath: '' };
@@ -73,13 +77,17 @@ describe('player initiative panel', () => {
     expect(panel()).not.toBeNull();
   });
 
-  it('excludes hidden and deleted tokens, and respects the player name and HP settings', () => {
+  it('excludes hidden and deleted tokens, and shows names and HP only where players may see them', () => {
     const { settings, store, doc } = setup();
     const panel = (): Element | null => doc.querySelector('[aria-label="Initiative order"]');
     expect(panel()?.textContent).not.toContain('Hero');
     expect(panel()?.querySelector('progress')).toBeNull();
-    settings.setLocalPlayerViewSettings({ showTokenNameplates: true, showTokenHP: true });
+    settings.setLocalPlayerViewSettings({ showTokenNameplates: true });
     expect(panel()?.textContent).toContain('Hero');
+    // HP stays hidden until the collection lets players see it
+    expect(panel()?.querySelector('progress')).toBeNull();
+    collection.hpVisibleToPlayers = true;
+    settings.setLocalPlayerViewSettings({ showTokenNameplates: true, showGrid: false });
     expect(panel()?.querySelector('progress')?.value).toBe(8);
     const objects = store.getState().objects;
     store.setState({ objects: { ...objects, tokens: { hero: { ...objects.tokens.hero!, isHidden: true } } } });

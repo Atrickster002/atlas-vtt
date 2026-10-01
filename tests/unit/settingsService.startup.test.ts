@@ -47,4 +47,23 @@ describe('SettingsService startup', () => {
     expect(write).toHaveBeenCalledOnce();
     expect(JSON.parse(write.mock.calls[0][1] as string).navigation.inputMode).toBe('mouse');
   });
+
+  it('hands over the old player bar switches once and stops storing them', async () => {
+    const stored = { localPlayerView: { showTokenHP: true, showTokenStress: false, showGrid: false } };
+    const app = { vault: { adapter: { exists: async () => true, read: async () => JSON.stringify(stored), write: vi.fn(async () => undefined) } } };
+    const settings = new SettingsService(app as never);
+    await settings.initialize();
+
+    expect(settings.takeLegacyPlayerBars()).toEqual({ hp: true, stress: false });
+    expect(settings.takeLegacyPlayerBars()).toBeNull();
+    expect(settings.getLocalPlayerViewSettings()).not.toHaveProperty('showTokenHP');
+    expect(settings.getLocalPlayerViewSettings().showGrid).toBe(false);
+  });
+
+  it('has no old switches to hand over in a fresh vault', async () => {
+    const app = { vault: { adapter: { exists: async () => false } } };
+    const settings = new SettingsService(app as never);
+    await settings.initialize();
+    expect(settings.takeLegacyPlayerBars()).toBeNull();
+  });
 });

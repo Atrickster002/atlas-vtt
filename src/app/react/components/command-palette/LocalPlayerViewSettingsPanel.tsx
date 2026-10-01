@@ -10,8 +10,6 @@ import { SettingRow, SettingToggleRow } from './SettingRows';
 
 const DEFAULT_LOCAL_PLAYER_VIEW_SETTINGS = {
   showToolbar: false,
-  showTokenHP: false,
-  showTokenStress: false,
   showTokenNameplates: false,
   showNotePreviews: false,
   showGrid: true,
@@ -32,8 +30,6 @@ const UI_TOGGLES: ReadonlyArray<{ key: LocalPlayerViewToggleKey; label: string }
 ];
 
 const TOKEN_TOGGLES: ReadonlyArray<{ key: LocalPlayerViewToggleKey; label: string }> = [
-  { key: 'showTokenHP', label: 'Show HP bars' },
-  { key: 'showTokenStress', label: 'Show secondary resource bars' },
   { key: 'showTokenNameplates', label: 'Show nameplates' },
 ];
 
@@ -86,6 +82,7 @@ export function LocalPlayerViewSettingsPanel(): React.ReactElement {
       <div className="atlas-command-palette-panel-column">
         <h3 className="atlas-command-palette-panel-heading">Tokens</h3>
         {TOKEN_TOGGLES.map(renderToggle)}
+        <SettingRow label="Resources" hint="Each resource says in the collection settings whether players see it.">{null}</SettingRow>
         <SettingRow label="Note previews" hint="Note previews are not shared with the player window.">{null}</SettingRow>
 
         <Button variant="default" size="sm" className="atlas-command-palette-cta" onClick={() => openPlayerWindow(app)}>

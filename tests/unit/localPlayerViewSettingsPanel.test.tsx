@@ -15,8 +15,8 @@ it('updates every supported setting and follows settings changed elsewhere', () 
   render(<LocalPlayerViewSettingsPanel />);
   const settings = context.settings as SettingsService;
   for (const [label, key] of [
-    ['Show initiative panel', 'showInitiative'], ['Show grid', 'showGrid'], ['Show widgets', 'showWidgets'], ['Show HP bars', 'showTokenHP'],
-    ['Show secondary resource bars', 'showTokenStress'], ['Show nameplates', 'showTokenNameplates'], ['Show dice rolls', 'showDiceRolls'],
+    ['Show initiative panel', 'showInitiative'], ['Show grid', 'showGrid'], ['Show widgets', 'showWidgets'],
+    ['Show nameplates', 'showTokenNameplates'], ['Show dice rolls', 'showDiceRolls'],
   ] as const) {
     const toggle = screen.getByRole('switch', { name: label });
     const before = settings.getLocalPlayerViewSettings()[key];
@@ -26,5 +26,8 @@ it('updates every supported setting and follows settings changed elsewhere', () 
     expect(toggle.getAttribute('aria-checked')).toBe(String(before));
   }
   expect(screen.queryByRole('switch', { name: 'Show note previews' })).toBeNull();
+  // Which resources players see is set per resource in the collection, not here
+  expect(screen.queryByRole('switch', { name: 'Show HP bars' })).toBeNull();
+  expect(screen.queryByRole('switch', { name: 'Show secondary resource bars' })).toBeNull();
   expect(screen.getByText('Note previews are not shared with the player window.')).toBeTruthy();
 });
