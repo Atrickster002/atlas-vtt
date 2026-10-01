@@ -41,4 +41,11 @@ describe('scene token settings', () => {
     // The third resource of a collection is a wheel
     expect(screen.getByRole('switch', { name: 'Show Ammo wheels' })).toBeTruthy();
   });
+
+  it('names a resource by the socket it is in, not by its place in the list', () => {
+    definitions.list = [{ ...AMMO, slot: 4 }, { ...HP, slot: 1 }];
+    render(<TokenSettingsPanel view={view([]).view} />);
+    expect(screen.getByRole('switch', { name: 'Show HP bars' })).toBeTruthy();
+    expect(screen.getByRole('switch', { name: 'Show Ammo wheels' })).toBeTruthy();
+  });
 });

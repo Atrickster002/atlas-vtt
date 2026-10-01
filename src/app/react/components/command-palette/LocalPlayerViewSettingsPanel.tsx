@@ -4,7 +4,8 @@ import { App, Notice } from 'obsidian';
 import { Button } from '../../../packages/components/primitives/button';
 import { useAtlasUI } from '../../root/AtlasUIContext';
 import { useAtlasStore } from '../../ViewStoreContext';
-import { BAR_SLOTS } from '../../../resources/resourceTypes';
+import { slottedResources } from '../../../resources/resourceSlots';
+import { shapeOf } from '../../../resources/visibleResources';
 import { useMapResources } from '../../../resources/useMapResources';
 import { AssetService } from '../../../services/AssetService';
 import { runInBackground } from '../../../utils/backgroundTask';
@@ -66,7 +67,7 @@ function PlayerBarToggles({ app }: { app: App }): React.ReactElement | null {
 
   return (
     <>
-      {resources.slice(0, BAR_SLOTS).map((resource) => (
+      {slottedResources(resources).filter(({ slot }) => shapeOf(slot) === 'bar').map(({ definition: resource }) => (
         <SettingToggleRow
           key={resource.key}
           label={`Show ${resource.name} bars`}

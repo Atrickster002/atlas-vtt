@@ -3,6 +3,7 @@ import { SettingToggleRow } from './SettingRows';
 import type { AtlasView } from '../../../atlas-view';
 import { AssetService } from '../../../services/AssetService';
 import { mapResources } from '../../../resources/collectionResources';
+import { slottedResources } from '../../../resources/resourceSlots';
 import { toggleHidden } from '../../../resources/sceneVisibility';
 import { shapeOf } from '../../../resources/visibleResources';
 import { DEFAULT_TOKEN_SETTINGS } from '../../../storeFactory';
@@ -44,7 +45,7 @@ export function TokenSettingsPanel({ view }: TokenSettingsPanelProps): React.Rea
         ))}
       </div>
       <div className="atlas-command-palette-panel-column">
-        {definitions.map((definition, slot) => (
+        {slottedResources(definitions).map(({ definition, slot }) => (
           <SettingToggleRow
             key={definition.key}
             label={`Show ${definition.name} ${shapeOf(slot) === 'bar' ? 'bars' : 'wheels'}`}

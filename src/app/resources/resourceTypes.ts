@@ -18,6 +18,11 @@ export interface ResourceDefinition {
   /** Spent (0 when draining, max when filling) marks the token defeated. */
   defeatedWhenSpent?: boolean;
   visibleToPlayers: boolean;
+  /**
+   * The socket it takes on a token, 0 to `MAX_RESOURCES - 1`: two bars, two wheels on the right, two on the left.
+   * Without one it takes the first free socket in list order. Read sockets through `slottedResources`.
+   */
+  slot?: number;
 }
 
 /** `current` counts in the resource's direction: remaining when draining, used when filling. */
@@ -31,7 +36,7 @@ export type ResourceViewer = 'dm' | 'player';
 /** Supplies the resource definitions of the collection a map belongs to. */
 export type ResourceDefsProvider = () => readonly ResourceDefinition[];
 
-/** A token shows at most this many resources. */
+/** A token has this many sockets, so it shows at most this many resources. */
 export const MAX_RESOURCES = 6;
 /** The first slots are bars below the token; the rest are wheels beside it (two on its right, two on its left), shown on hover and selection. */
 export const BAR_SLOTS = 2;
