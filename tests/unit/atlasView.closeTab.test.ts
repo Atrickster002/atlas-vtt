@@ -19,7 +19,7 @@ describe('Atlas scene tab closing', () => {
     const nextId = tabMetaStore.getState().addTab(next.path, 'Next');
     const closingId = tabMetaStore.getState().addTab('maps/closing.atlasmap', 'Closing');
     const context = {
-      tabMetaStore, isSwitching: false,
+      tabMetaStore, sceneRequests: 0,
       store: { getState: () => ({ mapLoaded: true }) },
       flushPendingSaves: vi.fn().mockResolvedValue(undefined),
       temporalCache: new Map(), viewportCache: new Map(),
@@ -30,6 +30,7 @@ describe('Atlas scene tab closing', () => {
       app: { vault: { getAbstractFileByPath: () => next }, workspace: { requestSaveLayout: vi.fn() } },
       switchToTab: (id: string): Promise<void> => AtlasView.prototype.switchToTab.call(context as unknown as AtlasView, id),
     };
+    Object.setPrototypeOf(context, AtlasView.prototype);
     await AtlasView.prototype.closeTab.call(context as unknown as AtlasView, closingId);
     expect(context.performSceneLoad).toHaveBeenCalledWith(next);
     expect(context.restoreTemporalState).toHaveBeenCalledWith(nextId);

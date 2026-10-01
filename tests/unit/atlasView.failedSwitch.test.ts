@@ -16,8 +16,9 @@ function setup(options: { sceneLoads: boolean; mapLoaded: boolean; isMapLoading?
   const towerId = tabMetaStore.getState().addTab(TOWER.path, 'Tower');
   tabMetaStore.getState().setActiveTab(caveId);
   const context = {
-    tabMetaStore, isSwitching: false,
-    store: { getState: () => ({ mapLoaded: options.mapLoaded, isMapLoading: options.isMapLoading ?? false }) },
+    tabMetaStore, sceneRequests: 0,
+    // Cave is the active tab; its scene is in the store when one is loaded
+    store: { getState: () => ({ mapLoaded: options.mapLoaded, isMapLoading: options.isMapLoading ?? false, mapPath: options.mapLoaded ? CAVE.path : null }) },
     flushPendingSaves: vi.fn().mockResolvedValue(undefined),
     saveTemporalState: vi.fn(), saveViewportState: vi.fn(),
     restoreTemporalState: vi.fn(), restoreViewportState: vi.fn(),
@@ -27,6 +28,7 @@ function setup(options: { sceneLoads: boolean; mapLoaded: boolean; isMapLoading?
       workspace: { requestSaveLayout: vi.fn() },
     },
   };
+  Object.setPrototypeOf(context, AtlasView.prototype);
   const switchToTab = (id: string): Promise<void> => AtlasView.prototype.switchToTab.call(context as unknown as AtlasView, id);
   return { context, switchToTab, caveId, towerId };
 }
@@ -50,7 +52,6 @@ describe('switching scene tabs around a load that did not finish', () => {
     expect(context.performSceneLoad).toHaveBeenCalledWith(TOWER);
     expect(context.restoreTemporalState).not.toHaveBeenCalled();
     expect(context.restoreViewportState).not.toHaveBeenCalled();
-    expect(context.isSwitching).toBe(false);
   });
 
   it('keeps the cached history and viewport of a tab whose scene is not loaded', async () => {

@@ -60,7 +60,12 @@ export class AtlasView extends FileView {
   private temporalCache: Map<string, Pick<HistoryState, 'pastStates' | 'futureStates'>> = new Map();
   private viewportCache: Map<string, TabViewportState> = new Map();
   public readonly viewId: string;
-  private isSwitching: boolean = false;
+  /**
+   * Counts tab switches, new tabs and reloads. One that is no longer the latest after
+   * a wait leaves the view to the newer one; the scene loads themselves are arbitrated
+   * by MapService. Nothing is held while waiting, so a stalled load cannot block the tabs.
+   */
+  private sceneRequests = 0;
   private plugin: AtlasVTTPlugin | undefined;
   private resizeObserver: ResizeObserver | null = null;
   private lastContainerWidth: number = 0;
@@ -336,60 +341,69 @@ export class AtlasView extends FileView {
    * Flushes pending saves, resolves the file, and loads the scene.
    */
   public async switchToTab(tabId: string): Promise<void> {
-    if (this.isSwitching) return;
-    this.isSwitching = true;
-    try {
-      const tabState = this.tabMetaStore.getState();
-      const tab = tabState.tabs.find((t: SceneTab) => t.id === tabId);
-      if (!tab) {
-        console.warn(`[AtlasView] switchToTab: tab not found: ${tabId}`);
-        return;
-      }
-
-      // Already active: nothing to do, unless its scene failed to load. Then switching to it tries again.
-      const { mapLoaded: sceneLoaded, isMapLoading } = this.store.getState();
-      if (tabState.activeTabId === tabId && (sceneLoaded || isMapLoading)) return;
-
-      // Flush pending saves before capturing any state snapshots
-      await this.flushPendingSaves();
-
-      // Save current tab's undo/redo history and viewport after flush is settled.
-      // Without a loaded scene there is nothing of the tab's to save over what is cached.
-      if (tabState.activeTabId && sceneLoaded) {
-        this.saveTemporalState(tabState.activeTabId);
-        this.saveViewportState(tabState.activeTabId);
-      }
-
-      // Resolve the TFile from the tab's filePath
-      const abstractFile = this.app.vault.getAbstractFileByPath(normalizePath(tab.filePath));
-      if (!(abstractFile instanceof TFile)) {
-        new Notice(`Scene file not found: ${tab.filePath}`);
-        this.tabMetaStore.getState().removeTab(tabId);
-        return;
-      }
-
-      // Update FileView's internal file reference
-      this.file = abstractFile;
-
-      // Set active tab in meta store
-      this.tabMetaStore.getState().setActiveTab(tabId);
-
-      // Load the map from disk (clears state, rehydrates, emits map-loaded)
-      const loaded = await this.performSceneLoad(abstractFile);
-
-      // Restore the target tab's undo/redo history and viewport position.
-      // Writing past/future states directly never records a step, so tracking can stay as the load left it.
-      // A scene that failed to load, or was replaced by a later request, takes none of them.
-      if (loaded) {
-        this.restoreTemporalState(tabId);
-        this.restoreViewportState(tabId);
-      }
-
-      // Tell Obsidian the view state changed so workspace.json is updated
-      this.app.workspace.requestSaveLayout();
-    } finally {
-      this.isSwitching = false;
+    const tabState = this.tabMetaStore.getState();
+    const tab = tabState.tabs.find((t: SceneTab) => t.id === tabId);
+    if (!tab) {
+      console.warn(`[AtlasView] switchToTab: tab not found: ${tabId}`);
+      return;
     }
+
+    // Already active: nothing to do, unless its scene failed to load. Then switching to it tries again.
+    const { mapLoaded, isMapLoading } = this.store.getState();
+    if (tabState.activeTabId === tabId && (mapLoaded || isMapLoading)) return;
+
+    // Flush pending saves before capturing any state snapshots
+    const request = ++this.sceneRequests;
+    await this.flushPendingSaves();
+    if (request !== this.sceneRequests) return;
+
+    this.cacheLoadedTabState();
+
+    // Resolve the TFile from the tab's filePath
+    const abstractFile = this.app.vault.getAbstractFileByPath(normalizePath(tab.filePath));
+    if (!(abstractFile instanceof TFile)) {
+      new Notice(`Scene file not found: ${tab.filePath}`);
+      this.tabMetaStore.getState().removeTab(tabId);
+      return;
+    }
+
+    // Update FileView's internal file reference
+    this.file = abstractFile;
+
+    // Set active tab in meta store
+    this.tabMetaStore.getState().setActiveTab(tabId);
+
+    // Load the map from disk (clears state, rehydrates, emits map-loaded)
+    const loaded = await this.performSceneLoad(abstractFile);
+
+    // Restore the target tab's undo/redo history and viewport position.
+    // Writing past/future states directly never records a step, so tracking can stay as the load left it.
+    // A scene that failed to load, or was replaced by a later request, takes none of them.
+    if (loaded) {
+      this.restoreTemporalState(tabId);
+      this.restoreViewportState(tabId);
+    }
+
+    // Tell Obsidian the view state changed so workspace.json is updated
+    this.app.workspace.requestSaveLayout();
+  }
+
+  /**
+   * The tab whose scene the store holds as loaded. While a switch is under way the
+   * active tab is already the next one, so the store's own path decides.
+   */
+  private loadedTabId(): string | null {
+    const { mapLoaded, mapPath } = this.store.getState();
+    if (!mapLoaded || !mapPath) return null;
+    return this.tabMetaStore.getState().getTabByFilePath(mapPath)?.id ?? null;
+  }
+
+  /** Keeps the undo/redo history and viewport of the scene being left for its tab; without a loaded scene there is nothing to keep. */
+  private cacheLoadedTabState(): void {
+    const tabId = this.loadedTabId();
+    if (!tabId) return;
+    this.saveTemporalState(tabId);
+    this.saveViewportState(tabId);
   }
 
   /**
@@ -442,8 +456,6 @@ export class AtlasView extends FileView {
   }
 
   public async closeTab(tabId: string): Promise<void> {
-    if (this.isSwitching) return;
-
     const tabState = this.tabMetaStore.getState();
     const tab = tabState.tabs.find((t: SceneTab) => t.id === tabId);
     if (!tab) return;
@@ -517,27 +529,27 @@ export class AtlasView extends FileView {
    */
   public async reloadActiveScene(rewrite: (file: TFile) => Promise<void>): Promise<void> {
     const file = this.file;
-    const tabId = this.tabMetaStore.getState().activeTabId;
-    if (!(file instanceof TFile) || this.isSwitching) return;
+    const activeTabId = this.tabMetaStore.getState().activeTabId;
+    if (!(file instanceof TFile)) return;
 
-    this.isSwitching = true;
+    const request = ++this.sceneRequests;
+    await this.flushPendingSaves();
+    // Only a loaded scene has a camera to keep
+    const tabId = activeTabId !== null && this.loadedTabId() === activeTabId ? activeTabId : null;
+    if (tabId) this.saveViewportState(tabId);
+
+    this.store.getState().setPersistenceEnabled(false);
     try {
-      await this.flushPendingSaves();
-      if (tabId) this.saveViewportState(tabId);
-
-      this.store.getState().setPersistenceEnabled(false);
-      try {
-        await rewrite(file);
-      } catch (error) {
-        this.store.getState().setPersistenceEnabled(true);
-        throw error;
-      }
-
-      const loaded = await this.performSceneLoad(file);
-      if (loaded && tabId) this.restoreViewportState(tabId);
-    } finally {
-      this.isSwitching = false;
+      await rewrite(file);
+    } catch (error) {
+      this.store.getState().setPersistenceEnabled(true);
+      throw error;
     }
+
+    // A tab switch made meanwhile shows its own scene; its load switches saving back on
+    if (request !== this.sceneRequests) return;
+    const loaded = await this.performSceneLoad(file);
+    if (loaded && tabId) this.restoreViewportState(tabId);
   }
 
   /**
@@ -563,18 +575,17 @@ export class AtlasView extends FileView {
     if (existingTab) {
       // File is already a tab
       if (tabState.activeTabId === existingTab.id) {
+        this.sceneRequests++;
         if (await this.performSceneLoad(file)) this.tabMetaStore.getState().markTabLoaded(existingTab.id);
       } else {
         await this.switchToTab(existingTab.id);
       }
     } else {
+      this.sceneRequests++;
       await this.flushPendingSaves();
 
       // Save current tab's temporal + viewport state before loading a new scene
-      if (tabState.activeTabId && this.store.getState().mapLoaded) {
-        this.saveTemporalState(tabState.activeTabId);
-        this.saveViewportState(tabState.activeTabId);
-      }
+      this.cacheLoadedTabState();
 
       const displayName = file.basename;
       const tabId = tabState.addTab(file.path, displayName);
