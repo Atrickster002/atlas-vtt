@@ -1,3 +1,7 @@
+import { useMapResources } from '../../resources/useMapResources';
+import { isDefeated } from '../../resources/resourceValues';
+import { resourceColor } from '../../resources/resourceColors';
+import { visibleResources } from '../../resources/visibleResources';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { GripVertical, Skull, User, Bot } from 'lucide-react';
 import type { InitiativeEntry } from '../../types/initiativeTypes';
@@ -19,7 +23,7 @@ interface InitiativeCardProps {
 
 /**
  * Individual initiative tracker card
- * Displays token avatar, name, initiative value, HP bar, and optional stress bar
+ * Displays token avatar, name, initiative value and the bars of the token's resources
  */
 export const InitiativeCard: React.FC<InitiativeCardProps> = ({
   entry,
@@ -50,17 +54,11 @@ export const InitiativeCard: React.FC<InitiativeCardProps> = ({
     return sameImageCount >= 2 ? token.instanceNumber : null;
   }, [tokens, entry.tokenId, tokenSettings?.showInstanceBadges]);
 
-  // Calculate HP percentage and color
-  const hpPercentage = entry.hp && entry.hp.max > 0
-    ? Math.max(0, Math.min(100, (entry.hp.current / entry.hp.max) * 100))
-    : 0;
-
-  // Match thresholds from hp-bar.tsx: >=70% ok, 30-69% warn, <30% crit
-  const getHPColorClass = (): string => {
-    if (hpPercentage >= 70) return 'atlas-initiative-card__hp-fill--healthy';
-    if (hpPercentage >= 30) return 'atlas-initiative-card__hp-fill--injured';
-    return 'atlas-initiative-card__hp-fill--critical';
-  };
+  // Read live from the token: the resources that defeat it (hit points), and whether one of them has
+  const definitions = useMapResources();
+  const token = tokens[entry.tokenId];
+  const bars = token ? visibleResources(token, definitions, 'dm').filter(({ definition }) => definition.defeatedWhenSpent) : [];
+  const defeated = token !== undefined && isDefeated(token, definitions);
 
   // Get image URL from vault path
   const getImageUrl = useCallback((imagePath: string): string => {
@@ -196,7 +194,7 @@ export const InitiativeCard: React.FC<InitiativeCardProps> = ({
   const cardClasses = [
     'atlas-initiative-card',
     entry.isActive && 'atlas-initiative-card--active',
-    entry.isDefeated && 'atlas-initiative-card--defeated',
+    defeated && 'atlas-initiative-card--defeated',
     isHoveredForPreview && 'atlas-initiative-card--preview-hover',
     dropPosition === 'above' && 'atlas-initiative-card--drop-above',
     dropPosition === 'below' && 'atlas-initiative-card--drop-below',
@@ -240,7 +238,7 @@ export const InitiativeCard: React.FC<InitiativeCardProps> = ({
           )}
 
           {/* Defeated overlay */}
-          {entry.isDefeated && (
+          {defeated && (
             <div className="atlas-initiative-card__defeated-overlay">
               <Skull />
             </div>
@@ -257,13 +255,25 @@ export const InitiativeCard: React.FC<InitiativeCardProps> = ({
         {entry.initiative}
       </span>
 
-      {/* HP bar; a token without hit points has none */}
-      {entry.hp && (
-        <div className="atlas-initiative-card__hp-bar">
-          <div
-            className={`atlas-initiative-card__hp-fill ${getHPColorClass()}`}
-            style={{ width: `${hpPercentage}%` }}
-          />
+      {/* Resource bars */}
+      {bars.length > 0 && (
+        <div className="atlas-initiative-card__resources">
+          {bars.map(({ definition, value }) => (
+            <div
+              key={definition.key}
+              className="atlas-initiative-card__hp-bar"
+              role="meter"
+              aria-label={definition.name}
+              aria-valuemin={0}
+              aria-valuenow={value.current}
+              aria-valuemax={value.max}
+            >
+              <div
+                className="atlas-initiative-card__hp-fill"
+                style={{ width: `${Math.max(0, Math.min(100, (value.current / value.max) * 100))}%`, '--atlas-resource-color': resourceColor(definition, value) } as React.CSSProperties}
+              />
+            </div>
+          ))}
         </div>
       )}
     </div>

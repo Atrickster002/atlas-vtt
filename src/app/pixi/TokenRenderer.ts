@@ -1,3 +1,7 @@
+import { mapResources } from '../resources/collectionResources';
+import type { ResourceDefinition, ResourceDefsProvider } from '../resources/resourceTypes';
+import { fillMissingResources, syncedResources } from '../resources/statblockResourceSync';
+import { runUntracked } from '../stores/history';
 import { fitTokenArtwork, syncTokenArtwork } from './token-renderer/tokenArtwork';
 import type { AtlasSettings } from '../services/SettingsService';
 import { HIDDEN_TOKEN_ALPHA, gmTokenLayers, hiddenTokenLayers, type LayerVisibility } from './playerSafeFrame';
@@ -56,6 +60,8 @@ export class TokenRenderer {
   private eventBus: EventEmitter;
   private statblockDialogService: StatblockDialogService;
   private assetService: AssetService;
+  /** The resources of the map's collection; set once the asset service is wired. */
+  private resourceDefsProvider: ResourceDefsProvider = () => [];
   private assetValidationService?: AssetValidationService;
   private tokenStatblockLinkService: TokenStatblockLinkService;
   private spriteFactory: SpriteFactory;
@@ -148,7 +154,8 @@ export class TokenRenderer {
     this.viewId = viewId || `tokenrenderer-${Date.now()}-${Math.random()}`;
     this.statblockDialogService = new StatblockDialogService(obsApp);
     this.assetService = AssetService.getInstance(obsApp);
-    this.assetService.initialize().catch(err => {
+    // Tokens drawn before the index is loaded read their collection's rules as unknown
+    this.assetService.initialize().then(() => this.refreshCollectionRules(), (err: unknown) => {
       console.error('[TokenRenderer] Failed to initialize AssetService:', err);
     });
     this.tokenStatblockLinkService = TokenStatblockLinkService.getInstance(obsApp);
@@ -216,6 +223,9 @@ export class TokenRenderer {
     };
     this.interactionController.conditionDefsProvider = conditionDefsProvider;
     this.uiManager.conditionDefsProvider = conditionDefsProvider;
+    this.resourceDefsProvider = (): readonly ResourceDefinition[] => mapResources(this.assetService, this.store.getState().mapPath);
+    this.interactionController.resourceDefsProvider = this.resourceDefsProvider;
+    this.uiManager.resourceDefsProvider = this.resourceDefsProvider;
 
     // Initialize sync service
     this.syncService = new SyncService(this.store, this.gridSystem, this.eventBus);
@@ -340,6 +350,7 @@ export class TokenRenderer {
       this.evictUnusedArt();
       runInBackground(this.syncTokens(currentTokens, {}), 'Token sync after map change');
       this.onWhenAllTokensLoaded(() => this.updateAllTokenSizes());
+      this.fillMissingResources();
     };
     
     this.eventBus.on('map-loaded', handleMapLoaded);
@@ -426,7 +437,7 @@ export class TokenRenderer {
     // Condition badges follow edits to the map's collection conditions
     const handleCollectionSettingsChange = this.obsApp.workspace.on('atlas-vtt:collection-settings-changed', (collectionId) => {
       const mapPath = this.store.getState().mapPath;
-      if (mapPath && this.assetService.getCollectionForMap(mapPath) === collectionId) this.uiManager.refreshConditions();
+      if (mapPath && this.assetService.getCollectionForMap(mapPath) === collectionId) this.refreshCollectionRules();
     });
 
     // Tokens show the new content of an edited image file, e.g. a re-cropped token
@@ -440,7 +451,8 @@ export class TokenRenderer {
       if (!metadata?.frontmatter) return;
       
       // Check if it's a character/statblock file (has HP or is marked as a character)
-      const isCharacter = metadata.frontmatter.hp !== undefined || 
+      const isCharacter = metadata.frontmatter.hp !== undefined ||
+                         metadata.frontmatter.statblock !== undefined ||
                          metadata.frontmatter.isCharacter === true ||
                          metadata.frontmatter.type === 'character';
       
@@ -485,22 +497,12 @@ export class TokenRenderer {
         for (const [tokenId, token] of Object.entries(tokens)) {
           if (token.kind !== 'character' || token.statblockPath !== statblockPath) continue;
 
-          // Refresh statblock-derived data but keep live values such as current HP and stress
+          // Refresh statblock-derived data but keep live values such as the current HP
           const updates: TokenUpdates = { name: vitals.name || token.name };
 
-          if (vitals.hp && !token.maxHpOverridden) {
-            const currentHp = typeof token.hp === 'object' ? token.hp.current : undefined;
-            updates.hp = {
-              current: currentHp ?? vitals.hp.current ?? vitals.hp.max ?? 0,
-              max: vitals.hp.max || vitals.hp.current || 0
-            };
-          }
-
-          if (vitals.maxStress !== undefined && !token.maxStressOverridden) {
-            updates.maxStress = vitals.maxStress;
-            if (token.stress === undefined) {
-              updates.stress = 0;
-            }
+          const resources = syncedResources(token, metadata.frontmatter, this.resourceDefsProvider());
+          if (JSON.stringify(resources) !== JSON.stringify(token.resources ?? {})) {
+            updates.resources = resources;
           }
 
           if (vitals.difficulty !== undefined) {
@@ -621,16 +623,9 @@ export class TokenRenderer {
   }
 
   private updateTokenRing(tokenId: string, tokenGroup: TokenGroupContainer, size: number, ringColor?: string): void {
-    const tokenSettings = this.store.getState().tokenSettings || {
-      showNameplates: false,
-      showHPBars: true,
-      showStressBars: false,
-      tokenRingSize: 1
-    };
-
     const current = this.store.getState().objects.tokens[tokenId];
     if (current) tokenGroup.tokenData = current;
-    const sizeWithMultiplier = size * tokenSettings.tokenRingSize;
+    const sizeWithMultiplier = size * (this.store.getState().tokenSettings?.tokenRingSize ?? 1);
     const resolvedRingColor = ringColor || '#ffffff';
 
     // Route all ring redraws through SpriteFactory to keep visuals consistent
@@ -737,9 +732,10 @@ export class TokenRenderer {
 
   /** Greys out a token at 0 HP and marks it with a skull; killing and healing a loaded token animate. */
   private applyDownedState(token: TokenEntity, tokenGroup: TokenGroupContainer, prevToken?: TokenEntity): void {
-    const downed = isTokenDowned(token);
+    const definitions = this.resourceDefsProvider();
+    const downed = isTokenDowned(token, definitions);
     const canvas = this.pixiApp?.canvas;
-    const animate = prevToken !== undefined && isTokenDowned(prevToken) !== downed && !!canvas && !prefersReducedMotion(canvas);
+    const animate = prevToken !== undefined && isTokenDowned(prevToken, definitions) !== downed && !!canvas && !prefersReducedMotion(canvas);
     this.downedTokenOverlay.update(tokenGroup, downed, animate);
   }
 
@@ -975,7 +971,7 @@ export class TokenRenderer {
                   ? this.obsApp.metadataCache.getFileCache(statblockFile)?.frontmatter
                   : undefined;
                 if (frontmatter) {
-                  character = { ...character, ...buildStatblockLinkUpdates(frontmatter, token.name) };
+                  character = { ...character, ...buildStatblockLinkUpdates(frontmatter, token.name, this.resourceDefsProvider(), token.resources) };
                 }
               } catch (error) {
                 console.error(`[TokenRenderer] Failed to load statblock data for token ${token.id}:`, error);
@@ -1139,13 +1135,11 @@ export class TokenRenderer {
     if ((token.conditions ?? []).join() !== (prevToken.conditions ?? []).join()) return true;
     if (token.conditionValues !== prevToken.conditionValues) return true;
 
-    // Character data: name, HP and stress (compared by value) and statblock link
+    // Character data: name, resources (compared by value) and statblock link
     const character = token.kind === 'character' ? token : undefined;
     const prevCharacter = prevToken.kind === 'character' ? prevToken : undefined;
     if (character?.name !== prevCharacter?.name) return true;
-    if (JSON.stringify(character?.hp) !== JSON.stringify(prevCharacter?.hp)) return true;
-    if (JSON.stringify(character?.stress) !== JSON.stringify(prevCharacter?.stress)) return true;
-    if (character?.maxStress !== prevCharacter?.maxStress) return true;
+    if (token.resources !== prevToken.resources && JSON.stringify(token.resources) !== JSON.stringify(prevToken.resources)) return true;
     if (character?.statblockPath !== prevCharacter?.statblockPath) return true;
 
     // Texture source changes
@@ -1321,6 +1315,28 @@ export class TokenRenderer {
     }
   }
 
+  /** Redraws what tokens show of their collection's rules (conditions, resources) and starts the resources they lack. */
+  private refreshCollectionRules(): void {
+    if (this.isDestroyed) return;
+    this.uiManager.refreshConditions();
+    this.uiManager.refreshResources();
+    this.fillMissingResources();
+  }
+
+  /** Linked tokens start the collection's resources they do not hold yet, e.g. one defined after they were placed. */
+  private fillMissingResources(): void {
+    if (this.store.getState().isPlayerView) return;
+    runInBackground(fillMissingResources(
+      {
+        tokens: () => this.store.getState().objects.tokens,
+        // Not an edit of the game master's: it must not become an undo step.
+        apply: (entries) => runUntracked(this.store, () => this.store.getState().updateTokens(entries)),
+      },
+      this.resourceDefsProvider(),
+      (path) => this.tokenStatblockLinkService.readStatblockRecord(path),
+    ), 'Starting missing token resources');
+  }
+
   /**
    * Updates multiple tokens with data from a statblock
    */
@@ -1340,9 +1356,9 @@ export class TokenRenderer {
         const currentName = token.kind === 'character' ? token.name : undefined;
         this.store.getState().updateToken(tokenId, {
           statblockPath,
-          maxHpOverridden: undefined,
-          maxStressOverridden: undefined,
-          ...buildStatblockLinkUpdates(frontmatter, currentName)
+          // Maxima set by hand belonged to the previous statblock.
+          overriddenMax: undefined,
+          ...buildStatblockLinkUpdates(frontmatter, currentName, this.resourceDefsProvider(), token.resources)
         });
       }
     } catch (error) {
@@ -1431,6 +1447,11 @@ export class TokenRenderer {
       ...this.uiManager.getPlayerViewLayers(settings, isSeen),
       ...this.dragRuler.getPlayerViewLayers(isSeen),
     ];
+  }
+
+  /** How far a selected token's resources reach beyond its bottom, right and top edges, in world units. */
+  public resourcesExtent(tokenId: string): { below: number; right: number; above: number } {
+    return this.uiManager.resourcesExtent(tokenId);
   }
 
   /** Tokens and their bars and nameplates as the GM view shows them, whatever view the canvas is in: for a picture of the scene. */

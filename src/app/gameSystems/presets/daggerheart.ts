@@ -1,4 +1,5 @@
 import type { SystemPreset } from '../../types/systemPresetTypes';
+import { HP_RESOURCE, STRESS_RESOURCE } from '../../resources/resourceDefinitions';
 import { builtInPresetId, conditionsOf } from './presetHelpers';
 
 /**
@@ -33,6 +34,6 @@ export const DAGGERHEART: SystemPreset = {
       { name: 'Vulnerable', color: '#dc2626', icon: 'cracked-shield' },
     ]),
     // Every Daggerheart character and adversary tracks Hit Points and Stress.
-    defaultWidgets: { hpBar: true, stressBar: true },
+    resources: [{ ...HP_RESOURCE }, { ...STRESS_RESOURCE }],
   },
 };

@@ -27,7 +27,7 @@ interface FantasyStatblockProps {
   noteContent?: string | undefined;
   /** Obsidian app — used for markdown, images and click-to-roll dice */
   app: App;
-  /** Tokens whose HP/stress drive the statblock's vitals — one block per token */
+  /** Tokens whose resources drive the statblock's vitals — one block per token */
   tokens?: TokenVitals[];
   /** Allows values to be edited in place, writing back to the note's frontmatter */
   editable?: boolean;
@@ -37,7 +37,7 @@ interface FantasyStatblockProps {
 
 /** Signature of the values mirrored into the statblock, for change detection. */
 function vitalsKey(tokens: TokenVitals[]): string {
-  return JSON.stringify(tokens.map((t) => [t.name, t.hp, t.stress, t.maxStress]));
+  return JSON.stringify(tokens.map((t) => [t.name, t.resources]));
 }
 
 /**
@@ -188,7 +188,7 @@ export function FantasyStatblock({
     );
   }, [app, monster, notePath]);
 
-  // Mirror token HP/stress into any vitals track the layout renders.
+  // Mirror the tokens' resources into any vitals track the layout renders.
   useEffect(() => {
     if (ref.current && !tokenActions) {
       syncStatblockVitals(ref.current, tokensRef.current);

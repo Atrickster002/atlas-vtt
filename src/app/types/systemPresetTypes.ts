@@ -3,6 +3,7 @@
  * conditions) that can be applied to any collection.
  */
 
+import type { ResourceDefinition } from '../resources/resourceTypes';
 import type { CollectionGridDefaults, ConditionDefinition } from './collectionSettingsTypes';
 import type { DiceRules } from './diceRulesTypes';
 import type { TokenVisionDefaults } from './lightingTypes';
@@ -21,11 +22,13 @@ export interface SystemRules {
   widgets?: AnyWidget[];
   /**
    * What new scenes of the collection show and use, by key as in
-   * `CollectionSettings.defaultWidgets` (e.g. `stressBar` for Daggerheart's Stress).
+   * `CollectionSettings.defaultWidgets` (e.g. `initiativeTracker`).
    */
   defaultWidgets?: Record<string, boolean>;
   /** Default roll and critical rule. Unset means `DEFAULT_DICE_RULES`. */
   dice?: DiceRules;
+  /** Token resources the system defines, copied on apply like conditions. */
+  resources?: ResourceDefinition[];
   /**
    * What new tokens start with (sight range, senses, cone), for systems
    * where every character has a baseline. Unset: new tokens get no vision settings.

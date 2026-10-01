@@ -1,4 +1,5 @@
 import type { SystemPreset } from '../../types/systemPresetTypes';
+import { HP_RESOURCE } from '../../resources/resourceDefinitions';
 import { builtInPresetId, conditionsOf } from './presetHelpers';
 
 /**
@@ -34,6 +35,6 @@ export const CALL_OF_CTHULHU: SystemPreset = {
       { name: 'Prone', color: '#d97706', icon: 'foot-trip' },
       { name: 'Stunned', color: '#fbbf24', icon: 'knocked-out-stars' },
     ]),
-    defaultWidgets: { hpBar: true },
+    resources: [{ ...HP_RESOURCE }],
   },
 };

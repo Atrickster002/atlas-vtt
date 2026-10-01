@@ -2,7 +2,7 @@
  * CollectionSettingsModal
  *
  * Vertical-tabbed modal for configuring per-collection settings:
- *   Game System | Dice | Grid & Measurement | Vision | Default Widgets | Conditions | Loot
+ *   Game System | Dice | Grid & Measurement | Vision | Default Widgets | Conditions | Resources | Creature Filters | Loot
  *
  * Opens after collection creation and via a gear button in the sidebar.
  */
@@ -10,7 +10,7 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { motion } from 'framer-motion';
-import { Dice5, Dices, Eye, Grid3X3, LayoutGrid, ListFilter, ShieldAlert } from 'lucide-react';
+import { Dice5, Dices, Eye, Gauge, Grid3X3, LayoutGrid, ListFilter, ShieldAlert } from 'lucide-react';
 import { CoinIcon } from './CoinIcon';
 import { Button } from '../../packages/components/primitives/button';
 import { useAtlasUI } from '../root/AtlasUIContext';
@@ -18,14 +18,15 @@ import { AssetService } from '../../services/AssetService';
 import type { SystemPreset } from '../../types/systemPresetTypes';
 import { deleteSystemPreset } from '../../services/systemPresetDeletion';
 import { syncCollectionSystem } from '../../services/collectionSystemSync';
-import { applyTokenBars } from '../../services/collectionTokenBars';
 import { useSystemPresets } from '../hooks/useSystemPresets';
-import { useCollectionSettingsDraft } from './collection-settings/useCollectionSettingsDraft';
+import { savedResources, useCollectionSettingsDraft } from './collection-settings/useCollectionSettingsDraft';
 
 import { GridMeasurementTab } from './collection-settings/GridMeasurementTab';
 import { VisionTab } from './collection-settings/VisionTab';
 import { DefaultWidgetsTab } from './collection-settings/DefaultWidgetsTab';
 import { ConditionsTab } from './collection-settings/ConditionsTab';
+import { ResourcesTab } from './collection-settings/ResourcesTab';
+import { discoverResourceFields } from '../../resources/resourceFields';
 import { LootTab } from './collection-settings/LootTab';
 import { SystemTab } from './collection-settings/SystemTab';
 import { DiceTab } from './collection-settings/DiceTab';
@@ -49,7 +50,7 @@ interface CollectionSettingsModalProps {
   initialTab?: CollectionSettingsTab;
 }
 
-export type CollectionSettingsTab = 'system' | 'dice' | 'grid' | 'vision' | 'widgets' | 'conditions' | 'creatureFilters' | 'loot';
+export type CollectionSettingsTab = 'system' | 'dice' | 'grid' | 'vision' | 'widgets' | 'conditions' | 'resources' | 'creatureFilters' | 'loot';
 
 interface TabDef {
   id: CollectionSettingsTab;
@@ -64,6 +65,7 @@ const TABS: TabDef[] = [
   { id: 'vision', label: 'Vision', icon: <Eye size={16} /> },
   { id: 'widgets', label: 'Default Widgets', icon: <LayoutGrid size={16} /> },
   { id: 'conditions', label: 'Conditions', icon: <ShieldAlert size={16} /> },
+  { id: 'resources', label: 'Resources', icon: <Gauge size={16} /> },
   { id: 'creatureFilters', label: 'Creature Filters', icon: <ListFilter size={16} /> },
   { id: 'loot', label: 'Loot', icon: <CoinIcon size={16} /> },
 ];
@@ -88,7 +90,7 @@ export function CollectionSettingsModal({
   // Local draft of settings — only persisted on Save
   const draft = useCollectionSettingsDraft(assetService, collectionId, isOpen);
   const { gridDefaults, conditions } = draft;
-  const collectionCreatures = useCollectionCreatures(app ?? null, assetService, collectionId, isOpen && activeTab === 'creatureFilters');
+  const collectionCreatures = useCollectionCreatures(app ?? null, assetService, collectionId, isOpen && (activeTab === 'creatureFilters' || activeTab === 'resources'));
 
   // Resolve the collection name for the header
   useEffect(() => {
@@ -120,7 +122,9 @@ export function CollectionSettingsModal({
   const dice = collectionDiceRules(draft, systemPresets.presets);
   const canSave = areRangeBandsValid(gridDefaults.abstractRangeBands)
     && isValidDefaultRoll(dice.defaultRoll)
-    && draft.customCreatureFilters.every(isCompleteCreatureFilter);
+    && draft.customCreatureFilters.every(isCompleteCreatureFilter)
+    // A resource without a name or a statblock field could never show
+    && draft.resources.every((resource) => resource.name.trim() !== '' && resource.field.trim() !== '');
 
   const handleSave = async (): Promise<void> => {
     if (!app || !assetService || !canSave) return;
@@ -129,7 +133,6 @@ export function CollectionSettingsModal({
       await assetService.updateCollectionSettings(collectionId, draft.toSettings());
       // Widgets and token conditions follow the saved game system in every scene.
       await syncCollectionSystem(app, collectionId, systemPresets.presets);
-      await applyTokenBars(app, collectionId, draft.tokenBarChanges());
       onClose();
     } catch (err) {
       console.error('[CollectionSettingsModal] Failed to save:', err);
@@ -199,6 +202,7 @@ export function CollectionSettingsModal({
                   conditions,
                   defaultWidgets: draft.defaultWidgets,
                   dice,
+                  resources: savedResources(draft.resources),
                   ...(draft.defaultTokenVision && { defaultTokenVision: draft.defaultTokenVision }),
                   senses: collectionSenses(draft, systemPresets.presets),
                 }}
@@ -234,6 +238,13 @@ export function CollectionSettingsModal({
               <ConditionsTab
                 conditions={conditions}
                 onChange={draft.setConditions}
+              />
+            )}
+            {activeTab === 'resources' && (
+              <ResourcesTab
+                resources={draft.resources}
+                onChange={draft.setResources}
+                fieldSuggestions={discoverResourceFields(collectionCreatures.creatures.map((creature) => creature.fields))}
               />
             )}
             {activeTab === 'creatureFilters' && (

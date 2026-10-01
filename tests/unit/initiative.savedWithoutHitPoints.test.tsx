@@ -4,6 +4,11 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { App } from 'obsidian';
 import { createInMemoryApp } from '../mocks/inMemoryVault';
 
+vi.mock('../../src/app/resources/useMapResources', async () => {
+  const definitions = [(await import('../../src/app/resources/resourceDefinitions')).HP_RESOURCE];
+  return { useMapResources: () => definitions };
+});
+
 vi.mock('../../src/app/pixi/utils/tokenHighlight', () => ({ zoomToTokenWithHighlight: vi.fn() }));
 vi.mock('../../src/app/react/components/StatblockHoverPreview', () => ({
   StatblockHoverPreview: () => null,
@@ -67,14 +72,14 @@ describe('a creature with a statblock but no hit points in the initiative', () =
 
     expect(savedEntries(files)).toHaveLength(1);
     expect(savedEntries(files)[0]).not.toHaveProperty('hp');
-    expect(savedEntries(files)[0]).toMatchObject({ name: 'Acid Burrower', statblockPath: STATBLOCK, isDefeated: false });
+    expect(savedEntries(files)[0]).toMatchObject({ name: 'Acid Burrower', statblockPath: STATBLOCK });
 
     const reloaded = showTracker(app, await openScene(app, 'no-hp-reload'));
     expect(reloaded.querySelectorAll('.atlas-initiative-card')).toHaveLength(1);
     expect(reloaded.querySelector('.atlas-initiative-card__hp-bar')).toBeNull();
   });
 
-  it('shows entries as the token resources branch saved them: without hp, isDefeated, order and isActive', async () => {
+  it('shows entries that hold no hp, isDefeated, order or isActive, with the hit points of their tokens', async () => {
     const entry = (tokenId: string): Record<string, unknown> => ({
       tokenId, name: tokenId, initiative: 12, initiativeModifier: 0, imagePath: `tokens/${tokenId}.webp`, isNPC: true,
       statblockPath: STATBLOCK, id: `init_${tokenId}`,
@@ -97,9 +102,10 @@ describe('a creature with a statblock but no hit points in the initiative', () =
     const tracker = showTracker(app, store);
 
     expect(tracker.querySelectorAll('.atlas-initiative-card')).toHaveLength(2);
-    // The creature with hit points gets them back from its token; the other has none to show
+    // The creature with hit points shows them from its token (stored in the old format here); the other has none
     expect(tracker.querySelectorAll('.atlas-initiative-card__hp-bar')).toHaveLength(1);
     expect(tracker.querySelector<HTMLElement>('.atlas-initiative-card__hp-fill')?.style.width).toBe('50%');
-    expect(store.getState().initiative.entries.map((saved) => saved.hp)).toEqual([undefined, { current: 3, max: 6 }]);
+    expect(store.getState().initiative.entries.some((saved) => 'hp' in saved)).toBe(false);
+    expect(store.getState().objects.tokens.bear?.resources).toEqual({ hp: { current: 3, max: 6 } });
   });
 });

@@ -14,7 +14,7 @@ import { InitiativeCard } from './InitiativeCard';
 import { EndCombatIcon } from './EndCombatIcon';
 import { StatblockHoverPreview, useStatblockHoverPreview } from './StatblockHoverPreview';
 import type { InitiativeEntry } from '../../types/initiativeTypes';
-import { initiativeEntryForToken, initiativeHp, initiativeStress, isDefeatedAt, sameVitals } from '../../stores/initiativeEntries';
+import { initiativeEntryForToken } from '../../stores/initiativeEntries';
 import './initiative-tracker.scss';
 
 /**
@@ -188,7 +188,7 @@ export const InitiativeTracker: React.FC = () => {
   // Deliberately not keyed on `initiative`: re-sync only when map tokens change, not on entry edits.
   }, [tokens, addToInitiative, removeFromInitiative]);
 
-  // Sync HP/stress changes from tokens to initiative entries
+  // Entries follow their token's name, image and statblock; resources are read from the token itself
   useEffect(() => {
     initiative.entries.forEach((entry) => {
       const token = tokens[entry.tokenId];
@@ -200,20 +200,9 @@ export const InitiativeTracker: React.FC = () => {
         updates.imagePath = token.imagePath;
       }
 
-      const hp = initiativeHp(token);
-      if (!sameVitals(entry.hp, hp)) {
-        updates.hp = hp;
-        updates.isDefeated = isDefeatedAt(hp);
-      }
-
       if (token.kind === 'character') {
         if (entry.name !== token.name) {
           updates.name = token.name;
-        }
-
-        const stress = initiativeStress(token);
-        if (!sameVitals(entry.stress, stress)) {
-          updates.stress = stress;
         }
 
         const tokenStatblockPath = token.statblockPath?.trim() ? token.statblockPath : undefined;
@@ -352,6 +341,7 @@ export const InitiativeTracker: React.FC = () => {
             ...previewState.hoveredEntry,
             // Rolls from the preview act on the token, not on the initiative entry.
             id: previewState.hoveredEntry.tokenId,
+            resources: tokens[previewState.hoveredEntry.tokenId]?.resources,
             ringColor: tokens[previewState.hoveredEntry.tokenId]?.ringColor,
             showRing: tokens[previewState.hoveredEntry.tokenId]?.showRing,
           }

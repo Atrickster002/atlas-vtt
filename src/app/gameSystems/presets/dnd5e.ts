@@ -1,4 +1,5 @@
 import type { SystemPreset } from '../../types/systemPresetTypes';
+import { HP_RESOURCE } from '../../resources/resourceDefinitions';
 import { DND_5E_SENSES } from '../senses/dnd5e';
 import { builtInPresetId, conditionsOf } from './presetHelpers';
 
@@ -33,7 +34,7 @@ export const DND_5E: SystemPreset = {
       { name: 'Stunned', color: '#facc15', icon: 'knocked-out-stars' },
       { name: 'Unconscious', color: '#1e3a8a', icon: 'sleepy' },
     ]),
+    resources: [{ ...HP_RESOURCE }],
     senses: DND_5E_SENSES,
-    defaultWidgets: { hpBar: true },
   },
 };

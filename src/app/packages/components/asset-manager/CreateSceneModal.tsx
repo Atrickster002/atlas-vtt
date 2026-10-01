@@ -1,9 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { ATLAS_VERSION } from '../../../services/MapPersistence';
 import { Notice, normalizePath } from 'obsidian';
 import { motion } from 'framer-motion';
 import { MapIcon } from 'lucide-react';
 import { AssetService } from '../../../services/AssetService';
-import { tokenBarsOf, withTokenBars } from '../../../services/collectionTokenBars';
+import { newSceneTokenSettings } from '../../../resources/sceneVisibility';
+import { DEFAULT_TOKEN_SETTINGS } from '../../../storeFactory';
 import { normalizeImagePath } from '../../../utils/pathUtils';
 import { ensureFolder } from '../../../plugin/vaultFolders';
 import { useAtlasUI } from '../../../react/root/AtlasUIContext';
@@ -98,7 +100,7 @@ export default function CreateSceneModal({
       const mapData = {
         state: {
           schema: "atlas-vtt",
-          version: 3,
+          version: ATLAS_VERSION,
           // If invoked from a map, prefill background (ensure vault-relative path)
           background: normalizedBackground,
           grid: {
@@ -127,7 +129,7 @@ export default function CreateSceneModal({
             scale: 1
           }
         },
-        version: 3
+        version: ATLAS_VERSION
       };
 
       // Apply collection grid defaults if available
@@ -141,8 +143,8 @@ export default function CreateSceneModal({
             measurementType: gd.measurementMode === 'abstract' ? 'abstract' as const : 'units' as const,
           });
         }
-        // The collection's resource bars, e.g. Daggerheart's Stress
-        Object.assign(mapData.state, { tokenSettings: withTokenBars(undefined, tokenBarsOf(settings.defaultWidgets)) });
+        // A map file's token settings replace the defaults as a whole, so write complete settings
+        Object.assign(mapData.state, { tokenSettings: newSceneTokenSettings(settings.defaultWidgets, DEFAULT_TOKEN_SETTINGS) });
       }
 
       const scenePath = normalizePath(`atlas-vtt/collections/${collectionId}/scenes/${sceneName.trim()}.atlasmap`);

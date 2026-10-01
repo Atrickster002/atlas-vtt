@@ -31,6 +31,11 @@ vi.mock('../../src/app/react/ViewStoreContext', () => ({
   useAtlasStore: (selector: (storeState: typeof state) => unknown) => selector(state),
 }));
 
+vi.mock('../../src/app/resources/useMapResources', async () => {
+  const definitions = [(await import('../../src/app/resources/resourceDefinitions')).HP_RESOURCE];
+  return { useMapResources: () => definitions };
+});
+
 vi.mock('../../src/app/pixi/utils/tokenHighlight', () => ({ zoomToTokenWithHighlight: vi.fn() }));
 
 vi.mock('../../src/app/react/components/StatblockHoverPreview', () => ({
@@ -43,15 +48,17 @@ vi.mock('../../src/app/react/components/StatblockHoverPreview', () => ({
 
 import { InitiativeTracker } from '../../src/app/react/components/InitiativeTracker';
 
-/** An entry as older scene files hold it for a token without hit points: no `hp` at all. */
-function entryWithoutHp(tokenId: string): InitiativeEntry {
+/** An entry as the tracker holds it: no hit points, which are read from the token. */
+function entryOf(tokenId: string): InitiativeEntry {
   return {
     id: `entry-${tokenId}`, tokenId, name: 'Crate', initiative: 0, initiativeModifier: 0,
-    imagePath: 'tokens/crate.png', isDefeated: false, isActive: false, isNPC: true, order: 0,
+    imagePath: 'tokens/crate.png', isActive: false, isNPC: true, order: 0,
   };
 }
 
 const crate: TokenEntity = { id: 'crate', kind: 'token', x: 0, y: 0, imagePath: 'tokens/crate.png' };
+const orc = (hp?: { current: number; max: number }): TokenEntity =>
+  ({ ...crate, id: 'orc', kind: 'character', name: 'Crate', ...(hp ? { resources: { hp } } : {}) });
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -60,8 +67,8 @@ beforeEach(() => {
 });
 
 describe('initiative entries of tokens without hit points', () => {
-  it('shows the card of an entry saved without hit points, without an HP bar', () => {
-    state.initiative.entries = [entryWithoutHp('crate')];
+  it('shows the card of a token without hit points, without an HP bar', () => {
+    state.initiative.entries = [entryOf('crate')];
     state.objects.tokens = { crate };
 
     const { container } = render(<InitiativeTracker />);
@@ -71,9 +78,8 @@ describe('initiative entries of tokens without hit points', () => {
   });
 
   it('still shows the HP bar of a token with hit points', () => {
-    const hp = { current: 5, max: 10 };
-    state.initiative.entries = [{ ...entryWithoutHp('orc'), hp }];
-    state.objects.tokens = { orc: { ...crate, id: 'orc', kind: 'character', name: 'Crate', hp } };
+    state.initiative.entries = [entryOf('orc')];
+    state.objects.tokens = { orc: orc({ current: 5, max: 10 }) };
 
     const { container } = render(<InitiativeTracker />);
 
@@ -90,39 +96,38 @@ describe('initiative entries of tokens without hit points', () => {
 
     expect(state.addToInitiative).toHaveBeenCalledTimes(1);
     expect(state.addToInitiative.mock.calls[0]?.[0]).not.toHaveProperty('hp');
-    expect(state.addToInitiative.mock.calls[0]?.[0]).toMatchObject({ tokenId: 'crate', isDefeated: false });
+    expect(state.addToInitiative.mock.calls[0]?.[0]).toMatchObject({ tokenId: 'crate' });
   });
 
-  it('gives an entry saved without hit points those of its token', () => {
-    state.initiative.entries = [entryWithoutHp('orc')];
-    state.objects.tokens = { orc: { ...crate, id: 'orc', kind: 'character', name: 'Crate', hp: { current: 0, max: 7 } } };
+  it('reads hit points from the token, whatever an entry from an older scene file still holds', () => {
+    state.initiative.entries = [{ ...entryOf('orc'), hp: { current: 7, max: 7 }, isDefeated: false }];
+    state.objects.tokens = { orc: orc({ current: 0, max: 7 }) };
 
-    render(<InitiativeTracker />);
+    const { container } = render(<InitiativeTracker />);
 
-    expect(state.updateInitiativeEntry).toHaveBeenCalledWith('entry-orc', { hp: { current: 0, max: 7 }, isDefeated: true });
+    expect(container.querySelector<HTMLElement>('.atlas-initiative-card__hp-fill')?.style.width).toBe('0%');
+    expect(container.querySelector('.atlas-initiative-card--defeated')).not.toBeNull();
+    expect(state.updateInitiativeEntry).not.toHaveBeenCalled();
   });
 
-  it('drops the hit points of an entry whose token has none any more', () => {
-    state.initiative.entries = [{ ...entryWithoutHp('orc'), hp: { current: 0, max: 7 }, isDefeated: true }];
-    state.objects.tokens = { orc: { ...crate, id: 'orc', kind: 'character', name: 'Crate' } };
+  it('shows no bar and no defeat once the token has no hit points any more', () => {
+    state.initiative.entries = [{ ...entryOf('orc'), hp: { current: 0, max: 7 }, isDefeated: true }];
+    state.objects.tokens = { orc: orc() };
 
-    render(<InitiativeTracker />);
+    const { container } = render(<InitiativeTracker />);
 
-    expect(state.updateInitiativeEntry).toHaveBeenCalledWith('entry-orc', { hp: undefined, isDefeated: false });
+    expect(container.querySelector('.atlas-initiative-card__hp-bar')).toBeNull();
+    expect(container.querySelector('.atlas-initiative-card--defeated')).toBeNull();
   });
 
-  it.each<[string, Partial<TokenEntity>]>([
-    ['hit points stored as a plain number', { hp: 12 }],
-    ['no hit points', {}],
-  ])('shows a creature with %s as defeated with an empty bar after Kill', (_label, vitals) => {
-    const orc = { ...crate, id: 'orc', kind: 'character', name: 'Crate', ...vitals } as TokenEntity;
-    const hp = orc.kind === 'character' && typeof orc.hp === 'number' ? { current: orc.hp, max: orc.hp } : undefined;
-    state.initiative.entries = [{ ...entryWithoutHp('orc'), ...(hp ? { hp } : {}) }];
-    // What the store's killTokens leaves on such a token
-    state.objects.tokens = { orc: { ...orc, hp: 0 } };
+  it('shows a killed creature as defeated with an empty bar', () => {
+    state.initiative.entries = [entryOf('orc')];
+    // What the store's killTokens leaves on a token whose hit points defeat it
+    state.objects.tokens = { orc: orc({ current: 0, max: 12 }) };
 
-    render(<InitiativeTracker />);
+    const { container } = render(<InitiativeTracker />);
 
-    expect(state.updateInitiativeEntry).toHaveBeenCalledWith('entry-orc', { hp: { current: 0, max: 0 }, isDefeated: true });
+    expect(container.querySelector<HTMLElement>('.atlas-initiative-card__hp-fill')?.style.width).toBe('0%');
+    expect(container.querySelector('.atlas-initiative-card--defeated')).not.toBeNull();
   });
 });

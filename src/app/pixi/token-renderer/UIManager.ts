@@ -1,3 +1,4 @@
+import type { ResourceDefsProvider } from '../../resources/resourceTypes';
 import type { AtlasSettings } from '../../services/SettingsService';
 import type { LayerVisibility } from '../playerSafeFrame';
 /**
@@ -37,6 +38,8 @@ export class UIManager implements ITokenUIManager {
   
   // Condition definitions provider — forwarded to each TokenUIRenderer
   public conditionDefsProvider: (() => ConditionDefinition[]) | null = null;
+  /** The resources of the map's collection; read on every draw, so set it before tokens are created. */
+  public resourceDefsProvider: ResourceDefsProvider = () => [];
 
   // Hover handlers for UI elements
   private uiHoverHandlers: Record<string, { over: () => void; out: () => void }> = {};
@@ -74,6 +77,8 @@ export class UIManager implements ITokenUIManager {
     // Token controls are DM-only
     if (!this.isPlayerView) {
       this.tokenControlsUI = new TokenControlsUI(this.viewport, this.store);
+      this.tokenControlsUI.resourceDefsProvider = () => this.resourceDefsProvider();
+      this.tokenControlsUI.slotsProvider = (tokenId) => this.tokenUIs[tokenId]?.getResourceSlots() ?? [];
       this.tokenRotationUI = new TokenRotationUI(this.viewport, this.store);
       this.tokenResizeUI = new TokenResizeUI(this.viewport, this.store);
       
@@ -124,6 +129,7 @@ export class UIManager implements ITokenUIManager {
     
     const ui = new TokenUIRenderer(this.store, this.viewport.options?.ticker);
     ui.conditionDefsProvider = this.conditionDefsProvider;
+    ui.resourceDefsProvider = () => this.resourceDefsProvider();
     ui.zoomProvider = () => this.viewport.scale.x;
     ui.onScaleChange = (scale) => this.tokenControlsUI?.setScaleFor(tokenId, scale);
     this.tokenUIs[tokenId] = ui;
@@ -417,6 +423,16 @@ export class UIManager implements ITokenUIManager {
     for (const ui of [...Object.values(this.tokenUIs), ...Object.values(this.playerTokenUIs)]) ui.refreshConditions();
   }
 
+  /** Redraws every token's resources, after the collection's resource definitions changed. */
+  public refreshResources(): void {
+    this.updateAllTokenSettings();
+  }
+
+  /** How far a selected token's resources reach beyond its bottom, right and top edges, in world units. */
+  public resourcesExtent(tokenId: string): { below: number; right: number; above: number } {
+    return this.tokenUIs[tokenId]?.getResourcesExtent() ?? { below: 0, right: 0, above: 0 };
+  }
+
   private updateAllTokenSettings(): void {
     // Update all token UIs when settings change
     for (const tokenId in this.tokenUIs) {
@@ -426,6 +442,8 @@ export class UIManager implements ITokenUIManager {
         this.updateTokenUI(tokenId, token);
       }
     }
+    // The +/- controls sit on the resources just redrawn
+    this.updateSelectionUI(this.store.getState().selectedIds);
   }
 
   private getTokenSprite(tokenId: string): TokenGroupContainer | null {
@@ -451,7 +469,7 @@ export class UIManager implements ITokenUIManager {
 
   /** Cached player overlays keep player preferences independent of the DM UI. */
   getPlayerViewLayers(
-    settings: Pick<AtlasSettings['localPlayerView'], 'showTokenHP' | 'showTokenStress' | 'showTokenNameplates'>,
+    settings: Pick<AtlasSettings['localPlayerView'], 'showTokenNameplates'>,
     isSeen: (tokenId: string) => boolean = () => true,
   ): LayerVisibility[] {
     if (!this.playerUIContainer) {
@@ -473,6 +491,7 @@ export class UIManager implements ITokenUIManager {
         this.playerUIContainer.addChild(ui.getContainer());
       }
       ui.conditionDefsProvider = this.conditionDefsProvider;
+      ui.resourceDefsProvider = () => this.resourceDefsProvider();
       ui.update(token, sprite.tokenSize || 70, settings);
       ui.getContainer().position.copyFrom(sprite.position);
       ui.getContainer().renderable = sprite.visible && !token.isHidden && isSeen(tokenId);

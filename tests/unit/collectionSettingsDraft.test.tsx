@@ -1,6 +1,7 @@
 import { act, renderHook } from '@testing-library/react';
 import { expect, it } from 'vitest';
 import { BUILT_IN_SYSTEM_PRESETS } from '../../src/app/gameSystems/builtInPresets';
+import { draftResourceKey } from '../../src/app/resources/resourceDefinitions';
 import { useCollectionSettingsDraft } from '../../src/app/react/components/collection-settings/useCollectionSettingsDraft';
 import type { AssetService } from '../../src/app/services/AssetService';
 import type { CollectionSettings } from '../../src/app/types/collectionSettingsTypes';
@@ -27,7 +28,7 @@ it('switching systems replaces every condition, even one with the same name', ()
 it('clearing the system leaves the vanilla settings', () => {
   const { result } = draftFor({ ...structuredClone(shadowdark.rules), defaultWidgets: { timer: true }, systemPresetId: shadowdark.id });
   act(() => result.current.clearSystem());
-  expect(result.current.toSettings()).toMatchObject({ conditions: [], defaultWidgets: {}, systemPresetId: undefined });
+  expect(result.current.toSettings()).toMatchObject({ conditions: [], defaultWidgets: { hpBar: true, stressBar: false }, systemPresetId: undefined });
 });
 
 it('loads and saves the collection’s own creature filters and the switched-off ones, whatever the system', () => {
@@ -37,6 +38,26 @@ it('loads and saves the collection’s own creature filters and the switched-off
   act(() => result.current.applyPreset(dnd5e));
   act(() => result.current.setHiddenCreatureFilters(['source', 'rarity']));
   expect(result.current.toSettings()).toMatchObject({ customCreatureFilters: custom, hiddenCreatureFilters: ['source', 'rarity'] });
+});
+
+it('carries the collection’s resources: the preset’s on a switch, HP alone without a system, edits on save', () => {
+  const cairn = BUILT_IN_SYSTEM_PRESETS.find((preset) => preset.name === 'Cairn')!;
+  // A collection saved before resources existed reads as its preset's
+  const { result } = draftFor({ conditions: [], systemPresetId: shadowdark.id });
+  expect(result.current.resources.map((r) => r.key)).toEqual(['hp']);
+
+  act(() => result.current.applyPreset(cairn));
+  expect(result.current.toSettings().resources?.map((r) => r.key)).toEqual(['hp', 'str']);
+
+  act(() => result.current.setResources([{ ...result.current.resources[0]!, name: ' Hit Protection ', field: ' hp ' }]));
+  expect(result.current.toSettings().resources).toMatchObject([{ key: 'hp', name: 'Hit Protection', field: 'hp' }]);
+
+  // A resource added in the dialog is keyed by the name it has when saved
+  act(() => result.current.setResources([...result.current.resources, { ...result.current.resources[0]!, key: draftResourceKey(), name: 'Ammo', field: 'ammo' }]));
+  expect(result.current.toSettings().resources?.map((r) => r.key)).toEqual(['hp', 'ammo']);
+
+  act(() => result.current.clearSystem());
+  expect(result.current.toSettings().resources?.map((r) => r.key)).toEqual(['hp']);
 });
 
 describe('default token vision', () => {
@@ -70,6 +91,21 @@ describe('default token vision', () => {
     act(() => result.current.clearSystem());
     expect(result.current.toSettings().defaultTokenVision).toBeUndefined();
   });
+});
+
+it('keeps the bar switches of a collection whose resources stay, and switches a new bar on', () => {
+  const hp = { ...dnd5e.rules.resources![0]! };
+  const { result } = draftFor({ conditions: [], defaultWidgets: { hpBar: false }, resources: [hp] });
+  expect(result.current.toSettings().defaultWidgets).toEqual({ hpBar: false });
+
+  act(() => result.current.setResources([hp, { ...hp, key: draftResourceKey(), name: 'Stress', field: 'stress', direction: 'fills', defeatedWhenSpent: false }]));
+  expect(result.current.toSettings().defaultWidgets).toEqual({ hpBar: false, stressBar: true });
+});
+
+it('keeps what players see of a resource when its system is applied again', () => {
+  const { result } = draftFor({ ...structuredClone(dnd5e.rules), systemPresetId: dnd5e.id, resources: [{ ...dnd5e.rules.resources![0]!, visibleToPlayers: true }] });
+  act(() => result.current.applyPreset(dnd5e));
+  expect(result.current.toSettings().resources?.map((r) => [r.key, r.visibleToPlayers])).toEqual([['hp', true]]);
 });
 
 describe('senses', () => {

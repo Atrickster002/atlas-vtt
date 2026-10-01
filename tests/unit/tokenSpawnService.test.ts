@@ -79,9 +79,10 @@ describe('token spawning keeps asset defaults', () => {
     expect(setSelection).toHaveBeenCalledWith(ids);
   });
 
-  it('spawns a token without a statblock with no hit points, so it shows no resource bar', async () => {
+  it('spawns a token without a statblock with no resources, so it shows no resource bar', async () => {
     const { ctx, spawned } = setup();
     await spawnTokenAsset(ctx, unframed, 1);
+    expect(spawned[0]).not.toHaveProperty('resources');
     expect(spawned[0]).not.toHaveProperty('hp');
   });
 
@@ -114,6 +115,16 @@ describe('encounter spawning', () => {
       { id: 'map-token', name: 'Goblin', imagePath: 'tokens/goblin.png', state: { kind: 'token', imagePath: 'tokens/goblin.png', showRing: false } },
     ]));
     expect(spawned[0]).toMatchObject({ imagePath: 'tokens/goblin.png', showRing: false });
+  });
+
+  it('migrates the saved state of an encounter token written before resources', async () => {
+    const { ctx, spawned } = setup();
+    await spawnEncounterTokens(ctx, encounter([
+      { id: 'map-token', name: 'Goblin', imagePath: 'tokens/goblin.png', state: { kind: 'character', name: 'Goblin', imagePath: 'tokens/goblin.png', hp: { current: 4, max: 9 }, stress: 1, maxStress: 6 } },
+    ]));
+    expect(spawned[0]!.resources).toEqual({ hp: { current: 4, max: 9 }, stress: { current: 1, max: 6 } });
+    expect(spawned[0]).not.toHaveProperty('stress');
+    expect(spawned[0]).not.toHaveProperty('hp');
   });
 });
 

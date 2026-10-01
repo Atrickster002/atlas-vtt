@@ -91,3 +91,27 @@ describe('a map file that was moved or renamed while closed', () => {
     expect(backupsOf(files)).toHaveLength(0);
   });
 });
+
+describe('a map saved before tokens had resources', () => {
+  it('turns old token fields into resources when the map loads, without a new format version', async () => {
+    const v4 = { version: 4, state: { schema: 'atlas-vtt', version: 4, mapPath: MAP_PATH, objects: { tokens: {
+      a: { id: 'a', kind: 'character', x: 0, y: 0, imagePath: 'a.webp', hp: { current: 5, max: 12 }, stress: 2, maxStress: 6 },
+      b: { id: 'b', kind: 'character', x: 0, y: 0, imagePath: 'b.webp', hp: 12 },
+    } }, tokenSettings: { showNameplates: true, showHPBars: false, showStressBars: false, showInstanceBadges: true, tokenRingSize: 1 } } };
+    const { storage, files } = createStorage(JSON.stringify(v4));
+
+    const loaded = await storage.getItem('atlas');
+    const tokens = (loaded?.state as { objects: { tokens: Record<string, Record<string, unknown>> } }).objects.tokens;
+
+    expect(tokens.a!.resources).toEqual({ hp: { current: 5, max: 12 }, stress: { current: 2, max: 6 } });
+    expect(tokens.a).not.toHaveProperty('hp');
+    expect(tokens.a).not.toHaveProperty('maxStress');
+    expect(tokens.b!.resources).toEqual({ hp: { current: 12, max: 100 } });
+    // Both bar switches were off, so both stay hidden on this map
+    expect((loaded?.state as { tokenSettings: unknown }).tokenSettings).toEqual({ showNameplates: true, hiddenResources: ['hp', 'stress'], showInstanceBadges: true, tokenRingSize: 1 });
+    // An older Atlas loads a map with a newer version empty and saves that over the file
+    expect((loaded?.state as { version: number }).version).toBe(4);
+    expect(loaded?.version).toBe(4);
+    expect(backupsOf(files)).toHaveLength(0);
+  });
+});

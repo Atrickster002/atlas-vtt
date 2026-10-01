@@ -10,6 +10,7 @@ import { migrateWidgetsToCollection, needsWidgetMigration } from '../utils/widge
 import { normalizeImagePath } from '../utils/pathUtils';
 import { fixMapTokenPaths } from '../utils/fixMapPaths';
 import { getDataFilePath } from '../utils/dataFileMigration';
+import { sceneFromFile, sceneToFile, tokenFromFile } from '../resources/resourceFileFormat';
 import { preserveDamagedSceneFile, SceneFileError } from './sceneFileProblems';
 import { SceneFileWriter } from './sceneFileWriter';
 
@@ -106,6 +107,10 @@ export interface PersistedMapEnvelope {
   state?: LegacyMapFile & {
     mapPath?: string | null;
     widgetSettings?: Partial<WidgetSettings>;
+    /** Checked by the store's merge; older files carry the two bar switches. */
+    tokenSettings?: Record<string, unknown>;
+    /** Older files hold copied token vitals in each entry. */
+    initiative?: { entries?: Array<Record<string, unknown>> } | null;
     widgetValues?: Record<string, number>;
   };
 }
@@ -173,7 +178,12 @@ export function createAtlasStorage<T extends { mapPath: string | null; mapLoaded
   store: { getState: () => T },
   plugin?: AtlasVTTPlugin
 ): AtlasPersistStorage<S> {
-  const writer = new SceneFileWriter<StorageValue<S>>(app, (path) => store.getState().mapPath === path);
+  const writer = new SceneFileWriter<StorageValue<S>>(
+    app,
+    (path) => store.getState().mapPath === path,
+    // Only here, once per write: the store hands over its state on every change
+    (value) => JSON.stringify({ ...value, state: sceneToFile(value.state as object) }),
+  );
 
   return {
     /**
@@ -233,6 +243,8 @@ export function createAtlasStorage<T extends { mapPath: string | null; mapLoaded
       if (state?.objects && !state.objects.lights) {
         state.objects.lights = {};
       }
+      // Files keep the token fields older versions of Atlas read; in memory tokens hold resources
+      if (state) Object.assign(state, sceneFromFile(state));
       if (state?.version && state.version < ATLAS_VERSION) {
         state.version = ATLAS_VERSION;
       }
@@ -314,7 +326,7 @@ function migrateTokenPaths(tokens: Record<string, LegacyToken>): Record<string, 
       migratedToken.conditions = statuses;
     }
 
-    migratedTokens[id] = migratedToken;
+    migratedTokens[id] = tokenFromFile(migratedToken);
   }
   
   return migratedTokens;

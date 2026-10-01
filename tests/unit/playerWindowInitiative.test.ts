@@ -10,14 +10,17 @@ import { createInMemoryApp } from '../mocks/inMemoryVault';
 import { attachFakePlayerWindow } from '../mocks/playerPopout';
 
 vi.mock('../../src/app/atlas-view', () => ({ AtlasView: class {}, ATLAS_VIEW_TYPE: 'atlas-vtt' }));
-afterEach(() => { PlayerWindowService.getInstance()?.destroy(); vi.useRealTimers(); vi.restoreAllMocks(); });
+const collection = vi.hoisted(() => ({ hpVisibleToPlayers: false }));
+vi.mock('../../src/app/resources/collectionResources', () => ({
+  mapResources: () => [{ key: 'hp', name: 'HP', field: 'hp', direction: 'drains', color: '#22c55e', defeatedWhenSpent: true, visibleToPlayers: collection.hpVisibleToPlayers }],
+}));
+afterEach(() => { PlayerWindowService.getInstance()?.destroy(); vi.useRealTimers(); vi.restoreAllMocks(); collection.hpVisibleToPlayers = false; });
 
 function scene(name = 'Hero', initiativeTrackerOpen = true): StoreApi<ViewAtlasState> {
-  const token: TokenEntity = { id: 'hero', kind: 'token', x: 0, y: 0, imagePath: '' };
+  const token: TokenEntity = { id: 'hero', kind: 'character', name, x: 0, y: 0, imagePath: '', resources: { hp: { current: 8, max: 10 } } };
   const entry: InitiativeEntry = {
     id: 'entry', tokenId: token.id, name, initiative: 18, initiativeModifier: 2,
-    hp: { current: 8, max: 10 }, imagePath: '', isActive: true,
-    isDefeated: false, isNPC: false, order: 0,
+    imagePath: '', isActive: true, isNPC: false, order: 0,
   };
   return createStore(() => ({
     initiative: { ...createDefaultInitiativeState(), entries: [entry], isActive: true, round: 1 },
@@ -25,7 +28,7 @@ function scene(name = 'Hero', initiativeTrackerOpen = true): StoreApi<ViewAtlasS
   })) as StoreApi<ViewAtlasState>;
 }
 
-function setup(initiativeTrackerOpen = true): { service: PlayerWindowService; settings: SettingsService; store: StoreApi<ViewAtlasState>; doc: Document; source: PlayerFrameSource } {
+function setup(initiativeTrackerOpen = true): { service: PlayerWindowService; settings: SettingsService; store: StoreApi<ViewAtlasState>; doc: Document; source: PlayerFrameSource; collectionChanged: () => void } {
   vi.useFakeTimers();
   vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null);
   const { app } = createInMemoryApp();
@@ -34,7 +37,10 @@ function setup(initiativeTrackerOpen = true): { service: PlayerWindowService; se
   const service = new PlayerWindowService(app, store, settings);
   const source = { canvas: createEl('canvas'), withPlayerSafeFrame: vi.fn(), store };
   const doc = attachFakePlayerWindow(service, source);
-  return { service, settings, store, doc, source };
+  const collectionChanged = (): void => vi.mocked(app.workspace.on).mock.calls
+    .filter(([name]) => (name as string) === 'atlas-vtt:collection-settings-changed')
+    .forEach(([, handler]) => (handler as (id: string) => void)('collection'));
+  return { service, settings, store, doc, source, collectionChanged };
 }
 
 describe('player initiative panel', () => {
@@ -74,13 +80,17 @@ describe('player initiative panel', () => {
     expect(panel()).not.toBeNull();
   });
 
-  it('excludes hidden and deleted tokens, and respects the player name and HP settings', () => {
+  it('excludes hidden and deleted tokens, and shows names and HP only where players may see them', () => {
     const { settings, store, doc } = setup();
     const panel = (): Element | null => doc.querySelector('[aria-label="Initiative order"]');
     expect(panel()?.textContent).not.toContain('Hero');
     expect(panel()?.querySelector('progress')).toBeNull();
-    settings.setLocalPlayerViewSettings({ showTokenNameplates: true, showTokenHP: true });
+    settings.setLocalPlayerViewSettings({ showTokenNameplates: true });
     expect(panel()?.textContent).toContain('Hero');
+    // HP stays hidden until the collection lets players see it
+    expect(panel()?.querySelector('progress')).toBeNull();
+    collection.hpVisibleToPlayers = true;
+    settings.setLocalPlayerViewSettings({ showTokenNameplates: true, showGrid: false });
     expect(panel()?.querySelector('progress')?.value).toBe(8);
     const objects = store.getState().objects;
     store.setState({ objects: { ...objects, tokens: { hero: { ...objects.tokens.hero!, isHidden: true } } } });
@@ -89,13 +99,27 @@ describe('player initiative panel', () => {
     expect(panel()).toBeNull();
   });
 
-  it('shows a token without hit points without an HP bar', () => {
-    const { settings, store, doc } = setup();
-    const initiative = store.getState().initiative;
-    const { hp: _hp, ...withoutHp } = initiative.entries[0]!;
-    settings.setLocalPlayerViewSettings({ showTokenNameplates: true, showTokenHP: true });
+  it('shows and hides HP as soon as the collection changes what players see', () => {
+    const { doc, collectionChanged } = setup();
+    const progress = (): Element | null => doc.querySelector('[aria-label="Initiative order"] progress');
+    expect(progress()).toBeNull();
+    collection.hpVisibleToPlayers = true;
+    collectionChanged();
+    expect(progress()).not.toBeNull();
+    collection.hpVisibleToPlayers = false;
+    collectionChanged();
+    expect(progress()).toBeNull();
+  });
 
-    expect(() => store.setState({ initiative: { ...initiative, entries: [withoutHp] } })).not.toThrow();
+  it('shows a token without hit points without an HP bar', () => {
+    const { settings, store, doc, collectionChanged } = setup();
+    collection.hpVisibleToPlayers = true;
+    collectionChanged();
+    settings.setLocalPlayerViewSettings({ showTokenNameplates: true });
+    const objects = store.getState().objects;
+    const { resources: _resources, ...withoutHp } = objects.tokens.hero!;
+
+    expect(() => store.setState({ objects: { ...objects, tokens: { hero: withoutHp as typeof objects.tokens.hero } } })).not.toThrow();
 
     const panel = doc.querySelector('[aria-label="Initiative order"]');
     expect(panel?.textContent).toContain('Hero');

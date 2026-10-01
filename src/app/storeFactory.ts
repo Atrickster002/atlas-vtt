@@ -1,3 +1,5 @@
+import type { ResourceDefinition } from './resources/resourceTypes';
+import { defeatedResources, restedResources } from './resources/resourceValues';
 import { create } from "zustand";
 import type { Mutate, StoreApi } from "zustand";
 import { subscribeWithSelector, persist } from "zustand/middleware";
@@ -103,7 +105,6 @@ export interface ViewAtlasState {
     y: number;
     imagePath: string;
     name: string;
-    hp: number;
     notePath?: string;
     snapped?: boolean;
     ringColor?: string;
@@ -113,7 +114,7 @@ export interface ViewAtlasState {
   addTokenWithId: (
     id: string,
     data: { x: number; y: number; imagePath: string; snapped?: boolean },
-    extra: Pick<Character, 'name' | 'hp' | 'notePath'>
+    extra: Pick<Character, 'name' | 'notePath'>
   ) => void;
 
   moveToken: (id: string, x: number, y: number) => void;
@@ -133,8 +134,10 @@ export interface ViewAtlasState {
    */
   changeTokensConditionValue: (tokenIds: string[], conditionId: string, delta: number) => void;
   clearTokenConditions: (id: string) => void;
-  killTokens: (ids: string[]) => void;
-  resetTokens: (ids: string[]) => void;
+  /** Spends every resource of `definitions` that defeats a token. */
+  killTokens: (ids: string[], definitions: readonly ResourceDefinition[]) => void;
+  /** Returns every resource of `definitions` to its start and clears conditions. */
+  resetTokens: (ids: string[], definitions: readonly ResourceDefinition[]) => void;
 
   // Note Pin actions
   /** With `hex`, the note is linked to the hex containing (x, y) rather than pinned to the point. */
@@ -252,8 +255,8 @@ export interface ViewAtlasState {
   // Token settings
   tokenSettings: {
     showNameplates: boolean;
-    showHPBars: boolean;
-    showStressBars: boolean;
+    /** Keys of the collection's resources this map does not show to the GM; see `resources/sceneVisibility.ts`. */
+    hiddenResources: string[];
     showInstanceBadges: boolean;
     tokenRingSize: number;
   };
@@ -339,8 +342,7 @@ const createDefaultWidgets = (): WidgetSettings => ({
 /** Token display settings of a map that never set its own. */
 export const DEFAULT_TOKEN_SETTINGS: Readonly<ViewAtlasState['tokenSettings']> = {
   showNameplates: false,
-  showHPBars: true,
-  showStressBars: false,
+  hiddenResources: [],
   showInstanceBadges: true,
   tokenRingSize: 1,
 };
@@ -381,8 +383,7 @@ const createInitialState = (): Pick<ViewAtlasState, 'schema' | 'version' | 'mapP
   dmNotePath: null, // DM note linking
   tokenSettings: {
     showNameplates: false,
-    showHPBars: true,
-    showStressBars: true,
+    hiddenResources: [],
     showInstanceBadges: true,
     tokenRingSize: 1
   },
@@ -659,7 +660,6 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
               y: data.y,
               imagePath: normalizedImagePath,
               name: data.name,
-              hp: data.hp,
               instanceNumber,
               ...(data.notePath && { notePath: data.notePath }),
               ...(data.snapped !== undefined && { snapped: data.snapped }),
@@ -685,7 +685,6 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
                 imagePath: normalizedImagePath,
                 name: extra.name,
                 instanceNumber,
-                ...(extra.hp !== undefined && { hp: extra.hp }),
                 ...(extra.notePath && { notePath: extra.notePath }),
                 ...(data.snapped !== undefined && { snapped: data.snapped }),
               };
@@ -1347,59 +1346,25 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
           }),
 
           // Kill tokens - set HP to 0
-          killTokens: (ids) => set((draft) => {
-            if (!ids || !Array.isArray(ids)) {
-              console.warn(`[ViewStore-${viewId}] Invalid ids provided to killTokens:`, ids);
-              return;
+          killTokens: (ids, definitions) => set((draft) => {
+            for (const id of ids) {
+              const token = draft.objects.tokens[id];
+              if (token?.kind !== 'character') continue;
+              const resources = defeatedResources(token, definitions);
+              if (resources) token.resources = resources;
             }
-
-            const updatedTokens = { ...draft.objects.tokens };
-            ids.forEach(id => {
-              const existing = updatedTokens[id];
-              if (existing) {
-                if (existing.kind !== 'character') return;
-
-                // Set HP to 0 - handle both number and object formats
-                const hp = typeof existing.hp === 'object' && existing.hp !== null
-                  ? { ...existing.hp, current: 0 }
-                  : 0;
-                updatedTokens[id] = { ...existing, hp };
-              }
-            });
-
-            draft.objects.tokens = updatedTokens;
           }),
 
-          // Reset tokens - restore HP and stress, clear statuses
-          resetTokens: (ids) => set((draft) => {
-            if (!ids || !Array.isArray(ids)) {
-              console.warn(`[ViewStore-${viewId}] Invalid ids provided to resetTokens:`, ids);
-              return;
+          // Reset tokens - restore every resource and clear conditions
+          resetTokens: (ids, definitions) => set((draft) => {
+            for (const id of ids) {
+              const token = draft.objects.tokens[id];
+              if (!token) continue;
+              const resources = token.kind === 'character' ? restedResources(token, definitions) : undefined;
+              if (resources) token.resources = resources;
+              delete token.conditions;
+              delete token.conditionValues;
             }
-
-            const updatedTokens = { ...draft.objects.tokens };
-            ids.forEach(id => {
-              const existing = updatedTokens[id];
-              if (existing) {
-                const updated: TokenEntity = { ...existing };
-
-                if (updated.kind === 'character') {
-                  // Reset HP to max. The plain number format carries no max, so it is left as is.
-                  if (typeof updated.hp === 'object' && updated.hp !== null && updated.hp.max) {
-                    updated.hp = { ...updated.hp, current: updated.hp.max };
-                  }
-                  updated.stress = 0;
-                }
-
-                // Clear all conditions
-                delete updated.conditions;
-                delete updated.conditionValues;
-
-                updatedTokens[id] = updated;
-              }
-            });
-
-            draft.objects.tokens = updatedTokens;
           }),
 
           // --- Initiative Tracker State & Actions (from initiativeSlice.ts) ---
