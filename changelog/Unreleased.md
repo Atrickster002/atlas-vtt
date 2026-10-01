@@ -48,6 +48,8 @@
 - In the initiative tracker, tokens without hit points no longer show a made-up full HP bar. A creature you Kill now shows as defeated with an empty bar there, also when its hit points are a plain number or it had none
 - Switching between scene tabs no longer leaves a scene black and unable to open
 - A scene that failed to open can no longer be saved over: its file stays as it was, and you can open it or another scene again. A scene whose file is damaged, cannot be read or was saved by a newer Atlas now says so instead of opening empty. It no longer leaves the map of the scene before on screen without its fog, and the player window keeps its last picture meanwhile
-- Opening a scene while another is still loading always shows the one you opened last, and a scene that never finishes loading no longer blocks the scene tabs
+- Opening a scene while another is still loading always shows the one you opened last. A scene that never finishes loading is given up after half a minute, with a notice, instead of blocking the view
+- Renaming a scene while it opens no longer empties it
+- The player window follows again when you return to the scene it presents
 - When a scene cannot be saved, Atlas now says so after a few seconds instead of waiting without end
 - When one part of the map view fails to show, such as the initiative tracker, the map, the toolbar and the other parts now stay and Atlas tells you which part is missing. Before, the whole view went black
