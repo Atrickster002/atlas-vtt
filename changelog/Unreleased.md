@@ -41,7 +41,9 @@
 - A roll such as d20+2d6 no longer adds a stray +2 to its total, and subtracted dice (2d6-1d4) now subtract
 - A natural 1 or 20 counts as critical even when a modifier is added, and a maxed damage die never does
 - Edit Token opens again instead of crashing on its Vision switch
-- The initiative tracker no longer crashes for tokens without hit points. Their cards show no HP bar instead of a made-up full one
+- In the initiative tracker, tokens without hit points no longer show a made-up full HP bar. A creature you Kill now shows as defeated with an empty bar there, also when its hit points are a plain number or it had none
 - Switching between scene tabs no longer leaves a scene black and unable to open
-- A scene that failed to open can no longer be saved over: its file stays as it was, and you can open it or another scene again. A scene whose file is damaged, cannot be read or was saved by a newer Atlas now says so instead of opening empty. Opening a scene while another is still loading always shows the one you opened last
-- When one panel of the map view fails to show, such as the initiative tracker, the map, the toolbar and the other panels now stay. Before, the whole view went black
+- A scene that failed to open can no longer be saved over: its file stays as it was, and you can open it or another scene again. A scene whose file is damaged, cannot be read or was saved by a newer Atlas now says so instead of opening empty. It no longer leaves the map of the scene before on screen without its fog, and the player window keeps its last picture meanwhile
+- Opening a scene while another is still loading always shows the one you opened last, and a scene that never finishes loading no longer blocks the scene tabs
+- When a scene cannot be saved, Atlas now says so after a few seconds instead of waiting without end
+- When one part of the map view fails to show, such as the initiative tracker, the map, the toolbar and the other parts now stay and Atlas tells you which part is missing. Before, the whole view went black

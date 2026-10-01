@@ -6,7 +6,6 @@
 import type { TokenEntity } from '../types';
 import type { InitiativeState, InitiativeEntry, InitiativeConfig } from '../types/initiativeTypes';
 import { createDefaultInitiativeState } from '../types/initiativeTypes';
-import { isDefeatedAt } from './initiativeEntries';
 
 /**
  * Initiative slice state interface
@@ -32,7 +31,6 @@ export interface InitiativeSlice {
   startCombat: () => void;
   endCombat: () => void;
   setInitiativeConfig: (config: Partial<InitiativeConfig>) => void;
-  syncInitiativeWithTokens: () => void;
 }
 
 /**
@@ -303,32 +301,6 @@ export function createInitiativeActions(
 
     setInitiativeConfig: (config) => set((draft) => {
       draft.initiative.config = { ...draft.initiative.config, ...config };
-    }),
-
-    syncInitiativeWithTokens: () => set((draft) => {
-      // Update initiative entries with current token HP values
-      draft.initiative.entries.forEach(entry => {
-        const token = draft.objects.tokens[entry.tokenId];
-        if (!token) return;
-
-        if (token.kind === 'character') {
-          // Update HP from token
-          if (typeof token.hp === 'object' && token.hp !== null) {
-            entry.hp = { current: token.hp.current, max: token.hp.max };
-          } else if (typeof token.hp === 'number') {
-            entry.hp = { current: token.hp, max: token.hp };
-          }
-
-          // Update stress if present
-          if (typeof token.stress === 'object' && token.stress !== null) {
-            entry.stress = { current: token.stress.current, max: token.stress.max };
-          } else if (typeof token.stress === 'number') {
-            entry.stress = { current: token.stress, max: token.maxStress ?? 10 };
-          }
-        }
-
-        entry.isDefeated = isDefeatedAt(entry.hp);
-      });
     }),
   };
 }

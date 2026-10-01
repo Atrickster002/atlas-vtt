@@ -42,8 +42,6 @@ vi.mock('../../src/app/react/components/StatblockHoverPreview', () => ({
 }));
 
 import { InitiativeTracker } from '../../src/app/react/components/InitiativeTracker';
-import { createInitiativeActions } from '../../src/app/stores/initiativeSlice';
-import { createDefaultInitiativeState } from '../../src/app/types/initiativeTypes';
 
 /** An entry as older scene files hold it for a token without hit points: no `hp` at all. */
 function entryWithoutHp(tokenId: string): InitiativeEntry {
@@ -113,15 +111,18 @@ describe('initiative entries of tokens without hit points', () => {
     expect(state.updateInitiativeEntry).toHaveBeenCalledWith('entry-orc', { hp: undefined, isDefeated: false });
   });
 
-  it('syncs entries with their tokens in the store without hit points', () => {
-    const draft = {
-      initiative: { ...createDefaultInitiativeState(), entries: [entryWithoutHp('crate')] },
-      initiativeTrackerOpen: true,
-      objects: { tokens: { crate } },
-    };
-    const actions = createInitiativeActions((recipe) => recipe(draft), 'test');
+  it.each<[string, Partial<TokenEntity>]>([
+    ['hit points stored as a plain number', { hp: 12 }],
+    ['no hit points', {}],
+  ])('shows a creature with %s as defeated with an empty bar after Kill', (_label, vitals) => {
+    const orc = { ...crate, id: 'orc', kind: 'character', name: 'Crate', ...vitals } as TokenEntity;
+    const hp = orc.kind === 'character' && typeof orc.hp === 'number' ? { current: orc.hp, max: orc.hp } : undefined;
+    state.initiative.entries = [{ ...entryWithoutHp('orc'), ...(hp ? { hp } : {}) }];
+    // What the store's killTokens leaves on such a token
+    state.objects.tokens = { orc: { ...orc, hp: 0 } };
 
-    expect(() => actions.syncInitiativeWithTokens()).not.toThrow();
-    expect(draft.initiative.entries[0]?.isDefeated).toBe(false);
+    render(<InitiativeTracker />);
+
+    expect(state.updateInitiativeEntry).toHaveBeenCalledWith('entry-orc', { hp: { current: 0, max: 0 }, isDefeated: true });
   });
 });
