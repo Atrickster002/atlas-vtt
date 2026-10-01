@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Container, EventSystem, Graphics, Sprite } from 'pixi.js';
 import { Viewport } from 'pixi-viewport';
 import { emissionOfPreset } from '../../src/app/lighting/lightEmissionForm';
@@ -12,7 +12,7 @@ import { stubJsdomGraphics } from '../mocks/jsdomGraphics';
 const THEME: LightMarkerTheme = { background: 0x2a2a2a, stroke: 0xffffff, accent: 0x8a5cf5 };
 let cleanup: (() => void) | null = null;
 
-function setup(): { markers: LightMarkers; store: ViewAtlasStore; viewport: Viewport } {
+function setup(readTheme: () => LightMarkerTheme = () => THEME): { markers: LightMarkers; store: ViewAtlasStore; viewport: Viewport } {
   const restoreGraphics = stubJsdomGraphics();
   const events = { domElement: document.createElement('canvas') } as unknown as EventSystem;
   const viewport = new Viewport({ screenWidth: 800, screenHeight: 600, events });
@@ -20,7 +20,7 @@ function setup(): { markers: LightMarkers; store: ViewAtlasStore; viewport: View
   const store = createViewAtlasStore(app, `light-markers-${Math.random()}`);
   store.getState().setPersistenceEnabled(false);
   store.getState().setMapPath('maps/lights.atlasmap');
-  const markers = new LightMarkers(viewport, store, () => THEME);
+  const markers = new LightMarkers(viewport, store, readTheme);
   cleanup = () => {
     markers.destroy();
     viewport.destroy();
@@ -127,6 +127,55 @@ describe('LightMarkers', () => {
     store.getState().updateLight(id, { emission: { ...emissionOfPreset('magical'), kind: 'magical' } });
     expect(glyph.texture).not.toBe(torch);
     expect(glyph.tint).toBe(0x8fb8ff);
+  });
+
+  it('shows a light whose stored kind this version does not know as the preset it equals, else as custom', () => {
+    const { markers, store } = setup();
+    store.getState().setSceneLighting({ enabled: true });
+    addLight(store, 100, 200, 'lantern');
+    addLight(store, 200, 200, 'custom');
+    const unknown = 'brazier' as LightKind;
+    store.getState().addLight({ x: 300, y: 200, emission: { ...emissionOfPreset('lantern'), kind: unknown } });
+    store.getState().addLight({ x: 400, y: 200, emission: { ...emissionOfPreset('lantern'), bright: 12, kind: unknown } });
+    const [lantern, custom, equalsLantern, edited] = markers.view.children.map((marker) => parts(marker).glyph);
+    expect(equalsLantern!.texture).toBe(lantern!.texture);
+    expect(edited!.texture).toBe(custom!.texture);
+  });
+
+  it('redraws every badge when the theme changes, also one whose glyph keeps its colour', async () => {
+    let theme = THEME;
+    const { markers, store } = setup(() => theme);
+    store.getState().setSceneLighting({ enabled: true });
+    addLight(store, 100, 200);
+    const fill = (): unknown => {
+      const { badge } = parts(markers.view.children[0]!);
+      const instruction = badge.context.instructions.find((entry) => entry.action === 'fill') as { data: { style: { color: number } } };
+      return instruction.data.style.color;
+    };
+    expect(fill()).toBe(0x2a2a2a);
+    const tint = parts(markers.view.children[0]!).glyph.tint;
+
+    theme = { ...THEME, background: 0x1e1e1e };
+    document.body.classList.toggle('theme-light');
+    await vi.waitFor(() => expect(fill()).toBe(0x1e1e1e));
+    expect(parts(markers.view.children[0]!).glyph.tint).toBe(tint);
+    document.body.classList.remove('theme-light');
+  });
+
+  it('takes a theme that changed while the markers were hidden once they show again', async () => {
+    let theme = THEME;
+    const { markers, store } = setup(() => theme);
+    store.getState().setSceneLighting({ enabled: true });
+    addLight(store, 100, 200);
+    markers.setSuppressed(true);
+    theme = { ...THEME, background: 0x1e1e1e };
+    document.body.classList.toggle('theme-light');
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    document.body.classList.remove('theme-light');
+    markers.setSuppressed(false);
+    const { badge } = parts(markers.view.children[0]!);
+    const instruction = badge.context.instructions.find((entry) => entry.action === 'fill') as { data: { style: { color: number } } };
+    expect(instruction.data.style.color).toBe(0x1e1e1e);
   });
 
   it('dims a switched-off light', () => {

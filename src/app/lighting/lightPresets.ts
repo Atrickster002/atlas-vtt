@@ -38,7 +38,11 @@ export const LIGHT_KIND_LABELS: Record<LightKind, string> = {
   custom: 'Custom light',
 };
 
-/** The light's kind: the one it was given, else the preset it still equals, else custom. */
+/**
+ * The light's kind: the one it was given, else the preset it still equals, else custom. A stored
+ * kind this version does not know (a newer Atlas, a hand-edited file) counts as none.
+ */
 export function lightKindOf(emission: LightEmission): LightKind {
-  return emission.kind ?? presetOf(emission) ?? 'custom';
+  const { kind } = emission;
+  return kind && LIGHT_KINDS.includes(kind) ? kind : presetOf(emission) ?? 'custom';
 }

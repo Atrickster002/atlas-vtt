@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { emissionOfPreset } from '../../../lighting/lightEmissionForm';
 import { LIGHT_GLYPH_PATHS } from '../../../lighting/lightGlyphs';
 import { LIGHT_KINDS, lightKindOf } from '../../../lighting/lightPresets';
-import type { LightSource } from '../../../types/lightingTypes';
+import type { LightKind, LightSource } from '../../../types/lightingTypes';
 import { PIN_ICON_PATHS } from '../../../types/pinIcons';
 import { contrast, lightColorNumber, lightMarkerAt, lightMarkerLook, readableTint, type LightMarkerTheme } from '../lightMarker';
 
@@ -32,6 +32,13 @@ describe('light kinds', () => {
   it('reads a light without a kind by the preset it equals, else as custom', () => {
     expect(lightKindOf(emissionOfPreset('candle'))).toBe('candle');
     expect(lightKindOf({ ...emissionOfPreset('candle'), dim: 99 })).toBe('custom');
+  });
+
+  it('reads a kind it does not know, as a newer version or a hand-edited file may store, like no kind', () => {
+    const unknown = 'brazier' as LightKind;
+    expect(lightKindOf({ ...emissionOfPreset('candle'), kind: unknown })).toBe('candle');
+    expect(lightKindOf({ ...emissionOfPreset('candle'), dim: 99, kind: unknown })).toBe('custom');
+    expect(lightKindOf({ ...emissionOfPreset('candle'), kind: 'toString' as LightKind })).toBe('candle');
   });
 });
 

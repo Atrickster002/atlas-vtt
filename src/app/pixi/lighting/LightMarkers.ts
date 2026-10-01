@@ -40,8 +40,14 @@ interface Marker {
   glyph: Sprite | null;
   light: LightSource;
   look: LightMarkerLook;
+  /** The theme its badge was drawn in. */
+  theme: LightMarkerTheme;
   /** Eases the hover and drag lift; made on the first lift. */
   lift: ValueTransition | null;
+}
+
+function sameTheme(a: LightMarkerTheme, b: LightMarkerTheme): boolean {
+  return a.background === b.background && a.stroke === b.stroke && a.accent === b.accent;
 }
 
 function sameLook(a: LightMarkerLook, b: LightMarkerLook): boolean {
@@ -87,7 +93,9 @@ export class LightMarkers {
     });
     // The badge and the accent follow the theme, like the pins.
     this.themeObserver = new MutationObserver(() => {
-      this.theme = this.readTheme();
+      const theme = this.readTheme();
+      if (sameTheme(theme, this.theme)) return;
+      this.theme = theme;
       this.sync();
     });
     this.themeObserver.observe(document.body, { attributes: true, attributeFilter: ['class'] });
@@ -154,17 +162,19 @@ export class LightMarkers {
       }, this.theme);
       const previous = this.markers.get(light.id);
       const marker = previous ?? this.create(light, look);
-      if (!previous || !sameLook(previous.look, look)) this.draw(marker, look);
+      // The badge takes the theme's colours too, whatever its look: a marker drawn in another theme is redrawn.
+      if (!previous || previous.theme !== this.theme || !sameLook(previous.look, look)) this.draw(marker, look);
       this.lift(marker, look.lift);
       marker.view.position.set(light.x, light.y);
       marker.light = light;
       marker.look = look;
+      marker.theme = this.theme;
     }
   }
 
   private create(light: LightSource, look: LightMarkerLook): Marker {
     const view = this.view.addChild(new Container());
-    const marker: Marker = { view, badge: view.addChild(new Graphics()), glyph: null, light, look, lift: null };
+    const marker: Marker = { view, badge: view.addChild(new Graphics()), glyph: null, light, look, theme: this.theme, lift: null };
     this.markers.set(light.id, marker);
     this.applyScale(marker);
     return marker;
