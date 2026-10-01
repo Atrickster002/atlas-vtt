@@ -3,6 +3,7 @@
 - Dice rolls are thrown as 3D dice in a panel at the top right of the map (top centre in the player window): they bounce off the panel's edges, clatter, spark when they land, and a modifier clicks onto the total. Click a roll or press Escape to dismiss it. Critical results get a bigger burst of sparks and their own sound. Rolls with dice that have no real shape (such as d7) still show as a result card. Choose between result cards, fast dice and dice under Settings → Dice or in the command palette's new Dice settings. The player window shows the same dice when it shows rolls
 - Cairn is a built-in game system preset, with 5-foot squares, d20 saves where a 1 always succeeds and a 20 always fails, and its conditions: Deprived, Fatigue, Critical Damage, Paralyzed, Delirious and Fleeing
 - Each collection has dice rules in its settings (new Dice tab): the default roll and how critical results are recognised (natural, roll-under, doubles or none). A bare bonus in a statblock, such as +3, now rolls with the collection's default roll, e.g. 1d10+3 in Cyberpunk RED. Every game system preset sets them
+- Tokens can track any number of resources: each game system brings its own (Cairn's STR, Daggerheart's Stress) and you can add more, like ammunition, in the collection settings' new Resources tab. Each resource reads its maximum from a statblock field and shows as a bar or a compact badge, and you choose per resource whether players see it
 
 ## Improved
 
@@ -23,3 +24,7 @@
 - The dice tray no longer shows on top of the asset manager and the DM dashboard
 - A roll such as d20+2d6 no longer adds a stray +2 to its total, and subtracted dice (2d6-1d4) now subtract
 - A natural 1 or 20 counts as critical even when a modifier is added, and a maxed damage die never does
+
+## Important changes
+
+- Maps are updated when opened: HP and Stress become resources and keep their values. The separate HP and secondary bar switches in the scene and player view settings are replaced by a single Show resources switch and a per-resource player setting. The HP bar keeps one colour instead of turning yellow and red as it empties, and the DM Dashboard shows boxes for every bar with a maximum of 10 or less
