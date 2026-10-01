@@ -8,7 +8,8 @@
 
 $dice-roll-width: 21rem;
 $dice-roll-row-height: 3.4rem;
-$dice-roll-avatar: 24px;
+// The portrait alone says who rolled, so it is large enough to recognise; a row still holds it.
+$dice-roll-avatar: 36px;
 // The engraving fades towards the rim, as if printed and rubbed off with use.
 $dice-roll-engraving-fade: radial-gradient(ellipse 74% 74% at 50% 50%, #000 38%, rgb(0 0 0 / 0.45) 76%, rgb(0 0 0 / 0) 100%);
 

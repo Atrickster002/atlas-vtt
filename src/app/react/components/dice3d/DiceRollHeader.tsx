@@ -8,7 +8,10 @@ interface DiceRollHeaderProps {
   label: string;
 }
 
-/** The portrait of the token that rolled, when it has one, and who rolled what. */
+/**
+ * The portrait of the token that rolled, when it has one, and what it rolled.
+ * The creature's name is not written out; it names the portrait for screen readers.
+ */
 export function DiceRollHeader({ result, label }: DiceRollHeaderProps): React.ReactElement {
   const avatar = useDiceAvatar(result.source);
   return (
@@ -17,7 +20,7 @@ export function DiceRollHeader({ result, label }: DiceRollHeaderProps): React.Re
         <TokenPortrait
           className="atlas-dice-roll__avatar"
           src={avatar.src}
-          alt=""
+          alt={result.source?.tokenName ?? ''}
           showRing={avatar.showRing}
           ringColor={avatar.ringColor}
         />
