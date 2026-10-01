@@ -2,10 +2,12 @@ import { Matrix, type Application, type Container, type Texture } from 'pixi.js'
 import type { Viewport } from 'pixi-viewport';
 import type { ViewAtlasState, ViewAtlasStore } from '../../storeFactory';
 import type { MeasurementSettings } from '../../grid/measurementFormat';
+import type { TokenEntity } from '../../types';
 import { unitScaleOf } from '../../lighting/lightingUnits';
 import { sealedWalls } from '../../lighting/sealWalls';
 import { worldTexel } from '../../lighting/lightingConstants';
 import { sceneLook, type SceneLook } from '../../lighting/sceneLightingOptions';
+import { SightTokens } from '../../lighting/sightOnDrop';
 import { SEES_ALL, SightCache, sceneSight, sightOptionsChanged, sightSources, type AmbientLight, type LightReach, type Sight } from '../../vision/sight';
 import { wallList } from '../../vision/wallList';
 import { exploredShapes } from '../../vision/exploredShapes';
@@ -46,7 +48,8 @@ export interface LightingRendererDeps {
   onSightChange?: () => void;
 }
 
-type Watched = Pick<ViewAtlasState, 'objects' | 'lighting' | 'grid' | 'exploredMask'>;
+/** `tokens` are the scene's as sight and light read them (`SightTokens`). */
+type Watched = Pick<ViewAtlasState, 'objects' | 'lighting' | 'grid' | 'exploredMask'> & { tokens: Record<string, TokenEntity> };
 type SceneWithoutLook = Omit<EngineScene, keyof SceneLook>;
 /**
  * From the build that begins an attempt, over the first lit frame and the tick that waits for
@@ -72,6 +75,7 @@ export class LightingRenderer implements SceneLightingView {
   private readonly memory: ExploredMemory;
   private readonly sightCache = new SightCache();
   private readonly lightReachCache = new LightReaches();
+  private readonly sightTokens = new SightTokens();
   private reaches: LightReach[] = [];
   private sight: Sight = SEES_ALL;
   private previous: Watched | null = null;
@@ -189,24 +193,25 @@ export class LightingRenderer implements SceneLightingView {
     }
     this.engine.setEnabled(true);
     const prev = this.previous;
-    this.previous = { objects: state.objects, lighting, grid: state.grid, exploredMask: state.exploredMask };
+    const { walls, lights } = state.objects;
+    const tokens = this.sightTokens.read(state);
+    this.previous = { objects: state.objects, lighting, grid: state.grid, exploredMask: state.exploredMask, tokens };
     this.memory.sync(bounds, state.exploredMask);
 
-    const { walls, lights, tokens } = state.objects;
     const moved = !prev || prev.objects.walls !== walls || prev.objects.lights !== lights
-      || prev.objects.tokens !== tokens || prev.grid !== state.grid || sightOptionsChanged(prev.lighting, lighting);
-    const base = moved || !this.lastScene ? (this.lastScene = this.buildScene(state, bounds)) : this.lastScene;
+      || prev.tokens !== tokens || prev.grid !== state.grid || sightOptionsChanged(prev.lighting, lighting);
+    const base = moved || !this.lastScene ? (this.lastScene = this.buildScene(state, tokens, bounds)) : this.lastScene;
     this.engine.update({ ...base, ...sceneLook(lighting) });
     requestRender(this.deps.app);
   }
 
   /** Recomputes lights, their reaches and sight with sealed walls, and records what tokens now see. */
-  private buildScene(state: ViewAtlasState, bounds: MapBounds): SceneWithoutLook {
+  private buildScene(state: ViewAtlasState, tokens: Record<string, TokenEntity>, bounds: MapBounds): SceneWithoutLook {
     const scale = unitScaleOf(this.deps.measurement(), state.grid);
     const walls = sealedWalls(wallList(state.objects.walls), worldTexel(bounds));
-    const lights = activeLights(state.objects.lights, state.objects.tokens).map((light) => engineLight(light, scale));
+    const lights = activeLights(state.objects.lights, tokens).map((light) => engineLight(light, scale));
     this.reaches = this.lightReachCache.sync(lights, walls);
-    this.sight = sceneSight(state.lighting, sightSources(state.objects.tokens, scale, bounds), walls, this.sightCache);
+    this.sight = sceneSight(state.lighting, sightSources(tokens, scale, bounds), walls, this.sightCache);
     this.sightChanged = true;
     const shapes = exploredShapes(this.sight, state.lighting, this.reaches);
     if (shapes) this.memory.record(shapes);

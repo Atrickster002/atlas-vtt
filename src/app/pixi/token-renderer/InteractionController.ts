@@ -33,6 +33,7 @@ import { runInBackground } from '../../utils/backgroundTask';
 import { tokenSizeSubmenu } from '../../react/components/context-menu/tokenSizeMenu';
 import { tokenLightingEntries } from '../../react/components/context-menu/tokenLightingMenu';
 import { conditionsSubmenu } from '../../react/components/context-menu/conditionsMenu';
+import { holdTokens } from '../../lighting/sightOnDrop';
 
 interface DragState {
   isDragging: boolean;
@@ -266,7 +267,7 @@ export class InteractionController implements ITokenInteractionController {
     
     this.dragState.isDragging = true;
     // Tokens this press selects stay at rest until release, so a drag never grows their UI first
-    this.onTokensHeldChange?.(this.dragState.dragIds.filter((id) => !selectedIds.includes(id)));
+    this.reportHeld(this.dragState.dragIds.filter((id) => !selectedIds.includes(id)));
     
     // Don't set isDragging in store yet - wait for actual movement
     
@@ -289,11 +290,12 @@ export class InteractionController implements ITokenInteractionController {
     if (!this.dragState.hasMoved && moveDistance > 5) {
       this.dragState.hasMoved = true;
       this.store.getState().setIsDragging(true);
-      this.onTokensHeldChange?.(this.dragState.dragIds);
       // The whole drag becomes one undo step; closed in onPointerUp.
       beginHistoryTransaction(this.store);
       const grabbedIndex = Math.max(0, this.dragState.dragIds.indexOf(this.dragState.clickToken?.id ?? ''));
       if (this.dragState.copyOnDrag) this.dragCopiesInstead();
+      // Held are the tokens that move: the copies of an Alt-drag, before anything has moved.
+      this.reportHeld(this.dragState.dragIds);
       this.startDragRuler(this.dragState.dragIds[grabbedIndex]);
     }
     
@@ -327,7 +329,8 @@ export class InteractionController implements ITokenInteractionController {
       });
 
       if (updates.length > 0) {
-        // Update store positions during drag so vision recomputes in real time.
+        // The store follows the drag, so everything that reads positions does. Sight waits for
+        // the drop unless the scene has sight on drop off (`SightTokens`).
         // Persistence is debounced (1000ms) so these intermediate updates won't save,
         // and the open history transaction keeps them out of the undo stack.
         this.store.getState().setTokenPositions(updates);
@@ -501,9 +504,15 @@ export class InteractionController implements ITokenInteractionController {
       this.dragState.hasMoved = false;
       this.lastDragStreamSentAt = 0;
       delete this.dragState.clickToken;
-      this.onTokensHeldChange?.([]);
+      this.reportHeld([]);
     }
   };
+
+  /** The store notes where the held tokens stand (`holdTokens`: sight waits there for the drop); then the token UI. */
+  private reportHeld(tokenIds: string[]): void {
+    holdTokens(this.store, tokenIds);
+    this.onTokensHeldChange?.(tokenIds);
+  }
 
   private getConditionDefs(): ConditionDefinition[] {
     return this.conditionDefsProvider?.() ?? [];
@@ -790,6 +799,7 @@ export class InteractionController implements ITokenInteractionController {
 
     // A drag interrupted by teardown must not leave its transaction open
     if (this.dragState.hasMoved) endHistoryTransaction(this.store);
+    holdTokens(this.store, []);
     this.dragRuler?.end();
 
     // Remove any active viewport listeners using the same cleanup method

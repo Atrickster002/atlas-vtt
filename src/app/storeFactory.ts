@@ -307,6 +307,8 @@ export interface ViewAtlasState {
   closeLightPopover: UISlice['closeLightPopover'];
   isSceneLightingPanelOpen: UISlice['isSceneLightingPanelOpen'];
   setSceneLightingPanelOpen: UISlice['setSceneLightingPanelOpen'];
+  heldTokens: UISlice['heldTokens'];
+  setHeldTokens: UISlice['setHeldTokens'];
   setGridSettingsOpen: UISlice['setGridSettingsOpen'];
   setDMScreenOpen: UISlice['setDMScreenOpen'];
   setGridAlignmentOpen: UISlice['setGridAlignmentOpen'];
