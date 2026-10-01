@@ -18,7 +18,11 @@ function setup(options: { sceneLoads: boolean; mapLoaded: boolean; isMapLoading?
   const context = {
     tabMetaStore, sceneRequests: 0,
     // Cave is the active tab; its scene is in the store when one is loaded
-    store: { getState: () => ({ mapLoaded: options.mapLoaded, isMapLoading: options.isMapLoading ?? false, mapPath: options.mapLoaded ? CAVE.path : null }) },
+    store: { getState: () => ({
+      mapLoaded: options.mapLoaded, isMapLoading: options.isMapLoading ?? false, mapPath: options.mapLoaded ? CAVE.path : null,
+      setMapLoaded: vi.fn(), setPersistenceEnabled: vi.fn(),
+    }) },
+    _serviceManager: { getMapService: () => ({ cancelLoads: vi.fn() }) },
     flushPendingSaves: vi.fn().mockResolvedValue(undefined),
     saveTemporalState: vi.fn(), saveViewportState: vi.fn(),
     restoreTemporalState: vi.fn(), restoreViewportState: vi.fn(),
@@ -81,5 +85,37 @@ describe('switching scene tabs around a load that did not finish', () => {
     await switchToTab(caveId);
 
     expect(context.performSceneLoad).not.toHaveBeenCalled();
+  });
+
+  it('goes back to the tab of the scene still open when the next one fails before the store was switched', async () => {
+    const { context, switchToTab, caveId, towerId } = setup({ sceneLoads: false, mapLoaded: true });
+
+    await switchToTab(towerId);
+
+    expect(context.tabMetaStore.getState().activeTabId).toBe(caveId);
+    expect((context as { file?: TFile }).file).toBe(CAVE);
+
+    await switchToTab(towerId);
+    expect(context.performSceneLoad).toHaveBeenCalledTimes(2);
+  });
+
+  it('loads a tab that is marked active while the store still holds another scene', async () => {
+    const { context, switchToTab, towerId } = setup({ sceneLoads: true, mapLoaded: true });
+    context.tabMetaStore.getState().setActiveTab(towerId);
+
+    await switchToTab(towerId);
+
+    expect(context.performSceneLoad).toHaveBeenCalledWith(TOWER);
+  });
+
+  it('reloads the scene the store holds, not the file of a tab that failed to open', async () => {
+    const { context } = setup({ sceneLoads: true, mapLoaded: true });
+    Object.assign(context, { file: TOWER });
+    const rewrite = vi.fn().mockResolvedValue(undefined);
+
+    await AtlasView.prototype.reloadActiveScene.call(context as unknown as AtlasView, rewrite);
+
+    expect(rewrite).toHaveBeenCalledWith(CAVE);
+    expect(context.performSceneLoad).toHaveBeenCalledWith(CAVE);
   });
 });
