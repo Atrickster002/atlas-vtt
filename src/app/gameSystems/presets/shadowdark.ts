@@ -1,5 +1,6 @@
 import type { SystemPreset } from '../../types/systemPresetTypes';
 import type { TimerWidget } from '../../types/widgetTypes';
+import { HP_RESOURCE } from '../../resources/resourceDefinitions';
 import { builtInPresetId, conditionsOf } from './presetHelpers';
 
 /** Torches (and lanterns and the Light spell) burn for one hour of real time. */
@@ -57,6 +58,6 @@ export const SHADOWDARK: SystemPreset = {
       { name: 'Focus', color: '#7c3aed', icon: 'meditation' },
     ]),
     widgets: [SHADOWDARK_TORCH],
-    defaultWidgets: { hpBar: true },
+    resources: [{ ...HP_RESOURCE }],
   },
 };

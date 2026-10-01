@@ -1,4 +1,5 @@
 import type { SystemPreset } from '../../types/systemPresetTypes';
+import { HP_RESOURCE } from '../../resources/resourceDefinitions';
 import { builtInPresetId, conditionsOf } from './presetHelpers';
 
 /**
@@ -32,6 +33,6 @@ export const CYBERPUNK_RED: SystemPreset = {
       { name: 'Damaged Eye', color: '#475569', icon: 'bleeding-eye' },
       { name: 'Damaged Ear', color: '#0891b2', icon: 'hearing-disabled' },
     ]),
-    defaultWidgets: { hpBar: true },
+    resources: [{ ...HP_RESOURCE }],
   },
 };

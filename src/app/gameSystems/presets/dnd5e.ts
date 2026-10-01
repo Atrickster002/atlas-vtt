@@ -1,4 +1,5 @@
 import type { SystemPreset } from '../../types/systemPresetTypes';
+import { HP_RESOURCE } from '../../resources/resourceDefinitions';
 import { builtInPresetId, conditionsOf } from './presetHelpers';
 
 /** D&D 5th edition: 5-foot squares, every diagonal counts 5 feet, the 15 SRD conditions. */
@@ -32,6 +33,6 @@ export const DND_5E: SystemPreset = {
       { name: 'Stunned', color: '#facc15', icon: 'knocked-out-stars' },
       { name: 'Unconscious', color: '#1e3a8a', icon: 'sleepy' },
     ]),
-    defaultWidgets: { hpBar: true },
+    resources: [{ ...HP_RESOURCE }],
   },
 };

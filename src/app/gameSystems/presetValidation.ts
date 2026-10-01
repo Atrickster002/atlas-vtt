@@ -4,6 +4,7 @@
  * that cannot be used is left out instead of breaking the list.
  */
 
+import { parseResourceDefinitions } from '../resources/resourceDefinitions';
 import { isValidRangeBandThreshold } from '../grid/measurementFormat';
 import type {
   CollectionGridDefaults,
@@ -127,6 +128,7 @@ export function parseUserPreset(raw: unknown): SystemPreset | null {
     : [];
   const defaultWidgets = parseEnabledFlags(raw.rules.defaultWidgets);
   const dice = parseDiceRules(raw.rules.dice);
+  const resources = parseResourceDefinitions(raw.rules.resources);
   return {
     id: raw.id,
     name: raw.name.trim(),
@@ -137,6 +139,7 @@ export function parseUserPreset(raw: unknown): SystemPreset | null {
       ...(widgets.length > 0 && { widgets }),
       ...(Object.keys(defaultWidgets).length > 0 && { defaultWidgets }),
       ...(dice && { dice }),
+      ...(resources.length > 0 && { resources }),
     },
   };
 }

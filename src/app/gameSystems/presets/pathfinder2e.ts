@@ -1,4 +1,5 @@
 import type { SystemPreset } from '../../types/systemPresetTypes';
+import { HP_RESOURCE } from '../../resources/resourceDefinitions';
 import { builtInPresetId, conditionsOf } from './presetHelpers';
 
 /**
@@ -58,6 +59,6 @@ export const PATHFINDER_2E: SystemPreset = {
       { name: 'Unnoticed', color: '#334155', icon: 'hood' },
       { name: 'Wounded', color: '#b91c1c', icon: 'bleeding-wound', valued: true },
     ]),
-    defaultWidgets: { hpBar: true },
+    resources: [{ ...HP_RESOURCE }],
   },
 };

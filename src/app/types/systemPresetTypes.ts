@@ -3,6 +3,7 @@
  * conditions) that can be applied to any collection.
  */
 
+import type { ResourceDefinition } from '../resources/resourceTypes';
 import type { CollectionGridDefaults, ConditionDefinition } from './collectionSettingsTypes';
 import type { DiceRules } from './diceRulesTypes';
 import type { AnyWidget } from './widgetTypes';
@@ -24,6 +25,8 @@ export interface SystemRules {
   defaultWidgets?: Record<string, boolean>;
   /** Default roll and critical rule. Unset means `DEFAULT_DICE_RULES`. */
   dice?: DiceRules;
+  /** Token resources the system defines, copied on apply like conditions. */
+  resources?: ResourceDefinition[];
 }
 
 /** Built-in preset ids start with this; user presets never do. */

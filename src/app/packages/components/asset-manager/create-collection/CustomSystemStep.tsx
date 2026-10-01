@@ -2,6 +2,7 @@ import React from 'react';
 import { ConditionsTab } from '../../../../react/components/collection-settings/ConditionsTab';
 import { DefaultWidgetsTab } from '../../../../react/components/collection-settings/DefaultWidgetsTab';
 import { GridMeasurementTab } from '../../../../react/components/collection-settings/GridMeasurementTab';
+import type { ResourceDefinition } from '../../../../resources/resourceTypes';
 import type { CollectionGridDefaults, ConditionDefinition } from '../../../../types/collectionSettingsTypes';
 
 /** The rules a game system set up while creating a collection consists of. */
@@ -9,6 +10,7 @@ export interface CustomSystemRules {
   gridDefaults: CollectionGridDefaults;
   conditions: ConditionDefinition[];
   defaultWidgets: Record<string, boolean>;
+  resources: ResourceDefinition[];
 }
 
 interface CustomSystemStepProps {

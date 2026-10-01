@@ -57,6 +57,33 @@ describe('built-in presets', () => {
     expect([save(1), save(20), save(10)]).toEqual(['high', 'low', null]);
   });
 
+  it('give every built-in system HP, Cairn STR from its stat row and Daggerheart Stress', () => {
+    for (const preset of BUILT_IN_SYSTEM_PRESETS) {
+      const hp = preset.rules.resources?.find((r) => r.key === 'hp');
+      expect(hp?.defeatedWhenSpent, preset.name).toBe(true);
+      expect(preset.rules.defaultWidgets?.hpBar, preset.name).toBeUndefined();
+    }
+    const cairn = BUILT_IN_SYSTEM_PRESETS.find((p) => p.name === 'Cairn')!;
+    expect(cairn.rules.resources?.map((r) => [r.key, r.field, r.direction])).toEqual([['hp', 'hp', 'drains'], ['str', 'stats.0', 'drains']]);
+    const daggerheart = BUILT_IN_SYSTEM_PRESETS.find((p) => p.name === 'Daggerheart')!;
+    expect(daggerheart.rules.resources?.map((r) => [r.key, r.direction])).toEqual([['hp', 'drains'], ['stress', 'fills']]);
+  });
+
+  it('count a changed resource list as an edited system', () => {
+    const cairn = BUILT_IN_SYSTEM_PRESETS.find((p) => p.name === 'Cairn')!;
+    const rules = rulesOfPreset(cairn);
+    expect(sameSystemRules(rules, rules)).toBe(true);
+    expect(sameSystemRules(rules, { ...rules, resources: rules.resources.slice(0, 1) })).toBe(false);
+  });
+
+  it('keep valid resources of stored user presets and drop broken ones', () => {
+    const [preset] = parseUserPresets([{ id: 'u1', name: 'Mine', builtIn: false, rules: {
+      gridDefaults: BUILT_IN_SYSTEM_PRESETS[0]!.rules.gridDefaults, conditions: [],
+      resources: [{ key: 'ammo', name: 'Ammo', field: 'ammo', direction: 'drains', look: 'badge', color: '#f59e0b', visibleToPlayers: true }, { key: '', name: 'x' }],
+    } }]);
+    expect(preset?.rules.resources?.map((r) => r.key)).toEqual(['ammo']);
+  });
+
   it('measure Pathfinder 2e in 5-foot squares with 5/10 diagonals and the Remaster conditions', () => {
     const pf2 = BUILT_IN_SYSTEM_PRESETS.find((preset) => preset.name === 'Pathfinder 2e')!;
     const settings = resolveMeasurementSettings(pf2.rules.gridDefaults, null);
@@ -125,7 +152,7 @@ describe('comparing and describing rules', () => {
 
   it('summarises measurement and conditions', () => {
     expect(describeSystemRules(dnd5e.rules)).toBe('5 ft squares · 15 conditions');
-    expect(describeSystemRules(daggerheart.rules)).toBe('5 range bands · 3 conditions');
+    expect(describeSystemRules(daggerheart.rules)).toBe('5 range bands · 3 conditions · HP, Stress');
   });
 
   it('finds the recorded preset, or the one whose rules match', () => {

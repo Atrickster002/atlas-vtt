@@ -1,4 +1,5 @@
 import type { SystemPreset } from '../../types/systemPresetTypes';
+import { HP_RESOURCE } from '../../resources/resourceDefinitions';
 import { builtInPresetId, conditionsOf } from './presetHelpers';
 
 /**
@@ -33,6 +34,6 @@ export const OLD_SCHOOL_ESSENTIALS: SystemPreset = {
       { name: 'Fleeing', color: '#7c3aed', icon: 'run' },
       { name: 'Surprised', color: '#f59e0b', icon: 'surprised' },
     ]),
-    defaultWidgets: { hpBar: true },
+    resources: [{ ...HP_RESOURCE }],
   },
 };

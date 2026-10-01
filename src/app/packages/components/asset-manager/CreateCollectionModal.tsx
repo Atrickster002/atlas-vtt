@@ -1,3 +1,4 @@
+import { HP_RESOURCE } from '../../../resources/resourceDefinitions';
 import React, { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { ArrowLeft, FolderPlus } from 'lucide-react';
@@ -28,7 +29,7 @@ interface CreateCollectionModalProps {
 type Step = 'details' | 'custom';
 
 function blankRules(): CustomSystemRules {
-  return { gridDefaults: structuredClone(DEFAULT_GRID_DEFAULTS), conditions: [], defaultWidgets: { hpBar: true } };
+  return { gridDefaults: structuredClone(DEFAULT_GRID_DEFAULTS), conditions: [], defaultWidgets: {}, resources: [{ ...HP_RESOURCE }] };
 }
 
 /**
