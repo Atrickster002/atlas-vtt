@@ -2,6 +2,7 @@ import type { App } from 'obsidian';
 import type { TokenSensesResolver } from '../../creatures/tokenSensesResolver';
 import { AssetService } from '../../services/AssetService';
 import { mapSightRules } from '../../services/mapSightRules';
+import { SettingsService } from '../../services/SettingsService';
 import type { ViewAtlasStore } from '../../storeFactory';
 import { sameSightRules, type SightRules } from '../../vision/sightRules';
 
@@ -19,8 +20,9 @@ export interface SightRulesWatchDeps {
 /**
  * The sight rules of a view's map (the senses and conditions of its collection, and how each
  * token perceives), read once per map and again when they may have changed: the settings of the
- * map's collection, or a statblock that was read or edited, or the senses and unit it is read
- * with, which the resolver announces only when they differ. A change is looked at once, in the
+ * map's collection, Atlas' own settings (a user preset the collection reads its senses from), the
+ * asset index finishing its load (a map drawn before it has the generic rules), or a statblock
+ * that was read or edited, which the resolver announces. A change is looked at once, in the
  * next frame, however many arrive until then (a bestiary announces its statblocks one by one),
  * and `onChange` is called only when the rules differ in what sight goes by (`sameSightRules`):
  * a save of other settings of the collection builds nothing, and the rules keep their senses,
@@ -43,7 +45,14 @@ export class SightRulesWatch {
       if (mapPath && AssetService.getInstance(obsApp).getCollectionForMap(mapPath) === collectionId) this.schedule();
     });
     this.cleanups.push(() => obsApp.workspace.offref(settingsChange));
+    // The resolver announces changed rules only once a vision token was asked about; a preset edited before that is found here.
+    const stopSettings = SettingsService.forApp(obsApp)?.onChange(() => this.schedule());
+    if (stopSettings) this.cleanups.push(stopSettings);
     this.cleanups.push(senses.subscribe(() => this.schedule(true)));
+    // A view built before the asset index was loaded read its map as outside every collection.
+    let live = true;
+    this.cleanups.push(() => { live = false; });
+    AssetService.getInstance(obsApp).initialize().then(() => { if (live) this.schedule(); }, () => undefined);
   }
 
   current(): SightRules {
