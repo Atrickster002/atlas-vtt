@@ -1,8 +1,11 @@
 import type { App } from 'obsidian';
 import { BUILT_IN_SYSTEM_PRESETS } from '../gameSystems/builtInPresets';
+import { GENERIC_LIGHT_PRESETS } from '../gameSystems/lightPresets/generic';
+import { readCollectionLightPresets } from '../gameSystems/lightPresetValidation';
 import { readCollectionSenses } from '../gameSystems/senseValidation';
 import { GENERIC_SENSES } from '../gameSystems/senses/generic';
 import type { CollectionSettings } from '../types/collectionSettingsTypes';
+import type { LightPresetDefinition } from '../types/lightPresetTypes';
 import type { SenseDefinition } from '../types/senseTypes';
 import type { SystemPreset } from '../types/systemPresetTypes';
 import { AssetService } from './AssetService';
@@ -26,4 +29,10 @@ export function mapCollectionSettings(app: App, mapPath: string | null | undefin
 export function mapSenses(app: App, mapPath: string | null | undefined): readonly SenseDefinition[] {
   const settings = mapCollectionSettings(app, mapPath);
   return settings ? readCollectionSenses(settings, systemPresetsOf(app)) : GENERIC_SENSES;
+}
+
+/** The lights offered on the map: its collection's, or the generic ones without one. */
+export function mapLightPresets(app: App, mapPath: string | null | undefined): readonly LightPresetDefinition[] {
+  const settings = mapCollectionSettings(app, mapPath);
+  return settings ? readCollectionLightPresets(settings, systemPresetsOf(app)) : GENERIC_LIGHT_PRESETS;
 }

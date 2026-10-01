@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { hasVisionDefaults } from '../../../gameSystems/visionDefaults';
+import { parseLightPresets } from '../../../gameSystems/lightPresetValidation';
 import { parseSenseDefinitions } from '../../../gameSystems/senseValidation';
 import { DEFAULT_GRID_DEFAULTS, rulesOfPreset, vanillaSystemSettings } from '../../../gameSystems/systemRules';
 import { parseCreatureFilters, parseHiddenCreatureFilters } from '../../../creatures/creatureFilterDefinitions';
@@ -12,6 +13,7 @@ import type {
 import type { CreatureFilterDefinition } from '../../../types/creatureFilterTypes';
 import type { DiceRules } from '../../../types/diceRulesTypes';
 import type { TokenVisionDefaults } from '../../../types/lightingTypes';
+import type { LightPresetDefinition } from '../../../types/lightPresetTypes';
 import type { SenseDefinition } from '../../../types/senseTypes';
 import type { SystemPreset } from '../../../types/systemPresetTypes';
 import { changedTokenBars, tokenBarsOf, type TokenBars } from '../../../services/collectionTokenBars';
@@ -28,6 +30,8 @@ export interface CollectionSettingsDraft {
   senses: readonly SenseDefinition[] | undefined;
   /** Set only once the GM edits the senses (`editedSenses`), so an untouched collection keeps following its preset. */
   setSenses: (senses: readonly SenseDefinition[] | undefined) => void;
+  /** The collection's own lights; unset while it takes those of its preset. Read with `collectionLightPresets`. */
+  lightPresets: readonly LightPresetDefinition[] | undefined;
   conditions: ConditionDefinition[];
   setConditions: (conditions: ConditionDefinition[]) => void;
   /** Unset while the collection takes the dice of its preset; read with `collectionDiceRules`. */
@@ -64,6 +68,7 @@ export function useCollectionSettingsDraft(
   const [defaultWidgets, setDefaultWidgets] = useState<Record<string, boolean>>({});
   const [defaultTokenVision, setDefaultTokenVision] = useState<TokenVisionDefaults | undefined>(undefined);
   const [senses, setSenses] = useState<readonly SenseDefinition[] | undefined>(undefined);
+  const [lightPresets, setLightPresets] = useState<readonly LightPresetDefinition[] | undefined>(undefined);
   const [conditions, setConditions] = useState<ConditionDefinition[]>([]);
   const [dice, setDice] = useState<DiceRules | undefined>(undefined);
   const [systemPresetId, setSystemPresetId] = useState<string | undefined>(undefined);
@@ -80,6 +85,9 @@ export function useCollectionSettingsDraft(
     setDefaultWidgets(settings.defaultWidgets ?? {});
     setDefaultTokenVision(settings.defaultTokenVision);
     setSenses(parseSenseDefinitions(settings.senses));
+    // An empty list is no list of its own: the collection then reads its preset's.
+    const ownLights = parseLightPresets(settings.lightPresets);
+    setLightPresets(ownLights?.length ? ownLights : undefined);
     setConditions(settings.conditions ?? []);
     setDice(settings.dice);
     setSystemPresetId(settings.systemPresetId);
@@ -97,8 +105,9 @@ export function useCollectionSettingsDraft(
     setDefaultWidgets(rules.defaultWidgets);
     setDice(rules.dice);
     setDefaultTokenVision(rules.defaultTokenVision);
-    // The collection reads its preset's senses until they are edited.
+    // The collection reads its preset's senses and light presets until they are edited.
     setSenses(undefined);
+    setLightPresets(undefined);
     setSystemPresetId(preset.id);
   };
 
@@ -110,6 +119,7 @@ export function useCollectionSettingsDraft(
     setDice(vanilla.dice);
     setDefaultTokenVision(vanilla.defaultTokenVision);
     setSenses(vanilla.senses);
+    setLightPresets(vanilla.lightPresets);
     setSystemPresetId(undefined);
   };
 
@@ -118,6 +128,7 @@ export function useCollectionSettingsDraft(
     defaultWidgets,
     defaultTokenVision: hasVisionDefaults(defaultTokenVision) ? defaultTokenVision : undefined,
     senses,
+    lightPresets,
     conditions,
     ...(dice && { dice: { ...dice, defaultRoll: dice.defaultRoll.trim() } }),
     // Trimmed, with the field as label where none was typed.
@@ -133,6 +144,7 @@ export function useCollectionSettingsDraft(
     defaultWidgets, setDefaultWidgets,
     defaultTokenVision, setDefaultTokenVision,
     senses, setSenses,
+    lightPresets,
     conditions, setConditions,
     dice, setDice,
     customCreatureFilters, setCustomCreatureFilters,

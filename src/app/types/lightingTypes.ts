@@ -42,6 +42,12 @@ export interface LightEmission {
   sourceRadius?: number;
   /** The kind the GM gave the light; lights without one are read by `lightKindOf`. */
   kind?: LightKind;
+  /**
+   * Id of the collection's light preset the light was made from (`LightPresetDefinition.id`); it
+   * stays while the light's values are edited. Read with `lightPresetOf`, which also reads lights
+   * without one.
+   */
+  preset?: string;
 }
 
 /** A light placed on the map. */

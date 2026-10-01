@@ -30,6 +30,7 @@ import { LootTab } from './collection-settings/LootTab';
 import { SystemTab } from './collection-settings/SystemTab';
 import { DiceTab } from './collection-settings/DiceTab';
 import { collectionDiceRules, isValidDefaultRoll } from '../../gameSystems/diceRules';
+import { collectionLightPresets } from '../../gameSystems/lightPresetRules';
 import { editedSenses, sensesAreValid } from '../../gameSystems/senseEditing';
 import { collectionSenses } from '../../gameSystems/senseRules';
 import { CreatureFiltersTab } from './collection-settings/CreatureFiltersTab';
@@ -206,6 +207,7 @@ export function CollectionSettingsModal({
                   dice,
                   ...(draft.defaultTokenVision && { defaultTokenVision: draft.defaultTokenVision }),
                   senses,
+                  lightPresets: collectionLightPresets(draft, systemPresets.presets),
                 }}
                 presetId={draft.systemPresetId}
                 onApplyPreset={draft.applyPreset}

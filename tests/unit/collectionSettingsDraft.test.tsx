@@ -114,3 +114,32 @@ describe('senses', () => {
     expect(result.current.toSettings()).toHaveProperty('senses', undefined);
   });
 });
+
+describe('light presets', () => {
+  const glowMoss = { id: 'home-1', name: 'Glow moss', bright: 5, dim: 15, color: '#7ee0a8', animation: 'none', kind: 'magical' } as const;
+  const { lightPresets: _lights, ...withoutLights } = structuredClone(dnd5e.rules);
+
+  it('loads the collection\'s own, without what cannot be used, and saves them again', () => {
+    const { result } = draftFor({ ...withoutLights, lightPresets: [glowMoss, { name: 'No id' }] as never, systemPresetId: dnd5e.id });
+    expect(result.current.lightPresets).toEqual([glowMoss]);
+    expect(result.current.toSettings().lightPresets).toEqual([glowMoss]);
+  });
+
+  it('has none of its own in a collection that follows its preset, and saves none', () => {
+    const { result } = draftFor({ ...withoutLights, systemPresetId: dnd5e.id });
+    expect(result.current.lightPresets).toBeUndefined();
+    expect(result.current.toSettings()).toHaveProperty('lightPresets', undefined);
+  });
+
+  it('are replaced by an applied preset\'s, which the collection then reads from the preset', () => {
+    const { result } = draftFor({ ...withoutLights, lightPresets: [glowMoss], systemPresetId: shadowdark.id });
+    act(() => result.current.applyPreset(dnd5e));
+    expect(result.current.toSettings()).toHaveProperty('lightPresets', undefined);
+  });
+
+  it('are cleared with the game system', () => {
+    const { result } = draftFor({ ...withoutLights, lightPresets: [glowMoss], systemPresetId: dnd5e.id });
+    act(() => result.current.clearSystem());
+    expect(result.current.toSettings()).toHaveProperty('lightPresets', undefined);
+  });
+});

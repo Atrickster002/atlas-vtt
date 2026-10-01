@@ -1,4 +1,5 @@
 import type { SystemPreset } from '../../types/systemPresetTypes';
+import { PATHFINDER_2E_LIGHTS } from '../lightPresets/pathfinder2e';
 import { PATHFINDER_2E_SENSES } from '../senses/pathfinder2e';
 import { builtInPresetId, conditionsOf } from './presetHelpers';
 
@@ -60,6 +61,7 @@ export const PATHFINDER_2E: SystemPreset = {
       { name: 'Wounded', color: '#b91c1c', icon: 'bleeding-wound', valued: true },
     ]),
     senses: PATHFINDER_2E_SENSES,
+    lightPresets: PATHFINDER_2E_LIGHTS,
     defaultWidgets: { hpBar: true },
   },
 };

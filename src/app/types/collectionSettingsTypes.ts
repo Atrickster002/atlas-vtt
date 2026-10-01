@@ -7,6 +7,7 @@
 
 import type { CreatureFilterDefinition } from './creatureFilterTypes';
 import type { DiceRules } from './diceRulesTypes';
+import type { LightPresetDefinition } from './lightPresetTypes';
 import type { TokenVisionDefaults } from './lightingTypes';
 import type { SenseDefinition } from './senseTypes';
 import type { AnyWidget } from './widgetTypes';
@@ -77,6 +78,11 @@ export interface CollectionSettings {
    * preset; read with `collectionSenses`.
    */
   senses?: readonly SenseDefinition[] | undefined;
+  /**
+   * The lights offered in the collection, stored only once the collection has its own. Unset
+   * while it takes those of its preset; read with `collectionLightPresets`.
+   */
+  lightPresets?: readonly LightPresetDefinition[] | undefined;
   /** The game system preset the rules were last taken from or saved to; they may have been edited since. */
   systemPresetId?: string | undefined;
   /** Default roll and critical rule. Read with `collectionDiceRules`. */
