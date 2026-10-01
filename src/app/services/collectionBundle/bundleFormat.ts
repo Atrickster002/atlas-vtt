@@ -3,7 +3,7 @@ import { isRecord } from '../assetMetadataGuards';
 import { SNAPSHOTS_DIR } from '../../snapshots/snapshotPaths';
 
 /** Bumped when the zip layout or manifest shape changes. */
-export const BUNDLE_FORMAT = 4;
+export const BUNDLE_FORMAT = 5;
 /** Oldest format this version still imports. */
 const OLDEST_BUNDLE_FORMAT = 2;
 export const BUNDLE_MANIFEST = 'manifest.json';
@@ -12,11 +12,12 @@ export const BUNDLE_FILES_DIR = 'files';
 
 /**
  * `asset-file` is the file that backs an asset record: token image, map JSON, scene, encounter or player JSON.
- * `linked-note` is a note a scene's pins or characters open; `cover` is the collection's cover image (format 4).
+ * `linked-note` is a note a scene's pins or characters open, or one such a note links to, however far along;
+ * `note-attachment` is an image or PDF one of those notes shows (format 5); `cover` is the collection's cover image (format 4).
  */
 const BUNDLE_FILE_ROLES = [
   'asset-file', 'thumbnail', 'scene-map', 'scene-thumbnail', 'scene-snapshot', 'scene-snapshot-thumbnail', 'background', 'token-image', 'statblock-note', 'statblock-image',
-  'linked-note', 'cover',
+  'linked-note', 'note-attachment', 'cover',
 ] as const;
 export type BundleFileRole = typeof BUNDLE_FILE_ROLES[number];
 
@@ -35,6 +36,8 @@ export interface BundleFile {
   sha256?: string;
   /** Ids of the bundle's assets that use this file (format 3). */
   owners?: string[];
+  /** Paths of the bundled notes that link to this file; it travels while one of them or an owner does (format 5). */
+  linkedFrom?: string[];
 }
 
 /** How the bundle came to be. Only the collection's publisher makes releases; others share the version they have. */
@@ -88,13 +91,16 @@ export function isSafeBundlePath(path: string, role?: BundleFileRole): boolean {
 const isStatblockImage = (value: unknown): boolean =>
   isRecord(value) && (value.key === 'image' || value.key === 'token-image') && typeof value.path === 'string';
 
+const isStrings = (value: unknown): boolean => Array.isArray(value) && value.every((entry) => typeof entry === 'string');
+
 const isBundleFile = (value: unknown): value is BundleFile =>
   isRecord(value)
   && typeof value.vaultPath === 'string'
   && typeof value.role === 'string'
   && (BUNDLE_FILE_ROLES as readonly string[]).includes(value.role)
   && (value.sha256 === undefined || (typeof value.sha256 === 'string' && /^[0-9a-f]{64}$/.test(value.sha256)))
-  && (value.owners === undefined || (Array.isArray(value.owners) && value.owners.every((owner) => typeof owner === 'string')))
+  && (value.owners === undefined || isStrings(value.owners))
+  && (value.linkedFrom === undefined || isStrings(value.linkedFrom))
   && (value.statblockImage === undefined || isStatblockImage(value.statblockImage));
 
 const isBundleRelease = (value: unknown): value is BundleRelease =>
