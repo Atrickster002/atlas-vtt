@@ -317,16 +317,11 @@ describe('senses', () => {
     rules: { gridDefaults: { unitType: 'feet', unitDistance: 5, measurementMode: 'metric' }, conditions: [], ...extra },
   });
 
-  it('are copied by rulesOfPreset, not shared with the preset', () => {
-    const copied = rulesOfPreset(dnd5e);
-    expect(copied.senses).toEqual(BUILT_IN_SENSES[dnd5e.id]);
-    expect(copied.senses).not.toBe(dnd5e.rules.senses);
-    expect(copied.senses![0]).not.toBe(dnd5e.rules.senses![0]);
-    expect(copied.senses![0]!.sees).not.toBe(dnd5e.rules.senses![0]!.sees);
-  });
-
-  it('are left out of rulesOfPreset for a system that has none, so the collection falls back to the generic ones', () => {
+  it('are never copied into a collection by rulesOfPreset: it reads those of its preset until the GM edits them', () => {
+    expect(rulesOfPreset(dnd5e)).not.toHaveProperty('senses');
     expect(rulesOfPreset(daggerheart)).not.toHaveProperty('senses');
+    const user: SystemPreset = { id: 'user', name: 'Homebrew', builtIn: false, rules: withSenses([witchSight]) };
+    expect(rulesOfPreset(user)).not.toHaveProperty('senses');
   });
 
   it('are cleared by the vanilla settings', () => {
@@ -339,13 +334,22 @@ describe('senses', () => {
     expect(describeSystemRules(daggerheart.rules)).toBe('5 range bands · 3 conditions');
   });
 
-  it('mark a preset as edited when they change, and count none as the generic set', () => {
+  it('mark a preset as edited when they change, and count a preset without senses as having the generic set', () => {
     expect(sameSystemRules(withSenses([witchSight]), withSenses([structuredClone(witchSight)]))).toBe(true);
     expect(sameSystemRules(withSenses([witchSight]), withSenses([{ ...witchSight, seesInvisible: true }]))).toBe(false);
-    expect(sameSystemRules(withSenses([witchSight]), withSenses(undefined))).toBe(false);
+    expect(sameSystemRules(withSenses([witchSight]), withSenses([]))).toBe(false);
+    expect(sameSystemRules(withSenses(undefined), withSenses([witchSight]))).toBe(false);
     expect(sameSystemRules(withSenses(undefined), withSenses([...GENERIC_SENSES]))).toBe(true);
     expect(sameSystemRules(withSenses(undefined), withSenses([]))).toBe(false);
     expect(sameSystemRules(dnd5e.rules, { ...structuredClone(dnd5e.rules), senses: [...GENERIC_SENSES] })).toBe(false);
+  });
+
+  it('count a collection without senses of its own as unedited, whatever its preset has', () => {
+    const { senses: _senses, ...following } = structuredClone(dnd5e.rules);
+    expect(sameSystemRules(dnd5e.rules, following)).toBe(true);
+    expect(sameSystemRules(dnd5e.rules, { ...following, senses: structuredClone(BUILT_IN_SENSES[dnd5e.id]!) })).toBe(true);
+    expect(sameSystemRules(dnd5e.rules, rulesOfPreset(dnd5e))).toBe(true);
+    expect(findActivePreset(BUILT_IN_SYSTEM_PRESETS, undefined, rulesOfPreset(dnd5e))?.id).toBe(dnd5e.id);
   });
 
   it('are read sense by sense from stored presets: an unusable one is left out and the rest of the preset stays', () => {
