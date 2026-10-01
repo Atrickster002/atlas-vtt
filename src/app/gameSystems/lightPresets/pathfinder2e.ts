@@ -1,8 +1,8 @@
-import { CANDLE_LOOK, LANTERN_LOOK, SPELL_LOOK, STEADY_MAGIC_LOOK, TORCH_LOOK, lightsOf } from './lightPresetHelpers';
+import { CANDLE_LOOK, DARKNESS_LOOK, LANTERN_LOOK, SPELL_LOOK, STEADY_MAGIC_LOOK, TORCH_LOOK, lightsOf } from './lightPresetHelpers';
 
 /**
  * Pathfinder 2e (Player Core): "it sheds dim light to double that radius", except the candle,
- * which sheds dim light only, and the glow rod.
+ * which sheds dim light only, and the glow rod. Darkness is the spell's 20-foot burst.
  */
 export const PATHFINDER_2E_LIGHTS = lightsOf('pathfinder2e', 'feet', {
   candle: { name: 'Candle', bright: 0, dim: 10, ...CANDLE_LOOK },
@@ -11,4 +11,5 @@ export const PATHFINDER_2E_LIGHTS = lightsOf('pathfinder2e', 'feet', {
   light: { name: 'Light', bright: 20, dim: 40, ...SPELL_LOOK },
   'everlight-crystal': { name: 'Everlight crystal', bright: 20, dim: 40, ...STEADY_MAGIC_LOOK },
   'glow-rod': { name: 'Glow rod', bright: 20, dim: 60, ...STEADY_MAGIC_LOOK, color: '#7ee0a8' },
+  darkness: { name: 'Darkness', dim: 20, ...DARKNESS_LOOK },
 });

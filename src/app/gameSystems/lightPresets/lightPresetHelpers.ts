@@ -1,3 +1,4 @@
+import { DARKNESS_COLOR } from '../../lighting/lightPresets';
 import type { LightPresetDefinition, LightPresetUnit } from '../../types/lightPresetTypes';
 
 /** A light as a built-in table defines it; the id is derived from the preset and the light's key, the unit is the table's. */
@@ -20,3 +21,5 @@ export const LANTERN_LOOK = { color: '#ffd28a', animation: 'none', kind: 'lanter
 export const SPELL_LOOK = { color: '#8fb8ff', animation: 'magic', kind: 'magical', sourceRadius: 2.5 } as const;
 /** A magical light that burns steadily and warm, like an everburning flame. */
 export const STEADY_MAGIC_LOOK = { color: '#fff1d6', animation: 'none', kind: 'magical', sourceRadius: 2 } as const;
+/** Magical darkness: its one radius is `dim`, and its colour is only its marker's. */
+export const DARKNESS_LOOK = { bright: 0, color: DARKNESS_COLOR, animation: 'none', kind: 'darkness', sourceRadius: 1, darkness: true } as const;

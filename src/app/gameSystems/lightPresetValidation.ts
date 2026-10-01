@@ -52,6 +52,8 @@ function parseLightPreset(raw: unknown): LightPresetDefinition | null {
     kind: oneOf(LIGHT_KINDS, raw.kind, 'custom'),
     ...(sourceRadius !== undefined && { sourceRadius }),
     ...(intensity !== undefined && { intensity }),
+    ...(raw.darkness === true && { darkness: true }),
+    ...(typeof raw.priority === 'number' && Number.isFinite(raw.priority) && raw.priority !== 0 && { priority: raw.priority }),
   };
 }
 

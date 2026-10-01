@@ -33,7 +33,7 @@ describe('the rules of the collection that holds a map', () => {
   it('are the generic ones for a map outside every collection, or without a map', () => {
     const app = appWith({ systemPresetId: dnd5e.id });
     for (const path of ['maps/other.atlasmap', null, undefined]) {
-      expect(mapLightPresets(app, at(path)).map((light) => [light.id, light.bright, light.dim])).toEqual([['candle', 5, 10], ['torch', 20, 40], ['lantern', 30, 60], ['magical', 20, 40]]);
+      expect(mapLightPresets(app, at(path)).map((light) => [light.id, light.bright, light.dim])).toEqual([['candle', 5, 10], ['torch', 20, 40], ['lantern', 30, 60], ['magical', 20, 40], ['darkness', 0, 15]]);
     }
   });
 

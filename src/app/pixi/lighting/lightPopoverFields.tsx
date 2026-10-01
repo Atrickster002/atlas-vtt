@@ -92,6 +92,29 @@ interface RangeFieldsProps extends EmissionFieldProps {
  */
 export function RangeFields({ emission, unit, unitDistance, maxRange, onChange, onSliderPointerDown }: RangeFieldsProps): React.ReactElement {
   const { max, step } = rangeSliderScale(unitDistance, emission.dim);
+  // A source of magical darkness has one radius, where it ends.
+  if (emission.darkness) {
+    return (
+      <div className="atlas-light-popover__field">
+        <div className="atlas-light-popover__ranges">
+          <RangeInput label="Radius" field="dim" emission={emission} maxRange={maxRange} onChange={onChange} />
+          {unit && <span className="atlas-light-popover__unit">{unit}</span>}
+        </div>
+        <Slider
+          value={[emission.dim]}
+          min={0}
+          max={Math.min(max, maxRange)}
+          step={step}
+          thumbLabels={['Darkness radius']}
+          getValueText={(value) => `${formatRange(value)} ${unit}`.trim()}
+          onPointerDown={onSliderPointerDown}
+          onValueChange={([dim]) => {
+            if (dim !== undefined && dim !== emission.dim) onChange(withEmissionValue(emission, 'dim', dim, maxRange));
+          }}
+        />
+      </div>
+    );
+  }
   return (
     <div className="atlas-light-popover__field">
       <div className="atlas-light-popover__ranges">

@@ -34,4 +34,8 @@ export interface LightPresetDefinition {
   sourceRadius?: number;
   /** Brightness multiplier; unset is 1. */
   intensity?: number;
+  /** A source of magical darkness of radius `dim` (`LightEmission.darkness`). */
+  darkness?: boolean;
+  /** Which wins where a light and a darkness meet (`LightEmission.priority`); unset is 0. */
+  priority?: number;
 }

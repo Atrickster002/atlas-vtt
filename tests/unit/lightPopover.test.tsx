@@ -72,7 +72,7 @@ describe('LightPopover', () => {
 
   it('names every control: kinds, colours, ranges, sliders, flicker and the actions', () => {
     renderPopover();
-    for (const kind of ['Candle', 'Torch', 'Lantern', 'Magical light', 'Custom light']) screen.getByRole('button', { name: kind });
+    for (const kind of ['Candle', 'Torch', 'Lantern', 'Magical light', 'Darkness', 'Custom light']) screen.getByRole('button', { name: kind });
     expect(screen.getByRole('group', { name: 'Kind of light' })).toBeTruthy();
     for (const colour of ['Candle amber', 'Torch orange', 'Lantern gold', 'Warm white', 'Arcane blue', 'Fey green', 'Ember red']) screen.getByRole('button', { name: colour });
     expect(screen.getByLabelText('Custom colour')).toBeTruthy();
@@ -110,6 +110,44 @@ describe('LightPopover', () => {
     const { light } = renderPopover();
     fireEvent.click(screen.getByRole('button', { name: 'Custom light' }));
     expect(light().emission).toMatchObject({ kind: 'custom', bright: 20, dim: 40, color: '#ff9a3c' });
+  });
+
+  it('makes the light a source of magical darkness with the Darkness kind: one radius, and none of a light\'s controls', () => {
+    const { light, steps } = renderPopover();
+    fireEvent.click(screen.getByRole('button', { name: 'Darkness' }));
+    expect(light().emission).toMatchObject({ darkness: true, kind: 'darkness', bright: 0, dim: 15 });
+    expect(steps()).toBe(1);
+    expect(screen.getByRole('button', { name: 'Darkness' }).getAttribute('aria-pressed')).toBe('true');
+    expect((screen.getByLabelText('Radius') as HTMLInputElement).value).toBe('15');
+    screen.getByRole('slider', { name: 'Darkness radius' });
+    expect(screen.queryByLabelText('Bright')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Candle amber' })).toBeNull();
+    for (const slider of ['Intensity', 'Softness', 'Bright range']) expect(screen.queryByRole('slider', { name: slider })).toBeNull();
+    expect(screen.queryByRole('combobox', { name: 'Flicker' })).toBeNull();
+    expect(screen.queryByRole('switch', { name: 'Outshines magical darkness' })).toBeNull();
+    // Its one radius is typed like a light's range.
+    const radius = screen.getByLabelText('Radius');
+    fireEvent.change(radius, { target: { value: '20' } });
+    fireEvent.keyDown(radius, { key: 'Enter' });
+    expect(light().emission).toMatchObject({ darkness: true, bright: 0, dim: 20 });
+    // Made a custom light it stays a darkness; another kind's preset makes it a light again.
+    fireEvent.click(screen.getByRole('button', { name: 'Custom light' }));
+    expect(light().emission).toMatchObject({ darkness: true, kind: 'custom', dim: 20 });
+    expect(screen.getByLabelText('Radius')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Torch' }));
+    expect(light().emission).not.toHaveProperty('darkness');
+    expect((screen.getByLabelText('Bright') as HTMLInputElement).value).toBe('20');
+  });
+
+  it('lets a light outshine magical darkness, and stores nothing for one that does not', () => {
+    const { light } = renderPopover();
+    const outshines = screen.getByRole('switch', { name: 'Outshines magical darkness' });
+    expect(outshines.getAttribute('aria-checked')).toBe('false');
+    fireEvent.click(outshines);
+    expect(light().emission.priority).toBe(1);
+    expect(outshines.getAttribute('aria-checked')).toBe('true');
+    fireEvent.click(outshines);
+    expect(light().emission).not.toHaveProperty('priority');
   });
 
   it('keeps its kind when a value is changed', () => {

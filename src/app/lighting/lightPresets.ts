@@ -42,9 +42,11 @@ export const LIGHT_KINDS: readonly LightKind[] = [...LIGHT_PRESET_IDS, 'custom']
 
 /**
  * The light's kind: the one it was given, else the preset it still equals, else custom. A stored
- * kind this version does not know (a newer Atlas, a hand-edited file) counts as none.
+ * kind this version does not know (a newer Atlas, a hand-edited file) counts as none. A source
+ * of magical darkness is always a darkness: its marker says what it does.
  */
 export function lightKindOf(emission: LightEmission): LightKind {
+  if (emission.darkness) return 'darkness';
   const { kind } = emission;
   return kind && LIGHT_KINDS.includes(kind) ? kind : presetOf(emission) ?? 'custom';
 }

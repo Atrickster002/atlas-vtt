@@ -19,6 +19,13 @@ describe('emissionOf', () => {
     expect(emissionOf(lamp)).toEqual({ bright: 15, dim: 45, color: lamp.color, intensity: 1, animation: lamp.animation, sourceRadius: lamp.sourceRadius, kind: 'lantern', preset: lamp.id });
   });
 
+  it('carries a darkness and a priority, and names neither on a light that has none', () => {
+    expect(emissionOf(named(dnd5e, 'Darkness'))).toMatchObject({ darkness: true, bright: 0, dim: 15, kind: 'darkness', preset: 'dnd5e-darkness' });
+    expect(emissionOf(named(dnd5e, 'Daylight'))).toMatchObject({ priority: 1 });
+    expect(emissionOf(named(dnd5e, 'Torch'))).not.toHaveProperty('darkness');
+    expect(emissionOf(named(dnd5e, 'Torch'))).not.toHaveProperty('priority');
+  });
+
   it('gives a generic preset the light it always had on a 5-foot grid', () => {
     for (const preset of lightPresetsOnMap(GENERIC_LIGHT_PRESETS, FEET, Infinity)) {
       const id = preset.id as keyof typeof LIGHT_PRESETS;
@@ -115,6 +122,17 @@ describe('asCustomLight', () => {
     expect(custom).not.toHaveProperty('preset');
     expect(lightKindOf(custom)).toBe('custom');
   });
+
+  it('keeps a darkness a darkness: its marker says what it does, whatever kind it was given', () => {
+    const custom = asCustomLight(emissionOf(named(dnd5e, 'Darkness')));
+    expect(custom).toMatchObject({ darkness: true, kind: 'custom' });
+    expect(lightKindOf(custom)).toBe('darkness');
+    expect(lightPresetOf(custom, dnd5e)).toBeNull();
+    expect(lightPresetOf(emissionOf(named(dnd5e, 'Darkness')), dnd5e)).toBe(named(dnd5e, 'Darkness'));
+    // A light is never read as the darkness preset, nor a darkness as a light's.
+    const { kind: _kind, preset: _preset, ...bare } = emissionOf(named(dnd5e, 'Torch'));
+    expect(lightPresetOf({ ...bare, darkness: true }, dnd5e)?.name).toBe('Darkness');
+  });
 });
 
 describe('the preset a tool places', () => {
@@ -127,21 +145,21 @@ describe('the preset a tool places', () => {
 });
 
 describe('lightPresetChips', () => {
-  it('shows every preset as a chip while four or fewer', () => {
+  it('shows every preset as a chip while five or fewer', () => {
     expect(lightPresetChips(GENERIC_LIGHT_PRESETS)).toEqual({ chips: GENERIC_LIGHT_PRESETS, more: [] });
     expect(lightPresetChips(cairn)).toEqual({ chips: cairn, more: [] });
   });
 
   it('shows the first preset of each kind as a chip, so no two chips share a glyph, and the others under More', () => {
     const { chips, more } = lightPresetChips(dnd5e);
-    expect(names(chips)).toEqual(['Candle', 'Torch', 'Hooded lantern', 'Light']);
+    expect(names(chips)).toEqual(['Candle', 'Torch', 'Hooded lantern', 'Light', 'Darkness']);
     expect(names(more)).toEqual(['Lamp', 'Continual Flame', 'Daylight']);
   });
 
-  it('fills up to four chips when the presets have fewer kinds, and keeps the chips in list order', () => {
-    const torches = ['a', 'b', 'c', 'd', 'e', 'f'].map((id): LightPresetDefinition => ({ ...named(dnd5e, 'Torch'), id, name: id }));
-    const { chips, more } = lightPresetChips([...torches.slice(0, 5), { ...torches[5]!, kind: 'candle' }]);
-    expect(names(chips)).toEqual(['a', 'b', 'c', 'f']);
-    expect(names(more)).toEqual(['d', 'e']);
+  it('fills up to five chips when the presets have fewer kinds, and keeps the chips in list order', () => {
+    const torches = ['a', 'b', 'c', 'd', 'e', 'f', 'g'].map((id): LightPresetDefinition => ({ ...named(dnd5e, 'Torch'), id, name: id }));
+    const { chips, more } = lightPresetChips([...torches.slice(0, 6), { ...torches[6]!, kind: 'candle' }]);
+    expect(names(chips)).toEqual(['a', 'b', 'c', 'd', 'g']);
+    expect(names(more)).toEqual(['e', 'f']);
   });
 });

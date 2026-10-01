@@ -60,9 +60,9 @@ describe('LightPopover with a game system\'s light presets', () => {
     expect(pressed('Torch (near)')).toBe(true);
   });
 
-  it('shows the four most common lights of D&D 5e as chips, one glyph each, and the others under More', () => {
+  it('shows the most common lights of D&D 5e and its Darkness as chips, one glyph each, and the others under More', () => {
     renderPopover('D&D 5e', emissionOf(light5e('Torch')));
-    expect(chipNames()).toEqual(['Candle', 'Torch', 'Hooded lantern', 'Light', 'More lights']);
+    expect(chipNames()).toEqual(['Candle', 'Torch', 'Hooded lantern', 'Light', 'Darkness', 'More lights']);
     expect(pressed('Torch')).toBe(true);
     expect(pressed('More lights')).toBe(false);
     openMore();

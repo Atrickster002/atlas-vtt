@@ -15,13 +15,15 @@ const lights = (name: string): readonly LightPresetDefinition[] => preset(name).
 const rows = (table: readonly LightPresetDefinition[]): unknown[] => table.map((light) => [light.id, light.name, light.bright, light.dim, light.kind]);
 
 describe('built-in light presets', () => {
-  it('keeps the generic four with their ids, counted in grid cells, the magical light as far as a torch', () => {
+  it('keeps the generic four with their ids, counted in grid cells, the magical light as far as a torch, and adds a Darkness three cells wide', () => {
     expect(rows(GENERIC_LIGHT_PRESETS)).toEqual([
       ['candle', 'Candle', 1, 2, 'candle'],
       ['torch', 'Torch', 4, 8, 'torch'],
       ['lantern', 'Lantern', 6, 12, 'lantern'],
       ['magical', 'Magical light', 4, 8, 'magical'],
+      ['darkness', 'Darkness', 0, 3, 'darkness'],
     ]);
+    expect(GENERIC_LIGHT_PRESETS.filter((light) => light.darkness).map((light) => light.id)).toEqual(['darkness']);
     expect(new Set(GENERIC_LIGHT_PRESETS.map((light) => light.unit))).toEqual(new Set(['squares']));
   });
 
@@ -40,7 +42,12 @@ describe('built-in light presets', () => {
       ['dnd5e-lamp', 'Lamp', 15, 45, 'lantern'],
       ['dnd5e-continual-flame', 'Continual Flame', 20, 40, 'magical'],
       ['dnd5e-daylight', 'Daylight', 60, 120, 'magical'],
+      ['dnd5e-darkness', 'Darkness', 0, 15, 'darkness'],
     ]);
+    // Darkness swallows the light of spells of its level or lower; Daylight, a level above, shines in it.
+    const table = lights('D&D 5e');
+    expect(table.find((light) => light.id === 'dnd5e-darkness')).toMatchObject({ darkness: true });
+    expect(table.filter((light) => light.priority).map((light) => [light.id, light.priority])).toEqual([['dnd5e-daylight', 1]]);
   });
 
   it('lists Pathfinder 2e\'s light sources, a candle shedding dim light only', () => {
@@ -51,6 +58,7 @@ describe('built-in light presets', () => {
       ['pathfinder2e-light', 'Light', 20, 40, 'magical'],
       ['pathfinder2e-everlight-crystal', 'Everlight crystal', 20, 40, 'magical'],
       ['pathfinder2e-glow-rod', 'Glow rod', 20, 60, 'magical'],
+      ['pathfinder2e-darkness', 'Darkness', 0, 20, 'darkness'],
     ]);
   });
 
@@ -126,6 +134,15 @@ describe('parseLightPresets', () => {
   it('drops a preset without an id, a name or a reach, and the second of two with one id', () => {
     const list = [{ ...base, id: '' }, { ...base, id: 'b', name: '  ' }, { ...base, id: 'c', bright: 0, dim: 0 }, { ...base, id: 'd', dim: 'far' }, base, { ...base, name: 'Twin' }];
     expect(parseLightPresets(list)?.map((light) => light.name)).toEqual(['Brazier']);
+  });
+
+  it('keeps a darkness and a priority, and nothing of them that is not a switch or a number', () => {
+    expect(parseLightPresets([{ ...base, darkness: true, priority: 2 }])?.[0]).toMatchObject({ darkness: true, priority: 2 });
+    const plain = parseLightPresets([{ ...base, darkness: 'yes', priority: 'high' }, { ...base, id: 'b', darkness: false, priority: 0 }, { ...base, id: 'c', priority: Infinity }])!;
+    for (const light of plain) {
+      expect(light).not.toHaveProperty('darkness');
+      expect(light).not.toHaveProperty('priority');
+    }
   });
 
   it('repairs each field it cannot use rather than dropping the light', () => {

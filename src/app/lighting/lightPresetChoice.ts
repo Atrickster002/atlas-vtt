@@ -34,6 +34,8 @@ export function emissionOf(preset: LightPresetDefinition): LightEmission {
     ...(preset.sourceRadius !== undefined && { sourceRadius: preset.sourceRadius }),
     kind: preset.kind,
     preset: preset.id,
+    ...(preset.darkness && { darkness: true }),
+    ...(preset.priority !== undefined && preset.priority !== 0 && { priority: preset.priority }),
   };
 }
 
@@ -58,11 +60,13 @@ export function lightPresetOf(emission: LightEmission, presets: readonly LightPr
   const recorded = presets.find((preset) => preset.id === emission.preset);
   if (recorded && (emission.kind === undefined || emission.kind === recorded.kind)) return recorded;
   if (emission.kind === 'custom') return null;
-  const ofKind = knownKind(emission.kind) ? presets.filter((preset) => preset.kind === emission.kind) : presets;
+  // A darkness is read as a darkness preset only, a light as a light's.
+  const alike = presets.filter((preset) => !!preset.darkness === !!emission.darkness);
+  const ofKind = knownKind(emission.kind) ? alike.filter((preset) => preset.kind === emission.kind) : alike;
   const equal = ofKind.find((preset) => sameEmission(emissionOf(preset), emission));
   if (equal) return equal;
   const kind = lightKindOf(emission);
-  return kind === 'custom' ? null : presets.find((preset) => preset.kind === kind) ?? null;
+  return kind === 'custom' ? null : alike.find((preset) => preset.kind === kind) ?? null;
 }
 
 /** The light a tool places until another is chosen: the collection's torch, else its first light. */
@@ -78,12 +82,12 @@ export function chosenLightPreset(presets: readonly LightPresetDefinition[], id:
 }
 
 /** How many presets a row of chips shows beside its last cell (Custom, or More). */
-const MAX_CHIPS = 4;
+const MAX_CHIPS = 5;
 
 /**
- * The presets a row of chips shows and the ones it keeps under "More". Up to four fit as
+ * The presets a row of chips shows and the ones it keeps under "More". Up to five fit as
  * chips. Of more, the first of each kind is a chip, so no two chips share a glyph (the list's
- * order says which lights are the common ones), then the next in the list until four are
+ * order says which lights are the common ones), then the next in the list until five are
  * shown; the chips keep the list's order.
  */
 export function lightPresetChips(presets: readonly LightPresetDefinition[]): { chips: readonly LightPresetDefinition[]; more: readonly LightPresetDefinition[] } {

@@ -28,7 +28,9 @@ function sameLightPreset(a: LightPresetDefinition, b: LightPresetDefinition): bo
     && a.animation === b.animation
     && a.kind === b.kind
     && a.sourceRadius === b.sourceRadius
-    && (a.intensity ?? 1) === (b.intensity ?? 1);
+    && (a.intensity ?? 1) === (b.intensity ?? 1)
+    && !!a.darkness === !!b.darkness
+    && (a.priority ?? 0) === (b.priority ?? 0);
 }
 
 /** Whether two lists offer the same lights, ids included since lights record them; none is the generic set. */

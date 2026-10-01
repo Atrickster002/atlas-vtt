@@ -68,7 +68,7 @@ describe('tokenLightingEntries', () => {
 
   it('lists the light presets of the map\'s collection', () => {
     const store = setup();
-    expect(labels(tokenLightingEntries(store, 'a', ['a'], GENERIC), 'Carry light')).toEqual(['None', 'Candle', 'Torch', 'Lantern', 'Magical light']);
+    expect(labels(tokenLightingEntries(store, 'a', ['a'], GENERIC), 'Carry light')).toEqual(['None', 'Candle', 'Torch', 'Lantern', 'Magical light', 'Darkness']);
     expect(labels(tokenLightingEntries(store, 'a', ['a'], dnd5e), 'Carry light')).toEqual(['None', ...dnd5e.map((preset) => preset.name)]);
     item(tokenLightingEntries(store, 'a', ['a'], dnd5e), 'Lamp').onClick?.();
     expect(store.getState().objects.tokens.a!.light).toMatchObject({ bright: 15, dim: 45, kind: 'lantern' });

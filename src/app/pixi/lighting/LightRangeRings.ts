@@ -57,7 +57,7 @@ export function ringHandleAt(geometry: RingGeometry, point: Point, zoom: number)
 
 /**
  * The bright and dim range of the light whose popover is open, as rings on the map: the bright
- * ring a solid line, the dim ring dashed, in the light's colour over a dark hairline so they
+ * ring a solid line, the dim ring dashed (a source of magical darkness has the one ring of its radius, solid), in the light's colour over a dark hairline so they
  * read on any map, each with a handle to drag. Lines and handles keep their size on screen.
  * They bloom out of the marker when the popover opens and fade back when it closes. A GM overlay
  * (`GmOverlays`): never in the players' view.
@@ -187,7 +187,8 @@ export class LightRangeRings {
       handle.visible = radius > 0;
       if (radius <= 0) continue;
       for (const [width, lineColor, alpha] of [[UNDER_WIDTH, 0x000000, 0.45], [LINE_WIDTH, color, 1]] as const) {
-        if (field === 'bright') g.circle(light.x, light.y, radius);
+        // A light's dim range is dashed; a darkness has one ring, where it ends, and it is solid.
+        if (field === 'bright' || light.emission.darkness) g.circle(light.x, light.y, radius);
         else this.dashes(light, radius, zoom);
         g.stroke({ width: width * pixel, color: lineColor, alpha });
       }

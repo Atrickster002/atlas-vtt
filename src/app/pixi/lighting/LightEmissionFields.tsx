@@ -1,6 +1,7 @@
 import React, { useId } from 'react';
 import { editEmission } from '../../lighting/lightEmissionForm';
 import { Select } from '../../packages/components/primitives/Select';
+import { ToggleSwitch } from '../../packages/components/primitives/Toggle';
 import type { LightPresetDefinition } from '../../types/lightPresetTypes';
 import type { LightAnimation, LightEmission } from '../../types/lightingTypes';
 import { SliderField } from './lightingPanelFields';
@@ -36,13 +37,24 @@ interface LightEmissionFieldsProps {
 
 /**
  * Everything a light gives off, as the light popover and Edit Token edit it: preset, colour,
- * bright and dim range, intensity, softness and flicker. Every control reports the whole
- * emission at once.
+ * bright and dim range, intensity, softness, flicker and whether it outshines magical darkness.
+ * A source of magical darkness has its kind and one radius, nothing else: it gives no light to
+ * colour or dim. Every control reports the whole emission at once.
  */
 export function LightEmissionFields({
   emission, onChange, presets, unit, unitDistance, maxRange, onSliderPointerDown = NOTHING, onPickStart = NOTHING, onPickEnd = NOTHING,
 }: LightEmissionFieldsProps): React.ReactElement {
   const flickerId = useId();
+  const outshinesId = useId();
+  const ranges = <RangeFields emission={emission} unit={unit} unitDistance={unitDistance} maxRange={maxRange} onChange={onChange} onSliderPointerDown={onSliderPointerDown} />;
+  if (emission.darkness) {
+    return (
+      <>
+        <LightPresetChips emission={emission} presets={presets} onChange={onChange} />
+        <div className="atlas-light-popover__section">{ranges}</div>
+      </>
+    );
+  }
   return (
     <>
       <LightPresetChips emission={emission} presets={presets} onChange={onChange} />
@@ -50,7 +62,7 @@ export function LightEmissionFields({
         <ColorSwatches color={emission.color} onChange={(color) => onChange({ ...emission, color })} onPickStart={onPickStart} onPickEnd={onPickEnd} />
       </div>
       <div className="atlas-light-popover__section">
-        <RangeFields emission={emission} unit={unit} unitDistance={unitDistance} maxRange={maxRange} onChange={onChange} onSliderPointerDown={onSliderPointerDown} />
+        {ranges}
         <SliderField label="Intensity" value={emission.intensity} min={0} max={2} step={0.05} display={`${Math.round(emission.intensity * 100)} %`}
           onPointerDown={onSliderPointerDown} onChange={(value) => onChange(editEmission(emission, 'intensity', String(value)))} />
         <SliderField label="Softness" value={emission.sourceRadius ?? 1} min={0} max={5} step={0.25} display={String(emission.sourceRadius ?? 1)}
@@ -59,7 +71,17 @@ export function LightEmissionFields({
           <span id={flickerId}>Flicker</span>
           <Select value={emission.animation} options={FLICKERS} labelledBy={flickerId} onChange={(animation) => onChange({ ...emission, animation })} />
         </div>
+        <div className="atlas-light-popover__flicker">
+          <span id={outshinesId}>Outshines magical darkness</span>
+          <ToggleSwitch value={(emission.priority ?? 0) > 0} labelledBy={outshinesId} onChange={() => onChange(withPriority(emission, (emission.priority ?? 0) > 0 ? 0 : 1))} />
+        </div>
       </div>
     </>
   );
+}
+
+/** The light with `priority`; none is stored for 0, the priority every light and darkness has. */
+function withPriority(emission: LightEmission, priority: number): LightEmission {
+  const { priority: _priority, ...rest } = emission;
+  return priority === 0 ? rest : { ...rest, priority };
 }

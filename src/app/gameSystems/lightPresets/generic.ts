@@ -6,7 +6,7 @@ const FEET_PER_CELL = 5;
 
 /**
  * The lights of a collection without a game system, and of a system whose rules name none:
- * the four Atlas always had, under the ids placed lights record as their kind. They are counted
+ * the four Atlas always had and a Darkness, under the ids placed lights record as their kind. They are counted
  * in grid cells (a torch lights 4 and reaches 8), so they are the same size on every grid,
  * whatever the collection measures in.
  */
