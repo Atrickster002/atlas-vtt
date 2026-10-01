@@ -71,22 +71,6 @@
   transform: scale(1);
 }
 
-// SuggestInput (see SuggestInput.tsx): a text field whose suggestions open in the same list.
-.atlas-suggest-input {
-  position: relative;
-  flex: 1;
-  min-width: 0;
-}
-
-.atlas-suggest-input.atlas-open { z-index: $z-popover; }
-
-.atlas-suggest-input input { width: 100%; }
-
-// The option the arrow keys are on; the focus stays in the field.
-.atlas-select-option.atlas-active {
-  background-color: var(--background-modifier-hover) !important;
-}
-
 @media (prefers-reduced-motion: reduce) {
   .atlas-select-content,
   .atlas-select-chevron,

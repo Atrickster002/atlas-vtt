@@ -1,3 +1,4 @@
+import { isSocket, slottedResources } from './resourceSlots';
 import { MAX_RESOURCES, type ResourceDefinition } from './resourceTypes';
 
 const HEX_COLOR = /^#[0-9a-f]{6}$/i;
@@ -83,6 +84,7 @@ export function parseResourceDefinition(raw: unknown): ResourceDefinition | null
     key, name, field: field.trim(), direction: r.direction, color: r.color,
     ...(r.defeatedWhenSpent === true && { defeatedWhenSpent: true }),
     visibleToPlayers: r.visibleToPlayers === true,
+    ...(isSocket(r.slot) && { slot: r.slot }),
   };
 }
 
@@ -108,9 +110,11 @@ export function sameResourceDefinitions(
   a: readonly ResourceDefinition[] | undefined,
   b: readonly ResourceDefinition[] | undefined,
 ): boolean {
-  const left = a ?? [];
-  const right = b ?? [];
-  return left.length === right.length && left.every((d, i) => sameDefinition(d, right[i]!));
+  // By socket, not by place in the list: a moved resource is a difference, a reordered list is none
+  const left = slottedResources(a ?? []);
+  const right = slottedResources(b ?? []);
+  return left.length === right.length
+    && left.every(({ definition, slot }, i) => slot === right[i]!.slot && sameDefinition(definition, right[i]!.definition));
 }
 
 /** `next` with each resource shown to players as `current` shows the one of its key: what players see is the table's choice. */

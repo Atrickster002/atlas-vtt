@@ -1,82 +1,157 @@
 /**
  * ResourcesTab — the expendable resources tokens of a collection track (HP, Stress, ammunition…),
- * in the order of their slots on a token: two bars, then four wheels.
+ * edited on a picture of a token: each resource sits in the socket where the map shows it.
  */
-import React from 'react';
-import { Plus } from 'lucide-react';
-import { Button } from '../../../packages/components/primitives/button';
-import { draftResourceKey } from '../../../resources/resourceDefinitions';
-import { MAX_RESOURCES, type ResourceDefinition } from '../../../resources/resourceTypes';
-import { shapeOf } from '../../../resources/visibleResources';
-import { ResourceEditorRow } from './ResourceEditorRow';
+import React, { useEffect, useRef, useState } from 'react';
+import { AnimatePresence, MotionConfig, motion } from 'framer-motion';
+import { UserRound } from 'lucide-react';
+import { cn } from '../../../../utils/cn';
+import { EASE_OUT_CONTROL_POINTS } from '../../../utils/motion';
+import type { ResourceDefinition } from '../../../resources/resourceTypes';
+import { ResourceCard } from './resources/ResourceCard';
+import { ResourceFan } from './resources/ResourceFan';
+import { ResourceSocket } from './resources/ResourceSocket';
+import { isUntouched, movedResources, newResourceAt, resourcesBySocket, SOCKETS, withSockets } from './resources/resourceSockets';
 
 interface ResourcesTabProps {
   resources: ResourceDefinition[];
   onChange: (resources: ResourceDefinition[]) => void;
-  /** Statblock fields of the collection's creatures that hold a quantity, offered for the field input. */
+  /** Statblock fields of the collection's creatures that hold a quantity, offered for the field. */
   fieldSuggestions: readonly string[];
 }
 
+const CARD_MOTION = {
+  initial: { opacity: 0, y: -8, scale: 0.98 },
+  animate: { opacity: 1, y: 0, scale: 1, transition: { duration: 0.24, ease: EASE_OUT_CONTROL_POINTS, delay: 0.06 } },
+  exit: { opacity: 0, y: -4, scale: 0.98, transition: { duration: 0.12, ease: EASE_OUT_CONTROL_POINTS } },
+} as const;
+
 export function ResourcesTab({ resources, onChange, fieldSuggestions }: ResourcesTabProps): React.ReactElement {
-  const update = (index: number, partial: Partial<ResourceDefinition>): void => {
-    onChange(resources.map((resource, i) => (i === index ? { ...resource, ...partial } : resource)));
+  const [selected, setSelected] = useState<number | null>(null);
+  /** The socket a resource was last placed in by a click; its card starts with the name. */
+  const [placed, setPlaced] = useState<number | null>(null);
+  const [dropTarget, setDropTarget] = useState<number | null>(null);
+  const [lifted, setLifted] = useState<number | null>(null);
+  /** The socket whose resource is pressed, until the pointer is released. */
+  const pressed = useRef<number | null>(null);
+  const bySocket = resourcesBySocket(resources);
+  const current = selected === null ? undefined : bySocket[selected];
+  const place = selected === null ? undefined : SOCKETS[selected];
+
+  /** The list without a resource that was placed and then left as it came. */
+  const withoutUntouched = (slot: number | null): ResourceDefinition[] => {
+    const resource = slot === null ? undefined : bySocket[slot];
+    return resource && isUntouched(resource) ? withSockets(resources).filter((other) => other.slot !== slot) : withSockets(resources);
   };
 
-  const move = (index: number, by: -1 | 1): void => {
-    const next = [...resources];
-    const [moved] = next.splice(index, 1);
-    if (!moved) return;
-    next.splice(index + by, 0, moved);
-    onChange(next);
+  const close = (): void => {
+    if (selected === null) return;
+    const kept = withoutUntouched(selected);
+    if (kept.length !== resources.length) onChange(kept);
+    setSelected(null);
   };
 
-  const add = (): void => {
-    onChange([...resources, {
-      // Tokens store their values under the key, so it is settled from the name once the resource is saved.
-      key: draftResourceKey(),
-      name: '',
-      field: '',
-      direction: 'drains',
-      color: '#3b82f6',
-      visibleToPlayers: false,
-    }]);
+  const select = (slot: number): void => {
+    if (slot === selected) {
+      close();
+      return;
+    }
+    const kept = withoutUntouched(selected);
+    if (bySocket[slot]) {
+      if (kept.length !== resources.length) onChange(kept);
+    } else {
+      onChange(withSockets([...kept, newResourceAt(slot, kept)]));
+      setPlaced(slot);
+    }
+    setSelected(slot);
+  };
+
+  const change = (partial: Partial<ResourceDefinition>): void => {
+    onChange(withSockets(resources).map((resource) => (resource.slot === selected ? { ...resource, ...partial } : resource)));
+  };
+
+  const remove = (): void => {
+    onChange(withSockets(resources).filter((resource) => resource.slot !== selected));
+    setSelected(null);
+  };
+
+  // A drag ends wherever the pointer is released: on a socket it moves the resource there
+  useEffect(() => {
+    const release = (): void => {
+      const from = pressed.current;
+      pressed.current = null;
+      if (from !== null && dropTarget !== null && dropTarget !== from) {
+        onChange(movedResources(resources, from, dropTarget));
+        setSelected(null);
+      }
+      setLifted(null);
+      setDropTarget(null);
+    };
+    window.addEventListener('pointerup', release);
+    return () => window.removeEventListener('pointerup', release);
+  }, [dropTarget, resources, onChange]);
+
+  const enter = (slot: number): void => {
+    if (pressed.current === null || pressed.current === slot) return;
+    setLifted(pressed.current);
+    setDropTarget(slot);
+  };
+
+  const onKeyDown = (event: React.KeyboardEvent): void => {
+    if (event.key !== 'Escape' || selected === null) return;
+    // Escape closes the socket; the dialog stays open
+    event.stopPropagation();
+    close();
   };
 
   return (
-    <>
-      <p className="atlas-csm-hint">
-        Resources are the values tokens spend during play, like HP, Stress or ammunition. A token
-        shows up to six: the first two as bars below it, the others as wheels beside it while you
-        hover or select it (two on its right, then two on its left). Each one reads its maximum from a statblock field, and tokens whose
-        statblock lacks that field don&apos;t show it. A draining resource starts full and counts
-        down, a filling one starts empty and counts up; switching that later reads the stored
-        values the other way round.
-      </p>
+    <MotionConfig reducedMotion="user">
+      <div className="atlas-csm-resources" onKeyDown={onKeyDown}>
+        <p className="atlas-csm-hint">
+          Resources are the values tokens spend during play, like HP, Stress or ammunition. Click a
+          socket to put one there, and drag it to another socket to move it. Each resource reads its
+          maximum from a field of the token&apos;s statblock; tokens whose statblock lacks that field
+          don&apos;t show it.
+        </p>
 
-      {resources.length > 0 ? (
-        <div className="atlas-csm-resource-list">
-          {resources.map((resource, i) => (
-            <ResourceEditorRow
-              key={resource.key}
-              resource={resource}
-              shape={shapeOf(i)}
-              fieldSuggestions={fieldSuggestions}
-              canMoveUp={i > 0}
-              canMoveDown={i < resources.length - 1}
-              onChange={(partial) => update(i, partial)}
-              onMove={(by) => move(i, by)}
-              onRemove={() => onChange(resources.filter((_, j) => j !== i))}
-            />
-          ))}
+        <div className={cn('atlas-csm-token-stage', selected !== null && 'atlas-focused', lifted !== null && 'atlas-dragging')}
+          role="presentation" onClick={(event) => { if (event.target === event.currentTarget) close(); }}>
+          <div className="atlas-csm-token-rig" role="group" aria-label="Resource sockets">
+            <span className="atlas-csm-token-art" aria-hidden="true"><UserRound /></span>
+            <span className="atlas-csm-token-nameplate" aria-hidden="true">Name</span>
+            <span className="atlas-csm-token-caption atlas-csm-token-caption--bars" aria-hidden="true">Always shown</span>
+            <span className="atlas-csm-token-caption atlas-csm-token-caption--right" aria-hidden="true">On hover</span>
+            <span className="atlas-csm-token-caption atlas-csm-token-caption--left" aria-hidden="true">On hover</span>
+            {SOCKETS.map((socket) => (
+              <ResourceSocket
+                key={socket.slot}
+                place={socket}
+                resource={bySocket[socket.slot]}
+                selected={selected === socket.slot}
+                lifted={lifted === socket.slot}
+                dropTarget={dropTarget === socket.slot}
+                onSelect={() => select(socket.slot)}
+                onPress={() => { pressed.current = socket.slot; }}
+                onEnter={() => enter(socket.slot)}
+              />
+            ))}
+            <AnimatePresence>
+              {place && current && <ResourceFan key={place.slot} place={place} resource={current} onChange={change} onRemove={remove} />}
+            </AnimatePresence>
+          </div>
         </div>
-      ) : (
-        <div className="atlas-csm-empty">No resources defined. Tokens show no bars.</div>
-      )}
 
-      <Button variant="ghost" className="atlas-csm-add-btn" onClick={add} disabled={resources.length >= MAX_RESOURCES}>
-        <Plus />
-        Add Resource
-      </Button>
-    </>
+        <div className="atlas-csm-resource-dock">
+          <div className={cn('atlas-csm-resource-dock__idle', current && 'atlas-hidden')}>Click a socket to set what it tracks</div>
+          <AnimatePresence>
+            {place && current && (
+              <motion.div key="card" className="atlas-csm-resource-dock__card" {...CARD_MOTION}>
+                <ResourceCard place={place} resource={current} fieldSuggestions={fieldSuggestions} focusName={placed === place.slot} onChange={change} />
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+      </div>
+    </MotionConfig>
   );
 }

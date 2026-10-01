@@ -58,3 +58,11 @@ it('offers no bar switches for a scene outside every collection', () => {
   render(<LocalPlayerViewSettingsPanel />);
   expect(screen.queryByRole('switch', { name: 'Show HP bars' })).toBeNull();
 });
+
+it('offers a switch for the resources in the bar sockets, wherever they are in the list', () => {
+  context.settings = new SettingsService({} as never);
+  context.resources = [{ ...AMMO, slot: 3 }, { ...STRESS, slot: 1 }, { ...HP, slot: 4 }];
+  render(<LocalPlayerViewSettingsPanel />);
+  expect(screen.getByRole('switch', { name: 'Show Stress bars' })).toBeTruthy();
+  expect(screen.queryByRole('switch', { name: /HP|Ammo/ })).toBeNull();
+});
