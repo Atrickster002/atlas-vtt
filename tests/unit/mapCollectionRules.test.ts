@@ -1,8 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { BUILT_IN_SYSTEM_PRESETS } from '../../src/app/gameSystems/builtInPresets';
-import { GENERIC_SENSES } from '../../src/app/gameSystems/senses/generic';
 import { AssetService } from '../../src/app/services/AssetService';
-import { mapLightPresets, mapSenses } from '../../src/app/services/mapCollectionRules';
+import { mapLightPresets } from '../../src/app/services/mapCollectionRules';
 import type { GridState } from '../../src/app/services/MapPersistence';
 import type { CollectionSettings } from '../../src/app/types/collectionSettingsTypes';
 import { createInMemoryApp } from '../mocks/inMemoryVault';
@@ -19,9 +18,8 @@ function appWith(settings: Partial<CollectionSettings>): ReturnType<typeof creat
 afterEach(() => { vi.restoreAllMocks(); });
 
 describe('the rules of the collection that holds a map', () => {
-  it('are its game system\'s senses and light presets', () => {
+  it('are its game system\'s light presets', () => {
     const app = appWith({ systemPresetId: dnd5e.id });
-    expect(mapSenses(app, 'maps/cave.atlasmap')).toBe(dnd5e.rules.senses);
     expect(mapLightPresets(app, at('maps/cave.atlasmap')).map((light) => [light.name, light.bright, light.dim]).slice(0, 2)).toEqual([['Candle', 5, 10], ['Torch', 20, 40]]);
     expect(mapLightPresets(app, at('maps/cave.atlasmap')).map((light) => light.id)).toEqual(dnd5e.rules.lightPresets!.map((light) => light.id));
   });
@@ -35,7 +33,6 @@ describe('the rules of the collection that holds a map', () => {
   it('are the generic ones for a map outside every collection, or without a map', () => {
     const app = appWith({ systemPresetId: dnd5e.id });
     for (const path of ['maps/other.atlasmap', null, undefined]) {
-      expect(mapSenses(app, path)).toBe(GENERIC_SENSES);
       expect(mapLightPresets(app, at(path)).map((light) => [light.id, light.bright, light.dim])).toEqual([['candle', 5, 10], ['torch', 20, 40], ['lantern', 30, 60], ['magical', 20, 40]]);
     }
   });

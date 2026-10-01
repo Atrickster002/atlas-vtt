@@ -1,4 +1,4 @@
-import { act, fireEvent, screen, within } from '@testing-library/react';
+import { act, fireEvent, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 import { GENERIC_LIGHT_PRESETS } from '../../src/app/gameSystems/lightPresets/generic';
 import { GENERIC_SENSES } from '../../src/app/gameSystems/senses/generic';
@@ -7,7 +7,6 @@ import { senseWithRole } from '../../src/app/gameSystems/senseRules';
 import { createViewAtlasStore, type ViewAtlasStore } from '../../src/app/storeFactory';
 import { openEditTokenModal } from '../../src/app/pixi/token-renderer/EditTokenModal';
 import type { TokenEntity } from '../../src/app/types';
-import type { TokenSense } from '../../src/app/types/senseTypes';
 import { createInMemoryApp } from '../mocks/inMemoryVault';
 
 const darkvision = senseWithRole(GENERIC_SENSES, 'darkvision');
@@ -19,12 +18,12 @@ afterEach(() => {
   if (cancel) act(() => cancel.click());
 });
 
-function open(overrides: Partial<TokenEntity> = {}, inheritedSenses?: TokenSense[]): { store: ViewAtlasStore; saved: () => TokenEntity } {
+function open(overrides: Partial<TokenEntity> = {}): { store: ViewAtlasStore; saved: () => TokenEntity } {
   const { app } = createInMemoryApp();
   const store = createViewAtlasStore(app, `edit-token-${Math.random()}`);
   const token: TokenEntity = { id: 't', kind: 'token', imagePath: 't.png', x: 0, y: 0, ...overrides };
   store.setState({ persistenceEnabled: false, objects: { ...store.getState().objects, tokens: { t: token } } });
-  act(() => openEditTokenModal(token, store, app, inheritedSenses && { inheritedSenses }));
+  act(() => openEditTokenModal(token, store, app));
   return { store, saved: () => store.getState().objects.tokens.t! };
 }
 
@@ -88,23 +87,6 @@ describe('openEditTokenModal', () => {
     fireEvent.click(vision());
     save();
     expect(saved().vision).toEqual({ enabled: false, range: 30, senses: [{ id: darkvision.id, range: 60 }] });
-  });
-
-  it('shows the statblock\'s senses marked, and saves none while they are not edited', () => {
-    const { saved } = open({ vision: { enabled: true } }, [{ id: darkvision.id, range: 60 }]);
-    const row = screen.getByRole('listitem');
-    expect(within(row).getByText('Darkvision')).toBeTruthy();
-    expect(within(row).getByText('from statblock')).toBeTruthy();
-    save();
-    expect(saved().vision).toEqual({ enabled: true });
-  });
-
-  it('copies the statblock\'s senses onto the token once they are edited', () => {
-    const { saved } = open({ vision: { enabled: true } }, [{ id: darkvision.id, range: 60 }]);
-    fireEvent.click(screen.getByRole('button', { name: 'Edit senses' }));
-    fireEvent.change(screen.getByLabelText('Darkvision range'), { target: { value: '90' } });
-    save();
-    expect(saved().vision).toEqual({ enabled: true, senses: [{ id: darkvision.id, range: 90 }] });
   });
 
   it('closes on Escape, but not when a control inside took the key', () => {

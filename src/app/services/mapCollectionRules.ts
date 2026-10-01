@@ -2,8 +2,6 @@ import type { App } from 'obsidian';
 import { BUILT_IN_SYSTEM_PRESETS } from '../gameSystems/builtInPresets';
 import { GENERIC_LIGHT_PRESETS } from '../gameSystems/lightPresets/generic';
 import { readCollectionLightPresets } from '../gameSystems/lightPresetValidation';
-import { readCollectionSenses } from '../gameSystems/senseValidation';
-import { GENERIC_SENSES } from '../gameSystems/senses/generic';
 import { resolveMeasurementSettings } from '../grid/measurementFormat';
 import { unitScaleOf } from '../lighting/lightingUnits';
 import { lightPresetsOnMap } from '../lighting/lightPresetChoice';
@@ -11,7 +9,6 @@ import { maxLightRange } from '../lighting/lightRanges';
 import type { ViewAtlasState } from '../storeFactory';
 import type { CollectionSettings } from '../types/collectionSettingsTypes';
 import type { LightPresetDefinition } from '../types/lightPresetTypes';
-import type { SenseDefinition } from '../types/senseTypes';
 import type { SystemPreset } from '../types/systemPresetTypes';
 import { AssetService } from './AssetService';
 import { SettingsService } from './SettingsService';
@@ -28,12 +25,6 @@ export function mapCollectionSettings(app: App, mapPath: string | null | undefin
   const assets = AssetService.getInstance(app);
   const collectionId = mapPath ? assets.getCollectionForMap(mapPath) : null;
   return collectionId ? assets.getCollectionSettings(collectionId) : null;
-}
-
-/** The senses tokens on the map can have: its collection's, or the generic set without one. */
-export function mapSenses(app: App, mapPath: string | null | undefined): readonly SenseDefinition[] {
-  const settings = mapCollectionSettings(app, mapPath);
-  return settings ? readCollectionSenses(settings, systemPresetsOf(app)) : GENERIC_SENSES;
 }
 
 /**

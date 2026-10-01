@@ -23,6 +23,8 @@ interface SensesEditorProps {
    * show read-only until "Edit senses" copies them onto the token.
    */
   inheritedSenses?: readonly TokenSense[];
+  /** Phrases of the statblock's senses line that name no sense of the collection; shown as they are written. */
+  notRecognised?: readonly string[];
 }
 
 const STEP: Record<string, number> = { ArrowDown: 1, ArrowUp: -1 };
@@ -36,7 +38,7 @@ function fromStatblock(row: SenseRow, inherited: readonly TokenSense[]): boolean
  * A list of senses: one row per sense with its range where it takes one, a way to remove it,
  * and the collection's other senses to add, each with what it does.
  */
-export function SensesEditor({ senses, onChange, definitions, unit, emptyText, inheritedSenses = [] }: SensesEditorProps): React.ReactElement {
+export function SensesEditor({ senses, onChange, definitions, unit, emptyText, inheritedSenses = [], notRecognised = [] }: SensesEditorProps): React.ReactElement {
   const labelId = useId();
   const offerId = useId();
   const [adding, setAdding] = useState(false);
@@ -127,6 +129,7 @@ export function SensesEditor({ senses, onChange, definitions, unit, emptyText, i
       ) : (
         <p className="atlas-senses__empty">{emptyText}</p>
       )}
+      {notRecognised.length > 0 && <p className="atlas-senses__empty">Not recognised: {notRecognised.join(', ')}</p>}
 
       {(following || available.length > 0 || (senses !== null && inheritedSenses.length > 0)) && (
         <div className="atlas-senses__actions">

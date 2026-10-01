@@ -9,9 +9,10 @@ import { Button } from '../../packages/components/primitives/button';
 import { ToggleSwitch } from '../../packages/components/primitives/Toggle';
 import { TooltipProvider } from '../../packages/components/primitives/tooltip';
 import { AssetService } from '../../services/AssetService';
-import { mapLightPresets, mapSenses } from '../../services/mapCollectionRules';
-import { mapMeasurementSettings } from '../../services/mapMeasurementSettings';
-import type { TokenSense } from '../../types/senseTypes';
+import type { SenseRules } from '../../creatures/tokenSensesResolver';
+import { mapLightPresets } from '../../services/mapCollectionRules';
+import { mapSenseRules } from '../../services/mapSenseRules';
+import { useStatblockSenses, type StatblockLink } from './useStatblockSenses';
 import { NumberOverrideField, parseNumberInput } from './NumberOverrideField';
 import { readStatblockVitals } from './statblockFrontmatter';
 import { buildResourceUpdates, statblockResourceDefaults, type ResourceDefaults } from './tokenResourceEdits';
@@ -32,19 +33,12 @@ interface EditTokenValues {
   light: LightForm;
 }
 
-/** What only the caller knows about the token being edited. */
-export interface EditTokenOptions {
-  /**
-   * The senses the token takes from its linked statblock while it has none of its own. The
-   * modal shows them marked "from statblock"; editing them copies them onto the token.
-   */
-  inheritedSenses?: readonly TokenSense[];
-}
-
 interface EditTokenModalProps {
   initial: EditTokenValues;
   resourceDefaults: ResourceDefaults;
   lighting: TokenLightingContext;
+  /** The statblock the token links, whose senses it follows while it has none of its own. */
+  statblock: StatblockLink | null;
   onSave: (values: EditTokenValues) => void;
   onClose: () => void;
 }
@@ -52,7 +46,8 @@ interface EditTokenModalProps {
 const defaultPlaceholder = (value: number | undefined): string =>
   value === undefined ? 'None' : `Statblock default: ${value}`;
 
-function EditTokenModalInner({ initial, resourceDefaults, lighting, onSave, onClose }: EditTokenModalProps): React.ReactElement {
+function EditTokenModalInner({ initial, resourceDefaults, lighting, statblock, onSave, onClose }: EditTokenModalProps): React.ReactElement {
+  const inherited = useStatblockSenses(statblock);
   const nameplateId = useId();
   const [name, setName] = useState(initial.name);
   const [showNameplate, setShowNameplate] = useState(initial.showNameplate);
@@ -140,7 +135,7 @@ function EditTokenModalInner({ initial, resourceDefaults, lighting, onSave, onCl
             resetLabel="Reset to statblock default"
           />
           {WALLS_AND_LIGHTING_ENABLED && (
-            <TokenLightingFields vision={vision} onVisionChange={setVision} light={light} onLightChange={setLight} context={lighting} />
+            <TokenLightingFields vision={vision} onVisionChange={setVision} light={light} onLightChange={setLight} context={{ ...lighting, inherited }} />
           )}
         </div>
 
@@ -166,16 +161,14 @@ function lightingUpdates(vision: VisionForm, light: LightForm): Pick<TokenUpdate
 }
 
 /** What the token's map and its collection say about vision and light. */
-function lightingContext(store: StoreApi<ViewAtlasState>, app: App, options: EditTokenOptions): TokenLightingContext {
-  const state = store.getState();
-  const { unitType, unitDistance } = mapMeasurementSettings(AssetService.getInstance(app), state);
+function lightingContext(state: ViewAtlasState, app: App, rules: SenseRules): TokenLightingContext {
+  const { unitType, unitDistance } = rules.unit;
   return {
     unit: unitLabelFor(unitType),
     unitDistance,
     maxLightRange: maxLightRange(unitScaleOf({ unitDistance }, state.grid)),
-    senses: mapSenses(app, state.mapPath),
+    senses: rules.definitions,
     lightPresets: mapLightPresets(app, state),
-    ...options,
   };
 }
 
@@ -189,9 +182,12 @@ function readResourceDefaults(app: App, statblockPath: string | undefined): Reso
  * Imperatively opens an Edit Token modal by mounting a React root.
  * Call from non-React code (e.g. InteractionController).
  */
-export function openEditTokenModal(token: TokenEntity, store: StoreApi<ViewAtlasState>, app: App, options: EditTokenOptions = {}): void {
+export function openEditTokenModal(token: TokenEntity, store: StoreApi<ViewAtlasState>, app: App): void {
   const character = token.kind === 'character' ? token : undefined;
-  const lighting = lightingContext(store, app, options);
+  // The senses of the map's collection and what it measures in, as its statblocks are read with.
+  const rules = mapSenseRules(app, AssetService.getInstance(app), store.getState());
+  const lighting = lightingContext(store.getState(), app, rules);
+  const statblock = character?.statblockPath ? { app, path: character.statblockPath, rules } : null;
   const resourceDefaults = readResourceDefaults(app, character?.statblockPath);
   const container = document.body.createDiv({ cls: 'atlas-vtt-plugin atlas-vtt-root' });
   const root = createRoot(container);
@@ -224,6 +220,7 @@ export function openEditTokenModal(token: TokenEntity, store: StoreApi<ViewAtlas
           light: lightForm(token.light, lighting.lightPresets),
         }}
         lighting={lighting}
+        statblock={statblock}
         resourceDefaults={resourceDefaults}
         onSave={handleSave}
         onClose={cleanup}

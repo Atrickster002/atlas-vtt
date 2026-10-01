@@ -139,14 +139,14 @@ export function SenseDefinitionEditor({ sense, all, unit, onChange }: SenseDefin
           {sense.sees.dark !== 'none' && sense.reveals === 'all' && (
             <Choice label="Look in darkness" value={sense.look} options={LOOKS} onChange={(look) => set({ look })} wide />
           )}
-          <Switch label="Creatures only" value={sense.reveals === 'creatures'} onChange={(on) => set(on ? { reveals: 'creatures' } : { reveals: 'all', precise: true })} />
-          {/* A sense that shows the map sees what it perceives; one that feels creatures may only sense them. */}
-          {sense.reveals === 'creatures'
-            ? <Switch label="Shows as outlines" value={!sense.precise} onChange={(on) => set({ precise: !on })} />
-            : <span />}
           <Switch label="Through walls" value={!sense.lineOfSight} onChange={(on) => set({ lineOfSight: !on })} />
           <Switch label="Sees invisible creatures" value={sense.seesInvisible} onChange={(seesInvisible) => set({ seesInvisible })} />
           <Switch label="Works while blinded" value={sense.worksWhileBlinded} onChange={(worksWhileBlinded) => set({ worksWhileBlinded })} />
+          <Switch label="Creatures only" value={sense.reveals === 'creatures'} onChange={(on) => set(on ? { reveals: 'creatures' } : { reveals: 'all', precise: true })} />
+          {/* A sense that shows the map sees what it perceives; one that feels creatures may only sense them. */}
+          {sense.reveals === 'creatures' && (
+            <Switch label="Shows as outlines" value={!sense.precise} onChange={(on) => set({ precise: !on })} />
+          )}
         </>
       )}
       {problem && <p id={problemId} className="atlas-csm-hint atlas-csm-hint--error atlas-csm-sense-editor__wide">{problem}</p>}

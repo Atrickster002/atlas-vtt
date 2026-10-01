@@ -3,7 +3,9 @@ import { ToggleSwitch } from '../../packages/components/primitives/Toggle';
 import { VISION_FIELDS, visionFieldLabel, type LightForm, type VisionForm } from '../../lighting/tokenLighting';
 import { SensesEditor } from '../../react/components/senses/SensesEditor';
 import type { LightPresetDefinition } from '../../types/lightPresetTypes';
-import type { SenseDefinition, TokenSense } from '../../types/senseTypes';
+import type { InheritedSenses } from '../../creatures/creatureSenses';
+import type { SenseDefinition } from '../../types/senseTypes';
+import { numberText } from '../../utils/numberInput';
 import { LightEmissionFields } from '../lighting/LightEmissionFields';
 import { NumberOverrideField } from './NumberOverrideField';
 
@@ -19,8 +21,20 @@ export interface TokenLightingContext {
   senses: readonly SenseDefinition[];
   /** The lights of the map's collection. */
   lightPresets: readonly LightPresetDefinition[];
-  /** The senses the token takes from its linked statblock while it has none of its own. */
-  inheritedSenses?: readonly TokenSense[];
+  /**
+   * What the token's linked statblock says about senses (`useStatblockSenses`): the token follows
+   * these senses while it has none of its own, and is blind beyond them where the statblock says so.
+   */
+  inherited?: InheritedSenses | null;
+}
+
+/**
+ * What the empty sight range field says: how far the token sees without a range of its own. A
+ * creature its statblock calls blind beyond its senses sees that far, or not at all.
+ */
+function sightRangePlaceholder(inherited: InheritedSenses | null | undefined, fallback: string): string {
+  if (!inherited?.blindBeyond) return fallback;
+  return `${inherited.blindBeyondRange === undefined ? 'None' : numberText(inherited.blindBeyondRange)}, from statblock`;
 }
 
 interface TokenLightingFieldsProps {
@@ -36,7 +50,7 @@ export function TokenLightingFields({ vision, onVisionChange, light, onLightChan
   const lightLabel = useId();
   const visionLabel = useId();
   const visionHint = useId();
-  const { unit, inheritedSenses } = context;
+  const { unit, inherited } = context;
   return (
     <>
       <div className="atlas-edit-token__section-divider" />
@@ -61,7 +75,7 @@ export function TokenLightingFields({ vision, onVisionChange, light, onLightChan
               label={visionFieldLabel(field, unit)}
               value={vision[field.key]}
               onChange={(value) => onVisionChange({ ...vision, [field.key]: value })}
-              placeholder={field.placeholder}
+              placeholder={field.key === 'range' ? sightRangePlaceholder(inherited, field.placeholder) : field.placeholder}
               resetLabel={field.resetLabel}
               {...(field.hint && { hint: field.hint })}
               {...(field.min !== undefined && { min: field.min })}
@@ -74,7 +88,7 @@ export function TokenLightingFields({ vision, onVisionChange, light, onLightChan
             definitions={context.senses}
             unit={unit}
             emptyText="Sees by light only."
-            {...(inheritedSenses && { inheritedSenses })}
+            {...(inherited && { inheritedSenses: inherited.senses, notRecognised: inherited.notRecognised })}
           />
         </>
       )}
