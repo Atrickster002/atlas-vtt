@@ -1,6 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createAtlasStorage } from '../../src/app/services/MapPersistence';
+import { Notice } from 'obsidian';
+import { createAtlasStorage, STALLED_SAVE_MS } from '../../src/app/services/MapPersistence';
 import { createInMemoryApp } from '../mocks/inMemoryVault';
+
+vi.mock('obsidian', async (importOriginal) => ({ ...(await importOriginal<typeof import('obsidian')>()), Notice: vi.fn() }));
 
 const path = 'maps/cave.atlasmap';
 function deferred() {
@@ -91,6 +94,27 @@ describe('map save flushing', () => {
     await storage.setItem('atlas', { state: { revision: 3 }, version: 4 });
     await storage.flush();
     expect(JSON.parse(files.get(path)!).state.revision).toBe(3);
+  });
+
+  it('reports a save that cannot finish instead of waiting for it forever, and lets later saves through', async () => {
+    vi.useFakeTimers();
+    const { app, files } = createInMemoryApp({ files: { [path]: '{}' } });
+    const process = vi.mocked(app.vault.process).getMockImplementation()!;
+    vi.spyOn(app.vault, 'process').mockImplementationOnce(() => new Promise<string>(() => {}));
+    const storage = createAtlasStorage(app, { getState: () => ({ mapPath: path }) });
+
+    await storage.setItem('atlas', { state: { revision: 1 }, version: 4 });
+    let flushed = false;
+    void storage.flush().then(() => { flushed = true; });
+    await vi.advanceTimersByTimeAsync(STALLED_SAVE_MS);
+
+    expect(flushed).toBe(true);
+    expect(Notice).toHaveBeenCalledWith('Atlas VTT could not finish saving cave. Its latest changes may be missing from its file.', 0);
+
+    vi.mocked(app.vault.process).mockImplementation(process);
+    await storage.setItem('atlas', { state: { revision: 2 }, version: 4 });
+    await storage.flush();
+    expect(JSON.parse(files.get(path)!).state.revision).toBe(2);
   });
 
   it('still creates the file of a new map on its first save', async () => {

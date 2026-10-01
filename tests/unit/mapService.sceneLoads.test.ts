@@ -1,7 +1,7 @@
 import { EventEmitter } from 'events';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Texture } from 'pixi.js';
-import type { App } from 'obsidian';
+import { Notice, type App } from 'obsidian';
 import { createInMemoryApp } from '../mocks/inMemoryVault';
 
 vi.mock('obsidian', async (importOriginal) => ({ ...(await importOriginal<typeof import('obsidian')>()), Notice: vi.fn() }));
@@ -9,7 +9,7 @@ vi.mock('../../src/app/MapLoader', () => ({ MapLoader: { load: vi.fn() } }));
 
 import { MapLoader, type LoadedMap } from '../../src/app/MapLoader';
 import { createViewAtlasStore, type ViewAtlasState, type ViewAtlasStore } from '../../src/app/storeFactory';
-import { migrateMapFile, type PersistedMapEnvelope } from '../../src/app/services/MapPersistence';
+import { migrateMapFile, STALLED_SAVE_MS, type PersistedMapEnvelope } from '../../src/app/services/MapPersistence';
 import { MapService } from '../../src/app/services/MapService';
 import type { RendererService } from '../../src/app/services/RendererService';
 import { STALLED_JOB_MS } from '../../src/app/services/latestRequestQueue';
@@ -251,21 +251,16 @@ describe('MapService scene loads', () => {
       expect(files.get(CAVE)).toBe(cave);
     });
 
-    it.each([
-      ['reading its file', (state: ViewAtlasState) => state.mapPath === CAVE],
-      ['saving the scene before it', (state: ViewAtlasState) => state.mapPath === null],
-    ])('opens the latest one when the load before it never settles while %s', async (_stage, stuckWhere) => {
+    it('opens the latest one when the load before it never settles', async () => {
       const { service, store, files, rendererService, shown, holdBack } = setup();
       const cave = files.get(CAVE);
       holdBack(CAVE);
-      if (stuckWhere(store.getState())) vi.spyOn(store, 'flushStorage').mockReturnValueOnce(new Promise<void>(() => {}));
 
       void service.loadMap(rendererService, CAVE);
       await vi.advanceTimersByTimeAsync(0);
-      expect(stuckWhere(store.getState())).toBe(true);
       let opened = false;
       const opening = service.loadMap(rendererService, TOWER).then((map) => { opened = map !== null; });
-      await vi.advanceTimersByTimeAsync(10_000);
+      await vi.advanceTimersByTimeAsync(STALLED_JOB_MS);
 
       expect(opened).toBe(true);
       await opening;
@@ -274,6 +269,22 @@ describe('MapService scene loads', () => {
       await editAndSave(store);
       expect(tokenIds(savedState(files, TOWER))).toEqual(['mage']);
       expect(files.get(CAVE)).toBe(cave);
+    });
+
+    it('opens the next scene and tells the GM when the save of the scene being left cannot finish', async () => {
+      const { app, service, store, rendererService } = setup();
+      await service.loadMap(rendererService, CAVE);
+      await vi.advanceTimersByTimeAsync(600);
+      vi.spyOn(app.vault, 'process').mockImplementation(() => new Promise<string>(() => {}));
+      store.getState().setGridVisible(false);
+
+      let opened = false;
+      void service.loadMap(rendererService, TOWER).then((map) => { opened = map !== null; });
+      await vi.advanceTimersByTimeAsync(STALLED_SAVE_MS);
+
+      expect(opened).toBe(true);
+      expect(tokenIds(store.getState())).toEqual(['mage']);
+      expect(Notice).toHaveBeenCalledWith('Atlas VTT could not finish saving cave. Its latest changes may be missing from its file.', 0);
     });
 
     it('drops what a stalled load reads from its file after the next scene took over', async () => {

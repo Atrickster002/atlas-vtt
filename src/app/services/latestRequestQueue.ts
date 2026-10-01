@@ -1,16 +1,7 @@
+import { settledWithin } from '../utils/settledWithin';
+
 /** How long a request waits for the running job to stop before it starts regardless. */
 export const STALLED_JOB_MS = 5000;
-
-/** Resolves when `job` settles, or after `ms` when it has not by then. */
-function settledWithin(job: Promise<unknown>, ms: number): Promise<void> {
-  return new Promise((resolve) => {
-    const timer = window.setTimeout(resolve, ms);
-    void job.then(() => {
-      window.clearTimeout(timer);
-      resolve();
-    });
-  });
-}
 
 /**
  * Runs async jobs one at a time, the latest request winning: a job requested while

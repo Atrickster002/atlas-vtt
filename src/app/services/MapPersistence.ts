@@ -1,5 +1,5 @@
 import type { PersistStorage, StorageValue } from 'zustand/middleware';
-import { App, TFile } from 'obsidian';
+import { App, Notice, TFile } from 'obsidian';
 import type { TokenEntity, TextElement, DrawingStroke, NotePin } from '../types';
 import type { WallSegment } from '../types/wallTypes';
 import type { LightSource } from '../types/lightingTypes';
@@ -13,6 +13,7 @@ import { fixMapTokenPaths } from '../utils/fixMapPaths';
 import { getDataFilePath } from '../utils/dataFileMigration';
 import { ensureFolder } from '../plugin/vaultFolders';
 import { preserveDamagedSceneFile, SceneFileError } from './sceneFileProblems';
+import { settledWithin } from '../utils/settledWithin';
 
 // Type definitions
 export interface CameraState {
@@ -158,6 +159,11 @@ export function parseSceneFile(content: string): LoadableMapEnvelope {
   if (isNewer) throw new SceneFileError('newer');
   return { ...raw, state: raw.state };
 }
+
+/** How long a flush waits for a file write before it reports the save as stuck. */
+export const STALLED_SAVE_MS = 5000;
+
+const sceneNameOf = (path: string): string => path.slice(path.lastIndexOf('/') + 1).replace(/\.[^.]+$/, '');
 
 export type AtlasPersistStorage<S> = PersistStorage<S> & { flush: () => Promise<void> };
 
@@ -357,7 +363,14 @@ export function createAtlasStorage<T extends { mapPath: string | null; mapLoaded
       }
       // A timer may already have started a save before flush was called.
       while (pendingWrites.size > 0) {
-        await Promise.all(pendingWrites.values());
+        if (await settledWithin(Promise.all(pendingWrites.values()), STALLED_SAVE_MS)) continue;
+        // Whoever waits for the flush (a scene switch, closing the view) must not wait forever.
+        // The stuck writes are let go, so later saves of these maps are not queued behind them.
+        for (const path of pendingWrites.keys()) {
+          console.error(`[AtlasStorage] Saving ${path} did not finish`);
+          new Notice(`Atlas VTT could not finish saving ${sceneNameOf(path)}. Its latest changes may be missing from its file.`, 0);
+        }
+        pendingWrites.clear();
       }
     },
   };
