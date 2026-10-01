@@ -8,16 +8,19 @@ import { CloseButton } from '../../packages/components/primitives/CloseButton';
 import { Button } from '../../packages/components/primitives/button';
 import { ToggleSwitch } from '../../packages/components/primitives/Toggle';
 import { TooltipProvider } from '../../packages/components/primitives/tooltip';
-import { mapSenses } from '../../services/mapCollectionRules';
-import type { SenseDefinition, TokenSense } from '../../types/senseTypes';
+import { AssetService } from '../../services/AssetService';
+import { mapLightPresets, mapSenses } from '../../services/mapCollectionRules';
+import { mapMeasurementSettings } from '../../services/mapMeasurementSettings';
+import type { TokenSense } from '../../types/senseTypes';
 import { NumberOverrideField, parseNumberInput } from './NumberOverrideField';
 import { readStatblockVitals } from './statblockFrontmatter';
 import { buildResourceUpdates, statblockResourceDefaults, type ResourceDefaults } from './tokenResourceEdits';
-import { TokenLightingFields, type LightChoice } from './TokenLightingFields';
+import { TokenLightingFields, type TokenLightingContext } from './TokenLightingFields';
 import { WALLS_AND_LIGHTING_ENABLED } from '../../featureFlags';
 import { unitLabelFor } from '../../grid/measurementFormat';
-import { presetOf } from '../../lighting/lightPresets';
-import { carriedLight, visionForm, visionFromForm, type VisionForm } from '../../lighting/tokenLighting';
+import { unitScaleOf } from '../../lighting/lightingUnits';
+import { maxLightRange } from '../../lighting/lightRanges';
+import { lightForm, lightFromForm, visionForm, visionFromForm, type LightForm, type VisionForm } from '../../lighting/tokenLighting';
 import { numberText } from '../../utils/numberInput';
 
 interface EditTokenValues {
@@ -26,7 +29,7 @@ interface EditTokenValues {
   maxHp: number | undefined;
   maxStress: number | undefined;
   vision: VisionForm;
-  light: LightChoice;
+  light: LightForm;
 }
 
 /** What only the caller knows about the token being edited. */
@@ -38,12 +41,10 @@ export interface EditTokenOptions {
   inheritedSenses?: readonly TokenSense[];
 }
 
-interface EditTokenModalProps extends EditTokenOptions {
+interface EditTokenModalProps {
   initial: EditTokenValues;
   resourceDefaults: ResourceDefaults;
-  unit: string;
-  /** The senses of the map's collection. */
-  senses: readonly SenseDefinition[];
+  lighting: TokenLightingContext;
   onSave: (values: EditTokenValues) => void;
   onClose: () => void;
 }
@@ -51,7 +52,7 @@ interface EditTokenModalProps extends EditTokenOptions {
 const defaultPlaceholder = (value: number | undefined): string =>
   value === undefined ? 'None' : `Statblock default: ${value}`;
 
-function EditTokenModalInner({ initial, resourceDefaults, unit, senses, inheritedSenses, onSave, onClose }: EditTokenModalProps): React.ReactElement {
+function EditTokenModalInner({ initial, resourceDefaults, lighting, onSave, onClose }: EditTokenModalProps): React.ReactElement {
   const nameplateId = useId();
   const [name, setName] = useState(initial.name);
   const [showNameplate, setShowNameplate] = useState(initial.showNameplate);
@@ -139,15 +140,7 @@ function EditTokenModalInner({ initial, resourceDefaults, unit, senses, inherite
             resetLabel="Reset to statblock default"
           />
           {WALLS_AND_LIGHTING_ENABLED && (
-            <TokenLightingFields
-              vision={vision}
-              onVisionChange={setVision}
-              light={light}
-              onLightChange={setLight}
-              unit={unit}
-              senses={senses}
-              {...(inheritedSenses && { inheritedSenses })}
-            />
+            <TokenLightingFields vision={vision} onVisionChange={setVision} light={light} onLightChange={setLight} context={lighting} />
           )}
         </div>
 
@@ -165,10 +158,21 @@ function isButton(target: EventTarget | null): boolean {
   return (target as Element | null)?.closest?.('button') != null;
 }
 
-function lightingUpdates(vision: VisionForm, light: LightChoice): Pick<TokenUpdates, 'vision' | 'light'> {
+function lightingUpdates(vision: VisionForm, light: LightForm): Pick<TokenUpdates, 'vision' | 'light'> {
+  return { vision: visionFromForm(vision), light: lightFromForm(light) };
+}
+
+/** What the token's map and its collection say about vision and light. */
+function lightingContext(store: StoreApi<ViewAtlasState>, app: App, options: EditTokenOptions): TokenLightingContext {
+  const state = store.getState();
+  const { unitType, unitDistance } = mapMeasurementSettings(AssetService.getInstance(app), state);
   return {
-    vision: visionFromForm(vision),
-    ...(light !== 'custom' && { light: carriedLight(light === 'none' ? null : light) }),
+    unit: unitLabelFor(unitType),
+    unitDistance,
+    maxLightRange: maxLightRange(unitScaleOf({ unitDistance }, state.grid)),
+    senses: mapSenses(app, state.mapPath),
+    lightPresets: mapLightPresets(app, state.mapPath),
+    ...options,
   };
 }
 
@@ -184,7 +188,7 @@ function readResourceDefaults(app: App, statblockPath: string | undefined): Reso
  */
 export function openEditTokenModal(token: TokenEntity, store: StoreApi<ViewAtlasState>, app: App, options: EditTokenOptions = {}): void {
   const character = token.kind === 'character' ? token : undefined;
-  const senses = mapSenses(app, store.getState().mapPath);
+  const lighting = lightingContext(store, app, options);
   const resourceDefaults = readResourceDefaults(app, character?.statblockPath);
   const container = document.body.createDiv({ cls: 'atlas-vtt-plugin atlas-vtt-root' });
   const root = createRoot(container);
@@ -213,12 +217,10 @@ export function openEditTokenModal(token: TokenEntity, store: StoreApi<ViewAtlas
           showNameplate: token.showNameplate ?? false,
           maxHp: typeof character?.hp === 'object' ? character.hp.max : character?.hp,
           maxStress: typeof character?.stress === 'object' ? character.stress.max : character?.maxStress,
-          vision: visionForm(token.vision, senses),
-          light: token.light ? presetOf(token.light) ?? 'custom' : 'none',
+          vision: visionForm(token.vision, lighting.senses),
+          light: lightForm(token.light, lighting.lightPresets),
         }}
-        unit={unitLabelFor(store.getState().grid?.unitType)}
-        senses={senses}
-        {...options}
+        lighting={lighting}
         resourceDefaults={resourceDefaults}
         onSave={handleSave}
         onClose={cleanup}

@@ -1,7 +1,7 @@
 import type { LightEmission, TokenVision, TokenVisionDefaults } from '../types/lightingTypes';
 import type { SenseDefinition, TokenSense } from '../types/senseTypes';
-import { emissionOfPreset } from './lightEmissionForm';
-import type { LightPresetId } from './lightPresets';
+import type { LightPresetDefinition } from '../types/lightPresetTypes';
+import { defaultLightPreset, emissionOf } from './lightPresetChoice';
 import { numberText, parseNumberText, positiveNumber } from '../utils/numberInput';
 import { tokenSenses, withSenses } from '../vision/tokenSenses';
 import { coneAngle } from '../vision/visionCone';
@@ -115,7 +115,19 @@ export function visionFromForm(form: VisionForm): TokenVision {
   return form.senses ? withSenses(vision, sensesFromRows(form.senses)) : vision;
 }
 
-/** The light a token carries for a preset, or none. */
-export function carriedLight(preset: LightPresetId | null): LightEmission | undefined {
-  return preset ? emissionOfPreset(preset) : undefined;
+/** The light a token carries, as Edit Token edits it. */
+export interface LightForm {
+  on: boolean;
+  /** The carried light, or the one the token gets when the switch goes on. Kept while off, so switching back loses nothing. */
+  emission: LightEmission;
+}
+
+/** The fields Edit Token shows for a token's light; a token without one starts with the collection's torch, switched off. */
+export function lightForm(light: LightEmission | undefined, presets: readonly LightPresetDefinition[]): LightForm {
+  return { on: light !== undefined, emission: light ?? emissionOf(defaultLightPreset(presets)) };
+}
+
+/** The light to save: the form's while it is on, none otherwise. */
+export function lightFromForm(form: LightForm): LightEmission | undefined {
+  return form.on ? form.emission : undefined;
 }

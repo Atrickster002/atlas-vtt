@@ -1,6 +1,8 @@
 import { act, fireEvent, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
+import { GENERIC_LIGHT_PRESETS } from '../../src/app/gameSystems/lightPresets/generic';
 import { GENERIC_SENSES } from '../../src/app/gameSystems/senses/generic';
+import { emissionOf } from '../../src/app/lighting/lightPresetChoice';
 import { senseWithRole } from '../../src/app/gameSystems/senseRules';
 import { createViewAtlasStore, type ViewAtlasStore } from '../../src/app/storeFactory';
 import { openEditTokenModal } from '../../src/app/pixi/token-renderer/EditTokenModal';
@@ -40,8 +42,8 @@ describe('openEditTokenModal', () => {
 
   it('says in one line what the vision switch means', () => {
     open();
-    expect(screen.getByText('Players see what this token sees, and always see the token.')).toBeTruthy();
-    expect(vision().getAttribute('aria-describedby')).toBe(screen.getByText('Players see what this token sees, and always see the token.').id);
+    expect(screen.getByText('Players see what it sees, and always see it.')).toBeTruthy();
+    expect(vision().getAttribute('aria-describedby')).toBe(screen.getByText('Players see what it sees, and always see it.').id);
   });
 
   it('shows sight range, angle and senses only for a token with vision', () => {
@@ -104,5 +106,68 @@ describe('openEditTokenModal', () => {
     expect(screen.queryByRole('group', { name: 'Senses to add' })).toBeNull();
     fireEvent.keyDown(document.body, { key: 'Escape' });
     expect(screen.queryByText('Vision & light')).toBeNull();
+  });
+});
+
+describe('openEditTokenModal: the carried light', () => {
+  const torch = GENERIC_LIGHT_PRESETS.find((preset) => preset.id === 'torch')!;
+  const lantern = GENERIC_LIGHT_PRESETS.find((preset) => preset.id === 'lantern')!;
+  const carried = (): HTMLElement => screen.getByRole('switch', { name: 'Carried light' });
+
+  it('is off for a token without one, with no light fields, and saves none', () => {
+    const { saved } = open();
+    expect(carried().getAttribute('aria-checked')).toBe('false');
+    expect(screen.queryByRole('group', { name: 'Kind of light' })).toBeNull();
+    save();
+    expect(saved().light).toBeUndefined();
+  });
+
+  it('switches on as the collection\'s torch, with the fields of the light popover', () => {
+    const { saved } = open();
+    fireEvent.click(carried());
+    expect(screen.getByRole('button', { name: 'Torch' }).getAttribute('aria-pressed')).toBe('true');
+    for (const name of ['Candle', 'Lantern', 'Magical light', 'Custom light', 'Torch orange']) screen.getByRole('button', { name });
+    expect((screen.getByLabelText('Bright') as HTMLInputElement).value).toBe('20');
+    expect((screen.getByLabelText('Dim') as HTMLInputElement).value).toBe('40');
+    for (const slider of ['Bright range', 'Dim range', 'Intensity', 'Softness']) screen.getByRole('slider', { name: slider });
+    expect(screen.getByRole('combobox', { name: 'Flicker' }).textContent).toBe('Torch');
+    save();
+    expect(saved().light).toEqual(emissionOf(torch));
+  });
+
+  it('edits the light a token carries: preset, range, colour and flicker', () => {
+    const { saved } = open({ light: emissionOf(torch) });
+    expect(carried().getAttribute('aria-checked')).toBe('true');
+    fireEvent.click(screen.getByRole('button', { name: 'Lantern' }));
+    const bright = screen.getByLabelText('Bright') as HTMLInputElement;
+    fireEvent.change(bright, { target: { value: '35' } });
+    fireEvent.blur(bright);
+    fireEvent.click(screen.getByRole('button', { name: 'Arcane blue' }));
+    fireEvent.click(screen.getByRole('combobox', { name: 'Flicker' }));
+    fireEvent.click(screen.getByRole('option', { name: 'Pulse' }));
+    save();
+    expect(saved().light).toEqual({ ...emissionOf(lantern), bright: 35, color: '#8fb8ff', animation: 'pulse' });
+  });
+
+  it('commits a typed range with Enter without saving the token', () => {
+    const { saved } = open({ light: emissionOf(torch) });
+    const dim = screen.getByLabelText('Dim') as HTMLInputElement;
+    fireEvent.change(dim, { target: { value: '50' } });
+    fireEvent.keyDown(dim, { key: 'Enter' });
+    expect(screen.getByText('Vision & light')).toBeTruthy();
+    expect(saved().light).toEqual(emissionOf(torch));
+    save();
+    expect(saved().light).toMatchObject({ bright: 20, dim: 50 });
+  });
+
+  it('takes the light away when it is switched off, and leaves an untouched light as it was', () => {
+    const edited = { ...emissionOf(torch), bright: 12, intensity: 0.4 };
+    const kept = open({ light: edited });
+    save();
+    expect(kept.saved().light).toEqual(edited);
+    const removed = open({ light: edited });
+    fireEvent.click(carried());
+    save();
+    expect(removed.saved().light).toBeUndefined();
   });
 });

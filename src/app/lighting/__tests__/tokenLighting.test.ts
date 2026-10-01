@@ -2,9 +2,10 @@ import { describe, expect, it } from 'vitest';
 import { BUILT_IN_SYSTEM_PRESETS } from '../../gameSystems/builtInPresets';
 import { GENERIC_SENSES } from '../../gameSystems/senses/generic';
 import { senseWithRole } from '../../gameSystems/senseRules';
-import { LIGHT_PRESETS } from '../lightPresets';
+import { emissionOf } from '../lightPresetChoice';
 import {
-  carriedLight,
+  lightForm,
+  lightFromForm,
   senseRows,
   sensesFromRows,
   visionDefaultsForm,
@@ -15,6 +16,7 @@ import {
 } from '../tokenLighting';
 
 const dnd5e = BUILT_IN_SYSTEM_PRESETS.find((preset) => preset.name === 'D&D 5e')!.rules.senses!;
+const lights = BUILT_IN_SYSTEM_PRESETS.find((preset) => preset.name === 'D&D 5e')!.rules.lightPresets!;
 const darkvision = senseWithRole(dnd5e, 'darkvision').id;
 const tremorsense = senseWithRole(dnd5e, 'tremorsense').id;
 
@@ -103,14 +105,28 @@ describe('sense rows', () => {
   });
 });
 
-describe('carriedLight', () => {
-  it('copies the chosen preset', () => {
-    expect(carriedLight('torch')).toEqual(LIGHT_PRESETS.torch.emission);
-    expect(carriedLight('torch')).not.toBe(LIGHT_PRESETS.torch.emission);
+describe('the carried light form', () => {
+  const lamp = lights.find((preset) => preset.name === 'Lamp')!;
+
+  it('shows a token without a light as off, with the collection\'s torch ready to switch on', () => {
+    const form = lightForm(undefined, lights);
+    expect(form.on).toBe(false);
+    expect(form.emission).toEqual(emissionOf(lights.find((preset) => preset.name === 'Torch')!));
+    expect(lightFromForm(form)).toBeUndefined();
+    expect(lightFromForm({ ...form, on: true })).toEqual(form.emission);
   });
 
-  it('removes the light for none', () => {
-    expect(carriedLight(null)).toBeUndefined();
+  it('round-trips the light a token carries, whatever was edited on it', () => {
+    const light = { ...emissionOf(lamp), bright: 25, color: '#123456', intensity: 0.5, sourceRadius: 3, animation: 'pulse' as const };
+    const form = lightForm(light, lights);
+    expect(form).toEqual({ on: true, emission: light });
+    expect(lightFromForm(form)).toEqual(light);
+  });
+
+  it('keeps the light\'s settings while it is switched off in the form, and saves none', () => {
+    const form = { ...lightForm(emissionOf(lamp), lights), on: false };
+    expect(form.emission).toEqual(emissionOf(lamp));
+    expect(lightFromForm(form)).toBeUndefined();
   });
 });
 
