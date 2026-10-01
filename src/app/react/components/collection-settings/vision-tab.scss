@@ -51,6 +51,11 @@ $name-width: 128px;
   color: var(--text-muted);
 }
 
+// What keeps the sense from being saved, in place of what it does.
+.atlas-csm-sense__text--problem {
+  color: var(--text-error);
+}
+
 // A sense of the collection's own has its buttons at the end of its row.
 .atlas-csm-sense__actions {
   display: flex;

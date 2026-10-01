@@ -1,6 +1,6 @@
 import React, { useId, useState } from 'react';
 import { Pencil, Plus, Trash2 } from 'lucide-react';
-import { isBuiltInSense, newSense, senseSummary } from '../../../gameSystems/senseEditing';
+import { isBuiltInSense, newSense, senseProblem, senseSummary } from '../../../gameSystems/senseEditing';
 import { Button } from '../../../packages/components/primitives/button';
 import { LabelTooltip } from '../../../packages/components/primitives/tooltip';
 import type { SenseDefinition } from '../../../types/senseTypes';
@@ -47,10 +47,14 @@ export function SenseDefinitionList({ senses, unit, onChange, onDelete }: SenseD
           }
           const name = sense.name.trim() || 'new sense';
           const isOpen = sense.id === openId;
+          // Its open fields say what is wrong; closed, the row says it, since Save stays off meanwhile.
+          const problem = isOpen ? null : senseProblem(sense, senses);
           return (
             <li key={sense.id} className="atlas-csm-sense atlas-csm-sense--own">
               <span className="atlas-csm-sense__name">{sense.name.trim() || 'New sense'}</span>
-              <span className="atlas-csm-sense__text">{senseSummary(sense)}</span>
+              {problem
+                ? <span className="atlas-csm-sense__text atlas-csm-sense__text--problem">{problem}</span>
+                : <span className="atlas-csm-sense__text">{senseSummary(sense)}</span>}
               <span className="atlas-csm-sense__actions">
                 <LabelTooltip label={`Edit ${name}`}>
                   <Button variant="ghost" size="icon" className="atlas-csm-sense__edit" aria-expanded={isOpen} onClick={() => setOpenId(isOpen ? null : sense.id)}>

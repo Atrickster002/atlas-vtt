@@ -8,6 +8,7 @@ import {
   senseKind,
   senseProblem,
   senseSummary,
+  sensesAreValid,
   takesRange,
   withSenseKind,
 } from '../senseEditing';
@@ -58,6 +59,18 @@ describe('senseProblem', () => {
     const blind = { ...witchSight, sees: { bright: 'none', dim: 'none', dark: 'none', magicalDark: 'none' } } as const;
     expect(senseProblem(blind, [blind])).toBe('Choose a light the sense works in.');
     expect(senseProblem(withSenseKind(blind, 'see-invisible'), [blind])).toBeNull();
+  });
+});
+
+describe('sensesAreValid', () => {
+  it('is true for the senses Atlas ships and for complete senses of the collection\'s own', () => {
+    expect(sensesAreValid([...dnd5e, witchSight])).toBe(true);
+    expect(sensesAreValid([])).toBe(true);
+  });
+
+  it('is false as soon as one of the collection\'s own has no name or another\'s name', () => {
+    expect(sensesAreValid([...dnd5e, newSense('home-2')])).toBe(false);
+    expect(sensesAreValid([...dnd5e, { ...witchSight, name: 'Darkvision' }])).toBe(false);
   });
 });
 

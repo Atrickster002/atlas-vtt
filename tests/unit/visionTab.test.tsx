@@ -157,6 +157,34 @@ describe('VisionTab: the senses of the game system', () => {
     expect(screen.queryAllByRole('switch')).toHaveLength(0);
   });
 
+  it('says on its row what keeps a sense from being saved, while its fields are closed', () => {
+    const nameless: SenseDefinition = newSense('home-2');
+    const twin: SenseDefinition = { ...newSense('home-3'), name: 'darkvision' };
+    render(<Harness senses={[...dnd5e, witchSight, nameless, twin]} />);
+    const rows = within(definitions()).getAllByRole('listitem');
+    expect(within(rows.at(-2)!).getByText('Give the sense a name.')).toBeTruthy();
+    expect(within(rows.at(-1)!).getByText('Another sense has this name.')).toBeTruthy();
+    expect(within(rows.at(-3)!).queryByText(/name\.$/)).toBeNull();
+    fireEvent.click(within(rows.at(-2)!).getByRole('button', { name: 'Edit new sense' }));
+    expect(screen.getAllByText('Give the sense a name.')).toHaveLength(1);
+  });
+
+  it('lets a sense that perceives creatures only show them as outlines', () => {
+    render(<Harness senses={[witchSight]} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Witch sight' }));
+    expect(screen.queryByRole('switch', { name: 'Shows as outlines' })).toBeNull();
+    fireEvent.click(screen.getByRole('switch', { name: 'Creatures only' }));
+    const outlines = screen.getByRole('switch', { name: 'Shows as outlines' });
+    expect(outlines.getAttribute('aria-checked')).toBe('false');
+    fireEvent.click(outlines);
+    expect(savedSenses()[0]).toMatchObject({ reveals: 'creatures', precise: false });
+    fireEvent.click(screen.getByRole('switch', { name: 'Shows as outlines' }));
+    expect(savedSenses()[0]!.precise).toBe(true);
+    fireEvent.click(screen.getByRole('switch', { name: 'Shows as outlines' }));
+    fireEvent.click(screen.getByRole('switch', { name: 'Creatures only' }));
+    expect(savedSenses()[0]).toMatchObject({ reveals: 'all', precise: true });
+  });
+
   it('refuses a name another sense has', () => {
     render(<Harness senses={[...dnd5e, witchSight]} />);
     fireEvent.click(screen.getByRole('button', { name: 'Edit Witch sight' }));
