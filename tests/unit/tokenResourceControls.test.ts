@@ -9,7 +9,7 @@ import type { Character } from '../../src/app/types';
 import { barDimensions } from '../../src/app/styles/designTokens';
 import { createInMemoryApp } from '../mocks/inMemoryVault';
 import { stubJsdomGraphics } from '../mocks/jsdomGraphics';
-import { AMMO, HP, STR, STRESS, wireControls } from '../mocks/resourceFixtures';
+import { AMMO, ARMOR, HP, STR, STRESS, wireControls } from '../mocks/resourceFixtures';
 import type { ResourceDefinition } from '../../src/app/resources/resourceTypes';
 
 let restoreGraphics: (() => void) | undefined;
@@ -152,6 +152,11 @@ describe('resource bar controls', () => {
       expect(hitBarCentre(hits[0]!)).toBe(hits[0]);
       expect(hitBarCentre(hits[1]!)).toBe(hits[1]);
     } finally { controls.destroy(); stage.destroy({ children: true }); }
+  });
+
+  it('gives a static value no buttons and no click area: it does not change in play', () => {
+    const { hits } = mount({ hp: { current: 5, max: 5 }, armor: { current: 15, max: 15 } }, [HP, ARMOR]);
+    expect(hits).toHaveLength(1);
   });
 });
 

@@ -62,6 +62,8 @@ export function tokenQuantities(
   const quantities = new Map<string, TokenQuantity>();
 
   for (const { definition, value } of visibleResources(token, definitions, 'dm')) {
+    // Nothing to spend or to mark off
+    if (definition.direction === 'static') continue;
     quantities.set(definition.key, {
       key: definition.key, label: definition.name, value,
       fills: definition.direction === 'fills',

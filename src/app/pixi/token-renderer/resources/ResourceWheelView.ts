@@ -4,7 +4,7 @@ import type { VisibleResource } from '../../../resources/resourceTypes';
 import { RESOURCE_NUMBER_SCALE, RESOURCE_NUMBER_STYLE } from '../../ResourceBarLabel';
 import { destroyTree } from '../../utils/destroyTree';
 import { BAR_LOOK, colorNumber } from './ResourceBarView';
-import { WHEEL_START, wheelGauge } from './wheelGeometry';
+import { WHEEL_START, wheelGauge, type WheelGauge } from './wheelGeometry';
 
 /** Diameter of the wheel, in UI units: two bar heights. */
 export const WHEEL_SIZE = 20.4;
@@ -42,15 +42,17 @@ export class ResourceWheelView {
   /** Shows `resource` centred on (`x`, `y`). */
   update({ definition, value }: VisibleResource, x: number, y: number): void {
     this.view.position.set(x, y);
-    const label = String(value.current);
+    const fixed = definition.direction === 'static';
+    const label = String(fixed ? value.max : value.current);
     if (this.text.text !== label) this.text.text = label;
     this.text.scale.set(RESOURCE_NUMBER_SCALE * Math.min(1, FULL_SIZE_CHARACTERS / label.length));
 
     const color = resourceColor(definition, value);
-    const key = `${color}|${value.current}|${value.max}`;
+    const key = `${color}|${value.current}|${value.max}|${definition.direction}`;
     if (key === this.drawn) return;
     this.drawn = key;
-    this.draw(colorNumber(color), value);
+    // A static value is a whole ring around its number: nothing of it is spent, and it has no points to divide
+    this.draw(colorNumber(color), fixed ? { share: 1, end: 0, ticks: [] } : wheelGauge(value));
   }
 
   setResolution(resolution: number): void {
@@ -61,7 +63,7 @@ export class ResourceWheelView {
     destroyTree(this.view);
   }
 
-  private draw(color: number, value: VisibleResource['value']): void {
+  private draw(color: number, gauge: WheelGauge | null): void {
     const outer = (WHEEL_SIZE / 2) * DRAW_SCALE;
     const border = BAR_LOOK.border * DRAW_SCALE;
     const radius = RING_RADIUS * DRAW_SCALE;
@@ -72,7 +74,6 @@ export class ResourceWheelView {
       .circle(0, 0, outer - border / 2).fill({ color: BAR_LOOK.trackColor })
       .circle(0, 0, radius).stroke({ width, color: BAR_LOOK.tickColor, alpha: BAR_LOOK.tickAlpha });
 
-    const gauge = wheelGauge(value);
     if (!gauge) return;
     if (gauge.share >= 1) {
       // A full ring is a circle: an arc that ends where it began leaves a seam

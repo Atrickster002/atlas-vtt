@@ -274,6 +274,11 @@ $fan-button: 34px;
 
   &:focus-visible { border-color: var(--background-modifier-border-focus) !important; }
 
+  &:disabled {
+    opacity: 0.4;
+    cursor: default;
+  }
+
   svg {
     width: $icon-s;
     height: $icon-s;
@@ -301,7 +306,7 @@ $fan-button: 34px;
 }
 
 @media (hover: hover) and (pointer: fine) {
-  .atlas-csm-fan__button:not(.atlas-pressed):hover {
+  .atlas-csm-fan__button:not(.atlas-pressed):not(:disabled):hover {
     color: var(--text-normal);
     border-color: var(--background-modifier-border-hover) !important;
     background-color: var(--background-modifier-hover) !important;

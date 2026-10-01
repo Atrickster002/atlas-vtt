@@ -338,6 +338,8 @@ export class TokenControlsUI {
     // Same resources and places as TokenUIRenderer drew them, so each overlay sits on its resource
     const slots = this.slotsProvider(this.currentTokenId);
     for (const { definition, value } of visibleResources(token, this.resourceDefsProvider(), 'dm')) {
+      // A static value does not change in play: its number is set in Edit Token
+      if (definition.direction === 'static') continue;
       const slot = slots.find((candidate) => candidate.key === definition.key);
       if (!slot) continue;
       // The token may have changed since the controls were shown (dashboard, Kill, Edit Token), so

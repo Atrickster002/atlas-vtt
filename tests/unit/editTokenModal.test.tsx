@@ -4,16 +4,17 @@ import { openEditTokenModal } from '../../src/app/pixi/token-renderer/EditTokenM
 import { createViewAtlasStore } from '../../src/app/storeFactory';
 import type { Character } from '../../src/app/types';
 import { createInMemoryApp } from '../mocks/inMemoryVault';
-import { AMMO, HP } from '../mocks/resourceFixtures';
+import { AMMO, ARMOR, HP } from '../mocks/resourceFixtures';
+import type { ResourceDefinition } from '../../src/app/resources/resourceTypes';
 
 afterEach(() => document.body.replaceChildren());
 
-function open(resources: NonNullable<Character['resources']>) {
+function open(resources: NonNullable<Character['resources']>, definitions: readonly ResourceDefinition[] = [HP, AMMO]) {
   const { app } = createInMemoryApp({ files: {} });
   const store = createViewAtlasStore(app, `edit-token-${Math.random()}`);
   const token: Character = { id: 't1', kind: 'character', name: 'Gunner', imagePath: 'gunner.png', x: 0, y: 0, resources };
   store.setState({ persistenceEnabled: false, objects: { ...store.getState().objects, tokens: { t1: token } } });
-  act(() => openEditTokenModal(token, store, app, [HP, AMMO]));
+  act(() => openEditTokenModal(token, store, app, definitions));
   /** The number input under the label reading `label`. */
   const input = (label: string): HTMLInputElement =>
     screen.getByText(label).parentElement!.querySelector<HTMLInputElement>('input[type="number"]')!;
@@ -21,6 +22,12 @@ function open(resources: NonNullable<Character['resources']>) {
 }
 
 describe('Edit Token resources', () => {
+  it('names a static value plainly: it has no maximum, it is the value', () => {
+    const { input } = open({ hp: { current: 5, max: 8 }, armor: { current: 15, max: 15 } }, [HP, ARMOR]);
+    expect(input('Armor').value).toBe('15');
+    expect(screen.queryByText('Max Armor')).toBeNull();
+  });
+
   it('offers the maximum of every resource the collection defines', () => {
     const { input } = open({ hp: { current: 5, max: 8 } });
     expect(input('Max HP').value).toBe('8');

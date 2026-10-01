@@ -136,4 +136,35 @@ describe('ResourcesTab', () => {
     // A drag selects nothing
     expect(screen.queryByRole('button', { name: 'Remove' })).toBeNull();
   });
+
+  it('cycles how a resource counts through drains, fills and static, and a static one cannot defeat', () => {
+    const onChange = vi.fn();
+    render(<Editor initial={[{ ...HP_RESOURCE }]} onChange={onChange} />);
+    fireEvent.click(socket('HP: bar below the token'));
+    fireEvent.click(screen.getByRole('button', { name: /^Drains/ }));
+    expect(last(onChange)[0]!.direction).toBe('fills');
+    fireEvent.click(screen.getByRole('button', { name: /^Fills/ }));
+    expect(last(onChange)[0]).toMatchObject({ direction: 'static' });
+    // HP defeated its token; a static value never does
+    expect(last(onChange)[0]).not.toHaveProperty('defeatedWhenSpent', true);
+    expect((screen.getByRole('button', { name: 'A static value never defeats the token' }) as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(screen.getByRole('button', { name: /^Static/ }));
+    expect(last(onChange)[0]!.direction).toBe('drains');
+  });
+
+  it('keeps the socket open when the click that closes the colour picker lands beside it', () => {
+    render(<Editor initial={[{ ...HP_RESOURCE }]} />);
+    fireEvent.click(socket('HP: bar below the token'));
+    const stage = screen.getByRole('group', { name: 'Resource sockets' }).parentElement!;
+    const colour = screen.getByLabelText('Colour');
+    colour.focus();
+    fireEvent.pointerDown(stage);
+    colour.blur();
+    fireEvent.click(stage);
+    expect(screen.getByRole('textbox', { name: 'Name' })).toBeTruthy();
+    // The next click on the background closes it as usual
+    fireEvent.pointerDown(stage);
+    fireEvent.click(stage);
+    expect(socket('HP: bar below the token').getAttribute('aria-pressed')).toBe('false');
+  });
 });

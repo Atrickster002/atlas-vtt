@@ -18,18 +18,34 @@ export const RESOURCE_NUMBER_SCALE = 0.333;
 /** Current and maximum numbers hugging a central slash, each in its own clickable half of the bar. */
 export class ResourceBarLabel extends Container {
   private currentText: Text;
+  private separator: Text;
   private maximumText: Text;
 
   constructor() {
     super();
     this.currentText = this.createNumber('resource-current', 1, -RESOURCE_NUMBER_GAP);
-    this.createNumber('resource-separator', 0.5, 0).text = '/';
+    this.separator = this.createNumber('resource-separator', 0.5, 0);
+    this.separator.text = '/';
     this.maximumText = this.createNumber('resource-max', 0, RESOURCE_NUMBER_GAP);
   }
 
   setValue(value: ResourceValue): void {
     this.currentText.text = String(value.current);
     this.maximumText.text = String(value.max);
+    this.layout(false);
+  }
+
+  /** A value that does not count: the one number, centred. */
+  setFixed(value: number): void {
+    this.currentText.text = String(value);
+    this.layout(true);
+  }
+
+  private layout(fixed: boolean): void {
+    this.separator.visible = !fixed;
+    this.maximumText.visible = !fixed;
+    this.currentText.anchor.x = fixed ? 0.5 : 1;
+    this.currentText.position.x = fixed ? 0 : -RESOURCE_NUMBER_GAP;
   }
 
   /** Rasterisation resolution of the numbers; set only when it changes, since each change re-rasterises. */

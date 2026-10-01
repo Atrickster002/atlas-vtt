@@ -78,11 +78,12 @@ export function parseResourceDefinition(raw: unknown): ResourceDefinition | null
   const name = text(r.name);
   const field = text(r.field);
   if (!key || !name || !field) return null;
-  if (r.direction !== 'drains' && r.direction !== 'fills') return null;
+  if (r.direction !== 'drains' && r.direction !== 'fills' && r.direction !== 'static') return null;
   if (typeof r.color !== 'string' || !HEX_COLOR.test(r.color)) return null;
   return {
     key, name, field: field.trim(), direction: r.direction, color: r.color,
-    ...(r.defeatedWhenSpent === true && { defeatedWhenSpent: true }),
+    // A static value is never spent, so it defeats nothing
+    ...(r.defeatedWhenSpent === true && r.direction !== 'static' && { defeatedWhenSpent: true }),
     visibleToPlayers: r.visibleToPlayers === true,
     ...(isSocket(r.slot) && { slot: r.slot }),
   };

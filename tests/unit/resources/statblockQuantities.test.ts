@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { tokenQuantities } from '../../../src/app/resources/statblockQuantities';
 import type { StatblockLayout } from '../../../src/app/react/components/statblock/statblockTypes';
-import { HP, STRESS } from '../../mocks/resourceFixtures';
+import { ARMOR, HP, STRESS } from '../../mocks/resourceFixtures';
 
 const daggerheart: StatblockLayout = { id: 'daggerheart-adversary', name: 'Daggerheart Adversary', blocks: [] };
 const basic: StatblockLayout = { id: 'basic', name: 'Basic', blocks: [] };
@@ -74,5 +74,10 @@ describe('the quantities the DM screen lists for a token', () => {
   it('leaves out what a token still holds of a resource the collection no longer defines', () => {
     const token = { resources: { hp: { current: 5, max: 5 }, ammo: { current: 3, max: 6 } } };
     expect(tokenQuantities({ hp: 5 }, basic, token, [HP]).map((q) => q.key)).toEqual(['hp']);
+  });
+
+  it('leaves out a static value: there is nothing to spend', () => {
+    const token = { resources: { hp: { current: 5, max: 5 }, armor: { current: 15, max: 15 } } };
+    expect(tokenQuantities({ hp: 5, ac: 15 }, basic, token, [HP, ARMOR]).map((q) => q.key)).toEqual(['hp']);
   });
 });
