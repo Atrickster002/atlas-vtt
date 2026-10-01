@@ -198,7 +198,7 @@ describe('map copy, paste and duplicate', () => {
   it('saves pasted tokens to the map file', async () => {
     const { store, files } = createStore();
     const path = 'maps/clipboard.atlasmap';
-    store.getState().setMapPath(path);
+    store.setState({ mapPath: path, mapLoaded: true });
     store.getState().setSelection([addGoblin(store, 25, 25)]);
     await copySelection(store);
     const [pasted] = await pasteClipboard(store, { x: 300, y: 300 });

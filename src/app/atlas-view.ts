@@ -346,14 +346,16 @@ export class AtlasView extends FileView {
         return;
       }
 
-      // Already active — nothing to do
-      if (tabState.activeTabId === tabId) return;
+      // Already active: nothing to do, unless its scene failed to load. Then switching to it tries again.
+      const { mapLoaded: sceneLoaded, isMapLoading } = this.store.getState();
+      if (tabState.activeTabId === tabId && (sceneLoaded || isMapLoading)) return;
 
       // Flush pending saves before capturing any state snapshots
       await this.flushPendingSaves();
 
-      // Save current tab's undo/redo history and viewport after flush is settled
-      if (tabState.activeTabId) {
+      // Save current tab's undo/redo history and viewport after flush is settled.
+      // Without a loaded scene there is nothing of the tab's to save over what is cached.
+      if (tabState.activeTabId && sceneLoaded) {
         this.saveTemporalState(tabState.activeTabId);
         this.saveViewportState(tabState.activeTabId);
       }
@@ -373,12 +375,15 @@ export class AtlasView extends FileView {
       this.tabMetaStore.getState().setActiveTab(tabId);
 
       // Load the map from disk (clears state, rehydrates, emits map-loaded)
-      await this.performSceneLoad(abstractFile);
+      const loaded = await this.performSceneLoad(abstractFile);
 
       // Restore the target tab's undo/redo history and viewport position.
       // Writing past/future states directly never records a step, so tracking can stay as the load left it.
-      this.restoreTemporalState(tabId);
-      this.restoreViewportState(tabId);
+      // A scene that failed to load, or was replaced by a later request, takes none of them.
+      if (loaded) {
+        this.restoreTemporalState(tabId);
+        this.restoreViewportState(tabId);
+      }
 
       // Tell Obsidian the view state changed so workspace.json is updated
       this.app.workspace.requestSaveLayout();
@@ -528,8 +533,8 @@ export class AtlasView extends FileView {
         throw error;
       }
 
-      await this.performSceneLoad(file);
-      if (tabId) this.restoreViewportState(tabId);
+      const loaded = await this.performSceneLoad(file);
+      if (loaded && tabId) this.restoreViewportState(tabId);
     } finally {
       this.isSwitching = false;
     }
@@ -558,8 +563,7 @@ export class AtlasView extends FileView {
     if (existingTab) {
       // File is already a tab
       if (tabState.activeTabId === existingTab.id) {
-        await this.performSceneLoad(file);
-        this.tabMetaStore.getState().markTabLoaded(existingTab.id);
+        if (await this.performSceneLoad(file)) this.tabMetaStore.getState().markTabLoaded(existingTab.id);
       } else {
         await this.switchToTab(existingTab.id);
       }
@@ -567,7 +571,7 @@ export class AtlasView extends FileView {
       await this.flushPendingSaves();
 
       // Save current tab's temporal + viewport state before loading a new scene
-      if (tabState.activeTabId) {
+      if (tabState.activeTabId && this.store.getState().mapLoaded) {
         this.saveTemporalState(tabState.activeTabId);
         this.saveViewportState(tabState.activeTabId);
       }
@@ -579,8 +583,7 @@ export class AtlasView extends FileView {
       this.file = file;
 
       // Perform the scene load (single store — loadMap handles clear + rehydrate)
-      await this.performSceneLoad(file);
-      this.tabMetaStore.getState().markTabLoaded(tabId);
+      if (await this.performSceneLoad(file)) this.tabMetaStore.getState().markTabLoaded(tabId);
     }
 
     // Tell Obsidian the view state changed so workspace.json is updated
@@ -590,8 +593,9 @@ export class AtlasView extends FileView {
   /**
    * Loads a scene into the existing renderer and UI. Every renderer follows the
    * store, so switching maps never rebuilds the PIXI application.
+   * @returns whether the view now shows the scene: false when loading failed or a later request replaced this one
    */
-  private async performSceneLoad(file: TFile): Promise<void> {
+  private async performSceneLoad(file: TFile): Promise<boolean> {
     // The renderer still shows the previous scene; its pending thumbnail is taken now or never
     this._serviceManager.flushSceneThumbnail();
     this.store.getState().setMapLoading(true, 0, 'Preparing...');
@@ -601,11 +605,11 @@ export class AtlasView extends FileView {
     if (!rendererService.isInitialized()) {
       console.error('[AtlasView] performSceneLoad called before renderer initialised');
       this.store.getState().setMapLoading(false);
-      return;
+      return false;
     }
 
     const mapService = this._serviceManager.getMapService();
-    await mapService.loadMapFromFile(rendererService, file);
+    return (await mapService.loadMapFromFile(rendererService, file)) !== null;
   }
 
   // --- Persistence Helpers ---

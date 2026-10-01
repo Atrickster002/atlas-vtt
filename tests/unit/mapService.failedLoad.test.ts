@@ -49,7 +49,7 @@ describe('MapService.loadMap failure', () => {
 
   it('keeps the previous map bound when loading fails before the store was switched', async () => {
     const { service, store, rendererService } = setup(null);
-    store.getState().setMapPath('maps/previous.atlasmap');
+    store.setState({ mapPath: 'maps/previous.atlasmap', mapLoaded: true });
 
     expect(await service.loadMap(rendererService, BROKEN_MAP)).toBeNull();
     expect(store.getState().mapPath).toBe('maps/previous.atlasmap');

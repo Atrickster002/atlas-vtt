@@ -162,7 +162,7 @@ export type AtlasPersistStorage<S> = PersistStorage<S> & { flush: () => Promise<
  * inside the debounced save, so frequent store writes (drags, selection)
  * never pay for a full-map JSON.stringify.
  */
-export function createAtlasStorage<T extends { mapPath: string | null }, S = unknown>(
+export function createAtlasStorage<T extends { mapPath: string | null; mapLoaded?: boolean }, S = unknown>(
   app: App, 
   store: { getState: () => T },
   plugin?: AtlasVTTPlugin
@@ -259,12 +259,18 @@ export function createAtlasStorage<T extends { mapPath: string | null }, S = unk
      */
     async setItem(name: string, value: StorageValue<S>): Promise<void> {
       // 'name' is unused
-      const mapPath = store.getState().mapPath;
+      const { mapPath, mapLoaded } = store.getState();
       if (!mapPath) {
         console.warn('[AtlasStorage] setItem called with no mapPath set.');
         return;
       }
-      
+
+      // A store that is loading its scene, or failed to, does not hold it: saving
+      // that state would replace the scene's file with an empty or foreign map.
+      if (mapLoaded === false) {
+        return;
+      }
+
       // Skip persistence for streamed maps
       if (mapPath.startsWith('streamed_')) {
         return;

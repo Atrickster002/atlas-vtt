@@ -76,6 +76,23 @@ describe('map save flushing', () => {
     expect(files.has(renamed)).toBe(true);
   });
 
+  it('never saves a store that does not hold its map as loaded', async () => {
+    vi.useFakeTimers();
+    const { app, files } = createInMemoryApp({ files: { [path]: '{"state":{"revision":1}}' } });
+    const state = { mapPath: path, mapLoaded: false };
+    const storage = createAtlasStorage(app, { getState: () => state });
+
+    await storage.setItem('atlas', { state: { revision: 2 }, version: 4 });
+    await vi.advanceTimersByTimeAsync(500);
+    await storage.flush();
+    expect(files.get(path)).toBe('{"state":{"revision":1}}');
+
+    state.mapLoaded = true;
+    await storage.setItem('atlas', { state: { revision: 3 }, version: 4 });
+    await storage.flush();
+    expect(JSON.parse(files.get(path)!).state.revision).toBe(3);
+  });
+
   it('still creates the file of a new map on its first save', async () => {
     vi.useFakeTimers();
     const { app, files } = createInMemoryApp();

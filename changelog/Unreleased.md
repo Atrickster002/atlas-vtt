@@ -43,3 +43,4 @@
 - Edit Token opens again instead of crashing on its Vision switch
 - The initiative tracker no longer crashes for tokens without hit points. Their cards show no HP bar instead of a made-up full one
 - Switching between scene tabs no longer leaves a scene black and unable to open
+- A scene that failed to open can no longer be saved over: its file stays as it was, and you can open it or another scene again. Opening a scene while another is still loading always shows the one you opened last

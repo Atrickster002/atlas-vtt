@@ -46,6 +46,13 @@ export interface ViewAtlasState {
   persistenceEnabled: boolean;
   setPersistenceEnabled: (enabled: boolean) => void;
   
+  /**
+   * Whether the store holds the scene at `mapPath` as it was loaded. It does not while
+   * a scene loads or after loading failed, and is then never saved to the scene's file.
+   */
+  mapLoaded: boolean;
+  setMapLoaded: (loaded: boolean) => void;
+
   // Loading state
   isMapLoading: boolean;
   mapLoadingProgress?: number;
@@ -455,9 +462,10 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
           return;
         }
 
-        // Check per-store persistence control
+        // Check per-store persistence control. A store without a loaded map is refused by
+        // the storage as well; stopping here keeps its state from counting as already saved.
         const state = storeRef.getState();
-        if (!state.persistenceEnabled) {
+        if (!state.persistenceEnabled || !state.mapLoaded) {
           return;
         }
 
@@ -526,6 +534,11 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
             draft.persistenceEnabled = enabled;
           }),
           
+          mapLoaded: false,
+          setMapLoaded: (loaded) => set((draft) => {
+            draft.mapLoaded = loaded;
+          }),
+
           // Loading state (not persisted)
           isMapLoading: false,
           setMapLoading: (loading, progress, message) => set((draft) => {

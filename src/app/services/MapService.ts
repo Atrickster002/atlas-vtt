@@ -2,12 +2,14 @@ import { App, Notice, TFile } from 'obsidian';
 import { MapController } from '../MapController';
 import { EventEmitter } from 'events';
 import { RendererService } from './RendererService';
-import type { ViewAtlasState, ViewAtlasStore } from '../storeFactory';
+import type { ViewAtlasStore } from '../storeFactory';
 import type { MapFile } from './MapPersistence';
 import { getHistoryStore } from '../stores/history';
 import { autoDetectGridOnFirstLoad } from './gridAutoDetect';
 import { backgroundTextureCache } from '../pixi/backgroundTextureCache';
 import { describeError } from '../utils/errors';
+import { LatestRequestQueue } from './latestRequestQueue';
+import { fillStoreFromMapFile } from './mapFileFallback';
 
 export class MapService {
   private currentMapFilePath: string | null = null;
@@ -15,6 +17,7 @@ export class MapService {
   /** Background texture reference held for the loaded map. */
   private currentBackgroundUrl: string | null = null;
   private eventBus: EventEmitter;
+  private readonly loads = new LatestRequestQueue();
 
   /** Map files carry no name of their own; the file name is the map name. */
   private resolveMapName(mapPath: string | null): string {
@@ -34,23 +37,34 @@ export class MapService {
   }
 
   /**
-   * Load a map from a file
+   * Load a map from a file. One load runs at a time: a request made while another is
+   * in flight starts once that one has stopped, and of several waiting only the latest runs.
    * @param rendererService The RendererService instance
    * @param filePath The path to the map file
-   * @returns A promise that resolves with the loaded map data
+   * @returns The loaded map data, or null when loading failed or a later request replaced this one
    */
-  public async loadMap(rendererService: RendererService, filePath: string, restoreCamera: boolean = false): Promise<MapFile | null> {
-    // True once the store holds the cleared state of `filePath` instead of the previous map.
-    let storeClearedForNewMap = false;
+  public loadMap(rendererService: RendererService, filePath: string, restoreCamera: boolean = false): Promise<MapFile | null> {
+    return this.loads.run((isSuperseded) => this.runLoad(rendererService, filePath, restoreCamera, isSuperseded));
+  }
+
+  /**
+   * Loads `filePath` into the store and the renderer. After every wait it checks
+   * `isSuperseded` and, once replaced, returns without touching either again: the
+   * load that replaced it starts from whatever state it finds.
+   */
+  private async runLoad(
+    rendererService: RendererService,
+    filePath: string,
+    restoreCamera: boolean,
+    isSuperseded: () => boolean,
+  ): Promise<MapFile | null> {
     try {
       // Services save what belongs to the map being left while its state is still loaded
-      if (this.currentMapFilePath !== null) this.eventBus.emit('map-unloading');
+      if (this.store.getState().mapLoaded) this.eventBus.emit('map-unloading');
 
       // Show loading overlay FIRST before any state changes
       this.store.getState().setMapLoading(true, 0, 'Loading map...');
 
-      this.currentMapFilePath = filePath;
-      
       // Get the actual renderer object from the service
       const renderer = rendererService.getRenderer();
       if (!renderer) {
@@ -70,19 +84,17 @@ export class MapService {
       } catch (flushError) {
         console.warn('[MapService] Could not flush pending saves:', flushError);
       }
+      if (isSuperseded()) return null;
 
-      // Set the new map path BEFORE clearing state
-      // This ensures that when clearMapState triggers a save, it saves to the NEW file, not the old one
+      // From here the store no longer holds the previous map. Until this load has
+      // finished it holds no loaded map at all, so nothing it contains is saved.
+      storeState.setMapLoaded(false);
+      this.currentMapFilePath = filePath;
       storeState.setMapPath(filePath);
-      
-      // Clear the store state after setting new path
-      // This prevents state from bleeding between maps
-      
+
+      // Clear the store state so nothing bleeds between maps
       storeState.clearMapState();
-      storeClearedForNewMap = true;
-      
-      // Get fresh state after clearing
-      
+
       // Clear the undo/redo history when loading a new map and pause tracking
       // so the setup writes below never become undo steps
       const history = getHistoryStore(this.store)?.getState();
@@ -101,8 +113,10 @@ export class MapService {
         this.app,
         renderer,
         filePath,
-        restoreCamera
+        restoreCamera,
+        isSuperseded,
       );
+      if (!displayed) return null;
       this.holdBackground(displayed.backgroundUrl);
       this.currentMapData = displayed.mapData;
 
@@ -139,6 +153,8 @@ export class MapService {
             storeState.clearMapState();
           }
         }
+        // Rehydration that was under way has written to the store; the load that replaced this one clears it
+        if (isSuperseded()) return null;
 
         // NOW re-enable persistence after successful rehydration
         storeState.setPersistenceEnabled(true);
@@ -146,48 +162,8 @@ export class MapService {
         // Update loading progress
         storeState.setMapLoading(true, 80, 'Loading tokens and pins...');
 
-        // After rehydration, check if we got valid data
-        // If not, populate from the map file data we just loaded
-        const stateAfterHydration = this.store.getState();
-        
-        // Only use fallback if rehydration didn't load valid data
-        if (!stateAfterHydration.background && this.currentMapData.background) {
-          storeState.setBackground(this.currentMapData.background);
-        }
-        
-        if (!stateAfterHydration.grid && this.currentMapData.grid) {
-          storeState.setGrid(this.currentMapData.grid);
-        }
-        
-        // For objects, check if the persisted state had the correct schema
-        // If the file exists but has old/different data, use what was persisted
-        const hasValidPersistedState = stateAfterHydration.schema === 'atlas-vtt';
-        
-        if (!hasValidPersistedState) {
-          // No valid persisted state, use data from map file
-          const objects = this.currentMapData.objects;
-          if (objects) {
-            if (objects.tokens) {
-              storeState.setTokens(objects.tokens);
-            }
-            if (objects.pins) {
-              // Update pins using store setState with proper partial state
-              this.store.setState((state: ViewAtlasState) => ({
-                ...state,
-                objects: {
-                  ...state.objects,
-                  pins: objects.pins
-                }
-              }));
-            }
-            if (objects.texts) {
-              storeState.setTexts(objects.texts);
-            }
-            if (objects.drawings) {
-              storeState.setDrawings(objects.drawings);
-            }
-          }
-        }
+        // After rehydration, populate what it did not load from the map file data
+        fillStoreFromMapFile(this.store, this.currentMapData);
       } else {
         // Failed to load map data, re-enable persistence anyway
         storeState.setPersistenceEnabled(true);
@@ -198,6 +174,7 @@ export class MapService {
         storeState.setMapLoading(true, 85, 'Detecting grid...');
         // Let the overlay paint before the CPU-bound detection blocks the thread.
         await new Promise(resolve => window.setTimeout(resolve, 30));
+        if (isSuperseded()) return null;
         autoDetectGridOnFirstLoad(this.store, renderer.getBackgroundSprite());
       }
 
@@ -225,6 +202,8 @@ export class MapService {
 
       // map-loaded starts every token sprite synchronously, so the wait below sees all of them
       const hideLoadingScreen = (): void => {
+        // Tokens of a map that was left meanwhile must not end the next load's setup
+        if (isSuperseded()) return;
         this.store.getState().setMapLoading(false);
 
         // Resume history tracking now that map load is complete
@@ -232,30 +211,38 @@ export class MapService {
       };
       this.eventBus.emit('wait-for-tokens-loaded', hideLoadingScreen);
 
+      // Last: only a map that loaded completely may be saved to its file
+      storeState.setMapLoaded(true);
       return this.currentMapData;
     } catch (error) {
       console.error('[MapService] Error loading map:', error);
-      // Without this the view only shows an empty canvas
-      const reason = describeError(error).replace(/^\[\w+\]\s*/, '');
-      new Notice(`Atlas VTT could not open the scene ${this.resolveMapName(filePath)} (${reason}).`, 0);
+      if (isSuperseded()) return null;
+      this.recoverFromFailedLoad(filePath, error);
+      return null;
+    }
+  }
+
+  /** Tells the user and leaves the view ready for another load. */
+  private recoverFromFailedLoad(filePath: string, error: unknown): void {
+    // Without this the view only shows an empty canvas
+    const reason = describeError(error).replace(/^\[\w+\]\s*/, '');
+    new Notice(`Atlas VTT could not open the scene ${this.resolveMapName(filePath)} (${reason}).`, 0);
+    getHistoryStore(this.store)?.getState().resume();
+
+    // A load that failed before it switched the store leaves the previous map open and saved as before
+    const mapStillLoaded = this.store.getState().mapLoaded;
+    if (!mapStillLoaded) {
       this.currentMapFilePath = null;
       this.currentMapData = null;
       this.holdBackground(null);
-      const storeState = this.store.getState();
-      // Unbind the cleared store from the file first, or the next save would replace
-      // the map that failed to load with an empty one.
-      if (storeClearedForNewMap) storeState.setMapPath(null);
-      // Ensure persistence is re-enabled even on error
-      storeState.setPersistenceEnabled(true);
-      
-      // Hide loading overlay on error
-      storeState.setMapLoading(false);
-      
-      // Resume history tracking even on error
-      getHistoryStore(this.store)?.getState().resume();
-
-      return null;
     }
+    // One write, so a subscriber that throws cannot leave the store half reset. Unbinding
+    // it from the file states what `mapLoaded` already enforces: this state is not the map's.
+    this.store.setState({
+      ...(mapStillLoaded ? {} : { mapPath: null }),
+      persistenceEnabled: true,
+      isMapLoading: false,
+    });
   }
   
   /** Swaps the held background reference, releasing the previous map's one. */

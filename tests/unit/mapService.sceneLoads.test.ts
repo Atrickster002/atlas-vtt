@@ -1,0 +1,267 @@
+import { EventEmitter } from 'events';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { Texture } from 'pixi.js';
+import { createInMemoryApp } from '../mocks/inMemoryVault';
+
+vi.mock('obsidian', async (importOriginal) => ({ ...(await importOriginal<typeof import('obsidian')>()), Notice: vi.fn() }));
+vi.mock('../../src/app/MapLoader', () => ({ MapLoader: { load: vi.fn() } }));
+
+import { MapLoader, type LoadedMap } from '../../src/app/MapLoader';
+import { createViewAtlasStore, type ViewAtlasState, type ViewAtlasStore } from '../../src/app/storeFactory';
+import { migrateMapFile, type PersistedMapEnvelope } from '../../src/app/services/MapPersistence';
+import { MapService } from '../../src/app/services/MapService';
+import type { RendererService } from '../../src/app/services/RendererService';
+
+const CAVE = 'maps/cave.atlasmap';
+const TOWER = 'maps/tower.atlasmap';
+
+function sceneFile(path: string, tokenId: string): string {
+  const token = { id: tokenId, kind: 'token', x: 10, y: 20, imagePath: `tokens/${tokenId}.png` };
+  const wall = { id: 'wall-1', kind: 'wall', type: 'wall', p1: { x: 0, y: 0 }, p2: { x: 70, y: 0 } };
+  return JSON.stringify({
+    version: 4,
+    state: {
+      schema: 'atlas-vtt', version: 4, mapPath: path, background: null,
+      grid: { enabled: true, visible: true, size: 70, offsetX: 0, offsetY: 0, opacity: 0.5 },
+      objects: { tokens: { [tokenId]: token }, fog: {}, pins: {}, texts: {}, drawings: {}, walls: { 'wall-1': wall }, lights: {} },
+      camera: { x: 0, y: 0, scale: 1 },
+    },
+  });
+}
+
+interface Deferred { promise: Promise<void>; resolve: () => void; reject: (error: Error) => void }
+
+function deferred(): Deferred {
+  let resolve!: () => void;
+  let reject!: (error: Error) => void;
+  const promise = new Promise<void>((res, rej) => { resolve = res; reject = rej; });
+  return { promise, resolve, reject };
+}
+
+interface Harness {
+  service: MapService;
+  store: ViewAtlasStore;
+  files: Map<string, string>;
+  eventBus: EventEmitter;
+  rendererService: RendererService;
+  /** Scenes whose image the renderer was given, in order. */
+  shown: string[];
+  /** Holds back reading a scene's file until the returned gate is resolved or rejected. */
+  holdBack: (path: string) => Deferred;
+}
+
+function setup(): Harness {
+  const { app, files } = createInMemoryApp({ files: { [CAVE]: sceneFile(CAVE, 'bat'), [TOWER]: sceneFile(TOWER, 'mage') } });
+  app.vault.getFileByPath = app.vault.getAbstractFileByPath;
+  app.vault.getFolderByPath = app.vault.getAbstractFileByPath;
+  const store = createViewAtlasStore(app, 'scene-loads-test');
+  const eventBus = new EventEmitter();
+  eventBus.on('wait-for-tokens-loaded', (done: () => void) => done());
+
+  const gates = new Map<string, Deferred>();
+  const reading: string[] = [];
+  vi.mocked(MapLoader.load).mockImplementation(async (_app, path): Promise<LoadedMap> => {
+    reading.push(path);
+    await gates.get(path)?.promise;
+    const envelope = JSON.parse(files.get(path) ?? '{}') as PersistedMapEnvelope;
+    return { mapData: migrateMapFile(envelope.state), texture: Texture.WHITE, hasBackground: false, backgroundUrl: null };
+  });
+
+  const shown: string[] = [];
+  const renderer = {
+    setBackgroundSprite: () => { shown.push(reading[reading.length - 1] ?? ''); },
+    getGridSystem: () => null,
+    initGrid: vi.fn(),
+    getViewportInstance: () => null,
+    getBackgroundSprite: () => null,
+  };
+  vi.spyOn(console, 'error').mockImplementation(() => {});
+  vi.spyOn(console, 'warn').mockImplementation(() => {});
+  return {
+    service: new MapService(app, eventBus, store),
+    store, files, eventBus, shown,
+    rendererService: { getRenderer: () => renderer } as unknown as RendererService,
+    holdBack: (path) => {
+      const gate = deferred();
+      gates.set(path, gate);
+      return gate;
+    },
+  };
+}
+
+const tokenIds = (state: Pick<ViewAtlasState, 'objects'>): string[] => Object.keys(state.objects.tokens);
+const savedState = (files: Map<string, string>, path: string): ViewAtlasState =>
+  (JSON.parse(files.get(path) ?? '{}') as { state: ViewAtlasState }).state;
+
+/** Any edit the GM might make after a load; the observed one was the lighting toggle. */
+async function editAndSave(store: ViewAtlasStore): Promise<void> {
+  store.getState().setSceneLighting({ enabled: true });
+  store.getState().setGridVisible(false);
+  await vi.advanceTimersByTimeAsync(600);
+  await store.flushStorage();
+}
+
+/** Makes a store write throw once, as a renderer's subscriber did: the first that changes `select`'s value to one `when` accepts. */
+function throwOnChange<T>(store: ViewAtlasStore, select: (state: ViewAtlasState) => T, when: (value: T) => boolean = () => true): void {
+  const unsubscribe = store.subscribe(select, (value) => {
+    if (!when(value)) return;
+    unsubscribe();
+    throw new TypeError("Cannot read properties of null (reading 'x')");
+  });
+}
+
+beforeEach(() => { vi.useFakeTimers(); });
+afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks(); });
+
+describe('MapService scene loads', () => {
+  it('loads a scene and saves later edits to its file', async () => {
+    const { service, store, files, rendererService } = setup();
+
+    expect(await service.loadMap(rendererService, CAVE)).not.toBeNull();
+    await editAndSave(store);
+
+    expect(store.getState().mapPath).toBe(CAVE);
+    expect(tokenIds(savedState(files, CAVE))).toEqual(['bat']);
+    expect(savedState(files, CAVE).lighting.enabled).toBe(true);
+  });
+
+  it('saves what changed while the scene was loading once it is loaded', async () => {
+    const { service, store, files, eventBus, rendererService } = setup();
+    eventBus.on('map-loaded', () => store.getState().setGridVisible(false));
+
+    await service.loadMap(rendererService, CAVE);
+    await vi.advanceTimersByTimeAsync(600);
+
+    expect(savedState(files, CAVE).grid?.visible).toBe(false);
+    expect(tokenIds(savedState(files, CAVE))).toEqual(['bat']);
+  });
+
+  describe('when a load fails', () => {
+    it('keeps the open scene loaded and saved when the next one fails before the store was switched', async () => {
+      const { service, store, files, rendererService } = setup();
+      await service.loadMap(rendererService, CAVE);
+      const tower = files.get(TOWER);
+
+      expect(await service.loadMap({ getRenderer: () => null } as unknown as RendererService, TOWER)).toBeNull();
+      await editAndSave(store);
+
+      expect(store.getState().mapPath).toBe(CAVE);
+      expect(store.getState().isMapLoading).toBe(false);
+      expect(tokenIds(savedState(files, CAVE))).toEqual(['bat']);
+      expect(savedState(files, CAVE).lighting.enabled).toBe(true);
+      expect(files.get(TOWER)).toBe(tower);
+    });
+
+    it.each<[string, (store: ViewAtlasStore) => void]>([
+      ['binds the store to the scene', (store) => throwOnChange(store, (state) => state.mapPath)],
+      ['clears the store for the scene', (store) => throwOnChange(store, (state) => state.grid)],
+      // Saving is switched off first; it is back on once the scene data was restored
+      ['has restored the scene data', (store) => throwOnChange(store, (state) => state.persistenceEnabled, (enabled) => enabled)],
+    ])('never saves over the scene when a store subscriber throws while the load %s', async (_stage, failAtStage) => {
+      const { service, store, files, rendererService } = setup();
+      await service.loadMap(rendererService, CAVE);
+      await vi.advanceTimersByTimeAsync(600);
+      const cave = files.get(CAVE);
+      const tower = files.get(TOWER);
+
+      failAtStage(store);
+      expect(await service.loadMap(rendererService, TOWER)).toBeNull();
+      await editAndSave(store);
+
+      expect(tokenIds(savedState(files, TOWER))).toEqual(['mage']);
+      expect(files.get(TOWER)).toBe(tower);
+      expect(files.get(CAVE)).toBe(cave);
+      expect(store.getState().mapPath).toBeNull();
+      expect(store.getState().isMapLoading).toBe(false);
+    });
+
+    it('never saves over the scene when showing it fails after its data was restored', async () => {
+      const { service, store, files, eventBus, rendererService } = setup();
+      const tower = files.get(TOWER);
+      eventBus.on('map-loaded', () => { throw new Error('token renderer failed'); });
+
+      expect(await service.loadMap(rendererService, TOWER)).toBeNull();
+      await editAndSave(store);
+
+      expect(store.getState().mapPath).toBeNull();
+      expect(files.get(TOWER)).toBe(tower);
+    });
+
+    it('lets the GM open a scene again afterwards', async () => {
+      const { service, store, files, rendererService, holdBack } = setup();
+      holdBack(TOWER).reject(new Error('[MapLoader] Failed to parse map JSON'));
+      expect(await service.loadMap(rendererService, TOWER)).toBeNull();
+
+      expect(await service.loadMap(rendererService, CAVE)).not.toBeNull();
+      await editAndSave(store);
+
+      expect(tokenIds(store.getState())).toEqual(['bat']);
+      expect(tokenIds(savedState(files, CAVE))).toEqual(['bat']);
+      expect(savedState(files, CAVE).lighting.enabled).toBe(true);
+    });
+  });
+
+  describe('when a scene is requested while another is loading', () => {
+    it.each(['first', 'second'])('shows only the latest one, whichever file is read first (%s)', async (releasedFirst) => {
+      const { service, store, files, rendererService, shown, holdBack } = setup();
+      const gates = { first: holdBack(CAVE), second: holdBack(TOWER) };
+      const cave = files.get(CAVE);
+
+      const restoring = service.loadMap(rendererService, CAVE);
+      await vi.advanceTimersByTimeAsync(0);
+      const opening = service.loadMap(rendererService, TOWER);
+      gates[releasedFirst === 'first' ? 'first' : 'second'].resolve();
+      await vi.advanceTimersByTimeAsync(0);
+      gates.first.resolve();
+      gates.second.resolve();
+
+      expect(await restoring).toBeNull();
+      expect(await opening).not.toBeNull();
+      expect(shown).toEqual([TOWER]);
+      expect(store.getState().mapPath).toBe(TOWER);
+      expect(tokenIds(store.getState())).toEqual(['mage']);
+
+      await editAndSave(store);
+      expect(tokenIds(savedState(files, TOWER))).toEqual(['mage']);
+      expect(files.get(CAVE)).toBe(cave);
+    });
+
+    it('opens the latest one although the load it replaced fails', async () => {
+      const { service, store, files, rendererService, holdBack } = setup();
+      const restoringGate = holdBack(CAVE);
+      const cave = files.get(CAVE);
+
+      const restoring = service.loadMap(rendererService, CAVE);
+      await vi.advanceTimersByTimeAsync(0);
+      const opening = service.loadMap(rendererService, TOWER);
+      await vi.advanceTimersByTimeAsync(0);
+      restoringGate.reject(new Error('[MapLoader] Map file not found'));
+
+      expect(await restoring).toBeNull();
+      expect(await opening).not.toBeNull();
+      expect(store.getState().mapPath).toBe(TOWER);
+      expect(tokenIds(store.getState())).toEqual(['mage']);
+
+      await editAndSave(store);
+      expect(tokenIds(savedState(files, TOWER))).toEqual(['mage']);
+      expect(files.get(CAVE)).toBe(cave);
+    });
+
+    it('runs only the latest of several requests', async () => {
+      const { service, store, rendererService, shown, holdBack } = setup();
+      const gate = holdBack(CAVE);
+
+      const first = service.loadMap(rendererService, CAVE);
+      await vi.advanceTimersByTimeAsync(0);
+      const second = service.loadMap(rendererService, TOWER);
+      const third = service.loadMap(rendererService, CAVE);
+      gate.resolve();
+
+      expect(await first).toBeNull();
+      expect(await second).toBeNull();
+      expect(await third).not.toBeNull();
+      expect(shown).toEqual([CAVE]);
+      expect(tokenIds(store.getState())).toEqual(['bat']);
+    });
+  });
+});

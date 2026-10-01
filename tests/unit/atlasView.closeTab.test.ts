@@ -20,11 +20,12 @@ describe('Atlas scene tab closing', () => {
     const closingId = tabMetaStore.getState().addTab('maps/closing.atlasmap', 'Closing');
     const context = {
       tabMetaStore, isSwitching: false,
+      store: { getState: () => ({ mapLoaded: true }) },
       flushPendingSaves: vi.fn().mockResolvedValue(undefined),
       temporalCache: new Map(), viewportCache: new Map(),
       saveTemporalState: vi.fn(), saveViewportState: vi.fn(),
       restoreTemporalState: vi.fn(), restoreViewportState: vi.fn(),
-      performSceneLoad: vi.fn().mockResolvedValue(undefined),
+      performSceneLoad: vi.fn().mockResolvedValue(true),
       leaf: { detach: vi.fn() },
       app: { vault: { getAbstractFileByPath: () => next }, workspace: { requestSaveLayout: vi.fn() } },
       switchToTab: (id: string): Promise<void> => AtlasView.prototype.switchToTab.call(context as unknown as AtlasView, id),
