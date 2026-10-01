@@ -146,6 +146,16 @@ describe('built-in presets', () => {
     expect(formatDistance(6, settings)).toBe('30ft');
   });
 
+  it('measure Draw Steel in 1-unit squares with every diagonal counting 1 unit', () => {
+    const drawSteel = BUILT_IN_SYSTEM_PRESETS.find((preset) => preset.name === 'Draw Steel')!;
+    const settings = resolveMeasurementSettings(drawSteel.rules.gridDefaults, null);
+    const conditionNames = drawSteel.rules.conditions.map((c) => c.name);
+    expect(settings.diagonalRule).toBe('equidistant');
+    expect(formatDistance(6, settings)).toBe('6u');
+    expect(conditionNames).toHaveLength(9);
+    expect(describeSystemRules(drawSteel.rules)).toBe('1 unit squares · 9 conditions');
+  });
+
   it('carry the core conditions of each system with known icons and unique ids', () => {
     expect(daggerheart.rules.conditions.map((c) => c.name)).toEqual(['Hidden', 'Restrained', 'Vulnerable']);
     expect(dnd5e.rules.conditions).toHaveLength(15);
