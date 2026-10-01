@@ -39,6 +39,11 @@ export function regionContains(region: SightRegion, point: Point): boolean {
   return !region.cone || coneContains(region.cone, region.origin, point);
 }
 
+/** Whether some sense of a vision token reaches `point`, whatever the light there. */
+export function withinReach(point: Point, sight: Sight): boolean {
+  return sight.all || sight.regions.some((region) => regionContains(region, point));
+}
+
 /**
  * How `sight` perceives something at `point`, where the light is at `level`: each region asks
  * its sense whether it perceives at that level, and the target's conditions rule senses out.

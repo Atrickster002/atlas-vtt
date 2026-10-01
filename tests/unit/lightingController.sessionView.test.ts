@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Application, EventSystem, FederatedPointerEvent } from 'pixi.js';
 import { Viewport } from 'pixi-viewport';
 import { emissionOfPreset } from '../../src/app/lighting/lightEmissionForm';
+import { holdTokens } from '../../src/app/lighting/sightOnDrop';
 import { LightingController } from '../../src/app/pixi/lighting/LightingController';
 import type { LightPointerHandlers } from '../../src/app/pixi/lighting/LightInteraction';
 import type { SceneLightingDeps } from '../../src/app/pixi/lighting/createSceneLighting';
@@ -371,6 +372,20 @@ describe('tokens in session view', () => {
     store.getState().setGMView(false);
     expect(wired.playerSight()?.(lurker)).toBe('unseen');
     expect(controller.playerSight()?.(lurker)).toBe('unseen');
+  });
+
+  it('leaves a dragged vision token out of the players\' frame where the sight that stayed behind does not reach', () => {
+    const { controller, store } = scene();
+    const hero = Object.keys(store.getState().objects.tokens)[0]!;
+    holdTokens(store, [hero]);
+    expect(controller.playerSight()?.(hero)).toBe('seen');
+    store.getState().setTokenPositions([{ id: hero, x: 400, y: 100 }]);
+    expect(controller.playerSight()?.(hero)).toBe('unseen');
+    store.getState().setSceneLighting({ sightOnDrop: false });
+    expect(controller.playerSight()?.(hero)).toBe('seen');
+    store.getState().setSceneLighting({ sightOnDrop: true });
+    holdTokens(store, []);
+    expect(controller.playerSight()?.(hero)).toBe('seen');
   });
 
   it('follows a token that moves into sight', () => {

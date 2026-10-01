@@ -33,6 +33,7 @@ describe('SceneLightingPanel', () => {
     expect(screen.getByRole('heading', { name: 'Lighting settings' })).toBeTruthy();
     expect(toggleOf('Token vision').getAttribute('aria-checked')).toBe('true');
     expect(toggleOf('Remember explored areas').getAttribute('aria-checked')).toBe('true');
+    expect(toggleOf('Update sight when a token is dropped').getAttribute('aria-checked')).toBe('true');
     expect((screen.getByLabelText('Explored colour') as HTMLInputElement).value).toBe('#ffffff');
     expect((screen.getByLabelText('Unexplored colour') as HTMLInputElement).value).toBe('#000000');
     expect(screen.getByText('Counts as lit from')).toBeTruthy();
@@ -46,6 +47,15 @@ describe('SceneLightingPanel', () => {
     fireEvent.click(toggleOf('Remember explored areas'));
     expect(setSceneLighting).toHaveBeenCalledWith({ exploredMemory: false });
     expect(store.getState().lighting).toMatchObject({ tokenVision: false, exploredMemory: false });
+  });
+
+  it('switches sight on drop off and on again', () => {
+    const { store, setSceneLighting } = renderPanel();
+    fireEvent.click(toggleOf('Update sight when a token is dropped'));
+    expect(setSceneLighting).toHaveBeenCalledWith({ sightOnDrop: false });
+    expect(toggleOf('Update sight when a token is dropped').getAttribute('aria-checked')).toBe('false');
+    fireEvent.click(toggleOf('Update sight when a token is dropped'));
+    expect(store.getState().lighting.sightOnDrop).toBe(true);
   });
 
   it('switches from the keyboard', () => {

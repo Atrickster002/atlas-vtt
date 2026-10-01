@@ -1,7 +1,8 @@
 import type { TokenEntity } from '../../types';
 import type { ConditionDefinition } from '../../types/collectionSettingsTypes';
+import { movedWhileHeld, type HeldTokens } from '../../lighting/sightOnDrop';
 import { lightLevelAt } from '../../vision/lightLevels';
-import { perceive, targetOf, type Perception } from '../../vision/perception';
+import { perceive, targetOf, withinReach, type Perception } from '../../vision/perception';
 import type { AmbientLight, LightReach, Sight } from '../../vision/sight';
 import { tokenEffects } from '../../vision/sightRules';
 import type { HideableLayer, LayerVisibility } from '../playerSafeFrame';
@@ -41,24 +42,38 @@ export function playerLightingLayers({ enabled, modeLayer, gmOverlays, sensedOut
 /** How the players perceive each token. */
 export type TokenPerception = (tokenId: string) => Perception;
 
+export interface PerceptionOptions {
+  /** The conditions of the map's collection, for those that change sight; none reads no condition. */
+  conditions?: readonly ConditionDefinition[];
+  /** The tokens the pointer holds while sight waits for the drop, with the places they were taken from. */
+  held?: HeldTokens;
+}
+
 /**
  * How the vision tokens perceive each token, by its centre, the light there and its conditions.
  * A token with vision is always shown, whatever its conditions and the light: the players'
  * window is one shared screen, and they are the party. `tokens` is the record the positions are
  * read from, so a caller may pass tokens at other places than the store's.
+ *
+ * A token with vision that is dragged while sight waits for the drop (`held`: `heldForSight`)
+ * shows only where the sight that stayed behind still reaches, by any sense, lit or not. Beyond
+ * it the players' picture is dark or remembered, and the token goes with its nameplate, bars
+ * and conditions rather than leaving them over the darkness.
  */
+// The `held` rule is sight on drop's and must survive a rework of this function: without it a
+// dragged vision token's nameplate and bars stand over the darkness that covers its sprite.
 export function tokenPerception(
   sight: Sight,
   ambient: AmbientLight,
   lights: readonly LightReach[],
   tokens: Record<string, TokenEntity>,
-  conditions: readonly ConditionDefinition[] = [],
+  { conditions = [], held = {} }: PerceptionOptions = {},
 ): TokenPerception {
   return (tokenId) => {
     const token = tokens[tokenId];
     if (!token) return 'unseen';
-    if (token.vision?.enabled) return 'seen';
     const at = { x: token.x, y: token.y };
+    if (token.vision?.enabled) return !movedWhileHeld(token, held) || withinReach(at, sight) ? 'seen' : 'unseen';
     return perceive(at, sight, lightLevelAt(at, ambient, lights), targetOf(tokenEffects(token, conditions)));
   };
 }
@@ -70,8 +85,8 @@ export function tokenPerception(
 export function playerTokenSight(
   lighting: Pick<SceneLightingView, 'isEnabled' | 'currentSight' | 'ambientLight' | 'lightReaches'>,
   tokens: Record<string, TokenEntity>,
-  conditions: readonly ConditionDefinition[] = [],
+  options?: PerceptionOptions,
 ): TokenPerception | undefined {
   if (!lighting.isEnabled()) return undefined;
-  return tokenPerception(lighting.currentSight(), lighting.ambientLight(), lighting.lightReaches(), tokens, conditions);
+  return tokenPerception(lighting.currentSight(), lighting.ambientLight(), lighting.lightReaches(), tokens, options);
 }

@@ -3,6 +3,7 @@ import { Container, Graphics } from 'pixi.js';
 import type { Viewport } from 'pixi-viewport';
 import { createViewAtlasStore, type ViewAtlasStore } from '../../src/app/storeFactory';
 import { CanvasLightingFallback } from '../../src/app/pixi/lighting/CanvasLightingFallback';
+import { holdTokens } from '../../src/app/lighting/sightOnDrop';
 import type { TokenEntity } from '../../src/app/types';
 import type { SceneLighting } from '../../src/app/types/lightingTypes';
 import { BUILT_IN_SENSES } from '../../src/app/gameSystems/senses';
@@ -83,6 +84,22 @@ describe('CanvasLightingFallback', () => {
     onSightChange.mockImplementation(() => seen.push(fallback.currentSight().regions[0]!.origin.x));
     store.getState().updateToken('hero', { x: 300 });
     expect(seen).toEqual([300]);
+  });
+
+  it('keeps a held vision token\'s sight where it was taken until it is let go', () => {
+    const { fallback, store } = setup({ hero });
+    holdTokens(store, ['hero']);
+    store.getState().setTokenPositions([{ id: 'hero', x: 300, y: 100 }]);
+    expect(fallback.currentSight().regions.map((region) => region.origin)).toEqual([{ x: 100, y: 100 }]);
+    holdTokens(store, []);
+    expect(fallback.currentSight().regions.map((region) => region.origin)).toEqual([{ x: 300, y: 100 }]);
+  });
+
+  it('follows a held vision token when the scene switches sight on drop off', () => {
+    const { fallback, store } = setup({ hero }, { sightOnDrop: false });
+    holdTokens(store, ['hero']);
+    store.getState().setTokenPositions([{ id: 'hero', x: 300, y: 100 }]);
+    expect(fallback.currentSight().regions.map((region) => region.origin)).toEqual([{ x: 300, y: 100 }]);
   });
 
   it('renders a thumbnail in the GM view while the canvas shows the players, and leaves the canvas on theirs', () => {

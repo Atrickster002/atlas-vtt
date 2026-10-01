@@ -107,6 +107,7 @@ export async function createHarness({ patch = {}, holdFirstDecode = false, failF
     objects: { walls: {}, lights: {}, tokens: {} },
     grid: null,
     exploredMask: await fullMask(renderer),
+    heldTokens: {},
     setExploredMask,
     ...patch,
   } as unknown as ViewAtlasState;

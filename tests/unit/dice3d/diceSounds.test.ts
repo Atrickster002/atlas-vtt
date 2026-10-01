@@ -15,9 +15,8 @@ describe('dice sounds', () => {
     expect(() => {
       warmDiceSounds();
       bank(0.8, -0.4);
-      rollStart();
+      rollEnd(rollStart());
       rollEnd();
-      rollEnd(true);
       rattle();
       reveal('high');
       reveal('low');

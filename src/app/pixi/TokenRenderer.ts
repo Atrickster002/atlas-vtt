@@ -1455,10 +1455,11 @@ export class TokenRenderer {
    */
   public getPlayerViewLayers(settings: AtlasSettings['localPlayerView'], perception?: TokenPerception): LayerVisibility[] {
     this.syncSensedOutlines(perception);
+    const isSeen = perception && ((tokenId: string): boolean => perception(tokenId) === 'seen');
     return [
       ...hiddenTokenLayers(this.store.getState().objects.tokens, this.tokenSprites, perception),
-      ...this.uiManager.getPlayerViewLayers(settings, perception && ((tokenId) => perception(tokenId) === 'seen')),
-      ...this.dragRuler.getPlayerViewLayers(),
+      ...this.uiManager.getPlayerViewLayers(settings, isSeen),
+      ...this.dragRuler.getPlayerViewLayers(isSeen),
     ];
   }
 

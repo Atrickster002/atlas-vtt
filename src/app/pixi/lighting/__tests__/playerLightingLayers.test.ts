@@ -85,6 +85,15 @@ describe('tokenPerception', () => {
     expect(tokenPerception(sight, { ambient: 0.15 }, [], inSight)('guard')).toBe('unseen');
   });
 
+  it('shows a vision token the pointer has moved only in the line of sight that stayed behind, lit or not', () => {
+    const held = { hero: { x: 100, y: 100 } };
+    const moved = (x: number): Record<string, TokenEntity> => ({ ...tokens, hero: { ...tokens.hero!, x } });
+    expect(tokenPerception(sight, { ambient: 0 }, [], tokens, { held })('hero')).toBe('seen');
+    expect(tokenPerception(sight, { ambient: 0 }, [], moved(150), { held })('hero')).toBe('seen');
+    expect(tokenPerception(sight, { ambient: 1 }, [], moved(400), { held })('hero')).toBe('unseen');
+    expect(tokenPerception(sight, { ambient: 1 }, [], moved(400))('hero')).toBe('seen');
+  });
+
   it('treats unknown tokens as unseen', () => {
     expect(tokenPerception(sight, { ambient: 1 }, [], tokens)('missing')).toBe('unseen');
   });
@@ -112,16 +121,16 @@ describe('tokenPerception with conditions', () => {
   const scale = { unitDistance: 5, cellSize: 5 };
   // Tremorsense 60 units is 60 px here; the token behind the wall at x = 300 is 200 px away.
   const sight = computeSight(sightSources({ hero: { ...tokens.hero!, vision: { enabled: true, tremorsense: 250 } } }, scale, { width: 1000, height: 1000 }), [wall]);
-  const perceived = (id: string, ambient = 1): string => tokenPerception(sight, { ambient }, [], tokens, conditions)(id);
+  const perceived = (id: string, ambient = 1): string => tokenPerception(sight, { ambient }, [], tokens, { conditions })(id);
 
   it('shows an invisible token only to senses that perceive invisible things: here it is sensed, not seen', () => {
     expect(perceived('invisible')).toBe('sensed');
-    expect(tokenPerception(computeSight([{ tokenId: 'hero', origin: { x: 100, y: 100 }, range: 1000, senses: [] }], [wall]), { ambient: 1 }, [], tokens, conditions)('invisible')).toBe('unseen');
+    expect(tokenPerception(computeSight([{ tokenId: 'hero', origin: { x: 100, y: 100 }, range: 1000, senses: [] }], [wall]), { ambient: 1 }, [], tokens, { conditions })('invisible')).toBe('unseen');
   });
 
   it('does not sense a flying token by tremorsense', () => {
     expect(perceived('flying')).toBe('unseen');
-    expect(tokenPerception(sight, { ambient: 1 }, [], { ...tokens, flying: at('flying', behind) }, conditions)('flying')).toBe('sensed');
+    expect(tokenPerception(sight, { ambient: 1 }, [], { ...tokens, flying: at('flying', behind) }, { conditions })('flying')).toBe('sensed');
   });
 
   it('never shows an undetected token', () => {
@@ -165,7 +174,7 @@ describe('playerTokenSight', () => {
 
   it('reads the conditions it is given', () => {
     const hidden = { lurker: { ...lurker, x: 150, conditions: ['unseen'] } };
-    expect(playerTokenSight(lighting(true), hidden, conditions)?.('lurker')).toBe('unseen');
+    expect(playerTokenSight(lighting(true), hidden, { conditions })?.('lurker')).toBe('unseen');
   });
 });
 
@@ -181,6 +190,13 @@ describe('tokenPerception with tremorsense', () => {
   it('senses tokens within range through walls, even in the dark', () => {
     expect(tokenPerception(sight, { ambient: 1 }, [], tokens)('near')).toBe('sensed');
     expect(tokenPerception(sight, { ambient: 0 }, [], tokens)('near')).toBe('sensed');
+  });
+
+  it('shows a vision token the pointer has moved out of sight while another vision token feels it', () => {
+    const scout: TokenEntity = { id: 'scout', kind: 'token', imagePath: 's.png', x: 300, y: 100, vision: { enabled: true } };
+    const held = { scout: { x: 100, y: 300 } };
+    expect(tokenPerception(sight, { ambient: 0 }, [], { ...tokens, scout }, { held })('scout')).toBe('seen');
+    expect(tokenPerception(sight, { ambient: 0 }, [], { ...tokens, scout: { ...scout, x: 600 } }, { held })('scout')).toBe('unseen');
   });
 
   it('does not sense tokens out of range', () => {

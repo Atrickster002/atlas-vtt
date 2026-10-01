@@ -7,6 +7,7 @@ import { bindHoldHotkey } from '../../keyboard/holdHotkey';
 import { DEFAULT_MAP_HOTKEYS } from '../../keyboard/mapHotkeys';
 import { AssetService } from '../../services/AssetService';
 import { mapMeasurementSettings } from '../../services/mapMeasurementSettings';
+import { heldForSight } from '../../lighting/sightOnDrop';
 import { mapSightRules } from '../../services/mapSightRules';
 import { SettingsService } from '../../services/SettingsService';
 import type { ViewAtlasState, ViewAtlasStore } from '../../storeFactory';
@@ -146,7 +147,8 @@ export class LightingController {
 
   /** How the players perceive each token, for their frame and for session view; sight hides nothing in an unlit scene. */
   playerSight(): TokenPerception | undefined {
-    return playerTokenSight(this.renderer, this.deps.store.getState().objects.tokens, this.sightRules().conditions);
+    const state = this.deps.store.getState();
+    return playerTokenSight(this.renderer, state.objects.tokens, { conditions: this.sightRules().conditions, held: heldForSight(state) });
   }
 
   /** The senses and conditions of the map's collection. */
