@@ -72,6 +72,35 @@ describe('CanvasLightingFallback', () => {
     expect(cuts({ bat, prey: { ...prey, x: 900 } })).toEqual([[100, 100, 31]]);
   });
 
+  it('cuts a footprint by the walls its token stands at, and cuts none for a token whose condition hides it from every sense', () => {
+    const rules: SightRules = {
+      definitions: BUILT_IN_SENSES['builtin:pathfinder2e']!,
+      conditions: [{ id: 'blind', name: 'Blinded', color: '#000000', effect: 'blinded' }, { id: 'gone', name: 'Undetected', color: '#000000', effect: 'undetected' }],
+    };
+    const bat: TokenEntity = { ...hero, vision: { enabled: true, senses: [{ id: 'pathfinder2e-echolocation', range: 40 }] }, conditions: ['blind'] };
+    const prey: TokenEntity = { id: 'prey', kind: 'token', imagePath: 'p.png', x: 150, y: 100 };
+    const poly = vi.spyOn(Graphics.prototype, 'poly');
+    /** The x reach of every footprint cut out since the last call. */
+    const cuts = (): number[][] => {
+      const reach = poly.mock.calls.map(([points]) => {
+        const xs = (points as number[]).filter((_, index) => index % 2 === 0);
+        return [Math.round(Math.min(...xs)), Math.round(Math.max(...xs))];
+      });
+      poly.mockClear();
+      return reach;
+    };
+    const { store } = setup({ bat, prey }, {}, undefined, rules);
+    expect(cuts()).toEqual([[69, 131], [119, 181]]);
+    // A wall 8 px right of the bat's centre ends its footprint; the prey behind it is out of the echo's line.
+    store.getState().addWall({ type: 'solid', p1: { x: 108, y: 0 }, p2: { x: 108, y: 400 }, closed: true });
+    expect(cuts()).toEqual([[69, 108]]);
+    store.setState({ objects: { ...store.getState().objects, walls: {} } });
+    expect(cuts()).toHaveLength(2);
+    store.getState().updateToken('prey', { conditions: ['gone'] });
+    expect(cuts()).toEqual([[69, 131]]);
+    poly.mockRestore();
+  });
+
   it('blacks out the map outside sight in the player frame only', () => {
     const { fallback, viewport } = setup({ hero });
     const darkness = viewport.children[0]!;

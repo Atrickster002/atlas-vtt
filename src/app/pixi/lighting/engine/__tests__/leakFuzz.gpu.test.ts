@@ -9,7 +9,10 @@ import { allSegments, splitBlocking } from '../../../../lighting/segments';
 import { LIGHT_REACH, sealTolerance, worldTexel } from '../../../../lighting/lightingConstants';
 import { SEES_ALL, computeSight, type SenseSource, type Sight } from '../../../../vision/sight';
 import type { SeenSpot } from '../../../../vision/perception';
-import { blocksFrom, computeVisibility } from '../../../../vision/visibility';
+import { blocksFrom } from '../../../../vision/visibility';
+import type { MeasurementSettings } from '../../../../grid/measurementFormat';
+import type { TokenEntity } from '../../../../types';
+import { SceneSpots, type SceneModel } from '../../sceneModel';
 import type { WallSegment } from '../../../../types/wallTypes';
 import { darkvision, senseSource } from '../../../../vision/__tests__/senseSources';
 import { BUILT_IN_SENSES, GENERIC_SENSES } from '../../../../gameSystems/senses';
@@ -21,11 +24,13 @@ import { distToOutline, fuzzRooms, insidePolygon, rng, roomOutline, type FuzzRoo
 const SIZE = 384;
 /** Vision tokens that perceive nothing: nothing of the map is shown but the footprints. */
 const NO_SIGHT: Sight = { all: false, regions: [] };
-/** The footprint radius of tokens of size 1, 2 and 4 on a 70 px grid. */
-const FOOTPRINTS = [31, 93, 217];
+/** Token sizes whose footprints are 31, 93 and 217 px in radius on a 70 px grid. */
+const SIZES = [1, 2, 4];
+const MEASUREMENT = (): MeasurementSettings => ({ unitDistance: 5 }) as MeasurementSettings;
 
 /**
- * Footprints of tokens inside the room, as walls leave them: at a wall (8, 2 and 0.5 px from
+ * Footprints of party tokens inside the room, as the lighting view hands them to the engine
+ * (`SceneSpots`, the production path: breaking its clipping fails the fuzz): at a wall (8, 2 and 0.5 px from
  * it), in corners (0.5 and 8 px from the corner), at the middle of a closed door if the room has
  * one, and where the lights stand; in the three sizes in turn. Like the lights, a token stands
  * only where every one-way wall of the room blocks: from its other side a one-way wall lets
@@ -51,10 +56,9 @@ function footprints(room: FuzzRoom, outline: readonly P[], walls: readonly WallS
   ];
   const oneWay = room.walls.filter((wall) => wall.direction);
   const kept = places.filter((p) => insidePolygon(p, outline) && oneWay.every((wall) => blocksFrom(wall, { x: p[0], y: p[1] })));
-  return kept.map(([x, y], i) => {
-    const radius = FOOTPRINTS[i % FOOTPRINTS.length]!;
-    return { x, y, radius, polygon: computeVisibility({ x, y }, radius, walls) };
-  });
+  const tokens = Object.fromEntries(kept.map(([x, y], i) => [`p${i}`, { id: `p${i}`, kind: 'token', imagePath: '', x, y, size: SIZES[i % SIZES.length]!, vision: { enabled: true } } as TokenEntity]));
+  const model: SceneModel = { walls, lights: [], reaches: [], sight: NO_SIGHT, explored: null };
+  return new SceneSpots().update(model, { objects: { tokens, walls: {}, lights: {} }, lighting: { enabled: true, ambient: 0 }, grid: null, heldTokens: {} } as unknown as Parameters<SceneSpots['update']>[1], MEASUREMENT);
 }
 const sense = (id: string): SenseDefinition => [...GENERIC_SENSES, ...Object.values(BUILT_IN_SENSES).flat()].find((candidate) => candidate.id === id)!;
 /** The senses with line of sight that draw the map, in every channel: one set per room in turn. */
