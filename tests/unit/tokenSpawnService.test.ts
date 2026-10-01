@@ -224,28 +224,33 @@ describe('default token vision of a token with a linked statblock', () => {
   beforeEach(() => { Object.assign(window, { FantasyStatblocks: { getBestiaryCreatures: () => bestiary } }); });
   afterEach(() => { Reflect.deleteProperty(window, 'FantasyStatblocks'); });
 
-  it('leaves the default senses out when the statblock has senses, and stamps none of the statblock\'s', async () => {
-    const { ctx, spawned } = setup({ goblin: { statblockPath: 'Bestiary/Goblin.md' } }, defaults);
-    await spawnTokenAsset(ctx, unframed, 2);
-    await spawnSelectedTokens(ctx, [unframed]);
-    expect(spawned).toHaveLength(3);
-    for (const token of spawned) {
-      expect(token.statblockPath).toBe('Bestiary/Goblin.md');
-      expect(token.vision).toEqual({ enabled: false, range: 120 });
+  it('leaves the default senses out, with or without senses in the statblock today, and stamps none of the statblock\'s', async () => {
+    for (const statblockPath of ['Bestiary/Goblin.md', 'Bestiary/Commoner.md', 'Bestiary/Not read.md']) {
+      const { ctx, spawned } = setup({ goblin: { statblockPath } }, defaults);
+      await spawnTokenAsset(ctx, unframed, 2);
+      await spawnSelectedTokens(ctx, [unframed]);
+      expect(spawned).toHaveLength(3);
+      for (const token of spawned) {
+        expect(token.statblockPath).toBe(statblockPath);
+        expect(token.vision).toEqual({ enabled: false, range: 120 });
+      }
     }
   });
 
-  it('stamps the whole default when the statblock names no sense, or the token has no statblock', async () => {
-    const { ctx, spawned } = setup({ goblin: { statblockPath: 'Bestiary/Commoner.md' } }, defaults);
+  it('stamps the whole default on a token without a statblock', async () => {
+    const { ctx, spawned } = setup({ goblin: { statblockPath: 'Bestiary/Goblin.md' } }, defaults);
     await spawnSelectedTokens(ctx, [unframed, framed]);
-    expect(spawned.map((token) => token.vision)).toEqual([{ enabled: false, ...defaults }, { enabled: false, ...defaults }]);
+    expect(spawned.map((token) => token.vision)).toEqual([{ enabled: false, range: 120 }, { enabled: false, ...defaults }]);
+    expect(spawned[1]!.vision).not.toBe(defaults);
   });
 
-  it('adds no vision field to a token with statblock senses when the collection sets no default', async () => {
-    const { ctx, spawned } = setup({ goblin: { statblockPath: 'Bestiary/Goblin.md' } });
-    await spawnTokenAsset(ctx, unframed, 1);
-    expect(spawned[0]).toMatchObject({ statblockPath: 'Bestiary/Goblin.md', name: 'Goblin' });
-    expect(spawned[0]).not.toHaveProperty('vision');
+  it('adds no vision field to a linked token when the collection sets no default, or only senses', async () => {
+    for (const vision of [undefined, { senses: [{ id: darkvision.id }] }, { darkvision: 60 }]) {
+      const { ctx, spawned } = setup({ goblin: { statblockPath: 'Bestiary/Goblin.md' } }, vision);
+      await spawnTokenAsset(ctx, unframed, 1);
+      expect(spawned[0]).toMatchObject({ statblockPath: 'Bestiary/Goblin.md', name: 'Goblin' });
+      expect(spawned[0]).not.toHaveProperty('vision');
+    }
   });
 
   it('applies the rule to tokens an encounter builds from assets', async () => {

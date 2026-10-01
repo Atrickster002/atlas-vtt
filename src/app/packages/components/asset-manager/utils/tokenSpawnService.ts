@@ -1,6 +1,6 @@
 import { Notice, App as ObsidianApp } from 'obsidian';
 import type { TokenAsset, AnyAsset, EncounterAsset } from '../types';
-import { loadLinkedCreature, statblockOverridesOf, type StatblockOverrides } from './statblockLoader';
+import { loadStatblockOverrides, type StatblockOverrides } from './statblockLoader';
 import type { AssetService } from '../../../../services/AssetService';
 import {
   FALLBACK_PITCH,
@@ -13,8 +13,9 @@ import {
 import type { AtlasView } from '../../../../atlas-view';
 import type { TokenInput } from '../../../../storeFactory';
 import { loadAtlasView } from '../../../../plugin/atlasLeaves';
-import type { TokenVision } from '../../../../types/lightingTypes';
-import { mapPlacementVision, type PlacementVision } from '../../../../services/mapPlacementVision';
+import { mapVisionDefaults } from '../../../../gameSystems/visionDefaults';
+import type { TokenVision, TokenVisionDefaults } from '../../../../types/lightingTypes';
+import { placementVision } from '../../../../creatures/placementVision';
 
 // ─── Viewport helpers ───────────────────────────────────────────────
 
@@ -179,16 +180,16 @@ async function resolveTokenSource(ctx: SpawnContext, ref: TokenSourceRef): Promi
 }
 
 /** What new tokens start with in the scene they are spawned into, from its collection. */
-function spawnVision(ctx: SpawnContext, target: SpawnTarget): PlacementVision {
-  return ctx.assetService ? mapPlacementVision(ctx.app, ctx.assetService, target.view.getStore().getState()) : () => undefined;
+function spawnVisionDefaults(ctx: SpawnContext, target: SpawnTarget): TokenVisionDefaults | undefined {
+  return ctx.assetService ? mapVisionDefaults(ctx.assetService, target.view.getStore().getState().mapPath) : undefined;
 }
 
-/** Builds a token from its asset; `startVision` (the placing collection's default) starts vision off. */
+/** Builds a token from its asset; `visionDefaults` (the placing collection's) start vision off (`placementVision`). */
 async function buildTokenData(
   app: ObsidianApp,
   pos: { x: number; y: number },
   { imagePath, name, statblockPath, size, showRing }: TokenSource,
-  startVision: PlacementVision,
+  visionDefaults: TokenVisionDefaults | undefined,
 ): Promise<TokenSpawnData> {
   const data: TokenSpawnData = {
     x: pos.x,
@@ -201,13 +202,13 @@ async function buildTokenData(
   if (size !== undefined) data.size = size;
   if (showRing !== undefined) data.showRing = showRing;
 
-  const creature = statblockPath ? await loadLinkedCreature(app, statblockPath) : null;
   if (statblockPath) {
     data.statblockPath = statblockPath;
-    Object.assign(data, statblockOverridesOf(app, creature));
+    const overrides = await loadStatblockOverrides(app, statblockPath);
+    Object.assign(data, overrides);
   }
 
-  const vision = startVision(creature);
+  const vision = placementVision(visionDefaults, Boolean(statblockPath));
   if (vision) data.vision = vision;
 
   return data;
@@ -246,7 +247,7 @@ export async function spawnTokenAsset(
   if (!source) return [];
 
   // The statblock is read once; every copy shares that data at its own position.
-  const template = await buildTokenData(ctx.app, center, source, spawnVision(ctx, target));
+  const template = await buildTokenData(ctx.app, center, source, spawnVisionDefaults(ctx, target));
   const tokens = Array.from({ length: count }, (_, i): TokenInput => ({
     ...structuredClone(template),
     ...gridPosition(i, count, center.x, center.y, pitch, gridSystem),
@@ -273,7 +274,7 @@ export async function spawnEncounterTokens(
     ? placeFormation(slots, encounter.formation, center, grid)
     : null;
 
-  const startVision = spawnVision(ctx, target);
+  const visionDefaults = spawnVisionDefaults(ctx, target);
   const tokens: TokenInput[] = [];
   for (let i = 0; i < tokensToSpawn.length; i++) {
     const token = tokensToSpawn[i];
@@ -307,7 +308,7 @@ export async function spawnEncounterTokens(
     }
     const source = await resolveTokenSource(ctx, token);
     if (source && imageExists(ctx.app, source.imagePath)) {
-      tokens.push(await buildTokenData(ctx.app, pos, source, startVision));
+      tokens.push(await buildTokenData(ctx.app, pos, source, visionDefaults));
     }
   }
 
@@ -332,7 +333,7 @@ export async function spawnSelectedTokens(
   const center = getViewportCenter(viewport);
   const tokensToSpawn = selectedAssets.filter(a => a.type === 'tokens');
 
-  const startVision = spawnVision(ctx, target);
+  const visionDefaults = spawnVisionDefaults(ctx, target);
   const tokens: TokenInput[] = [];
   for (let i = 0; i < tokensToSpawn.length; i++) {
     const tokenAsset = tokensToSpawn[i];
@@ -341,7 +342,7 @@ export async function spawnSelectedTokens(
     const source = await resolveTokenSource(ctx, tokenAsset);
     if (!source) continue;
     const pos = gridPosition(i, tokensToSpawn.length, center.x, center.y, pitch, gridSystem);
-    tokens.push(await buildTokenData(ctx.app, pos, source, startVision));
+    tokens.push(await buildTokenData(ctx.app, pos, source, visionDefaults));
   }
 
   return addSpawnedTokens(target, tokens);
