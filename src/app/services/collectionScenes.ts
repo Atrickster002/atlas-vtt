@@ -33,7 +33,8 @@ export async function updateCollectionScenes(app: App, collectionId: string, upd
   const files = collectionMapFiles(app, collectionId);
   for (const file of files) {
     try {
-      const view = views.find((v) => v.file?.path === file.path);
+      // A view whose scene failed to load, or is still loading, shows the tab but does not hold the scene
+      const view = views.find((v) => v.file?.path === file.path && v.getStore().getState().mapLoaded);
       if (view) {
         update.updateOpen(view);
         await view.saveMap();
