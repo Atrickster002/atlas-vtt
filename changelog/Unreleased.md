@@ -28,7 +28,7 @@
 - Flickering lights take about a quarter of the graphics card time they did on a 120 Hz display, and half on a 60 Hz one
 - Dynamic lighting costs far less on high-density displays such as Retina screens, so panning a lit map stays smooth
 - An open player window costs far less, so the GM view stays smooth on large maps with lighting
-- Dragging a token with vision no longer reveals the map along the way. Players see from its new position, and the light it carries arrives there, when you drop it. To update while dragging instead, switch off "Update sight when a token is dropped" in Lighting settings
+- Dragging a token no longer reveals the map along the way. What it sees and the light it carries stay where the drag began, and players see both at the new position when you drop it. To update while dragging instead, switch off "Update sight when a token is dropped" in Lighting settings
 - Session view (the GM view switch in the toolbar, D) now also shows the players' lighting: the map as their tokens see it, without the tokens they cannot see, door badges, light markers and wall lines
 - The lighting menu is laid out like the other tool menus: what the tool does and how walls are drawn are rows with a tick, and the time of day shows which one is chosen
 - Switches in the tool menus can be reached with Tab and switched with Space or Enter, and screen readers announce them. Every menu row is now rounded alike on both sides

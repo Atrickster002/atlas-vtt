@@ -1,5 +1,6 @@
 import type { TokenEntity } from '../../types';
-import { isFelt, isSeen, type AmbientLight, type LightReach, type Sight } from '../../vision/sight';
+import { movedWhileHeld, type HeldTokens } from '../../lighting/sightOnDrop';
+import { inSight, isFelt, isSeen, type AmbientLight, type LightReach, type Sight } from '../../vision/sight';
 import type { HideableLayer, LayerVisibility } from '../playerSafeFrame';
 import type { SceneLightingView } from './sceneLightingView';
 
@@ -34,18 +35,25 @@ export function playerLightingLayers({ enabled, modeLayer, gmOverlays }: PlayerL
 /**
  * Whether the viewer sees each token, by its centre. The viewer's own tokens always show, lit or
  * not, and so do tokens within a vision token's tremorsense, whatever walls or darkness lie between.
+ *
+ * One of the viewer's own tokens that is dragged while sight waits for the drop (`held`:
+ * `heldForSight`) shows only in the line of sight that stayed behind. Beyond it the players'
+ * picture is dark or remembered, and the token goes with its nameplate, bars and conditions
+ * rather than leaving them over the darkness.
  */
 export function tokenSeenPredicate(
   sight: Sight,
   ambient: AmbientLight,
   lights: readonly LightReach[],
   tokens: Record<string, TokenEntity>,
+  held: HeldTokens = {},
 ): (tokenId: string) => boolean {
   return (tokenId) => {
     const token = tokens[tokenId];
     if (!token) return false;
     const at = { x: token.x, y: token.y };
-    return !!token.vision?.enabled || isFelt(at, sight) || isSeen(at, sight, ambient, lights);
+    if (token.vision?.enabled) return !movedWhileHeld(token, held) || inSight(at, sight) || isFelt(at, sight);
+    return isFelt(at, sight) || isSeen(at, sight, ambient, lights);
   };
 }
 
@@ -56,7 +64,8 @@ export function tokenSeenPredicate(
 export function playerTokenSight(
   lighting: Pick<SceneLightingView, 'isEnabled' | 'currentSight' | 'ambientLight' | 'lightReaches'>,
   tokens: Record<string, TokenEntity>,
+  held?: HeldTokens,
 ): ((tokenId: string) => boolean) | undefined {
   if (!lighting.isEnabled()) return undefined;
-  return tokenSeenPredicate(lighting.currentSight(), lighting.ambientLight(), lighting.lightReaches(), tokens);
+  return tokenSeenPredicate(lighting.currentSight(), lighting.ambientLight(), lighting.lightReaches(), tokens, held);
 }

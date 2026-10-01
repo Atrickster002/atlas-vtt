@@ -133,6 +133,32 @@ describe('LightingRenderer sight on drop', () => {
     expect(watch!.findings).toEqual([]);
   });
 
+  it('keeps the light of a dragged token without vision where the drag began, though the party looks on', async () => {
+    const bearer = { ...TORCH_BEARER, id: 'b', x: 88, vision: undefined } as unknown as TokenEntity;
+    const scene = (x: number): Record<string, unknown> => ({ objects: { walls: WALLS, lights: NO_LIGHTS, tokens: { t: HERO, b: { ...bearer, x } } } });
+    harness = await createHarness({ patch: { exploredMask: null, lighting: { enabled: true, ambient: 0 }, ...scene(88) } });
+    const h = harness;
+    await h.settle();
+    watch = watchGl(h.renderer.gl);
+    expect(h.redAt(98, START.y)).toBe(255);
+    expect(h.redAt(END.x + 10, END.y)).toBe(0);
+    h.renderStage();
+    const before = memory(h);
+
+    h.change({ heldTokens: { b: { x: 88, y: START.y } } });
+    const draws = watch.draws();
+    for (const x of PATH) h.change(scene(x));
+    expect(watch.draws()).toBe(draws);
+    expect(h.lighting.lightReaches()[0]?.origin).toEqual({ x: 88, y: START.y });
+    h.renderStage();
+    expect(changedSince(before, h)).toBe(0);
+
+    h.change({ heldTokens: {} });
+    expect(h.lighting.lightReaches()[0]?.origin).toEqual(END);
+    expect(h.redAt(END.x + 10, END.y)).toBe(255);
+    expect(watch.findings).toEqual([]);
+  });
+
   it('records along the way when the scene switches sight on drop off', async () => {
     const h = await setup({ sightOnDrop: false });
     drag(h);

@@ -7,7 +7,7 @@ import { tokenSeenPredicate } from '../../src/app/pixi/lighting/playerLightingLa
 import { worldTexel } from '../../src/app/lighting/lightingConstants';
 import { unitScaleOf } from '../../src/app/lighting/lightingUnits';
 import { sealedWalls } from '../../src/app/lighting/sealWalls';
-import { SightTokens, holdTokens } from '../../src/app/lighting/sightOnDrop';
+import { SightTokens, heldForSight, holdTokens } from '../../src/app/lighting/sightOnDrop';
 import { getHistoryStore } from '../../src/app/stores/history';
 import type { TokenEntity } from '../../src/app/types';
 import type { LightEmission, SceneLighting } from '../../src/app/types/lightingTypes';
@@ -86,7 +86,7 @@ class SceneRig {
   /** Whether the players see the token, as their frame and session view decide. */
   seen(tokenId: string): boolean {
     const state = this.store.getState();
-    return tokenSeenPredicate(this.sight, state.lighting, this.reaches, state.objects.tokens)(tokenId);
+    return tokenSeenPredicate(this.sight, state.lighting, this.reaches, state.objects.tokens, heldForSight(state))(tokenId);
   }
 }
 
@@ -341,12 +341,68 @@ describe('sight on drop', () => {
     expect(rig.explored({ x: 750, y: 300 })).toBe(true);
   });
 
-  it('moves the light of a dragged token without vision as it goes', () => {
-    const { rig, press, dragTo } = createScene([hero(), token('bearer', { x: 300, y: 300 }, { light: TORCH })], { ambient: 0 });
+  it('leaves the light of a dragged token without vision where the drag began, too', () => {
+    // The bearer walks through the doorway, in the hero's line of sight all the way.
+    const { rig, press, dragTo, release, at } = createScene([hero(), token('bearer', { x: 350, y: 300 }, { light: TORCH })], { ambient: 0 });
+    const reach = rig.reaches[0];
+    const rebuilds = rig.rebuilds;
+    expect(rig.explored({ x: 650, y: 300 })).toBe(false);
+
     press('bearer');
-    dragTo({ x: 400, y: 300 });
-    expect(rig.lightsAt).toEqual([{ key: 'token:bearer', x: 400, y: 300 }]);
-    expect(rig.sight.origins).toEqual([LEFT_ROOM]);
+    dragTo({ x: 500, y: 300 });
+    dragTo(RIGHT_ROOM);
+    expect(at('bearer')).toEqual(RIGHT_ROOM);
+    expect(rig.lightsAt).toEqual([{ key: 'token:bearer', x: 350, y: 300 }]);
+    expect(rig.reaches[0]).toBe(reach);
+    expect(rig.explored({ x: 650, y: 300 })).toBe(false);
+    expect(rig.rebuilds).toBe(rebuilds);
+    // Out of its light, which stayed behind, the bearer is not seen in the dark.
+    expect(rig.seen('bearer')).toBe(false);
+
+    release(RIGHT_ROOM);
+    expect(rig.lightsAt).toEqual([{ key: 'token:bearer', ...RIGHT_ROOM }]);
+    expect(rig.explored({ x: 650, y: 300 })).toBe(true);
+    expect(rig.seen('bearer')).toBe(true);
+    expect(rig.rebuilds).toBe(rebuilds + 1);
+  });
+
+  it('moves a dragged token\'s light as it goes when the scene switches sight on drop off', () => {
+    const { rig, press, dragTo } = createScene([hero(), token('bearer', { x: 350, y: 300 }, { light: TORCH })], { ambient: 0, sightOnDrop: false });
+    press('bearer');
+    dragTo(RIGHT_ROOM);
+    expect(rig.lightsAt).toEqual([{ key: 'token:bearer', ...RIGHT_ROOM }]);
+    expect(rig.explored({ x: 650, y: 300 })).toBe(true);
+  });
+
+  it('hides a dragged vision token from the players where its old sight does not reach, until the drop', () => {
+    const { rig, press, dragTo, release } = createScene([hero()]);
+    press('hero');
+    expect(rig.seen('hero')).toBe(true);
+    // Through the doorway, in line of sight of where it stood.
+    dragTo(RIGHT_ROOM);
+    expect(rig.seen('hero')).toBe(true);
+    // Round the corner: the players' picture is dark there, and the token goes with its nameplate and bars.
+    dragTo(RIGHT_CORNER);
+    expect(rig.seen('hero')).toBe(false);
+    release(RIGHT_CORNER);
+    expect(rig.seen('hero')).toBe(true);
+  });
+
+  it('shows a dragged vision token in the dark wherever its old sight reaches, as when it stands', () => {
+    const { rig, press, dragTo } = createScene([hero()], { ambient: 0 });
+    expect(rig.seen('hero')).toBe(true);
+    press('hero');
+    dragTo({ x: 300, y: 200 });
+    expect(rig.seen('hero')).toBe(true);
+    dragTo(RIGHT_CORNER);
+    expect(rig.seen('hero')).toBe(false);
+  });
+
+  it('always shows a dragged vision token when the scene switches sight on drop off', () => {
+    const { rig, press, dragTo } = createScene([hero()], { sightOnDrop: false });
+    press('hero');
+    dragTo(RIGHT_CORNER);
+    expect(rig.seen('hero')).toBe(true);
   });
 
   it('applies changes to a held token other than its place at once', () => {

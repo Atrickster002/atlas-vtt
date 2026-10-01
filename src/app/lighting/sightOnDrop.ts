@@ -28,21 +28,34 @@ export function holdTokens(store: Pick<StoreApi<ViewAtlasState>, 'getState'>, to
 type SceneTokens = Pick<ViewAtlasState, 'objects' | 'lighting' | 'heldTokens'>;
 type Tokens = Record<string, TokenEntity>;
 
+const NONE: HeldTokens = {};
+
+/** The held tokens whose sight and light wait for the drop: all of them, or none with the scene's sight on drop off. */
+export function heldForSight({ lighting, heldTokens }: Pick<ViewAtlasState, 'lighting' | 'heldTokens'>): HeldTokens {
+  return sightOnDropOn(lighting) ? heldTokens : NONE;
+}
+
+/** Whether the pointer has moved `token` from the place it was taken at. */
+export function movedWhileHeld(token: Pick<TokenEntity, 'id' | 'x' | 'y'>, held: HeldTokens): boolean {
+  const start = held[token.id];
+  return !!start && (token.x !== start.x || token.y !== start.y);
+}
+
 /**
  * The tokens of a scene as its sight and light read them. With sight on drop (`sightOnDropOn`),
- * a vision token the pointer has moved counts as standing where it was taken, and so does the
- * light it carries: nothing along the way of a drag is seen, lit or remembered, and letting go
- * shows its new place at once. Every other token, and every move that is not a drag, is read
- * as the store holds it.
+ * a token the pointer has moved counts as standing where it was taken if it sees or carries a
+ * light: nothing along the way of a drag is seen, lit or remembered, and letting go shows its
+ * new place at once. A token that neither sees nor carries a light, and every move that is not
+ * a drag, is read as the store holds it.
  *
- * While only held vision tokens move, `read` returns the same record, so a view that compares
+ * While only such held tokens move, `read` returns the same record, so a view that compares
  * records works nothing out during the drag.
  */
 export class SightTokens {
   private last: Tokens | null = null;
 
-  read({ objects, lighting, heldTokens }: SceneTokens): Tokens {
-    const tokens = sightOnDropOn(lighting) ? this.withHeldAtStart(objects.tokens, heldTokens) : objects.tokens;
+  read(state: SceneTokens): Tokens {
+    const tokens = this.withHeldAtStart(state.objects.tokens, heldForSight(state));
     this.last = tokens;
     return tokens;
   }
@@ -51,7 +64,7 @@ export class SightTokens {
     let result = tokens;
     for (const [id, start] of Object.entries(held)) {
       const token = tokens[id];
-      if (!token?.vision?.enabled || (token.x === start.x && token.y === start.y)) continue;
+      if (!token || !(token.vision?.enabled || token.light) || !movedWhileHeld(token, held)) continue;
       const atStart = { ...token, x: start.x, y: start.y };
       const before = this.last?.[id];
       if (result === tokens) result = { ...tokens };
