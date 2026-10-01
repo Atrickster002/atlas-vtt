@@ -6,7 +6,6 @@ import { isRecord } from '../assetMetadataGuards';
 import { imageReference, localImage } from '../statblockImportCandidates';
 import { linkedFilePath } from '../sceneLinks';
 import type { BundleFile, BundleFileRole, StatblockImageKey } from './bundleFormat';
-import { linkedFiles } from './noteLinks';
 
 /** The scene thumbnail lives next to its map file. */
 export const sceneThumbnailPath = (mapPath: string): string => mapPath.replace(/\.atlasmap$/, '.thumb.jpg');
@@ -31,10 +30,10 @@ const OPTIONAL_ROLES = new Set<BundleFileRole>(['thumbnail', 'scene-thumbnail'])
  * Lists every vault file a collection depends on, so a bundle can carry the
  * whole collection: asset records and images, scene maps and their snapshots
  * with the backgrounds and artwork of tokens placed on them, the notes their
- * pins and characters open with every note and picture those lead to, and the
- * statblock notes tokens link to together with their artwork. Every file lists
- * the assets that use it and the notes that link to it; the first role claimed
- * for a path wins. Referenced files that are gone are reported instead of packed.
+ * pins and characters open, and the statblock notes tokens link to together
+ * with their artwork. Every file lists the
+ * assets that use it; the first role claimed for a path wins. Referenced
+ * files that are gone are reported instead of packed.
  */
 export class CollectionReferenceCollector {
   private readonly files = new Map<string, BundleFile>();
@@ -51,7 +50,6 @@ export class CollectionReferenceCollector {
     }
     this.owner = null;
     for (const notePath of this.statblockNotes) this.collectStatblockImage(notePath);
-    this.collectLinkedFiles();
     return { files: [...this.files.values()], missing: [...this.missing.values()] };
   }
 
@@ -136,27 +134,6 @@ export class CollectionReferenceCollector {
   private addLinkedNote(link: string | undefined): void {
     const path = link ? linkedFilePath(link) : '';
     if (path.toLowerCase().endsWith('.md')) this.add(path, 'linked-note');
-  }
-
-  /**
-   * Follows the links of the notes pins and characters open, and of every note
-   * found that way, so the bundle holds all those notes refer to. Statblock
-   * notes are not followed: their links lead into rulebooks.
-   */
-  private collectLinkedFiles(): void {
-    const notes = [...this.files.values()].filter((file) => file.role === 'linked-note').map((file) => file.vaultPath);
-    // Notes found on the way join the list, so the walk goes level by level and ends once every note was read.
-    for (const note of notes) {
-      for (const { path, role } of linkedFiles(this.app, note)) {
-        const known = this.files.get(path);
-        if (known) {
-          known.linkedFrom = [...(known.linkedFrom ?? []), note];
-          continue;
-        }
-        this.files.set(path, { vaultPath: path, role, linkedFrom: [note] });
-        if (role === 'linked-note') notes.push(path);
-      }
-    }
   }
 
   private addStatblockNote(path: string | undefined): void {

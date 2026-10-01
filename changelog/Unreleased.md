@@ -16,7 +16,7 @@
 
 ## Improved
 
-- An exported collection carries every note its pinned notes lead to: the notes they link to, the notes those link to, and the images and PDFs they show. The export dialog lists them below the note that led to them and says why each is there; untick a note to leave out everything only it links to
+- An exported collection carries every note its pinned notes lead to: the notes they link to, the notes those link to, and the images and PDFs they show. The export dialog lists each note below the note that led to it and says why it is there; untick a note to leave out everything only it links to. The images and PDFs have a list of their own
 - Imported notes keep the folders they had, so the links between them still work
 - The GM dashboard is now called the DM screen. Press Tab on a map to open it; a custom key you set for it is kept
 - Large token imports are much faster. 1,000 tokens from Fantasy Statblocks now take about 40 seconds instead of 11 minutes, and imports of thousands of tokens no longer slow down as they go

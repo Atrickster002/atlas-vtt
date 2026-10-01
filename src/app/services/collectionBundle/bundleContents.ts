@@ -1,8 +1,9 @@
 import type { Asset } from '../AssetService';
 import type { BundleFile } from './bundleFormat';
 import { noteName, noteTree, type NoteOrigin } from './noteTree';
+import { baseName } from '../../utils/pathUtils';
 
-export type ContentCategory = 'scenes' | 'maps' | 'tokens' | 'encounters' | 'statblocks' | 'notes';
+export type ContentCategory = 'scenes' | 'maps' | 'tokens' | 'encounters' | 'statblocks' | 'notes' | 'attachments';
 
 /** How a token looks when spawned, and the statblock it opens. Paths are the vault's when exporting and the bundle's when importing. */
 export interface TokenPreview {
@@ -46,6 +47,7 @@ const GROUPS: ReadonlyArray<{ category: ContentCategory; label: string; alwaysSh
   { category: 'encounters', label: 'Encounters' },
   { category: 'statblocks', label: 'Statblocks', alwaysShown: true },
   { category: 'notes', label: 'Notes', alwaysShown: true },
+  { category: 'attachments', label: 'Images and PDFs' },
 ];
 
 const byName = (a: ContentItem, b: ContentItem): number => a.name.localeCompare(b.name, undefined, { numeric: true });
@@ -69,6 +71,7 @@ export function groupContents(assets: readonly Asset[], files: readonly BundleFi
   }
   for (const file of files) {
     if (file.role === 'statblock-note') add('statblocks', { key: fileKey(file.vaultPath), name: noteName(file.vaultPath) });
+    if (file.role === 'note-attachment') add('attachments', { key: fileKey(file.vaultPath), name: baseName(file.vaultPath) });
   }
   const notes = noteTree(files, new Map(assets.map((asset) => [asset.id, asset.name])))
     .map(({ path, ...note }): ContentItem => ({ key: fileKey(path), ...note }));
@@ -86,9 +89,9 @@ export interface SelectedContent {
 
 /**
  * What an export packs once the user left out `excluded` content: the
- * remaining assets, and the files still used by one of them. Statblock artwork
- * goes with the notes that show it, a file a note links to with any note that
- * still links to it, and every other file with the assets that own it.
+ * remaining assets, and the files still used by one of them. A file a note
+ * links to goes with any note that still links to it, statblock artwork with
+ * the notes that show it, and every other file with the assets that own it.
  */
 export function selectContent(assets: readonly Asset[], files: readonly BundleFile[], excluded: ReadonlySet<string>): SelectedContent {
   const kept = assets.filter((asset) => !excluded.has(assetKey(asset.id)));
@@ -96,22 +99,26 @@ export function selectContent(assets: readonly Asset[], files: readonly BundleFi
   const allowed = files.filter((file) => !excluded.has(fileKey(file.vaultPath)));
   const usedByAsset = (file: BundleFile): boolean => (file.owners?.length ? file.owners.some((owner) => keptIds.has(owner)) : !file.linkedFrom?.length);
   const packed = new Set(allowed.filter(usedByAsset).map((file) => file.vaultPath));
+  const stillLinked = (file: BundleFile): boolean => file.linkedFrom?.some((note) => packed.has(note)) ?? false;
   // ponytail: repeated passes, one per level of links; walk a queue of children if a vault's notes ever make this slow.
   let grew = true;
   while (grew) {
     grew = false;
     for (const file of allowed) {
-      if (packed.has(file.vaultPath) || !file.linkedFrom?.some((note) => packed.has(note))) continue;
+      if (packed.has(file.vaultPath) || !stillLinked(file)) continue;
       packed.add(file.vaultPath);
       grew = true;
     }
   }
-  const candidates = allowed.filter((file) => packed.has(file.vaultPath));
-  const shownArtwork = new Set(candidates.flatMap((file) => (file.statblockImage ? [file.statblockImage.path] : [])));
+  const shownArtwork = new Set(allowed.flatMap((file) => (file.statblockImage && packed.has(file.vaultPath) ? [file.statblockImage.path] : [])));
+  // Artwork follows its notes, not its owners: a statblock note may travel only because a kept note links to it.
+  const travels = (file: BundleFile): boolean => (file.role === 'statblock-image'
+    ? shownArtwork.has(file.vaultPath) || stillLinked(file)
+    : packed.has(file.vaultPath));
   return {
     assets: kept,
-    files: candidates
-      .filter((file) => file.role !== 'statblock-image' || shownArtwork.has(file.vaultPath))
+    files: allowed
+      .filter(travels)
       .map((file): BundleFile => ({
         ...file,
         ...(file.owners && { owners: file.owners.filter((owner) => keptIds.has(owner)) }),

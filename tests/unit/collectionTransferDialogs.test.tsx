@@ -231,11 +231,13 @@ describe('export options', () => {
     fireEvent.click(screen.getByRole('button', { name: /Notes/ }));
     const rows = (): string[] => [...container.querySelectorAll('.atlas-transfer-item')].map((row) => row.textContent ?? '');
     expect(rows()).toEqual(['CaveOpened in Cave2 linked notes', 'PelorLinked from Cave1 linked note', 'SunLinked from Pelor']);
-    expect(screen.getByText('5 items · 4 files · 0 Bytes')).toBeTruthy();
+    expect(screen.getByText('6 items · 4 files · 0 Bytes')).toBeTruthy();
+    expect(screen.getByRole('button', { name: /Images and PDFs/ }).textContent).toContain('1');
 
     fireEvent.click(screen.getByRole('checkbox', { name: /^Pelor/ }));
     expect(screen.getByRole('button', { name: /Notes/ }).textContent).toContain('1 of 3');
     expect(rows()[2]).toBe('SunOnly used by content you left out');
+    expect(screen.getByRole('button', { name: /Images and PDFs/ }).textContent).toContain('0 of 1');
     expect(screen.getByText('3 items · 1 file · 0 Bytes')).toBeTruthy();
   });
 

@@ -5,10 +5,13 @@ import { TFile } from 'obsidian';
 import { AtlasView } from '../../src/app/atlas-view';
 import { AssetService } from '../../src/app/services/AssetService';
 import { transferAssets } from '../../src/app/services/assetTransfer/assetTransfer';
+import { groupContents } from '../../src/app/services/collectionBundle/bundleContents';
+import type { BundleFile } from '../../src/app/services/collectionBundle/bundleFormat';
 import { exportCollectionBundle, prepareCollectionExport, type ExportChoice } from '../../src/app/services/collectionBundle/collectionExport';
 import { openCollectionImport, type ImportDecision } from '../../src/app/services/collectionBundle/collectionImport';
 import type { ImportReview } from '../../src/app/services/collectionBundle/importReview';
 import { readInstallRecord } from '../../src/app/services/collectionBundle/installRecord';
+import { noteTree } from '../../src/app/services/collectionBundle/noteTree';
 import { createSnapshot } from '../../src/app/snapshots/sceneSnapshotFormat';
 import { createInMemoryApp, parseFrontmatter, type InMemoryApp } from '../mocks/inMemoryVault';
 
@@ -1154,15 +1157,54 @@ describe('notes linked from pinned notes', () => {
     ]);
   });
 
-  it('takes notes in the collection\'s folder along when their scene moves to another collection', async () => {
+  it('lists the images and PDFs the notes show, to be left out one by one or all at once', async () => {
+    const creator = await loreVault();
+    const preview = await prepareCollectionExport(creator.vault.app, creator.assets, 'source');
+    const attachments = groupContents(preview.assets, preview.files).find((group) => group.category === 'attachments');
+    expect(attachments).toEqual({ category: 'attachments', label: 'Images and PDFs', items: [{ key: `file:${PICTURE}`, name: 'cave.png' }] });
+    expect(await exportedPaths(creator, [`file:${PICTURE}`])).not.toContain(PICTURE);
+  });
+
+  it('packs a statblock\'s artwork with a statblock note that a kept note links to, whoever else used it', async () => {
+    const creator = await creatorVault();
+    await pinNote(creator, CAVE, 'A [[Goblin]] lives here.');
+    // Without the goblin on the map, only the note's link leads to its statblock.
+    const map = JSON.parse(creator.vault.files.get(MAP_PATH)!) as { state: { objects: { tokens: Record<string, unknown> } } };
+    map.state.objects.tokens = {};
+    creator.vault.files.set(MAP_PATH, JSON.stringify(map));
+    const [token] = await creator.assets.getAssets('source', 'token');
+    const [encounter] = await creator.assets.getAssets('source', 'encounter');
+    const paths = await exportedPaths(creator, [`asset:${token!.id}`, `asset:${encounter!.id}`]);
+    expect(paths).toEqual(expect.arrayContaining([CAVE, NOTE_PATH, NOTE_IMAGE]));
+  });
+
+  it('lists a chain of thousands of notes, each reached only through the one before', () => {
+    const chain = Array.from({ length: 6000 }, (_, index): BundleFile => ({
+      vaultPath: `Days/${index}.md`, role: 'linked-note', ...(index === 0 ? { owners: ['cave'] } : { linkedFrom: [`Days/${index - 1}.md`] }),
+    }));
+    const tree = noteTree(chain, new Map([['cave', 'Cave']]));
+    expect(tree).toHaveLength(6000);
+    expect(tree[0]).toMatchObject({ depth: 0, linked: 5999 });
+    expect(tree[5999]).toEqual({ path: 'Days/5999.md', name: '5999', depth: 5999, origin: { kind: 'note', name: '5998', more: 0 } });
+  });
+
+  it('moves a scene to another collection with the notes it opens, and leaves the notes those link to where they are', async () => {
     const creator = await creatorVault();
     const folder = 'atlas-vtt/collections/source/notes';
-    await pinNote(creator, `${folder}/Cave.md`, 'See [[Pelor]].');
-    await creator.vault.app.vault.create(`${folder}/Pelor.md`, 'A god.');
+    const cellar = 'atlas-vtt/collections/source/scenes/Cellar.atlasmap';
+    await pinNote(creator, `${folder}/Room1.md`, 'Back to the [[Index]].');
+    await creator.vault.app.vault.create(`${folder}/Room2.md`, 'Back to the [[Index]].');
+    await creator.vault.app.vault.create(`${folder}/Index.md`, '[[Room1]], [[Room2]]');
+    const map = JSON.parse(mapFile()) as { state: { mapPath: string; objects: { pins: Record<string, unknown> } } };
+    map.state.mapPath = cellar;
+    map.state.objects.pins = { p1: { id: 'p1', kind: 'pin', x: 0, y: 0, notePath: `${folder}/Room2.md` } };
+    await creator.vault.app.vault.create(cellar, JSON.stringify(map));
+    await creator.assets.addAsset({ type: 'scene', name: 'Cellar', collection: 'source', tags: [], data: { mapPath: cellar } });
     await creator.assets.createCollection('target');
-    const [scene] = await creator.assets.getAssets('source', 'scene');
+    const cave = (await creator.assets.getAssets('source', 'scene')).find((scene) => scene.name === 'Cave');
 
-    await transferAssets(creator.vault.app, creator.assets, { assetIds: [scene!.id], targetCollectionId: 'target', mode: 'move' });
-    expect(creator.vault.files.get('atlas-vtt/collections/target/notes/Pelor.md')).toBe('A god.');
+    await transferAssets(creator.vault.app, creator.assets, { assetIds: [cave!.id], targetCollectionId: 'target', mode: 'move' });
+    const notes = [...creator.vault.files.keys()].filter((path) => path.includes('/notes/')).sort();
+    expect(notes).toEqual([`${folder}/Index.md`, `${folder}/Room2.md`, 'atlas-vtt/collections/target/notes/Room1.md']);
   });
 });

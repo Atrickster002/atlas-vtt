@@ -9,6 +9,7 @@ import { CollectionReferenceCollector, type MissingReference } from './collectio
 import { assetFingerprint, fieldFingerprint } from './fingerprints';
 import { sha256 } from './hashing';
 import { COLLECTION_FIELDS, deleteInstallRecord, moveInstallRecord, readInstallRecord, writeInstallRecord, type InstallRecord } from './installRecord';
+import { withLinkedFiles } from './noteLinks';
 import { remapPaths } from './pathRemap';
 import { readVaultBinary, vaultFileSize } from '../../utils/hiddenVaultFiles';
 
@@ -83,7 +84,8 @@ export async function prepareCollectionExport(app: App, assets: AssetService, co
   const collection = await assets.getCollection(collectionId);
   if (!collection) throw new Error(`Collection ${collectionId} not found`);
   const collectionAssets = (await assets.getAssets(collectionId)).filter((asset) => EXPORTED_TYPES.has(asset.type));
-  const { files, missing } = await new CollectionReferenceCollector(app, assets).collect(collectionAssets);
+  const { files: referenced, missing } = await new CollectionReferenceCollector(app, assets).collect(collectionAssets);
+  const files = withLinkedFiles(app, referenced);
   const fileSizes = new Map<string, number>();
   for (const file of files) fileSizes.set(file.vaultPath, await vaultFileSize(app, file.vaultPath));
   const publisher = await publisherOf(app, assets, collection);
