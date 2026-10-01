@@ -1,9 +1,9 @@
 /**
  * Which of a collection's senses a statblock means by a name. Senses are found by their names,
- * the names other rulebooks use for them, and their role, never by id.
+ * the names other rulebooks use for them, and what they stand for (`role`, `grants`), never by id.
  */
 
-import type { SenseDefinition, SenseRole } from '../types/senseTypes';
+import type { SenseDefinition, SenseGrant, SenseRole } from '../types/senseTypes';
 
 /** What statblocks call a sense, and the collection's sense that stands for it. */
 interface SenseAlias {
@@ -12,6 +12,8 @@ interface SenseAlias {
   senses: readonly string[];
   /** Where the collection has none of them: its sense that stands for this old token field. */
   role?: SenseRole;
+  /** Or its modifier that grants this. */
+  grants?: SenseGrant;
 }
 
 const ALIASES: readonly SenseAlias[] = [
@@ -21,10 +23,7 @@ const ALIASES: readonly SenseAlias[] = [
   { phrases: ['blindsight', 'blindsense'], senses: ['blindsight'] },
   { phrases: ['tremorsense'], senses: ['tremorsense'], role: 'tremorsense' },
   { phrases: ['truesight', 'true seeing'], senses: ['truesight'] },
-  {
-    phrases: ['see invisibility', 'see the unseen', 'see invisible', 'sees invisible'],
-    senses: ['see invisibility', 'see the unseen', 'see invisible'],
-  },
+  { phrases: ['see invisibility', 'see the unseen', 'see invisible', 'sees invisible'], senses: [], grants: 'see-invisible' },
 ];
 
 /** Words a statblock puts around a sense's name: "Senses darkvision", "infravision to 60′". */
@@ -55,7 +54,9 @@ function lookupOf(definitions: readonly SenseDefinition[]): ReadonlyMap<string, 
   const lookup = new Map(byName);
   for (const alias of ALIASES) {
     const named = alias.senses.map((name) => byName.get(nameKey(name))).find((definition) => definition !== undefined);
-    const sense = named ?? (alias.role && definitions.find((definition) => definition.role === alias.role));
+    const sense = named ?? definitions.find((definition) => (
+      (alias.role !== undefined && definition.role === alias.role) || (alias.grants !== undefined && definition.grants === alias.grants)
+    ));
     if (!sense) continue;
     for (const phrase of alias.phrases) {
       const key = nameKey(phrase);

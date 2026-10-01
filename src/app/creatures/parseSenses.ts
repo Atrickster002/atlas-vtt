@@ -80,6 +80,11 @@ function readPhrase(phrase: string, unit: GameUnit): Phrase {
   };
 }
 
+/** The sense as a token lists it: with the distance stated, which a modifier (`grants`) never takes. */
+function senseOf(definition: SenseDefinition, range: number | undefined): TokenSense {
+  return range === undefined || definition.grants ? { id: definition.id } : { id: definition.id, range };
+}
+
 /** The usual reach of a sense whose phrase states none, where its definition names one. */
 function reachOf(definition: SenseDefinition | undefined, range: number | undefined): number | undefined {
   return range ?? (definition?.range === 'required' ? definition.defaultRange : undefined);
@@ -103,7 +108,7 @@ export function parseSenses(text: string, definitions: readonly SenseDefinition[
     const { name, range, blindBeyond: blind } = readPhrase(phrase, unit);
     const definition = senseNamed(name, definitions);
     if (!definition) unknown.push(phrase);
-    else if (!senses.has(definition.id)) senses.set(definition.id, range === undefined ? { id: definition.id } : { id: definition.id, range });
+    else if (!senses.has(definition.id)) senses.set(definition.id, senseOf(definition, range));
     if (blind) {
       blindBeyond = true;
       const reach = reachOf(definition, range);

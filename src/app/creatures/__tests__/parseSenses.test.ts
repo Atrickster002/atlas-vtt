@@ -95,8 +95,21 @@ describe('parseSenses grammar', () => {
     expect(read('lowlight vision', GENERIC_SENSES).senses).toEqual([['Low-light vision']]);
     expect(read('wavesense (imprecise) 30 feet, life sense 10 feet, hearing 60 feet', PATHFINDER).senses)
       .toEqual([['Wavesense', 30], ['Lifesense', 10], ['Hearing', 60]]);
-    expect(read('see invisibility', PATHFINDER).senses).toEqual([['See the Unseen']]);
-    expect(read('sees invisible', PATHFINDER).senses).toEqual([['See the Unseen']]);
+  });
+
+  it('finds the collection\'s modifier that lets the eyes see invisible creatures, whatever it is called', () => {
+    for (const phrase of ['see invisibility', 'See the Unseen', 'sees invisible', 'see invisible']) {
+      expect(read(phrase, DND).senses).toEqual([['See Invisibility']]);
+      expect(read(phrase, PATHFINDER).senses).toEqual([['See the Unseen']]);
+      expect(read(phrase, GENERIC_SENSES).senses).toEqual([['See invisible']]);
+      expect(read(phrase, OSE)).toEqual({ senses: [], unknown: [phrase] });
+    }
+    const secondSight: SenseDefinition = { ...GENERIC_SENSES.find((sense) => sense.grants === 'see-invisible')!, id: 'made-up', name: 'Second sight' };
+    expect(read('see invisibility, second sight', [secondSight]).senses).toEqual([['Second sight']]);
+  });
+
+  it('gives a modifier no distance', () => {
+    expect(parseSenses('darkvision 60 ft., see invisibility 120 ft.', DND, FEET).senses.map((sense) => 'range' in sense)).toEqual([true, false]);
   });
 
   it('matches a sense the collection defines itself by its name', () => {

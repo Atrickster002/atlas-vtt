@@ -116,12 +116,13 @@ function saysSomething(parsed: ParsedSenses): boolean {
 }
 
 /**
- * The senses a token has of its own: its `vision.senses` once set (even empty), else its old
- * darkvision and tremorsense fields. Null when it has neither, so it follows its statblock.
+ * The senses a token has of its own, as `tokenSenses` reads them: its `vision.senses` once that
+ * is a list (even an empty one), else its old darkvision and tremorsense fields. Null when it has
+ * neither, so it follows its statblock.
  */
 export function ownSenses(token: SensedToken, definitions: readonly SenseDefinition[]): TokenSense[] | null {
   const own = tokenSenses(token.vision, definitions);
-  return token.vision?.senses !== undefined || own.length > 0 ? own : null;
+  return Array.isArray(token.vision?.senses) || own.length > 0 ? own : null;
 }
 
 /** How a token perceives beyond normal sight, and where that comes from. */

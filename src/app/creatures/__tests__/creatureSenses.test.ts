@@ -130,6 +130,11 @@ describe('effectiveSenses', () => {
     expect(effectiveVision(token({ enabled: true, senses: [], darkvision: 30 }), GOBLIN, DND, FEET).source).toBe('token');
   });
 
+  it('follow the statblock when what the token stores as senses is no list', () => {
+    const broken = token({ enabled: true, senses: 'darkvision' as unknown as TokenSense[] });
+    expect(effectiveVision(broken, GOBLIN, DND, FEET).source).toBe('statblock');
+  });
+
   it('are the old darkvision and tremorsense fields before the statblock', () => {
     expect(named(effectiveSenses(token({ enabled: true, darkvision: 30, tremorsense: 15 }), GOBLIN, DND, FEET))).toEqual([['Darkvision', 30], ['Tremorsense', 15]]);
     expect(effectiveVision(token({ enabled: true, tremorsense: 15 }), GRIMLOCK, DND, FEET)).toMatchObject({ source: 'token', blindBeyond: false });
