@@ -1,14 +1,14 @@
 import type { SystemPreset } from '../../types/systemPresetTypes';
+import { HP_RESOURCE } from '../../resources/resourceDefinitions';
 import { builtInPresetId, conditionsOf } from './presetHelpers';
 
 /**
- * Draw Steel: each square is typically represented as 5 feet of distance,
- * however the system measures each square as 1 unit.
- * HP is tracked as Stamina, with a Winded threshold.
+ * Draw Steel measures distance in squares, so a square is 1 unit and a Speed 5
+ * move reads 5u; every diagonal counts 1. Conditions are the nine of the core
+ * rules.
  */
-
 export const DRAW_STEEL: SystemPreset = {
-  id: builtInPresetId('drawSteel'),
+  id: builtInPresetId('drawsteel'),
   name: 'Draw Steel',
   builtIn: true,
   rules: {
@@ -19,7 +19,9 @@ export const DRAW_STEEL: SystemPreset = {
       diagonalRule: 'equidistant',
       abstractRangeBands: [],
     },
-    conditions: conditionsOf('drawSteel', [
+    // A power roll is 2d10. Its critical hit is a 19 or 20 on the two dice together, which no crit rule reads.
+    dice: { defaultRoll: '2d10', crit: 'none' },
+    conditions: conditionsOf('drawsteel', [
       { name: 'Bleeding', color: '#b91c1c', icon: 'bleeding-wound' },
       { name: 'Dazed', color: '#facc15', icon: 'knocked-out-stars' },
       { name: 'Frightened', color: '#7c3aed', icon: 'terror' },
@@ -30,6 +32,7 @@ export const DRAW_STEEL: SystemPreset = {
       { name: 'Taunted', color: '#ec4899', icon: 'eye' },
       { name: 'Weakened', color: '#b45309', icon: 'arm-sling' },
     ]),
-    defaultWidgets: { hpBar: true }
+    // Stamina is the system's hit points and keeps their key, so tokens keep their values when a collection changes system.
+    resources: [{ ...HP_RESOURCE, name: 'Stamina', field: 'stamina' }],
   },
 };
