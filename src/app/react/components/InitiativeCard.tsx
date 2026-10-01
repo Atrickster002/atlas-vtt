@@ -51,7 +51,7 @@ export const InitiativeCard: React.FC<InitiativeCardProps> = ({
   }, [tokens, entry.tokenId, tokenSettings?.showInstanceBadges]);
 
   // Calculate HP percentage and color
-  const hpPercentage = entry.hp.max > 0
+  const hpPercentage = entry.hp && entry.hp.max > 0
     ? Math.max(0, Math.min(100, (entry.hp.current / entry.hp.max) * 100))
     : 0;
 
@@ -257,13 +257,15 @@ export const InitiativeCard: React.FC<InitiativeCardProps> = ({
         {entry.initiative}
       </span>
 
-      {/* HP Bar */}
-      <div className="atlas-initiative-card__hp-bar">
-        <div
-          className={`atlas-initiative-card__hp-fill ${getHPColorClass()}`}
-          style={{ width: `${hpPercentage}%` }}
-        />
-      </div>
+      {/* HP bar; a token without hit points has none */}
+      {entry.hp && (
+        <div className="atlas-initiative-card__hp-bar">
+          <div
+            className={`atlas-initiative-card__hp-fill ${getHPColorClass()}`}
+            style={{ width: `${hpPercentage}%` }}
+          />
+        </div>
+      )}
     </div>
   );
 };

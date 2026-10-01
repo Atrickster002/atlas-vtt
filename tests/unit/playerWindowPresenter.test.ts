@@ -61,13 +61,13 @@ interface FakeView {
   view: any;
   canvas: HTMLCanvasElement;
   withPlayerSafeFrame: ReturnType<typeof vi.fn>;
-  atlasStore: ReturnType<typeof createStore<{ isMapLoading: boolean }>>;
+  atlasStore: ReturnType<typeof createStore<{ isMapLoading: boolean; mapLoaded: boolean }>>;
 }
 
 /** A view whose map canvas belongs to `app`, by default one that renders on every tick. */
 function createFakeView(app?: Application): FakeView {
   const tabMetaStore = createTabMetaStore();
-  const atlasStore = createStore<{ isMapLoading: boolean }>(() => ({ isMapLoading: false }));
+  const atlasStore = createStore<{ isMapLoading: boolean; mapLoaded: boolean }>(() => ({ isMapLoading: false, mapLoaded: true }));
   const canvas = document.createElement('canvas');
   const withPlayerSafeFrame = vi.fn((capture: () => void) => capture());
   const renderer = { getAppInstance: () => (app ? Object.assign(app, { canvas }) : { canvas }), withPlayerSafeFrame };
@@ -149,6 +149,33 @@ describe('PlayerWindowPresenter', () => {
     ticker.update(64);
     expect(listener).toHaveBeenCalledTimes(1);
     scheduler.destroy();
+  });
+
+  test('does not present a tab whose scene failed to load', async () => {
+    const { view, atlasStore } = createFakeView();
+    const tavern = view.tabMetaStore.getState().addTab('maps/tavern.md', 'Tavern');
+    atlasStore.setState({ mapLoaded: false });
+
+    await presentTabInPlayerWindow({} as any, view, tavern);
+
+    expect(serviceMock.openPlayerWindow).not.toHaveBeenCalled();
+    expect(serviceMock.presentCanvas).not.toHaveBeenCalled();
+    expect(playerWindowStore.getState().presentedTabId).toBeNull();
+  });
+
+  test('keeps the held frame when the presented tab comes back without a loaded scene', async () => {
+    const { view, atlasStore } = createFakeView();
+    const tavern = view.tabMetaStore.getState().addTab('maps/tavern.md', 'Tavern');
+    const dungeon = view.tabMetaStore.getState().addTab('maps/dungeon.md', 'Dungeon');
+    await presentTabInPlayerWindow({} as any, view, tavern);
+    view.tabMetaStore.getState().setActiveTab(dungeon);
+    expect(serviceMock.holdCurrentFrame).toHaveBeenCalledTimes(1);
+
+    atlasStore.setState({ mapLoaded: false });
+    view.tabMetaStore.getState().setActiveTab(tavern);
+    await flush();
+
+    expect(serviceMock.releaseHeldFrame).not.toHaveBeenCalled();
   });
 
   test('holds the frame while the DM browses another tab and releases it on return', async () => {

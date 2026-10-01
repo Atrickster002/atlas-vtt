@@ -43,3 +43,9 @@
 - Edit Token opens again instead of crashing on its Vision switch
 - A map with dynamic lighting opens even when the graphics device cannot run the lighting. Atlas says so once and shows the players' line of sight without light and shadow, instead of a blank map
 - Maps open with software rendering when WebGL cannot start, instead of staying blank
+- In the initiative tracker, tokens without hit points no longer show a made-up full HP bar. A creature you Kill now shows as defeated with an empty bar there, also when its hit points are a plain number or it had none
+- Switching between scene tabs no longer leaves a scene black and unable to open
+- A scene that failed to open can no longer be saved over: its file stays as it was, and you can open it or another scene again. A scene whose file is damaged, cannot be read or was saved by a newer Atlas now says so instead of opening empty. It no longer leaves the map of the scene before on screen without its fog, and the player window keeps its last picture meanwhile
+- Opening a scene while another is still loading always shows the one you opened last, and a scene that never finishes loading no longer blocks the scene tabs
+- When a scene cannot be saved, Atlas now says so after a few seconds instead of waiting without end
+- When one part of the map view fails to show, such as the initiative tracker, the map, the toolbar and the other parts now stay and Atlas tells you which part is missing. Before, the whole view went black

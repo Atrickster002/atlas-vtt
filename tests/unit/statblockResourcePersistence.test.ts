@@ -16,7 +16,7 @@ describe('statblock token resource persistence', () => {
     app.vault.getFolderByPath = app.vault.getAbstractFileByPath;
     const path = 'maps/resources.atlasmap';
     const store = createViewAtlasStore(app, 'resources-test');
-    store.getState().setMapPath(path);
+    store.setState({ mapPath: path, mapLoaded: true });
     const first = store.getState().addToken({ kind: 'character', x: 10, y: 20, imagePath: 'mage.png', name: 'Mage', hp: { current: 27, max: 27 } } as never);
     const second = store.getState().addToken({ kind: 'character', x: 30, y: 40, imagePath: 'mage.png', name: 'Mage', hp: { current: 27, max: 27 } } as never);
     for (const [key, current] of [['hp', 15], ['hope', 2], ['mana', 3]] as const) {
