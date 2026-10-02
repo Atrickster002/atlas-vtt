@@ -8,7 +8,7 @@ import type { LightPointerHandlers } from '../../src/app/pixi/lighting/LightInte
 import { captureSceneFrame } from '../../src/app/pixi/sceneFrameCapture';
 import type { SceneLightingDeps } from '../../src/app/pixi/lighting/createSceneLighting';
 import type { SceneLightingView } from '../../src/app/pixi/lighting/sceneLightingView';
-import type { TokenRenderer } from '../../src/app/pixi/TokenRenderer';
+import type { DoorMenuHandlers, TokenRenderer } from '../../src/app/pixi/TokenRenderer';
 import { createViewAtlasStore, type ViewAtlasStore } from '../../src/app/storeFactory';
 import { getHistoryStore } from '../../src/app/stores/history';
 import { SEES_ALL } from '../../src/app/vision/sight';
@@ -48,6 +48,7 @@ interface Setup {
   click: (x: number, y: number, keys?: { shift?: boolean }) => boolean;
 }
 
+const doorMenu: { current: DoorMenuHandlers | null } = { current: null };
 let cleanup: (() => void) | null = null;
 afterEach(() => {
   cleanup?.();
@@ -83,6 +84,7 @@ function setup(): Setup {
     setWallPointerDownHandler: (fn: Setup['wallDown']) => { wired.wallDown = fn; },
     setWallContextMenuHandler: (fn: Setup['contextMenu']) => { wired.contextMenu = fn; },
     setWallPointerMoveHandler: ignore, setWallPointerUpHandler: ignore, setWallDoubleClickHandler: ignore, setWallCursorProvider: ignore,
+    setDoorMenuHandlers: (handlers: DoorMenuHandlers) => { doorMenu.current = handlers; },
     setDoorClickHandler: ignore, setPlayerSightProvider: ignore, refreshPlayerSight: ignore,
     getSensedOutlineLayer: () => sensedOutlines,
     setSightLineProvider: () => ignore,

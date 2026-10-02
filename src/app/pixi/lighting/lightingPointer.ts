@@ -11,14 +11,17 @@ export interface LightingPointerTargets {
   doors: DoorIcons;
   /** Opens the wall menu at a world point, given also as a screen point. */
   wallMenu: (x: number, y: number, screenX: number, screenY: number) => void;
+  /** Opens a door's menu at a screen point. */
+  doorMenu: (doorId: string, screenX: number, screenY: number) => void;
 }
 
 /**
- * Routes the pointer from the token renderer's dispatch: lights and door badges with any tool;
+ * Routes the pointer from the token renderer's dispatch: lights and door badges (a click opens
+ * or closes the door, a right-click opens its menu) with any tool;
  * with the lighting tool the walls, or in its zone mode the light zones, which then take every
  * press (a zone is drawn across lights and walls alike).
  */
-export function wireLightingPointer(tokens: TokenRenderer, { lights, editor, zones, doors, wallMenu }: LightingPointerTargets): void {
+export function wireLightingPointer(tokens: TokenRenderer, { lights, editor, zones, doors, wallMenu, doorMenu }: LightingPointerTargets): void {
   tokens.setLightHandlers({
     // With the lighting tool, a wall handle is grabbed before the marker beneath it, and Shift draws past lights.
     pointerDown: (x, y, e) => {
@@ -39,6 +42,7 @@ export function wireLightingPointer(tokens: TokenRenderer, { lights, editor, zon
     if (editor.shown && !zones.active) wallMenu(x, y, screenX, screenY);
   });
   tokens.setWallCursorProvider((x, y) => (zones.active ? zones.cursorAt({ x, y }) : editor.cursorAt({ x, y })));
+  tokens.setDoorMenuHandlers({ hitTest: (x, y) => doors.hitTest(x, y), open: doorMenu });
   tokens.setDoorClickHandler((x, y) => {
     const doorId = doors.hitTest(x, y);
     if (doorId) doors.toggle(doorId);

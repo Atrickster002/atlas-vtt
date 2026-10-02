@@ -184,6 +184,8 @@ export interface ViewAtlasState {
   deleteWall: (id: string) => void;
   deleteWalls: (ids: string[]) => void;
   toggleDoor: (id: string) => void;
+  /** Locks a door, closing it, or unlocks it; a locked door does not open (`toggleDoor`). */
+  setDoorLocked: (id: string, locked: boolean) => void;
 
   // Light actions
   addLight: (data: LightInput) => string;
@@ -1204,8 +1206,23 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
 
           toggleDoor: (id) => set((draft) => {
             const wall = draft.objects.walls[id];
-            if (wall && (wall.type === 'door' || wall.type === 'secret-door')) {
+            // A locked door stays shut until it is unlocked.
+            if (wall && (wall.type === 'door' || wall.type === 'secret-door') && !wall.locked) {
               wall.closed = !(wall.closed ?? true);
+              draft._audioDirty = true;
+            }
+          }),
+
+          setDoorLocked: (id, locked) => set((draft) => {
+            const wall = draft.objects.walls[id];
+            if (!wall || (wall.type !== 'door' && wall.type !== 'secret-door')) return;
+            if (!locked) {
+              delete wall.locked;
+              return;
+            }
+            wall.locked = true;
+            if (!(wall.closed ?? true)) {
+              wall.closed = true;
               draft._audioDirty = true;
             }
           }),

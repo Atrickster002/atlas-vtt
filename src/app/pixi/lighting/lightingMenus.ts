@@ -27,6 +27,24 @@ export function showLightMenu(context: LightingMenuContext, lightId: string, scr
   openContextMenuGlobal(entries, { x: screenX, y: screenY });
 }
 
+/** What a door offers: to open or close it, and to lock it; a locked door only to unlock it. Nothing for a wall that is no door. */
+export function doorMenuEntries(store: ViewAtlasStore, wallId: string): ContextMenuEntry[] {
+  const wall = store.getState().objects.walls[wallId];
+  if (!wall || (wall.type !== 'door' && wall.type !== 'secret-door')) return [];
+  if (wall.locked) return [{ type: 'item', label: 'Unlock door', icon: 'lock-open', onClick: () => store.getState().setDoorLocked(wallId, false) }];
+  const closed = wall.closed ?? true;
+  return [
+    { type: 'item', label: closed ? 'Open door' : 'Close door', icon: closed ? 'door-open' : 'door-closed', onClick: () => store.getState().toggleDoor(wallId) },
+    { type: 'item', label: 'Lock door', icon: 'lock', onClick: () => store.getState().setDoorLocked(wallId, true) },
+  ];
+}
+
+/** A door badge's context menu, with any tool. */
+export function showDoorMenu(store: ViewAtlasStore, wallId: string, screenX: number, screenY: number): void {
+  const entries = doorMenuEntries(store, wallId);
+  if (entries.length > 0) openContextMenuGlobal(entries, { x: screenX, y: screenY });
+}
+
 /** The wall tool's context menu: a light under the pointer, else the wall selection. */
 export function showWallMenu(context: LightingMenuContext, worldX: number, worldY: number, screenX: number, screenY: number): void {
   const { walls, wallRenderer, store } = context;
@@ -53,6 +71,8 @@ export function showWallMenu(context: LightingMenuContext, worldX: number, world
       { type: 'item', label: 'Place secret door', icon: 'lock', onClick: () => walls.startDoorPlacement(single.id, 'secret-door') },
     );
   }
+
+  if (single) entries.push(...doorMenuEntries(store, single.id));
 
   const direction = (label: string, value: 'left' | 'right' | undefined): ContextMenuEntry => ({
     type: 'item',

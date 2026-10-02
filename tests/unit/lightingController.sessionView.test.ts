@@ -8,7 +8,7 @@ import { LightingController } from '../../src/app/pixi/lighting/LightingControll
 import type { LightPointerHandlers } from '../../src/app/pixi/lighting/LightInteraction';
 import type { SceneLightingDeps } from '../../src/app/pixi/lighting/createSceneLighting';
 import type { SceneLightingView } from '../../src/app/pixi/lighting/sceneLightingView';
-import type { TokenRenderer } from '../../src/app/pixi/TokenRenderer';
+import type { DoorMenuHandlers, TokenRenderer } from '../../src/app/pixi/TokenRenderer';
 import { createViewAtlasStore, type ViewAtlasStore } from '../../src/app/storeFactory';
 import { getHistoryStore } from '../../src/app/stores/history';
 import { SEES_ALL, computeSight, type Sight } from '../../src/app/vision/sight';
@@ -82,6 +82,7 @@ interface Setup {
   click: (x: number, y: number, keys?: { shift?: boolean }) => boolean;
 }
 
+const doorMenu: { current: DoorMenuHandlers | null } = { current: null };
 let cleanup: (() => void) | null = null;
 
 afterEach(() => {
@@ -120,6 +121,7 @@ function setup(extra: Partial<ConstructorParameters<typeof LightingController>[0
     setWallDoubleClickHandler: (fn: Wired['doubleClick']) => { wired.doubleClick = fn; },
     setWallContextMenuHandler: (fn: Wired['contextMenu']) => { wired.contextMenu = fn; },
     setWallCursorProvider: (fn: Wired['cursor']) => { wired.cursor = fn; },
+    setDoorMenuHandlers: (handlers: DoorMenuHandlers) => { doorMenu.current = handlers; },
     setDoorClickHandler: (fn: Wired['doorClick']) => { wired.doorClick = fn; },
     setLightHandlers: (handlers: LightPointerHandlers) => { wired.light = handlers; },
     setPlayerSightProvider: (fn: Wired['playerSight']) => { wired.playerSight = fn; },
@@ -224,6 +226,24 @@ describe('LightingController in session view', () => {
     pressPeek('keyup');
     expect(lighting.modeLayer.visible).toBe(false);
     expect(controller.gmOverlays().lightMarkers.visible).toBe(true);
+  });
+
+  it('opens a door\'s menu from a right-click on its badge with any tool: to open it, or to lock it; none in the players\' view', () => {
+    const { store } = setup();
+    store.getState().setSceneLighting({ enabled: true });
+    const door = store.getState().addWall({ type: 'door', p1: { x: 0, y: 100 }, p2: { x: 100, y: 100 }, closed: true });
+    const handlers = doorMenu.current!;
+    expect(handlers.hitTest(50, 100)).toBe(door);
+    expect(handlers.hitTest(300, 300)).toBeNull();
+    handlers.open(door, 10, 20);
+    const [entries, at] = openContextMenuGlobal.mock.calls.at(-1)! as [{ label: string; onClick: () => void }[], { x: number; y: number }];
+    expect(at).toEqual({ x: 10, y: 20 });
+    expect(entries.map((entry) => entry.label)).toEqual(['Open door', 'Lock door']);
+    entries[1]!.onClick();
+    expect(store.getState().objects.walls[door]).toMatchObject({ locked: true, closed: true });
+    store.getState().setGMView(false);
+    expect(handlers.hitTest(50, 100)).toBeNull();
+    openContextMenuGlobal.mockReset();
   });
 
   it('opens no door from a badge the players\' view hides', () => {

@@ -2,7 +2,9 @@ import { Container, Graphics } from 'pixi.js';
 import type { ViewAtlasState, ViewAtlasStore } from '../../storeFactory';
 import type { Point } from '../../types/visionTypes';
 import type { WallSegment } from '../../types/wallTypes';
+import { MOTION_SLOW_MS, prefersReducedMotion } from '../../utils/motion';
 import { destroyTree } from '../utils/destroyTree';
+import { ValueTransition } from '../utils/ValueTransition';
 
 /** Above the lighting layer and token UI, so the GM finds doors in the dark. */
 export const DOOR_ICONS_Z_INDEX = 1150;
@@ -11,6 +13,11 @@ const BADGE_SHARE = 0.2;
 
 const DOOR_COLOR = 0x44aaff;
 const SECRET_DOOR_COLOR = 0xff8844;
+/** The tint of a locked door's badge while it refuses to open, where motion is reduced. */
+const REFUSED_COLOR = 0xff5d5d;
+/** How far a refusing badge swings, as a share of its radius, and how often. */
+const SHAKE_SHARE = 0.35;
+const SHAKES = 2;
 
 function isDoor(wall: WallSegment): boolean {
   return wall.type === 'door' || wall.type === 'secret-door';
@@ -21,13 +28,18 @@ function midpoint(wall: WallSegment): Point {
 }
 
 /**
- * A badge on every door for the GM: click it with any tool to open or close the door.
- * It is redrawn only when the walls change, and never reaches the player view.
+ * A badge on every door for the GM: click it with any tool to open or close the door. A locked
+ * door shows a lock in its badge and does not open: the badge shakes for a moment instead
+ * (where motion is reduced it takes a tint). It is redrawn only when the walls change or a
+ * badge refuses, and never reaches the player view.
  */
 export class DoorIcons {
   readonly view = new Container({ label: 'door-icons' });
   private readonly graphics = new Graphics();
   private readonly unsubscribe: () => void;
+  /** The locked door whose badge just refused to open, while it says so; 0 to 1 over its moment. */
+  private refused: { doorId: string; reduced: boolean } | null = null;
+  private readonly refusing = new ValueTransition(0, MOTION_SLOW_MS, () => this.draw(this.store.getState()));
 
   constructor(private readonly store: ViewAtlasStore) {
     this.view.zIndex = DOOR_ICONS_Z_INDEX;
@@ -52,8 +64,29 @@ export class DoorIcons {
     return null;
   }
 
+  /** Opens or closes the door; a locked one stays shut and its badge says no. */
   toggle(wallId: string): void {
-    this.store.getState().toggleDoor(wallId);
+    const state = this.store.getState();
+    if (!state.objects.walls[wallId]?.locked) {
+      state.toggleDoor(wallId);
+      return;
+    }
+    this.refused = { doorId: wallId, reduced: prefersReducedMotion(document.body) };
+    this.refusing.jumpTo(0);
+    this.refusing.animateTo(1, () => {
+      this.refused = null;
+      this.draw(this.store.getState());
+    });
+  }
+
+  /** The badge that is refusing to open right now: how far it has swung aside (world pixels), or that it is tinted instead. */
+  refusal(): { doorId: string; offset: number; tint: boolean } | null {
+    if (!this.refused) return null;
+    const { doorId, reduced } = this.refused;
+    const progress = this.refusing.value;
+    // A swing that dies away: a few times left and right, less each time.
+    const offset = reduced ? 0 : Math.sin(progress * Math.PI * 2 * SHAKES) * (1 - progress) * this.radius(this.store.getState()) * SHAKE_SHARE;
+    return { doorId, offset, tint: reduced };
   }
 
   private radius(state: ViewAtlasState): number {
@@ -64,12 +97,20 @@ export class DoorIcons {
     const g = this.graphics;
     g.clear();
     const r = this.radius(state);
+    const refusal = this.refusal();
     for (const wall of Object.values(state.objects.walls)) {
       if (!isDoor(wall)) continue;
-      const { x, y } = midpoint(wall);
-      const color = wall.type === 'secret-door' ? SECRET_DOOR_COLOR : DOOR_COLOR;
+      const refusing = refusal?.doorId === wall.id ? refusal : null;
+      const centre = midpoint(wall);
+      const x = centre.x + (refusing?.offset ?? 0);
+      const { y } = centre;
+      const color = refusing?.tint ? REFUSED_COLOR : wall.type === 'secret-door' ? SECRET_DOOR_COLOR : DOOR_COLOR;
       const open = !(wall.closed ?? true);
       g.circle(x, y, r).fill({ color: 0x1b1b1f, alpha: 0.85 }).stroke({ width: r * 0.14, color });
+      if (wall.locked) {
+        drawLock(g, x, y, r, color);
+        continue;
+      }
       // A closed door is a solid leaf; an open one is its outline swung aside.
       const w = r * 0.7;
       const h = r * 1.0;
@@ -80,6 +121,18 @@ export class DoorIcons {
 
   destroy(): void {
     this.unsubscribe();
+    this.refusing.cancel();
     destroyTree(this.view);
   }
+}
+
+/** A padlock in a badge of radius `r`: its body, its shackle above it and a keyhole. */
+function drawLock(g: Graphics, x: number, y: number, r: number, color: number): void {
+  const w = r * 0.9;
+  const h = r * 0.62;
+  const top = y - r * 0.17;
+  // The shackle's path starts at its own left end: an arc alone is joined to wherever the last path ended.
+  g.moveTo(x - r * 0.28, top).arc(x, top, r * 0.28, Math.PI, 0).stroke({ width: r * 0.14, color });
+  g.roundRect(x - w / 2, top, w, h, r * 0.12).fill({ color });
+  g.circle(x, top + h * 0.5, r * 0.1).fill({ color: 0x1b1b1f });
 }

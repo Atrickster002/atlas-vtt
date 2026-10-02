@@ -49,6 +49,13 @@ import { runInBackground } from '../utils/backgroundTask';
 import { isModHeld } from '../keyboard/modKey';
 import type { ResourcesExtent } from './TokenUIRenderer';
 
+/** What the lighting controller answers about a right-click on a door's badge. */
+export interface DoorMenuHandlers {
+  /** The door whose badge is at the world point, while badges show. */
+  hitTest: (worldX: number, worldY: number) => string | null;
+  open: (doorId: string, screenX: number, screenY: number) => void;
+}
+
 export class TokenRenderer {
   private obsApp: ObsidianApp;
   private viewport: Viewport;
@@ -121,6 +128,8 @@ export class TokenRenderer {
   /** Ends the watch on a right press that opens a hex or fog menu on release. */
   private stopMenuPress?: () => void;
   private doorClickHandler?: (worldX: number, worldY: number) => boolean;
+  /** A right-click on a door's badge, with any tool but the lighting tool, whose own menu has the door's entries. */
+  private doorMenuHandlers?: DoorMenuHandlers;
   /** The tokens as the players' sight shows them: which are left out, and the outlines of sensed ones. */
   private readonly playerSight = new PlayerSightTokens({ tokens: () => this.store.getState().objects.tokens, sprites: () => this.tokenSprites, held: () => this.heldTokenIds });
   private lightHandlers?: LightPointerHandlers;
@@ -1520,6 +1529,10 @@ export class TokenRenderer {
     this.doorClickHandler = handler;
   }
 
+  public setDoorMenuHandlers(handlers: DoorMenuHandlers): void {
+    this.doorMenuHandlers = handlers;
+  }
+
   public setWallPointerDownHandler(fn: (worldX: number, worldY: number, e: FederatedPointerEvent) => boolean): void {
     this.wallPointerDownHandler = fn;
   }
@@ -1677,6 +1690,13 @@ export class TokenRenderer {
       // so like the area menus below it waits for a release in place and a right-drag pans.
       if (activeTool === 'wall' && this.wallContextMenuHandler) {
         this.openMenuOnRelease(e, (up) => this.wallContextMenuHandler?.(worldPos.x, worldPos.y, up.clientX, up.clientY));
+        return;
+      }
+
+      // A door's badge lies above pins and tokens: its menu opens on a release in place.
+      const doorId = this.doorMenuHandlers?.hitTest(worldPos.x, worldPos.y);
+      if (doorId) {
+        this.openMenuOnRelease(e, (up) => this.doorMenuHandlers?.open(doorId, up.clientX, up.clientY));
         return;
       }
 
