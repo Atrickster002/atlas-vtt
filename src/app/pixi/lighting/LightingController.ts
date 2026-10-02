@@ -70,7 +70,6 @@ export class LightingController {
   private tokens: TokenRenderer | null = null;
   /** What the players perceive of each token, kept between frames while sight and light stay. */
   private readonly perceptions = new PerceptionMemo();
-  private readonly sightListeners = new Set<() => void>();
   /** The sight rules of the map's collection; sight is worked out anew when they differ. */
   private readonly rules: SightRulesWatch;
 
@@ -173,21 +172,6 @@ export class LightingController {
     return playerTokenSight(this.renderer, state.objects.tokens, { conditions: this.sightRules().conditions, held: heldForSight(state) }, this.perceptions);
   }
 
-  /**
-   * The same perception where the players' tokens decide what is seen: undefined on an unlit
-   * scene and while nothing is hidden by line of sight (no token that sees, or token vision off).
-   * For what shows tokens beside the map (the player window's initiative list).
-   */
-  tokenSight(): TokenPerception | undefined {
-    return this.renderer.isEnabled() && !this.renderer.currentSight().all ? this.playerSight() : undefined;
-  }
-
-  /** Calls `listener` whenever the lighting view reports new sight; returns the unsubscribe. */
-  onSightChanged(listener: () => void): () => void {
-    this.sightListeners.add(listener);
-    return () => this.sightListeners.delete(listener);
-  }
-
   /** The senses and conditions of the map's collection, and how each token perceives. */
   private sightRules(): SightRules {
     return this.rules.current();
@@ -260,7 +244,6 @@ export class LightingController {
     this.doors.refreshPlayers();
     if (this.tokens && this.session.active) this.tokens.refreshPlayerSight();
     else this.sightAids.schedule();
-    for (const listener of [...this.sightListeners]) listener();
   }
 
   private listen(): void {
@@ -288,7 +271,6 @@ export class LightingController {
 
   destroy(): void {
     for (const cleanup of this.cleanups) cleanup();
-    this.sightListeners.clear();
     for (const part of [this.session, this.lights, this.editor, this.modes, this.renderer, this.doors, this.rangeRings, this.lightMarkers, this.sightAids]) part.destroy();
   }
 }

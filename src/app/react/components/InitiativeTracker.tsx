@@ -14,7 +14,6 @@ import { InitiativeCard } from './InitiativeCard';
 import { EndCombatIcon } from './EndCombatIcon';
 import { StatblockHoverPreview, useStatblockHoverPreview } from './StatblockHoverPreview';
 import type { InitiativeEntry } from '../../types/initiativeTypes';
-import { initiativeEntryForToken } from '../../stores/initiativeEntries';
 import './initiative-tracker.scss';
 
 /**
@@ -111,7 +110,8 @@ function EditInitiativePopup({
 
 /**
  * Initiative Tracker Panel
- * Modern minimal design with floating cards - auto-syncs with map tokens
+ * Modern minimal design with floating cards. The GM chooses the combatants from the token menu;
+ * the players' list (`PlayerInitiativePanel`) shows the same ones, without those whose token is hidden.
  */
 export const InitiativeTracker: React.FC = () => {
   const { app } = useAtlasUI();
@@ -122,7 +122,6 @@ export const InitiativeTracker: React.FC = () => {
   const tokens = useAtlasStore((s) => s.objects?.tokens) || {};
 
   // Store actions
-  const addToInitiative = useAtlasStore((s) => s.addToInitiative);
   const removeFromInitiative = useAtlasStore((s) => s.removeFromInitiative);
   const rollAllInitiative = useAtlasStore((s) => s.rollAllInitiative);
   const rollEntryInitiative = useAtlasStore((s) => s.rollEntryInitiative);
@@ -134,6 +133,7 @@ export const InitiativeTracker: React.FC = () => {
   const startCombat = useAtlasStore((s) => s.startCombat);
   const endCombat = useAtlasStore((s) => s.endCombat);
   const updateInitiativeEntry = useAtlasStore((s) => s.updateInitiativeEntry);
+  const updateTokens = useAtlasStore((s) => s.updateTokens);
 
   // Local state
   const [dragFromIndex, setDragFromIndex] = useState<number | null>(null);
@@ -162,31 +162,15 @@ export const InitiativeTracker: React.FC = () => {
     return () => window.removeEventListener('atlas-initiative-hotkey', handleHotkey as EventListener);
   }, []);
 
-  // Auto-sync: Add all map tokens to initiative automatically
+  // The entry of a deleted token goes with it
   useEffect(() => {
-    const tokenIds = Object.keys(tokens);
-    const existingTokenIds = new Set(initiative.entries.map(e => e.tokenId));
-    const removedSet = new Set(initiative.removedTokenIds ?? []);
-
-    tokenIds.forEach((tokenId) => {
-      if (existingTokenIds.has(tokenId)) return;
-      // Skip tokens explicitly removed by the user
-      if (removedSet.has(tokenId)) return;
-
-      const token = tokens[tokenId];
-      if (!token) return;
-
-      addToInitiative(initiativeEntryForToken(token));
-    });
-
-    // Also remove entries for tokens that no longer exist
     initiative.entries.forEach((entry) => {
       if (!tokens[entry.tokenId]) {
         removeFromInitiative(entry.id);
       }
     });
-  // Deliberately not keyed on `initiative`: re-sync only when map tokens change, not on entry edits.
-  }, [tokens, addToInitiative, removeFromInitiative]);
+  // Deliberately not keyed on `initiative`: checked only when map tokens change, not on entry edits.
+  }, [tokens, removeFromInitiative]);
 
   // Entries follow their token's name, image and statblock; resources are read from the token itself
   useEffect(() => {
@@ -243,6 +227,7 @@ export const InitiativeTracker: React.FC = () => {
   // Context menu handler
   const handleContextMenu = useCallback(
     (e: React.MouseEvent, entry: InitiativeEntry, cardElement: HTMLElement): void => {
+      const hidden = tokens[entry.tokenId]?.isHidden ?? false;
       const entries: ContextMenuEntry[] = [
         { type: 'item', label: 'Roll Initiative', icon: 'dice', onClick: () => rollEntryInitiative(entry.id) },
         { type: 'item', label: 'Move to Front', icon: 'arrow-up-to-line', onClick: () => moveToFront(entry.id) },
@@ -255,12 +240,16 @@ export const InitiativeTracker: React.FC = () => {
             setEditValue(String(entry.initiative));
           },
         },
+        {
+          type: 'item', label: hidden ? 'Show to Players' : 'Hide from Players', icon: hidden ? 'eye' : 'eye-off',
+          onClick: () => updateTokens([{ id: entry.tokenId, changes: { isHidden: !hidden } }]),
+        },
         { type: 'item', label: 'Remove from Initiative', icon: 'trash-2', destructive: true, onClick: () => removeFromInitiative(entry.id) },
       ];
 
       openContextMenuGlobal(entries, { x: e.clientX, y: e.clientY });
     },
-    [rollEntryInitiative, moveToFront, moveToBack, updateInitiativeEntry, removeFromInitiative]
+    [tokens, rollEntryInitiative, moveToFront, moveToBack, updateInitiativeEntry, removeFromInitiative, updateTokens]
   );
 
   // Hover handler for statblock preview (CMD+hover)
@@ -313,8 +302,11 @@ export const InitiativeTracker: React.FC = () => {
         )}
       </div>
 
-      {/* Content - Cards for each token */}
+      {/* Content - Cards for each combatant */}
       <div className="atlas-initiative-tracker__content">
+        {sortedEntries.length === 0 && (
+          <p className="atlas-initiative-tracker__empty">Right-click a token to add it</p>
+        )}
         {sortedEntries.map((entry, index) => (
           <InitiativeCard
             key={entry.id}

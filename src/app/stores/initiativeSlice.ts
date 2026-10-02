@@ -100,11 +100,6 @@ export function createInitiativeActions(
     addToInitiative: (entry) => {
       const id = generateInitiativeId();
       set((draft) => {
-        // Clear from removed list so auto-sync won't block future adds
-        if (!draft.initiative.removedTokenIds) draft.initiative.removedTokenIds = [];
-        const rmIdx = draft.initiative.removedTokenIds.indexOf(entry.tokenId);
-        if (rmIdx !== -1) draft.initiative.removedTokenIds.splice(rmIdx, 1);
-
         const order = draft.initiative.entries.length;
         const newEntry: InitiativeEntry = {
           ...entry,
@@ -121,15 +116,8 @@ export function createInitiativeActions(
       const index = draft.initiative.entries.findIndex(e => e.id === id);
       if (index === -1) return;
 
-      const tokenId = draft.initiative.entries[index]!.tokenId;
       const wasActive = draft.initiative.entries[index]!.isActive;
       draft.initiative.entries.splice(index, 1);
-
-      // Track removal so auto-sync doesn't re-add
-      if (!draft.initiative.removedTokenIds) draft.initiative.removedTokenIds = [];
-      if (!draft.initiative.removedTokenIds.includes(tokenId)) {
-        draft.initiative.removedTokenIds.push(tokenId);
-      }
 
       updateEntryOrders(draft.initiative.entries);
 
