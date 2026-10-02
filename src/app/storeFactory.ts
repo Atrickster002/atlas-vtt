@@ -1207,7 +1207,7 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
           toggleDoor: (id) => set((draft) => {
             const wall = draft.objects.walls[id];
             // A locked door stays shut until it is unlocked.
-            if (wall && (wall.type === 'door' || wall.type === 'secret-door') && !wall.locked) {
+            if (wall && (wall.type === 'door' || wall.type === 'secret-door') && wall.locked !== true) {
               wall.closed = !(wall.closed ?? true);
               draft._audioDirty = true;
             }
@@ -1255,7 +1255,9 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
           addLightZone: (data) => {
             const id = `zone_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
             set((draft) => {
-              (draft.objects.lightZones ??= {})[id] = { id, kind: 'light-zone', ...data };
+              // Whatever is in their place that is no record (a store filled by something else than a load) gives way.
+              if (!isRecord(draft.objects.lightZones)) draft.objects.lightZones = {};
+              draft.objects.lightZones[id] = { id, kind: 'light-zone', ...data };
             });
             return id;
           },

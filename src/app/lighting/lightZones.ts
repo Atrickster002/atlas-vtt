@@ -32,12 +32,13 @@ export function hasArea(polygon: readonly Point[]): boolean {
   return Math.abs(twice) > 1e-6;
 }
 
-function readZone(value: unknown): LightZone | null {
-  if (!isRecord(value) || typeof value.id !== 'string' || typeof value.ambient !== 'number' || !Number.isFinite(value.ambient)) return null;
+/** A zone as it is read: `id` is its place in the record, which is how the store finds it. */
+function readZone(id: string, value: unknown): LightZone | null {
+  if (!isRecord(value) || typeof value.ambient !== 'number' || !Number.isFinite(value.ambient)) return null;
   const { polygon } = value;
   if (!Array.isArray(polygon) || polygon.length < 3 || polygon.length > MAX_ZONE_CORNERS || !polygon.every(isPoint) || !hasArea(polygon)) return null;
   return {
-    id: value.id,
+    id,
     kind: 'light-zone',
     polygon,
     ambient: Math.min(1, Math.max(0, value.ambient)),
@@ -47,18 +48,20 @@ function readZone(value: unknown): LightZone | null {
 }
 
 /**
- * The zones of a map in the order they were drawn, as everything reads them: a zone that is no
- * area (a hand edit) is left out, a level outside 0–1 is brought into it and a colour that is
- * not `#rrggbb` dropped, and no more than `MAX_LIGHT_ZONES` are read. The same list for the
- * same record, so whoever compares lists finds unchanged zones unchanged.
+ * The zones of a map in the order they were drawn, as everything reads them: the first
+ * `MAX_LIGHT_ZONES` that are zones. One that is no area (a hand edit) or has more corners than
+ * the engine reads is passed over, a level outside 0–1 is brought into it and a colour that is
+ * not `#rrggbb` dropped. The record itself stays as the file has it, with what a newer Atlas
+ * wrote into it and what is passed over here: the next save writes it back. The same list for
+ * the same record, so whoever compares lists finds unchanged zones unchanged.
  */
 export function lightZoneList(zones: Record<string, LightZone> | undefined): LightZone[] {
   if (!isRecord(zones)) return NONE;
   let list = lists.get(zones);
   if (!list) {
     list = [];
-    for (const value of Object.values(zones)) {
-      const zone = readZone(value);
+    for (const [id, value] of Object.entries(zones)) {
+      const zone = readZone(id, value);
       if (zone) list.push(zone);
       if (list.length === MAX_LIGHT_ZONES) break;
     }
@@ -67,14 +70,9 @@ export function lightZoneList(zones: Record<string, LightZone> | undefined): Lig
   return list;
 }
 
-/**
- * The zones a map file holds, as the store keeps them: those `lightZoneList` reads, by their
- * ids, or none when the file holds something else in their place (the store adds a zone to a
- * record, and nothing else).
- */
+/** The zones a map file holds, as the store keeps them: the file's record untouched, or none when the file holds something else in their place. */
 export function lightZonesFromFile(value: unknown): Record<string, LightZone> | undefined {
-  const zones = lightZoneList(isRecord(value) ? (value as Record<string, LightZone>) : undefined);
-  return zones.length > 0 ? Object.fromEntries(zones.map((zone) => [zone.id, zone])) : undefined;
+  return isRecord(value) ? (value as Record<string, LightZone>) : undefined;
 }
 
 const NONE: LightZone[] = [];
