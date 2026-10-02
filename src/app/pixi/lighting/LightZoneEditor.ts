@@ -11,6 +11,8 @@ import { closesDraft, snapToWallEnd, zoneCornerAt, zoneHandleAt, type ZoneCorner
 
 export interface LightZoneEditorDeps {
   viewport: Viewport;
+  /** The map's canvas: a pointer cancelled on it, or its window losing focus, ends a drag that will get no release. */
+  canvas: HTMLCanvasElement;
   store: ViewAtlasStore;
   eventBus: EventEmitter;
   /** The lighting tool entered or left its zone mode: whoever owns the layer's visibility shows or hides it. */
@@ -23,7 +25,8 @@ type Keys = { altKey: boolean };
 /**
  * The lighting tool's zone mode: a click places a corner of a new light zone, and Enter, a
  * click on the first corner or a double click closes it (one undo step); Escape drops it. A
- * corner of a zone is dragged to move it (one undo step, Escape puts it back), a click on a
+ * corner of a zone is dragged to move it (one undo step; Escape, a cancelled pointer, the window
+ * losing focus and the next press put it back and leave no step), a click on a
  * zone's handle opens its popover, and Delete deletes the zone whose popover is open. Corners
  * snap to wall ends close by, so a zone drawn along walls ends on them. It takes input only in
  * zone mode and while its layer shows.
@@ -38,6 +41,11 @@ export class LightZoneEditor {
   private drag: { corner: ZoneCorner; before: Point[] } | null = null;
   private readonly unsubscribe: () => void;
   private readonly redraw = (): void => this.draw();
+  private readonly abort = (): void => {
+    if (!this.drag) return;
+    this.cancelDrag();
+    this.draw();
+  };
   private readonly onSubMode = (mode: WallToolSubMode): void => {
     const was = this.active;
     this.mode = mode;
@@ -84,6 +92,8 @@ export class LightZoneEditor {
 
   pointerDown(point: Point, keys: Keys): boolean {
     if (!this.shown) return false;
+    // A drag whose release never came (a button released outside the window) ends here.
+    if (this.drag) this.cancelDrag();
     const { store } = this.deps;
     const zoom = this.zoom();
     if (this.drawing) {
@@ -97,6 +107,7 @@ export class LightZoneEditor {
     if (corner && zone) {
       this.drag = { corner, before: zone.polygon };
       beginHistoryTransaction(store);
+      this.watchPointer(true);
     } else {
       const handle = zoneHandleAt(zones, point, zoom);
       if (handle) store.getState().openLightZonePopover(handle);
@@ -122,6 +133,7 @@ export class LightZoneEditor {
   pointerUp(): void {
     if (!this.drag) return;
     this.drag = null;
+    this.watchPointer(false);
     endHistoryTransaction(this.deps.store);
     this.draw();
   }
@@ -212,8 +224,22 @@ export class LightZoneEditor {
     const { store } = this.deps;
     const { corner, before } = this.drag!;
     this.drag = null;
+    this.watchPointer(false);
     if (store.getState().objects.lightZones?.[corner.zoneId]) store.getState().updateLightZone(corner.zoneId, { polygon: before });
     abandonHistoryTransaction(store);
+  }
+
+  /** While a corner is held, a pointer that is lost cancels the drag: no release would end it. */
+  private watchPointer(on: boolean): void {
+    const { canvas } = this.deps;
+    const win = canvas.ownerDocument.defaultView;
+    if (on) {
+      canvas.addEventListener('pointercancel', this.abort);
+      win?.addEventListener('blur', this.abort);
+    } else {
+      canvas.removeEventListener('pointercancel', this.abort);
+      win?.removeEventListener('blur', this.abort);
+    }
   }
 
   private draw(): void {
@@ -226,6 +252,7 @@ export class LightZoneEditor {
   }
 
   destroy(): void {
+    if (this.drag) this.cancelDrag();
     this.unsubscribe();
     this.deps.eventBus.off('wall-submode-changed', this.onSubMode);
     this.deps.viewport.off('zoomed', this.redraw);

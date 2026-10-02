@@ -19,6 +19,7 @@ interface Setup {
   store: ViewAtlasStore;
   editor: LightZoneEditor;
   bus: EventEmitter;
+  canvas: HTMLCanvasElement;
   click: (x: number, y: number, keys?: { alt?: boolean }) => boolean;
   zones: () => ReturnType<typeof lightZoneList>;
   steps: () => number;
@@ -27,7 +28,8 @@ interface Setup {
 
 function setup(ambient = 1): Setup {
   const restoreGraphics = stubJsdomGraphics();
-  const events = { domElement: document.createElement('canvas') } as unknown as EventSystem;
+  const canvas = document.createElement('canvas');
+  const events = { domElement: canvas } as unknown as EventSystem;
   const viewport = new Viewport({ screenWidth: 800, screenHeight: 600, events });
   const { app } = createInMemoryApp({ files: {} });
   const store = createViewAtlasStore(app, `light-zone-editor-${Math.random()}`);
@@ -35,7 +37,7 @@ function setup(ambient = 1): Setup {
   store.getState().setMapPath('maps/zones.atlasmap');
   store.getState().setSceneLighting({ enabled: true, ambient });
   const bus = new EventEmitter();
-  const editor = new LightZoneEditor({ viewport, store, eventBus: bus, onActiveChange: () => undefined });
+  const editor = new LightZoneEditor({ viewport, canvas, store, eventBus: bus, onActiveChange: () => undefined });
   bus.emit('wall-submode-changed', 'light-zone');
   const history = getHistoryStore(store)!;
   history.getState().clear();
@@ -45,7 +47,7 @@ function setup(ambient = 1): Setup {
     restoreGraphics();
   };
   return {
-    store, editor, bus,
+    store, editor, bus, canvas,
     click: (x, y, keys = {}) => {
       const taken = editor.pointerDown({ x, y }, { altKey: !!keys.alt });
       editor.pointerUp();
@@ -152,6 +154,78 @@ describe('the light zone tool', () => {
     expect(made.editor.handleEscape()).toBe(true);
     expect(made.zones()[0]!.polygon[2]).toEqual({ x: 300, y: 300 });
     expect(made.steps()).toBe(steps);
+  });
+
+  describe('a corner drag that never gets its release', () => {
+    /** A closed square whose corner (300, 300) is held and moved to (400, 380). */
+    function dragging(): Setup & { steps0: number } {
+      const made = setup();
+      corners(made);
+      made.editor.handleEnter();
+      const steps0 = made.steps();
+      made.editor.pointerDown({ x: 300, y: 300 }, { altKey: false });
+      made.editor.pointerMove({ x: 400, y: 380 }, { altKey: false });
+      expect(made.zones()[0]!.polygon[2]).toEqual({ x: 400, y: 380 });
+      return { ...made, steps0 };
+    }
+
+    /** The corner is back, follows the pointer no more, and the next edit of the map is one undo step again. */
+    function expectDropped(made: Setup & { steps0: number }): void {
+      expect(made.zones()[0]!.polygon[2]).toEqual({ x: 300, y: 300 });
+      expect(made.steps()).toBe(made.steps0);
+      made.editor.pointerMove({ x: 450, y: 450 }, { altKey: false });
+      expect(made.zones()[0]!.polygon[2]).toEqual({ x: 300, y: 300 });
+      made.store.getState().addWall({ type: 'solid', p1: { x: 0, y: 0 }, p2: { x: 50, y: 0 }, closed: true });
+      expect(made.steps()).toBe(made.steps0 + 1);
+    }
+
+    it('is cancelled when the pointer is cancelled', () => {
+      const made = dragging();
+      made.canvas.dispatchEvent(new Event('pointercancel'));
+      expectDropped(made);
+    });
+
+    it('is cancelled when the window loses focus', () => {
+      const made = dragging();
+      window.dispatchEvent(new Event('blur'));
+      expectDropped(made);
+    });
+
+    it('is cancelled by the next press, which starts a drag of its own: one undo step for it, and later edits count again', () => {
+      const made = dragging();
+      made.editor.pointerDown({ x: 100, y: 100 }, { altKey: false });
+      expect(made.zones()[0]!.polygon[2]).toEqual({ x: 300, y: 300 });
+      made.editor.pointerMove({ x: 60, y: 70 }, { altKey: false });
+      made.editor.pointerUp();
+      expect(made.zones()[0]!.polygon).toMatchObject([{ x: 60, y: 70 }, { x: 300, y: 100 }, { x: 300, y: 300 }, { x: 100, y: 300 }]);
+      expect(made.steps()).toBe(made.steps0 + 1);
+      made.store.getState().addWall({ type: 'solid', p1: { x: 0, y: 0 }, p2: { x: 50, y: 0 }, closed: true });
+      expect(made.steps()).toBe(made.steps0 + 2);
+    });
+
+    it('is cancelled when the editor is destroyed, and listens no longer', () => {
+      const made = dragging();
+      cleanup!();
+      cleanup = null;
+      expect(made.zones()[0]!.polygon[2]).toEqual({ x: 300, y: 300 });
+      expect(made.steps()).toBe(made.steps0);
+      made.store.getState().addWall({ type: 'solid', p1: { x: 0, y: 0 }, p2: { x: 50, y: 0 }, closed: true });
+      expect(made.steps()).toBe(made.steps0 + 1);
+    });
+
+    it('listens for a lost pointer only while a corner is held', () => {
+      const made = setup();
+      corners(made);
+      made.editor.handleEnter();
+      made.editor.pointerDown({ x: 300, y: 300 }, { altKey: false });
+      made.editor.pointerMove({ x: 400, y: 380 }, { altKey: false });
+      made.editor.pointerUp();
+      const steps = made.steps();
+      made.canvas.dispatchEvent(new Event('pointercancel'));
+      window.dispatchEvent(new Event('blur'));
+      expect(made.zones()[0]!.polygon[2]).toEqual({ x: 400, y: 380 });
+      expect(made.steps()).toBe(steps);
+    });
   });
 
   it('opens a zone\'s popover with a click on its handle, and deletes that zone with Delete', () => {

@@ -102,7 +102,7 @@ export class LightingController {
     this.lightMarkers = new LightMarkers(viewport, store);
     this.rangeRings = new LightRangeRings(viewport, store, measurement);
     this.editor = new WallEditor(viewport, store, eventBus, (lightIds) => this.lightMarkers.setSelected(lightIds), () => mapLightPresets(obsApp, store.getState()));
-    this.zones = new LightZoneEditor({ viewport, store, eventBus, onActiveChange: () => this.session.sync() });
+    this.zones = new LightZoneEditor({ viewport, canvas: app.canvas, store, eventBus, onActiveChange: () => this.session.sync() });
     this.doors = new DoorIcons(store);
     viewport.addChild(this.doors.view);
     this.lights = new LightInteraction({
