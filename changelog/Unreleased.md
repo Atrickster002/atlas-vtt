@@ -105,3 +105,4 @@
 - Text fields and dropdowns have one background everywhere. Before, some took the colour of the panel around them, so fields in one dialog could differ in dark mode and in themes that colour their fields
 - The collection settings stay in place when a tab grows long enough to scroll. Before, the scrollbar pushed the whole tab to the left
 - The asset manager's collection list no longer offers All Collections. It showed only the default collection, never the assets of the others, so the list now holds your collections and nothing else
+- A text you moved stays where you put it when you click it again. Before, the next click sent it back to where it was first placed, and its right-click menu showed the bold, italic and size it started with
