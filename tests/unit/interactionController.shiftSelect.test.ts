@@ -16,7 +16,7 @@ function makeController(selectedIds: string[]): { controller: InteractionControl
       setSelection,
       setIsDragging: vi.fn(),
       setTokenPositions: vi.fn(),
-      moveToken: vi.fn(),
+      dropTokens: vi.fn(),
       grid: { snapToGrid: false },
       objects: { tokens: { a: { id: 'a' }, b: { id: 'b' } } },
       heldTokens: {},

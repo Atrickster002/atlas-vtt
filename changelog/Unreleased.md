@@ -59,11 +59,13 @@
 - Session view (the GM view switch in the toolbar, D) now also shows the players' lighting: the map as their tokens see it, without the tokens they cannot see, door badges, light markers and wall lines
 - The lighting menu is laid out like the other tool menus: what the tool does and how walls are drawn are rows with a tick, and the time of day shows which one is chosen
 - Switches in the tool menus can be reached with Tab and switched with Space or Enter, and screen readers announce them. Every menu row is now rounded alike on both sides
+- A token you drop on a square lies on top of the tokens already there, and so does one you place, paste or duplicate. Before, the token that stood there first stayed on top. The order is saved with the scene and follows undo
 
 ## Fixed
 
 - Escape closes a light's settings, clears the selection or cancels a wall being drawn even while a tooltip is showing. Before, the first Escape closed only the tooltip
 - Explored areas stay on the players' screen while a token stands in them in the dark. Before, a remembered room turned black as soon as a token had it in its line of sight without light, and showed again from behind a wall; a thin grey line also ran along the edges of shadows
+- Map shortcuts work on any keyboard layout. On a Russian, Greek or other non-Latin layout, the key in the same physical place as the Latin letter now triggers its shortcut. Contributed by ISorokaI
 - An SVG map you add is drawn at the full map size of 8192 pixels instead of 2048, so it stays sharp when you zoom in. Add an SVG map from before again to get it at that size
 - The DM screen shows its statblocks side by side again. As many columns as fit share the space, and each statblock goes into the column with the first free space, so no column stays empty
 - Collections can be deleted again when some of their files were already removed outside Obsidian, for example by git
@@ -93,3 +95,5 @@
 - Scene thumbnails and snapshot previews show a scene's dynamic lighting as the GM sees it. They also leave out pins, linked hexes, light markers, door badges and wall lines, and follow changes to the scene's lighting
 - A scene keeps its thumbnail when the graphics device resets or the scene could not be opened again, instead of getting a blank or outdated one
 - Exporting a collection now packs its loot tables: the bases picked in the collection's Loot settings and every item note they list. An import puts them into the collection's folder, where the loot roller finds them again. Before, the importing vault got the setting without the base or its items
+- Text fields and dropdowns have one background everywhere. Before, some took the colour of the panel around them, so fields in one dialog could differ in dark mode and in themes that colour their fields
+- The collection settings stay in place when a tab grows long enough to scroll. Before, the scrollbar pushed the whole tab to the left

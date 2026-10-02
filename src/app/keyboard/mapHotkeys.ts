@@ -64,10 +64,12 @@ export function canShareHotkey(a: MapHotkeyId, b: MapHotkeyId): boolean {
   return runsWhileWidgetHeld(first) !== runsWhileWidgetHeld(second) && !selectsWidget(first) && !selectsWidget(second);
 }
 
-/** Printable symbols are layout-aware; shifted digits preserve the familiar Shift+1/2 navigation. */
+/** Printable symbols are layout-aware; shifted digits preserve the familiar Shift+1/2 navigation. A letter of another script (Cyrillic, Greek…) counts as the Latin letter on the same physical key, so shortcuts work on any layout. */
 export function hotkeyFromEvent(event: KeyboardEvent): string | null {
   if (event.isComposing || ['Control', 'Meta', 'Alt', 'Shift', 'Dead', 'Unidentified'].includes(event.key)) return null;
   let key = event.key === ' ' ? 'Space' : event.key.length === 1 ? event.key.toLowerCase() : event.key;
+  const physicalLetter = /^Key([A-Z])$/.exec(event.code)?.[1];
+  if (physicalLetter && /^\p{L}$/u.test(key) && !/^[a-z]$/.test(key)) key = physicalLetter.toLowerCase();
   const shiftedDigit = event.shiftKey && /^Digit\d$/.test(event.code);
   if (shiftedDigit) key = event.code.slice(-1);
   const shift = event.shiftKey && (shiftedDigit || key.length !== 1 || /[a-z]/i.test(key));

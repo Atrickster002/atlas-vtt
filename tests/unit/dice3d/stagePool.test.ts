@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { borrowStage, resetStagePool, returnStage } from '../../../src/app/dice3d/stagePool';
+import { borrowStage, resetStagePool, returnStage, warmStages } from '../../../src/app/dice3d/stagePool';
 
 describe('stagePool', () => {
   beforeEach(() => {
@@ -39,5 +39,53 @@ describe('stagePool', () => {
     expect(other).not.toBe(lease);
     expect(other.canvas.ownerDocument).toBe(popout);
     expect(borrowStage(document)).toBe(lease);
+  });
+
+  describe('warming', () => {
+    /** How many stages were ever built: each one adopts a canvas into its document. */
+    const built = (): number => vi.mocked(document.adoptNode).mock.calls.length;
+
+    beforeEach(() => {
+      vi.useFakeTimers();
+      vi.spyOn(document, 'adoptNode');
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('builds the stages a document needs before the first roll asks for one', async () => {
+      warmStages(document, Promise.resolve());
+      expect(built()).toBe(0);
+      await vi.runAllTimersAsync();
+      expect(built()).toBe(3);
+
+      // As many rolls as stand at once find their stages waiting; only one more is built on demand.
+      borrowStage(document);
+      borrowStage(document);
+      borrowStage(document);
+      expect(built()).toBe(3);
+      borrowStage(document);
+      expect(built()).toBe(4);
+    });
+
+    it('builds nothing while dice are on a stage, and catches up when it comes back', async () => {
+      const lease = borrowStage(document);
+      expect(built()).toBe(1);
+      warmStages(document, Promise.resolve());
+      await vi.advanceTimersByTimeAsync(5000);
+      expect(built()).toBe(1);
+
+      returnStage(lease);
+      await vi.runAllTimersAsync();
+      expect(built()).toBe(3);
+    });
+
+    it('warms a document once', async () => {
+      warmStages(document, Promise.resolve());
+      warmStages(document, Promise.resolve());
+      await vi.runAllTimersAsync();
+      expect(built()).toBe(3);
+    });
   });
 });

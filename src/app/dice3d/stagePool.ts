@@ -1,4 +1,7 @@
 import { DiceRenderer } from './DiceRenderer';
+import { DIE_BODIES } from './diceScene';
+import { loadDiceArtwork } from './dieArtwork';
+import { makeDie } from './dieMotion';
 
 /**
  * **The pool of stages: why the app survives many throws.**
@@ -30,6 +33,10 @@ export interface StageLease {
 }
 
 let pools = new WeakMap<Document, StageLease[]>();
+/** How many stages of a document are out on a panel. */
+let lent = new WeakMap<Document, number>();
+/** The documents whose stages are being built ahead. */
+let warming = new WeakSet<Document>();
 
 function poolOf(doc: Document): StageLease[] {
   let pool = pools.get(doc);
@@ -40,10 +47,7 @@ function poolOf(doc: Document): StageLease[] {
   return pool;
 }
 
-export function borrowStage(doc: Document): StageLease {
-  const free = poolOf(doc).pop();
-  if (free !== undefined) return free;
-
+function buildStage(doc: Document): StageLease {
   // Adopted before the context is created, so the canvas and its context
   // belong to the document it will be shown in.
   const canvas = doc.adoptNode(createEl('canvas', { cls: 'atlas-dice-stage__canvas', attr: { 'aria-hidden': 'true' } }));
@@ -55,13 +59,86 @@ export function borrowStage(doc: Document): StageLease {
   }
 }
 
+export function borrowStage(doc: Document): StageLease {
+  lent.set(doc, (lent.get(doc) ?? 0) + 1);
+  return poolOf(doc).pop() ?? buildStage(doc);
+}
+
 export function returnStage(lease: StageLease): void {
+  const doc = lease.canvas.ownerDocument;
   lease.canvas.remove();
   lease.renderer?.reset();
-  poolOf(lease.canvas.ownerDocument).push(lease);
+  lent.set(doc, Math.max(0, (lent.get(doc) ?? 0) - 1));
+  poolOf(doc).push(lease);
+}
+
+/**
+ * **A stage is built before a roll needs it.**
+ *
+ * Building one takes some fifty to ninety milliseconds: a WebGL context, the
+ * mirror world, the shaders. On the first roll that was a freeze at the very
+ * moment the dice leave the hand, again for the player window, and again for
+ * the second panel of an attack and its damage. So each document gets its
+ * stages while nothing rolls: as many as rolls stand at once (`rollStackState`).
+ */
+const WARM_STAGES = 3;
+/** The pause before a stage is built, and between two: the map opening has the frames first. */
+const WARM_PAUSE_MS = 500;
+/** How long a build waits for an idle moment before it takes one. */
+const WARM_PATIENCE_MS = 3000;
+/** The stage a warm-up draws on: no one sees it, it only has to be a frame. */
+const WARM_PX = 64;
+/** Fast enough for the smear, whose translucent shader a still die never asks for. */
+const WARM_SPIN = [40, 0, 0] as const;
+
+function whenQuiet(doc: Document, run: () => void): void {
+  const win = doc.defaultView;
+  if (!win) return;
+  win.setTimeout(() => {
+    if (typeof win.requestIdleCallback === 'function') win.requestIdleCallback(run, { timeout: WARM_PATIENCE_MS });
+    else run();
+  }, WARM_PAUSE_MS);
+}
+
+/**
+ * One unseen frame of every body, spinning: after it the shaders are compiled
+ * and the artwork is on the graphics card, so the first throw's first frame
+ * costs what every other does.
+ */
+function warmUp(renderer: DiceRenderer): void {
+  renderer.setSize(WARM_PX, WARM_PX, 1);
+  renderer.setPlan(DIE_BODIES);
+  renderer.render(DIE_BODIES.map((sides) => ({ sides, anim: { ...makeDie(Math.random), w: [...WARM_SPIN] } })), 0);
+  renderer.reset();
+}
+
+function warmNext(doc: Document): void {
+  const pool = poolOf(doc);
+  const out = lent.get(doc) ?? 0;
+  if (pool.length + out >= WARM_STAGES) return;
+  // Dice are on a stage: building now would be the freeze this is here to avoid.
+  if (out === 0) {
+    const stage = buildStage(doc);
+    if (stage.renderer) warmUp(stage.renderer);
+    pool.push(stage);
+  }
+  whenQuiet(doc, () => warmNext(doc));
+}
+
+/**
+ * Builds the stages of `doc` ahead, one per quiet moment and none while dice
+ * are rolling. `artwork` is what the warm-up frame draws: without the numerals
+ * and the card it would put blank faces on the graphics card.
+ */
+export function warmStages(doc: Document, artwork: Promise<void> = loadDiceArtwork()): void {
+  if (warming.has(doc)) return;
+  warming.add(doc);
+  void artwork.then(() => whenQuiet(doc, () => warmNext(doc)));
 }
 
 /** Tests only: empty the pools between two cases. */
 export function resetStagePool(): void {
   pools = new WeakMap();
+  lent = new WeakMap();
+  warming = new WeakSet();
 }
