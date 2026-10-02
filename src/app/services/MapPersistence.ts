@@ -7,6 +7,8 @@ import type { WidgetSettings } from '../types/widgetTypes';
 import type { HexNumberFormat } from '../grid/hexNumbering';
 import type AtlasVTTPlugin from '../../../main';
 import { migrateWidgetsToCollection, needsWidgetMigration } from '../utils/widgetMigration';
+import { emissionFromFile, lightsFromFile, wallsFromFile } from '../lighting/lightingFromFile';
+import { lightZonesFromFile } from '../lighting/lightZones';
 import { normalizeImagePath } from '../utils/pathUtils';
 import { fixMapTokenPaths } from '../utils/fixMapPaths';
 import { getDataFilePath } from '../utils/dataFileMigration';
@@ -328,6 +330,9 @@ function migrateTokenPaths(tokens: Record<string, LegacyToken>): Record<string, 
       migratedToken.conditions = statuses;
     }
 
+    // The light a token carries is read like a placed light's.
+    if (migratedToken.light) migratedToken.light = emissionFromFile(migratedToken.light);
+
     migratedTokens[id] = tokenFromFile(migratedToken);
   }
   
@@ -404,6 +409,8 @@ export function migrateMapFile(persisted: unknown): MapFile {
     ? migrateTokenPaths(persisted.objects.tokens)
     : {};
 
+  const zones = lightZonesFromFile(persisted.objects?.lightZones);
+
   // Merge persisted over initial, ensuring all fields present
   return {
     ...initial,
@@ -417,9 +424,9 @@ export function migrateMapFile(persisted: unknown): MapFile {
       pins: persisted.objects?.pins || {},
       texts: persisted.objects?.texts || {},
       drawings: persisted.objects?.drawings || {},
-      walls: persisted.objects?.walls || {},
-      lights: persisted.objects?.lights || {},
-      ...(persisted.objects?.lightZones && { lightZones: persisted.objects.lightZones }),
+      walls: wallsFromFile(persisted.objects?.walls),
+      lights: lightsFromFile(persisted.objects?.lights),
+      ...(zones && { lightZones: zones }),
     },
     grid: persisted.grid ? migrateGrid(persisted.grid) : initial.grid,
     camera: persisted.camera || initial.camera

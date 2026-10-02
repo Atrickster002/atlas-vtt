@@ -9,7 +9,7 @@ import { usesCanvasRenderer } from '../utils/rendererType';
 import { CanvasLightingFallback } from './CanvasLightingFallback';
 import { StoredLightingAttempt } from './lightingAttempts';
 import { LightingRenderer } from './LightingRenderer';
-import { showLightingUnavailableNotice } from './lightingUnavailableNotice';
+import { showLightingUnavailableNotice } from './lightingNotices';
 import { LightingViewHost } from './LightingViewHost';
 
 export interface SceneLightingDeps {

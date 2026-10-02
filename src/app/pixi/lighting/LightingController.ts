@@ -29,6 +29,7 @@ import { LightInteraction } from './LightInteraction';
 import { LightMarkers } from './LightMarkers';
 import { LightRangeRings } from './LightRangeRings';
 import { LightZoneEditor } from './LightZoneEditor';
+import { showZonesFullNotice } from './lightingNotices';
 import { closeStalePopovers } from './popoverGuards';
 import { PerceptionMemo, playerLightingLayers, playerTokenSight, type GmOverlays, type TokenPerception } from './playerLightingLayers';
 import type { SceneLightingView } from './sceneLightingView';
@@ -103,7 +104,7 @@ export class LightingController {
     this.lightMarkers = new LightMarkers(viewport, store);
     this.rangeRings = new LightRangeRings(viewport, store, measurement);
     this.editor = new WallEditor(viewport, store, eventBus, (lightIds) => this.lightMarkers.setSelected(lightIds), () => mapLightPresets(obsApp, store.getState()));
-    this.zones = new LightZoneEditor({ viewport, canvas: app.canvas, store, eventBus, onActiveChange: () => this.session.sync() });
+    this.zones = new LightZoneEditor({ viewport, canvas: app.canvas, store, eventBus, onActiveChange: () => this.session.sync(), onFull: showZonesFullNotice });
     this.doors = new DoorIcons(store);
     viewport.addChild(this.doors.view);
     this.lights = new LightInteraction({

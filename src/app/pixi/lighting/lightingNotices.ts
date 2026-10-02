@@ -1,4 +1,5 @@
 import { Notice } from 'obsidian';
+import { MAX_LIGHT_ZONES } from '../../lighting/lightZones';
 
 /**
  * Tells the GM that this map is drawn without dynamic lighting; `canRetry` when the engine was
@@ -7,4 +8,9 @@ import { Notice } from 'obsidian';
 export function showLightingUnavailableNotice(canRetry: boolean): void {
   const retry = canRetry ? ' Switch dynamic lighting off and on to try again.' : '';
   new Notice(`Dynamic lighting could not run on this graphics device. Atlas shows line of sight without light and shadow.${retry}`, 15000);
+}
+
+/** Tells the GM that the map holds as many light zones as it may, when another is begun. */
+export function showZonesFullNotice(): void {
+  new Notice(`A map can have ${MAX_LIGHT_ZONES} light zones. Delete one to draw another.`);
 }

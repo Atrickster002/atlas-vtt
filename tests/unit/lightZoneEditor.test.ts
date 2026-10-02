@@ -1,8 +1,8 @@
 import { EventEmitter } from 'events';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { EventSystem } from 'pixi.js';
 import { Viewport } from 'pixi-viewport';
-import { lightZoneList } from '../../src/app/lighting/lightZones';
+import { MAX_LIGHT_ZONES, lightZoneList } from '../../src/app/lighting/lightZones';
 import { LightZoneEditor } from '../../src/app/pixi/lighting/LightZoneEditor';
 import { createViewAtlasStore, type ViewAtlasStore } from '../../src/app/storeFactory';
 import { getHistoryStore } from '../../src/app/stores/history';
@@ -20,6 +20,8 @@ interface Setup {
   editor: LightZoneEditor;
   bus: EventEmitter;
   canvas: HTMLCanvasElement;
+  /** Called when a zone is begun on a map that holds as many as it may. */
+  full: ReturnType<typeof vi.fn>;
   click: (x: number, y: number, keys?: { alt?: boolean }) => boolean;
   zones: () => ReturnType<typeof lightZoneList>;
   steps: () => number;
@@ -37,7 +39,8 @@ function setup(ambient = 1): Setup {
   store.getState().setMapPath('maps/zones.atlasmap');
   store.getState().setSceneLighting({ enabled: true, ambient });
   const bus = new EventEmitter();
-  const editor = new LightZoneEditor({ viewport, canvas, store, eventBus: bus, onActiveChange: () => undefined });
+  const full = vi.fn();
+  const editor = new LightZoneEditor({ viewport, canvas, store, eventBus: bus, onActiveChange: () => undefined, onFull: full });
   bus.emit('wall-submode-changed', 'light-zone');
   const history = getHistoryStore(store)!;
   history.getState().clear();
@@ -47,7 +50,7 @@ function setup(ambient = 1): Setup {
     restoreGraphics();
   };
   return {
-    store, editor, bus, canvas,
+    store, editor, bus, canvas, full,
     click: (x, y, keys = {}) => {
       const taken = editor.pointerDown({ x, y }, { altKey: !!keys.alt });
       editor.pointerUp();
@@ -226,6 +229,23 @@ describe('the light zone tool', () => {
       expect(made.zones()[0]!.polygon[2]).toEqual({ x: 400, y: 380 });
       expect(made.steps()).toBe(steps);
     });
+  });
+
+  it(`begins no zone on a map that holds ${MAX_LIGHT_ZONES}, and says so`, () => {
+    const made = setup();
+    for (let i = 0; i < MAX_LIGHT_ZONES - 1; i++) made.store.getState().addLightZone({ polygon: [{ x: 1000 + i * 30, y: 1000 }, { x: 1020 + i * 30, y: 1000 }, { x: 1020 + i * 30, y: 1020 }], ambient: 0 });
+    // The last one that fits is drawn as ever.
+    corners(made);
+    made.editor.handleEnter();
+    expect(made.zones()).toHaveLength(MAX_LIGHT_ZONES);
+    expect(made.full).not.toHaveBeenCalled();
+    made.store.getState().closeLightZonePopover();
+    expect(made.click(500, 500)).toBe(true);
+    expect(made.editor.drawing).toBe(false);
+    expect(made.full).toHaveBeenCalledTimes(1);
+    // Its corners can still be moved and its popover opened.
+    made.click(200, 200);
+    expect(made.store.getState().lightZonePopover).toBe(made.zones()[MAX_LIGHT_ZONES - 1]!.id);
   });
 
   it('opens a zone\'s popover with a click on its handle, and deletes that zone with Delete', () => {

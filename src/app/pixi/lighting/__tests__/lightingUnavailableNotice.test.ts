@@ -9,7 +9,7 @@ vi.mock('obsidian', () => ({
   },
 }));
 
-import { showLightingUnavailableNotice } from '../lightingUnavailableNotice';
+import { showLightingUnavailableNotice } from '../lightingNotices';
 
 describe('showLightingUnavailableNotice', () => {
   beforeEach(() => {

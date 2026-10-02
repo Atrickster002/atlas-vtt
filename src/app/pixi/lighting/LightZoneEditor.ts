@@ -1,7 +1,7 @@
 import type { EventEmitter } from 'events';
 import type { Container } from 'pixi.js';
 import type { Viewport } from 'pixi-viewport';
-import { MAX_ZONE_CORNERS, lightZoneList, newZoneAmbient } from '../../lighting/lightZones';
+import { MAX_LIGHT_ZONES, MAX_ZONE_CORNERS, lightZoneList, newZoneAmbient } from '../../lighting/lightZones';
 import type { ViewAtlasStore } from '../../storeFactory';
 import { abandonHistoryTransaction, beginHistoryTransaction, endHistoryTransaction } from '../../stores/history';
 import type { WallToolSubMode } from '../../tools/WallTool';
@@ -17,6 +17,8 @@ export interface LightZoneEditorDeps {
   eventBus: EventEmitter;
   /** The lighting tool entered or left its zone mode: whoever owns the layer's visibility shows or hides it. */
   onActiveChange: () => void;
+  /** A zone was begun on a map that holds `MAX_LIGHT_ZONES`: none is begun, and the GM is told. */
+  onFull: () => void;
 }
 
 /** What a press needs of the pointer event: Alt places a corner freely, without snapping to a wall's end. */
@@ -202,6 +204,10 @@ export class LightZoneEditor {
 
   private place(point: Point, keys: Keys): void {
     this.deps.store.getState().closeLightZonePopover();
+    if (!this.drawing && this.zones().length >= MAX_LIGHT_ZONES) {
+      this.deps.onFull();
+      return;
+    }
     this.draft = [...this.draft, this.snapped(point, keys)];
     this.cursor = point;
     // The engine reads a zone's outline from a list of this length: the last corner closes it.

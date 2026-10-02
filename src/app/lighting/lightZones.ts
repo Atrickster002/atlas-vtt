@@ -8,6 +8,13 @@ import { litThresholdOf } from './sceneLightingOptions';
 
 /** The corners a zone may have: the engine reads its outline from a list of this length. */
 export const MAX_ZONE_CORNERS = 64;
+/**
+ * The zones a map may have. Every zone is a draw of its own over its area, with every corner
+ * read for every texel: 64 zones of 64 corners that each cover a whole 8,192 px map take the
+ * graphics card about 1.5 s to draw (measured on an Apple M4 Pro; room-sized zones of a few
+ * corners take under a millisecond each), where the 5,000 of a damaged file would stall it.
+ */
+export const MAX_LIGHT_ZONES = 64;
 
 const lists = new WeakMap<object, LightZone[]>();
 
@@ -15,10 +22,21 @@ function isPoint(value: unknown): value is Point {
   return isRecord(value) && typeof value.x === 'number' && typeof value.y === 'number' && Number.isFinite(value.x) && Number.isFinite(value.y);
 }
 
+/** Whether corners enclose an area: three on one line, or all in one place, enclose none. */
+export function hasArea(polygon: readonly Point[]): boolean {
+  let twice = 0;
+  for (let i = 0; i < polygon.length; i++) {
+    const a = polygon[i]!;
+    const b = polygon[(i + 1) % polygon.length]!;
+    twice += a.x * b.y - b.x * a.y;
+  }
+  return Math.abs(twice) > 1e-6;
+}
+
 function readZone(value: unknown): LightZone | null {
   if (!isRecord(value) || typeof value.id !== 'string' || typeof value.ambient !== 'number' || !Number.isFinite(value.ambient)) return null;
   const { polygon } = value;
-  if (!Array.isArray(polygon) || polygon.length < 3 || polygon.length > MAX_ZONE_CORNERS || !polygon.every(isPoint)) return null;
+  if (!Array.isArray(polygon) || polygon.length < 3 || polygon.length > MAX_ZONE_CORNERS || !polygon.every(isPoint) || !hasArea(polygon)) return null;
   return {
     id: value.id,
     kind: 'light-zone',
@@ -32,17 +50,32 @@ function readZone(value: unknown): LightZone | null {
 /**
  * The zones of a map in the order they were drawn, as everything reads them: a zone that is no
  * area (a hand edit) is left out, a level outside 0–1 is brought into it and a colour that is
- * not `#rrggbb` dropped. The same list for the same record, so whoever compares lists finds
- * unchanged zones unchanged.
+ * not `#rrggbb` dropped, and no more than `MAX_LIGHT_ZONES` are read. The same list for the
+ * same record, so whoever compares lists finds unchanged zones unchanged.
  */
 export function lightZoneList(zones: Record<string, LightZone> | undefined): LightZone[] {
   if (!isRecord(zones)) return NONE;
   let list = lists.get(zones);
   if (!list) {
-    list = Object.values(zones).flatMap((zone) => readZone(zone) ?? []);
+    list = [];
+    for (const value of Object.values(zones)) {
+      const zone = readZone(value);
+      if (zone) list.push(zone);
+      if (list.length === MAX_LIGHT_ZONES) break;
+    }
     lists.set(zones, list);
   }
   return list;
+}
+
+/**
+ * The zones a map file holds, as the store keeps them: those `lightZoneList` reads, by their
+ * ids, or none when the file holds something else in their place (the store adds a zone to a
+ * record, and nothing else).
+ */
+export function lightZonesFromFile(value: unknown): Record<string, LightZone> | undefined {
+  const zones = lightZoneList(isRecord(value) ? (value as Record<string, LightZone>) : undefined);
+  return zones.length > 0 ? Object.fromEntries(zones.map((zone) => [zone.id, zone])) : undefined;
 }
 
 const NONE: LightZone[] = [];
