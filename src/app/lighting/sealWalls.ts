@@ -3,7 +3,7 @@ import type { WallSegment } from '../types/wallTypes';
 import { sealTolerance } from './lightingConstants';
 import { PointTree } from './pointTree';
 import { BOTH, kindOfAll, shared, type BridgeKind } from './sealKinds';
-import { plugs } from './sealPlugs';
+import { farthest, plugs } from './sealPlugs';
 import { blocksNothing } from './segments';
 
 /** A hair past the wall a bridge lands on, so the two cross instead of merely touching. */
@@ -264,24 +264,6 @@ function middleBridges(walls: readonly WallSegment[], junctions: readonly Juncti
       .map(({ wall, end, landing, from, capped }) => bridge(`seal:${end.label}:${walls[wall]!.id}`, end.point, landing, capped ? BOTH : shared(kindOf(walls, from), walls[wall]!))),
     ...plugs(junctions.filter((junction) => plugged[junction.index]).map((junction) => junction.point), tolerance + OVERSHOOT).map(({ id, p1, p2 }) => bridge(id, p1, p2)),
   ];
-}
-
-/** The bridges from `point` whose landings are corners of the convex hull of the point and all the landings. */
-function farthest(point: Point, bridges: readonly MiddleBridge[]): MiddleBridge[] {
-  const corners: { at: Point; bridge: MiddleBridge | null }[] = [{ at: point, bridge: null }, ...bridges.map((candidate) => ({ at: candidate.landing, bridge: candidate }))];
-  corners.sort((a, b) => a.at.x - b.at.x || a.at.y - b.at.y);
-  // Andrew's monotone chain; a landing on a line between two others is no corner.
-  const turnsLeft = (o: Point, a: Point, b: Point): boolean => (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x) > 1e-9;
-  const half = (order: typeof corners): typeof corners => {
-    const hull: typeof corners = [];
-    for (const corner of order) {
-      while (hull.length >= 2 && !turnsLeft(hull[hull.length - 2]!.at, hull[hull.length - 1]!.at, corner.at)) hull.pop();
-      hull.push(corner);
-    }
-    return hull;
-  };
-  const hull = new Set([...half(corners), ...half([...corners].reverse())]);
-  return bridges.filter((candidate) => [...hull].some((corner) => corner.bridge === candidate));
 }
 
 /** Unit vector from `p` across the wall at `foot`; for an end on the wall, away from its own wall. */

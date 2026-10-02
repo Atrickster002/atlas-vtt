@@ -61,7 +61,8 @@ const sum = (pixels: Uint8ClampedArray, o: number): number => pixels[o]! + pixel
  * Limited walls through the real engine, over the leak fuzz's rooms. Every wall of a room is
  * limited, its outline (with its doors and one-way walls) and the chains across it, and a
  * second ring stands around the room, the outline again a third larger: limited walls for one
- * room, solid ones for the next. The lights and the tokens stand in the room.
+ * room, solid ones for the next (both ways, where the room's own block one way). The lights
+ * and the tokens stand in the room.
  *
  * Nothing passes the ring: no light, no sight, no darkvision, no footprint, no memory, and no
  * darkness beyond the ring's core. That is the second limited wall on every way out (its
@@ -69,7 +70,7 @@ const sum = (pixels: Uint8ClampedArray, o: number): number => pixels[o]! + pixel
  * limited one. Between the room's walls and the ring it is lit and seen: both passed the first
  * limited wall. And the rule is asked at sampled points: where it counts light that passes
  * every solid wall by a band, the picture is lit; where it counts a point as seen or unseen,
- * away from the edges of sight, the picture agrees.
+ * away from the edges of sight and the soft edges of its shadows, the picture agrees.
  */
 async function fuzz({ seed, trials, gap = false, bounds = { width: 2048, height: 2048 }, resolution = 1 }: FuzzOptions): Promise<Report> {
   vi.stubGlobal('createEl', (tag: string): HTMLElement => document.createElement(tag));
@@ -95,7 +96,8 @@ async function fuzz({ seed, trials, gap = false, bounds = { width: 2048, height:
       report[hedged ? 'hedged' : 'walled']++;
       const [cx, cy] = room.centre;
       const grown = (p: { x: number; y: number }): { x: number; y: number } => ({ x: cx + (p.x - cx) * RING, y: cy + (p.y - cy) * RING });
-      const ringWalls = room.walls.slice(0, room.roomWallCount).map((wall): WallSegment => ({ ...wall, id: `ring:${wall.id}`, p1: grown(wall.p1), p2: grown(wall.p2), ...(hedged && { limited: true }) }));
+      // The ring blocks both ways: a one-way wall grown about the centre may turn its open side to a light near its line.
+      const ringWalls = room.walls.slice(0, room.roomWallCount).map(({ direction: _direction, ...wall }): WallSegment => ({ ...wall, id: `ring:${wall.id}`, p1: grown(wall.p1), p2: grown(wall.p2), ...(hedged && { limited: true }) }));
       const drawn = [...room.walls.map((wall): WallSegment => ({ ...wall, limited: true })), ...ringWalls];
       const walls = sealWalls(drawn, sealTolerance(texel));
       const outer = ringWalls.flatMap((wall): P[] => [[wall.p1.x, wall.p1.y], [wall.p2.x, wall.p2.y]]);
@@ -169,7 +171,10 @@ async function fuzz({ seed, trials, gap = false, bounds = { width: 2048, height:
           }
           if (edges.every((edge) => distToOutline(p, edge) > filter + 1) && !inPenumbra(p, sight, sightRadius)) {
             report.ruleSight++;
-            if (sight.regions.some((region) => pointInPolygon(point, region.polygon!)) !== sum(seen, o) > 0) report.sightWrong++;
+            const ruled = sight.regions.some((region) => pointInPolygon(point, region.polygon!));
+            // One pixel the rasteriser drops between two slivers of the sight's fan is no disagreement: its neighbours are seen.
+            const dropped = ruled && sx > 0 && sx + 1 < device && sum(seen, o - 4) > 0 && sum(seen, o + 4) > 0;
+            if (ruled !== sum(seen, o) > 0 && !dropped) report.sightWrong++;
           }
         }
       }

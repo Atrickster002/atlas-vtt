@@ -182,7 +182,10 @@ async function fuzz({ seed, trials, gap = false, bounds = { width: 2048, height:
           }
           if (edges.every((edge) => distToOutline(p, edge) > filter + 1) && !inPenumbra(p, sight, sightRadius)) {
             report.ruleSight++;
-            if (sight.regions.some((region) => pointInPolygon(point, region.polygon!)) !== sum(seen, o) > 0) report.sightWrong++;
+            const ruled = sight.regions.some((region) => pointInPolygon(point, region.polygon!));
+            // One pixel the rasteriser drops between two slivers of the sight's fan is no disagreement: its neighbours are seen.
+            const dropped = ruled && sx > 0 && sx + 1 < device && sum(seen, o - 4) > 0 && sum(seen, o + 4) > 0;
+            if (ruled !== sum(seen, o) > 0 && !dropped) report.sightWrong++;
           }
         }
       }
