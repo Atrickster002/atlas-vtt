@@ -98,7 +98,7 @@
   flex: 1;
   min-width: 0;
   overflow-y: auto;
-  padding: $spacing-l;
+  @include atlas-scroll-padding($spacing-l);
   @include atlas-scrollbar;
   @include atlas-flex-col($spacing-l);
 }
@@ -172,7 +172,7 @@
   width: 100%;
   height: $input-height-m;
   padding: $spacing-xs $spacing-s;
-  background: var(--background-primary);
+  background: var(--background-modifier-form-field);
   border: $border-width-s solid var(--background-modifier-border);
   border-radius: $radius-l;
   color: var(--text-normal);
