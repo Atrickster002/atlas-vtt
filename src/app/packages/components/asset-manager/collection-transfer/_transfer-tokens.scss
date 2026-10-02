@@ -70,11 +70,8 @@ $portrait-size: 64px;
   }
 
   &__placeholder {
-    display: block;
     width: 100%;
     height: 100%;
-    border-radius: $radius-full;
-    background: var(--background-secondary);
   }
 
   // Marks tokens whose statblock opens on hover.

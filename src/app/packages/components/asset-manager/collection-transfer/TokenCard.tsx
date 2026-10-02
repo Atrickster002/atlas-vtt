@@ -2,6 +2,7 @@ import React, { memo } from 'react';
 import { ScrollText } from 'lucide-react';
 import type { ContentItem, TokenPreview } from '../../../../services/collectionBundle/bundleContents';
 import { TokenPortrait } from '../../shared/TokenPortrait';
+import { Skeleton } from '../../primitives/Skeleton';
 import type { ContentMedia } from './contentMedia';
 import { Checkbox, type ItemState } from './contentSelection';
 import { useContentImage } from './useContentImage';
@@ -21,11 +22,13 @@ interface TokenCardProps {
  */
 export const TokenCard = memo(function TokenCard({ item, state, media, onToggle, onHover, onLeave }: TokenCardProps): React.JSX.Element {
   const { token } = item;
-  const url = useContentImage(media, [token.thumbnailPath, token.imagePath]);
+  const image = useContentImage(media, [token.thumbnailPath, token.imagePath]);
   const body = (
     <>
       <span className="atlas-transfer-token__portrait">
-        {url ? <TokenPortrait src={url} alt="" showRing={token.showRing} /> : <span className="atlas-transfer-token__placeholder" />}
+        {image.url
+          ? <TokenPortrait src={image.url} alt="" showRing={token.showRing} reveal />
+          : <Skeleton shape="circle" className="atlas-transfer-token__placeholder" live={image.pending} />}
         {token.statblockPath && <span className="atlas-transfer-token__statblock" aria-hidden="true"><ScrollText /></span>}
       </span>
       <span className="atlas-transfer-token__name">{item.name}</span>

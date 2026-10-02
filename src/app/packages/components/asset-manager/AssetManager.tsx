@@ -4,7 +4,7 @@ import { useAtlasSettings } from '../../../keyboard/useMapHotkeys';
 import { SettingsService } from '../../../services/SettingsService';
 import React, { useState, useRef, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import type { AssetManagerProps, Tab } from './types';
+import type { AnyAsset, AssetManagerProps, Tab } from './types';
 
 import { Header } from './components/Header';
 import { Sidebar } from './components/Sidebar';
@@ -22,6 +22,7 @@ import { useStatblockLink } from './hooks/useStatblockLink';
 import { useAssetManagerEffects } from './hooks/useAssetManagerEffects';
 import { useFollowSelectedCollection } from './hooks/useFollowSelectedCollection';
 import { useHeldWhile } from './hooks/useHeldWhile';
+import { useLoadingReveal } from '../primitives/useLoadingReveal';
 import { useSidebarLayout } from './hooks/useSidebarLayout';
 import { useRememberedPlace } from './hooks/useRememberedPlace';
 import { sortAssets } from './utils/assetSort';
@@ -31,6 +32,8 @@ import { useCollectionFilterDefinitions } from './hooks/useCollectionFilterDefin
 import { useFilterSearch, useSearchKeywords } from './hooks/useFilterSearch';
 import { ActiveFilterBar } from './components/search/ActiveFilterBar';
 import { DIALOG_EXIT_DURATION, dialogBackdropVariants, useDialogWindowVariants } from '../primitives/dialogMotion';
+
+const NO_ASSETS: AnyAsset[] = [];
 
 const wrapperVariants = {
   hidden: { opacity: 1 },
@@ -112,12 +115,17 @@ export default function AssetManager({ isOpen, onClose, initialTab, onExitComple
 
   const displayedFolders = useMemo(() => filterFolders(data.folders, creature.filter), [data.folders, creature.filter]);
 
-  // A tab switch keeps the previous tab's content on screen, untouched by the resets
-  // the switch triggers, until the new tab's assets have loaded; then the panes swap once.
-  const isTabLoading = (data.assetsTab ?? activeTab) !== activeTab;
-  const shown = useHeldWhile(isTabLoading, {
+  // A change of tab or collection keeps the previous content on screen, untouched by the
+  // resets the change triggers, while its assets load: a quick load swaps the panes once.
+  // A load that takes longer gives way to the skeleton of the new place, so the manager
+  // answers at once however long its content takes.
+  const showSkeleton = useLoadingReveal(data.assetsLoading);
+  const isPending = data.assetsLoading || showSkeleton;
+  const shown = useHeldWhile(data.assetsLoading && !showSkeleton, {
+    collection: selectedCollection,
     tab: activeTab,
-    assets: displayedAssets,
+    loading: isPending,
+    assets: isPending ? NO_ASSETS : displayedAssets,
     folders: displayedFolders,
     folderId: sel.selectedFolderId,
     folderPath: sel.selectedFolderId ? sel.getFolderPath(sel.selectedFolderId) : [],
@@ -198,6 +206,7 @@ export default function AssetManager({ isOpen, onClose, initialTab, onExitComple
                 onSelectTag={sel.handleTagSelect}
                 onClearTags={() => sel.setSelectedTagIds([])}
                 tags={data.availableTags}
+                tagsLoading={data.tagsLoading}
                 assets={data.assets}
                 collections={data.collections}
                 selectedCollection={selectedCollection}
@@ -247,7 +256,10 @@ export default function AssetManager({ isOpen, onClose, initialTab, onExitComple
                       selectedFolderId={shown.folderId}
                       folderDepth={shown.folderPath.length}
                       refinement={shown.refinement}
-                      scrollKey={`${selectedCollection ?? 'default'}/${shown.tab}/${shown.folderId ?? ''}?${shown.refinement}`}
+                      loading={shown.loading}
+                      showSkeleton={showSkeleton}
+                      assetCount={data.assetCounts?.[shown.tab] ?? null}
+                      scrollKey={`${shown.collection ?? 'default'}/${shown.tab}/${shown.folderId ?? ''}?${shown.refinement}`}
                       scrollMemory={memory}
                       onAssetSelect={sel.handleAssetSelect}
                       onAssetContextMenu={handleAssetContextMenu}
