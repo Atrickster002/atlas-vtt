@@ -1,15 +1,8 @@
-import React from 'react';
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, screen, waitFor } from '@testing-library/react';
 import { MotionGlobalConfig } from 'framer-motion';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
-import { genericLight } from '../mocks/lights';
-import { LightPopoverHost } from '../../src/app/pixi/lighting/LightPopover';
-import { AtlasUIContext, type AtlasUIContextValue } from '../../src/app/react/root/AtlasUIContext';
-import { ViewStoreProvider } from '../../src/app/react/ViewStoreContext';
-import { createViewAtlasStore, type ViewAtlasStore } from '../../src/app/storeFactory';
-import { getHistoryStore } from '../../src/app/stores/history';
-import type { LightKind, LightSource } from '../../src/app/types/lightingTypes';
-import { createInMemoryApp } from '../mocks/inMemoryVault';
+import { popover, renderPopover } from '../mocks/lightPopoverHarness';
+import type { LightKind } from '../../src/app/types/lightingTypes';
 
 beforeAll(() => {
   MotionGlobalConfig.skipAnimations = true;
@@ -20,49 +13,6 @@ beforeAll(() => {
 });
 afterAll(() => { MotionGlobalConfig.skipAnimations = false; });
 afterEach(cleanup);
-
-interface Rendered {
-  store: ViewAtlasStore;
-  torch: string;
-  lantern: string;
-  light: (id?: string) => LightSource;
-  steps: () => number;
-  undo: () => void;
-  mapKeys: ReturnType<typeof vi.fn>;
-}
-
-function renderPopover(open = true): Rendered {
-  const { app } = createInMemoryApp({ files: {} });
-  const store = createViewAtlasStore(app, `light-popover-ui-${Math.random()}`);
-  store.getState().setPersistenceEnabled(false);
-  store.getState().setMapPath('maps/popover.atlasmap');
-  store.getState().setSceneLighting({ enabled: true });
-  const torch = store.getState().addLight({ x: 400, y: 300, emission: { ...genericLight('torch'), kind: 'torch' } });
-  const lantern = store.getState().addLight({ x: 600, y: 300, emission: { ...genericLight('lantern'), kind: 'lantern' } });
-  const history = getHistoryStore(store)!;
-  history.getState().clear();
-  const ui: AtlasUIContextValue = { app, view: null, pixiApp: null, renderer: null };
-  // The map's shortcuts listen on the window; the popover's own keys must not reach them.
-  const mapKeys = vi.fn();
-  window.addEventListener('keydown', mapKeys);
-  render(
-    <button type="button">Map</button>,
-  );
-  render(
-    <AtlasUIContext.Provider value={ui}>
-      <ViewStoreProvider store={store}><LightPopoverHost /></ViewStoreProvider>
-    </AtlasUIContext.Provider>,
-  );
-  if (open) act(() => store.getState().openLightPopover(torch));
-  return {
-    store, torch, lantern, mapKeys,
-    light: (id = torch) => store.getState().objects.lights[id]!,
-    steps: () => history.getState().pastStates.length,
-    undo: () => act(() => history.getState().undo()),
-  };
-}
-
-const popover = (): HTMLElement => screen.getByRole('dialog', { name: 'Light' });
 
 describe('LightPopover', () => {
   it('is closed until a light is opened', () => {
@@ -110,74 +60,6 @@ describe('LightPopover', () => {
     const { light } = renderPopover();
     fireEvent.click(screen.getByRole('button', { name: 'Custom light' }));
     expect(light().emission).toMatchObject({ kind: 'custom', bright: 20, dim: 40, color: '#ff9a3c' });
-  });
-
-  it('makes the light a source of magical darkness with the Darkness kind: one radius, and none of a light\'s controls', () => {
-    const { light, steps } = renderPopover();
-    fireEvent.click(screen.getByRole('button', { name: 'Darkness' }));
-    expect(light().emission).toMatchObject({ darkness: true, kind: 'darkness', bright: 0, dim: 15 });
-    expect(steps()).toBe(1);
-    expect(screen.getByRole('button', { name: 'Darkness' }).getAttribute('aria-pressed')).toBe('true');
-    expect((screen.getByLabelText('Radius') as HTMLInputElement).value).toBe('15');
-    screen.getByRole('slider', { name: 'Darkness radius' });
-    expect(screen.queryByLabelText('Bright')).toBeNull();
-    expect(screen.queryByRole('button', { name: 'Candle amber' })).toBeNull();
-    for (const slider of ['Intensity', 'Softness', 'Bright range', 'Beam', 'Direction']) expect(screen.queryByRole('slider', { name: slider })).toBeNull();
-    expect(screen.queryByRole('combobox', { name: 'Flicker' })).toBeNull();
-    expect(screen.queryByRole('switch', { name: 'Outshines magical darkness' })).toBeNull();
-    // Its one radius is typed like a light's range.
-    const radius = screen.getByLabelText('Radius');
-    fireEvent.change(radius, { target: { value: '20' } });
-    fireEvent.keyDown(radius, { key: 'Enter' });
-    expect(light().emission).toMatchObject({ darkness: true, bright: 0, dim: 20 });
-    // Made a custom light it stays a darkness; another kind's preset makes it a light again.
-    fireEvent.click(screen.getByRole('button', { name: 'Custom light' }));
-    expect(light().emission).toMatchObject({ darkness: true, kind: 'custom', dim: 20 });
-    expect(screen.getByLabelText('Radius')).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: 'Torch' }));
-    expect(light().emission).not.toHaveProperty('darkness');
-    expect((screen.getByLabelText('Bright') as HTMLInputElement).value).toBe('20');
-  });
-
-  it('lets a light outshine magical darkness, and stores nothing for one that does not', () => {
-    const { light } = renderPopover();
-    const outshines = screen.getByRole('switch', { name: 'Outshines magical darkness' });
-    expect(outshines.getAttribute('aria-checked')).toBe('false');
-    fireEvent.click(outshines);
-    expect(light().emission.priority).toBe(1);
-    expect(outshines.getAttribute('aria-checked')).toBe('true');
-    fireEvent.click(outshines);
-    expect(light().emission).not.toHaveProperty('priority');
-  });
-
-  it('narrows the light to a beam, and offers its direction only while it has one', () => {
-    const { light, steps, undo } = renderPopover();
-    const beam = screen.getByRole('slider', { name: 'Beam' });
-    expect(screen.getByText('All around')).toBeTruthy();
-    expect(screen.queryByRole('slider', { name: 'Direction' })).toBeNull();
-    act(() => beam.focus());
-    fireEvent.keyDown(beam, { key: 'ArrowLeft' });
-    expect(light().emission.angle).toBe(355);
-    expect(screen.getByText('355°')).toBeTruthy();
-    const direction = screen.getByRole('slider', { name: 'Direction' });
-    act(() => direction.focus());
-    fireEvent.keyDown(direction, { key: 'ArrowRight' });
-    expect(light().rotation).toBe(5);
-    expect(steps()).toBe(2);
-    undo();
-    expect(light().rotation ?? 0).toBe(0);
-    fireEvent.keyDown(beam, { key: 'End' });
-    expect('angle' in light().emission).toBe(false);
-    expect(screen.queryByRole('slider', { name: 'Direction' })).toBeNull();
-  });
-
-  it('shows the beam of a light that has one, as the map changes it', () => {
-    const { store, torch, light } = renderPopover();
-    act(() => store.getState().updateLight(torch, { rotation: 135, emission: { ...light().emission, angle: 53 } }));
-    expect(screen.getByRole('slider', { name: 'Beam' }).getAttribute('aria-valuenow')).toBe('53');
-    expect(screen.getByRole('slider', { name: 'Direction' }).getAttribute('aria-valuenow')).toBe('135');
-    expect(screen.getByText('53°')).toBeTruthy();
-    expect(screen.getByText('135°')).toBeTruthy();
   });
 
   it('keeps its kind when a value is changed', () => {
