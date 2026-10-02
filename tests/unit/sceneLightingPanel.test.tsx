@@ -110,6 +110,37 @@ describe('SceneLightingPanel', () => {
     expect(screen.getByText('60 %')).toBeTruthy();
   });
 
+  it('draws darkvision as the system says and without a tint until the scene picks otherwise', () => {
+    renderPanel();
+    expect(screen.getByRole('radiogroup', { name: 'Darkvision looks' })).toBeTruthy();
+    expect(screen.getByRole('radio', { name: 'As the system says' }).getAttribute('aria-checked')).toBe('true');
+    expect(screen.getByLabelText<HTMLInputElement>('Darkvision tint').value).toBe('#ffffff');
+    expect(screen.getByRole<HTMLButtonElement>('button', { name: 'No darkvision tint' }).disabled).toBe(true);
+  });
+
+  it('picks how darkvision looks, and stores the system\'s look as no choice at all', () => {
+    const { store } = renderPanel();
+    const pick = (label: string): void => void fireEvent.click(screen.getByRole('radio', { name: label }));
+    pick('In colour');
+    expect(store.getState().lighting.darkSightLook).toBe('colour');
+    pick('Grey');
+    expect(store.getState().lighting.darkSightLook).toBe('grey');
+    expect(screen.getByRole('radio', { name: 'Grey' }).getAttribute('aria-checked')).toBe('true');
+    pick('As the system says');
+    expect(store.getState().lighting).not.toHaveProperty('darkSightLook');
+  });
+
+  it('tints darkvision, and takes the tint back with None', () => {
+    const { store } = renderPanel();
+    fireEvent.change(screen.getByLabelText('Darkvision tint'), { target: { value: '#40ff80' } });
+    expect(store.getState().lighting.darkSightTint).toBe('#40ff80');
+    const none = screen.getByRole<HTMLButtonElement>('button', { name: 'No darkvision tint' });
+    expect(none.disabled).toBe(false);
+    fireEvent.click(none);
+    expect(store.getState().lighting).not.toHaveProperty('darkSightTint');
+    expect(screen.getByLabelText<HTMLInputElement>('Darkvision tint').value).toBe('#ffffff');
+  });
+
   it('closes', () => {
     const { store } = renderPanel();
     fireEvent.click(screen.getByRole('button', { name: 'Close lighting settings' }));

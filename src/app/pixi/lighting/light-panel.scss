@@ -83,8 +83,25 @@
 
 .atlas-light-panel__field > span,
 .atlas-light-panel__slider-head > span,
-.atlas-light-panel__toggle > span {
+.atlas-light-panel__toggle > span,
+.atlas-light-panel__choice > label {
   @include atlas-field-label;
+}
+
+// A label with its control at the row's end: a colour and the button that unsets it.
+.atlas-light-panel__choice {
+  @include atlas-flex-row($spacing-s);
+
+  > label {
+    flex: 1;
+  }
+}
+
+// Choices of unequal length share the row by what each needs.
+.atlas-light-panel__field--choice .atlas-segmented__option {
+  flex: 1 1 auto;
+  padding-inline: $spacing-xs;
+  white-space: nowrap;
 }
 
 .atlas-light-panel__slider-head {
