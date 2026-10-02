@@ -822,7 +822,7 @@ export function CommandPalette({ isOpen, onClose, toolbarRef }: CommandPalettePr
   };
 
   // The anchor places the palette and slides between list and panel; the
-  // container inside sizes it and carries the open / close animation.
+  // window inside carries the open / close animation, and the container sizes it.
   const anchorStyle: React.CSSProperties = !position
     ? {}
     : activePanel
@@ -857,125 +857,126 @@ export function CommandPalette({ isOpen, onClose, toolbarRef }: CommandPalettePr
               )}
               style={anchorStyle}
             >
-              <motion.div
-                ref={containerRef}
-                className={cn(
-                  'atlas-command-palette-container',
-                  activePanel && 'atlas-command-palette-container--expanded',
-                  activePanel && `atlas-command-palette-container--${activePanel}`,
-                )}
-                style={containerStyle}
-                variants={paletteVariants}
-              >
-                {activePanel ? (
-                  <SettingsPanelHeader
-                    icon={SETTINGS_PANEL_META[activePanel].icon}
-                    title={SETTINGS_PANEL_META[activePanel].title}
-                    onBack={exitSubmenu}
-                    actions={
-                      activePanel === 'grid-settings' ? (
-                        <Button variant="secondary" size="sm" onClick={() => store.getState().setGridAlignmentOpen(true)}>
-                          <Move />
-                          Enter Alignment Mode
-                        </Button>
-                      ) : undefined
-                    }
-                  />
-                ) : (
-                  <>
-                    <div className="atlas-command-palette-search">
-                      <div className="atlas-command-palette-search-inner">
-                        <Search className="atlas-command-palette-search-icon" />
-                        <input
-                          ref={inputRef}
-                          type="text"
-                          placeholder="Search commands..."
-                          className="atlas-command-palette-input"
-                          value={searchQuery}
-                          onChange={(e) => setSearchQuery(e.target.value)}
-                          autoFocus
-                          tabIndex={0}
-                          autoComplete="off"
-                          spellCheck={false}
-                        />
-                        {searchQuery && (
-                          <CloseButton placement="inline" onClick={clearSearch} aria-label="Clear search" />
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="atlas-command-palette-tabs">
-                      {tabs.map((tab) => (
-                        <Button
-                          key={tab.id}
-                          variant="ghost"
-                          size="sm"
-                          className={cn(
-                            'atlas-command-palette-tab',
-                            activeTab === tab.id && 'atlas-active',
-                          )}
-                          onClick={() => setActiveTab(tab.id)}
-                        >
-                          <span className="atlas-command-palette-tab-label">{tab.label}</span>
-                        </Button>
-                      ))}
-                    </div>
-                  </>
-                )}
-
+              <motion.div className="atlas-command-palette-window" variants={paletteVariants}>
                 <div
-                  ref={optionsContainerRef}
-                  className="atlas-command-palette-options"
-                  onMouseMove={handleMouseMove}
+                  ref={containerRef}
+                  className={cn(
+                    'atlas-command-palette-container',
+                    activePanel && 'atlas-command-palette-container--expanded',
+                    activePanel && `atlas-command-palette-container--${activePanel}`,
+                  )}
+                  style={containerStyle}
                 >
                   {activePanel ? (
-                    renderSettingsPanel(activePanel)
+                    <SettingsPanelHeader
+                      icon={SETTINGS_PANEL_META[activePanel].icon}
+                      title={SETTINGS_PANEL_META[activePanel].title}
+                      onBack={exitSubmenu}
+                      actions={
+                        activePanel === 'grid-settings' ? (
+                          <Button variant="secondary" size="sm" onClick={() => store.getState().setGridAlignmentOpen(true)}>
+                            <Move />
+                            Enter Alignment Mode
+                          </Button>
+                        ) : undefined
+                      }
+                    />
                   ) : (
-                    <div className="atlas-command-palette-options-inner">
-                      {sections.map((section) =>
-                        section.options.length > 0 ? (
-                          <div key={section.id} className="atlas-command-palette-section">
-                            <div className="atlas-command-palette-section-header">{section.title}</div>
-                            {section.options.map((option) => renderCommandItem(option))}
-                          </div>
-                        ) : null,
-                      )}
-
-                      {filteredOptions.length === 0 && (
-                        <div className="atlas-command-palette-empty">
-                          <div className="atlas-command-palette-empty-text">No results found</div>
-                          <div className="atlas-command-palette-empty-hint">Try a different search term</div>
+                    <>
+                      <div className="atlas-command-palette-search">
+                        <div className="atlas-command-palette-search-inner">
+                          <Search className="atlas-command-palette-search-icon" />
+                          <input
+                            ref={inputRef}
+                            type="text"
+                            placeholder="Search commands..."
+                            className="atlas-command-palette-input"
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            autoFocus
+                            tabIndex={0}
+                            autoComplete="off"
+                            spellCheck={false}
+                          />
+                          {searchQuery && (
+                            <CloseButton placement="inline" onClick={clearSearch} aria-label="Clear search" />
+                          )}
                         </div>
-                      )}
+                      </div>
+
+                      <div className="atlas-command-palette-tabs">
+                        {tabs.map((tab) => (
+                          <Button
+                            key={tab.id}
+                            variant="ghost"
+                            size="sm"
+                            className={cn(
+                              'atlas-command-palette-tab',
+                              activeTab === tab.id && 'atlas-active',
+                            )}
+                            onClick={() => setActiveTab(tab.id)}
+                          >
+                            <span className="atlas-command-palette-tab-label">{tab.label}</span>
+                          </Button>
+                        ))}
+                      </div>
+                    </>
+                  )}
+
+                  <div
+                    ref={optionsContainerRef}
+                    className="atlas-command-palette-options"
+                    onMouseMove={handleMouseMove}
+                  >
+                    {activePanel ? (
+                      renderSettingsPanel(activePanel)
+                    ) : (
+                      <div className="atlas-command-palette-options-inner">
+                        {sections.map((section) =>
+                          section.options.length > 0 ? (
+                            <div key={section.id} className="atlas-command-palette-section">
+                              <div className="atlas-command-palette-section-header">{section.title}</div>
+                              {section.options.map((option) => renderCommandItem(option))}
+                            </div>
+                          ) : null,
+                        )}
+
+                        {filteredOptions.length === 0 && (
+                          <div className="atlas-command-palette-empty">
+                            <div className="atlas-command-palette-empty-text">No results found</div>
+                            <div className="atlas-command-palette-empty-hint">Try a different search term</div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {!activePanel && (
+                    <div className="atlas-command-palette-footer">
+                      <div className="atlas-command-palette-footer-left">
+                        <div className="atlas-command-palette-footer-item">
+                          <kbd className="atlas-command-palette-kbd">Tab / Shift+Tab</kbd>
+                          <span>to switch tabs</span>
+                        </div>
+                        <div className="atlas-command-palette-footer-item">
+                          <span className="atlas-command-palette-footer-arrows">
+                            <ArrowUp className="atlas-command-palette-arrow" />
+                            <ArrowUp className="atlas-command-palette-arrow atlas-down" />
+                          </span>
+                          <span>to navigate</span>
+                        </div>
+                        <div className="atlas-command-palette-footer-item">
+                          <kbd className="atlas-command-palette-kbd">↵</kbd>
+                          <span>to select</span>
+                        </div>
+                      </div>
+                      <div className="atlas-command-palette-footer-right">
+                        <kbd className="atlas-command-palette-kbd">Esc</kbd>
+                        <span>{searchQuery ? "to clear" : "to close"}</span>
+                      </div>
                     </div>
                   )}
                 </div>
-
-                {!activePanel && (
-                  <div className="atlas-command-palette-footer">
-                    <div className="atlas-command-palette-footer-left">
-                      <div className="atlas-command-palette-footer-item">
-                        <kbd className="atlas-command-palette-kbd">Tab / Shift+Tab</kbd>
-                        <span>to switch tabs</span>
-                      </div>
-                      <div className="atlas-command-palette-footer-item">
-                        <span className="atlas-command-palette-footer-arrows">
-                          <ArrowUp className="atlas-command-palette-arrow" />
-                          <ArrowUp className="atlas-command-palette-arrow atlas-down" />
-                        </span>
-                        <span>to navigate</span>
-                      </div>
-                      <div className="atlas-command-palette-footer-item">
-                        <kbd className="atlas-command-palette-kbd">↵</kbd>
-                        <span>to select</span>
-                      </div>
-                    </div>
-                    <div className="atlas-command-palette-footer-right">
-                      <kbd className="atlas-command-palette-kbd">Esc</kbd>
-                      <span>{searchQuery ? "to clear" : "to close"}</span>
-                    </div>
-                  </div>
-                )}
               </motion.div>
             </div>
           </motion.div>
