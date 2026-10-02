@@ -39,6 +39,7 @@ vi.mock('../../src/app/pixi/lighting/createSceneLighting', () => ({
       ambientLight: () => ({ ambient: 1 }),
       refreshBounds: () => lighting.refreshBounds(),
       resetExplored: vi.fn(),
+      editExplored: vi.fn(() => false),
       beforeMapUnload: vi.fn(),
       renderForFrame: (_frame, render) => render(),
       destroy: vi.fn(),
@@ -172,7 +173,9 @@ describe('LightingController in session view', () => {
     store.getState().setSceneLighting({ enabled: true });
     store.getState().setGMView(false);
     const layers = controller.playerLayers();
-    expect(layers).toHaveLength(8);
+    // The players' lighting, the outlines of sensed tokens, and each of the GM's seven overlays.
+    expect(layers).toHaveLength(9);
+    expect(Object.keys(controller.gmOverlays())).toHaveLength(7);
     for (const { layer, visible } of layers) expect(layer.visible).toBe(visible);
     expect(lighting.modeLayer.visible).toBe(true);
   });

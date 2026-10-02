@@ -32,6 +32,11 @@ export function sightOnDropOn(lighting: Pick<SceneLighting, 'sightOnDrop'>): boo
   return lighting.sightOnDrop !== false;
 }
 
+/** A scene has explored memory to edit by hand while it is lit and remembers. */
+export function exploredMemoryEditable(lighting: Pick<SceneLighting, 'enabled' | 'exploredMemory'>): boolean {
+  return lighting.enabled && exploredMemoryOn(lighting);
+}
+
 function isDarkSightLook(value: unknown): value is DarkSightLook {
   return DARK_SIGHT_LOOKS.some((look) => look === value);
 }
