@@ -24,17 +24,18 @@ interface Painted {
 export class PaintRuntime {
   private readonly painted = new WeakMap<Element, Painted>();
   private readonly pending = new Set<Element>();
+  private readonly view: Window & typeof globalThis;
   private readonly sizes: ResizeObserver;
   private readonly changes: MutationObserver;
   private frame: number | null = null;
   private nextSeed = 1;
 
   constructor(private readonly doc: Document) {
-    const view = doc.defaultView ?? window;
-    this.sizes = new view.ResizeObserver((entries) => {
+    this.view = doc.defaultView ?? window;
+    this.sizes = new this.view.ResizeObserver((entries) => {
       for (const entry of entries) this.paint(entry.target);
     });
-    this.changes = new view.MutationObserver((records) => {
+    this.changes = new this.view.MutationObserver((records) => {
       for (const record of records) {
         if (record.type === 'attributes') this.queue(record.target);
         else record.addedNodes.forEach((node) => this.queue(node));
@@ -56,7 +57,7 @@ export class PaintRuntime {
   stop(): void {
     this.changes.disconnect();
     this.sizes.disconnect();
-    if (this.frame !== null) (this.doc.defaultView ?? window).cancelAnimationFrame(this.frame);
+    if (this.frame !== null) this.view.cancelAnimationFrame(this.frame);
     this.frame = null;
     this.pending.clear();
     this.doc.querySelectorAll<HTMLElement>(`[${PAINT_ATTRIBUTE}]`).forEach((element) => this.clear(element));
@@ -66,7 +67,7 @@ export class PaintRuntime {
     if (node.nodeType !== 1) return;
     this.pending.add(node as Element);
     if (this.frame !== null) return;
-    this.frame = (this.doc.defaultView ?? window).requestAnimationFrame(() => {
+    this.frame = this.view.requestAnimationFrame(() => {
       this.frame = null;
       const batch = [...this.pending];
       this.pending.clear();
