@@ -11,7 +11,7 @@ import type AtlasVTTPlugin from '../../main';
 import type { TokenEntity, Character, NotePin, TextElement, DrawingStroke } from './types';
 import type { FogOperation, FogOperationInput } from './types/fogTypes';
 import type { WallSegment, WallInput } from './types/wallTypes';
-import { DEFAULT_SCENE_LIGHTING, type LightChanges, type LightInput, type LightSource, type LightZone, type LightZoneChanges, type LightZoneInput, type SceneLighting } from './types/lightingTypes';
+import { DEFAULT_SCENE_LIGHTING, type LightChanges, type LightInput, type LightSource, type LightZone, type LightZoneChanges, type LightZoneInput, type SceneLighting, type SceneLightingChanges, type SceneLightingOption } from './types/lightingTypes';
 import type { AudioSource, AudioInput } from './types/audioTypes';
 import type { AnyWidget, WidgetSettings } from './types/widgetTypes';
 import type { InitiativeState, InitiativeEntry, InitiativeConfig } from './types/initiativeTypes';
@@ -173,7 +173,8 @@ export interface ViewAtlasState {
 
   /** Dynamic lighting of the scene; saved with the map, never undo-tracked. */
   lighting: SceneLighting;
-  setSceneLighting: (changes: Partial<SceneLighting>) => void;
+  /** Merges `changes` into the scene's lighting; an option given as undefined is removed. */
+  setSceneLighting: (changes: SceneLightingChanges) => void;
   /** What the players' tokens have explored, as a PNG data URL; saved with the map, never undo-tracked. */
   exploredMask: string | null;
   setExploredMask: (dataUrl: string | null) => void;
@@ -1155,6 +1156,9 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
 
           setSceneLighting: (changes) => set((draft) => {
             Object.assign(draft.lighting, changes);
+            for (const field of Object.keys(changes) as SceneLightingOption[]) {
+              if (changes[field] === undefined) delete draft.lighting[field];
+            }
             draft.lighting.ambient = Math.min(1, Math.max(0, draft.lighting.ambient));
             if (draft.lighting.litThreshold !== undefined) draft.lighting.litThreshold = clampLitThreshold(draft.lighting.litThreshold);
           }),

@@ -21,7 +21,27 @@ export interface SceneLighting {
   sightOnDrop?: boolean;
   /** Ambient light (0–1) from which the scene is brightly lit; unset is 0.75, and it never lies below the lit threshold. */
   brightThreshold?: number;
+  /**
+   * How the scene draws what a sense with a look without colour (darkvision, infravision) shows in
+   * the dark; unset is `system`. Only the picture: what is perceived stays the sense's. Read with `darkSightLookOf`.
+   */
+  darkSightLook?: DarkSightLook;
+  /** Tint of that picture, `#rrggbb`; unset is none. Read with `darkSightTintOf`. */
+  darkSightTint?: string;
 }
+
+/**
+ * The look of what is perceived without light and without colour: `system` as each sense of the
+ * game system says (grey, black and white, heat tones), `grey` the grey of darkvision for all of
+ * them, `colour` the map's own colours.
+ */
+export type DarkSightLook = 'system' | 'grey' | 'colour';
+
+/** The options a scene may leave unset. */
+export type SceneLightingOption = Exclude<keyof SceneLighting, 'enabled' | 'ambient'>;
+
+/** Changes to a scene's lighting: an option given as undefined is removed, so the scene reads its default again. */
+export type SceneLightingChanges = Partial<Pick<SceneLighting, 'enabled' | 'ambient'>> & { [Field in SceneLightingOption]?: SceneLighting[Field] | undefined };
 
 export const DEFAULT_SCENE_LIGHTING: SceneLighting = { enabled: false, ambient: 0.1 };
 

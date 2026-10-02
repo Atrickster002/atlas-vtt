@@ -1,6 +1,8 @@
 import { perceivedLevel, showsMap } from '../../../gameSystems/senseRules';
 import { NORMAL_SIGHT } from '../../../gameSystems/senses/generic';
-import { brightThresholdOf } from '../../../lighting/sceneLightingOptions';
+import { brightThresholdOf, darkSightLookOf, darkSightTintOf } from '../../../lighting/sceneLightingOptions';
+import { linearColor } from '../../../lighting/srgb';
+import type { SceneLighting } from '../../../types/lightingTypes';
 import type { SenseDefinition, SenseLook } from '../../../types/senseTypes';
 import { ambientLevel } from '../../../vision/lightLevels';
 import type { SeenSpot } from '../../../vision/perception';
@@ -23,6 +25,26 @@ const GREY_LOOKS: Record<Exclude<SenseLook, 'colour'>, { keep: number; tint: rea
   // Warm tones on a dark ground; brighter than grey at the same level, since red and orange weigh little.
   heat: { keep: 0, tint: [2.6, 0.8, 0.22] },
 };
+
+/** The scene draws every look without colour in the map's own colours (`darkSightLook: 'colour'`). */
+const IN_COLOUR = { keep: 1, tint: [1, 1, 1] } as const;
+/** The most a tint may raise one channel; the heat look's red reaches 2.6. */
+const MAX_TINT_GAIN = 3;
+const LUMA = [0.2126, 0.7152, 0.0722] as const;
+
+/**
+ * A tint the scene picked (`#rrggbb`), in linear light and as bright as white: it gives the
+ * picture its hue and leaves its brightness, as far as one channel can carry it. A colour
+ * without a hue (a grey, black) and no colour at all are no tint.
+ */
+export function darkSightTint(color: string | null): readonly [number, number, number] {
+  if (!color) return [1, 1, 1];
+  const [r, g, b] = linearColor(color);
+  const luminance = r * LUMA[0] + g * LUMA[1] + b * LUMA[2];
+  if (luminance <= 0) return [1, 1, 1];
+  const gain = Math.min(1 / luminance, MAX_TINT_GAIN / Math.max(r, g, b));
+  return [r * gain, g * gain, b * gain];
+}
 
 function seesByLight(sense: SenseDefinition): boolean {
   return perceivedLevel(sense, 'bright') !== null || perceivedLevel(sense, 'dim') !== null;
@@ -74,8 +96,13 @@ function darkLevel(sense: SenseDefinition): number {
  * Without such a sense it is the grey of darkvision, which draws nothing while green is empty.
  * The look in colour is as bright as its brightest sense; `spots` (tokens seen in their
  * footprint) are drawn bright.
+ *
+ * The scene may override the look without colour (`darkSightLook`: `grey` draws every such
+ * sense, black and white and heat too, in the grey of darkvision, `colour` in the map's own
+ * colours, each at the level the sense sees the dark at) and tint it (`darkSightTint`). Neither
+ * touches the senses that see in colour, nor what any sense perceives.
  */
-export function darkLooks(sight: Sight, spots = false): DarkLooks {
+export function darkLooks(sight: Sight, spots = false, scene: Pick<SceneLighting, 'darkSightLook' | 'darkSightTint'> = {}): DarkLooks {
   let grey: SenseDefinition | null = null;
   let colourLevel: number = spots ? DARK_SIGHT_LEVELS.bright : DARK_SIGHT_LEVELS.dim;
   for (const region of sight.regions) {
@@ -84,9 +111,12 @@ export function darkLooks(sight: Sight, spots = false): DarkLooks {
     if (channels[1] && (!grey || darkLevel(region.sense) > darkLevel(grey))) grey = region.sense;
     if (channels[2]) colourLevel = Math.max(colourLevel, darkLevel(region.sense));
   }
-  const look = GREY_LOOKS[grey && grey.look !== 'colour' ? grey.look : 'monochrome'];
+  const chosen = darkSightLookOf(scene);
+  const own = GREY_LOOKS[grey && grey.look !== 'colour' ? grey.look : 'monochrome'];
+  const look = chosen === 'colour' ? IN_COLOUR : chosen === 'grey' ? GREY_LOOKS.monochrome : own;
+  const tint = darkSightTint(darkSightTintOf(scene));
   const level = grey ? darkLevel(grey) : DARK_SIGHT_LEVELS.dim;
-  return { greyKeep: look.keep, greyTint: [look.tint[0] * level, look.tint[1] * level, look.tint[2] * level], greyLevel: level, colourLevel };
+  return { greyKeep: look.keep, greyTint: [look.tint[0] * tint[0] * level, look.tint[1] * tint[1] * level, look.tint[2] * tint[2] * level], greyLevel: level, colourLevel };
 }
 
 /**
