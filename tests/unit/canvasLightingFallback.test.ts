@@ -120,6 +120,23 @@ describe('CanvasLightingFallback', () => {
     fill.mockRestore();
   });
 
+  it('opens magical darkness where a sense that sees in it looks, so a token it shows is not under the black; a token standing in it sees nothing with its eyes', () => {
+    const rules: SightRules = { definitions: BUILT_IN_SENSES['builtin:dnd5e']!, conditions: [] };
+    // The hero sees 140 px far; the darkness, 140 px in radius, begins 60 px from it.
+    const prey: TokenEntity = { id: 'prey', kind: 'token', imagePath: 'p.png', x: 220, y: 100 };
+    const warlock: TokenEntity = { ...hero, vision: { enabled: true, range: 10, senses: [{ id: 'dnd5e-devils-sight', range: 120 }] } };
+    const { fallback, store } = setup({ hero: warlock, prey }, {}, undefined, rules);
+    const cut = vi.spyOn(Graphics.prototype, 'cut');
+    store.getState().addLight({ x: 300, y: 100, emission: { bright: 0, dim: 10, color: '#000000', intensity: 1, animation: 'none', darkness: true } });
+    expect(playerTokenSight(fallback, store.getState().objects.tokens, { conditions: [] })?.('prey')).toBe('seen');
+    // The map's black is cut by the hero's sight and by its devil's sight; the darkness' black by the devil's sight again.
+    expect(cut).toHaveBeenCalledTimes(3);
+    cut.mockRestore();
+    // Plain eyes inside the darkness: no region at all.
+    store.getState().updateToken('hero', { x: 300, y: 100, vision: { enabled: true } });
+    expect(fallback.currentSight().regions).toEqual([]);
+  });
+
   it('blacks out the map outside sight in the player frame only', () => {
     const { fallback, viewport } = setup({ hero });
     const darkness = viewport.children[0]!;

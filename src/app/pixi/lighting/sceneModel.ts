@@ -9,6 +9,7 @@ import type { TokenEntity } from '../../types';
 import type { SceneLighting } from '../../types/lightingTypes';
 import type { WallSegment } from '../../types/wallTypes';
 import { exploredShapes, type ExploredShapes } from '../../vision/exploredShapes';
+import { quenched, sourcesInDarkness } from '../../vision/magicalDarkness';
 import { seenSpots, type SeenSpot } from '../../vision/perception';
 import type { SightRules } from '../../vision/sightRules';
 import { SightCache, sceneSight, sightOptionsChanged, sightSources, type LightReach, type Sight } from '../../vision/sight';
@@ -80,9 +81,13 @@ export class SceneModelBuilder {
   private build(state: SceneState, tokens: Record<string, TokenEntity>, bounds: MapBounds, measurement: MeasurementSettings, rules: SightRules | undefined): SceneModel {
     const scale = unitScaleOf(measurement, state.grid);
     const walls = sealedWalls(wallList(state.objects.walls), worldTexel(bounds));
-    const lights = activeLights(state.objects.lights, tokens, state.lighting.ambient).map((light) => engineLight(light, scale));
-    const reaches = this.lightReaches.sync(lights, walls);
-    const sight = sceneSight(state.lighting, sightSources(tokens, scale, bounds, rules), walls, this.sightCache);
+    const shining = activeLights(state.objects.lights, tokens, state.lighting.ambient).map((light) => engineLight(light, scale));
+    const everyReach = this.lightReaches.sync(shining, walls);
+    // A light whose flame stands in magical darkness it does not outshine gives nothing: the picture and the rule both leave it out.
+    const out = shining.map((light) => !light.darkness && quenched(light, light.priority ?? 0, everyReach));
+    const lights = shining.filter((_, i) => !out[i]);
+    const reaches = everyReach.filter((_, i) => !out[i]);
+    const sight = sceneSight(state.lighting, sourcesInDarkness(sightSources(tokens, scale, bounds, rules), state.lighting, reaches), walls, this.sightCache);
     return { walls, lights, reaches, sight, explored: exploredShapes(sight, state.lighting, reaches) };
   }
 }

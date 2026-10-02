@@ -6,7 +6,7 @@ import type { MeasurementSettings } from '../../grid/measurementFormat';
 import { unitScaleOf } from '../../lighting/lightingUnits';
 import { sealedWalls } from '../../lighting/sealWalls';
 import { worldTexel } from '../../lighting/lightingConstants';
-import { showsMap } from '../../gameSystems/senseRules';
+import { perceivedLevel, showsMap } from '../../gameSystems/senseRules';
 import { SightTokens, heldForSight } from '../../lighting/sightOnDrop';
 import { SEES_ALL, SightCache, sceneSight, sightSources, type AmbientLight, type LightReach, type Sight } from '../../vision/sight';
 import { wallList } from '../../vision/wallList';
@@ -19,6 +19,7 @@ import type { SceneFrame } from './engine/types';
 import { LIGHTING_Z_INDEX } from './LightingRenderer';
 import { PlayerView } from './PlayerView';
 import { LightReaches } from './lightReaches';
+import { sourcesInDarkness } from '../../vision/magicalDarkness';
 import { activeLights, engineLight } from './lightSources';
 import type { SceneLightingView } from './sceneLightingView';
 
@@ -110,12 +111,12 @@ export class CanvasLightingFallback implements SceneLightingView {
     const scale = unitScaleOf(measurement, state.grid);
     const walls = this.sealedWalls(state.objects.walls, worldTexel(bounds));
     const tokens = this.sightTokens.read(state);
-    const sight = sceneSight(state.lighting, sightSources(tokens, scale, bounds, rules), walls, this.cache);
-    // The same regions are the same sight: what was worked out from it (who is seen) stays good.
-    if (!sameSight(sight, this.sight)) this.sight = sight;
     const dark = activeLights(state.objects.lights, tokens, state.lighting.ambient).filter((light) => light.emission.darkness).map((light) => engineLight(light, scale));
     // The same list while there is no darkness, so whoever compares it finds it unchanged.
     this.reaches = dark.length > 0 ? this.darknessReaches.sync(dark, walls) : NO_REACHES;
+    const sight = sceneSight(state.lighting, sourcesInDarkness(sightSources(tokens, scale, bounds, rules), FULL_DAYLIGHT, this.reaches), walls, this.cache);
+    // The same regions are the same sight: what was worked out from it (who is seen) stays good.
+    if (!sameSight(sight, this.sight)) this.sight = sight;
     const spots = seenSpots(this.sight, FULL_DAYLIGHT, this.reaches, state.objects.tokens, scale.cellSize, walls, { conditions: rules?.conditions ?? [], held });
     this.drawDarkness(bounds, spots);
     this.deps.onSightChange?.();
@@ -131,7 +132,8 @@ export class CanvasLightingFallback implements SceneLightingView {
 
   /**
    * Black over the map, cut open where a sense shows it and at each token seen without the map
-   * around it; then black again over each magical darkness, cut open only at those tokens.
+   * around it; then black again over each magical darkness, cut open at those tokens and where
+   * a sense that sees in magical darkness looks: a token it shows must not lie under the black.
    */
   private drawDarkness(bounds: MapBounds, spots: readonly SeenSpot[]): void {
     const g = this.darkness;
@@ -151,6 +153,9 @@ export class CanvasLightingFallback implements SceneLightingView {
     for (const { polygon } of this.reaches) {
       if (polygon.length < 3) continue;
       g.poly(polygon.flatMap((p) => [p.x, p.y])).fill({ color: 0x000000 });
+      for (const region of this.sight.regions) {
+        if (showsMap(region.sense) && perceivedLevel(region.sense, 'magical-dark') !== null && region.polygon && region.polygon.length >= 3) g.poly(region.polygon.flatMap((p) => [p.x, p.y])).cut();
+      }
       cutSpots();
     }
     this.darkness.visible = this.playerView.visible;

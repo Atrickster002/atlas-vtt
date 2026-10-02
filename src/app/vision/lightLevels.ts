@@ -46,7 +46,7 @@ function levelFromLights(point: Point, lights: readonly LightReach[], above = -I
 }
 
 /** The priority of the strongest darkness source that covers `point`; none covers it at -Infinity. */
-function darknessAt(point: Point, lights: readonly LightReach[]): number {
+export function darknessAt(point: Point, lights: readonly LightReach[]): number {
   let priority = -Infinity;
   for (const light of lights) {
     if (!light.darkness || (light.priority ?? 0) <= priority) continue;
