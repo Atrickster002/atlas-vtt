@@ -86,7 +86,7 @@ describe('Edit Token writes senses, light and resources together', () => {
   it('one save writes a new sense, a switched-off light and a new maximum', () => {
     const { saved, input } = open({ vision: { enabled: true, darkvision: 60 }, light: torch, resources: { hp: { current: 5, max: 8 } } });
     fireEvent.change(screen.getByLabelText('Darkvision range'), { target: { value: '90' } });
-    fireEvent.click(screen.getByRole('switch', { name: 'Carried light' }));
+    fireEvent.click(screen.getByRole('switch', { name: 'Carries a light' }));
     fireEvent.change(input('Max HP'), { target: { value: '4' } });
     save();
     expect(saved().vision).toEqual({ enabled: true, senses: [{ id: darkvision.id, range: 90 }] });

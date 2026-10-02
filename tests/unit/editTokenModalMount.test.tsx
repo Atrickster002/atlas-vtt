@@ -11,6 +11,7 @@ import { openEditTokenModal } from '../../src/app/pixi/token-renderer/EditTokenM
 import { AssetService } from '../../src/app/services/AssetService';
 import type { TokenEntity } from '../../src/app/types';
 import { createInMemoryApp } from '../mocks/inMemoryVault';
+import { HP, STR } from '../mocks/resourceFixtures';
 
 const darkvision = senseWithRole(GENERIC_SENSES, 'darkvision');
 const tremorsense = senseWithRole(GENERIC_SENSES, 'tremorsense');
@@ -37,9 +38,31 @@ describe('openEditTokenModal', () => {
   it('opens with its vision switch through its own React root, outside every tooltip provider', () => {
     open({ vision: { enabled: true } });
     expect(vision().getAttribute('aria-checked')).toBe('true');
-    expect(screen.getByText('Vision & light')).toBeTruthy();
+    expect(screen.getByText('Edit Token')).toBeTruthy();
     act(() => screen.getByRole('button', { name: 'Cancel' }).click());
     expect(document.body.querySelector('.atlas-vtt-root')).toBeNull();
+  });
+
+  it('has its sections and fields in the order they are read and tabbed through, which a dialog of one column keeps: token, resources, vision, carried light', () => {
+    const { app } = createInMemoryApp();
+    const store = createViewAtlasStore(app, `edit-token-order-${Math.random()}`);
+    const token: TokenEntity = { id: 't', kind: 'character', name: 'Mirabel', imagePath: 't.png', x: 0, y: 0, vision: { enabled: true }, light: emissionOf(lightPresetsOnMap(GENERIC_LIGHT_PRESETS, { unitType: 'feet', unitDistance: 5 }, Infinity)[0]!) };
+    store.setState({ persistenceEnabled: false, objects: { ...store.getState().objects, tokens: { t: token } } });
+    act(() => openEditTokenModal(token, store, app, [HP, STR]));
+    expect(screen.getAllByRole('heading', { level: 4 }).map((heading) => heading.textContent)).toEqual(['Token', 'Resources', 'Vision', 'Carried light']);
+    // Every section is named by its heading, and the columns hold them in this order: the left one, then the right one.
+    expect(screen.getAllByRole('region').map((section) => section.getAttribute('aria-labelledby'))).toEqual(screen.getAllByRole('heading', { level: 4 }).map((heading) => heading.id));
+    const columns = [...document.querySelectorAll('.atlas-edit-token__column')];
+    expect(columns.map((column) => [...column.querySelectorAll('h4')].map((heading) => heading.textContent))).toEqual([['Token', 'Resources', 'Vision'], ['Carried light']]);
+    const stops = [
+      screen.getByLabelText('Name'), screen.getByRole('switch', { name: 'Show nameplate' }), screen.getByLabelText('Max HP'), screen.getByLabelText('Max STR'),
+      vision(), screen.getByLabelText(/^Sight range/), screen.getByLabelText(/^Vision angle/), screen.getByRole('button', { name: 'Add sense' }),
+      screen.getByRole('switch', { name: 'Carries a light' }), screen.getByRole('button', { name: 'Candle' }), screen.getByLabelText('Bright'), screen.getByRole('slider', { name: 'Intensity' }),
+      screen.getByRole('combobox', { name: 'Flicker' }), screen.getByRole('switch', { name: 'Outshines magical darkness' }), screen.getByRole('button', { name: 'Cancel' }), screen.getByRole('button', { name: 'Save' }),
+    ];
+    for (const [index, stop] of stops.slice(1).entries()) {
+      expect(stops[index]!.compareDocumentPosition(stop) & Node.DOCUMENT_POSITION_FOLLOWING, `${stop.textContent || stop.getAttribute('aria-label') || stop.id} comes after the stop before it`).toBeTruthy();
+    }
   });
 
   it('says in one line what the vision switch means', () => {
@@ -97,10 +120,10 @@ describe('openEditTokenModal', () => {
     open({ vision: { enabled: true } });
     fireEvent.click(screen.getByRole('button', { name: 'Add sense' }));
     fireEvent.keyDown(screen.getByRole('group', { name: 'Senses to add' }), { key: 'Escape' });
-    expect(screen.getByText('Vision & light')).toBeTruthy();
+    expect(screen.getByText('Edit Token')).toBeTruthy();
     expect(screen.queryByRole('group', { name: 'Senses to add' })).toBeNull();
     fireEvent.keyDown(document.body, { key: 'Escape' });
-    expect(screen.queryByText('Vision & light')).toBeNull();
+    expect(screen.queryByText('Edit Token')).toBeNull();
   });
 });
 
@@ -130,7 +153,7 @@ describe('openEditTokenModal: the carried light', () => {
   const onMap = lightPresetsOnMap(GENERIC_LIGHT_PRESETS, { unitType: 'feet', unitDistance: 5 }, Infinity);
   const torch = onMap.find((preset) => preset.id === 'torch')!;
   const lantern = onMap.find((preset) => preset.id === 'lantern')!;
-  const carried = (): HTMLElement => screen.getByRole('switch', { name: 'Carried light' });
+  const carried = (): HTMLElement => screen.getByRole('switch', { name: 'Carries a light' });
 
   it('is off for a token without one, with no light fields, and saves none', () => {
     const { saved } = open();
@@ -177,10 +200,10 @@ describe('openEditTokenModal: the carried light', () => {
     const tooltip = render(<TooltipProvider><Tooltip open><TooltipTrigger>Hovered</TooltipTrigger><TooltipContent>Tip</TooltipContent></Tooltip></TooltipProvider>);
     fireEvent.keyDown(screen.getByRole('option', { name: 'Pulse' }), { key: 'Escape' });
     expect(screen.queryByRole('listbox')).toBeNull();
-    expect(screen.getByText('Vision & light')).toBeTruthy();
+    expect(screen.getByText('Edit Token')).toBeTruthy();
     tooltip.unmount();
     fireEvent.keyDown(document.body, { key: 'Escape' });
-    expect(screen.queryByText('Vision & light')).toBeNull();
+    expect(screen.queryByText('Edit Token')).toBeNull();
   });
 
   it('commits a typed range with Enter without saving the token', () => {
@@ -188,7 +211,7 @@ describe('openEditTokenModal: the carried light', () => {
     const dim = screen.getByLabelText('Dim') as HTMLInputElement;
     fireEvent.change(dim, { target: { value: '50' } });
     fireEvent.keyDown(dim, { key: 'Enter' });
-    expect(screen.getByText('Vision & light')).toBeTruthy();
+    expect(screen.getByText('Edit Token')).toBeTruthy();
     expect(saved().light).toEqual(emissionOf(torch));
     save();
     expect(saved().light).toMatchObject({ bright: 20, dim: 50 });
@@ -198,7 +221,7 @@ describe('openEditTokenModal: the carried light', () => {
     const { saved } = open({ light: emissionOf(torch) });
     fireEvent.click(screen.getByRole('button', { name: 'Arcane blue' }));
     fireEvent.keyDown(screen.getByLabelText('Custom colour'), { key: 'Enter' });
-    expect(screen.getByText('Vision & light')).toBeTruthy();
+    expect(screen.getByText('Edit Token')).toBeTruthy();
     expect(saved().light).toEqual(emissionOf(torch));
   });
 
