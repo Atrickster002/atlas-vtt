@@ -100,6 +100,16 @@ describe('the roll stack rearranging', () => {
     expect(stretch).toBeLessThan(1.05);
   });
 
+  it('opens at its full height', async () => {
+    show([roll('first')]);
+    const heights: number[] = [];
+    await worstOverMorph(() => {
+      heights.push(host.querySelector<HTMLElement>('.atlas-dice-roll__sheet')?.offsetHeight ?? 0);
+      return null;
+    });
+    expect(new Set(heights).size).toBe(1);
+  });
+
   it('shrinks to a row over time, not at once', async () => {
     const first = roll('first');
     show([first]);
