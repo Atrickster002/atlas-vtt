@@ -4,7 +4,6 @@ import { isRecord } from '../services/assetMetadataGuards';
 import { isHexColor } from '../utils/hexColor';
 import type { AmbientLight, AmbientZone } from '../vision/sight';
 import { pointInPolygon } from '../vision/visibility';
-import { litThresholdOf } from './sceneLightingOptions';
 
 /** The corners a zone may have: the engine reads its outline from a list of this length. */
 export const MAX_ZONE_CORNERS = 64;
@@ -83,11 +82,6 @@ const NONE: LightZone[] = [];
 /** A scene's lighting as the rules read it: itself, or with its zones when it has any. */
 export function withZones<Lighting extends SceneLighting>(lighting: Lighting, zones: readonly AmbientZone[]): Lighting & AmbientLight {
   return zones.length > 0 ? { ...lighting, zones } : lighting;
-}
-
-/** The ambient light a newly drawn zone starts with: dark in a lit scene (a cave), daylight in a dark one (a lit hall). */
-export function newZoneAmbient(scene: Pick<SceneLighting, 'ambient' | 'litThreshold'>): number {
-  return scene.ambient >= litThresholdOf(scene) ? 0 : 1;
 }
 
 /** Where a zone's handle sits: at its centroid, or at a point inside it when the zone bends around its centroid. */

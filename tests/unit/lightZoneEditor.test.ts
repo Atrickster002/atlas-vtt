@@ -89,16 +89,17 @@ describe('the light zone tool', () => {
     expect(made.zones()).toEqual([]);
   });
 
-  it('starts a zone dark in a lit scene and lit in a dark one, and opens its popover', () => {
-    const day = setup(1);
-    corners(day);
-    day.editor.handleEnter();
-    expect(day.zones()[0]!.ambient).toBe(0);
-    expect(day.store.getState().lightZonePopover).toBe(day.zones()[0]!.id);
-    const night = setup(0);
-    corners(night);
-    night.editor.handleEnter();
-    expect(night.zones()[0]!.ambient).toBe(1);
+  it('starts a zone with the scene\'s own ambient light, so nothing changes until its level is set, and opens its popover', () => {
+    for (const ambient of [1, 0.4, 0]) {
+      const made = setup(ambient);
+      corners(made);
+      made.editor.handleEnter();
+      // The scene's level, and no colour of its own: the scene's tint, as long as it has none.
+      expect(made.zones()[0]).toEqual({ id: made.zones()[0]!.id, kind: 'light-zone', polygon: made.zones()[0]!.polygon, ambient });
+      expect(made.store.getState().lightZonePopover).toBe(made.zones()[0]!.id);
+      cleanup!();
+      cleanup = null;
+    }
   });
 
   it('closes the zone with a click on its first corner, and with a double click', () => {

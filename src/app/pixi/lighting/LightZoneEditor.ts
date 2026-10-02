@@ -1,7 +1,7 @@
 import type { EventEmitter } from 'events';
 import type { Container } from 'pixi.js';
 import type { Viewport } from 'pixi-viewport';
-import { MAX_LIGHT_ZONES, MAX_ZONE_CORNERS, hasArea, lightZoneList, newZoneAmbient } from '../../lighting/lightZones';
+import { MAX_LIGHT_ZONES, MAX_ZONE_CORNERS, hasArea, lightZoneList } from '../../lighting/lightZones';
 import type { ViewAtlasStore } from '../../storeFactory';
 import { abandonHistoryTransaction, beginHistoryTransaction, endHistoryTransaction } from '../../stores/history';
 import type { WallToolSubMode } from '../../tools/WallTool';
@@ -219,8 +219,8 @@ export class LightZoneEditor {
   }
 
   /**
-   * Makes the corners placed a zone, when they are an area: a new zone is one undo step, and its
-   * popover opens. Corners on one line are none yet (such a zone could not be opened or deleted:
+   * Makes the corners placed a zone, when they are an area: a new zone is one undo step, starts
+   * with the scene's ambient light, and its popover opens. Corners on one line are none yet (such a zone could not be opened or deleted:
    * it shows nowhere), so drawing goes on.
    */
   private close(): void {
@@ -230,7 +230,8 @@ export class LightZoneEditor {
     const state = this.deps.store.getState();
     this.draft = [];
     this.cursor = null;
-    state.openLightZonePopover(state.addLightZone({ polygon, ambient: newZoneAmbient(state.lighting) }));
+    // The scene's own level, and its tint: closing a zone changes nothing on the map, and records nothing, until the GM sets its light.
+    state.openLightZonePopover(state.addLightZone({ polygon, ambient: Math.min(1, Math.max(0, state.lighting.ambient)) }));
     this.draw();
   }
 

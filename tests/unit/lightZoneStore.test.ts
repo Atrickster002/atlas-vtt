@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { MAX_ZONE_CORNERS, lightZoneList, newZoneAmbient, zoneHandlePoint } from '../../src/app/lighting/lightZones';
+import { MAX_ZONE_CORNERS, lightZoneList, zoneHandlePoint } from '../../src/app/lighting/lightZones';
 import { migrateMapFile } from '../../src/app/services/MapPersistence';
 import { createViewAtlasStore, type ViewAtlasStore } from '../../src/app/storeFactory';
 import { getHistoryStore } from '../../src/app/stores/history';
@@ -90,18 +90,12 @@ describe('light zones as read from a map file', () => {
   });
 });
 
-describe('a zone\'s handle and its first level', () => {
+describe('a zone\'s handle', () => {
   it('sits in the middle of the zone, and inside it when the zone bends around its middle', () => {
     expect(zoneHandlePoint(SQUARE)).toEqual({ x: 50, y: 50 });
     // An L: its centroid (100/3 …) lies inside; a U's does not.
     const u = [{ x: 0, y: 0 }, { x: 30, y: 0 }, { x: 30, y: 90 }, { x: 70, y: 90 }, { x: 70, y: 0 }, { x: 100, y: 0 }, { x: 100, y: 100 }, { x: 0, y: 100 }];
     const handle = zoneHandlePoint(u);
     expect(handle.x < 30 || handle.x > 70 || handle.y > 90).toBe(true);
-  });
-
-  it('starts dark in a lit scene and lit in a dark one', () => {
-    expect(newZoneAmbient({ ambient: 1 })).toBe(0);
-    expect(newZoneAmbient({ ambient: 0.5 })).toBe(0);
-    expect(newZoneAmbient({ ambient: 0.1 })).toBe(1);
   });
 });
