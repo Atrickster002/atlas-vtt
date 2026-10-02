@@ -1,3 +1,4 @@
+import { beamOf } from '../../lighting/lightBeam';
 import { lightKindOf } from '../../lighting/lightPresets';
 import type { LightKind, LightSource } from '../../types/lightingTypes';
 import type { Point } from '../../types/visionTypes';
@@ -38,6 +39,8 @@ export interface LightMarkerLook {
   ringAlpha: number;
   /** The ring around a selected marker. */
   accent: number | null;
+  /** The world angle a light with a beam faces, where the badge has a pointer; null for one that shines all around. */
+  direction: number | null;
   /** Scale on top of the marker's size on screen. */
   lift: number;
 }
@@ -104,6 +107,7 @@ export function lightMarkerLook(light: LightSource, state: LightMarkerState, the
     ringColor: color,
     ringAlpha: off ? 0.3 : 0.9,
     accent: state.selected ? theme.accent : null,
+    direction: beamOf(light)?.facing ?? null,
     lift: state.dragging ? DRAG_LIFT : state.hovered ? HOVER_LIFT : 1,
   };
 }

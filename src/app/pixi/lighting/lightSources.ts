@@ -1,11 +1,11 @@
 import { Color } from 'pixi.js';
 import type { TokenEntity } from '../../types';
 import type { LightEmission, LightSource } from '../../types/lightingTypes';
+import { beamOf } from '../../lighting/lightBeam';
 import { gameUnitsToWorld, type UnitScale } from '../../lighting/lightingUnits';
 import { MIN_SOFTNESS, TINT_TO_WHITE } from '../../lighting/lightingConstants';
 import { srgbToLinear } from '../../lighting/srgb';
 import { kindOf } from '../../vision/sight';
-import { visionCone } from '../../vision/visionCone';
 import type { EngineLight } from './engine/types';
 
 /** A light that shines right now: placed on the map or carried by a token. */
@@ -36,12 +36,12 @@ function turned(rotation: number | undefined): Pick<ActiveLight, 'rotation'> {
 
 /**
  * A light in world pixels for the engine; its colour mixed towards white and linearised. A
- * light with an angle gets its cone (`visionCone`, as a token's sight does), with half a cell
+ * light with an angle gets its cone (`beamOf`, facing as a token's sight does), with half a cell
  * around it lit all around: the space of whoever carries it.
  */
 export function engineLight(light: ActiveLight, scale: UnitScale): EngineLight {
   const { emission } = light;
-  const cone = emission.darkness ? undefined : visionCone(light.rotation, emission.angle, scale.cellSize / 2);
+  const cone = beamOf(light, scale.cellSize / 2);
   // A darkness has one radius, its dim one: nothing in it is bright.
   const bright = emission.darkness ? 0 : gameUnitsToWorld(Math.max(0, emission.bright), scale);
   const dim = Math.max(bright, gameUnitsToWorld(Math.max(0, emission.dim), scale));

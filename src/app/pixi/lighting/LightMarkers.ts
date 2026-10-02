@@ -22,6 +22,11 @@ import {
 /** Above the lighting layer (90), so the GM finds lights in the dark; below token UI (100). */
 export const LIGHT_MARKERS_Z_INDEX = 95;
 
+/** The pointer of a light with a beam: how far from the badge it starts, how long it is, and half its width as an angle. */
+const POINTER_GAP = 2;
+const POINTER_LENGTH = 7;
+const POINTER_SPREAD = 0.36;
+
 type MarkerState = Pick<ViewAtlasState, 'lighting' | 'activeTool'>;
 
 /** Lit scenes show their lights' markers, and the lighting tool shows them in any scene. */
@@ -46,13 +51,23 @@ interface Marker {
   lift: ValueTransition | null;
 }
 
+/** A light with a beam: a pointer on the badge's edge, in the light's colour, the way it faces. */
+function drawPointer(g: Graphics, { direction, ringColor, ringAlpha }: LightMarkerLook): void {
+  if (direction === null) return;
+  const point = (radius: number, turn: number): [number, number] => [Math.cos(direction + turn) * radius, Math.sin(direction + turn) * radius];
+  const base = LIGHT_MARKER_RADIUS + POINTER_GAP;
+  g.poly([...point(base, -POINTER_SPREAD), ...point(base + POINTER_LENGTH, 0), ...point(base, POINTER_SPREAD)])
+    .fill({ color: ringColor, alpha: ringAlpha })
+    .stroke({ width: 1, color: 0x000000, alpha: 0.35 });
+}
+
 function sameTheme(a: LightMarkerTheme, b: LightMarkerTheme): boolean {
   return a.background === b.background && a.stroke === b.stroke && a.accent === b.accent;
 }
 
 function sameLook(a: LightMarkerLook, b: LightMarkerLook): boolean {
   return a.kind === b.kind && a.glyphTint === b.glyphTint && a.glyphAlpha === b.glyphAlpha
-    && a.ringColor === b.ringColor && a.ringAlpha === b.ringAlpha && a.accent === b.accent;
+    && a.ringColor === b.ringColor && a.ringAlpha === b.ringAlpha && a.accent === b.accent && a.direction === b.direction;
 }
 
 /**
@@ -191,6 +206,7 @@ export class LightMarkers {
     if (look.accent !== null) {
       g.circle(0, 0, LIGHT_MARKER_RADIUS + 3).stroke({ width: 2, color: look.accent });
     }
+    if (look.direction !== null) drawPointer(g, look);
     const texture = this.glyphTexture(look.kind);
     if (!texture) return;
     if (!marker.glyph) {

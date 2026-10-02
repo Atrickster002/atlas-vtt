@@ -1,5 +1,6 @@
 import { useLayoutEffect, useRef } from 'react';
 import type React from 'react';
+import { beamOf } from '../../lighting/lightBeam';
 import { gameUnitsToWorld, unitScaleOf } from '../../lighting/lightingUnits';
 import { useViewStoreHook } from '../../react/ViewStoreContext';
 import { useAtlasUI } from '../../react/root/AtlasUIContext';
@@ -8,6 +9,8 @@ import { observeResize } from '../../utils/observeResize';
 import { mapMarkerScale } from '../utils/mapMarkerScale';
 import { LIGHT_MARKER_RADIUS } from './lightMarker';
 import { placeLightPopover, type PopoverChoice } from './lightPopoverPlacement';
+import { ringHandlePoints } from './lightRingGeometry';
+import type { VisionCone } from '../../vision/visionCone';
 
 /** Between the marker's edge, or the bright ring, and the popover. */
 const GAP = 12;
@@ -29,8 +32,8 @@ interface Frame {
  * ring where there is room, clear of the ring handles and of the map view's bars. It is placed
  * with `translate` on the map's own frame clock, so it follows pan, zoom and a dragged light in
  * the frame the canvas shows them, and its `transform-origin` is the light, which it grows out
- * of. The ring it keeps clear of is the one it found when it took its place: tuning the light
- * does not move the popover under the pointer. When `lightId` changes, the same popover travels
+ * of. The ring and the beam it keeps clear of are those it found when it took its place: tuning
+ * or turning the light does not move the popover under the pointer. When `lightId` changes, the same popover travels
  * to the other light. `unitDistance` is the game units a grid cell spans.
  */
 export function useLightPopoverPosition(ref: React.RefObject<HTMLElement | null>, lightId: string, unitDistance: number): void {
@@ -69,6 +72,8 @@ export function useLightPopoverPosition(ref: React.RefObject<HTMLElement | null>
     let choice: PopoverChoice | null = null;
     /** World radius of the bright ring the popover keeps clear of. */
     let ring = 0;
+    /** The beam whose handles it keeps clear of. */
+    let beam: VisionCone | undefined;
     let placedFor = '';
 
     const update = (anew = false): void => {
@@ -87,22 +92,25 @@ export function useLightPopoverPosition(ref: React.RefObject<HTMLElement | null>
       if (anew || !choice) {
         choice = null;
         ring = bright;
+        beam = beamOf(light);
       }
       const anchor = { x: frame.x + at.x, y: frame.y + at.y };
+      const handlesOf = (cone: VisionCone | undefined): { x: number; y: number }[] =>
+        ringHandlePoints({ center: anchor, radius: { bright: bright * zoom, dim: dim * zoom }, ...(cone && { cone }) }, 1);
       const input = {
         anchor,
         markerClearance: LIGHT_MARKER_RADIUS * mapMarkerScale(zoom) * zoom + GAP,
         bright: bright * zoom,
-        handles: [{ x: anchor.x, y: anchor.y - bright * zoom }, { x: anchor.x, y: anchor.y + dim * zoom }],
         size: frame.size,
         area: frame.area,
         inset: frame.inset,
       };
-      let placement = placeLightPopover({ ...input, ringClearance: ring * zoom + GAP, current: choice });
+      let placement = placeLightPopover({ ...input, handles: handlesOf(beam), ringClearance: ring * zoom + GAP, current: choice });
       if (choice && !placement.kept) {
-        // Its place no longer holds: it moves to the best one for the ring as it is now.
+        // Its place no longer holds: it moves to the best one for the ring and the beam as they are now.
         ring = bright;
-        placement = placeLightPopover({ ...input, ringClearance: ring * zoom + GAP, current: null });
+        beam = beamOf(light);
+        placement = placeLightPopover({ ...input, handles: handlesOf(beam), ringClearance: ring * zoom + GAP, current: null });
       }
       choice = placement.choice;
       element.style.translate = `${placement.x}px ${placement.y}px`;

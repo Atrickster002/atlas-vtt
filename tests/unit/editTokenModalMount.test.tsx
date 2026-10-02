@@ -145,7 +145,7 @@ describe('openEditTokenModal: the carried light', () => {
     for (const name of ['Candle', 'Lantern', 'Magical light', 'Custom light', 'Torch orange']) screen.getByRole('button', { name });
     expect((screen.getByLabelText('Bright') as HTMLInputElement).value).toBe('20');
     expect((screen.getByLabelText('Dim') as HTMLInputElement).value).toBe('40');
-    for (const slider of ['Bright range', 'Dim range', 'Intensity', 'Softness']) screen.getByRole('slider', { name: slider });
+    for (const slider of ['Bright range', 'Dim range', 'Intensity', 'Softness', 'Beam']) screen.getByRole('slider', { name: slider });
     expect(screen.getByRole('combobox', { name: 'Flicker' }).textContent).toBe('Torch');
     save();
     expect(saved().light).toEqual(emissionOf(torch));

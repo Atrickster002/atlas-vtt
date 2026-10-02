@@ -131,6 +131,17 @@ describe('the light popover on the map', () => {
     expect(position()).toEqual(before);
   });
 
+  it('keeps clear of the handle that turns a beam when it opens, and stays there while the light is turned', () => {
+    const { store, frame, position } = setup();
+    // A candle shining to the right: its handle is 22 px beyond the 140 px dim arc, where the popover would sit.
+    const beam = store.getState().addLight({ x: 600, y: 400, rotation: 90, emission: { ...genericLight('candle'), angle: 90 } });
+    act(() => store.getState().openLightPopover(beam));
+    expect(position()).toEqual({ x: 600 - 70 - 12 - 272, y: 230 });
+    act(() => store.getState().updateLight(beam, { rotation: 270 }));
+    frame();
+    expect(position()).toEqual({ x: 246, y: 230 });
+  });
+
   it('travels to another light that is opened, as the same popover', () => {
     const animate = vi.fn();
     stub(HTMLElement.prototype, 'animate', { value: animate });

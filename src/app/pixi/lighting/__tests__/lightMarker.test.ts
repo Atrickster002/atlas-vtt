@@ -93,6 +93,14 @@ describe('lightMarkerLook', () => {
     expect(dragged).toBeGreaterThan(hovered);
   });
 
+  it('points the way a light with a beam faces, and nowhere for one that shines all around or a darkness', () => {
+    const lantern = { ...LIGHT_PRESETS.lantern.emission, angle: 60 };
+    expect(lightMarkerLook(light(), REST, DARK).direction).toBeNull();
+    expect(lightMarkerLook(light({ emission: lantern }), REST, DARK).direction).toBeCloseTo(-Math.PI / 2);
+    expect(lightMarkerLook(light({ emission: lantern, rotation: 90 }), REST, DARK).direction).toBeCloseTo(0);
+    expect(lightMarkerLook(light({ emission: { ...lantern, darkness: true }, rotation: 90 }), REST, DARK).direction).toBeNull();
+  });
+
   it('falls back to a warm colour for a colour it cannot read', () => {
     expect(lightColorNumber('tomato')).toBe(0xffcc66);
   });

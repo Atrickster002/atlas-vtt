@@ -105,6 +105,7 @@ function LightPopover({ lightId }: { lightId: string }): React.ReactElement | nu
         unit={unitLabelFor(unitType)}
         unitDistance={unitDistance}
         maxRange={maxRange}
+        direction={{ degrees: light.rotation ?? 0, onChange: (rotation) => store.getState().updateLight(light.id, { rotation }) }}
         onSliderPointerDown={onSliderPointerDown}
         onPickStart={beginPick}
         onPickEnd={endPick}

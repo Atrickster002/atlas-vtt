@@ -2,21 +2,23 @@ import { Container, Graphics } from 'pixi.js';
 import type { Viewport } from 'pixi-viewport';
 import type { MeasurementSettings } from '../../grid/measurementFormat';
 import { gameUnitsToWorld, unitScaleOf, type UnitScale } from '../../lighting/lightingUnits';
-import { RANGE_FIELDS, type RangeField } from '../../lighting/lightRanges';
+import { beamOf } from '../../lighting/lightBeam';
+import { RANGE_FIELDS } from '../../lighting/lightRanges';
 import type { ViewAtlasStore } from '../../storeFactory';
 import type { LightSource } from '../../types/lightingTypes';
 import type { Point } from '../../types/visionTypes';
+import type { VisionCone } from '../../vision/visionCone';
 import { PANEL_ENTER_MS, prefersReducedMotion } from '../../utils/motion';
 import { canvasBadgeColors } from '../utils/canvasBadgeColors';
 import { destroyTree } from '../utils/destroyTree';
 import { ValueTransition } from '../utils/ValueTransition';
 import { lightColorNumber } from './lightMarker';
+import { ringHandleAt, ringHandlePoint, rotationHandlePoint, type RingGeometry, type RingHandle } from './lightRingGeometry';
 
 /** Above the light markers (95), below token UI (100). */
 export const RANGE_RINGS_Z_INDEX = 96;
 /** Screen pixels. */
 const HANDLE_RADIUS = 6;
-const HANDLE_HIT_RADIUS = 11;
 const LINE_WIDTH = 1.5;
 const UNDER_WIDTH = 3.5;
 const DASH = 7;
@@ -24,58 +26,30 @@ const DASH_GAP = 6;
 const MAX_DASHES = 240;
 const HANDLE_LIFT = 1.25;
 
-/** Where a ring's handle sits: the bright ring's above the light, the dim ring's below, so they never meet. */
-const HANDLE_DIRECTION: Record<RangeField, number> = { bright: -1, dim: 1 };
-
-export interface RingGeometry {
-  center: Point;
-  /** World radius of each ring. */
-  radius: Record<RangeField, number>;
-}
-
-/** The world point of a ring's handle. */
-export function ringHandlePoint(geometry: RingGeometry, field: RangeField): Point {
-  return { x: geometry.center.x, y: geometry.center.y + HANDLE_DIRECTION[field] * geometry.radius[field] };
-}
-
-/** The ring whose handle is at the world `point` at viewport `zoom`; the nearer one where both are in reach. */
-export function ringHandleAt(geometry: RingGeometry, point: Point, zoom: number): RangeField | null {
-  let nearest: RangeField | null = null;
-  let best = HANDLE_HIT_RADIUS / zoom;
-  for (const field of RANGE_FIELDS) {
-    // A range of nothing has no ring and no handle: it would sit on the marker and take its presses.
-    if (geometry.radius[field] <= 0) continue;
-    const handle = ringHandlePoint(geometry, field);
-    const distance = Math.hypot(point.x - handle.x, point.y - handle.y);
-    if (distance <= best) {
-      best = distance;
-      nearest = field;
-    }
-  }
-  return nearest;
-}
-
 /**
  * The bright and dim range of the light whose popover is open, as rings on the map: the bright
  * ring a solid line, the dim ring dashed (a source of magical darkness has the one ring of its radius, solid), in the light's colour over a dark hairline so they
- * read on any map, each with a handle to drag. Lines and handles keep their size on screen.
+ * read on any map, each with a handle to drag. A light that shines one way has arcs between
+ * the two edges of its beam, the range handles on those edges and a third handle beyond the dim
+ * arc that turns it. Lines and handles keep their size on screen.
  * They bloom out of the marker when the popover opens and fade back when it closes. A GM overlay
  * (`GmOverlays`): never in the players' view.
  */
 export class LightRangeRings {
   readonly view = new Container({ label: 'light-range-rings', zIndex: RANGE_RINGS_Z_INDEX, eventMode: 'none', interactiveChildren: false });
   private readonly lines = this.view.addChild(new Graphics());
-  private readonly handles: Record<RangeField, Graphics> = {
+  private readonly handles: Record<RingHandle, Graphics> = {
     bright: this.view.addChild(new Graphics()),
     dim: this.view.addChild(new Graphics()),
+    rotation: this.view.addChild(new Graphics()),
   };
   /** 0 hidden, 1 fully shown. */
   private readonly reveal = new ValueTransition(0, PANEL_ENTER_MS, () => this.draw());
   /** The light the rings are drawn for; it stays while they fade out. */
   private lightId: string | null = null;
   private suppressed = false;
-  private hovered: RangeField | null = null;
-  private dragging: RangeField | null = null;
+  private hovered: RingHandle | null = null;
+  private dragging: RingHandle | null = null;
   private readonly unsubscribe: () => void;
   private readonly redraw = (): void => this.draw();
 
@@ -102,15 +76,15 @@ export class LightRangeRings {
     this.draw();
   }
 
-  setHovered(field: RangeField | null): void {
-    if (this.hovered === field) return;
-    this.hovered = field;
+  setHovered(handle: RingHandle | null): void {
+    if (this.hovered === handle) return;
+    this.hovered = handle;
     this.draw();
   }
 
-  setDragging(field: RangeField | null): void {
-    if (this.dragging === field) return;
-    this.dragging = field;
+  setDragging(handle: RingHandle | null): void {
+    if (this.dragging === handle) return;
+    this.dragging = handle;
     this.draw();
   }
 
@@ -123,15 +97,22 @@ export class LightRangeRings {
   geometry(): RingGeometry | null {
     const light = this.shownLight();
     if (!light || this.suppressed || this.store.getState().lightPopover !== light.id) return null;
+    return this.geometryOf(light, 1);
+  }
+
+  /** The rings of `light`, `grow` times their size. */
+  private geometryOf(light: LightSource, grow: number): RingGeometry {
     const scale = this.unitScale();
+    const cone = beamOf(light);
     return {
       center: { x: light.x, y: light.y },
-      radius: { bright: gameUnitsToWorld(light.emission.bright, scale), dim: gameUnitsToWorld(light.emission.dim, scale) },
+      radius: { bright: gameUnitsToWorld(light.emission.bright, scale) * grow, dim: gameUnitsToWorld(light.emission.dim, scale) * grow },
+      ...(cone && { cone }),
     };
   }
 
-  /** The ring whose handle is at the world point, while the rings show. */
-  handleAt(x: number, y: number): RangeField | null {
+  /** The handle at the world point, while the rings show. */
+  handleAt(x: number, y: number): RingHandle | null {
     const geometry = this.geometry();
     return geometry ? ringHandleAt(geometry, { x, y }, this.viewport.scale.x) : null;
   }
@@ -175,49 +156,77 @@ export class LightRangeRings {
 
     const zoom = this.viewport.scale.x;
     const pixel = 1 / zoom;
-    const scale = this.unitScale();
     const color = lightColorNumber(light.emission.color);
-    // The rings grow the last tenth of their radius as they fade in.
-    const grow = 0.9 + 0.1 * reveal;
     this.view.alpha = reveal;
+    // The rings grow the last tenth of their radius as they fade in.
+    const geometry = this.geometryOf(light, 0.9 + 0.1 * reveal);
+    const { center, radius, cone } = geometry;
+    const turn = rotationHandlePoint(geometry, zoom);
     const g = this.lines;
     for (const field of RANGE_FIELDS) {
-      const radius = gameUnitsToWorld(light.emission[field], scale) * grow;
-      const handle = this.handles[field];
-      handle.visible = radius > 0;
-      if (radius <= 0) continue;
+      this.handles[field].visible = radius[field] > 0;
+      if (radius[field] <= 0) continue;
       for (const [width, lineColor, alpha] of [[UNDER_WIDTH, 0x000000, 0.45], [LINE_WIDTH, color, 1]] as const) {
         // A light's dim range is dashed; a darkness has one ring, where it ends, and it is solid.
-        if (field === 'bright' || light.emission.darkness) g.circle(light.x, light.y, radius);
-        else this.dashes(light, radius, zoom);
+        if (field === 'bright' || light.emission.darkness) this.arc(center, radius[field], cone);
+        else this.dashes(center, radius.dim, zoom, cone);
+        // The beam's two edges and the stem of the handle that turns it belong to its outer arc.
+        if (field === 'dim' && cone) this.beamLines(center, radius.dim, cone, turn);
         g.stroke({ width: width * pixel, color: lineColor, alpha });
       }
-      this.drawHandle(field, handle, color);
-      handle.position.set(light.x, light.y + HANDLE_DIRECTION[field] * radius);
-      handle.scale.set(pixel * (this.hovered === field || this.dragging === field ? HANDLE_LIFT : 1));
+      this.placeHandle(field, ringHandlePoint(geometry, field), color, pixel);
     }
+    this.handles.rotation.visible = !!turn;
+    if (turn) this.placeHandle('rotation', turn, color, pixel);
+  }
+
+  /** A ring: the whole circle, or the arc between a beam's edges. */
+  private arc(center: Point, radius: number, cone: VisionCone | undefined): void {
+    if (!cone) {
+      this.lines.circle(center.x, center.y, radius);
+      return;
+    }
+    const start = cone.facing - cone.angle / 2;
+    this.lines.moveTo(center.x + Math.cos(start) * radius, center.y + Math.sin(start) * radius);
+    this.lines.arc(center.x, center.y, radius, start, start + cone.angle);
   }
 
   /** The dim ring: dashes of a constant length on screen, as many as fit. */
-  private dashes(light: LightSource, radius: number, zoom: number): void {
-    const circumference = 2 * Math.PI * radius * zoom;
-    const count = Math.min(MAX_DASHES, Math.max(8, Math.round(circumference / (DASH + DASH_GAP))));
-    const step = (2 * Math.PI) / count;
-    const dash = step * (DASH / (DASH + DASH_GAP));
+  private dashes(center: Point, radius: number, zoom: number, cone: VisionCone | undefined): void {
+    const sweep = cone?.angle ?? 2 * Math.PI;
+    const length = sweep * radius * zoom;
+    const count = Math.min(MAX_DASHES, Math.max(cone ? 2 : 8, Math.round(length / (DASH + DASH_GAP))));
+    // Around a circle a gap follows every dash; on a beam's arc a dash ends at each edge.
+    const unit = sweep / (count * DASH + (cone ? count - 1 : count) * DASH_GAP);
+    const dash = unit * DASH;
+    // Centred on the handle's axis, so a dash, not a gap, sits under the handle.
+    const first = cone ? cone.facing - cone.angle / 2 : Math.PI / 2 - dash / 2;
     for (let i = 0; i < count; i++) {
-      // Centred on the handle's axis, so a dash, not a gap, sits under the handle.
-      const start = Math.PI / 2 + i * step - dash / 2;
-      this.lines.moveTo(light.x + Math.cos(start) * radius, light.y + Math.sin(start) * radius);
-      this.lines.arc(light.x, light.y, radius, start, start + dash);
+      const start = first + i * unit * (DASH + DASH_GAP);
+      this.lines.moveTo(center.x + Math.cos(start) * radius, center.y + Math.sin(start) * radius);
+      this.lines.arc(center.x, center.y, radius, start, start + dash);
     }
   }
 
-  private drawHandle(field: RangeField, handle: Graphics, color: number): void {
-    const held = this.dragging === field;
+  private beamLines(center: Point, radius: number, cone: VisionCone, turn: Point | null): void {
+    for (const side of [-1, 1]) {
+      const angle = cone.facing + (side * cone.angle) / 2;
+      this.lines.moveTo(center.x, center.y).lineTo(center.x + Math.cos(angle) * radius, center.y + Math.sin(angle) * radius);
+    }
+    if (turn) this.lines.moveTo(center.x + Math.cos(cone.facing) * radius, center.y + Math.sin(cone.facing) * radius).lineTo(turn.x, turn.y);
+  }
+
+  private placeHandle(which: RingHandle, at: Point, color: number, pixel: number): void {
+    const handle = this.handles[which];
+    const held = this.dragging === which;
     handle.clear();
     handle.circle(0, 0, HANDLE_RADIUS + 1).stroke({ width: 1, color: 0x000000, alpha: 0.45 });
     handle.circle(0, 0, HANDLE_RADIUS).fill({ color: held ? color : canvasBadgeColors().background });
     handle.circle(0, 0, HANDLE_RADIUS - 1).stroke({ width: 2, color });
+    // The handle that turns the beam has a dot in it, which tells it from the two that resize.
+    if (which === 'rotation' && !held) handle.circle(0, 0, 2).fill({ color });
+    handle.position.set(at.x, at.y);
+    handle.scale.set(pixel * (this.hovered === which || held ? HANDLE_LIFT : 1));
   }
 
   destroy(): void {

@@ -1,5 +1,6 @@
 import type { FederatedPointerEvent } from 'pixi.js';
 import type { Viewport } from 'pixi-viewport';
+import { directionTo, snapDirection } from '../../lighting/lightBeam';
 import { worldToGameUnits } from '../../lighting/lightingUnits';
 import { dragRange, maxLightRange, type RangeField } from '../../lighting/lightRanges';
 import type { ViewAtlasStore } from '../../storeFactory';
@@ -7,6 +8,7 @@ import { abandonHistoryTransaction, beginHistoryTransaction, endHistoryTransacti
 import type { Point } from '../../types/visionTypes';
 import type { LightMarkers } from './LightMarkers';
 import type { LightRangeRings } from './LightRangeRings';
+import { ringHandleCursor } from './lightRingGeometry';
 
 /** Screen pixels the pointer may move before a press on a marker is a drag, not a click. */
 export const LIGHT_DRAG_THRESHOLD = 5;
@@ -38,9 +40,9 @@ export interface LightInteractionDeps {
 
 /** A press or drag under way. */
 interface Gesture {
-  /** The light whose ring is dragged; the drag is cancelled when the popover leaves that light. */
+  /** The light whose ring handle is dragged; the drag is cancelled when the popover leaves that light. */
   ring: string | null;
-  /** Something is being changed: a light moves or a range is resized. */
+  /** Something is being changed: a light moves, turns or has a range resized. */
   dragging: () => boolean;
   /** Ends it: a release commits what it changed as one undo step, a cancel puts it back and leaves none. */
   end: (commit: boolean) => void;
@@ -49,7 +51,7 @@ interface Gesture {
 /**
  * The pointer on placed lights: a click on a marker opens the light's popover with any tool,
  * a drag moves the light with the lighting tool, and the handles of the open light's range
- * rings resize its ranges. A drag is one undo step, opened only once it starts. Only the
+ * rings resize its ranges and turn its beam. A drag is one undo step, opened only once it starts. Only the
  * pointer's release commits a drag: Escape, a pointer cancel, the window losing focus, the
  * popover leaving the light or the canvas showing the players' view cancel it, which puts back
  * what it changed. A press anywhere else closes the popover.
@@ -76,7 +78,7 @@ export class LightInteraction {
     });
   }
 
-  /** A light is being moved or a range resized. */
+  /** A light is being moved or turned, or a range resized. */
   get dragging(): boolean {
     return !!this.gesture?.dragging();
   }
@@ -90,7 +92,8 @@ export class LightInteraction {
     this.cancel();
     const handle = this.deps.rings.handleAt(point.x, point.y);
     if (handle) {
-      this.dragRing(handle, point);
+      if (handle === 'rotation') this.turn(point);
+      else this.dragRing(handle, point);
       return true;
     }
     const lightId = markersBlocked ? null : this.deps.markers.hitTest(point.x, point.y);
@@ -106,7 +109,8 @@ export class LightInteraction {
     const lightId = handle || markersBlocked ? null : markers.hitTest(point.x, point.y);
     rings.setHovered(handle);
     markers.setHovered(lightId);
-    if (handle) return 'ns-resize';
+    const geometry = handle && rings.geometry();
+    if (handle && geometry) return ringHandleCursor(geometry, handle);
     return lightId ? 'pointer' : null;
   }
 
@@ -187,6 +191,36 @@ export class LightInteraction {
       end: (commit) => {
         rings.setDragging(null);
         this.settle(commit, () => store.getState().updateLight(lightId, { emission }), lightId);
+      },
+    });
+  }
+
+  /** Turns the open light's beam with the handle beyond its dim arc: it faces the pointer, in steps of five degrees. */
+  private turn(grabbedAt: Point): void {
+    const { viewport, store, rings } = this.deps;
+    const lightId = store.getState().lightPopover;
+    const grabbed = lightId ? store.getState().objects.lights[lightId] : undefined;
+    if (!lightId || !grabbed) return;
+    // A light that was never turned faces up, which is rotation 0.
+    const rotation = grabbed.rotation ?? 0;
+    // The handle keeps its angle to the pointer, so the light does not turn when it is grabbed off-centre.
+    const offset = rotation - directionTo(grabbed, grabbedAt);
+    beginHistoryTransaction(store);
+    rings.setDragging('rotation');
+
+    const onMove = (move: FederatedPointerEvent): void => {
+      const light = store.getState().objects.lights[lightId];
+      if (!light) return;
+      const next = snapDirection(directionTo(light, viewport.toWorld(move.global.x, move.global.y)) + offset, move.altKey);
+      if (next !== (light.rotation ?? 0)) store.getState().updateLight(lightId, { rotation: next });
+    };
+    this.track({
+      ring: lightId,
+      dragging: () => true,
+      onMove,
+      end: (commit) => {
+        rings.setDragging(null);
+        this.settle(commit, () => store.getState().updateLight(lightId, { rotation }), lightId);
       },
     });
   }

@@ -79,7 +79,7 @@ describe('LightPopover', () => {
     expect((screen.getByLabelText('Bright') as HTMLInputElement).value).toBe('20');
     expect((screen.getByLabelText('Dim') as HTMLInputElement).value).toBe('40');
     expect(screen.getByText('ft')).toBeTruthy();
-    for (const slider of ['Bright range', 'Dim range', 'Intensity', 'Softness']) screen.getByRole('slider', { name: slider });
+    for (const slider of ['Bright range', 'Dim range', 'Intensity', 'Softness', 'Beam']) screen.getByRole('slider', { name: slider });
     expect(screen.getByRole('combobox', { name: 'Flicker' }).textContent).toBe('Torch');
     screen.getByRole('button', { name: 'Turn off' });
     screen.getByRole('button', { name: 'Delete' });
@@ -122,7 +122,7 @@ describe('LightPopover', () => {
     screen.getByRole('slider', { name: 'Darkness radius' });
     expect(screen.queryByLabelText('Bright')).toBeNull();
     expect(screen.queryByRole('button', { name: 'Candle amber' })).toBeNull();
-    for (const slider of ['Intensity', 'Softness', 'Bright range']) expect(screen.queryByRole('slider', { name: slider })).toBeNull();
+    for (const slider of ['Intensity', 'Softness', 'Bright range', 'Beam', 'Direction']) expect(screen.queryByRole('slider', { name: slider })).toBeNull();
     expect(screen.queryByRole('combobox', { name: 'Flicker' })).toBeNull();
     expect(screen.queryByRole('switch', { name: 'Outshines magical darkness' })).toBeNull();
     // Its one radius is typed like a light's range.
@@ -148,6 +148,36 @@ describe('LightPopover', () => {
     expect(outshines.getAttribute('aria-checked')).toBe('true');
     fireEvent.click(outshines);
     expect(light().emission).not.toHaveProperty('priority');
+  });
+
+  it('narrows the light to a beam, and offers its direction only while it has one', () => {
+    const { light, steps, undo } = renderPopover();
+    const beam = screen.getByRole('slider', { name: 'Beam' });
+    expect(screen.getByText('All around')).toBeTruthy();
+    expect(screen.queryByRole('slider', { name: 'Direction' })).toBeNull();
+    act(() => beam.focus());
+    fireEvent.keyDown(beam, { key: 'ArrowLeft' });
+    expect(light().emission.angle).toBe(355);
+    expect(screen.getByText('355°')).toBeTruthy();
+    const direction = screen.getByRole('slider', { name: 'Direction' });
+    act(() => direction.focus());
+    fireEvent.keyDown(direction, { key: 'ArrowRight' });
+    expect(light().rotation).toBe(5);
+    expect(steps()).toBe(2);
+    undo();
+    expect(light().rotation ?? 0).toBe(0);
+    fireEvent.keyDown(beam, { key: 'End' });
+    expect('angle' in light().emission).toBe(false);
+    expect(screen.queryByRole('slider', { name: 'Direction' })).toBeNull();
+  });
+
+  it('shows the beam of a light that has one, as the map changes it', () => {
+    const { store, torch, light } = renderPopover();
+    act(() => store.getState().updateLight(torch, { rotation: 135, emission: { ...light().emission, angle: 53 } }));
+    expect(screen.getByRole('slider', { name: 'Beam' }).getAttribute('aria-valuenow')).toBe('53');
+    expect(screen.getByRole('slider', { name: 'Direction' }).getAttribute('aria-valuenow')).toBe('135');
+    expect(screen.getByText('53°')).toBeTruthy();
+    expect(screen.getByText('135°')).toBeTruthy();
   });
 
   it('keeps its kind when a value is changed', () => {

@@ -1,9 +1,11 @@
 import React, { useId } from 'react';
+import { BEAM_SLIDER, DIRECTION_STEP, withBeam } from '../../lighting/lightBeam';
 import { editEmission } from '../../lighting/lightEmissionForm';
 import { Select } from '../../packages/components/primitives/Select';
 import { ToggleSwitch } from '../../packages/components/primitives/Toggle';
 import type { LightPresetDefinition } from '../../types/lightPresetTypes';
 import type { LightAnimation, LightEmission } from '../../types/lightingTypes';
+import { coneAngle } from '../../vision/visionCone';
 import { SliderField } from './lightingPanelFields';
 import { LightPresetChips } from './LightPresetChips';
 import { ColorSwatches, RangeFields } from './lightPopoverFields';
@@ -29,6 +31,8 @@ interface LightEmissionFieldsProps {
   unitDistance: number;
   /** The farthest a light may reach on this map (`maxLightRange`). */
   maxRange: number;
+  /** A placed light's own direction, in degrees; a carried light faces as its token does and has none to set. */
+  direction?: { degrees: number; onChange: (degrees: number) => void };
   /** A slider is pressed, or the system colour picker opens and closes: where a host that writes at once makes the gesture one undo step. */
   onSliderPointerDown?: (event: React.PointerEvent) => void;
   onPickStart?: () => void;
@@ -37,12 +41,13 @@ interface LightEmissionFieldsProps {
 
 /**
  * Everything a light gives off, as the light popover and Edit Token edit it: preset, colour,
- * bright and dim range, intensity, softness, flicker and whether it outshines magical darkness.
+ * bright and dim range, the beam it shines in, intensity, softness, flicker and whether it
+ * outshines magical darkness. The direction of a beam shows only while the light has one.
  * A source of magical darkness has its kind and one radius, nothing else: it gives no light to
  * colour or dim. Every control reports the whole emission at once.
  */
 export function LightEmissionFields({
-  emission, onChange, presets, unit, unitDistance, maxRange, onSliderPointerDown = NOTHING, onPickStart = NOTHING, onPickEnd = NOTHING,
+  emission, onChange, presets, unit, unitDistance, maxRange, direction, onSliderPointerDown = NOTHING, onPickStart = NOTHING, onPickEnd = NOTHING,
 }: LightEmissionFieldsProps): React.ReactElement {
   const flickerId = useId();
   const outshinesId = useId();
@@ -55,6 +60,7 @@ export function LightEmissionFields({
       </>
     );
   }
+  const beam = coneAngle(emission.angle) ?? BEAM_SLIDER.max;
   return (
     <>
       <LightPresetChips emission={emission} presets={presets} onChange={onChange} />
@@ -63,6 +69,12 @@ export function LightEmissionFields({
       </div>
       <div className="atlas-light-popover__section">
         {ranges}
+        <SliderField label="Beam" value={beam} {...BEAM_SLIDER} display={beam < BEAM_SLIDER.max ? `${beam}°` : 'All around'}
+          onPointerDown={onSliderPointerDown} onChange={(value) => onChange(withBeam(emission, value))} />
+        {direction && beam < BEAM_SLIDER.max && (
+          <SliderField label="Direction" value={direction.degrees} min={0} max={360 - DIRECTION_STEP} step={DIRECTION_STEP} display={`${direction.degrees}°`}
+            onPointerDown={onSliderPointerDown} onChange={direction.onChange} />
+        )}
         <SliderField label="Intensity" value={emission.intensity} min={0} max={2} step={0.05} display={`${Math.round(emission.intensity * 100)} %`}
           onPointerDown={onSliderPointerDown} onChange={(value) => onChange(editEmission(emission, 'intensity', String(value)))} />
         <SliderField label="Softness" value={emission.sourceRadius ?? 1} min={0} max={5} step={0.25} display={String(emission.sourceRadius ?? 1)}
