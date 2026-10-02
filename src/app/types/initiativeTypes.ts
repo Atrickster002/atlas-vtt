@@ -64,9 +64,6 @@ export interface InitiativeState {
 
   /** Configuration for initiative calculation */
   config: InitiativeConfig;
-
-  /** Token IDs explicitly removed — auto-sync skips these */
-  removedTokenIds: string[];
 }
 
 /**
@@ -85,5 +82,4 @@ export const createDefaultInitiativeState = (): InitiativeState => ({
   round: 0,
   isActive: false,
   config: { ...DEFAULT_INITIATIVE_CONFIG },
-  removedTokenIds: [],
 });

@@ -194,6 +194,11 @@ export class Sparks {
     }
   }
 
+  /** Whether any spark still glows. */
+  get burning(): boolean {
+    return this.alive > 0;
+  }
+
   step(dt: number): void {
     if (this.alive === 0) {
       this.points.visible = false;

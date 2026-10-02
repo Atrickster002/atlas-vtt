@@ -17,7 +17,6 @@ const state = {
         order: 0,
       },
     ],
-    removedTokenIds: [],
     isActive: false,
     round: 0,
   },

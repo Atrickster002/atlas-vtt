@@ -35,6 +35,8 @@ const WALL_MARGIN = 0.12;
 /** How hard a wall hit nudges the camera, and how fast that dies down. */
 const SHAKE_PER_HIT = 0.03;
 const SHAKE_DECAY = 9;
+/** A shake this small moves the picture by about a hundredth of a pixel. */
+const SHAKE_UNSEEN = 1e-4;
 
 /** The four screen corners and a scratch vector, allocated once, not per frame. */
 const CORNERS: readonly (readonly [number, number])[] = [
@@ -114,6 +116,11 @@ export class StageCamera {
   place(bang: number, dt: number): void {
     this.shake = Math.max(this.shake * Math.exp(-SHAKE_DECAY * dt), bang * SHAKE_PER_HIT);
     this.aim(this.reachValue, this.focus, (Math.random() - 0.5) * this.shake * this.reachValue);
+  }
+
+  /** Whether a wall hit still moves the camera by anything a pixel could show. */
+  get shaking(): boolean {
+    return this.shake > SHAKE_UNSEEN;
   }
 
   resetShake(): void {

@@ -42,6 +42,9 @@
 - Darkvision follows each game system's rules. In a D&D 5e collection it also shows dim light as bright, Pathfinder 2e's shows darkness in black and white, and Old-School Essentials' infravision shows it in heat tones.
 - The Magical light shines bright to 20 ft and dim to 40 ft. A magical light with other ranges keeps them and shows as a Custom light.
 - A collection's HP and secondary resource bars are now set in its new Resources tab instead of Default Widgets. Collections, scenes and tokens keep their bars, values and switches
+- Hold Ctrl/Cmd over a token in the asset manager to see its statblock, as on the map. With tokens selected, Ctrl/Cmd adds to the selection and opens no statblock
+- The collection export and import dialogs open a token's statblock the same way: hold Ctrl/Cmd over the token. Before, it opened by itself when the pointer rested on a token
+- A token with a linked statblock shows a scroll badge in the asset manager, the one the export and import dialogs use, instead of the accent-coloured link. Click it to open the statblock, as before
 - Choose how the dice look in the command palette's Dice settings: light card, dark with light numbers, or your Obsidian accent colour (the numbers turn dark or light to stay readable), each shown as a d20. Sci-fi numbers suit futuristic games; the choice also sets the font of roll totals
 - The dice tray (R) shows drawn dice, has a modifier you can step up and down, and always shows the formula it will roll. Take a die back with the − under it
 - An exported collection carries every note its pinned notes lead to: the notes they link to, the notes those link to, and the images and PDFs they show. The export dialog lists each note below the note that led to it and says why it is there; untick a note to leave out everything only it links to. The images and PDFs have a list of their own
@@ -59,9 +62,16 @@
 - The lighting menu is laid out like the other tool menus: what the tool does and how walls are drawn are rows with a tick, and the time of day shows which one is chosen
 - Switches in the tool menus can be reached with Tab and switched with Space or Enter, and screen readers announce them. Every menu row is now rounded alike on both sides
 - A token you drop on a square lies on top of the tokens already there, and so does one you place, paste or duplicate. Before, the token that stood there first stayed on top. The order is saved with the scene and follows undo
+- The asset manager opens on placeholders in the shape of what is coming: cards, folders, tags, the statblock list and the statblock itself. The content then takes their place without moving. Switching tab or collection shows them only when the load takes longer than a moment
+- Scrolling the asset manager is smooth in large collections. Cards scrolled out of view no longer stay loaded, rows that are not drawn yet show placeholders instead of empty space, and the art of the next rows is loaded before they scroll in
+- The asset manager stays smooth while its content loads. Thumbnails made in the background appear a few at a time, starting with the cards on screen, and no longer redraw the whole library as each one finishes. A card waits for its thumbnail instead of loading the full image, so a page of maps no longer holds every map in memory. Reading the statblocks of a large library no longer freezes the window
+- Statblock previews leave room at the window's edges for what a theme draws around them. The Atlas VTT theme's ivy is no longer cut off above and below a tall statblock
+- In the initiative tracker, a combatant whose token is hidden carries a crossed-out eye: the players' list leaves it out. Right-click its card to hide it from the players or show it again
 
 ## Fixed
 
+- Opening the asset manager no longer flashes "No characters yet" before the library appears, and its tabs no longer count 0 first. Switching the collection no longer shows the previous collection's cards while the new one loads
+- A statblock defined in a code block no longer flashes "No Fantasy Statblocks creature found" while it is read
 - Escape closes a light's settings, clears the selection or cancels a wall being drawn even while a tooltip is showing. Before, the first Escape closed only the tooltip
 - Explored areas stay on the players' screen while a token stands in them in the dark. Before, a remembered room turned black as soon as a token had it in its line of sight without light, and showed again from behind a wall; a thin grey line also ran along the edges of shadows
 - Map shortcuts work on any keyboard layout. On a Russian, Greek or other non-Latin layout, the key in the same physical place as the Latin letter now triggers its shortcut. Contributed by ISorokaI
@@ -93,6 +103,15 @@
 - A light's dim range is now visibly lit out to its edge and the light ends just past it, so what looks dark on the map is dark. Before, the outer part of the dim range was drawn nearly black although tokens standing there still showed
 - Scene thumbnails and snapshot previews show a scene's dynamic lighting as the GM sees it. They also leave out pins, linked hexes, light markers, door badges and wall lines, and follow changes to the scene's lighting
 - A scene keeps its thumbnail when the graphics device resets or the scene could not be opened again, instead of getting a blank or outdated one
+- The asset manager's header keeps its controls apart at every window size. Before, the selection count, the asset type and the search could lie over each other, most easily with a selection in a medium-wide window
+- Clicking a pile of tokens selects the one on top. Before, a click could pick a token lying underneath, most easily after placing a token on an occupied square or hex
 - Exporting a collection now packs its loot tables: the bases picked in the collection's Loot settings and every item note they list. An import puts them into the collection's folder, where the loot roller finds them again. Before, the importing vault got the setting without the base or its items
 - Text fields and dropdowns have one background everywhere. Before, some took the colour of the panel around them, so fields in one dialog could differ in dark mode and in themes that colour their fields
 - The collection settings stay in place when a tab grows long enough to scroll. Before, the scrollbar pushed the whole tab to the left
+- The asset manager's collection list no longer offers All Collections. It showed only the default collection, never the assets of the others, so the list now holds your collections and nothing else
+- A text you moved stays where you put it when you click it again. Before, the next click sent it back to where it was first placed, and its right-click menu showed the bold, italic and size it started with
+
+## Important changes
+
+- The initiative tracker no longer fills with every token on the map. Select the tokens that take part, right-click one of them and choose Add to Initiative; Remove from Initiative takes the selection out again. The trackers of your scenes keep the tokens they hold
+- The player window lists every combatant whose token is not hidden, whether or not the party can see it on the map. Hide a token to keep it out of the players' list

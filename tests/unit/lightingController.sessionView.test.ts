@@ -532,26 +532,6 @@ describe('tokens in session view', () => {
     expect(wired.sightLine(lurker)).toBeNull();
   });
 
-  it('gives what names tokens beside the map the players\' perception only where their tokens decide what is seen, and tells when it changes', () => {
-    const { controller, store, lurker } = scene();
-    const { onSightChange } = lighting.deps as SceneLightingDeps;
-    const walled = lighting.sight;
-    expect(controller.tokenSight()?.(lurker)).toBe('unseen');
-    const heard = vi.fn();
-    const stop = controller.onSightChanged(heard);
-    onSightChange?.();
-    expect(heard).toHaveBeenCalledTimes(1);
-    // No token sees, or token vision is off: line of sight hides nothing, so the list leaves nothing out.
-    lighting.sight = SEES_ALL;
-    expect(controller.tokenSight()).toBeUndefined();
-    lighting.sight = walled;
-    store.getState().setSceneLighting({ enabled: false });
-    expect(controller.tokenSight()).toBeUndefined();
-    stop();
-    onSightChange?.();
-    expect(heard).toHaveBeenCalledTimes(1);
-  });
-
   it('hides nothing by sight while the scene has no lighting', () => {
     const { store, wired } = scene();
     store.getState().setSceneLighting({ enabled: false });

@@ -29,6 +29,7 @@ import { chainLengthFor, GhostTrail } from './ghostTrail';
 import { landingSparks, wallSparks, type Crit } from './impactSparks';
 import { Sparks } from './sparks';
 import { STAGE_FOV, StageCamera } from './stageCamera';
+import { StageShadow } from './stageShadow';
 
 export interface StageDie {
   anim: DieAnim;
@@ -39,43 +40,6 @@ export interface StageDie {
   burst?: Crit;
 }
 
-const KEY_INTENSITY = 0.95;
-
-/** Ink colour as a number: the canvas knows no CSS variables. */
-const INK = 0x16130f;
-
-/**
- * **The shadow gets softer the higher the die is.**
- *
- * There once was a round blob underneath. It did what it should, show contact
- * with the ground, and looked like what it was: a circle under an icosahedron.
- * A shadow has the shape of its body, otherwise it is decoration.
- *
- * So it stays a cast shadow (VSM, soft edge, true silhouette), and the missing
- * information about height comes from the **blur**: just above the table the
- * core is narrow and dark, high up it dissolves into a breath. That is what a
- * penumbra does, and it costs two numbers per frame.
- */
-const SHADOW_SHARP = { blur: 6.5, opacity: 0.3 };
-const SHADOW_SOFT = { blur: 17, opacity: 0.14 };
-
-/**
- * **What the shadow costs.**
- *
- * The shadow map is blurred in two passes over every one of its texels, each
- * reading `SHADOW_TAPS` of them. At 2048 texels a side and 24 taps that was two
- * hundred million reads a frame: nine tenths of a dice frame's time on the
- * graphics card, the same for one die as for ten, on a display that asks for
- * 120 frames a second and has a lit map to draw as well.
- *
- * The panel shows about five units of table on some 670 pixels, and the map
- * spans eight: 1024 texels still put more than one on every pixel. The blur
- * above is counted in texels, so half the map takes half the radius for the
- * same softness on the table, and half the taps keep their spacing.
- */
-const SHADOW_MAP = 1024;
-const SHADOW_TAPS = 12;
-
 /**
  * How large the mirror world is baked, per face. The dice are matte paper
  * (roughness 0.92, a fifth of the room's light): they read only its blurriest
@@ -84,54 +48,31 @@ const SHADOW_TAPS = 12;
  */
 const ENVIRONMENT_SIZE = 64;
 
-/**
- * **The shadow follows the paper, the die does not.**
- *
- * The die keeps its colours in a dark theme, but the shadow is not a thing: it
- * is the mark the thing leaves on the page, and the page does change colour.
- * Two values change with it:
- *
- * - **The colour** goes to black instead of ink. Ink on a dark page barely
- *   differs from the page: a shadow you would have to measure to find.
- * - **The opacity** rises, because the way down is shorter. Even black at one
- *   and a half times the opacity takes less from the dark page than the light
- *   case takes from the light one; more would be a hole in the paper.
- */
-const NIGHT_SHADOW_GAIN = 1.5;
-
-function nightSheet(canvas: HTMLCanvasElement): boolean {
-  return canvas.ownerDocument.body.classList.contains('theme-dark');
+/** Puts the mesh where its die is. Returns whether that moved it. */
+function place(mesh: THREE.Mesh, anim: DieAnim): boolean {
+  const { position, quaternion, scale } = mesh;
+  const [x, y, z] = anim.p;
+  const q = anim.q;
+  const moved =
+    position.x !== x || position.y !== y || position.z !== z ||
+    quaternion.x !== q.x || quaternion.y !== q.y || quaternion.z !== q.z || quaternion.w !== q.w ||
+    scale.x !== anim.radius;
+  position.set(x, y, z);
+  quaternion.set(q.x, q.y, q.z, q.w);
+  scale.setScalar(anim.radius);
+  return moved;
 }
 
-/**
- * **Where the key light stands.**
- *
- * It once hung almost straight above the table, so the shadow would lie
- * *under* the die rather than beside it. That was true, and it was why none of
- * it could be seen: at 75° elevation it vanished entirely under the body that
- * casts it. A shadow hidden by its own body is no shadow.
- *
- * Now it stands at a good 60°: flat enough that the silhouette falls on the
- * table beside the die and its shape can be read, steep enough that it clings
- * to the body instead of running across the sheet.
- *
- * **And it stands back left, not front left.** The camera looks at the table
- * from above and in front; on screen, depth (-z) is *up*. A light from the
- * front threw the shadow **up**, behind the die, but a view from above calls for
- * a shadow falling down. So the light moves over the die to the other side:
- * from back left, shadow to front right, lower right on screen.
- *
- * The fill light pays back what that costs: the faces turned to the viewer
- * only get grazing light from the key, and without light from the front they
- * would be too dark for their numerals.
- */
-const KEY_AT = [-1.7, 6.0, -1.7] as const;
+/** The pixel ratio a stage in `win` is drawn at: beyond 2 nobody sees the difference, and it is paid on every frame. */
+export function stagePixelRatio(win: Window): number {
+  return Math.min(2, win.devicePixelRatio || 1);
+}
 
 export class DiceRenderer {
   private readonly renderer: THREE.WebGLRenderer;
   private readonly scene = new THREE.Scene();
   private readonly view = new StageCamera();
-  private readonly key: THREE.DirectionalLight;
+  private readonly shadow: StageShadow;
   private readonly pmrem: THREE.PMREMGenerator;
   /** The baked reflection: its own render target that nothing else clears. */
   private readonly envRT: THREE.WebGLRenderTarget;
@@ -140,18 +81,13 @@ export class DiceRenderer {
   private readonly sparks: Sparks;
   /** Who has landed already: the landing fires only once. */
   private landed: boolean[] = [];
-  private readonly floorMat: THREE.ShadowMaterial;
   private lastTime: number | null = null;
-  /** The canvas size the buffers were last made for. */
-  private bufferSize = '';
+  /** The canvas' drawing buffer: its size in CSS pixels and its pixel ratio. */
+  private buffer = { width: 0, height: 0, dpr: 0 };
 
   constructor(canvas: HTMLCanvasElement) {
     this.renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.shadowMap.enabled = true;
-    // VSM: the only shadow type with a truly soft edge. Its cost does not grow
-    // with the dice, only with the map (see `SHADOW_MAP`).
-    this.renderer.shadowMap.type = THREE.VSMShadowMap;
 
     this.pmrem = new THREE.PMREMGenerator(this.renderer);
     // The mirror world is baked **once**; the room it comes from has nothing
@@ -161,34 +97,7 @@ export class DiceRenderer {
     room.dispose();
     this.scene.environment = this.envRT.texture;
 
-    this.key = new THREE.DirectionalLight(0xfff0da, KEY_INTENSITY);
-    this.key.position.set(...KEY_AT);
-    this.key.castShadow = true;
-    this.key.shadow.mapSize.set(SHADOW_MAP, SHADOW_MAP);
-    // The shadow frame must hold the **whole** stage, or a die at the wall
-    // loses its shadow.
-    this.key.shadow.camera.left = -4.2;
-    this.key.shadow.camera.right = 4.2;
-    this.key.shadow.camera.top = 4.2;
-    this.key.shadow.camera.bottom = -4.2;
-    this.key.shadow.camera.near = 0.5;
-    this.key.shadow.camera.far = 14;
-    this.key.shadow.radius = SHADOW_SHARP.blur;
-    this.key.shadow.blurSamples = SHADOW_TAPS;
-    this.key.shadow.bias = -0.0004;
-    this.scene.add(this.key);
-
-    const fill = new THREE.DirectionalLight(0xd8c4a0, 0.62);
-    fill.position.set(2.4, 1.2, 2.6);
-    this.scene.add(fill);
-
-    // The table: invisible except for the shadow falling on it.
-    this.floorMat = new THREE.ShadowMaterial({ color: INK, opacity: SHADOW_SHARP.opacity });
-    const floor = new THREE.Mesh(new THREE.PlaneGeometry(24, 24), this.floorMat);
-    floor.rotation.x = -Math.PI / 2;
-    floor.position.y = FLOOR_Y;
-    floor.receiveShadow = true;
-    this.scene.add(floor);
+    this.shadow = new StageShadow(this.renderer, this.scene);
 
     this.trails = new GhostTrail(this.scene);
     this.sparks = new Sparks(this.scene, FLOOR_Y + 0.02);
@@ -214,6 +123,7 @@ export class DiceRenderer {
     for (const mesh of this.meshes) this.scene.remove(mesh);
     this.trails.clear();
     this.landed = sides.map(() => false);
+    this.shadow.bodiesChanged();
 
     const chainLength = chainLengthFor(sides.length);
 
@@ -228,50 +138,61 @@ export class DiceRenderer {
     });
   }
 
-  /** Fits the camera to the canvas and the key light and its shadow frame to the stage. */
-  private fitToCanvas(focus: number, halfWidth: number | undefined): void {
-    this.view.fit(focus, halfWidth);
-    const reach = this.view.reach;
-    const focusZ = this.view.focusZ;
-    const [halfX, halfZ] = this.view.stage();
-
-    // The shadow needs a frame around the whole stage, or a body at the wall
-    // loses its shadow.
-    const frame = Math.max(halfX, halfZ) + 1;
-    this.key.shadow.camera.left = -frame;
-    this.key.shadow.camera.right = frame;
-    this.key.shadow.camera.top = frame;
-    this.key.shadow.camera.bottom = -frame;
-    this.key.shadow.camera.far = 14 * reach;
-    this.key.position.set(KEY_AT[0] * reach, KEY_AT[1] * reach, KEY_AT[2] * reach + focusZ);
-    this.key.target.position.set(0, 0, focusZ);
-    this.key.target.updateMatrixWorld();
-    this.key.shadow.camera.updateProjectionMatrix();
-  }
-
   /** The stage as the throw knows it: half width and half depth in world units. */
   stage(): readonly [number, number] {
     return this.view.stage();
   }
 
   /**
-   * Sizes the canvas and fits the camera: to `halfWidth` world units either
-   * side of the centre, by default the whole stage the dice bounce around in.
+   * Sizes the canvas to exactly this and fits the camera: to `halfWidth` world
+   * units either side of the centre, by default the whole stage the dice bounce
+   * around in.
    */
   setSize(width: number, height: number, dpr: number, focus = 0.5, halfWidth?: number): void {
-    // A stage is lent again and again at the size it had; the buffers are
-    // made anew only when it changes, which takes several milliseconds.
-    const bufferSize = `${width}x${height}@${dpr}`;
-    if (bufferSize !== this.bufferSize) {
-      this.bufferSize = bufferSize;
-      this.renderer.setPixelRatio(dpr);
-      this.renderer.setSize(width, height, false);
-    }
+    this.allocate(width, height, dpr);
+    this.fitView(width, height, focus, halfWidth);
+  }
+
+  /**
+   * `setSize` for a stage on a panel: draws at this size in the bottom left
+   * corner of a canvas that is at least as large, and keeps the canvas.
+   *
+   * Making drawing buffers takes milliseconds, and a panel asked for them at
+   * the two moments that have none to spare: when its roll arrives, and when
+   * the next roll shrinks it to a row. So a canvas only ever grows; the stage
+   * holds it by that corner and clips the rest (`.atlas-dice-roll__stage`).
+   */
+  setView(width: number, height: number, dpr: number, focus = 0.5, halfWidth?: number): void {
+    const { buffer } = this;
+    // Another pixel ratio makes new buffers whatever their size, so they start at this one.
+    if (dpr !== buffer.dpr) this.allocate(width, height, dpr);
+    else this.allocate(Math.max(width, buffer.width), Math.max(height, buffer.height), dpr);
+    this.fitView(width, height, focus, halfWidth);
+  }
+
+  /** Gives the canvas this size, as an element and in its drawing buffers, unless it has it. */
+  private allocate(width: number, height: number, dpr: number): void {
+    const { buffer } = this;
+    if (width === buffer.width && height === buffer.height && dpr === buffer.dpr) return;
+    this.buffer = { width, height, dpr };
+    this.renderer.setPixelRatio(dpr);
+    // Sets the element's CSS size too: the stylesheet leaves it to the renderer.
+    this.renderer.setSize(width, height);
+  }
+
+  /**
+   * Draws at this size in the canvas' bottom left corner and fits the camera,
+   * the key light and its shadow frame to it.
+   */
+  private fitView(width: number, height: number, focus: number, halfWidth: number | undefined): void {
+    this.renderer.setViewport(0, 0, width, height);
     this.view.setAspect(width / height);
-    this.fitToCanvas(focus, halfWidth);
+    this.view.fit(focus, halfWidth);
+    const [halfX, halfZ] = this.view.stage();
+    this.shadow.fit(this.view.reach, this.view.focusZ, halfX, halfZ);
     // Sparks are sized in pixels, not world units; the conversion depends on
     // exactly this height.
-    this.sparks.setViewport(height * dpr, STAGE_FOV);
+    this.sparks.setViewport(height * this.buffer.dpr, STAGE_FOV);
   }
 
   /** One frame: take the poses from the simulation and draw. */
@@ -280,6 +201,7 @@ export class DiceRenderer {
     const dt = this.lastTime === null ? 0 : Math.min(0.05, now - this.lastTime);
     this.lastTime = now;
 
+    let moved = false;
     for (let i = 0; i < this.meshes.length; i++) {
       const die = dice[i];
       const mesh = this.meshes[i]!;
@@ -288,11 +210,11 @@ export class DiceRenderer {
       // The waiting die lies visibly in place; the delay hides nothing any
       // more, it is the stillness before the push. Only a die rolled for an
       // explosion is not there yet: it exists once the die before it burst.
-      mesh.visible = !(die.waits === true && anim.phase === 'throw' && anim.delay > 0);
-      if (!mesh.visible) continue;
-      mesh.position.set(anim.p[0], anim.p[1], anim.p[2]);
-      mesh.quaternion.set(anim.q.x, anim.q.y, anim.q.z, anim.q.w);
-      mesh.scale.setScalar(anim.radius);
+      const visible = !(die.waits === true && anim.phase === 'throw' && anim.delay > 0);
+      if (mesh.visible !== visible) moved = true;
+      mesh.visible = visible;
+      if (!visible) continue;
+      if (place(mesh, anim)) moved = true;
 
       const hit = wallSparks(anim);
       if (hit !== null) this.sparks.emit(hit);
@@ -306,29 +228,20 @@ export class DiceRenderer {
       this.trails.update(i, mesh, anim);
     }
 
-    // As the dice come to rest the light swells briefly: the gleam of the result.
-    this.key.intensity = KEY_INTENSITY * (1 + 0.22 * emphasis);
-
-    // **Penumbra.** The highest body decides how soft the shadow is drawn: a
-    // shadow has one softness, not two, and the flying die is the one being
-    // watched.
-    let height = 0;
-    for (const die of dice) {
-      height = Math.max(height, (die.anim.p[1] - die.anim.floor) / (die.anim.radius * 2.6));
-    }
-    const softness = Math.min(1, Math.max(0, height));
-    this.key.shadow.radius = SHADOW_SHARP.blur + (SHADOW_SOFT.blur - SHADOW_SHARP.blur) * softness;
-    // Read on every frame: the renderer is pooled and outlives a theme switch.
-    const night = nightSheet(this.renderer.domElement);
-    const shadowGain = night ? NIGHT_SHADOW_GAIN : 1;
-    this.floorMat.color.setHex(night ? 0x000000 : INK);
-    this.floorMat.opacity =
-      (SHADOW_SHARP.opacity + (SHADOW_SOFT.opacity - SHADOW_SHARP.opacity) * softness) * shadowGain;
+    this.shadow.update(dice, emphasis, moved);
 
     this.placeCamera(dice, dt);
     this.sparks.step(dt);
 
     this.renderer.render(this.scene, this.view.camera);
+  }
+
+  /**
+   * Whether the next frame would show what the last one did, the dice being at
+   * rest: no spark burns and the camera stands. The stage's clock stops there.
+   */
+  isStill(): boolean {
+    return !this.sparks.burning && !this.view.shaking;
   }
 
   /** Shakes the camera by the strongest wall hit of this frame. */
@@ -351,7 +264,7 @@ export class DiceRenderer {
    * active WebGL contexts on this page, the oldest context will be lost", and
    * right after it "loseContext: context already lost": the browser had
    * reclaimed the context itself before we could give it back. Each of those
-   * contexts holds a 2048 shadow map and a baked reflection. On a phone the
+   * contexts held a 2048 shadow map and a baked reflection. On a phone the
    * series does not end with a warning but with the system reloading the page
    * under memory pressure, mid-game.
    *

@@ -7,7 +7,7 @@ import { STAGE_X, type Rng } from '../../../dice3d/dieTour';
 import { throwRandom } from '../../../dice3d/throwSeed';
 import { layoutDice, type DiceScene, type RestingFrame } from '../../../dice3d/diceScene';
 import { loadDiceArtwork } from '../../../dice3d/dieArtwork';
-import type { DiceRenderer, StageDie } from '../../../dice3d/DiceRenderer';
+import { stagePixelRatio, type DiceRenderer, type StageDie } from '../../../dice3d/DiceRenderer';
 import { borrowStage, returnStage } from '../../../dice3d/stagePool';
 import { bank, burst, rattle, rollEnd, rollStart } from '../../../dice3d/audio/diceSounds';
 import type { DiceCrit } from '../../../tools/diceCrit';
@@ -47,10 +47,15 @@ interface DiceStageProps {
   ref?: React.Ref<DiceStageHandle>;
 }
 
+/** How long the light takes to swell once the dice lie. */
+const GLEAM = 0.28;
+
 /**
- * Afterglow in which only the light swells and the sparks burn out before the
- * loop stops. Longer than the longest spark of the high-crit burst, or it
- * freezes mid-shower.
+ * The longest the loop runs on after the dice came to rest: longer than the
+ * longest spark of the high-crit burst. It stops as soon as the light has
+ * swelled and the stage is still (`DiceRenderer.isStill`): an ordinary
+ * landing's sparks are out after half of this. Without a renderer nobody can
+ * tell, and it runs the whole time.
  */
 const AFTERGLOW = 1.45;
 
@@ -58,7 +63,8 @@ const AFTERGLOW = 1.45;
  * The stage: a canvas and a clock. The clock lives here, the maths in
  * `dice3d/`, which is why the throw can be tested without drawing a frame.
  * Without WebGL the canvas stays empty and the maths still runs. The loop stops
- * once every die rests and the afterglow ran out.
+ * once every die rests and the stage is still, at the latest when the afterglow
+ * ran out.
  */
 export function DiceStage({ scene, crit, onSettled, muted, style, frame, seed, label, className, ref }: DiceStageProps): React.ReactElement {
   const { speed, maxWallHits } = style;
@@ -116,7 +122,7 @@ export function DiceStage({ scene, crit, onSettled, muted, style, frame, seed, l
     if (!renderer) return;
     const resting = diceRef.current.filter((die) => die.anim.phase === 'rest');
     const emphasis = resting.length === diceRef.current.length && resting.length > 0
-      ? Math.min(1, Math.min(...resting.map((die) => die.anim.restFor)) / (0.28 * speed))
+      ? Math.min(1, Math.min(...resting.map((die) => die.anim.restFor)) / (GLEAM * speed))
       : 0;
     renderer.render(diceRef.current, emphasis, crit);
   }, [crit, speed]);
@@ -150,7 +156,10 @@ export function DiceStage({ scene, crit, onSettled, muted, style, frame, seed, l
       if (!muted) rollEnd(wheelRef.current);
       settledCb.current();
     }
-    return !allResting || Math.min(...diceRef.current.map((die) => die.anim.restFor)) < AFTERGLOW * speed;
+    if (!allResting) return true;
+    const rested = Math.min(...diceRef.current.map((die) => die.anim.restFor));
+    if (rested < GLEAM * speed) return true;
+    return rested < AFTERGLOW * speed && rendererRef.current?.isStill() !== true;
   }, [muted, speed]);
 
   const start = useCallback((): void => {
@@ -193,17 +202,18 @@ export function DiceStage({ scene, crit, onSettled, muted, style, frame, seed, l
 
   useEffect(() => {
     const holder = holderRef.current;
-    const canvas = holder?.querySelector('canvas');
-    if (!holder || !canvas) return;
+    if (!holder) return;
     const win = holder.win;
 
     const measure = (): void => {
-      // Layout size, not the bounding box: the panel morphs between sizes with a
-      // scale transform, and a size measured mid-morph would stay squashed.
-      const width = Math.max(1, Math.round(canvas.clientWidth || 240));
-      const height = Math.max(1, Math.round(canvas.clientHeight || 190));
-      rendererRef.current?.setSize(width, height, Math.min(2, win.devicePixelRatio || 1), 0.5, frame?.halfWidth);
-      // The walls move with the canvas. Resting dice take the new size; a die
+      // The holder's size: the canvas is at least as large and is clipped to
+      // it (`DiceRenderer.setView`). Layout size, not the bounding box: the
+      // panel enters with a scale transform, and a size measured then would
+      // stay squashed.
+      const width = Math.max(1, Math.round(holder.clientWidth || 240));
+      const height = Math.max(1, Math.round(holder.clientHeight || 190));
+      rendererRef.current?.setView(width, height, stagePixelRatio(win), 0.5, frame?.halfWidth);
+      // The walls move with the holder. Resting dice take the new size; a die
       // in flight keeps the stage it was thrown on, or its path would jump.
       const stage = rendererRef.current?.stage();
       if (stage) {
@@ -219,7 +229,7 @@ export function DiceStage({ scene, crit, onSettled, muted, style, frame, seed, l
     // The popout's own observer: an observer from another window never fires there.
     const Observer = (win as typeof window).ResizeObserver as typeof ResizeObserver | undefined;
     const observer = Observer ? new Observer(measure) : null;
-    observer?.observe(canvas);
+    observer?.observe(holder);
     return (): void => {
       win.removeEventListener('resize', measure);
       observer?.disconnect();

@@ -73,6 +73,7 @@ describe('sealWalls with crowded wall ends', () => {
     const walls = make();
     const { ms, bridges } = timed(walls);
     console.info(`sealWalls, ${_name}: ${walls.length} walls, ${distinctEnds(walls)} ends, ${bridges.length} bridges, ${ms.toFixed(0)} ms`);
+    // Under a second on the machine it was written on; the bound is generous for slower ones.
     expect(ms).toBeLessThan(SLOW);
     expect(bridges.length).toBeLessThanOrEqual(distinctEnds(walls) * 16);
   });
@@ -81,6 +82,7 @@ describe('sealWalls with crowded wall ends', () => {
     const walls = make();
     const { ms, bridges } = timed(walls);
     console.info(`sealWalls, ${_name}: ${walls.length} walls, ${distinctEnds(walls)} ends, ${bridges.length} bridges, ${ms.toFixed(0)} ms`);
+    // About 100 ms alone; the bound leaves room for a loaded machine. Pairs took a minute here.
     expect(ms).toBeLessThan(SLOW);
     expect(bridges.length).toBeLessThanOrEqual(distinctEnds(walls) * 16);
   });
