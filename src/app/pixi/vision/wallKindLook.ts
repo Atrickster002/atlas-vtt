@@ -27,21 +27,32 @@ export function hasKindLook(wall: WallSegment): boolean {
   return wall.blocks !== undefined || wall.limited === true;
 }
 
+/** The stretch of a wall to lay out (distances from its first end), and how many times coarser than its own size the pattern is. */
+export interface KindSpan {
+  from: number;
+  to: number;
+  coarsen: number;
+}
+
 /**
  * The strokes of a wall of `length` world pixels at `zoom` screen pixels per world pixel, as
- * distances from its first end: the pattern of what it blocks, laid out from that end.
+ * distances from its first end: the pattern of what it blocks, laid out from that end. With a
+ * `span`, only the strokes that reach into it: the pattern stays where it is on the wall
+ * whatever part of it is asked for.
  */
-export function kindStrokes(length: number, zoom: number, blocks: WallSegment['blocks']): [from: number, to: number][] {
-  if (!blocks || !(length > 0) || !(zoom > 0)) return [[0, length > 0 ? length : 0]];
+export function kindStrokes(length: number, zoom: number, blocks: WallSegment['blocks'], span?: KindSpan): [from: number, to: number][] {
+  if (!(length > 0) || !(zoom > 0)) return [[0, length > 0 ? length : 0]];
+  const from = Math.max(0, span?.from ?? 0), to = Math.min(length, span?.to ?? length);
+  if (!blocks) return [[from, to]];
   const pattern = PATTERNS[blocks];
   const period = pattern.reduce((sum, part) => sum + part, 0);
-  // Screen pixels to world pixels, coarser where the wall would take too many strokes.
-  const scale = Math.max(1 / zoom, (length * pattern.length) / (2 * period * MAX_STROKES));
+  // Screen pixels to world pixels, coarser where the stretch would take too many strokes.
+  const scale = Math.max((span?.coarsen ?? 1) / zoom, ((to - from) * pattern.length) / (2 * period * MAX_STROKES));
   const strokes: [number, number][] = [];
-  let at = 0;
-  for (let i = 0; at < length; i++) {
+  let at = Math.floor(from / (period * scale)) * period * scale;
+  for (let i = 0; at < to; i++) {
     const part = pattern[i % pattern.length]! * scale;
-    if (i % 2 === 0) strokes.push([at, Math.min(at + part, length)]);
+    if (i % 2 === 0 && at + part > from) strokes.push([at, Math.min(at + part, length)]);
     at += part;
   }
   return strokes;
@@ -51,30 +62,39 @@ export function kindStrokes(length: number, zoom: number, blocks: WallSegment['b
  * The dots of a limited wall, as distances from its first end: spread evenly over each stroke
  * of what it blocks, `DOT_STEP` screen pixels apart, one at least to a stroke.
  */
-export function kindDots(length: number, zoom: number, blocks: WallSegment['blocks'], limited = true): number[] {
+export function kindDots(length: number, zoom: number, blocks: WallSegment['blocks'], limited = true, span?: KindSpan): number[] {
   if (!limited || !(length > 0) || !(zoom > 0)) return [];
-  const step = Math.max(DOT_STEP / zoom, length / MAX_DOTS);
-  return kindStrokes(length, zoom, blocks).flatMap(([from, to]) => {
+  const stretch = Math.min(length, span?.to ?? length) - Math.max(0, span?.from ?? 0);
+  const step = Math.max((DOT_STEP * (span?.coarsen ?? 1)) / zoom, stretch / MAX_DOTS);
+  return kindStrokes(length, zoom, blocks, span).flatMap(([from, to]) => {
     const count = Math.max(1, Math.round((to - from) / step));
     return Array.from({ length: count }, (_, i) => from + ((i + 0.5) * (to - from)) / count);
   });
 }
 
+/** About how many strokes or dots `span` of `wall` takes at `zoom`, before any coarsening. */
+export function kindMarks(wall: WallSegment, zoom: number, span: KindSpan): number {
+  const onScreen = (span.to - span.from) * zoom;
+  if (wall.limited) return Math.min(MAX_DOTS, onScreen / DOT_STEP) + 1;
+  const pattern = wall.blocks ? PATTERNS[wall.blocks] : null;
+  return pattern ? Math.min(MAX_STROKES, (onScreen * pattern.length) / (2 * pattern.reduce((sum, part) => sum + part, 0))) + 1 : 1;
+}
+
 /** Draws `wall` in the look of its kind, in `color`, at `zoom` screen pixels per world pixel. */
-export function drawKindWall(g: Graphics, wall: WallSegment, color: number, zoom: number, alpha = 1): void {
+export function drawKindWall(g: Graphics, wall: WallSegment, color: number, zoom: number, alpha = 1, span?: KindSpan): void {
   const dx = wall.p2.x - wall.p1.x, dy = wall.p2.y - wall.p1.y;
   const length = Math.hypot(dx, dy);
   if (!(length > 0)) return;
   const at = (d: number): [number, number] => [wall.p1.x + (dx / length) * d, wall.p1.y + (dy / length) * d];
   if (wall.limited) {
-    const dots = kindDots(length, zoom, wall.blocks);
+    const dots = kindDots(length, zoom, wall.blocks, true, span);
     for (const d of dots) g.circle(...at(d), (DOT_RADIUS + CASING) / zoom);
     g.fill({ color: 0x000000, alpha: 0.55 * alpha });
     for (const d of dots) g.circle(...at(d), DOT_RADIUS / zoom);
     g.fill({ color, alpha });
     return;
   }
-  const strokes = kindStrokes(length, zoom, wall.blocks);
+  const strokes = kindStrokes(length, zoom, wall.blocks, span);
   const path = (): void => {
     for (const [from, to] of strokes) {
       g.moveTo(...at(from));

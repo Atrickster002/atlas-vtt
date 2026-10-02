@@ -8,7 +8,8 @@ import type { ViewAtlasState } from '../../storeFactory';
 import type { WallSegment } from '../../types/wallTypes';
 import { cssColorToHexNumber } from '../utils/colorUtils';
 import { destroyTree } from '../utils/destroyTree';
-import { drawDashedLine, drawKindWall, hasKindLook } from './wallKindLook';
+import { KindWallLayer, type KindWall } from './KindWallLayer';
+import { drawDashedLine, hasKindLook } from './wallKindLook';
 
 const VERTEX_HANDLE_RADIUS = 4;
 const HIT_TOLERANCE = 6;
@@ -21,10 +22,8 @@ const HIT_TOLERANCE = 6;
 export class WallRenderer {
   private container: Container;
   private wallGraphics: Graphics;
-  /** The walls with a look of their own (`wallKindLook`), which is laid out in screen pixels and so drawn anew when the zoom changes. */
-  private kindGraphics = new Graphics();
-  private kindWalls: WallSegment[] = [];
-  private kindZoom = 0;
+  /** The walls with a look of their own (`wallKindLook`), laid out in screen pixels. */
+  private readonly kinds: KindWallLayer;
   private handleGraphics: Graphics;
   private previewGraphics: Graphics;
   private store: StoreApi<ViewAtlasState>;
@@ -59,12 +58,12 @@ export class WallRenderer {
     this.previewGraphics = new Graphics();
 
     this.container.addChild(this.wallGraphics);
-    this.container.addChild(this.kindGraphics);
+    this.kinds = new KindWallLayer(viewport);
+    this.container.addChild(this.kinds.graphics);
     this.container.addChild(this.handleGraphics);
     this.container.addChild(this.previewGraphics);
 
     viewport.addChild(this.container);
-    viewport.on('zoomed', this.onZoom);
 
     // Redraw while shown; whoever shows it (the wall tool) owns `visible`.
     this._unsubscribe = store.subscribe((state, previous) => {
@@ -72,19 +71,12 @@ export class WallRenderer {
     });
   }
 
-  private readonly onZoom = (): void => {
-    if (this.container.visible && this.kindWalls.length > 0 && this.viewport.scale.x !== this.kindZoom) this.drawKindWalls();
-  };
-
-  /** The walls that block one thing, in the look of their kind at the zoom of now. */
-  private drawKindWalls(): void {
-    this.kindZoom = this.viewport.scale.x;
-    this.kindGraphics.clear();
-    for (const wall of this.kindWalls) {
+  /** The walls that block one thing or are limited, in the colours of now. */
+  private kindWalls(state: ViewAtlasState): KindWall[] {
+    return wallList(state.objects.walls).filter(hasKindLook).map((wall) => {
       const open = (wall.type === 'door' || wall.type === 'secret-door') && !(wall.closed ?? true);
-      const color = this.selectedWallIds.has(wall.id) ? this.accentColor : open ? 0x44dd44 : this.getWallColor(wall);
-      drawKindWall(this.kindGraphics, wall, color, this.kindZoom, open ? 0.6 : 1);
-    }
+      return { wall, color: this.selectedWallIds.has(wall.id) ? this.accentColor : open ? 0x44dd44 : this.getWallColor(wall), alpha: open ? 0.6 : 1 };
+    });
   }
 
   forceRedraw(): void {
@@ -256,11 +248,10 @@ export class WallRenderer {
     );
     this.wallGraphics.clear();
     this.handleGraphics.clear();
-    this.kindWalls = wallList(state.objects.walls).filter(hasKindLook);
     for (const wall of wallList(state.objects.walls)) {
       this.drawWall(wall);
     }
-    this.drawKindWalls();
+    this.kinds.set(this.kindWalls(state));
   }
 
   private drawWall(wall: WallSegment): void {
@@ -435,7 +426,7 @@ export class WallRenderer {
 
   destroy(): void {
     this._unsubscribe?.();
-    this.viewport.off('zoomed', this.onZoom);
+    this.kinds.destroy();
     this.wallGraphics.destroy();
     this.handleGraphics.destroy();
     this.previewGraphics.destroy();
