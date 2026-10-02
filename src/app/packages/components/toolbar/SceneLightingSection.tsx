@@ -1,5 +1,5 @@
 import React from "react"
-import { RotateCcw, SlidersHorizontal } from "lucide-react"
+import { Eye, RotateCcw, SlidersHorizontal } from "lucide-react"
 import { DEFAULT_AMBIENT_COLOR } from "../../../lighting/sceneLightingOptions"
 import { TIMES_OF_DAY, type TimeOfDay } from "../../../lighting/timesOfDay"
 import type { SceneLighting } from "../../../types/lightingTypes"
@@ -14,6 +14,8 @@ interface SceneLightingSectionProps {
   lighting: SceneLighting
   onChange: (changes: Partial<SceneLighting>) => void
   onResetExplored: () => void
+  /** Marks the whole map as explored; offered while the tool edits the explored memory. */
+  onRevealExplored?: () => void
   /** Opens the panel with the scene's other lighting options. */
   onOpenSettings: () => void
 }
@@ -22,7 +24,7 @@ interface SceneLightingSectionProps {
  * Scene-wide lighting in the lighting tool's menu: a section with the switch and how dark the
  * scene is, and one with its actions. The players' view of it is session view, not shown here.
  */
-export function SceneLightingSection({ lighting, onChange, onResetExplored, onOpenSettings }: SceneLightingSectionProps): React.ReactElement {
+export function SceneLightingSection({ lighting, onChange, onResetExplored, onRevealExplored, onOpenSettings }: SceneLightingSectionProps): React.ReactElement {
   const time = TIMES_OF_DAY.find((stop) => stop.ambient === lighting.ambient)?.value ?? 'custom'
   return (
     <>
@@ -62,6 +64,7 @@ export function SceneLightingSection({ lighting, onChange, onResetExplored, onOp
       </div>
       {lighting.enabled && (
         <div className="atlas-dropdown-section">
+          {onRevealExplored && <DropdownMenuItem icon={Eye} label="Mark all areas explored" onClick={onRevealExplored} />}
           <DropdownMenuItem icon={RotateCcw} label="Forget explored areas" onClick={onResetExplored} />
           <DropdownMenuItem icon={SlidersHorizontal} label="Lighting settings…" onClick={onOpenSettings} />
         </div>

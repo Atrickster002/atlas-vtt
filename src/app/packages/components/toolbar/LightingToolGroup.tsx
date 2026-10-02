@@ -1,12 +1,14 @@
-import React, { useState } from "react"
-import { BrickWall, Flame, FlameKindling, Lamp, Lightbulb, Moon, MousePointer2, Pencil, Sparkles, SunMoon } from "lucide-react"
+import React, { useEffect, useState } from "react"
+import { BrickWall, Flame, FlameKindling, Footprints, Lamp, Lightbulb, Moon, MousePointer2, Pencil, Sparkles, SunMoon } from "lucide-react"
 import { useHotkeyLabels } from "../../../keyboard/useMapHotkeys"
 import { useAtlasStore } from "../../../react/ViewStoreContext"
 import { chosenLightPreset } from "../../../lighting/lightPresetChoice"
+import { exploredMemoryEditable } from "../../../lighting/sceneLightingOptions"
 import { useMapLightPresets } from "../../../react/hooks/useMapLightPresets"
 import type { LightKind } from "../../../types/lightingTypes"
 import type { WallToolMode, WallToolSubMode } from "../../../tools/WallTool"
 import { DropdownMenuItem, type DropdownMenuItemProps } from "../primitives/DropdownMenuItem"
+import { DEFAULT_EXPLORED_BRUSH, ExploredMemorySection, type ExploredBrushOptions } from "./ExploredMemorySection"
 import { SceneLightingSection } from "./SceneLightingSection"
 import { ToolGroup, type ToolGroupControls } from "./ToolGroup"
 import { lightingToolFace } from "./toolFaces"
@@ -19,7 +21,15 @@ const SUB_MODES: readonly { value: WallToolSubMode; icon: RowIcon; label: string
   { value: 'draw', icon: BrickWall, label: 'Draw walls' },
   { value: 'place-light', icon: Lightbulb, label: 'Place lights' },
   { value: 'light-zone', icon: SunMoon, label: 'Light zones' },
+  { value: 'explored-memory', icon: Footprints, label: 'Explored memory' },
 ]
+
+/** The tool's event for each of the explored-memory mode's choices. */
+const EXPLORED_BRUSH_EVENTS: Record<keyof ExploredBrushOptions, string> = {
+  mode: 'explored-edit-mode-changed',
+  shape: 'explored-shape-changed',
+  brushSize: 'explored-brush-size-changed',
+}
 
 const DRAW_MODES: readonly { value: WallToolMode; icon: RowIcon; label: string }[] = [
   { value: 'point-to-point', icon: MousePointer2, label: 'Point to point' },
@@ -49,7 +59,15 @@ export function LightingToolGroup({ activeTool, selectTool, menuOpen, toggleMenu
   // The chosen preset's id; the collection's torch until one is chosen, and again once the collection no longer has it.
   const [presetId, setPresetId] = useState<string | null>(null)
   const preset = chosenLightPreset(presets, presetId)
+  const [brush, setBrush] = useState(DEFAULT_EXPLORED_BRUSH)
   const face = lightingToolFace(activeTool)
+  // Explored memory is edited only on a lit scene that remembers: without one the mode is not offered, and the tool leaves it.
+  const memoryEditable = exploredMemoryEditable(lighting)
+  useEffect(() => {
+    if (memoryEditable || subMode !== 'explored-memory') return
+    setSubMode('draw')
+    emit('wall-submode-changed', 'draw')
+  }, [memoryEditable, subMode, emit])
 
   return (
     <ToolGroup
@@ -61,7 +79,7 @@ export function LightingToolGroup({ activeTool, selectTool, menuOpen, toggleMenu
       onMenuToggle={toggleMenu}
     >
       <div className="atlas-dropdown-section">
-        {SUB_MODES.map(({ value, icon, label }) => (
+        {SUB_MODES.filter(({ value }) => value !== 'explored-memory' || memoryEditable).map(({ value, icon, label }) => (
           <DropdownMenuItem
             key={value}
             icon={icon}
@@ -78,8 +96,18 @@ export function LightingToolGroup({ activeTool, selectTool, menuOpen, toggleMenu
         ))}
       </div>
 
+      {subMode === 'explored-memory' && (
+        <ExploredMemorySection
+          options={brush}
+          onChange={(changes) => {
+            setBrush({ ...brush, ...changes })
+            for (const [option, value] of Object.entries(changes)) emit(EXPLORED_BRUSH_EVENTS[option as keyof ExploredBrushOptions], value)
+          }}
+        />
+      )}
+
       {/* The zone mode has no choices of its own: a zone is drawn corner by corner. */}
-      {subMode !== 'light-zone' && <div className="atlas-dropdown-section">
+      {(subMode === 'draw' || subMode === 'place-light') && <div className="atlas-dropdown-section">
         {subMode === 'draw' ? DRAW_MODES.map(({ value, icon, label }) => (
           <DropdownMenuItem
             key={value}
@@ -112,6 +140,12 @@ export function LightingToolGroup({ activeTool, selectTool, menuOpen, toggleMenu
           emit('lighting-reset-explored')
           closeMenu()
         }}
+        {...(subMode === 'explored-memory' && {
+          onRevealExplored: (): void => {
+            emit('lighting-reveal-explored')
+            closeMenu()
+          },
+        })}
         onOpenSettings={() => {
           setSceneLightingPanelOpen(true)
           closeMenu()
