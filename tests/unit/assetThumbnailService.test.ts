@@ -36,8 +36,8 @@ describe('AssetThumbnailService', () => {
 
     const [update] = await updates;
     expect(update?.id).toBe(goblin.id);
-    expect(update?.thumbnailPath.startsWith(`${THUMBNAIL_DIR}/goblin-`)).toBe(true);
-    expect(files.get(update!.thumbnailPath)).toBe(`thumb:${THUMBNAIL_SIZE}`);
+    expect(update?.thumbnailPath?.startsWith(`${THUMBNAIL_DIR}/goblin-`)).toBe(true);
+    expect(files.get(update?.thumbnailPath ?? '')).toBe(`thumb:${THUMBNAIL_SIZE}`);
     const stored = await assets.getAssetById(goblin.id);
     expect(stored?.type === 'token' && stored.thumbnailPath).toBe(update?.thumbnailPath);
     expect(render).toHaveBeenCalledTimes(1);

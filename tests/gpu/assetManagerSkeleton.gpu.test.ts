@@ -86,10 +86,10 @@ function nextFrame(): Promise<void> {
   return new Promise((resolve) => requestAnimationFrame(() => resolve()));
 }
 
-async function settled(milliseconds = 0): Promise<void> {
+/** Resize observers report between layout and paint. */
+async function settled(): Promise<void> {
   await nextFrame();
   await nextFrame();
-  if (milliseconds > 0) await new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
 
 interface Box { left: number; top: number; width: number; height: number }
@@ -139,15 +139,16 @@ describe('the asset manager while its content loads', () => {
 
   it.each<Tab>(['tokens', 'maps', 'scenes', 'encounters'])('puts the %s where their placeholders stood', async (tab) => {
     flushSync(() => root.render(React.createElement(Content, contentProps(tab, true))));
-    await settled();
+    await expect.poll(() => boxesOf(host, '.atlas-content-skeleton .atlas-asset-card').length).toBe(CARDS_COMPARED);
     const skeletonCards = boxesOf(host, '.atlas-content-skeleton .atlas-asset-card');
     const skeletonHeader = boxesOf(host, '.atlas-content-skeleton .atlas-section-header');
     expect(skeletonCards).toHaveLength(CARDS_COMPARED);
 
     flushSync(() => root.render(React.createElement(Content, contentProps(tab, false))));
     // The pane with the content fades in over the placeholders' pane, which then leaves.
-    await settled(400);
-    expect(host.querySelector('.atlas-content-skeleton')).toBeNull();
+    await expect.poll(() => host.querySelector('.atlas-content-skeleton')).toBeNull();
+    await expect.poll(() => boxesOf(host, '.atlas-asset-grid-virtual .atlas-asset-card').length).toBe(CARDS_COMPARED);
+    await settled();
     const cards = boxesOf(host, '.atlas-asset-grid-virtual .atlas-asset-card');
     const header = boxesOf(host, '.atlas-content-sections .atlas-section-header');
 
@@ -166,6 +167,7 @@ describe('the asset manager while its content loads', () => {
     flushSync(() => root.render(React.createElement(Content, contentProps('tokens', true))));
     await settled();
     const pane = host.querySelector<HTMLElement>('.atlas-content-skeleton')!;
+    await expect.poll(() => pane.querySelectorAll('.atlas-asset-card').length).toBeGreaterThan(1);
     const cards = Array.from(pane.querySelectorAll<HTMLElement>('.atlas-asset-card'));
     const bottom = pane.getBoundingClientRect().bottom;
     const tops = [...new Set(cards.map((card) => Math.round(card.getBoundingClientRect().top)))];
@@ -211,6 +213,7 @@ describe('the asset manager while its content loads', () => {
     const widthWith = async (assetCounts: Record<Tab, number> | null): Promise<number[]> => {
       flushSync(() => root.render(React.createElement('div', { className: 'atlas-asset-manager-header' },
         React.createElement(TabSwitcher, { activeTab: 'tokens', onTabChange: noop, assetCounts }))));
+      await expect.poll(() => host.querySelectorAll('.atlas-tab-button').length).toBe(4);
       await settled();
       return Array.from(host.querySelectorAll<HTMLElement>('.atlas-tab-button')).map((tab) => tab.getBoundingClientRect().width);
     };
