@@ -13,7 +13,7 @@ import { LightingEngine } from '../LightingEngine';
 import type { EngineZone } from '../types';
 import { createTestRenderer } from './gpuTestUtils';
 import { distToOutline, fuzzRooms, insidePolygon, rng, roomOutline, type FuzzRoom, type P } from './fuzzRooms';
-import { NO_SIGHT, renderView } from './leakFuzzScene';
+import { NO_SIGHT, outsideOf, renderView } from './leakFuzzScene';
 
 const SIZE = 384;
 const TRIALS = Number(import.meta.env.VITE_LEAK_TRIALS ?? 24);
@@ -70,18 +70,6 @@ function halved(source: HTMLCanvasElement): string {
   canvas.height = Math.max(1, Math.round(source.height * scale));
   canvas.getContext('2d')!.drawImage(source, 0, 0, canvas.width, canvas.height);
   return canvas.toDataURL('image/png');
-}
-
-/** A point outside the room, 60 px or more from its walls, for a token that looks at the room from the dark. */
-function outsideOf(room: FuzzRoom, outline: readonly P[], bounds: MapBounds, rand: () => number): P | null {
-  for (let attempt = 0; attempt < 40; attempt++) {
-    const angle = rand() * Math.PI * 2;
-    const reach = 250 + rand() * 500;
-    const p: P = [room.centre[0] + Math.cos(angle) * reach, room.centre[1] + Math.sin(angle) * reach];
-    if (p[0] < 20 || p[1] < 20 || p[0] > bounds.width - 20 || p[1] > bounds.height - 20) continue;
-    if (!insidePolygon(p, outline) && distToOutline(p, outline) > 60) return p;
-  }
-  return null;
 }
 
 /**
