@@ -73,11 +73,12 @@ describe('sealWalls with crowded wall ends', () => {
     expect(bridges.length).toBeLessThanOrEqual(distinctEnds(walls) * 16);
   });
 
-  it.each([['a pile of a thousand walls', pile], ['twenty thousand walls from one point', star], ['a cave of 19,800 short segments', cave]] as const)('seals %s in under 200 ms, with a number of bridges that grows with the ends, not with their pairs', (_name, make) => {
+  it.each([['a pile of a thousand walls', pile], ['twenty thousand walls from one point', star], ['a cave of 19,800 short segments', cave]] as const)('seals %s quickly, with a number of bridges that grows with the ends, not with their pairs', (_name, make) => {
     const walls = make();
     const { ms, bridges } = timed(walls);
     console.info(`sealWalls, ${_name}: ${walls.length} walls, ${distinctEnds(walls)} ends, ${bridges.length} bridges, ${ms.toFixed(0)} ms`);
-    expect(ms).toBeLessThan(200);
+    // About 100 ms alone; the bound leaves room for a loaded machine. Pairs took a minute here.
+    expect(ms).toBeLessThan(2000);
     expect(bridges.length).toBeLessThanOrEqual(distinctEnds(walls) * 16);
   });
 

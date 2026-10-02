@@ -282,7 +282,7 @@ describe('importing a Universal VTT file', () => {
     expect(result.counts.walls).toBe(150);
     const started = performance.now();
     sealWalls(walls, sealTolerance(2));
-    expect(performance.now() - started).toBeLessThan(100);
+    expect(performance.now() - started).toBeLessThan(1000);
   });
 
   it('places a wall across a map of one cell on a large image on that image', async () => {
