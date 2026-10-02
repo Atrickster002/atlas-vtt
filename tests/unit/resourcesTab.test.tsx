@@ -5,6 +5,7 @@ import { ResourcesTab } from '../../src/app/react/components/collection-settings
 import { HP_RESOURCE, isDraftResourceKey } from '../../src/app/resources/resourceDefinitions';
 import { RESOURCE_COLORS } from '../../src/app/resources/resourceColors';
 import { slottedResources } from '../../src/app/resources/resourceSlots';
+import { STARTER_TOKENS } from '../../src/app/services/starterTokens';
 import type { ResourceDefinition } from '../../src/app/resources/resourceTypes';
 
 const STR: ResourceDefinition = { ...HP_RESOURCE, key: 'str', name: 'STR', field: 'stats.0', color: '#dc2626', defeatedWhenSpent: false };
@@ -26,6 +27,15 @@ const last = (onChange: ReturnType<typeof vi.fn>): ResourceDefinition[] => onCha
 afterEach(cleanup);
 
 describe('ResourcesTab', () => {
+  it('shows the sockets around a real token: the fighter\'s art in Atlas\' own ring', () => {
+    render(<Editor initial={[{ ...HP_RESOURCE }]} />);
+    const rig = screen.getByRole('group', { name: 'Resource sockets' });
+    expect(rig.querySelector('.atlas-token-portrait .atlas-token-ring')).not.toBeNull();
+    expect(rig.querySelector<HTMLImageElement>('.atlas-token-portrait img')!.src).toBe(STARTER_TOKENS.find(({ name }) => name === 'Fighter')!.image);
+    // The picture is decoration: it has no name of its own and is not announced
+    expect(rig.querySelector('.atlas-csm-token-art')!.getAttribute('aria-hidden')).toBe('true');
+  });
+
   it('shows a token with six sockets, the filled ones named and none of them numbered', () => {
     render(<Editor initial={[{ ...HP_RESOURCE }, STR]} />);
     expect(sockets()).toHaveLength(6);
