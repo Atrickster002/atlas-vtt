@@ -17,7 +17,7 @@ export interface WallSegment {
    * The one thing the wall stops: a curtain stops sight and lets light through, glass that glows
    * stops light and lets sight through. Unset, it stops both. A door keeps its kind.
    */
-  blocks?: WallChannel;
+  blocks?: WallChannel | undefined;
   chainId?: string;               // Groups segments from same draw action
 }
 
