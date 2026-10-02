@@ -16,8 +16,10 @@ import { WALL_PUSH_GLSL } from './wallPushGlsl';
  * uPixelWorld is the size of a screen pixel in world pixels.
  * uAreaOrigin is where the filter's area starts on screen (PIXI's uOutputFrame holds it only
  * for the last filter of a chain; `AreaAwareFilter` computes it for any position in one).
- * In the player view, what no token sees now shows its memory (uMemory 1): the dim grey map
- * tinted by uExploredTint where explored, uUnexplored elsewhere; both colours are linear.
+ * In the player view, what the party does not perceive now shows its memory (uMemory 1): the
+ * dim grey map tinted by uExploredTint where explored, uUnexplored elsewhere; both colours are
+ * linear. That is what lies out of sight and what lies in sight in the dark, without a sense
+ * that shows it: stepping behind a wall must not reveal a remembered room that standing in it hides.
  * uDarkness (read only while uHasDarkness is set) is the darkness map: red is how much of the
  * light magical darkness swallows (the lights it swallows are gone from the light map already;
  * here the ambient light and the bounce go too, and what is perceived without light), green
@@ -211,10 +213,24 @@ void main() {
   vec3 visible = mix(lit, brighter(lit, darkSight), sight.g * sensed);
   // Senses: perceived without light, in colour.
   visible = mix(visible, brighter(visible, albedo * uColourLevel * colourGain), sight.b * sensed);
+  // The players' view falls back on memory wherever the party perceives nothing now: out of
+  // sight, and in sight where no light and no sense shows the map (uRecalls: memory is on and a
+  // token has vision). The memory is read only where it can show: out of sight, or where the
+  // live picture is no brighter than the brightest the memory can be.
+  vec3 remembered = vec3(grey) * 0.07 * uExploredTint;
+  float recalls = uMode > 0.5 && uMemory > 0.5 && uAllSeen < 0.5 ? 1.0 : 0.0;
+  float dimmest = dot(visible, LUMA) - max(dot(uUnexplored, LUMA), dot(remembered, LUMA));
+  float explored = uMode > 0.5 && uMemory > 0.5 && (seen < 1.0 || (recalls > 0.5 && dimmest < 0.0)) ? exploredAt(world) : 0.0;
+  vec3 memory = mix(uUnexplored, remembered, explored);
+  // In sight the memory makes up what the live picture lacks of the memory's own brightness:
+  // nothing where the picture is as bright (lit and sensed places are exactly as the light
+  // shows them), all of it in the dark, and at a light's rim the two add up to the memory's
+  // brightness, so the light fades into the memory beneath it without a darker ring between.
+  // Magical darkness keeps its veil over it.
+  float lacking = max(dot(memory - visible, LUMA), 0.0) / max(dot(memory, LUMA), 1e-5);
+  vec3 inSight = visible + memory * (recalls * lacking);
+  vec3 player = mix(memory, inSight + uVeil * dark.r, seen);
   visible += uVeil * dark.r;
-  float explored = uMode > 0.5 && uMemory > 0.5 && seen < 1.0 ? exploredAt(world) : 0.0;
-  vec3 memory = mix(uUnexplored, vec3(grey) * 0.07 * uExploredTint, explored);
-  vec3 player = mix(memory, visible, seen);
 
   // The GM always sees the map and every light at full strength: a dim floor screen-blended under
   // the light. What no token sees keeps its brightness and loses part of its colour.
