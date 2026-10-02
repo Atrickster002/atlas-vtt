@@ -1556,6 +1556,21 @@ export class TokenRenderer {
     this.wallCursorProvider = fn;
   }
 
+  /** The view's lighting is gone: nothing takes the pointer for lights, walls and doors any more, and no sight hides tokens. */
+  public clearLighting(): void {
+    delete this.lightHandlers;
+    delete this.doorClickHandler;
+    delete this.doorMenuHandlers;
+    delete this.wallPointerDownHandler;
+    delete this.wallPointerMoveHandler;
+    delete this.wallPointerUpHandler;
+    delete this.wallDoubleClickHandler;
+    delete this.wallContextMenuHandler;
+    delete this.wallCursorProvider;
+    this.playerSight.setProvider(() => undefined);
+    this.refreshPlayerSight();
+  }
+
   public setAudioPointerDownHandler(fn: (worldX: number, worldY: number, e: FederatedPointerEvent) => boolean): void {
     this.audioPointerDownHandler = fn;
   }

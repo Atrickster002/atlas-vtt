@@ -11,6 +11,8 @@ import { openEditTokenModal } from '../../src/app/pixi/token-renderer/EditTokenM
 import { AssetService } from '../../src/app/services/AssetService';
 import type { TokenEntity } from '../../src/app/types';
 import { createInMemoryApp } from '../mocks/inMemoryVault';
+import { genericLight } from '../mocks/lights';
+import { withDynamicLighting } from '../mocks/experimentalFeatures';
 
 const darkvision = senseWithRole(GENERIC_SENSES, 'darkvision');
 const tremorsense = senseWithRole(GENERIC_SENSES, 'tremorsense');
@@ -21,8 +23,9 @@ afterEach(() => {
   if (cancel) act(() => cancel.click());
 });
 
-function open(overrides: Partial<TokenEntity> = {}): { store: ViewAtlasStore; saved: () => TokenEntity } {
+function open(overrides: Partial<TokenEntity> = {}, lighting = true): { store: ViewAtlasStore; saved: () => TokenEntity } {
   const { app } = createInMemoryApp();
+  if (lighting) withDynamicLighting(app);
   const store = createViewAtlasStore(app, `edit-token-${Math.random()}`);
   const token: TokenEntity = { id: 't', kind: 'token', imagePath: 't.png', x: 0, y: 0, ...overrides };
   store.setState({ persistenceEnabled: false, objects: { ...store.getState().objects, tokens: { t: token } } });
@@ -40,6 +43,17 @@ describe('openEditTokenModal', () => {
     expect(screen.getByText('Vision & light')).toBeTruthy();
     act(() => screen.getByRole('button', { name: 'Cancel' }).click());
     expect(document.body.querySelector('.atlas-vtt-root')).toBeNull();
+  });
+
+  it('has no vision or light fields while dynamic lighting is switched off, and a save leaves the token\'s vision and light alone', () => {
+    const light = genericLight('torch');
+    const { saved } = open({ name: 'Scout', vision: { enabled: true, range: 60 }, light }, false);
+    expect(screen.queryByText('Vision & light')).toBeNull();
+    expect(screen.queryByRole('switch', { name: 'Vision (party member)' })).toBeNull();
+    expect(screen.queryByRole('switch', { name: 'Carried light' })).toBeNull();
+    save();
+    expect(saved().vision).toEqual({ enabled: true, range: 60 });
+    expect(saved().light).toEqual(light);
   });
 
   it('says in one line what the vision switch means', () => {
@@ -107,7 +121,7 @@ describe('openEditTokenModal', () => {
 describe('openEditTokenModal in a collection with senses of its own', () => {
   it('offers the collection\'s senses, by their names, and saves the one chosen', () => {
     const witchSight = { ...darkvision, id: 'home-witch', name: 'Witch sight', role: undefined, range: 'required' as const, defaultRange: 30 };
-    const { app } = createInMemoryApp();
+    const app = withDynamicLighting(createInMemoryApp().app);
     const assets = AssetService.getInstance(app);
     vi.spyOn(assets, 'getCollectionForMap').mockReturnValue('coven');
     vi.spyOn(assets, 'getCollectionSettings').mockReturnValue({ conditions: [], senses: [witchSight] } as never);

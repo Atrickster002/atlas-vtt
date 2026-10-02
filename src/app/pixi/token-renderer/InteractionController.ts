@@ -27,7 +27,7 @@ import { EventEmitter } from 'events';
 import { StatblockDialogService } from '../../services/StatblockDialogService';
 import { TokenStatblockLinkService } from '../../services/TokenStatblockLinkService';
 import type { ConditionDefinition } from '../../types/collectionSettingsTypes';
-import { WALLS_AND_LIGHTING_ENABLED } from '../../featureFlags';
+import { dynamicLightingOn } from '../../experimental/experimentalFeatures';
 import { saveMapTokensAsEncounter } from '../../encounters/saveMapTokensAsEncounter';
 import { copyMapObjects } from '../../clipboard/mapClipboardActions';
 import { copyDragSelection } from './dragCopy';
@@ -584,7 +584,7 @@ export class InteractionController implements ITokenInteractionController {
     });
 
     // Vision and carried light, for the selection the token belongs to
-    if (WALLS_AND_LIGHTING_ENABLED && !this.isPlayerView) {
+    if (!this.isPlayerView && dynamicLightingOn(this.obsApp)) {
       const lightPresets = mapLightPresets(this.obsApp, this.store.getState());
       entries.push(...tokenLightingEntries(this.store, token.id, this.contextMenuTargets(token.id), lightPresets));
     }
