@@ -14,6 +14,7 @@ import { SIDE_LABELS, listedBySides, sideOf, sidesInOrder } from '../../initiati
 import { useInitiativeTokenSync } from '../../initiative/useInitiativeTokenSync';
 import { useMapInitiativeRules } from '../../initiative/useMapInitiativeRules';
 import { LabelTooltip } from '../../packages/components/primitives/tooltip';
+import { scrollWithin } from '../../utils/scrollWithin';
 import { EditInitiativePopup } from './EditInitiativePopup';
 import { InitiativeCard } from './InitiativeCard';
 import { initiativeCardMenu } from './initiativeCardMenu';
@@ -64,6 +65,18 @@ export const InitiativeTracker: React.FC = () => {
   const [editValue, setEditValue] = useState<string>('');
 
   const sideLabelId = useId();
+
+  // The turn stays in view in a list longer than the panel: the combatant's card, or the top of its side
+  const contentRef = useRef<HTMLDivElement>(null);
+  const turnOf = initiative.sides?.active ?? initiative.entries.find((entry) => entry.isActive)?.id;
+  useEffect(() => {
+    const content = contentRef.current;
+    if (!initiative.isActive || !content) return;
+    const side = content.querySelector('.atlas-initiative-side--active');
+    const card = content.querySelector('.atlas-initiative-card--active');
+    if (side) scrollWithin(content, side, 'start');
+    else if (card) scrollWithin(content, card, 'nearest');
+  }, [initiative.isActive, turnOf, initiative.round]);
 
   // Refs for turn navigation buttons
   const prevBtnRef = useRef<HTMLButtonElement>(null);
@@ -214,7 +227,7 @@ export const InitiativeTracker: React.FC = () => {
       </div>
 
       {/* Content - Cards for each combatant */}
-      <div className="atlas-initiative-tracker__content">
+      <div ref={contentRef} className="atlas-initiative-tracker__content">
         {sortedEntries.length === 0 && (
           <p className="atlas-initiative-tracker__empty">Right-click a token to add it</p>
         )}

@@ -29,6 +29,8 @@ const state = vi.hoisted(() => ({
 const collection = vi.hoisted(() => ({ rules: { mode: 'sides', roll: '1d20', firstSide: 'players' } as InitiativeRules }));
 const opened = vi.hoisted(() => ({ entries: [] as ContextMenuEntry[] }));
 
+const scrolls = vi.hoisted(() => ({ calls: [] as unknown[][] }));
+vi.mock('../../src/app/utils/scrollWithin', () => ({ scrollWithin: (...args: unknown[]) => { scrolls.calls.push(args); } }));
 vi.mock('../../src/app/initiative/useMapInitiativeRules', () => ({ useMapInitiativeRules: () => collection.rules }));
 vi.mock('../../src/app/react/root/ContextMenuContext', () => ({
   openContextMenuGlobal: (entries: ContextMenuEntry[]) => { opened.entries = entries; },
@@ -86,6 +88,7 @@ function clickItem(label: string): void {
 beforeEach(() => {
   vi.clearAllMocks();
   opened.entries = [];
+  scrolls.calls.length = 0;
   collection.rules = { mode: 'sides', roll: '1d20', firstSide: 'players' };
   scene();
 });
@@ -196,5 +199,48 @@ describe('clearing the initiative tracker', () => {
     state.initiative = { entries: [], isActive: false, round: 0 } as unknown as InitiativeState;
     render(<InitiativeTracker />);
     expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Clear initiative' }).disabled).toBe(true);
+  });
+});
+
+describe('the initiative tracker keeps the turn in view', () => {
+  const list = (container: HTMLElement): Element => container.querySelector('.atlas-initiative-tracker__content')!;
+
+  it('scrolls its list to the combatant whose turn it is when the turn moves on', () => {
+    collection.rules = { mode: 'turn-order', roll: '1d20', firstSide: 'players' };
+    scene({ isActive: true, round: 1, currentIndex: 0 });
+    state.initiative.entries[0] = entryOf('goblin', 0, { isActive: true });
+    const { container, rerender } = render(<InitiativeTracker />);
+    scrolls.calls.length = 0;
+
+    state.initiative = { ...state.initiative, currentIndex: 2, entries: state.initiative.entries.map((entry, index) => ({ ...entry, isActive: index === 2 })) };
+    rerender(<InitiativeTracker />);
+
+    expect(scrolls.calls).toEqual([[list(container), container.querySelectorAll('.atlas-initiative-card')[2], 'nearest']]);
+  });
+
+  it('scrolls its list to the top of the side whose turn it is', () => {
+    scene({ isActive: true, round: 1, sides: { first: 'players', active: 'players' } });
+    const { container, rerender } = render(<InitiativeTracker />);
+    scrolls.calls.length = 0;
+
+    state.initiative = { ...state.initiative, sides: { first: 'players', active: 'opponents' } };
+    rerender(<InitiativeTracker />);
+
+    expect(scrolls.calls).toEqual([[list(container), container.querySelectorAll('.atlas-initiative-side')[1], 'start']]);
+  });
+
+  it('leaves the list alone while nothing about the turn changes, and without a fight', () => {
+    scene({ isActive: true, round: 1, sides: { first: 'players', active: 'players' } });
+    const { rerender, unmount } = render(<InitiativeTracker />);
+    scrolls.calls.length = 0;
+
+    state.objects = { tokens: { ...state.objects.tokens } };
+    rerender(<InitiativeTracker />);
+    expect(scrolls.calls).toEqual([]);
+
+    unmount();
+    scene();
+    render(<InitiativeTracker />);
+    expect(scrolls.calls).toEqual([]);
   });
 });

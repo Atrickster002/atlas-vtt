@@ -122,6 +122,7 @@
 - The asset manager's collection list no longer offers All Collections. It showed only the default collection, never the assets of the others, so the list now holds your collections and nothing else
 - A text you moved stays where you put it when you click it again. Before, the next click sent it back to where it was first placed, and its right-click menu showed the bold, italic and size it started with
 - Both initiative trackers show a token as the map does: inside its ring, in the ring's colour, or without a frame and with its whole art. Before, the tracker cut every token to a plain circle and the player window showed a rectangle
+- The initiative tracker and the player window's list scroll to the combatant or side whose turn it is. Before, a list longer than its panel stayed where it was while the turn moved out of view
 
 ## Important changes
 
