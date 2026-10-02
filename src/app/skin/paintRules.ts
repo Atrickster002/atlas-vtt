@@ -86,6 +86,22 @@ const KEYS = [
   '.atlas-text-dialog button',
   '.atlas-modal-footer button',
   '.atlas-asset-manager-create-btn',
+  '.atlas-csm-add-btn',
+];
+
+/** Rows and cards inside a panel: a box drawn by hand. */
+const FRAMES = [
+  '.atlas-initiative-card',
+  '.dice-log-entry',
+  '.atlas-loot-card',
+  '.atlas-csm-preset',
+  '.atlas-csm-condition',
+  '.atlas-csm-creature-field',
+  '.atlas-csm-toggle-row',
+  '.atlas-csm-sense-list',
+  '.atlas-csm-token-stage',
+  '.atlas-csm-loot-base',
+  '.atlas-sb-token-list',
 ];
 
 const rules = (selectors: string[], kind: PaintKind): PaintRule[] => selectors.map((selector) => ({ selector, kind }));
@@ -95,6 +111,7 @@ export const PAINT_RULES: readonly PaintRule[] = [
   ...rules(SHEETS, 'sheet'),
   ...rules(NOTES, 'note'),
   ...rules(KEYS, 'key'),
+  ...rules(FRAMES, 'frame'),
 ];
 
 /** Every painted selector as one, for a single query. */

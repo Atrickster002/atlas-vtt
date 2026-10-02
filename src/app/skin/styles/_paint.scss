@@ -85,3 +85,10 @@ body.atlas-skin-paper {
     mask-image: var(--atlas-paint-line);
   }
 }
+
+// A painted element's edge is its paint: the straight border Atlas gives it goes, however that
+// border was set (several are pinned with `!important` or with more classes than the skin
+// could match one by one). A widget keeps its border: its colour says the widget is active.
+body.atlas-skin-paper.atlas-skin-paper.atlas-skin-paper.atlas-skin-paper [data-atlas-paint]:not(.widget-active, .widget-key-held, .widget-pulse) {
+  border-color: transparent !important;
+}

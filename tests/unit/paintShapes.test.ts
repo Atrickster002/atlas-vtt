@@ -7,7 +7,7 @@ function coordinates(path: string): [number, number][] {
   return Array.from({ length: numbers.length / 2 }, (_, i): [number, number] => [numbers[2 * i]!, numbers[2 * i + 1]!]);
 }
 
-const KINDS: PaintKind[] = ['sheet', 'note', 'key', 'brush'];
+const KINDS: PaintKind[] = ['sheet', 'note', 'key', 'frame', 'brush'];
 
 describe('paintGeometry', () => {
   it('draws the same edge for the same seed and size', () => {

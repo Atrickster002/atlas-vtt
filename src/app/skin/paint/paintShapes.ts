@@ -6,7 +6,7 @@
  * the seed picks one of a small stock of shapes: the browser reads and rasterises each distinct
  * mask image once, and a mask of its own for every element is what makes a painted page slow.
  */
-export type PaintKind = 'sheet' | 'note' | 'key' | 'brush';
+export type PaintKind = 'sheet' | 'note' | 'key' | 'frame' | 'brush';
 
 /** Whether the silhouette may reach past the element's box, or the element clips and it must stay inside. */
 export type PaintFit = 'out' | 'in';
@@ -40,6 +40,8 @@ interface KindSpec {
 const SPECS: Record<PaintKind, KindSpec> = {
   sheet: { out: 12, amp: 9, byHeight: false, ampMax: 9, spacing: 30, smooth: false, inward: 0, bias: 1.35, corner: 0, taper: 0, bow: 0, bowMax: 0, lead: 0 },
   note: { out: 6, amp: 4, byHeight: false, ampMax: 4, spacing: 19, smooth: false, inward: 0, bias: 1.35, corner: 0, taper: 0, bow: 0, bowMax: 0, lead: 0 },
+  // A box drawn by hand around a row or a card: nearly square corners, a line that wavers.
+  frame: { out: 3, amp: 0.03, byHeight: true, ampMax: 1.3, spacing: 0.4, smooth: true, inward: 0.9, bias: 1.3, corner: 0.1, taper: 0, bow: 0, bowMax: 0, lead: 0 },
   key: { out: 4, amp: 0.045, byHeight: true, ampMax: 1.8, spacing: 0.27, smooth: true, inward: 0.6, bias: 1.7, corner: 0.42, taper: 0.16, bow: 0.017, bowMax: 0.8, lead: 0.5 },
   brush: { out: 8, amp: 0.085, byHeight: true, ampMax: 3.4, spacing: 0.27, smooth: true, inward: 0.5, bias: 1.7, corner: 0.35, taper: 0.34, bow: 0.05, bowMax: 2.2, lead: 0.6 },
 };
@@ -125,11 +127,13 @@ function edgePoints(spec: KindSpec, width: number, height: number, fit: PaintFit
   const radius = spec.corner * (Math.min(width, height) / 2);
   const base = outline(width, height, radius, spacing, random, spec.smooth ? 0.25 : 0.7);
   const inward = fit === 'in' ? 1 : spec.inward;
+  // A torn edge kept inside a box takes its depth from the box's padding, so there it is half as deep.
+  const depthScale = fit === 'in' && !spec.smooth ? 0.5 : 1;
   let points = base.map(({ x, y, nx, ny }): Point => {
     const swing = random() * 2 - 1;
-    const depth = swing > 0 ? amp * swing ** spec.bias : -amp * inward * (-swing) ** spec.bias;
+    const depth = (swing > 0 ? amp * swing ** spec.bias : -amp * inward * (-swing) ** spec.bias) * depthScale;
     // An element that clips keeps the whole edge inside its box, with room for the swing of a curve.
-    const offset = fit === 'in' ? depth - amp - CURVE_SWING : depth;
+    const offset = fit === 'in' ? depth - amp * depthScale - CURVE_SWING : depth;
     return [x + nx * offset, y + ny * offset];
   });
   if (spec.taper > 0) {

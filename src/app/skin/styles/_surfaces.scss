@@ -51,4 +51,30 @@ body.atlas-skin-paper {
     overflow: visible;
   }
 
+
+  // A row or a card inside a panel keeps its ground and gets a line drawn around it by hand.
+  [data-atlas-paint='frame'] {
+    border-color: transparent;
+    border-radius: 0;
+  }
+
+  [data-atlas-paint='frame']::before {
+    content: none;
+  }
+
+  [data-atlas-paint='frame']::after {
+    background: var(--atlas-ink-faint);
+  }
+
+  // What is chosen among rows is drawn in full ink.
+  [data-atlas-paint='frame'].atlas-active::after,
+  [data-atlas-paint='frame'].atlas-initiative-card--active::after {
+    background: var(--atlas-ink);
+  }
+
+  // Corners Atlas rounds by hand, not through Obsidian's radii.
+  .atlas-initiative-tracker__btn,
+  .atlas-view-actions-btn {
+    border-radius: 0;
+  }
 }

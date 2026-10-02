@@ -11,6 +11,8 @@ body.atlas-skin-paper {
   .atlas-select-trigger,
   .atlas-collection-dropdown-trigger,
   .atlas-asset-manager-search,
+  .atlas-command-palette-search-inner,
+  #{$atlas} .text-icon-button,
   .dice-text-input {
     // Each field sets its own box, some with `!important`; the line has to win over all of them.
     background-color: transparent !important;
