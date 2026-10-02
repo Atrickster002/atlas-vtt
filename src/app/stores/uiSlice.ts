@@ -21,6 +21,8 @@ export interface UISlice {
   isDiceTrayOpen: boolean;
   /** The placed light whose popover is open, with its range rings on the map. */
   lightPopover: string | null;
+  /** The light zone whose popover is open; never together with a light's. */
+  lightZonePopover: string | null;
   /** The scene lighting settings panel, opened from the lighting tool's menu. */
   isSceneLightingPanelOpen: boolean;
   /** The tokens the pointer holds (pressed or dragged), each where it stood when taken; set through `holdTokens`. */
@@ -37,6 +39,8 @@ export interface UISlice {
   setDiceTrayOpen: (open: boolean) => void;
   openLightPopover: (lightId: string) => void;
   closeLightPopover: () => void;
+  openLightZonePopover: (zoneId: string) => void;
+  closeLightZonePopover: () => void;
   setSceneLightingPanelOpen: (open: boolean) => void;
   setHeldTokens: (held: HeldTokens) => void;
 }
@@ -53,6 +57,7 @@ export function createInitialUIState(): Pick<
   | 'isCommandPaletteOpen'
   | 'isDiceTrayOpen'
   | 'lightPopover'
+  | 'lightZonePopover'
   | 'isSceneLightingPanelOpen'
   | 'heldTokens'
 > {
@@ -66,6 +71,7 @@ export function createInitialUIState(): Pick<
     isCommandPaletteOpen: false,
     isDiceTrayOpen: false,
     lightPopover: null,
+    lightZonePopover: null,
     isSceneLightingPanelOpen: false,
     heldTokens: {},
   };
@@ -86,6 +92,8 @@ export function createUIActions(
   | 'setDiceTrayOpen'
   | 'openLightPopover'
   | 'closeLightPopover'
+  | 'openLightZonePopover'
+  | 'closeLightZonePopover'
   | 'setSceneLightingPanelOpen'
   | 'setHeldTokens'
 > {
@@ -104,7 +112,15 @@ export function createUIActions(
     }),
     setCommandPaletteOpen: (open) => set((draft) => { draft.isCommandPaletteOpen = open; }),
     setDiceTrayOpen: (open) => set((draft) => { draft.isDiceTrayOpen = open; }),
-    openLightPopover: (lightId) => set((draft) => { draft.lightPopover = lightId; }),
+    openLightPopover: (lightId) => set((draft) => {
+      draft.lightPopover = lightId;
+      draft.lightZonePopover = null;
+    }),
+    openLightZonePopover: (zoneId) => set((draft) => {
+      draft.lightZonePopover = zoneId;
+      draft.lightPopover = null;
+    }),
+    closeLightZonePopover: () => set((draft) => { draft.lightZonePopover = null; }),
     closeLightPopover: () => set((draft) => { draft.lightPopover = null; }),
     setSceneLightingPanelOpen: (open) => set((draft) => { draft.isSceneLightingPanelOpen = open; }),
     setHeldTokens: (held) => set((draft) => { draft.heldTokens = held; }),

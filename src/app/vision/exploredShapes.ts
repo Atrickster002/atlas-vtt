@@ -14,6 +14,12 @@ export interface ExploredShapes {
   polygons: Polygon[];
   clip: Polygon[] | null;
   except?: { areas: Polygon[]; unless: Polygon[] };
+  /**
+   * A scene with ambient zones: where the ambient light is lit, painted before `polygons` and
+   * inside `clip` like them. `base` is the scene itself, then each zone in its order: a lit one
+   * adds its polygon, a dark one takes it away.
+   */
+  ambient?: { base: boolean; zones: { polygon: Polygon; lit: boolean }[] };
 }
 
 /** A region whose sense shows the map, with the area it covers. */
@@ -53,6 +59,7 @@ export function exploredShapes(
   const regions = sight.regions.filter(isMapRegion);
   const except = magicalDarkness(regions, lights);
   const level = ambientLevel(scene);
+  if (scene.zones?.length) return withZones(regions, scene, lights, except);
   if (level !== 'dark') {
     const seen = regions.filter(({ sense }) => perceivedLevel(sense, level) !== null).map((region) => region.polygon);
     return seen.length > 0 ? { polygons: seen, clip: null, ...except } : null;
@@ -63,6 +70,22 @@ export function exploredShapes(
   const seen = [...(byLight.length > 0 ? shining.map((light) => light.polygon) : []), ...inDarkness];
   // The light polygons count only inside a region that sees by light; a region that sees in darkness is seen whole.
   return seen.length > 0 ? { polygons: seen, clip: [...new Set([...byLight, ...inDarkness])], ...except } : null;
+}
+
+/**
+ * What is recorded in a scene with ambient zones: the regions that see in darkness whole, and
+ * for those that see by light the lights and the ambient light where it is lit, zone by zone.
+ */
+// ponytail: a sense that sees by light counts every lit level; one that sees bright light only would need the zones per level.
+function withZones(regions: readonly MapRegion[], scene: AmbientLight, lights: readonly LightReach[], except: Pick<ExploredShapes, 'except'>): ExploredShapes | null {
+  const byLight = regions.filter(seesByLight).map((region) => region.polygon);
+  const inDarkness = regions.filter(seesInDarkness).map((region) => region.polygon);
+  const clip = [...new Set([...byLight, ...inDarkness])];
+  if (clip.length === 0) return null;
+  const shining = byLight.length > 0 ? lights.filter((light) => !light.darkness).map((light) => light.polygon) : [];
+  const lit = (ambient: number): boolean => ambientLevel({ ...scene, ambient }) !== 'dark';
+  const ambient = { base: lit(scene.ambient), zones: (scene.zones ?? []).map((zone) => ({ polygon: zone.polygon, lit: lit(zone.ambient) })) };
+  return { polygons: [...shining, ...inDarkness], clip, ...(byLight.length > 0 && { ambient }), ...except };
 }
 
 /**

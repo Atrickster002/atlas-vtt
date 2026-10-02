@@ -13,6 +13,22 @@ export function ambientLevel(light: AmbientLight): LightLevel {
   return light.ambient >= brightThresholdOf(light) ? 'bright' : 'dim';
 }
 
+/** The ambient light (0–1) at `point`: that of the topmost zone whose polygon contains it, else the scene's. */
+export function ambientAt(point: Point, light: AmbientLight): number {
+  const { zones } = light;
+  if (zones) {
+    for (let i = zones.length - 1; i >= 0; i--) {
+      if (pointInPolygon(point, zones[i]!.polygon)) return zones[i]!.ambient;
+    }
+  }
+  return light.ambient;
+}
+
+/** The light level the ambient light alone gives `point`, by the zone it lies in. */
+function ambientLevelAt(point: Point, light: AmbientLight): LightLevel {
+  return light.zones?.length ? ambientLevel({ ...light, ambient: ambientAt(point, light) }) : ambientLevel(light);
+}
+
 /**
  * The light level the lights that outrank `above` give `point`: bright within a bright radius,
  * dim within a dim one, where no wall is between. A darkness source is no light.
@@ -40,7 +56,8 @@ function darknessAt(point: Point, lights: readonly LightReach[]): number {
 }
 
 /**
- * How well `point` is lit, the brightest of the ambient light and every light that reaches it.
+ * How well `point` is lit, the brightest of the ambient light there (the scene's, or that of the
+ * zone the point lies in) and every light that reaches it.
  * The one function sight rules read. Inside a darkness source (its dim radius, where no wall is
  * between) neither the ambient light nor a light counts, unless the light's priority is higher
  * than the darkness': such a light lights the point at its own level, and without one the
@@ -52,7 +69,7 @@ export function lightLevelAt(point: Point, ambient: AmbientLight, lights: readon
     const outshining = levelFromLights(point, lights, darkness);
     return outshining === 'dark' ? 'magical-dark' : outshining;
   }
-  const fromAmbient = ambientLevel(ambient);
+  const fromAmbient = ambientLevelAt(point, ambient);
   if (fromAmbient === 'bright') return 'bright';
   const fromLights = levelFromLights(point, lights);
   return fromLights === 'dark' ? fromAmbient : fromLights;

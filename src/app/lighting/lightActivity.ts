@@ -1,5 +1,5 @@
 import type { LightSource } from '../types/lightingTypes';
-import { ambientAt } from './timesOfDay';
+import { ambientOf } from './timesOfDay';
 
 /** What of a placed light decides whether it shines. */
 type Switched = Pick<LightSource, 'hidden' | 'activeBelowAmbient'>;
@@ -31,8 +31,8 @@ export type LightSchedule = 'always' | 'dusk' | 'night' | 'custom';
 export const LIGHT_SCHEDULES: { value: LightSchedule; label: string; level: number }[] = [
   // ponytail: "always" is stored as full daylight, which reads as no level; the store's light update cannot remove a field.
   { value: 'always', label: 'Always', level: 1 },
-  { value: 'dusk', label: 'From dusk', level: ambientAt('dusk') },
-  { value: 'night', label: 'At night', level: ambientAt('night') },
+  { value: 'dusk', label: 'From dusk', level: ambientOf('dusk') },
+  { value: 'night', label: 'At night', level: ambientOf('night') },
 ];
 
 /** The schedule a light is on; a level that is no time of day is named by its share of light. */

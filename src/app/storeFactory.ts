@@ -11,7 +11,7 @@ import type AtlasVTTPlugin from '../../main';
 import type { TokenEntity, Character, NotePin, TextElement, DrawingStroke } from './types';
 import type { FogOperation, FogOperationInput } from './types/fogTypes';
 import type { WallSegment, WallInput } from './types/wallTypes';
-import { DEFAULT_SCENE_LIGHTING, type LightInput, type LightSource, type SceneLighting } from './types/lightingTypes';
+import { DEFAULT_SCENE_LIGHTING, type LightInput, type LightSource, type LightZone, type LightZoneInput, type SceneLighting } from './types/lightingTypes';
 import type { AudioSource, AudioInput } from './types/audioTypes';
 import type { AnyWidget, WidgetSettings } from './types/widgetTypes';
 import type { InitiativeState, InitiativeEntry, InitiativeConfig } from './types/initiativeTypes';
@@ -89,6 +89,8 @@ export interface ViewAtlasState {
     walls: Record<string, WallSegment>;
     lights: Record<string, LightSource>;
     audios: Record<string, AudioSource>;
+    /** Areas with ambient light of their own, in the order they were drawn; absent until the first is. Read with `lightZoneList`. */
+    lightZones?: Record<string, LightZone>;
   };
   
   // Camera state
@@ -187,6 +189,9 @@ export interface ViewAtlasState {
   addLight: (data: LightInput) => string;
   updateLight: (id: string, changes: Partial<LightSource>) => void;
   deleteLight: (id: string) => void;
+  addLightZone: (data: LightZoneInput) => string;
+  updateLightZone: (id: string, changes: Partial<LightZoneInput>) => void;
+  deleteLightZone: (id: string) => void;
 
   // Audio dirty flag (non-persisted)
   _audioDirty: boolean;
@@ -308,6 +313,9 @@ export interface ViewAtlasState {
   lightPopover: UISlice['lightPopover'];
   openLightPopover: UISlice['openLightPopover'];
   closeLightPopover: UISlice['closeLightPopover'];
+  lightZonePopover: UISlice['lightZonePopover'];
+  openLightZonePopover: UISlice['openLightZonePopover'];
+  closeLightZonePopover: UISlice['closeLightZonePopover'];
   isSceneLightingPanelOpen: UISlice['isSceneLightingPanelOpen'];
   setSceneLightingPanelOpen: UISlice['setSceneLightingPanelOpen'];
   heldTokens: UISlice['heldTokens'];
@@ -1221,6 +1229,25 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
           deleteLight: (id) => set((draft) => {
             delete draft.objects.lights[id];
             draft.selectedIds = draft.selectedIds.filter(sid => sid !== id);
+          }),
+
+          // Light zones: map geometry like walls, in the order they were drawn
+          addLightZone: (data) => {
+            const id = `zone_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
+            set((draft) => {
+              (draft.objects.lightZones ??= {})[id] = { id, kind: 'light-zone', ...data };
+            });
+            return id;
+          },
+
+          updateLightZone: (id, changes) => set((draft) => {
+            const zone = draft.objects.lightZones?.[id];
+            if (zone) Object.assign(zone, changes);
+          }),
+
+          deleteLightZone: (id) => set((draft) => {
+            delete draft.objects.lightZones?.[id];
+            if (draft.lightZonePopover === id) draft.lightZonePopover = null;
           }),
 
           // Audio actions

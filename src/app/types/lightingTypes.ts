@@ -90,6 +90,25 @@ export interface LightSource {
 
 export type LightInput = Omit<LightSource, 'id' | 'kind'>;
 
+/**
+ * An area of the map with ambient light of its own: a cave mouth that is dark by day, a lit hall
+ * in a dark dungeon. Map geometry the GM draws like walls (undo-tracked, in `objects.lightZones`);
+ * later zones lie over earlier ones. Read them with `lightZoneList`.
+ */
+export interface LightZone {
+  id: string;
+  kind: 'light-zone';
+  name?: string;
+  /** The zone's corners in world pixels, at least three. Inside them the zone's light counts. */
+  polygon: { x: number; y: number }[];
+  /** The ambient light inside, as the scene's: 0 is pitch black, 1 is daylight. */
+  ambient: number;
+  /** Tint of that light; unset is the scene's. */
+  ambientColor?: string;
+}
+
+export type LightZoneInput = Omit<LightZone, 'id' | 'kind'>;
+
 /** How a token sees. Distances are game units. */
 export interface TokenVision {
   enabled: boolean;

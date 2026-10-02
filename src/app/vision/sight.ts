@@ -1,5 +1,5 @@
 import type { TokenEntity } from '../types';
-import type { SceneLighting } from '../types/lightingTypes';
+import type { LightZone, SceneLighting } from '../types/lightingTypes';
 import type { SenseDefinition } from '../types/senseTypes';
 import type { Point } from '../types/visionTypes';
 import type { WallSegment } from '../types/wallTypes';
@@ -18,7 +18,13 @@ import { computeTokenPixelSize } from '../pixi/token-renderer/tokenSizing';
  * every point in sight counts as lit, so a token standing there can be seen. It is dimly lit up
  * to `brightThreshold` (unset: 0.75) and brightly from there (`lightLevelAt`).
  */
-export type AmbientLight = Pick<SceneLighting, 'ambient' | 'litThreshold' | 'brightThreshold'>;
+export type AmbientLight = Pick<SceneLighting, 'ambient' | 'litThreshold' | 'brightThreshold'> & {
+  /** Areas with ambient light of their own, later ones over earlier ones (`LightZone`); inside a zone's polygon its level counts. */
+  zones?: readonly AmbientZone[];
+};
+
+/** What the rules read of a light zone. */
+export type AmbientZone = Pick<LightZone, 'polygon' | 'ambient'>;
 
 /** One sense of a token that sees, with its reach in world pixels. */
 export interface SenseSource {

@@ -2,7 +2,7 @@ import type { PersistStorage, StorageValue } from 'zustand/middleware';
 import type { App } from 'obsidian';
 import type { TokenEntity, TextElement, DrawingStroke, NotePin } from '../types';
 import type { WallSegment } from '../types/wallTypes';
-import type { LightSource } from '../types/lightingTypes';
+import type { LightSource, LightZone } from '../types/lightingTypes';
 import type { WidgetSettings } from '../types/widgetTypes';
 import type { HexNumberFormat } from '../grid/hexNumbering';
 import type AtlasVTTPlugin from '../../../main';
@@ -75,6 +75,8 @@ export interface MapFile {
     drawings: Record<string, DrawingStroke>;
     walls: Record<string, WallSegment>;
     lights: Record<string, LightSource>;
+    /** Absent in files from before light zones, and until a map has one. */
+    lightZones?: Record<string, LightZone>;
   };
   camera: CameraState;
 }
@@ -417,6 +419,7 @@ export function migrateMapFile(persisted: unknown): MapFile {
       drawings: persisted.objects?.drawings || {},
       walls: persisted.objects?.walls || {},
       lights: persisted.objects?.lights || {},
+      ...(persisted.objects?.lightZones && { lightZones: persisted.objects.lightZones }),
     },
     grid: persisted.grid ? migrateGrid(persisted.grid) : initial.grid,
     camera: persisted.camera || initial.camera

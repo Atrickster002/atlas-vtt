@@ -9,6 +9,6 @@ export const TIMES_OF_DAY: { value: TimeOfDay; label: string; ambient: number }[
 ];
 
 /** The ambient light of a time of day. */
-export function ambientAt(time: TimeOfDay): number {
+export function ambientOf(time: TimeOfDay): number {
   return TIMES_OF_DAY.find((stop) => stop.value === time)!.ambient;
 }
