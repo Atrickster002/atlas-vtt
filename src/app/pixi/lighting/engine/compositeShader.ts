@@ -102,8 +102,9 @@ vec3 neutral(vec3 color) {
 // shrunk to the pixel's wall clearance so memory never smears across a wall. 12 Vogel taps,
 // Gaussian in distance. A read takes in the memory texels around it, a diagonal of one at most,
 // so no tap comes nearer than that to a wall. On a large map that is wider than a wall: there a
-// wall's face remembers the floor in front of it, and where walls leave no room for that, the
-// one memory texel the pixel lies in.
+// wall's face remembers the floor in front of it, and where walls leave no room for that (on a
+// wall's centre line, in the corner of a junction), the one memory texel the pixel lies in, or
+// nothing where a wall lies between the pixel and that texel's middle.
 float exploredAt(vec2 w) {
   // The memory's scale is set by the map's longer side, whose texel count rounds least.
   vec2 size = vec2(textureSize(uExplored, 0));
@@ -111,7 +112,13 @@ float exploredAt(vec2 w) {
   float footprint = 1.4143 * texel;
   if (footprint > uFieldParams.y) {
     w = climbFromWall(w, footprint);
-    if (uFieldDistance(w) < footprint) return texelFetch(uExplored, ivec2(clamp(floor(w / uMapSize * size), vec2(0.0), size - 1.0)), 0).r;
+    if (uFieldDistance(w) < footprint) {
+      // No room: the one memory texel the pixel lies in, if the way to its middle is clear. A texel
+      // whose middle lies behind a wall was recorded from there, and one whose middle can be
+      // reached lies whole on this side of every wall (a wall is as thick as the texel is wide).
+      vec2 cell = clamp(floor(w / uMapSize * size), vec2(0.0), size - 1.0);
+      return reaches(w, (cell + 0.5) / size * uMapSize) ? texelFetch(uExplored, ivec2(cell), 0).r : 0.0;
+    }
   }
   float r = min(2.0 * texel, min(clearance(w), uFieldDistance(w) - footprint));
   float sum = textureLod(uExplored, clamp(w / uMapSize, 0.0, 1.0), 0.0).r;

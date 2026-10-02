@@ -1,3 +1,4 @@
+import { readLight } from '../../lighting/lightingObjects';
 import React, { useEffect, useId, useMemo, useRef } from 'react';
 import { AnimatePresence, motion, useIsPresent } from 'framer-motion';
 import { Lightbulb, LightbulbOff, Trash2 } from 'lucide-react';
@@ -44,7 +45,7 @@ function LightPopover({ lightId }: { lightId: string }): React.ReactElement | nu
   const unitType = useAtlasStore((state) => mapMeasurementSettings(assets, state).unitType);
   const unitDistance = useAtlasStore((state) => mapMeasurementSettings(assets, state).unitDistance);
   const maxRange = useAtlasStore((state) => maxLightRange(unitScaleOf({ unitDistance }, state.grid)));
-  const current = useAtlasStore((state) => state.objects.lights[lightId]);
+  const current = useAtlasStore((state) => readLight(state.objects.lights[lightId]));
   // While it leaves, the popover still shows the light it had, also when that light was deleted.
   const shown = useRef(current);
   if (current) shown.current = current;

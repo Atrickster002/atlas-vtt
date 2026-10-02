@@ -1,3 +1,4 @@
+import { wallList } from '../../vision/wallList';
 import type { StoreApi } from 'zustand';
 import type { ViewAtlasState } from '../../storeFactory';
 import { beginHistoryTransaction, endHistoryTransaction, runHistoryTransaction } from '../../stores/history';
@@ -276,7 +277,7 @@ export class WallInteraction {
     // Resolve chain IDs
     const chainId = wall.chainId;
     const chainIds: string[] = chainId
-      ? Object.values(walls).filter(w => w.chainId === chainId).map(w => w.id)
+      ? wallList(walls).filter(w => w.chainId === chainId).map(w => w.id)
       : [wallId];
 
     if (addToSelection) {
@@ -333,7 +334,7 @@ export class WallInteraction {
     // Find all walls sharing this vertex position
     const linked: VertexDragState['linkedVertices'] =[{ wallId, vertex }];
 
-    for (const other of Object.values(walls)) {
+    for (const other of wallList(walls)) {
       if (other.id === wallId) continue;
       if (Math.abs(other.p1.x - dragPoint.x) < SHARED_VERTEX_TOLERANCE &&
           Math.abs(other.p1.y - dragPoint.y) < SHARED_VERTEX_TOLERANCE) {

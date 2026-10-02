@@ -1,3 +1,4 @@
+import { lightList, readEmission } from '../../lighting/lightingObjects';
 import { Color } from 'pixi.js';
 import type { TokenEntity } from '../../types';
 import type { LightEmission, LightSource } from '../../types/lightingTypes';
@@ -29,12 +30,13 @@ export interface ActiveLight {
  */
 export function activeLights(lights: Record<string, LightSource>, tokens: Record<string, TokenEntity>, ambient: number | AmbientLight = 0): ActiveLight[] {
   const active: ActiveLight[] = [];
-  for (const light of Object.values(lights)) {
+  for (const light of lightList(lights)) {
     // The ambient light where the light stands: that of a zone around it, else the scene's.
     if (isLightOn(light, typeof ambient === 'number' ? ambient : ambientAt(light, ambient))) active.push({ key: `light:${light.id}`, x: light.x, y: light.y, emission: light.emission, ...turned(light.rotation) });
   }
   for (const token of Object.values(tokens)) {
-    if (token.light) active.push({ key: `token:${token.id}`, x: token.x, y: token.y, emission: token.light, ...turned(token.rotation) });
+    const carried = readEmission(token.light);
+    if (carried) active.push({ key: `token:${token.id}`, x: token.x, y: token.y, emission: carried, ...turned(token.rotation) });
   }
   return active;
 }

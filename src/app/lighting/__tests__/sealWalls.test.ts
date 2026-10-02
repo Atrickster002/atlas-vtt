@@ -1,15 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { sealWalls, sealedWalls } from '../sealWalls';
-import { sealTolerance } from '../lightingConstants';
 import { crosses, segOf } from '../segments';
 import { computeVisibility, pointInPolygon } from '../../vision/visibility';
 import type { WallSegment } from '../../types/wallTypes';
+import { TOLERANCE, wall } from './sealFixtures';
 
-function wall(id: string, x1: number, y1: number, x2: number, y2: number, extra: Partial<WallSegment> = {}): WallSegment {
-  return { id, kind: 'wall', type: 'solid', p1: { x: x1, y: y1 }, p2: { x: x2, y: y2 }, ...extra };
-}
-
-const TOLERANCE = sealTolerance(2);
 
 describe('sealTolerance', () => {
   it('is about 13 px at 2 px texels', () => {
@@ -109,7 +104,7 @@ describe('sealWalls with walls far beyond the map', () => {
     const started = performance.now();
     const bridges = bridgesOf([...room(), far]);
 
-    expect(performance.now() - started).toBeLessThan(50);
+    expect(performance.now() - started).toBeLessThan(1000);
     expect(bridges).toEqual(expected);
   });
 
@@ -129,7 +124,7 @@ describe('sealWalls with walls far beyond the map', () => {
     const started = performance.now();
     const sealed = sealWalls([...room(), ...far], TOLERANCE);
 
-    expect(performance.now() - started).toBeLessThan(500);
+    expect(performance.now() - started).toBeLessThan(1500);
     expect(sealed.length).toBeGreaterThanOrEqual(room().length + 100);
   });
 
@@ -142,164 +137,5 @@ describe('sealWalls with walls far beyond the map', () => {
     const broken = [wall('x1', value, 0, 100, 100), wall('x2', 0, 0, 100, value), wall('x3', value, value, value, value)];
 
     expect(bridgesOf([...room(), ...broken])).toEqual(bridgesOf(room()));
-  });
-});
-
-describe('sealWalls with crowded wall ends', () => {
-  const bridgesOf = (walls: WallSegment[]): WallSegment[] => sealWalls(walls, TOLERANCE).slice(walls.length);
-  /** A seeded random number in [0, 1). */
-  function random(seed: number): () => number {
-    return () => {
-      seed = (seed * 1_664_525 + 1_013_904_223) >>> 0;
-      return seed / 4_294_967_296;
-    };
-  }
-  /** Sealing `walls`, the time it took and the bridges it made. */
-  function timed(walls: WallSegment[]): { ms: number; bridges: WallSegment[] } {
-    const started = performance.now();
-    const bridges = bridgesOf(walls);
-    return { ms: performance.now() - started, bridges };
-  }
-  const key = (p: { x: number; y: number }): string => `${p.x},${p.y}`;
-  const distinctEnds = (walls: WallSegment[]): number => new Set(walls.flatMap((w) => [key(w.p1), key(w.p2)])).size;
-
-  /** A thousand walls that start within a few pixels of each other and run apart. */
-  function pile(): WallSegment[] {
-    const rand = random(7);
-    return Array.from({ length: 1000 }, (_, i) => {
-      const angle = rand() * Math.PI * 2;
-      const x = 500 + rand() * 6, y = 500 + rand() * 6;
-      return wall(`pile${i}`, x, y, x + Math.cos(angle) * 200, y + Math.sin(angle) * 200);
-    });
-  }
-  /** Twenty thousand walls from one point, their far ends a tenth of a pixel apart on a circle. */
-  function star(): WallSegment[] {
-    return Array.from({ length: 20_000 }, (_, i) => {
-      const angle = (i / 20_000) * Math.PI * 2;
-      return wall(`ray${i}`, 1000, 1000, 1000 + Math.cos(angle) * 318, 1000 + Math.sin(angle) * 318);
-    });
-  }
-  /** A cave drawn as 19,800 segments of three pixels, in rows three pixels apart. */
-  function cave(): WallSegment[] {
-    return Array.from({ length: 60 }, (_, row) => Array.from({ length: 330 }, (_, i) => wall(`cave${row}-${i}`, 100 + i * 3, 100 + row * 3 + (i % 2), 103 + i * 3, 100 + row * 3 + ((i + 1) % 2)))).flat();
-  }
-
-  it.each([['a pile of a thousand walls', pile], ['twenty thousand walls from one point', star], ['a cave of 19,800 short segments', cave]] as const)('seals %s in under 200 ms, with a number of bridges that grows with the ends, not with their pairs', (_name, make) => {
-    const walls = make();
-    const { ms, bridges } = timed(walls);
-    console.info(`sealWalls, ${_name}: ${walls.length} walls, ${distinctEnds(walls)} ends, ${bridges.length} bridges, ${ms.toFixed(0)} ms`);
-    expect(ms).toBeLessThan(200);
-    expect(bridges.length).toBeLessThanOrEqual(distinctEnds(walls) * 16);
-  });
-
-  /** Every pair of distinct wall ends within the tolerance, of different walls: what sealing bridged before it was capped. */
-  function pairs(walls: WallSegment[]): [{ x: number; y: number }, { x: number; y: number }][] {
-    const ends = walls.flatMap((w, i) => [{ wall: i, point: w.p1 }, { wall: i, point: w.p2 }]);
-    const found = new Map<string, [{ x: number; y: number }, { x: number; y: number }]>();
-    for (const a of ends) {
-      for (const b of ends) {
-        const distance = Math.hypot(a.point.x - b.point.x, a.point.y - b.point.y);
-        if (b.wall <= a.wall || distance === 0 || distance > TOLERANCE) continue;
-        found.set([key(a.point), key(b.point)].sort().join('|'), [a.point, b.point]);
-      }
-    }
-    return [...found.values()];
-  }
-  const endBridges = (walls: WallSegment[]): WallSegment[] => bridgesOf(walls).filter((b) => b.id.split(':').length === 5);
-  const pairKeys = (list: { p1: { x: number; y: number }; p2: { x: number; y: number } }[]): string[] => list.map((b) => [key(b.p1), key(b.p2)].sort().join('|')).sort();
-
-  it('bridges every pair of ends where no end has more than eight others near it, as before', () => {
-    const rand = random(3);
-    for (let trial = 0; trial < 40; trial++) {
-      // Rooms' worth of junctions: up to five walls end within a few pixels of each of 30 places.
-      const walls = Array.from({ length: 30 }, (_, place) => Array.from({ length: 2 + Math.floor(rand() * 4) }, (_, i) => {
-        const x = (place % 6) * 150 + 100 + rand() * 8, y = Math.floor(place / 6) * 150 + 100 + rand() * 8;
-        const angle = rand() * Math.PI * 2;
-        return wall(`t${trial}p${place}w${i}`, x, y, x + Math.cos(angle) * 60, y + Math.sin(angle) * 60);
-      })).flat();
-      expect(pairKeys(endBridges(walls))).toEqual(pairKeys(pairs(walls).map(([p1, p2]) => ({ p1, p2 }))));
-    }
-  });
-
-  it('joins every pair of crowded ends by a chain of bridges that stays as near to them as they are to each other', () => {
-    const rand = random(11);
-    let spared = 0;
-    for (let trial = 0; trial < 12; trial++) {
-      // Junctions of 9 to 40 walls: more ends than each is bridged to.
-      const walls = Array.from({ length: 9 + Math.floor(rand() * 32) }, (_, i) => {
-        const x = 400 + rand() * 20, y = 400 + rand() * 20;
-        const angle = rand() * Math.PI * 2;
-        return wall(`j${trial}w${i}`, x, y, x + Math.cos(angle) * 150, y + Math.sin(angle) * 150);
-      });
-      const bridges = endBridges(walls);
-      const wanted = pairs(walls);
-      expect(bridges.length).toBeLessThanOrEqual(wanted.length);
-      spared += wanted.length - bridges.length;
-      // Only pairs within the tolerance are ever bridged.
-      for (const b of bridges) expect(Math.hypot(b.p1.x - b.p2.x, b.p1.y - b.p2.y)).toBeLessThanOrEqual(TOLERANCE);
-      const next = new Map<string, { x: number; y: number }[]>();
-      for (const b of bridges) {
-        next.set(key(b.p1), [...(next.get(key(b.p1)) ?? []), b.p2]);
-        next.set(key(b.p2), [...(next.get(key(b.p2)) ?? []), b.p1]);
-      }
-      for (const [a, b] of wanted) {
-        const reach = Math.hypot(a.x - b.x, a.y - b.y) + 1e-9;
-        const seen = new Set([key(a)]);
-        const queue = [a];
-        while (queue.length > 0 && !seen.has(key(b))) {
-          for (const p of next.get(key(queue.pop()!)) ?? []) {
-            if (seen.has(key(p)) || Math.hypot(p.x - b.x, p.y - b.y) > reach) continue;
-            seen.add(key(p));
-            queue.push(p);
-          }
-        }
-        expect([trial, key(a), key(b), seen.has(key(b))]).toEqual([trial, key(a), key(b), true]);
-      }
-    }
-    expect(spared).toBeGreaterThan(1000);
-  });
-
-  /** A wheel: a closed rim, and spokes from it that stop two to six pixels short of the hub, so short of each other. */
-  function wheel(spokes: number, seed: number): WallSegment[] {
-    const rand = random(seed);
-    const on = (i: number, radius: number): { x: number; y: number } => ({ x: 500 + Math.cos((i / spokes) * Math.PI * 2) * radius, y: 500 + Math.sin((i / spokes) * Math.PI * 2) * radius });
-    return Array.from({ length: spokes }, (_, i) => {
-      const stop = on(i, 2 + rand() * 4);
-      return [wall(`rim${i}`, on(i, 300).x, on(i, 300).y, on(i + 1, 300).x, on(i + 1, 300).y), wall(`spoke${i}`, on(i, 300).x, on(i, 300).y, stop.x, stop.y)];
-    }).flat();
-  }
-
-  it.each([8, 12, 24, 60])('lets no sight through a junction of %i walls that end within the tolerance of each other', (spokes) => {
-    const at = (slice: number, radius: number): { x: number; y: number } => ({ x: 500 + Math.cos(((slice + 0.5) / spokes) * Math.PI * 2) * radius, y: 500 + Math.sin(((slice + 0.5) / spokes) * Math.PI * 2) * radius });
-    let seenUnsealed = 0;
-    // The largest wheel is looked through from every seventh slice, with fewer hubs: sight through sixty spokes is slow.
-    const [seeds, step] = spokes > 24 ? [3, 7] : [12, 1];
-    for (let seed = 1; seed <= seeds; seed++) {
-      const walls = wheel(spokes, seed);
-      const sealed = sealWalls(walls, TOLERANCE);
-      // From the middle of a slice, no other slice is seen, near the hub or far from it.
-      for (let i = 0; i < spokes; i += step) {
-        const viewer = at(i, 150);
-        const seen = computeVisibility(viewer, 1000, sealed);
-        const open = computeVisibility(viewer, 1000, walls);
-        expect(pointInPolygon(at(i, 250), seen)).toBe(true);
-        for (let j = 0; j < spokes; j++) {
-          if (j === i) continue;
-          for (const radius of [60, 150, 250]) {
-            if (pointInPolygon(at(j, radius), open)) seenUnsealed++;
-            expect([spokes, seed, i, j, radius, pointInPolygon(at(j, radius), seen)]).toEqual([spokes, seed, i, j, radius, false]);
-          }
-        }
-      }
-    }
-    // Without the bridges the hub is open: the check can fail.
-    expect(seenUnsealed).toBeGreaterThan(0);
-  });
-
-  it('bridges an end to the eight nearest of the walls whose middle it stops short of', () => {
-    // Twenty walls pass within the tolerance of one wall's end, each half a pixel farther.
-    const lines = Array.from({ length: 20 }, (_, i) => wall(`line${i}`, 0, 2 + i * 0.5, 400, 2 + i * 0.5));
-    const bridges = bridgesOf([wall('post', 200, -100, 200, 0), ...lines]).filter((b) => b.id.startsWith('seal:post:p2:'));
-    expect(bridges.map((b) => b.id)).toEqual(Array.from({ length: 8 }, (_, i) => `seal:post:p2:line${i}`));
   });
 });

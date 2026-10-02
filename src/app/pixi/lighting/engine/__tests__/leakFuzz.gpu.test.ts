@@ -17,6 +17,8 @@ import { NO_SIGHT, SENSE_SETS, footprints, renderView, type Report } from './lea
 
 const SIZE = 384;
 const TRIALS = Number(import.meta.env.VITE_LEAK_TRIALS ?? 24);
+/** Trials of the large map and of resolution 2: a third of the main run's, so the long fuzz reaches them too. */
+const SIDE_TRIALS = Math.max(8, Math.round(TRIALS / 3));
 
 interface FuzzOptions {
   seed: number;
@@ -214,8 +216,8 @@ describe('leak fuzz', () => {
   it('holds on a map large enough for coarser texels', { timeout: 600_000 }, async () => {
     const bounds = { width: 9000, height: 9000 };
     expect(worldTexel(bounds)).toBeGreaterThan(2);
-    const report = await fuzz({ seed: 7, trials: 8, bounds });
-    console.info(`leak fuzz (large map): ${JSON.stringify(report)}`);
+    const report = await fuzz({ seed: 7, trials: SIDE_TRIALS, bounds });
+    console.info(`leak fuzz (large map): ${JSON.stringify({ trials: SIDE_TRIALS, ...report })}`);
     expect(Math.min(report.doors, report.oneWay, report.twoLights)).toBeGreaterThan(0);
     expect(report.checked).toBeGreaterThan(8000);
     expect(report.litInside).toBeGreaterThan(800);
@@ -227,8 +229,8 @@ describe('leak fuzz', () => {
   });
 
   it('holds at renderer resolution 2', { timeout: 600_000 }, async () => {
-    const report = await fuzz({ seed: 5, trials: 8, resolution: 2 });
-    console.info(`leak fuzz (resolution 2): ${JSON.stringify(report)}`);
+    const report = await fuzz({ seed: 5, trials: SIDE_TRIALS, resolution: 2 });
+    console.info(`leak fuzz (resolution 2): ${JSON.stringify({ trials: SIDE_TRIALS, ...report })}`);
     expect(report.checked).toBeGreaterThan(8 * 4000);
     expect(report.litInside).toBeGreaterThan(800);
     expect(report.darkInside).toBeGreaterThan(50);

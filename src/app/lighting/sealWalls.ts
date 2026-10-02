@@ -1,13 +1,16 @@
 import type { Point } from '../types/visionTypes';
 import type { WallSegment } from '../types/wallTypes';
 import { sealTolerance } from './lightingConstants';
-import { PointGrid } from './pointGrid';
+import { PointTree } from './pointTree';
+import { blocksNothing } from './segments';
 
 /** A hair past the wall a bridge lands on, so the two cross instead of merely touching. */
 const OVERSHOOT = 0.01;
 
-/** The bridges a wall end takes on at most, of each kind: to other ends, and across walls it stops short of. */
+/** A wall end with more than this many others near it, or walls passing it, is bridged to fewer than all of them. */
 const MAX_BRIDGES = 8;
+/** A wall end that more walls than this pass within the tolerance is closed off whole instead (`plug`). */
+const MAX_PASSING = 64;
 
 interface End {
   wall: number;
@@ -36,9 +39,10 @@ interface Junction {
  *
  * The bridges grow with the wall ends, not with their pairs: an end with more than
  * `MAX_BRIDGES` others near it is bridged to the nearest in each of eight directions only
- * (`nearestByDirection`), and across the `MAX_BRIDGES` nearest of the walls it stops short of.
- * A damaged or foreign map with thousands of ends in one place would otherwise make millions
- * of bridges and never open.
+ * (`endBridges`), and one that more walls pass is bridged across those that reach farthest from
+ * it (`middleBridges`). Both stop every ray that a bridge for every pair would stop, between
+ * points farther than the tolerance from the wall ends. A damaged or foreign map with thousands
+ * of ends in one place would otherwise make millions of bridges and never open.
  */
 export function sealWalls(walls: readonly WallSegment[], tolerance: number): WallSegment[] {
   const junctions = new Map<string, Junction>();
@@ -51,16 +55,9 @@ export function sealWalls(walls: readonly WallSegment[], tolerance: number): Wal
       junction.ends.push({ wall: i, end, point, label: `${wall.id}:${end}` });
     }
   });
-  const reach = Math.max(tolerance, 1);
-  // Cells as small as each search allows, so a crowded place is looked through as rarely as can be:
-  // a point's neighbours lie a tolerance around it, and `besideSegment` reaches 0.86 cells from a segment.
-  const near = new PointGrid<Junction>(reach);
-  const along = new PointGrid<Junction>(reach * 1.5);
-  for (const junction of junctions.values()) {
-    near.add(junction.point, junction);
-    along.add(junction.point, junction);
-  }
-  return [...walls, ...endBridges(walls, junctions, near, tolerance), ...middleBridges(walls, along, tolerance)];
+  const places = [...junctions.values()];
+  const tree = new PointTree(Float64Array.from(places, (junction) => junction.point.x), Float64Array.from(places, (junction) => junction.point.y));
+  return [...walls, ...endBridges(walls, places, tree, tolerance), ...middleBridges(walls, places, tree, tolerance)];
 }
 
 const sealed = new WeakMap<readonly WallSegment[], Map<number, readonly WallSegment[]>>();
@@ -80,40 +77,49 @@ export function sealedWalls(walls: readonly WallSegment[], texel: number): reado
 /**
  * One bridge per pair of nearby places where different walls end; coinciding ends need none.
  * A place with more than `MAX_BRIDGES` others near it is bridged to the nearest in each of eight
- * directions (45° each) only. That closes every gap that bridging all of them would: towards any
+ * directions (45° each) only (`PointTree.nearestByDirection`). That closes every gap that bridging all of them would: towards any
  * place B near a place A, the nearest in B's direction is no farther from A than B is, and
  * nearer to B than A is (the directions are narrower than 60°), and so on from there, so a chain
  * of bridges leads from A to B without leaving the circle around B that A lies on. What a bridge
  * from A to B would part, the chain parts too, but for what lies inside that circle, within the
- * tolerance of both.
+ * tolerance of both. The two ends of one wall need no bridge, the wall being between them; where
+ * that wall is an open door or blocks one way only it parts nothing, so its other end is not the
+ * nearest that counts, and the next nearest in that direction is taken.
  */
-function endBridges(walls: readonly WallSegment[], junctions: ReadonlyMap<string, Junction>, grid: PointGrid<Junction>, tolerance: number): WallSegment[] {
+function endBridges(walls: readonly WallSegment[], junctions: readonly Junction[], tree: PointTree, tolerance: number): WallSegment[] {
   const bridges = new Map<number, WallSegment>();
-  const few: Junction[] = [];
-  const nearest: (Junction | undefined)[] = [];
-  const nearestDistance = new Float64Array(8);
-  for (const a of junctions.values()) {
+  const few: number[] = [];
+  const nearest = new Int32Array(8);
+  const distances = new Float64Array(8);
+  for (const a of junctions) {
+    // The first neighbours found, one more than are all bridged: with that one the place is crowded.
     few.length = 0;
-    nearest.length = 0;
-    let count = 0;
-    grid.eachWithin(a.point, tolerance, (b, dx, dy, distance) => {
-      if (distance === 0) return;
-      if (count++ < MAX_BRIDGES) few.push(b);
-      // The octant: which half plane on each axis, and which axis is the longer.
-      const octant = (dx < 0 ? 4 : 0) + (dy < 0 ? 2 : 0) + (Math.abs(dx) < Math.abs(dy) ? 1 : 0);
-      if (nearest[octant] && nearestDistance[octant]! <= distance) return;
-      nearest[octant] = b;
-      nearestDistance[octant] = distance;
+    tree.within(a.point.x, a.point.y, tolerance, (index) => {
+      if (index !== a.index) few.push(index);
+      return few.length > MAX_BRIDGES;
     });
-    for (const b of count > MAX_BRIDGES ? nearest : few) {
-      if (!b) continue;
-      const key = Math.min(a.index, b.index) * junctions.size + Math.max(a.index, b.index);
+    // The chain may run along a wall from one of its ends to the other only if the wall stops everything.
+    if (few.length > MAX_BRIDGES) tree.nearestByDirection(a.point.x, a.point.y, tolerance, (index) => endsOfOneOpenWall(walls, a, junctions[index]!), nearest, distances);
+    // In the order of the places, whatever order the tree found them in: unrelated walls elsewhere change nothing here.
+    for (const index of few.length > MAX_BRIDGES ? [...nearest].sort(ascending) : few.sort(ascending)) {
+      if (index < 0) continue;
+      const b = junctions[index]!;
+      const key = Math.min(a.index, b.index) * junctions.length + Math.max(a.index, b.index);
       if (bridges.has(key)) continue;
       const pair = firstPair(a, b);
       if (pair) bridges.set(key, bridge(`seal:${pair.first}:${pair.second}`, pair.from, pair.to));
     }
   }
   return [...bridges.values()];
+}
+
+const ascending = (a: number, b: number): number => a - b;
+
+/** Whether two places hold nothing but the two ends of one wall, and that wall is an open door or blocks one way only. */
+function endsOfOneOpenWall(walls: readonly WallSegment[], a: Junction, b: Junction): boolean {
+  if (a.ends.length !== 1 || b.ends.length !== 1 || a.ends[0]!.wall !== b.ends[0]!.wall) return false;
+  const wall = walls[a.ends[0]!.wall]!;
+  return blocksNothing(wall) || !!wall.direction;
 }
 
 /**
@@ -148,47 +154,84 @@ function firstEnds(junction: Junction): End[] {
 interface MiddleBridge {
   wall: number;
   end: End;
-  distance: number;
   landing: Point;
 }
 
 /**
  * Bridges from a wall end across the nearby middle of another wall (a T-junction stopping
- * short): across the `MAX_BRIDGES` nearest such walls where an end has more of them.
+ * short). Where more than `MAX_BRIDGES` walls pass one end, only the bridges that reach
+ * farthest are made: those whose landing is a corner of the convex hull of the end and all its
+ * landings (`farthest`). A ray is stopped by the bridges of an end exactly when one of their
+ * landings lies beyond it, and for every line that is so of a corner of the hull, if of any
+ * landing at all, so the fewer bridges stop the same rays. The nearest ones would not: eight
+ * walls passing an end nearer than the wall it stops short of left that gap open.
+ *
+ * An end that more than `MAX_PASSING` walls pass is closed off whole (`plug`): no ray enters
+ * the tolerance around it, which stops all that its bridges would and more.
  */
-function middleBridges(walls: readonly WallSegment[], grid: PointGrid<Junction>, tolerance: number): WallSegment[] {
-  const kept = new Map<Junction, MiddleBridge[]>();
+function middleBridges(walls: readonly WallSegment[], junctions: readonly Junction[], tree: PointTree, tolerance: number): WallSegment[] {
+  const passing: (MiddleBridge[] | undefined)[] = [];
+  // An end that is closed off whole is looked at no more, which is what keeps a pile of walls beside a pile of ends quick.
+  const plugged = new Uint8Array(junctions.length);
   walls.forEach((wall, j) => {
     const dx = wall.p2.x - wall.p1.x, dy = wall.p2.y - wall.p1.y;
     const len2 = dx * dx + dy * dy;
     if (!hasLength(wall)) return;
-    grid.besideSegment(wall.p1, wall.p2, tolerance, (junction) => {
+    tree.beside(wall.p1, wall.p2, tolerance, plugged, (index) => {
+      const junction = junctions[index]!;
       const p = junction.point;
       const u = ((p.x - wall.p1.x) * dx + (p.y - wall.p1.y) * dy) / len2;
-      if (u <= 0 || u >= 1) return;
       const foot = { x: wall.p1.x + dx * u, y: wall.p1.y + dy * u };
-      const distance = Math.hypot(p.x - foot.x, p.y - foot.y);
-      if (distance > tolerance) return;
-      // The end that stops short: of the earliest wall. This wall's own ends are its p1 and p2, left out above.
+      if (Math.hypot(p.x - foot.x, p.y - foot.y) > tolerance) return;
+      // The end that stops short: of the earliest wall. This wall's own ends are its p1 and p2, which are not beside it.
       const end = junction.ends[0]!;
       const across = acrossDirection(p, foot, walls[end.wall]![end.end === 'p1' ? 'p2' : 'p1'], dx, dy);
-      keepNearest(kept, junction, { wall: j, end, distance, landing: { x: foot.x + across.x * OVERSHOOT, y: foot.y + across.y * OVERSHOOT } });
+      const list = (passing[index] ??= []);
+      list.push({ wall: j, end, landing: { x: foot.x + across.x * OVERSHOOT, y: foot.y + across.y * OVERSHOOT } });
+      if (list.length > MAX_PASSING) plugged[index] = 1;
     });
   });
-  return [...kept.values()]
-    .flat()
-    .sort((a, b) => a.wall - b.wall || a.end.wall - b.end.wall || a.end.end.localeCompare(b.end.end))
-    .map(({ wall, end, landing }) => bridge(`seal:${end.label}:${walls[wall]!.id}`, end.point, landing));
+  const kept: MiddleBridge[] = [];
+  const plugs: WallSegment[] = [];
+  passing.forEach((list, index) => {
+    if (!list) return;
+    if (plugged[index]) plugs.push(...plug(junctions[index]!, tolerance));
+    else kept.push(...(list.length > MAX_BRIDGES ? farthest(junctions[index]!.point, list) : list));
+  });
+  return [
+    ...kept
+      .sort((a, b) => a.wall - b.wall || a.end.wall - b.end.wall || a.end.end.localeCompare(b.end.end))
+      .map(({ wall, end, landing }) => bridge(`seal:${end.label}:${walls[wall]!.id}`, end.point, landing)),
+    ...plugs,
+  ];
 }
 
-/** Adds a bridge to those of its wall end, which keeps the `MAX_BRIDGES` nearest, earlier walls first among equals. */
-function keepNearest(kept: Map<Junction, MiddleBridge[]>, junction: Junction, candidate: MiddleBridge): void {
-  let list = kept.get(junction);
-  if (!list) kept.set(junction, (list = []));
-  if (list.length === MAX_BRIDGES && list[MAX_BRIDGES - 1]!.distance <= candidate.distance) return;
-  const at = list.findIndex((held) => held.distance > candidate.distance);
-  list.splice(at < 0 ? list.length : at, 0, candidate);
-  if (list.length > MAX_BRIDGES) list.pop();
+/** The bridges from `point` whose landings are corners of the convex hull of the point and all the landings. */
+function farthest(point: Point, bridges: readonly MiddleBridge[]): MiddleBridge[] {
+  const corners: { at: Point; bridge: MiddleBridge | null }[] = [{ at: point, bridge: null }, ...bridges.map((candidate) => ({ at: candidate.landing, bridge: candidate }))];
+  corners.sort((a, b) => a.at.x - b.at.x || a.at.y - b.at.y);
+  // Andrew's monotone chain; a landing on a line between two others is no corner.
+  const turnsLeft = (o: Point, a: Point, b: Point): boolean => (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x) > 1e-9;
+  const half = (order: typeof corners): typeof corners => {
+    const hull: typeof corners = [];
+    for (const corner of order) {
+      while (hull.length >= 2 && !turnsLeft(hull[hull.length - 2]!.at, hull[hull.length - 1]!.at, corner.at)) hull.pop();
+      hull.push(corner);
+    }
+    return hull;
+  };
+  const hull = new Set([...half(corners), ...half([...corners].reverse())]);
+  return bridges.filter((candidate) => [...hull].some((corner) => corner.bridge === candidate));
+}
+
+/**
+ * Eight bridges around a wall end, an octagon that holds the circle of the tolerance around it:
+ * what closes an end that walls beyond counting pass. Every ray through that circle is stopped.
+ */
+function plug(junction: Junction, tolerance: number): WallSegment[] {
+  const radius = tolerance / Math.cos(Math.PI / 8);
+  const corner = (k: number): Point => ({ x: junction.point.x + Math.cos((k * Math.PI) / 4) * radius, y: junction.point.y + Math.sin((k * Math.PI) / 4) * radius });
+  return Array.from({ length: 8 }, (_, k) => bridge(`seal:${junction.ends[0]!.label}:plug${k}`, corner(k), corner(k + 1)));
 }
 
 /** Unit vector from `p` across the wall at `foot`; for an end on the wall, away from its own wall. */

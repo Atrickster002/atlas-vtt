@@ -124,10 +124,10 @@ export function lightMarkerHitRadius(zoom: number): number {
 }
 
 /** The light whose marker is at the world `point` at viewport `zoom`: the nearest one within reach. */
-export function lightMarkerAt(lights: Record<string, LightSource>, point: Point, zoom: number): string | null {
+export function lightMarkerAt(lights: readonly LightSource[], point: Point, zoom: number): string | null {
   let nearest: string | null = null;
   let best = lightMarkerHitRadius(zoom);
-  for (const light of Object.values(lights)) {
+  for (const light of lights) {
     const distance = Math.hypot(point.x - light.x, point.y - light.y);
     if (distance <= best) {
       best = distance;

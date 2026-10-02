@@ -1,5 +1,6 @@
 // src/app/pixi/vision/WallRenderer.ts
 
+import { wallList } from '../../vision/wallList';
 import { Graphics, Container } from 'pixi.js';
 import type { Viewport } from 'pixi-viewport';
 import type { StoreApi } from 'zustand';
@@ -234,7 +235,7 @@ export class WallRenderer {
     this.wallGraphics.clear();
     this.handleGraphics.clear();
 
-    for (const wall of Object.values(state.objects.walls)) {
+    for (const wall of wallList(state.objects.walls)) {
       this.drawWall(wall);
     }
   }
@@ -390,8 +391,7 @@ export class WallRenderer {
 
   /** Hit-test walls at a world coordinate. Returns wall id or null. */
   hitTestWalls(worldX: number, worldY: number): string | null {
-    const walls = this.store.getState().objects.walls;
-    for (const wall of Object.values(walls)) {
+    for (const wall of wallList(this.store.getState().objects.walls)) {
       if (this.pointToSegmentDist(worldX, worldY, wall.p1.x, wall.p1.y, wall.p2.x, wall.p2.y) < HIT_TOLERANCE) {
         return wall.id;
       }
@@ -405,7 +405,7 @@ export class WallRenderer {
     const threshold = VERTEX_HANDLE_RADIUS * 3;
     const thresholdSq = threshold * threshold;
 
-    for (const wall of Object.values(walls)) {
+    for (const wall of wallList(walls)) {
       const d1 = (worldX - wall.p1.x) ** 2 + (worldY - wall.p1.y) ** 2;
       if (d1 < thresholdSq) return { wallId: wall.id, vertex: 'p1' };
 

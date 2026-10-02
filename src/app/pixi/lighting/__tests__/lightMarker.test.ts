@@ -118,7 +118,7 @@ describe('lightMarkerLook', () => {
 });
 
 describe('lightMarkerAt', () => {
-  const lights = { a: light({ id: 'a', x: 100, y: 100 }), b: light({ id: 'b', x: 160, y: 100 }) };
+  const lights = [light({ id: 'a', x: 100, y: 100 }), light({ id: 'b', x: 160, y: 100 })];
 
   it.each([0.3, 1, 3])('hits a marker within 16 screen pixels at zoom %s', (zoom) => {
     const reach = 16 / zoom;
@@ -134,6 +134,6 @@ describe('lightMarkerAt', () => {
 
   it('grows with the markers when the map is zoomed far out', () => {
     expect(lightMarkerAt(lights, { x: 100, y: 100 + 150 }, 0.1)).toBe('a');
-    expect(lightMarkerAt({}, { x: 100, y: 100 }, 1)).toBeNull();
+    expect(lightMarkerAt([], { x: 100, y: 100 }, 1)).toBeNull();
   });
 });

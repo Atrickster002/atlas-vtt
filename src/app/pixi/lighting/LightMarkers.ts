@@ -1,3 +1,4 @@
+import { lightList } from '../../lighting/lightingObjects';
 import { Container, Graphics, Sprite, type Texture } from 'pixi.js';
 import type { Viewport } from 'pixi-viewport';
 import { LIGHT_GLYPH_PATHS } from '../../lighting/lightGlyphs';
@@ -163,7 +164,7 @@ export class LightMarkers {
   /** The light whose marker is at the world point, while the markers show. */
   hitTest(x: number, y: number): string | null {
     if (!this.view.visible) return null;
-    return lightMarkerAt(this.store.getState().objects.lights, { x, y }, this.viewport.scale.x);
+    return lightMarkerAt(lightList(this.store.getState().objects.lights), { x, y }, this.viewport.scale.x);
   }
 
   private glyphTexture(kind: LightKind): Texture | null {
@@ -180,16 +181,18 @@ export class LightMarkers {
     const shown = lightMarkersShown(state) && !this.suppressed;
     this.view.visible = shown;
     if (!shown) return;
-    const { lights } = state.objects;
+    // The lights that can be read: what else the record holds has no marker.
+    const lights = lightList(state.objects.lights);
+    const ids = new Set(lights.map((light) => light.id));
     // A lamp that follows the ambient light goes by the light where it stands, as the rule does (`activeLights`).
     const ambient = withZones(state.lighting, lightZoneList(state.objects.lightZones));
     for (const [id, marker] of this.markers) {
-      if (lights[id]) continue;
+      if (ids.has(id)) continue;
       marker.lift?.cancel();
       destroyTree(marker.view);
       this.markers.delete(id);
     }
-    for (const light of Object.values(lights)) {
+    for (const light of lights) {
       const look = lightMarkerLook(light, {
         hovered: this.hovered === light.id,
         selected: this.selected.has(light.id) || state.lightPopover === light.id,

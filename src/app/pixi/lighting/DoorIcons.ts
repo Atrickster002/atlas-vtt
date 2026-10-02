@@ -1,3 +1,5 @@
+import { readWall } from '../../lighting/lightingObjects';
+import { wallList } from '../../vision/wallList';
 import { Container, Graphics } from 'pixi.js';
 import type { ViewAtlasState, ViewAtlasStore } from '../../storeFactory';
 import type { Point } from '../../types/visionTypes';
@@ -57,7 +59,7 @@ export class DoorIcons {
     if (!this.view.visible) return null;
     const state = this.store.getState();
     const radius = this.radius(state);
-    for (const wall of Object.values(state.objects.walls)) {
+    for (const wall of wallList(state.objects.walls)) {
       if (!isDoor(wall)) continue;
       const centre = midpoint(wall);
       if (Math.hypot(x - centre.x, y - centre.y) <= radius) return wall.id;
@@ -68,7 +70,7 @@ export class DoorIcons {
   /** Opens or closes the door; a locked one stays shut and its badge says no. */
   toggle(wallId: string): void {
     const state = this.store.getState();
-    if (!state.objects.walls[wallId]?.locked) {
+    if (!readWall(state.objects.walls[wallId])?.locked) {
       state.toggleDoor(wallId);
       return;
     }
@@ -99,7 +101,7 @@ export class DoorIcons {
     g.clear();
     const r = this.radius(state);
     const refusal = this.refusal();
-    for (const wall of Object.values(state.objects.walls)) {
+    for (const wall of wallList(state.objects.walls)) {
       if (!isDoor(wall)) continue;
       const refusing = refusal?.doorId === wall.id ? refusal : null;
       const centre = midpoint(wall);

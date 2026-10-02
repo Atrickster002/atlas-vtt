@@ -1,4 +1,4 @@
-import { ColorMatrixFilter, Container, RenderTexture, Sprite, Texture, type Renderer } from 'pixi.js';
+import { Container, RenderTexture, Sprite, Texture, type Renderer } from 'pixi.js';
 import type { ExploredShapes } from '../../vision/exploredShapes';
 import type { MapBounds } from '../../vision/visibility';
 import { destroyTree } from '../utils/destroyTree';
@@ -8,8 +8,23 @@ import type { TexelRegion } from './StampScratch';
 /** Longest side of the explored memory in texels; it is drawn dim and soft, so this is plenty. */
 const MAX_TEXELS = 2048;
 
-/** White, covered by four times what the image's coverage is above a half: none up to a half, all from three quarters. */
-const SHARPEN: ColorMatrixFilter['matrix'] = [0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 4, -2];
+/**
+ * A smaller image of the memory at the memory's size, with its edges where they were: scaled up
+ * its coverage is spread over a texel or two, and only what is more than half covered is kept
+ * (none up to a half, all from three quarters).
+ */
+function sharpened(image: HTMLImageElement, width: number, height: number): HTMLCanvasElement {
+  const canvas = createEl('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const context = canvas.getContext('2d');
+  if (!context) return canvas;
+  context.drawImage(image, 0, 0, width, height);
+  const pixels = context.getImageData(0, 0, width, height);
+  for (let i = 3; i < pixels.data.length; i += 4) pixels.data[i] = Math.min(255, Math.max(0, 4 * pixels.data[i]! - 510));
+  context.putImageData(pixels, 0, 0);
+  return canvas;
+}
 
 /**
  * What the viewer's tokens have seen so far, in a world-space texture over the map: red is 1
@@ -54,31 +69,27 @@ export class ExploredTexture {
     this.renderer.render({ container: new Container(), target: this.texture, clear: true, clearColor: [0, 0, 0, 0] });
   }
 
-  /** Decodes a saved image of the memory; the caller draws it with `draw`, or destroys it if it came too late. */
+  /**
+   * Decodes a saved image of the memory; the caller draws it with `draw`, or destroys it if it
+   * came too late. A mask of the memory's own size is the memory, texel for texel. Older
+   * versions saved it at half that size at most: drawn back, such a mask spreads its edges past
+   * the walls they ended at, so it is sharpened once, here (`sharpened`); the next save keeps it
+   * at full size.
+   */
   async decode(dataUrl: string): Promise<Texture> {
     const image = createEl('img', { attr: { src: dataUrl } });
     await image.decode();
-    return Texture.from(image);
+    const { width, height } = this.texture;
+    return Texture.from(image.naturalWidth < width || image.naturalHeight < height ? sharpened(image, width, height) : image);
   }
 
-  /**
-   * Replaces the memory with a decoded image of it, which it then destroys. An image saved
-   * smaller than the memory (`EXPLORED_SAVE_MAX`) spreads its edges when drawn back, past the
-   * walls they ended at too: of such an image only what is more than half covered is kept
-   * (`SHARPEN`), which is where the edges were. An image of the memory's own size is drawn as it is.
-   */
+  /** Replaces the memory with a decoded image of it, which it then destroys. */
   draw(image: Texture): void {
     const sprite = new Sprite(image);
-    const sharpen = image.width < this.texture.width || image.height < this.texture.height ? new ColorMatrixFilter({ resolution: 1 }) : null;
     sprite.width = this.texture.width;
     sprite.height = this.texture.height;
-    if (sharpen) {
-      sharpen.matrix = SHARPEN;
-      sprite.filters = [sharpen];
-    }
     this.renderer.render({ container: sprite, target: this.texture, clear: true, clearColor: [0, 0, 0, 0] });
     destroyTree(sprite, { textures: true });
-    sharpen?.destroy();
   }
 
   /** Replaces the memory with a saved image of it. */

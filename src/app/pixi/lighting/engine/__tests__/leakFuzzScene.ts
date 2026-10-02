@@ -10,7 +10,7 @@ import { blocksFrom, type MapBounds } from '../../../../vision/visibility';
 import { SceneSpots, type SceneModel } from '../../sceneModel';
 import type { LightingEngine } from '../LightingEngine';
 import { readRgba } from './gpuTestUtils';
-import { insidePolygon, type FuzzRoom, type P } from './fuzzRooms';
+import { distToOutline, insidePolygon, type FuzzRoom, type P } from './fuzzRooms';
 
 /** What the leak fuzz builds its scenes from and reads its pictures with. */
 
@@ -52,6 +52,19 @@ export function footprints(room: FuzzRoom, outline: readonly P[], walls: readonl
   const model: SceneModel = { walls, lights: [], reaches: [], sight: NO_SIGHT, explored: null, zones: [], ambient: { ambient: 0 } };
   return new SceneSpots().update(model, { objects: { tokens, walls: {}, lights: {} }, lighting: { enabled: true, ambient: 0 }, grid: null, heldTokens: {} } as unknown as Parameters<SceneSpots['update']>[1], MEASUREMENT);
 }
+
+/** A point outside the room, 60 px or more from its walls, for a token that looks at the room from outside. */
+export function outsideOf(room: FuzzRoom, outline: readonly P[], bounds: MapBounds, rand: () => number): P | null {
+  for (let attempt = 0; attempt < 40; attempt++) {
+    const angle = rand() * Math.PI * 2;
+    const reach = 250 + rand() * 500;
+    const p: P = [room.centre[0] + Math.cos(angle) * reach, room.centre[1] + Math.sin(angle) * reach];
+    if (p[0] < 20 || p[1] < 20 || p[0] > bounds.width - 20 || p[1] > bounds.height - 20) continue;
+    if (!insidePolygon(p, outline) && distToOutline(p, outline) > 60) return p;
+  }
+  return null;
+}
+
 const sense = (id: string): SenseDefinition => [...GENERIC_SENSES, ...Object.values(BUILT_IN_SENSES).flat()].find((candidate) => candidate.id === id)!;
 /** The senses with line of sight that draw the map, in every channel: one set per room in turn. */
 export const SENSE_SETS: SenseSource[][] = [

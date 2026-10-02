@@ -13,7 +13,7 @@ import { LightMap, type DrawnLight } from './LightMap';
 import { RadianceCascades } from './RadianceCascades';
 import { TileCache } from './TileCache';
 import type { EngineLight, EngineZone } from './types';
-import { ZoneMap, type ZoneLook } from './ZoneMap';
+import { ZoneMap, sameZoneLook, type ZoneLook } from './ZoneMap';
 
 /**
  * Everything the lighting keeps in world space for one map: the wall field, each light's tile,
@@ -145,11 +145,10 @@ export class LightingWorld {
   /**
    * The scene's ambient zones (the same list while they stay) and what of the scene decides their
    * light; call it after `update`, which brings the walls their soft edges end at. Drawn anew
-   * only when the zones, that look or the walls changed.
+   * only when the zones, the walls or what that look decides changed (`sameZoneLook`).
    */
   setZones(zones: readonly EngineZone[] = NO_ZONES, look: ZoneLook): void {
-    const sameLook = look.ambient === this.zoneLook.ambient && look.ambientColor === this.zoneLook.ambientColor && look.litThreshold === this.zoneLook.litThreshold && look.brightThreshold === this.zoneLook.brightThreshold;
-    if (zones === this.zones && sameLook && !this.zonesStale) return;
+    if (zones === this.zones && !this.zonesStale && sameZoneLook(zones, look, this.zoneLook)) return;
     this.zones = zones;
     this.zoneLook = { ambient: look.ambient, ambientColor: look.ambientColor, litThreshold: look.litThreshold, brightThreshold: look.brightThreshold };
     this.zonesStale = false;

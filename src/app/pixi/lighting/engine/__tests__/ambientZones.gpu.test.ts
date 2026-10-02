@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { BUILT_IN_SENSES } from '../../../../gameSystems/senses';
 import type { TokenEntity } from '../../../../types';
 import type { WallSegment } from '../../../../types/wallTypes';
@@ -6,6 +6,7 @@ import { lightLevelAt } from '../../../../vision/lightLevels';
 import { SEES_ALL, computeSight, sightSources } from '../../../../vision/sight';
 import { distSqToSegment } from '../../../../vision/visionGeometry';
 import { LightingEngine } from '../LightingEngine';
+import { ZoneMap } from '../ZoneMap';
 import type { EngineLight, EngineScene, EngineZone } from '../types';
 import { createTestRenderer, renderThroughEngine } from './gpuTestUtils';
 import { watchGl } from './strictGl';
@@ -167,6 +168,32 @@ describe('ambient zones in the composite', () => {
       expect(night({ x: 550, y: 550 })).toBeGreaterThan(40);
       for (const x of [398.5, 399.5, 400.5, 401.5]) expect([x, night({ x, y: 550 }) < 6]).toEqual([x, true]);
     });
+  });
+
+  it('is drawn anew for the scene\'s ambient light only when that changes which zones are darker than the scene', async () => {
+    const zones = [{ ...cave, ambient: 0.5 }];
+    const scene = { bounds, albedo: null, walls, lights: [], sight: SEES_ALL, sightRadius: 20, zones };
+    const { engine, again } = await setup({ ...scene, ambient: 1 });
+    const draw = vi.spyOn(ZoneMap.prototype, 'draw');
+    cleanup.push(() => draw.mockRestore());
+    const lum = (ambient: number, point: { x: number; y: number }): number => {
+      engine.update({ ...scene, ambient });
+      engine.flush();
+      return again()(point);
+    };
+    // Dusk falls over a zone that stays the darker light: the scene follows, the zone map is the same.
+    const day = lum(0.9, { x: 200, y: 300 });
+    expect(lum(0.7, { x: 200, y: 300 })).toBeLessThan(day - 10);
+    expect(lum(0.6, { x: 200, y: 300 })).toBeLessThan(day - 20);
+    expect(draw).not.toHaveBeenCalled();
+    // Once the scene is the darker one, the zone leaves its walls.
+    lum(0.4, { x: 200, y: 300 });
+    expect(draw).toHaveBeenCalledTimes(1);
+    lum(0.2, { x: 200, y: 300 });
+    expect(draw).toHaveBeenCalledTimes(1);
+    // Another colour of the scene's light is another light for a zone without one of its own.
+    engine.update({ ...scene, ambient: 0.2, ambientColor: '#ff8800' });
+    expect(draw).toHaveBeenCalledTimes(2);
   });
 
   it('lights a zone of a dark scene, tinted by its own colour, and lays later zones over earlier ones', async () => {

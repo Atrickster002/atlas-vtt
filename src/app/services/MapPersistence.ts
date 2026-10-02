@@ -7,7 +7,6 @@ import type { WidgetSettings } from '../types/widgetTypes';
 import type { HexNumberFormat } from '../grid/hexNumbering';
 import type AtlasVTTPlugin from '../../../main';
 import { migrateWidgetsToCollection, needsWidgetMigration } from '../utils/widgetMigration';
-import { emissionFromFile, lightsFromFile, wallsFromFile } from '../lighting/lightingFromFile';
 import { lightZonesFromFile } from '../lighting/lightZones';
 import { normalizeImagePath } from '../utils/pathUtils';
 import { fixMapTokenPaths } from '../utils/fixMapPaths';
@@ -330,9 +329,6 @@ function migrateTokenPaths(tokens: Record<string, LegacyToken>): Record<string, 
       migratedToken.conditions = statuses;
     }
 
-    // The light a token carries is read like a placed light's.
-    if (migratedToken.light) migratedToken.light = emissionFromFile(migratedToken.light);
-
     migratedTokens[id] = tokenFromFile(migratedToken);
   }
   
@@ -424,8 +420,9 @@ export function migrateMapFile(persisted: unknown): MapFile {
       pins: persisted.objects?.pins || {},
       texts: persisted.objects?.texts || {},
       drawings: persisted.objects?.drawings || {},
-      walls: wallsFromFile(persisted.objects?.walls),
-      lights: lightsFromFile(persisted.objects?.lights),
+      // Kept as the file has them: what cannot be read is passed over at reading (`lightingObjects.ts`), and saved back.
+      walls: isRecord(persisted.objects?.walls) ? persisted.objects.walls : {},
+      lights: isRecord(persisted.objects?.lights) ? persisted.objects.lights : {},
       ...(zones && { lightZones: zones }),
     },
     grid: persisted.grid ? migrateGrid(persisted.grid) : initial.grid,

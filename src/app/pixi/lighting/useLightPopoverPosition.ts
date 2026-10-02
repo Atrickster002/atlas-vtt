@@ -1,3 +1,4 @@
+import { readLight } from '../../lighting/lightingObjects';
 import { useCallback, useLayoutEffect, useRef } from 'react';
 import type React from 'react';
 import { beamOf } from '../../lighting/lightBeam';
@@ -48,7 +49,7 @@ type ReadTarget = (state: ViewAtlasState, id: string, zoom: number) => MapPopove
 /** The popover of the light `lightId`. `unitDistance` is the game units a grid cell spans. */
 export function useLightPopoverPosition(ref: React.RefObject<HTMLElement | null>, lightId: string, unitDistance: number): () => void {
   return useMapPopoverPosition(ref, lightId, (state, id, zoom) => {
-    const light = state.objects.lights[id];
+    const light = readLight(state.objects.lights[id]);
     if (!light) return null;
     const scale = unitScaleOf({ unitDistance }, state.grid);
     return {
