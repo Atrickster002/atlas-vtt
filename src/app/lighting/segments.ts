@@ -40,25 +40,35 @@ export function blocksNothing(wall: WallSegment): boolean {
 export interface BlockingWalls {
   twoWay: Seg[];
   oneWay: WallSegment[];
+  /** Limited walls (`WallSegment.limited`), one-way ones too: no trace through a field can count them. */
+  limited: WallSegment[];
 }
 
 /**
  * The walls that block `channel` (without one, every wall that blocks anything: whoever names
  * no channel is stopped by all of them): two-way ones as segments for the shared field, one-way
- * ones kept whole because whether they block depends on where the light is.
+ * ones kept whole because whether they block depends on where the light is, and limited ones
+ * apart, because they stop only what has crossed another already.
  */
 export function splitBlocking(walls: readonly WallSegment[], channel?: WallChannel): BlockingWalls {
   const twoWay: Seg[] = [];
   const oneWay: WallSegment[] = [];
+  const limited: WallSegment[] = [];
   for (const wall of walls) {
     if (blocksNothing(wall) || (channel && !concerns(wall, channel))) continue;
-    if (wall.direction) oneWay.push(wall);
+    if (wall.limited) limited.push(wall);
+    else if (wall.direction) oneWay.push(wall);
     else twoWay.push(segOf(wall));
   }
-  return { twoWay, oneWay };
+  return { twoWay, oneWay, limited };
 }
 
-/** Every blocking wall as a segment, for what treats one-way walls as blocking both ways. */
-export function allSegments({ twoWay, oneWay }: BlockingWalls): Seg[] {
+/** The walls that stop everything, as segments: one-way walls as blocking both ways, limited walls left out. */
+export function solidSegments({ twoWay, oneWay }: BlockingWalls): Seg[] {
   return [...twoWay, ...oneWay.map(segOf)];
+}
+
+/** Every blocking wall as a segment, for what treats one-way and limited walls as walls like any other. */
+export function allSegments(blocking: BlockingWalls): Seg[] {
+  return [...solidSegments(blocking), ...blocking.limited.map(segOf)];
 }

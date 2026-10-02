@@ -14,14 +14,16 @@ export interface BoundFields {
 /**
  * The wall fields of one map, each a distance field over the walls that concern its readers:
  *
- * - `tiles`: the two-way walls that block light, which every light's tile is traced through
- *   (a one-way wall joins a light's own field where it blocks from the light's side);
- * - `light()`: every wall that blocks light, one-way ones too, which bounce, the zones and the
- *   composite's wall faces treat as blocking both ways;
- * - `sight()`: every wall that blocks sight, which the explored memory's blur must not cross.
+ * - `tiles`: the two-way solid walls that block light, which every light's tile is traced through
+ *   (a one-way wall joins a light's own field where it blocks from the light's side; a limited
+ *   wall is in no tile's field: `LimitedMasks`);
+ * - `light()`: every wall that blocks light, one-way and limited ones too, which bounce, the
+ *   zones and the composite's wall faces treat as solid and as blocking both ways;
+ * - `sight()`: every wall that blocks sight, limited ones too, which the explored memory's blur
+ *   must not cross.
  *
  * A scene whose walls all block both and both ways has one field, read under all three names;
- * the second exists once there is a one-way wall and the third once a wall blocks one thing
+ * the second exists once there is a one-way or a limited wall and the third once a wall blocks one thing
  * only, and both are then kept (idle while unused), so the composite never holds a destroyed
  * field. A wall that blocks one thing is in the fields of that thing alone: to the other it is
  * no wall, in the leak guarantee of each field as anywhere else.
@@ -56,7 +58,8 @@ export class WallFields {
   rebuild(walls: readonly WallSegment[]): void {
     const light = splitBlocking(walls, 'light');
     this.tiles.build(light.twoWay);
-    this.hasOneWay = light.oneWay.length > 0;
+    // Limited walls are walls for all but the tiles, like one-way ones.
+    this.hasOneWay = light.oneWay.length > 0 || light.limited.length > 0;
     if (this.hasOneWay) {
       this.lightField ??= this.create();
       this.lightField.build(allSegments(light));

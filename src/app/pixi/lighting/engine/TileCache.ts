@@ -2,7 +2,7 @@ import type { Renderer, RenderTexture } from 'pixi.js';
 import type { WallSegment } from '../../../types/wallTypes';
 import { LIGHT_REACH, wallRadius } from '../../../lighting/lightingConstants';
 import { placeLight } from '../../../lighting/lightPlacement';
-import { allSegments, segOf, splitBlocking, type BlockingWalls, type Rect } from '../../../lighting/segments';
+import { segOf, solidSegments, splitBlocking, type BlockingWalls, type Rect } from '../../../lighting/segments';
 import { blocksFrom, type MapBounds } from '../../../vision/visibility';
 import { CapsuleField } from './CapsuleField';
 import { TileTracer } from './TileTracer';
@@ -73,7 +73,7 @@ export class TileCache {
 
   private build(light: EngineLight, blocking: BlockingWalls): Tile | null {
     const { texel } = this.field;
-    const placed = placeLight(light.x, light.y, light.flame, allSegments(blocking), texel);
+    const placed = placeLight(light.x, light.y, light.flame, solidSegments(blocking), texel);
     if (!placed) return null;
     const rect = this.tileRect(placed.x, placed.y, light.dim * LIGHT_REACH);
     if (!rect) return null;

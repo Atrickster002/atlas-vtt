@@ -10,6 +10,7 @@ import { LightFlicker, STEADY, type FlickerSample } from '../lightFlicker';
 import type { CapsuleField } from './CapsuleField';
 import { DarknessMap, type DrawnDarkness, type PierceShape } from './DarknessMap';
 import { LightMap, type DrawnLight } from './LightMap';
+import { LimitedMasks } from './LimitedMasks';
 import { RadianceCascades } from './RadianceCascades';
 import { TileCache } from './TileCache';
 import type { EngineLight, EngineZone } from './types';
@@ -40,6 +41,8 @@ export class LightingWorld {
   /** The walls changed since the zones were drawn: their soft edges end at walls. */
   private zonesStale = false;
   private readonly tiles: TileCache;
+  /** Where limited walls stop each light, which no tile can tell. */
+  private readonly masks = new LimitedMasks();
   private readonly flicker = new LightFlicker();
   private walls: readonly WallSegment[] | null = null;
   private lights: readonly EngineLight[] = [];
@@ -181,6 +184,7 @@ export class LightingWorld {
 
   destroy(): void {
     this.tiles.destroy();
+    this.masks.destroy();
     this.cascades.destroy();
     this.lightMap.destroy();
     this.darkness?.destroy();
@@ -198,6 +202,7 @@ export class LightingWorld {
       if (keys.has(light.key)) continue;
       this.flicker.forget(light.key);
       this.areas.delete(light.key);
+      this.masks.forget(light.key);
     }
   }
 
@@ -227,7 +232,8 @@ export class LightingWorld {
       if (!tile) continue;
       const { intensity, radiusScale } = sample(light);
       // Flicker breathes the bright radius only: where a light ends is where the rules end it.
-      drawn.push({ tile, bright: light.bright * radiusScale, dim: light.dim, reach: light.edge === undefined || !light.cone ? light.dim * LIGHT_REACH : light.dim + beamEnd(light.edge, light.dim, light.cone.angle, this.texel), color: light.color, intensity: light.intensity * intensity, cone: light.cone, edge: light.edge });
+      const reach = light.edge === undefined || !light.cone ? light.dim * LIGHT_REACH : light.dim + beamEnd(light.edge, light.dim, light.cone.angle, this.texel);
+      drawn.push({ tile, bright: light.bright * radiusScale, dim: light.dim, reach, color: light.color, intensity: light.intensity * intensity, cone: light.cone, edge: light.edge, mask: this.masks.get(light, reach, this.walls ?? []) });
     }
     this.lightMap.draw(drawn);
   }

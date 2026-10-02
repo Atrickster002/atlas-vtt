@@ -1,5 +1,5 @@
 import { Container, Mesh, UniformGroup, type Geometry, type Renderer, type RenderTexture, type Shader } from 'pixi.js';
-import { HALO, LIGHT_LEVELS, LIGHT_REACH } from '../../../lighting/lightingConstants';
+import { HALO, LIGHT_LEVELS, LIGHT_REACH, limitedMargin } from '../../../lighting/lightingConstants';
 import type { VisionCone } from '../../../vision/visionCone';
 import type { MapBounds } from '../../../vision/visibility';
 import { destroyTree } from '../../utils/destroyTree';
@@ -20,6 +20,8 @@ export interface DrawnLight {
   cone?: VisionCone | undefined;
   /** Width of the soft edge past a beam's sides, in world pixels; unset, the fade past the dim radius. */
   edge?: number | undefined;
+  /** Where limited walls stop the light (`LimitedMasks`): it is drawn as this fan instead of its tile's rectangle. Its owner keeps it. */
+  mask?: Geometry | null;
 }
 
 interface Slot {
@@ -49,6 +51,8 @@ export class LightMap {
   readonly world: readonly [number, number];
   private readonly scene = new Container();
   private readonly slots: Slot[] = [];
+  /** Slots for lights drawn through a mask of limited walls: the same light in another program. */
+  private readonly maskedSlots: Slot[] = [];
   private readonly darkSlots: DarknessMesh[] = [];
   private readonly quad: Quad = createQuad();
   private readonly geometry: Geometry = quadGeometry(this.quad);
@@ -66,12 +70,16 @@ export class LightMap {
   draw(lights: readonly (DrawnLight | DrawnDarkness)[]): void {
     const shining = lights.filter((light): light is DrawnLight => !isDarkness(light));
     const dark = lights.filter(isDarkness);
-    while (this.slots.length < shining.length) this.slots.push(this.createSlot());
+    const plain = shining.filter((light) => !light.mask), masked = shining.filter((light) => light.mask);
+    while (this.slots.length < plain.length) this.slots.push(this.createSlot(false));
+    while (this.maskedSlots.length < masked.length) this.maskedSlots.push(this.createSlot(true));
     while (this.darkSlots.length < dark.length) this.darkSlots.push(this.createDarkSlot());
-    this.slots.forEach((slot, i) => {
-      const light = shining[i];
+    const slotOf = new Map<DrawnLight, Slot>();
+    [...this.slots.map((slot, i) => [slot, plain[i]] as const), ...this.maskedSlots.map((slot, i) => [slot, masked[i]] as const)].forEach(([slot, light]) => {
       slot.mesh.visible = !!light;
       if (!light) return;
+      slotOf.set(light, slot);
+      if (light.mask) slot.mesh.geometry = light.mask;
       const u = slot.uniforms.uniforms;
       slot.rect.set(light.tile.rect);
       slot.light[0] = light.tile.x;
@@ -92,15 +100,17 @@ export class LightMap {
       if (darkness) setDarknessMesh(slot, darkness);
     });
     // Without a darkness the meshes stay in the order they were made: lights only add up.
-    if (dark.length > 0 || this.ordered) this.order(lights, shining, dark);
+    if (dark.length > 0 || this.ordered) this.order(lights, slotOf, dark);
     renderInto(this.renderer, this.scene, this.texture, [0, 0, 0, 0]);
-    for (const slot of this.slots) slot.mesh.shader!.resources.uTile = this.placeholder.source;
+    for (const slot of [...this.slots, ...this.maskedSlots]) slot.mesh.shader!.resources.uTile = this.placeholder.source;
+    // A mask is its owner's, who may destroy it: no slot keeps one between draws.
+    for (const slot of this.maskedSlots) slot.mesh.geometry = this.geometry;
   }
 
   /** Puts the meshes in the order of `lights`, so each darkness erases exactly the lights listed before it. */
-  private order(lights: readonly (DrawnLight | DrawnDarkness)[], shining: readonly DrawnLight[], dark: readonly DrawnDarkness[]): void {
+  private order(lights: readonly (DrawnLight | DrawnDarkness)[], slotOf: ReadonlyMap<DrawnLight, Slot>, dark: readonly DrawnDarkness[]): void {
     lights.forEach((light, z) => {
-      const slot = isDarkness(light) ? this.darkSlots[dark.indexOf(light)] : this.slots[shining.indexOf(light)];
+      const slot = isDarkness(light) ? this.darkSlots[dark.indexOf(light)] : slotOf.get(light);
       slot!.mesh.zIndex = z;
     });
     this.ordered = dark.length > 0;
@@ -113,7 +123,7 @@ export class LightMap {
     return slot;
   }
 
-  private createSlot(): Slot {
+  private createSlot(masked: boolean): Slot {
     const rect = new Float32Array(4);
     const light = new Float32Array(2);
     const color = new Float32Array(3);
@@ -134,8 +144,9 @@ export class LightMap {
       uTexel: { value: this.texel, type: 'f32' },
       uCone: { value: cone, type: 'vec4<f32>' },
       uEdge: { value: 1, type: 'f32' },
+      ...(masked && { uMargin: { value: limitedMargin(this.texel), type: 'f32' as const } }),
     });
-    const shader = createShader(ENGINE_SHADERS.lightMap, { lightUniforms: uniforms, uTile: this.placeholder.source });
+    const shader = createShader(masked ? ENGINE_SHADERS.lightMapMasked : ENGINE_SHADERS.lightMap, { lightUniforms: uniforms, uTile: this.placeholder.source });
     const mesh = new Mesh({ geometry: this.geometry, shader });
     mesh.blendMode = 'add';
     this.scene.addChild(mesh);
@@ -143,7 +154,7 @@ export class LightMap {
   }
 
   destroy(): void {
-    for (const { mesh } of this.slots) mesh.shader?.destroy();
+    for (const { mesh } of [...this.slots, ...this.maskedSlots]) mesh.shader?.destroy();
     for (const slot of this.darkSlots) {
       this.scene.removeChild(slot.mesh);
       destroyDarknessMesh(slot);

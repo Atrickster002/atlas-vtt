@@ -146,6 +146,15 @@ export function wallCore(texel: number): number {
 }
 
 /**
+ * How far before a limited wall that stops it a light ends in the light map: as far as a solid
+ * wall's capsule reaches for a trace, so the two look alike and no bilinear read of the light
+ * map carries light across the wall's centre line.
+ */
+export function limitedMargin(texel: number): number {
+  return wallRadius(texel) + fieldMargin(texel);
+}
+
+/**
  * Distance from a wall's centre line at which the light map is fully lit again: past the capsule
  * (tiles are lit wherever the trace clears it) and the light map's bilinear texel.
  */
