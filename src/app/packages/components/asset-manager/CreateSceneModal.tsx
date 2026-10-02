@@ -1,11 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { ATLAS_VERSION } from '../../../services/MapPersistence';
 import { Notice, normalizePath } from 'obsidian';
 import { motion } from 'framer-motion';
 import { MapIcon } from 'lucide-react';
 import { AssetService } from '../../../services/AssetService';
-import { newSceneTokenSettings } from '../../../resources/sceneVisibility';
-import { DEFAULT_TOKEN_SETTINGS } from '../../../storeFactory';
+import { newSceneFile } from '../../../services/newSceneFile';
 import { normalizeImagePath } from '../../../utils/pathUtils';
 import { ensureFolder } from '../../../plugin/vaultFolders';
 import { useAtlasUI } from '../../../react/root/AtlasUIContext';
@@ -95,57 +93,11 @@ export default function CreateSceneModal({
       }
       const collectionId = collection.id;
 
-      // Create a new empty scene structure
-      const normalizedBackground = backgroundPath ? normalizeImagePath(backgroundPath) : null;
-      const mapData = {
-        state: {
-          schema: "atlas-vtt",
-          version: ATLAS_VERSION,
-          // If invoked from a map, prefill background (ensure vault-relative path)
-          background: normalizedBackground,
-          grid: {
-            enabled: true,
-            visible: true,
-            snapToGrid: true,
-            type: 'square',
-            size: 70,
-            offsetX: 0,
-            offsetY: 0,
-            opacity: 0.5,
-            lineType: 'solid' as const,
-            lineWidth: 1,
-            autoDetect: true
-          },
-          objects: {
-            tokens: {},
-            fog: {},
-            pins: {},
-            texts: {},
-            drawings: {} // Include drawings for all scenes
-          },
-          camera: {
-            x: 0,
-            y: 0,
-            scale: 1
-          }
-        },
-        version: ATLAS_VERSION
-      };
-
-      // Apply collection grid defaults if available
-      if (assetService) {
-        const settings = assetService.getCollectionSettings(collectionId);
-        if (settings.gridDefaults) {
-          const gd = settings.gridDefaults;
-          Object.assign(mapData.state.grid, {
-            unitType: gd.unitType,
-            unitDistance: gd.unitDistance,
-            measurementType: gd.measurementMode === 'abstract' ? 'abstract' as const : 'units' as const,
-          });
-        }
-        // A map file's token settings replace the defaults as a whole, so write complete settings
-        Object.assign(mapData.state, { tokenSettings: newSceneTokenSettings(settings.defaultWidgets, DEFAULT_TOKEN_SETTINGS) });
-      }
+      // If invoked from a map, the scene starts on its image (as a vault-relative path)
+      const mapData = newSceneFile(
+        assetService.getCollectionSettings(collectionId),
+        backgroundPath ? normalizeImagePath(backgroundPath) : null,
+      );
 
       const scenePath = normalizePath(`atlas-vtt/collections/${collectionId}/scenes/${sceneName.trim()}.atlasmap`);
 
