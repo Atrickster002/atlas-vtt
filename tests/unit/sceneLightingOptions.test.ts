@@ -11,11 +11,12 @@ describe('scene lighting options', () => {
     expect(exploredMemoryOn({ exploredMemory: false })).toBe(false);
   });
 
-  it('updates sight on the drop unless the scene switches that off, and keeps the choice when loaded', () => {
-    expect(sightOnDropOn(DEFAULT_SCENE_LIGHTING)).toBe(true);
-    expect(sightOnDropOn({ sightOnDrop: true })).toBe(true);
+  it('lets sight follow a dragged token unless the scene asks to wait for the drop, and keeps that choice when loaded', () => {
+    expect(sightOnDropOn(DEFAULT_SCENE_LIGHTING)).toBe(false);
     expect(sightOnDropOn({ sightOnDrop: false })).toBe(false);
-    expect(sightOnDropOn(readSceneLighting({ enabled: true, sightOnDrop: false }))).toBe(false);
+    expect(sightOnDropOn({ sightOnDrop: true })).toBe(true);
+    expect(sightOnDropOn(readSceneLighting({ enabled: true, sightOnDrop: true }))).toBe(true);
+    expect(sightOnDropOn(readSceneLighting({ enabled: true }))).toBe(false);
   });
 
   it('counts a scene as lit from 25 % ambient light unless it sets its own threshold', () => {

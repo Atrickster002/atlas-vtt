@@ -566,14 +566,16 @@ describe('tokens in session view', () => {
     expect(controller.playerSight()?.(lurker)).toBe('unseen');
   });
 
-  it('leaves a dragged vision token out of the players\' frame where the sight that stayed behind does not reach', () => {
+  it('leaves a dragged vision token out of the players\' frame where the sight that stayed behind does not reach, in a scene that waits for the drop', () => {
     const { controller, store } = scene();
     const hero = Object.keys(store.getState().objects.tokens)[0]!;
+    store.getState().setSceneLighting({ sightOnDrop: true });
     holdTokens(store, [hero]);
     expect(controller.playerSight()?.(hero)).toBe('seen');
     store.getState().setTokenPositions([{ id: hero, x: 400, y: 100 }]);
     expect(controller.playerSight()?.(hero)).toBe('unseen');
-    store.getState().setSceneLighting({ sightOnDrop: false });
+    // Without the option sight follows the drag, and the token is seen where it is.
+    store.getState().setSceneLighting({ sightOnDrop: undefined });
     expect(controller.playerSight()?.(hero)).toBe('seen');
     store.getState().setSceneLighting({ sightOnDrop: true });
     holdTokens(store, []);

@@ -28,8 +28,9 @@ export function exploredMemoryOn(lighting: Pick<SceneLighting, 'exploredMemory'>
   return lighting.exploredMemory !== false;
 }
 
+/** Sight and light wait for the drop of a dragged token only where the scene asks for it; unset, they follow the drag. */
 export function sightOnDropOn(lighting: Pick<SceneLighting, 'sightOnDrop'>): boolean {
-  return lighting.sightOnDrop !== false;
+  return lighting.sightOnDrop === true;
 }
 
 /** A scene has explored memory to edit by hand while it is lit and remembers. */

@@ -17,7 +17,7 @@ export interface SceneLighting {
   unexploredColor?: string;
   /** Ambient light (0–1) from which everything in sight counts as lit, dimly at least; below it the scene is dark. Unset is 0.25. */
   litThreshold?: number;
-  /** A dragged vision token sees from where its drag began until it is dropped; unset is on. Off, sight follows the drag. */
+  /** A dragged token sees and shines from where its drag began until it is dropped; unset is off: sight and light follow the drag. */
   sightOnDrop?: boolean;
   /** Ambient light (0–1) from which the scene is brightly lit; unset is 0.75, and it never lies below the lit threshold. */
   brightThreshold?: number;

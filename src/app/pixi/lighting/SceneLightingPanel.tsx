@@ -93,8 +93,9 @@ function SceneLightingPanel(): React.ReactElement {
           label="Update sight when a token is dropped"
           value={sightOnDropOn(lighting)}
           tooltipOn="Dragging a token shows the players nothing new until you drop it"
-          tooltipOff="Players see everything a token passes while you drag it"
-          onChange={(sightOnDrop) => setSceneLighting({ sightOnDrop })}
+          tooltipOff="Sight and light follow a token while you drag it"
+          // Off is the default and is stored as no choice at all.
+          onChange={(on) => setSceneLighting({ sightOnDrop: on ? true : undefined })}
         />
         <div className="atlas-light-panel__row atlas-light-panel__row--pair">
           <ColorField label="Explored colour" value={lighting.exploredColor ?? DEFAULT_EXPLORED_COLOR}

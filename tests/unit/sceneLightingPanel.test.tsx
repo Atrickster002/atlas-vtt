@@ -1,5 +1,5 @@
 import React from 'react';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createViewAtlasStore, type ViewAtlasStore } from '../../src/app/storeFactory';
 import { ViewStoreProvider } from '../../src/app/react/ViewStoreContext';
@@ -33,7 +33,7 @@ describe('SceneLightingPanel', () => {
     expect(screen.getByRole('heading', { name: 'Lighting settings' })).toBeTruthy();
     expect(toggleOf('Token vision').getAttribute('aria-checked')).toBe('true');
     expect(toggleOf('Remember explored areas').getAttribute('aria-checked')).toBe('true');
-    expect(toggleOf('Update sight when a token is dropped').getAttribute('aria-checked')).toBe('true');
+    expect(toggleOf('Update sight when a token is dropped').getAttribute('aria-checked')).toBe('false');
     expect((screen.getByLabelText('Explored colour') as HTMLInputElement).value).toBe('#ffffff');
     expect((screen.getByLabelText('Unexplored colour') as HTMLInputElement).value).toBe('#000000');
     expect(screen.getByText('Counts as lit from')).toBeTruthy();
@@ -49,13 +49,20 @@ describe('SceneLightingPanel', () => {
     expect(store.getState().lighting).toMatchObject({ tokenVision: false, exploredMemory: false });
   });
 
-  it('switches sight on drop off and on again', () => {
-    const { store, setSceneLighting } = renderPanel();
-    fireEvent.click(toggleOf('Update sight when a token is dropped'));
-    expect(setSceneLighting).toHaveBeenCalledWith({ sightOnDrop: false });
-    expect(toggleOf('Update sight when a token is dropped').getAttribute('aria-checked')).toBe('false');
+  it('switches sight on drop on, and off again as no choice at all: following the drag is the default', () => {
+    const { store } = renderPanel();
     fireEvent.click(toggleOf('Update sight when a token is dropped'));
     expect(store.getState().lighting.sightOnDrop).toBe(true);
+    expect(toggleOf('Update sight when a token is dropped').getAttribute('aria-checked')).toBe('true');
+    fireEvent.click(toggleOf('Update sight when a token is dropped'));
+    expect(store.getState().lighting).not.toHaveProperty('sightOnDrop');
+    expect(toggleOf('Update sight when a token is dropped').getAttribute('aria-checked')).toBe('false');
+  });
+
+  it('shows a scene that was saved with sight on drop off as off', () => {
+    const { store } = renderPanel();
+    act(() => store.getState().setSceneLighting({ sightOnDrop: false }));
+    expect(toggleOf('Update sight when a token is dropped').getAttribute('aria-checked')).toBe('false');
   });
 
   it('switches from the keyboard', () => {
