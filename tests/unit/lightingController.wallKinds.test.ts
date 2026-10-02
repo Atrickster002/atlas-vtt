@@ -139,3 +139,26 @@ describe('the wall menu\'s Limited', () => {
   });
 });
 
+
+describe('a right-click on a wall with the wall tool', () => {
+  it('selects an unselected wall by its end without taking hold of the end', () => {
+    const { wall, menu, store, steps, wallMove, kind } = withWalls();
+    // The wall's first end: a press there with the primary button drags the end.
+    const entries = menu(100, 100);
+    expect(blocksOf(entries)).toHaveLength(3);
+    // The pointer moves on with no button held: the end stays where it is.
+    wallMove(140, 160, event(140, 160));
+    expect(store.getState().objects.walls[wall]!.p1).toEqual({ x: 100, y: 100 });
+    // And what the menu does next is an undo step of its own, not part of a drag that never ended.
+    blocksOf(entries).find((entry) => entry.label === 'Sight only')!.onClick!();
+    expect([kind(wall), steps()]).toEqual(['sight', 1]);
+  });
+
+  it('keeps a selection of several walls when one of them is right-clicked by its end', () => {
+    const { wall, door, menu, wallDown, kind } = withWalls();
+    wallDown(200, 100, event(200, 100));
+    wallDown(200, 500, { ...event(200, 500), ctrlKey: true } as never);
+    blocksOf(menu(100, 500)).find((entry) => entry.label === 'Light only')!.onClick!();
+    expect([kind(wall), kind(door)]).toEqual(['light', 'light']);
+  });
+});

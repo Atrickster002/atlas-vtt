@@ -267,7 +267,7 @@ export class WallInteraction {
    * Select a wall chain. With addToSelection, toggles the chain in/out.
    * Without it, replaces the selection.
    */
-  private selectWallChain(wallId: string, addToSelection: boolean): void {
+  selectWallChain(wallId: string, addToSelection: boolean): void {
     const walls = this.store.getState().objects.walls;
     const wall = walls[wallId];
     if (!wall) return;

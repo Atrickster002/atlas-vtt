@@ -56,12 +56,9 @@ export function showWallMenu(context: LightingMenuContext, worldX: number, world
     return;
   }
 
-  // A right-click on an unselected wall selects it first, alone, and as an addition to nothing: a plain press would open a door.
+  // A right-click on an unselected wall selects it first, alone. Not as a press would: that opens a door, and takes hold of a wall's end.
   const hitWallId = wallRenderer.hitTestWalls(worldX, worldY) ?? wallRenderer.hitTestVertices(worldX, worldY)?.wallId;
-  if (hitWallId && !walls.getSelectedWallIds().includes(hitWallId)) {
-    walls.clearSelection();
-    walls.handlePointerDown(worldX, worldY, true);
-  }
+  if (hitWallId && !walls.getSelectedWallIds().includes(hitWallId)) walls.selectWallChain(hitWallId, false);
   if (!walls.hasSelection()) return;
 
   const selected = walls.getSelectedWallIds();

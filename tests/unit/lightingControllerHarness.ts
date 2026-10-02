@@ -45,6 +45,7 @@ export interface Setup {
   light: LightPointerHandlers;
   wallDown: (x: number, y: number, e: FederatedPointerEvent) => boolean;
   contextMenu: (x: number, y: number, screenX: number, screenY: number) => void;
+  wallMove: (x: number, y: number, e: FederatedPointerEvent) => void;
   /** A torch at (400, 300) and a lantern at (600, 300). */
   torch: string;
   lantern: string;
@@ -79,14 +80,15 @@ export function setup(): Setup {
     viewport, app: { canvas } as unknown as Application, store, eventBus, obsApp, viewId: 'popover-view',
     bounds: () => ({ width: 1000, height: 1000 }), albedo: () => null,
   });
-  const wired = {} as Pick<Setup, 'light' | 'wallDown' | 'contextMenu'>;
+  const wired = {} as Pick<Setup, 'light' | 'wallDown' | 'contextMenu' | 'wallMove'>;
   const ignore = (): void => undefined;
   const sensedOutlines = { visible: false };
   controller.wire({
     setLightHandlers: (handlers: LightPointerHandlers) => { wired.light = handlers; },
     setWallPointerDownHandler: (fn: Setup['wallDown']) => { wired.wallDown = fn; },
     setWallContextMenuHandler: (fn: Setup['contextMenu']) => { wired.contextMenu = fn; },
-    setWallPointerMoveHandler: ignore, setWallPointerUpHandler: ignore, setWallDoubleClickHandler: ignore, setWallCursorProvider: ignore,
+    setWallPointerMoveHandler: (fn: Setup['wallMove']) => { wired.wallMove = fn; },
+    setWallPointerUpHandler: ignore, setWallDoubleClickHandler: ignore, setWallCursorProvider: ignore,
     setDoorMenuHandlers: (handlers: DoorMenuHandlers) => { doorMenu.current = handlers; },
     setDoorClickHandler: ignore, setPlayerSightProvider: ignore, refreshPlayerSight: ignore,
     getSensedOutlineLayer: () => sensedOutlines,
