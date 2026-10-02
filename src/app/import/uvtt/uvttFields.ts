@@ -42,7 +42,7 @@ export function readOptionalBoolean(value: unknown, what: string, fallback: bool
   return typeof value === 'boolean' ? value : refuse(`${what} is neither true nor false.`);
 }
 
-/** A position in cells, no farther from the origin than any map reaches. */
+/** A position in cells, within `UVTT_LIMITS.distance` of zero on both axes. */
 export function readPoint(value: unknown, what: string): UvttPoint {
   if (!isRecord(value)) return refuse(`${what} is missing or not a position.`);
   const { distance } = UVTT_LIMITS;

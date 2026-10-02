@@ -79,6 +79,8 @@ describe('reading a Universal VTT file', () => {
     ['resolution.map_size.x', '10', 'The map\'s width is missing or not a number.'],
     ['resolution.map_size.x', 0, 'The map\'s width is out of range.'],
     ['resolution.map_size.x', -10, 'The map\'s width is out of range.'],
+    ['resolution.map_size.x', 0.5, 'The map\'s width is out of range.'],
+    ['resolution.map_size.y', 1e-300, 'The map\'s height is out of range.'],
     ['resolution.map_size.y', 4097, 'The map\'s height is out of range.'],
     ['resolution.map_size.y', null, 'The map\'s height is missing or not a number.'],
     ['resolution.map_origin', 3, 'The map\'s origin is missing or not a position.'],

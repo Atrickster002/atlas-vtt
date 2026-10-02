@@ -27,7 +27,7 @@ function readPortal(value: unknown, index: number): UvttPortal {
   if (!Array.isArray(bounds) || bounds.length !== 2) return refuse(`${capitalized(what)} does not have two ends.`);
   // Read for their types only: a door is placed by its two ends
   if (!isAbsent(portal.position)) readPoint(portal.position, `The position of ${what}`);
-  readOptionalNumber(portal.rotation, `The rotation of ${what}`, -UVTT_LIMITS.distance, UVTT_LIMITS.distance, 0);
+  readOptionalNumber(portal.rotation, `The rotation of ${what}`, -Number.MAX_VALUE, Number.MAX_VALUE, 0);
   readOptionalBoolean(portal.freestanding, `"freestanding" of ${what}`, false);
   return {
     bounds: [readPoint(bounds[0], `The first end of ${what}`), readPoint(bounds[1], `The second end of ${what}`)],
@@ -42,7 +42,7 @@ function readLight(value: unknown, index: number): UvttLight {
   return {
     position: readPoint(light.position, `The position of ${what}`),
     range: readNumber(light.range, `The range of ${what}`, 0, UVTT_LIMITS.distance),
-    intensity: readOptionalNumber(light.intensity, `The intensity of ${what}`, 0, UVTT_LIMITS.distance, 1),
+    intensity: readOptionalNumber(light.intensity, `The intensity of ${what}`, 0, Number.MAX_VALUE, 1),
     color: isAbsent(light.color) ? '#ffffff' : readColor(light.color, `The colour of ${what}`),
   };
 }
@@ -53,13 +53,13 @@ function segmentsOf(polylines: readonly UvttPoint[][]): number {
 
 function readMap(root: unknown): UvttMap {
   const file = readRecord(root, 'The file\'s content');
-  if (!isAbsent(file.format)) readNumber(file.format, 'The format version', 0, UVTT_LIMITS.distance);
+  if (!isAbsent(file.format)) readNumber(file.format, 'The format version', 0, Number.MAX_VALUE);
 
   const resolution = readRecord(file.resolution, 'The map\'s resolution');
   const sizeIn = readRecord(resolution.map_size, 'The map size');
   const size = {
-    x: readNumber(sizeIn.x, 'The map\'s width', Number.MIN_VALUE, UVTT_LIMITS.mapCells),
-    y: readNumber(sizeIn.y, 'The map\'s height', Number.MIN_VALUE, UVTT_LIMITS.mapCells),
+    x: readNumber(sizeIn.x, 'The map\'s width', 1, UVTT_LIMITS.mapCells),
+    y: readNumber(sizeIn.y, 'The map\'s height', 1, UVTT_LIMITS.mapCells),
   };
   const origin = isAbsent(resolution.map_origin) ? { x: 0, y: 0 } : readPoint(resolution.map_origin, 'The map\'s origin');
   const pixelsPerCell = readNumber(resolution.pixels_per_grid, 'The number of pixels per grid cell', 1, UVTT_LIMITS.pixelsPerCell);

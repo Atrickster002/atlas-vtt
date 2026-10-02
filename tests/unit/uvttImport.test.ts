@@ -224,6 +224,24 @@ describe('importing a Universal VTT file', () => {
     expect(before.map((record) => record.type).sort()).toEqual(['map', 'scene']);
   });
 
+  it('writes only numbers a scene can hold, however far the file\'s positions lie', async () => {
+    const b = await bench();
+    const file = cryptWith((crypt) => {
+      crypt.resolution = { map_origin: { x: -16_384, y: 16_384 }, map_size: { x: 1, y: 1 }, pixels_per_grid: 4096 };
+      crypt.image = base64Of(pngHeader(16_384, 16_384));
+      crypt.line_of_sight = [[{ x: 16_384, y: -16_384 }, { x: -16_384, y: 16_384 }]];
+      crypt.lights = [{ position: { x: 16_384, y: 16_384 }, range: 16_384, intensity: 16_384 }];
+    });
+
+    const { scenePath } = arrived(await importUvttFile(b.deps, uvttFile(file), COLLECTION));
+
+    const numbers: number[] = [];
+    JSON.parse(b.vault.files.get(scenePath)!, (_key, value: unknown) => { if (typeof value === 'number') numbers.push(value); return value; });
+    expect(b.vault.files.get(scenePath)).not.toContain('null,');
+    expect(numbers.every(Number.isFinite)).toBe(true);
+    expect(sceneState(b, scenePath).objects.walls.wall_uvtt_1).toMatchObject({ p1: { x: 32_768 * 16_384, y: -32_768 * 16_384 } });
+  });
+
   it('gives a new scene of the collection its token settings', async () => {
     const b = await bench();
     await b.assets.updateCollectionSettings(COLLECTION, { defaultWidgets: { hpBar: true, stressBar: false } });
@@ -242,6 +260,10 @@ describe('a Universal VTT file that is refused', () => {
     ['holds an image that is no image', () => uvttFile(cryptSetting('image', base64Of(new TextEncoder().encode('MZ executable')))), 'The map image in the file is not a PNG, WebP or JPEG image.'],
     ['holds an image whose header ends early', () => uvttFile(cryptSetting('image', base64Of(pngHeader(1000, 800).slice(0, 12)))), 'The map image in the file could not be read.'],
     ['holds an image of another shape than the map', () => uvttFile(cryptSetting('image', base64Of(pngHeader(1000, 1000)))), 'The map image is 1000 × 1000 pixels, which does not fit a map of 10 × 8 squares.'],
+    ['holds an image with too few pixels for its grid', () => uvttFile(cryptWith((crypt) => {
+      crypt.resolution = { map_size: { x: 400, y: 300 }, pixels_per_grid: 2 };
+      crypt.image = base64Of(pngHeader(800, 600));
+    })), 'The map image is too small for its grid: 800 × 600 pixels for 400 × 300 squares.'],
     ['holds an image too large to decode', () => uvttFile(cryptSetting('image', base64Of(pngHeader(40_000, 32_000)))), 'The map image is larger than 16,384 pixels on a side.'],
   ];
 
@@ -282,6 +304,16 @@ describe('a Universal VTT file that is refused', () => {
     b.convertImage.mockImplementation(async () => converted(new Blob([pngHeader(640, 640)])));
 
     expect(problemOf(await importUvttFile(b.deps, uvttFile(cryptFile()), COLLECTION))).toBe('The map image is 640 × 640 pixels, which does not fit a map of 10 × 8 squares.');
+
+    expect(filesOf(b)).toEqual(before);
+  });
+
+  it('when the saved image has too few pixels for its grid, changes nothing', async () => {
+    const b = await bench();
+    const before = filesOf(b);
+    b.convertImage.mockImplementation(async () => converted(new Blob([pngHeader(50, 40)])));
+
+    expect(problemOf(await importUvttFile(b.deps, uvttFile(cryptFile()), COLLECTION))).toBe('The map image is too small for its grid: 50 × 40 pixels for 10 × 8 squares.');
 
     expect(filesOf(b)).toEqual(before);
   });

@@ -1,6 +1,7 @@
 import { normalizePath, type App } from 'obsidian';
 import { resolveMeasurementSettings } from '../../grid/measurementFormat';
 import { imageDimensions } from '../../imageProcessing/imageDimensions';
+import type { Size } from '../../imageProcessing/imageLayout';
 import type { ProcessedImage } from '../../imageProcessing/imageProcessing';
 import type { ScaleDown } from '../../imageProcessing/imageJob';
 import { AssetService, type CollectionMetadata, type MapAsset, type SceneAsset } from '../../services/AssetService';
@@ -13,7 +14,7 @@ import { JSON_FOLDERS, defaultJsonPath } from '../../services/vault-sync/assetFi
 import { UVTT_TOO_LARGE, parseUvtt } from './parseUvtt';
 import { uvttSceneName } from './uvttFileNames';
 import { uvttCellSize, uvttToScene, type UvttCounts, type UvttScene } from './uvttToScene';
-import { UVTT_LIMITS, type UvttMap } from './uvttTypes';
+import { UVTT_LIMITS, type UvttMap, type UvttRefusal } from './uvttTypes';
 
 export interface UvttImportDeps {
   app: App;
@@ -35,19 +36,23 @@ export interface UvttImported {
   scaledDown?: ScaleDown;
 }
 
-export type UvttImportResult = UvttImported | { ok: false; problem: string };
+export type UvttImportResult = UvttImported | UvttRefusal;
 
-interface Size {
-  width: number;
-  height: number;
-}
-
-const refused = (problem: string): { ok: false; problem: string } => ({ ok: false, problem });
+const refused = (problem: string): UvttRefusal => ({ ok: false, problem });
 
 const UNREADABLE_IMAGE = 'The map image in the file could not be read.';
 
-function misfit(map: UvttMap, image: Size): string {
-  return `The map image is ${image.width} × ${image.height} pixels, which does not fit a map of ${map.size.x} × ${map.size.y} squares.`;
+/**
+ * World pixels a cell of the map spans on an image of `image` pixels, or why that image cannot
+ * carry the map's grid: its cells would not be square, or too small to be a grid at all.
+ */
+function cellSizeOn(map: UvttMap, image: Size): number | UvttRefusal {
+  const pixels = `${image.width} × ${image.height} pixels`;
+  const squares = `${map.size.x} × ${map.size.y} squares`;
+  const cellSize = uvttCellSize(map, image);
+  if (cellSize === null) return refused(`The map image is ${pixels}, which does not fit a map of ${squares}.`);
+  if (cellSize < UVTT_LIMITS.cellPixels) return refused(`The map image is too small for its grid: ${pixels} for ${squares}.`);
+  return cellSize;
 }
 
 /** The first of `base`, `base 2`, `base 3`… no scene file in `folder` carries, however its letters are cased. */
@@ -65,7 +70,7 @@ interface ImportPlan {
   scene: UvttScene;
 }
 
-type Written = { ok: true; name: string; scenePath: string } | { ok: false; problem: string };
+type Written = { ok: true; name: string; scenePath: string } | UvttRefusal;
 
 /**
  * Writes the map and its scene: the image and its thumbnail, the scene file, and both records in
@@ -132,7 +137,8 @@ async function importFile(deps: UvttImportDeps, file: File, collectionId: string
   if (Math.max(sourceSize.width, sourceSize.height) > UVTT_LIMITS.imageSide) {
     return refused(`The map image is larger than ${UVTT_LIMITS.imageSide.toLocaleString('en-US')} pixels on a side.`);
   }
-  if (uvttCellSize(map, sourceSize) === null) return refused(misfit(map, sourceSize));
+  const sourceCell = cellSizeOn(map, sourceSize);
+  if (typeof sourceCell !== 'number') return sourceCell;
 
   const collection = await deps.assetService.getCollection(collectionId);
   if (!collection) return refused('The collection no longer exists. Choose another collection and try again.');
@@ -146,8 +152,8 @@ async function importFile(deps: UvttImportDeps, file: File, collectionId: string
   }
   // The size the scene shows the image at: the saved image's own, which a large map's was scaled down to
   const size = (await imageDimensions(image.image)) ?? image.scaledDown?.to ?? sourceSize;
-  const cellSize = uvttCellSize(map, size);
-  if (cellSize === null) return refused(misfit(map, size));
+  const cellSize = cellSizeOn(map, size);
+  if (typeof cellSize !== 'number') return cellSize;
 
   const settings = deps.assetService.getCollectionSettings(collection.id);
   const scene = uvttToScene(map, { cellSize, unit: resolveMeasurementSettings(settings.gridDefaults, null) });

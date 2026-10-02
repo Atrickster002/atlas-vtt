@@ -12,11 +12,13 @@ export const UVTT_LIMITS = {
   /** Wall segments and doors together. */
   wallSegments: 20_000,
   lights: 2_000,
-  /** Cells along one side of the map. */
+  /** Cells along one side of the map, and at least one. */
   mapCells: 4_096,
   pixelsPerCell: 4_096,
-  /** Farthest a position or a light's range may lie from the map's origin, in cells. */
-  distance: 100_000,
+  /** Pixels of the image a cell spans at least; smaller cells hold no token and a grid of them no map. */
+  cellPixels: 10,
+  /** Largest coordinate of a position, and longest range of a light, in cells: four times the largest map. */
+  distance: 16_384,
   /** Pixels along one side of the map image. */
   imageSide: 16_384,
 } as const;
@@ -67,7 +69,10 @@ export interface UvttMap {
   bakedLighting: boolean;
 }
 
-export type UvttParseResult =
-  | { ok: true; map: UvttMap }
-  /** `problem` says in plain words why the file is refused. */
-  | { ok: false; problem: string };
+/** `problem` says in plain words why the file is refused. */
+export interface UvttRefusal {
+  ok: false;
+  problem: string;
+}
+
+export type UvttParseResult = { ok: true; map: UvttMap } | UvttRefusal;
