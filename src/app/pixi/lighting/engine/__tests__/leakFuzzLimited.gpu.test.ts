@@ -31,7 +31,7 @@ interface Report {
   walled: number;
   /** Pixels past the second ring, and those lit, seen, seen by darkvision, shown as a footprint, remembered, or changed by a darkness. */
   checked: number;
-  /** Of those, the pixels a way reaches that crossed the ring where it runs together with a wall of the room: one hedge. */
+  /** Of every sixteenth of those, the pixels a way reaches that crossed the ring where it runs together with a wall of the room: one hedge. */
   oneHedge: number;
   lightLeaks: number;
   sightLeaks: number;
@@ -66,7 +66,8 @@ const sum = (pixels: Uint8ClampedArray, o: number): number => pixels[o]! + pixel
  * limited, its outline (with its doors and one-way walls) and the chains across it, and a
  * second ring stands around the room, the outline again a third larger: limited walls for one
  * room, solid ones for the next (both ways, where the room's own block one way). The lights
- * and the tokens stand in the room.
+ * and the tokens stand in the room; in every other room the lights are tokens' lights, and in
+ * every third they were moved there.
  *
  * Nothing passes the ring: no light, no sight, no darkvision, no footprint, no memory, and no
  * darkness beyond the ring's core. That is the second limited wall on every way out (its
@@ -108,7 +109,8 @@ async function fuzz({ seed, trials, open = false, bounds = { width: 2048, height
       const outer = ringWalls.flatMap((wall): P[] => [[wall.p1.x, wall.p1.y], [wall.p2.x, wall.p2.y]]);
       const lights: EngineLight[] = room.lights.map(([lx, ly], i) => {
         const dim = 250 + rand() * 600;
-        return { key: `l${i}`, x: lx, y: ly, bright: dim / 2, dim, flame: 2 + rand() * 90, color: [1, 1, 1], intensity: 1, animation: 'none' };
+        // Half the rooms' lights are carried by tokens, behind a ring of either sort.
+        return { key: report.rooms % 4 < 2 ? `token:t${i}` : `l${i}`, x: lx, y: ly, bright: dim / 2, dim, flame: 2 + rand() * 90, color: [1, 1, 1], intensity: 1, animation: 'none' };
       });
       const [first] = room.lights;
       const scale = 0.2 + rand() * 2;
@@ -123,6 +125,8 @@ async function fuzz({ seed, trials, open = false, bounds = { width: 2048, height
       };
       engine.setExplored(blank.texture);
       const sight = computeSight(sources, shown);
+      // In every third room the lights come from elsewhere: their tiles are built a second time where they stand.
+      if (report.rooms % 3 === 0) shoot({ lights: lights.map((light) => ({ ...light, x: light.x + 41, y: light.y - 29 })) });
       const lit = shoot({ lights });
       // The light itself, without its bounce: no texel past the ring is lit that no light reaches by the count.
       const turning = turningPoints(walls);
@@ -176,13 +180,14 @@ async function fuzz({ seed, trials, open = false, bounds = { width: 2048, height
               const way = crossedByHand(from, { x: p[0], y: p[1] }, walls, channel);
               return (!way.solid && way.limited < 2) || grazes(from, { x: p[0], y: p[1] }, turning, clear);
             };
-            const sightPasses = sources.some((source) => passes(source.origin, 'sight', filter + 1));
-            if (sources.some((source) => passes(source.origin, 'sight', 0))) report.oneHedge++;
+            // Asked only where a picture shows something, and for the count of such pixels at every fourth in each direction.
+            const sightPasses = (): boolean => sources.some((source) => passes(source.origin, 'sight', filter + 1));
+            if (sx % 4 === 0 && sy % 4 === 0 && sources.some((source) => passes(source.origin, 'sight', 0))) report.oneHedge++;
             // The picture's light has its bounce in it, which spreads from wherever the light itself came to.
             if (sum(lit, o) > 0) pictureLit++;
             if (d > filter) {
-              if (!sightPasses && sum(seen, o) > 0) report.sightLeaks++;
-              if (!sightPasses && sum(sensed, o) > 0) report.senseLeaks++;
+              if (sum(seen, o) > 0 && !sightPasses()) report.sightLeaks++;
+              if (sum(sensed, o) > 0 && !sightPasses()) report.senseLeaks++;
               if (sum(spotted, o) > 0 && !spots.some((spot) => passes(spot, 'sight', filter + 1))) report.spotLeaks++;
             }
             if (d > memoryBound && sum(remembered, o) > 0 && !passes(sources[0]!.origin, 'sight', memoryBound + 1)) report.memoryLeaks++;
@@ -256,7 +261,7 @@ describe('leak fuzz: limited walls', () => {
   });
 
   it('finds light, sight and memory past a ring the engine was not told of (the checks can fail)', async () => {
-    const report = await fuzz({ seed: 29, trials: 24, open: true });
+    const report = await fuzz({ seed: 29, trials: 14, open: true });
     console.info(`negative control (limited walls): ${JSON.stringify(report)}`);
     expect(report.lightLeaks).toBeGreaterThan(100);
     expect(report.sightLeaks).toBeGreaterThan(100);
