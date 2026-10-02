@@ -84,3 +84,4 @@
 - A scene keeps its thumbnail when the graphics device resets or the scene could not be opened again, instead of getting a blank or outdated one
 - Exporting a collection now packs its loot tables: the bases picked in the collection's Loot settings and every item note they list. An import puts them into the collection's folder, where the loot roller finds them again. Before, the importing vault got the setting without the base or its items
 - Dropdowns have the same background as text fields. Before, they took the colour of the panel around them, which set them apart from the fields beside them in dark mode and in themes that colour their fields
+- The collection settings stay in place when a tab grows long enough to scroll. Before, the scrollbar pushed the whole tab to the left

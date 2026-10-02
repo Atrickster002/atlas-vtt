@@ -39,6 +39,7 @@ import { useCollectionCreatures } from './collection-settings/useCollectionCreat
 import { isCompleteCreatureFilter } from '../../creatures/creatureFilterDefinitions';
 import { areRangeBandsValid } from '../../grid/measurementFormat';
 
+import { SettingsContent } from './collection-settings/SettingsContent';
 import { CloseButton } from '../../packages/components/primitives/CloseButton';
 import { dialogOverlayMotion, useDialogWindowVariants } from '../../packages/components/primitives/dialogMotion';
 
@@ -198,7 +199,7 @@ export function CollectionSettingsModal({
           </nav>
 
           {/* Tab content */}
-          <div className="atlas-collection-settings-content">
+          <SettingsContent>
             {activeTab === 'system' && systemPresets.service && (
               <SystemTab
                 service={systemPresets.service}
@@ -275,7 +276,7 @@ export function CollectionSettingsModal({
                 onCurrencyChange={draft.setLootCurrency}
               />
             )}
-          </div>
+          </SettingsContent>
         </div>
 
         {/* Footer */}
