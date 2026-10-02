@@ -1,7 +1,7 @@
 /// <reference types="vite/client" />
 import { RenderTexture } from 'pixi.js';
 import { describe, expect, it, vi } from 'vitest';
-import { LIGHT_REACH, sealTolerance, wallBand, wallCore, worldTexel } from '../../../../lighting/lightingConstants';
+import { sealTolerance, wallBand, wallCore, worldTexel } from '../../../../lighting/lightingConstants';
 import { placeLight } from '../../../../lighting/lightPlacement';
 import { sealWalls } from '../../../../lighting/sealWalls';
 import { allSegments, concerns, splitBlocking } from '../../../../lighting/segments';

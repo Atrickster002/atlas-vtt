@@ -161,7 +161,7 @@ describe('limited walls in the picture', () => {
           const at: P = [((i / 4) % width) * 2 + 1, Math.floor(i / 4 / width) * 2 + 1];
           if (insidePolygon(at, outer)) lit++;
           // A texel within the wall's own width of the ring is the wall's, as with any wall.
-          else if (distToOutline(at, outer) > 3) stray.push(`${rooms}: ${at}`);
+          else if (distToOutline(at, outer) > 3) stray.push(`${rooms}: ${at.join(',')}`);
         }
       }
     }
