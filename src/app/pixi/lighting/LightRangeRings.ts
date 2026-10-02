@@ -1,3 +1,4 @@
+import { readLight } from '../../lighting/lightingObjects';
 import { Container, Graphics } from 'pixi.js';
 import type { Viewport } from 'pixi-viewport';
 import type { MeasurementSettings } from '../../grid/measurementFormat';
@@ -118,7 +119,7 @@ export class LightRangeRings {
   }
 
   private shownLight(): LightSource | null {
-    return this.lightId ? this.store.getState().objects.lights[this.lightId] ?? null : null;
+    return this.lightId ? readLight(this.store.getState().objects.lights[this.lightId]) : null;
   }
 
   /** The popover opened, moved to another light or closed. */

@@ -1,3 +1,4 @@
+import { readLight, readWall } from '../../lighting/lightingObjects';
 import type { ViewAtlasStore } from '../../storeFactory';
 import { openContextMenuGlobal, type ContextMenuEntry } from '../../react/root/ContextMenuContext';
 import type { WallInteraction } from '../vision/WallInteraction';
@@ -12,7 +13,7 @@ export interface LightingMenuContext {
 }
 
 export function showLightMenu(context: LightingMenuContext, lightId: string, screenX: number, screenY: number): void {
-  const light = context.store.getState().objects.lights[lightId];
+  const light = readLight(context.store.getState().objects.lights[lightId]);
   if (!light) return;
   const entries: ContextMenuEntry[] = [
     { type: 'item', label: 'Configure light…', icon: 'settings', onClick: () => context.store.getState().openLightPopover(lightId) },
@@ -29,7 +30,7 @@ export function showLightMenu(context: LightingMenuContext, lightId: string, scr
 
 /** What a door offers: to open or close it, and to lock it; a locked door only to unlock it. Nothing for a wall that is no door. */
 export function doorMenuEntries(store: ViewAtlasStore, wallId: string): ContextMenuEntry[] {
-  const wall = store.getState().objects.walls[wallId];
+  const wall = readWall(store.getState().objects.walls[wallId]);
   if (!wall || (wall.type !== 'door' && wall.type !== 'secret-door')) return [];
   if (wall.locked) return [{ type: 'item', label: 'Unlock door', icon: 'lock-open', onClick: () => store.getState().setDoorLocked(wallId, false) }];
   const closed = wall.closed ?? true;

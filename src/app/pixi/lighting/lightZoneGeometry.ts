@@ -1,3 +1,4 @@
+import { wallList } from '../../vision/wallList';
 import { zoneHandlePoint } from '../../lighting/lightZones';
 import type { LightZone } from '../../types/lightingTypes';
 import type { Point } from '../../types/visionTypes';
@@ -43,7 +44,7 @@ export function zoneHandleAt(zones: readonly LightZone[], point: Point, zoom: nu
 
 /** `point`, or the wall end it lies close to: a zone drawn along walls ends exactly on them. */
 export function snapToWallEnd(point: Point, walls: Record<string, WallSegment>, zoom: number): Point {
-  const ends = Object.values(walls).flatMap((wall): [Point, Point][] => [[wall.p1, wall.p1], [wall.p2, wall.p2]]);
+  const ends = wallList(walls).flatMap((wall): [Point, Point][] => [[wall.p1, wall.p1], [wall.p2, wall.p2]]);
   return nearest(ends, point, SNAP / zoom) ?? point;
 }
 
