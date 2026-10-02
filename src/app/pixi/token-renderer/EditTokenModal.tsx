@@ -17,6 +17,7 @@ import { NumberOverrideField, parseNumberInput } from './NumberOverrideField';
 import { buildResourceEdits } from '../../resources/resourceEdits';
 import type { ResourceDefinition, ResourceValue } from '../../resources/resourceTypes';
 import { startingResources } from '../../resources/statblockResourceValues';
+import { handledByAnotherControl } from '../../keyboard/tooltipEscape';
 import { TokenLightingFields, type TokenLightingContext } from './TokenLightingFields';
 import { WALLS_AND_LIGHTING_ENABLED } from '../../featureFlags';
 import { unitLabelFor } from '../../grid/measurementFormat';
@@ -82,7 +83,7 @@ function EditTokenModalInner({ initial, definitions, resourceDefaults, lighting,
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent): void => {
       // A control that took the key itself (a switch, an open list) has prevented the default.
-      if (e.defaultPrevented) return;
+      if (handledByAnotherControl(e)) return;
       if (e.key === 'Escape') {
         e.preventDefault();
         e.stopPropagation();

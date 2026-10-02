@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { SettingsService } from '../../src/app/services/SettingsService';
 import { hotkeyFromEvent, formatHotkey, matchesHotkey, canRunMapHotkeys, canShareHotkey, MAP_HOTKEYS } from '../../src/app/keyboard/mapHotkeys';
+import { handledByAnotherControl, noteTooltipDismissal } from '../../src/app/keyboard/tooltipEscape';
 
 function service() {
   const files = new Map<string, string>();
@@ -67,6 +68,22 @@ describe('map hotkeys', () => {
     expect(canRunMapHotkeys(event, 'map-one')).toBe(false);
     const modal = document.createElement('div'); modal.className = 'atlas-asset-manager-modal'; document.body.append(modal);
     expect(canRunMapHotkeys(new KeyboardEvent('keydown'), 'map-one')).toBe(false);
+  });
+  it('runs for an Escape a tooltip took to close itself, and not for one a control used', () => {
+    document.body.innerHTML = '<div class="workspace-leaf mod-active"><div data-view-id="map-one"></div></div>';
+    const escape = (): KeyboardEvent => new KeyboardEvent('keydown', { key: 'Escape', cancelable: true });
+    // A tooltip closes on Escape and prevents the key's default, as a list that closes itself does.
+    const byTooltip = escape();
+    noteTooltipDismissal(byTooltip);
+    byTooltip.preventDefault();
+    expect(byTooltip.defaultPrevented).toBe(true);
+    expect(handledByAnotherControl(byTooltip)).toBe(false);
+    expect(canRunMapHotkeys(byTooltip, 'map-one')).toBe(true);
+    const byControl = escape();
+    byControl.preventDefault();
+    expect(handledByAnotherControl(byControl)).toBe(true);
+    expect(canRunMapHotkeys(byControl, 'map-one')).toBe(false);
+    expect(handledByAnotherControl(escape())).toBe(false);
   });
   it('has no conflicting default bindings', () => {
     const clashes = MAP_HOTKEYS.flatMap((a, i) => MAP_HOTKEYS.slice(i + 1)

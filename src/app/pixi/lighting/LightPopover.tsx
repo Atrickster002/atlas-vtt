@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useId, useMemo, useRef } from 'react';
 import { AnimatePresence, motion, useIsPresent } from 'framer-motion';
 import { Lightbulb, LightbulbOff, Trash2 } from 'lucide-react';
 import { unitLabelFor } from '../../grid/measurementFormat';
+import { handledByAnotherControl } from '../../keyboard/tooltipEscape';
 import { LIGHT_SCHEDULES, scheduleOf } from '../../lighting/lightActivity';
 import { unitScaleOf } from '../../lighting/lightingUnits';
 import { maxLightRange } from '../../lighting/lightRanges';
@@ -94,7 +95,7 @@ function LightPopover({ lightId }: { lightId: string }): React.ReactElement | nu
         if (event.key === 'Escape') {
           event.stopPropagation();
           // A list inside (the flicker select, the menu of more lights) closed itself with this key.
-          if (!event.defaultPrevented) close();
+          if (!handledByAnotherControl(event.nativeEvent)) close();
         } else if (OWN_KEYS.has(event.key)) {
           event.stopPropagation();
         }

@@ -1,5 +1,6 @@
 import { AMBIENT_AUDIO_ENABLED, WALLS_AND_LIGHTING_ENABLED } from '../featureFlags';
 import { isActiveAtlasLeaf } from '../utils/activeLeafGuard';
+import { handledByAnotherControl } from './tooltipEscape';
 import type { SettingsService } from '../services/SettingsService';
 
 export const MAP_HOTKEYS = [
@@ -82,7 +83,7 @@ export function formatHotkey(binding: string): string {
   return binding ? binding.replace(/Mod\+/g, 'Ctrl/Cmd + ').replace(/Shift\+/g, 'Shift + ').replace(/Alt\+/g, 'Alt + ').replace(/(^| \+ )([a-z])$/, (_, prefix: string, key: string) => prefix + key.toUpperCase()) : 'Unassigned';
 }
 export function canRunMapHotkeys(event: KeyboardEvent, viewId?: string): boolean {
-  if (event.defaultPrevented || event.isComposing || !isActiveAtlasLeaf(viewId)) return false;
+  if (handledByAnotherControl(event) || event.isComposing || !isActiveAtlasLeaf(viewId)) return false;
   const target = event.target as Element | null;
   if (target?.closest?.('input, textarea, select, [contenteditable]:not([contenteditable="false"]), .cm-editor, [role="textbox"]')) return false;
   if (document.querySelector('.modal-container, .prompt, .suggestion-container, .menu, .atlas-asset-manager-modal, .atlas-command-palette-overlay, .atlas-onboarding-overlay, .atlas-hotkey-help, .atlas-text-dialog-backdrop, .atlas-dm-screen-wrapper, .atlas-grid-alignment-panel, [aria-modal="true"]')) return false;

@@ -57,6 +57,7 @@
 
 ## Fixed
 
+- Escape closes a light's settings, clears the selection or cancels a wall being drawn even while a tooltip is showing. Before, the first Escape closed only the tooltip
 - Explored areas stay on the players' screen while a token stands in them in the dark. Before, a remembered room turned black as soon as a token had it in its line of sight without light, and showed again from behind a wall; a thin grey line also ran along the edges of shadows
 - An SVG map you add is drawn at the full map size of 8192 pixels instead of 2048, so it stays sharp when you zoom in. Add an SVG map from before again to get it at that size
 - The DM screen shows its statblocks side by side again. As many columns as fit share the space, and each statblock goes into the column with the first free space, so no column stays empty

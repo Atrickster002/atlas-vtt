@@ -1,7 +1,10 @@
-import { act, cleanup, fireEvent, screen, waitFor } from '@testing-library/react';
+import React from 'react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MotionGlobalConfig } from 'framer-motion';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { popover, renderPopover } from '../mocks/lightPopoverHarness';
+import { handledByAnotherControl, noteTooltipDismissal } from '../../src/app/keyboard/tooltipEscape';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../../src/app/packages/components/primitives/tooltip';
 import type { LightKind } from '../../src/app/types/lightingTypes';
 
 beforeAll(() => {
@@ -203,6 +206,34 @@ describe('LightPopover', () => {
     fireEvent.keyDown(screen.getByRole('button', { name: 'Torch' }), { key: 'Escape' });
     expect(store.getState().lightPopover).toBeNull();
     expect(mapKeys).not.toHaveBeenCalled();
+  });
+
+  it('closes on an Escape that a tooltip took to close itself, and stays open on one a list inside used', () => {
+    const { store, torch } = renderPopover();
+    const press = (note: boolean): void => {
+      // What listens before the popover (a tooltip's layer, a list inside) prevents the key's default.
+      const first = (event: Event): void => {
+        if (note) noteTooltipDismissal(event);
+        event.preventDefault();
+      };
+      document.addEventListener('keydown', first, true);
+      fireEvent.keyDown(popover(), { key: 'Escape' });
+      document.removeEventListener('keydown', first, true);
+    };
+    press(false);
+    expect(store.getState().lightPopover).toBe(torch);
+    press(true);
+    expect(store.getState().lightPopover).toBeNull();
+  });
+
+  it('shows a tooltip that closes on Escape and marks the key as its own', () => {
+    render(<TooltipProvider><Tooltip open><TooltipTrigger>Trigger</TooltipTrigger><TooltipContent>Tip</TooltipContent></Tooltip></TooltipProvider>);
+    const seen: boolean[] = [];
+    const after = (event: Event): void => { seen.push(event.defaultPrevented, handledByAnotherControl(event)); };
+    document.addEventListener('keydown', after);
+    fireEvent.keyDown(document.body, { key: 'Escape' });
+    document.removeEventListener('keydown', after);
+    expect(seen).toEqual([true, false]);
   });
 
   it('keeps Tab, Space and the arrows to its controls, and lets undo through to the map', () => {

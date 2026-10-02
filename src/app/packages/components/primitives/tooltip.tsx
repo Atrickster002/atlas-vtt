@@ -4,6 +4,7 @@ import * as React from "react"
 import * as TooltipPrimitive from "@radix-ui/react-tooltip"
 
 import { cn } from "src/utils/cn"
+import { noteTooltipDismissal } from "../../../keyboard/tooltipEscape"
 import "./tooltip.css"
 
 const ProviderMounted = React.createContext(false)
@@ -23,13 +24,18 @@ const TooltipTrigger = TooltipPrimitive.Trigger
 const TooltipContent = React.forwardRef<
   React.ComponentRef<typeof TooltipPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof TooltipPrimitive.Content>
->(({ className, sideOffset = 4, ...props }, ref) => (
+>(({ className, sideOffset = 4, onEscapeKeyDown, ...props }, ref) => (
   <TooltipPrimitive.Portal>
     <TooltipPrimitive.Content
       ref={ref}
       sideOffset={sideOffset}
       className={cn("tooltip-content", className)}
       {...props}
+      // The tooltip closes on Escape and prevents the key's default; whoever else listens must not take that for a control that used the key.
+      onEscapeKeyDown={(event) => {
+        noteTooltipDismissal(event)
+        onEscapeKeyDown?.(event)
+      }}
     />
   </TooltipPrimitive.Portal>
 ))
