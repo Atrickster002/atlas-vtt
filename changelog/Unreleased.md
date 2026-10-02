@@ -12,6 +12,7 @@
 - Set a default vision per collection, in a new Vision tab of the collection settings: sight range, cone and senses. Tokens you place from the library start with it, with vision still switched off, and a game system can bring its own defaults.
 - Open Lighting settings from the lighting menu to adjust a scene: switch token vision off so players see everything the light shows, stop remembering explored areas (what was already explored comes back when you switch it on again), pick the colours of explored and unexplored areas, and choose from which brightness a scene counts as lit.
 - Tint a scene's ambient light with the colour swatch next to the Ambient light slider in the lighting menu.
+- Choose how darkvision looks in a scene, in Lighting settings: as the game system says, grey, or in the map's own colours. Grey and colour apply to every sense that shows the dark without colour, such as Pathfinder's black and white darkvision and infravision's heat tones. A tint colours the look, green for night-vision goggles for example, and None takes it back.
 - Areas the players have explored stay on their screen, dim and grey, and are saved with the scene. Forget them from the Lighting tool's menu.
 - The GM sees the whole map with its lighting. Hold H, or switch from GM view to session view, to see exactly what the players see.
 - Open and close doors by clicking the door badges, with any tool. Right-click a badge to lock the door: a locked door shows a padlock, stays shut when clicked and shakes its badge instead, until you unlock it the same way.
