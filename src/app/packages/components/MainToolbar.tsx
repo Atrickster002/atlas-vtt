@@ -177,10 +177,10 @@ export const MainToolbar = forwardRef<HTMLDivElement, MainToolbarProps>(({ viewI
       ? [toolGroupItem('text', textToolFace(activeTool), hotkeyLabel('text'), <TextToolGroup {...groupControls('text')} />)]
       : []),
     toolGroupItem('measure', measureToolFace(activeTool), hotkeyLabel('measure'), <MeasureToolGroup {...groupControls('measure')} />),
-    ...(dm ? [toolButtonItem('pin', "note-pin", MapPin, "Note Pin Tool", hotkeyLabel('pin'))] : []),
     ...(dm && WALLS_AND_LIGHTING_ENABLED
       ? [toolGroupItem('wall', lightingToolFace(activeTool), hotkeyLabel('wall'), <LightingToolGroup {...groupControls('wall')} />)]
       : []),
+    ...(dm ? [toolButtonItem('pin', "note-pin", MapPin, "Note Pin Tool", hotkeyLabel('pin'))] : []),
     ...(dm && AMBIENT_AUDIO_ENABLED
       ? [toolButtonItem('audio', "audio", Volume2, "Ambient Sound", hotkeyLabel('audio'))]
       : []),
