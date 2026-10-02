@@ -61,7 +61,7 @@ export function LightingToolGroup({ activeTool, selectTool, menuOpen, toggleMenu
     emit('wall-submode-changed', 'draw')
   }, [emit])
   const face = lightingToolFace(activeTool)
-  // Explored memory is edited only on a lit scene that remembers: without one the mode is not offered, and the tool leaves it.
+  // Explored memory is edited only on a lit scene that remembers: without one the mode's row is disabled, and the tool leaves it.
   const memoryEditable = exploredMemoryEditable(lighting)
   useEffect(() => {
     if (memoryEditable || subMode !== 'explored-memory') return
@@ -79,7 +79,7 @@ export function LightingToolGroup({ activeTool, selectTool, menuOpen, toggleMenu
       onMenuToggle={toggleMenu}
     >
       <div className="atlas-dropdown-section">
-        {SUB_MODES.filter(({ value }) => value !== 'explored-memory' || memoryEditable).map(({ value, icon, label }) => (
+        {SUB_MODES.map(({ value, icon, label }) => (
           <DropdownMenuItem
             key={value}
             icon={icon}
@@ -87,6 +87,7 @@ export function LightingToolGroup({ activeTool, selectTool, menuOpen, toggleMenu
             // The tool's key selects it with what it did last.
             {...(value === subMode && { shortcut: hotkeyLabel('wall') })}
             isActive={face.isActive && value === subMode}
+            disabled={value === 'explored-memory' && !memoryEditable}
             onClick={() => {
               setSubMode(value)
               emit('wall-submode-changed', value)

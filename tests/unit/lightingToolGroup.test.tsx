@@ -197,15 +197,31 @@ describe('LightingToolGroup', () => {
     expect(closeMenu).toHaveBeenCalledTimes(2);
   });
 
-  it('offers the explored-memory mode only on a lit scene that remembers', () => {
-    const { store } = renderGroup('wall');
-    expect(screen.queryByText('Explored memory')).toBeNull();
+  it('always shows the explored-memory mode, to be chosen only on a lit scene that remembers', () => {
+    const { store, selectTool, events } = renderGroup('wall');
+    expect(row('Explored memory').disabled).toBe(true);
+    fireEvent.click(row('Explored memory'));
+    expect(selectTool).not.toHaveBeenCalled();
+    expect(events).not.toContainEqual(['wall-submode-changed', 'explored-memory']);
     act(() => store.getState().setSceneLighting({ enabled: true }));
-    row('Explored memory');
+    expect(row('Explored memory').disabled).toBe(false);
     act(() => store.getState().setSceneLighting({ exploredMemory: false }));
-    expect(screen.queryByText('Explored memory')).toBeNull();
+    expect(row('Explored memory').disabled).toBe(true);
     act(() => store.getState().setSceneLighting({ exploredMemory: true }));
-    row('Explored memory');
+    expect(row('Explored memory').disabled).toBe(false);
+  });
+
+  it('keeps its rows when the scene\'s lighting is switched on or off: only what can be used changes', () => {
+    const { store } = renderGroup('wall');
+    const rows = (): (string | null)[] => [...document.querySelectorAll('.atlas-dropdown-menu-item, .atlas-dropdown-toggle-row, .atlas-segmented, .atlas-dropdown-slider-row')].map((item) => item.textContent);
+    const off = rows();
+    expect(off).toContain('Forget explored areas');
+    expect(off).toContain('Lighting settings…');
+    expect(row('Lighting settings…').disabled).toBe(true);
+    for (const label of ['Draw walls', 'Place lights', 'Light zones', 'Point to point', 'Freehand']) expect(row(label).disabled).toBe(false);
+    act(() => store.getState().setSceneLighting({ enabled: true }));
+    expect(rows()).toEqual(off);
+    expect(row('Lighting settings…').disabled).toBe(false);
   });
 
   it('switches to editing explored memory: reveal with the brush, until the menu says otherwise', () => {
