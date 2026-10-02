@@ -16,6 +16,7 @@ import { HP_RESOURCE, sameResourceDefinitions } from '../resources/resourceDefin
 import { barWidgets } from '../resources/sceneVisibility';
 import { conditionEffect } from './conditionEffects';
 import { DEFAULT_DICE_RULES, sameDiceRules } from './diceRules';
+import { sameInitiativeRules } from './initiativeRules';
 import { sameLightPresets } from './lightPresetRules';
 import { sameSenses } from './senseRules';
 import { hasVisionDefaults, sameVisionDefaults } from './visionDefaults';
@@ -31,12 +32,12 @@ export const DEFAULT_GRID_DEFAULTS: Readonly<CollectionGridDefaults> = {
 
 /** What a game system sets in a collection's settings. */
 export type SystemSettings = Required<Pick<CollectionSettings, 'gridDefaults' | 'conditions' | 'defaultWidgets' | 'dice' | 'resources'>>
-  & Pick<CollectionSettings, 'systemPresetId' | 'defaultTokenVision' | 'senses' | 'lightPresets'>;
+  & Pick<CollectionSettings, 'systemPresetId' | 'defaultTokenVision' | 'senses' | 'lightPresets' | 'initiative'>;
 
 /**
  * A collection without a game system: default measurement and dice, HP as its only resource
  * (its bar on for new scenes), no conditions, no default widgets, no default vision, and no
- * senses or light presets of its own, so it uses the generic ones.
+ * senses, light presets or initiative rules of its own, so it uses the generic ones.
  */
 export function vanillaSystemSettings(): SystemSettings {
   return {
@@ -49,6 +50,7 @@ export function vanillaSystemSettings(): SystemSettings {
     defaultTokenVision: undefined,
     senses: undefined,
     lightPresets: undefined,
+    initiative: undefined,
   };
 }
 
@@ -58,7 +60,8 @@ export function vanillaSystemSettings(): SystemSettings {
  * from the previous system never carry over; the ones tokens still have are removed when the
  * collection is saved. Senses are not copied: the collection reads its preset's
  * (`collectionSenses`) until the GM edits them, so a corrected built-in sense reaches it; its
- * light presets are read the same way (`collectionLightPresets`).
+ * light presets and initiative rules are read the same way (`collectionLightPresets`,
+ * `collectionInitiativeRules`).
  */
 export function rulesOfPreset(
   preset: SystemPreset,
@@ -104,7 +107,8 @@ function enabledWidgets(defaultWidgets: Record<string, boolean> | undefined): st
 
 /**
  * Whether a collection's `rules` play as `preset` does; condition ids do not matter. Rules
- * without senses or light presets of their own read the preset's, so they are the same in that.
+ * without senses, light presets or initiative rules of their own read the preset's, so they are
+ * the same in that.
  */
 export function sameSystemRules(preset: SystemRules, rules: SystemRules): boolean {
   return sameGridDefaults(preset.gridDefaults, rules.gridDefaults)
@@ -114,6 +118,7 @@ export function sameSystemRules(preset: SystemRules, rules: SystemRules): boolea
     && sameVisionDefaults(preset.defaultTokenVision, rules.defaultTokenVision)
     && (rules.senses === undefined || sameSenses(preset.senses, rules.senses))
     && (rules.lightPresets === undefined || sameLightPresets(preset.lightPresets, rules.lightPresets))
+    && (rules.initiative === undefined || sameInitiativeRules(preset.initiative, rules.initiative))
     && preset.conditions.length === rules.conditions.length
     && preset.conditions.every((condition, i) => sameCondition(condition, rules.conditions[i]!));
 }
