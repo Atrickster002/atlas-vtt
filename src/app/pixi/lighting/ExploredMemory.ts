@@ -160,16 +160,18 @@ export class ExploredMemory {
    * The store's count of edits changed without an edit here: undo or redo. Each step between is
    * taken back or made again on the texture. A load starts the count over too, which takes no
    * edit back; and where the texture cannot be written (a lost context, an engine that
-   * stopped), nothing is saved and no one is told.
+   * stopped) or the steps are gone (the guard found a restored context, which forgets them),
+   * nothing is saved and no one is told.
    */
   private follow(count: number, loading: boolean): void {
     if (count === this.revision) return;
     const from = this.revision;
     this.revision = count;
     const texture = this.texture;
-    if (!texture || loading || this.contextLost || !this.steps.leads(from, count)) return;
+    if (!texture || loading) return;
     let travelled = false;
     this.deps.guard(() => {
+      if (!this.steps.leads(from, count)) return;
       this.steps.travel(texture, from, count);
       travelled = true;
       this.deps.onChange();
@@ -188,6 +190,12 @@ export class ExploredMemory {
     if (this.steps.size === 0) return;
     this.steps.clear();
     forgetExploredEdits(this.deps.store);
+    // This may run inside the notification of an undo (the first lighting work after a restored
+    // context), which then writes its own lists over the history: once more when it is done,
+    // unless an edit has been made meanwhile, whose step must stay.
+    queueMicrotask(() => {
+      if (this.steps.size === 0) forgetExploredEdits(this.deps.store);
+    });
   }
 
   /** The texture holds the scene's memory: its mask is in, and no lost context took it. */

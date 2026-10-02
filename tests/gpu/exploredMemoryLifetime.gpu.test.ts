@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { SIZE, createHarness, resetContext } from '../../src/app/pixi/lighting/__tests__/rendererHarness';
+import { SAVE_DELAY, SIZE, createHarness, resetContext } from '../../src/app/pixi/lighting/__tests__/rendererHarness';
 import { RIGHT_ROOM, WALL, forget, memoryScenes, reveal } from './exploredMemoryScene';
 
 describe('the life of the explored memory\'s undo steps', () => {
@@ -77,6 +77,50 @@ describe('the life of the explored memory\'s undo steps', () => {
     expect(history().futureStates).toHaveLength(0);
     history().undo();
     expect(Object.keys(store.getState().objects.walls)).toHaveLength(1);
+  });
+
+  it('leaves no step that does nothing when an undo is the first to notice a restored context', async () => {
+    const { renderer, lighting, store, history, travels } = await scene();
+    lighting.editExplored(reveal(RIGHT_ROOM));
+    store.getState().addWall({ type: 'solid', p1: { x: 10, y: 10 }, p2: { x: 40, y: 10 }, closed: true });
+    lighting.editExplored(forget({ type: 'brush', brushRadius: 20, points: [{ x: 200, y: 128 }] }));
+    lighting.editExplored(reveal({ type: 'brush', brushRadius: 20, points: [{ x: 200, y: 128 }] }));
+    vi.advanceTimersByTime(SAVE_DELAY);
+    const saved = store.getState().exploredMask;
+    unwatch();
+    // No frame and no store change between the restore and the undo: the undo's own notification finds the new context.
+    await resetContext(renderer);
+    history().undo();
+    // The history is put in order once the undo has finished writing it.
+    await Promise.resolve();
+    expect(history().pastStates).toHaveLength(1);
+    expect(history().futureStates).toHaveLength(0);
+    // The undo had no texels to put back: the GM is told of none, and nothing is saved for it.
+    expect(travels).toEqual([]);
+    vi.advanceTimersByTime(SAVE_DELAY);
+    expect(store.getState().exploredMask).toBe(saved);
+    // What is left is the wall's step.
+    history().undo();
+    expect(Object.keys(store.getState().objects.walls)).toHaveLength(1);
+    expect(history().pastStates).toHaveLength(0);
+    expect(history().futureStates).toHaveLength(1);
+    history().redo();
+    expect(history().futureStates).toHaveLength(0);
+  });
+
+  it('tells no one and saves nothing for an undo made while the context is lost', async () => {
+    const { renderer, lighting, store, history, travels } = await scene();
+    lighting.editExplored(reveal(RIGHT_ROOM));
+    vi.advanceTimersByTime(SAVE_DELAY);
+    const saved = store.getState().exploredMask;
+    unwatch();
+    const lost = new Promise<void>((resolve) => renderer.canvas.addEventListener('webglcontextlost', () => resolve(), { once: true }));
+    renderer.gl.getExtension('WEBGL_lose_context')!.loseContext();
+    await lost;
+    history().undo();
+    expect(travels).toEqual([]);
+    vi.advanceTimersByTime(SAVE_DELAY);
+    expect(store.getState().exploredMask).toBe(saved);
   });
 
   it('edits nothing while a lost context holds the texture, and puts no step in the history', async () => {
