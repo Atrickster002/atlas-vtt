@@ -36,9 +36,13 @@ export class PointTree {
     if (count > 0) this.build(0, 0, count);
   }
 
-  /** Visits the points within `radius` of (x, y) until `visit` returns true. */
+  /**
+   * Visits the points within `radius` of (x, y) until `visit` returns true. A point is within the
+   * radius when `Math.hypot` says so, as whoever measures the distance of two points does: its
+   * square and the radius' may fall on different sides in the last bit.
+   */
   within(x: number, y: number, radius: number, visit: (index: number) => boolean): void {
-    this.walkWithin(0, 0, this.order.length, x, y, radius * radius, visit);
+    this.walkWithin(0, 0, this.order.length, x, y, radius, visit);
   }
 
   /**
@@ -51,7 +55,7 @@ export class PointTree {
   nearestByDirection(x: number, y: number, radius: number, skip: (index: number) => boolean, nearest: Int32Array, distances: Float64Array): void {
     nearest.fill(-1);
     distances.fill(radius * radius * (1 + 1e-12));
-    this.walkDirections(0, 0, this.order.length, x, y, skip, nearest, distances);
+    this.walkDirections(0, 0, this.order.length, x, y, radius, skip, nearest, distances);
   }
 
   /**
@@ -142,31 +146,32 @@ export class PointTree {
     return Math.max(this.boxDistance2(node, x, y), Math.max(offSum, offDifference) ** 2 * 0.5 * (1 - 1e-9));
   }
 
-  private walkWithin(node: number, lo: number, hi: number, x: number, y: number, radius2: number, visit: (index: number) => boolean): boolean {
-    if (this.boxDistance2(node, x, y) > radius2) return false;
+  private walkWithin(node: number, lo: number, hi: number, x: number, y: number, radius: number, visit: (index: number) => boolean): boolean {
+    // A hair more than the radius' square: no box is passed over for the last bit of a point on the very edge.
+    if (this.boxDistance2(node, x, y) > radius * radius * (1 + 1e-12)) return false;
     if (hi - lo > LEAF) {
       const mid = (lo + hi) >> 1;
-      return this.walkWithin(node * 2 + 1, lo, mid, x, y, radius2, visit) || this.walkWithin(node * 2 + 2, mid, hi, x, y, radius2, visit);
+      return this.walkWithin(node * 2 + 1, lo, mid, x, y, radius, visit) || this.walkWithin(node * 2 + 2, mid, hi, x, y, radius, visit);
     }
     for (let i = lo; i < hi; i++) {
-      const index = this.order[i]!, dx = this.xs[index]! - x, dy = this.ys[index]! - y;
-      if (dx * dx + dy * dy <= radius2 && visit(index)) return true;
+      const index = this.order[i]!;
+      if (Math.hypot(this.xs[index]! - x, this.ys[index]! - y) <= radius && visit(index)) return true;
     }
     return false;
   }
 
-  private walkDirections(node: number, lo: number, hi: number, x: number, y: number, skip: (index: number) => boolean, nearest: Int32Array, distances: Float64Array): void {
+  private walkDirections(node: number, lo: number, hi: number, x: number, y: number, radius: number, skip: (index: number) => boolean, nearest: Int32Array, distances: Float64Array): void {
     const distance2 = this.nodeDistance2(node, x, y);
     if (!this.mayHoldNearer(node, x, y, distance2, distances)) return;
     if (hi - lo > LEAF) {
       const mid = (lo + hi) >> 1, first = node * 2 + 1, second = node * 2 + 2;
       // The nearer child first: what it holds lets most of the other be passed over.
       if (this.nodeDistance2(first, x, y) <= this.nodeDistance2(second, x, y)) {
-        this.walkDirections(first, lo, mid, x, y, skip, nearest, distances);
-        this.walkDirections(second, mid, hi, x, y, skip, nearest, distances);
+        this.walkDirections(first, lo, mid, x, y, radius, skip, nearest, distances);
+        this.walkDirections(second, mid, hi, x, y, radius, skip, nearest, distances);
       } else {
-        this.walkDirections(second, mid, hi, x, y, skip, nearest, distances);
-        this.walkDirections(first, lo, mid, x, y, skip, nearest, distances);
+        this.walkDirections(second, mid, hi, x, y, radius, skip, nearest, distances);
+        this.walkDirections(first, lo, mid, x, y, radius, skip, nearest, distances);
       }
       return;
     }
@@ -174,7 +179,7 @@ export class PointTree {
       const index = this.order[i]!, dx = this.xs[index]! - x, dy = this.ys[index]! - y;
       const d2 = dx * dx + dy * dy;
       const direction = (dx < 0 ? 4 : 0) + (dy < 0 ? 2 : 0) + (steeper(this.xs[index]!, this.ys[index]!, x, y, dx < 0, dy < 0) ? 1 : 0);
-      if (d2 === 0 || d2 > distances[direction]! || (d2 === distances[direction] && index > nearest[direction]!) || skip(index)) continue;
+      if (d2 === 0 || d2 > distances[direction]! || (d2 === distances[direction] && index > nearest[direction]!) || Math.hypot(dx, dy) > radius || skip(index)) continue;
       nearest[direction] = index;
       distances[direction] = d2;
     }

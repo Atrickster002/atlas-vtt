@@ -47,7 +47,7 @@ describe('PointTree against looking at every point', () => {
         const best = new Array<number>(8).fill(Infinity);
         points.forEach(([px, py], index) => {
           const d2 = (px - x) ** 2 + (py - y) ** 2;
-          if (d2 === 0 || d2 > radius * radius * (1 + 1e-12) || index === skipped) return;
+          if (d2 === 0 || Math.hypot(px - x, py - y) > radius || index === skipped) return;
           const direction = directionOf(px, py, x, y);
           if (d2 < best[direction]!) {
             best[direction] = d2;
@@ -71,6 +71,30 @@ describe('PointTree against looking at every point', () => {
       if (Math.abs(Math.abs(dx) - Math.abs(dy)) < 1e-6) continue;
       expect(steeper(px, py, x, y, dx < 0, dy < 0)).toBe(Math.abs(dx) < Math.abs(dy));
     }
+  });
+
+  it('counts a point at the very radius as `Math.hypot` does, whichever way its square falls in the last bit', () => {
+    // Distances that are the radius to the last bit or one off it: a point at 3-4-5 times a factor, measured from the origin.
+    let onTheEdge = 0;
+    const rand = random(99);
+    for (let i = 0; i < 4000; i++) {
+      const factor = rand() * 7 + 0.01;
+      const [px, py] = [3 * factor, 4 * factor];
+      const radius = Math.hypot(px, py) * (1 + (Math.floor(rand() * 3) - 1) * 1.1e-16);
+      const tree = new PointTree(Float64Array.of(px, 100), Float64Array.of(py, 100));
+      const found: number[] = [];
+      tree.within(0, 0, radius, (index) => {
+        found.push(index);
+        return false;
+      });
+      const nearest = new Int32Array(8), distances = new Float64Array(8);
+      tree.nearestByDirection(0, 0, radius, () => false, nearest, distances);
+      const inside = Math.hypot(px, py) <= radius;
+      if (px * px + py * py <= radius * radius !== inside) onTheEdge++;
+      expect([i, found, nearest.includes(0)]).toEqual([i, inside ? [0] : [], inside]);
+    }
+    // The square and the root disagree on some of them: the check can tell the two apart.
+    expect(onTheEdge).toBeGreaterThan(0);
   });
 
   it('finds every point within a radius, and those beside a segment', () => {
