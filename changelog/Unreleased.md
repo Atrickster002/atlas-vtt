@@ -96,6 +96,7 @@
 - You can create a scene by right-clicking a map. Before, a scene could only be made by double-clicking a map, which nothing pointed to
 - The dice tray no longer shows on top of the asset manager and the DM dashboard
 - A selected token's resource buttons stay above neighbouring tokens, so the minus button is no longer hidden behind a token diagonally below it. Contributed by ISorokaI
+- A selected token's resource bars and wheels lie above those of the tokens around it. Before, a neighbour's bars could cover them
 - Panels in the player window, such as dice rolls and widgets, follow Obsidian's light or dark theme and its accent colour. Before, they stayed dark
 - A roll such as d20+2d6 no longer adds a stray +2 to its total, and subtracted dice (2d6-1d4) now subtract
 - A natural 1 or 20 counts as critical even when a modifier is added, and a maxed damage die never does
