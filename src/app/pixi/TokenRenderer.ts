@@ -1566,10 +1566,13 @@ export class TokenRenderer {
 
   // ─── Viewport-level event dispatch ──────────────────────────────────
 
-  /** Circle-collision hit test against all visible token sprites. */
+  /** Circle-collision hit test against all visible token sprites; in a pile the token drawn on top wins. */
   public hitTestTokens(worldX: number, worldY: number): string | null {
     const tokens = this.store.getState().objects.tokens;
     const gridSize = this.gridSystem.getOptions().size;
+    const drawOrder = this.tokenContainer.children;
+    let topId: string | null = null;
+    let topIndex = -1;
 
     for (const [id, tokenGroup] of Object.entries(this.tokenSprites)) {
       if (!tokenGroup || !tokenGroup.visible) continue;
@@ -1583,11 +1586,15 @@ export class TokenRenderer {
 
       const dx = worldX - tokenGroup.position.x;
       const dy = worldY - tokenGroup.position.y;
-      if (dx * dx + dy * dy <= radius * radius) {
-        return id;
+      if (dx * dx + dy * dy > radius * radius) continue;
+
+      const index = drawOrder.indexOf(tokenGroup);
+      if (index >= topIndex) {
+        topId = id;
+        topIndex = index;
       }
     }
-    return null;
+    return topId;
   }
 
   /** Returns true if (worldX, worldY) is within the bounding box of the given selected tokens. */

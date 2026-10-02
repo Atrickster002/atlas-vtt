@@ -170,7 +170,7 @@ History lives in `src/app/stores/history.ts` (zundo on top of the view store) an
 - Rolls shown in 3D make their own sounds; `DiceToastObserver` plays the old reveal sound only for result cards.
 
 ## Token stacking
-- The token put on a square last lies on top. The order is `token.layer` (unset is 0), which the token's group takes as its `zIndex` in the sorted token layer (`SpriteFactory`, `TokenRenderer.syncTokens`). Tokens of one layer lie in the order their sprites loaded.
+- The token put on a square last lies on top. The order is `token.layer` (unset is 0), which the token's group takes as its `zIndex` in the sorted token layer (`SpriteFactory`, `TokenRenderer.syncTokens`); `hitTestTokens` picks the topmost token under the pointer by the same order. Tokens of one layer lie in the order their sprites loaded.
 - Only `raiseTokens` (`src/app/stores/tokenStacking.ts`) writes it: above every other token, keeping the order a group has among itself, and nothing when the tokens already lie on top. Every action that puts tokens on the map calls it in its own store write (`addTokens`, `insertMapObjects` for paste, duplicate and Alt-drag copies), so anything new that adds tokens must too.
 - A drag ends in `dropTokens`: the places, the raise and letting go of the held tokens in one write, inside the drag's history transaction. Sight therefore works a drop out once (a `layer` written while the tokens are still held would build the scene twice), and undo puts place and order back together. Moves that are not drops (`moveToken`, `setTokenPositions`: re-snapping, animations) never change the order.
 
