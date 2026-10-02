@@ -87,9 +87,11 @@ describe('DM screen statblock selection', () => {
     expect(container.textContent).not.toContain('No Fantasy Statblocks creature found');
   });
 
-  it('shows the empty state when all linked notes use an unsupported format', async () => {
+  it('leaves the statblock pane empty when all linked notes use an unsupported format', async () => {
     const { container } = showDMScreen([legacyPath]);
-    await waitFor(() => expect(container.textContent).toContain('No statblocks currently in use'));
+    await waitFor(() => expect(container.querySelector('.atlas-dm-statblocks-grid')).not.toBeNull());
+    expect(container.querySelector('.atlas-dm-statblocks-grid')?.childElementCount).toBe(0);
+    expect(container.querySelector('.atlas-dm-statblocks-section')).not.toBeNull();
     expect(container.textContent).not.toContain('No Fantasy Statblocks creature found');
   });
 });
