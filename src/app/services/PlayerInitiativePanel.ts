@@ -7,6 +7,7 @@ import type { InitiativeEntry } from '../types/initiativeTypes';
 import { createTokenPortrait } from '../packages/components/shared/tokenPortraitElement';
 import { SIDE_LABELS, listedBySides, sideOf, sidesInOrder } from '../initiative/sides';
 import type { InitiativeSide } from '../types/initiativeRulesTypes';
+import { scrollWithin } from '../utils/scrollWithin';
 import { mapInitiativeRules } from './mapInitiativeRules';
 import { PlayerSceneOverlay, type PlayerSettings } from './PlayerSceneOverlay';
 import type { SettingsService } from './SettingsService';
@@ -92,6 +93,12 @@ export class PlayerInitiativePanel extends PlayerSceneOverlay<InitiativeScene> {
     }
     if (initiative.isActive) {
       panel.createDiv({ cls: 'atlas-player-initiative__round', text: `Round ${initiative.round}` });
+      // The list is drawn anew on every change, scrolled to its top: bring the turn back into view
+      const list = panel.querySelector<HTMLElement>('.atlas-player-initiative__list');
+      const side = panel.querySelector('.atlas-player-initiative__side--active');
+      const card = panel.querySelector('.atlas-player-initiative__card--active');
+      if (list && side) scrollWithin(list, side, 'start');
+      else if (list && card) scrollWithin(list, card, 'nearest');
     }
   }
 

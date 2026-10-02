@@ -104,6 +104,12 @@ $tracker-width: 96px;
   overflow-y: auto;
   overflow-x: hidden;
   scrollbar-width: none;
+  // The list glides to the turn it follows
+  scroll-behavior: smooth;
+
+  @media (prefers-reduced-motion: reduce) {
+    scroll-behavior: auto;
+  }
 
   &::-webkit-scrollbar {
     display: none;

@@ -1,18 +1,26 @@
 import { readWall } from '../../lighting/lightingObjects';
 import { wallList } from '../../vision/wallList';
-import { Container, Graphics } from 'pixi.js';
+import { Container, Graphics, Sprite, type Texture } from 'pixi.js';
+import { DOOR_GLYPH_PATHS, type DoorGlyph } from '../../lighting/doorGlyphs';
 import type { ViewAtlasState, ViewAtlasStore } from '../../storeFactory';
 import type { WallSegment } from '../../types/wallTypes';
 import { doorMiddle } from '../../vision/doorSight';
 import { MOTION_SLOW_MS, prefersReducedMotion } from '../../utils/motion';
 import type { LayerVisibility } from '../playerSafeFrame';
 import { destroyTree } from '../utils/destroyTree';
+import { createGlyphTexture } from '../utils/pinIconTexture';
 import { ValueTransition } from '../utils/ValueTransition';
 
 /** Above the lighting layer and token UI, so the GM finds doors in the dark. */
 export const DOOR_ICONS_Z_INDEX = 1150;
 /** Badge radius as a share of a grid cell. */
 const BADGE_SHARE = 0.2;
+/** The door glyph's edge as a share of the badge's radius: its corners stay inside the ring. */
+const GLYPH_SHARE = 1.35;
+/** Both glyphs stand on the bottom of their canvas: lifted, so they sit in the badge's middle. */
+const GLYPH_ANCHOR_Y = 0.53;
+/** A badge grows with the map's zoom, unlike a pin: its glyph is rasterised larger, to stay sharp zoomed in. */
+const GLYPH_TEXTURE_SIZE = 256;
 
 const DOOR_COLOR = 0x44aaff;
 const SECRET_DOOR_COLOR = 0xff8844;
@@ -28,15 +36,22 @@ function isDoor(wall: WallSegment): boolean {
 
 const NO_DOORS: ReadonlySet<string> = new Set();
 
+/** One set of badges: the discs and padlocks in one drawing, and the door glyph of every badge that has one. */
+interface BadgeSet {
+  view: Container;
+  graphics: Graphics;
+  glyphs: Map<string, Sprite>;
+}
+
 /** What a door's badge tells: the GM's the kind of door and its lock, the players' only whether it is open. */
 export function badgeLook(wall: Pick<WallSegment, 'type' | 'locked'>, forPlayers: boolean): { secret: boolean; lock: boolean } {
   return { secret: !forPlayers && wall.type === 'secret-door', lock: !forPlayers && !!wall.locked };
 }
 
 /**
- * A badge on every door for the GM: click it with any tool to open or close the door. A locked
- * door shows a lock in its badge and does not open: the badge shakes for a moment instead
- * (where motion is reduced it takes a tint).
+ * A badge on every door for the GM: click it with any tool to open or close the door. It shows
+ * the door shut or swung open (`DOOR_GLYPH_PATHS`). A locked door shows a lock in its badge and
+ * does not open: the badge shakes for a moment instead (where motion is reduced it takes a tint).
  *
  * The players' view has badges of its own (`playerView`): only on the doors the players see
  * (`playersSee`), all alike but for open and closed, so a lock or a secret door is not given
@@ -49,8 +64,9 @@ export class DoorIcons {
   readonly view = new Container({ label: 'door-icons' });
   /** The players' badges: shown by `playerLightingLayers`, hidden in GM view. */
   readonly playerView = new Container({ label: 'player-door-icons', visible: false });
-  private readonly graphics = new Graphics();
-  private readonly playerGraphics = new Graphics();
+  private readonly gmBadges: BadgeSet = { view: this.view, graphics: new Graphics(), glyphs: new Map() };
+  private readonly playerBadges: BadgeSet = { view: this.playerView, graphics: new Graphics(), glyphs: new Map() };
+  private readonly textures = new Map<DoorGlyph, Texture | null>();
   private seen: ReadonlySet<string> = NO_DOORS;
   private readonly unsubscribe: () => void;
   /** The locked door whose badge just refused to open, while it says so; 0 to 1 over its moment. */
@@ -64,7 +80,7 @@ export class DoorIcons {
     /** The doors the players see now (`playerDoorSight`). */
     private readonly playersSee: () => ReadonlySet<string> = () => NO_DOORS,
   ) {
-    for (const [view, graphics] of [[this.view, this.graphics], [this.playerView, this.playerGraphics]] as const) {
+    for (const { view, graphics } of [this.gmBadges, this.playerBadges]) {
       view.zIndex = DOOR_ICONS_Z_INDEX;
       view.eventMode = 'none';
       view.addChild(graphics);
@@ -97,7 +113,7 @@ export class DoorIcons {
     const seen = this.playersSee();
     if (seen.size === this.seen.size && [...seen].every((doorId) => this.seen.has(doorId))) return;
     this.seen = seen;
-    this.drawBadges(this.playerGraphics, this.store.getState(), true);
+    this.drawBadges(this.playerBadges, this.store.getState(), true);
   }
 
   private badgeAt(x: number, y: number, shown: (wall: WallSegment) => boolean): string | null {
@@ -142,13 +158,15 @@ export class DoorIcons {
 
   private draw(state: ViewAtlasState): void {
     this.seen = this.playersSee();
-    this.drawBadges(this.graphics, state, false);
-    this.drawBadges(this.playerGraphics, state, true);
+    this.drawBadges(this.gmBadges, state, false);
+    this.drawBadges(this.playerBadges, state, true);
   }
 
-  private drawBadges(g: Graphics, state: ViewAtlasState, forPlayers: boolean): void {
+  private drawBadges(badges: BadgeSet, state: ViewAtlasState, forPlayers: boolean): void {
+    const { view, graphics: g, glyphs } = badges;
     g.clear();
     const r = this.radius(state);
+    const withGlyph = new Set<string>();
     const refusal = this.refusal();
     for (const wall of wallList(state.objects.walls)) {
       if (forPlayers ? !this.seen.has(wall.id) : !isDoor(wall)) continue;
@@ -164,12 +182,30 @@ export class DoorIcons {
         drawLock(g, x, y, r, color);
         continue;
       }
-      // A closed door is a solid leaf; an open one is its outline swung aside.
-      const w = r * 0.7;
-      const h = r * 1.0;
-      if (open) g.rect(x - w / 2 - r * 0.1, y - h / 2, w * 0.35, h).fill({ color });
-      else g.rect(x - w / 2, y - h / 2, w, h).fill({ color });
+      const texture = this.glyphTexture(open ? 'open' : 'closed');
+      if (!texture) continue;
+      let glyph = glyphs.get(wall.id);
+      if (!glyph) {
+        glyph = view.addChild(new Sprite({ anchor: { x: 0.5, y: GLYPH_ANCHOR_Y } }));
+        glyphs.set(wall.id, glyph);
+      }
+      withGlyph.add(wall.id);
+      glyph.texture = texture;
+      glyph.position.set(x, y);
+      glyph.setSize(r * GLYPH_SHARE);
+      glyph.tint = color;
     }
+    for (const [doorId, glyph] of glyphs) {
+      if (withGlyph.has(doorId)) continue;
+      destroyTree(glyph);
+      glyphs.delete(doorId);
+    }
+  }
+
+  /** The glyph in white, rasterised once and tinted per badge; null where no 2D canvas is available. */
+  private glyphTexture(glyph: DoorGlyph): Texture | null {
+    if (!this.textures.has(glyph)) this.textures.set(glyph, createGlyphTexture(DOOR_GLYPH_PATHS[glyph], GLYPH_TEXTURE_SIZE));
+    return this.textures.get(glyph) ?? null;
   }
 
   destroy(): void {
@@ -177,6 +213,10 @@ export class DoorIcons {
     this.refusing.cancel();
     destroyTree(this.view);
     destroyTree(this.playerView);
+    for (const texture of this.textures.values()) {
+      if (texture && !texture.destroyed) texture.destroy(true);
+    }
+    this.textures.clear();
   }
 }
 

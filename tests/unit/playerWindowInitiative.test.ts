@@ -15,10 +15,12 @@ const collection = vi.hoisted(() => ({ hpVisibleToPlayers: false }));
 vi.mock('../../src/app/resources/collectionResources', () => ({
   mapResources: () => [{ key: 'hp', name: 'HP', field: 'hp', direction: 'drains', color: '#22c55e', defeatedWhenSpent: true, visibleToPlayers: collection.hpVisibleToPlayers }],
 }));
+const scrolls = vi.hoisted(() => ({ calls: [] as unknown[][] }));
+vi.mock('../../src/app/utils/scrollWithin', () => ({ scrollWithin: (...args: unknown[]) => { scrolls.calls.push(args); } }));
 const TURN_ORDER: InitiativeRules = { mode: 'turn-order', roll: '1d20', firstSide: 'players' };
 const initiativeRules = vi.hoisted(() => ({ value: undefined as InitiativeRules | undefined }));
 vi.mock('../../src/app/services/mapInitiativeRules', () => ({ mapInitiativeRules: () => initiativeRules.value ?? TURN_ORDER }));
-afterEach(() => { PlayerWindowService.getInstance()?.destroy(); vi.useRealTimers(); vi.restoreAllMocks(); collection.hpVisibleToPlayers = false; initiativeRules.value = undefined; });
+afterEach(() => { PlayerWindowService.getInstance()?.destroy(); vi.useRealTimers(); vi.restoreAllMocks(); collection.hpVisibleToPlayers = false; initiativeRules.value = undefined; scrolls.calls.length = 0; });
 
 function scene(name = 'Hero', initiativeTrackerOpen = true): StoreApi<ViewAtlasState> {
   const token: TokenEntity = { id: 'hero', kind: 'character', name, x: 0, y: 0, imagePath: '', resources: { hp: { current: 8, max: 10 } } };
@@ -209,6 +211,17 @@ describe('player initiative panel', () => {
     expect(portrait()?.querySelector('.atlas-token-ring')).toBeNull();
   });
 
+  it('keeps the combatant whose turn it is in view: the list is drawn anew on every change', () => {
+    const { store, doc } = setup();
+    const { initiative } = store.getState();
+    scrolls.calls.length = 0;
+
+    store.setState({ initiative: { ...initiative, round: 2 } });
+
+    expect(scrolls.calls).toEqual([[doc.querySelector('.atlas-player-initiative__list'), doc.querySelector('.atlas-player-initiative__card--active'), 'nearest']]);
+    expect(scrolls.calls[0]?.[1]).not.toBeNull();
+  });
+
   it('defaults on for old settings and persists the DM choice across reloads', async () => {
     const { app } = createInMemoryApp({ files: { 'atlas-vtt/settings.json': JSON.stringify({ localPlayerView: { showWidgets: false } }) } });
     const settings = new SettingsService(app);
@@ -261,6 +274,8 @@ describe('player initiative panel of a collection that fights by sides', () => {
 
   it('marks the side whose turn it is and the combatant who sits the round out', () => {
     const { doc, store } = sides({ isActive: true, round: 2, sides: { first: 'opponents', active: 'players' } }, 'opponents');
+    // The side whose turn it is is brought into view
+    expect(scrolls.calls.at(-1)).toEqual([doc.querySelector('.atlas-player-initiative__list'), doc.querySelector('.atlas-player-initiative__side--active'), 'start']);
     // No single combatant has the turn, whatever its entry says
     const { initiative } = store.getState();
     store.setState({ initiative: { ...initiative, entries: initiative.entries.map((each) => ({ ...each, isActive: true })) } });
