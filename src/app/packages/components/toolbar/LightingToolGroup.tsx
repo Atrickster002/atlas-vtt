@@ -8,7 +8,7 @@ import { useMapLightPresets } from "../../../react/hooks/useMapLightPresets"
 import type { LightKind } from "../../../types/lightingTypes"
 import type { WallToolMode, WallToolSubMode } from "../../../tools/WallTool"
 import { DropdownMenuItem, type DropdownMenuItemProps } from "../primitives/DropdownMenuItem"
-import { DEFAULT_EXPLORED_BRUSH, ExploredMemorySection, type ExploredBrushOptions } from "./ExploredMemorySection"
+import { ExploredMemorySection } from "./ExploredMemorySection"
 import { SceneLightingSection } from "./SceneLightingSection"
 import { ToolGroup, type ToolGroupControls } from "./ToolGroup"
 import { lightingToolFace } from "./toolFaces"
@@ -24,12 +24,6 @@ const SUB_MODES: readonly { value: WallToolSubMode; icon: RowIcon; label: string
   { value: 'explored-memory', icon: Footprints, label: 'Explored memory' },
 ]
 
-/** The tool's event for each of the explored-memory mode's choices. */
-const EXPLORED_BRUSH_EVENTS: Record<keyof ExploredBrushOptions, string> = {
-  mode: 'explored-edit-mode-changed',
-  shape: 'explored-shape-changed',
-  brushSize: 'explored-brush-size-changed',
-}
 
 const DRAW_MODES: readonly { value: WallToolMode; icon: RowIcon; label: string }[] = [
   { value: 'point-to-point', icon: MousePointer2, label: 'Point to point' },
@@ -59,7 +53,13 @@ export function LightingToolGroup({ activeTool, selectTool, menuOpen, toggleMenu
   // The chosen preset's id; the collection's torch until one is chosen, and again once the collection no longer has it.
   const [presetId, setPresetId] = useState<string | null>(null)
   const preset = chosenLightPreset(presets, presetId)
-  const [brush, setBrush] = useState(DEFAULT_EXPLORED_BRUSH)
+  // The explored-memory mode's choices are the tool's own, in the view's store: a menu mounted anew shows them as they are.
+  const brush = useAtlasStore((state) => state.exploredBrush)
+  const setBrush = useAtlasStore((state) => state.setExploredBrush)
+  // What the tool does with a click is this menu's to say: a menu mounted anew starts with drawing walls, and so does the tool.
+  useEffect(() => {
+    emit('wall-submode-changed', 'draw')
+  }, [emit])
   const face = lightingToolFace(activeTool)
   // Explored memory is edited only on a lit scene that remembers: without one the mode is not offered, and the tool leaves it.
   const memoryEditable = exploredMemoryEditable(lighting)
@@ -97,13 +97,7 @@ export function LightingToolGroup({ activeTool, selectTool, menuOpen, toggleMenu
       </div>
 
       {subMode === 'explored-memory' && (
-        <ExploredMemorySection
-          options={brush}
-          onChange={(changes) => {
-            setBrush({ ...brush, ...changes })
-            for (const [option, value] of Object.entries(changes)) emit(EXPLORED_BRUSH_EVENTS[option as keyof ExploredBrushOptions], value)
-          }}
-        />
+        <ExploredMemorySection options={brush} onChange={setBrush} />
       )}
 
       {/* The zone mode has no choices of its own: a zone is drawn corner by corner. */}

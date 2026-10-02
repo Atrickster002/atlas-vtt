@@ -1,10 +1,10 @@
 import type { EventEmitter } from 'events';
 import type { Container, Texture } from 'pixi.js';
 import type { Viewport } from 'pixi-viewport';
-import type { ExploredEdit, ExploredEditMode } from '../../lighting/exploredEdits';
+import type { ExploredBrushOptions, ExploredEdit } from '../../lighting/exploredEdits';
 import { exploredMemoryEditable } from '../../lighting/sceneLightingOptions';
 import type { ViewAtlasStore } from '../../storeFactory';
-import { ShapeStroke, type StrokeMode } from '../../tools/shapeStroke';
+import { ShapeStroke } from '../../tools/shapeStroke';
 import type { WallToolSubMode } from '../../tools/WallTool';
 import type { Point } from '../../types/visionTypes';
 import type { MapBounds } from '../../vision/visibility';
@@ -41,7 +41,6 @@ export class ExploredBrush implements ExploredMemoryWatcher {
   private readonly overlay: ExploredOverlay;
   private readonly stroke = new ShapeStroke();
   private subMode: WallToolSubMode = 'draw';
-  private mode: ExploredEditMode = 'reveal';
   private pointer: Point | null = null;
   private wasActive = false;
   private readonly cleanups: Array<() => void> = [];
@@ -51,32 +50,22 @@ export class ExploredBrush implements ExploredMemoryWatcher {
   constructor(private readonly deps: ExploredBrushDeps) {
     const { viewport, store, eventBus } = deps;
     this.overlay = new ExploredOverlay(viewport);
-    const on = <Payload>(event: string, handler: (payload: Payload) => void): void => {
-      eventBus.on(event, handler);
-      this.cleanups.push(() => eventBus.off(event, handler));
-    };
-    on('wall-submode-changed', (subMode: WallToolSubMode) => {
+    const onSubMode = (subMode: WallToolSubMode): void => {
       this.subMode = subMode;
       this.syncActive();
-    });
-    on('explored-edit-mode-changed', (mode: ExploredEditMode) => {
-      this.stop();
-      this.mode = mode;
-      this.draw();
-    });
-    on('explored-shape-changed', (shape: StrokeMode) => {
-      this.stop();
-      this.stroke.mode = shape;
-      this.draw();
-    });
-    on('explored-brush-size-changed', (radius: number) => {
-      this.stop();
-      this.stroke.brushRadius = radius;
-      this.draw();
-    });
+    };
+    eventBus.on('wall-submode-changed', onSubMode);
+    this.cleanups.push(() => eventBus.off('wall-submode-changed', onSubMode));
     viewport.on('zoomed', this.redraw);
+    this.takeOptions(store.getState().exploredBrush);
     this.cleanups.push(() => viewport.off('zoomed', this.redraw), store.subscribe((state, previous) => {
       if (state.lighting !== previous.lighting) this.syncActive();
+      if (state.exploredBrush !== previous.exploredBrush) {
+        // The stroke under way was begun with other choices: it is dropped.
+        this.stop();
+        this.takeOptions(state.exploredBrush);
+        this.draw();
+      }
     }));
   }
 
@@ -131,6 +120,12 @@ export class ExploredBrush implements ExploredMemoryWatcher {
     this.draw(false);
   }
 
+  /** The pointer left the map: the brush's ring goes until it is back; a stroke under way goes on. */
+  pointerLeft(): void {
+    this.pointer = null;
+    this.draw(false);
+  }
+
   /** The release applies the stroke: one undo step, or none when it marked no area. */
   pointerUp(): void {
     if (!this.stroke.active) return;
@@ -154,6 +149,16 @@ export class ExploredBrush implements ExploredMemoryWatcher {
     this.stroke.cancel();
     this.overlay.clearStroke();
     this.draw();
+  }
+
+  /** What a stroke does: the tool's choices as the view's store holds them (`exploredBrush`), which the menu sets. */
+  private get mode(): ExploredBrushOptions['mode'] {
+    return this.deps.store.getState().exploredBrush.mode;
+  }
+
+  private takeOptions({ shape, brushSize }: ExploredBrushOptions): void {
+    this.stroke.mode = shape;
+    this.stroke.brushRadius = brushSize;
   }
 
   /** The mode began or ended, by the tool's menu or because the scene's memory can no longer be edited. */

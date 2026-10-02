@@ -27,18 +27,18 @@ interface TintFieldProps {
   label: string;
   /** The tint, or null without one. */
   value: string | null;
-  /** What the "None" button is called for assistive technology. */
+  /** What the button that takes the tint back says: it is named by this text alone. */
   clearLabel: string;
   onChange: (color: string | null) => void;
 }
 
-/** A colour the scene may also leave unset: the picker, and "None" to take it back. */
+/** A colour the scene may also leave unset: the picker, and a button to take it back. */
 export function TintField({ label, value, clearLabel, onChange }: TintFieldProps): React.ReactElement {
   const id = useId();
   return (
     <div className="atlas-light-panel__choice atlas-light-panel__field--color">
       <label htmlFor={id}>{label}</label>
-      <Button variant="ghost" size="sm" disabled={value === null} aria-label={clearLabel} onClick={() => onChange(null)}>None</Button>
+      <Button variant="ghost" size="sm" disabled={value === null} onClick={() => onChange(null)}>{clearLabel}</Button>
       <input id={id} type="color" value={value ?? '#ffffff'} onChange={(e) => onChange(e.target.value)} />
     </div>
   );
@@ -56,7 +56,7 @@ export function ChoiceField<T extends string>({ label, value, options, onChange 
   return (
     <div className="atlas-light-panel__field atlas-light-panel__field--choice">
       <span aria-hidden="true">{label}</span>
-      <SegmentedControl value={value} options={options} ariaLabel={label} onChange={onChange} />
+      <SegmentedControl className="atlas-segmented--fit" value={value} options={options} ariaLabel={label} onChange={onChange} />
     </div>
   );
 }

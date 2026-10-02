@@ -157,9 +157,9 @@ describe('the explored memory\'s overlay on the GM\'s canvas', () => {
   });
 
   it('previews a brush stroke exactly as it will be stamped: points too close to count add nothing', async () => {
-    const { brush, eventBus, canvas, redAt } = await bench();
+    const { store, brush, canvas, redAt } = await bench();
     const plain = canvas();
-    eventBus.emit('explored-brush-size-changed', 100);
+    store.getState().setExploredBrush({ brushSize: 100 });
     // The pointer dips 9 px and comes back: closer than a tenth of the brush, so the stroke is one disc around (60, 128).
     brush.pointerDown({ x: 60, y: 128 });
     brush.pointerMove({ x: 60, y: 137 });
@@ -179,8 +179,8 @@ describe('the explored memory\'s overlay on the GM\'s canvas', () => {
   });
 
   it('previews a long brush stroke as the memory will hold it, bend for bend', async () => {
-    const { brush, eventBus, canvas } = await bench();
-    eventBus.emit('explored-brush-size-changed', 60);
+    const { store, brush, canvas } = await bench();
+    store.getState().setExploredBrush({ brushSize: 60 });
     // A tight zigzag in steps of 5 px, under the 6 px the brush tells apart.
     brush.pointerDown({ x: 40, y: 128 });
     for (let step = 1; step <= 30; step++) brush.pointerMove({ x: 40 + step * 4, y: 128 + (step % 2 ? 3 : -3) });
@@ -193,13 +193,26 @@ describe('the explored memory\'s overlay on the GM\'s canvas', () => {
     expect(unlike).toBeLessThan(40);
   });
 
+  it('shows the brush\'s ring at the pointer, and none once the pointer has left the map', async () => {
+    const { store, brush, canvas } = await bench();
+    const plain = canvas();
+    store.getState().setExploredBrush({ brushSize: 40 });
+    brush.pointerMove({ x: 128, y: 128 });
+    // On the ring, 40 px from the pointer.
+    expect(differs(canvas()(168, 128), plain(168, 128))).toBe(true);
+    brush.pointerLeft();
+    expect(canvas()(168, 128)).toEqual(plain(168, 128));
+    brush.pointerMove({ x: 100, y: 128 });
+    expect(differs(canvas()(140, 128), plain(140, 128))).toBe(true);
+  });
+
   it('cuts a forget out of the tint while the pointer is down, and leaves no trace when the stroke is dropped', async () => {
-    const { lighting, brush, eventBus, canvas, redAt } = await bench();
+    const { store, lighting, brush, canvas, redAt } = await bench();
     const plain = canvas()(200, 128);
     lighting.editExplored({ mode: 'reveal', area: 'everything' });
     const explored = canvas()(200, 128);
-    eventBus.emit('explored-edit-mode-changed', 'forget');
-    eventBus.emit('explored-brush-size-changed', 30);
+    store.getState().setExploredBrush({ mode: 'forget' });
+    store.getState().setExploredBrush({ brushSize: 30 });
 
     brush.pointerDown({ x: 180, y: 128 });
     brush.pointerMove({ x: 220, y: 128 });
@@ -222,11 +235,11 @@ describe('the explored memory\'s overlay on the GM\'s canvas', () => {
   });
 
   it('outlines a rectangle and a lasso in the stroke\'s colour, red for a forget, and shows inside them what the memory will hold', async () => {
-    const { lighting, brush, eventBus, canvas } = await bench();
+    const { store, lighting, brush, canvas } = await bench();
     const plain = canvas();
     lighting.editExplored({ mode: 'reveal', area: 'everything' });
-    eventBus.emit('explored-edit-mode-changed', 'forget');
-    eventBus.emit('explored-shape-changed', 'rectangle');
+    store.getState().setExploredBrush({ mode: 'forget' });
+    store.getState().setExploredBrush({ shape: 'rectangle' });
     brush.pointerDown({ x: 160, y: 90 });
     brush.pointerMove({ x: 240, y: 170 });
     let at = canvas();
@@ -238,7 +251,7 @@ describe('the explored memory\'s overlay on the GM\'s canvas', () => {
     brush.stop();
 
     // A lasso that crosses itself (a figure of eight): both loops are cut, the ground between them is not.
-    eventBus.emit('explored-shape-changed', 'lasso');
+    store.getState().setExploredBrush({ shape: 'lasso' });
     brush.pointerDown({ x: 20, y: 20 });
     brush.pointerMove({ x: 100, y: 100 });
     brush.pointerMove({ x: 100, y: 20 });

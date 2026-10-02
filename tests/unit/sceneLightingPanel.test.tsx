@@ -115,7 +115,7 @@ describe('SceneLightingPanel', () => {
     expect(screen.getByRole('radiogroup', { name: 'Darkvision looks' })).toBeTruthy();
     expect(screen.getByRole('radio', { name: 'As the system says' }).getAttribute('aria-checked')).toBe('true');
     expect(screen.getByLabelText<HTMLInputElement>('Darkvision tint').value).toBe('#ffffff');
-    expect(screen.getByRole<HTMLButtonElement>('button', { name: 'No darkvision tint' }).disabled).toBe(true);
+    expect(screen.getByRole<HTMLButtonElement>('button', { name: 'No tint' }).disabled).toBe(true);
   });
 
   it('picks how darkvision looks, and stores the system\'s look as no choice at all', () => {
@@ -130,11 +130,19 @@ describe('SceneLightingPanel', () => {
     expect(store.getState().lighting).not.toHaveProperty('darkSightLook');
   });
 
-  it('tints darkvision, and takes the tint back with None', () => {
+  it('names the button that takes the tint back by its own text, without a label that would show as a tooltip', () => {
+    renderPanel();
+    const none = screen.getByRole('button', { name: 'No tint' });
+    expect(none.textContent).toBe('No tint');
+    expect(none.hasAttribute('aria-label')).toBe(false);
+    expect(none.hasAttribute('title')).toBe(false);
+  });
+
+  it('tints darkvision, and takes the tint back with No tint', () => {
     const { store } = renderPanel();
     fireEvent.change(screen.getByLabelText('Darkvision tint'), { target: { value: '#40ff80' } });
     expect(store.getState().lighting.darkSightTint).toBe('#40ff80');
-    const none = screen.getByRole<HTMLButtonElement>('button', { name: 'No darkvision tint' });
+    const none = screen.getByRole<HTMLButtonElement>('button', { name: 'No tint' });
     expect(none.disabled).toBe(false);
     fireEvent.click(none);
     expect(store.getState().lighting).not.toHaveProperty('darkSightTint');

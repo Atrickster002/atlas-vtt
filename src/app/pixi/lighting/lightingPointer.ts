@@ -30,7 +30,10 @@ export function wireLightingPointer(tokens: TokenRenderer, { lights, editor, mod
       return lights.pointerDown({ x, y }, e, editor.handleAt({ x, y }) || (editor.shown && e.shiftKey && !e.ctrlKey && !e.metaKey));
     },
     cursorAt: (x, y) => (modes.active && editor.shown ? null : lights.cursorAt({ x, y }, editor.handleAt({ x, y }))),
-    leave: () => lights.clearHover(),
+    leave: () => {
+      lights.clearHover();
+      modes.pointerLeft();
+    },
   });
   tokens.setWallPointerDownHandler((x, y, e) => (modes.active ? modes.pointerDown({ x, y }, e) : editor.pointerDown({ x, y }, e.shiftKey, e.ctrlKey || e.metaKey)));
   tokens.setWallPointerMoveHandler((x, y, e) => (modes.active ? modes.pointerMove({ x, y }, e) : editor.pointerMove({ x, y })));

@@ -331,6 +331,8 @@ export interface ViewAtlasState {
   setSceneLightingPanelOpen: UISlice['setSceneLightingPanelOpen'];
   heldTokens: UISlice['heldTokens'];
   setHeldTokens: UISlice['setHeldTokens'];
+  exploredBrush: UISlice['exploredBrush'];
+  setExploredBrush: UISlice['setExploredBrush'];
   setGridSettingsOpen: UISlice['setGridSettingsOpen'];
   setDMScreenOpen: UISlice['setDMScreenOpen'];
   setGridAlignmentOpen: UISlice['setGridAlignmentOpen'];

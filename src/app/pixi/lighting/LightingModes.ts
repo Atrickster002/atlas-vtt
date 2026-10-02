@@ -53,6 +53,11 @@ export class LightingModes {
     this.memory.pointerUp();
   }
 
+  /** The pointer left the map's canvas. */
+  pointerLeft(): void {
+    this.memory.pointerLeft();
+  }
+
   doubleClick(): void {
     if (this.zones.active) this.zones.doubleClick();
   }

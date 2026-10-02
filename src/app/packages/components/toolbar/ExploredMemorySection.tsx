@@ -1,18 +1,8 @@
 import React from "react"
-import type { ExploredEditMode } from "../../../lighting/exploredEdits"
+import type { ExploredBrushOptions, ExploredEditMode } from "../../../lighting/exploredEdits"
 import type { StrokeMode } from "../../../tools/shapeStroke"
 import { DropdownSliderRow } from "../primitives/DropdownSliderRow"
 import { SegmentedControl, type SegmentedOption } from "../primitives/SegmentedControl"
-
-/** What the lighting tool's explored-memory mode does with a stroke, and with which shape. */
-export interface ExploredBrushOptions {
-  mode: ExploredEditMode
-  shape: StrokeMode
-  /** Radius of the brush in map pixels, as the fog tool's. */
-  brushSize: number
-}
-
-export const DEFAULT_EXPLORED_BRUSH: ExploredBrushOptions = { mode: 'reveal', shape: 'brush', brushSize: 50 }
 
 const MODES: readonly SegmentedOption<ExploredEditMode>[] = [
   { value: 'reveal', label: 'Reveal' },

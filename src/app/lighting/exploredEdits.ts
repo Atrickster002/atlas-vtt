@@ -1,5 +1,5 @@
 import { simplifyStroke } from '../pixi/lighting/wallEdits';
-import type { StrokeShape } from '../tools/shapeStroke';
+import type { StrokeMode, StrokeShape } from '../tools/shapeStroke';
 import type { Point } from '../types/visionTypes';
 import { filledPieces } from './polygonFill';
 
@@ -11,6 +11,16 @@ export interface ExploredEdit {
   mode: ExploredEditMode;
   area: StrokeShape | 'everything';
 }
+
+/** What the lighting tool's explored-memory mode does with a stroke, and with which shape. */
+export interface ExploredBrushOptions {
+  mode: ExploredEditMode;
+  shape: StrokeMode;
+  /** Radius of the brush in map pixels, as the fog tool's. */
+  brushSize: number;
+}
+
+export const DEFAULT_EXPLORED_BRUSH: ExploredBrushOptions = { mode: 'reveal', shape: 'brush', brushSize: 50 };
 
 /** Corners of half a circle at a brush stroke's ends: a 24-gon is round at any brush size the memory resolves. */
 const CAP_STEPS = 12;

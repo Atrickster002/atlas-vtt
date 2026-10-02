@@ -24,7 +24,7 @@ import { destroyTree } from '../utils/destroyTree';
 import { requestRender } from '../RenderScheduler';
 import { isHandled } from '../utils/handledEvents';
 import { openContextMenuGlobal } from '../../react/root/ContextMenuContext';
-import { ShapeStroke, type StrokeMode } from '../../tools/shapeStroke';
+import { STROKE_COLORS, ShapeStroke, type StrokeMode } from '../../tools/shapeStroke';
 import { drawStrokeArea } from '../utils/strokePreview';
 
 const DEFAULT_BOUNDS: FogBounds = { x: -2000, y: -2000, width: 4000, height: 4000 };
@@ -70,6 +70,7 @@ export class FogOfWarRenderer {
   private pointerDownHandler: (e: PIXI.FederatedPointerEvent) => void;
   private pointerMoveHandler: (e: PIXI.FederatedPointerEvent) => void;
   private pointerUpHandler: () => void;
+  private readonly pointerLeaveHandler = (): void => this.onPointerLeave();
   private fogBrushSizeChangedHandler: (size: number) => void;
   private fogClearAllHandler: () => void;
   private fogModeChangedHandler: (mode: StrokeMode) => void;
@@ -292,6 +293,7 @@ export class FogOfWarRenderer {
     this.viewport.off('pointermove', this.pointerMoveHandler);
     this.viewport.off('pointerup', this.pointerUpHandler);
     this.viewport.off('pointerupoutside', this.pointerUpHandler);
+    this._pixiApp.canvas.removeEventListener('pointerleave', this.pointerLeaveHandler);
 
     this.eventBus.off('fog-brush-size-changed', this.fogBrushSizeChangedHandler);
     this.eventBus.off('fog-clear-all', this.fogClearAllHandler);
@@ -357,6 +359,7 @@ export class FogOfWarRenderer {
     this.viewport.on('pointermove', this.pointerMoveHandler);
     this.viewport.on('pointerup', this.pointerUpHandler);
     this.viewport.on('pointerupoutside', this.pointerUpHandler);
+    this._pixiApp.canvas.addEventListener('pointerleave', this.pointerLeaveHandler);
 
     this.eventBus.on('fog-brush-size-changed', this.fogBrushSizeChangedHandler);
     this.eventBus.on('fog-clear-all', this.fogClearAllHandler);
@@ -760,11 +763,18 @@ export class FogOfWarRenderer {
     if (this.stroke.mode === 'brush' && (tool === 'fog' || tool === 'eraser')) {
       const worldPos = this.viewport.toWorld(event.global);
       this.cursorPreview.updatePosition(worldPos.x, worldPos.y);
+      // Back on the map after the pointer had left it.
+      if (!this.cursorPreview.shown) this.cursorPreview.show(tool === 'eraser');
     }
 
     if (!this.stroke.active) return;
     this.stroke.extend(this.strokePoint(event));
     this.previewStroke();
+  }
+
+  /** The pointer left the map's canvas: the brush's ring would stay where it last was. */
+  private onPointerLeave(): void {
+    this.cursorPreview.hide();
   }
 
   private onPointerUp(): void {
@@ -788,7 +798,7 @@ export class FogOfWarRenderer {
       this.updatePreviewTexture();
       return;
     }
-    drawStrokeArea(this.stroke.mode === 'lasso' ? this.lassoGraphics : this.rectPreviewGraphics, this.stroke, erasing ? 0xff4444 : 0xffffff);
+    drawStrokeArea(this.stroke.mode === 'lasso' ? this.lassoGraphics : this.rectPreviewGraphics, this.stroke, erasing ? STROKE_COLORS.erase : STROKE_COLORS.paint);
   }
 
   private renderPreviewFromStore(): void {

@@ -3,6 +3,9 @@ import type { Point } from '../types/visionTypes';
 /** How a stroke marks an area: painted with a round brush, outlined freehand, or dragged as a rectangle. */
 export type StrokeMode = 'brush' | 'lasso' | 'rectangle';
 
+/** The colours a stroke under way is previewed in: light where it paints or reveals, red where it erases or forgets. */
+export const STROKE_COLORS = { paint: 0xffffff, erase: 0xff4444 } as const;
+
 /** The area a stroke covers, in world pixels. */
 export type StrokeShape =
   | { type: 'brush'; points: Point[]; brushRadius: number }

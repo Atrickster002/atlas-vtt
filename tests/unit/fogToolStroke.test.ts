@@ -18,6 +18,8 @@ interface FogToolHarness {
   onPointerDown(event: FederatedPointerEvent): void;
   onPointerMove(event: FederatedPointerEvent): void;
   onPointerUp(): void;
+  onPointerLeave(): void;
+  cursorPreview: { shown: boolean; erasing: boolean | null };
   rebuildFogSprites: ReturnType<typeof vi.fn>;
   renderPreviewFromStore: ReturnType<typeof vi.fn>;
   compositor: { compositeAll: ReturnType<typeof vi.fn> };
@@ -36,7 +38,13 @@ function fogTool(activeTool: 'fog' | 'eraser', mode: StrokeMode): { tool: FogToo
     stroke: Object.assign(new ShapeStroke(), { mode }),
     compositor: { compositeAll: vi.fn() },
     updatePreviewTexture: vi.fn(),
-    cursorPreview: { updatePosition: vi.fn(), show: vi.fn(), hide: vi.fn() },
+    cursorPreview: {
+      shown: true,
+      erasing: null as boolean | null,
+      updatePosition: vi.fn(),
+      show(erasing: boolean): void { Object.assign(this, { shown: true, erasing }); },
+      hide(): void { this.shown = false; },
+    },
     lassoGraphics: graphics(),
     rectPreviewGraphics: graphics(),
     rebuildFogSprites: vi.fn(),
@@ -122,5 +130,21 @@ describe('the fog tool\'s stroke', () => {
     state.objects = { fog: { a: {}, b: {} } };
     notify();
     expect(tool.rebuildFogSprites).toHaveBeenCalledTimes(1);
+  });
+
+  it('hides the brush\'s ring when the pointer leaves the map, and shows it again at the next move', () => {
+    const { tool } = fogTool('eraser', 'brush');
+    tool.onPointerMove(at(100, 100));
+    expect(tool.cursorPreview.shown).toBe(true);
+    tool.onPointerLeave();
+    expect(tool.cursorPreview.shown).toBe(false);
+    tool.onPointerMove(at(120, 100));
+    expect(tool.cursorPreview).toMatchObject({ shown: true, erasing: true });
+
+    // A lasso has no ring to bring back.
+    const lasso = fogTool('fog', 'lasso');
+    lasso.tool.onPointerLeave();
+    lasso.tool.onPointerMove(at(120, 100));
+    expect(lasso.tool.cursorPreview.shown).toBe(false);
   });
 });

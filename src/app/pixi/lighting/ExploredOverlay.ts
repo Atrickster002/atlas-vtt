@@ -1,7 +1,7 @@
 import { AlphaFilter, Container, Graphics, Sprite, Texture } from 'pixi.js';
 import type { Viewport } from 'pixi-viewport';
 import { countsInBrushStroke, strokePolygons, type ExploredEditMode } from '../../lighting/exploredEdits';
-import type { ShapeStroke } from '../../tools/shapeStroke';
+import { STROKE_COLORS, type ShapeStroke } from '../../tools/shapeStroke';
 import type { Point } from '../../types/visionTypes';
 import type { MapBounds } from '../../vision/visibility';
 import { FogCursorPreview } from '../fog/FogCursorPreview';
@@ -12,8 +12,6 @@ import { drawStrokeArea } from '../utils/strokePreview';
 export const EXPLORED_OVERLAY_Z_INDEX = 91;
 /** Faint: the map and its light stay readable through it. */
 const OVERLAY_ALPHA = 0.22;
-/** The outline of a stroke that reveals, and of one that forgets, as the fog tool draws them. */
-const STROKE_COLORS: Record<ExploredEditMode, number> = { reveal: 0xffffff, forget: 0xff4444 };
 const OUTLINE_WIDTH = 2;
 
 /**
@@ -98,7 +96,7 @@ export class ExploredOverlay {
       if (shape) fill(this.pending, strokePolygons(shape), this.tint);
     }
     // The layer shows the area itself, as the memory will hold it.
-    drawStrokeArea(this.outline, stroke, STROKE_COLORS[mode], OUTLINE_WIDTH / this.viewport.scale.x, false);
+    drawStrokeArea(this.outline, stroke, mode === 'forget' ? STROKE_COLORS.erase : STROKE_COLORS.paint, OUTLINE_WIDTH / this.viewport.scale.x, false);
   }
 
   clearStroke(): void {

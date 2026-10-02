@@ -111,7 +111,7 @@ function SceneLightingPanel(): React.ReactElement {
         {/* Only the picture of what senses without colour show; the system's look and no tint are stored as unset. */}
         <ChoiceField label="Darkvision looks" value={darkSightLookOf(lighting)} options={DARK_SIGHT_LOOK_OPTIONS}
           onChange={(look) => setSceneLighting({ darkSightLook: look === 'system' ? undefined : look })} />
-        <TintField label="Darkvision tint" value={darkSightTintOf(lighting)} clearLabel="No darkvision tint"
+        <TintField label="Darkvision tint" value={darkSightTintOf(lighting)} clearLabel="No tint"
           onChange={(tint) => setSceneLighting({ darkSightTint: tint ?? undefined })} />
       </div>
     </motion.section>

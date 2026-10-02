@@ -40,6 +40,8 @@ interface Rendered {
   closeMenu: ReturnType<typeof vi.fn>;
   events: [string, unknown][];
   rerender: (activeTool: Tool) => void;
+  /** Takes the menu down and mounts a new one on the same store, as a toolbar that is built anew. */
+  remount: () => void;
 }
 
 function renderGroup(activeTool: Tool = 'move'): Rendered {
@@ -62,8 +64,15 @@ function renderGroup(activeTool: Tool = 'move'): Rendered {
       </ViewStoreProvider>
     </TooltipProvider>
   );
-  const view = render(ui(activeTool));
-  return { store, selectTool, closeMenu, events, rerender: (tool) => view.rerender(ui(tool)) };
+  let view = render(ui(activeTool));
+  return {
+    store, selectTool, closeMenu, events,
+    rerender: (tool) => view.rerender(ui(tool)),
+    remount: () => {
+      view.unmount();
+      view = render(ui(activeTool));
+    },
+  };
 }
 
 /** A menu row, as the fog and draw menus build theirs. */
@@ -217,14 +226,16 @@ describe('LightingToolGroup', () => {
     expect(screen.getByText('Brush size')).toBeTruthy();
     expect(screen.getByText('50px')).toBeTruthy();
 
+    // The choices are the tool's own, kept in the view's store: the menu shows and sets them there.
+    expect(store.getState().exploredBrush).toEqual({ mode: 'reveal', shape: 'brush', brushSize: 50 });
     fireEvent.click(screen.getByRole('radio', { name: 'Forget' }));
-    expect(events).toContainEqual(['explored-edit-mode-changed', 'forget']);
+    expect(store.getState().exploredBrush.mode).toBe('forget');
     expect(chosen('Forget')).toBe(true);
     fireEvent.keyDown(screen.getByRole('slider', { name: 'Brush size' }), { key: 'ArrowRight' });
-    expect(events).toContainEqual(['explored-brush-size-changed', 51]);
+    expect(store.getState().exploredBrush.brushSize).toBe(51);
     for (const [label, shape] of [['Rectangle', 'rectangle'], ['Lasso', 'lasso']] as const) {
       fireEvent.click(screen.getByRole('radio', { name: label }));
-      expect(events).toContainEqual(['explored-shape-changed', shape]);
+      expect(store.getState().exploredBrush.shape).toBe(shape);
       expect(chosen(label)).toBe(true);
       // Only the brush has a size.
       expect(screen.queryByText('Brush size')).toBeNull();
@@ -242,6 +253,33 @@ describe('LightingToolGroup', () => {
     fireEvent.click(row('Explored memory'));
     expect(screen.getByRole('radio', { name: 'Forget' }).getAttribute('aria-checked')).toBe('true');
     expect(screen.getByRole('radio', { name: 'Rectangle' }).getAttribute('aria-checked')).toBe('true');
+  });
+
+  it('shows the tool\'s own choices again after the toolbar was taken down and put back', () => {
+    const { store, events, remount } = renderGroup('wall');
+    act(() => store.getState().setSceneLighting({ enabled: true }));
+    fireEvent.click(row('Explored memory'));
+    fireEvent.click(screen.getByRole('radio', { name: 'Forget' }));
+    fireEvent.click(screen.getByRole('radio', { name: 'Lasso' }));
+
+    events.length = 0;
+    remount();
+    // A new menu starts with drawing walls, and tells the tool so: the two cannot differ.
+    expect(events).toContainEqual(['wall-submode-changed', 'draw']);
+    expect(checked('Draw walls')).toBe(true);
+    fireEvent.click(row('Explored memory'));
+    expect(screen.getByRole('radio', { name: 'Forget' }).getAttribute('aria-checked')).toBe('true');
+    expect(screen.getByRole('radio', { name: 'Lasso' }).getAttribute('aria-checked')).toBe('true');
+    expect(screen.queryByText('Brush size')).toBeNull();
+  });
+
+  it('shows what the tool was set to from elsewhere', () => {
+    const { store } = renderGroup('wall');
+    act(() => store.getState().setSceneLighting({ enabled: true }));
+    fireEvent.click(row('Explored memory'));
+    act(() => store.getState().setExploredBrush({ shape: 'rectangle', mode: 'forget' }));
+    expect(screen.getByRole('radio', { name: 'Rectangle' }).getAttribute('aria-checked')).toBe('true');
+    expect(screen.getByRole('radio', { name: 'Forget' }).getAttribute('aria-checked')).toBe('true');
   });
 
   it('leaves the mode for drawing walls when the scene stops remembering or its lighting goes off', () => {
