@@ -7,7 +7,6 @@ import { restingTokenUIScale } from '../../src/app/pixi/token-renderer/tokenSizi
 import { createViewAtlasStore, type TokenInput, type ViewAtlasStore } from '../../src/app/storeFactory';
 import type { TokenEntity } from '../../src/app/types';
 import type { Perception } from '../../src/app/vision/perception';
-import { SEES_ALL } from '../../src/app/vision/sight';
 import { GENERIC_SIGHT_RULES } from '../../src/app/vision/sightRules';
 import { createInMemoryApp } from '../mocks/inMemoryVault';
 import { stubJsdomGraphics } from '../mocks/jsdomGraphics';
@@ -51,7 +50,6 @@ function setup(measure: () => MeasurementSettings = measurement, frames: () => W
     measurement: measure,
     bounds: () => ({ width: 4000, height: 4000 }),
     rules: () => GENERIC_SIGHT_RULES,
-    lighting: { isEnabled: () => store.getState().lighting.enabled, currentSight: () => SEES_ALL, ambientLight: () => ({ ambient: 1 }), lightReaches: () => [] },
     perception: () => (store.getState().lighting.enabled ? perception() : undefined),
     frames,
   });
@@ -201,8 +199,6 @@ describe('the ranges of a selected vision token in the edge cases', () => {
     aids.update();
     expect(labels(aids)).toEqual([]);
     expect(aids.rings.view.visible).toBe(false);
-    // The hover line still tells the light the token stands in.
-    expect(aids.sightLine(id)).toBe('Bright light · Always shown to the players');
   });
 
   it('are drawn anew only when what they show changes: the selected token, the zoom, the theme', () => {
@@ -370,35 +366,14 @@ describe('GmSightAids', () => {
     store.getState().setSelection([seeing]);
     aids.update();
     expect([aids.marks.view.visible, aids.rings.view.visible]).toEqual([true, true]);
-    expect(aids.sightLine(unseen)).toBe('Bright light · Seen by the players');
     aids.setSuppressed(true);
     expect(aids.view.visible).toBe(false);
     expect([aids.marks.view.visible, aids.rings.view.visible]).toEqual([false, false]);
     expect(aids.marks.shown()).toEqual([]);
-    expect(aids.sightLine(unseen)).toBeNull();
     // Session view hides the layer through the players' list; the GM's view has it back.
     aids.view.visible = false;
     aids.setSuppressed(false);
     expect(aids.view.visible).toBe(true);
     expect([aids.marks.view.visible, aids.rings.view.visible]).toEqual([true, true]);
-  });
-
-  it('words a hover line for the token renderer on a lit scene, and refreshes an open card with every update', () => {
-    const { aids, store, add } = setup();
-    const id = add(100);
-    const party = add(300, { enabled: true });
-    const refresh = vi.fn();
-    let provider: ((tokenId: string) => string | null) | null = null;
-    aids.wire({ setSightLineProvider: (fn) => { provider = fn; return refresh; } });
-    expect(provider!(id)).toBe('Bright light · Seen by the players');
-    expect(provider!(party)).toBe('Bright light · Always shown to the players');
-    expect(provider!('gone')).toBeNull();
-    aids.update();
-    expect(refresh).toHaveBeenCalledTimes(1);
-    store.getState().setSceneLighting({ enabled: false });
-    expect(provider!(id)).toBeNull();
-    cleanup!();
-    cleanup = null;
-    expect(provider).toBeNull();
   });
 });

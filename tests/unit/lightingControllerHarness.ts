@@ -92,7 +92,6 @@ export function setup(): Setup {
     setDoorMenuHandlers: (handlers: DoorMenuHandlers) => { doorMenu.current = handlers; },
     setDoorClickHandler: ignore, setPlayerSightProvider: ignore, refreshPlayerSight: ignore,
     getSensedOutlineLayer: () => sensedOutlines,
-    setSightLineProvider: () => ignore,
   } as unknown as TokenRenderer);
   const torch = store.getState().addLight({ x: 400, y: 300, emission: { ...genericLight('torch'), kind: 'torch' } });
   const lantern = store.getState().addLight({ x: 600, y: 300, emission: { ...genericLight('lantern'), kind: 'lantern' } });

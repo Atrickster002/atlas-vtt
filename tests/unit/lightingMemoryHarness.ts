@@ -116,7 +116,6 @@ export function setup(prepare?: (store: ViewAtlasStore) => void): Setup {
     setPlayerSightProvider: vi.fn(),
     refreshPlayerSight: vi.fn(),
     getSensedOutlineLayer: () => ({ visible: false }),
-    setSightLineProvider: () => vi.fn(),
   } as unknown as TokenRenderer);
   cleanup = () => {
     controller.destroy();

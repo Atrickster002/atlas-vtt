@@ -38,7 +38,6 @@ export class UIManager implements ITokenUIManager {
   
   // Condition definitions provider — forwarded to each TokenUIRenderer
   public conditionDefsProvider: (() => ConditionDefinition[]) | null = null;
-  private sightLineProvider: ((tokenId: string) => string | null) | null = null;
   /** The resources of the map's collection; read on every draw, so set it before tokens are created. */
   public resourceDefsProvider: ResourceDefsProvider = () => [];
 
@@ -130,7 +129,6 @@ export class UIManager implements ITokenUIManager {
     
     const ui = new TokenUIRenderer(this.store, this.viewport.options?.ticker);
     ui.conditionDefsProvider = this.conditionDefsProvider;
-    ui.sightLineProvider = (id) => this.sightLineProvider?.(id) ?? null;
     ui.resourceDefsProvider = () => this.resourceDefsProvider();
     ui.zoomProvider = () => this.viewport.scale.x;
     ui.onScaleChange = (scale) => this.tokenControlsUI?.setScaleFor(tokenId, scale);
@@ -391,18 +389,6 @@ export class UIManager implements ITokenUIManager {
 
     // No pointer event listeners needed — hover state is driven by
     // TokenRenderer.onViewportPointerMove → UIManager.setHoverState().
-  }
-
-  /**
-   * `provider` words for the GM the light a token stands in and how the players perceive it; the
-   * hover card shows it under the conditions (never the players' copy of the token UI). Returns
-   * the refresh to call when the players' sight changed, which updates an open card.
-   */
-  public setSightLineProvider(provider: ((tokenId: string) => string | null) | null): () => void {
-    this.sightLineProvider = provider;
-    return () => {
-      if (this._prevHoverId) this.tokenUIs[this._prevHoverId]?.refreshSightLine();
-    };
   }
 
   /** Viewport-driven hover state update. Pass null to clear all hover. */

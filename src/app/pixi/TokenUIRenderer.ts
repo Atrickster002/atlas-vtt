@@ -84,8 +84,6 @@ export class TokenUIRenderer {
   /** Condition badges on the token's ring and the card naming them on hover. */
   private conditionUI = new TokenConditionsUI();
   public conditionDefsProvider: (() => ConditionDefinition[]) | null = null;
-  /** A line for the GM on the hover card (`TokenConditionsUI`): the light a token stands in and how the players perceive it. */
-  public sightLineProvider: ((tokenId: string) => string | null) | null = null;
   /** The resources of the map's collection, in the order they show. */
   public resourceDefsProvider: ResourceDefsProvider = () => [];
   /** Viewport zoom, for the constant on-screen size of a selected token's UI; none in the player view. */
@@ -361,7 +359,7 @@ export class TokenUIRenderer {
     this.wheels.update(wheels);
 
     this.hasContent = hasResources || showNameplate || hasConditions;
-    this.applyVisibility();
+    this.container.visible = this.hasContent && !this.hiddenWithToken;
     if (!this.hasContent) return;
 
     // A defeated token's first defeating bar is darkened
@@ -483,25 +481,10 @@ export class TokenUIRenderer {
     this.conditionUI.setCardScale(ringRadius, cardScale);
   }
 
-  private sightLine(): string | null {
-    return this.currentToken ? this.sightLineProvider?.(this.currentToken.id) ?? null : null;
-  }
-
-  /** The players' sight changed: an open hover card takes its new line. */
-  public refreshSightLine(): void {
-    this.conditionUI.setNote(this.sightLine());
-    this.applyVisibility();
-  }
-
-  /** The UI shows while it has something to show, which an open hover card with the GM's line is too, and its token is on the canvas. */
-  private applyVisibility(): void {
-    this.container.visible = this.showsContent && !this.hiddenWithToken;
-  }
-
   /** Redraws the condition badges from the current definitions, e.g. after an icon or colour was edited. */
   public refreshConditions(): void {
     if (!this.currentToken || this.currentTokenSize <= 0) return;
-    this.conditionUI.update(this.currentToken, this.conditionDefsProvider?.() ?? [], this.conditionsLayout(), this.sightLine());
+    this.conditionUI.update(this.currentToken, this.conditionDefsProvider?.() ?? [], this.conditionsLayout());
   }
 
   /**
@@ -532,12 +515,12 @@ export class TokenUIRenderer {
    */
   public setHiddenWithToken(hidden: boolean): void {
     this.hiddenWithToken = hidden;
-    this.applyVisibility();
+    this.container.visible = this.hasContent && !hidden;
   }
 
   /** Whether the UI has something to show: what the GM's view shows of it. */
   public get showsContent(): boolean {
-    return this.hasContent || this.conditionUI.showsNote;
+    return this.hasContent;
   }
 
   /** Marks the pointer as down on this token; a held or dragged token keeps its UI at rest. */
@@ -598,8 +581,7 @@ export class TokenUIRenderer {
 
   /** The conditions card is for looking at a token: selecting, pressing or dragging it hides the card. */
   private updateConditionCard(): void {
-    this.conditionUI.setHovered(this.isPlainHover && !this.isSelected && !this.isHeld, () => this.sightLine());
-    this.applyVisibility();
+    this.conditionUI.setHovered(this.isPlainHover && !this.isSelected && !this.isHeld);
   }
   
   public setSelectionState(selected: boolean): void {

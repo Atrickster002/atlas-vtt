@@ -67,10 +67,6 @@ interface Wired {
   refreshPlayerSight: ReturnType<typeof vi.fn>;
   /** The layer of the sensed tokens' outlines, as the token renderer gives it. */
   sensedOutlines: { visible: boolean };
-  /** The hover card's line, as the controller words it. */
-  sightLine: (tokenId: string) => string | null;
-  /** Refreshes an open hover card. */
-  refreshSightLine: ReturnType<typeof vi.fn>;
 }
 
 interface Setup {
@@ -115,7 +111,7 @@ function setup(extra: Partial<ConstructorParameters<typeof LightingController>[0
     albedo: () => null,
     ...extra,
   });
-  const wired = { refreshPlayerSight: vi.fn(), sensedOutlines: { visible: false }, refreshSightLine: vi.fn() } as Wired;
+  const wired = { refreshPlayerSight: vi.fn(), sensedOutlines: { visible: false } } as Wired;
   controller.wire({
     setWallPointerDownHandler: (fn: Wired['pointerDown']) => { wired.pointerDown = fn; },
     setWallPointerMoveHandler: (fn: Wired['pointerMove']) => { wired.pointerMove = fn; },
@@ -129,10 +125,6 @@ function setup(extra: Partial<ConstructorParameters<typeof LightingController>[0
     setPlayerSightProvider: (fn: Wired['playerSight']) => { wired.playerSight = fn; },
     refreshPlayerSight: wired.refreshPlayerSight,
     getSensedOutlineLayer: () => wired.sensedOutlines,
-    setSightLineProvider: (fn: Wired['sightLine']) => {
-      wired.sightLine = fn;
-      return wired.refreshSightLine;
-    },
   } as unknown as TokenRenderer);
   cleanup = () => {
     controller.destroy();
@@ -594,21 +586,6 @@ describe('tokens in session view', () => {
     expect(controller.sightAids.rings.labels()).toEqual(['Sight 6 sq', 'Darkvision 3 sq']);
     store.getState().setGMView(false);
     expect(controller.sightAids.rings.labels()).toEqual([]);
-  });
-
-  it('words the hover card\'s line for the GM, and refreshes an open card when the sight changes', async () => {
-    const { store, wired, lurker } = scene();
-    const { onSightChange } = lighting.deps as SceneLightingDeps;
-    expect(wired.sightLine(lurker)).toBe('Bright light · Not seen by the players');
-    store.getState().updateToken(lurker, { x: 150, y: 100 });
-    expect(wired.sightLine(lurker)).toBe('Bright light · Seen by a token: Sight');
-    await nextFrame();
-    wired.refreshSightLine.mockClear();
-    onSightChange?.();
-    await nextFrame();
-    expect(wired.refreshSightLine).toHaveBeenCalledTimes(1);
-    store.getState().setGMView(false);
-    expect(wired.sightLine(lurker)).toBeNull();
   });
 
   it('hides nothing by sight while the scene has no lighting', () => {

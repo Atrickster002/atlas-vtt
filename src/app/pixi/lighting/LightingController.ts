@@ -57,7 +57,7 @@ export interface LightingControllerDeps {
  */
 export class LightingController {
   readonly renderer: SceneLightingView;
-  /** What tells the GM how the rules of sight apply: sense ranges, marks on unseen tokens, the hover card's line. */
+  /** What tells the GM how the rules of sight apply: sense ranges and marks on unseen tokens. */
   readonly sightAids: GmSightAids;
   private readonly editor: WallEditor;
   private readonly modes: LightingModes;
@@ -98,7 +98,6 @@ export class LightingController {
     this.sightAids = new GmSightAids({
       viewport, store, measurement, bounds: deps.bounds,
       rules: () => this.sightRules(),
-      lighting: this.renderer,
       perception: () => this.playerSight(),
       frames: () => this.frames(),
     });
@@ -135,7 +134,6 @@ export class LightingController {
   wire(tokens: TokenRenderer): void {
     this.tokens = tokens;
     tokens.setPlayerSightProvider(() => (this.session.active ? this.playerSight() : undefined));
-    this.sightAids.wire(tokens);
     wireLightingPointer(tokens, {
       lights: this.lights, editor: this.editor, modes: this.modes, doors: this.doors,
       wallMenu: (x, y, screenX, screenY) => showWallMenu(this.menuContext(), x, y, screenX, screenY),
