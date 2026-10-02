@@ -4,8 +4,9 @@
  */
 import React, { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, MotionConfig, motion } from 'framer-motion';
-import { UserRound } from 'lucide-react';
 import { cn } from '../../../../utils/cn';
+import fighterArt from '../../../assets/starter-tokens/fighter.webp?inline';
+import { TokenPortrait } from '../../../packages/components/shared/TokenPortrait';
 import { EASE_OUT_CONTROL_POINTS } from '../../../utils/motion';
 import type { ResourceDefinition } from '../../../resources/resourceTypes';
 import { ResourceCard } from './resources/ResourceCard';
@@ -116,7 +117,8 @@ export function ResourcesTab({ resources, onChange, fieldSuggestions }: Resource
         <div className={cn('atlas-csm-token-stage', selected !== null && 'atlas-focused', lifted !== null && 'atlas-dragging')}
           role="presentation" onClick={(event) => { if (event.target === event.currentTarget) close(); }}>
           <div className="atlas-csm-token-rig" role="group" aria-label="Resource sockets">
-            <span className="atlas-csm-token-art" aria-hidden="true"><UserRound /></span>
+            {/* A token as the map draws it: the fighter of the starter tokens in Atlas' ring */}
+            <span className="atlas-csm-token-art" aria-hidden="true"><TokenPortrait src={fighterArt} alt="" /></span>
             <span className="atlas-csm-token-nameplate" aria-hidden="true">Name</span>
             <span className="atlas-csm-token-caption atlas-csm-token-caption--bars" aria-hidden="true">Always shown</span>
             <span className="atlas-csm-token-caption atlas-csm-token-caption--right" aria-hidden="true">On hover</span>
