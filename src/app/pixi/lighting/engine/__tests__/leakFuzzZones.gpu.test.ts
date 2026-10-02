@@ -17,6 +17,8 @@ import { NO_SIGHT, renderView } from './leakFuzzScene';
 
 const SIZE = 384;
 const TRIALS = Number(import.meta.env.VITE_LEAK_TRIALS ?? 24);
+/** Trials of the cases beside the main one (other map sizes, another resolution): a third of its, so the long fuzz reaches them too. */
+const SIDE_TRIALS = Math.max(12, Math.round(TRIALS / 3));
 /** Width of a zone's soft edge: half a 70 px cell. */
 const SOFT = 35;
 /** A zone a little smaller than its room, one drawn on the room's own corners, and one that lies across the room's walls. */
@@ -213,20 +215,20 @@ describe('leak fuzz: ambient zones and explored memory', () => {
     expect(report).toMatchObject(CLEAN);
   });
 
-  it('holds on a map large enough for coarser texels, of the lighting and of the memory', { timeout: 600_000 }, async () => {
-    const bounds = { width: 9000, height: 9000 };
-    const report = await fuzz({ seed: 7, trials: 12, bounds });
-    console.info(`leak fuzz (zones, memory, large map): ${JSON.stringify(report)}`);
-    expect(report.inside).toBeGreaterThan(1000);
-    expect(report.remembered).toBeGreaterThan(1000);
+  // The memory's texel is as wide as a wall is thick from about 4,300 px on, and widest at the largest map Atlas keeps.
+  it.each([[7000, 7], [8192, 31], [9000, 7]])('holds on a map of %i px, large enough for coarser texels of the lighting and of the memory', { timeout: 3_600_000 }, async (side, seed) => {
+    const report = await fuzz({ seed, trials: SIDE_TRIALS, bounds: { width: side, height: side } });
+    console.info(`leak fuzz (zones, memory, ${side} px map): ${JSON.stringify({ trials: SIDE_TRIALS, ...report })}`);
+    expect(report.inside).toBeGreaterThan(SIDE_TRIALS * 80);
+    expect(report.remembered).toBeGreaterThan(SIDE_TRIALS * 80);
     expect(report.restored).toBeGreaterThan(report.remembered * 0.98);
     expect(report).toMatchObject(CLEAN);
   });
 
-  it('holds at renderer resolution 2', { timeout: 600_000 }, async () => {
-    const report = await fuzz({ seed: 5, trials: 12, resolution: 2 });
-    console.info(`leak fuzz (zones, memory, resolution 2): ${JSON.stringify(report)}`);
-    expect(report.inside).toBeGreaterThan(1000);
+  it('holds at renderer resolution 2', { timeout: 3_600_000 }, async () => {
+    const report = await fuzz({ seed: 5, trials: SIDE_TRIALS, resolution: 2 });
+    console.info(`leak fuzz (zones, memory, resolution 2): ${JSON.stringify({ trials: SIDE_TRIALS, ...report })}`);
+    expect(report.inside).toBeGreaterThan(SIDE_TRIALS * 80);
     expect(report).toMatchObject(CLEAN);
   });
 
