@@ -42,13 +42,20 @@ function capsule(a: Point, b: Point, radius: number): Point[] {
   return outline;
 }
 
-/** A brush stroke's points without those that lie within `THINNING` of a radius of the one kept before; the last is always kept. */
+/**
+ * Whether a brush stroke keeps `point` after `last`, the point it kept before: only when it lies
+ * a share of the radius away (`THINNING`). The stroke's last point is kept whatever this says.
+ */
+export function countsInBrushStroke(last: Point, point: Point, radius: number): boolean {
+  return (point.x - last.x) ** 2 + (point.y - last.y) ** 2 >= (radius * THINNING) ** 2;
+}
+
+/** A brush stroke's points without those too close to the one kept before (`countsInBrushStroke`); the last is always kept. */
 function thinned(points: readonly Point[], radius: number): Point[] {
   const kept: Point[] = [];
-  const least = (radius * THINNING) ** 2;
   points.forEach((point, index) => {
     const last = kept[kept.length - 1];
-    if (!last || index === points.length - 1 || (point.x - last.x) ** 2 + (point.y - last.y) ** 2 >= least) kept.push(point);
+    if (!last || index === points.length - 1 || countsInBrushStroke(last, point, radius)) kept.push(point);
   });
   return kept;
 }

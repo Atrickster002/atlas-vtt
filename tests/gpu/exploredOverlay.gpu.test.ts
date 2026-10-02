@@ -156,6 +156,43 @@ describe('the explored memory\'s overlay on the GM\'s canvas', () => {
     expect(same(canvas()(70, 60), explored)).toBe(true);
   });
 
+  it('previews a brush stroke exactly as it will be stamped: points too close to count add nothing', async () => {
+    const { brush, eventBus, canvas, redAt } = await bench();
+    const plain = canvas();
+    eventBus.emit('explored-brush-size-changed', 100);
+    // The pointer dips 9 px and comes back: closer than a tenth of the brush, so the stroke is one disc around (60, 128).
+    brush.pointerDown({ x: 60, y: 128 });
+    brush.pointerMove({ x: 60, y: 137 });
+    brush.pointerMove({ x: 60, y: 128 });
+    const during = canvas();
+    brush.pointerUp();
+    const after = canvas();
+    // 105 px below the centre: within the brush of the dip, outside the disc that is stamped.
+    expect(redAt(60, 233)).toBe(0);
+    expect(redAt(60, 225)).toBe(255);
+    expect(same(during(60, 233), plain(60, 233))).toBe(true);
+    expect(differs(during(60, 225), plain(60, 225))).toBe(true);
+    // A longer stroke: what was shown while the pointer was down is what the memory then holds.
+    for (const [x, y] of [[60, 233], [60, 225], [150, 128], [165, 128], [60, 30], [60, 22]] as const) {
+      expect(same(during(x, y), after(x, y)), `at ${x}, ${y}`).toBe(true);
+    }
+  });
+
+  it('previews a long brush stroke as the memory will hold it, bend for bend', async () => {
+    const { brush, eventBus, canvas } = await bench();
+    eventBus.emit('explored-brush-size-changed', 60);
+    // A tight zigzag in steps of 5 px, under the 6 px the brush tells apart.
+    brush.pointerDown({ x: 40, y: 128 });
+    for (let step = 1; step <= 30; step++) brush.pointerMove({ x: 40 + step * 4, y: 128 + (step % 2 ? 3 : -3) });
+    const during = canvas();
+    brush.pointerUp();
+    const after = canvas();
+    let unlike = 0;
+    for (let y = 0; y < SIZE; y += 2) for (let x = 0; x < SIZE; x += 2) if (apart(during(x, y), after(x, y)) > 12) unlike++;
+    // Only texels on the stroke's soft edge may differ between the drawn preview and the stamped memory.
+    expect(unlike).toBeLessThan(40);
+  });
+
   it('cuts a forget out of the tint while the pointer is down, and leaves no trace when the stroke is dropped', async () => {
     const { lighting, brush, eventBus, canvas, redAt } = await bench();
     const plain = canvas()(200, 128);

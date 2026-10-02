@@ -1,6 +1,6 @@
 import { AlphaFilter, Container, Graphics, Sprite, Texture } from 'pixi.js';
 import type { Viewport } from 'pixi-viewport';
-import { strokePolygons, type ExploredEditMode } from '../../lighting/exploredEdits';
+import { countsInBrushStroke, strokePolygons, type ExploredEditMode } from '../../lighting/exploredEdits';
 import type { ShapeStroke } from '../../tools/shapeStroke';
 import type { Point } from '../../types/visionTypes';
 import type { MapBounds } from '../../vision/visibility';
@@ -28,16 +28,19 @@ export class ExploredOverlay {
   private readonly layer = new Container();
   private readonly memory = new Sprite(Texture.EMPTY);
   private readonly pending = new Graphics();
+  /** The last stretch of a brush stroke, up to the pointer: drawn anew with every move. */
+  private readonly tail = new Graphics();
   private readonly outline = new Graphics();
   private readonly cursor = new FogCursorPreview();
   private readonly fade = new AlphaFilter({ alpha: OVERLAY_ALPHA, resolution: 'inherit' });
-  /** How many points of the brush stroke under way `pending` holds. */
+  /** How many points of the brush stroke under way were looked at, and the last of them the stroke keeps. */
   private brushed = 0;
+  private kept: Point | null = null;
   private tint = 0xffffff;
 
   constructor(private readonly viewport: Viewport) {
     this.layer.filters = [this.fade];
-    this.layer.addChild(this.memory, this.pending);
+    this.layer.addChild(this.memory, this.pending, this.tail);
     this.view.addChild(this.layer, this.outline, this.cursor.getDisplayObject());
     this.view.visible = false;
     viewport.addChild(this.view);
@@ -69,28 +72,45 @@ export class ExploredOverlay {
     this.cursor.show(mode === 'forget');
   }
 
-  /** The stroke under way: what it will do to the memory, and the outline of a lasso or rectangle. */
+  /**
+   * The stroke under way: what it will do to the memory, and the outline of a lasso or rectangle.
+   * A brush stroke is drawn as it will be stamped (`strokePolygons`): a stretch between each two
+   * points the stroke keeps, added once, and one from the last of them to the pointer.
+   */
   drawStroke(stroke: ShapeStroke, mode: ExploredEditMode): void {
     const shape = stroke.shape();
-    this.pending.blendMode = mode === 'forget' ? 'erase' : 'normal';
+    this.pending.blendMode = this.tail.blendMode = mode === 'forget' ? 'erase' : 'normal';
+    this.tail.clear();
     if (shape?.type === 'brush') {
-      // Only the stretches added since the last draw: a long stroke is not built anew on every move.
-      const from = Math.max(0, this.brushed - 1);
-      this.fill(strokePolygons({ ...shape, points: shape.points.slice(from) }));
-      this.brushed = shape.points.length;
+      const { points, brushRadius } = shape;
+      const stretch = (from: Point, to: Point): Point[][] => strokePolygons({ type: 'brush', brushRadius, points: [from, to] });
+      this.kept ??= points[0] ?? null;
+      for (const point of points.slice(this.brushed)) {
+        if (!this.kept || !countsInBrushStroke(this.kept, point, brushRadius)) continue;
+        fill(this.pending, stretch(this.kept, point), this.tint);
+        this.kept = point;
+      }
+      this.brushed = points.length;
+      const last = points[points.length - 1];
+      if (this.kept && last) fill(this.tail, stretch(this.kept, last), this.tint);
     } else {
-      this.pending.clear();
-      this.brushed = 0;
-      if (shape) this.fill(strokePolygons(shape));
+      this.clearBrush();
+      if (shape) fill(this.pending, strokePolygons(shape), this.tint);
     }
     // The layer shows the area itself, as the memory will hold it.
     drawStrokeArea(this.outline, stroke, STROKE_COLORS[mode], OUTLINE_WIDTH / this.viewport.scale.x, false);
   }
 
   clearStroke(): void {
-    this.pending.clear();
+    this.clearBrush();
     this.outline.clear();
+  }
+
+  private clearBrush(): void {
+    this.pending.clear();
+    this.tail.clear();
     this.brushed = 0;
+    this.kept = null;
   }
 
   destroy(): void {
@@ -101,8 +121,8 @@ export class ExploredOverlay {
     this.memory.texture = Texture.EMPTY;
     destroyTree(this.view);
   }
+}
 
-  private fill(polygons: readonly Point[][]): void {
-    for (const polygon of polygons) this.pending.poly(polygon.flatMap((point) => [point.x, point.y])).fill({ color: this.tint });
-  }
+function fill(g: Graphics, polygons: readonly Point[][], color: number): void {
+  for (const polygon of polygons) g.poly(polygon.flatMap((point) => [point.x, point.y])).fill({ color });
 }
