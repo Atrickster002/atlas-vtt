@@ -41,12 +41,20 @@ export const MIN_SOFTNESS = 0.12;
 export const PURKINJE = 0.55;
 
 /**
- * A light that shines one way gives its full light inside its cone, where the rules count it,
- * and spills past the cone's sides over this angle (radians), fading to nothing: light has no
- * hard side as sight has. Its own space (the cone's apex) is lit all around and fades out over
- * `CONE_APEX_FADE` times that radius.
+ * How wide, in world pixels, a light's edge is soft where the rules give it a hard one: past the
+ * sides of a beam, and past its far end. No wider than the fade past a dim radius, and never
+ * more than half a cell: what lies there looks lit and is not counted, so a token standing in
+ * it is hidden on a floor that seems lit.
  */
-export const CONE_SPILL = 0.16;
+export function softEdge(dim: number, cellSize: number): number {
+  return Math.min((LIGHT_REACH - 1) * dim, cellSize / 2);
+}
+/**
+ * A light that shines one way gives its full light inside its cone, where the rules count it,
+ * and falls off past the cone's sides over its soft edge (`softEdge`, a width, not an angle: an
+ * angle grows with the distance), steeply at first. Its own space (the cone's apex) is lit all
+ * around and fades out over `CONE_APEX_FADE` times that radius.
+ */
 export const CONE_APEX_FADE = 1.6;
 
 /**

@@ -1,6 +1,6 @@
 /// <reference types="vite/client" />
 import { describe, expect, it } from 'vitest';
-import { CONE_APEX_FADE, CONE_SPILL, LIGHT_REACH, sealTolerance, worldTexel } from '../../../../lighting/lightingConstants';
+import { CONE_APEX_FADE, LIGHT_REACH, sealTolerance, softEdge, worldTexel } from '../../../../lighting/lightingConstants';
 import { placeLight } from '../../../../lighting/lightPlacement';
 import { sealWalls } from '../../../../lighting/sealWalls';
 import { allSegments, splitBlocking } from '../../../../lighting/segments';
@@ -44,7 +44,8 @@ interface FuzzOptions {
  * compared texel by texel with the same lights shining all around. A beam multiplies its light's
  * share by at most 1, so a room's walls hold for beams as they hold for lights (the leak fuzz);
  * this fuzz holds the beam itself: nowhere brighter than the light all around, nothing outside
- * the beam past its soft side, everything of the light inside it.
+ * the beam past its soft edge (a width in world pixels at its sides and its far end), everything
+ * of the light inside it up to its dim radius.
  */
 async function fuzz({ seed, trials, allAround = false, turned = false }: FuzzOptions): Promise<Report> {
   const renderer = await createTestRenderer(64);
@@ -61,18 +62,19 @@ async function fuzz({ seed, trials, allAround = false, turned = false }: FuzzOpt
       const lights: EngineLight[] = room.lights.map(([x, y], i) => {
         const dim = 150 + rand() * 500;
         const cone: VisionCone = { facing: rand() * 2 * Math.PI, angle: 0.2 + rand() * 4.5, ...(rand() < 0.5 && { apex: 10 + rand() * 60 }) };
-        return { key: `l${i}`, x, y, bright: dim / 2, dim, flame: 2 + rand() * 90, color: [1, 1, 1], intensity: 1, animation: 'none', cone };
+        // The soft edge of a grid of 30 to 110 px cells.
+        return { key: `l${i}`, x, y, bright: dim / 2, dim, flame: 2 + rand() * 90, color: [1, 1, 1], intensity: 1, animation: 'none', cone, edge: softEdge(dim, 30 + rand() * 80) };
       });
       const read = (drawn: EngineLight[]): Float32Array => {
         world.update(walls, drawn, null);
         world.flush();
         return readFloats(renderer, world.lightMap.texture);
       };
-      const all = read(lights.map(({ cone: _cone, ...light }) => light));
+      const all = read(lights.map(({ cone: _cone, edge: _edge, ...light }) => light));
       const beamed = allAround ? all : read(lights.map((light) => (turned ? { ...light, cone: { ...light.cone!, facing: light.cone!.facing + Math.PI / 2 } } : light)));
       const placed = lights.flatMap((light) => {
         const at = placeLight(light.x, light.y, light.flame, allSegments(splitBlocking(walls)), texel);
-        return at ? [{ at, cone: light.cone!, reach: light.dim * LIGHT_REACH }] : [];
+        return at ? [{ at, cone: light.cone!, dim: light.dim, edge: light.edge!, reach: light.dim * LIGHT_REACH }] : [];
       });
       const width = world.lightMap.texture.source.pixelWidth;
       for (let o = 0; o < all.length; o += 4) {
@@ -83,13 +85,16 @@ async function fuzz({ seed, trials, allAround = false, turned = false }: FuzzOpt
         const y = (Math.floor(o / 4 / width) + 0.5) * texel;
         let outside = true;
         let inside = true;
-        for (const { at, cone, reach } of placed) {
+        for (const { at, cone, dim, edge, reach } of placed) {
           const d = Math.hypot(x - at.x, y - at.y);
           if (d >= reach) continue;
           const apex = cone.apex ?? 0;
           const off = Math.acos(Math.min(1, Math.max(-1, ((x - at.x) * Math.cos(cone.facing) + (y - at.y) * Math.sin(cone.facing)) / Math.max(d, 1e-4)))) - cone.angle / 2;
-          if (off < CONE_SPILL + EDGE || d < apex * CONE_APEX_FADE + EDGE) outside = false;
-          if (off > -EDGE && d > apex - EDGE) inside = false;
+          // Across the cone's nearer edge in front of the light, from the light itself behind it.
+          const across = off < Math.PI / 2 ? d * Math.sin(Math.max(off, 0)) : d;
+          if (d < dim + edge + EDGE && (across < edge + EDGE || d < apex * CONE_APEX_FADE + EDGE)) outside = false;
+          // Inside the beam and the dim radius the light is all there; past the radius a beam ends sooner.
+          if ((off > -EDGE && d > apex - EDGE) || d > dim - EDGE) inside = false;
         }
         if (outside) {
           report.outside++;

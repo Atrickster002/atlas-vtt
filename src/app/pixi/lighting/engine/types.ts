@@ -24,6 +24,8 @@ export interface EngineLight {
   priority?: number;
   /** A light that shines one way: where it faces and how wide, with its own space around it (`apex`) lit all around. */
   cone?: VisionCone;
+  /** Width in world pixels of the soft edge past a beam's sides and far end (`softEdge`); unset, the fade past the dim radius. */
+  edge?: number;
 }
 
 /**

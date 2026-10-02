@@ -24,8 +24,8 @@ void main() {
 // shows the dim range at the same share of the bright range whatever its colour.
 // A light that shines one way (`uCone`: its facing as a unit vector, half its angle, the radius
 // of its own space; half an angle of π or more is no cone) keeps all of this inside its cone and
-// within its own space, and fades past the cone's sides over `uSpill` radians and past its own
-// space over `uSpill.y` times that radius. The tile knows nothing of the cone, so turning a
+// within its own space, and falls off past the cone's sides over `uSpill.x` world pixels (steeply:
+// what lies there is lit and not counted) and past its own space over `uSpill.y` times that radius. The tile knows nothing of the cone, so turning a
 // light traces nothing.
 // The colour is `uLightColor`: PIXI sets `uColor` itself, as a vec4, on every mesh shader that declares it.
 export const lightMapFragment = `${GLSL_VERSION}
@@ -51,7 +51,10 @@ float smoother(float u) { return u * u * u * (u * (u * 6.0 - 15.0) + 10.0); }
 // The share of the light a point at v from the light gets by where the light faces.
 float inCone(vec2 v, float d) {
   float off = acos(clamp(dot(v, uCone.xy) / max(d, 1e-4), -1.0, 1.0)) - uCone.z;
-  float beam = 1.0 - smoother(clamp(off / uSpill.x, 0.0, 1.0));
+  // How far past the cone's nearer edge: across it in front of the light, from the light itself behind it.
+  float across = off < 1.5708 ? d * sin(max(off, 0.0)) : d;
+  float left = 1.0 - clamp(across / max(uSpill.x, 1e-3), 0.0, 1.0);
+  float beam = left * left;
   float own = 1.0 - smoother(clamp((d - uCone.w) / max(uCone.w * (uSpill.y - 1.0), 1e-3), 0.0, 1.0));
   return max(beam, own);
 }

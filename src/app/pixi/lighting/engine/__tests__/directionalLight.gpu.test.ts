@@ -1,5 +1,4 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { CONE_SPILL } from '../../../../lighting/lightingConstants';
 import { lightLevelAt } from '../../../../vision/lightLevels';
 import { SEES_ALL, lightReach } from '../../../../vision/sight';
 import type { VisionCone } from '../../../../vision/visionCone';
@@ -16,7 +15,9 @@ const bounds = { width: MAP, height: MAP };
 const CENTRE = { x: 512, y: 512 };
 /** A lantern in the middle of the map that shines right, 90° wide: bright to 150 px, dim to 300 px. */
 const cone: VisionCone = { facing: 0, angle: Math.PI / 2, apex: 35 };
-const lantern: EngineLight = { key: 'lantern', ...CENTRE, bright: 150, dim: 300, flame: 12, color: [1, 1, 1], intensity: 1, animation: 'none', cone };
+/** How wide the lantern's soft edge is past the sides of its cone, in world pixels. */
+const EDGE = 24;
+const lantern: EngineLight = { key: 'lantern', ...CENTRE, bright: 150, dim: 300, flame: 12, color: [1, 1, 1], intensity: 1, animation: 'none', cone, edge: EDGE };
 
 /** Above what the lantern's bounce gives the floor behind it, far below what its light gives. */
 const DARK = 16;
@@ -80,8 +81,8 @@ describe('a directional light in the picture', () => {
     for (const distance of [120, 200, 280]) {
       for (let angle = -Math.PI; angle < Math.PI; angle += Math.PI / 48) {
         const outside = Math.abs(angle) - cone.angle / 2;
-        // The soft edge lies outside the cone, within the spill.
-        if (outside > 0 && outside < CONE_SPILL + 0.04) continue;
+        // The soft edge lies outside the cone, within its width (and a map texel and a screen pixel of filtering).
+        if (outside > 0 && outside < Math.PI / 2 && distance * Math.sin(outside) < EDGE + 8) continue;
         const point = polar(distance, angle);
         const shown = luminance(at(point));
         const level = lightLevelAt(point, { ambient: 0 }, rule);
@@ -98,10 +99,11 @@ describe('a directional light in the picture', () => {
     expect(dark).toBeGreaterThan(150);
   });
 
-  it('has soft sides: past the edge of the cone the light falls off steadily, and is gone within the spill', async () => {
+  it('has soft sides: past the edge of the cone the light falls off steadily, steeply at first, and is gone within the edge\'s width', async () => {
     const at = (await setup()).at();
     const edge = cone.angle / 2;
-    const steps = [0, 0.25, 0.5, 0.75, 1].map((share) => luminance(at(polar(220, edge + share * CONE_SPILL))));
+    // At 220 px from the lantern, 0 to 30 px across its edge: the edge is 24 px wide wherever it is measured.
+    const steps = [0, 0.25, 0.5, 0.75, 1.25].map((share) => luminance(at(polar(220, edge + Math.asin((share * EDGE) / 220)))));
     for (let i = 1; i < steps.length; i++) expect(steps[i]!).toBeLessThanOrEqual(steps[i - 1]! + 1);
     expect(steps[0]!).toBeGreaterThan(25);
     expect(steps[2]!).toBeGreaterThan(4);

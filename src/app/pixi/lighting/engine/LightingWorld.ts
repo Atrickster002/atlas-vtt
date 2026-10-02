@@ -189,7 +189,7 @@ export class LightingWorld {
       }
       const { intensity, radiusScale } = sample(light);
       // Flicker breathes the bright radius only: where a light ends is where the rules end it.
-      drawn.push({ tile, bright: light.bright * radiusScale, dim: light.dim, reach: light.dim * LIGHT_REACH, color: light.color, intensity: light.intensity * intensity, cone: light.cone });
+      drawn.push({ tile, bright: light.bright * radiusScale, dim: light.dim, reach: light.edge === undefined ? light.dim * LIGHT_REACH : light.dim + light.edge, color: light.color, intensity: light.intensity * intensity, cone: light.cone, edge: light.edge });
     }
     this.lightMap.draw(drawn);
   }
@@ -200,7 +200,7 @@ function sameLights(a: readonly EngineLight[], b: readonly EngineLight[]): boole
     const y = b[i]!;
     return x.key === y.key && x.x === y.x && x.y === y.y && x.bright === y.bright && x.dim === y.dim && x.flame === y.flame
       && x.intensity === y.intensity && x.animation === y.animation && x.color.every((c, j) => c === y.color[j])
-      && !!x.darkness === !!y.darkness && (x.priority ?? 0) === (y.priority ?? 0) && sameCone(x.cone, y.cone);
+      && !!x.darkness === !!y.darkness && (x.priority ?? 0) === (y.priority ?? 0) && sameCone(x.cone, y.cone) && x.edge === y.edge;
   });
 }
 

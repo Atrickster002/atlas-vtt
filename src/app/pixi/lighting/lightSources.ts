@@ -4,7 +4,7 @@ import type { LightEmission, LightSource } from '../../types/lightingTypes';
 import { isLightOn } from '../../lighting/lightActivity';
 import { beamOf } from '../../lighting/lightBeam';
 import { gameUnitsToWorld, type UnitScale } from '../../lighting/lightingUnits';
-import { MIN_SOFTNESS, TINT_TO_WHITE } from '../../lighting/lightingConstants';
+import { MIN_SOFTNESS, TINT_TO_WHITE, softEdge } from '../../lighting/lightingConstants';
 import { srgbToLinear } from '../../lighting/srgb';
 import { kindOf } from '../../vision/sight';
 import type { EngineLight } from './engine/types';
@@ -64,6 +64,7 @@ export function engineLight(light: ActiveLight, scale: UnitScale): EngineLight {
     // Darkness does not flicker: its edge is where the rules end it.
     animation: emission.darkness ? 'none' : emission.animation,
     ...kindOf({ ...(emission.darkness && { darkness: true }), ...(emission.priority !== undefined && { priority: emission.priority }), ...(cone && { cone }) }),
+    ...(cone && { edge: softEdge(dim, scale.cellSize) }),
   };
 }
 
