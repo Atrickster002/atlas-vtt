@@ -1,132 +1,44 @@
 ## New
 
-- The command palette has an Experimental features page, for features that are still being tested. Each is off until you switch it on there, for every map
-- Dynamic lighting, the first experimental feature. Switch it on under Experimental features in the command palette, then per scene from the new Lighting tool, and pick the time of day, from daylight to pitch black. Players see only what their tokens can see: walls always block their line of sight, and in the dark they see only what light reaches.
-- Place candles, torches, lanterns and magical lights on the map, or hand one to a token from its right-click menu so it moves with the token. Light never passes a wall, flames cast soft shadows that widen with the flame's size, light bounces softly off floors and walls, and each flame glows and flickers.
-- Give tokens vision from their right-click menu, and set a sight range in Edit Token.
-- Tokens have senses. Add them in Edit Token, each with its own range. A collection without a game system has darkvision, low-light vision, blindsight, tremorsense, truesight and see invisible. Game systems bring their own: D&D 5e has darkvision, blindsight, tremorsense, truesight, Devil's Sight and See Invisibility; Pathfinder 2e has low-light vision, darkvision, greater darkvision, tremorsense, scent, hearing, lifesense, wavesense, echolocation and See the Unseen; Shadowdark has darkness-adapted sight; Old-School Essentials has infravision; Cyberpunk RED has the low light / IR / UV cybereye.
-- Change a game system's senses or add your own in the collection settings' Vision tab: what the sense sees in dim light and in darkness, how the dark looks through it (in colour, grey, black and white or heat tones), whether it reaches through walls, sees invisible creatures, works while blinded, and whether it shows the map or only creatures.
-- A token linked to a statblock takes its senses from the statblock, such as "darkvision 60 ft., blindsight 30 ft. (blind beyond this radius)". Edit Token shows them. Change them there and the token keeps its own.
-- Senses that feel rather than see, such as tremorsense, scent or hearing, show creatures as outlines. Players learn that something is there, through walls and in the dark, but not what it is, and the map stays hidden.
-- Conditions can change what is seen. A Blinded token sees only with senses that work without eyes, an Invisible token is seen only by senses that see the invisible, and Pathfinder's Undetected and Unnoticed hide a token from every sense. Choose a condition's effect on sight in the collection settings' Conditions tab, for your own conditions too. Airborne hides a flying token from tremorsense.
-- Give a token a vision cone in Edit Token, from a narrow beam to a wide sweep. It faces the way the token is turned, and the edges of the cone are sharp.
-- Set a default vision per collection, in a new Vision tab of the collection settings: sight range, cone and senses. Tokens you place from the library start with it, with vision still switched off, and a game system can bring its own defaults.
-- Open Lighting settings from the lighting menu to adjust a scene: switch token vision off so players see everything the light shows, stop remembering explored areas (what was already explored comes back when you switch it on again), pick the colours of explored and unexplored areas, and choose from which brightness a scene counts as lit.
-- Tint a scene's ambient light with the colour swatch next to the Ambient light slider in the lighting menu.
-- Choose how darkvision looks in a scene, in Lighting settings: as the game system says, grey, or in the map's own colours. Grey and colour apply to every sense that shows the dark without colour, such as Pathfinder's black and white darkvision and infravision's heat tones. A tint gives the look a hue, green for night-vision goggles for example, without making it darker or brighter, and No tint takes it back.
-- Areas the players have explored stay on their screen, dim and grey, and are saved with the scene. Forget them from the Lighting tool's menu.
-- Edit what a scene remembers. Choose Explored memory in the lighting menu and paint with a brush, a lasso or a rectangle: Reveal marks an area as explored, so the players see it dim and grey without the creatures and lights that are in it, and Forget takes the memory away again. Mark all areas explored and Forget explored areas do the same for the whole map. Every edit can be undone, Forget explored areas included.
-- The GM sees the whole map with its lighting. Hold H, or switch from GM view to session view, to see exactly what the players see.
-- A wall can block only sight or only light. Right-click a wall with the Lighting tool and choose Blocks. Sight only makes a curtain or a bank of fog: light passes it and eyes do not. Light only makes a pane of glass that holds the light back while tokens see through it. Such walls are drawn dashed, in a pattern of their own for each, and a door set into one keeps working
-- Open and close doors by clicking the door badges, with any tool. Right-click a badge to lock the door: a locked door shows a padlock, stays shut when clicked and shakes its badge instead, until you unlock it the same way.
-- D&D 5e, Pathfinder 2e, Shadowdark, Old-School Essentials and Cairn bring their own lights, in the unit your collection measures in: D&D 5e's candle, torch, hooded lantern, bullseye lantern, lamp, Light, Continual Flame and Daylight, Pathfinder 2e's candle, torch, hooded lantern, bull's-eye lantern, Light, everlight crystal and glow rod, and the torches and lanterns of the other three. Collections of other game systems keep the candle, torch, lantern and magical light. Pick them in the light popover, the lighting menu and a token's Carry light menu.
-- Magical darkness. Place a Darkness like a light, or let a token carry one: within its radius it swallows torchlight, spell light and daylight alike, walls stop it like light, and the players see a faint dark veil where it swallows light. Tokens standing in it are not seen, except by senses that see in magical darkness, such as devil's sight, truesight and Pathfinder's darkvision. A light standing in it goes out unless it outshines the darkness, and a token with vision standing in it sees nothing, inside or beyond, unless one of its senses sees in magical darkness; senses that need no eyes, such as tremorsense, still work. D&D 5e and Pathfinder 2e bring their Darkness spell (15 ft and 20 ft); a light can be set to outshine magical darkness, as D&D's Daylight does
-- A light can shine one way, like a bullseye lantern. Narrow its beam in the light popover or in Edit Token. On the map, drag the handle beyond the beam to turn the light (hold Alt for single degrees), or use the Direction slider, and the light's marker points the way it faces. A light a token carries faces the way the token is turned. The beam is soft at its sides and stops at walls like any light.
-- A light on the map can follow the time of day, like a street lamp. Set Shines in its popover to From dusk or At night, and it lights up when the scene gets that dark and goes out again by day. Its marker carries a small moon and is dimmed while the lamp is out.
-- Light zones give a part of the map its own ambient light: a cave that is dark while the sun shines outside, or a lit hall in a dark dungeon. Choose Light zones in the lighting menu, click the corners of the area and press Enter (corners snap to wall ends; hold Alt to place them freely). Click the zone's handle to set its time of day, its ambient light and colour and a name, drag its corners to reshape it, and press Delete to remove it. A zone's light ends at walls and spills softly through openings; tokens in a dark zone are hidden like tokens in the dark anywhere.
-- Edit the light a token carries in Edit Token like a light on the map: its kind, colour, bright and dim range, intensity, softness and flicker.
-- The GM sees how the rules of sight apply. Select a token with vision and its sight range, its cone and the range of each sense show as labelled rings. Tokens the players do not see carry a small mark.
-- Click a light on the map to edit it in a popover right beside it: its kind, colour, bright and dim range, intensity, softness and flicker, or to switch it off or delete it. While the popover is open, the light's ranges show as rings on the map: drag a ring's handle to resize it (hold Alt for fine steps). With the Lighting tool, drag a light to move it.
-- Import maps with their walls, doors and lights from Dungeondraft, DungeonFog and Dungeon Alchemist. Add a Universal VTT file (.dd2vtt, .uvtt or .df2vtt) with Add Map, or drop it on the asset manager. Atlas adds the map and opens a scene of the same name with dynamic lighting on. Lights that the image already shows arrive switched off.
-- Dice rolls are thrown as 3D dice in a panel at the top right of the map (top centre in the player window): they bounce off the panel's edges, clatter, spark when they land, and a modifier clicks onto the total. Click a roll or press Escape to dismiss it. Critical results get a bigger burst of sparks and their own sound. Rolls with dice that have no real shape (such as d7) still show as a result card. Choose between result cards, fast dice and dice under Settings → Dice or in the command palette's new Dice settings. The player window shows the same dice when it shows rolls
-- Cairn is a built-in game system preset, with 5-foot squares, d20 saves where a 1 always succeeds and a 20 always fails, and its conditions: Deprived, Fatigue, Critical Damage, Paralyzed, Delirious and Fleeing
-- Draw Steel is a built-in game system preset, with distances in squares, 2d10 power rolls that are critical on a 19 or 20, a Stamina bar and its nine conditions. Contributed by jSQrD-dev
-- Each collection has dice rules in its settings (new Dice tab): the default roll and how critical results are recognised (natural, roll-under, doubles, high total or none). A bare bonus in a statblock, such as +3, now rolls with the collection's default roll, e.g. 1d10+3 in Cyberpunk RED. Every game system preset sets them
-- Dice can explode. In a collection's Dice settings, choose whether its default dice or all dice roll again on their highest face, once or again and again, and whether a lowest face rolls again and subtracts; Cyberpunk RED is set up this way. A single roll explodes with ! after its dice, such as 2d6! (once) or 2d6!i (again and again). Each extra die is thrown when the die before it has landed
-- Tokens can track up to six resources: each game system brings its own (Cairn's STR, Daggerheart's Stress) and you can add more, like ammunition, in the collection settings' new Resources tab: it shows a token with six sockets, and you click the socket where a resource should appear. The first two show as bars below the token; the others show as wheels beside it while you hover or select the token, two on its right and two on its left. Each resource reads its maximum from a statblock field, and one set to static just shows that number, such as an armour class. A scene's token settings show or hide each resource on that map, and the player view settings choose which bars players see
-- The initiative tracker can run a fight by sides: the players and their opponents take turns as two groups, and nothing is rolled. Cairn collections do so, players first. Right-click a card to move a combatant to the other side or, during a fight, to let it sit out the round, as after a failed DEX save in Cairn's first round. Tokens with vision switched on start on the players' side
-- Choose how a collection's initiative tracker works under Default Widgets in the collection settings: in turn order, with the dice a combatant rolls, or by sides, with the side that acts first. Cyberpunk RED collections roll a d10
-- The initiative tracker has a Clear button that removes every combatant and ends the fight
+- Dynamic lighting. It is off by default. Switch it on in the Atlas command palette under Experimental features
+- Experimental features page in the command palette
+- Import maps from Dungeondraft, DungeonFog and Dungeon Alchemist (.dd2vtt, .uvtt, .df2vtt)
+- 3D dice
+- Dice rules for each collection: default roll, critical rule, exploding dice
+- Token resources: up to six for each collection. New Resources tab in the collection settings
+- Cairn game system preset
+- Draw Steel game system preset. Contributed by jSQrD-dev
+- Initiative by sides
+- Initiative rules for each collection
+- Clear button in the initiative tracker
 
 ## Improved
 
-- A map larger than 8192 pixels on a side is scaled down when you add it. Its card now shows the new size, so you know before saving that small labels may be harder to read
-- Token resource bars have a flat fill; the glossy gradient is gone
-- A token with vision is always shown to the players. In darkness it shows within its own space, and nothing shows past a wall it stands at.
-- Darkvision follows each game system's rules. In a D&D 5e collection it also shows dim light as bright, Pathfinder 2e's shows darkness in black and white, and Old-School Essentials' infravision shows it in heat tones.
-- The Magical light shines bright to 20 ft and dim to 40 ft. A magical light with other ranges keeps them and shows as a Custom light.
-- A collection's HP and secondary resource bars are now set in its new Resources tab instead of Default Widgets. Collections, scenes and tokens keep their bars, values and switches
-- Hold Ctrl/Cmd over a token in the asset manager to see its statblock, as on the map. With tokens selected, Ctrl/Cmd adds to the selection and opens no statblock
-- The collection export and import dialogs open a token's statblock the same way: hold Ctrl/Cmd over the token. Before, it opened by itself when the pointer rested on a token
-- A token with a linked statblock shows a scroll badge in the asset manager, the one the export and import dialogs use, instead of the accent-coloured link. Click it to open the statblock, as before
-- Choose how the dice look in the command palette's Dice settings: light card, dark with light numbers, or your Obsidian accent colour (the numbers turn dark or light to stay readable), each shown as a d20. Sci-fi numbers suit futuristic games; the choice also sets the font of roll totals
-- The dice tray (R) shows drawn dice, has a modifier you can step up and down, and always shows the formula it will roll. Take a die back with the − under it
-- An exported collection carries every note its pinned notes lead to: the notes they link to, the notes those link to, and the images and PDFs they show. The export dialog lists each note below the note that led to it and says why it is there; untick a note to leave out everything only it links to. The images and PDFs have a list of their own
-- Imported notes keep the folders they had, so the links between them still work
-- The GM dashboard is now called the DM screen. Press Tab on a map to open it; a custom key you set for it is kept
-- Large token imports are much faster. 1,000 tokens from Fantasy Statblocks now take about 40 seconds instead of 11 minutes, and imports of thousands of tokens no longer slow down as they go
-- The token creator and the Fantasy Statblocks list stay smooth with thousands of images. With a contribution by DeastinY
-- Statblocks that share one image read and convert it only once
-- In the GM view, every light shines at full strength and a badge with its kind and colour marks every light; areas no token sees are shown slightly faded instead of dimmed
-- Flickering lights take about a quarter of the graphics card time they did on a 120 Hz display, and half on a 60 Hz one
-- Dynamic lighting costs far less on high-density displays such as Retina screens, so panning a lit map stays smooth
-- An open player window costs far less, so the GM view stays smooth on large maps with lighting
-- What a token sees and the light it carries follow it while you drag it, for you and for the players. To show the players nothing along the way and update both when you drop the token, switch on "Update sight when a token is dropped" in Lighting settings
-- Session view (the GM view switch in the toolbar, D) now also shows the players' lighting: the map as their tokens see it, without the tokens they cannot see, light markers and wall lines
-- Edit Token has two columns: the token's name, resources and vision on the left, the light it carries on the right. It fits an ordinary window without scrolling, and a narrow window shows it as one column
-- Players see a badge on each door their characters see, in the player window too. A locked door looks closed to them, and a secret door has no badge. In session view, and while you hold H, click these badges to open and close the doors
-- The lighting menu is laid out like the other tool menus: what the tool does and how walls are drawn are rows with a tick, and the time of day shows which one is chosen
-- Switches in the tool menus can be reached with Tab and switched with Space or Enter, and screen readers announce them. Every menu row is now rounded alike on both sides
-- A token you drop on a square lies on top of the tokens already there, and so does one you place, paste or duplicate. Before, the token that stood there first stayed on top. The order is saved with the scene and follows undo
-- The asset manager opens on placeholders in the shape of what is coming: cards, folders, tags, the statblock list and the statblock itself. The content then takes their place without moving. Switching tab or collection shows them only when the load takes longer than a moment
-- Scrolling the asset manager is smooth in large collections. Cards scrolled out of view no longer stay loaded, rows that are not drawn yet show placeholders instead of empty space, and the art of the next rows is loaded before they scroll in
-- The asset manager stays smooth while its content loads. Thumbnails made in the background appear a few at a time, starting with the cards on screen, and no longer redraw the whole library as each one finishes. A card waits for its thumbnail instead of loading the full image, so a page of maps no longer holds every map in memory. Reading the statblocks of a large library no longer freezes the window
-- Statblock previews leave room at the window's edges for what a theme draws around them. The Atlas VTT theme's ivy is no longer cut off above and below a tall statblock
-- In the initiative tracker, a combatant whose token is hidden carries a crossed-out eye: the players' list leaves it out. Right-click its card to hide it from the players or show it again
-- The DM screen of a map without statblocks no longer shows a box saying so. The note beside it stays where it was
-- The player view button of a scene tab moved to the tab's left end, away from the close button, so you no longer close a scene when you meant to show it to the players. Contributed by ISorokaI
-
-## Fixed
-
-- A statblock that names its artwork in a `token` property is found when you create tokens from statblocks, as one with an `image` property is. Where a statblock has both, `image` is used
-- Opening the asset manager no longer flashes "No characters yet" before the library appears, and its tabs no longer count 0 first. Switching the collection no longer shows the previous collection's cards while the new one loads
-- A statblock defined in a code block no longer flashes "No Fantasy Statblocks creature found" while it is read
-- Cone measurements follow the game system. A D&D 5e cone is now as wide as it is long (about 53°) instead of twice as wide, other systems keep the quarter circle, and Grid & Measurement in the collection settings has a Cone Angle to change it. Contributed by ISorokaI
-- Escape closes a light's settings, clears the selection or cancels a wall being drawn even while a tooltip is showing. Before, the first Escape closed only the tooltip
-- Explored areas stay on the players' screen while a token stands in them in the dark. Before, a remembered room turned black as soon as a token had it in its line of sight without light, and showed again from behind a wall; a thin grey line also ran along the edges of shadows
-- Map shortcuts work on any keyboard layout. On a Russian, Greek or other non-Latin layout, the key in the same physical place as the Latin letter now triggers its shortcut. Contributed by ISorokaI
-- An SVG map you add is drawn at the full map size of 8192 pixels instead of 2048, so it stays sharp when you zoom in. Add an SVG map from before again to get it at that size
-- The DM screen shows its statblocks side by side again. As many columns as fit share the space, and each statblock goes into the column with the first free space, so no column stays empty
-- Collections can be deleted again when some of their files were already removed outside Obsidian, for example by git
-- The description and steps boxes of the issue report form no longer slide under the rows below them in a short window, such as the settings window. The form scrolls instead
-- "Link Statblock" now finds every statblock note the token creator finds, including notes that define their statblock in a statblock code block (such as `monster: Octopus`)
-- Right-clicking a token under fog of war opens the token's menu instead of the fog menu, and the fog and text menus open at the pointer instead of shifted up and to the left
-- Dragging with the right mouse button pans the map again when the pointer is over fog of war or a linked hex. Their menus open when you release the button without dragging
-- Starting a circle measurement no longer stops the map from drawing when Obsidian runs without hardware acceleration, so tokens and encounters added afterwards show up again
-- Spawn on Map and Spawn Multiple now work in the asset manager opened from the scene browser, the dashboard or a command: tokens and encounters go to the open scene, and when no scene is open Atlas says so instead of doing nothing
-- You can create a scene by right-clicking a map. Before, a scene could only be made by double-clicking a map, which nothing pointed to
-- The dice tray no longer shows on top of the asset manager and the DM dashboard
-- A selected token's resource buttons stay above neighbouring tokens, so the minus button is no longer hidden behind a token diagonally below it. Contributed by ISorokaI
-- A selected token's resource bars and wheels lie above those of the tokens around it. Before, a neighbour's bars could cover them
-- Panels in the player window, such as dice rolls and widgets, follow Obsidian's light or dark theme and its accent colour. Before, they stayed dark
-- A roll such as d20+2d6 no longer adds a stray +2 to its total, and subtracted dice (2d6-1d4) now subtract
-- A natural 1 or 20 counts as critical even when a modifier is added, and a maxed damage die never does
-- Edit Token opens again instead of crashing on its Vision switch
-- A map with dynamic lighting opens even when the graphics device cannot run the lighting. Atlas says so once and shows the players' line of sight without light and shadow, instead of a blank map
-- Maps open with software rendering when WebGL cannot start, instead of staying blank
-- In the initiative tracker, tokens without hit points no longer show a made-up full HP bar. A creature you Kill now shows as defeated with an empty bar there
-- Switching between scene tabs no longer leaves a scene black and unable to open
-- A scene that failed to open can no longer be saved over: its file stays as it was, and you can open it or another scene again. A scene whose file is damaged, cannot be read or was saved by a newer Atlas now says so instead of opening empty. It no longer leaves the map of the scene before on screen without its fog, and the player window keeps its last picture meanwhile
-- Opening a scene while another is still loading always shows the one you opened last. A scene that never finishes loading is given up after half a minute, with a notice, instead of blocking the view
-- Renaming a scene while it opens no longer empties it
-- The player window follows again when you return to the scene it presents
-- When a scene cannot be saved, Atlas now says so after a few seconds instead of waiting without end
-- When one part of the map view fails to show, such as the initiative tracker, the map, the toolbar and the other parts now stay and Atlas tells you which part is missing. Before, the whole view went black
-- A light's dim range is now visibly lit out to its edge and the light ends just past it, so what looks dark on the map is dark. Before, the outer part of the dim range was drawn nearly black although tokens standing there still showed
-- Scene thumbnails and snapshot previews show a scene's dynamic lighting as the GM sees it. They also leave out pins, linked hexes, light markers, door badges and wall lines, and follow changes to the scene's lighting
-- A scene keeps its thumbnail when the graphics device resets or the scene could not be opened again, instead of getting a blank or outdated one
-- The asset manager's header keeps its controls apart at every window size. Before, the selection count, the asset type and the search could lie over each other, most easily with a selection in a medium-wide window
-- Clicking a pile of tokens selects the one on top. Before, a click could pick a token lying underneath, most easily after placing a token on an occupied square or hex
-- Exporting a collection now packs its loot tables: the bases picked in the collection's Loot settings and every item note they list. An import puts them into the collection's folder, where the loot roller finds them again. Before, the importing vault got the setting without the base or its items
-- Text fields and dropdowns have one background everywhere. Before, some took the colour of the panel around them, so fields in one dialog could differ in dark mode and in themes that colour their fields
-- The collection settings stay in place when a tab grows long enough to scroll. Before, the scrollbar pushed the whole tab to the left
-- The asset manager's collection list no longer offers All Collections. It showed only the default collection, never the assets of the others, so the list now holds your collections and nothing else
-- A text you moved stays where you put it when you click it again. Before, the next click sent it back to where it was first placed, and its right-click menu showed the bold, italic and size it started with
-- Both initiative trackers show a token as the map does: inside its ring, in the ring's colour, or without a frame and with its whole art. Before, the tracker cut every token to a plain circle and the player window showed a rectangle
-- The initiative tracker and the player window's list scroll to the combatant or side whose turn it is. Before, a list longer than its panel stayed where it was while the turn moved out of view
-
-## Important changes
-
-- Dynamic lighting is off until you switch it on under Experimental features in the command palette. Without it there is no Lighting tool, no vision or light in a token's menu and in Edit Token, and no Vision tab in the collection settings. Scenes that are already lit show unlit until then, and keep their walls, lights and explored areas
-- The initiative tracker no longer fills with every token on the map. Select the tokens that take part, right-click one of them and choose Add to Initiative; Remove from Initiative takes the selection out again. The trackers of your scenes keep the tokens they hold
-- The player window lists every combatant whose token is not hidden, whether or not the party can see it on the map. Hide a token to keep it out of the players' list
+- Initiative: you add the combatants yourself. Right-click a token and choose Add to Initiative
+- Players see every combatant whose token is not hidden
+- The GM dashboard is now the DM screen. Press Tab to open it
+- The token you drop last lies on top
+- Edit Token has two columns
+- Hold Ctrl/Cmd over a token in the asset manager to see its statblock
+- The asset manager shows placeholders while it loads, and scrolls smoothly
+- Large token imports are much faster. With a contribution by DeastinY
+- A collection export includes linked notes, images, PDFs and loot tables
+- New dice looks and a new dice tray
+- HP and secondary bars are now in the Resources tab
+- A map larger than 8192 pixels is scaled down. Its card shows the new size
+- SVG maps stay sharp
+- Cone measurements follow the game system. Contributed by ISorokaI
+- The player view button of a scene tab is now on the left. Contributed by ISorokaI
+- Map shortcuts work on every keyboard layout. Contributed by ISorokaI
+- Maps open with software rendering when WebGL does not start
+- A statblock with a `token` property is found when you create tokens
+- Fixed: scenes that became black or empty when you switched, renamed or opened them
+- Fixed: wrong dice totals and critical results
+- Fixed: right-click menus and right-drag pan over fog of war
+- Fixed: the DM screen shows its statblocks side by side again
+- Fixed: Edit Token did not open
+- Fixed: Spawn on Map did nothing in some asset managers
+- Fixed: a collection with missing files could not be deleted
+- Fixed: a moved text went back to its old position
+- Fixed: the player window stayed dark in a light theme
+- Fixed: many small layout problems
