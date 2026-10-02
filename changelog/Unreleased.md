@@ -68,6 +68,7 @@
 - The asset manager stays smooth while its content loads. Thumbnails made in the background appear a few at a time, starting with the cards on screen, and no longer redraw the whole library as each one finishes. A card waits for its thumbnail instead of loading the full image, so a page of maps no longer holds every map in memory. Reading the statblocks of a large library no longer freezes the window
 - Statblock previews leave room at the window's edges for what a theme draws around them. The Atlas VTT theme's ivy is no longer cut off above and below a tall statblock
 - In the initiative tracker, a combatant whose token is hidden carries a crossed-out eye: the players' list leaves it out. Right-click its card to hide it from the players or show it again
+- The DM screen of a map without statblocks no longer shows a box saying so. The note beside it stays where it was
 
 ## Fixed
 
