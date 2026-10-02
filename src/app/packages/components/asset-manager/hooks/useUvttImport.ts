@@ -1,5 +1,4 @@
-import type * as React from 'react';
-import { useMemo } from 'react';
+import { useEffect, useRef } from 'react';
 import { Notice, type App } from 'obsidian';
 import { runUvttImport } from '../../../../import/uvtt/runUvttImport';
 import { isUvttFileName } from '../../../../import/uvtt/uvttFileNames';
@@ -13,13 +12,21 @@ import type { AssetService } from '../../../../services/AssetService';
  */
 export type ImportMaps = (files: readonly File[], collectionId: string, stay?: () => boolean) => Promise<void>;
 
-type DropHandlers = Pick<React.DOMAttributes<HTMLElement>, 'onDragOver' | 'onDrop'>;
-
-export interface UvttImportActions {
-  importMaps: ImportMaps;
-  /** Handlers for an element that takes dropped Universal VTT files; other drops pass it by. */
-  dropHandlers: (collectionId: string) => DropHandlers;
+export interface UvttImportOptions {
+  app: App;
+  assetService: AssetService | null;
+  /** The asset manager is open; map files dropped on its window are imported while it is. */
+  isOpen: boolean;
+  isMapCreatorOpen: boolean;
+  /** Another dialog of the asset manager is open, which opening a scene would close with it. */
+  isBusy: boolean;
+  /** Where a map file dropped on the asset manager goes. */
+  collectionId: string;
+  /** Runs once an imported scene is open: the asset manager closes then, as after a new scene. */
+  onSceneOpened: () => void;
 }
+
+const MANAGER_WINDOW = '.atlas-asset-manager-container';
 
 /** The files of `files` that are Universal VTT maps by their names. */
 export function uvttFilesAmong(files: readonly File[]): File[] {
@@ -28,19 +35,52 @@ export function uvttFilesAmong(files: readonly File[]): File[] {
 
 /**
  * Whether a drag carries a file that may be a map file. A drag names no files, only their types,
- * and the browser knows none for a map file's extension; images, which it does know, are left out.
+ * and the browser knows none for a map file's extension: files of a type it knows pass by.
  */
 export function mayCarryMapFile(transfer: Pick<DataTransfer, 'items'>): boolean {
-  return Array.from(transfer.items).some((item) => item.kind === 'file' && !item.type.startsWith('image/'));
+  return Array.from(transfer.items).some((item) => item.kind === 'file' && item.type === '');
 }
 
-/** `onSceneOpened` runs once an imported scene is open: the asset manager closes then, as after a new scene. */
-export function useUvttImport(app: App, assetService: AssetService | null, onSceneOpened: () => void): UvttImportActions {
+function overManager(event: DragEvent): DataTransfer | null {
+  const { target, dataTransfer } = event;
+  return dataTransfer && target instanceof Element && target.closest(MANAGER_WINDOW) ? dataTransfer : null;
+}
+
+function sayNotMaps(files: readonly File[]): void {
+  const names = files.map((file) => file.name);
+  const last = names.pop();
+  const which = names.length > 0 ? `${names.join(', ')} and ${last} are not maps` : `${last} is not a map`;
+  new Notice(`${which} Atlas can import. Drop a .dd2vtt, .uvtt or .df2vtt file.`);
+}
+
+/**
+ * The asset manager's import of Universal VTT maps: the function its map creator calls, and map
+ * files dropped anywhere on its window, a folder tile included. The scene of an import opens
+ * only for the asset manager that started it, while it is still open and nothing else is open
+ * in it that the scene would close: an import takes seconds, and the GM may have moved on.
+ */
+export function useUvttImport(options: UvttImportOptions): ImportMaps {
+  const latest = useRef(options);
+  latest.current = options;
+  // Counts each opening, so one that closed and opened again is told from the one that asked
+  const managerOpenings = useRef(0);
+  const creatorOpenings = useRef(0);
+  useEffect(() => { if (options.isOpen) managerOpenings.current++; }, [options.isOpen]);
+  useEffect(() => { if (options.isMapCreatorOpen) creatorOpenings.current++; }, [options.isMapCreatorOpen]);
+
   const importMaps = useStableCallback(async (files: readonly File[], collectionId: string, stay?: () => boolean): Promise<void> => {
+    const { app, assetService } = latest.current;
     if (!assetService || files.length === 0) return;
+    const manager = managerOpenings.current;
+    const creator = latest.current.isMapCreatorOpen ? creatorOpenings.current : null;
+
     const imported = await runUvttImport(app, assetService, files, collectionId);
     const last = imported[imported.length - 1];
-    if (!last || stay?.()) return;
+    const now = latest.current;
+    if (!last || !now.isOpen || managerOpenings.current !== manager || now.isBusy) return;
+    // A map creator that was not the one asking may hold images waiting to be created
+    if (now.isMapCreatorOpen && creatorOpenings.current !== creator) return;
+    if (stay?.()) return;
     const scene = app.vault.getFileByPath(last.scenePath);
     if (!scene) return;
     try {
@@ -50,23 +90,39 @@ export function useUvttImport(app: App, assetService: AssetService | null, onSce
       new Notice(`"${last.name}" could not be opened. It is in the Scenes tab.`);
       return;
     }
-    onSceneOpened();
+    now.onSceneOpened();
   });
 
-  return useMemo((): UvttImportActions => ({
-    importMaps,
-    dropHandlers: (collectionId) => ({
-      onDragOver: (event): void => {
-        if (!mayCarryMapFile(event.dataTransfer)) return;
-        event.preventDefault();
-        event.dataTransfer.dropEffect = 'copy';
-      },
-      onDrop: (event): void => {
-        const maps = uvttFilesAmong(Array.from(event.dataTransfer.files));
-        if (maps.length === 0) return;
-        event.preventDefault();
-        void importMaps(maps, collectionId);
-      },
-    }),
-  }), [importMaps]);
+  // Listened for on the document, ahead of the manager's own handlers: a folder tile takes
+  // every drop on it for itself.
+  useEffect(() => {
+    if (!options.isOpen) return;
+    const onDragOver = (event: DragEvent): void => {
+      const transfer = overManager(event);
+      if (!transfer || !mayCarryMapFile(transfer)) return;
+      event.preventDefault();
+      transfer.dropEffect = 'copy';
+    };
+    const onDrop = (event: DragEvent): void => {
+      const transfer = overManager(event);
+      if (!transfer) return;
+      const files = Array.from(transfer.files);
+      const maps = uvttFilesAmong(files);
+      const lookalikes = files.filter((file) => file.type === '' && !maps.includes(file));
+      // A drop that holds neither is not for the import; it goes where it would have gone
+      if (maps.length === 0 && lookalikes.length === 0) return;
+      event.preventDefault();
+      event.stopPropagation();
+      if (lookalikes.length > 0) sayNotMaps(lookalikes);
+      if (maps.length > 0) void importMaps(maps, latest.current.collectionId);
+    };
+    document.addEventListener('dragover', onDragOver, true);
+    document.addEventListener('drop', onDrop, true);
+    return () => {
+      document.removeEventListener('dragover', onDragOver, true);
+      document.removeEventListener('drop', onDrop, true);
+    };
+  }, [options.isOpen, importMaps]);
+
+  return importMaps;
 }

@@ -14,7 +14,6 @@ import { ModalLayer } from './components/ModalLayer';
 import { useAssetData } from './hooks/useAssetData';
 import { useSelectionHandlers, type VisibleIds } from './hooks/useSelectionHandlers';
 import { useAssetCrud } from './hooks/useAssetCrud';
-import { useUvttImport } from './hooks/useUvttImport';
 import { useTagsAndCollections } from './hooks/useTagsAndCollections';
 import { AssetTagMenuContext, type AssetTagMenuActions } from './components/assetTagMenuContext';
 import { tagGroupOfTab } from './utils/assetTags';
@@ -138,8 +137,6 @@ export default function AssetManager({ isOpen, onClose, initialTab, onExitComple
     draggedItems, setDraggedItems, setDropTarget,
   );
 
-  const uvtt = useUvttImport(data.app, data.assetService, () => { crud.setIsMapCreatorOpen(false); onClose(); });
-
   const tags = useTagsAndCollections(
     data.assetService, selectedCollection, data.tagsByGroup,
     data.setAssets, data.reloadCollections, data.reloadGlobalTags,
@@ -191,7 +188,6 @@ export default function AssetManager({ isOpen, onClose, initialTab, onExitComple
             <motion.div
               className={`atlas-asset-manager-container ${sidebar.isFloating ? 'atlas-sidebar-floating' : ''}`}
               ref={containerRef}
-              {...uvtt.dropHandlers(selectedCollection || AssetService.defaultCollectionId())}
               variants={windowVariants}
               initial="hidden"
               animate="visible"
@@ -303,7 +299,6 @@ export default function AssetManager({ isOpen, onClose, initialTab, onExitComple
         crud={crud}
         tags={tags}
         statblock={statblock}
-        onImportMaps={uvtt.importMaps}
       />
     </>
   );
