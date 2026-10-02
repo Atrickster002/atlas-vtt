@@ -1,3 +1,4 @@
+import { ambientGate, sleeps } from '../../lighting/lightActivity';
 import { beamOf } from '../../lighting/lightBeam';
 import { lightKindOf } from '../../lighting/lightPresets';
 import type { LightKind, LightSource } from '../../types/lightingTypes';
@@ -41,6 +42,8 @@ export interface LightMarkerLook {
   accent: number | null;
   /** The world angle a light with a beam faces, where the badge has a pointer; null for one that shines all around. */
   direction: number | null;
+  /** A light that follows the ambient light carries a small moon on its badge. */
+  moon: boolean;
   /** Scale on top of the marker's size on screen. */
   lift: number;
 }
@@ -95,11 +98,13 @@ export function lightColorNumber(color: string): number {
 
 /**
  * The look of a light's marker: its kind's glyph and a thin ring, both in the light's colour;
- * a switched-off light keeps the ring faint and its glyph in the badge's own dimmed ink.
+ * a light that is out keeps the ring faint and its glyph in the badge's own dimmed ink, whether
+ * the GM switched it off or it follows the ambient light and the scene's `ambient` light is too
+ * bright for it.
  */
-export function lightMarkerLook(light: LightSource, state: LightMarkerState, theme: LightMarkerTheme): LightMarkerLook {
+export function lightMarkerLook(light: LightSource, state: LightMarkerState, theme: LightMarkerTheme, ambient = 0): LightMarkerLook {
   const color = readableTint(lightColorNumber(light.emission.color), theme.background);
-  const off = !!light.hidden;
+  const off = !!light.hidden || sleeps(light, ambient);
   return {
     kind: lightKindOf(light.emission),
     glyphTint: off ? theme.stroke : color,
@@ -108,6 +113,7 @@ export function lightMarkerLook(light: LightSource, state: LightMarkerState, the
     ringAlpha: off ? 0.3 : 0.9,
     accent: state.selected ? theme.accent : null,
     direction: beamOf(light)?.facing ?? null,
+    moon: ambientGate(light) !== undefined,
     lift: state.dragging ? DRAG_LIFT : state.hovered ? HOVER_LIFT : 1,
   };
 }

@@ -26,6 +26,8 @@ export const LIGHT_MARKERS_Z_INDEX = 95;
 const POINTER_LENGTH = 9;
 const POINTER_SPREAD = 0.45;
 
+const MOON_RADIUS = 5.5;
+
 type MarkerState = Pick<ViewAtlasState, 'lighting' | 'activeTool'>;
 
 /** Lit scenes show their lights' markers, and the lighting tool shows them in any scene. */
@@ -63,13 +65,23 @@ function drawPointer(g: Graphics, { direction, ringColor, ringAlpha }: LightMark
   g.poly(tip).fill({ color: ringColor, alpha: ringAlpha });
 }
 
+/** A light that follows the ambient light: a small disc on the badge's upper right edge with a crescent in the light's colour. */
+function drawMoon(g: Graphics, { ringColor, ringAlpha }: LightMarkerLook, background: number): void {
+  const at = LIGHT_MARKER_RADIUS * Math.SQRT1_2;
+  g.circle(at, -at, MOON_RADIUS + 0.5).stroke({ width: 1, color: 0x000000, alpha: 0.35 });
+  g.circle(at, -at, MOON_RADIUS).fill({ color: background });
+  // The crescent: a disc, and the badge's colour over its upper right.
+  g.circle(at, -at, MOON_RADIUS - 1.5).fill({ color: ringColor, alpha: Math.max(ringAlpha, 0.6) });
+  g.circle(at + 1.6, -at - 1.2, MOON_RADIUS - 2.2).fill({ color: background });
+}
+
 function sameTheme(a: LightMarkerTheme, b: LightMarkerTheme): boolean {
   return a.background === b.background && a.stroke === b.stroke && a.accent === b.accent;
 }
 
 function sameLook(a: LightMarkerLook, b: LightMarkerLook): boolean {
   return a.kind === b.kind && a.glyphTint === b.glyphTint && a.glyphAlpha === b.glyphAlpha
-    && a.ringColor === b.ringColor && a.ringAlpha === b.ringAlpha && a.accent === b.accent && a.direction === b.direction;
+    && a.ringColor === b.ringColor && a.ringAlpha === b.ringAlpha && a.accent === b.accent && a.direction === b.direction && a.moon === b.moon;
 }
 
 /**
@@ -104,6 +116,7 @@ export class LightMarkers {
       if (
         state.objects.lights !== previous.objects.lights
         || state.lighting.enabled !== previous.lighting.enabled
+        || state.lighting.ambient !== previous.lighting.ambient
         || state.activeTool !== previous.activeTool
         || state.lightPopover !== previous.lightPopover
       ) this.sync();
@@ -176,7 +189,7 @@ export class LightMarkers {
         hovered: this.hovered === light.id,
         selected: this.selected.has(light.id) || state.lightPopover === light.id,
         dragging: this.dragging === light.id,
-      }, this.theme);
+      }, this.theme, state.lighting.ambient);
       const previous = this.markers.get(light.id);
       const marker = previous ?? this.create(light, look);
       // The badge takes the theme's colours too, whatever its look: a marker drawn in another theme is redrawn.
@@ -209,6 +222,7 @@ export class LightMarkers {
     if (look.accent !== null) {
       g.circle(0, 0, LIGHT_MARKER_RADIUS + 3).stroke({ width: 2, color: look.accent });
     }
+    if (look.moon) drawMoon(g, look, background);
     const texture = this.glyphTexture(look.kind);
     if (!texture) return;
     if (!marker.glyph) {

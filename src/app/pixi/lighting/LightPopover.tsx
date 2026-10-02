@@ -1,7 +1,8 @@
-import React, { useCallback, useEffect, useMemo, useRef } from 'react';
+import React, { useCallback, useEffect, useId, useMemo, useRef } from 'react';
 import { AnimatePresence, motion, useIsPresent } from 'framer-motion';
 import { Lightbulb, LightbulbOff, Trash2 } from 'lucide-react';
 import { unitLabelFor } from '../../grid/measurementFormat';
+import { LIGHT_SCHEDULES, scheduleOf } from '../../lighting/lightActivity';
 import { unitScaleOf } from '../../lighting/lightingUnits';
 import { maxLightRange } from '../../lighting/lightRanges';
 import { Button } from '../../packages/components/primitives/button';
@@ -12,7 +13,8 @@ import { useAtlasUI } from '../../react/root/AtlasUIContext';
 import { AssetService } from '../../services/AssetService';
 import { mapMeasurementSettings } from '../../services/mapMeasurementSettings';
 import { beginHistoryTransaction, endHistoryTransaction } from '../../stores/history';
-import type { LightEmission } from '../../types/lightingTypes';
+import { Select } from '../../packages/components/primitives/Select';
+import type { LightEmission, LightSource } from '../../types/lightingTypes';
 import { useMapLightPresets } from '../../react/hooks/useMapLightPresets';
 import { LightEmissionFields } from './LightEmissionFields';
 import { useLightPopoverPosition } from './useLightPopoverPosition';
@@ -105,6 +107,7 @@ function LightPopover({ lightId }: { lightId: string }): React.ReactElement | nu
         unit={unitLabelFor(unitType)}
         unitDistance={unitDistance}
         maxRange={maxRange}
+        more={<ShinesRow light={light} onChange={(activeBelowAmbient) => store.getState().updateLight(light.id, { activeBelowAmbient })} />}
         direction={{ degrees: light.rotation ?? 0, onChange: (rotation) => store.getState().updateLight(light.id, { rotation }) }}
         onSliderPointerDown={onSliderPointerDown}
         onPickStart={beginPick}
@@ -121,6 +124,24 @@ function LightPopover({ lightId }: { lightId: string }): React.ReactElement | nu
         </Button>
       </div>
     </motion.section>
+  );
+}
+
+/** When a placed light shines: always, or only from a time of day on, like a street lamp. */
+function ShinesRow({ light, onChange }: { light: LightSource; onChange: (level: number) => void }): React.ReactElement {
+  const id = useId();
+  const current = scheduleOf(light);
+  // A level that is no time of day is offered only while the light has it.
+  const options = current.value === 'custom' ? [...LIGHT_SCHEDULES, current] : LIGHT_SCHEDULES;
+  return (
+    <div className="atlas-light-popover__flicker">
+      <span id={id}>Shines</span>
+      <Select value={current.value} options={options} labelledBy={id}
+        onChange={(value) => {
+          const stop = LIGHT_SCHEDULES.find((schedule) => schedule.value === value);
+          if (stop) onChange(stop.level);
+        }} />
+    </div>
   );
 }
 

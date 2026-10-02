@@ -190,6 +190,22 @@ describe('LightMarkers', () => {
     expect(glyph.tint).toBe(0xff9a3c);
   });
 
+  it('dims a light that follows the ambient light while the scene is too bright for it, and wakes it when the scene darkens', () => {
+    const { markers, store } = setup();
+    store.getState().setSceneLighting({ enabled: true, ambient: 1 });
+    const id = addLight(store, 100, 200);
+    const { glyph, badge } = parts(markers.view.children[0]!);
+    const fills = (): number => badge.context.instructions.filter((instruction) => instruction.action === 'fill').length;
+    const plain = fills();
+    store.getState().updateLight(id, { activeBelowAmbient: 0.5 });
+    expect(glyph.alpha).toBeLessThan(0.5);
+    // The moon: a disc on the badge's edge with a crescent in it.
+    expect(fills()).toBeGreaterThan(plain);
+    store.getState().setSceneLighting({ ambient: 0.15 });
+    expect(glyph.alpha).toBe(1);
+    expect(fills()).toBeGreaterThan(plain);
+  });
+
   it('rings a selected light and the light whose popover is open in the accent', () => {
     const { markers, store } = setup();
     store.getState().setSceneLighting({ enabled: true });

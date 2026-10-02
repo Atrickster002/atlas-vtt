@@ -80,6 +80,12 @@ export interface LightSource {
   hidden?: boolean;
   /** Where a light with an `angle` shines, in degrees like a token's rotation: 0 faces up on the map, 90 right. Unset is 0. */
   rotation?: number;
+  /**
+   * A light that follows the ambient light, like a street lamp: it shines only while the scene's
+   * ambient light (0–1) is at or below this level. Unset, or 1, it always shines. Read with
+   * `ambientGate` and `isLightOn`.
+   */
+  activeBelowAmbient?: number;
 }
 
 export type LightInput = Omit<LightSource, 'id' | 'kind'>;

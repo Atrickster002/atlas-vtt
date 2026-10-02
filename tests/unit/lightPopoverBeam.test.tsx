@@ -14,6 +14,36 @@ afterAll(() => { MotionGlobalConfig.skipAnimations = false; });
 afterEach(cleanup);
 
 describe('LightPopover: darkness and beams', () => {
+  it('lets a placed light shine only from dusk or at night, in one undo step, and always again', () => {
+    const { light, steps, undo } = renderPopover();
+    const shines = (): HTMLElement => screen.getByRole('combobox', { name: 'Shines' });
+    expect(shines().textContent).toBe('Always');
+    expect(light().activeBelowAmbient).toBeUndefined();
+    fireEvent.click(shines());
+    expect(screen.getAllByRole('option').map((option) => option.textContent)).toEqual(['Always', 'From dusk', 'At night']);
+    fireEvent.click(screen.getByRole('option', { name: 'From dusk' }));
+    expect(light().activeBelowAmbient).toBe(0.5);
+    expect(shines().textContent).toBe('From dusk');
+    expect(steps()).toBe(1);
+    fireEvent.click(shines());
+    fireEvent.click(screen.getByRole('option', { name: 'At night' }));
+    expect(light().activeBelowAmbient).toBe(0.15);
+    undo();
+    expect(light().activeBelowAmbient).toBe(0.5);
+    fireEvent.click(shines());
+    fireEvent.click(screen.getByRole('option', { name: 'Always' }));
+    expect(shines().textContent).toBe('Always');
+  });
+
+  it('names a level that is no time of day, and offers it only while the light has it', () => {
+    const { store, torch } = renderPopover();
+    act(() => store.getState().updateLight(torch, { activeBelowAmbient: 0.3 }));
+    const shines = screen.getByRole('combobox', { name: 'Shines' });
+    expect(shines.textContent).toBe('Below 30 % light');
+    fireEvent.click(shines);
+    expect(screen.getAllByRole('option')).toHaveLength(4);
+  });
+
   it('makes the light a source of magical darkness with the Darkness kind: one radius, and none of a light\'s controls', () => {
     const { light, steps } = renderPopover();
     fireEvent.click(screen.getByRole('button', { name: 'Darkness' }));

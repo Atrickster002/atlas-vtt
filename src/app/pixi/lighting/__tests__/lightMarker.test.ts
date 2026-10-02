@@ -101,6 +101,17 @@ describe('lightMarkerLook', () => {
     expect(lightMarkerLook(light({ emission: { ...lantern, darkness: true }, rotation: 90 }), REST, DARK).direction).toBeNull();
   });
 
+  it('marks a light that follows the ambient light with a moon, and dims it while the scene is too bright for it', () => {
+    const lamp = light({ activeBelowAmbient: 0.5 });
+    expect(lightMarkerLook(light(), REST, DARK, 1).moon).toBe(false);
+    const asleep = lightMarkerLook(lamp, REST, DARK, 1);
+    expect(asleep).toMatchObject({ moon: true, glyphTint: DARK.stroke, glyphAlpha: 0.4, ringAlpha: 0.3 });
+    const awake = lightMarkerLook(lamp, REST, DARK, 0.5);
+    expect(awake).toMatchObject({ moon: true, glyphAlpha: 1, ringAlpha: 0.9 });
+    // Without an ambient level (the look of a light as such) it is drawn awake.
+    expect(lightMarkerLook(lamp, REST, DARK).glyphAlpha).toBe(1);
+  });
+
   it('falls back to a warm colour for a colour it cannot read', () => {
     expect(lightColorNumber('tomato')).toBe(0xffcc66);
   });

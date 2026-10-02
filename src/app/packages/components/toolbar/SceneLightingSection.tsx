@@ -1,6 +1,7 @@
 import React from "react"
 import { RotateCcw, SlidersHorizontal } from "lucide-react"
 import { DEFAULT_AMBIENT_COLOR } from "../../../lighting/sceneLightingOptions"
+import { TIMES_OF_DAY, type TimeOfDay } from "../../../lighting/timesOfDay"
 import type { SceneLighting } from "../../../types/lightingTypes"
 import { DropdownMenuItem } from "../primitives/DropdownMenuItem"
 import { DropdownSliderRow } from "../primitives/DropdownSliderRow"
@@ -8,14 +9,6 @@ import { DropdownToggleRow } from "../primitives/DropdownToggleRow"
 import { SegmentedControl } from "../primitives/SegmentedControl"
 import { LabelTooltip } from "../primitives/tooltip"
 
-type TimeOfDay = 'day' | 'dusk' | 'night' | 'dark'
-
-const TIMES_OF_DAY: { value: TimeOfDay; label: string; ambient: number }[] = [
-  { value: 'day', label: 'Day', ambient: 1 },
-  { value: 'dusk', label: 'Dusk', ambient: 0.5 },
-  { value: 'night', label: 'Night', ambient: 0.15 },
-  { value: 'dark', label: 'Pitch black', ambient: 0 },
-]
 
 interface SceneLightingSectionProps {
   lighting: SceneLighting

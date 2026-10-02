@@ -1,6 +1,7 @@
 import { Color } from 'pixi.js';
 import type { TokenEntity } from '../../types';
 import type { LightEmission, LightSource } from '../../types/lightingTypes';
+import { isLightOn } from '../../lighting/lightActivity';
 import { beamOf } from '../../lighting/lightBeam';
 import { gameUnitsToWorld, type UnitScale } from '../../lighting/lightingUnits';
 import { MIN_SOFTNESS, TINT_TO_WHITE } from '../../lighting/lightingConstants';
@@ -19,10 +20,15 @@ export interface ActiveLight {
   rotation?: number;
 }
 
-export function activeLights(lights: Record<string, LightSource>, tokens: Record<string, TokenEntity>): ActiveLight[] {
+/**
+ * The lights that shine under `ambient` light: placed ones that are switched on and, where they
+ * follow the ambient light, awake (`isLightOn`), and those tokens carry. Both the picture and
+ * the rule are built from this list, so a sleeping lamp lights neither.
+ */
+export function activeLights(lights: Record<string, LightSource>, tokens: Record<string, TokenEntity>, ambient = 0): ActiveLight[] {
   const active: ActiveLight[] = [];
   for (const light of Object.values(lights)) {
-    if (!light.hidden) active.push({ key: `light:${light.id}`, x: light.x, y: light.y, emission: light.emission, ...turned(light.rotation) });
+    if (isLightOn(light, ambient)) active.push({ key: `light:${light.id}`, x: light.x, y: light.y, emission: light.emission, ...turned(light.rotation) });
   }
   for (const token of Object.values(tokens)) {
     if (token.light) active.push({ key: `token:${token.id}`, x: token.x, y: token.y, emission: token.light, ...turned(token.rotation) });

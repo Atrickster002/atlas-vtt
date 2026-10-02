@@ -1,4 +1,5 @@
 import type { MeasurementSettings } from '../../grid/measurementFormat';
+import { sleeps } from '../../lighting/lightActivity';
 import { worldTexel } from '../../lighting/lightingConstants';
 import { unitScaleOf } from '../../lighting/lightingUnits';
 import { sealedWalls } from '../../lighting/sealWalls';
@@ -43,6 +44,7 @@ interface Built {
 /**
  * A scene's lights, their reaches and its sight, worked out from the store and again only when
  * what they are built from changes: the walls, the placed lights, the grid, the sight options,
+ * an ambient light that wakes or puts out a light that follows it,
  * the sight rules of the map's collection and the tokens as sight and light read them (`SightTokens`: a dragged token stands where its
  * drag began until the drop, so a drag builds nothing).
  */
@@ -60,7 +62,7 @@ export class SceneModelBuilder {
     const rules = sightRules?.();
     const last = this.built;
     if (last && last.walls === walls && last.lights === lights && last.tokens === tokens && last.grid === grid && last.rules === rules) {
-      const same = !sightOptionsChanged(last.lighting, lighting);
+      const same = !sightOptionsChanged(last.lighting, lighting) && !awakeLightsChanged(lights, last.lighting.ambient, lighting.ambient);
       // The lighting is noted either way: the next update compares with it, not with an older one.
       last.lighting = lighting;
       if (same) return { model: last.model, rebuilt: false };
@@ -78,11 +80,20 @@ export class SceneModelBuilder {
   private build(state: SceneState, tokens: Record<string, TokenEntity>, bounds: MapBounds, measurement: MeasurementSettings, rules: SightRules | undefined): SceneModel {
     const scale = unitScaleOf(measurement, state.grid);
     const walls = sealedWalls(wallList(state.objects.walls), worldTexel(bounds));
-    const lights = activeLights(state.objects.lights, tokens).map((light) => engineLight(light, scale));
+    const lights = activeLights(state.objects.lights, tokens, state.lighting.ambient).map((light) => engineLight(light, scale));
     const reaches = this.lightReaches.sync(lights, walls);
     const sight = sceneSight(state.lighting, sightSources(tokens, scale, bounds, rules), walls, this.sightCache);
     return { walls, lights, reaches, sight, explored: exploredShapes(sight, state.lighting, reaches) };
   }
+}
+
+/** Whether a light that follows the ambient light wakes or falls asleep between two ambient levels. */
+function awakeLightsChanged(lights: ViewAtlasState['objects']['lights'], before: number, after: number): boolean {
+  if (before === after) return false;
+  for (const id in lights) {
+    if (sleeps(lights[id]!, before) !== sleeps(lights[id]!, after)) return true;
+  }
+  return false;
 }
 
 interface SpotInputs {

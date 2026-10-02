@@ -33,6 +33,8 @@ interface LightEmissionFieldsProps {
   maxRange: number;
   /** A placed light's own direction, in degrees; a carried light faces as its token does and has none to set. */
   direction?: { degrees: number; onChange: (degrees: number) => void };
+  /** Rows only a placed light has, among those every light has. */
+  more?: React.ReactNode;
   /** A slider is pressed, or the system colour picker opens and closes: where a host that writes at once makes the gesture one undo step. */
   onSliderPointerDown?: (event: React.PointerEvent) => void;
   onPickStart?: () => void;
@@ -48,7 +50,7 @@ interface LightEmissionFieldsProps {
  * colour or dim. Every control reports the whole emission at once.
  */
 export function LightEmissionFields({
-  emission, onChange, presets, unit, unitDistance, maxRange, direction, onSliderPointerDown = NOTHING, onPickStart = NOTHING, onPickEnd = NOTHING,
+  emission, onChange, presets, unit, unitDistance, maxRange, direction, more, onSliderPointerDown = NOTHING, onPickStart = NOTHING, onPickEnd = NOTHING,
 }: LightEmissionFieldsProps): React.ReactElement {
   const flickerId = useId();
   const outshinesId = useId();
@@ -57,7 +59,7 @@ export function LightEmissionFields({
     return (
       <>
         <LightPresetChips emission={emission} presets={presets} onChange={onChange} />
-        <div className="atlas-light-popover__section">{ranges}</div>
+        <div className="atlas-light-popover__section">{ranges}{more}</div>
       </>
     );
   }
@@ -87,6 +89,7 @@ export function LightEmissionFields({
           <span id={flickerId}>Flicker</span>
           <Select value={emission.animation} options={FLICKERS} labelledBy={flickerId} onChange={(animation) => onChange({ ...emission, animation })} />
         </div>
+        {more}
         <div className="atlas-light-popover__flicker">
           <span id={outshinesId}>Outshines magical darkness</span>
           <ToggleSwitch value={(emission.priority ?? 0) > 0} labelledBy={outshinesId} onChange={() => onChange(withPriority(emission, (emission.priority ?? 0) > 0 ? 0 : 1))} />

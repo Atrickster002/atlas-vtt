@@ -23,6 +23,19 @@ describe('activeLights', () => {
     ]);
   });
 
+  it('leaves out a placed light that follows the ambient light while the scene is brighter than its level', () => {
+    const lights: Record<string, LightSource> = {
+      lamp: { id: 'lamp', kind: 'light', x: 1, y: 2, emission: torch, activeBelowAmbient: 0.5 },
+      torch: { id: 'torch', kind: 'light', x: 3, y: 4, emission: torch },
+    };
+    const tokens: Record<string, TokenEntity> = { t: { id: 't', kind: 'token', imagePath: 't.png', x: 5, y: 6, light: torch } };
+    expect(activeLights(lights, tokens, 1).map((light) => light.key)).toEqual(['light:torch', 'token:t']);
+    expect(activeLights(lights, tokens, 0.5).map((light) => light.key)).toEqual(['light:lamp', 'light:torch', 'token:t']);
+    expect(activeLights(lights, tokens, 0.15).map((light) => light.key)).toEqual(['light:lamp', 'light:torch', 'token:t']);
+    // Without an ambient level every light that is switched on counts.
+    expect(activeLights(lights, tokens).map((light) => light.key)).toEqual(['light:lamp', 'light:torch', 'token:t']);
+  });
+
   it('turns a placed light as it was turned, and a carried one with its token', () => {
     const lights: Record<string, LightSource> = { a: { id: 'a', kind: 'light', x: 1, y: 2, emission: torch, rotation: 45 } };
     const tokens: Record<string, TokenEntity> = { t: { id: 't', kind: 'token', imagePath: 't.png', x: 5, y: 6, rotation: 180, light: torch } };

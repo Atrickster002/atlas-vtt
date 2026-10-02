@@ -113,7 +113,7 @@ export class CanvasLightingFallback implements SceneLightingView {
     const sight = sceneSight(state.lighting, sightSources(tokens, scale, bounds, rules), walls, this.cache);
     // The same regions are the same sight: what was worked out from it (who is seen) stays good.
     if (!sameSight(sight, this.sight)) this.sight = sight;
-    const dark = activeLights(state.objects.lights, tokens).filter((light) => light.emission.darkness).map((light) => engineLight(light, scale));
+    const dark = activeLights(state.objects.lights, tokens, state.lighting.ambient).filter((light) => light.emission.darkness).map((light) => engineLight(light, scale));
     // The same list while there is no darkness, so whoever compares it finds it unchanged.
     this.reaches = dark.length > 0 ? this.darknessReaches.sync(dark, walls) : NO_REACHES;
     const spots = seenSpots(this.sight, FULL_DAYLIGHT, this.reaches, state.objects.tokens, scale.cellSize, walls, { conditions: rules?.conditions ?? [], held });
