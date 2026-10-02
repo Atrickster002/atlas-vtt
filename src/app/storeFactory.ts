@@ -178,6 +178,14 @@ export interface ViewAtlasState {
   /** What the players' tokens have explored, as a PNG data URL; saved with the map, never undo-tracked. */
   exploredMask: string | null;
   setExploredMask: (dataUrl: string | null) => void;
+  /**
+   * How many edits by hand led to the explored memory as it is, counted since the scene loaded.
+   * The memory itself is no store state, so this count stands for it in the undo history: a
+   * memory edit is the step that raises it, and undo and redo reach it in the order the GM
+   * worked (`ExploredMemory` puts the memory back when it changes). Never saved.
+   */
+  exploredEdits: number;
+  setExploredEdits: (count: number) => void;
 
   // Wall actions
   addWall: (data: WallInput) => string;
@@ -358,9 +366,10 @@ export const DEFAULT_TOKEN_SETTINGS: Readonly<ViewAtlasState['tokenSettings']> =
   tokenRingSize: 1,
 };
 
-const createInitialState = (): Pick<ViewAtlasState, 'schema' | 'version' | 'mapPath' | 'background' | 'grid' | 'objects' | 'camera' | 'persistenceEnabled' | 'widgetSettings' | 'widgetValues' | 'dmNotePath' | 'tokenSettings' | 'initiative' | 'diceLog' | 'pinnedNotePreviews' | 'lootRoller' | 'lighting' | 'exploredMask'> => ({
+const createInitialState = (): Pick<ViewAtlasState, 'schema' | 'version' | 'mapPath' | 'background' | 'grid' | 'objects' | 'camera' | 'persistenceEnabled' | 'widgetSettings' | 'widgetValues' | 'dmNotePath' | 'tokenSettings' | 'initiative' | 'diceLog' | 'pinnedNotePreviews' | 'lootRoller' | 'lighting' | 'exploredMask' | 'exploredEdits'> => ({
   lighting: { ...DEFAULT_SCENE_LIGHTING },
   exploredMask: null,
+  exploredEdits: 0,
   schema: ATLAS_SCHEMA,
   version: ATLAS_VERSION,
   mapPath: null,
@@ -1167,6 +1176,10 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
             draft.exploredMask = dataUrl;
           }),
 
+          setExploredEdits: (count) => set((draft) => {
+            draft.exploredEdits = count;
+          }),
+
           // Audio dirty flag
           _audioDirty: false,
           markAudioDirty: () => set((draft) => { draft._audioDirty = true; }),
@@ -1341,6 +1354,7 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
             draft.lootRoller = createInitialLootRollerState();
             draft.lighting = { ...DEFAULT_SCENE_LIGHTING };
             draft.exploredMask = null;
+            draft.exploredEdits = 0;
 
             // Note: We don't clear background here - it will be set by the new map
             // Note: We don't clear mapPath - it must be preserved for storage adapter
@@ -1508,6 +1522,8 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
               lootRoller: readLootRollerState(saved.lootRoller),
               lighting: readSceneLighting(saved.lighting),
               exploredMask: readExploredMask(saved.exploredMask),
+              // Counted per session: a file never brings one.
+              exploredEdits: current.exploredEdits,
             };
           },
 
@@ -1517,8 +1533,8 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
         }
       )
     ),
-    // Undo/redo tracks objects, grid, background and widgetValues only;
-    // selection, camera, tool and loading state never enter the history.
+    // Undo/redo tracks objects, grid, background, widgetValues and the count of explored-memory
+    // edits only; selection, camera, tool and loading state never enter the history.
     // storeRef is assigned right after creation, before any history call.
     createHistoryOptions<ViewAtlasState>(() => storeRef!.getState())
   )
