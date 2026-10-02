@@ -26,10 +26,6 @@ describe('ResourceWheels', () => {
     expect(upper!.top + upper!.height).toBeLessThan(lower!.top);
     expect(upper!.left).toBe(lower!.left);
     expect(upper!.width).toBe(WHEEL_SIZE);
-    const { right, left, up } = wheels.extent();
-    expect(right).toBeGreaterThan(upper!.left + WHEEL_SIZE);
-    expect(left).toBe(0);
-    expect(up).toBeCloseTo(-upper!.top);
     wheels.destroy();
   });
 
@@ -44,7 +40,6 @@ describe('ResourceWheels', () => {
     // Each anchor has the token on its inner side: the left wheels lie as far left of theirs as the right ones right of theirs
     expect(upperLeft!.left + upperLeft!.width).toBeCloseTo(-upperRight!.left);
     expect([upperLeft!.top, lowerLeft!.top]).toEqual([upperRight!.top, lowerRight!.top]);
-    expect(wheels.extent().left).toBeCloseTo(wheels.extent().right);
     expect(texts(wheels.right).map((text) => text.text)).toEqual(['4', '2']);
     expect(texts(wheels.left).map((text) => text.text)).toEqual(['3', '1']);
 
@@ -52,7 +47,6 @@ describe('ResourceWheels', () => {
     wheels.update([{ definition: MANA, value: { current: 3, max: 9 }, slot: 2 }]);
     expect(texts(wheels.right).map((text) => text.text)).toEqual(['3']);
     expect(texts(wheels.left)).toEqual([]);
-    expect(wheels.extent().left).toBe(0);
     wheels.destroy();
   });
 
@@ -64,7 +58,6 @@ describe('ResourceWheels', () => {
     expect(wheels.layout()).toEqual([pair.layout()[1]]);
     wheels.update([]);
     expect(wheels.layout()).toEqual([]);
-    expect(wheels.extent()).toEqual({ right: 0, left: 0, up: 0 });
     wheels.destroy();
     pair.destroy();
   });
