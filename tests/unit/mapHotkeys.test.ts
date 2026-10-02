@@ -53,6 +53,9 @@ describe('map hotkeys', () => {
     expect(hotkeyFromEvent(new KeyboardEvent('keydown', { key: '?', code: 'Slash', shiftKey: true }))).toBe('?');
     expect(hotkeyFromEvent(new KeyboardEvent('keydown', { key: '!', code: 'Digit1', shiftKey: true }))).toBe('Shift+1');
     expect(hotkeyFromEvent(new KeyboardEvent('keydown', { key: 'A', ctrlKey: true, shiftKey: true }))).toBe('Mod+Shift+a');
+    // Another script's letter counts as the Latin letter on the same physical key
+    expect(hotkeyFromEvent(new KeyboardEvent('keydown', { key: 'ф', code: 'KeyA' }))).toBe('a');
+    expect(hotkeyFromEvent(new KeyboardEvent('keydown', { key: 'Я', code: 'KeyZ', ctrlKey: true, shiftKey: true }))).toBe('Mod+Shift+z');
     expect(matchesHotkey(new KeyboardEvent('keydown', { key: 'v', ctrlKey: true }), 'v')).toBe(false);
     expect(matchesHotkey(new KeyboardEvent('keydown', { key: ' ' }), 'Space')).toBe(true);
     expect(matchesHotkey(new KeyboardEvent('keydown', { key: 'v', repeat: true }), 'v')).toBe(false);
