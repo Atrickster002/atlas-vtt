@@ -21,6 +21,7 @@ import { WIDGET_ICON_PATHS, resolveWidgetIcon, type WidgetIcon } from '../types/
 import type { AnyWidget } from '../types/widgetTypes';
 import { isValidClockSegments } from '../utils/clockWidget';
 import { CRIT_RULES, isValidDefaultRoll, parseExplodeRule } from './diceRules';
+import { parseInitiativeRules } from './initiativeRules';
 import { parseLightPresets } from './lightPresetValidation';
 import { GENERIC_SENSES } from './senses/generic';
 import { parseSenseDefinitions } from './senseValidation';
@@ -142,6 +143,7 @@ export function parseUserPreset(raw: unknown): SystemPreset | null {
     : [];
   const defaultWidgets = parseEnabledFlags(raw.rules.defaultWidgets);
   const dice = parseDiceRules(raw.rules.dice);
+  const initiative = parseInitiativeRules(raw.rules.initiative);
   // A preset saved before resources existed tracks the bars its default widgets switched on.
   const resources = Array.isArray(raw.rules.resources)
     ? parseResourceDefinitions(raw.rules.resources)
@@ -160,6 +162,7 @@ export function parseUserPreset(raw: unknown): SystemPreset | null {
       ...(widgets.length > 0 && { widgets }),
       ...(Object.keys(defaultWidgets).length > 0 && { defaultWidgets }),
       ...(dice && { dice }),
+      ...(initiative && { initiative }),
       ...(resources.length > 0 && { resources }),
       ...(defaultTokenVision && { defaultTokenVision }),
       ...(senses && { senses }),

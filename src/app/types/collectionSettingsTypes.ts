@@ -8,6 +8,7 @@
 import type { ResourceDefinition } from '../resources/resourceTypes';
 import type { CreatureFilterDefinition } from './creatureFilterTypes';
 import type { DiceRules } from './diceRulesTypes';
+import type { InitiativeRules } from './initiativeRulesTypes';
 import type { LightPresetDefinition } from './lightPresetTypes';
 import type { TokenVisionDefaults } from './lightingTypes';
 import type { SenseDefinition } from './senseTypes';
@@ -89,6 +90,11 @@ export interface CollectionSettings {
   systemPresetId?: string | undefined;
   /** Default roll and critical rule. Read with `collectionDiceRules`. */
   dice?: DiceRules;
+  /**
+   * How the initiative tracker runs a fight, stored only once the collection has rules of its
+   * own. Unset while it takes those of its preset; read with `collectionInitiativeRules`.
+   */
+  initiative?: InitiativeRules | undefined;
   /** Expendable token resources, in token order. Unset in collections saved before resources existed. */
   resources?: ResourceDefinition[];
   /** Filters on statblock fields Atlas does not filter by on its own. Read with `collectionCreatureFilters`. */

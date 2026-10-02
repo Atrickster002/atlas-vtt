@@ -56,6 +56,10 @@ vi.mock('../../src/app/react/ViewStoreContext', () => ({
   useAtlasStore: (selector: (storeState: typeof state) => unknown) => selector(state),
 }));
 
+vi.mock('../../src/app/initiative/useMapInitiativeRules', () => ({
+  useMapInitiativeRules: () => ({ mode: 'turn-order', roll: '1d20', firstSide: 'players' }),
+}));
+
 vi.mock('../../src/app/react/components/InitiativeCard', () => ({
   InitiativeCard: () => <div data-testid="initiative-card" />,
 }));

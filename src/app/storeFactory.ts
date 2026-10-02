@@ -16,6 +16,7 @@ import type { AudioSource, AudioInput } from './types/audioTypes';
 import type { AnyWidget, WidgetSettings } from './types/widgetTypes';
 import type { InitiativeState, InitiativeEntry, InitiativeConfig } from './types/initiativeTypes';
 import { createDefaultInitiativeState } from './types/initiativeTypes';
+import type { InitiativeRules } from './types/initiativeRulesTypes';
 import { CameraState, GridState, createAtlasStorage, ATLAS_SCHEMA, ATLAS_VERSION } from './services/MapPersistence';
 import type { AtlasPersistStorage } from './services/MapPersistence';
 import { normalizeImagePath } from './utils/pathUtils';
@@ -291,15 +292,17 @@ export interface ViewAtlasState {
   addToInitiative: (entry: Omit<InitiativeEntry, 'id' | 'order' | 'isActive'>) => string;
   removeFromInitiative: (id: string) => void;
   updateInitiativeEntry: (id: string, updates: Partial<InitiativeEntry>) => void;
-  rollAllInitiative: () => void;
-  rollEntryInitiative: (id: string) => void;
+  rollAllInitiative: (roll?: string) => void;
+  rollEntryInitiative: (id: string, roll?: string) => void;
   nextTurn: () => void;
   previousTurn: () => void;
   reorderInitiative: (fromIndex: number, toIndex: number) => void;
   moveToFront: (id: string) => void;
   moveToBack: (id: string) => void;
-  startCombat: () => void;
+  startCombat: (rules?: InitiativeRules) => void;
   endCombat: () => void;
+  setInitiativeSitsOut: (id: string, sitsOut: boolean) => void;
+  resetInitiative: () => void;
   setInitiativeConfig: (config: Partial<InitiativeConfig>) => void;
 
   // Dice roll log (persisted per map, capped at 20 entries)
