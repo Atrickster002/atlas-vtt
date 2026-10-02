@@ -17,6 +17,7 @@ import type { SelectionState } from '../hooks/useSelectionHandlers';
 import type { AssetCrudActions } from '../hooks/useAssetCrud';
 import type { TagsAndCollectionsState } from '../hooks/useTagsAndCollections';
 import type { StatblockLinkState } from '../hooks/useStatblockLink';
+import type { ImportMaps } from '../hooks/useUvttImport';
 import { tagGroupOfTab } from '../utils/assetTags';
 
 export interface ModalLayerProps {
@@ -29,10 +30,11 @@ export interface ModalLayerProps {
   crud: AssetCrudActions;
   tags: TagsAndCollectionsState;
   statblock: StatblockLinkState;
+  onImportMaps: ImportMaps;
 }
 
 export function ModalLayer({
-  isOpen, activeTab, selectedCollection, onClose, data, sel, crud, tags, statblock,
+  isOpen, activeTab, selectedCollection, onClose, data, sel, crud, tags, statblock, onImportMaps,
 }: ModalLayerProps): React.JSX.Element {
   const collectionOrDefault = selectedCollection || AssetService.defaultCollectionId();
 
@@ -96,6 +98,7 @@ export function ModalLayer({
           <TokenCreator
             isOpen={crud.isMapCreatorOpen}
             mode="map"
+            onImportMaps={onImportMaps}
             selectedCollection={collectionOrDefault}
             onClose={() => {
               crud.setIsMapCreatorOpen(false);
