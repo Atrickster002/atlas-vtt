@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { WallSegment } from '../../types/wallTypes';
 import { computeVisibility, pointInPolygon } from '../../vision/visibility';
 import { sealWalls } from '../sealWalls';
-import { TOLERANCE, key, random, wall } from './sealFixtures';
+import { TOLERANCE, key, random, timeBound, wall } from './sealFixtures';
 
 describe('sealWalls with crowded wall ends', () => {
   const bridgesOf = (walls: WallSegment[]): WallSegment[] => sealWalls(walls, TOLERANCE).slice(walls.length);
@@ -69,7 +69,7 @@ describe('sealWalls with crowded wall ends', () => {
     const { ms, bridges } = timed(walls);
     console.info(`sealWalls, ${_name}: ${walls.length} walls, ${distinctEnds(walls)} ends, ${bridges.length} bridges, ${ms.toFixed(0)} ms`);
     // Under a second on the machine it was written on; the bound is generous for slower ones.
-    expect(ms).toBeLessThan(2000);
+    expect(ms).toBeLessThan(timeBound(2000));
     expect(bridges.length).toBeLessThanOrEqual(distinctEnds(walls) * 16);
   });
 
@@ -78,7 +78,7 @@ describe('sealWalls with crowded wall ends', () => {
     const { ms, bridges } = timed(walls);
     console.info(`sealWalls, ${_name}: ${walls.length} walls, ${distinctEnds(walls)} ends, ${bridges.length} bridges, ${ms.toFixed(0)} ms`);
     // About 100 ms alone; the bound leaves room for a loaded machine. Pairs took a minute here.
-    expect(ms).toBeLessThan(2000);
+    expect(ms).toBeLessThan(timeBound(2000));
     expect(bridges.length).toBeLessThanOrEqual(distinctEnds(walls) * 16);
   });
 
