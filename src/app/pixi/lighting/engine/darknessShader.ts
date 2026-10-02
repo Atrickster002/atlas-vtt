@@ -1,28 +1,30 @@
 import { GLSL_VERSION } from './glsl';
 
-// How much of the light a darkness source swallows at each texel of its tile: all of it inside,
-// fading to none over the last `uSoft` px before its radius (never beyond it: outside the radius
-// the rules count nothing as darkened), and only where its tile shows a clear path from the
-// source, so walls end darkness as they end light. `uOut` picks what the coverage is written as:
-// alpha, to erase the light map beneath it (`LightMap`), or red, the darkness map's own channel.
+/** A darkness source's area: the polygon the rule counts as magically dark, in world pixels, drawn over the whole map target. */
+export const darknessVertex = `${GLSL_VERSION}
+in vec2 aPosition;
+uniform vec2 uMapWorld;
+out vec2 vWorld;
+void main() {
+  vWorld = aPosition;
+  gl_Position = vec4(aPosition / uMapWorld * 2.0 - 1.0, 0.0, 1.0);
+}`;
+
+// How much of the light a darkness source swallows: all of it inside the area the rule counts
+// (the mesh is that polygon: the source's reach as walls cut it, lines without thickness, so a
+// wall casts no shadow of its own into the darkness), fading to none over the last `uSoft` px
+// before its radius, never beyond it. `uOut` picks what the coverage is written as: alpha, to
+// erase the light map beneath it (`LightMap`), or red, the darkness map's own channel.
 export const darknessFragment = `${GLSL_VERSION}
 in vec2 vWorld;
-uniform vec4 uRect;
 uniform vec2 uLight;
 uniform float uDim;
 uniform float uSoft;
-uniform float uTexel;
 uniform vec4 uOut;
-uniform sampler2D uTile;
 out vec4 finalColor;
 void main() {
-  ivec2 texel = ivec2(floor((vWorld - uRect.xy) / uTexel));
-  ivec2 size = textureSize(uTile, 0);
-  if (any(lessThan(texel, ivec2(0))) || any(greaterThanEqual(texel, size))) discard;
-  float d = distance(vWorld, uLight);
-  float u = clamp((uDim - d) / max(uSoft, 1e-3), 0.0, 1.0);
-  float inside = u * u * (3.0 - 2.0 * u);
-  finalColor = uOut * (inside * texelFetch(uTile, texel, 0).r);
+  float u = clamp((uDim - distance(vWorld, uLight)) / max(uSoft, 1e-3), 0.0, 1.0);
+  finalColor = uOut * (u * u * (3.0 - 2.0 * u));
 }`;
 
 /** A polygon in world pixels, drawn over the whole map target. */

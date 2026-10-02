@@ -1,12 +1,13 @@
 import type { Renderer, Texture } from 'pixi.js';
 import type { WallSegment } from '../../../types/wallTypes';
-import { BOUNCE, FLICKER_INTERVAL_MS, LIGHT_REACH, tileWallReach, wallRadius, worldTexel } from '../../../lighting/lightingConstants';
+import { BOUNCE, DARKNESS, FLICKER_INTERVAL_MS, LIGHT_REACH, tileWallReach, wallRadius, worldTexel } from '../../../lighting/lightingConstants';
 import { changedWallRects } from '../../../lighting/wallChanges';
 import { allSegments, splitBlocking, type Rect } from '../../../lighting/segments';
-import type { MapBounds } from '../../../vision/visibility';
+import { lightReach } from '../../../vision/sight';
+import type { MapBounds, Polygon } from '../../../vision/visibility';
 import { LightFlicker, STEADY, type FlickerSample } from '../lightFlicker';
 import { CapsuleField } from './CapsuleField';
-import { DarknessMap, type PierceShape } from './DarknessMap';
+import { DarknessMap, type DrawnDarkness, type PierceShape } from './DarknessMap';
 import { LightMap, type DrawnLight } from './LightMap';
 import { RadianceCascades } from './RadianceCascades';
 import { TileCache } from './TileCache';
@@ -31,8 +32,10 @@ export class LightingWorld {
    */
   private allField: CapsuleField | null = null;
   private hasOneWay = false;
-  /** Created with the first darkness source and then kept, so the composite never holds a destroyed texture. */
+  /** Created with the first darkness source; `trim` frees it once the scene has none and the composite has let go of it. */
   private darkness: DarknessMap | null = null;
+  /** Each darkness source's area as the rule counts it, kept while the source and the walls stay. */
+  private readonly darkAreas = new Map<string, { light: EngineLight; walls: readonly WallSegment[]; polygon: Polygon }>();
   private pierce: readonly PierceShape[] = [];
   private readonly tiles: TileCache;
   private readonly flicker = new LightFlicker();
@@ -80,11 +83,13 @@ export class LightingWorld {
         this.bounceDirty = true;
       }
     }
-    const tilesChanged = this.tiles.sync(lights, walls, changed);
+    // A darkness has no tile: its area is the rule's polygon, which changes with any wall.
+    const tilesChanged = this.tiles.sync(lights.filter((light) => !light.darkness), walls, changed);
     const lightsChanged = !sameLights(this.lights, lights);
+    const areasChanged = changed !== 'all' && changed.length === 0 ? false : lights.some((light) => light.darkness);
     if (lightsChanged) this.forgetRemoved(lights);
     this.lights = lights;
-    if (tilesChanged || lightsChanged) {
+    if (tilesChanged || lightsChanged || areasChanged) {
       this.drawSteady();
       this.bounceDirty = true;
     } else if (pierceChanged && this.darknessMap()) {
@@ -117,6 +122,19 @@ export class LightingWorld {
       drew = true;
     }
     return drew;
+  }
+
+  /** Whether the darkness map's texture is allocated. */
+  get holdsDarknessMap(): boolean {
+    return !!this.darkness;
+  }
+
+  /** Frees the darkness map of a scene that has no darkness source left; call it once nothing reads the map (`darknessMap()` is null). */
+  trim(): void {
+    if (this.darknessMap()) return;
+    this.darkness?.destroy();
+    this.darkness = null;
+    this.darkAreas.clear();
   }
 
   /** Animated lights or bounce still to build: keep calling `animate`. */
@@ -158,7 +176,11 @@ export class LightingWorld {
 
   private forgetRemoved(lights: readonly EngineLight[]): void {
     const keys = new Set(lights.map((light) => light.key));
-    for (const light of this.lights) if (!keys.has(light.key)) this.flicker.forget(light.key);
+    for (const light of this.lights) {
+      if (keys.has(light.key)) continue;
+      this.flicker.forget(light.key);
+      this.darkAreas.delete(light.key);
+    }
   }
 
   private drawSteady(): void {
@@ -169,29 +191,38 @@ export class LightingWorld {
 
   private drawDarkness(): void {
     this.darkness ??= new DarknessMap(this.renderer, this.bounds, this.texel);
-    const tiles = this.tiles.tiles();
-    const sources = this.lights.flatMap((light) => {
-      const tile = light.darkness ? tiles.get(light.key) : undefined;
-      return tile ? [{ tile, dim: light.dim }] : [];
-    });
-    this.darkness.draw(sources, this.pierce);
+    this.darkness.draw(this.lights.filter((light) => light.darkness).map((light) => this.darknessOf(light)), this.pierce);
   }
 
   private drawLightMap(sample: (light: EngineLight) => FlickerSample): void {
     const tiles = this.tiles.tiles();
-    const drawn: DrawnLight[] = [];
+    const drawn: (DrawnLight | DrawnDarkness)[] = [];
     for (const light of byPriority(this.lights)) {
-      const tile = tiles.get(light.key);
-      if (!tile) continue;
       if (light.darkness) {
-        drawn.push({ tile, bright: 0, dim: light.dim, reach: light.dim, color: light.color, intensity: 0, darkness: true });
+        drawn.push(this.darknessOf(light));
         continue;
       }
+      const tile = tiles.get(light.key);
+      if (!tile) continue;
       const { intensity, radiusScale } = sample(light);
       // Flicker breathes the bright radius only: where a light ends is where the rules end it.
       drawn.push({ tile, bright: light.bright * radiusScale, dim: light.dim, reach: light.edge === undefined ? light.dim * LIGHT_REACH : light.dim + light.edge, color: light.color, intensity: light.intensity * intensity, cone: light.cone, edge: light.edge });
     }
     this.lightMap.draw(drawn);
+  }
+
+  /**
+   * A darkness source as it is drawn: the same area the rule counts (`lightReach` from the same
+   * place through the same walls), so picture and rule cannot differ.
+   */
+  private darknessOf(light: EngineLight): DrawnDarkness {
+    const walls = this.walls ?? [];
+    let area = this.darkAreas.get(light.key);
+    if (!area || area.walls !== walls || area.light.x !== light.x || area.light.y !== light.y || area.light.dim !== light.dim) {
+      area = { light, walls, polygon: lightReach({ x: light.x, y: light.y }, light.dim, walls, 0, { darkness: true }).polygon };
+      this.darkAreas.set(light.key, area);
+    }
+    return { origin: { x: light.x, y: light.y }, dim: light.dim, soft: Math.min(DARKNESS.rim, (LIGHT_REACH - 1) * light.dim), polygon: area.polygon };
   }
 }
 
@@ -211,8 +242,8 @@ function sameLights(a: readonly EngineLight[], b: readonly EngineLight[]): boole
  */
 function byPriority(lights: readonly EngineLight[]): readonly EngineLight[] {
   if (!lights.some((light) => light.darkness)) return lights;
-  const rank = (light: EngineLight): number => (light.priority ?? 0) * 2 + (light.darkness ? 1 : 0);
-  return [...lights].sort((a, b) => rank(a) - rank(b));
+  // By priority, whatever fraction it is; a darkness after the lights that share its own.
+  return [...lights].sort((a, b) => (a.priority ?? 0) - (b.priority ?? 0) || Number(!!a.darkness) - Number(!!b.darkness));
 }
 
 function sameCone(a: EngineLight['cone'], b: EngineLight['cone']): boolean {

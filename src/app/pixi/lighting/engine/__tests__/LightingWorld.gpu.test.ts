@@ -2,6 +2,7 @@ import { Texture, type WebGLRenderer } from 'pixi.js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { BOUNCE, FLICKER_INTERVAL_MS, LIGHT_REACH } from '../../../../lighting/lightingConstants';
 import { LightingWorld } from '../LightingWorld';
+import type { DrawnLight } from '../LightMap';
 import type { EngineLight } from '../types';
 import { createTestRenderer } from './gpuTestUtils';
 
@@ -44,7 +45,7 @@ describe('LightingWorld.animate', () => {
     const { world } = await setup();
     const draw = vi.spyOn(world.lightMap, 'draw');
     for (let frame = 1; frame <= 40; frame++) world.animate(START + frame * 2 * FLICKER_INTERVAL_MS);
-    const drawn = draw.mock.calls.map(([lights]) => lights[0]!);
+    const drawn = draw.mock.calls.map(([lights]) => lights[0] as DrawnLight);
     expect(drawn).toHaveLength(40);
     expect(new Set(drawn.map((light) => light.intensity)).size).toBeGreaterThan(10);
     expect(new Set(drawn.map((light) => light.bright)).size).toBeGreaterThan(10);

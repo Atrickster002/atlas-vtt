@@ -102,6 +102,8 @@ export class LightingEngine {
       composite.setWorld(world);
     }
     composite.setDarkness(world.darknessMap());
+    // The composite has let go of a darkness map the scene no longer needs.
+    world.trim();
     if (newSight) {
       this.sight = scene.sight;
       this.sightMeshes.draw(scene.sight, scene.sightRadius);
@@ -282,6 +284,8 @@ export class LightingEngine {
     this.world = world;
     this.boundField = world.fieldAll();
     if (this.composite) {
+      // The darkness map is the old world's: nothing of it may stay bound when that world goes.
+      this.composite.setDarkness(null);
       this.composite.setWorld(world);
     } else {
       this.composite = createCompositeFilter(world, this.explored);

@@ -2,7 +2,7 @@ import { defaultFilterVert } from 'pixi.js';
 import { capsuleFieldFragment, capsuleFieldVertex } from './capsuleFieldShader';
 import { cascadeFragment, cascadeVertex, emissionFragment, resolveFragment } from './cascadeShaders';
 import { compositeFragment } from './compositeShader';
-import { darknessFragment, pierceFragment, pierceVertex } from './darknessShader';
+import { darknessFragment, darknessVertex, pierceFragment, pierceVertex } from './darknessShader';
 import { lightMapFragment, lightMapVertex } from './lightMapShader';
 import { sightFragment, sightVertex } from './sightShader';
 import { tileFragment, tileVertex } from './tileShader';
@@ -24,7 +24,7 @@ export const ENGINE_SHADERS = {
   tile: { name: 'atlas-visibility-tile', vertex: tileVertex, fragment: tileFragment },
   tileSmooth: { name: 'atlas-visibility-tile-smooth', vertex: tileVertex, fragment: tileSmoothFragment },
   lightMap: { name: 'atlas-light-map', vertex: lightMapVertex, fragment: lightMapFragment },
-  darkness: { name: 'atlas-darkness', vertex: lightMapVertex, fragment: darknessFragment },
+  darkness: { name: 'atlas-darkness', vertex: darknessVertex, fragment: darknessFragment },
   pierce: { name: 'atlas-darkness-pierce', vertex: pierceVertex, fragment: pierceFragment },
   bounceEmission: { name: 'atlas-bounce-emission', vertex: cascadeVertex, fragment: emissionFragment },
   bounceCascade: { name: 'atlas-bounce-cascade', vertex: cascadeVertex, fragment: cascadeFragment },

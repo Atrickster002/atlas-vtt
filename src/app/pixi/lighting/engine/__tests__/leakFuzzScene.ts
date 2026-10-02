@@ -7,7 +7,6 @@ import { darkvision, senseSource } from '../../../../vision/__tests__/senseSourc
 import type { SeenSpot } from '../../../../vision/perception';
 import type { SenseSource, Sight } from '../../../../vision/sight';
 import { blocksFrom, type MapBounds } from '../../../../vision/visibility';
-import { distSqToSegment } from '../../../../vision/visionGeometry';
 import { SceneSpots, type SceneModel } from '../../sceneModel';
 import type { LightingEngine } from '../LightingEngine';
 import { readRgba } from './gpuTestUtils';
@@ -63,20 +62,6 @@ export const SENSE_SETS: SenseSource[][] = [
   [{ definition: sense('ose-infravision'), range: 4000 }, { definition: sense('dnd5e-darkvision'), range: 4000 }],
 ];
 
-/**
- * Whether the straight path from `from` to `to` keeps `margin` px clear of every wall: checked
- * every 3 px along it, so a point for which this holds has the whole source in plain view.
- */
-export function clearPath(from: P, to: P, walls: readonly WallSegment[], margin: number): boolean {
-  const length = Math.hypot(to[0] - from[0], to[1] - from[1]);
-  const steps = Math.max(1, Math.ceil(length / 3));
-  for (let i = 0; i <= steps; i++) {
-    const point = { x: from[0] + ((to[0] - from[0]) * i) / steps, y: from[1] + ((to[1] - from[1]) * i) / steps };
-    for (const wall of walls) if (distSqToSegment(point, wall.p1, wall.p2) < margin * margin) return false;
-  }
-  return true;
-}
-
 export interface Report {
   rooms: number;
   /** Rooms with a closed door, with one-way walls, with two lights among their outline. */
@@ -105,6 +90,9 @@ export interface Report {
   /** Pixels in plain view of the darkness source, well within its radius, and those of them that show more than its veil. */
   darkInside: number;
   darkRevealed: number;
+  /** Of those pixels, the ones in rooms whose senses do not see in magical darkness, and those of them a sense shows all the same. */
+  senseDarkInside: number;
+  senseDarkRevealed: number;
   /** Rooms whose lights shone as beams too, the pixels inside the room those lit, and the lit ones past its walls. */
   beamRooms: number;
   beamInside: number;

@@ -146,8 +146,6 @@ void main() {
     vec2 floorAt = climbFromWall(world, uBand);
     lamps = mix(lamps, textureLod(uLightMap, floorAt / uLightWorld, 0.0), front);
     bounce = mix(bounce, bounceAt(floorAt), front);
-    // A wall's face is as dark as the floor in front of it.
-    if (uHasDarkness > 0.5) dark = mix(dark, textureLod(uDarkness, floorAt / uLightWorld, 0.0).rg, front);
   }
   // Magical darkness swallows the ambient light and the bounce; the lights it swallows are not in the light map.
   float lightLeft = 1.0 - dark.r;

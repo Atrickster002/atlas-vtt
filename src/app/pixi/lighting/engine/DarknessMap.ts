@@ -1,16 +1,17 @@
 import { Buffer, BufferUsage, Container, Geometry, Mesh, UniformGroup, type Renderer, type RenderTexture, type Shader } from 'pixi.js';
-import { DARKNESS } from '../../../lighting/lightingConstants';
 import type { Point } from '../../../types/visionTypes';
 import type { MapBounds, Polygon } from '../../../vision/visibility';
 import { destroyTree } from '../../utils/destroyTree';
 import { ENGINE_SHADERS } from './engineShaders';
-import { createPlaceholder, createQuad, createShader, createTarget, destroyQuad, quadGeometry, renderInto, type Quad } from './gpu';
-import type { Tile } from './TileCache';
+import { createShader, createTarget, renderInto } from './gpu';
 
-/** A darkness source as it swallows light this frame. */
+/** A darkness source as it swallows light: the area the rule counts (`lightReach`), with its soft rim inside the radius. */
 export interface DrawnDarkness {
-  tile: Tile;
+  origin: Point;
   dim: number;
+  /** Width of the rim, in world pixels, over which the light comes back before the radius. */
+  soft: number;
+  polygon: Polygon;
 }
 
 /** What a sense that sees in magical darkness perceives, and how: 1 as bright light, 0.5 as dim. */
@@ -20,37 +21,48 @@ export interface PierceShape {
   level: number;
 }
 
-interface Slot {
+/** One darkness source's coverage: its polygon as a fan, rebuilt only when the polygon is another. */
+export interface DarknessMesh {
   mesh: Mesh<Geometry, Shader>;
   uniforms: UniformGroup;
-  rect: Float32Array;
   light: Float32Array;
+  polygon: Polygon | null;
 }
 
-/** The uniforms of a darkness source's coverage (`darknessFragment`), which the light map draws too. */
-export function darknessUniforms(world: readonly [number, number], texel: number, out: readonly [number, number, number, number]): { uniforms: UniformGroup; rect: Float32Array; light: Float32Array } {
-  const rect = new Float32Array(4);
+/** A coverage mesh (`darknessFragment`) that writes `out`; the light map and the darkness map each draw their own. */
+export function createDarknessMesh(world: readonly [number, number], out: readonly [number, number, number, number], blendMode: 'max' | 'erase'): DarknessMesh {
   const light = new Float32Array(2);
   const uniforms = new UniformGroup({
-    uRect: { value: rect, type: 'vec4<f32>' },
     uMapWorld: { value: new Float32Array(world), type: 'vec2<f32>' },
     uLight: { value: light, type: 'vec2<f32>' },
     uDim: { value: 0, type: 'f32' },
     uSoft: { value: 1, type: 'f32' },
-    uTexel: { value: texel, type: 'f32' },
     uOut: { value: new Float32Array(out), type: 'vec4<f32>' },
   });
-  return { uniforms, rect, light };
+  // A point until it is given its polygon.
+  const mesh = new Mesh({ geometry: fanGeometry({ x: 0, y: 0 }, [{ x: 0, y: 0 }, { x: 0, y: 0 }, { x: 0, y: 0 }]), shader: createShader(ENGINE_SHADERS.darkness, { darknessUniforms: uniforms }) });
+  mesh.blendMode = blendMode;
+  return { mesh, uniforms, light, polygon: null };
 }
 
-/** Sets a coverage slot to `darkness`: where it is, how far it reaches and how wide its soft edge is. */
-export function setDarkness(slot: { uniforms: UniformGroup; rect: Float32Array; light: Float32Array; mesh: Mesh<Geometry, Shader> }, darkness: DrawnDarkness): void {
-  slot.rect.set(darkness.tile.rect);
-  slot.light[0] = darkness.tile.x;
-  slot.light[1] = darkness.tile.y;
+/** Sets a coverage mesh to `darkness`: its area, where it is, how far it reaches and how wide its rim is. */
+export function setDarknessMesh(slot: DarknessMesh, darkness: DrawnDarkness): void {
+  if (slot.polygon !== darkness.polygon) {
+    const previous = slot.mesh.geometry;
+    slot.mesh.geometry = fanGeometry(darkness.origin, darkness.polygon);
+    previous.destroy(true);
+    slot.polygon = darkness.polygon;
+  }
+  slot.light[0] = darkness.origin.x;
+  slot.light[1] = darkness.origin.y;
   slot.uniforms.uniforms.uDim = darkness.dim;
-  slot.uniforms.uniforms.uSoft = darkness.dim * DARKNESS.softEdge;
-  slot.mesh.shader!.resources.uTile = darkness.tile.texture.source;
+  slot.uniforms.uniforms.uSoft = darkness.soft;
+}
+
+export function destroyDarknessMesh({ mesh }: DarknessMesh): void {
+  mesh.geometry.destroy(true);
+  mesh.shader?.destroy();
+  mesh.destroy();
 }
 
 /**
@@ -65,12 +77,9 @@ export class DarknessMap {
   private readonly world: readonly [number, number];
   private readonly scene = new Container();
   private readonly pierce = new Container();
-  private readonly slots: Slot[] = [];
-  private readonly quad: Quad = createQuad();
-  private readonly geometry: Geometry = quadGeometry(this.quad);
-  private readonly placeholder: RenderTexture = createPlaceholder();
+  private readonly slots: DarknessMesh[] = [];
 
-  constructor(private readonly renderer: Renderer, bounds: MapBounds, private readonly texel: number) {
+  constructor(private readonly renderer: Renderer, bounds: MapBounds, texel: number) {
     this.texture = createTarget(bounds.width / texel, bounds.height / texel, 'rg8unorm');
     this.world = [this.texture.source.pixelWidth * texel, this.texture.source.pixelHeight * texel];
     this.scene.addChild(this.pierce);
@@ -81,23 +90,20 @@ export class DarknessMap {
     this.slots.forEach((slot, i) => {
       const source = sources[i];
       slot.mesh.visible = !!source;
-      if (source) setDarkness(slot, source);
+      if (source) setDarknessMesh(slot, source);
     });
     this.releasePierce();
     for (const shape of shapes) {
       if (shape.polygon.length >= 3) this.pierce.addChild(this.createPierce(shape));
     }
     renderInto(this.renderer, this.scene, this.texture, [0, 0, 0, 0]);
-    for (const slot of this.slots) slot.mesh.shader!.resources.uTile = this.placeholder.source;
   }
 
-  private createSlot(): Slot {
-    const { uniforms, rect, light } = darknessUniforms(this.world, this.texel, [1, 0, 0, 0]);
-    const shader = createShader(ENGINE_SHADERS.darkness, { darknessUniforms: uniforms, uTile: this.placeholder.source });
-    const mesh = new Mesh({ geometry: this.geometry, shader });
-    mesh.blendMode = 'max';
-    this.scene.addChild(mesh);
-    return { mesh, uniforms, rect, light };
+  private createSlot(): DarknessMesh {
+    const slot = createDarknessMesh(this.world, [1, 0, 0, 0], 'max');
+    // Below what the senses see in it, which is drawn into the other channel.
+    this.scene.addChildAt(slot.mesh, 0);
+    return slot;
   }
 
   private createPierce({ origin, polygon, level }: PierceShape): Mesh<Geometry, Shader> {
@@ -120,11 +126,11 @@ export class DarknessMap {
 
   destroy(): void {
     this.releasePierce();
-    for (const { mesh } of this.slots) mesh.shader?.destroy();
+    for (const slot of this.slots) {
+      this.scene.removeChild(slot.mesh);
+      destroyDarknessMesh(slot);
+    }
     destroyTree(this.scene);
-    this.geometry.destroy();
-    destroyQuad(this.quad);
-    this.placeholder.destroy(true);
     this.texture.destroy(true);
   }
 }

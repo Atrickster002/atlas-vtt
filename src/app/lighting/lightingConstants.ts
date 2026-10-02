@@ -58,14 +58,15 @@ export function softEdge(dim: number, cellSize: number): number {
 export const CONE_APEX_FADE = 1.6;
 
 /**
- * A source of magical darkness swallows all light up to its radius; over the last `softEdge` of
- * the radius, inside it, the light comes back, so its rim is soft and nothing beyond the radius
- * is darkened. `veil` is the faint cool tint (linear light) the players see in place of the map
+ * A source of magical darkness swallows all light up to its radius; over the last `rim` world
+ * pixels inside it (and no more than the fade past a light's dim radius) the light comes back,
+ * so its edge is soft and nothing beyond the radius is darkened. The rule counts the rim as dark:
+ * it is kept narrow, since a wide one shows daylight where a token is hidden. `veil` is the faint cool tint (linear light) the players see in place of the map
  * there, to tell magical darkness from the unlit dark; `gmVeil` the stronger one the GM sees
  * over the dim map.
  */
 export const DARKNESS = {
-  softEdge: 0.1,
+  rim: 6,
   veil: [0.003, 0.0026, 0.011],
   gmVeil: [0.03, 0.022, 0.085],
 } as const;
