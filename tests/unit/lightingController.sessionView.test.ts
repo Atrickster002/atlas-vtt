@@ -278,6 +278,16 @@ describe('LightingController in session view', () => {
     pressPeek('keyup');
   });
 
+  it('opens a door the players see from its badge with the lighting tool too, whose editor the players\' view hides', () => {
+    const { store, click, seen, unseen } = doorsInAndOutOfSight();
+    store.getState().setActiveTool('wall');
+    store.getState().setGMView(false);
+    expect(click(50, 100)).toBe(true);
+    expect(store.getState().objects.walls[seen]?.closed).toBe(false);
+    expect(click(50, 300)).toBe(false);
+    expect(store.getState().objects.walls[unseen]?.closed).toBe(true);
+  });
+
   it('opens no door from a badge the players\' view does not show: one out of sight, a secret door', () => {
     const { store, wired, unseen, secret } = doorsInAndOutOfSight();
     store.getState().setGMView(false);

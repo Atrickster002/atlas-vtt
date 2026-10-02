@@ -35,7 +35,16 @@ export function wireLightingPointer(tokens: TokenRenderer, { lights, editor, mod
       modes.pointerLeft();
     },
   });
-  tokens.setWallPointerDownHandler((x, y, e) => (modes.active ? modes.pointerDown({ x, y }, e) : editor.pointerDown({ x, y }, e.shiftKey, e.ctrlKey || e.metaKey)));
+  const doorClick = (x: number, y: number): boolean => {
+    const doorId = doors.hitTest(x, y);
+    if (doorId) doors.toggle(doorId);
+    return !!doorId;
+  };
+  tokens.setWallPointerDownHandler((x, y, e) => {
+    // The players' view hides the editor: the lighting tool then opens doors from the badges that view shows, as every other tool does.
+    if (!editor.shown) return doorClick(x, y);
+    return modes.active ? modes.pointerDown({ x, y }, e) : editor.pointerDown({ x, y }, e.shiftKey, e.ctrlKey || e.metaKey);
+  });
   tokens.setWallPointerMoveHandler((x, y, e) => (modes.active ? modes.pointerMove({ x, y }, e) : editor.pointerMove({ x, y })));
   tokens.setWallPointerUpHandler(() => {
     modes.pointerUp();
@@ -47,9 +56,5 @@ export function wireLightingPointer(tokens: TokenRenderer, { lights, editor, mod
   });
   tokens.setWallCursorProvider((x, y) => (modes.active ? modes.cursorAt({ x, y }) : editor.cursorAt({ x, y })));
   tokens.setDoorMenuHandlers({ hitTest: (x, y) => doors.gmHitTest(x, y), open: doorMenu });
-  tokens.setDoorClickHandler((x, y) => {
-    const doorId = doors.hitTest(x, y);
-    if (doorId) doors.toggle(doorId);
-    return !!doorId;
-  });
+  tokens.setDoorClickHandler(doorClick);
 }
