@@ -13,7 +13,7 @@ import { createAtlasStorage, migrateMapFile, parseSceneFile, type GridState } fr
 import type { CollectionGridDefaults } from '../../src/app/types/collectionSettingsTypes';
 import type { SceneLighting } from '../../src/app/types/lightingTypes';
 import { base64Of, cryptFile, cryptSetting, cryptWith, pngHeader } from '../fixtures/uvttFiles';
-import { createInMemoryApp, type InMemoryApp } from '../mocks/inMemoryVault';
+import { createInMemoryApp, interceptWrites, type InMemoryApp } from '../mocks/inMemoryVault';
 
 const COLLECTION = 'Dungeons';
 const SCENES = `atlas-vtt/collections/${COLLECTION}/scenes`;
@@ -203,13 +203,10 @@ describe('importing a Universal VTT file', () => {
     });
     const unlockedWrites: string[] = [];
     let lockedWrites = 0;
-    type FileWrite = ReturnType<typeof vi.fn<(path: string, content: unknown) => Promise<unknown>>>;
-    for (const write of [b.vault.app.vault.create, b.vault.app.vault.createBinary] as unknown[] as FileWrite[]) {
-      const original = write.getMockImplementation()!;
-      write.mockImplementation(async (path, content) => {
+    for (const method of ['create', 'createBinary']) {
+      interceptWrites(b.vault.app.vault, method, (path) => {
         if (locked) lockedWrites++;
         else unlockedWrites.push(path);
-        return original(path, content);
       });
     }
 
@@ -328,23 +325,19 @@ describe('a Universal VTT file that is refused', () => {
 });
 
 describe('an import that fails half way', () => {
-  type Write = (path: string, content: string) => Promise<unknown>;
-
-  /** Runs an import in which every write to a path matching `failing` is refused, then lets writes through again. */
+  /** Runs an import in which the write to a path matching `failing` is refused, then lets writes through again. */
   async function failingAt(b: Bench, failing: RegExp, through: 'create' | 'adapter'): Promise<UvttImportResult> {
     const { vault } = b.vault.app;
-    const mock = vi.mocked<Write>(through === 'create' ? vault.create : vault.adapter.write);
-    const write = mock.getMockImplementation()!;
     let refused = 0;
-    mock.mockImplementation(async (path, content) => {
-      if (!failing.test(path)) return write(path, content);
+    const restore = interceptWrites(through === 'create' ? vault : vault.adapter, through === 'create' ? 'create' : 'write', (path) => {
+      if (!failing.test(path)) return;
       refused++;
       throw new Error('EIO: i/o error');
     });
     try {
       return await importUvttFile(b.deps, uvttFile(cryptFile()), COLLECTION);
     } finally {
-      mock.mockImplementation(write);
+      restore();
       expect(refused).toBe(1);
     }
   }
@@ -381,7 +374,7 @@ describe('an import that fails half way', () => {
 
   it('names the files it could not remove again', async () => {
     const b = await bench();
-    vi.mocked(b.vault.app.fileManager.trashFile).mockRejectedValue(new Error('EPERM'));
+    vi.spyOn(b.vault.app.fileManager, 'trashFile').mockRejectedValue(new Error('EPERM'));
 
     const problem = problemOf(await failingAt(b, /assets-metadata\.json$/, 'adapter'));
 

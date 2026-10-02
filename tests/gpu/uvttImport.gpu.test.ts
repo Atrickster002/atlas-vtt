@@ -4,7 +4,7 @@ import { IMAGE_PRESETS, disposeImageProcessing, optimizeImage } from '../../src/
 import { importUvttFile, type UvttImportDeps, type UvttImported } from '../../src/app/import/uvtt/importUvttFile';
 import { AssetService } from '../../src/app/services/AssetService';
 import { AssetThumbnailService, THUMBNAIL_SPEC } from '../../src/app/services/AssetThumbnailService';
-import { createInMemoryApp, type InMemoryApp } from '../mocks/inMemoryVault';
+import { createInMemoryApp, interceptWrites, type InMemoryApp } from '../mocks/inMemoryVault';
 
 /**
  * The import with the real image workers, in a real browser: the unit tests stand in for them.
@@ -28,13 +28,9 @@ async function bench(): Promise<Bench> {
   await assets.initialize();
   await assets.createCollection(COLLECTION);
   const binaries = new Map<string, ArrayBuffer>();
-  for (const write of [vault.app.vault.createBinary, vault.app.vault.adapter.writeBinary] as unknown[] as Array<ReturnType<typeof vi.fn<(path: string, content: ArrayBuffer) => Promise<unknown>>>>) {
-    const original = write.getMockImplementation()!;
-    write.mockImplementation(async (path, content) => {
-      binaries.set(path, content);
-      return original(path, content);
-    });
-  }
+  const keep = (path: string, content: unknown): void => { if (content instanceof ArrayBuffer) binaries.set(path, content); };
+  interceptWrites(vault.app.vault, 'createBinary', keep);
+  interceptWrites(vault.app.vault.adapter, 'writeBinary', keep);
   return {
     vault,
     binaries,
