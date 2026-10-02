@@ -42,7 +42,8 @@ interface LightEmissionFieldsProps {
 /**
  * Everything a light gives off, as the light popover and Edit Token edit it: preset, colour,
  * bright and dim range, the beam it shines in, intensity, softness, flicker and whether it
- * outshines magical darkness. The direction of a beam shows only while the light has one.
+ * outshines magical darkness. A placed light's direction sits beside its beam, and can be set
+ * only while the light has one: the row never changes its height under the pointer.
  * A source of magical darkness has its kind and one radius, nothing else: it gives no light to
  * colour or dim. Every control reports the whole emission at once.
  */
@@ -61,6 +62,7 @@ export function LightEmissionFields({
     );
   }
   const beam = coneAngle(emission.angle) ?? BEAM_SLIDER.max;
+  const narrow = beam < BEAM_SLIDER.max;
   return (
     <>
       <LightPresetChips emission={emission} presets={presets} onChange={onChange} />
@@ -69,12 +71,14 @@ export function LightEmissionFields({
       </div>
       <div className="atlas-light-popover__section">
         {ranges}
-        <SliderField label="Beam" value={beam} {...BEAM_SLIDER} display={beam < BEAM_SLIDER.max ? `${beam}°` : 'All around'}
-          onPointerDown={onSliderPointerDown} onChange={(value) => onChange(withBeam(emission, value))} />
-        {direction && beam < BEAM_SLIDER.max && (
-          <SliderField label="Direction" value={direction.degrees} min={0} max={360 - DIRECTION_STEP} step={DIRECTION_STEP} display={`${direction.degrees}°`}
-            onPointerDown={onSliderPointerDown} onChange={direction.onChange} />
-        )}
+        <div className="atlas-light-popover__beam">
+          <SliderField label="Beam" value={beam} {...BEAM_SLIDER} display={narrow ? `${beam}°` : direction ? 'All' : 'All around'}
+            onPointerDown={onSliderPointerDown} onChange={(value) => onChange(withBeam(emission, value))} />
+          {direction && (
+            <SliderField label="Direction" value={direction.degrees} min={0} max={360 - DIRECTION_STEP} step={DIRECTION_STEP} display={narrow ? `${direction.degrees}°` : '–'}
+              disabled={!narrow} onPointerDown={onSliderPointerDown} onChange={direction.onChange} />
+          )}
+        </div>
         <SliderField label="Intensity" value={emission.intensity} min={0} max={2} step={0.05} display={`${Math.round(emission.intensity * 100)} %`}
           onPointerDown={onSliderPointerDown} onChange={(value) => onChange(editEmission(emission, 'intensity', String(value)))} />
         <SliderField label="Softness" value={emission.sourceRadius ?? 1} min={0} max={5} step={0.25} display={String(emission.sourceRadius ?? 1)}

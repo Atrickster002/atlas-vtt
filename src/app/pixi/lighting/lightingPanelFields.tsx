@@ -29,13 +29,15 @@ interface SliderFieldProps {
   step: number;
   /** The value as shown beside the label, e.g. "25 %"; nothing is shown without it. */
   display?: string;
+  /** Shown, but not to be set: its value means nothing right now. */
+  disabled?: boolean;
   onPointerDown?: (event: React.PointerEvent) => void;
   onChange: (value: number) => void;
   /** The drag ended or a key moved the value: where it came to rest. */
   onCommit?: (value: number) => void;
 }
 
-export function SliderField({ label, value, min, max, step, display, onPointerDown, onChange, onCommit }: SliderFieldProps): React.ReactElement {
+export function SliderField({ label, value, min, max, step, display, disabled = false, onPointerDown, onChange, onCommit }: SliderFieldProps): React.ReactElement {
   const id = useId();
   return (
     <div className="atlas-light-panel__slider">
@@ -43,7 +45,7 @@ export function SliderField({ label, value, min, max, step, display, onPointerDo
         <span id={id}>{label}</span>
         {display !== undefined && <output aria-hidden="true">{display}</output>}
       </div>
-      <Slider aria-labelledby={id} value={[value]} min={min} max={max} step={step}
+      <Slider aria-labelledby={id} value={[value]} min={min} max={max} step={step} disabled={disabled}
         onValueChange={([next]) => onChange(next ?? value)} {...(onPointerDown && { onPointerDown })}
         {...(onCommit && { onValueCommit: ([next]: number[]) => onCommit(next ?? value) })} />
     </div>

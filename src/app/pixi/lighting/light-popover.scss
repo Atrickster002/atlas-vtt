@@ -186,6 +186,14 @@ $gap: $spacing-s;
   color: var(--text-muted);
 }
 
+// The beam and, for a placed light, the way it faces: one row, shared in halves.
+.atlas-light-popover__beam {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  gap: $gap;
+}
+
 .atlas-light-popover__flicker {
   @include atlas-flex-row($gap);
 

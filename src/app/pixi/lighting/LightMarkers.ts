@@ -22,10 +22,9 @@ import {
 /** Above the lighting layer (90), so the GM finds lights in the dark; below token UI (100). */
 export const LIGHT_MARKERS_Z_INDEX = 95;
 
-/** The pointer of a light with a beam: how far from the badge it starts, how long it is, and half its width as an angle. */
-const POINTER_GAP = 2;
-const POINTER_LENGTH = 7;
-const POINTER_SPREAD = 0.36;
+/** The pointer of a light with a beam: how far past the badge's edge it reaches (past a selected marker's ring too), and half its width as an angle. */
+const POINTER_LENGTH = 9;
+const POINTER_SPREAD = 0.45;
 
 type MarkerState = Pick<ViewAtlasState, 'lighting' | 'activeTool'>;
 
@@ -51,14 +50,17 @@ interface Marker {
   lift: ValueTransition | null;
 }
 
-/** A light with a beam: a pointer on the badge's edge, in the light's colour, the way it faces. */
-function drawPointer(g: Graphics, { direction, ringColor, ringAlpha }: LightMarkerLook): void {
+/**
+ * A light with a beam: the badge grows a tip the way the light faces, in the light's colour.
+ * Drawn under the badge, which covers its base, so the two read as one shape.
+ */
+function drawPointer(g: Graphics, { direction, ringColor, ringAlpha }: LightMarkerLook, background: number): void {
   if (direction === null) return;
   const point = (radius: number, turn: number): [number, number] => [Math.cos(direction + turn) * radius, Math.sin(direction + turn) * radius];
-  const base = LIGHT_MARKER_RADIUS + POINTER_GAP;
-  g.poly([...point(base, -POINTER_SPREAD), ...point(base + POINTER_LENGTH, 0), ...point(base, POINTER_SPREAD)])
-    .fill({ color: ringColor, alpha: ringAlpha })
-    .stroke({ width: 1, color: 0x000000, alpha: 0.35 });
+  const tip = [...point(LIGHT_MARKER_RADIUS - 2, -POINTER_SPREAD), ...point(LIGHT_MARKER_RADIUS + POINTER_LENGTH, 0), ...point(LIGHT_MARKER_RADIUS - 2, POINTER_SPREAD)];
+  // On the badge's own colour, so a faint tip (a light switched off) is faint as its ring is.
+  g.poly(tip).fill({ color: background }).stroke({ width: 1, color: 0x000000, alpha: 0.35 });
+  g.poly(tip).fill({ color: ringColor, alpha: ringAlpha });
 }
 
 function sameTheme(a: LightMarkerTheme, b: LightMarkerTheme): boolean {
@@ -199,6 +201,7 @@ export class LightMarkers {
     const { background } = this.theme;
     const g = marker.badge;
     g.clear();
+    drawPointer(g, look, background);
     // A dark hairline keeps the badge's edge on a map as light as the badge.
     g.circle(0, 0, LIGHT_MARKER_RADIUS + 0.5).stroke({ width: 1, color: 0x000000, alpha: 0.35 });
     g.circle(0, 0, LIGHT_MARKER_RADIUS).fill({ color: background, alpha: 0.95 });
@@ -206,7 +209,6 @@ export class LightMarkers {
     if (look.accent !== null) {
       g.circle(0, 0, LIGHT_MARKER_RADIUS + 3).stroke({ width: 2, color: look.accent });
     }
-    if (look.direction !== null) drawPointer(g, look);
     const texture = this.glyphTexture(look.kind);
     if (!texture) return;
     if (!marker.glyph) {

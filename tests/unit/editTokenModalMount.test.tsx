@@ -146,6 +146,9 @@ describe('openEditTokenModal: the carried light', () => {
     expect((screen.getByLabelText('Bright') as HTMLInputElement).value).toBe('20');
     expect((screen.getByLabelText('Dim') as HTMLInputElement).value).toBe('40');
     for (const slider of ['Bright range', 'Dim range', 'Intensity', 'Softness', 'Beam']) screen.getByRole('slider', { name: slider });
+    // A carried light faces as its token does.
+    expect(screen.queryByRole('slider', { name: 'Direction' })).toBeNull();
+    expect(screen.getByText('All around')).toBeTruthy();
     expect(screen.getByRole('combobox', { name: 'Flicker' }).textContent).toBe('Torch');
     save();
     expect(saved().light).toEqual(emissionOf(torch));

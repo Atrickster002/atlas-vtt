@@ -66,7 +66,7 @@ describe('LightPopover with a game system\'s light presets', () => {
     expect(pressed('Torch')).toBe(true);
     expect(pressed('More lights')).toBe(false);
     openMore();
-    expect(screen.getAllByRole('menuitemcheckbox').map((item) => item.textContent)).toEqual(['Lamp', 'Continual Flame', 'Daylight', 'Custom light']);
+    expect(screen.getAllByRole('menuitemcheckbox').map((item) => item.textContent)).toEqual(['Lamp', 'Continual Flame', 'Daylight', 'Bullseye lantern', 'Custom light']);
   });
 
   it('gives the light a preset from the More menu, and marks More with it', () => {
