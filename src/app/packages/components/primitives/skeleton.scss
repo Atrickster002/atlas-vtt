@@ -6,7 +6,9 @@
 // shows one sheen passing over all of its shapes; a single late piece inside
 // real content breathes instead (`data-live`).
 
-.atlas-skeleton {
+// `:where` keeps the defaults without specificity: the class of the element a
+// shape stands for sizes and rounds it, whatever the order of the stylesheets.
+:where(.atlas-skeleton) {
   display: block;
   flex-shrink: 0;
   border-radius: $radius-s;
