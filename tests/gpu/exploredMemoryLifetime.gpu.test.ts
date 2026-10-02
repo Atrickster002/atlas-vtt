@@ -19,6 +19,43 @@ describe('the life of the explored memory\'s undo steps', () => {
     expect(history().pastStates).toHaveLength(0);
   });
 
+  it('takes its steps out of the history when the lighting view goes, as when line of sight takes the engine\'s place', async () => {
+    const { lighting, store, history, destroyLighting } = await scene();
+    lighting.editExplored(reveal(RIGHT_ROOM));
+    store.getState().addWall({ type: 'solid', p1: { x: 10, y: 10 }, p2: { x: 40, y: 10 }, closed: true });
+    lighting.editExplored(forget({ type: 'brush', brushRadius: 20, points: [{ x: 200, y: 128 }] }));
+    history().undo();
+    expect(history().pastStates).toHaveLength(2);
+    expect(history().futureStates).toHaveLength(1);
+
+    destroyLighting();
+    // Only the wall's step is left, in either direction: no step that has nothing to put back.
+    expect(history().pastStates).toHaveLength(1);
+    expect(history().futureStates).toHaveLength(0);
+    history().undo();
+    expect(Object.keys(store.getState().objects.walls)).toHaveLength(1);
+    expect(history().pastStates).toHaveLength(0);
+  });
+
+  it('tells no one and saves nothing for an undo once the engine has stopped', async () => {
+    const { lighting, store, history, travels, unavailable, redAt } = await scene();
+    lighting.editExplored(reveal(RIGHT_ROOM));
+    vi.advanceTimersByTime(SAVE_DELAY);
+    const saved = store.getState().exploredMask;
+    lighting.editExplored(forget({ type: 'brush', brushRadius: 20, points: [{ x: 200, y: 128 }] }));
+    // A pass throws on this graphics device: the engine stops for good, and the renderer with the next lighting work.
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    (lighting as unknown as { engine: { fail: (error: unknown) => void } }).engine.fail(new Error('a pass threw'));
+    store.getState().setSceneLighting({ ambient: 0.05 });
+    expect(unavailable).toEqual(['failed']);
+
+    history().undo();
+    expect(travels).toEqual([]);
+    expect(redAt(200, 128)).toBe(0);
+    vi.advanceTimersByTime(SAVE_DELAY);
+    expect(store.getState().exploredMask).toBe(saved);
+  });
+
   it('takes no edit back when a load starts the count over', async () => {
     const { lighting, store, redAt } = await scene();
     lighting.editExplored(reveal(RIGHT_ROOM));

@@ -91,20 +91,28 @@ describe('editing the explored memory', () => {
 
   it('saves an edit with the scene after the usual delay, and an undo of it too', async () => {
     const { lighting, store, history, redAt } = await scene();
+    // Whatever sight had to save is saved: from here on the edit is the only reason to.
+    vi.advanceTimersByTime(SAVE_DELAY);
+    const blank = store.getState().exploredMask;
+    vi.advanceTimersByTime(SAVE_DELAY);
+    expect(store.getState().exploredMask).toBe(blank);
+
     lighting.editExplored(reveal(RIGHT_ROOM));
-    expect(store.getState().exploredMask).toBeNull();
+    expect(store.getState().exploredMask).toBe(blank);
     vi.advanceTimersByTime(SAVE_DELAY);
     const saved = store.getState().exploredMask;
+    expect(saved).not.toBe(blank);
     expect(saved).toMatch(/^data:image\/png;base64,/);
     // The save itself is no undo step and does not disturb the memory.
     expect(history().pastStates).toHaveLength(1);
     expect(redAt(200, 128)).toBe(255);
 
-    // Through a save and a reload: checked well inside the room and far from it only, since the
-    // saved image's encoding is being reworked.
+    // Through a save and a reload the memory is what it was, texel for texel.
     const reloaded = await scene({ exploredMask: saved });
-    await until(() => reloaded.redAt(200, 128) > 200);
+    await until(() => reloaded.redAt(200, 128) === 255);
     expect(reloaded.redAt(60, 128)).toBe(0);
+    expect(reloaded.redAt(127, 128)).toBe(0);
+    expect(reloaded.redAt(128, 128)).toBe(255);
     expect(reloaded.history().pastStates).toHaveLength(0);
     expect(reloaded.store.getState().exploredEdits).toBe(0);
 

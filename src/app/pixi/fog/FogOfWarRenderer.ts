@@ -333,7 +333,10 @@ export class FogOfWarRenderer {
   }
 
   setFogMode(mode: StrokeMode): void {
+    // A brush stroke under way is painted on the preview: dropped, the preview shows the store's fog again.
+    const painted = this.stroke.active && this.stroke.mode === 'brush';
     this.resetDrawingState();
+    if (painted) this.renderPreviewFromStore();
     this.stroke.mode = mode;
 
     const tool = this.store.getState().activeTool;

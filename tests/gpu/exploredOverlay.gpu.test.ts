@@ -48,7 +48,7 @@ describe('the explored memory\'s overlay on the GM\'s canvas', () => {
   });
 
   /** A daylit map with the lighting tool in its explored-memory mode. */
-  async function bench(): Promise<Bench> {
+  async function bench(mapSize: () => { width: number; height: number } = () => ({ width: SIZE, height: SIZE })): Promise<Bench> {
     const renderer = await createTestRenderer(SIZE);
     watch = watchGl(renderer.gl);
     const store = createViewAtlasStore(createInMemoryApp().app, `memory-overlay-${Math.random()}`);
@@ -60,7 +60,7 @@ describe('the explored memory\'s overlay on the GM\'s canvas', () => {
     floor.tint = 0x808080;
     viewport.addChild(floor);
     const eventBus = new PixiEmitter();
-    const bounds = (): { width: number; height: number } => ({ width: SIZE, height: SIZE });
+    const bounds = mapSize;
     const edits: { lighting?: LightingRenderer } = {};
     const announced: boolean[] = [];
     const brush = new ExploredBrush({
@@ -90,7 +90,7 @@ describe('the explored memory\'s overlay on the GM\'s canvas', () => {
     const target = RenderTexture.create({ width: SIZE, height: SIZE });
     cleanup.push(() => {
       brush.destroy();
-      lighting.destroy();
+      if (!lighting.layer.destroyed) lighting.destroy();
       viewport.destroy({ children: true });
       target.destroy(true);
       renderer.destroy();
@@ -265,13 +265,32 @@ describe('the explored memory\'s overlay on the GM\'s canvas', () => {
   });
 
   it('follows the memory when its texture is replaced, and lets go of it when the lighting view goes', async () => {
-    const { store, lighting, canvas } = await bench();
-    lighting.editExplored({ mode: 'reveal', area: 'everything' });
-    const explored = canvas()(200, 128);
-    // A scene that unloads starts the next one blank: the overlay shows that at once.
-    lighting.beforeMapUnload();
-    expect(differs(canvas()(200, 128), explored)).toBe(true);
-    store.getState().setSceneLighting({ enabled: false });
-    expect(() => canvas()).not.toThrow();
+    let size = { width: SIZE, height: SIZE };
+    const { lighting, brush, canvas } = await bench(() => size);
+    const plain = canvas();
+    lighting.editExplored({ mode: 'reveal', area: { type: 'rectangle', x: 128, y: 0, width: 128, height: SIZE } });
+    expect(differs(canvas()(200, 128), plain(200, 128))).toBe(true);
+    const first = (lighting as unknown as { memory: { texture: { texture: RenderTexture } } }).memory.texture.texture;
+
+    // The map's image is replaced by one half as wide: the memory gets a texture of that size, blank.
+    size = { width: SIZE / 2, height: SIZE };
+    lighting.refreshBounds();
+    expect(first.destroyed).toBe(true);
+    // The overlay draws the new texture, not the one that was destroyed: nothing is explored on it.
+    const blank = canvas();
+    expect(same(blank(100, 128), plain(100, 128))).toBe(true);
+    // And it lies over the new map: its right half is the new texture's right half, and nothing of it lies beyond the map.
+    lighting.editExplored({ mode: 'reveal', area: { type: 'rectangle', x: 64, y: 0, width: 64, height: SIZE } });
+    let at = canvas();
+    expect(differs(at(100, 128), blank(100, 128))).toBe(true);
+    expect(at(30, 128)).toEqual(blank(30, 128));
+    expect(at(200, 128)).toEqual(blank(200, 128));
+
+    // The lighting view goes (the Canvas fallback takes its place, or the map view closes): the
+    // overlay holds none of its textures, and the GM's canvas still renders.
+    lighting.destroy();
+    expect(brush.view.visible).toBe(true);
+    at = canvas();
+    expect(at(100, 128)).toEqual(at(30, 128));
   });
 });
