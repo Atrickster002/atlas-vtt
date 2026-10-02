@@ -98,7 +98,7 @@
   flex: 1;
   min-width: 0;
   overflow-y: auto;
-  padding: $spacing-l;
+  @include atlas-scroll-padding($spacing-l);
   @include atlas-scrollbar;
   @include atlas-flex-col($spacing-l);
 }

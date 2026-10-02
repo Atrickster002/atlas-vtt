@@ -83,3 +83,4 @@
 - Scene thumbnails and snapshot previews show a scene's dynamic lighting as the GM sees it. They also leave out pins, linked hexes, light markers, door badges and wall lines, and follow changes to the scene's lighting
 - A scene keeps its thumbnail when the graphics device resets or the scene could not be opened again, instead of getting a blank or outdated one
 - Exporting a collection now packs its loot tables: the bases picked in the collection's Loot settings and every item note they list. An import puts them into the collection's folder, where the loot roller finds them again. Before, the importing vault got the setting without the base or its items
+- The collection settings stay in place when a tab grows long enough to scroll. Before, the scrollbar pushed the whole tab to the left

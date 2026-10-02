@@ -7,6 +7,7 @@ import css from '../../styles/main.scss?inline';
 import { ResourcesTab } from '../../src/app/react/components/collection-settings/ResourcesTab';
 import { HP_RESOURCE } from '../../src/app/resources/resourceDefinitions';
 import type { ResourceDefinition } from '../../src/app/resources/resourceTypes';
+import { SettingsContent } from '../../src/app/react/components/collection-settings/SettingsContent';
 
 /**
  * The Resources tab as the collection settings dialog shows it, styled by the plugin's real
@@ -33,7 +34,7 @@ function Dialog(): React.ReactElement {
       h('div', { className: 'atlas-collection-settings-header' }, h('h3', null, 'Collection Settings')),
       h('div', { className: 'atlas-collection-settings-body' },
         h('div', { className: 'atlas-collection-settings-sidebar' }),
-        h('div', { className: 'atlas-collection-settings-content' },
+        h(SettingsContent, null,
           h(ResourcesTab, { resources, onChange: setResources, fieldSuggestions: ['hp', 'ammo'] }))),
       h('div', { className: 'atlas-collection-settings-footer' }, h('button', null, 'Cancel'), h('button', null, 'Save'))));
 }
@@ -122,5 +123,24 @@ describe('the socket editor of the Resources tab', () => {
     expect(controls).toHaveLength(6);
     for (const control of controls) expect(shapeOf(control)).toBe(round);
     reference.remove();
+  });
+
+  it('keeps everything in place when the scrollbar appears, with equal room on both sides', async () => {
+    const content = document.querySelector<HTMLElement>('.atlas-collection-settings-content')!;
+    const stage = document.querySelector('.atlas-csm-token-stage')!;
+    const before = stage.getBoundingClientRect();
+    expect(content.scrollHeight).toBeLessThanOrEqual(content.clientHeight);
+
+    content.createDiv().style.minHeight = '2000px';
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    expect(content.scrollHeight).toBeGreaterThan(content.clientHeight);
+    // The scrollbar takes room here, as in Obsidian: a hidden one would prove nothing
+    expect(content.offsetWidth).toBeGreaterThan(content.clientWidth);
+    const after = stage.getBoundingClientRect();
+    expect(after.left).toBe(before.left);
+    expect(after.width).toBe(before.width);
+
+    const box = content.getBoundingClientRect();
+    expect(after.left - box.left).toBeCloseTo(box.right - after.right, 0);
   });
 });
