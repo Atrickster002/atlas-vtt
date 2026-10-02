@@ -35,6 +35,44 @@ describe('sealWalls with crowded wall ends', () => {
     return Array.from({ length: 60 }, (_, row) => Array.from({ length: 330 }, (_, i) => wall(`cave${row}-${i}`, 100 + i * 3, 100 + row * 3 + (i % 2), 103 + i * 3, 100 + row * 3 + ((i + 1) % 2)))).flat();
   }
 
+  /** `count` walls that start within six pixels of each other and run apart. */
+  const bigPile = (count: number) => (): WallSegment[] => {
+    const rand = random(11);
+    return Array.from({ length: count }, (_, i) => {
+      const angle = rand() * Math.PI * 2;
+      const x = 500 + rand() * 6, y = 500 + rand() * 6;
+      return wall(`pile${i}`, x, y, x + Math.cos(angle) * 200, y + Math.sin(angle) * 200);
+    });
+  };
+  /** Twenty thousand short walls with both ends in twelve pixels. */
+  function shortPile(): WallSegment[] {
+    const rand = random(13);
+    return Array.from({ length: 20_000 }, (_, i) => wall(`short${i}`, 500 + rand() * 12, 500 + rand() * 12, 500 + rand() * 12, 500 + rand() * 12));
+  }
+  /** Eight thousand long walls a hair apart, and eight thousand walls that end beside all of them; the nearest long wall first or last. */
+  const beside = (nearestLast: boolean) => (): WallSegment[] => {
+    const long = Array.from({ length: 8000 }, (_, i) => wall(`long${i}`, 0, 500 + i * 0.0015, 1000, 500 + i * 0.0015));
+    const stems = Array.from({ length: 8000 }, (_, i) => wall(`stem${i}`, 100 + i * 0.1, 300, 100 + i * 0.1, 499.5));
+    return [...(nearestLast ? long.reverse() : long), ...stems];
+  };
+  /** A cave drawn as 60,000 segments of one pixel, in rows a pixel apart. */
+  function fineCave(): WallSegment[] {
+    return Array.from({ length: 100 }, (_, row) => Array.from({ length: 600 }, (_, i) => wall(`fine${row}-${i}`, 100 + i, 100 + row + (i % 2) * 0.5, 101 + i, 100 + row + ((i + 1) % 2) * 0.5))).flat();
+  }
+
+  it.each([
+    ['twenty thousand walls from six pixels', bigPile(20_000)], ['twenty thousand short walls in twelve pixels', shortPile],
+    ['eight thousand long walls beside eight thousand ends', beside(false)], ['the same with the nearest wall last', beside(true)],
+    ['a cave of 60,000 segments of one pixel', fineCave],
+  ] as const)('seals %s in a second or two', { timeout: 120_000 }, (_name, make) => {
+    const walls = make();
+    const { ms, bridges } = timed(walls);
+    console.info(`sealWalls, ${_name}: ${walls.length} walls, ${distinctEnds(walls)} ends, ${bridges.length} bridges, ${ms.toFixed(0)} ms`);
+    // Under a second on the machine it was written on; the bound is generous for slower ones.
+    expect(ms).toBeLessThan(2000);
+    expect(bridges.length).toBeLessThanOrEqual(distinctEnds(walls) * 16);
+  });
+
   it.each([['a pile of a thousand walls', pile], ['twenty thousand walls from one point', star], ['a cave of 19,800 short segments', cave]] as const)('seals %s in under 200 ms, with a number of bridges that grows with the ends, not with their pairs', (_name, make) => {
     const walls = make();
     const { ms, bridges } = timed(walls);
