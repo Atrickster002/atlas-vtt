@@ -193,6 +193,37 @@ describe('importing a Universal VTT file', () => {
     expect((await recordsOf(b)).filter((record) => record.type === 'scene').map((record) => record.name).sort()).toEqual(['Crypt', 'Crypt 2', 'Crypt 3']);
   });
 
+  it('writes its files and records as one step, so the vault check finds nothing to add or drop', async () => {
+    const b = await bench();
+    let locked = false;
+    const runExclusive = b.assets.runExclusive.bind(b.assets);
+    vi.spyOn(b.assets, 'runExclusive').mockImplementation(async (task) => {
+      locked = true;
+      try { return await runExclusive(task); } finally { locked = false; }
+    });
+    const unlockedWrites: string[] = [];
+    let lockedWrites = 0;
+    type FileWrite = ReturnType<typeof vi.fn<(path: string, content: unknown) => Promise<unknown>>>;
+    for (const write of [b.vault.app.vault.create, b.vault.app.vault.createBinary] as unknown[] as FileWrite[]) {
+      const original = write.getMockImplementation()!;
+      write.mockImplementation(async (path, content) => {
+        if (locked) lockedWrites++;
+        else unlockedWrites.push(path);
+        return original(path, content);
+      });
+    }
+
+    arrived(await importUvttFile(b.deps, uvttFile(cryptFile()), COLLECTION));
+    const before = await recordsOf(b);
+    await b.assets.reconcileWithVault();
+
+    // The image, the scene file and the two record files
+    expect(lockedWrites).toBeGreaterThanOrEqual(4);
+    expect(unlockedWrites).toEqual([]);
+    expect(await recordsOf(b)).toEqual(before);
+    expect(before.map((record) => record.type).sort()).toEqual(['map', 'scene']);
+  });
+
   it('gives a new scene of the collection its token settings', async () => {
     const b = await bench();
     await b.assets.updateCollectionSettings(COLLECTION, { defaultWidgets: { hpBar: true, stressBar: false } });

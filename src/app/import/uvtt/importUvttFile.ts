@@ -65,23 +65,25 @@ interface ImportPlan {
   scene: UvttScene;
 }
 
+type Written = { ok: true; name: string; scenePath: string } | { ok: false; problem: string };
+
 /**
  * Writes the map and its scene: the image and its thumbnail, the scene file, and both records in
- * one save of the index. The scene file and the records are written under the index lock, so the
- * vault check never adopts the new scene a second time. A failure takes back every file written
- * so far and leaves the index as it was.
+ * one save of the index. All of it happens under the index lock, so the vault check never sees
+ * the new scene without its record and adds a second one. A failure takes back every file
+ * written so far, still under the lock, and leaves the index as it was.
  */
-async function writeImport({ app, assetService, thumbnails }: UvttImportDeps, plan: ImportPlan): Promise<{ ok: true; name: string; scenePath: string } | { ok: false; problem: string }> {
+function writeImport({ app, assetService, thumbnails }: UvttImportDeps, plan: ImportPlan): Promise<Written> {
   const { collection, scene } = plan;
-  const files = new TransferFiles(app);
-  const images: string[] = [];
-  try {
-    const mapFilePath = await writeAssetImage(app, plan.baseName, await plan.image.image.arrayBuffer());
-    images.push(mapFilePath);
-    const thumbnailPath = await thumbnails.tryThumbnailForImage(mapFilePath, plan.image.thumbnail);
-    if (thumbnailPath) images.push(thumbnailPath);
+  return assetService.runExclusive(async (): Promise<Written> => {
+    const files = new TransferFiles(app);
+    const images: string[] = [];
+    try {
+      const mapFilePath = await writeAssetImage(app, plan.baseName, await plan.image.image.arrayBuffer());
+      images.push(mapFilePath);
+      const thumbnailPath = await thumbnails.tryThumbnailForImage(mapFilePath, plan.image.thumbnail);
+      if (thumbnailPath) images.push(thumbnailPath);
 
-    return await assetService.runExclusive(async () => {
       const folder = `${collectionFolderPath(collection.id)}/${JSON_FOLDERS.scene}`;
       const name = await freeSceneName(app, folder, plan.baseName);
       const scenePath = normalizePath(`${folder}/${name}.atlasmap`);
@@ -108,14 +110,14 @@ async function writeImport({ app, assetService, thumbnails }: UvttImportDeps, pl
       }
       await assetService.commitAssetTransfer({ collectionId: collection.id, records: [map, sceneRecord], tags: [] });
       return { ok: true, name, scenePath };
-    });
-  } catch (error) {
-    console.error('[Atlas] Saving an imported Universal VTT map failed', error);
-    const left = await files.undo();
-    await discardAssetFiles(app, images);
-    left.push(...images.filter((path) => app.vault.getAbstractFileByPath(path) !== null));
-    return refused(`The map could not be saved.${left.length > 0 ? ` These files could not be removed again: ${left.join(', ')}.` : ' Nothing was added.'}`);
-  }
+    } catch (error) {
+      console.error('[Atlas] Saving an imported Universal VTT map failed', error);
+      const left = await files.undo();
+      await discardAssetFiles(app, images);
+      left.push(...images.filter((path) => app.vault.getAbstractFileByPath(path) !== null));
+      return refused(`The map could not be saved.${left.length > 0 ? ` These files could not be removed again: ${left.join(', ')}.` : ' Nothing was added.'}`);
+    }
+  });
 }
 
 async function importFile(deps: UvttImportDeps, file: File, collectionId: string): Promise<UvttImportResult> {
