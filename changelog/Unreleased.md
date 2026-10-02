@@ -55,7 +55,8 @@
 - Dynamic lighting costs far less on high-density displays such as Retina screens, so panning a lit map stays smooth
 - An open player window costs far less, so the GM view stays smooth on large maps with lighting
 - What a token sees and the light it carries follow it while you drag it, for you and for the players. To show the players nothing along the way and update both when you drop the token, switch on "Update sight when a token is dropped" in Lighting settings
-- Session view (the GM view switch in the toolbar, D) now also shows the players' lighting: the map as their tokens see it, without the tokens they cannot see, door badges, light markers and wall lines
+- Session view (the GM view switch in the toolbar, D) now also shows the players' lighting: the map as their tokens see it, without the tokens they cannot see, light markers and wall lines
+- Players see a badge on each door their characters see, in the player window too. A locked door looks closed to them, and a secret door has no badge. In session view, and while you hold H, click these badges to open and close the doors
 - The lighting menu is laid out like the other tool menus: what the tool does and how walls are drawn are rows with a tick, and the time of day shows which one is chosen
 - Switches in the tool menus can be reached with Tab and switched with Space or Enter, and screen readers announce them. Every menu row is now rounded alike on both sides
 - A token you drop on a square lies on top of the tokens already there, and so does one you place, paste or duplicate. Before, the token that stood there first stayed on top. The order is saved with the scene and follows undo
