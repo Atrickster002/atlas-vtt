@@ -63,6 +63,7 @@
 - Scrolling the asset manager is smooth in large collections. Cards scrolled out of view no longer stay loaded, rows that are not drawn yet show placeholders instead of empty space, and the art of the next rows is loaded before they scroll in
 - The asset manager stays smooth while its content loads. Thumbnails made in the background appear a few at a time, starting with the cards on screen, and no longer redraw the whole library as each one finishes. A card waits for its thumbnail instead of loading the full image, so a page of maps no longer holds every map in memory. Reading the statblocks of a large library no longer freezes the window
 - Statblock previews leave room at the window's edges for what a theme draws around them. The Atlas VTT theme's ivy is no longer cut off above and below a tall statblock
+- In the initiative tracker, a combatant whose token is hidden carries a crossed-out eye: the players' list leaves it out. Right-click its card to hide it from the players or show it again
 
 ## Fixed
 
@@ -106,3 +107,8 @@
 - The collection settings stay in place when a tab grows long enough to scroll. Before, the scrollbar pushed the whole tab to the left
 - The asset manager's collection list no longer offers All Collections. It showed only the default collection, never the assets of the others, so the list now holds your collections and nothing else
 - A text you moved stays where you put it when you click it again. Before, the next click sent it back to where it was first placed, and its right-click menu showed the bold, italic and size it started with
+
+## Important changes
+
+- The initiative tracker no longer fills with every token on the map. Select the tokens that take part, right-click one of them and choose Add to Initiative; Remove from Initiative takes the selection out again. The trackers of your scenes keep the tokens they hold
+- The player window lists every combatant whose token is not hidden, whether or not the party can see it on the map. Hide a token to keep it out of the players' list

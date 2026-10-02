@@ -110,6 +110,15 @@ $tracker-width: 96px;
   }
 }
 
+// Shown while the tracker has no combatants
+.atlas-initiative-tracker__empty {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--text-muted);
+  text-align: center;
+}
+
 // Initiative Card — inner element on panel background
 .atlas-initiative-card {
   display: flex;
@@ -151,6 +160,11 @@ $tracker-width: 96px;
   &--defeated {
     opacity: 0.45;
     filter: grayscale(70%);
+  }
+
+  // Hidden from the players: translucent, like its token on the map
+  &--hidden .atlas-initiative-card__avatar img {
+    opacity: 0.5;
   }
 
   // Preview hover state — subtle highlight (different from active turn)
@@ -206,7 +220,8 @@ $tracker-width: 96px;
   flex-shrink: 0;
 }
 
-.atlas-initiative-card__instance-badge {
+.atlas-initiative-card__instance-badge,
+.atlas-initiative-card__hidden-badge {
   position: absolute;
   bottom: -2px;
   left: -4px;
@@ -226,6 +241,21 @@ $tracker-width: 96px;
   box-sizing: border-box;
   z-index: 2;
   pointer-events: none;
+}
+
+// The instance badge's twin in the opposite corner; it takes the pointer for its tooltip
+.atlas-initiative-card__hidden-badge {
+  top: -2px;
+  right: -4px;
+  bottom: auto;
+  left: auto;
+  padding: 0;
+  pointer-events: auto;
+
+  svg {
+    width: 12px;
+    height: 12px;
+  }
 }
 
 // Avatar

@@ -624,14 +624,15 @@ export class InteractionController implements ITokenInteractionController {
       onClick: () => this.showEditTokenModal(token),
     });
 
-    // Initiative
+    // Initiative, for the selection the token belongs to; the clicked token decides which way
     const initiativeEntries = this.store.getState().initiative?.entries || [];
     const isInInitiative = initiativeEntries.some((entry) => entry.tokenId === token.id);
+    const initiativeTargets = this.contextMenuTargets(token.id);
     entries.push({
       type: 'item',
       label: isInInitiative ? 'Remove from Initiative' : 'Add to Initiative',
       icon: 'swords',
-      onClick: () => this.handleInitiativeToggle(token, isInInitiative),
+      onClick: () => this.handleInitiativeToggle(initiativeTargets, isInInitiative),
     });
 
 
@@ -803,18 +804,17 @@ export class InteractionController implements ITokenInteractionController {
     });
   }
 
-  private handleInitiativeToggle(token: TokenEntity, isInInitiative: boolean): void {
+  private handleInitiativeToggle(tokenIds: string[], remove: boolean): void {
     if (!this.store.getState().initiativeTrackerOpen) {
       this.store.getState().setInitiativeTrackerOpen(true);
     }
 
-    const initiativeEntries = this.store.getState().initiative?.entries || [];
-
-    if (isInInitiative) {
-      const entry = initiativeEntries.find((e) => e.tokenId === token.id);
-      if (entry) this.store.getState().removeFromInitiative(entry.id);
-    } else {
-      this.store.getState().addToInitiative(initiativeEntryForToken(token));
+    for (const tokenId of tokenIds) {
+      const { initiative, objects, addToInitiative, removeFromInitiative } = this.store.getState();
+      const entry = initiative.entries.find((e) => e.tokenId === tokenId);
+      const token = objects.tokens[tokenId];
+      if (remove && entry) removeFromInitiative(entry.id);
+      else if (!remove && !entry && token) addToInitiative(initiativeEntryForToken(token));
     }
   }
 
