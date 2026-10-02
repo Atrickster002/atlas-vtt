@@ -48,16 +48,43 @@ export function chainLengthFor(dieCount: number): number {
   return dieCount > 6 ? 3 : GHOSTS;
 }
 
+/** A translucent copy of a die's material: the same face, drawn as a trace. */
+function ghostMaterial(source: THREE.MeshPhysicalMaterial): THREE.MeshPhysicalMaterial {
+  const mat = source.clone();
+  mat.transparent = true;
+  mat.depthWrite = false;
+  return mat;
+}
+
 /** One chain of ghosts per die: the motion blur of the spin. */
 export class GhostTrail {
   private chains: THREE.Mesh[][] = [];
   private materials: THREE.MeshPhysicalMaterial[][] = [];
+  /**
+   * **Ghost materials wait here between throws, they are not thrown away.**
+   *
+   * A ghost's material is a copy of its die's, and translucent, which makes
+   * it a shader program of its own. When the last material using a program is
+   * disposed, the program goes with it, and that is what every throw's end
+   * did. The next throw then compiled it again on its first frame: seven
+   * milliseconds, at 120 frames a second a frame lost at the very moment the
+   * dice leave the hand. Kept by the die material they were copied from, the
+   * copies and their program stay.
+   */
+  private readonly spare = new Map<THREE.Material, THREE.MeshPhysicalMaterial[]>();
 
   constructor(private readonly scene: THREE.Scene) {}
 
   clear(): void {
-    for (const chain of this.chains) for (const ghost of chain) this.scene.remove(ghost);
-    for (const chain of this.materials) for (const mat of chain) mat.dispose();
+    for (const chain of this.chains) {
+      for (const ghost of chain) {
+        this.scene.remove(ghost);
+        const source = ghost.userData.source as THREE.Material;
+        const waiting = this.spare.get(source) ?? [];
+        waiting.push(ghost.material as THREE.MeshPhysicalMaterial);
+        this.spare.set(source, waiting);
+      }
+    }
     this.chains = [];
     this.materials = [];
   }
@@ -67,11 +94,10 @@ export class GhostTrail {
     const chain: THREE.Mesh[] = [];
     const mats: THREE.MeshPhysicalMaterial[] = [];
     for (let g = 0; g < length; g++) {
-      const mat = assets.material.clone();
-      mat.transparent = true;
+      const mat = this.spare.get(assets.material)?.pop() ?? ghostMaterial(assets.material);
       mat.opacity = 0;
-      mat.depthWrite = false;
       const ghost = new THREE.Mesh(assets.geometry, mat);
+      ghost.userData.source = assets.material;
       ghost.visible = false;
       // Spread over the chain, not the first three: the shadow should sweep
       // the whole smear, not its start.

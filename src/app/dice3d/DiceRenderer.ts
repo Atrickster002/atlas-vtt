@@ -56,8 +56,33 @@ const INK = 0x16130f;
  * core is narrow and dark, high up it dissolves into a breath. That is what a
  * penumbra does, and it costs two numbers per frame.
  */
-const SHADOW_SHARP = { blur: 13, opacity: 0.3 };
-const SHADOW_SOFT = { blur: 34, opacity: 0.14 };
+const SHADOW_SHARP = { blur: 6.5, opacity: 0.3 };
+const SHADOW_SOFT = { blur: 17, opacity: 0.14 };
+
+/**
+ * **What the shadow costs.**
+ *
+ * The shadow map is blurred in two passes over every one of its texels, each
+ * reading `SHADOW_TAPS` of them. At 2048 texels a side and 24 taps that was two
+ * hundred million reads a frame: nine tenths of a dice frame's time on the
+ * graphics card, the same for one die as for ten, on a display that asks for
+ * 120 frames a second and has a lit map to draw as well.
+ *
+ * The panel shows about five units of table on some 670 pixels, and the map
+ * spans eight: 1024 texels still put more than one on every pixel. The blur
+ * above is counted in texels, so half the map takes half the radius for the
+ * same softness on the table, and half the taps keep their spacing.
+ */
+const SHADOW_MAP = 1024;
+const SHADOW_TAPS = 12;
+
+/**
+ * How large the mirror world is baked, per face. The dice are matte paper
+ * (roughness 0.92, a fifth of the room's light): they read only its blurriest
+ * level, which 64 pixels hold as well as 256, in a fraction of the time a new
+ * stage takes to build.
+ */
+const ENVIRONMENT_SIZE = 64;
 
 /**
  * **The shadow follows the paper, the die does not.**
@@ -117,27 +142,29 @@ export class DiceRenderer {
   private landed: boolean[] = [];
   private readonly floorMat: THREE.ShadowMaterial;
   private lastTime: number | null = null;
+  /** The canvas size the buffers were last made for. */
+  private bufferSize = '';
 
   constructor(canvas: HTMLCanvasElement) {
     this.renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.shadowMap.enabled = true;
-    // VSM: the only shadow type with a truly soft edge; for a handful of dice
-    // its cost does not matter.
+    // VSM: the only shadow type with a truly soft edge. Its cost does not grow
+    // with the dice, only with the map (see `SHADOW_MAP`).
     this.renderer.shadowMap.type = THREE.VSMShadowMap;
 
     this.pmrem = new THREE.PMREMGenerator(this.renderer);
     // The mirror world is baked **once**; the room it comes from has nothing
     // left to do and gives its meshes back right away.
     const room = new RoomEnvironment();
-    this.envRT = this.pmrem.fromScene(room, 0.04);
+    this.envRT = this.pmrem.fromScene(room, 0.04, 0.1, 100, { size: ENVIRONMENT_SIZE });
     room.dispose();
     this.scene.environment = this.envRT.texture;
 
     this.key = new THREE.DirectionalLight(0xfff0da, KEY_INTENSITY);
     this.key.position.set(...KEY_AT);
     this.key.castShadow = true;
-    this.key.shadow.mapSize.set(2048, 2048);
+    this.key.shadow.mapSize.set(SHADOW_MAP, SHADOW_MAP);
     // The shadow frame must hold the **whole** stage, or a die at the wall
     // loses its shadow.
     this.key.shadow.camera.left = -4.2;
@@ -147,7 +174,7 @@ export class DiceRenderer {
     this.key.shadow.camera.near = 0.5;
     this.key.shadow.camera.far = 14;
     this.key.shadow.radius = SHADOW_SHARP.blur;
-    this.key.shadow.blurSamples = 24;
+    this.key.shadow.blurSamples = SHADOW_TAPS;
     this.key.shadow.bias = -0.0004;
     this.scene.add(this.key);
 
@@ -232,8 +259,14 @@ export class DiceRenderer {
    * side of the centre, by default the whole stage the dice bounce around in.
    */
   setSize(width: number, height: number, dpr: number, focus = 0.5, halfWidth?: number): void {
-    this.renderer.setPixelRatio(dpr);
-    this.renderer.setSize(width, height, false);
+    // A stage is lent again and again at the size it had; the buffers are
+    // made anew only when it changes, which takes several milliseconds.
+    const bufferSize = `${width}x${height}@${dpr}`;
+    if (bufferSize !== this.bufferSize) {
+      this.bufferSize = bufferSize;
+      this.renderer.setPixelRatio(dpr);
+      this.renderer.setSize(width, height, false);
+    }
     this.view.setAspect(width / height);
     this.fitToCanvas(focus, halfWidth);
     // Sparks are sized in pixels, not world units; the conversion depends on

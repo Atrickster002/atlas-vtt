@@ -7,6 +7,7 @@ import { cn } from '../../../../utils/cn';
 import { throwStyle } from '../../../dice3d/diceDisplay';
 import { diceSceneToShow } from '../../../dice3d/rollPresentation';
 import { warmDiceSounds } from '../../../dice3d/audio/diceSamples';
+import { warmStages } from '../../../dice3d/stagePool';
 import type { DiceRollResult } from '../../../tools/DiceTool';
 import { DiceRollStack } from '../dice3d/DiceRollStack';
 import { closeAllRolls, closeRoll, dismissRoll, pushRoll, type StackedRoll } from '../dice3d/rollStackState';
@@ -50,6 +51,11 @@ export function DiceRollDisplay({ container, prepare, muted = false }: DiceRollD
     document.addEventListener('atlas-dice-rolled', handler);
     return (): void => document.removeEventListener('atlas-dice-rolled', handler);
   }, [addToast, prepare, display, muted]);
+
+  // Dice stages are built while nothing rolls, so that the first roll does not wait for one.
+  useEffect(() => {
+    if (display !== 'card') warmStages(container?.ownerDocument ?? view?.containerEl.doc ?? document);
+  }, [display, container, view]);
 
   // Escape dismisses every roll on screen, unless something in front of the map
   // takes it (a modal, the palette, the dashboard) or someone is typing. The
