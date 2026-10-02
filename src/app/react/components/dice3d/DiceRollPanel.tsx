@@ -29,9 +29,9 @@ interface DiceRollPanelProps {
 }
 
 /** How long the total stays before the panel leaves on its own. */
-const LINGER_MS = 2600;
+const LINGER_MS = 3600;
 /** A row leaves sooner: it showed its number and the next roll wants the place. */
-const LINGER_COMPACT_MS = 1600;
+const LINGER_COMPACT_MS = 2600;
 /**
  * The ripcord: the panel leaves even if the dice never land, e.g. when the
  * frame loop sleeps in a hidden window. The longest real flight is about two
