@@ -29,6 +29,13 @@ import { MOTION_SLOW_MS, prefersReducedMotion } from '../utils/motion';
 const TEXT_RESOLUTION = 3;
 const MAX_TEXT_RESOLUTION = 12;
 
+/**
+ * Every token's UI lies in one layer. A selected token's lies above the others,
+ * so a neighbour never covers the bars and wheels being edited.
+ */
+const RESTING_Z_INDEX = 10;
+const SELECTED_Z_INDEX = 11;
+
 function textResolutionFor(uiScale: number): number {
   return Math.min(TEXT_RESOLUTION * Math.max(1, uiScale), MAX_TEXT_RESOLUTION);
 }
@@ -99,14 +106,14 @@ export class TokenUIRenderer {
     // The container sits at the token centre in world units; the UI itself lives in
     // anchors on the token's edges, laid out in UI units and scaled with the token.
     this.container = new Container();
-    this.container.zIndex = 10; // UI is above token and ring
+    this.container.zIndex = RESTING_Z_INDEX;
     this.belowToken = new Container();
     this.belowToken.sortableChildren = true;
     this.besideToken = new Container();
     this.besideToken.addChild(this.wheels.right);
     this.leftOfToken = new Container();
     this.leftOfToken.addChild(this.wheels.left);
-    // Conditions come last, so the hover card covers the bars of a neighbouring selected token
+    // Conditions come last, so the hover card lies above this token's own bars and wheels
     this.container.addChild(this.belowToken, this.besideToken, this.leftOfToken, this.conditionUI.container);
     this.emphasis = new ValueTransition(0, MOTION_SLOW_MS, () => this.layoutUIScale());
     
@@ -587,6 +594,7 @@ export class TokenUIRenderer {
   public setSelectionState(selected: boolean): void {
     if (this.isSelected === selected) return;
     this.isSelected = selected;
+    this.container.zIndex = selected ? SELECTED_Z_INDEX : RESTING_Z_INDEX;
     this.updateEmphasis();
     this.updateConditionCard();
     this.updateTextVisibility();
