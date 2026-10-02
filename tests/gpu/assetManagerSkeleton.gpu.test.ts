@@ -10,9 +10,12 @@ import { TabSwitcher } from '../../src/app/packages/components/asset-manager/com
 import { RevealImage } from '../../src/app/packages/components/primitives/RevealImage';
 import type { AnyAsset, Tab } from '../../src/app/packages/components/asset-manager/types';
 
-// Opening an asset reaches into services that need Node; no card is opened here.
+// Opening an asset and previewing its statblock reach into services that need Node; neither happens here.
 vi.mock('../../src/app/packages/components/asset-manager/hooks/useOpenAsset', () => ({
   useOpenAsset: () => (): Promise<void> => Promise.resolve(),
+}));
+vi.mock('../../src/app/packages/components/asset-manager/hooks/useAssetStatblockPreview', () => ({
+  useAssetStatblockPreview: (): void => undefined,
 }));
 
 /** The Obsidian variables the asset manager's sizes and colours come from, at their default values. */
