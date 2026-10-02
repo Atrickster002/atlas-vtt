@@ -114,6 +114,10 @@ interface Report {
   /** Pixels in plain view of the darkness source, well within its radius, and those of them that show more than its veil. */
   darkInside: number;
   darkRevealed: number;
+  /** Rooms whose lights shone as beams too, the pixels inside the room those lit, and the lit ones past its walls. */
+  beamRooms: number;
+  beamInside: number;
+  beamLeaks: number;
 }
 
 interface FuzzOptions {
@@ -144,7 +148,9 @@ interface FuzzOptions {
  * daylight with every light on, nothing past the walls may differ from the room without it
  * (darkness ends at walls like light), and what the source has in plain view well within its
  * radius shows nothing but its veil (the lights and the day are swallowed, not let through);
- * that room's senses are fuzzed with the darkness in place, some of which see in it.
+ * that room's senses are fuzzed with the darkness in place, some of which see in it. The other
+ * rooms are lit once more by their lights as beams of a random width and direction (what a beam
+ * may light at all is held by `leakFuzzBeams`): nothing past the walls is lit.
  */
 async function fuzz({ seed, trials, gap = false, bounds = { width: 2048, height: 2048 }, resolution = 1, wholeFootprints = false, outshine = false }: FuzzOptions): Promise<Report> {
   const renderer = await createTestRenderer(SIZE, resolution);
@@ -155,7 +161,7 @@ async function fuzz({ seed, trials, gap = false, bounds = { width: 2048, height:
     engine.setEnabled(true);
     engine.setMode('player');
     const rand = rng(seed + 1);
-    const report: Report = { rooms: 0, doors: 0, oneWay: 0, twoLights: 0, checked: 0, leaks: 0, sightChecked: 0, sightLeaks: 0, senseLeaks: 0, senseInside: 0, spots: 0, spotLeaks: 0, spotInside: 0, litInside: 0, bounceInside: 0, darkRooms: 0, darkLeaks: 0, darkInside: 0, darkRevealed: 0 };
+    const report: Report = { rooms: 0, doors: 0, oneWay: 0, twoLights: 0, checked: 0, leaks: 0, sightChecked: 0, sightLeaks: 0, senseLeaks: 0, senseInside: 0, spots: 0, spotLeaks: 0, spotInside: 0, litInside: 0, bounceInside: 0, darkRooms: 0, darkLeaks: 0, darkInside: 0, darkRevealed: 0, beamRooms: 0, beamInside: 0, beamLeaks: 0 };
     for (const room of fuzzRooms(seed, trials, gap)) {
       const texel = worldTexel(bounds);
       const walls = sealWalls(room.walls, sealTolerance(texel));
@@ -207,6 +213,14 @@ async function fuzz({ seed, trials, gap = false, bounds = { width: 2048, height:
           else darkened = shot;
         }
       }
+      let beamed: Uint8ClampedArray | null = null;
+      if (!darkness) {
+        report.beamRooms++;
+        const beams = lights.map((light) => ({ ...light, cone: { facing: rand() * 2 * Math.PI, angle: 0.2 + rand() * 4.5, ...(rand() < 0.5 && { apex: 10 + rand() * 60 }) } }));
+        engine.update({ bounds, albedo: null, walls, lights: beams, sight: SEES_ALL, sightRadius, ambient: 0 });
+        engine.flush();
+        beamed = renderView(renderer, engine, target, bounds, scale, x, y);
+      }
       // Where the engine places the darkness, and how far its soft rim and a wall's shadow reach into what it covers.
       const source = darkness && placeLight(darkness.x, darkness.y, darkness.flame, allSegments(splitBlocking(walls)), texel);
       const shadow = source ? source.flame + wallRadius(texel) + (TILE_SMOOTH + 2) * texel : 0;
@@ -232,7 +246,9 @@ async function fuzz({ seed, trials, gap = false, bounds = { width: 2048, height:
           if (!inside && d > 0.01) {
             report.checked++;
             if (lit[o]! + lit[o + 1]! + lit[o + 2]! > 0) report.leaks++;
+            if (beamed && beamed[o]! + beamed[o + 1]! + beamed[o + 2]! > 0) report.beamLeaks++;
           }
+          if (inside && beamed && beamed[o]! > 0) report.beamInside++;
           if (!inside && d > 1.5 / scale + 0.01) {
             report.sightChecked++;
             if (seen[o]! + seen[o + 1]! + seen[o + 2]! > 0) report.sightLeaks++;
@@ -297,7 +313,9 @@ describe('leak fuzz', () => {
     expect(report.spotInside).toBeGreaterThan(TRIALS * 100);
     expect(report.darkRooms).toBeGreaterThan(TRIALS / 3);
     expect(report.darkInside).toBeGreaterThan(TRIALS * 20);
-    expect(report).toMatchObject({ leaks: 0, sightLeaks: 0, senseLeaks: 0, spotLeaks: 0, darkLeaks: 0, darkRevealed: 0 });
+    expect(report.beamRooms).toBeGreaterThan(TRIALS / 3);
+    expect(report.beamInside).toBeGreaterThan(TRIALS * 50);
+    expect(report).toMatchObject({ leaks: 0, sightLeaks: 0, senseLeaks: 0, spotLeaks: 0, darkLeaks: 0, darkRevealed: 0, beamLeaks: 0 });
   });
 
   it('holds on a map large enough for coarser texels', { timeout: 600_000 }, async () => {
@@ -329,6 +347,7 @@ describe('leak fuzz', () => {
     expect(report.sightLeaks).toBeGreaterThan(1000);
     expect(report.senseLeaks).toBeGreaterThan(1000);
     expect(report.darkLeaks).toBeGreaterThan(1000);
+    expect(report.beamLeaks).toBeGreaterThan(1000);
   });
 
   it('finds light inside a darkness that every light outranks (the check can fail)', async () => {
