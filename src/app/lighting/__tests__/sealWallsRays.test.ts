@@ -92,6 +92,24 @@ const FAMILIES: Record<string, Family> = {
       return wall(`n${i}`, c.x, c.y, d.x, d.y);
     })];
   },
+  // Two crowds of ends, and between them two short walls on their own that stop nothing or stop one way only, each
+  // nearer to the other's far end than to its own crowd: the nearest end in a direction is then the mate of the end wanted.
+  airlock: (rand) => {
+    const spin = turn(rand);
+    const place = (x: number, y: number): XY => {
+      const [dx, dy] = [x - 504 + (rand() - 0.5) * 0.4, y - 504 + (rand() - 0.5) * 0.4];
+      return { x: C.x + dx * Math.cos(spin) - dy * Math.sin(spin), y: C.y + dx * Math.sin(spin) + dy * Math.cos(spin) };
+    };
+    const lone = (id: string, a: XY, b: XY): WallSegment => {
+      const open = rand() < 0.5;
+      return wall(id, a.x, a.y, b.x, b.y, open ? { type: 'door', closed: false } : { direction: rand() < 0.5 ? 'left' : 'right' });
+    };
+    const crowd = (name: string, x: number, y: number, away: number): WallSegment[] => Array.from({ length: 6 + Math.floor(rand() * 3) }, (_, i) => {
+      const p = place(x + (i % 3), y + Math.floor(i / 3)), q = place(x - 70 + i * 30, y + away * 145);
+      return wall(`${name}${i}`, p.x, p.y, q.x, q.y);
+    });
+    return [lone('lone1', place(500, 500), place(498.5, 503.5)), lone('lone2', place(510, 504), place(508.5, 507.5)), ...crowd('n', 508, 492, -1), ...crowd('s', 498.5, 514.5, 1)];
+  },
 };
 
 /** Some of the walls become doors, open or closed, or one-way walls: what blocks nothing must not be counted on to close a gap. */
@@ -136,6 +154,34 @@ describe('capped bridging against a bridge for every pair', () => {
       const walls = mixed(FAMILIES[name]!(rand), rand);
       expect([name, seed, leaks(walls, rand, 400)]).toEqual([name, seed, []]);
     }
+  });
+});
+
+describe('two walls on their own that stop nothing, facing each other between crowded ends', () => {
+  /** Fourteen walls: two open doors of under four pixels, each end with more than eight others near it. */
+  const walls = (kind: Partial<WallSegment>): WallSegment[] => [
+    wall('door1', 500, 500, 498.5, 503.5, kind), wall('door2', 510, 504, 508.5, 507.5, kind),
+    wall('n0', 508, 492, 430, 350), wall('n1', 509, 492, 460, 350), wall('n2', 510, 492, 490, 350), wall('n3', 508, 493, 520, 350), wall('n4', 509, 493, 550, 350), wall('n5', 510, 493, 580, 350),
+    wall('s0', 500.5, 515.5, 430, 660), wall('s1', 499.5, 515.5, 460, 660), wall('s2', 498.5, 515.5, 490, 660), wall('s3', 500.5, 514.5, 520, 660), wall('s4', 499.5, 514.5, 550, 660), wall('s5', 498.5, 514.5, 580, 660),
+  ];
+
+  it.each([['open doors', { type: 'door', closed: false }], ['walls that block one way', { direction: 'left' }], ['walls that block the other way', { direction: 'right' }]] as [string, Partial<WallSegment>][])('joins the ends of the one to the ends of the other, though each is the other end\'s nearest: %s', (_name, kind) => {
+    const sealed = sealWalls(walls(kind), TOLERANCE);
+    const all = sealAllPairs(walls(kind));
+    const [west, east] = [{ x: 485.7, y: 496.3 }, { x: 522.8, y: 511.2 }];
+    expect(clearOfEnds(west, walls(kind)) && clearOfEnds(east, walls(kind))).toBe(true);
+    for (const [a, b] of [[west, east], [east, west]] as const) {
+      if (!stops(a, b, all)) continue;
+      expect([a.x, !!stops(a, b, sealed)]).toEqual([a.x, true]);
+    }
+    const ids = sealed.map((w) => w.id);
+    expect(ids).toContain('seal:door1:p1:door2:p2');
+    expect(ids).toContain('seal:door1:p2:door2:p1');
+    if (kind.direction) return;
+    // From the west nothing east of the doors is seen, and a light there does not reach it.
+    const seen = computeVisibility(west, 1000, sealed);
+    for (let x = 512; x < 560; x += 8) for (let y = 496; y < 516; y += 2) expect([x, y, pointInPolygon({ x, y }, seen)]).toEqual([x, y, false]);
+    expect(pointInPolygon(east, lightReach(west, 600, sealed).polygon)).toBe(false);
   });
 });
 

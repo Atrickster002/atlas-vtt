@@ -57,7 +57,7 @@ export function sealWalls(walls: readonly WallSegment[], tolerance: number): Wal
   });
   const places = [...junctions.values()];
   const tree = new PointTree(Float64Array.from(places, (junction) => junction.point.x), Float64Array.from(places, (junction) => junction.point.y));
-  return [...walls, ...endBridges(walls, places, tree, tolerance), ...middleBridges(walls, places, tree, tolerance)];
+  return [...walls, ...endBridges(walls, places, junctions, tree, tolerance), ...middleBridges(walls, places, tree, tolerance)];
 }
 
 const sealed = new WeakMap<readonly WallSegment[], Map<number, readonly WallSegment[]>>();
@@ -84,9 +84,12 @@ export function sealedWalls(walls: readonly WallSegment[], texel: number): reado
  * from A to B would part, the chain parts too, but for what lies inside that circle, within the
  * tolerance of both. The two ends of one wall need no bridge, the wall being between them; where
  * that wall is an open door or blocks one way only it parts nothing, so its other end is not the
- * nearest that counts, and the next nearest in that direction is taken.
+ * nearest that counts, and the next nearest in that direction is taken. Nor can a chain go on
+ * along such a wall when it arrives at one of its ends: where the nearest in a direction is the
+ * end of a wall on its own that parts nothing, the wall's other end is bridged from here as well
+ * (`loneMate`), for it may be the place the chain was to lead to.
  */
-function endBridges(walls: readonly WallSegment[], junctions: readonly Junction[], tree: PointTree, tolerance: number): WallSegment[] {
+function endBridges(walls: readonly WallSegment[], junctions: readonly Junction[], byPoint: ReadonlyMap<string, Junction>, tree: PointTree, tolerance: number): WallSegment[] {
   const bridges = new Map<number, WallSegment>();
   const few: number[] = [];
   const nearest = new Int32Array(8);
@@ -101,16 +104,34 @@ function endBridges(walls: readonly WallSegment[], junctions: readonly Junction[
     // The chain may run along a wall from one of its ends to the other only if the wall stops everything.
     if (few.length > MAX_BRIDGES) tree.nearestByDirection(a.point.x, a.point.y, tolerance, (index) => endsOfOneOpenWall(walls, a, junctions[index]!), nearest, distances);
     // In the order of the places, whatever order the tree found them in: unrelated walls elsewhere change nothing here.
-    for (const index of few.length > MAX_BRIDGES ? [...nearest].sort(ascending) : few.sort(ascending)) {
-      if (index < 0) continue;
-      const b = junctions[index]!;
+    const crowded = few.length > MAX_BRIDGES;
+    const join = (b: Junction): void => {
       const key = Math.min(a.index, b.index) * junctions.length + Math.max(a.index, b.index);
-      if (bridges.has(key)) continue;
+      if (bridges.has(key)) return;
       const pair = firstPair(a, b);
       if (pair) bridges.set(key, bridge(`seal:${pair.first}:${pair.second}`, pair.from, pair.to));
+    };
+    for (const index of crowded ? [...nearest].sort(ascending) : few.sort(ascending)) {
+      if (index < 0) continue;
+      join(junctions[index]!);
+      const mate = crowded ? loneMate(walls, junctions[index]!, byPoint) : null;
+      if (mate && mate !== a && Math.hypot(mate.point.x - a.point.x, mate.point.y - a.point.y) <= tolerance) join(mate);
     }
   }
   return [...bridges.values()];
+}
+
+/**
+ * The place of the other end of the wall that ends at `junction`, if that wall stands on its own
+ * (nothing else ends at either of its ends) and is an open door or blocks one way only.
+ */
+function loneMate(walls: readonly WallSegment[], junction: Junction, byPoint: ReadonlyMap<string, Junction>): Junction | null {
+  if (junction.ends.length !== 1) return null;
+  const { wall: index, end } = junction.ends[0]!;
+  const wall = walls[index]!;
+  if (!blocksNothing(wall) && !wall.direction) return null;
+  const mate = byPoint.get(pointKey(wall[end === 'p1' ? 'p2' : 'p1']));
+  return mate && mate.ends.length === 1 ? mate : null;
 }
 
 const ascending = (a: number, b: number): number => a - b;
