@@ -128,6 +128,37 @@ describe('the light zone tool', () => {
     expect(made.editor.handleEscape()).toBe(false);
   });
 
+  it('makes no zone of corners on one line, which could be neither opened nor deleted: drawing goes on until they are an area', () => {
+    const made = setup();
+    for (const [x, y] of [[100, 100], [200, 200], [300, 300]] as const) made.click(x, y);
+    expect(made.editor.handleEnter()).toBe(true);
+    expect(made.zones()).toEqual([]);
+    expect(made.store.getState().objects.lightZones).toBeUndefined();
+    expect(made.editor.drawing).toBe(true);
+    made.click(300, 100);
+    made.editor.handleEnter();
+    expect(made.zones()).toHaveLength(1);
+    expect(made.zones()[0]!.polygon).toHaveLength(4);
+  });
+
+  it('redraws for a pointer move only what the move changes: the line to the next corner, or the corner under the pointer', () => {
+    const made = setup();
+    corners(made);
+    made.editor.handleEnter();
+    made.store.getState().closeLightZonePopover();
+    const lines = made.editor.view.children[0] as unknown as { clear: () => unknown };
+    const clear = vi.spyOn(lines, 'clear');
+    // Across the zone, off its corners: nothing the overlay shows changes.
+    for (const x of [150, 180, 220, 250]) made.editor.pointerMove({ x, y: 200 }, { altKey: false });
+    expect(clear).not.toHaveBeenCalled();
+    // Onto a corner and off it again: the corner grows and shrinks.
+    made.editor.pointerMove({ x: 300, y: 300 }, { altKey: false });
+    made.editor.pointerMove({ x: 301, y: 300 }, { altKey: false });
+    expect(clear).toHaveBeenCalledTimes(1);
+    made.editor.pointerMove({ x: 250, y: 250 }, { altKey: false });
+    expect(clear).toHaveBeenCalledTimes(2);
+  });
+
   it('snaps a corner to a wall\'s end close by, and places it freely with Alt', () => {
     const made = setup();
     made.store.getState().addWall({ type: 'solid', p1: { x: 100, y: 100 }, p2: { x: 300, y: 100 }, closed: true });

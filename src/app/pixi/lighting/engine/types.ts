@@ -3,7 +3,7 @@ import type { LightAnimation, SceneLighting } from '../../../types/lightingTypes
 import type { WallSegment } from '../../../types/wallTypes';
 import type { SeenSpot } from '../../../vision/perception';
 import type { Sight } from '../../../vision/sight';
-import type { MapBounds } from '../../../vision/visibility';
+import type { MapBounds, Polygon } from '../../../vision/visibility';
 import type { VisionCone } from '../../../vision/visionCone';
 
 /** A light in world pixels with its steady settings; colour is linear and already tinted. */
@@ -24,6 +24,11 @@ export interface EngineLight {
   priority?: number;
   /** A light that shines one way: where it faces and how wide, with its own space around it (`apex`) lit all around. */
   cone?: VisionCone;
+  /**
+   * A darkness source's area: the polygon the rule counts (its `LightReach`), where one builder
+   * made both (`SceneModelBuilder`). Without it the engine works the area out the same way.
+   */
+  area?: Polygon;
   /** Width in world pixels of the soft edge past a beam's sides and far end (`softEdge`); unset, the fade past the dim radius. */
   edge?: number;
 }

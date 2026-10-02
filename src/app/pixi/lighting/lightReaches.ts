@@ -1,6 +1,6 @@
 import type { WallSegment } from '../../types/wallTypes';
 import { kindOf, lightReach, type LightReach } from '../../vision/sight';
-import type { VisionCone } from '../../vision/visionCone';
+import { sameCone } from '../../vision/visionCone';
 import type { EngineLight } from './engine/types';
 
 interface Entry {
@@ -36,8 +36,4 @@ export class LightReaches {
 
 function sameKind(reach: LightReach, light: EngineLight): boolean {
   return !!reach.darkness === !!light.darkness && (reach.priority ?? 0) === (light.priority ?? 0);
-}
-
-function sameCone(a: VisionCone | undefined, b: VisionCone | undefined): boolean {
-  return a === b || (!!a && !!b && a.facing === b.facing && a.angle === b.angle && (a.apex ?? 0) === (b.apex ?? 0));
 }

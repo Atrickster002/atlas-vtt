@@ -1,12 +1,12 @@
 import { Container, Mesh, UniformGroup, type Geometry, type Renderer, type RenderTexture, type Shader } from 'pixi.js';
 import { MAX_ZONE_CORNERS } from '../../../lighting/lightZones';
 import { wallBand } from '../../../lighting/lightingConstants';
-import { DEFAULT_AMBIENT_COLOR, brightThresholdOf } from '../../../lighting/sceneLightingOptions';
+import { DEFAULT_AMBIENT_COLOR } from '../../../lighting/sceneLightingOptions';
 import { linearColor } from '../../../lighting/srgb';
-import { ambientLevel } from '../../../vision/lightLevels';
 import type { MapBounds } from '../../../vision/visibility';
 import type { CapsuleField } from './CapsuleField';
 import { ENGINE_SHADERS } from './engineShaders';
+import { ambientLift } from './senseDrawing';
 import { createQuad, createShader, createTarget, destroyQuad, quadGeometry, renderInto, type Quad } from './gpu';
 import type { EngineZone } from './types';
 
@@ -134,8 +134,8 @@ export class ZoneMap {
 function drawnZone(zone: EngineZone, look: ZoneLook): DrawnZone {
   const light = linearColor(zone.ambientColor ?? look.ambientColor ?? DEFAULT_AMBIENT_COLOR, zone.ambient);
   const level = { ambient: zone.ambient, ...(look.litThreshold !== undefined && { litThreshold: look.litThreshold }), ...(look.brightThreshold !== undefined && { brightThreshold: look.brightThreshold }) };
-  // Dim light raised to bright, as `ambientLift` raises the scene's.
-  const lift = ambientLevel(level) === 'dim' && zone.ambient > 0 ? brightThresholdOf(level) / zone.ambient : 1;
+  // Dim light raised to bright, as the scene's is.
+  const lift = ambientLift(level);
   return { zone, light, lifted: [light[0] * lift, light[1] * lift, light[2] * lift] };
 }
 

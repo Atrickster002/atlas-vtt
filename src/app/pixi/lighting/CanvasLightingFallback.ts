@@ -47,7 +47,6 @@ export interface CanvasLightingDeps {
  * Magical darkness is the one thing of the lights it keeps, since it hides: its area is black
  * and what stands in it is not seen. The GM's canvas is unchanged.
  */
-// ponytail: a sense that sees in magical darkness sees nothing in it here (the tokens in it are seen, the map is not); cut the darkness by those senses' areas if a table without WebGL needs it.
 // ponytail: overlapping sight polygons are cut as separate holes; earcut may darken their overlap. Union them if that shows.
 export class CanvasLightingFallback implements SceneLightingView {
   readonly modeLayer: HideableLayer;

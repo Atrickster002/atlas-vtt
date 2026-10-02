@@ -1,7 +1,7 @@
 import type { EventEmitter } from 'events';
 import type { Container } from 'pixi.js';
 import type { Viewport } from 'pixi-viewport';
-import { MAX_LIGHT_ZONES, MAX_ZONE_CORNERS, lightZoneList, newZoneAmbient } from '../../lighting/lightZones';
+import { MAX_LIGHT_ZONES, MAX_ZONE_CORNERS, hasArea, lightZoneList, newZoneAmbient } from '../../lighting/lightZones';
 import type { ViewAtlasStore } from '../../storeFactory';
 import { abandonHistoryTransaction, beginHistoryTransaction, endHistoryTransaction } from '../../stores/history';
 import type { WallToolSubMode } from '../../tools/WallTool';
@@ -127,9 +127,12 @@ export class LightZoneEditor {
       if (zone) this.deps.store.getState().updateLightZone(zoneId, { polygon: zone.polygon.map((corner, i) => (i === index ? this.snapped(point, keys) : corner)) });
       return;
     }
+    // The overlay follows the pointer only where it shows it: the line to the next corner, or the corner under it.
+    const hovered = this.drawing ? null : zoneCornerAt(this.zones(), point, this.zoom());
+    const same = !this.drawing && this.cursor === null && hovered?.zoneId === this.hovered?.zoneId && hovered?.index === this.hovered?.index;
     this.cursor = this.drawing ? point : null;
-    this.hovered = this.drawing ? null : zoneCornerAt(this.zones(), point, this.zoom());
-    this.draw();
+    this.hovered = hovered;
+    if (!same) this.draw(false);
   }
 
   pointerUp(): void {
@@ -215,11 +218,15 @@ export class LightZoneEditor {
     this.draw();
   }
 
-  /** Makes the corners placed a zone, when they are an area: a new zone is one undo step, and its popover opens. */
+  /**
+   * Makes the corners placed a zone, when they are an area: a new zone is one undo step, and its
+   * popover opens. Corners on one line are none yet (such a zone could not be opened or deleted:
+   * it shows nowhere), so drawing goes on.
+   */
   private close(): void {
     // The second click of a double click lands on the corner the first one placed.
     const polygon = this.draft.filter((point, i) => i === 0 || point.x !== this.draft[i - 1]!.x || point.y !== this.draft[i - 1]!.y);
-    if (polygon.length < 3) return;
+    if (polygon.length < 3 || !hasArea(polygon)) return;
     const state = this.deps.store.getState();
     this.draft = [];
     this.cursor = null;
@@ -249,7 +256,9 @@ export class LightZoneEditor {
     }
   }
 
-  private draw(): void {
+  /** Draws the overlay; `retheme` false while it only follows the pointer, which never changes the theme. */
+  private draw(retheme = true): void {
+    if (retheme) this.overlay.retheme();
     this.overlay.draw(this.shown ? this.zones() : [], {
       selected: this.deps.store.getState().lightZonePopover,
       draft: this.draft,

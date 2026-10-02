@@ -2,7 +2,7 @@ import { Container, Graphics, Matrix, Texture, type Renderer } from 'pixi.js';
 import { exploredMemoryOn } from '../../../lighting/sceneLightingOptions';
 import type { Sight } from '../../../vision/sight';
 import { destroyTree } from '../../utils/destroyTree';
-import { setBackBuffer } from './backBuffer';
+import { BackBufferHold } from './backBuffer';
 import type { CapsuleField } from './CapsuleField';
 import { createCompositeFilter, type CompositeFilter, type LightingMode } from './compositeFilter';
 import { contextLost, glOf } from './gpu';
@@ -42,7 +42,6 @@ export class LightingEngine {
   private pierce: readonly PierceShape[] = [];
   private scene: EngineScene | null = null;
   private enabled = false;
-  private ownsBackBuffer = false;
   private stopped = false;
   /** The shaders link on the current context. */
   private verified = false;
@@ -57,7 +56,10 @@ export class LightingEngine {
     },
   };
 
+  private readonly backBuffer: BackBufferHold;
+
   constructor(private readonly renderer: Renderer) {
+    this.backBuffer = new BackBufferHold(renderer);
     this.layer.eventMode = 'none';
     this.layer.addChild(this.boundsRect, this.sightMeshes.view);
     renderer.runners.contextChange.add(this.contextListener);
@@ -121,17 +123,15 @@ export class LightingEngine {
   }
 
   /**
-   * The one switch for the back buffer: the composite reads the scene beneath it, and without
-   * one WebGL skips the composite and the layer shows the map unlit. The engine's owner calls
-   * this, so nothing else turns the back buffer on or off behind its back. Disabling frees the
-   * world textures (100–270 MB on large maps).
+   * The one switch for the back buffer (`BackBufferHold`): the composite reads the scene beneath
+   * it, and without one WebGL skips the composite and the layer shows the map unlit. Disabling
+   * frees the world textures (100–270 MB on large maps).
    */
   setEnabled(on: boolean): void {
     if (this.stopped) return;
     this.enabled = on;
     this.layer.visible = on;
-    setBackBuffer(this.renderer, on);
-    this.ownsBackBuffer = on;
+    this.backBuffer.set(on);
     if (!on) this.dropWorld();
   }
 
@@ -202,7 +202,7 @@ export class LightingEngine {
     this.dropWorld();
     this.sightMeshes.destroy();
     destroyTree(this.layer);
-    this.releaseBackBuffer();
+    this.backBuffer.release();
   }
 
   /** Runs GPU work if the device can take it now; an error stops the engine instead of escaping. */
@@ -259,12 +259,7 @@ export class LightingEngine {
     } catch (error) {
       console.error('Atlas: could not release the lighting textures', error);
     }
-    this.releaseBackBuffer();
-  }
-
-  private releaseBackBuffer(): void {
-    if (this.ownsBackBuffer) setBackBuffer(this.renderer, false);
-    this.ownsBackBuffer = false;
+    this.backBuffer.release();
   }
 
   /** The composite goes with the world, so it never holds the world's destroyed textures. */

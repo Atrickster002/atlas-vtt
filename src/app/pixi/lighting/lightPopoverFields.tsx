@@ -1,10 +1,11 @@
-import React, { useEffect, useId, useRef, useState } from 'react';
+import React, { useEffect, useId, useState } from 'react';
 import { DropdownSwatchGrid } from '../../packages/components/primitives/DropdownSwatchGrid';
 import { Slider } from '../../packages/components/primitives/slider';
 import { LabelTooltip } from '../../packages/components/primitives/tooltip';
 import { editEmission, withEmissionValue } from '../../lighting/lightEmissionForm';
 import { formatRange, rangeSliderScale, type RangeField } from '../../lighting/lightRanges';
 import type { LightEmission } from '../../types/lightingTypes';
+import { useColourPick, type ColourPick } from './useGestureTransactions';
 
 interface EmissionFieldProps {
   emission: LightEmission;
@@ -22,54 +23,15 @@ const LIGHT_COLOR_SWATCHES = [
   { value: '#ff6b5e', label: 'Ember red' },
 ] as const;
 
-interface ColorSwatchesProps {
-  color: string;
-  onChange: (color: string) => void;
-  /** The system picker opened and closed: every colour tried in between is one undo step. */
-  onPickStart: () => void;
-  onPickEnd: () => void;
-}
-
 /** The light's colour: common ones as swatches, any other from the system picker in the last cell. */
-export function ColorSwatches({ color, onChange, onPickStart, onPickEnd }: ColorSwatchesProps): React.ReactElement {
-  const input = useRef<HTMLInputElement>(null);
-  const picking = useRef(false);
+export function ColorSwatches({ color, ...pick }: ColourPick & { color: string }): React.ReactElement {
+  const input = useColourPick(pick);
   const custom = !LIGHT_COLOR_SWATCHES.some((swatch) => swatch.value === color.toLowerCase());
-
-  useEffect(() => {
-    const element = input.current;
-    if (!element) return undefined;
-    const end = (): void => {
-      if (!picking.current) return;
-      picking.current = false;
-      onPickEnd();
-    };
-    // `change` comes once, when the picker closes; React's onChange is the live `input` event.
-    element.addEventListener('change', end);
-    element.addEventListener('blur', end);
-    return () => {
-      element.removeEventListener('change', end);
-      element.removeEventListener('blur', end);
-      end();
-    };
-  }, [onPickEnd]);
-
   return (
-    <DropdownSwatchGrid label="Colour" swatches={LIGHT_COLOR_SWATCHES} value={color} onChange={onChange}>
+    <DropdownSwatchGrid label="Colour" swatches={LIGHT_COLOR_SWATCHES} value={color} onChange={pick.onChange}>
       <span className={`atlas-swatch atlas-swatch--custom${custom ? ' atlas-swatch--active' : ''}`} style={custom ? { background: color } : undefined}>
         <LabelTooltip label="Custom colour">
-          <input
-            ref={input}
-            type="color"
-            value={/^#[0-9a-f]{6}$/i.test(color) ? color : '#ffffff'}
-            onChange={(event) => {
-              if (!picking.current) {
-                picking.current = true;
-                onPickStart();
-              }
-              onChange(event.target.value);
-            }}
-          />
+          <input ref={input.ref} type="color" value={/^#[0-9a-f]{6}$/i.test(color) ? color : '#ffffff'} onChange={input.onChange} />
         </LabelTooltip>
       </span>
     </DropdownSwatchGrid>

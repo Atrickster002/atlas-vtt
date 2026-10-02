@@ -39,7 +39,7 @@ function setup(): Setup {
 function icons(store: ViewAtlasStore, reducedMotion = false): DoorIcons {
   const restoreGraphics = stubJsdomGraphics();
   window.matchMedia = (() => ({ matches: reducedMotion })) as never;
-  const made = new DoorIcons(store);
+  const made = new DoorIcons(store, document.createElement('canvas'));
   cleanup = () => {
     made.destroy();
     restoreGraphics();

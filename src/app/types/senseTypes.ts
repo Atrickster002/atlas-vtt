@@ -4,8 +4,8 @@
  */
 
 /**
- * How well a point is lit. `magical-dark` (inside a darkness source) is reserved: nothing
- * produces it yet.
+ * How well a point is lit. `magical-dark` is inside a source of magical darkness that no light
+ * there outranks (`lightLevelAt`): no ambient light and no such light counts in it.
  */
 export type LightLevel = 'bright' | 'dim' | 'dark' | 'magical-dark';
 

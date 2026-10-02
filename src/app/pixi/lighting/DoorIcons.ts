@@ -41,7 +41,8 @@ export class DoorIcons {
   private refused: { doorId: string; reduced: boolean } | null = null;
   private readonly refusing = new ValueTransition(0, MOTION_SLOW_MS, () => this.draw(this.store.getState()));
 
-  constructor(private readonly store: ViewAtlasStore) {
+  /** `canvas` is the map's: a popout window has its own document, whose motion setting counts. */
+  constructor(private readonly store: ViewAtlasStore, private readonly canvas: HTMLCanvasElement) {
     this.view.zIndex = DOOR_ICONS_Z_INDEX;
     this.view.eventMode = 'none';
     this.view.addChild(this.graphics);
@@ -71,7 +72,7 @@ export class DoorIcons {
       state.toggleDoor(wallId);
       return;
     }
-    this.refused = { doorId: wallId, reduced: prefersReducedMotion(document.body) };
+    this.refused = { doorId: wallId, reduced: prefersReducedMotion(this.canvas.ownerDocument.body) };
     this.refusing.jumpTo(0);
     this.refusing.animateTo(1, () => {
       this.refused = null;

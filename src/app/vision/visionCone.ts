@@ -36,6 +36,11 @@ export function visionCone(rotation: number | undefined, angle: number | undefin
   return { facing: ((rotation ?? 0) - 90) * DEGREE, angle: degrees * DEGREE, ...(apex > 0 && { apex }) };
 }
 
+/** Whether two cones are the same: none both, or the same facing, width and own space. */
+export function sameCone(a: VisionCone | undefined, b: VisionCone | undefined): boolean {
+  return a === b || (!!a && !!b && a.facing === b.facing && a.angle === b.angle && (a.apex ?? 0) === (b.apex ?? 0));
+}
+
 /**
  * The width in degrees of a vision cone set to `angle`: at least one degree, below a full turn.
  * Undefined (seeing all around) for 360 or more and for anything that is not a positive number.

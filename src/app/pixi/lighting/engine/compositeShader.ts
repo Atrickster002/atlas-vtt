@@ -222,7 +222,7 @@ void main() {
   // Senses: perceived without light, in colour.
   visible = mix(visible, brighter(visible, albedo * uColourLevel * colourGain), sight.b * sensed);
   // The players' view falls back on memory wherever the party perceives nothing now: out of
-  // sight, and in sight where no light and no sense shows the map (uRecalls: memory is on and a
+  // sight, and in sight where no light and no sense shows the map (recalls: memory is on and a
   // token has vision). The memory is read only where it can show: out of sight, or where the
   // live picture is no brighter than the brightest the memory can be.
   vec3 remembered = vec3(grey) * 0.07 * uExploredTint;

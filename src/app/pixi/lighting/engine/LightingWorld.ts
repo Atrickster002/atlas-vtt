@@ -5,6 +5,7 @@ import { changedWallRects } from '../../../lighting/wallChanges';
 import { allSegments, splitBlocking, type Rect } from '../../../lighting/segments';
 import { lightReach } from '../../../vision/sight';
 import type { MapBounds, Polygon } from '../../../vision/visibility';
+import { sameCone } from '../../../vision/visionCone';
 import { LightFlicker, STEADY, type FlickerSample } from '../lightFlicker';
 import { CapsuleField } from './CapsuleField';
 import { DarknessMap, type DrawnDarkness, type PierceShape } from './DarknessMap';
@@ -251,17 +252,23 @@ export class LightingWorld {
   }
 
   /**
-   * A darkness source as it is drawn: the same area the rule counts (`lightReach` from the same
-   * place through the same walls), so picture and rule cannot differ.
+   * A darkness source as it is drawn: the area the rule counts, its reach's polygon as the scene
+   * model hands it on, or `lightReach` from the same place through the same walls, so picture
+   * and rule cannot differ.
    */
   private darknessOf(light: EngineLight): DrawnDarkness {
+    return { origin: { x: light.x, y: light.y }, dim: light.dim, soft: Math.min(DARKNESS.rim, (LIGHT_REACH - 1) * light.dim), polygon: light.area ?? this.tracedArea(light) };
+  }
+
+  /** The area of a darkness that came without one, kept while the source and the walls stay. */
+  private tracedArea(light: EngineLight): Polygon {
     const walls = this.walls ?? [];
     let area = this.darkAreas.get(light.key);
     if (!area || area.walls !== walls || area.light.x !== light.x || area.light.y !== light.y || area.light.dim !== light.dim) {
       area = { light, walls, polygon: lightReach({ x: light.x, y: light.y }, light.dim, walls, 0, { darkness: true }).polygon };
       this.darkAreas.set(light.key, area);
     }
-    return { origin: { x: light.x, y: light.y }, dim: light.dim, soft: Math.min(DARKNESS.rim, (LIGHT_REACH - 1) * light.dim), polygon: area.polygon };
+    return area.polygon;
   }
 }
 
@@ -272,7 +279,7 @@ function sameLights(a: readonly EngineLight[], b: readonly EngineLight[]): boole
     const y = b[i]!;
     return x.key === y.key && x.x === y.x && x.y === y.y && x.bright === y.bright && x.dim === y.dim && x.flame === y.flame
       && x.intensity === y.intensity && x.animation === y.animation && x.color.every((c, j) => c === y.color[j])
-      && !!x.darkness === !!y.darkness && (x.priority ?? 0) === (y.priority ?? 0) && sameCone(x.cone, y.cone) && x.edge === y.edge;
+      && !!x.darkness === !!y.darkness && (x.priority ?? 0) === (y.priority ?? 0) && sameCone(x.cone, y.cone) && x.edge === y.edge && x.area === y.area;
   });
 }
 
@@ -285,8 +292,4 @@ function byPriority(lights: readonly EngineLight[]): readonly EngineLight[] {
   if (!lights.some((light) => light.darkness)) return lights;
   // By priority, whatever fraction it is; a darkness after the lights that share its own.
   return [...lights].sort((a, b) => (a.priority ?? 0) - (b.priority ?? 0) || Number(!!a.darkness) - Number(!!b.darkness));
-}
-
-function sameCone(a: EngineLight['cone'], b: EngineLight['cone']): boolean {
-  return a === b || (!!a && !!b && a.facing === b.facing && a.angle === b.angle && (a.apex ?? 0) === (b.apex ?? 0));
 }

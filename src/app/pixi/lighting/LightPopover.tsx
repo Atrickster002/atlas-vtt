@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useId, useMemo, useRef } from 'react';
+import React, { useEffect, useId, useMemo, useRef } from 'react';
 import { AnimatePresence, motion, useIsPresent } from 'framer-motion';
 import { Lightbulb, LightbulbOff, Trash2 } from 'lucide-react';
 import { unitLabelFor } from '../../grid/measurementFormat';
@@ -13,11 +13,11 @@ import { useAtlasStore, useViewStoreHook } from '../../react/ViewStoreContext';
 import { useAtlasUI } from '../../react/root/AtlasUIContext';
 import { AssetService } from '../../services/AssetService';
 import { mapMeasurementSettings } from '../../services/mapMeasurementSettings';
-import { beginHistoryTransaction, endHistoryTransaction } from '../../stores/history';
 import { Select } from '../../packages/components/primitives/Select';
 import type { LightEmission, LightSource } from '../../types/lightingTypes';
 import { useMapLightPresets } from '../../react/hooks/useMapLightPresets';
 import { LightEmissionFields } from './LightEmissionFields';
+import { useGestureTransactions } from './useGestureTransactions';
 import { useLightPopoverPosition } from './useLightPopoverPosition';
 
 /** Keys the popover's controls use themselves; they must not reach the map's shortcuts (Tab, Space, arrows). */
@@ -56,21 +56,7 @@ function LightPopover({ lightId }: { lightId: string }): React.ReactElement | nu
   const makeWay = useLightPopoverPosition(ref, lightId, unitDistance);
   useFocusWhileOpen(ref, present);
 
-  // A slider drag writes on every move; the transaction makes the whole drag one undo step.
-  // It ends on the window's pointerup, which comes even when the value did not change.
-  const onSliderPointerDown = useCallback((event: React.PointerEvent): void => {
-    beginHistoryTransaction(store);
-    const win = event.currentTarget.ownerDocument.defaultView ?? window;
-    const end = (): void => {
-      win.removeEventListener('pointerup', end);
-      win.removeEventListener('pointercancel', end);
-      endHistoryTransaction(store);
-    };
-    win.addEventListener('pointerup', end);
-    win.addEventListener('pointercancel', end);
-  }, [store]);
-  const beginPick = useCallback((): void => beginHistoryTransaction(store), [store]);
-  const endPick = useCallback((): void => endHistoryTransaction(store), [store]);
+  const { onSliderPointerDown, beginPick, endPick } = useGestureTransactions(store);
 
   if (!light) return null;
   const emission = light.emission;

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useId, useRef, useState } from 'react';
+import React, { useEffect, useId, useRef, useState } from 'react';
 import { AnimatePresence, motion, useIsPresent } from 'framer-motion';
 import { Trash2 } from 'lucide-react';
 import { DEFAULT_AMBIENT_COLOR } from '../../lighting/sceneLightingOptions';
@@ -8,9 +8,9 @@ import { useAnchoredPopoverVariants } from '../../packages/components/primitives
 import { SegmentedControl } from '../../packages/components/primitives/SegmentedControl';
 import { LabelTooltip, TooltipProvider } from '../../packages/components/primitives/tooltip';
 import { useAtlasStore, useViewStoreHook } from '../../react/ViewStoreContext';
-import { beginHistoryTransaction, endHistoryTransaction } from '../../stores/history';
 import type { LightZoneChanges } from '../../types/lightingTypes';
 import { SliderField } from './lightingPanelFields';
+import { useColourPick, useGestureTransactions, type ColourPick } from './useGestureTransactions';
 import { useZonePopoverPosition } from './useLightPopoverPosition';
 
 /** Keys the popover's controls use themselves; they must not reach the map's shortcuts. */
@@ -42,21 +42,7 @@ function LightZonePopover({ zoneId }: { zoneId: string }): React.ReactElement | 
   const variants = useAnchoredPopoverVariants();
   useZonePopoverPosition(ref, zoneId);
 
-  // A slider drag writes on every move; the transaction makes the whole drag one undo step.
-  const onSliderPointerDown = useCallback((event: React.PointerEvent): void => {
-    beginHistoryTransaction(store);
-    const win = event.currentTarget.ownerDocument.defaultView ?? window;
-    const end = (): void => {
-      win.removeEventListener('pointerup', end);
-      win.removeEventListener('pointercancel', end);
-      endHistoryTransaction(store);
-    };
-    win.addEventListener('pointerup', end);
-    win.addEventListener('pointercancel', end);
-  }, [store]);
-
-  const beginPick = useCallback((): void => beginHistoryTransaction(store), [store]);
-  const endPick = useCallback((): void => endHistoryTransaction(store), [store]);
+  const { onSliderPointerDown, beginPick, endPick } = useGestureTransactions(store);
 
   if (!zone) return null;
   const update = (changes: LightZoneChanges): void => store.getState().updateLightZone(zone.id, changes);
@@ -137,45 +123,12 @@ function ZoneName({ name, onChange }: { name: string; onChange: (name: string | 
   );
 }
 
-interface ZoneColourProps {
-  color: string;
-  onChange: (color: string) => void;
-  /** The system picker opened and closed: every colour tried in between is one undo step. */
-  onPickStart: () => void;
-  onPickEnd: () => void;
-}
-
 /** The tint of the zone's ambient light, from the system picker. */
-function ZoneColour({ color, onChange, onPickStart, onPickEnd }: ZoneColourProps): React.ReactElement {
-  const input = useRef<HTMLInputElement>(null);
-  const picking = useRef(false);
-  useEffect(() => {
-    const element = input.current;
-    if (!element) return undefined;
-    const end = (): void => {
-      if (!picking.current) return;
-      picking.current = false;
-      onPickEnd();
-    };
-    // `change` comes once, when the picker closes; React's onChange is the live `input` event.
-    element.addEventListener('change', end);
-    element.addEventListener('blur', end);
-    return () => {
-      element.removeEventListener('change', end);
-      element.removeEventListener('blur', end);
-      end();
-    };
-  }, [onPickEnd]);
+function ZoneColour({ color, ...pick }: ColourPick & { color: string }): React.ReactElement {
+  const input = useColourPick(pick);
   return (
     <LabelTooltip label="Ambient colour">
-      <input ref={input} type="color" className="atlas-swatch atlas-swatch--picker" value={color}
-        onChange={(event) => {
-          if (!picking.current) {
-            picking.current = true;
-            onPickStart();
-          }
-          onChange(event.target.value);
-        }} />
+      <input ref={input.ref} type="color" className="atlas-swatch atlas-swatch--picker" value={color} onChange={input.onChange} />
     </LabelTooltip>
   );
 }

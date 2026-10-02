@@ -14,7 +14,6 @@ import { tokenSensesResolver, type TokenSensesResolver } from '../../creatures/t
 import { mapSenseRulesSource } from '../../services/mapSenseRules';
 import { SettingsService } from '../../services/SettingsService';
 import type { ViewAtlasStore } from '../../storeFactory';
-import { findAtlasLeafByViewId } from '../../utils/atlasLeafLookup';
 import type { SightRules } from '../../vision/sightRules';
 import type { MapBounds } from '../../vision/visibility';
 import type { LayerVisibility } from '../playerSafeFrame';
@@ -25,6 +24,7 @@ import { GmSightAids } from './GmSightAids';
 import { DoorIcons } from './DoorIcons';
 import { showDoorMenu, showWallMenu, type LightingMenuContext } from './lightingMenus';
 import { wireLightingPointer } from './lightingPointer';
+import { listenToLightingSceneEvents } from './lightingSceneEvents';
 import { LightInteraction } from './LightInteraction';
 import { LightMarkers } from './LightMarkers';
 import { LightRangeRings } from './LightRangeRings';
@@ -105,7 +105,7 @@ export class LightingController {
     this.rangeRings = new LightRangeRings(viewport, store, measurement);
     this.editor = new WallEditor(viewport, store, eventBus, (lightIds) => this.lightMarkers.setSelected(lightIds), () => mapLightPresets(obsApp, store.getState()));
     this.zones = new LightZoneEditor({ viewport, canvas: app.canvas, store, eventBus, onActiveChange: () => this.session.sync(), onFull: showZonesFullNotice });
-    this.doors = new DoorIcons(store);
+    this.doors = new DoorIcons(store, app.canvas);
     viewport.addChild(this.doors.view);
     this.lights = new LightInteraction({
       viewport,
@@ -265,27 +265,19 @@ export class LightingController {
 
   private listen(): void {
     const { eventBus, store, obsApp, viewId } = this.deps;
-    const on = (event: string, handler: () => void): void => {
-      eventBus.on(event, handler);
-      this.cleanups.push(() => eventBus.off(event, handler));
-    };
-    const stopEditing = (): void => {
-      this.lights.cancel();
-      this.zones.stop();
-      store.getState().closeLightPopover();
-      store.getState().closeLightZonePopover();
-    };
-    on('lighting-reset-explored', () => this.renderer.resetExplored());
-    on('map-unloading', () => {
-      this.editor.cancelDrawing();
-      stopEditing();
-      this.renderer.beforeMapUnload();
-    });
-    // Another Obsidian tab can come to the front by a key, without a press that would close the popover.
-    const leafChange = obsApp.workspace.on('active-leaf-change', (leaf) => {
-      if (leaf !== findAtlasLeafByViewId(obsApp.workspace, viewId)) stopEditing();
-    });
-    this.cleanups.push(() => obsApp.workspace.offref(leafChange));
+    this.cleanups.push(...listenToLightingSceneEvents({
+      eventBus, obsApp, viewId,
+      resetExplored: () => this.renderer.resetExplored(),
+      stopEditing: () => {
+        this.lights.cancel();
+        this.zones.stop();
+        store.getState().closeLightPopover();
+      },
+      beforeMapUnload: () => {
+        this.editor.cancelDrawing();
+        this.renderer.beforeMapUnload();
+      },
+    }));
     this.cleanups.push(() => this.rules.destroy());
   }
 

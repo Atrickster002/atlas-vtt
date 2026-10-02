@@ -31,16 +31,22 @@ export interface ZoneOverlayState {
 export class LightZoneOverlay {
   readonly view = new Container({ label: 'light-zones', zIndex: LIGHT_ZONES_Z_INDEX, eventMode: 'none', interactiveChildren: false });
   private readonly lines = this.view.addChild(new Graphics());
+  private theme = lightMarkerTheme();
 
   constructor(private readonly viewport: Viewport) {
     viewport.addChild(this.view);
+  }
+
+  /** Reads the theme's colours again; they are not read on every draw, which follows the pointer. */
+  retheme(): void {
+    this.theme = lightMarkerTheme();
   }
 
   draw(zones: readonly LightZone[], { selected, draft, cursor, corner }: ZoneOverlayState): void {
     const g = this.lines.clear();
     if (!this.view.visible) return;
     const pixel = 1 / this.viewport.scale.x;
-    const theme = lightMarkerTheme();
+    const { theme } = this;
     const outline = (points: readonly Point[], closed: boolean, color: number): void => {
       for (const [width, lineColor, alpha] of [[UNDER_WIDTH, 0x000000, 0.45], [LINE_WIDTH, color, 1]] as const) {
         g.moveTo(points[0]!.x, points[0]!.y);
