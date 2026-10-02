@@ -3,6 +3,7 @@ import { Link2 } from 'lucide-react';
 import { useScrollActivity } from '../../primitives/useScrollActivity';
 import { useScrollbarGutter } from '../../primitives/useScrollbarGutter';
 import type { StatblockEntry } from './statblockEntries';
+import { STANDING_LIST } from '../../../../keyboard/tooltipEscape';
 
 interface StatblockListProps {
   id: string;
@@ -51,6 +52,7 @@ export function StatblockList({
       ref={setList}
       id={id}
       role="listbox"
+      {...STANDING_LIST}
       aria-labelledby={labelId}
       className="atlas-statblock-link__list"
       // Clicks keep focus in the search field, which drives the list.
