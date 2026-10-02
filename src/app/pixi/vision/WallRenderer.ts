@@ -75,7 +75,7 @@ export class WallRenderer {
   private kindWalls(state: ViewAtlasState): KindWall[] {
     return wallList(state.objects.walls).filter(hasKindLook).map((wall) => {
       const open = (wall.type === 'door' || wall.type === 'secret-door') && !(wall.closed ?? true);
-      return { wall, color: this.selectedWallIds.has(wall.id) ? this.accentColor : open ? 0x44dd44 : this.getWallColor(wall), alpha: open ? 0.6 : 1 };
+      return { wall, color: this.selectedWallIds.has(wall.id) ? this.accentColor : open ? 0x44dd44 : this.getWallColor(wall), alpha: open ? 0.6 : 1, hollow: wall.type === 'secret-door' };
     });
   }
 

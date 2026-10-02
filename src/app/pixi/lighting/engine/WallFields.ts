@@ -24,9 +24,9 @@ export interface BoundFields {
  *   must not cross.
  *
  * A scene whose walls all block both and both ways has one field, read under all three names;
- * the second exists once there is a one-way or a limited wall and the third once a wall blocks one thing
- * only, and both are then kept (idle while unused), so the composite never holds a destroyed
- * field. A wall that blocks one thing is in the fields of that thing alone: to the other it is
+ * the second exists while there is a one-way or a limited wall and the third while a wall
+ * blocks one thing only. `trim` frees those the scene's walls no longer need, once the composite
+ * has taken the fields that are left. A wall that blocks one thing is in the fields of that thing alone: to the other it is
  * no wall, in the leak guarantee of each field as anywhere else.
  */
 export class WallFields {
@@ -95,6 +95,21 @@ export class WallFields {
     }
   }
 
+  /** How many fields exist now. */
+  get held(): number {
+    return 1 + [this.lightField, this.sightField, this.zoneField].filter(Boolean).length;
+  }
+
+  /**
+   * Frees the fields no wall of the scene needs any more. Call it once nothing reads them: the
+   * composite has bound what `bound()` gives now, and the zones were drawn through `zones()`.
+   */
+  trim(): void {
+    if (!this.hasOneWay) this.lightField = free(this.lightField);
+    if (!this.hasKinds) this.sightField = free(this.sightField);
+    if (!this.zoneSegments) this.zoneField = free(this.zoneField);
+  }
+
   destroy(): void {
     this.zoneField?.destroy();
     this.sightField?.destroy();
@@ -105,4 +120,9 @@ export class WallFields {
   private create(): CapsuleField {
     return new CapsuleField(this.renderer, [0, 0, this.bounds.width, this.bounds.height], this.texel, wallRadius(this.texel));
   }
+}
+
+function free(field: CapsuleField | null): null {
+  field?.destroy();
+  return null;
 }

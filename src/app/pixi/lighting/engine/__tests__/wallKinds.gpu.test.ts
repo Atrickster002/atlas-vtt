@@ -107,4 +107,36 @@ describe('walls that block one thing, in the picture', () => {
     expect(differences(shown.glass!, shown.none!, 0).slice(0, 5)).toEqual([]);
     expect(differences(shown.curtain!, shown.solid!, 0).slice(0, 5)).toEqual([]);
   });
+
+  it('frees the fields of walls that are gone, and draws on with those that are left', async () => {
+    const renderer = await createTestRenderer(SIZE);
+    cleanup.push(() => renderer.destroy());
+    const engine = new LightingEngine(renderer);
+    cleanup.push(() => engine.destroy());
+    const watch = watchGl(renderer.gl);
+    cleanup.push(() => watch.stop());
+    engine.setEnabled(true);
+    engine.setMode('player');
+    const held = (): number => (engine as unknown as { world: { fields: { held: number } } }).world.fields.held;
+    const zone = { polygon: [{ x: 300, y: 300 }, { x: 460, y: 300 }, { x: 460, y: 460 }, { x: 300, y: 460 }], ambient: 0.5, soft: 20 };
+    const shoot = (drawn: WallSegment[]): ((x: number, y: number) => number) => {
+      engine.update({ bounds, albedo: null, walls: sealedWalls(drawn, worldTexel(bounds)), lights: [torch], sight: SEES_ALL, sightRadius: 20, ambient: 0, zones: [zone] });
+      engine.flush();
+      const read: PixelReader = renderThroughEngine(engine, renderer, camera);
+      return (x, y) => sum(read(Math.floor(x) + camera.x, Math.floor(y) + camera.y));
+    };
+    const wall = (id: string, x: number, extra: Partial<WallSegment>): WallSegment => ({ id, kind: 'wall', type: 'solid', p1: { x, y: 0 }, p2: { x, y: MAP }, ...extra });
+    const plain = shoot(across({}));
+    expect(held()).toBe(1);
+    // A curtain, a hedge and a one-way wall: the tiles' field, the field of all light walls, the field of sight, and the zones' own.
+    shoot([wall('curtain', 700, { blocks: 'sight' }), wall('hedge', 720, { limited: true }), wall('one-way', 740, { direction: 'left' }), ...across({})]);
+    expect(held()).toBe(4);
+    const after = shoot(across({}));
+    expect(held()).toBe(1);
+    for (const x of [300, 400, 505, 520, 600]) expect([x, after(x, 512)]).toEqual([x, plain(x, 512)]);
+    shoot([wall('curtain', 700, { blocks: 'sight' }), ...across({})]);
+    expect(held()).toBe(2);
+    expect(watch.findings).toEqual([]);
+    expect(engine.failed).toBe(false);
+  });
 });

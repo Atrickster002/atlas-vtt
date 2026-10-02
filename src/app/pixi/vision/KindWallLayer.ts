@@ -8,6 +8,8 @@ export interface KindWall {
   wall: WallSegment;
   color: number;
   alpha: number;
+  /** A secret door: drawn hollow. */
+  hollow: boolean;
 }
 
 /** How far past the screen the walls are drawn, as a share of the screen's size: a pan within it draws nothing anew. */
@@ -97,7 +99,7 @@ export class KindWallLayer {
       marks += kindMarks(wall.wall, zoom, span);
     }
     const coarsen = Math.max(1, marks / MAX_MARKS);
-    for (const { wall, span } of shown) drawKindWall(this.graphics, wall.wall, wall.color, zoom, wall.alpha, { ...span, coarsen });
+    for (const { wall, span } of shown) drawKindWall(this.graphics, wall.wall, wall.color, zoom, wall.alpha, { ...span, coarsen }, wall.hollow);
   }
 }
 

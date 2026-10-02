@@ -7,7 +7,9 @@ import type { WallSegment } from '../../types/wallTypes';
  * is a row of dots, in the groups of its dashes where it blocks one thing only (threes for
  * sight, a pair and a single dot for light). The lengths are screen pixels, so the look reads
  * the same at any zoom, and each stroke lies on a dark casing, so it shows on a pale map as on
- * a dark one.
+ * a dark one. A secret door of a kind keeps the secret door's colour and is drawn hollow, a
+ * dark line down the middle of its strokes and a dark middle in its dots: a plain secret door
+ * is a dashed line, which the kind's own pattern would hide.
  */
 
 /** Strokes and gaps in turn, in screen pixels. */
@@ -21,6 +23,8 @@ const MAX_STROKES = 300;
 const DOT_STEP = 4.5;
 const DOT_RADIUS = 1.6;
 const MAX_DOTS = 600;
+/** The dark middle of a secret door's strokes and dots, as a share of their width. */
+const HOLLOW = 0.4;
 
 /** Whether the wall has a look of its own: the plain line is drawn by the wall renderer. */
 export function hasKindLook(wall: WallSegment): boolean {
@@ -81,7 +85,7 @@ export function kindMarks(wall: WallSegment, zoom: number, span: KindSpan): numb
 }
 
 /** Draws `wall` in the look of its kind, in `color`, at `zoom` screen pixels per world pixel. */
-export function drawKindWall(g: Graphics, wall: WallSegment, color: number, zoom: number, alpha = 1, span?: KindSpan): void {
+export function drawKindWall(g: Graphics, wall: WallSegment, color: number, zoom: number, alpha = 1, span?: KindSpan, hollow = false): void {
   const dx = wall.p2.x - wall.p1.x, dy = wall.p2.y - wall.p1.y;
   const length = Math.hypot(dx, dy);
   if (!(length > 0)) return;
@@ -92,6 +96,10 @@ export function drawKindWall(g: Graphics, wall: WallSegment, color: number, zoom
     g.fill({ color: 0x000000, alpha: 0.55 * alpha });
     for (const d of dots) g.circle(...at(d), DOT_RADIUS / zoom);
     g.fill({ color, alpha });
+    if (hollow) {
+      for (const d of dots) g.circle(...at(d), (DOT_RADIUS * HOLLOW) / zoom);
+      g.fill({ color: 0x000000, alpha: 0.8 * alpha });
+    }
     return;
   }
   const strokes = kindStrokes(length, zoom, wall.blocks, span);
@@ -105,6 +113,10 @@ export function drawKindWall(g: Graphics, wall: WallSegment, color: number, zoom
   g.stroke({ width: (WIDTH + 2 * CASING) / zoom, color: 0x000000, alpha: 0.55 * alpha });
   path();
   g.stroke({ width: WIDTH / zoom, color, alpha });
+  if (hollow) {
+    path();
+    g.stroke({ width: (WIDTH * HOLLOW) / zoom, color: 0x000000, alpha: 0.8 * alpha });
+  }
 }
 
 /** A dashed line in world pixels: a wall not placed yet, a secret door. */

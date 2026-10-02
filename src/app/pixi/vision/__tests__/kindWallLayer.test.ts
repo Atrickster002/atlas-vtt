@@ -23,7 +23,7 @@ function fakeViewport(zoom = 1, x = 0, y = 0): { viewport: Viewport; emit: (even
   };
 }
 
-const kind = (id: string, x1: number, y1: number, x2: number, y2: number, extra: Partial<WallSegment> = { blocks: 'sight' }): KindWall => ({ wall: { id, kind: 'wall', type: 'solid', p1: { x: x1, y: y1 }, p2: { x: x2, y: y2 }, ...extra }, color: 0xaaaaaa, alpha: 1 });
+const kind = (id: string, x1: number, y1: number, x2: number, y2: number, extra: Partial<WallSegment> = { blocks: 'sight' }): KindWall => ({ wall: { id, kind: 'wall', type: 'solid', p1: { x: x1, y: y1 }, p2: { x: x2, y: y2 }, ...extra }, color: 0xaaaaaa, alpha: 1, hollow: false });
 
 /** The layer on a visible parent, with its drawings counted and the x of every stroke's start recorded. */
 function shownLayer(viewport: Viewport): { layer: KindWallLayer; draws: () => number; starts: () => number[] } {

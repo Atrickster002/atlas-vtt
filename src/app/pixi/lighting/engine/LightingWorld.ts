@@ -155,7 +155,7 @@ export class LightingWorld {
     return !!this.darkness;
   }
 
-  /** Frees the darkness map and the zone map of a scene that has no darkness source or zone left; call it once nothing reads them (`darknessMap()`, `zoneMap()` are null). */
+  /** Frees the darkness map and the zone map of a scene that has no darkness source or zone left, and the wall fields its walls no longer need; call it once nothing reads them (`darknessMap()`, `zoneMap()` are null, the composite has the fields of now). */
   trim(): void {
     if (!this.darknessMap()) {
       this.darkness?.destroy();
@@ -166,6 +166,7 @@ export class LightingWorld {
       this.zoneTexture?.destroy();
       this.zoneTexture = null;
     }
+    this.fields.trim();
   }
 
   /** Animated lights or bounce still to build: keep calling `animate`. */
