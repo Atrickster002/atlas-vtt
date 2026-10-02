@@ -62,6 +62,7 @@
 - The asset manager opens on placeholders in the shape of what is coming: cards, folders, tags, the statblock list and the statblock itself. The content then takes their place without moving. Switching tab or collection shows them only when the load takes longer than a moment
 - Scrolling the asset manager is smooth in large collections. Cards scrolled out of view no longer stay loaded, rows that are not drawn yet show placeholders instead of empty space, and the art of the next rows is loaded before they scroll in
 - The asset manager stays smooth while its content loads. Thumbnails made in the background appear a few at a time, starting with the cards on screen, and no longer redraw the whole library as each one finishes. A card waits for its thumbnail instead of loading the full image, so a page of maps no longer holds every map in memory. Reading the statblocks of a large library no longer freezes the window
+- Statblock previews leave room at the window's edges for what a theme draws around them. The Atlas VTT theme's ivy is no longer cut off above and below a tall statblock
 
 ## Fixed
 

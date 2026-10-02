@@ -5,6 +5,7 @@ import FantasyStatblock from '../react/components/FantasyStatblock';
 import { toTokenVitals, type TokenVitals } from './statblockVitalsSync';
 import type { NotePreviewUIManager, PreviewAnchorRef, TokenPreviewAnchor } from './NotePreviewUIManager';
 import './statblock-preview-window.scss';
+import { previewEdgeGaps } from '../react/components/statblock/previewEdgeGap';
 
 /**
  * Floating CMD+hover preview window for token statblocks: of a token placed on
@@ -73,7 +74,8 @@ export class StatblockPreviewWindow {
 
     const winWidth = window.innerWidth;
     const winHeight = window.innerHeight;
-    const padding = 20;
+    // A theme that draws around the preview asks for more room than this.
+    const gaps = previewEdgeGaps(this.element.ownerDocument, 20);
 
     this.element.classList.add('atlas-statblock-preview-window--measuring');
 
@@ -82,7 +84,7 @@ export class StatblockPreviewWindow {
 
       // Cap the window to the viewport first, so the measurement below is of
       // the clamped box; the card body scrolls when the statblock is taller.
-      this.element.style.maxHeight = `${winHeight - padding * 2}px`;
+      this.element.style.maxHeight = `${winHeight - gaps.block * 2}px`;
 
       const rect = this.element.getBoundingClientRect();
       const elementWidth = rect.width || 400;
@@ -91,22 +93,22 @@ export class StatblockPreviewWindow {
       let finalX = x + 15;
       let finalY = y + 15;
 
-      if (finalX + elementWidth > winWidth - padding) {
+      if (finalX + elementWidth > winWidth - gaps.inline) {
         finalX = x - elementWidth - 15;
-        if (finalX < padding) {
-          finalX = winWidth - elementWidth - padding;
+        if (finalX < gaps.inline) {
+          finalX = winWidth - elementWidth - gaps.inline;
         }
       }
 
-      if (finalY + elementHeight > winHeight - padding) {
+      if (finalY + elementHeight > winHeight - gaps.block) {
         finalY = y - elementHeight - 15;
-        if (finalY < padding) {
-          finalY = winHeight - elementHeight - padding;
+        if (finalY < gaps.block) {
+          finalY = winHeight - elementHeight - gaps.block;
         }
       }
 
-      finalX = Math.max(padding, finalX);
-      finalY = Math.max(padding, finalY);
+      finalX = Math.max(gaps.inline, finalX);
+      finalY = Math.max(gaps.block, finalY);
 
       this.element.style.left = `${finalX}px`;
       this.element.style.top = `${finalY}px`;
