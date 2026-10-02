@@ -55,6 +55,7 @@
 - Session view (the GM view switch in the toolbar, D) now also shows the players' lighting: the map as their tokens see it, without the tokens they cannot see, door badges, light markers and wall lines
 - The lighting menu is laid out like the other tool menus: what the tool does and how walls are drawn are rows with a tick, and the time of day shows which one is chosen
 - Switches in the tool menus can be reached with Tab and switched with Space or Enter, and screen readers announce them. Every menu row is now rounded alike on both sides
+- A token you drop on a square lies on top of the tokens already there, and so does one you place, paste or duplicate. Before, the token that stood there first stayed on top. The order is saved with the scene and follows undo
 
 ## Fixed
 

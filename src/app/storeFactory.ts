@@ -29,6 +29,7 @@ import { withoutCollectionWidgets } from './utils/collectionWidgets';
 import { withWidgetOff } from './utils/widgetActivation';
 import { createMapObjectsActions, type MapObjectsSlice } from './stores/mapObjectsSlice';
 import { computeNextInstanceNumber } from './stores/tokenInstanceNumbers';
+import { raiseTokens } from './stores/tokenStacking';
 import type { DiceRollResult } from './tools/DiceTool';
 import { isAtlasToolAvailable } from './tools/toolAvailability';
 import { readExploredMask } from './lighting/exploredMaskCodec';
@@ -215,6 +216,11 @@ export interface ViewAtlasState {
   clearSelection: () => void;
   moveTokensBulk: (ids: string[], dx: number, dy: number) => void;
   setTokenPositions: (positions: Array<{id: string, x: number, y: number}>) => void;
+  /**
+   * The pointer lets go of the tokens it dragged: they stand at `positions`, on top of every
+   * other token, and are no longer held. One write, so sight works the drop out once.
+   */
+  dropTokens: (positions: Array<{id: string, x: number, y: number}>) => void;
   deleteTokens: (ids: string[]) => void;
   /** Deletes every selected token, drawing, text and pin in one undo step. */
   deleteSelected: () => void;
@@ -652,6 +658,7 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
                 draft.objects.tokens[id] = { ...data, id, kind: data.kind ?? 'token', imagePath, instanceNumber } as TokenEntity;
                 ids.push(id);
               }
+              raiseTokens(draft.objects.tokens, ids);
             });
             return ids;
           },
@@ -678,6 +685,7 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
             };
             set((draft) => {
               draft.objects.tokens[id] = token;
+              raiseTokens(draft.objects.tokens, [id]);
             });
             return id;
           },
@@ -699,6 +707,7 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
                 ...(data.snapped !== undefined && { snapped: data.snapped }),
               };
               draft.objects.tokens[id] = char;
+              raiseTokens(draft.objects.tokens, [id]);
             });
           },
 
@@ -860,6 +869,19 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
                 token.y = y;
               }
             });
+            draft._audioDirty = true;
+          }),
+
+          dropTokens: (positions) => set((draft) => {
+            for (const { id, x, y } of positions) {
+              const token = draft.objects.tokens[id];
+              if (token) {
+                token.x = x;
+                token.y = y;
+              }
+            }
+            raiseTokens(draft.objects.tokens, positions.map(({ id }) => id));
+            if (Object.keys(draft.heldTokens).length > 0) draft.heldTokens = {};
             draft._audioDirty = true;
           }),
 

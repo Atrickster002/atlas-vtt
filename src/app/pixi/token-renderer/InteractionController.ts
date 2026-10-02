@@ -497,14 +497,7 @@ export class InteractionController implements ITokenInteractionController {
         tokenUpdates.push({id, x: finalPos.x, y: finalPos.y});
       }
       
-      if (tokenUpdates.length === 1) {
-        const update = tokenUpdates[0];
-        if (update) {
-          this.store.getState().moveToken(update.id, update.x, update.y);
-        }
-      } else if (tokenUpdates.length > 1) {
-        this.store.getState().setTokenPositions(tokenUpdates);
-      }
+      if (tokenUpdates.length > 0) this.store.getState().dropTokens(tokenUpdates);
       
       // Update UI
       this.onSelectionUpdate?.();
