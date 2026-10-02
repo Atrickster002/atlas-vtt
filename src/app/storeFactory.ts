@@ -1205,6 +1205,8 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
             const wall = draft.objects.walls[id];
             if (wall) {
               Object.assign(wall, changes);
+              // A field given as undefined is removed: the wall is as if it never had it.
+              for (const key of Object.keys(changes) as (keyof WallSegment)[]) if (changes[key] === undefined) delete wall[key];
               draft._audioDirty = true;
             }
           }),

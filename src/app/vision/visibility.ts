@@ -1,7 +1,8 @@
 import type { Point } from '../types/visionTypes';
-import type { WallSegment } from '../types/wallTypes';
-import { blocksNothing } from '../lighting/segments';
+import type { WallChannel, WallSegment } from '../types/wallTypes';
+import { blocksNothing, concerns } from '../lighting/segments';
 import { angleTo, distSqToSegment, isOnBlockingSide, raySegmentIntersect } from './visionGeometry';
+import { limitedHit, secondCrossing, type LimitedHit } from './limitedRays';
 import { clipToCone, type VisionCone } from './visionCone';
 
 export type Polygon = Point[];
@@ -16,31 +17,53 @@ const RAY_OFFSET = 1e-5;
 /** Angles slightly beyond a wall's own, so rays at its ends always test it. */
 const SPAN_SLACK = 1e-4;
 
-/** Whether `wall` stops sight and light coming from `origin`: open doors never do, one-way walls only from one side. */
-export function blocksFrom(wall: WallSegment, origin: Point): boolean {
-  if (blocksNothing(wall)) return false;
+/**
+ * Whether `wall` stops what comes from `origin`: open doors never do, one-way walls only from
+ * one side, and a wall that blocks one thing only stops `channel` when that is its thing.
+ * Without a channel every wall counts whatever it blocks, so a caller that forgets to say what
+ * it asks for is stopped by more walls, never by fewer.
+ */
+export function blocksFrom(wall: WallSegment, origin: Point, channel?: WallChannel): boolean {
+  if (blocksNothing(wall) || (channel && !concerns(wall, channel))) return false;
   return !wall.direction || isOnBlockingSide(origin, wall.p1, wall.p2, wall.direction);
 }
 
-/** Walls that block from `origin` and come within `radius` of it. */
-export function wallsInReach(walls: readonly WallSegment[], origin: Point, radius: number): WallSegment[] {
+/** Walls that block `channel` from `origin` and come within `radius` of it. */
+export function wallsInReach(walls: readonly WallSegment[], origin: Point, radius: number, channel?: WallChannel): WallSegment[] {
   const radiusSq = radius * radius;
-  return walls.filter((wall) => blocksFrom(wall, origin) && distSqToSegment(origin, wall.p1, wall.p2) <= radiusSq);
+  return walls.filter((wall) => blocksFrom(wall, origin, channel) && distSqToSegment(origin, wall.p1, wall.p2) <= radiusSq);
 }
 
 /**
  * The area visible from `origin` up to `radius`, as a star-shaped polygon around it.
  * Radial sweep: a ray at every wall endpoint (and just beside it) plus evenly spaced
- * boundary rays, each stopped by the nearest wall. With a `cone`, only its part inside
- * the cone, closed through the origin.
+ * boundary rays, each stopped by the nearest wall, or by the second limited wall it crosses if
+ * that is nearer (`WallSegment.limited`). With a `cone`, only its part inside the cone, closed
+ * through the origin. `channel` says what is asked for, sight or light: the walls that block
+ * only the other are no walls then.
  */
-export function computeVisibility(origin: Point, radius: number, walls: readonly WallSegment[], cone?: VisionCone): Polygon {
-  const polygon = sweep(origin, radius, walls);
+export function computeVisibility(origin: Point, radius: number, walls: readonly WallSegment[], cone?: VisionCone, channel?: WallChannel): Polygon {
+  const { polygon } = sweep(origin, radius, walls, channel);
   return cone && cone.angle < 2 * Math.PI ? clipToCone(origin, polygon, cone) : polygon;
 }
 
-function sweep(origin: Point, radius: number, walls: readonly WallSegment[]): Polygon {
-  const blocking = wallsInReach(walls, origin, radius);
+/** A visibility polygon with, for each of its corners, the limited walls that stopped the ray there as its second, or null. */
+export interface Swept {
+  polygon: Polygon;
+  stops: (readonly WallSegment[] | null)[];
+}
+
+/** `computeVisibility` without a cone, telling which corners of the polygon lie on a limited wall that stopped the ray. */
+export function sweepVisibility(origin: Point, radius: number, walls: readonly WallSegment[], channel?: WallChannel): Swept {
+  return sweep(origin, radius, walls, channel);
+}
+
+function sweep(origin: Point, radius: number, walls: readonly WallSegment[], channel?: WallChannel): Swept {
+  const blocking = wallsInReach(walls, origin, radius, channel);
+  // Rays count limited walls only where there are any: every other scene is swept as it always was.
+  const counting = blocking.some((wall) => wall.limited);
+  const hits: LimitedHit[] = [];
+  const stops: Swept['stops'] = [];
   const angles: number[] = [];
   for (let i = 0; i < BOUNDARY_RAYS; i++) angles.push(-Math.PI + (2 * Math.PI * i) / BOUNDARY_RAYS);
   for (const wall of blocking) {
@@ -56,16 +79,29 @@ function sweep(origin: Point, radius: number, walls: readonly WallSegment[]): Po
   const ordered = spans.filter((span) => !span.wraps).sort((a, b) => a.from - b.from);
   let next = 0;
   let active: AngularSpan[] = [];
-  return angles.map((angle) => {
+  const polygon = angles.map((angle) => {
     while (next < ordered.length && ordered[next]!.from <= angle + SPAN_SLACK) active.push(ordered[next++]!);
     active = active.filter((span) => span.to >= angle - SPAN_SLACK);
+    const dx = Math.cos(angle), dy = Math.sin(angle);
     let reach = radius;
-    for (const span of active) reach = Math.min(reach, raySegmentIntersect(origin, angle, span.wall.p1, span.wall.p2));
+    hits.length = 0;
+    const meet = (wall: WallSegment): void => {
+      if (counting && wall.limited) {
+        const hit = limitedHit(origin, dx, dy, wall);
+        if (hit) hits.push(hit);
+      } else reach = Math.min(reach, raySegmentIntersect(origin, angle, wall.p1, wall.p2));
+    };
+    for (const span of active) meet(span.wall);
     for (const span of seam) {
-      if (angle >= span.from - SPAN_SLACK || angle <= span.to + SPAN_SLACK) reach = Math.min(reach, raySegmentIntersect(origin, angle, span.wall.p1, span.wall.p2));
+      if (angle >= span.from - SPAN_SLACK || angle <= span.to + SPAN_SLACK) meet(span.wall);
     }
-    return { x: origin.x + Math.cos(angle) * reach, y: origin.y + Math.sin(angle) * reach };
+    const second = counting ? secondCrossing(hits) : null;
+    const stopped = second !== null && second.t < reach;
+    if (stopped) reach = second.t;
+    stops.push(stopped ? second.walls : null);
+    return { x: origin.x + dx * reach, y: origin.y + dy * reach };
   });
+  return { polygon, stops };
 }
 
 interface AngularSpan {

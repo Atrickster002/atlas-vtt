@@ -137,7 +137,7 @@ export function createCompositeFilter(world: LightingWorld, explored: Texture): 
       uDarkness: noDarkness.source,
       uZones: noDarkness.source,
       uZonesLifted: noDarkness.source,
-      ...world.fieldAll().resources(),
+      ...fieldResources(world),
     },
     blendRequired: true,
     resolution: 'inherit',
@@ -150,7 +150,7 @@ export function createCompositeFilter(world: LightingWorld, explored: Texture): 
       u.uCore = wallCore(next.texel);
       u.uBand = wallBand(next.texel);
       u.uTexel = next.texel;
-      Object.assign(filter.resources, { uLightMap: next.lightMap.texture.source, uFluence: next.cascades.fluence.source, ...next.fieldAll().resources() });
+      Object.assign(filter.resources, { uLightMap: next.lightMap.texture.source, uFluence: next.cascades.fluence.source, ...fieldResources(next) });
       group.update();
     },
     setAmbient(level, color, lift): void {
@@ -221,6 +221,12 @@ export function createCompositeFilter(world: LightingWorld, explored: Texture): 
   composite.setWorld(world);
   composite.setDarkLooks(darkLooks(SEES_ALL));
   return composite;
+}
+
+/** The world's two wall fields under the names the composite reads them by: the walls that stop light, and those that stop sight. */
+function fieldResources(world: LightingWorld): ReturnType<LightingWorld['fields']['tiles']['resources']> {
+  const { light, sight } = world.fields.bound();
+  return { ...light.resources(), ...sight.resourcesAs('uSightField') };
 }
 
 /** Writes an sRGB colour into `out` in linear light, scaled by `level`. */
