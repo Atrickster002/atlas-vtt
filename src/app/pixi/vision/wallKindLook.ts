@@ -2,10 +2,12 @@ import type { Graphics } from 'pixi.js';
 import type { WallSegment } from '../../types/wallTypes';
 
 /**
- * How the wall editor draws a wall that blocks one thing only. A wall for both is a plain line;
- * one for sight only is long dashes, one for light only dashes and dots in turn. The lengths
- * are screen pixels, so the look reads the same at any zoom, and each stroke lies on a dark
- * casing, so it shows on a pale map as on a dark one.
+ * How the wall editor draws a wall that is not a plain wall. A wall for both is a plain line;
+ * one for sight only is long dashes, one for light only dashes and dots in turn; a limited wall
+ * is a row of dots, in the groups of its dashes where it blocks one thing only (threes for
+ * sight, a pair and a single dot for light). The lengths are screen pixels, so the look reads
+ * the same at any zoom, and each stroke lies on a dark casing, so it shows on a pale map as on
+ * a dark one.
  */
 
 /** Strokes and gaps in turn, in screen pixels. */
@@ -15,10 +17,14 @@ const WIDTH = 3;
 const CASING = 1.25;
 /** The most strokes one wall is drawn with: a long wall seen from close up gets a coarser pattern instead of thousands. */
 const MAX_STROKES = 300;
+/** A limited wall's dots: how far apart on screen, and their radius. */
+const DOT_STEP = 4.5;
+const DOT_RADIUS = 1.6;
+const MAX_DOTS = 600;
 
 /** Whether the wall has a look of its own: the plain line is drawn by the wall renderer. */
 export function hasKindLook(wall: WallSegment): boolean {
-  return wall.blocks !== undefined;
+  return wall.blocks !== undefined || wall.limited === true;
 }
 
 /**
@@ -41,13 +47,34 @@ export function kindStrokes(length: number, zoom: number, blocks: WallSegment['b
   return strokes;
 }
 
+/**
+ * The dots of a limited wall, as distances from its first end: spread evenly over each stroke
+ * of what it blocks, `DOT_STEP` screen pixels apart, one at least to a stroke.
+ */
+export function kindDots(length: number, zoom: number, blocks: WallSegment['blocks'], limited = true): number[] {
+  if (!limited || !(length > 0) || !(zoom > 0)) return [];
+  const step = Math.max(DOT_STEP / zoom, length / MAX_DOTS);
+  return kindStrokes(length, zoom, blocks).flatMap(([from, to]) => {
+    const count = Math.max(1, Math.round((to - from) / step));
+    return Array.from({ length: count }, (_, i) => from + ((i + 0.5) * (to - from)) / count);
+  });
+}
+
 /** Draws `wall` in the look of its kind, in `color`, at `zoom` screen pixels per world pixel. */
 export function drawKindWall(g: Graphics, wall: WallSegment, color: number, zoom: number, alpha = 1): void {
   const dx = wall.p2.x - wall.p1.x, dy = wall.p2.y - wall.p1.y;
   const length = Math.hypot(dx, dy);
   if (!(length > 0)) return;
-  const strokes = kindStrokes(length, zoom, wall.blocks);
   const at = (d: number): [number, number] => [wall.p1.x + (dx / length) * d, wall.p1.y + (dy / length) * d];
+  if (wall.limited) {
+    const dots = kindDots(length, zoom, wall.blocks);
+    for (const d of dots) g.circle(...at(d), (DOT_RADIUS + CASING) / zoom);
+    g.fill({ color: 0x000000, alpha: 0.55 * alpha });
+    for (const d of dots) g.circle(...at(d), DOT_RADIUS / zoom);
+    g.fill({ color, alpha });
+    return;
+  }
+  const strokes = kindStrokes(length, zoom, wall.blocks);
   const path = (): void => {
     for (const [from, to] of strokes) {
       g.moveTo(...at(from));

@@ -148,8 +148,8 @@ export class WallInteraction {
     this.wallRenderer.forceRedraw();
   }
 
-  /** Changes all selected walls alike, as one undo step: the side they let light through, what they block. */
-  updateSelected(changes: Partial<Pick<WallSegment, 'direction' | 'blocks'>>): void {
+  /** Changes all selected walls alike, as one undo step: the side they let light through, what they block, whether they are limited. */
+  updateSelected(changes: Partial<Pick<WallSegment, 'direction' | 'blocks' | 'limited'>>): void {
     const state = this.store.getState();
     runHistoryTransaction(this.store, () => this.selectedWallIds.forEach((id) => state.updateWall(id, changes)));
     this.wallRenderer.forceRedraw();
@@ -198,11 +198,12 @@ export class WallInteraction {
     const pMid2 = { x: wall.p1.x + dx * tEnd, y: wall.p1.y + dy * tEnd };
     const pEnd = { x: wall.p1.x + dx * tEnd, y: wall.p1.y + dy * tEnd };
 
-    // The door and what is left of the wall keep what the wall was: its chain, its direction, what it blocks.
+    // The door and what is left of the wall keep what the wall was: its chain, its direction, what it blocks, limited or not.
     const shared = {
       ...(wall.chainId !== undefined && { chainId: wall.chainId }),
       ...(wall.direction !== undefined && { direction: wall.direction }),
       ...(wall.blocks !== undefined && { blocks: wall.blocks }),
+      ...(wall.limited === true && { limited: true }),
     };
     const doorType = this.doorPlacement.doorType;
 

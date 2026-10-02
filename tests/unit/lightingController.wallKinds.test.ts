@@ -86,3 +86,56 @@ describe('the wall menu\'s Blocks', () => {
     expect(store.getState().objects.walls[door]).toMatchObject({ type: 'door', closed: false, blocks: 'light' });
   });
 });
+
+describe('the wall menu\'s Limited', () => {
+  const LIMITED = 'Limited (see past the first)';
+  const limited = (entries: Entry[]): Entry => entries.find((entry) => entry.label === LIMITED)!;
+
+  it('is a switch that makes a wall limited as one undo step, and takes it back', () => {
+    const { wall, menu, steps, store } = withWalls();
+    expect(limited(menu(200, 100)).checked).toBe(false);
+    limited(menu(200, 100)).onClick!();
+    expect(store.getState().objects.walls[wall]!.limited).toBe(true);
+    expect(steps()).toBe(1);
+    expect(limited(menu(200, 100)).checked).toBe(true);
+    limited(menu(200, 100)).onClick!();
+    expect('limited' in store.getState().objects.walls[wall]!).toBe(false);
+    expect(steps()).toBe(2);
+  });
+
+  it('is off while the selected walls differ, and then makes them all limited in one undo step', () => {
+    const { wall, door, menu, steps, store, wallDown } = withWalls();
+    store.getState().updateWall(door, { limited: true });
+    const before = steps();
+    wallDown(200, 100, event(200, 100));
+    wallDown(200, 500, { ...event(200, 500), ctrlKey: true } as never);
+    const entries = menu(200, 100);
+    expect(limited(entries).checked).toBe(false);
+    limited(entries).onClick!();
+    expect([store.getState().objects.walls[wall]!.limited, store.getState().objects.walls[door]!.limited]).toEqual([true, true]);
+    expect(steps()).toBe(before + 1);
+    // Both limited: the switch is on, and takes it from both.
+    limited(menu(200, 100)).onClick!();
+    expect(['limited' in store.getState().objects.walls[wall]!, 'limited' in store.getState().objects.walls[door]!]).toEqual([false, false]);
+  });
+
+  it('goes together with what a wall blocks', () => {
+    const { wall, menu, store } = withWalls();
+    limited(menu(200, 100)).onClick!();
+    blocksOf(menu(200, 100)).find((entry) => entry.label === 'Sight only')!.onClick!();
+    expect(store.getState().objects.walls[wall]).toMatchObject({ limited: true, blocks: 'sight' });
+    expect(checked(menu(200, 100))).toEqual(['Sight only']);
+    expect(limited(menu(200, 100)).checked).toBe(true);
+  });
+
+  it('stays with the wall when a door is placed in it: the door and both remainders are limited and block what the wall did', () => {
+    const { wall, menu, store, wallDown } = withWalls();
+    store.getState().updateWall(wall, { limited: true, blocks: 'light' });
+    menu(200, 100).find((entry) => entry.label === 'Place door')!.onClick!();
+    wallDown(200, 100, event(200, 100));
+    const walls = Object.values(store.getState().objects.walls).filter((w) => w.p1.y === 100);
+    expect(walls.map((w) => w.type).sort()).toEqual(['door', 'solid', 'solid']);
+    for (const w of walls) expect(w).toMatchObject({ limited: true, blocks: 'light' });
+  });
+});
+

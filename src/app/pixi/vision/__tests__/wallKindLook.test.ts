@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { WallSegment } from '../../../types/wallTypes';
-import { hasKindLook, kindStrokes } from '../wallKindLook';
+import { hasKindLook, kindDots, kindStrokes } from '../wallKindLook';
 
 const wall = (extra: Partial<WallSegment>): WallSegment => ({ id: 'w', kind: 'wall', type: 'solid', p1: { x: 0, y: 0 }, p2: { x: 100, y: 0 }, ...extra });
 /** Lengths of the strokes and of the gaps between them, on screen. */
@@ -47,5 +47,34 @@ describe('the look of a wall that blocks one thing', () => {
     expect(kindStrokes(0, 1, 'sight')).toEqual([[0, 0]]);
     expect(kindStrokes(100, 0, 'sight')).toEqual([[0, 100]]);
     expect(kindStrokes(Number.NaN, 1, 'light')).toEqual([[0, 0]]);
+  });
+
+  it('is a row of dots for a limited wall, as far apart on screen at any zoom', () => {
+    expect(hasKindLook(wall({ limited: true }))).toBe(true);
+    for (const zoom of [0.25, 1, 4]) {
+      const dots = kindDots(450 / zoom, zoom, undefined);
+      const steps = new Set(dots.slice(1).map((d, i) => Math.round((d - dots[i]!) * zoom * 100) / 100));
+      expect([zoom, [...steps]]).toEqual([zoom, [4.5]]);
+      expect(dots[0]! * zoom).toBeCloseTo(2.25, 6);
+    }
+    expect(kindDots(100, 1, undefined, false)).toEqual([]);
+  });
+
+  it('groups a limited wall\'s dots by what it blocks: threes for sight only, a pair and a single dot for light only', () => {
+    const groups = (dots: number[]): number[] => {
+      const sizes = [1];
+      dots.slice(1).forEach((d, i) => {
+        if (d - dots[i]! < 5.5) sizes[sizes.length - 1]!++;
+        else sizes.push(1);
+      });
+      return sizes;
+    };
+    expect(groups(kindDots(190, 1, 'sight')).slice(0, 4)).toEqual([3, 3, 3, 3]);
+    expect(groups(kindDots(200, 1, 'light')).slice(0, 4)).toEqual([2, 1, 2, 1]);
+  });
+
+  it('draws a long limited wall seen from close up with no more than hundreds of dots', () => {
+    expect(kindDots(8000, 8, undefined).length).toBeLessThanOrEqual(600);
+    expect(kindDots(8000, 8, 'sight').length).toBeLessThanOrEqual(900);
   });
 });
