@@ -99,7 +99,7 @@ describe.each([false, true])('thumbnail of a scene with dynamic lighting (antial
     // Each overlay covers the map in magenta: one that reached the picture would light its dark floor.
     const dark = inThumbnail(DARK_AT, SCENE_CARD);
     expect(brightnessAt(await thumbnail(), dark.x, dark.y)).toBeLessThan(70);
-    expect(layers.map((layer) => layer.visible)).toEqual([true, true, false, true, true, true, true]);
+    expect(layers.map((layer) => layer.visible)).toEqual([true, true, false, true, true, true, true, true]);
     expect(largestDifference(scene.onScreen(SCENE_CARD), before)).toBe(0);
   });
 
