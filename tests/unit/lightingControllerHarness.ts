@@ -15,19 +15,24 @@ import { createInMemoryApp } from '../mocks/inMemoryVault';
 import { stubJsdomGraphics } from '../mocks/jsdomGraphics';
 
 vi.mock('../../src/app/pixi/lighting/createSceneLighting', () => ({
-  createSceneLighting: (deps: SceneLightingDeps): SceneLightingView => ({
-    modeLayer: { visible: false },
-    isEnabled: () => deps.store.getState().lighting.enabled,
-    currentSight: () => SEES_ALL,
-    lightReaches: () => [],
-    ambientLight: () => ({ ambient: 1 }),
-    refreshBounds: vi.fn(),
-    resetExplored: vi.fn(),
-    editExplored: vi.fn(() => false),
-    beforeMapUnload: vi.fn(),
-    renderForFrame: (_frame, render) => render(),
-    destroy: vi.fn(),
-  }),
+  createSceneLighting: (deps: SceneLightingDeps): SceneLightingView => {
+    // As the engine's view does: a lit scene is built while the view is constructed, and its sight reported.
+    if (deps.store.getState().lighting.enabled) deps.onSightChange?.();
+    return lightingView(deps);
+  },
+}));
+const lightingView = vi.hoisted(() => (deps: SceneLightingDeps): SceneLightingView => ({
+  modeLayer: { visible: false },
+  isEnabled: () => deps.store.getState().lighting.enabled,
+  currentSight: () => SEES_ALL,
+  lightReaches: () => [],
+  ambientLight: () => ({ ambient: 1 }),
+  refreshBounds: vi.fn(),
+  resetExplored: vi.fn(),
+  editExplored: vi.fn(() => false),
+  beforeMapUnload: vi.fn(),
+  renderForFrame: (_frame, render) => render(),
+  destroy: vi.fn(),
 }));
 vi.mock('../../src/app/utils/activeLeafGuard', () => ({ isActiveAtlasLeaf: () => true }));
 const openContextMenuGlobal = vi.hoisted(() => vi.fn());

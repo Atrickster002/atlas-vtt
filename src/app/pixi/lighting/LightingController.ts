@@ -72,6 +72,12 @@ export class LightingController {
   private readonly perceptions = new PerceptionMemo();
   /** The sight rules of the map's collection; sight is worked out anew when they differ. */
   private readonly rules: SightRulesWatch;
+  /**
+   * Every part exists. The lighting view builds a scene that is already loaded while it is
+   * constructed (lighting switched on for an open map) and reports its sight then, before the
+   * door badges and the sight aids are there: that report is made up for once they are.
+   */
+  private constructed = false;
 
   constructor(private readonly deps: LightingControllerDeps) {
     const { viewport, app, store, eventBus, obsApp } = deps;
@@ -128,6 +134,8 @@ export class LightingController {
     }));
     this.listen();
     this.session.sync();
+    this.constructed = true;
+    this.onSightChange();
   }
 
   /** Routes the pointer from the token renderer's dispatch: lights and door badges with any tool, walls with the lighting tool. */
@@ -239,6 +247,7 @@ export class LightingController {
 
   /** In the players' view, tokens show and hide as the sight they are checked against changes; in the GM's, the sight aids follow. The players' door badges follow in both. */
   private onSightChange(): void {
+    if (!this.constructed) return;
     this.doors.refreshPlayers();
     if (this.tokens && this.session.active) this.tokens.refreshPlayerSight();
     else this.sightAids.schedule();
