@@ -349,6 +349,21 @@ describe('a Universal VTT file that is refused', () => {
     expect(filesOf(b)).toEqual(before);
   });
 
+  it('when the collection is deleted while the image is converted, does not bring it back', async () => {
+    const b = await bench();
+    b.convertImage.mockImplementation(async (image) => {
+      await b.assets.deleteCollection(COLLECTION);
+      return converted(image);
+    });
+
+    expect(problemOf(await importUvttFile(b.deps, uvttFile(cryptFile()), COLLECTION))).toBe('The collection no longer exists. Choose another collection and try again.');
+
+    expect(filesOf(b).filter((path) => path.includes(COLLECTION) || path.startsWith('atlas-vtt/assets/'))).toEqual([]);
+    expect([...b.vault.folders].filter((path) => path.includes(COLLECTION))).toEqual([]);
+    await b.assets.reconcileWithVault();
+    expect((await b.assets.getCollections()).map((collection) => collection.id)).not.toContain(COLLECTION);
+  });
+
   it('when the workers cannot decode its image, changes nothing', async () => {
     const b = await bench();
     const before = filesOf(b);

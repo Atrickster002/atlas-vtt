@@ -42,6 +42,7 @@ export type UvttImportResult = UvttImported | UvttRefusal;
 const refused = (problem: string): UvttRefusal => ({ ok: false, problem });
 
 const UNREADABLE_IMAGE = 'The map image in the file could not be read.';
+const COLLECTION_GONE = 'The collection no longer exists. Choose another collection and try again.';
 const CROWDED_WALLS = 'The walls in the file end too close together in too many places for Atlas to join them.';
 
 /**
@@ -83,6 +84,8 @@ type Written = { ok: true; name: string; scenePath: string } | UvttRefusal;
 function writeImport({ app, assetService, thumbnails }: UvttImportDeps, plan: ImportPlan): Promise<Written> {
   const { collection, scene } = plan;
   return assetService.runExclusive(async (): Promise<Written> => {
+    // Deleted while the image was converted: writing now would bring its folders back
+    if (!(await assetService.getCollection(collection.id))) return refused(COLLECTION_GONE);
     const files = new TransferFiles(app);
     const images: string[] = [];
     try {
@@ -143,7 +146,7 @@ async function importFile(deps: UvttImportDeps, file: File, collectionId: string
   if (typeof sourceCell !== 'number') return sourceCell;
 
   const collection = await deps.assetService.getCollection(collectionId);
-  if (!collection) return refused('The collection no longer exists. Choose another collection and try again.');
+  if (!collection) return refused(COLLECTION_GONE);
 
   // Where things lie on the map does not depend on the size the image is saved at
   const unit = resolveMeasurementSettings(deps.assetService.getCollectionSettings(collection.id).gridDefaults, null);
