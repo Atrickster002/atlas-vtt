@@ -1,7 +1,7 @@
 /// <reference types="vite/client" />
 import { RenderTexture } from 'pixi.js';
 import { describe, expect, it, vi } from 'vitest';
-import { sealTolerance, wallBand, wallCore, worldTexel } from '../../../../lighting/lightingConstants';
+import { DARKNESS, sealTolerance, wallBand, wallCore, worldTexel } from '../../../../lighting/lightingConstants';
 import { sealWalls } from '../../../../lighting/sealWalls';
 import type { WallSegment } from '../../../../types/wallTypes';
 import { crossedByHand, grazes, turningPoints } from '../../../../vision/__tests__/byHand';
@@ -29,6 +29,8 @@ interface Report {
   /** Rooms inside a second ring of limited walls, and rooms inside a ring of solid walls. */
   hedged: number;
   walled: number;
+  /** Rooms whose ring no light passed (as one hedge with a wall of the room): there the picture's light, bounce and all, and what a darkness changes are held to nothing past the ring. */
+  closed: number;
   /** Pixels past the second ring, and those lit, seen, seen by darkvision, shown as a footprint, remembered, or changed by a darkness. */
   checked: number;
   /** Of every sixteenth of those, the pixels a way reaches that crossed the ring where it runs together with a wall of the room: one hedge. */
@@ -90,7 +92,7 @@ async function fuzz({ seed, trials, open = false, bounds = { width: 2048, height
     engine.setEnabled(true);
     engine.setMode('player');
     const rand = rng(seed + 7);
-    const report: Report = { rooms: 0, hedged: 0, walled: 0, checked: 0, oneHedge: 0, lightLeaks: 0, sightLeaks: 0, senseLeaks: 0, spotLeaks: 0, memoryLeaks: 0, darkLeaks: 0, litBetween: 0, seenBetween: 0, ruleLit: 0, lightWrong: 0, ruleSight: 0, sightWrong: 0 };
+    const report: Report = { rooms: 0, hedged: 0, walled: 0, closed: 0, checked: 0, oneHedge: 0, lightLeaks: 0, sightLeaks: 0, senseLeaks: 0, spotLeaks: 0, memoryLeaks: 0, darkLeaks: 0, litBetween: 0, seenBetween: 0, ruleLit: 0, lightWrong: 0, ruleSight: 0, sightWrong: 0 };
     for (const room of fuzzRooms(seed, trials)) {
       const texel = worldTexel(bounds);
       const inner = roomOutline(room);
@@ -132,7 +134,7 @@ async function fuzz({ seed, trials, open = false, bounds = { width: 2048, height
       const turning = turningPoints(walls);
       const map = (engine as unknown as { world: { lightMap: { texture: RenderTexture } } }).world.lightMap.texture;
       const texels = readFloats(renderer, map);
-      let lightPassed = 0, pictureLit = 0;
+      let lightPassed = 0, pictureLit = 0, pictureDark = 0;
       for (let i = 0; i < texels.length; i += 4) {
         if (texels[i]! <= 0) continue;
         const at: P = [((i / 4) % map.source.pixelWidth + 0.5) * texel, (Math.floor(i / 4 / map.source.pixelWidth) + 0.5) * texel];
@@ -190,8 +192,9 @@ async function fuzz({ seed, trials, open = false, bounds = { width: 2048, height
               if (sum(sensed, o) > 0 && !sightPasses()) report.senseLeaks++;
               if (sum(spotted, o) > 0 && !spots.some((spot) => passes(spot, 'sight', filter + 1))) report.spotLeaks++;
             }
-            if (d > memoryBound && sum(remembered, o) > 0 && !passes(sources[0]!.origin, 'sight', memoryBound + 1)) report.memoryLeaks++;
-            if (d > wallCore(texel) + filter && Math.abs(sum(day, o) - sum(darkened, o)) > 3 && !passes(darkness, 'light', wallCore(texel) + filter + 2)) report.darkLeaks++;
+            // Where memory or darkness passed the ring as one hedge, its edge lies on open floor: there the memory's blur reaches three of its texels, and a darkness its rim.
+            if (d > memoryBound && sum(remembered, o) > 0 && !passes(sources[0]!.origin, 'sight', 3 * memoryTexel + filter + 1)) report.memoryLeaks++;
+            if (d > wallCore(texel) + filter && Math.abs(sum(day, o) - sum(darkened, o)) > 3 && !passes(darkness, 'light', DARKNESS.rim + 2 * texel + filter + 2)) pictureDark++;
           }
           if (within && !insidePolygon(p, inner)) {
             if (sum(lit, o) > 0) report.litBetween++;
@@ -213,8 +216,13 @@ async function fuzz({ seed, trials, open = false, bounds = { width: 2048, height
           }
         }
       }
-      // Where no light passed the ring, nothing of the picture is lit past it, bounce included.
-      if (lightPassed === 0) report.lightLeaks += pictureLit;
+      // Where no light passed the ring, nothing of the picture is lit past it, bounce included, and a
+      // darkness changes nothing there: light that passed it bounces, and less so with a darkness about.
+      if (lightPassed === 0) {
+        report.closed++;
+        report.lightLeaks += pictureLit;
+        report.darkLeaks += pictureDark;
+      }
     }
     return report;
   } finally {
@@ -236,6 +244,7 @@ describe('leak fuzz: limited walls', () => {
     console.info(`leak fuzz (limited walls): ${JSON.stringify({ trials: TRIALS, ...report })}`);
     expect(report.rooms).toBeGreaterThan(TRIALS * 0.6);
     expect(Math.min(report.hedged, report.walled)).toBeGreaterThan(TRIALS / 4);
+    expect(report.closed).toBeGreaterThan(report.rooms / 2);
     expect(report.checked).toBeGreaterThan(TRIALS * 1000);
     expect(report.litBetween).toBeGreaterThan(TRIALS * 500);
     expect(report.seenBetween).toBeGreaterThan(TRIALS * 500);
