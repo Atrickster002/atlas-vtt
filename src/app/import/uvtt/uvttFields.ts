@@ -18,6 +18,11 @@ export function isAbsent(value: unknown): value is null | undefined {
   return value === undefined || value === null;
 }
 
+/** A field as the object itself holds it; what an object inherits is not the file's. */
+export function own(record: Record<string, unknown>, key: string): unknown {
+  return Object.hasOwn(record, key) ? record[key] : undefined;
+}
+
 export function readRecord(value: unknown, what: string): Record<string, unknown> {
   return isRecord(value) ? value : refuse(`${what} is missing or not an object.`);
 }
@@ -39,8 +44,8 @@ export function readPoint(value: unknown, what: string): UvttPoint {
   if (!isRecord(value)) return refuse(`${what} is missing or not a position.`);
   const { distance } = UVTT_LIMITS;
   return {
-    x: readNumber(value.x, `${what} (x)`, -distance, distance),
-    y: readNumber(value.y, `${what} (y)`, -distance, distance),
+    x: readNumber(own(value, 'x'), `${what} (x)`, -distance, distance),
+    y: readNumber(own(value, 'y'), `${what} (y)`, -distance, distance),
   };
 }
 

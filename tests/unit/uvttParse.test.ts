@@ -278,10 +278,27 @@ describe('what a Universal VTT file cannot do', () => {
     }
   });
 
-  it('does not read fields from the prototype of the file\'s objects', () => {
-    const text = JSON.stringify(cryptFile()).replace('"range":6', '"__proto__":{"range":6}');
-
-    expect(problemOf(text)).toBe('The range of light 1 is missing or not a number.');
+  it('reads only what the file itself holds, whatever other code has put on every object', () => {
+    const polluted: Record<string, unknown> = {
+      x: 3, y: 3, range: 6, position: { x: 1, y: 1 }, bounds: [{ x: 1, y: 1 }, { x: 2, y: 1 }],
+      map_size: { x: 10, y: 8 }, resolution: { map_size: { x: 10, y: 8 } }, image: cryptFile().image,
+      lights: [{ position: { x: 1, y: 1 }, range: 2 }], baked_lighting: true, ambient_light: 'ff000000', closed: false,
+    };
+    const prototype = Object.prototype as Record<string, unknown>;
+    Object.assign(prototype, polluted);
+    try {
+      expect(problemOf(cryptSetting('lights.0.range', undefined))).toBe('The range of light 1 is missing or not a number.');
+      expect(problemOf(cryptSetting('lights.0.position', undefined))).toBe('The position of light 1 is missing or not a position.');
+      expect(problemOf(cryptSetting('line_of_sight.0.2.x', undefined))).toBe('Point 3 of wall line 1 (x) is missing or not a number.');
+      expect(problemOf(cryptSetting('portals.0.bounds', undefined))).toBe('Door 1 does not have two ends.');
+      expect(problemOf(cryptSetting('resolution.map_size', undefined))).toBe('The map size is missing or not an object.');
+      expect(problemOf(cryptSetting('resolution', undefined))).toBe('The map\'s resolution is missing or not an object.');
+      expect(problemOf(cryptSetting('image', undefined))).toBe('The file holds no map image.');
+      const bare = read(cryptWith((file) => { delete file.lights; delete file.environment; delete (file.portals as Array<Record<string, unknown>>)[0]!.closed; }));
+      expect(bare).toMatchObject({ lights: [], bakedLighting: false, ambientLight: null, portals: [{ closed: true }] });
+    } finally {
+      for (const key of Object.keys(polluted)) delete prototype[key];
+    }
   });
 });
 

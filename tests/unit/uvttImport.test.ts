@@ -412,6 +412,26 @@ describe('a Universal VTT file that is refused', () => {
     expect(b.convertImage).not.toHaveBeenCalled();
   });
 
+  it('when it is too large, is not read at all', async () => {
+    const b = await bench();
+    const file = uvttFile(cryptFile());
+    Object.defineProperty(file, 'size', { value: UVTT_LIMITS.fileBytes + 1 });
+    const read = vi.fn((): Promise<never> => Promise.reject(new Error('The file was read')));
+    Object.assign(file, { text: read, arrayBuffer: read, stream: read, slice: read });
+
+    expect(problemOf(await importUvttFile(b.deps, file, COLLECTION))).toBe('The file is larger than 150 MB.');
+
+    expect(read).not.toHaveBeenCalled();
+  });
+
+  it('when it is just within the size limit, is read', async () => {
+    const b = await bench();
+    const file = uvttFile(cryptFile());
+    Object.defineProperty(file, 'size', { value: UVTT_LIMITS.fileBytes });
+
+    expect(arrived(await importUvttFile(b.deps, file, COLLECTION)).name).toBe('Crypt');
+  });
+
   it('never throws, even when the file cannot be read at all', async () => {
     const b = await bench();
     const file = uvttFile(cryptFile());
@@ -478,6 +498,24 @@ describe('an import that fails half way', () => {
     expect(problem).toMatch(/^The map could not be saved\. These files could not be removed again: /);
     expect(problem).toContain(`${SCENES}/Crypt.atlasmap`);
     expect(await recordsOf(b)).toEqual([]);
+  });
+
+  it('names the image and its thumbnail when those are what it could not remove again', async () => {
+    const b = await bench();
+    const remove = vi.spyOn(b.vault.app.fileManager, 'trashFile');
+    const removeForReal = remove.getMockImplementation()!;
+    remove.mockImplementation(async (file) => {
+      if (file.path.startsWith('atlas-vtt/assets/')) throw new Error('EPERM');
+      return removeForReal(file);
+    });
+
+    const problem = problemOf(await failingAt(b, /\.atlasmap$/, 'create'));
+
+    const images = filesOf(b).filter((path) => path.startsWith('atlas-vtt/assets/'));
+    expect(images).toHaveLength(2);
+    expect(images.some((path) => path.includes('/thumbnails/'))).toBe(true);
+    expect(problem).toBe(`The map could not be saved. These files could not be removed again: ${[...images].sort((a, b) => Number(a.includes('/thumbnails/')) - Number(b.includes('/thumbnails/'))).join(', ')}.`);
+    expect(filesOf(b).filter((path) => path.endsWith('.atlasmap'))).toEqual([]);
   });
 });
 
