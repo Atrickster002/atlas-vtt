@@ -88,9 +88,8 @@ describe('importing maps in the asset manager', () => {
   let outside: HTMLElement;
 
   beforeEach(() => {
-    container = document.body.appendChild(document.createElement('div'));
-    container.className = 'atlas-asset-manager-container';
-    outside = document.body.appendChild(document.createElement('div'));
+    container = document.body.createDiv({ cls: 'atlas-asset-manager-container' });
+    outside = document.body.createDiv();
   });
   afterEach(() => { container.remove(); outside.remove(); });
 

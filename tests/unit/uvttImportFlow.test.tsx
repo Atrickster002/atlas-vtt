@@ -1,6 +1,6 @@
 import { Blob as NodeBlob, File as NodeFile } from 'node:buffer';
 import { cleanup, renderHook, waitFor } from '@testing-library/react';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest';
 import type { TFile } from 'obsidian';
 import { optimizeImage } from '../../src/app/imageProcessing/imageProcessing';
 import { useUvttImport } from '../../src/app/packages/components/asset-manager/hooks/useUvttImport';
@@ -48,7 +48,8 @@ function drop(files: File[]): void {
   container.dispatchEvent(event);
 }
 
-const refreshes = (): number => vi.mocked(vault.app.workspace.trigger).mock.calls.filter(([name]) => name === 'atlas-vtt:refresh-assets').length;
+let trigger: MockInstance<(name: string, ...data: unknown[]) => void>;
+const refreshes = (): number => trigger.mock.calls.filter(([name]) => name === 'atlas-vtt:refresh-assets').length;
 
 beforeEach(async () => {
   vi.clearAllMocks();
@@ -62,9 +63,9 @@ beforeEach(async () => {
   assets = AssetService.getInstance(vault.app);
   await assets.initialize();
   await assets.createCollection(COLLECTION);
-  vi.mocked(vault.app.workspace.trigger).mockClear();
-  container = document.body.appendChild(document.createElement('div'));
-  container.className = 'atlas-asset-manager-container';
+  trigger = vi.spyOn(vault.app.workspace, 'trigger');
+  trigger.mockClear();
+  container = document.body.createDiv({ cls: 'atlas-asset-manager-container' });
   renderHook(() => useUvttImport({ app: vault.app, assetService: assets, isOpen: true, isMapCreatorOpen: false, isBusy: false, collectionId: COLLECTION, onSceneOpened }));
 });
 afterEach(() => { cleanup(); container.remove(); vi.unstubAllGlobals(); vi.restoreAllMocks(); AssetService.resetInstance(); });
