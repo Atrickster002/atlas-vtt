@@ -5,6 +5,7 @@ import type { WallChannel, WallSegment } from '../../types/wallTypes';
 import { lightLevelAt } from '../lightLevels';
 import { computeSight, lightReach } from '../sight';
 import { blocksFrom, computeVisibility, pointInPolygon } from '../visibility';
+import { crossedByHand, distanceToSegment as distance } from './byHand';
 
 let id = 0;
 function wall(x1: number, y1: number, x2: number, y2: number, overrides: Partial<WallSegment> = {}): WallSegment {
@@ -196,19 +197,6 @@ describe('limited walls against counting every crossing by hand', () => {
     return walls;
   }
 
-  const distance = (p: Point, a: Point, b: Point): number => {
-    const dx = b.x - a.x, dy = b.y - a.y;
-    const t = Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / (dx * dx + dy * dy || 1)));
-    return Math.hypot(p.x - a.x - dx * t, p.y - a.y - dy * t);
-  };
-  const crosses = (a: Point, b: Point, w: WallSegment): boolean => {
-    const rx = b.x - a.x, ry = b.y - a.y, sx = w.p2.x - w.p1.x, sy = w.p2.y - w.p1.y;
-    const den = rx * sy - ry * sx;
-    if (Math.abs(den) < 1e-12) return false;
-    const t = ((w.p1.x - a.x) * sy - (w.p1.y - a.y) * sx) / den, u = ((w.p1.x - a.x) * ry - (w.p1.y - a.y) * rx) / den;
-    return t > 0 && t <= 1 && u >= 0 && u <= 1;
-  };
-
   it.each(['sight', 'light'] as WallChannel[])('agrees for %s at every point that is clear of the walls\' ends and lines', (channel) => {
     let asked = 0, seenBehindOne = 0;
     for (let seed = 1; seed <= 150; seed++) {
@@ -224,10 +212,11 @@ describe('limited walls against counting every crossing by hand', () => {
         const far = { x: from.x + Math.cos(angle) * 900, y: from.y + Math.sin(angle) * 900 };
         // A ray that grazes a wall's end, or a point on a wall's line, is anyone's to decide.
         if (counted.some((w) => distance(w.p1, from, far) < 0.5 || distance(w.p2, from, far) < 0.5 || distance(point, w.p1, w.p2) < 0.5)) continue;
-        const crossed = counted.filter((w) => crosses(from, point, w));
-        const visible = !crossed.some((w) => !w.limited) && crossed.length < 2;
+        // Limited walls that run together are one hedge (`byHand.ts`).
+        const crossed = crossedByHand(from, point, walls, channel);
+        const visible = !crossed.solid && crossed.limited < 2;
         asked++;
-        if (visible && crossed.length === 1) seenBehindOne++;
+        if (visible && crossed.limited === 1) seenBehindOne++;
         expect([seed, i, channel, pointInPolygon(point, seen)]).toEqual([seed, i, channel, visible]);
       }
     }

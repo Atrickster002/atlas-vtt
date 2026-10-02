@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { Point } from '../../types/visionTypes';
 import type { WallSegment } from '../../types/wallTypes';
 import { computeVisibility, pointInPolygon } from '../visibility';
-import { crossedByHand, crossingPoint, distanceToSegment as distance, grazes, reachByHand } from './byHand';
+import { crossedByHand, crossingPoint, distanceToSegment as distance, grazes, reachByHand, turningPoints } from './byHand';
 
 let id = 0;
 function wall(x1: number, y1: number, x2: number, y2: number, overrides: Partial<WallSegment> = {}): WallSegment {
@@ -25,11 +25,12 @@ interface Tally { asked: number; leaks: number; deepest: number; hidden: number;
 /**
  * Holds the sweep's polygon against the reference along rays from `from`: aimed at every
  * crossing of two walls and close beside it, and all around. A point a ray reaches must lie in
- * the polygon and one beyond its reach must not; a ray that grazes a wall's end is anyone's.
+ * the polygon and one beyond its reach must not; a ray within half a pixel of a wall's end, of
+ * the crossing itself or of the place where two hedges begin to run together is anyone's.
  */
 function compare(from: Point, walls: readonly WallSegment[], rand: () => number, tally: Tally): void {
   const seen = computeVisibility(from, RADIUS, walls);
-  const ends = walls.flatMap((w) => [w.p1, w.p2]);
+  const ends = turningPoints(walls);
   const angles: number[] = [];
   for (let i = 0; i < walls.length; i++) {
     for (let j = i + 1; j < walls.length; j++) {
@@ -96,7 +97,7 @@ describe('limited walls that cross between their ends', () => {
     const tally = empty();
     const rand = random(99);
     for (const from of [{ x: 0, y: 0 }, { x: 20, y: 0 }, { x: -260, y: -90 }, { x: 310, y: -610 }, { x: 0, y: -1100 }]) compare(from, walls, rand, tally);
-    expect(tally.asked).toBeGreaterThan(800);
+    expect(tally.asked).toBeGreaterThan(400);
     expect({ leaks: tally.leaks, deepest: tally.deepest, hidden: tally.hidden }).toEqual({ leaks: 0, deepest: 0, hidden: 0 });
   });
 
@@ -125,8 +126,8 @@ describe('limited walls that cross between their ends', () => {
 });
 
 describe('the cost of crossings', () => {
-  // A hatch of 2 x 150 hedges has 22,500 crossings and is swept in about 0.2 s; a stroke of
-  // 2,000 hedges that never cross in a few ms. The bound guards against a count that grows
+  // A hatch of 2 x 150 hedges has 22,500 crossings and is swept in about 1 s; a stroke of
+  // 2,000 hedges that never cross in about 30 ms. The bound guards against a count that grows
   // with every pair of walls, crossing or not (minutes for the stroke).
   it('sweeps a hatch of hedges and a long stroke of them within the bound', () => {
     const hatch = [

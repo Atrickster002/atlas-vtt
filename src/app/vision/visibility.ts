@@ -2,6 +2,7 @@ import type { Point } from '../types/visionTypes';
 import type { WallChannel, WallSegment } from '../types/wallTypes';
 import { blocksNothing, concerns } from '../lighting/segments';
 import { angleTo, distSqToSegment, isOnBlockingSide, raySegmentIntersect } from './visionGeometry';
+import { limitedJoins } from './limitedJoins';
 import { limitedCrossings, limitedHit, secondCrossing, type LimitedHit } from './limitedRays';
 import { clipToCone, type VisionCone } from './visionCone';
 
@@ -87,10 +88,13 @@ function sweep(origin: Point, radius: number, walls: readonly WallSegment[], cha
       angles.push(angle - RAY_OFFSET, angle, angle + RAY_OFFSET);
     }
   }
-  // Where a limited wall crosses another, the wall a ray stops at changes; the reach does not jump there, so one ray will do.
-  if (counting) {
-    for (const point of limitedCrossings(blocking)) {
-      angles.push(angleTo(origin, point));
+  const joins = counting ? limitedJoins(blocking.filter((wall) => wall.limited)) : null;
+  if (joins) {
+    // Where two limited walls begin or cease to run together, a ray to one side counts one hedge
+    // and to the other two; where a limited wall crosses another, the two swap their order.
+    for (const point of [...limitedCrossings(blocking), ...joins.points]) {
+      const angle = angleTo(origin, point);
+      angles.push(angle - RAY_OFFSET, angle, angle + RAY_OFFSET);
     }
   }
   angles.sort((a, b) => a - b);
@@ -106,7 +110,7 @@ function sweep(origin: Point, radius: number, walls: readonly WallSegment[], cha
     let reach = radius;
     hits.length = 0;
     const meet = (wall: WallSegment): void => {
-      if (counting && wall.limited) {
+      if (joins && wall.limited) {
         const hit = limitedHit(origin, dx, dy, wall);
         if (hit) hits.push(hit);
       } else reach = Math.min(reach, raySegmentIntersect(origin, angle, wall.p1, wall.p2));
@@ -115,7 +119,7 @@ function sweep(origin: Point, radius: number, walls: readonly WallSegment[], cha
     for (const span of seam) {
       if (angle >= span.from - SPAN_SLACK || angle <= span.to + SPAN_SLACK) meet(span.wall);
     }
-    const second = counting ? secondCrossing(hits) : null;
+    const second = joins ? secondCrossing(hits, joins) : null;
     let stop: readonly WallSegment[] | null = null;
     if (second !== null && second.t < reach) {
       reach = second.t;

@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { wallBand, worldTexel } from '../../../../lighting/lightingConstants';
 import { sealedWalls } from '../../../../lighting/sealWalls';
 import type { WallSegment } from '../../../../types/wallTypes';
-import { grazes, turningPoints } from '../../../../vision/__tests__/byHand';
+import { crossedByHand, grazes, turningPoints } from '../../../../vision/__tests__/byHand';
 import { lightLevelAt } from '../../../../vision/lightLevels';
 import { SEES_ALL, computeSight, lightReach, type Sight } from '../../../../vision/sight';
 import { distSqToSegment } from '../../../../vision/visionGeometry';
@@ -198,15 +198,17 @@ describe('limited walls in the picture', () => {
     cleanup.push(() => engine.destroy());
     engine.setEnabled(true);
     let rooms = 0, lit = 0;
-    const stray: string[] = [];
+    let stray = 0;
+    const first: string[] = [];
     for (const room of fuzzRooms(29, 40)) {
       if (!room.lights.every((at) => insidePolygon(at, roomOutline(room))) || !insidePolygon(room.centre, room.outline)) continue;
-      rooms++;
       const [cx, cy] = room.centre;
       const grown = (at: { x: number; y: number }): { x: number; y: number } => ({ x: cx + (at.x - cx) * 1.3, y: cy + (at.y - cy) * 1.3 });
       const ring = room.walls.slice(0, room.roomWallCount).map(({ direction: _direction, ...wall }): WallSegment => ({ ...wall, id: `ring:${wall.id}`, p1: grown(wall.p1), p2: grown(wall.p2), limited: true }));
+      rooms++;
       const walls = sealedWalls([...room.walls.map((wall): WallSegment => ({ ...wall, limited: true })), ...ring], worldTexel(big));
       const outer = ring.flatMap((wall): P[] => [[wall.p1.x, wall.p1.y], [wall.p2.x, wall.p2.y]]);
+      const turning = turningPoints(walls);
       for (const [lx, ly] of room.lights) {
         engine.update({ bounds: big, albedo: null, walls, lights: [{ ...torch, x: lx, y: ly, bright: 400, dim: 800 }], sight: SEES_ALL, sightRadius: 20, ambient: 0 });
         const map = (engine as unknown as { world: { lightMap: { texture: RenderTexture } } }).world.lightMap.texture;
@@ -216,13 +218,16 @@ describe('limited walls in the picture', () => {
           if (texels[i]! <= 0) continue;
           const at: P = [((i / 4) % width) * 2 + 1, Math.floor(i / 4 / width) * 2 + 1];
           if (insidePolygon(at, outer)) lit++;
-          // A texel within the wall's own width of the ring is the wall's, as with any wall.
-          else if (distToOutline(at, outer) > 3) stray.push(`${rooms}: ${at.join(',')}`);
+          // A texel within the wall's own width of the ring is the wall's, as with any wall; where the ring runs together with a wall of the room, the two are one hedge.
+          else if (distToOutline(at, outer) > 3 && crossedByHand({ x: lx, y: ly }, { x: at[0], y: at[1] }, walls, 'light').limited > 1 && !grazes({ x: lx, y: ly }, { x: at[0], y: at[1] }, turning, 1)) {
+            // Counted, with the first few named: a leak lights thousands of texels.
+            if (++stray <= 5) first.push(`${rooms}: ${at.join(',')}`);
+          }
         }
       }
     }
     expect(rooms).toBeGreaterThan(20);
     expect(lit).toBeGreaterThan(1_000_000);
-    expect(stray).toEqual([]);
+    expect({ stray, first }).toEqual({ stray: 0, first: [] });
   });
 });

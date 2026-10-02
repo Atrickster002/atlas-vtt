@@ -67,6 +67,30 @@ export function hedgeOnWall(rand: () => number): Shape {
   return { walls, places };
 }
 
-export const SHAPES = { crossingHedges, hedgeOnWall } as const;
+/**
+ * Two or three rows of hedges, each drawn in strokes that start a little before or after the
+ * last one ended and beside it (short of it, past it, over it), with a branch that ends at a
+ * row. A row is one hedge, whatever its strokes do at their ends; the next row is the second.
+ */
+export function hedgeRows(rand: () => number): Shape {
+  const walls: WallSegment[] = [];
+  const rows = 2 + Math.floor(rand() * 2);
+  for (let row = 0; row < rows; row++) {
+    let x = MIDDLE - 520 + rand() * 60, y = MIDDLE - 260 + row * (150 + rand() * 60);
+    const slope = (rand() - 0.5) * 0.3;
+    while (x < MIDDLE + 480) {
+      const length = 120 + rand() * 250;
+      walls.push(hedge(x, y, x + length, y + slope * length + (rand() - 0.5) * 16));
+      y += slope * length + (rand() - 0.5) * 8;
+      x += length + (rand() - 0.5) * 60;
+    }
+  }
+  const stem = walls[Math.floor(rand() * walls.length)]!;
+  const at = { x: (stem.p1.x + stem.p2.x) / 2, y: (stem.p1.y + stem.p2.y) / 2 };
+  walls.push(hedge(at.x + (rand() - 0.5) * 6, at.y + (rand() - 0.5) * 16, at.x + (rand() - 0.5) * 160, at.y + 80 + rand() * 60));
+  return { walls, places: placesAround(walls, rand, 2, 60, 520) };
+}
+
+export const SHAPES = { crossingHedges, hedgeOnWall, hedgeRows } as const;
 export type ShapeName = keyof typeof SHAPES;
 export { hedge, wall, placesAround };

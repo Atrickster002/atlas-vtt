@@ -178,3 +178,10 @@ export function tileWallReach(texel: number): number {
 export function sealTolerance(texel: number): number {
   return 2 * (wallRadius(texel) + fieldMargin(texel)) + 2 * texel;
 }
+
+/**
+ * Limited walls that run within this distance of each other without crossing are one hedge to
+ * a ray that meets both there: the seal tolerance of a map at the base texel, so hedge ends
+ * the sealing joins, drawn short of each other or past each other, count once.
+ */
+export const LIMITED_JOIN = sealTolerance(BASE_TEXEL);

@@ -1,22 +1,15 @@
 import type { Point } from '../types/visionTypes';
 import type { WallSegment } from '../types/wallTypes';
+import type { LimitedJoins } from './limitedJoins';
 
 /** The same tolerances as `raySegmentIntersect`: a ray meets a limited wall where it would meet any wall. */
 const EPSILON = 1e-10;
-/** A ray passes through a wall's end point when it comes this near to it, as a share of the distance (at least of a pixel). */
-const TOUCH = 1e-9;
-/** Two hits this near to each other along a ray, as a share of the distance, are at one point: walls that meet in a corner. */
-const SAME = 1e-7;
 
-/**
- * Where a ray meets a limited wall. `side` is 0 where it crosses the wall between its ends, and
- * where it passes through an end point the side of the ray the wall lies on (1 left, -1 right):
- * a ray through a wall's end crosses it or misses it by a hair, which only its neighbours tell.
- */
+/** Where a ray meets a limited wall: how far along the ray, and at which share of the wall's length from its first end. */
 export interface LimitedHit {
   t: number;
   wall: WallSegment;
-  side: -1 | 0 | 1;
+  u: number;
 }
 
 /** Where a ray from `origin` along the unit vector (dx, dy) meets `wall`, or null. */
@@ -27,39 +20,28 @@ export function limitedHit(origin: Point, dx: number, dy: number, wall: WallSegm
   if (Math.abs(denom) < EPSILON) return null;
   const t = ((p1.x - origin.x) * ey - (p1.y - origin.y) * ex) / denom;
   const u = ((p1.x - origin.x) * dy - (p1.y - origin.y) * dx) / denom;
-  if (t < EPSILON || u < -EPSILON || u > 1 + EPSILON) return null;
-  const [end, other] = u < 0.5 ? [p1, p2] : [p2, p1];
-  const off = Math.abs(dx * (end.y - origin.y) - dy * (end.x - origin.x));
-  if (off > TOUCH * Math.max(1, t)) return { t, wall, side: 0 };
-  const across = dx * (other.y - origin.y) - dy * (other.x - origin.x);
-  return { t, wall, side: across > 0 ? 1 : across < 0 ? -1 : 0 };
+  return t < EPSILON || u < -EPSILON || u > 1 + EPSILON ? null : { t, wall, u };
 }
 
 /**
- * Where a ray that met limited walls at `hits` stops: at the second it crosses, with the walls
- * it stops at; null if it crosses fewer than two. The walls are counted in the order the ray
- * meets them. Walls met at one point are a corner: those the ray crosses between their ends
- * count each, and of those that end there, the larger number on one side of the ray. So a
- * corner the ray passes between two walls of counts once, as it does for the rays on either
- * side, and one whose walls both lie on one side counts twice or not at all for those rays and
- * twice for this one, which stops there: a corner is never a hole. Sorts `hits`.
+ * Where a ray that met limited walls at `hits` stops: at the second hedge it crosses, with the
+ * walls it stops at; null if it crosses fewer than two. The walls are counted in the order the
+ * ray meets them, and a wall that runs together with the one that began a hedge is that hedge
+ * still (`LimitedJoins`): the two walls of a corner for a ray through it or close by it, the
+ * strokes of a row that end past each other, the bridges of a sealed joint. So a corner is
+ * never a hole and never counted twice. Sorts `hits`.
  */
-export function secondCrossing(hits: LimitedHit[]): { t: number; walls: WallSegment[] } | null {
+export function secondCrossing(hits: LimitedHit[], joins: LimitedJoins): { t: number; walls: WallSegment[] } | null {
   if (hits.length < 2) return null;
   hits.sort((a, b) => a.t - b.t);
-  let crossed = 0;
-  for (let i = 0; i < hits.length;) {
-    const t = hits[i]!.t;
-    let through = 0, left = 0, right = 0, j = i;
-    for (; j < hits.length && hits[j]!.t - t <= SAME * Math.max(1, t); j++) {
-      const { side } = hits[j]!;
-      if (side === 0) through++;
-      else if (side > 0) left++;
-      else right++;
-    }
-    crossed += through + Math.max(left, right);
-    if (crossed >= 2) return { t, walls: hits.slice(i, j).map((hit) => hit.wall) };
-    i = j;
+  const lead = hits[0]!;
+  for (let i = 1; i < hits.length; i++) {
+    const hit = hits[i]!;
+    if (joins.together(lead.wall, lead.u, hit.wall, hit.u)) continue;
+    // The second hedge: this wall, and those behind it that are one hedge with it.
+    const walls = [hit.wall];
+    for (let j = i + 1; j < hits.length && joins.together(hit.wall, hit.u, hits[j]!.wall, hits[j]!.u); j++) walls.push(hits[j]!.wall);
+    return { t: hit.t, walls };
   }
   return null;
 }
