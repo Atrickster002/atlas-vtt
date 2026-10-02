@@ -17,10 +17,10 @@ export interface LightingPointerTargets {
 
 /**
  * Routes the pointer from the token renderer's dispatch: lights and door badges (a click opens
- * or closes the door, a right-click opens its menu) with any tool;
- * with the lighting tool the walls, or in its zone and explored-memory modes those
- * (`LightingModes`), which then take every press (a zone is drawn, and memory brushed, across
- * lights and walls alike).
+ * or closes the door, also on a badge the players' view shows; a right-click opens its menu, in
+ * GM view only) with any tool; with the lighting tool the walls, or in its zone and
+ * explored-memory modes those (`LightingModes`), which then take every press (a zone is drawn,
+ * and memory brushed, across lights and walls alike).
  */
 export function wireLightingPointer(tokens: TokenRenderer, { lights, editor, modes, doors, wallMenu, doorMenu }: LightingPointerTargets): void {
   tokens.setLightHandlers({
@@ -46,7 +46,7 @@ export function wireLightingPointer(tokens: TokenRenderer, { lights, editor, mod
     if (editor.shown && !modes.active) wallMenu(x, y, screenX, screenY);
   });
   tokens.setWallCursorProvider((x, y) => (modes.active ? modes.cursorAt({ x, y }) : editor.cursorAt({ x, y })));
-  tokens.setDoorMenuHandlers({ hitTest: (x, y) => doors.hitTest(x, y), open: doorMenu });
+  tokens.setDoorMenuHandlers({ hitTest: (x, y) => doors.gmHitTest(x, y), open: doorMenu });
   tokens.setDoorClickHandler((x, y) => {
     const doorId = doors.hitTest(x, y);
     if (doorId) doors.toggle(doorId);

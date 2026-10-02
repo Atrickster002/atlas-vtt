@@ -13,7 +13,7 @@ import { mapSenseRulesSource } from '../../services/mapSenseRules';
 import type { ViewAtlasStore } from '../../storeFactory';
 import type { SightRules } from '../../vision/sightRules';
 import type { MapBounds } from '../../vision/visibility';
-import type { LayerVisibility } from '../playerSafeFrame';
+import type { HideableLayer, LayerVisibility } from '../playerSafeFrame';
 import { requestRender } from '../RenderScheduler';
 import type { TokenRenderer } from '../TokenRenderer';
 import { createSceneLighting } from './createSceneLighting';
@@ -28,7 +28,7 @@ import { LightRangeRings } from './LightRangeRings';
 import { LightingModes } from './LightingModes';
 import { showExploredTravelNotice, showZonesFullNotice } from './lightingNotices';
 import { closeStalePopovers } from './popoverGuards';
-import { PerceptionMemo, playerLightingLayers, playerTokenSight, type GmOverlays, type TokenPerception } from './playerLightingLayers';
+import { PerceptionMemo, playerDoorSight, playerLightingLayers, playerTokenSight, type GmOverlays, type TokenPerception } from './playerLightingLayers';
 import type { SceneLightingView } from './sceneLightingView';
 import { SessionLighting } from './SessionLighting';
 import { SightRulesWatch } from './SightRulesWatch';
@@ -106,8 +106,8 @@ export class LightingController {
     this.lightMarkers = new LightMarkers(viewport, store);
     this.rangeRings = new LightRangeRings(viewport, store, measurement);
     this.editor = new WallEditor(viewport, store, eventBus, (lightIds) => this.lightMarkers.setSelected(lightIds), () => mapLightPresets(obsApp, store.getState()));
-    this.doors = new DoorIcons(store, app.canvas);
-    viewport.addChild(this.doors.view);
+    this.doors = new DoorIcons(store, app.canvas, () => playerDoorSight(this.renderer, store.getState().objects.walls));
+    viewport.addChild(this.doors.view, this.doors.playerView);
     this.lights = new LightInteraction({
       viewport,
       canvas: app.canvas,
@@ -153,6 +153,9 @@ export class LightingController {
     };
   }
 
+  /** What only the players' view shows of the lighting: a picture of the scene, always the GM's, leaves it out. */
+  readonly playerOnlyLayers = (): HideableLayer[] => [this.doors.playerView];
+
   /** What the players' view changes about the lighting: for their frame, and held in session view. */
   playerLayers(): LayerVisibility[] {
     return playerLightingLayers({
@@ -160,6 +163,7 @@ export class LightingController {
       modeLayer: this.renderer.modeLayer,
       gmOverlays: this.gmOverlays(),
       sensedOutlines: this.tokens?.getSensedOutlineLayer(),
+      playerDoorBadges: this.doors.playerView,
     });
   }
 
@@ -235,7 +239,7 @@ export class LightingController {
       ...(outlines ? [{ layer: outlines, visible: false }] : []),
       { layer: this.editor.layer, visible: tool },
       ...this.modes.layers(tool),
-      { layer: this.doors.view, visible: tool || lighting.enabled },
+      ...this.doors.gmLayers(tool || lighting.enabled),
     ];
   }
 
@@ -251,8 +255,9 @@ export class LightingController {
     requestRender(this.deps.app);
   }
 
-  /** In the players' view, tokens show and hide as the sight they are checked against changes; in the GM's, the sight aids follow. */
+  /** In the players' view, tokens show and hide as the sight they are checked against changes; in the GM's, the sight aids follow. The players' door badges follow in both. */
   private onSightChange(): void {
+    this.doors.refreshPlayers();
     if (this.tokens && this.session.active) this.tokens.refreshPlayerSight();
     else this.sightAids.schedule();
     for (const listener of [...this.sightListeners]) listener();
@@ -284,14 +289,6 @@ export class LightingController {
   destroy(): void {
     for (const cleanup of this.cleanups) cleanup();
     this.sightListeners.clear();
-    this.session.destroy();
-    this.lights.destroy();
-    this.editor.destroy();
-    this.modes.destroy();
-    this.renderer.destroy();
-    this.doors.destroy();
-    this.rangeRings.destroy();
-    this.lightMarkers.destroy();
-    this.sightAids.destroy();
+    for (const part of [this.session, this.lights, this.editor, this.modes, this.renderer, this.doors, this.rangeRings, this.lightMarkers, this.sightAids]) part.destroy();
   }
 }

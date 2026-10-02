@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Graphics } from 'pixi.js';
-import { DoorIcons } from '../../src/app/pixi/lighting/DoorIcons';
+import { DoorIcons, badgeLook } from '../../src/app/pixi/lighting/DoorIcons';
 import { doorMenuEntries } from '../../src/app/pixi/lighting/lightingMenus';
 import { createViewAtlasStore, type ViewAtlasStore } from '../../src/app/storeFactory';
 import { getHistoryStore } from '../../src/app/stores/history';
@@ -160,5 +160,17 @@ describe('a door\'s menu', () => {
     const { store } = setup();
     const solid = store.getState().addWall({ type: 'solid', p1: { x: 0, y: 0 }, p2: { x: 10, y: 0 }, closed: true });
     expect(doorMenuEntries(store, solid)).toEqual([]);
+  });
+});
+
+describe('a door\'s badge', () => {
+  it('tells the players nothing but that there is a door: a locked one looks closed', () => {
+    expect(badgeLook({ type: 'door', locked: true }, true)).toEqual({ secret: false, lock: false });
+    expect(badgeLook({ type: 'secret-door' }, true)).toEqual({ secret: false, lock: false });
+  });
+
+  it('shows the GM the padlock and the secret door', () => {
+    expect(badgeLook({ type: 'door', locked: true }, false)).toEqual({ secret: false, lock: true });
+    expect(badgeLook({ type: 'secret-door' }, false)).toEqual({ secret: true, lock: false });
   });
 });
