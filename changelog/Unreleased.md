@@ -78,6 +78,7 @@
 
 ## Fixed
 
+- A statblock that names its artwork in a `token` property is found when you create tokens from statblocks, as one with an `image` property is. Where a statblock has both, `image` is used
 - Opening the asset manager no longer flashes "No characters yet" before the library appears, and its tabs no longer count 0 first. Switching the collection no longer shows the previous collection's cards while the new one loads
 - A statblock defined in a code block no longer flashes "No Fantasy Statblocks creature found" while it is read
 - Cone measurements follow the game system. A D&D 5e cone is now as wide as it is long (about 53°) instead of twice as wide, other systems keep the quarter circle, and Grid & Measurement in the collection settings has a Cone Angle to change it. Contributed by ISorokaI
