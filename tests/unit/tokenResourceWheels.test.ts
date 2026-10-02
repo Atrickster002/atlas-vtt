@@ -155,31 +155,26 @@ describe('resource wheels on a token', () => {
     } finally { ui.destroy(); }
   });
 
-  it('reports how far the bars reach below and the wheels to the right', () => {
+  it('reports how far the bars reach below the token, for the selection frame; the wheels are no part of it', () => {
     const { ui } = tokenUI();
     try {
       ui.update(hero, 62);
-      const { below, right, above } = ui.getResourcesExtent();
-      expect(below).toBeCloseTo(2 + 10 + 2 + 10);
-      expect(right).toBeGreaterThan(20.4);
-      // At rest the wheels stay within the token's height
-      expect(above).toBe(0);
-      ui.update({ ...hero, resources: { hp: { current: 7, max: 10 } } }, 62);
-      expect(ui.getResourcesExtent().right).toBe(0);
+      expect(ui.getBarsReach()).toBeCloseTo(2 + 10 + 2 + 10);
+      // A token with wheels only has nothing below it for the frame to enclose
+      ui.update({ ...hero, resources: { ammo: { current: 4, max: 6 }, luck: { current: 2, max: 5 } } }, 62);
+      expect(ui.getBarsReach()).toBe(0);
     } finally { ui.destroy(); }
   });
 
-  it('reports the extents of the selected size at once, not of the size it is still growing from', () => {
+  it('reports the reach of the selected size at once, not of the size it is still growing from', () => {
     const { ui } = tokenUI({ zoom: 1 });
     try {
       ui.update(hero, 62);
       ui.setSelectionState(true);
-      const early = ui.getResourcesExtent();
+      const early = ui.getBarsReach();
       settle();
-      expect(early).toEqual(ui.getResourcesExtent());
-      // The grown wheels rise above the token's top edge, and the frame must follow
-      expect(early.above).toBeGreaterThan(0);
-      expect(early.below).toBeCloseTo(24 * 2.25);
+      expect(early).toBe(ui.getBarsReach());
+      expect(early).toBeCloseTo(24 * 2.25);
     } finally { ui.destroy(); }
   });
 
@@ -215,19 +210,6 @@ describe('resource wheels on a token', () => {
       const slot = leftSlots(ui)[0]!;
       const wheelRight = leftOf(ui).position.x + (slot.left + slot.width) * leftOf(ui).scale.x;
       expect(wheelRight).toBeLessThan(-handleReach);
-    } finally { ui.destroy(); }
-  });
-
-  it('reports how far the left wheels reach, for the selection frame', () => {
-    const { ui } = tokenUI();
-    try {
-      ui.update(hero, 62);
-      expect(ui.getResourcesExtent().left).toBe(0);
-      ui.resourceDefsProvider = () => SIX;
-      ui.update(veteran, 62);
-      const { left, right } = ui.getResourcesExtent();
-      expect(left).toBeCloseTo(right);
-      expect(left).toBeGreaterThan(20.4);
     } finally { ui.destroy(); }
   });
 

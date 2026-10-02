@@ -35,9 +35,6 @@ export function wheelSlot(key: string, slot: number): ResourceSlot {
   };
 }
 
-/** How far a side's wheels and their steppers reach from its anchor, in UI units. */
-const SIDE_REACH = WHEEL_MARGIN + WHEEL_SIZE + WHEEL_STEPPER.gap + WHEEL_STEPPER.size;
-
 /**
  * A token's wheels beside it: `right` in the units of an anchor past the right resize
  * button on the token's bottom edge (`wheelAnchor`), `left` in those of its mirror on the
@@ -76,16 +73,6 @@ export class ResourceWheels {
   /** Where each wheel sits, for the click areas and steppers; the same at every scale of the anchors. */
   layout(): readonly ResourceSlot[] {
     return this.slots;
-  }
-
-  /** How far the wheels and their steppers reach from the right and the left anchor and above them, in UI units; 0 where there are none. */
-  extent(): { right: number; left: number; up: number } {
-    const has = (kind: ResourceSlot['kind']): boolean => this.slots.some((slot) => slot.kind === kind);
-    return {
-      right: has('wheel') ? SIDE_REACH : 0,
-      left: has('wheel-left') ? SIDE_REACH : 0,
-      up: Math.max(0, ...this.slots.map((slot) => -slot.top)),
-    };
   }
 
   setAlpha(alpha: number): void {

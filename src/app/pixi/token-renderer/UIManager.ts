@@ -13,7 +13,7 @@ import { Viewport } from 'pixi-viewport';
 import type { ITokenUIManager, TokenGroupContainer } from './types';
 import type { TokenEntity } from '../../types';
 import type { ViewAtlasState, ViewAtlasStore } from '../../storeFactory';
-import { NO_RESOURCES_EXTENT, TokenUIRenderer, type ResourcesExtent } from '../TokenUIRenderer';
+import { TokenUIRenderer } from '../TokenUIRenderer';
 import { TokenControlsUI } from '../TokenControlsUI';
 import { TokenRotationUI } from '../TokenRotationUI';
 import { TokenResizeUI } from '../TokenResizeUI';
@@ -443,8 +443,8 @@ export class UIManager implements ITokenUIManager {
   }
 
   /** How far a selected token's resources reach beyond its bottom, right and top edges, in world units. */
-  public resourcesExtent(tokenId: string): Readonly<ResourcesExtent> {
-    return this.tokenUIs[tokenId]?.getResourcesExtent() ?? NO_RESOURCES_EXTENT;
+  public barsReach(tokenId: string): number {
+    return this.tokenUIs[tokenId]?.getBarsReach() ?? 0;
   }
 
   private updateAllTokenSettings(): void {
