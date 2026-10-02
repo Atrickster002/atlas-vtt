@@ -1,4 +1,4 @@
-import { Container, RenderTexture, Sprite, Texture, type Renderer } from 'pixi.js';
+import { ColorMatrixFilter, Container, RenderTexture, Sprite, Texture, type Renderer } from 'pixi.js';
 import type { ExploredShapes } from '../../vision/exploredShapes';
 import type { MapBounds } from '../../vision/visibility';
 import { destroyTree } from '../utils/destroyTree';
@@ -6,6 +6,9 @@ import { StampScratch, stampRegion, tilesOf } from './StampScratch';
 
 /** Longest side of the explored memory in texels; it is drawn dim and soft, so this is plenty. */
 const MAX_TEXELS = 2048;
+
+/** White, covered by four times what the image's coverage is above a half: none up to a half, all from three quarters. */
+const SHARPEN: ColorMatrixFilter['matrix'] = [0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 4, -2];
 
 /**
  * What the viewer's tokens have seen so far, in a world-space texture over the map: red is 1
@@ -57,13 +60,24 @@ export class ExploredTexture {
     return Texture.from(image);
   }
 
-  /** Replaces the memory with a decoded image of it, which it then destroys. */
+  /**
+   * Replaces the memory with a decoded image of it, which it then destroys. An image saved
+   * smaller than the memory (`EXPLORED_SAVE_MAX`) spreads its edges when drawn back, past the
+   * walls they ended at too: of such an image only what is more than half covered is kept
+   * (`SHARPEN`), which is where the edges were. An image of the memory's own size is drawn as it is.
+   */
   draw(image: Texture): void {
     const sprite = new Sprite(image);
+    const sharpen = image.width < this.texture.width || image.height < this.texture.height ? new ColorMatrixFilter({ resolution: 1 }) : null;
     sprite.width = this.texture.width;
     sprite.height = this.texture.height;
+    if (sharpen) {
+      sharpen.matrix = SHARPEN;
+      sprite.filters = [sharpen];
+    }
     this.renderer.render({ container: sprite, target: this.texture, clear: true, clearColor: [0, 0, 0, 0] });
     destroyTree(sprite, { textures: true });
+    sharpen?.destroy();
   }
 
   /** Replaces the memory with a saved image of it. */

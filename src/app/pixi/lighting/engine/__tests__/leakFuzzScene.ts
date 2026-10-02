@@ -94,18 +94,6 @@ export interface Report {
   senseDarkInside: number;
   senseDarkRevealed: number;
   /** Rooms whose lights shone as beams too, the pixels inside the room those lit, and the lit ones past its walls. */
-  /**
-   * Rooms that were also given an ambient zone of daylight in a pitch-black scene, a little
-   * smaller than the room: the lit pixels past the walls, the pixels the rule counts as lit
-   * (inside the zone) and those of them that are not as bright as the day, and the pixels
-   * beyond the zone's soft edge with those of them that are lit all the same.
-   */
-  zoneRooms: number;
-  zoneLeaks: number;
-  zoneInside: number;
-  zoneWrong: number;
-  zoneOutside: number;
-  zoneStray: number;
   beamRooms: number;
   beamInside: number;
   beamLeaks: number;

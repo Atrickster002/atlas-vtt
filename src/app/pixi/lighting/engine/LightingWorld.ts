@@ -147,10 +147,10 @@ export class LightingWorld {
    * only when the zones, that look or the walls changed.
    */
   setZones(zones: readonly EngineZone[] = NO_ZONES, look: ZoneLook): void {
-    const sameLook = look.ambientColor === this.zoneLook.ambientColor && look.litThreshold === this.zoneLook.litThreshold && look.brightThreshold === this.zoneLook.brightThreshold;
+    const sameLook = look.ambient === this.zoneLook.ambient && look.ambientColor === this.zoneLook.ambientColor && look.litThreshold === this.zoneLook.litThreshold && look.brightThreshold === this.zoneLook.brightThreshold;
     if (zones === this.zones && sameLook && !this.zonesStale) return;
     this.zones = zones;
-    this.zoneLook = { ambientColor: look.ambientColor, litThreshold: look.litThreshold, brightThreshold: look.brightThreshold };
+    this.zoneLook = { ambient: look.ambient, ambientColor: look.ambientColor, litThreshold: look.litThreshold, brightThreshold: look.brightThreshold };
     this.zonesStale = false;
     if (zones.length === 0) return;
     this.zoneTexture ??= new ZoneMap(this.renderer, this.bounds, this.texel);

@@ -30,7 +30,7 @@ describe('ambient zones in the composite', () => {
     while (cleanup.length) cleanup.pop()!();
   });
 
-  async function setup(scene: Partial<EngineScene> = {}): Promise<{ engine: LightingEngine; pixel: (point: { x: number; y: number }) => readonly [number, number, number]; at: (point: { x: number; y: number }) => number }> {
+  async function setup(scene: Partial<EngineScene> = {}): Promise<{ engine: LightingEngine; pixel: (point: { x: number; y: number }) => readonly [number, number, number]; at: (point: { x: number; y: number }) => number; again: () => (point: { x: number; y: number }) => number }> {
     const renderer = await createTestRenderer(SIZE);
     cleanup.push(() => renderer.destroy());
     const engine = new LightingEngine(renderer);
@@ -46,7 +46,11 @@ describe('ambient zones in the composite', () => {
     expect(watch.findings).toEqual([]);
     expect(engine.failed).toBe(false);
     const pixel = (point: { x: number; y: number }): readonly [number, number, number] => read(Math.floor(point.x) + camera.x, Math.floor(point.y) + camera.y);
-    return { engine, pixel, at: (point) => luminance(pixel(point)) };
+    const again = (): ((point: { x: number; y: number }) => number) => {
+      const next = renderThroughEngine(engine, renderer, camera);
+      return (point) => luminance(next(Math.floor(point.x) + camera.x, Math.floor(point.y) + camera.y));
+    };
+    return { engine, pixel, at: (point) => luminance(pixel(point)), again };
   }
 
   it('agrees with the rule: dark where the rule counts the cave, daylight where it counts the scene', async () => {
@@ -101,6 +105,54 @@ describe('ambient zones in the composite', () => {
     expect(at({ x: 370, y: 550 })).toBeGreaterThan(230);
     const open = await setup();
     expect(open.at({ x: 392, y: 450 })).toBeLessThan(200);
+  });
+
+  describe('a lit room in a dark scene, its zone drawn on the room\'s walls', () => {
+    /** The cave's four sides as walls, and the zone's corners on their ends. */
+    const room = [wall('n', 400, 400, 700, 400), wall('e', 700, 400, 700, 700), wall('s', 700, 700, 400, 700), wall('w', 400, 700, 400, 400)];
+    const lit = { ...cave, ambient: 1 };
+    const viewer = (x: number): EngineScene['sight'] => computeSight(sightSources({ v: { id: 'v', kind: 'token', imagePath: 'v.png', x, y: 550, vision: { enabled: true } } }, { unitDistance: 5, cellSize: 70 }, bounds, { definitions: BUILT_IN_SENSES['builtin:dnd5e']!, conditions: [] }), room);
+
+    it('shows no bright line on its wall to a token in the dark outside', async () => {
+      const { at } = await setup({ ambient: 0, zones: [lit], walls: room, sight: viewer(300) });
+      // Across the west wall, from the corridor over the centre line into what the wall hides.
+      for (let x = 380; x <= 420; x += 0.5) expect([x, at({ x, y: 550 }) < 6]).toEqual([x, true]);
+      for (let y = 420; y <= 680; y += 13) expect([y, at({ x: 400.4, y }) < 6, at({ x: 399.6, y }) < 6]).toEqual([y, true, true]);
+    });
+
+    it('lights its walls\' faces from inside: a face has the ambient light of the floor in front of it', async () => {
+      const { at } = await setup({ ambient: 0, zones: [lit], walls: room, sight: viewer(550) });
+      expect(at({ x: 405, y: 550 })).toBeGreaterThan(230);
+      expect(at({ x: 550, y: 405 })).toBeGreaterThan(230);
+      expect(at({ x: 430, y: 550 })).toBeGreaterThan(230);
+    });
+
+    it('keeps the walls inside a dark zone dark by day, their core too, and lights a wall on its edge only from the day side', async () => {
+      const pillar = wall('pillar', 550, 480, 550, 620);
+      const { at } = await setup({ ambient: 1, zones: [cave], walls: [...room, pillar] });
+      for (const x of [546, 549, 550.5, 552, 555]) expect([x, at({ x, y: 550 }) < 6]).toEqual([x, true]);
+      // The west wall stands between the day and the cave: daylight on its outer face, none within.
+      expect(at({ x: 394.5, y: 550 })).toBeGreaterThan(200);
+      expect(at({ x: 405, y: 550 })).toBeLessThan(6);
+      expect(at({ x: 400.5, y: 550 })).toBeLessThan(6);
+      expect(at({ x: 399.5, y: 550 })).toBeLessThan(6);
+    });
+
+    it('takes a zone off its walls when the scene turns darker than the zone', async () => {
+      const zones = [{ ...cave, ambient: 0.5 }];
+      const scene = { bounds, albedo: null, walls: room, lights: [], sight: SEES_ALL, sightRadius: 20, zones };
+      const { engine, at, again } = await setup({ ...scene, ambient: 1 });
+      // By day the dimmer zone lies on its walls, both halves of them.
+      const dim = at({ x: 550, y: 550 });
+      expect(dim).toBeLessThan(at({ x: 300, y: 550 }) - 40);
+      expect(Math.abs(at({ x: 398.5, y: 550 }) - dim)).toBeLessThan(6);
+      // By night the same zones are the brighter light: none of it on a wall.
+      engine.update({ ...scene, ambient: 0 });
+      engine.flush();
+      const night = again();
+      expect(night({ x: 550, y: 550 })).toBeGreaterThan(40);
+      for (const x of [398.5, 399.5, 400.5, 401.5]) expect([x, night({ x, y: 550 }) < 6]).toEqual([x, true]);
+    });
   });
 
   it('lights a zone of a dark scene, tinted by its own colour, and lays later zones over earlier ones', async () => {

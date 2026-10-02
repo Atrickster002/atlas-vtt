@@ -98,12 +98,20 @@ vec3 neutral(vec3 color) {
 
 // Explored memory is stamped with hard-edged polygons: blur it over a disc of two memory texels,
 // shrunk to the pixel's wall clearance so memory never smears across a wall. 12 Vogel taps,
-// Gaussian in distance.
+// Gaussian in distance. A read takes in the memory texels around it, a diagonal of one at most,
+// so no tap comes nearer than that to a wall. On a large map that is wider than a wall: there a
+// wall's face remembers the floor in front of it, and where walls leave no room for that, the
+// one memory texel the pixel lies in.
 float exploredAt(vec2 w) {
   // The memory's scale is set by the map's longer side, whose texel count rounds least.
   vec2 size = vec2(textureSize(uExplored, 0));
   float texel = size.x >= size.y ? uMapSize.x / size.x : uMapSize.y / size.y;
-  float r = min(2.0 * texel, clearance(w));
+  float footprint = 1.4143 * texel;
+  if (footprint > uFieldParams.y) {
+    w = climbFromWall(w, footprint);
+    if (uFieldDistance(w) < footprint) return texelFetch(uExplored, ivec2(clamp(floor(w / uMapSize * size), vec2(0.0), size - 1.0)), 0).r;
+  }
+  float r = min(2.0 * texel, min(clearance(w), uFieldDistance(w) - footprint));
   float sum = textureLod(uExplored, clamp(w / uMapSize, 0.0, 1.0), 0.0).r;
   if (r < 0.25 * texel) return sum;
   float weights = 1.0;

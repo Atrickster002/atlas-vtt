@@ -1,5 +1,6 @@
 import { Container, Mesh, UniformGroup, type Geometry, type Renderer, type RenderTexture, type Shader } from 'pixi.js';
 import { MAX_ZONE_CORNERS } from '../../../lighting/lightZones';
+import { wallBand } from '../../../lighting/lightingConstants';
 import { DEFAULT_AMBIENT_COLOR, brightThresholdOf } from '../../../lighting/sceneLightingOptions';
 import { linearColor } from '../../../lighting/srgb';
 import { ambientLevel } from '../../../vision/lightLevels';
@@ -27,8 +28,12 @@ interface Slot {
   light: Float32Array;
 }
 
-/** What of the scene decides a zone's light: its colour where the zone has none, and the levels dim light lies between. */
+/**
+ * What of the scene decides how its zones are drawn: its ambient light, which only darker zones
+ * replace on walls, its colour where a zone has none, and the levels dim light lies between.
+ */
 export interface ZoneLook {
+  ambient?: number | undefined;
   ambientColor?: string | undefined;
   litThreshold?: number | undefined;
   brightThreshold?: number | undefined;
@@ -37,10 +42,12 @@ export interface ZoneLook {
 /**
  * The ambient light of the scene's zones over the map, in world space like the light map
  * (`rgba16float`, premultiplied): the composite takes `rgb + scene ambient · (1 − alpha)` as the
- * ambient light of a pixel. Inside a zone's polygon alpha is 1, so the pixel has the zone's
- * light exactly, as the rule counts it; the soft edge lies outside (`zoneFragment`). `lifted` is
- * the same with every zone's light where dim light is perceived as bright. It exists only while
- * the scene has a zone.
+ * ambient light of a pixel. Inside a zone's polygon alpha is 1, so the floor has the zone's light
+ * exactly, as the rule counts it; the soft edge lies outside (`zoneFragment`). A wall's capsule
+ * has the darkest light that lies on it, the scene's or a zone's: zones are drawn onto the floor
+ * in their order and onto the walls from the brightest to the darkest, those darker than the
+ * scene only. `lifted` is the same with every zone's light where dim light is perceived as
+ * bright. It exists only while the scene has a zone.
  */
 export class ZoneMap {
   readonly texture: RenderTexture;
@@ -51,7 +58,7 @@ export class ZoneMap {
   private readonly quad: Quad = createQuad();
   private readonly geometry: Geometry = quadGeometry(this.quad);
 
-  constructor(private readonly renderer: Renderer, bounds: MapBounds, texel: number) {
+  constructor(private readonly renderer: Renderer, bounds: MapBounds, private readonly texel: number) {
     this.texture = createTarget(bounds.width / texel, bounds.height / texel, 'rgba16float');
     this.lifted = createTarget(bounds.width / texel, bounds.height / texel, 'rgba16float');
     this.world = [this.texture.source.pixelWidth * texel, this.texture.source.pixelHeight * texel];
@@ -60,29 +67,38 @@ export class ZoneMap {
   /** Draws `zones` in their order, later ones over earlier ones, through the walls of `field`. */
   draw(zones: readonly EngineZone[], look: ZoneLook, field: CapsuleField): void {
     const drawn = zones.map((zone) => drawnZone(zone, look));
+    const scene = luma(linearColor(look.ambientColor ?? DEFAULT_AMBIENT_COLOR, look.ambient ?? 0));
+    const onWalls = drawn.filter((zone) => luma(zone.light) < scene).sort((a, b) => luma(b.light) - luma(a.light));
     while (this.slots.length < drawn.length) this.slots.push(this.createSlot(field));
+    for (const [target, pick] of [[this.texture, 'light'], [this.lifted, 'lifted']] as const) {
+      this.fill(drawn, pick, false, field);
+      renderInto(this.renderer, this.scene, target, [0, 0, 0, 0]);
+      if (onWalls.length === 0) continue;
+      this.fill(onWalls, pick, true, field);
+      renderInto(this.renderer, this.scene, target);
+    }
+  }
+
+  /** Sets the slots to draw `zones` in this order, onto the floor or onto the walls. */
+  private fill(zones: readonly DrawnZone[], pick: 'light' | 'lifted', onWalls: boolean, field: CapsuleField): void {
+    const wallReach = wallBand(this.texel);
     this.slots.forEach((slot, i) => {
-      const next = drawn[i];
+      const next = zones[i];
       slot.mesh.visible = !!next;
       if (!next) return;
       const { polygon, soft } = next.zone;
+      const reach = Math.max(soft, wallReach);
       const xs = polygon.map((p) => p.x);
       const ys = polygon.map((p) => p.y);
-      const x = Math.min(...xs) - soft;
-      const y = Math.min(...ys) - soft;
-      slot.rect.set([x, y, Math.max(...xs) + soft - x, Math.max(...ys) + soft - y]);
+      const x = Math.min(...xs) - reach;
+      const y = Math.min(...ys) - reach;
+      slot.rect.set([x, y, Math.max(...xs) + reach - x, Math.max(...ys) + reach - y]);
       slot.points.set(polygon.flatMap((p) => [p.x, p.y]));
-      slot.uniforms.uniforms.uCount = polygon.length;
-      slot.uniforms.uniforms.uSoft = soft;
+      slot.light.set(next[pick]);
+      Object.assign(slot.uniforms.uniforms, { uCount: polygon.length, uSoft: soft, uOnWalls: onWalls ? 1 : 0, uWallReach: wallReach });
+      slot.uniforms.update();
       Object.assign(slot.mesh.shader!.resources, field.resources());
     });
-    for (const [target, pick] of [[this.texture, 'light'], [this.lifted, 'lifted']] as const) {
-      this.slots.forEach((slot, i) => {
-        if (drawn[i]) slot.light.set(drawn[i][pick]);
-        slot.uniforms.update();
-      });
-      renderInto(this.renderer, this.scene, target, [0, 0, 0, 0]);
-    }
   }
 
   private createSlot(field: CapsuleField): Slot {
@@ -95,6 +111,8 @@ export class ZoneMap {
       uPoints: { value: points, type: 'vec2<f32>', size: MAX_ZONE_CORNERS },
       uCount: { value: 0, type: 'i32' },
       uSoft: { value: 1, type: 'f32' },
+      uOnWalls: { value: 0, type: 'f32' },
+      uWallReach: { value: 1, type: 'f32' },
       uZoneLight: { value: light, type: 'vec3<f32>' },
     });
     const mesh = new Mesh({ geometry: this.geometry, shader: createShader(ENGINE_SHADERS.zone, { zoneUniforms: uniforms, ...field.resources() }) });
@@ -119,4 +137,8 @@ function drawnZone(zone: EngineZone, look: ZoneLook): DrawnZone {
   // Dim light raised to bright, as `ambientLift` raises the scene's.
   const lift = ambientLevel(level) === 'dim' && zone.ambient > 0 ? brightThresholdOf(level) / zone.ambient : 1;
   return { zone, light, lifted: [light[0] * lift, light[1] * lift, light[2] * lift] };
+}
+
+function luma(light: Rgb): number {
+  return 0.2126 * light[0] + 0.7152 * light[1] + 0.0722 * light[2];
 }
