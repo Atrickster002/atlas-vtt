@@ -206,3 +206,20 @@ export function createInMemoryApp(seed: InMemoryVaultSeed = {}): InMemoryApp {
 
   return { app, files, folders };
 }
+
+type VaultWrite = (path: string, content: unknown) => Promise<unknown>;
+
+/**
+ * Lets `before` see every call to a write method of the in-memory vault (`create`,
+ * `createBinary`, the adapter's `write`) before it runs; `before` may throw to fail the write.
+ * Returns a function that lets the writes through untouched again.
+ */
+export function interceptWrites(target: object, method: string, before: (path: string, content: unknown) => void): () => void {
+  const mock = vi.spyOn(target as Record<string, VaultWrite>, method);
+  const original = mock.getMockImplementation()!;
+  mock.mockImplementation(async (path, content) => {
+    before(path, content);
+    return original(path, content);
+  });
+  return () => { mock.mockImplementation(original); };
+}

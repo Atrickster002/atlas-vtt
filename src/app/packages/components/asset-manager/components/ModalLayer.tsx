@@ -17,6 +17,7 @@ import type { SelectionState } from '../hooks/useSelectionHandlers';
 import type { AssetCrudActions } from '../hooks/useAssetCrud';
 import type { TagsAndCollectionsState } from '../hooks/useTagsAndCollections';
 import type { StatblockLinkState } from '../hooks/useStatblockLink';
+import { useUvttImport } from '../hooks/useUvttImport';
 import { tagGroupOfTab } from '../utils/assetTags';
 
 export interface ModalLayerProps {
@@ -35,6 +36,19 @@ export function ModalLayer({
   isOpen, activeTab, selectedCollection, onClose, data, sel, crud, tags, statblock,
 }: ModalLayerProps): React.JSX.Element {
   const collectionOrDefault = selectedCollection || AssetService.defaultCollectionId();
+
+  const importMaps = useUvttImport({
+    app: data.app,
+    assetService: data.assetService,
+    isOpen,
+    isMapCreatorOpen: crud.isMapCreatorOpen,
+    // Every dialog of this layer but the map creator, which says for itself whether it stays
+    isBusy: crud.isTokenCreatorOpen || crud.isCreateSceneModalOpen || crud.isMoveModalOpen || crud.isCreateFolderModalOpen
+      || crud.inputModalState.isOpen || crud.isCreateCollectionModalOpen || crud.settingsModalCollectionId !== null
+      || crud.transfer !== null || tags.isTagManagerOpen || statblock.linkingStatblockAsset !== null,
+    collectionId: collectionOrDefault,
+    onSceneOpened: () => { crud.setIsMapCreatorOpen(false); onClose(); },
+  });
 
   const closeMoveModal = (): void => {
     crud.setIsMoveModalOpen(false);
@@ -96,6 +110,7 @@ export function ModalLayer({
           <TokenCreator
             isOpen={crud.isMapCreatorOpen}
             mode="map"
+            onImportMaps={importMaps}
             selectedCollection={collectionOrDefault}
             onClose={() => {
               crud.setIsMapCreatorOpen(false);
