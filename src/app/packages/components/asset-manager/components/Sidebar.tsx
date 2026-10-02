@@ -23,8 +23,8 @@ export interface SidebarProps {
   assets: AnyAsset[];
   collections: CollectionOption[];
   /** Id of the selected collection. */
-  selectedCollection: string | null;
-  onSelectCollection: (collectionId: string | null) => void;
+  selectedCollection: string;
+  onSelectCollection: (collectionId: string) => void;
   onManageTags: () => void;
   onEditCollectionSettings?: (collectionId: string) => void;
   onExportCollection?: () => void;
@@ -86,7 +86,7 @@ export function Sidebar({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [isCollectionDropdownOpen]);
 
-  const handleCollectionSelect = (collectionId: string | null): void => {
+  const handleCollectionSelect = (collectionId: string): void => {
     onSelectCollection(collectionId);
     setIsCollectionDropdownOpen(false);
     setCollectionSearchQuery('');
@@ -102,9 +102,9 @@ export function Sidebar({
     }
   };
 
-  const renderCollectionOption = (collectionId: string | null, label: string): React.JSX.Element => (
+  const renderCollectionOption = (collectionId: string, label: string): React.JSX.Element => (
     <button
-      key={collectionId ?? '__all__'}
+      key={collectionId}
       type="button"
       className={`atlas-collection-option ${selectedCollection === collectionId ? 'atlas-selected' : ''}`}
       onClick={() => handleCollectionSelect(collectionId)}
@@ -137,7 +137,7 @@ export function Sidebar({
             <div className="atlas-collections-heading-row">
               <div className="atlas-section-title">Collection</div>
               <div className="atlas-collections-heading-actions">
-                {selectedCollection && onExportCollection && (
+                {onExportCollection && (
                   <LabelTooltip label="Export collection">
                     <Button variant="ghost" size="icon" className="atlas-collection-header-btn" onClick={onExportCollection}>
                       <Download />
@@ -165,7 +165,7 @@ export function Sidebar({
                 >
                   <span className="atlas-collection-selected">
                     <Folder />
-                    <span>{selectedCollection ? selectedCollectionName ?? selectedCollection : 'All Collections'}</span>
+                    <span>{selectedCollectionName ?? selectedCollection}</span>
                   </span>
                   <ChevronDown className={`atlas-collection-chevron ${isCollectionDropdownOpen ? 'atlas-rotated' : ''}`} />
                 </button>
@@ -184,7 +184,6 @@ export function Sidebar({
                       />
                     </div>
                     <div className="atlas-collection-options">
-                      {renderCollectionOption(null, 'All Collections')}
                       {filteredCollections.map((collection) => renderCollectionOption(collection.id, collection.name))}
                       {filteredCollections.length === 0 && collectionSearchQuery && (
                         <div className="atlas-collection-no-results">No collections found</div>
@@ -194,7 +193,7 @@ export function Sidebar({
                 )}
               </div>
 
-              {selectedCollection && onEditCollectionSettings && (
+              {onEditCollectionSettings && (
                 <LabelTooltip label="Collection settings">
                   <Button
                     variant="ghost"

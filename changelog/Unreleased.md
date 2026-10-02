@@ -102,3 +102,4 @@
 - Exporting a collection now packs its loot tables: the bases picked in the collection's Loot settings and every item note they list. An import puts them into the collection's folder, where the loot roller finds them again. Before, the importing vault got the setting without the base or its items
 - Text fields and dropdowns have one background everywhere. Before, some took the colour of the panel around them, so fields in one dialog could differ in dark mode and in themes that colour their fields
 - The collection settings stay in place when a tab grows long enough to scroll. Before, the scrollbar pushed the whole tab to the left
+- The asset manager's collection list no longer offers All Collections. It showed only the default collection, never the assets of the others, so the list now holds your collections and nothing else

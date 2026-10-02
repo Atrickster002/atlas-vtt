@@ -2,7 +2,7 @@ import type * as React from 'react';
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { TFolder, App as ObsidianApp } from 'obsidian';
 import type { AnyAsset, CollectionOption, Folder, Tag, Tab } from '../types';
-import { ATLAS_VTT_DIR, tabs } from '../types';
+import { tabs } from '../types';
 import { AssetService } from '../../../../services/AssetService';
 import { AssetThumbnailService, type ThumbnailAsset, type ThumbnailState } from '../../../../services/AssetThumbnailService';
 import { tagGroupOfTab, type TagsByGroup } from '../utils/assetTags';
@@ -52,7 +52,7 @@ export interface AssetData {
 /** The selection a load was made for. */
 interface LoadedPlace {
   tab: Tab;
-  collection: string | null;
+  collection: string;
 }
 
 function samePlace(a: LoadedPlace, b: LoadedPlace): boolean {
@@ -61,7 +61,7 @@ function samePlace(a: LoadedPlace, b: LoadedPlace): boolean {
 
 export function useAssetData(
   activeTab: Tab,
-  selectedCollection: string | null,
+  selectedCollection: string,
   isOpen: boolean
 ): AssetData {
   const { app, view } = useAtlasUI();
@@ -71,7 +71,7 @@ export function useAssetData(
   const [assets, setAssets] = useState<AnyAsset[]>([]);
   // The selection `assets` and the counts were loaded for, and the one the tags were loaded for.
   const [loadedPlace, setLoadedPlace] = useState<LoadedPlace | null>(null);
-  const [tagsSelection, setTagsSelection] = useState<string | null | undefined>(undefined);
+  const [tagsSelection, setTagsSelection] = useState<string | null>(null);
   const [isUnavailable, setIsUnavailable] = useState(false);
   const latestLoad = useRef(0);
   const latestTagsLoad = useRef(0);
@@ -89,9 +89,8 @@ export function useAssetData(
   // ── Load folders ──────────────────────────────────────────────
   const loadFoldersForActiveTab = useCallback(async (): Promise<void> => {
     if (!app) return;
-    const col = selectedCollection || AssetService.defaultCollectionId();
     try {
-      const basePath = tabFolderPath(col, activeTab);
+      const basePath = tabFolderPath(selectedCollection, activeTab);
       const baseFolder = app.vault.getAbstractFileByPath(basePath);
       if (baseFolder instanceof TFolder) {
         const loaded: Folder[] = [];
@@ -128,13 +127,12 @@ export function useAssetData(
     const load = ++latestLoad.current;
     const place: LoadedPlace = { tab: activeTab, collection: selectedCollection };
     try {
-      const col = selectedCollection || AssetService.defaultCollectionId();
-      const byTab = partitionByTab(await assetService.getAssets(col));
+      const byTab = partitionByTab(await assetService.getAssets(selectedCollection));
       if (load !== latestLoad.current) return;
       // Queued before the cards are built, so a card whose thumbnail is on its way shows a placeholder.
       thumbnails?.ensureThumbnails([...byTab.tokens, ...byTab.maps]);
       const previewSources = tokenPreviewSources(byTab.tokens);
-      const tabBase = `${ATLAS_VTT_DIR}/collections/${col}/${activeTab}`;
+      const tabBase = tabFolderPath(selectedCollection, activeTab);
       const tabAssets: TabServiceAsset[] = byTab[activeTab];
       const thumbnailOf = thumbnails ? (asset: ThumbnailAsset): ThumbnailState => thumbnails.stateOf(asset) : undefined;
       const formatted = tabAssets.map((a) => formatServiceAsset(a, tabBase, app, previewSources, thumbnailOf));
@@ -173,13 +171,12 @@ export function useAssetData(
     if (!assetService) return;
     const request = ++latestTagsLoad.current;
     try {
-      const col = selectedCollection || AssetService.defaultCollectionId();
       const load = async (group: TagGroup): Promise<Tag[]> =>
-        (await assetService.getCollectionTags(col, group)).map((t) => ({ id: t.id, name: t.name }));
+        (await assetService.getCollectionTags(selectedCollection, group)).map((t) => ({ id: t.id, name: t.name }));
       const loaded = { tokens: await load('tokens'), maps: await load('maps') };
       if (request !== latestTagsLoad.current) return;
       setTagsByGroup(loaded);
-      setTagsCollection(col);
+      setTagsCollection(selectedCollection);
     } catch (error) {
       console.error('[useAssetData] Error reloading tags:', error);
       if (request !== latestTagsLoad.current) return;

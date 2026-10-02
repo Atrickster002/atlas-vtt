@@ -44,7 +44,7 @@ const wrapperVariants = {
 export default function AssetManager({ isOpen, onClose, initialTab, onExitComplete }: AssetManagerProps): React.JSX.Element {
   const [search, setSearch] = useState('');
   const [activeTab, setActiveTab] = useState<Tab>('tokens');
-  const [selectedCollection, setSelectedCollection] = useState<string | null>(() => AssetService.defaultCollectionId());
+  const [selectedCollection, setSelectedCollection] = useState(() => AssetService.defaultCollectionId());
   const [collapsedSections, setCollapsedSections] = useState<{ folders: boolean; assets: boolean }>({ folders: false, assets: false });
   const [draggedItems, setDraggedItems] = useState<{ type: 'asset' | 'folder'; ids: string[] } | null>(null);
   const [dropTarget, setDropTarget] = useState<string | null>(null);
@@ -78,7 +78,7 @@ export default function AssetManager({ isOpen, onClose, initialTab, onExitComple
   });
 
   // The open folder, the selection and the tags belong to the collection they were chosen in.
-  const changeCollection = (collectionId: string | null): void => {
+  const changeCollection = (collectionId: string): void => {
     if (collectionId === selectedCollection) return;
     setSelectedCollection(collectionId);
     sel.resetForTab();

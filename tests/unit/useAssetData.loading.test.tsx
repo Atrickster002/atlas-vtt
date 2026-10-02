@@ -41,7 +41,7 @@ async function library(): Promise<Library> {
 }
 
 const open = (tab: Tab = 'tokens'): ReturnType<typeof renderHook<ReturnType<typeof useAssetData>, { tab: Tab }>> =>
-  renderHook(({ tab: activeTab }) => useAssetData(activeTab, null, true), { initialProps: { tab } });
+  renderHook(({ tab: activeTab }) => useAssetData(activeTab, 'default', true), { initialProps: { tab } });
 
 describe('useAssetData while it loads', () => {
   beforeEach(() => {
