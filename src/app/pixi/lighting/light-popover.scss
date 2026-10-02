@@ -194,6 +194,17 @@ $gap: $spacing-s;
   gap: $gap;
 }
 
+// A light zone's ambient light: the slider with the colour of the light beside it.
+.atlas-light-popover__ambient {
+  @include atlas-flex-row($gap);
+  align-items: flex-end;
+
+  .atlas-light-panel__slider {
+    flex: 1;
+    min-width: 0;
+  }
+}
+
 .atlas-light-popover__flicker {
   @include atlas-flex-row($gap);
 

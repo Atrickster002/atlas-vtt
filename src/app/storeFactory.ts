@@ -11,7 +11,7 @@ import type AtlasVTTPlugin from '../../main';
 import type { TokenEntity, Character, NotePin, TextElement, DrawingStroke } from './types';
 import type { FogOperation, FogOperationInput } from './types/fogTypes';
 import type { WallSegment, WallInput } from './types/wallTypes';
-import { DEFAULT_SCENE_LIGHTING, type LightChanges, type LightInput, type LightSource, type LightZone, type LightZoneInput, type SceneLighting } from './types/lightingTypes';
+import { DEFAULT_SCENE_LIGHTING, type LightChanges, type LightInput, type LightSource, type LightZone, type LightZoneChanges, type LightZoneInput, type SceneLighting } from './types/lightingTypes';
 import type { AudioSource, AudioInput } from './types/audioTypes';
 import type { AnyWidget, WidgetSettings } from './types/widgetTypes';
 import type { InitiativeState, InitiativeEntry, InitiativeConfig } from './types/initiativeTypes';
@@ -190,7 +190,7 @@ export interface ViewAtlasState {
   updateLight: (id: string, changes: LightChanges) => void;
   deleteLight: (id: string) => void;
   addLightZone: (data: LightZoneInput) => string;
-  updateLightZone: (id: string, changes: Partial<LightZoneInput>) => void;
+  updateLightZone: (id: string, changes: LightZoneChanges) => void;
   deleteLightZone: (id: string) => void;
 
   // Audio dirty flag (non-persisted)
@@ -1245,7 +1245,11 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
 
           updateLightZone: (id, changes) => set((draft) => {
             const zone = draft.objects.lightZones?.[id];
-            if (zone) Object.assign(zone, changes);
+            if (!zone) return;
+            Object.assign(zone, changes);
+            for (const field of Object.keys(changes) as (keyof LightZoneChanges)[]) {
+              if (changes[field] === undefined) delete zone[field];
+            }
           }),
 
           deleteLightZone: (id) => set((draft) => {

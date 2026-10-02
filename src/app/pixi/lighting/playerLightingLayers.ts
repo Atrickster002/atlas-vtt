@@ -11,6 +11,8 @@ import type { SceneLightingView } from './sceneLightingView';
 export type GmOverlays = {
   /** Wall lines and their handles, shown with the lighting tool. */
   wallEditor: HideableLayer;
+  /** The light zones' outlines and handles, shown in the lighting tool's zone mode. */
+  lightZones: HideableLayer;
   doorBadges: HideableLayer;
   /** The badges on placed lights. */
   lightMarkers: HideableLayer;

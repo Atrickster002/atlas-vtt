@@ -818,6 +818,12 @@ export class PixiRendererOrchestrator { // Renamed class
         }
       }
       
+      // Enter closes the light zone being drawn
+      if (e.key === 'Enter' && this.lighting?.handleEnter()) {
+        e.preventDefault();
+        return;
+      }
+
       // Delete selected tokens on Delete or Backspace key
       if (!this.store.getState().isPlayerView && (matchesMapHotkey(e, 'delete', settings) || matchesMapHotkey(e, 'deleteAlt', settings))) {
         if (this.lighting?.handleDelete()) {

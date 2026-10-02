@@ -133,7 +133,7 @@ export async function createThumbnailScene(lighting: SceneLighting, antialias: b
   const overlays = {
     pins: overlay(95),
     hexLinks: overlay(40),
-    gmOverlays: { wallEditor: overlay(96), doorBadges: overlay(97), lightMarkers: overlay(98), rangeRings: overlay(99), sightAids: overlay(99) },
+    gmOverlays: { wallEditor: overlay(96), lightZones: overlay(96), doorBadges: overlay(97), lightMarkers: overlay(98), rangeRings: overlay(99), sightAids: overlay(99) },
   };
   const markerLayers = [{ layer: overlays.pins, visible: false }, { layer: overlays.hexLinks, visible: false }];
   const capture: SceneFrameCapture = (frame, render) =>

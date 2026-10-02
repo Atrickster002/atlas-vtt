@@ -1,5 +1,6 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { LightPopoverHost } from '../pixi/lighting/LightPopover';
+import { LightZonePopoverHost } from '../pixi/lighting/LightZonePopover';
 import { SceneLightingPanelHost } from '../pixi/lighting/SceneLightingPanel';
 import { WALLS_AND_LIGHTING_ENABLED } from '../featureFlags';
 import { App } from 'obsidian';
@@ -225,7 +226,7 @@ export const UIRoot: React.FC<UIRootProps> = ({ app, view, pixiApp }) => {
 
           {/* Loot Roller - floating window, DM only */}
           {!isPlayerView && <PanelBoundary name="the loot roller"><LootRoller /></PanelBoundary>}
-          {!isPlayerView && WALLS_AND_LIGHTING_ENABLED && <PanelBoundary name="the light settings"><LightPopoverHost /></PanelBoundary>}
+          {!isPlayerView && WALLS_AND_LIGHTING_ENABLED && <PanelBoundary name="the light settings"><LightPopoverHost /><LightZonePopoverHost /></PanelBoundary>}
           {!isPlayerView && WALLS_AND_LIGHTING_ENABLED && <PanelBoundary name="the scene lighting"><SceneLightingPanelHost /></PanelBoundary>}
 
           {/* Player Character Sheet - REMOVED: Players should only edit via their character sheet file */}

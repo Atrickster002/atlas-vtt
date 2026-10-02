@@ -9,6 +9,9 @@ import { observeResize } from '../../utils/observeResize';
 import { mapMarkerScale } from '../utils/mapMarkerScale';
 import { LIGHT_MARKER_RADIUS } from './lightMarker';
 import { placeLightPopover, type PopoverChoice } from './lightPopoverPlacement';
+import { ZONE_HANDLE_RADIUS } from './lightZoneGeometry';
+import { zoneHandlePoint } from '../../lighting/lightZones';
+import type { ViewAtlasState } from '../../storeFactory';
 import { ringHandlePoints } from './lightRingGeometry';
 import type { VisionCone } from '../../vision/visionCone';
 
@@ -27,6 +30,42 @@ interface Frame {
   size: { width: number; height: number };
 }
 
+/** What a popover on the map is placed at, in world pixels: a light with its rings, or a point. */
+export interface MapPopoverTarget {
+  x: number;
+  y: number;
+  /** The radii of its rings; 0 for what has none. */
+  bright: number;
+  dim: number;
+  beam?: VisionCone | undefined;
+  /** Radius on screen of the marker the popover stands beside. */
+  marker: number;
+}
+
+/** Reads the target `id` from the store at viewport `zoom`; null when it is gone. */
+type ReadTarget = (state: ViewAtlasState, id: string, zoom: number) => MapPopoverTarget | null;
+
+/** The popover of the light `lightId`. `unitDistance` is the game units a grid cell spans. */
+export function useLightPopoverPosition(ref: React.RefObject<HTMLElement | null>, lightId: string, unitDistance: number): () => void {
+  return useMapPopoverPosition(ref, lightId, (state, id, zoom) => {
+    const light = state.objects.lights[id];
+    if (!light) return null;
+    const scale = unitScaleOf({ unitDistance }, state.grid);
+    return {
+      x: light.x, y: light.y, beam: beamOf(light), marker: LIGHT_MARKER_RADIUS * mapMarkerScale(zoom) * zoom,
+      bright: gameUnitsToWorld(light.emission.bright, scale), dim: gameUnitsToWorld(light.emission.dim, scale),
+    };
+  });
+}
+
+/** The popover of the light zone `zoneId`, beside the zone's handle. */
+export function useZonePopoverPosition(ref: React.RefObject<HTMLElement | null>, zoneId: string): void {
+  useMapPopoverPosition(ref, zoneId, (state, id) => {
+    const zone = state.objects.lightZones?.[id];
+    return zone ? { ...zoneHandlePoint(zone.polygon), bright: 0, dim: 0, marker: ZONE_HANDLE_RADIUS } : null;
+  });
+}
+
 /**
  * Keeps the popover in `ref` at its light on the map (`placeLightPopover`): beyond the bright
  * ring where there is room, clear of the ring handles and of the map view's bars. It is placed
@@ -35,15 +74,15 @@ interface Frame {
  * of. The ring and the beam it keeps clear of are those it found when it took its place: tuning
  * or turning the light does not move the popover under the pointer. The function it returns is
  * for when the beam's width or direction was set and let go: the popover then makes way if the
- * beam's handles came to lie under it. When `lightId` changes, the same popover travels
- * to the other light. `unitDistance` is the game units a grid cell spans.
+ * beam's handles came to lie under it. When `id` changes, the same popover travels to the
+ * other target. `read` says where the target is and how far its rings reach.
  */
-export function useLightPopoverPosition(ref: React.RefObject<HTMLElement | null>, lightId: string, unitDistance: number): () => void {
+function useMapPopoverPosition(ref: React.RefObject<HTMLElement | null>, id: string, read: ReadTarget): () => void {
   const store = useViewStoreHook();
   const { renderer, pixiApp } = useAtlasUI();
-  const target = useRef(lightId);
-  const units = useRef(unitDistance);
-  units.current = unitDistance;
+  const target = useRef(id);
+  const reader = useRef(read);
+  reader.current = read;
   /** Places the popover: 'anew' on the best side for the light as it is now, 'beam' where it is unless the beam's handles now lie under it. */
   const place = useRef<((how?: 'anew' | 'beam') => void) | null>(null);
 
@@ -81,30 +120,27 @@ export function useLightPopoverPosition(ref: React.RefObject<HTMLElement | null>
     const update = (how?: 'anew' | 'beam'): void => {
       const anew = how === 'anew';
       // A light that is gone keeps the popover where it was while it leaves.
-      const state = store.getState();
-      const light = state.objects.lights[target.current];
-      if (!light) return;
       const zoom = viewport.scale.x;
+      const light = reader.current(store.getState(), target.current, zoom);
+      if (!light) return;
       const at = viewport.toScreen(light.x, light.y);
-      const key = `${at.x},${at.y},${zoom},${light.emission.bright},${light.emission.dim}`;
+      const { bright, dim } = light;
+      const key = `${at.x},${at.y},${zoom},${bright},${dim}`;
       if (key === placedFor && !how) return;
       placedFor = key;
-      const scale = unitScaleOf({ unitDistance: units.current }, state.grid);
-      const bright = gameUnitsToWorld(light.emission.bright, scale);
-      const dim = gameUnitsToWorld(light.emission.dim, scale);
       if (anew || !choice) {
         choice = null;
         ring = bright;
-        beam = beamOf(light);
+        beam = light.beam;
       }
       // The beam was set and let go: it is the beam to keep clear of from now on.
-      if (how === 'beam') beam = beamOf(light);
+      if (how === 'beam') beam = light.beam;
       const anchor = { x: frame.x + at.x, y: frame.y + at.y };
       const handlesOf = (cone: VisionCone | undefined): { x: number; y: number }[] =>
         ringHandlePoints({ center: anchor, radius: { bright: bright * zoom, dim: dim * zoom }, ...(cone && { cone }) }, 1);
       const input = {
         anchor,
-        markerClearance: LIGHT_MARKER_RADIUS * mapMarkerScale(zoom) * zoom + GAP,
+        markerClearance: light.marker + GAP,
         bright: bright * zoom,
         size: frame.size,
         area: frame.area,
@@ -114,7 +150,7 @@ export function useLightPopoverPosition(ref: React.RefObject<HTMLElement | null>
       if (choice && !placement.kept) {
         // Its place no longer holds: it moves to the best one for the ring and the beam as they are now.
         ring = bright;
-        beam = beamOf(light);
+        beam = light.beam;
         placement = placeLightPopover({ ...input, handles: handlesOf(beam), ringClearance: ring * zoom + GAP, current: null });
       }
       choice = placement.choice;
@@ -143,14 +179,14 @@ export function useLightPopoverPosition(ref: React.RefObject<HTMLElement | null>
 
   useLayoutEffect(() => {
     const element = ref.current;
-    if (target.current === lightId || !element) return;
+    if (target.current === id || !element) return;
     const from = element.style.translate;
-    target.current = lightId;
+    target.current = id;
     place.current?.('anew');
     const to = element.style.translate;
     if (!from || from === to || prefersReducedMotion(element)) return;
     element.animate([{ translate: from }, { translate: to }], { duration: MOTION_SLOW_MS, easing: MOTION_EASE_OUT });
-  }, [lightId, ref]);
+  }, [id, ref]);
 
   return useCallback(() => place.current?.('beam'), []);
 }

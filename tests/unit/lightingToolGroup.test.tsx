@@ -85,7 +85,7 @@ function shortcut(label: string): string | null {
 describe('LightingToolGroup', () => {
   it('offers what the tool does and how walls are drawn as menu rows', () => {
     renderGroup();
-    for (const label of ['Draw walls', 'Place lights', 'Point to point', 'Freehand']) row(label);
+    for (const label of ['Draw walls', 'Place lights', 'Light zones', 'Point to point', 'Freehand']) row(label);
     expect(document.querySelector('.atlas-dropdown-mode-btn--active')).toBeNull();
   });
 
@@ -119,6 +119,18 @@ describe('LightingToolGroup', () => {
     expect(events).toContainEqual(['lighting-preset-changed', 'lantern']);
     expect(checked('Lantern')).toBe(true);
     expect(checked('Torch')).toBe(false);
+  });
+
+  it('switches to drawing light zones, which has no choices of its own', () => {
+    const { selectTool, events, rerender } = renderGroup('move');
+    fireEvent.click(row('Light zones'));
+    expect(events).toContainEqual(['wall-submode-changed', 'light-zone']);
+    expect(selectTool).toHaveBeenCalledWith('wall');
+    rerender('wall');
+    expect(checked('Light zones')).toBe(true);
+    expect(shortcut('Light zones')).toBe('key:wall');
+    expect(screen.queryByText('Point to point')).toBeNull();
+    expect(screen.queryByText('Torch')).toBeNull();
   });
 
   it('offers the light presets of the map\'s collection, its torch chosen until another is', () => {

@@ -10,7 +10,7 @@ import type { TokenEntity } from '../../../types';
 
 describe('playerLightingLayers', () => {
   function overlays(): GmOverlays {
-    return { wallEditor: new Container(), doorBadges: new Container(), lightMarkers: new Container(), rangeRings: new Container(), sightAids: new Container() };
+    return { wallEditor: new Container(), lightZones: new Container(), doorBadges: new Container(), lightMarkers: new Container(), rangeRings: new Container(), sightAids: new Container() };
   }
 
   it('switches the lighting to the player view and hides every GM overlay, light markers, range rings and sight aids included', () => {
@@ -19,6 +19,7 @@ describe('playerLightingLayers', () => {
     expect(playerLightingLayers({ enabled: true, modeLayer, gmOverlays: gm })).toEqual([
       { layer: modeLayer, visible: true },
       { layer: gm.wallEditor, visible: false },
+      { layer: gm.lightZones, visible: false },
       { layer: gm.doorBadges, visible: false },
       { layer: gm.lightMarkers, visible: false },
       { layer: gm.rangeRings, visible: false },
@@ -41,6 +42,7 @@ describe('playerLightingLayers', () => {
     const gm = overlays();
     expect(playerLightingLayers({ enabled: false, modeLayer: { visible: false }, gmOverlays: gm })).toEqual([
       { layer: gm.wallEditor, visible: false },
+      { layer: gm.lightZones, visible: false },
       { layer: gm.doorBadges, visible: false },
       { layer: gm.lightMarkers, visible: false },
       { layer: gm.rangeRings, visible: false },

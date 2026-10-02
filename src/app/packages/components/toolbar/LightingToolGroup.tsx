@@ -1,5 +1,5 @@
 import React, { useState } from "react"
-import { BrickWall, Flame, FlameKindling, Lamp, Lightbulb, Moon, MousePointer2, Pencil, Sparkles } from "lucide-react"
+import { BrickWall, Flame, FlameKindling, Lamp, Lightbulb, Moon, MousePointer2, Pencil, Sparkles, SunMoon } from "lucide-react"
 import { useHotkeyLabels } from "../../../keyboard/useMapHotkeys"
 import { useAtlasStore } from "../../../react/ViewStoreContext"
 import { chosenLightPreset } from "../../../lighting/lightPresetChoice"
@@ -18,6 +18,7 @@ type RowIcon = DropdownMenuItemProps['icon']
 const SUB_MODES: readonly { value: WallToolSubMode; icon: RowIcon; label: string }[] = [
   { value: 'draw', icon: BrickWall, label: 'Draw walls' },
   { value: 'place-light', icon: Lightbulb, label: 'Place lights' },
+  { value: 'light-zone', icon: SunMoon, label: 'Light zones' },
 ]
 
 const DRAW_MODES: readonly { value: WallToolMode; icon: RowIcon; label: string }[] = [
@@ -77,7 +78,8 @@ export function LightingToolGroup({ activeTool, selectTool, menuOpen, toggleMenu
         ))}
       </div>
 
-      <div className="atlas-dropdown-section">
+      {/* The zone mode has no choices of its own: a zone is drawn corner by corner. */}
+      {subMode !== 'light-zone' && <div className="atlas-dropdown-section">
         {subMode === 'draw' ? DRAW_MODES.map(({ value, icon, label }) => (
           <DropdownMenuItem
             key={value}
@@ -101,7 +103,7 @@ export function LightingToolGroup({ activeTool, selectTool, menuOpen, toggleMenu
             }}
           />
         ))}
-      </div>
+      </div>}
 
       <SceneLightingSection
         lighting={lighting}

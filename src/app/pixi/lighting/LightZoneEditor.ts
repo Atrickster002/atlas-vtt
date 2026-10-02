@@ -1,0 +1,235 @@
+import type { EventEmitter } from 'events';
+import type { Container } from 'pixi.js';
+import type { Viewport } from 'pixi-viewport';
+import { MAX_ZONE_CORNERS, lightZoneList, newZoneAmbient } from '../../lighting/lightZones';
+import type { ViewAtlasStore } from '../../storeFactory';
+import { abandonHistoryTransaction, beginHistoryTransaction, endHistoryTransaction } from '../../stores/history';
+import type { WallToolSubMode } from '../../tools/WallTool';
+import type { Point } from '../../types/visionTypes';
+import { LightZoneOverlay } from './LightZoneOverlay';
+import { closesDraft, snapToWallEnd, zoneCornerAt, zoneHandleAt, type ZoneCorner } from './lightZoneGeometry';
+
+export interface LightZoneEditorDeps {
+  viewport: Viewport;
+  store: ViewAtlasStore;
+  eventBus: EventEmitter;
+  /** The lighting tool entered or left its zone mode: whoever owns the layer's visibility shows or hides it. */
+  onActiveChange: () => void;
+}
+
+/** What a press needs of the pointer event: Alt places a corner freely, without snapping to a wall's end. */
+type Keys = { altKey: boolean };
+
+/**
+ * The lighting tool's zone mode: a click places a corner of a new light zone, and Enter, a
+ * click on the first corner or a double click closes it (one undo step); Escape drops it. A
+ * corner of a zone is dragged to move it (one undo step, Escape puts it back), a click on a
+ * zone's handle opens its popover, and Delete deletes the zone whose popover is open. Corners
+ * snap to wall ends close by, so a zone drawn along walls ends on them. It takes input only in
+ * zone mode and while its layer shows.
+ */
+export class LightZoneEditor {
+  private readonly overlay: LightZoneOverlay;
+  private mode: WallToolSubMode = 'draw';
+  private draft: Point[] = [];
+  private cursor: Point | null = null;
+  private hovered: ZoneCorner | null = null;
+  /** The corner being dragged, and the polygon as it was. */
+  private drag: { corner: ZoneCorner; before: Point[] } | null = null;
+  private readonly unsubscribe: () => void;
+  private readonly redraw = (): void => this.draw();
+  private readonly onSubMode = (mode: WallToolSubMode): void => {
+    const was = this.active;
+    this.mode = mode;
+    if (was === this.active) return;
+    if (!this.active) this.stop();
+    this.deps.onActiveChange();
+  };
+
+  constructor(private readonly deps: LightZoneEditorDeps) {
+    const { viewport, store, eventBus } = deps;
+    this.overlay = new LightZoneOverlay(viewport);
+    viewport.on('zoomed', this.redraw);
+    viewport.on('zoomed-end', this.redraw);
+    eventBus.on('wall-submode-changed', this.onSubMode);
+    this.unsubscribe = store.subscribe((state, previous) => {
+      if (state.objects.lightZones !== previous.objects.lightZones || state.lightZonePopover !== previous.lightZonePopover) this.draw();
+    });
+  }
+
+  /** The layer with the zones' outlines and handles. */
+  get view(): Container {
+    return this.overlay.view;
+  }
+
+  /** The lighting tool is in its zone mode. */
+  get active(): boolean {
+    return this.mode === 'light-zone';
+  }
+
+  /** A zone is being drawn. */
+  get drawing(): boolean {
+    return this.draft.length > 0;
+  }
+
+  private get shown(): boolean {
+    return this.active && this.view.visible;
+  }
+
+  /** The layer was shown or hidden: it draws only while shown, and nothing is drawn or dragged where no one sees it. */
+  afterVisibilityChange(): void {
+    if (this.view.visible) this.draw();
+    else this.stop();
+  }
+
+  pointerDown(point: Point, keys: Keys): boolean {
+    if (!this.shown) return false;
+    const { store } = this.deps;
+    const zoom = this.zoom();
+    if (this.drawing) {
+      if (closesDraft(this.draft, point, zoom)) this.close();
+      else this.place(point, keys);
+      return true;
+    }
+    const zones = this.zones();
+    const corner = zoneCornerAt(zones, point, zoom);
+    const zone = corner && zones.find((candidate) => candidate.id === corner.zoneId);
+    if (corner && zone) {
+      this.drag = { corner, before: zone.polygon };
+      beginHistoryTransaction(store);
+    } else {
+      const handle = zoneHandleAt(zones, point, zoom);
+      if (handle) store.getState().openLightZonePopover(handle);
+      else this.place(point, keys);
+    }
+    this.draw();
+    return true;
+  }
+
+  pointerMove(point: Point, keys: Keys): void {
+    if (!this.shown) return;
+    if (this.drag) {
+      const { zoneId, index } = this.drag.corner;
+      const zone = this.zones().find((candidate) => candidate.id === zoneId);
+      if (zone) this.deps.store.getState().updateLightZone(zoneId, { polygon: zone.polygon.map((corner, i) => (i === index ? this.snapped(point, keys) : corner)) });
+      return;
+    }
+    this.cursor = this.drawing ? point : null;
+    this.hovered = this.drawing ? null : zoneCornerAt(this.zones(), point, this.zoom());
+    this.draw();
+  }
+
+  pointerUp(): void {
+    if (!this.drag) return;
+    this.drag = null;
+    endHistoryTransaction(this.deps.store);
+    this.draw();
+  }
+
+  /** A double click closes the zone being drawn. */
+  doubleClick(): void {
+    if (this.shown && this.drawing) this.close();
+  }
+
+  cursorAt(point: Point): string {
+    if (this.drawing) return 'crosshair';
+    const zones = this.zones();
+    if (zoneCornerAt(zones, point, this.zoom())) return 'grab';
+    return zoneHandleAt(zones, point, this.zoom()) ? 'pointer' : 'crosshair';
+  }
+
+  /** Enter closes the zone being drawn; with fewer than three corners it goes on. */
+  handleEnter(): boolean {
+    if (!this.shown || !this.drawing) return false;
+    this.close();
+    return true;
+  }
+
+  /** Escape puts a dragged corner back, drops the zone being drawn or closes the zone popover. */
+  handleEscape(): boolean {
+    if (!this.shown) return false;
+    const state = this.deps.store.getState();
+    if (this.drag) this.cancelDrag();
+    else if (this.drawing) this.draft = [];
+    else if (state.lightZonePopover) state.closeLightZonePopover();
+    else return false;
+    this.cursor = null;
+    this.draw();
+    return true;
+  }
+
+  /** Delete deletes the zone whose popover is open. */
+  handleDelete(): boolean {
+    const state = this.deps.store.getState();
+    if (!this.shown || !state.lightZonePopover) return false;
+    state.deleteLightZone(state.lightZonePopover);
+    return true;
+  }
+
+  /** Ends whatever is under way: a dragged corner goes back, a zone half drawn is dropped. */
+  stop(): void {
+    if (this.drag) this.cancelDrag();
+    this.draft = [];
+    this.cursor = null;
+    this.hovered = null;
+    this.draw();
+  }
+
+  private zones(): ReturnType<typeof lightZoneList> {
+    return lightZoneList(this.deps.store.getState().objects.lightZones);
+  }
+
+  private zoom(): number {
+    return this.deps.viewport.scale.x;
+  }
+
+  private snapped(point: Point, { altKey }: Keys): Point {
+    return altKey ? point : snapToWallEnd(point, this.deps.store.getState().objects.walls, this.zoom());
+  }
+
+  private place(point: Point, keys: Keys): void {
+    this.deps.store.getState().closeLightZonePopover();
+    this.draft = [...this.draft, this.snapped(point, keys)];
+    this.cursor = point;
+    // The engine reads a zone's outline from a list of this length: the last corner closes it.
+    if (this.draft.length >= MAX_ZONE_CORNERS) this.close();
+    this.draw();
+  }
+
+  /** Makes the corners placed a zone, when they are an area: a new zone is one undo step, and its popover opens. */
+  private close(): void {
+    // The second click of a double click lands on the corner the first one placed.
+    const polygon = this.draft.filter((point, i) => i === 0 || point.x !== this.draft[i - 1]!.x || point.y !== this.draft[i - 1]!.y);
+    if (polygon.length < 3) return;
+    const state = this.deps.store.getState();
+    this.draft = [];
+    this.cursor = null;
+    state.openLightZonePopover(state.addLightZone({ polygon, ambient: newZoneAmbient(state.lighting) }));
+    this.draw();
+  }
+
+  private cancelDrag(): void {
+    const { store } = this.deps;
+    const { corner, before } = this.drag!;
+    this.drag = null;
+    if (store.getState().objects.lightZones?.[corner.zoneId]) store.getState().updateLightZone(corner.zoneId, { polygon: before });
+    abandonHistoryTransaction(store);
+  }
+
+  private draw(): void {
+    this.overlay.draw(this.shown ? this.zones() : [], {
+      selected: this.deps.store.getState().lightZonePopover,
+      draft: this.draft,
+      cursor: this.cursor,
+      corner: this.drag?.corner ?? this.hovered,
+    });
+  }
+
+  destroy(): void {
+    this.unsubscribe();
+    this.deps.eventBus.off('wall-submode-changed', this.onSubMode);
+    this.deps.viewport.off('zoomed', this.redraw);
+    this.deps.viewport.off('zoomed-end', this.redraw);
+    this.overlay.destroy();
+  }
+}

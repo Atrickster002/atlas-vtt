@@ -1,0 +1,192 @@
+import { EventEmitter } from 'events';
+import { afterEach, describe, expect, it } from 'vitest';
+import type { EventSystem } from 'pixi.js';
+import { Viewport } from 'pixi-viewport';
+import { lightZoneList } from '../../src/app/lighting/lightZones';
+import { LightZoneEditor } from '../../src/app/pixi/lighting/LightZoneEditor';
+import { createViewAtlasStore, type ViewAtlasStore } from '../../src/app/storeFactory';
+import { getHistoryStore } from '../../src/app/stores/history';
+import { createInMemoryApp } from '../mocks/inMemoryVault';
+import { stubJsdomGraphics } from '../mocks/jsdomGraphics';
+
+let cleanup: (() => void) | null = null;
+afterEach(() => {
+  cleanup?.();
+  cleanup = null;
+});
+
+interface Setup {
+  store: ViewAtlasStore;
+  editor: LightZoneEditor;
+  bus: EventEmitter;
+  click: (x: number, y: number, keys?: { alt?: boolean }) => boolean;
+  zones: () => ReturnType<typeof lightZoneList>;
+  steps: () => number;
+  undo: () => void;
+}
+
+function setup(ambient = 1): Setup {
+  const restoreGraphics = stubJsdomGraphics();
+  const events = { domElement: document.createElement('canvas') } as unknown as EventSystem;
+  const viewport = new Viewport({ screenWidth: 800, screenHeight: 600, events });
+  const { app } = createInMemoryApp({ files: {} });
+  const store = createViewAtlasStore(app, `light-zone-editor-${Math.random()}`);
+  store.getState().setPersistenceEnabled(false);
+  store.getState().setMapPath('maps/zones.atlasmap');
+  store.getState().setSceneLighting({ enabled: true, ambient });
+  const bus = new EventEmitter();
+  const editor = new LightZoneEditor({ viewport, store, eventBus: bus, onActiveChange: () => undefined });
+  bus.emit('wall-submode-changed', 'light-zone');
+  const history = getHistoryStore(store)!;
+  history.getState().clear();
+  cleanup = () => {
+    editor.destroy();
+    viewport.destroy();
+    restoreGraphics();
+  };
+  return {
+    store, editor, bus,
+    click: (x, y, keys = {}) => {
+      const taken = editor.pointerDown({ x, y }, { altKey: !!keys.alt });
+      editor.pointerUp();
+      return taken;
+    },
+    zones: () => lightZoneList(store.getState().objects.lightZones),
+    steps: () => history.getState().pastStates.length,
+    undo: () => history.getState().undo(),
+  };
+}
+
+/** Draws the square (100, 100) to (300, 300), corner by corner, without closing it. */
+function corners({ click }: Setup): void {
+  for (const [x, y] of [[100, 100], [300, 100], [300, 300], [100, 300]] as const) click(x, y);
+}
+
+describe('the light zone tool', () => {
+  it('is in use only in the lighting tool\'s zone mode, and shows its layer only then', () => {
+    const made = setup();
+    expect(made.editor.active).toBe(true);
+    made.bus.emit('wall-submode-changed', 'draw');
+    expect(made.editor.active).toBe(false);
+    expect(made.editor.pointerDown({ x: 100, y: 100 }, { altKey: false })).toBe(false);
+  });
+
+  it('places a corner with each click and closes the zone with Enter, as one undo step', () => {
+    const made = setup();
+    corners(made);
+    expect(made.zones()).toEqual([]);
+    expect(made.editor.drawing).toBe(true);
+    expect(made.editor.handleEnter()).toBe(true);
+    expect(made.zones()).toMatchObject([{ polygon: [{ x: 100, y: 100 }, { x: 300, y: 100 }, { x: 300, y: 300 }, { x: 100, y: 300 }] }]);
+    expect(made.steps()).toBe(1);
+    expect(made.editor.drawing).toBe(false);
+    made.undo();
+    expect(made.zones()).toEqual([]);
+  });
+
+  it('starts a zone dark in a lit scene and lit in a dark one, and opens its popover', () => {
+    const day = setup(1);
+    corners(day);
+    day.editor.handleEnter();
+    expect(day.zones()[0]!.ambient).toBe(0);
+    expect(day.store.getState().lightZonePopover).toBe(day.zones()[0]!.id);
+    const night = setup(0);
+    corners(night);
+    night.editor.handleEnter();
+    expect(night.zones()[0]!.ambient).toBe(1);
+  });
+
+  it('closes the zone with a click on its first corner, and with a double click', () => {
+    const made = setup();
+    corners(made);
+    made.click(103, 98);
+    expect(made.zones()).toHaveLength(1);
+    expect(made.zones()[0]!.polygon).toHaveLength(4);
+    // The second click of a double click lands on the corner the first one placed.
+    for (const [x, y] of [[500, 100], [600, 100], [600, 200], [600, 200]] as const) made.click(x, y);
+    made.editor.doubleClick();
+    expect(made.zones()).toHaveLength(2);
+    expect(made.zones()[1]!.polygon).toEqual([{ x: 500, y: 100 }, { x: 600, y: 100 }, { x: 600, y: 200 }]);
+  });
+
+  it('needs three corners: Enter on fewer keeps drawing, and Escape drops what was placed without an undo step', () => {
+    const made = setup();
+    made.click(100, 100);
+    made.click(300, 100);
+    expect(made.editor.handleEnter()).toBe(true);
+    expect(made.editor.drawing).toBe(true);
+    expect(made.editor.handleEscape()).toBe(true);
+    expect(made.editor.drawing).toBe(false);
+    expect(made.zones()).toEqual([]);
+    expect(made.steps()).toBe(0);
+    // With nothing under way Escape is not the tool's.
+    expect(made.editor.handleEscape()).toBe(false);
+  });
+
+  it('snaps a corner to a wall\'s end close by, and places it freely with Alt', () => {
+    const made = setup();
+    made.store.getState().addWall({ type: 'solid', p1: { x: 100, y: 100 }, p2: { x: 300, y: 100 }, closed: true });
+    made.click(104, 97);
+    made.click(296, 105, { alt: true });
+    made.click(200, 300);
+    made.editor.handleEnter();
+    expect(made.zones()[0]!.polygon).toEqual([{ x: 100, y: 100 }, { x: 296, y: 105 }, { x: 200, y: 300 }]);
+  });
+
+  it('moves a corner that is dragged, as one undo step, and puts it back when the drag is cancelled', () => {
+    const made = setup();
+    corners(made);
+    made.editor.handleEnter();
+    const steps = made.steps();
+    expect(made.editor.pointerDown({ x: 301, y: 299 }, { altKey: false })).toBe(true);
+    made.editor.pointerMove({ x: 350, y: 340 }, { altKey: false });
+    made.editor.pointerMove({ x: 400, y: 380 }, { altKey: false });
+    expect(made.zones()[0]!.polygon[2]).toEqual({ x: 400, y: 380 });
+    made.editor.pointerUp();
+    expect(made.steps()).toBe(steps + 1);
+    made.undo();
+    expect(made.zones()[0]!.polygon[2]).toEqual({ x: 300, y: 300 });
+
+    made.editor.pointerDown({ x: 300, y: 300 }, { altKey: false });
+    made.editor.pointerMove({ x: 500, y: 500 }, { altKey: false });
+    expect(made.editor.handleEscape()).toBe(true);
+    expect(made.zones()[0]!.polygon[2]).toEqual({ x: 300, y: 300 });
+    expect(made.steps()).toBe(steps);
+  });
+
+  it('opens a zone\'s popover with a click on its handle, and deletes that zone with Delete', () => {
+    const made = setup();
+    corners(made);
+    made.editor.handleEnter();
+    const [zone] = made.zones();
+    made.store.getState().closeLightZonePopover();
+    // The handle sits in the middle of the square.
+    expect(made.click(202, 199)).toBe(true);
+    expect(made.store.getState().lightZonePopover).toBe(zone!.id);
+    expect(made.editor.drawing).toBe(false);
+    expect(made.editor.handleDelete()).toBe(true);
+    expect(made.zones()).toEqual([]);
+    expect(made.editor.handleDelete()).toBe(false);
+  });
+
+  it('shows the pointer what a click would do', () => {
+    const made = setup();
+    corners(made);
+    made.editor.handleEnter();
+    expect(made.editor.cursorAt({ x: 300, y: 300 })).toBe('grab');
+    expect(made.editor.cursorAt({ x: 200, y: 200 })).toBe('pointer');
+    expect(made.editor.cursorAt({ x: 500, y: 500 })).toBe('crosshair');
+  });
+
+  it('drops a zone half drawn when its layer is hidden or the tool leaves zone mode', () => {
+    const made = setup();
+    made.click(100, 100);
+    made.bus.emit('wall-submode-changed', 'draw');
+    expect(made.editor.drawing).toBe(false);
+    made.bus.emit('wall-submode-changed', 'light-zone');
+    made.click(100, 100);
+    made.editor.view.visible = false;
+    made.editor.afterVisibilityChange();
+    expect(made.editor.drawing).toBe(false);
+  });
+});

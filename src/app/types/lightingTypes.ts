@@ -112,6 +112,9 @@ export interface LightZone {
 
 export type LightZoneInput = Omit<LightZone, 'id' | 'kind'>;
 
+/** Changes to a light zone: a field given as undefined is removed (a name, a colour). */
+export type LightZoneChanges = { [Field in keyof LightZoneInput]?: LightZoneInput[Field] | undefined };
+
 /** How a token sees. Distances are game units. */
 export interface TokenVision {
   enabled: boolean;

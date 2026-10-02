@@ -24,9 +24,11 @@ import { createSceneLighting } from './createSceneLighting';
 import { GmSightAids } from './GmSightAids';
 import { DoorIcons } from './DoorIcons';
 import { showWallMenu, type LightingMenuContext } from './lightingMenus';
+import { wireLightingPointer } from './lightingPointer';
 import { LightInteraction } from './LightInteraction';
 import { LightMarkers, lightMarkersShown } from './LightMarkers';
 import { LightRangeRings } from './LightRangeRings';
+import { LightZoneEditor } from './LightZoneEditor';
 import { PerceptionMemo, playerLightingLayers, playerTokenSight, type GmOverlays, type TokenPerception } from './playerLightingLayers';
 import type { SceneLightingView } from './sceneLightingView';
 import { SessionLighting } from './SessionLighting';
@@ -59,6 +61,7 @@ export class LightingController {
   /** What tells the GM how the rules of sight apply: sense ranges, marks on unseen tokens, the hover card's line. */
   readonly sightAids: GmSightAids;
   private readonly editor: WallEditor;
+  private readonly zones: LightZoneEditor;
   private readonly doors: DoorIcons;
   private readonly lightMarkers: LightMarkers;
   private readonly rangeRings: LightRangeRings;
@@ -99,6 +102,7 @@ export class LightingController {
     this.lightMarkers = new LightMarkers(viewport, store);
     this.rangeRings = new LightRangeRings(viewport, store, measurement);
     this.editor = new WallEditor(viewport, store, eventBus, (lightIds) => this.lightMarkers.setSelected(lightIds), () => mapLightPresets(obsApp, store.getState()));
+    this.zones = new LightZoneEditor({ viewport, store, eventBus, onActiveChange: () => this.session.sync() });
     this.doors = new DoorIcons(store);
     viewport.addChild(this.doors.view);
     this.lights = new LightInteraction({
@@ -126,6 +130,8 @@ export class LightingController {
     this.cleanups.push(store.subscribe((state, previous) => {
       if (state.activeTool !== previous.activeTool || state.lighting.enabled !== previous.lighting.enabled) this.session.sync();
       if (state.lightPopover && !mayEditLight(state, state.lightPopover)) state.closeLightPopover();
+      // A zone is edited with the lighting tool in the GM's view of a loaded scene.
+      if (state.lightZonePopover && (state.activeTool !== 'wall' || !state.isGMView || state.isMapLoading)) state.closeLightZonePopover();
     }));
     this.listen();
     this.session.sync();
@@ -136,24 +142,9 @@ export class LightingController {
     this.tokens = tokens;
     tokens.setPlayerSightProvider(() => (this.session.active ? this.playerSight() : undefined));
     this.sightAids.wire(tokens);
-    tokens.setLightHandlers({
-      // With the lighting tool, a wall handle is grabbed before the marker beneath it, and Shift draws past lights.
-      pointerDown: (x, y, e) => this.lights.pointerDown({ x, y }, e, this.editor.handleAt({ x, y }) || (this.editor.shown && e.shiftKey && !e.ctrlKey && !e.metaKey)),
-      cursorAt: (x, y) => this.lights.cursorAt({ x, y }, this.editor.handleAt({ x, y })),
-      leave: () => this.lights.clearHover(),
-    });
-    tokens.setWallPointerDownHandler((x, y, e) => this.editor.pointerDown({ x, y }, e.shiftKey, e.ctrlKey || e.metaKey));
-    tokens.setWallPointerMoveHandler((x, y) => this.editor.pointerMove({ x, y }));
-    tokens.setWallPointerUpHandler(() => this.editor.pointerUp());
-    tokens.setWallDoubleClickHandler(() => this.editor.doubleClick());
-    tokens.setWallContextMenuHandler((x, y, screenX, screenY) => {
-      if (this.editor.shown) showWallMenu(this.menuContext(), x, y, screenX, screenY);
-    });
-    tokens.setWallCursorProvider((x, y) => this.editor.cursorAt({ x, y }));
-    tokens.setDoorClickHandler((x, y) => {
-      const doorId = this.doors.hitTest(x, y);
-      if (doorId) this.doors.toggle(doorId);
-      return !!doorId;
+    wireLightingPointer(tokens, {
+      lights: this.lights, editor: this.editor, zones: this.zones, doors: this.doors,
+      wallMenu: (x, y, screenX, screenY) => showWallMenu(this.menuContext(), x, y, screenX, screenY),
     });
     // The token renderer brings the outlines of sensed tokens, which the view now shows or hides.
     this.session.sync();
@@ -161,7 +152,7 @@ export class LightingController {
 
   gmOverlays(): GmOverlays {
     return {
-      wallEditor: this.editor.layer, doorBadges: this.doors.view, lightMarkers: this.lightMarkers.view,
+      wallEditor: this.editor.layer, lightZones: this.zones.view, doorBadges: this.doors.view, lightMarkers: this.lightMarkers.view,
       rangeRings: this.rangeRings.view, sightAids: this.sightAids.view,
     };
   }
@@ -207,18 +198,23 @@ export class LightingController {
     return this.deps.app.canvas.ownerDocument?.defaultView ?? window;
   }
 
-  /** Escape cancels a light or ring being dragged and closes the light popover; else it is the wall editor's. */
+  /** Escape cancels a light or ring being dragged and closes the light popover; else it is the zone tool's or the wall editor's. */
   handleEscape(): boolean {
     const state = this.deps.store.getState();
     const dragging = this.lights.dragging;
-    if (!dragging && !state.lightPopover) return this.editor.handleEscape();
+    if (!dragging && !state.lightPopover) return this.zones.handleEscape() || this.editor.handleEscape();
     this.lights.cancel();
     state.closeLightPopover();
     return true;
   }
 
   handleDelete(): boolean {
-    return this.editor.handleDelete();
+    return this.zones.handleDelete() || this.editor.handleDelete();
+  }
+
+  /** Enter closes the light zone being drawn. */
+  handleEnter(): boolean {
+    return this.zones.handleEnter();
   }
 
   private menuContext(): LightingMenuContext {
@@ -242,6 +238,7 @@ export class LightingController {
       { layer: this.renderer.modeLayer, visible: false },
       ...(outlines ? [{ layer: outlines, visible: false }] : []),
       { layer: this.editor.layer, visible: tool },
+      { layer: this.zones.view, visible: tool && this.zones.active },
       { layer: this.doors.view, visible: tool || lighting.enabled },
     ];
   }
@@ -253,6 +250,7 @@ export class LightingController {
     this.sightAids.setSuppressed(players);
     if (players) this.lights.cancel();
     this.editor.afterVisibilityChange();
+    this.zones.afterVisibilityChange();
     this.tokens?.refreshPlayerSight();
     requestRender(this.deps.app);
   }
@@ -272,7 +270,9 @@ export class LightingController {
     };
     const stopEditing = (): void => {
       this.lights.cancel();
+      this.zones.stop();
       store.getState().closeLightPopover();
+      store.getState().closeLightZonePopover();
     };
     on('lighting-reset-explored', () => this.renderer.resetExplored());
     on('map-unloading', () => {
@@ -294,6 +294,7 @@ export class LightingController {
     this.session.destroy();
     this.lights.destroy();
     this.editor.destroy();
+    this.zones.destroy();
     this.renderer.destroy();
     this.doors.destroy();
     this.rangeRings.destroy();
