@@ -10,6 +10,7 @@ import { readSceneLighting } from '../../src/app/lighting/sceneLightingOptions';
 import { AssetService, type Asset } from '../../src/app/services/AssetService';
 import { AssetThumbnailService } from '../../src/app/services/AssetThumbnailService';
 import { createAtlasStorage, migrateMapFile, parseSceneFile, type GridState } from '../../src/app/services/MapPersistence';
+import { createViewAtlasStore } from '../../src/app/storeFactory';
 import type { CollectionGridDefaults } from '../../src/app/types/collectionSettingsTypes';
 import type { SceneLighting } from '../../src/app/types/lightingTypes';
 import { base64Of, cryptFile, cryptSetting, cryptWith, pngHeader } from '../fixtures/uvttFiles';
@@ -135,6 +136,29 @@ describe('importing a Universal VTT file', () => {
     expect(stored?.state.objects.walls).toEqual(expected.walls);
     expect(stored?.state.objects.lights).toEqual(expected.lights);
     expect(readSceneLighting(stored?.state.lighting)).toEqual({ enabled: true, ambient: 0.5 });
+  });
+
+  it('loads into a view\'s store lit, with its walls, its door and its light', async () => {
+    const b = await bench();
+    const { scenePath } = arrived(await importUvttFile(b.deps, uvttFile(cryptFile()), COLLECTION));
+
+    const store = createViewAtlasStore(b.vault.app, `uvtt-import-${Math.random()}`);
+    store.getState().setPersistenceEnabled(false);
+    store.getState().setMapPath(scenePath);
+    await store.rehydrateFromFile();
+
+    const state = store.getState();
+    const walls = Object.values(state.objects.walls);
+    expect(state.lighting).toEqual({ enabled: true, ambient: 0.5 });
+    expect(walls.filter((wall) => wall.type === 'solid')).toHaveLength(10);
+    expect(walls.filter((wall) => wall.type === 'door')).toEqual([
+      { id: 'wall_uvtt_11', kind: 'wall', type: 'door', closed: true, p1: { x: 450, y: 325 }, p2: { x: 450, y: 425 } },
+    ]);
+    expect(Object.values(state.objects.lights)).toEqual([
+      { id: 'light_uvtt_1', kind: 'light', x: 250, y: 250, emission: { bright: 15, dim: 30, color: '#eccd8b', intensity: 1, animation: 'none', kind: 'custom' } },
+    ]);
+    expect(state.grid).toMatchObject({ size: 100, offsetX: 0, offsetY: 0, type: 'square' });
+    expect(state.background).toMatch(/^atlas-vtt\/assets\/Crypt_/);
   });
 
   it.each<[string, CollectionGridDefaults, number, number, Partial<GridState>]>([
