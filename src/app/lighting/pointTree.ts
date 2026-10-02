@@ -63,7 +63,8 @@ export class PointTree {
   beside(a: Point, b: Point, reach: number, passed: Uint8Array, visit: (index: number) => void): void {
     this.spent ??= new Uint8Array(this.boxes.length / 4);
     const dx = b.x - a.x, dy = b.y - a.y;
-    this.walkBeside(0, 0, this.order.length, { ax: a.x, ay: a.y, bx: b.x, by: b.y, dx, dy, length2: dx * dx + dy * dy, reach, reach2: reach * reach }, passed, visit);
+    const length2 = dx * dx + dy * dy;
+    this.walkBeside(0, 0, this.order.length, { ax: a.x, ay: a.y, bx: b.x, by: b.y, dx, dy, length2, reach, reach2: reach * reach, lineReach2: reach * reach * length2 * (1 + 1e-9) }, passed, visit);
   }
 
   private build(node: number, lo: number, hi: number): void {
@@ -218,6 +219,10 @@ export class PointTree {
     const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
     const t = line.length2 === 0 ? 0 : Math.max(0, Math.min(1, ((cx - line.ax) * line.dx + (cy - line.ay) * line.dy) / line.length2));
     if (Math.hypot(cx - line.ax - t * line.dx, cy - line.ay - t * line.dy) > line.reach + Math.hypot(x1 - x0, y1 - y0) / 2) return;
+    // Nor when all of it lies to one side of the segment's line, farther than the reach: its corners nearest to the line tell.
+    const least = ((line.dy > 0 ? x0 : x1) - line.ax) * line.dy - ((line.dx > 0 ? y1 : y0) - line.ay) * line.dx;
+    const most = ((line.dy > 0 ? x1 : x0) - line.ax) * line.dy - ((line.dx > 0 ? y0 : y1) - line.ay) * line.dx;
+    if ((least > 0 && least * least > line.lineReach2) || (most < 0 && most * most > line.lineReach2)) return;
     // Nor when all of it lies before the segment's start or past its end, as seen along the segment.
     const before = ((line.dx > 0 ? x1 : x0) - line.ax) * line.dx + ((line.dy > 0 ? y1 : y0) - line.ay) * line.dy;
     const past = ((line.dx > 0 ? x0 : x1) - line.ax) * line.dx + ((line.dy > 0 ? y0 : y1) - line.ay) * line.dy;
@@ -229,7 +234,6 @@ export class PointTree {
       if (spent[node * 2 + 1] && spent[node * 2 + 2]) spent[node] = 1;
       return;
     }
-    const lineReach2 = line.reach2 * line.length2 * (1 + 1e-9);
     let left = 0;
     for (let i = lo; i < hi; i++) {
       const index = order[i]!;
@@ -237,7 +241,7 @@ export class PointTree {
       left++;
       const ax = xs[index]! - line.ax, ay = ys[index]! - line.ay;
       const cross = ax * line.dy - ay * line.dx, along = ax * line.dx + ay * line.dy;
-      if (cross * cross > lineReach2 || along <= 0 || along >= line.length2 || ax * ax + ay * ay <= line.reach2) continue;
+      if (cross * cross > line.lineReach2 || along <= 0 || along >= line.length2 || ax * ax + ay * ay <= line.reach2) continue;
       const bx = xs[index]! - line.bx, by = ys[index]! - line.by;
       if (bx * bx + by * by > line.reach2) visit(index);
     }
@@ -266,6 +270,8 @@ interface Line {
   length2: number;
   reach: number;
   reach2: number;
+  /** The square of the reach as a cross product with the segment measures it, a hair more: a point that far from the line is beside it. */
+  lineReach2: number;
 }
 
 /** The square of the distance from (x, y) to the farthest corner of a box. */

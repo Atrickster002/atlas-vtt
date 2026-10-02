@@ -6,8 +6,9 @@ import { TOLERANCE, key, random, wall } from './sealFixtures';
 /**
  * Inputs made to be slow or to make bridges without end: ends along a diagonal, where no box
  * around them tells one direction from the next; strokes side by side, whose points come as
- * sorted runs; walls beyond counting that pass one end from every side. A foreign or damaged
- * map may hold any of them, and a map must open all the same.
+ * sorted runs; walls beyond counting that pass one end from every side; ends a hair outside
+ * the tolerance of walls a hair apart. A foreign or damaged map may hold any of them, and a map
+ * must open all the same.
  */
 const SQRT2 = Math.SQRT2;
 type Maker = () => WallSegment[];
@@ -61,11 +62,21 @@ function bundle(): WallSegment[] {
   return [...long, ...short];
 }
 
+/** Long walls a hair apart, and as many stubs with both ends a millionth of a pixel beyond the tolerance of the nearest. */
+const hairApart = (count: number) => (): WallSegment[] => {
+  const long = Array.from({ length: count }, (_, i) => wall(`long${i}`, 0, 500 + i * 0.0001, 2400, 500 + i * 0.0001));
+  const y = 500 - TOLERANCE - 1e-6;
+  const stubs = Array.from({ length: count }, (_, i) => wall(`stub${i}`, 100 + i * 0.1, y, 100.04 + i * 0.1, y));
+  return [...long, ...stubs];
+};
+
 const HOSTILE: [string, Maker][] = [
   ['ends on a diagonal in half a pixel inside 64 tangent walls', tangents],
   ['both ends of 20,000 walls on one diagonal in nine pixels', onLine(20_000, 9, 1)],
   ['the same on the other diagonal', onLine(20_000, 9, -1)],
   ['the same on a line a millionth off the diagonal', onLine(20_000, 9, 1.000001)],
+  ['10,000 long walls a hair apart and 10,000 stubs a hair beyond their reach', hairApart(10_000)],
+  ['20,000 of each', hairApart(20_000)],
   ['a staircase of 20,000 steps along a diagonal', staircase],
   ['64 long walls along 300 px and 19,936 short walls beside them', bundle],
   ['one chain of 60,000 segments on a diagonal in twelve pixels', () => chain('c', 60_000, 12, 1)],
