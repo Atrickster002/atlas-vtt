@@ -3,6 +3,7 @@ import type { StoreApi } from 'zustand';
 import type { ViewAtlasState } from '../../storeFactory';
 import { beginHistoryTransaction, endHistoryTransaction, runHistoryTransaction } from '../../stores/history';
 import type { WallRenderer } from './WallRenderer';
+import { keptByParts } from '../../lighting/segments';
 import type { WallSegment, WallType } from '../../types/wallTypes';
 
 const SHARED_VERTEX_TOLERANCE = 2;
@@ -198,13 +199,7 @@ export class WallInteraction {
     const pMid2 = { x: wall.p1.x + dx * tEnd, y: wall.p1.y + dy * tEnd };
     const pEnd = { x: wall.p1.x + dx * tEnd, y: wall.p1.y + dy * tEnd };
 
-    // The door and what is left of the wall keep what the wall was: its chain, its direction, what it blocks, limited or not.
-    const shared = {
-      ...(wall.chainId !== undefined && { chainId: wall.chainId }),
-      ...(wall.direction !== undefined && { direction: wall.direction }),
-      ...(wall.blocks !== undefined && { blocks: wall.blocks }),
-      ...(wall.limited === true && { limited: true }),
-    };
+    const shared = keptByParts(wall);
     const doorType = this.doorPlacement.doorType;
 
     // Replacing one wall with up to three segments is a single undoable edit

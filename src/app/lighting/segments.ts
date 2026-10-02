@@ -31,6 +31,16 @@ export function concerns(wall: WallSegment, channel: WallChannel): boolean {
   return wall.blocks === undefined || wall.blocks === channel;
 }
 
+/** What the parts of a wall that is cut up keep of it (a door placed in it, and what is left on either side): its chain, its direction, what it blocks, limited or not. */
+export function keptByParts(wall: WallSegment): Pick<WallSegment, 'chainId' | 'direction' | 'blocks' | 'limited'> {
+  return {
+    ...(wall.chainId !== undefined && { chainId: wall.chainId }),
+    ...(wall.direction !== undefined && { direction: wall.direction }),
+    ...(wall.blocks !== undefined && { blocks: wall.blocks }),
+    ...(wall.limited === true && { limited: true }),
+  };
+}
+
 /** Open doors and walls shrunk to a point block nothing. */
 export function blocksNothing(wall: WallSegment): boolean {
   const openDoor = (wall.type === 'door' || wall.type === 'secret-door') && !(wall.closed ?? true);
