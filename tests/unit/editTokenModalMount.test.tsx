@@ -1,10 +1,12 @@
-import { act, fireEvent, screen } from '@testing-library/react';
+import React from 'react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { GENERIC_LIGHT_PRESETS } from '../../src/app/gameSystems/lightPresets/generic';
 import { GENERIC_SENSES } from '../../src/app/gameSystems/senses/generic';
 import { emissionOf, lightPresetsOnMap } from '../../src/app/lighting/lightPresetChoice';
 import { senseWithRole } from '../../src/app/gameSystems/senseRules';
 import { createViewAtlasStore, type ViewAtlasStore } from '../../src/app/storeFactory';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../../src/app/packages/components/primitives/tooltip';
 import { openEditTokenModal } from '../../src/app/pixi/token-renderer/EditTokenModal';
 import { AssetService } from '../../src/app/services/AssetService';
 import type { TokenEntity } from '../../src/app/types';
@@ -166,6 +168,19 @@ describe('openEditTokenModal: the carried light', () => {
     fireEvent.click(screen.getByRole('option', { name: 'Pulse' }));
     save();
     expect(saved().light).toEqual({ ...emissionOf(lantern), bright: 35, color: '#8fb8ff', animation: 'pulse' });
+  });
+
+  it('stays open on the Escape that closes a select\'s list while a tooltip shows, and closes on the next', () => {
+    open({ light: emissionOf(torch) });
+    fireEvent.click(screen.getByRole('combobox', { name: 'Flicker' }));
+    // A tooltip that shows now is the topmost layer: Escape is its own first, and it marks the key.
+    const tooltip = render(<TooltipProvider><Tooltip open><TooltipTrigger>Hovered</TooltipTrigger><TooltipContent>Tip</TooltipContent></Tooltip></TooltipProvider>);
+    fireEvent.keyDown(screen.getByRole('option', { name: 'Pulse' }), { key: 'Escape' });
+    expect(screen.queryByRole('listbox')).toBeNull();
+    expect(screen.getByText('Vision & light')).toBeTruthy();
+    tooltip.unmount();
+    fireEvent.keyDown(document.body, { key: 'Escape' });
+    expect(screen.queryByText('Vision & light')).toBeNull();
   });
 
   it('commits a typed range with Enter without saving the token', () => {

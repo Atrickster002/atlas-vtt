@@ -4,6 +4,7 @@ import { MotionGlobalConfig } from 'framer-motion';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { BUILT_IN_SYSTEM_PRESETS } from '../../src/app/gameSystems/builtInPresets';
 import { emissionOf } from '../../src/app/lighting/lightPresetChoice';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../../src/app/packages/components/primitives/tooltip';
 import { LightPopoverHost } from '../../src/app/pixi/lighting/LightPopover';
 import { AtlasUIContext, type AtlasUIContextValue } from '../../src/app/react/root/AtlasUIContext';
 import { ViewStoreProvider } from '../../src/app/react/ViewStoreContext';
@@ -113,5 +114,25 @@ describe('LightPopover with a game system\'s light presets', () => {
     openMore();
     const dialog = screen.getByRole('dialog', { name: 'Light' });
     expect(dialog.contains(screen.getByRole('menu'))).toBe(true);
+  });
+
+  it('stays open on an Escape pressed while the menu of more lights is open under a tooltip', () => {
+    renderPopover('D&D 5e', emissionOf(light5e('Torch')));
+    openMore();
+    expect(screen.getByRole('menu')).toBeTruthy();
+    // The tooltip shows after the menu opened: it is the topmost layer, and takes Escape first.
+    const tooltip = render(<TooltipProvider><Tooltip open><TooltipTrigger>Hovered</TooltipTrigger><TooltipContent>Tip</TooltipContent></Tooltip></TooltipProvider>);
+    fireEvent.keyDown(screen.getAllByRole('menuitemcheckbox')[0]!, { key: 'Escape' });
+    expect(screen.getByRole('dialog', { name: 'Light' })).toBeTruthy();
+    tooltip.unmount();
+    // With the menu closed and no tooltip, Escape is the popover's.
+    if (screen.queryByRole('menu')) fireEvent.keyDown(screen.getAllByRole('menuitemcheckbox')[0]!, { key: 'Escape' });
+    expect(screen.queryByRole('menu')).toBeNull();
+    expect(screen.getByRole('dialog', { name: 'Light' })).toBeTruthy();
+    const popover = screen.getByRole('dialog', { name: 'Light' });
+    expect(popover.hasAttribute('inert')).toBe(false);
+    fireEvent.keyDown(screen.getByRole('button', { name: 'Torch' }), { key: 'Escape' });
+    // Closed: it takes no more input while it leaves.
+    expect(popover.hasAttribute('inert')).toBe(true);
   });
 });

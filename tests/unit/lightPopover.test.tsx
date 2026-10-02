@@ -1,5 +1,5 @@
 import React from 'react';
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MotionGlobalConfig } from 'framer-motion';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { popover, renderPopover } from '../mocks/lightPopoverHarness';
@@ -223,6 +223,20 @@ describe('LightPopover', () => {
     press(false);
     expect(store.getState().lightPopover).toBe(torch);
     press(true);
+    expect(store.getState().lightPopover).toBeNull();
+  });
+
+  it('stays open on the Escape that closes a select\'s list while a tooltip shows, and closes on the next', () => {
+    const { store, torch } = renderPopover();
+    fireEvent.click(screen.getByRole('combobox', { name: 'Shines' }));
+    const list = screen.getByRole('listbox');
+    // A tooltip that shows now is the topmost layer: Escape is its own first, and it marks the key.
+    const tooltip = render(<TooltipProvider><Tooltip open><TooltipTrigger>Hovered</TooltipTrigger><TooltipContent>Tip</TooltipContent></Tooltip></TooltipProvider>);
+    fireEvent.keyDown(within(list).getAllByRole('option')[0]!, { key: 'Escape' });
+    expect(screen.queryByRole('listbox')).toBeNull();
+    expect(store.getState().lightPopover).toBe(torch);
+    tooltip.unmount();
+    fireEvent.keyDown(screen.getByRole('combobox', { name: 'Shines' }), { key: 'Escape' });
     expect(store.getState().lightPopover).toBeNull();
   });
 
