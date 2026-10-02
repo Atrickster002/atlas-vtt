@@ -11,12 +11,15 @@ import { hasAssetTag } from '../../../../services/tagGroups';
 import type { SidebarLayout } from '../hooks/useSidebarLayout';
 import { sidebarContentVariants, sidebarMotionState, sidebarVariants } from './sidebarMotion';
 import { ClearTagsChip } from './ClearTagsChip';
+import { TagListSkeleton } from './TagListSkeleton';
 
 export interface SidebarProps {
   selectedTagIds: string[];
   onSelectTag: (tagId: string) => void;
   onClearTags: () => void;
   tags: TagType[];
+  /** The collection's tags are not loaded yet: the list shows placeholders instead of "No tags yet". */
+  tagsLoading?: boolean;
   assets: AnyAsset[];
   collections: CollectionOption[];
   /** Id of the selected collection. */
@@ -35,6 +38,7 @@ export function Sidebar({
   onSelectTag,
   onClearTags,
   tags,
+  tagsLoading = false,
   assets,
   collections,
   selectedCollection,
@@ -245,7 +249,8 @@ export function Sidebar({
             )}
 
             <div className="atlas-tags-list">
-              {filteredTags.length > 0 ? (
+              {tagsLoading && <TagListSkeleton />}
+              {!tagsLoading && (filteredTags.length > 0 ? (
                 filteredTags.map((tag) => {
                   const tagCount = tagCounts.get(tag.id) ?? 0;
                   return (
@@ -268,7 +273,7 @@ export function Sidebar({
                     {tagsSearchQuery ? 'No matching tags' : 'No tags yet'}
                   </span>
                 </div>
-              )}
+              ))}
             </div>
           </div>
 

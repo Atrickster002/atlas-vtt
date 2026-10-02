@@ -23,7 +23,7 @@ export interface HeaderProps {
   query: FilterSearch;
   activeTab: Tab;
   onTabChange: (tab: Tab) => void;
-  assetCounts: Record<Tab, number>;
+  assetCounts: Record<Tab, number> | null;
   onCreateTokens?: () => void;
   onCreateMap?: () => void;
   onCreateCollection?: () => void;
