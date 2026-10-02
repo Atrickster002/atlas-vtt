@@ -2,7 +2,7 @@ import type { Point } from '../types/visionTypes';
 import type { WallChannel, WallSegment } from '../types/wallTypes';
 import { blocksNothing, concerns } from '../lighting/segments';
 import { angleTo, distSqToSegment, isOnBlockingSide, raySegmentIntersect } from './visionGeometry';
-import { limitedHit, secondCrossing, type LimitedHit } from './limitedRays';
+import { limitedCrossings, limitedHit, secondCrossing, type LimitedHit } from './limitedRays';
 import { clipToCone, type VisionCone } from './visionCone';
 
 export type Polygon = Point[];
@@ -36,9 +36,10 @@ export function wallsInReach(walls: readonly WallSegment[], origin: Point, radiu
 
 /**
  * The area visible from `origin` up to `radius`, as a star-shaped polygon around it.
- * Radial sweep: a ray at every wall endpoint (and just beside it) plus evenly spaced
- * boundary rays, each stopped by the nearest wall, or by the second limited wall it crosses if
- * that is nearer (`WallSegment.limited`). With a `cone`, only its part inside the cone, closed
+ * Radial sweep: a ray at every wall endpoint (and just beside it), at every point where a
+ * limited wall crosses another wall, plus evenly spaced boundary rays, each stopped by the
+ * nearest wall, or by the second limited wall it crosses if that is nearer
+ * (`WallSegment.limited`). With a `cone`, only its part inside the cone, closed
  * through the origin. `channel` says what is asked for, sight or light: the walls that block
  * only the other are no walls then.
  */
@@ -71,6 +72,12 @@ function sweep(origin: Point, radius: number, walls: readonly WallSegment[], cha
       if (end.x === origin.x && end.y === origin.y) continue;
       const angle = angleTo(origin, end);
       angles.push(angle - RAY_OFFSET, angle, angle + RAY_OFFSET);
+    }
+  }
+  // Where a limited wall crosses another, the wall a ray stops at changes; the reach does not jump there, so one ray will do.
+  if (counting) {
+    for (const point of limitedCrossings(blocking)) {
+      angles.push(angleTo(origin, point));
     }
   }
   angles.sort((a, b) => a - b);

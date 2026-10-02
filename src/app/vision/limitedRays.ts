@@ -63,3 +63,38 @@ export function secondCrossing(hits: LimitedHit[]): { t: number; walls: WallSegm
   }
   return null;
 }
+
+/**
+ * The points where a limited wall crosses another wall between the ends of both. Along a ray
+ * to either side of such a point the two walls come in the other order, so the wall a ray stops
+ * at changes there without any wall ending: the sweep casts rays at these points as it does at
+ * wall ends, or the polygon's edge from one side to the other would cut behind both walls.
+ * Two solid walls that cross need none: the nearer of two walls is the same wall's line on
+ * either side as far as the polygon's edge goes, which then cuts a corner off what is seen and
+ * never adds to it.
+ */
+export function limitedCrossings(walls: readonly WallSegment[]): Point[] {
+  const boxes = walls.map((wall) => ({ wall, minX: Math.min(wall.p1.x, wall.p2.x), maxX: Math.max(wall.p1.x, wall.p2.x), minY: Math.min(wall.p1.y, wall.p2.y), maxY: Math.max(wall.p1.y, wall.p2.y) }));
+  boxes.sort((a, b) => a.minX - b.minX);
+  const points: Point[] = [];
+  for (let i = 0; i < boxes.length; i++) {
+    const a = boxes[i]!;
+    for (let j = i + 1; j < boxes.length && boxes[j]!.minX <= a.maxX; j++) {
+      const b = boxes[j]!;
+      if (!(a.wall.limited || b.wall.limited) || b.minY > a.maxY || b.maxY < a.minY) continue;
+      const point = crossingOf(a.wall, b.wall);
+      if (point) points.push(point);
+    }
+  }
+  return points;
+}
+
+/** Where two walls cross between their ends, or null: at an end the sweep casts its rays anyway. */
+function crossingOf(a: WallSegment, b: WallSegment): Point | null {
+  const rx = a.p2.x - a.p1.x, ry = a.p2.y - a.p1.y, sx = b.p2.x - b.p1.x, sy = b.p2.y - b.p1.y;
+  const denom = rx * sy - ry * sx;
+  if (Math.abs(denom) < EPSILON) return null;
+  const t = ((b.p1.x - a.p1.x) * sy - (b.p1.y - a.p1.y) * sx) / denom;
+  const u = ((b.p1.x - a.p1.x) * ry - (b.p1.y - a.p1.y) * rx) / denom;
+  return t > 0 && t < 1 && u > 0 && u < 1 ? { x: a.p1.x + rx * t, y: a.p1.y + ry * t } : null;
+}
