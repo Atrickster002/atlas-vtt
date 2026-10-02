@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { PAINT_ATTRIBUTE, PaintRuntime } from '../../src/app/skin/PaintRuntime';
-import { paintKindOf } from '../../src/app/skin/paintRules';
+import { paintRoleOf } from '../../src/app/skin/paintRules';
 import { resolveSkin, skinOfTheme } from '../../src/app/skin/skin';
 import { stubLayout } from '../mocks/jsdomLayout';
 
@@ -25,10 +25,10 @@ describe('PaintRuntime', () => {
     const toolbar = document.body.createDiv({ cls: 'atlas-vtt-toolbar' });
     runtime.start();
 
-    expect(toolbar.getAttribute(PAINT_ATTRIBUTE)).toBe('note');
+    expect(toolbar.getAttribute(PAINT_ATTRIBUTE)).toBe('leaf');
     expect(toolbar.style.getPropertyValue('--atlas-paint-mask')).toContain('data:image/svg+xml');
     expect(toolbar.style.getPropertyValue('--atlas-paint-line')).toContain('data:image/svg+xml');
-    expect(toolbar.style.getPropertyValue('--atlas-paint-out')).toBe('6px');
+    expect(toolbar.style.getPropertyValue('--atlas-paint-inset')).toMatch(/^(-\d+\.\d\d% ?){4}$/);
     expect(toolbar.childElementCount).toBe(0);
   });
 
@@ -37,7 +37,7 @@ describe('PaintRuntime', () => {
     menu.style.setProperty('overflow-y', 'auto');
     runtime.start();
 
-    expect(menu.style.getPropertyValue('--atlas-paint-out')).toBe('0px');
+    expect(menu.style.getPropertyValue('--atlas-paint-inset')).toBe('0');
     expect(menu.hasAttribute('data-atlas-paint-clipped')).toBe(true);
   });
 
@@ -46,7 +46,7 @@ describe('PaintRuntime', () => {
     const dialog = document.body.createDiv({ cls: 'atlas-modal' });
     await nextFrame();
 
-    expect(dialog.getAttribute(PAINT_ATTRIBUTE)).toBe('sheet');
+    expect(dialog.getAttribute(PAINT_ATTRIBUTE)).toBe('window');
   });
 
   it('follows a control that is switched on and off', async () => {
@@ -56,7 +56,8 @@ describe('PaintRuntime', () => {
 
     tab.addClass('atlas-active');
     await nextFrame();
-    expect(tab.getAttribute(PAINT_ATTRIBUTE)).toBe('brush');
+    expect(tab.getAttribute(PAINT_ATTRIBUTE)).toBe('ink');
+    expect(tab.style.getPropertyValue('--atlas-paint-bristle-at')).toMatch(/px -?\d+px$/);
 
     tab.removeClass('atlas-active');
     await nextFrame();
@@ -72,6 +73,14 @@ describe('PaintRuntime', () => {
     expect(first.style.getPropertyValue('--atlas-paint-mask')).not.toBe(second.style.getPropertyValue('--atlas-paint-mask'));
   });
 
+  it('brings the fray filters the stylesheet names and takes them away again', () => {
+    runtime.start();
+    expect(document.getElementById('atlas-fray')).not.toBeNull();
+    expect(document.getElementById('atlas-fray-soft')).not.toBeNull();
+    runtime.stop();
+    expect(document.getElementById('atlas-paint-filters')).toBeNull();
+  });
+
   it('leaves nothing behind when the skin goes', () => {
     const toolbar = document.body.createDiv({ cls: 'atlas-vtt-toolbar' });
     runtime.start();
@@ -83,15 +92,15 @@ describe('PaintRuntime', () => {
 });
 
 describe('paint rules', () => {
-  it('lets what is switched on win over the key it is', () => {
-    const tool = document.body.createEl('button', { cls: 'btn btn--toolbar is-active' });
-    expect(paintKindOf(tool)).toBe('brush');
-    tool.remove();
+  it('lets the chosen tab win over the button it is', () => {
+    const tab = document.body.createEl('button', { cls: 'btn btn--default atlas-segmented__option atlas-active' });
+    expect(paintRoleOf(tab)).toBe('ink');
+    tab.remove();
   });
 
   it('paints nothing outside Atlas', () => {
     const note = document.body.createDiv({ cls: 'markdown-preview-view' });
-    expect(paintKindOf(note)).toBeNull();
+    expect(paintRoleOf(note)).toBeNull();
     note.remove();
   });
 });

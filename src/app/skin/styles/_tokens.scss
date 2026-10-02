@@ -1,0 +1,84 @@
+// Armarium's ink and parchment, its type and its textures. The skin carries its own palette
+// instead of reading the theme's: ink on parchment is the look, whatever theme switches it on.
+
+@font-face {
+  font-family: 'Atlas Alegreya';
+  src: url('../../assets/fonts/alegreya-400-normal.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Atlas Alegreya';
+  src: url('../../assets/fonts/alegreya-500-normal.woff2') format('woff2');
+  font-weight: 500 600;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Atlas Alegreya';
+  src: url('../../assets/fonts/alegreya-700-normal.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Atlas Alegreya';
+  src: url('../../assets/fonts/alegreya-400-italic.woff2') format('woff2');
+  font-weight: 400;
+  font-style: italic;
+  font-display: swap;
+}
+
+body.atlas-skin-paper {
+  --atlas-parchment: #f4eee1;
+  --atlas-parchment-raised: #f8f3e9;
+  --atlas-parchment-deep: #ece4d2;
+  --atlas-parchment-dark: #ded3bd;
+  --atlas-ink: #16130f;
+  --atlas-ink-rgb: 22 19 15;
+  --atlas-ink-soft: #3a342b;
+  --atlas-ink-faint: #6b6153;
+  --atlas-sepia: #8a6a4f;
+  --atlas-sepia-deep: #5f4634;
+  --atlas-rule: #c9c2b2;
+  --atlas-blood: #7a2f22;
+  --atlas-frame-line: rgb(22 19 15 / 18%);
+  --atlas-shadow-plate: 0 1px 0 0 rgb(22 19 15 / 25%);
+  --atlas-shadow-sheet: 0 1px 2px rgb(22 19 15 / 10%), 0 8px 24px -12px rgb(22 19 15 / 28%);
+  --atlas-shadow-leaf: 0 1px 1px rgb(22 19 15 / 12%), 0 8px 16px rgb(22 19 15 / 18%);
+  --atlas-shadow-window: 0 1px 1px rgb(22 19 15 / 16%), 0 10px 20px rgb(22 19 15 / 22%);
+  --atlas-font-display: 'Atlas Fantaisie Artistique', 'Palatino Linotype', Palatino, serif;
+  --atlas-font-body: 'Atlas Alegreya', Georgia, serif;
+  --atlas-paper-baked: url('../assets/paper-baked.webp');
+  --atlas-paper-tooth: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='d' x='0' y='0' width='100%25' height='100%25' color-interpolation-filters='sRGB'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.06' numOctaves='4' seed='5' stitchTiles='stitch' result='n'/%3E%3CfeDiffuseLighting in='n' lighting-color='%23fff' surfaceScale='1.8' diffuseConstant='1'%3E%3CfeDistantLight azimuth='225' elevation='45'/%3E%3C/feDiffuseLighting%3E%3CfeComponentTransfer%3E%3CfeFuncR type='linear' slope='0.173' intercept='0.378'/%3E%3CfeFuncG type='linear' slope='0.173' intercept='0.378'/%3E%3CfeFuncB type='linear' slope='0.173' intercept='0.378'/%3E%3C/feComponentTransfer%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23d)'/%3E%3C/svg%3E");
+  --atlas-fibre: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='f' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.4' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23f)' opacity='0.32'/%3E%3C/svg%3E");
+  --atlas-bristle: url('../assets/bristle-fine.webp');
+  --atlas-ink-dot: url('../assets/dot-a.webp');
+  --atlas-enso: url('../assets/enso-a.webp');
+}
+
+// Candle light: the ground stays paper, only darker, and raised stays lighter than the ground.
+body.atlas-skin-paper.theme-dark {
+  --atlas-parchment: #23201b;
+  --atlas-parchment-raised: #2d2923;
+  --atlas-parchment-deep: #201f19;
+  --atlas-parchment-dark: #35312a;
+  --atlas-ink: #e9decb;
+  --atlas-ink-rgb: 233 222 203;
+  --atlas-ink-soft: #cbc1b0;
+  --atlas-ink-faint: #978e81;
+  --atlas-sepia: #a68365;
+  --atlas-sepia-deep: #caab8d;
+  --atlas-rule: #3f3d37;
+  --atlas-blood: #e67b6b;
+  --atlas-frame-line: rgb(233 222 203 / 16%);
+  --atlas-shadow-plate: 0 1px 0 0 rgb(0 0 0 / 70%), 0 2px 6px -1px rgb(0 0 0 / 55%);
+  --atlas-shadow-sheet: 0 1px 2px rgb(0 0 0 / 55%), 0 14px 34px -10px rgb(0 0 0 / 90%);
+  --atlas-shadow-leaf: 0 1px 1px rgb(0 0 0 / 42%), 0 9px 18px rgb(0 0 0 / 46%);
+  --atlas-shadow-window: 0 1px 1px rgb(0 0 0 / 50%), 0 12px 24px rgb(0 0 0 / 55%);
+  --atlas-paper-tooth: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='d' x='0' y='0' width='100%25' height='100%25' color-interpolation-filters='sRGB'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.06' numOctaves='4' seed='5' stitchTiles='stitch' result='n'/%3E%3CfeDiffuseLighting in='n' lighting-color='%23fff' surfaceScale='1.8' diffuseConstant='1'%3E%3CfeDistantLight azimuth='225' elevation='45'/%3E%3C/feDiffuseLighting%3E%3CfeComponentTransfer%3E%3CfeFuncR type='linear' slope='0.09' intercept='0.4364'/%3E%3CfeFuncG type='linear' slope='0.09' intercept='0.4364'/%3E%3CfeFuncB type='linear' slope='0.09' intercept='0.4364'/%3E%3C/feComponentTransfer%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23d)'/%3E%3C/svg%3E");
+}

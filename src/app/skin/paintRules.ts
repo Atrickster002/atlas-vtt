@@ -1,13 +1,23 @@
-import type { PaintKind } from './paint/paintShapes';
+import type { PaintVariant } from './paint/paintShapes';
 
-/** Which elements the paper skin paints, and with what. The first rule an element matches decides. */
-export interface PaintRule {
-  selector: string;
-  kind: PaintKind;
-}
+/**
+ * What a painted element is. The role decides the silhouette here and the fill in the
+ * skin's stylesheet, as in Armarium: a `PaperSheet` in one of its tones, a key plate, or a
+ * plate of ink.
+ */
+export type PaintRole = 'window' | 'sheet' | 'leaf' | 'note' | 'key' | 'ink';
 
-/** Windows and dialogs: sheets with a deep tear. */
-const SHEETS = [
+export const ROLE_VARIANT: Record<PaintRole, PaintVariant> = {
+  window: 'torn-window',
+  sheet: 'torn-sheet',
+  leaf: 'torn-leaf',
+  note: 'torn-note',
+  key: 'key-plate',
+  ink: 'brush-plate',
+};
+
+/** Windows and dialogs whose content paints up to their edge: a sheet that tears outwards only. */
+const WINDOWS = [
   '.atlas-asset-manager-container',
   '.atlas-modal',
   '.atlas-collection-settings-modal',
@@ -26,14 +36,12 @@ const SHEETS = [
   '.atlas-text-dialog',
   '.modal.atlas-native-modal',
   '.atlas-dm-notes-section',
+  '.atlas-loot-roller',
+  '.dice-roll-log',
 ];
 
-/** Bars, menus, popovers and cards: notes with a fine tear. */
-const NOTES = [
-  '.atlas-vtt-toolbar',
-  '.atlas-scene-tab-bar',
-  '.atlas-scene-switcher__panel',
-  '.atlas-widget',
+/** Lists that open over the page: Armarium's dropdown sheet. */
+const SHEETS = [
   '.atlas-ctx-menu',
   '.atlas-dropdown-content',
   '.atlas-select-content',
@@ -43,45 +51,58 @@ const NOTES = [
   '.atlas-collection-dropdown-content',
   '.atlas-move-folder-list',
   '.atlas-asset-manager-header .atlas-filter-panel',
+  '.atlas-note-pin-dropdown',
+  '.pin-place-flyout',
+];
+
+/** What lies on the map: bars, trackers, cards. Armarium's leaf, with a fine fray. */
+const LEAVES = [
+  '.atlas-vtt-toolbar',
+  '.atlas-scene-tab-bar',
+  '.atlas-scene-switcher__panel',
+  '.atlas-initiative-tracker',
+  '.atlas-player-initiative',
   '.atlas-asset-manager-sidebar.atlas-floating',
   '.atlas-grid-alignment-panel',
   '.atlas-progress-modal',
   '.atlas-dice-panel',
-  '.atlas-dice-roll__chip',
-  '.dice-roll-log',
-  '.atlas-loot-roller',
   '.atlas-light-panel',
   '.atlas-light-popover',
   '.atlas-token-value-editor',
-  '.atlas-note-pin-dropdown',
-  '.pin-place-flyout',
   '.atlas-statblock',
   '.atlas-statblock-missing-hint',
-  '.atlas-player-initiative',
-  '.atlas-initiative-tracker',
   '.atlas-map-link-preview',
-  '.tooltip-content',
-  '.atlas-toast',
 ];
 
-/** What is switched on or chosen: a stroke of ink behind it. */
-const BRUSHED = [
-  '.btn--toolbar.is-active',
+/** Small slips of paper. */
+const NOTES = [
+  '.atlas-widget',
+  '.atlas-dice-roll__chip',
+  '.atlas-toast',
+  '.atlas-initiative-card',
+];
+
+/** What is chosen among tabs lies on a stroke of ink, and so does the name of a window or a section. */
+const INKED = [
   '.atlas-tab-button.atlas-active',
   '.atlas-segmented__option.atlas-active',
   '.atlas-scene-tab--active',
   '.atlas-collection-settings-tab.atlas-active',
   '.atlas-dropdown-mode-btn--active',
   '.atlas-loot-pane-tab.atlas-active',
+  // Title plates.
+  '.atlas-collection-settings-header :is(h1, h2, h3)',
+  '.atlas-modal-header :is(h1, h2, h3)',
+  '.atlas-section-header h3',
 ];
 
-/** Keys: buttons that are pressed, and the frames of tool groups. */
+/** Keys: buttons, and the tool that is in hand. */
 const KEYS = [
+  '.btn--toolbar.is-active',
   '.btn--default',
   '.btn--destructive',
   '.btn--secondary',
   '.btn--outline',
-  '.atlas-tool-group',
   '.atlas-native-modal button',
   '.atlas-text-dialog button',
   '.atlas-modal-footer button',
@@ -89,35 +110,27 @@ const KEYS = [
   '.atlas-csm-add-btn',
 ];
 
-/** Rows and cards inside a panel: a box drawn by hand. */
-const FRAMES = [
-  '.atlas-initiative-card',
-  '.dice-log-entry',
-  '.atlas-loot-card',
-  '.atlas-csm-preset',
-  '.atlas-csm-condition',
-  '.atlas-csm-creature-field',
-  '.atlas-csm-toggle-row',
-  '.atlas-csm-sense-list',
-  '.atlas-csm-token-stage',
-  '.atlas-csm-loot-base',
-  '.atlas-sb-token-list',
-];
+export interface PaintRule {
+  selector: string;
+  role: PaintRole;
+}
 
-const rules = (selectors: string[], kind: PaintKind): PaintRule[] => selectors.map((selector) => ({ selector, kind }));
+const rules = (selectors: string[], role: PaintRole): PaintRule[] => selectors.map((selector) => ({ selector, role }));
 
+/** Which elements the paper skin paints. The first rule an element matches decides. */
 export const PAINT_RULES: readonly PaintRule[] = [
-  ...rules(BRUSHED, 'brush'),
+  ...rules(INKED, 'ink'),
+  ...rules(WINDOWS, 'window'),
   ...rules(SHEETS, 'sheet'),
+  ...rules(LEAVES, 'leaf'),
   ...rules(NOTES, 'note'),
   ...rules(KEYS, 'key'),
-  ...rules(FRAMES, 'frame'),
 ];
 
 /** Every painted selector as one, for a single query. */
 export const PAINT_SELECTOR = PAINT_RULES.map((rule) => rule.selector).join(',');
 
-/** The kind of paint an element gets, if any. */
-export function paintKindOf(element: Element): PaintKind | null {
-  return PAINT_RULES.find((rule) => element.matches(rule.selector))?.kind ?? null;
+/** The role an element is painted in, if any. */
+export function paintRoleOf(element: Element): PaintRole | null {
+  return PAINT_RULES.find((rule) => element.matches(rule.selector))?.role ?? null;
 }

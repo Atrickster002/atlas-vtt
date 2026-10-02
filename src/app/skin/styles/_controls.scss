@@ -1,22 +1,13 @@
-// Tabs, switches, sliders, checkboxes.
+// Switches, sliders, checkboxes.
 @use 'paint' as *;
 
 body.atlas-skin-paper {
-  // The strip behind a row of tabs or a segmented choice is paper; only the chosen one carries ink.
-  .atlas-tab-switcher,
-  .atlas-asset-manager-tabs,
-  .atlas-segmented,
-  .atlas-loot-pane-tabs__switch {
-    background: transparent;
-    border-color: transparent;
-    box-shadow: none;
-  }
-
-  // A switch is a drawn pill; switched on it fills with ink and its thumb turns paper.
+  // A switch is a drawn box; switched on it fills with ink. The pen that drew it wavered.
   .atlas-toggle__switch {
-    background: transparent !important;
-    border: 1px solid var(--atlas-ink-line) !important;
-    border-radius: 48% 52% 50% 50% / 60% 44% 56% 40% !important;
+    background: color-mix(in srgb, var(--atlas-parchment-raised) 60%, transparent) !important;
+    border: 1.5px solid rgb(var(--atlas-ink-rgb) / 80%) !important;
+    border-radius: 4px !important;
+    filter: url('#atlas-fray');
   }
 
   .atlas-toggle__switch--on {
@@ -24,19 +15,16 @@ body.atlas-skin-paper {
   }
 
   .atlas-toggle__thumb {
-    background: var(--atlas-ink) !important;
-    border-radius: 52% 48% 46% 54% / 50% 56% 44% 50% !important;
-    box-shadow: none !important;
-  }
-
-  .atlas-toggle__thumb--on {
-    background: var(--atlas-paper) !important;
+    background: var(--atlas-parchment) !important;
+    border: 1px solid rgb(var(--atlas-ink-rgb) / 70%);
+    border-radius: 3px !important;
+    box-shadow: var(--atlas-shadow-plate) !important;
     color: var(--atlas-ink);
   }
 
   // A slider is a ruled line with a blot of ink on it.
   .slider-track {
-    background: var(--atlas-ink-faint);
+    background: rgb(var(--atlas-ink-rgb) / 30%);
     border-radius: 0;
     height: 2px;
   }
@@ -49,18 +37,29 @@ body.atlas-skin-paper {
   .slider-thumb {
     background: var(--atlas-ink);
     border: none;
-    border-radius: 54% 46% 48% 52% / 46% 54% 46% 54%;
+    border-radius: 0;
     box-shadow: none;
+    mask: var(--atlas-ink-dot) center / 100% 100% no-repeat;
   }
 
-  // A checkbox is a drawn square; ticked, a blot of ink.
+  // No box with a tick: a dot of ink on the paper, and ticked, an enso drawn around it.
   #{$atlas} input[type='checkbox'] {
-    border-color: var(--atlas-ink-line);
-    border-radius: 12% 18% 14% 20% / 18% 12% 20% 14%;
-  }
+    appearance: none;
+    background: var(--atlas-ink) !important;
+    border: none !important;
+    border-radius: 0 !important;
+    height: 1.25rem;
+    mask: var(--atlas-ink-dot) center / 34% 34% no-repeat;
+    width: 1.25rem;
 
-  #{$atlas} input[type='checkbox']:checked {
-    background-color: var(--atlas-ink);
-    border-color: var(--atlas-ink);
+    &::after {
+      content: none;
+    }
+
+    &:checked {
+      mask:
+        var(--atlas-ink-dot) center / 34% 34% no-repeat,
+        var(--atlas-enso) center / 100% 100% no-repeat;
+    }
   }
 }

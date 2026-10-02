@@ -1,44 +1,48 @@
-// Sheets and notes: every panel that floats is torn paper with an ink line along the tear.
+// Sheets: what floats is torn paper with an ink line along the tear. Windows and lists are
+// Armarium's sheet, what lies on the map its leaf, small slips its note.
 body.atlas-skin-paper {
-  [data-atlas-paint='sheet'],
+  [data-atlas-paint='window'],
+  [data-atlas-paint='sheet'] {
+    box-shadow: var(--atlas-shadow-window);
+  }
+
+  [data-atlas-paint='leaf'],
   [data-atlas-paint='note'] {
-    // The paint layer is the surface; the box itself only keeps its shadow.
-    background-color: transparent;
-    border-color: transparent;
-    border-radius: 0;
+    box-shadow: var(--atlas-shadow-leaf);
   }
 
-  [data-atlas-paint='sheet']::before,
-  [data-atlas-paint='note']::before {
-    background-color: var(--atlas-paper);
-  }
-
-  // The tooth only on large sheets: on a small one it is rasterised again with every repaint and shows nothing.
-  [data-atlas-paint='sheet']::before {
-    background-image: var(--atlas-paper-tooth);
-    background-size: 300px 300px;
-    background-blend-mode: overlay;
-  }
-
-  // A panel that scrolls or clips keeps its tear inside its box, where the box's own straight
-  // shadow would show in every notch: the shadow follows the paper instead.
-  [data-atlas-paint='sheet'][data-atlas-paint-clipped],
-  [data-atlas-paint='note'][data-atlas-paint-clipped] {
+  // A panel that clips keeps its tear inside its box, where the box's own straight shadow
+  // would show in every notch: there the shadow follows the paper instead.
+  :is([data-atlas-paint='window'], [data-atlas-paint='sheet'], [data-atlas-paint='leaf'], [data-atlas-paint='note'])[data-atlas-paint-clipped] {
     box-shadow: none;
-    filter: drop-shadow(0 1px 2px rgb(0 0 0 / 16%)) drop-shadow(0 8px 18px rgb(0 0 0 / 20%));
+    filter: drop-shadow(0 1px 1px rgb(0 0 0 / 14%)) drop-shadow(0 8px 16px rgb(0 0 0 / 20%));
   }
 
-  // Menus stand a step above the page where the theme lifts them.
-  .atlas-select-content[data-atlas-paint]::before,
-  .atlas-am-menu[data-atlas-paint]::before,
-  .atlas-search-suggestions[data-atlas-paint]::before,
-  .atlas-collection-dropdown-content[data-atlas-paint]::before,
-  .atlas-move-folder-list[data-atlas-paint]::before,
-  .atlas-active-filter-group__list[data-atlas-paint]::before {
-    background-color: var(--menu-background, var(--atlas-paper));
+  :is([data-atlas-paint='window'], [data-atlas-paint='sheet'], [data-atlas-paint='leaf'], [data-atlas-paint='note'])::before {
+    background-color: var(--atlas-parchment-raised);
   }
 
-  // These windows clip only to round their corners, and a sheet has none: opened, the tear can reach past the box.
+  // The baked paper and its tooth only on large sheets: on a small one they are rasterised
+  // again with every repaint and show nothing.
+  :is([data-atlas-paint='window'], [data-atlas-paint='sheet'], [data-atlas-paint='leaf'])::before {
+    background-image: var(--atlas-paper-baked), var(--atlas-paper-tooth);
+    background-size: 2400px 2400px, 300px 300px;
+    background-blend-mode: multiply, overlay;
+  }
+
+  :is([data-atlas-paint='window'], [data-atlas-paint='sheet'])::after {
+    background: rgb(var(--atlas-ink-rgb) / 70%);
+  }
+
+  [data-atlas-paint='leaf']::after {
+    background: rgb(var(--atlas-ink-rgb) / 55%);
+  }
+
+  [data-atlas-paint='note']::after {
+    background: rgb(var(--atlas-ink-rgb) / 45%);
+  }
+
+  // These panels clip only to round their corners, and a sheet has none: opened, the tear can reach past the box.
   .atlas-asset-manager-container[data-atlas-paint],
   .atlas-statblock[data-atlas-paint],
   .atlas-vtt-toolbar[data-atlas-paint],
@@ -47,34 +51,67 @@ body.atlas-skin-paper {
   .atlas-collection-settings-modal[data-atlas-paint],
   .atlas-modal[data-atlas-paint],
   .atlas-initiative-tracker[data-atlas-paint],
-  .tooltip-content[data-atlas-paint] {
+  .atlas-initiative-card[data-atlas-paint] {
     overflow: visible;
   }
 
-
-  // A row or a card inside a panel keeps its ground and gets a line drawn around it by hand.
-  [data-atlas-paint='frame'] {
-    border-color: transparent;
-    border-radius: 0;
+  // A card inside a sheet is not torn: a mounted field with a double hairline, as an engraved form has.
+  .atlas-csm-preset,
+  .atlas-csm-condition,
+  .atlas-csm-creature-field,
+  .atlas-csm-toggle-row,
+  .atlas-csm-sense-list,
+  .atlas-csm-token-stage,
+  .atlas-csm-loot-base,
+  .atlas-csm-resource-dock__idle,
+  .atlas-loot-card,
+  .dice-log-entry,
+  .atlas-sb-token-list {
+    background-color: var(--atlas-parchment-raised);
+    border: 1px solid rgb(var(--atlas-ink-rgb) / 45%);
+    border-radius: 3px;
+    box-shadow: inset 0 0 0 1px var(--atlas-parchment-raised), inset 0 0 0 2px var(--atlas-frame-line);
   }
 
-  [data-atlas-paint='frame']::before {
-    content: none;
+  .atlas-csm-preset.atlas-active {
+    border-color: var(--atlas-ink);
+    box-shadow: inset 0 0 0 1px var(--atlas-parchment-raised), inset 0 0 0 2px var(--atlas-frame-line), var(--atlas-shadow-plate);
   }
 
-  [data-atlas-paint='frame']::after {
-    background: var(--atlas-ink-faint);
+  // A tooltip is a small printed slip, straight-edged.
+  .tooltip-content {
+    background: var(--atlas-parchment-raised);
+    border: 1px solid rgb(var(--atlas-ink-rgb) / 55%);
+    border-radius: 3px;
+    box-shadow: var(--atlas-shadow-sheet);
+    color: var(--atlas-ink);
+    font-size: 0.78rem;
   }
 
-  // What is chosen among rows is drawn in full ink.
-  [data-atlas-paint='frame'].atlas-active::after,
-  [data-atlas-paint='frame'].atlas-initiative-card--active::after {
-    background: var(--atlas-ink);
+  // Rows of menus and lists: the row under the pointer gets a wash of sepia.
+  .atlas-ctx-item,
+  .atlas-dropdown-menu-item,
+  .atlas-select-option,
+  .atlas-collection-option,
+  .atlas-am-menu-item {
+    border-radius: 44% 56% 50% 50% / 62% 40% 60% 38%;
+    color: var(--atlas-ink-soft);
+    font-family: var(--atlas-font-body);
   }
 
-  // Corners Atlas rounds by hand, not through Obsidian's radii.
-  .atlas-initiative-tracker__btn,
-  .atlas-view-actions-btn {
-    border-radius: 0;
+  .atlas-ctx-item:hover,
+  .atlas-ctx-item[data-highlighted],
+  .atlas-dropdown-menu-item:hover,
+  .atlas-select-option:hover,
+  .atlas-collection-option:hover,
+  .atlas-am-menu-item:hover {
+    // Atlas pins the hover ground of its menu rows.
+    background: color-mix(in srgb, var(--atlas-sepia) 18%, transparent) !important;
+    color: var(--atlas-ink);
+  }
+
+  .atlas-select-option.atlas-selected {
+    color: var(--atlas-ink);
+    font-weight: 500;
   }
 }

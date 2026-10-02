@@ -1,18 +1,101 @@
-// The display face for what names a place: tabs, titles, the key that carries the action.
-body.atlas-skin-paper {
-  --atlas-skin-display: 'Atlas Fantaisie Artistique', var(--font-interface);
+// Armarium's type: Alegreya for what is read, the display face for what names a thing,
+// small spaced capitals for the label of a field.
+@use 'paint' as *;
 
+/// Where Atlas' own text begins: its mount points in the view and on the body.
+$roots: '.atlas-vtt-plugin, .atlas-ctx-menu, .tooltip-content, .atlas-statblock-preview-window, .statblock-hover-preview, .atlas-note-pin-dropdown, .atlas-toast-container, .atlas-player-initiative-container, .atlas-image-display, .atlas-initiative-tracker, .atlas-scene-tab-bar, .dice-roll-log';
+
+body.atlas-skin-paper {
+  :where(#{$roots}) {
+    color: var(--atlas-ink);
+    font-family: var(--atlas-font-body);
+  }
+
+  // The display face carries its own weight and sets small, so it is a size larger than the text around it.
+  .btn:not(.btn--icon, .btn--link, .atlas-dropdown-menu-item),
+  .atlas-native-modal button,
+  .atlas-text-dialog button,
   .atlas-tab-label,
   .atlas-scene-tab__name,
   .atlas-collection-settings-tab,
   .atlas-loot-pane-tab,
+  .atlas-segmented__option,
+  .atlas-asset-manager-create-btn {
+    font-family: var(--atlas-font-display);
+    font-weight: 700;
+    letter-spacing: 0.01em;
+  }
+
   .atlas-modal-header :is(h1, h2, h3),
-  .atlas-modal-title,
-  .atlas-section-title,
+  .atlas-collection-settings-header :is(h1, h2, h3),
   .atlas-text-dialog__title,
-  .atlas-csm-title {
-    font-family: var(--atlas-skin-display);
+  .atlas-section-header h3,
+  .atlas-loot-roller__title,
+  .atlas-loot-card__title,
+  .atlas-light-panel__title,
+  .atlas-audio-config__title,
+  .atlas-statblock-link__heading,
+  .atlas-create-collection__heading,
+  .atlas-token-creator__section-title,
+  .atlas-command-palette-panel-title,
+  .atlas-csm-preset__title,
+  .atlas-grid-alignment-title,
+  .atlas-progress-modal__title {
+    font-family: var(--atlas-font-display);
     font-weight: 400;
     letter-spacing: 0.02em;
+  }
+
+  // The label of a field or a group: small capitals, spaced.
+  .atlas-csm-label,
+  .atlas-setting-label,
+  .atlas-edit-token__label,
+  .atlas-edit-token__section-label,
+  .atlas-audio-config__label,
+  .atlas-audio-config__section-label,
+  .atlas-dropdown-label,
+  .atlas-section-title,
+  .atlas-filter-section__title,
+  .atlas-transfer-section__title,
+  .atlas-search-suggestions__heading,
+  .atlas-command-palette-panel-heading,
+  .atlas-asset-manager-move-label,
+  .dice-roll-log__title,
+  .token-picker-section-label {
+    color: var(--atlas-ink-soft);
+    font-family: var(--atlas-font-body);
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+  }
+
+  // What explains a field is said aside, in italics.
+  .atlas-csm-hint:not(.atlas-csm-hint--error),
+  .atlas-setting-hint,
+  .atlas-edit-token__hint,
+  .atlas-transfer-hint,
+  .atlas-grid-alignment-hint,
+  .atlas-statblock-link__subtitle,
+  .atlas-token-creator__subtitle {
+    color: var(--atlas-ink-faint);
+    font-style: italic;
+  }
+
+  // Figures in a line of their own kind stand in columns.
+  #{$atlas} input,
+  .atlas-tab-count,
+  .atlas-tag-count,
+  .atlas-section-count {
+    font-variant-numeric: tabular-nums lining-nums;
+  }
+
+  // The title of a window or of a section is a plate of ink with the name in parchment on it.
+  .atlas-collection-settings-header :is(h1, h2, h3)[data-atlas-paint='ink'],
+  .atlas-modal-header :is(h1, h2, h3)[data-atlas-paint='ink'],
+  .atlas-section-header h3[data-atlas-paint='ink'] {
+    display: inline-block;
+    line-height: 1.25;
+    padding: 0.3rem 0.9rem;
   }
 }

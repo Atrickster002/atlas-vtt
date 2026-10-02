@@ -1,11 +1,12 @@
-import { paintMask, paintOverhang, paintStroke, sizeBucket, type PaintFit, type PaintKind } from './paint/paintShapes';
-import { PAINT_SELECTOR, paintKindOf } from './paintRules';
+import { bristleOffset, drawingBox, hasBristle, paintGeometry, paintMask, paintStroke } from './paint/paintShapes';
+import { installPaintFilters, removePaintFilters } from './paint/paintFilters';
+import { PAINT_SELECTOR, ROLE_VARIANT, paintRoleOf } from './paintRules';
 
 /** The attribute the skin's stylesheet draws by; its value is the kind of paint. */
 export const PAINT_ATTRIBUTE = 'data-atlas-paint';
 /** Set while the edge is kept inside the element's box, since the box clips. */
 const CLIPPED_ATTRIBUTE = 'data-atlas-paint-clipped';
-const PROPERTIES = ['--atlas-paint-mask', '--atlas-paint-line', '--atlas-paint-out'] as const;
+const PROPERTIES = ['--atlas-paint-mask', '--atlas-paint-line', '--atlas-paint-inset', '--atlas-paint-bristle-at'] as const;
 /** Smaller than this an element shows no edge worth drawing. */
 const MIN_SIDE = 10;
 
@@ -44,6 +45,7 @@ export class PaintRuntime {
   }
 
   start(): void {
+    installPaintFilters(this.doc);
     this.changes.observe(this.doc.body, {
       childList: true,
       subtree: true,
@@ -55,6 +57,7 @@ export class PaintRuntime {
 
   /** Takes the paint off every element again. */
   stop(): void {
+    removePaintFilters(this.doc);
     this.changes.disconnect();
     this.sizes.disconnect();
     if (this.frame !== null) this.view.cancelAnimationFrame(this.frame);
@@ -82,8 +85,8 @@ export class PaintRuntime {
 
   private paint(element: Element): void {
     if (!isStyled(element)) return;
-    const kind = paintKindOf(element);
-    if (!kind) {
+    const role = paintRoleOf(element);
+    if (!role) {
       if (this.painted.has(element)) this.clear(element);
       return;
     }
@@ -93,19 +96,24 @@ export class PaintRuntime {
     if (!state) {
       state = { seed: this.nextSeed++, drawn: '' };
       this.painted.set(element, state);
-      element.setAttribute(PAINT_ATTRIBUTE, kind);
+      element.setAttribute(PAINT_ATTRIBUTE, role);
       this.sizes.observe(element);
     }
-    // Read after the attribute is set: the stylesheet opens the overflow of the windows it can.
-    const fit = fitOf(element);
-    const drawn = `${kind}:${fit}:${sizeBucket(box.width)}x${sizeBucket(box.height)}`;
+    // Read after the attribute is set: the stylesheet opens the overflow of the panels it can.
+    const clipped = clips(element);
+    const variant = ROLE_VARIANT[role];
+    const drawing = drawingBox(box.width, box.height);
+    const drawn = `${role}:${clipped}:${drawing.width}x${drawing.height}`;
     if (drawn === state.drawn) return;
     state.drawn = drawn;
-    if (element.getAttribute(PAINT_ATTRIBUTE) !== kind) element.setAttribute(PAINT_ATTRIBUTE, kind);
-    element.style.setProperty('--atlas-paint-mask', paintMask(kind, state.seed, box.width, box.height, fit));
-    element.style.setProperty('--atlas-paint-line', paintStroke(kind, state.seed, box.width, box.height, fit));
-    element.style.setProperty('--atlas-paint-out', `${paintOverhang(kind, fit)}px`);
-    element.toggleAttribute(CLIPPED_ATTRIBUTE, fit === 'in');
+    if (element.getAttribute(PAINT_ATTRIBUTE) !== role) element.setAttribute(PAINT_ATTRIBUTE, role);
+    element.style.setProperty('--atlas-paint-mask', paintMask(variant, state.seed, box.width, box.height));
+    element.style.setProperty('--atlas-paint-line', paintStroke(variant, state.seed, box.width, box.height));
+    // An element that clips would cut a silhouette that reaches past its box, so there the
+    // paint layer is the box itself and the shape lies a little inside it.
+    element.style.setProperty('--atlas-paint-inset', clipped ? '0' : paintGeometry(variant, state.seed, box.width, box.height).inset);
+    if (hasBristle(variant)) element.style.setProperty('--atlas-paint-bristle-at', bristleOffset(state.seed * 7919));
+    element.toggleAttribute(CLIPPED_ATTRIBUTE, clipped);
   }
 
   private clear(element: Element): void {
@@ -121,11 +129,9 @@ function isStyled(element: Element): element is HTMLElement | SVGElement {
   return 'style' in element;
 }
 
-/** An element that clips or scrolls would cut a silhouette that reaches past its box, so there the edge stays inside. */
-function fitOf(element: Element): PaintFit {
+/** Whether the element clips or scrolls what reaches past its box. */
+function clips(element: Element): boolean {
   const style = (element.ownerDocument.defaultView ?? window).getComputedStyle(element);
-  const clips = (overflow: string): boolean => overflow !== '' && overflow !== 'visible';
-  return clips(style.overflowX) || clips(style.overflowY) ? 'in' : 'out';
+  const cuts = (overflow: string): boolean => overflow !== '' && overflow !== 'visible';
+  return cuts(style.overflowX) || cuts(style.overflowY);
 }
-
-export type { PaintKind };
