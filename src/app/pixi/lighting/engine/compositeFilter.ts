@@ -89,6 +89,7 @@ export function createCompositeFilter(world: LightingWorld, explored: Texture): 
   const exploredTint = new Float32Array([1, 1, 1]);
   const unexplored = new Float32Array(3);
   const greyTint = new Float32Array(3);
+  const darkTint = new Float32Array([1, 1, 1]);
   const group = new UniformGroup({
     uScreenToWorld: { value: screenToWorld, type: 'mat3x3<f32>' },
     uPixelWorld: { value: 1, type: 'f32' },
@@ -109,6 +110,8 @@ export function createCompositeFilter(world: LightingWorld, explored: Texture): 
     uUnexplored: { value: unexplored, type: 'vec3<f32>' },
     uGreyKeep: { value: 0, type: 'f32' },
     uGreyTint: { value: greyTint, type: 'vec3<f32>' },
+    uDarkTint: { value: darkTint, type: 'vec3<f32>' },
+    uDarkTinted: { value: 0, type: 'f32' },
     uColourLevel: { value: 0, type: 'f32' },
     uAmbientLift: { value: 1, type: 'f32' },
     uHasDarkness: { value: 0, type: 'f32' },
@@ -158,6 +161,8 @@ export function createCompositeFilter(world: LightingWorld, explored: Texture): 
     setDarkLooks(looks): void {
       u.uGreyKeep = looks.greyKeep;
       greyTint.set(looks.greyTint);
+      darkTint.set(looks.tint ?? [1, 1, 1]);
+      u.uDarkTinted = looks.tint ? 1 : 0;
       u.uGreyLevel = looks.greyLevel;
       u.uColourLevel = looks.colourLevel;
       group.update();

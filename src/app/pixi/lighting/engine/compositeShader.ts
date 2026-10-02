@@ -7,7 +7,8 @@ import { WALL_PUSH_GLSL } from './wallPushGlsl';
  * perceive (`SightMeshes`, `sightChannels`):
  * - red: seen by light, as the light shows it;
  * - green: perceived without light, in the scene's look without colour (uGreyKeep, uGreyTint:
- *   the grey of darkvision, black and white, or heat tones);
+ *   the grey of darkvision, black and white, or heat tones), in the hue of the scene's tint
+ *   while it has one (uDarkTinted, uDarkTint: `tinted`);
  * - blue: perceived without light, in colour, at uColourLevel;
  * - alpha: dim light is perceived as bright (`litAsBright`).
  * Where two looks meet on a pixel, the brighter one shows (`brighter`).
@@ -60,6 +61,8 @@ uniform vec3 uExploredTint;
 uniform vec3 uUnexplored;
 uniform float uGreyKeep;
 uniform vec3 uGreyTint;
+uniform vec3 uDarkTint;
+uniform float uDarkTinted;
 uniform float uColourLevel;
 uniform float uAmbientLift;
 uniform sampler2D uDarkness;
@@ -132,6 +135,21 @@ float exploredAt(vec2 w) {
     weights += k;
   }
   return sum / weights;
+}
+
+// A colour in the hue of a tint, exactly as bright as it was: the tint says what the dark looks
+// like, never how much of it is seen. The tinted colour is scaled back to the colour's own
+// luminance; where one channel cannot carry that (a pure blue as bright as a pale floor), the
+// hue gives way to white as far as it must.
+vec3 tinted(vec3 color, vec3 tint) {
+  float light = dot(color, LUMA);
+  vec3 hued = color * tint;
+  float huedLight = dot(hued, LUMA);
+  // The hue at luminance 1; a colour without the tint's channels takes the tint's own.
+  vec3 hue = huedLight > 1e-6 ? hued / huedLight : tint / max(dot(tint, LUMA), 1e-6);
+  float top = max(hue.r, max(hue.g, hue.b));
+  float share = top > 1.0 ? clamp((1.0 / max(light, 1e-6) - 1.0) / (top - 1.0), 0.0, 1.0) : 1.0;
+  return light * mix(vec3(1.0), hue, share);
 }
 
 // Whichever colour is brighter, blended near a tie (a per-channel max mixes them into pink).
@@ -230,6 +248,7 @@ void main() {
   }
   float grey = dot(albedo, LUMA);
   vec3 darkSight = mix(vec3(grey), albedo, uGreyKeep) * uGreyTint * greyGain;
+  if (uDarkTinted > 0.5) darkSight = tinted(darkSight, uDarkTint);
   vec3 visible = mix(lit, brighter(lit, darkSight), sight.g * sensed);
   // Senses: perceived without light, in colour.
   visible = mix(visible, brighter(visible, albedo * uColourLevel * colourGain), sight.b * sensed);

@@ -72,7 +72,7 @@ describe('darkLooks', () => {
   const grey = (level: number): number[] => [level, level, level];
 
   it('is the grey of darkvision without senses, and with the generic or the D&D darkvision', () => {
-    const before = { greyKeep: 0.15, greyTint: grey(DARK_SIGHT_LEVELS.dim), greyLevel: DARK_SIGHT_LEVELS.dim, colourLevel: DARK_SIGHT_LEVELS.dim };
+    const before = { greyKeep: 0.15, greyTint: grey(DARK_SIGHT_LEVELS.dim), greyLevel: DARK_SIGHT_LEVELS.dim, colourLevel: DARK_SIGHT_LEVELS.dim, tint: null };
     expect(darkLooks({ all: true, regions: [] })).toEqual(before);
     expect(darkLooks(sightWith())).toEqual(before);
     expect(darkLooks(sightWith('darkvision'))).toEqual(before);
@@ -110,8 +110,6 @@ describe('darkLooks', () => {
 });
 
 describe('the scene\'s darkvision look', () => {
-  const luminance = ([r, g, b]: readonly number[]): number => 0.2126 * r! + 0.7152 * g! + 0.0722 * b!;
-
   it('is the looks of the senses, to the last digit, while the scene sets nothing or the system\'s look', () => {
     for (const ids of [[], ['darkvision'], ['pathfinder2e-darkvision'], ['ose-infravision'], ['darkvision', 'blindsight']]) {
       const sight = sightWith(...ids);
@@ -137,30 +135,41 @@ describe('the scene\'s darkvision look', () => {
     for (const darkSightLook of ['grey', 'colour'] as const) expect(darkLooks(sightWith('blindsight'), false, { darkSightLook, darkSightTint: '#ff0000' }).colourLevel).toBe(before);
   });
 
-  it('a tint gives its hue at the brightness of white, as far as one channel carries it', () => {
-    expect(darkSightTint(null)).toEqual([1, 1, 1]);
-    const green = darkSightTint('#00ff00');
-    expect(green[0]).toBe(0);
-    expect(luminance(green)).toBeCloseTo(1, 6);
-    // Blue weighs little: its channel stops at three times white.
-    expect(darkSightTint('#0000ff')).toEqual([0, 0, 3]);
-    const { greyTint } = darkLooks(sightWith('darkvision'), false, { darkSightTint: '#00ff00' });
-    expect(luminance(greyTint)).toBeCloseTo(DARK_SIGHT_LEVELS.dim, 6);
-    expect(greyTint[0]).toBe(0);
+  it('a tint is its hue alone, strongest channel at 1: how dark or light the picked colour is says nothing', () => {
+    expect(darkSightTint(null)).toBeNull();
+    expect(darkSightTint('#00ff00')).toEqual([0, 1, 0]);
+    expect(darkSightTint('#0000ff')).toEqual([0, 0, 1]);
+    // A dark blue and a bright one tint alike.
+    expect(darkSightTint('#000060')).toEqual([0, 0, 1]);
+    const orange = darkSightTint('#ff9040')!;
+    expect(orange[0]).toBe(1);
+    expect(orange[1]).toBeGreaterThan(orange[2]);
+    expect(orange[2]).toBeGreaterThan(0);
   });
 
-  it('a colour without a hue is no tint', () => {
-    for (const color of ['#ffffff', '#808080', '#000000']) {
-      darkSightTint(color).forEach((channel) => expect(channel).toBeCloseTo(1, 6));
+  it('a colour without a hue to speak of is no tint: greys, and what is nearly black or nearly grey', () => {
+    for (const color of ['#ffffff', '#808080', '#000000', '#000001', '#0a0a0a', '#101014', '#fdfdf8']) expect(darkSightTint(color), color).toBeNull();
+    expect(darkLooks(sightWith('darkvision'), false, { darkSightTint: '#000001' })).toEqual(darkLooks(sightWith('darkvision')));
+  });
+
+  it('a faint colour tints faintly: between no hue and a full one the tint grows with the colour', () => {
+    // 10 % apart in sRGB: half way between none (4 %) and full (16 %).
+    const faint = darkSightTint('#80809a')!;
+    const full = darkSightTint('#8080c0')!;
+    expect(faint[2]).toBe(1);
+    expect(full[2]).toBe(1);
+    expect(faint[0]).toBeGreaterThan(full[0]);
+    expect(faint[0]).toBeLessThan(1);
+  });
+
+  it('leaves the look itself as the senses and the scene\'s choice make it: the tint is handed on beside it', () => {
+    for (const id of ['darkvision', 'pathfinder2e-darkvision', 'ose-infravision']) {
+      const { tint: none, ...plain } = darkLooks(sightWith(id));
+      const { tint, ...tinted } = darkLooks(sightWith(id), false, { darkSightTint: '#00ff00' });
+      expect(none).toBeNull();
+      expect(tint).toEqual([0, 1, 0]);
+      expect(tinted).toEqual(plain);
     }
-    expect(darkLooks(sightWith('darkvision'), false, { darkSightTint: '#000000' })).toEqual(darkLooks(sightWith('darkvision')));
-  });
-
-  it('tints the system\'s own look as well: heat keeps its tones under the tint', () => {
-    const heat = darkLooks(sightWith('ose-infravision')).greyTint;
-    const tinted = darkLooks(sightWith('ose-infravision'), false, { darkSightTint: '#00ff00' }).greyTint;
-    expect(tinted[0]).toBe(0);
-    expect(tinted[1]).toBeGreaterThan(heat[1]);
   });
 });
 

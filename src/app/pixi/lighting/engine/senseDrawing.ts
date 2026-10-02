@@ -28,22 +28,28 @@ const GREY_LOOKS: Record<Exclude<SenseLook, 'colour'>, { keep: number; tint: rea
 
 /** The scene draws every look without colour in the map's own colours (`darkSightLook: 'colour'`). */
 const IN_COLOUR = { keep: 1, tint: [1, 1, 1] } as const;
-/** The most a tint may raise one channel; the heat look's red reaches 2.6. */
-const MAX_TINT_GAIN = 3;
-const LUMA = [0.2126, 0.7152, 0.0722] as const;
+/**
+ * How colourful (largest less smallest sRGB channel, 0..1) a picked colour has to be to tint at
+ * all, and from where it tints in full: a near grey or near black has no hue to speak of.
+ */
+const TINT_CHROMA = { none: 0.04, full: 0.16 } as const;
 
 /**
- * A tint the scene picked (`#rrggbb`), in linear light and as bright as white: it gives the
- * picture its hue and leaves its brightness, as far as one channel can carry it. A colour
- * without a hue (a grey, black) and no colour at all are no tint.
+ * The hue a picked tint gives the dark looks (`#rrggbb`), as a multiplier in linear light with
+ * its strongest channel at 1, or null for no tint: no colour, or one without a hue (a grey, a
+ * near black). The composite takes only the hue from it and keeps each pixel as bright as it
+ * was (`tinted` in `compositeShader.ts`), so how dark or light the picked colour is says nothing.
  */
-export function darkSightTint(color: string | null): readonly [number, number, number] {
-  if (!color) return [1, 1, 1];
+export function darkSightTint(color: string | null): readonly [number, number, number] | null {
+  if (!color) return null;
+  const srgb = [1, 3, 5].map((at) => Number.parseInt(color.slice(at, at + 2), 16) / 255);
+  const chroma = Math.max(...srgb) - Math.min(...srgb);
+  const strength = Math.min(1, Math.max(0, (chroma - TINT_CHROMA.none) / (TINT_CHROMA.full - TINT_CHROMA.none)));
+  if (strength === 0) return null;
   const [r, g, b] = linearColor(color);
-  const luminance = r * LUMA[0] + g * LUMA[1] + b * LUMA[2];
-  if (luminance <= 0) return [1, 1, 1];
-  const gain = Math.min(1 / luminance, MAX_TINT_GAIN / Math.max(r, g, b));
-  return [r * gain, g * gain, b * gain];
+  const top = Math.max(r, g, b);
+  const hue = (channel: number): number => 1 + (channel / top - 1) * strength;
+  return [hue(r), hue(g), hue(b)];
 }
 
 function seesByLight(sense: SenseDefinition): boolean {
@@ -83,6 +89,8 @@ export interface DarkLooks {
   greyLevel: number;
   /** How bright the look in colour is drawn. */
   colourLevel: number;
+  /** The hue the scene tints the look without colour with (`darkSightTint`); null for none. */
+  tint: readonly [number, number, number] | null;
 }
 
 function darkLevel(sense: SenseDefinition): number {
@@ -99,8 +107,9 @@ function darkLevel(sense: SenseDefinition): number {
  *
  * The scene may override the look without colour (`darkSightLook`: `grey` draws every such
  * sense, black and white and heat too, in the grey of darkvision, `colour` in the map's own
- * colours, each at the level the sense sees the dark at) and tint it (`darkSightTint`). Neither
- * touches the senses that see in colour, nor what any sense perceives.
+ * colours, each at the level the sense sees the dark at) and tint it (`darkSightTint`: the tint
+ * gives the hue, the look keeps its brightness). Neither touches the senses that see in colour,
+ * nor what any sense perceives.
  */
 export function darkLooks(sight: Sight, spots = false, scene: Pick<SceneLighting, 'darkSightLook' | 'darkSightTint'> = {}): DarkLooks {
   let grey: SenseDefinition | null = null;
@@ -114,9 +123,8 @@ export function darkLooks(sight: Sight, spots = false, scene: Pick<SceneLighting
   const chosen = darkSightLookOf(scene);
   const own = GREY_LOOKS[grey && grey.look !== 'colour' ? grey.look : 'monochrome'];
   const look = chosen === 'colour' ? IN_COLOUR : chosen === 'grey' ? GREY_LOOKS.monochrome : own;
-  const tint = darkSightTint(darkSightTintOf(scene));
   const level = grey ? darkLevel(grey) : DARK_SIGHT_LEVELS.dim;
-  return { greyKeep: look.keep, greyTint: [look.tint[0] * tint[0] * level, look.tint[1] * tint[1] * level, look.tint[2] * tint[2] * level], greyLevel: level, colourLevel };
+  return { greyKeep: look.keep, greyTint: [look.tint[0] * level, look.tint[1] * level, look.tint[2] * level], greyLevel: level, colourLevel, tint: darkSightTint(darkSightTintOf(scene)) };
 }
 
 /**

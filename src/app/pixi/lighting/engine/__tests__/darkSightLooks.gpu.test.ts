@@ -1,3 +1,4 @@
+import { RenderTexture, Sprite, Texture } from 'pixi.js';
 import { afterEach, describe, expect, it } from 'vitest';
 import { BUILT_IN_SENSES, GENERIC_SENSES } from '../../../../gameSystems/senses';
 import { srgbToLinear } from '../../../../lighting/srgb';
@@ -46,7 +47,7 @@ describe('the scene\'s darkvision look', () => {
   });
 
   /** The players' picture of the viewer's senses under `looks`, read with every GL call checked. */
-  async function frame(senses: TokenSense[], looks: Looks = {}, mode: LightingMode = 'player'): Promise<PixelReader> {
+  async function frame(senses: TokenSense[], looks: Looks = {}, mode: LightingMode = 'player', floor: number = camera.tint, scene: Partial<EngineScene> = {}): Promise<PixelReader> {
     const renderer = await createTestRenderer(SIZE);
     cleanup.push(() => renderer.destroy());
     const watch = watchGl(renderer.gl);
@@ -56,9 +57,9 @@ describe('the scene\'s darkvision look', () => {
     const sight = computeSight(sightSources({ v: viewer }, scale, { width: MAP, height: MAP }, { definitions: ALL_SENSES, conditions: [] }), [wall]);
     engine.setEnabled(true);
     engine.setMode(mode);
-    engine.update({ bounds: { width: MAP, height: MAP }, albedo: null, walls: [wall], lights: [lamp], sight, sightRadius: 20, ambient: 0, ...looks });
+    engine.update({ bounds: { width: MAP, height: MAP }, albedo: null, walls: [wall], lights: [lamp], sight, sightRadius: 20, ambient: 0, ...looks, ...scene });
     engine.flush();
-    const at = renderThroughEngine(engine, renderer, camera);
+    const at = renderThroughEngine(engine, renderer, { ...camera, tint: floor });
     watch.stop();
     expect(watch.findings).toEqual([]);
     return at;
@@ -156,5 +157,104 @@ describe('the scene\'s darkvision look', () => {
     const before = await frame(sense('ose-infravision'));
     const unknown = { darkSightLook: 'sepia', darkSightTint: 'red' } as unknown as Looks;
     expect(sameFrame(before, await frame(sense('ose-infravision'), unknown))).toBe(true);
+  });
+
+  describe('a tint', () => {
+    /** Floors from dark brown to sand to grey, and one of each pure colour's opposite. */
+    const FLOORS = { 'dark brown': 0x3b2414, brown: 0x8b4513, sand: 0xc2b280, grey: 0x808080, 'pale stone': 0xd8d8d0, moss: 0x4c7a3f, 'blue-grey': 0x6699cc } as const;
+    const TINTS = ['#0000ff', '#ff0000', '#00ff00', '#40ff80', '#ff9040', '#8020c0', '#203040'];
+    const LOOKS: Looks['darkSightLook'][] = [undefined, 'grey', 'colour'];
+    /** The light of the dark floor around `DARK`, averaged over a few pixels: the composite's dither moves each by a level. */
+    const lightAround = (at: PixelReader): number => {
+      const [cx, cy] = [Math.round(DARK.x * camera.scale), Math.round(DARK.y * camera.scale)];
+      let sum = 0;
+      for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) sum += light(at(cx + dx, cy + dy));
+      return sum / 25;
+    };
+
+    it('changes the hue and not how much the party sees: as bright as the untinted look, on every floor and for every look', { timeout: 300_000 }, async () => {
+      // One engine for the whole grid: only the sight, the look and the floor change.
+      const renderer = await createTestRenderer(SIZE);
+      cleanup.push(() => renderer.destroy());
+      const watch = watchGl(renderer.gl);
+      const engine = new LightingEngine(renderer);
+      cleanup.push(() => engine.destroy());
+      engine.setEnabled(true);
+      engine.setMode('player');
+      const off: string[] = [];
+      let compared = 0;
+      for (const id of ['darkvision', 'pathfinder2e-darkvision', 'ose-infravision']) {
+        const viewer: TokenEntity = { id: 'v', kind: 'token', imagePath: 'v.png', ...VIEWER, vision: { enabled: true, senses: sense(id) } };
+        const sight = computeSight(sightSources({ v: viewer }, scale, { width: MAP, height: MAP }, { definitions: ALL_SENSES, conditions: [] }), [wall]);
+        const shoot = (looks: Looks, floor: number): number => {
+          engine.update({ bounds: { width: MAP, height: MAP }, albedo: null, walls: [wall], lights: [lamp], sight, sightRadius: 20, ambient: 0, ...looks });
+          engine.flush();
+          return lightAround(renderThroughEngine(engine, renderer, { ...camera, tint: floor }));
+        };
+        for (const [floorName, floor] of Object.entries(FLOORS)) {
+          for (const darkSightLook of LOOKS) {
+            const look = darkSightLook ? { darkSightLook } : {};
+            const untinted = shoot(look, floor);
+            expect(untinted).toBeGreaterThan(0);
+            for (const darkSightTint of TINTS) {
+              const ratio = shoot({ ...look, darkSightTint }, floor) / untinted;
+              compared++;
+              if (ratio < 0.85 || ratio > 1.15) off.push(`${id} on ${floorName}, ${darkSightLook ?? 'system'}, ${darkSightTint}: ${ratio.toFixed(2)}`);
+            }
+          }
+        }
+      }
+      watch.stop();
+      expect(watch.findings).toEqual([]);
+      expect(compared).toBe(3 * 7 * 3 * 7);
+      expect(off).toEqual([]);
+    });
+
+    it('gives its hue: blue stays blue on a brown floor in colour, where the floor has next to no blue', async () => {
+      const at = await frame(sense('darkvision'), { darkSightLook: 'colour', darkSightTint: '#0000ff' }, 'player', FLOORS.brown);
+      const [br, bg, bb] = at(Math.round(DARK.x * camera.scale), Math.round(DARK.y * camera.scale));
+      expect(bb).toBeGreaterThan(br + 30);
+      expect(bb).toBeGreaterThan(bg + 30);
+    });
+
+    it('is none below a small saturation: a near black and a near grey leave the picture as it is', async () => {
+      const before = await frame(sense('darkvision'));
+      for (const darkSightTint of ['#000001', '#000000', '#0a0a0a', '#101014', '#808080', '#fdfdfd']) {
+        expect(sameFrame(before, await frame(sense('darkvision'), { darkSightTint })), darkSightTint).toBe(true);
+      }
+    });
+
+    it('keeps the remembered look out of what a sense shows: a tinted dim sense over explored ground is the tint\'s hue alone', async () => {
+      // The whole map is explored and remembered; the sense sees the dark as dim.
+      const renderer = await createTestRenderer(SIZE);
+      cleanup.push(() => renderer.destroy());
+      const explored = RenderTexture.create({ width: 64, height: 64 });
+      const white = new Sprite(Texture.WHITE);
+      white.setSize(64, 64);
+      renderer.render({ container: white, target: explored, clear: true });
+      white.destroy();
+      cleanup.push(() => explored.destroy(true));
+      for (const [darkSightTint, strong, weak] of [['#0000ff', 2, 0], ['#ff0000', 0, 2]] as const) {
+        const engine = new LightingEngine(renderer);
+        const viewer: TokenEntity = { id: 'v', kind: 'token', imagePath: 'v.png', ...VIEWER, vision: { enabled: true, senses: sense('darkvision') } };
+        const sight = computeSight(sightSources({ v: viewer }, scale, { width: MAP, height: MAP }, { definitions: ALL_SENSES, conditions: [] }), [wall]);
+        engine.setEnabled(true);
+        engine.setMode('player');
+        engine.setExplored(explored);
+        engine.update({ bounds: { width: MAP, height: MAP }, albedo: null, walls: [wall], lights: [], sight, sightRadius: 20, ambient: 0, exploredMemory: true, darkSightTint });
+        engine.flush();
+        const at = renderThroughEngine(engine, renderer, { ...camera, tint: FLOORS.grey });
+        const pixel = at(Math.round(DARK.x * camera.scale), Math.round(DARK.y * camera.scale));
+        engine.destroy();
+        // The grey of memory would raise the two channels the tint leaves empty.
+        expect(pixel[strong]).toBeGreaterThan(60);
+        expect(pixel[weak]).toBeLessThanOrEqual(2);
+        expect(pixel[1]).toBeLessThanOrEqual(2);
+        // Behind the wall no sense reaches: there the memory shows, grey.
+        const behind = at(Math.round(BEHIND.x * camera.scale), Math.round(BEHIND.y * camera.scale));
+        expect(behind[0]).toBeGreaterThan(20);
+        expect(Math.max(...behind) - Math.min(...behind)).toBeLessThanOrEqual(2);
+      }
+    });
   });
 });
