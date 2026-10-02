@@ -1,0 +1,87 @@
+// What every painted element shares: two layers behind its content, cut to the silhouette the
+// runtime gives it. `::before` is the paint, `::after` the ink line along the same edge.
+
+/// Everything Atlas draws in a document: the map view's layers and what it mounts on the body.
+$atlas: ":where([class^='atlas-'], [class*=' atlas-'], .statblock-hover-preview, .tooltip-content):not(html, body)";
+
+body.atlas-skin-paper {
+  // Ink and paper are Obsidian's own text and ground, so the skin follows any theme and both schemes.
+  --atlas-ink: var(--text-normal);
+  --atlas-ink-line: color-mix(in oklch, var(--text-normal) 62%, transparent);
+  --atlas-ink-faint: color-mix(in oklch, var(--text-normal) 34%, transparent);
+  --atlas-ink-wash: color-mix(in oklch, var(--text-normal) 9%, transparent);
+  --atlas-paper: var(--background-primary);
+  --atlas-paper-raised: color-mix(in oklch, var(--background-primary) 93%, var(--text-normal));
+  --atlas-blood: var(--text-error);
+  --atlas-paint-bristle: url('../assets/bristle-fine.webp');
+  // The tooth of the sheet: fine relief, lit from the upper left.
+  --atlas-paper-tooth: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='d' x='0' y='0' width='100%25' height='100%25' color-interpolation-filters='sRGB'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.06' numOctaves='4' seed='5' stitchTiles='stitch' result='n'/%3E%3CfeDiffuseLighting in='n' lighting-color='%23fff' surfaceScale='1.8' diffuseConstant='1'%3E%3CfeDistantLight azimuth='225' elevation='45'/%3E%3C/feDiffuseLighting%3E%3CfeComponentTransfer%3E%3CfeFuncR type='linear' slope='0.173' intercept='0.378'/%3E%3CfeFuncG type='linear' slope='0.173' intercept='0.378'/%3E%3CfeFuncB type='linear' slope='0.173' intercept='0.378'/%3E%3C/feComponentTransfer%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23d)'/%3E%3C/svg%3E");
+
+  // Atlas draws with Obsidian's variables, so most of the skin is said here once: grounds that
+  // set an area apart become a wash of ink, borders become ink lines, and what Obsidian marks
+  // with its accent colour is marked in ink. The canvas reads the accent from the body and keeps it.
+  #{$atlas} {
+    --background-secondary: var(--atlas-ink-wash);
+    --background-secondary-alt: color-mix(in oklch, var(--text-normal) 14%, transparent);
+    --background-primary-alt: color-mix(in oklch, var(--text-normal) 5%, transparent);
+    --background-modifier-border: var(--atlas-ink-faint);
+    --background-modifier-border-hover: var(--atlas-ink-line);
+    --background-modifier-border-focus: var(--atlas-ink);
+    --background-modifier-hover: var(--atlas-ink-wash);
+    --background-modifier-active-hover: color-mix(in oklch, var(--text-normal) 16%, transparent);
+    --interactive-normal: var(--atlas-paper-raised);
+    --interactive-hover: color-mix(in oklch, var(--atlas-paper-raised) 88%, var(--text-normal));
+    --interactive-accent: var(--atlas-ink);
+    --interactive-accent-hover: color-mix(in oklch, var(--text-normal) 86%, var(--background-primary));
+    --text-on-accent: var(--atlas-paper);
+    --divider-color: var(--atlas-ink-faint);
+  }
+
+  // No round corner anywhere in Atlas: its radii come from these.
+  #{$atlas} {
+    --radius-s: 0px;
+    --radius-m: 0px;
+    --radius-l: 0px;
+    --radius-xl: 0px;
+    --modal-radius: 0px;
+    --input-radius: 0px;
+    --button-radius: 0px;
+    --checkbox-radius: 0px;
+  }
+
+  // A note opened inside Atlas is Obsidian's own view and keeps Obsidian's corners.
+  #{$atlas} .workspace-leaf-content {
+    --radius-s: 4px;
+    --radius-m: 8px;
+    --radius-l: 12px;
+    --radius-xl: 16px;
+    --modal-radius: 12px;
+    --input-radius: 5px;
+    --button-radius: 5px;
+    --checkbox-radius: 4px;
+  }
+
+  [data-atlas-paint] {
+    isolation: isolate;
+  }
+
+  // Without weight, so an element that is placed keeps its own position.
+  :where([data-atlas-paint]) {
+    position: relative;
+  }
+
+  [data-atlas-paint]::before,
+  [data-atlas-paint]::after {
+    content: '';
+    position: absolute;
+    inset: calc(-1 * var(--atlas-paint-out, 0px));
+    z-index: -1;
+    pointer-events: none;
+    mask: var(--atlas-paint-mask) center / 100% 100% no-repeat;
+  }
+
+  [data-atlas-paint]::after {
+    background: var(--atlas-ink-line);
+    mask-image: var(--atlas-paint-line);
+  }
+}

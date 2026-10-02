@@ -1,0 +1,18 @@
+// The display face for what names a place: tabs, titles, the key that carries the action.
+body.atlas-skin-paper {
+  --atlas-skin-display: 'Atlas Fantaisie Artistique', var(--font-interface);
+
+  .atlas-tab-label,
+  .atlas-scene-tab__name,
+  .atlas-collection-settings-tab,
+  .atlas-loot-pane-tab,
+  .atlas-modal-header :is(h1, h2, h3),
+  .atlas-modal-title,
+  .atlas-section-title,
+  .atlas-text-dialog__title,
+  .atlas-csm-title {
+    font-family: var(--atlas-skin-display);
+    font-weight: 400;
+    letter-spacing: 0.02em;
+  }
+}

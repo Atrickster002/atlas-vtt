@@ -1,0 +1,66 @@
+// Tabs, switches, sliders, checkboxes.
+@use 'paint' as *;
+
+body.atlas-skin-paper {
+  // The strip behind a row of tabs or a segmented choice is paper; only the chosen one carries ink.
+  .atlas-tab-switcher,
+  .atlas-asset-manager-tabs,
+  .atlas-segmented,
+  .atlas-loot-pane-tabs__switch {
+    background: transparent;
+    border-color: transparent;
+    box-shadow: none;
+  }
+
+  // A switch is a drawn pill; switched on it fills with ink and its thumb turns paper.
+  .atlas-toggle__switch {
+    background: transparent !important;
+    border: 1px solid var(--atlas-ink-line) !important;
+    border-radius: 48% 52% 50% 50% / 60% 44% 56% 40% !important;
+  }
+
+  .atlas-toggle__switch--on {
+    background: var(--atlas-ink) !important;
+  }
+
+  .atlas-toggle__thumb {
+    background: var(--atlas-ink) !important;
+    border-radius: 52% 48% 46% 54% / 50% 56% 44% 50% !important;
+    box-shadow: none !important;
+  }
+
+  .atlas-toggle__thumb--on {
+    background: var(--atlas-paper) !important;
+    color: var(--atlas-ink);
+  }
+
+  // A slider is a ruled line with a blot of ink on it.
+  .slider-track {
+    background: var(--atlas-ink-faint);
+    border-radius: 0;
+    height: 2px;
+  }
+
+  .slider-range {
+    background: var(--atlas-ink);
+    border-radius: 0;
+  }
+
+  .slider-thumb {
+    background: var(--atlas-ink);
+    border: none;
+    border-radius: 54% 46% 48% 52% / 46% 54% 46% 54%;
+    box-shadow: none;
+  }
+
+  // A checkbox is a drawn square; ticked, a blot of ink.
+  #{$atlas} input[type='checkbox'] {
+    border-color: var(--atlas-ink-line);
+    border-radius: 12% 18% 14% 20% / 18% 12% 20% 14%;
+  }
+
+  #{$atlas} input[type='checkbox']:checked {
+    background-color: var(--atlas-ink);
+    border-color: var(--atlas-ink);
+  }
+}

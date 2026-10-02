@@ -1,0 +1,10 @@
+// The paper skin: Atlas as ink on torn paper. Everything hangs from the skin's class on the
+// body, which `plugin/skinSync.ts` sets, so the classic look is untouched while it is off.
+// `PaintRuntime` hands painted elements their silhouettes; these files draw them.
+@use 'paint';
+@use 'surfaces';
+@use 'buttons';
+@use 'fields';
+@use 'menus';
+@use 'controls';
+@use 'type';

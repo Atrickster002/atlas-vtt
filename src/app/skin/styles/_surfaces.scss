@@ -1,0 +1,54 @@
+// Sheets and notes: every panel that floats is torn paper with an ink line along the tear.
+body.atlas-skin-paper {
+  [data-atlas-paint='sheet'],
+  [data-atlas-paint='note'] {
+    // The paint layer is the surface; the box itself only keeps its shadow.
+    background-color: transparent;
+    border-color: transparent;
+    border-radius: 0;
+  }
+
+  [data-atlas-paint='sheet']::before,
+  [data-atlas-paint='note']::before {
+    background-color: var(--atlas-paper);
+  }
+
+  // The tooth only on large sheets: on a small one it is rasterised again with every repaint and shows nothing.
+  [data-atlas-paint='sheet']::before {
+    background-image: var(--atlas-paper-tooth);
+    background-size: 300px 300px;
+    background-blend-mode: overlay;
+  }
+
+  // A panel that scrolls or clips keeps its tear inside its box, where the box's own straight
+  // shadow would show in every notch: the shadow follows the paper instead.
+  [data-atlas-paint='sheet'][data-atlas-paint-clipped],
+  [data-atlas-paint='note'][data-atlas-paint-clipped] {
+    box-shadow: none;
+    filter: drop-shadow(0 1px 2px rgb(0 0 0 / 16%)) drop-shadow(0 8px 18px rgb(0 0 0 / 20%));
+  }
+
+  // Menus stand a step above the page where the theme lifts them.
+  .atlas-select-content[data-atlas-paint]::before,
+  .atlas-am-menu[data-atlas-paint]::before,
+  .atlas-search-suggestions[data-atlas-paint]::before,
+  .atlas-collection-dropdown-content[data-atlas-paint]::before,
+  .atlas-move-folder-list[data-atlas-paint]::before,
+  .atlas-active-filter-group__list[data-atlas-paint]::before {
+    background-color: var(--menu-background, var(--atlas-paper));
+  }
+
+  // These windows clip only to round their corners, and a sheet has none: opened, the tear can reach past the box.
+  .atlas-asset-manager-container[data-atlas-paint],
+  .atlas-statblock[data-atlas-paint],
+  .atlas-vtt-toolbar[data-atlas-paint],
+  .atlas-scene-tab-bar[data-atlas-paint],
+  .atlas-widget[data-atlas-paint],
+  .atlas-collection-settings-modal[data-atlas-paint],
+  .atlas-modal[data-atlas-paint],
+  .atlas-initiative-tracker[data-atlas-paint],
+  .tooltip-content[data-atlas-paint] {
+    overflow: visible;
+  }
+
+}

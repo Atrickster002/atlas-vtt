@@ -1,0 +1,106 @@
+// Keys and brush strokes: a button is a plate of paper or ink, what is switched on lies on a stroke of ink.
+body.atlas-skin-paper {
+  [data-atlas-paint='key'] {
+    background: transparent;
+    border-color: transparent;
+    box-shadow: none;
+  }
+
+  [data-atlas-paint='key']::before {
+    background: var(--atlas-paper-raised);
+    transition: background-color 150ms ease-out;
+  }
+
+  [data-atlas-paint='key']:hover::before {
+    background: color-mix(in oklch, var(--atlas-paper-raised) 88%, var(--atlas-ink));
+  }
+
+  [data-atlas-paint='key']:active {
+    translate: 0 1px;
+  }
+
+  // The key that carries the action is ink, its label paper.
+  .btn--default[data-atlas-paint],
+  .mod-cta[data-atlas-paint],
+  .atlas-asset-manager-create-btn[data-atlas-paint] {
+    color: var(--atlas-paper);
+  }
+
+  .btn--default[data-atlas-paint]::before,
+  .mod-cta[data-atlas-paint]::before,
+  .atlas-asset-manager-create-btn[data-atlas-paint]::before {
+    background: var(--atlas-ink);
+  }
+
+  .btn--default[data-atlas-paint]:hover::before,
+  .mod-cta[data-atlas-paint]:hover::before,
+  .atlas-asset-manager-create-btn[data-atlas-paint]:hover::before {
+    background: color-mix(in oklch, var(--atlas-ink) 86%, var(--atlas-paper));
+  }
+
+  .btn--destructive[data-atlas-paint],
+  .mod-warning[data-atlas-paint] {
+    color: var(--atlas-paper);
+  }
+
+  .btn--destructive[data-atlas-paint]::before,
+  .mod-warning[data-atlas-paint]::before {
+    background: var(--atlas-blood);
+  }
+
+  .btn--default[data-atlas-paint]::after,
+  .mod-cta[data-atlas-paint]::after,
+  .btn--destructive[data-atlas-paint]::after,
+  .mod-warning[data-atlas-paint]::after,
+  .atlas-asset-manager-create-btn[data-atlas-paint]::after {
+    content: none;
+  }
+
+  // A group of tools is framed by a drawn line, not filled.
+  .atlas-tool-group[data-atlas-paint]::before {
+    background: transparent;
+  }
+
+  .atlas-tool-group[data-atlas-paint]::after {
+    background: var(--atlas-ink-faint);
+  }
+
+  // The stroke of ink under what is switched on. Its bristles run dry towards the edges;
+  // the middle band stays wet, or the streaks would cut through the label.
+  [data-atlas-paint='brush'] {
+    border-color: transparent;
+    box-shadow: none;
+    color: var(--atlas-paper);
+  }
+
+  [data-atlas-paint='brush']::before {
+    background: var(--atlas-ink);
+    mask:
+      var(--atlas-paint-mask) center / 100% 100% no-repeat,
+      var(--atlas-paint-bristle) 0 0 / 160px 160px repeat,
+      linear-gradient(#000, #000) center / 100% 58% no-repeat;
+    mask-composite: intersect, add;
+  }
+
+  [data-atlas-paint='brush']::after {
+    content: none;
+  }
+
+  // What is only hovered gets a wash, drawn by a loose hand rather than a ruler.
+  .btn--ghost:hover:not([data-atlas-paint]),
+  .btn--toolbar:hover:not([data-atlas-paint]) {
+    background: var(--atlas-ink-wash) !important;
+    border-radius: 46% 54% 52% 48% / 58% 44% 56% 42%;
+  }
+}
+
+// Atlas pins the ground of an active tool with `!important` and four classes. The stroke of ink
+// replaces that ground, so this one rule repeats the skin's class until it outweighs them.
+body.atlas-skin-paper.atlas-skin-paper.atlas-skin-paper.atlas-skin-paper [data-atlas-paint='brush'] {
+  background: transparent !important;
+
+  &,
+  & :where(span, svg) {
+    color: var(--atlas-paper);
+  }
+}

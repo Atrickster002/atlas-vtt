@@ -17,6 +17,7 @@ import {
   type DiceFont,
   type DiceLook,
 } from '../dice3d/diceLook';
+import { isSkinChoice, type SkinChoice } from '../skin/skin';
 
 /**
  * How wheel events drive the map viewport.
@@ -49,6 +50,8 @@ export interface AtlasSettings {
   diceColour: DiceColour;
   /** Face of the dice numerals and roll totals. Read with `getDiceLook`. */
   diceFont: DiceFont;
+  /** Atlas' look: what the theme asks for, classic or paper. Read with `getSkin`. */
+  skin: SkinChoice;
   /** Game system presets the user saved, as stored; `SystemPresetService` validates them. */
   systemPresets: unknown[];
   localPlayerView: {
@@ -78,6 +81,7 @@ const DEFAULT_SETTINGS: AtlasSettings = {
   diceDisplay: 'full',
   diceColour: DEFAULT_DICE_LOOK.colour,
   diceFont: DEFAULT_DICE_LOOK.font,
+  skin: 'theme',
   systemPresets: [],
   localPlayerView: {
     // UI element visibility defaults
@@ -340,6 +344,17 @@ export class SettingsService {
     if (next.colour === this.settings.diceColour && next.font === this.settings.diceFont) return;
     this.settings.diceColour = next.colour;
     this.settings.diceFont = next.font;
+    this.commit();
+  }
+
+  /** The stored choice, or the theme's when the file holds something else. */
+  getSkin(): SkinChoice {
+    return isSkinChoice(this.settings.skin) ? this.settings.skin : 'theme';
+  }
+
+  setSkin(skin: SkinChoice): void {
+    if (this.settings.skin === skin) return;
+    this.settings.skin = skin;
     this.commit();
   }
 

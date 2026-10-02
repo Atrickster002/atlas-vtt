@@ -1,0 +1,40 @@
+// Fields are lines to write on, not boxes.
+@use 'paint' as *;
+
+body.atlas-skin-paper {
+  #{$atlas} {
+    --background-modifier-form-field: transparent;
+  }
+
+  #{$atlas} :is(input:not([type='checkbox'], [type='radio'], [type='range'], [type='color'], [type='file']), textarea, select),
+  :is(#{$atlas}):is(input:not([type='checkbox'], [type='radio'], [type='range'], [type='color'], [type='file']), textarea),
+  .atlas-select-trigger,
+  .atlas-collection-dropdown-trigger,
+  .atlas-asset-manager-search,
+  .dice-text-input {
+    // Each field sets its own box, some with `!important`; the line has to win over all of them.
+    background-color: transparent !important;
+    border-color: transparent !important;
+    border-bottom-color: var(--atlas-ink-faint) !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    transition: border-color 150ms ease-out;
+
+    &:hover {
+      border-bottom-color: var(--atlas-ink-line) !important;
+    }
+
+    &:focus,
+    &:focus-within,
+    &.atlas-open {
+      border-bottom-color: var(--atlas-ink) !important;
+      box-shadow: 0 1px 0 0 var(--atlas-ink) !important;
+    }
+  }
+
+  // A field inside a field's frame (the search box holds an input) has one line, the frame's.
+  .atlas-asset-manager-search input {
+    border-bottom-color: transparent !important;
+    box-shadow: none !important;
+  }
+}
