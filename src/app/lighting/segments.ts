@@ -1,4 +1,4 @@
-import type { WallSegment } from '../types/wallTypes';
+import type { WallChannel, WallSegment } from '../types/wallTypes';
 
 /** A wall's centre line: x1, y1, x2, y2 in world pixels. */
 export type Seg = readonly [number, number, number, number];
@@ -26,6 +26,11 @@ export function crosses(px: number, py: number, qx: number, qy: number, [ax, ay,
   return t > 1e-6 && t <= 1 && u >= 0 && u <= 1;
 }
 
+/** Whether `wall` is a wall for `channel`: one that blocks a single thing is none for the other. */
+export function concerns(wall: WallSegment, channel: WallChannel): boolean {
+  return wall.blocks === undefined || wall.blocks === channel;
+}
+
 /** Open doors and walls shrunk to a point block nothing. */
 export function blocksNothing(wall: WallSegment): boolean {
   const openDoor = (wall.type === 'door' || wall.type === 'secret-door') && !(wall.closed ?? true);
@@ -38,14 +43,15 @@ export interface BlockingWalls {
 }
 
 /**
- * Walls that block light: two-way ones as segments for the shared field, one-way ones kept
- * whole because whether they block depends on where the light is.
+ * The walls that block `channel` (without one, every wall that blocks anything: whoever names
+ * no channel is stopped by all of them): two-way ones as segments for the shared field, one-way
+ * ones kept whole because whether they block depends on where the light is.
  */
-export function splitBlocking(walls: readonly WallSegment[]): BlockingWalls {
+export function splitBlocking(walls: readonly WallSegment[], channel?: WallChannel): BlockingWalls {
   const twoWay: Seg[] = [];
   const oneWay: WallSegment[] = [];
   for (const wall of walls) {
-    if (blocksNothing(wall)) continue;
+    if (blocksNothing(wall) || (channel && !concerns(wall, channel))) continue;
     if (wall.direction) oneWay.push(wall);
     else twoWay.push(segOf(wall));
   }
