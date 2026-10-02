@@ -1,6 +1,5 @@
-import {
-  UvttFormatError, isAbsent, readColor, readList, readNumber, readOptionalBoolean, readOptionalNumber, readPoint, readRecord, refuse,
-} from './uvttFields';
+import { isFiniteNumber, isRecord } from '../../services/assetMetadataGuards';
+import { UvttFormatError, isAbsent, readColor, readFlag, readList, readNumber, readPoint, readRecord, refuse } from './uvttFields';
 import { readImage } from './uvttImage';
 import { UVTT_LIMITS, type UvttLight, type UvttMap, type UvttParseResult, type UvttPoint, type UvttPortal } from './uvttTypes';
 
@@ -25,25 +24,20 @@ function readPortal(value: unknown, index: number): UvttPortal {
   const portal = readRecord(value, capitalized(what));
   const { bounds } = portal;
   if (!Array.isArray(bounds) || bounds.length !== 2) return refuse(`${capitalized(what)} does not have two ends.`);
-  // Read for their types only: a door is placed by its two ends
-  if (!isAbsent(portal.position)) readPoint(portal.position, `The position of ${what}`);
-  readOptionalNumber(portal.rotation, `The rotation of ${what}`, -Number.MAX_VALUE, Number.MAX_VALUE, 0);
-  readOptionalBoolean(portal.freestanding, `"freestanding" of ${what}`, false);
   return {
     bounds: [readPoint(bounds[0], `The first end of ${what}`), readPoint(bounds[1], `The second end of ${what}`)],
-    closed: readOptionalBoolean(portal.closed, `"closed" of ${what}`, true),
+    closed: readFlag(portal.closed, true),
   };
 }
 
 function readLight(value: unknown, index: number): UvttLight {
   const what = `light ${index + 1}`;
   const light = readRecord(value, capitalized(what));
-  readOptionalBoolean(light.shadows, `"shadows" of ${what}`, true);
   return {
     position: readPoint(light.position, `The position of ${what}`),
     range: readNumber(light.range, `The range of ${what}`, 0, UVTT_LIMITS.distance),
-    intensity: readOptionalNumber(light.intensity, `The intensity of ${what}`, 0, Number.MAX_VALUE, 1),
-    color: isAbsent(light.color) ? '#ffffff' : readColor(light.color, `The colour of ${what}`),
+    intensity: isFiniteNumber(light.intensity) && light.intensity >= 0 ? light.intensity : 1,
+    color: readColor(light.color) ?? '#ffffff',
   };
 }
 
@@ -51,10 +45,13 @@ function segmentsOf(polylines: readonly UvttPoint[][]): number {
   return polylines.reduce((total, line) => total + Math.max(0, line.length - 1), 0);
 }
 
+/**
+ * A file's content with what the import places things by checked: the map's size and origin,
+ * every position, each light's range, and the image. What a file states beyond that (its format
+ * version, the pixels per cell it was exported at, a door's rotation) is not looked at.
+ */
 function readMap(root: unknown): UvttMap {
   const file = readRecord(root, 'The file\'s content');
-  if (!isAbsent(file.format)) readNumber(file.format, 'The format version', 0, Number.MAX_VALUE);
-
   const resolution = readRecord(file.resolution, 'The map\'s resolution');
   const sizeIn = readRecord(resolution.map_size, 'The map size');
   const size = {
@@ -62,24 +59,24 @@ function readMap(root: unknown): UvttMap {
     y: readNumber(sizeIn.y, 'The map\'s height', 1, UVTT_LIMITS.mapCells),
   };
   const origin = isAbsent(resolution.map_origin) ? { x: 0, y: 0 } : readPoint(resolution.map_origin, 'The map\'s origin');
-  const pixelsPerCell = readNumber(resolution.pixels_per_grid, 'The number of pixels per grid cell', 1, UVTT_LIMITS.pixelsPerCell);
 
   const polylines = [...readPolylines(file.line_of_sight, 'wall line'), ...readPolylines(file.objects_line_of_sight, 'object outline')];
   const portals = readList(file.portals, 'The list of doors', UVTT_LIMITS.wallSegments, TOO_MANY_WALLS).map(readPortal);
   if (segmentsOf(polylines) + portals.length > UVTT_LIMITS.wallSegments) refuse(TOO_MANY_WALLS);
   const lights = readList(file.lights, 'The list of lights', UVTT_LIMITS.lights, TOO_MANY_LIGHTS).map(readLight);
 
-  const environment = isAbsent(file.environment) ? {} : readRecord(file.environment, 'The environment');
-  const ambientLight = isAbsent(environment.ambient_light) ? null : readColor(environment.ambient_light, 'The ambient light');
-  const bakedLighting = readOptionalBoolean(environment.baked_lighting, '"baked_lighting"', false);
+  const environment = isRecord(file.environment) ? file.environment : {};
+  const ambientLight = readColor(environment.ambient_light);
+  const bakedLighting = readFlag(environment.baked_lighting, false);
 
   // Last: decoding the image is the costly part, and a refused file needs none of it
-  return { origin, size, pixelsPerCell, image: readImage(file.image), polylines, portals, lights, ambientLight, bakedLighting };
+  return { origin, size, image: readImage(file.image), polylines, portals, lights, ambientLight, bakedLighting };
 }
 
 /**
- * Reads the text of a Universal VTT file. Every field is checked for its type and range, and
- * the counts against `UVTT_LIMITS`; a file that fails any check is refused as a whole. Never throws.
+ * Reads the text of a Universal VTT file. Every field the import uses is checked for its type
+ * and range, and the counts against `UVTT_LIMITS`; a file that fails a check is refused as a
+ * whole. Never throws.
  */
 export function parseUvtt(text: string): UvttParseResult {
   if (text.length > UVTT_LIMITS.fileBytes) return { ok: false, problem: UVTT_TOO_LARGE };

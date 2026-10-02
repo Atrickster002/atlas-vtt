@@ -26,7 +26,6 @@ describe('reading a Universal VTT file', () => {
 
     expect(map.origin).toEqual({ x: 0, y: 0 });
     expect(map.size).toEqual({ x: 10, y: 8 });
-    expect(map.pixelsPerCell).toBe(100);
     expect(map.polylines).toHaveLength(4);
     expect(map.polylines[1]).toEqual([{ x: 4.5, y: 1 }, { x: 4.5, y: 3.25 }]);
     expect(map.polylines[3]).toEqual([{ x: 6, y: 5 }, { x: 7, y: 5 }, { x: 7, y: 6 }, { x: 6, y: 6 }, { x: 6, y: 5 }]);
@@ -69,8 +68,6 @@ describe('reading a Universal VTT file', () => {
   });
 
   it.each([
-    ['format', 'three', 'The format version is missing or not a number.'],
-    ['format', -1, 'The format version is out of range.'],
     ['resolution', undefined, 'The map\'s resolution is missing or not an object.'],
     ['resolution', [], 'The map\'s resolution is missing or not an object.'],
     ['resolution.map_size', undefined, 'The map size is missing or not an object.'],
@@ -86,10 +83,6 @@ describe('reading a Universal VTT file', () => {
     ['resolution.map_origin', 3, 'The map\'s origin is missing or not a position.'],
     ['resolution.map_origin.y', 'top', 'The map\'s origin (y) is missing or not a number.'],
     ['resolution.map_origin.x', 1e7, 'The map\'s origin (x) is out of range.'],
-    ['resolution.pixels_per_grid', undefined, 'The number of pixels per grid cell is missing or not a number.'],
-    ['resolution.pixels_per_grid', '100', 'The number of pixels per grid cell is missing or not a number.'],
-    ['resolution.pixels_per_grid', 0, 'The number of pixels per grid cell is out of range.'],
-    ['resolution.pixels_per_grid', 5000, 'The number of pixels per grid cell is out of range.'],
     ['line_of_sight', {}, 'The list of wall lines is not a list.'],
     ['line_of_sight.1', { x: 1, y: 1 }, 'Wall line 2 is not a list of positions.'],
     ['line_of_sight.0.2', [9, 7], 'Point 3 of wall line 1 is missing or not a position.'],
@@ -106,11 +99,6 @@ describe('reading a Universal VTT file', () => {
     ['portals.0.bounds', [{ x: 1, y: 1 }, { x: 2, y: 1 }, { x: 3, y: 1 }], 'Door 1 does not have two ends.'],
     ['portals.0.bounds.1', [4.5, 4.25], 'The second end of door 1 is missing or not a position.'],
     ['portals.0.bounds.0.x', 'left', 'The first end of door 1 (x) is missing or not a number.'],
-    ['portals.0.closed', 'yes', '"closed" of door 1 is neither true nor false.'],
-    ['portals.0.closed', 1, '"closed" of door 1 is neither true nor false.'],
-    ['portals.0.freestanding', 'no', '"freestanding" of door 1 is neither true nor false.'],
-    ['portals.0.rotation', '90', 'The rotation of door 1 is missing or not a number.'],
-    ['portals.0.position', 'middle', 'The position of door 1 is missing or not a position.'],
     ['lights', 'torch', 'The list of lights is not a list.'],
     ['lights.0', 5, 'Light 1 is missing or not an object.'],
     ['lights.0.position', undefined, 'The position of light 1 is missing or not a position.'],
@@ -119,20 +107,14 @@ describe('reading a Universal VTT file', () => {
     ['lights.0.range', '6', 'The range of light 1 is missing or not a number.'],
     ['lights.0.range', -1, 'The range of light 1 is out of range.'],
     ['lights.0.range', 1e12, 'The range of light 1 is out of range.'],
-    ['lights.0.intensity', 'bright', 'The intensity of light 1 is missing or not a number.'],
-    ['lights.0.intensity', -0.5, 'The intensity of light 1 is out of range.'],
-    ['lights.0.color', 'orange', 'The colour of light 1 is not a colour.'],
-    ['lights.0.color', 0xffffff, 'The colour of light 1 is not a colour.'],
-    ['lights.0.color', 'ffeccd8', 'The colour of light 1 is not a colour.'],
-    ['lights.0.shadows', 'soft', '"shadows" of light 1 is neither true nor false.'],
-    ['environment', [], 'The environment is missing or not an object.'],
-    ['environment.baked_lighting', 'true', '"baked_lighting" is neither true nor false.'],
-    ['environment.ambient_light', 0.5, 'The ambient light is not a colour.'],
-    ['environment.ambient_light', 'dark', 'The ambient light is not a colour.'],
     ['image', undefined, 'The file holds no map image.'],
     ['image', '', 'The file holds no map image.'],
     ['image', { data: 'x' }, 'The file holds no map image.'],
     ['image', 'not*base64!', 'The map image in the file is damaged (it is not valid base64).'],
+    ['image', 'maps/crypt.png', 'This file refers to its image instead of containing it.'],
+    ['image', 'C:\\maps\\Crypt of the Lich.JPG', 'This file refers to its image instead of containing it.'],
+    ['image', 'https://example.com/maps/crypt.webp?size=full', 'This file refers to its image instead of containing it.'],
+    ['image', 'file:///Users/gm/maps/crypt', 'This file refers to its image instead of containing it.'],
     ['image', base64Of(GIF_START), 'The map image in the file is not a PNG, WebP or JPEG image.'],
     ['image', base64Of(new TextEncoder().encode('<svg onload="alert(1)"/>')), 'The map image in the file is not a PNG, WebP or JPEG image.'],
     ['image', `data:image/png;base64,${base64Of(GIF_START)}`, 'The map image in the file is not a PNG, WebP or JPEG image.'],
@@ -147,7 +129,48 @@ describe('reading a Universal VTT file', () => {
     const text = JSON.stringify(cryptFile());
     expect(problemOf(text.replace('"range":6', `"range":${number}`))).toBe('The range of light 1 is missing or not a number.');
     expect(problemOf(text.replace('"x":4.5,"y":1}', `"x":${number},"y":1}`))).toBe('Point 1 of wall line 2 (x) is missing or not a number.');
-    expect(problemOf(text.replace('"pixels_per_grid":100', `"pixels_per_grid":${number}`))).toBe('The number of pixels per grid cell is missing or not a number.');
+  });
+
+  it.each([
+    ['format', '0.3'],
+    ['format', { major: 0, minor: 3 }],
+    ['resolution.pixels_per_grid', '100'],
+    ['resolution.pixels_per_grid', undefined],
+    ['resolution.pixels_per_grid', -5],
+    ['portals.0.position', 'middle'],
+    ['portals.0.rotation', '90'],
+    ['portals.0.freestanding', 'no'],
+    ['lights.0.shadows', 'soft'],
+  ])('is not put off by %s being %j, which it has no use for', (path, value) => {
+    expect(read(cryptSetting(path, value))).toEqual(read(cryptFile()));
+  });
+
+  it.each([
+    [true, true], [1, true], ['true', true], ['yes', true], [undefined, true], [null, true], [{}, true],
+    [false, false], [0, false], ['false', false], ['FALSE', false], ['0', false], ['', false],
+  ])('reads a door whose "closed" is %j as closed: %s', (written, closed) => {
+    expect(read(cryptSetting('portals.0.closed', written)).portals[0]!.closed).toBe(closed);
+  });
+
+  it.each([
+    [true, true], ['true', true], [1, true],
+    [false, false], [0, false], ['false', false], [undefined, false], [null, false], [[], false],
+  ])('reads "baked_lighting" of %j as %s', (written, baked) => {
+    expect(read(cryptSetting('environment.baked_lighting', written)).bakedLighting).toBe(baked);
+  });
+
+  it.each(['', 'fff', 'orange', 'ffeccd8', 0xffffff, null, {}])('gives a light whose colour is %j white light', (written) => {
+    expect(read(cryptSetting('lights.0.color', written)).lights[0]!.color).toBe('#ffffff');
+  });
+
+  it.each(['bright', -0.5, null, [], '2'])('gives a light whose intensity is %j the usual one', (written) => {
+    expect(read(cryptSetting('lights.0.intensity', written)).lights[0]!.intensity).toBe(1);
+  });
+
+  it.each([
+    ['environment', []], ['environment', 'night'], ['environment.ambient_light', 0.5], ['environment.ambient_light', 'dark'], ['environment.ambient_light', ''],
+  ])('reads no ambient light where %s is %j', (path, value) => {
+    expect(read(cryptSetting(path, value)).ambientLight).toBeNull();
   });
 
   it('reads the defaults of what a door and a light may leave out', () => {
@@ -183,6 +206,23 @@ describe('the image of a Universal VTT file', () => {
     ['JPEG', JPEG_START, 'image/jpeg'],
   ])('knows a %s by its first bytes', (_label, bytes, type) => {
     expect(read(cryptSetting('image', base64Of(bytes))).image.type).toBe(type);
+  });
+
+  it('is read past white space, line breaks and the head of a data URL', () => {
+    const image = base64Of(pngHeader(1000, 800));
+    const wrapped = ` \n data:image/png;base64,${image.slice(0, 20)}\r\n${image.slice(20)}\n`;
+
+    expect([...read(cryptSetting('image', wrapped)).image.bytes]).toEqual([...pngHeader(1000, 800)]);
+  });
+
+  it('is read from base64 written for URLs, without padding', () => {
+    const bytes = new Uint8Array([...pngHeader(1000, 800), 0xfb, 0xff, 0xfe, 0xff]);
+    const standard = base64Of(bytes);
+    const forUrls = standard.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    expect(standard).toMatch(/[+/]/);
+    expect(forUrls).not.toBe(standard);
+
+    expect([...read(cryptSetting('image', forUrls)).image.bytes]).toEqual([...bytes]);
   });
 
   it('goes by the bytes, not by the type a data URL claims', () => {

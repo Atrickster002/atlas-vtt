@@ -2,9 +2,10 @@ import { isFiniteNumber, isRecord } from '../../services/assetMetadataGuards';
 import { UVTT_LIMITS, type UvttPoint } from './uvttTypes';
 
 /**
- * Readers for single fields of a Universal VTT file. A field that is missing where it is
- * needed, of the wrong type or out of range ends the reading with `UvttFormatError`, whose
+ * Readers for single fields of a Universal VTT file. A field the import places things by that is
+ * missing, of the wrong type or out of range ends the reading with `UvttFormatError`, whose
  * message is a sentence naming the field in plain words; `parseUvtt` turns it into its result.
+ * What only colours or switches something falls back to its default instead.
  */
 export class UvttFormatError extends Error {}
 
@@ -33,15 +34,6 @@ export function readNumber(value: unknown, what: string, min: number, max: numbe
   return value < min || value > max ? refuse(`${what} is out of range.`) : value;
 }
 
-export function readOptionalNumber(value: unknown, what: string, min: number, max: number, fallback: number): number {
-  return isAbsent(value) ? fallback : readNumber(value, what, min, max);
-}
-
-export function readOptionalBoolean(value: unknown, what: string, fallback: boolean): boolean {
-  if (isAbsent(value)) return fallback;
-  return typeof value === 'boolean' ? value : refuse(`${what} is neither true nor false.`);
-}
-
 /** A position in cells, within `UVTT_LIMITS.distance` of zero on both axes. */
 export function readPoint(value: unknown, what: string): UvttPoint {
   if (!isRecord(value)) return refuse(`${what} is missing or not a position.`);
@@ -52,10 +44,21 @@ export function readPoint(value: unknown, what: string): UvttPoint {
   };
 }
 
+/**
+ * A yes or no, however an exporter writes it: `true`, `1` and `"true"` are yes, `false`, `0`,
+ * `"false"`, `"0"` and `""` are no, and anything else, or nothing, is `fallback`.
+ */
+export function readFlag(value: unknown, fallback: boolean): boolean {
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'number') return value !== 0;
+  if (typeof value === 'string') return !['', '0', 'false'].includes(value.trim().toLowerCase());
+  return fallback;
+}
+
 const COLOR = /^#?(?:[0-9a-f]{2})?([0-9a-f]{6})$/i;
 
-/** A colour written as `aarrggbb` or `rrggbb`, as `#rrggbb`; the alpha is dropped. */
-export function readColor(value: unknown, what: string): string {
+/** A colour written as `aarrggbb` or `rrggbb`, as `#rrggbb` (the alpha is dropped); null for anything else. */
+export function readColor(value: unknown): string | null {
   const match = typeof value === 'string' ? COLOR.exec(value.trim()) : null;
-  return match?.[1] ? `#${match[1].toLowerCase()}` : refuse(`${what} is not a colour.`);
+  return match?.[1] ? `#${match[1].toLowerCase()}` : null;
 }

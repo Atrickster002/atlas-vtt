@@ -15,7 +15,6 @@ export const UVTT_LIMITS = {
   lights: 2_000,
   /** Cells along one side of the map, and at least one. */
   mapCells: 4_096,
-  pixelsPerCell: 4_096,
   /** Pixels of the image a cell spans at least; smaller cells hold no token and a grid of them no map. */
   cellPixels: 10,
   /**
@@ -64,7 +63,6 @@ export interface UvttMap {
   origin: UvttPoint;
   /** Cells the image spans. */
   size: UvttPoint;
-  pixelsPerCell: number;
   image: UvttImage;
   /** Wall lines and the outlines of objects that block sight; each runs through its points in order. */
   polylines: UvttPoint[][];
