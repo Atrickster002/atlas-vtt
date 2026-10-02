@@ -21,7 +21,7 @@ interface End {
 export function sealWalls(walls: readonly WallSegment[], tolerance: number): WallSegment[] {
   const ends: End[] = [];
   walls.forEach((wall, i) => {
-    if (wall.p1.x === wall.p2.x && wall.p1.y === wall.p2.y) return;
+    if (!hasLength(wall)) return;
     ends.push({ wall: i, end: 'p1', point: wall.p1 }, { wall: i, end: 'p2', point: wall.p2 });
   });
   const cell = Math.max(tolerance, 1) * 4;
@@ -68,7 +68,7 @@ function middleBridges(walls: readonly WallSegment[], grid: PointGrid<End>, tole
   walls.forEach((wall, j) => {
     const dx = wall.p2.x - wall.p1.x, dy = wall.p2.y - wall.p1.y;
     const len2 = dx * dx + dy * dy;
-    if (len2 === 0) return;
+    if (!hasLength(wall)) return;
     const found = new Set<End>();
     grid.alongSegment(wall.p1, wall.p2, (end) => {
       if (end.wall !== j) found.add(end);
@@ -101,6 +101,16 @@ function acrossDirection(p: Point, foot: Point, ownOtherEnd: Point, dx: number, 
   return side > 0 ? { x: -normal.x, y: -normal.y } : normal;
 }
 
+/**
+ * Whether a wall spans a distance that can be worked with. One without length joins nothing, and
+ * one with a coordinate that is no finite number (a damaged map file) has no place to seal.
+ */
+function hasLength(wall: WallSegment): boolean {
+  const dx = wall.p2.x - wall.p1.x, dy = wall.p2.y - wall.p1.y;
+  const length2 = dx * dx + dy * dy;
+  return length2 > 0 && Number.isFinite(length2);
+}
+
 function label(walls: readonly WallSegment[], end: End): string {
   return `${walls[end.wall]!.id}:${end.end}`;
 }
@@ -116,14 +126,22 @@ function bridge(id: string, p1: Point, p2: Point): WallSegment {
 /** Points binned in square cells at least `tolerance` wide, so neighbours are one cell away. */
 class PointGrid<T> {
   private readonly cells = new Map<number, T[]>();
+  /** Every cell that holds an item, for walking the cells instead of a segment. */
+  private readonly occupied: Array<{ cx: number; cy: number; items: T[] }> = [];
 
   constructor(private readonly size: number) {}
 
   add(p: Point, item: T): void {
-    const key = this.key(Math.floor(p.x / this.size), Math.floor(p.y / this.size));
+    const cx = Math.floor(p.x / this.size), cy = Math.floor(p.y / this.size);
+    const key = this.key(cx, cy);
     const bucket = this.cells.get(key);
-    if (bucket) bucket.push(item);
-    else this.cells.set(key, [item]);
+    if (bucket) {
+      bucket.push(item);
+      return;
+    }
+    const items = [item];
+    this.cells.set(key, items);
+    this.occupied.push({ cx, cy, items });
   }
 
   /** Items in the cells around `p`: every item within a cell width of it, and some more. */
@@ -142,6 +160,11 @@ class PointGrid<T> {
    */
   alongSegment(a: Point, b: Point, visit: (item: T) => void): void {
     const steps = Math.max(1, Math.ceil(Math.hypot(b.x - a.x, b.y - a.y) / this.size));
+    // A segment far longer than the map (a damaged or foreign file) would be sampled without end
+    if (steps > this.occupied.length) {
+      this.cellsNear(a, b, visit);
+      return;
+    }
     const seen = new Set<number>();
     for (let s = 0; s <= steps; s++) {
       const x = a.x + ((b.x - a.x) * s) / steps, y = a.y + ((b.y - a.y) * s) / steps;
@@ -154,6 +177,23 @@ class PointGrid<T> {
           for (const item of this.cells.get(key) ?? []) visit(item);
         }
       }
+    }
+  }
+
+  /**
+   * Visits the items the samples of `alongSegment` would reach, by walking the cells that hold
+   * items instead of the segment: a sample reaches the cells around its own, whose centres lie
+   * within one and a half cells of it on each axis.
+   */
+  private cellsNear(a: Point, b: Point, visit: (item: T) => void): void {
+    const reach = this.size * 1.5 * Math.SQRT2;
+    const dx = b.x - a.x, dy = b.y - a.y;
+    const length2 = dx * dx + dy * dy;
+    for (const { cx, cy, items } of this.occupied) {
+      const x = (cx + 0.5) * this.size, y = (cy + 0.5) * this.size;
+      const t = length2 === 0 ? 0 : Math.max(0, Math.min(1, ((x - a.x) * dx + (y - a.y) * dy) / length2));
+      if (Math.hypot(x - a.x - t * dx, y - a.y - t * dy) > reach) continue;
+      for (const item of items) visit(item);
     }
   }
 
