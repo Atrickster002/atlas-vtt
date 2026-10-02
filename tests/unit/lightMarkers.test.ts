@@ -206,6 +206,28 @@ describe('LightMarkers', () => {
     expect(fills()).toBeGreaterThan(plain);
   });
 
+  it('goes by the ambient light where the light stands: a lamp in a dark zone shines by day, and follows the zone as it changes', () => {
+    const { markers, store } = setup();
+    store.getState().setSceneLighting({ enabled: true, ambient: 1 });
+    const id = addLight(store, 100, 200);
+    store.getState().updateLight(id, { activeBelowAmbient: 0.5 });
+    const { glyph } = parts(markers.view.children[0]!);
+    expect(glyph.alpha).toBeLessThan(0.5);
+    // A cave around the lamp: dark while the sun shines outside.
+    const cave = store.getState().addLightZone({ polygon: [{ x: 0, y: 100 }, { x: 200, y: 100 }, { x: 200, y: 300 }, { x: 0, y: 300 }], ambient: 0 });
+    expect(glyph.alpha).toBe(1);
+    store.getState().updateLightZone(cave, { ambient: 0.8 });
+    expect(glyph.alpha).toBeLessThan(0.5);
+    store.getState().updateLightZone(cave, { ambient: 0.2 });
+    expect(glyph.alpha).toBe(1);
+    // Moved off the lamp, the zone no longer counts for it.
+    store.getState().updateLightZone(cave, { polygon: [{ x: 500, y: 100 }, { x: 700, y: 100 }, { x: 700, y: 300 }, { x: 500, y: 300 }] });
+    expect(glyph.alpha).toBeLessThan(0.5);
+    store.getState().updateLightZone(cave, { polygon: [{ x: 0, y: 100 }, { x: 200, y: 100 }, { x: 200, y: 300 }, { x: 0, y: 300 }] });
+    store.getState().deleteLightZone(cave);
+    expect(glyph.alpha).toBeLessThan(0.5);
+  });
+
   it('rings a selected light and the light whose popover is open in the accent', () => {
     const { markers, store } = setup();
     store.getState().setSceneLighting({ enabled: true });

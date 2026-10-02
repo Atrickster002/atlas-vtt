@@ -1,9 +1,11 @@
 import { Container, Graphics, Sprite, type Texture } from 'pixi.js';
 import type { Viewport } from 'pixi-viewport';
 import { LIGHT_GLYPH_PATHS } from '../../lighting/lightGlyphs';
+import { lightZoneList, withZones } from '../../lighting/lightZones';
 import type { ViewAtlasState, ViewAtlasStore } from '../../storeFactory';
 import type { LightKind, LightSource } from '../../types/lightingTypes';
 import { MOTION_NORMAL_MS, prefersReducedMotion } from '../../utils/motion';
+import { ambientAt } from '../../vision/lightLevels';
 import { canvasBadgeColors } from '../utils/canvasBadgeColors';
 import { cssColorToHexNumber, getObsidianAccentColor } from '../utils/colorUtils';
 import { destroyTree } from '../utils/destroyTree';
@@ -115,6 +117,7 @@ export class LightMarkers {
     this.unsubscribe = store.subscribe((state, previous) => {
       if (
         state.objects.lights !== previous.objects.lights
+        || state.objects.lightZones !== previous.objects.lightZones
         || state.lighting.enabled !== previous.lighting.enabled
         || state.lighting.ambient !== previous.lighting.ambient
         || state.activeTool !== previous.activeTool
@@ -178,6 +181,8 @@ export class LightMarkers {
     this.view.visible = shown;
     if (!shown) return;
     const { lights } = state.objects;
+    // A lamp that follows the ambient light goes by the light where it stands, as the rule does (`activeLights`).
+    const ambient = withZones(state.lighting, lightZoneList(state.objects.lightZones));
     for (const [id, marker] of this.markers) {
       if (lights[id]) continue;
       marker.lift?.cancel();
@@ -189,7 +194,7 @@ export class LightMarkers {
         hovered: this.hovered === light.id,
         selected: this.selected.has(light.id) || state.lightPopover === light.id,
         dragging: this.dragging === light.id,
-      }, this.theme, state.lighting.ambient);
+      }, this.theme, ambientAt(light, ambient));
       const previous = this.markers.get(light.id);
       const marker = previous ?? this.create(light, look);
       // The badge takes the theme's colours too, whatever its look: a marker drawn in another theme is redrawn.

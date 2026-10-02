@@ -2,6 +2,7 @@ import type { LightZone, SceneLighting } from '../types/lightingTypes';
 import type { Point } from '../types/visionTypes';
 import { isRecord } from '../services/assetMetadataGuards';
 import { isHexColor } from '../utils/hexColor';
+import type { AmbientLight, AmbientZone } from '../vision/sight';
 import { pointInPolygon } from '../vision/visibility';
 import { litThresholdOf } from './sceneLightingOptions';
 
@@ -45,6 +46,11 @@ export function lightZoneList(zones: Record<string, LightZone> | undefined): Lig
 }
 
 const NONE: LightZone[] = [];
+
+/** A scene's lighting as the rules read it: itself, or with its zones when it has any. */
+export function withZones<Lighting extends SceneLighting>(lighting: Lighting, zones: readonly AmbientZone[]): Lighting & AmbientLight {
+  return zones.length > 0 ? { ...lighting, zones } : lighting;
+}
 
 /** The ambient light a newly drawn zone starts with: dark in a lit scene (a cave), daylight in a dark one (a lit hall). */
 export function newZoneAmbient(scene: Pick<SceneLighting, 'ambient' | 'litThreshold'>): number {

@@ -1,6 +1,6 @@
 import type { MeasurementSettings } from '../../grid/measurementFormat';
 import { sleeps } from '../../lighting/lightActivity';
-import { lightZoneList } from '../../lighting/lightZones';
+import { lightZoneList, withZones } from '../../lighting/lightZones';
 import { worldTexel } from '../../lighting/lightingConstants';
 import { unitScaleOf } from '../../lighting/lightingUnits';
 import { sealedWalls } from '../../lighting/sealWalls';
@@ -14,7 +14,7 @@ import { quenched, sourcesInDarkness } from '../../vision/magicalDarkness';
 import { seenSpots, type SeenSpot } from '../../vision/perception';
 import type { SightRules } from '../../vision/sightRules';
 import { ambientAt } from '../../vision/lightLevels';
-import { SightCache, sceneSight, sightOptionsChanged, sightSources, type AmbientLight, type AmbientZone, type LightReach, type Sight } from '../../vision/sight';
+import { SightCache, sceneSight, sightOptionsChanged, sightSources, type AmbientLight, type LightReach, type Sight } from '../../vision/sight';
 import type { MapBounds } from '../../vision/visibility';
 import { wallList } from '../../vision/wallList';
 import type { EngineLight, EngineZone } from './engine/types';
@@ -104,11 +104,6 @@ export class SceneModelBuilder {
 }
 
 const NO_ZONES: readonly EngineZone[] = [];
-
-/** The scene's lighting as the rules read it: itself, or with its zones when it has any. */
-export function withZones<Lighting extends SceneLighting>(lighting: Lighting, zones: readonly AmbientZone[]): Lighting & AmbientLight {
-  return zones.length > 0 ? { ...lighting, zones } : lighting;
-}
 
 /** Whether a light that follows the ambient light wakes or falls asleep between two ambient lights. */
 function awakeLightsChanged(lights: ViewAtlasState['objects']['lights'], before: AmbientLight, after: AmbientLight): boolean {
