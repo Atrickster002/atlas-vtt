@@ -13,7 +13,7 @@ import { CreatureIndex } from '../../creatures/CreatureIndex';
 import { tokenSensesResolver, type TokenSensesResolver } from '../../creatures/tokenSensesResolver';
 import { mapSenseRulesSource } from '../../services/mapSenseRules';
 import { SettingsService } from '../../services/SettingsService';
-import type { ViewAtlasState, ViewAtlasStore } from '../../storeFactory';
+import type { ViewAtlasStore } from '../../storeFactory';
 import { findAtlasLeafByViewId } from '../../utils/atlasLeafLookup';
 import type { SightRules } from '../../vision/sightRules';
 import type { MapBounds } from '../../vision/visibility';
@@ -26,9 +26,10 @@ import { DoorIcons } from './DoorIcons';
 import { showDoorMenu, showWallMenu, type LightingMenuContext } from './lightingMenus';
 import { wireLightingPointer } from './lightingPointer';
 import { LightInteraction } from './LightInteraction';
-import { LightMarkers, lightMarkersShown } from './LightMarkers';
+import { LightMarkers } from './LightMarkers';
 import { LightRangeRings } from './LightRangeRings';
 import { LightZoneEditor } from './LightZoneEditor';
+import { closeStalePopovers } from './popoverGuards';
 import { PerceptionMemo, playerLightingLayers, playerTokenSight, type GmOverlays, type TokenPerception } from './playerLightingLayers';
 import type { SceneLightingView } from './sceneLightingView';
 import { SessionLighting } from './SessionLighting';
@@ -129,9 +130,7 @@ export class LightingController {
     // Subscribed after the overlays' own subscriptions, so the players' view is set last.
     this.cleanups.push(store.subscribe((state, previous) => {
       if (state.activeTool !== previous.activeTool || state.lighting.enabled !== previous.lighting.enabled) this.session.sync();
-      if (state.lightPopover && !mayEditLight(state, state.lightPopover)) state.closeLightPopover();
-      // A zone is edited with the lighting tool in the GM's view of a loaded scene.
-      if (state.lightZonePopover && (state.activeTool !== 'wall' || !state.isGMView || state.isMapLoading)) state.closeLightZonePopover();
+      closeStalePopovers(state);
     }));
     this.listen();
     this.session.sync();
@@ -302,9 +301,4 @@ export class LightingController {
     this.lightMarkers.destroy();
     this.sightAids.destroy();
   }
-}
-
-/** A light's popover needs the light, its marker on the map and the GM's view of a loaded scene. */
-function mayEditLight(state: ViewAtlasState, lightId: string): boolean {
-  return !!state.objects.lights[lightId] && state.isGMView && !state.isMapLoading && lightMarkersShown(state);
 }

@@ -29,7 +29,7 @@ type Keys = { altKey: boolean };
  * losing focus and the next press put it back and leave no step), a click on a
  * zone's handle opens its popover, and Delete deletes the zone whose popover is open. Corners
  * snap to wall ends close by, so a zone drawn along walls ends on them. It takes input only in
- * zone mode and while its layer shows.
+ * zone mode and while its layer shows; the popover is open only then too.
  */
 export class LightZoneEditor {
   private readonly overlay: LightZoneOverlay;
@@ -178,9 +178,10 @@ export class LightZoneEditor {
     return true;
   }
 
-  /** Ends whatever is under way: a dragged corner goes back, a zone half drawn is dropped. */
+  /** Ends whatever is under way: a dragged corner goes back, a zone half drawn is dropped, the zone popover closes. */
   stop(): void {
     if (this.drag) this.cancelDrag();
+    this.deps.store.getState().closeLightZonePopover();
     this.draft = [];
     this.cursor = null;
     this.hovered = null;

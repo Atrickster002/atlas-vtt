@@ -412,3 +412,73 @@ describe('the lighting tool\'s zone mode', () => {
     expect(store.getState().objects.lightZones).toEqual({});
   });
 });
+
+describe('closing the zone popover', () => {
+  /** The lighting tool in zone mode with one zone, its popover open. */
+  function open(): Setup & { zone: string } {
+    const made = setup();
+    made.store.getState().setActiveTool('wall');
+    made.eventBus.emit('wall-submode-changed', 'light-zone');
+    getHistoryStore(made.store)!.getState().clear();
+    const zone = made.store.getState().addLightZone({ polygon: [{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 100, y: 100 }], ambient: 0 });
+    made.store.getState().openLightZonePopover(zone);
+    return { ...made, zone };
+  }
+
+  it('closes when undo takes its zone away, and stays closed when redo brings the zone back', () => {
+    const { store, zone } = open();
+    getHistoryStore(store)!.getState().undo();
+    expect(store.getState().objects.lightZones?.[zone]).toBeUndefined();
+    expect(store.getState().lightZonePopover).toBeNull();
+    getHistoryStore(store)!.getState().redo();
+    expect(store.getState().objects.lightZones?.[zone]).toBeDefined();
+    expect(store.getState().lightZonePopover).toBeNull();
+  });
+
+  it('closes when the lighting tool leaves its zone mode, and Escape is then no longer the zone tool\'s', () => {
+    const { controller, store, eventBus } = open();
+    eventBus.emit('wall-submode-changed', 'draw');
+    expect(store.getState().lightZonePopover).toBeNull();
+    expect(controller.handleEscape()).toBe(false);
+  });
+
+  it('closes when a peek at the players\' view starts, and stays closed when it ends', () => {
+    const { store } = open();
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'h', code: 'KeyH', bubbles: true }));
+    expect(store.getState().lightZonePopover).toBeNull();
+    window.dispatchEvent(new KeyboardEvent('keyup', { key: 'h', code: 'KeyH', bubbles: true }));
+    expect(store.getState().lightZonePopover).toBeNull();
+  });
+
+  it('closes in session view', () => {
+    const { store } = open();
+    store.getState().setGMView(false);
+    expect(store.getState().lightZonePopover).toBeNull();
+  });
+
+  it('closes when another Obsidian tab becomes active', () => {
+    const { store, zone, obsApp } = open();
+    const onLeafChange = vi.mocked(obsApp.workspace.on).mock.calls.find(([name]) => name === 'active-leaf-change')![1] as (leaf: unknown) => void;
+    const ownLeaf = { view: { viewId: 'popover-view' } };
+    vi.mocked(obsApp.workspace.getLeavesOfType).mockReturnValue([ownLeaf] as never);
+    onLeafChange(ownLeaf);
+    expect(store.getState().lightZonePopover).toBe(zone);
+    onLeafChange({ view: { viewId: 'a-note' } });
+    expect(store.getState().lightZonePopover).toBeNull();
+  });
+
+  it('closes when the scene changes', () => {
+    const { store, eventBus, zone } = open();
+    eventBus.emit('map-unloading');
+    expect(store.getState().lightZonePopover).toBeNull();
+    store.getState().openLightZonePopover(zone);
+    store.getState().setMapLoading(true);
+    expect(store.getState().lightZonePopover).toBeNull();
+  });
+
+  it('does not open for a zone that is not there', () => {
+    const { store } = open();
+    store.getState().openLightZonePopover('gone');
+    expect(store.getState().lightZonePopover).toBeNull();
+  });
+});
