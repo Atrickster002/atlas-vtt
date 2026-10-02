@@ -25,6 +25,8 @@ export interface UvttCounts {
 export interface UvttSkipped {
   /** Wall segments, doors and lights that lie outside the map (`placeableRect`). */
   outside: number;
+  /** Lights without a range, which light nothing. */
+  unlit: number;
 }
 
 /** What a file gives a scene, in Atlas' own terms: world pixels for positions, game units for light. */
@@ -53,7 +55,8 @@ function emissionOf(light: UvttLight, { unit, cellSize }: UvttTarget): LightEmis
   const farthest = maxLightRange(unitScaleOf(unit, { size: cellSize }));
   let emission: LightEmission = { bright: 0, dim: 0, color: light.color, intensity: 1, animation: 'none', kind: 'custom' };
   emission = withEmissionValue(emission, 'dim', cells(light.range), farthest);
-  emission = withEmissionValue(emission, 'bright', Math.min(emission.dim, cells(light.range / 2)), farthest);
+  // Half of where the light ends on this map, which may be nearer than the file says
+  emission = withEmissionValue(emission, 'bright', emission.dim / 2, farthest);
   return withEmissionValue(emission, 'intensity', light.intensity);
 }
 
@@ -61,8 +64,9 @@ function emissionOf(light: UvttLight, { unit, cellSize }: UvttTarget): LightEmis
  * The walls, doors, lights and lighting of a file as a scene holds them. A position `p` of the
  * file lies at `(p - origin) * cellSize` world pixels, with the image's top-left corner at 0, so
  * the file's grid is the scene's. Each wall line becomes one segment per pair of points, which
- * keep the exact coordinates they share; a door spans its two ends. A light is bright to half its
- * range and ends at its range, and is switched off where the image shows its glow already.
+ * keep the exact coordinates they share; a door spans its two ends. A light ends at its range,
+ * is bright to half of that, and is switched off where the image shows its glow already; one
+ * without a range is left out.
  *
  * Nothing is placed farther than one cell from the image: a wall is cut where it leaves that
  * rectangle, and a wall, a door or a light outside it is left out.
@@ -74,7 +78,7 @@ export function uvttToScene(map: UvttMap, target: UvttTarget): UvttScene {
   const toWorld = (cell: UvttPoint): UvttPoint => ({ x: cell.x * cellSize, y: cell.y * cellSize });
   const walls: Record<string, WallSegment> = {};
   const counts: UvttCounts = { walls: 0, doors: 0, lights: 0 };
-  const skipped: UvttSkipped = { outside: 0 };
+  const skipped: UvttSkipped = { outside: 0, unlit: 0 };
   let onImage = 0;
   let segments = 0;
 
@@ -115,6 +119,10 @@ export function uvttToScene(map: UvttMap, target: UvttTarget): UvttScene {
       continue;
     }
     onImage++;
+    if (light.range === 0) {
+      skipped.unlit++;
+      continue;
+    }
     const id = `light_uvtt_${++counts.lights}`;
     lights[id] = { id, kind: 'light', ...toWorld(position), emission: emissionOf(light, target), ...(map.bakedLighting && { hidden: true }) };
   }

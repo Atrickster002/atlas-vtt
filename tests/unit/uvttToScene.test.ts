@@ -157,8 +157,18 @@ describe('the lights of a Universal VTT file', () => {
   it('stop at the farthest a light reaches on the map and at the brightest a light gets', () => {
     const file = cryptWith((crypt) => { crypt.lights = [{ position: { x: 1, y: 1 }, range: 500, intensity: 40 }]; });
 
-    // 8,192 world pixels are 81.92 cells of 100 pixels, 409 whole feet
-    expect(sceneOf(file).lights.light_uvtt_1!.emission).toMatchObject({ bright: 409, dim: 409, intensity: 2 });
+    // 8,192 world pixels are 81.92 cells of 100 pixels, 409 whole feet; bright to half of where the light ends
+    expect(sceneOf(file).lights.light_uvtt_1!.emission).toMatchObject({ bright: 204.5, dim: 409, intensity: 2 });
+  });
+
+  it('are left out, and not counted, where they have no range', () => {
+    const scene = sceneOf(cryptWith((crypt) => {
+      crypt.lights = [{ position: { x: 1, y: 1 }, range: 0 }, { position: { x: 2, y: 2 }, range: 3 }, { position: { x: 3, y: 3 }, range: 0 }];
+    }));
+
+    expect(Object.values(scene.lights).map((light) => [light.id, light.x, light.emission.dim])).toEqual([['light_uvtt_1', 200, 15]]);
+    expect(scene.counts.lights).toBe(1);
+    expect(scene.skipped).toMatchObject({ outside: 0, unlit: 2 });
   });
 
   it('are switched off where the image shows their glow already', () => {

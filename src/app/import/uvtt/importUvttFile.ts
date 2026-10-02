@@ -168,7 +168,7 @@ async function importFile(deps: UvttImportDeps, file: File, collectionId: string
   const scene = cellSize === sourceCell ? placed : uvttToScene(map, { cellSize, unit });
   // A map scaled down has its walls closer together
   if (scene !== placed && wallsCrowd(Object.values(scene.walls), size)) return refused(CROWDED_WALLS);
-  if (scene.skipped.outside > 0) console.debug(`[Atlas] ${file.name}: left out what the map does not take`, scene.skipped);
+  if (Object.values(scene.skipped).some((count) => count > 0)) console.debug(`[Atlas] ${file.name}: left out what the map does not take`, scene.skipped);
   const written = await writeImport(deps, { baseName: uvttSceneName(file.name), collection, image, scene });
   if (!written.ok) return written;
   return {
