@@ -67,7 +67,7 @@ export class ZoneMap {
   /** Draws `zones` in their order, later ones over earlier ones, through the walls of `field`. */
   draw(zones: readonly EngineZone[], look: ZoneLook, field: CapsuleField): void {
     const drawn = zones.map((zone) => drawnZone(zone, look));
-    const scene = luma(linearColor(look.ambientColor ?? DEFAULT_AMBIENT_COLOR, look.ambient ?? 0));
+    const scene = sceneLuma(look);
     const onWalls = drawn.filter((zone) => luma(zone.light) < scene).sort((a, b) => luma(b.light) - luma(a.light));
     while (this.slots.length < drawn.length) this.slots.push(this.createSlot(field));
     for (const [target, pick] of [[this.texture, 'light'], [this.lifted, 'lifted']] as const) {
@@ -130,9 +130,32 @@ export class ZoneMap {
   }
 }
 
+/**
+ * Whether a scene that looks like `next` draws `zones` as one that looked like `drawn` did. Its
+ * ambient level counts only by which zones are darker than it (those lie on the walls): the
+ * composite adds the scene's own light itself, so dusk falling over a cave redraws nothing.
+ */
+export function sameZoneLook(zones: readonly EngineZone[], next: ZoneLook, drawn: ZoneLook): boolean {
+  if (next.ambientColor !== drawn.ambientColor || next.litThreshold !== drawn.litThreshold || next.brightThreshold !== drawn.brightThreshold) return false;
+  const now = sceneLuma(next);
+  const then = sceneLuma(drawn);
+  return now === then || zones.every((zone) => {
+    const light = luma(zoneLight(zone, next));
+    return light < now === light < then;
+  });
+}
+
+function sceneLuma(look: ZoneLook): number {
+  return luma(linearColor(look.ambientColor ?? DEFAULT_AMBIENT_COLOR, look.ambient ?? 0));
+}
+
 /** A zone's ambient light as the composite adds it: its colour (the scene's without one) in linear light, at its level. */
+function zoneLight(zone: EngineZone, look: ZoneLook): Rgb {
+  return linearColor(zone.ambientColor ?? look.ambientColor ?? DEFAULT_AMBIENT_COLOR, zone.ambient);
+}
+
 function drawnZone(zone: EngineZone, look: ZoneLook): DrawnZone {
-  const light = linearColor(zone.ambientColor ?? look.ambientColor ?? DEFAULT_AMBIENT_COLOR, zone.ambient);
+  const light = zoneLight(zone, look);
   const level = { ambient: zone.ambient, ...(look.litThreshold !== undefined && { litThreshold: look.litThreshold }), ...(look.brightThreshold !== undefined && { brightThreshold: look.brightThreshold }) };
   // Dim light raised to bright, as the scene's is.
   const lift = ambientLift(level);
