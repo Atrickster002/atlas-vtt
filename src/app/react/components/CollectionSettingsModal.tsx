@@ -25,6 +25,7 @@ import { savedResources, useCollectionSettingsDraft } from './collection-setting
 import { GridMeasurementTab } from './collection-settings/GridMeasurementTab';
 import { collectionConeAngle } from '../../gameSystems/coneAngle';
 import { VisionTab } from './collection-settings/VisionTab';
+import { useExperimentalFeature } from '../hooks/useExperimentalFeature';
 import { DefaultWidgetsTab } from './collection-settings/DefaultWidgetsTab';
 import { ConditionsTab } from './collection-settings/ConditionsTab';
 import { ResourcesTab } from './collection-settings/ResourcesTab';
@@ -90,6 +91,7 @@ export function CollectionSettingsModal({
   initialTab = 'system',
 }: CollectionSettingsModalProps): React.ReactElement | null {
   const { app } = useAtlasUI();
+  const lightingOn = useExperimentalFeature('dynamicLighting');
   const assetService = app ? AssetService.getInstance(app) : null;
   const systemPresets = useSystemPresets(app);
   const windowVariants = useDialogWindowVariants();
@@ -197,7 +199,7 @@ export function CollectionSettingsModal({
         <div className="atlas-collection-settings-body">
           {/* Vertical tab sidebar */}
           <nav className="atlas-collection-settings-sidebar">
-            {TABS.map((tab) => (
+            {TABS.filter((tab) => tab.id !== 'vision' || lightingOn).map((tab) => (
               <Button
                 key={tab.id}
                 variant="ghost"
@@ -243,7 +245,7 @@ export function CollectionSettingsModal({
                 onChange={draft.setGridDefaults}
               />
             )}
-            {activeTab === 'vision' && (
+            {activeTab === 'vision' && lightingOn && (
               <VisionTab
                 gridDefaults={gridDefaults}
                 vision={draft.defaultTokenVision}

@@ -13,6 +13,7 @@ import {
   Dices,
   Eye,
   EyeOff,
+  FlaskConical,
   Grid,
   Settings,
   Snowflake,
@@ -44,6 +45,7 @@ import { TokenSettingsPanel } from './command-palette/TokenSettingsPanel';
 import { WidgetSettingsPanel } from './command-palette/WidgetSettingsPanel';
 import { LocalPlayerViewSettingsPanel } from './command-palette/LocalPlayerViewSettingsPanel';
 import { DiceSettingsPanel } from './command-palette/DiceSettingsPanel';
+import { ExperimentalFeaturesPanel } from './command-palette/ExperimentalFeaturesPanel';
 import { SceneSnapshotsPanel } from './command-palette/SceneSnapshotsPanel';
 import { placePalette, type PalettePosition } from './command-palette/palettePlacement';
 import { isSettingsPanelId, type CommandOption, type SettingsPanelId } from './command-palette/types';
@@ -77,6 +79,7 @@ const SETTINGS_PANEL_META: Record<SettingsPanelId, { title: string; icon: React.
   'widget-settings': { title: 'Widget Settings', icon: <Palette /> },
   'local-player-view-settings': { title: 'Local Player View Settings', icon: <MonitorUp /> },
   'dice-settings': { title: 'Dice Settings', icon: <Dices /> },
+  'experimental-features': { title: 'Experimental Features', icon: <FlaskConical /> },
 };
 
 export function CommandPalette({ isOpen, onClose, toolbarRef }: CommandPaletteProps): React.ReactElement | null {
@@ -384,6 +387,23 @@ export function CommandPalette({ isOpen, onClose, toolbarRef }: CommandPalettePr
           icon: null,
           label: "Roll display",
           section: "dice",
+          hasSubmenu: false,
+        },
+      ],
+    },
+    {
+      id: "experimental-features",
+      icon: <FlaskConical />,
+      label: "Experimental features",
+      keywords: ["beta", "feature", "dynamic lighting", "walls", "lights", "vision"],
+      section: "settings",
+      hasSubmenu: true,
+      submenu: [
+        {
+          id: "experimental-all-features",
+          icon: null,
+          label: "Dynamic lighting",
+          section: "experimental",
           hasSubmenu: false,
         },
       ],
@@ -796,6 +816,8 @@ export function CommandPalette({ isOpen, onClose, toolbarRef }: CommandPalettePr
         return <LocalPlayerViewSettingsPanel />;
       case 'dice-settings':
         return <DiceSettingsPanel />;
+      case 'experimental-features':
+        return <ExperimentalFeaturesPanel />;
     }
   };
 

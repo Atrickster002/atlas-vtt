@@ -29,10 +29,10 @@ import { DrawingRenderer } from "./pixi/DrawingRenderer"; // Import DrawingRende
 import { DrawingInteraction } from "./pixi/DrawingInteraction";
 import { TextRenderer } from "./pixi/TextRenderer"; // Import TextRenderer
 import { TextTool } from "./tools/TextTool"; // Import TextTool
-import { LightingController } from './pixi/lighting/LightingController';
+import type { LightingController } from './pixi/lighting/LightingController';
+import { LightingFeature } from './pixi/lighting/LightingFeature';
 import type { SceneFrame } from './pixi/lighting/engine/types';
 import { captureSceneFrame } from './pixi/sceneFrameCapture';
-import { WALLS_AND_LIGHTING_ENABLED } from './featureFlags';
 import { AudioTool } from './tools/AudioTool';
 import { openAudioConfigPanel } from './pixi/audio/AudioConfigPanel';
 import { AudioRenderer } from './pixi/audio/AudioRenderer';
@@ -60,8 +60,11 @@ export class PixiRendererOrchestrator { // Renamed class
   private drawingInteraction?: DrawingInteraction;
   private textRenderer?: TextRenderer; // Add TextRenderer instance
   private textTool?: TextTool; // Add TextTool instance
-  /** IDs of wall segments created during the current drawing chain (for Escape undo). */
-  private lighting?: LightingController;
+  /** The view's lighting, built and removed as the GM switches dynamic lighting on and off. */
+  private lightingFeature?: LightingFeature;
+  private get lighting(): LightingController | undefined {
+    return this.lightingFeature?.controller;
+  }
   private audioRenderer?: AudioRenderer;
   private audioTool?: AudioTool;
   private soundRegistry?: SoundRegistry;
@@ -370,8 +373,8 @@ export class PixiRendererOrchestrator { // Renamed class
     // Set the fog container to a high z-index to ensure it's on top when visible
     fogContainer.zIndex = 1000;
 
-    if (WALLS_AND_LIGHTING_ENABLED && !isPlayerView) {
-      this.lighting = new LightingController({
+    if (!isPlayerView) {
+      this.lightingFeature = new LightingFeature({
         viewport,
         app: this.pixiAppManager.app,
         store: this.store,
@@ -894,7 +897,7 @@ export class PixiRendererOrchestrator { // Renamed class
       );
     }
 
-    this.lighting?.wire(this.tokenRenderer);
+    this.lightingFeature?.wire(this.tokenRenderer);
 
     // Wire audio tool viewport handlers
     if (this.audioRenderer && this.audioTool) {
@@ -1026,7 +1029,7 @@ export class PixiRendererOrchestrator { // Renamed class
     this.drawingInteraction?.destroy();
     this.textRenderer?.destroy(); // Destroy TextRenderer
     this.textTool?.destroy(); // Destroy TextTool
-    this.lighting?.destroy();
+    this.lightingFeature?.destroy();
     this.audioRenderer?.destroy();
     this.spatialAudioEngine?.dispose();
     this.bufferCache?.dispose();

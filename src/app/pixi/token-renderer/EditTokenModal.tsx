@@ -19,7 +19,7 @@ import { startingResources } from '../../resources/statblockResourceValues';
 import { handledByAnotherControl } from '../../keyboard/tooltipEscape';
 import { TokenIdentitySection, TokenResourcesSection } from './EditTokenSections';
 import { TokenLightSection, TokenVisionSection, type TokenLightingContext } from './TokenLightingFields';
-import { WALLS_AND_LIGHTING_ENABLED } from '../../featureFlags';
+import { dynamicLightingOn } from '../../experimental/experimentalFeatures';
 import { unitLabelFor } from '../../grid/measurementFormat';
 import { unitScaleOf } from '../../lighting/lightingUnits';
 import { maxLightRange } from '../../lighting/lightRanges';
@@ -42,6 +42,8 @@ interface EditTokenModalProps {
   /** What the linked statblock gives each resource. */
   resourceDefaults: Record<string, ResourceValue>;
   lighting: TokenLightingContext;
+  /** Whether the token's vision and light can be edited: only with dynamic lighting switched on. */
+  showLighting: boolean;
   /** The statblock the token links, whose senses it follows while it has none of its own. */
   statblock: StatblockLink | null;
   onSave: (values: EditTokenValues) => void;
@@ -53,7 +55,7 @@ interface EditTokenModalProps {
  * vision) and the light it carries on the right, so the fields are read and tabbed through
  * column by column. A dialog too narrow for two columns stacks them in the same order.
  */
-function EditTokenModalInner({ initial, definitions, resourceDefaults, lighting, statblock, onSave, onClose }: EditTokenModalProps): React.ReactElement {
+function EditTokenModalInner({ initial, definitions, resourceDefaults, lighting, showLighting, statblock, onSave, onClose }: EditTokenModalProps): React.ReactElement {
   const inherited = useStatblockSenses(statblock);
   const [name, setName] = useState(initial.name);
   const [showNameplate, setShowNameplate] = useState(initial.showNameplate);
@@ -118,9 +120,9 @@ function EditTokenModalInner({ initial, definitions, resourceDefaults, lighting,
                 defaults={resourceDefaults}
               />
             )}
-            {WALLS_AND_LIGHTING_ENABLED && <TokenVisionSection vision={vision} onChange={setVision} context={context} />}
+            {showLighting && <TokenVisionSection vision={vision} onChange={setVision} context={context} />}
           </div>
-          {WALLS_AND_LIGHTING_ENABLED && (
+          {showLighting && (
             <div className="atlas-edit-token__column">
               <TokenLightSection light={light} onChange={setLight} context={context} />
             </div>
@@ -206,8 +208,8 @@ export function openEditTokenModal(
     const updates: TokenUpdates = {
       ...(changed('name') && { name: values.name }),
       ...(changed('showNameplate') && { showNameplate: values.showNameplate }),
-      ...(WALLS_AND_LIGHTING_ENABLED && changed('vision') && { vision: visionFromForm(values.vision) }),
-      ...(WALLS_AND_LIGHTING_ENABLED && changed('light') && { light: lightFromForm(values.light) }),
+      ...(changed('vision') && { vision: visionFromForm(values.vision) }),
+      ...(changed('light') && { light: lightFromForm(values.light) }),
       ...(maxima.length > 0 && current && buildResourceEdits(
         current.kind === 'character' ? current : {},
         maxima.map((definition) => ({ definition, max: values.maxima[definition.key] })),
@@ -224,6 +226,7 @@ export function openEditTokenModal(
       <EditTokenModalInner
         initial={initial}
         lighting={lighting}
+        showLighting={dynamicLightingOn(app)}
         statblock={statblock}
         definitions={definitions}
         resourceDefaults={resourceDefaults}

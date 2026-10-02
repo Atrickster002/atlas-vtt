@@ -1,6 +1,7 @@
 ## New
 
-- Dynamic lighting. Switch it on per scene from the new Lighting tool and pick the time of day, from daylight to pitch black. Players see only what their tokens can see: walls always block their line of sight, and in the dark they see only what light reaches.
+- The command palette has an Experimental features page, for features that are still being tested. Each is off until you switch it on there, for every map
+- Dynamic lighting, the first experimental feature. Switch it on under Experimental features in the command palette, then per scene from the new Lighting tool, and pick the time of day, from daylight to pitch black. Players see only what their tokens can see: walls always block their line of sight, and in the dark they see only what light reaches.
 - Place candles, torches, lanterns and magical lights on the map, or hand one to a token from its right-click menu so it moves with the token. Light never passes a wall, flames cast soft shadows that widen with the flame's size, light bounces softly off floors and walls, and each flame glows and flickers.
 - Give tokens vision from their right-click menu, and set a sight range in Edit Token.
 - Tokens have senses. Add them in Edit Token, each with its own range. A collection without a game system has darkvision, low-light vision, blindsight, tremorsense, truesight and see invisible. Game systems bring their own: D&D 5e has darkvision, blindsight, tremorsense, truesight, Devil's Sight and See Invisibility; Pathfinder 2e has low-light vision, darkvision, greater darkvision, tremorsense, scent, hearing, lifesense, wavesense, echolocation and See the Unseen; Shadowdark has darkness-adapted sight; Old-School Essentials has infravision; Cyberpunk RED has the low light / IR / UV cybereye.
@@ -124,5 +125,6 @@
 
 ## Important changes
 
+- Dynamic lighting is off until you switch it on under Experimental features in the command palette. Without it there is no Lighting tool, no vision or light in a token's menu and in Edit Token, and no Vision tab in the collection settings. Scenes that are already lit show unlit until then, and keep their walls, lights and explored areas
 - The initiative tracker no longer fills with every token on the map. Select the tokens that take part, right-click one of them and choose Add to Initiative; Remove from Initiative takes the selection out again. The trackers of your scenes keep the tokens they hold
 - The player window lists every combatant whose token is not hidden, whether or not the party can see it on the map. Hide a token to keep it out of the players' list

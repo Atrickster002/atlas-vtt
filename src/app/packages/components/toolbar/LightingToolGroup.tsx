@@ -40,7 +40,7 @@ const KIND_ICONS: Record<LightKind, RowIcon> = {
   custom: Lightbulb,
 }
 
-/** Walls, lights and the scene's lighting in one place. DM only, behind WALLS_AND_LIGHTING_ENABLED. */
+/** Walls, lights and the scene's lighting in one place. DM only, and only with dynamic lighting switched on (an experimental feature). */
 export function LightingToolGroup({ activeTool, selectTool, menuOpen, toggleMenu, closeMenu }: ToolGroupControls): React.ReactElement {
   const hotkeyLabel = useHotkeyLabels()
   const emit = useEmitViewEvent()

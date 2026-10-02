@@ -255,16 +255,28 @@ export class LightingController {
         if (held) store.getState().closeLightPopover();
         this.session.setPeeking(held);
       },
-      stopEditing: () => {
-        this.lights.cancel();
-        this.modes.stop();
-        store.getState().closeLightPopover();
-      },
-      beforeMapUnload: () => {
-        this.editor.cancelDrawing();
-        this.renderer.beforeMapUnload();
-      },
+      stopEditing: () => this.stopEditing(),
+      beforeMapUnload: () => this.beforeMapUnload(),
     }));
+  }
+
+  private stopEditing(): void {
+    this.lights.cancel();
+    this.modes.stop();
+    this.deps.store.getState().closeLightPopover();
+  }
+
+  private beforeMapUnload(): void {
+    this.editor.cancelDrawing();
+    this.renderer.beforeMapUnload();
+  }
+
+  /** Taken off a map that stays open: what is being edited ends and what is pending is saved, as before an unload. */
+  remove(): void {
+    this.stopEditing();
+    this.beforeMapUnload();
+    this.destroy();
+    this.tokens?.clearLighting();
   }
 
   destroy(): void {
