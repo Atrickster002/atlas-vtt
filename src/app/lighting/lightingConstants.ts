@@ -61,15 +61,21 @@ export function softEdge(dim: number, cellSize: number): number {
  * cone's apex), which is lit all around, over the edge it has at that radius.
  */
 export const BEAM_EDGE = 0.06;
+/** A beam's edge is never narrower than this many texels of the light map, where it is drawn: a narrower one shows the texels as steps. */
+export const BEAM_EDGE_TEXELS = 1;
 
-/** The width of a beam's soft edge at `distance` from its light: `edge` (`softEdge`), and no more than `BEAM_EDGE` of the half-width there of the beam of `angle` (radians), or of the dark wedge behind it. */
-export function beamEdge(edge: number, distance: number, angle: number): number {
-  return Math.min(edge, BEAM_EDGE * distance * Math.sin(Math.min(angle / 2, Math.PI - angle / 2)));
+/**
+ * The width of a beam's soft edge at `distance` from its light: `edge` (`softEdge`), and no more
+ * than `BEAM_EDGE` of the half-width there of the beam of `angle` (radians), or of the dark wedge
+ * behind it, but for the `BEAM_EDGE_TEXELS` it takes to draw it smoothly.
+ */
+export function beamEdge(edge: number, distance: number, angle: number, texel: number): number {
+  return Math.min(edge, Math.max(BEAM_EDGE_TEXELS * texel, BEAM_EDGE * distance * Math.sin(Math.min(angle / 2, Math.PI - angle / 2))));
 }
 
-/** How far past its dim radius a beam of `angle` (radians) fades out: `edge`, and no more than `BEAM_EDGE` of the beam's half-width at that radius. */
-export function beamEnd(edge: number, dim: number, angle: number): number {
-  return Math.min(edge, BEAM_EDGE * dim * Math.sin(Math.min(angle / 2, Math.PI / 2)));
+/** How far past its dim radius a beam of `angle` (radians) fades out: as `beamEdge`, by the beam's own half-width at that radius. */
+export function beamEnd(edge: number, dim: number, angle: number, texel: number): number {
+  return Math.min(edge, Math.max(BEAM_EDGE_TEXELS * texel, BEAM_EDGE * dim * Math.sin(Math.min(angle / 2, Math.PI / 2))));
 }
 
 /**

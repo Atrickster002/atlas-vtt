@@ -1,4 +1,4 @@
-import { BEAM_EDGE } from '../../../lighting/lightingConstants';
+import { BEAM_EDGE, BEAM_EDGE_TEXELS } from '../../../lighting/lightingConstants';
 import { GLSL_VERSION } from './glsl';
 
 export const lightMapVertex = `${GLSL_VERSION}
@@ -27,7 +27,7 @@ void main() {
 // of its own space; half an angle of π or more is no cone) keeps all of this inside its cone and
 // within its own space. Past the cone's sides it falls off over its edge (steeply: what lies
 // there is lit and not counted): `uEdge` world pixels, or `BEAM_EDGE` of the beam's half-width
-// at that distance where that is less (`beamEdge`). Past its own space it falls off over the
+// at that distance where that is less, though never under a texel (`beamEdge`). Past its own space it falls off over the
 // edge it has at that radius. The tile knows nothing of the cone, so turning a light traces nothing.
 // The colour is `uLightColor`: PIXI sets `uColor` itself, as a vec4, on every mesh shader that declares it.
 export const lightMapFragment = `${GLSL_VERSION}
@@ -52,7 +52,7 @@ const vec3 LUMA = vec3(0.2126, 0.7152, 0.0722);
 float smoother(float u) { return u * u * u * (u * (u * 6.0 - 15.0) + 10.0); }
 // The width of the beam's soft edge at d from the light (beamEdge).
 float edgeAt(float d) {
-  return max(min(uEdge, ${BEAM_EDGE.toFixed(4)} * d * sin(min(uCone.z, 3.14159265 - uCone.z))), 1e-3);
+  return max(min(uEdge, max(${BEAM_EDGE_TEXELS.toFixed(2)} * uTexel, ${BEAM_EDGE.toFixed(4)} * d * sin(min(uCone.z, 3.14159265 - uCone.z)))), 1e-3);
 }
 // The share of the light a point at v from the light gets by where the light faces.
 float inCone(vec2 v, float d) {

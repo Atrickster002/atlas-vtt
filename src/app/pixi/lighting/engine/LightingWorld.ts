@@ -249,7 +249,7 @@ export class LightingWorld {
       if (!tile) continue;
       const { intensity, radiusScale } = sample(light);
       // Flicker breathes the bright radius only: where a light ends is where the rules end it.
-      drawn.push({ tile, bright: light.bright * radiusScale, dim: light.dim, reach: light.edge === undefined || !light.cone ? light.dim * LIGHT_REACH : light.dim + beamEnd(light.edge, light.dim, light.cone.angle), color: light.color, intensity: light.intensity * intensity, cone: light.cone, edge: light.edge });
+      drawn.push({ tile, bright: light.bright * radiusScale, dim: light.dim, reach: light.edge === undefined || !light.cone ? light.dim * LIGHT_REACH : light.dim + beamEnd(light.edge, light.dim, light.cone.angle, this.texel), color: light.color, intensity: light.intensity * intensity, cone: light.cone, edge: light.edge });
     }
     this.lightMap.draw(drawn);
   }
