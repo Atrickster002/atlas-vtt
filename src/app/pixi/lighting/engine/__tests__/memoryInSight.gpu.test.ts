@@ -123,17 +123,15 @@ describe('explored memory inside line of sight', () => {
     for (const point of [DARK_REMEMBERED, DARK_UNEXPLORED, HIDDEN_UNEXPLORED, LIT]) expect(gm(point)).toEqual(gmNoMemory(point));
   });
 
-  it('shows what is remembered under magical darkness too, beneath its veil', async () => {
+  it('shows what is remembered under magical darkness as without it: where nothing lit is swallowed no veil gives the darkness away', async () => {
     const darkness: EngineLight = { key: 'darkness', x: 400, y: 850, bright: 0, dim: 80, flame: 1, color: [1, 1, 1], intensity: 1, animation: 'none', darkness: true };
-    const at = await render([LEFT_HALF], { lights: [torch, darkness] });
-    const plain = await render([LEFT_HALF]);
-    const [r, g, b] = at(DARK_REMEMBERED);
-    const memory = plain(DARK_REMEMBERED);
-    expect(sum(memory)).toBeGreaterThan(40);
-    // The memory with the veil's cool tint over it: no darker, and bluer.
-    expect(r).toBeGreaterThanOrEqual(memory[0] - 1);
-    expect(b).toBeGreaterThan(memory[2]);
-    expect(b - r).toBeGreaterThan(memory[2] - memory[0]);
-    expect(g).toBeLessThan(120);
+    // A room with no light at all: nothing lit for the darkness to swallow.
+    const at = await render([LEFT_HALF], { lights: [darkness] });
+    const plain = await render([LEFT_HALF], { lights: [] });
+    expect(sum(plain(DARK_REMEMBERED))).toBeGreaterThan(40);
+    // Over the whole darkness and past its edge, on remembered floor and on unexplored floor (right of x = 512).
+    for (let x = darkness.x - 90; x <= darkness.x + 130; x += 10) {
+      for (let y = darkness.y - 90; y <= darkness.y + 90; y += 10) expect([x, y, at({ x, y })]).toEqual([x, y, plain({ x, y })]);
+    }
   });
 });

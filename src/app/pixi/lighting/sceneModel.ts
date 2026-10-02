@@ -94,8 +94,10 @@ export class SceneModelBuilder {
     const everyReach = this.lightReaches.sync(shining, walls);
     // A light whose flame stands in magical darkness it does not outshine gives nothing: the picture and the rule both leave it out.
     const out = shining.map((light) => !light.darkness && quenched(light, light.priority ?? 0, everyReach));
-    // A darkness is drawn as the polygon the rule counts: its reach's, handed on rather than traced again.
-    const lights = shining.flatMap((light, i) => (out[i] ? [] : [light.darkness ? { ...light, area: everyReach[i]!.polygon } : light]));
+    // A darkness is drawn as the polygon the rule counts, and veils the light it swallows where the
+    // rule counts that light: the reaches' polygons, handed on rather than traced again.
+    const dark = shining.some((light) => light.darkness);
+    const lights = shining.flatMap((light, i) => (out[i] ? [] : [dark ? { ...light, area: everyReach[i]!.polygon } : light]));
     const reaches = everyReach.filter((_, i) => !out[i]);
     const sight = sceneSight(state.lighting, sourcesInDarkness(sightSources(tokens, scale, bounds, rules), ambient, reaches), walls, this.sightCache);
     // Half a cell: the width of a zone's soft edge past its outline.

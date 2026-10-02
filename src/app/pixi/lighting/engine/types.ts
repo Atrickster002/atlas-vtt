@@ -25,8 +25,9 @@ export interface EngineLight {
   /** A light that shines one way: where it faces and how wide, with its own space around it (`apex`) lit all around. */
   cone?: VisionCone;
   /**
-   * A darkness source's area: the polygon the rule counts (its `LightReach`), where one builder
-   * made both (`SceneModelBuilder`). Without it the engine works the area out the same way.
+   * The area the rule counts for this light (its `LightReach`'s polygon), where one builder made
+   * both (`SceneModelBuilder`): a darkness source is drawn as it, and a light's says where the
+   * darkness swallows its light. Without it the engine works the area out the same way.
    */
   area?: Polygon;
   /** Width in world pixels of the soft edge past a beam's sides and far end (`softEdge`); unset, the fade past the dim radius. */

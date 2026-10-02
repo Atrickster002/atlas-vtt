@@ -21,6 +21,12 @@ export interface PierceShape {
   level: number;
 }
 
+/** Where a light would shine but for the darkness: the area the rule counts as lit by it. */
+export interface LitShape {
+  origin: Point;
+  polygon: Polygon;
+}
+
 /** One darkness source's coverage: its polygon as a fan, rebuilt only when the polygon is another. */
 export interface DarknessMesh {
   mesh: Mesh<Geometry, Shader>;
@@ -66,11 +72,14 @@ export function destroyDarknessMesh({ mesh }: DarknessMesh): void {
 }
 
 /**
- * Where the map is magically dark, in world space like the light map (`rg8unorm`): red is how
+ * Where the map is magically dark, in world space like the light map (`rgba8unorm`): red is how
  * much of the light the darkness sources swallow there, green what a sense that sees in magical
- * darkness perceives of it (0.5 as dim light, 1 as bright). The composite takes the ambient
- * light, the bounce and the senses that do not see in magical darkness out by red, and lets
- * the senses in green through. It exists only on maps that have had a darkness source.
+ * darkness perceives of it (0.5 as dim light, 1 as bright), blue where a light would shine
+ * (the lights the darkness swallows are not in the light map, so nothing else tells). The
+ * composite takes the ambient light, the bounce and the senses that do not see in magical
+ * darkness out by red, lets the senses in green through, and shows the players the veil only
+ * where something is swallowed (blue is one of the three things that can be). It exists only on
+ * maps that have had a darkness source.
  */
 export class DarknessMap {
   readonly texture: RenderTexture;
@@ -80,12 +89,12 @@ export class DarknessMap {
   private readonly slots: DarknessMesh[] = [];
 
   constructor(private readonly renderer: Renderer, bounds: MapBounds, texel: number) {
-    this.texture = createTarget(bounds.width / texel, bounds.height / texel, 'rg8unorm');
+    this.texture = createTarget(bounds.width / texel, bounds.height / texel, 'rgba8unorm');
     this.world = [this.texture.source.pixelWidth * texel, this.texture.source.pixelHeight * texel];
     this.scene.addChild(this.pierce);
   }
 
-  draw(sources: readonly DrawnDarkness[], shapes: readonly PierceShape[]): void {
+  draw(sources: readonly DrawnDarkness[], shapes: readonly PierceShape[], lit: readonly LitShape[] = []): void {
     while (this.slots.length < sources.length) this.slots.push(this.createSlot());
     this.slots.forEach((slot, i) => {
       const source = sources[i];
@@ -94,7 +103,10 @@ export class DarknessMap {
     });
     this.releasePierce();
     for (const shape of shapes) {
-      if (shape.polygon.length >= 3) this.pierce.addChild(this.createPierce(shape));
+      if (shape.polygon.length >= 3) this.pierce.addChild(this.createShape(shape, [0, shape.level, 0, 0]));
+    }
+    for (const shape of lit) {
+      if (shape.polygon.length >= 3) this.pierce.addChild(this.createShape(shape, [0, 0, 1, 0]));
     }
     renderInto(this.renderer, this.scene, this.texture, [0, 0, 0, 0]);
   }
@@ -106,10 +118,10 @@ export class DarknessMap {
     return slot;
   }
 
-  private createPierce({ origin, polygon, level }: PierceShape): Mesh<Geometry, Shader> {
+  private createShape({ origin, polygon }: LitShape, out: readonly [number, number, number, number]): Mesh<Geometry, Shader> {
     const uniforms = new UniformGroup({
       uMapWorld: { value: new Float32Array(this.world), type: 'vec2<f32>' },
-      uLevel: { value: level, type: 'f32' },
+      uOut: { value: new Float32Array(out), type: 'vec4<f32>' },
     });
     const mesh = new Mesh({ geometry: fanGeometry(origin, polygon), shader: createShader(ENGINE_SHADERS.pierce, { pierceUniforms: uniforms }) });
     mesh.blendMode = 'max';

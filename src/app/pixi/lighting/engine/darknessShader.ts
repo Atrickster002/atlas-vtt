@@ -35,11 +35,11 @@ void main() {
   gl_Position = vec4(aPosition / uMapWorld * 2.0 - 1.0, 0.0, 1.0);
 }`;
 
-// What a sense that sees in magical darkness perceives: its area, at the level it sees there,
-// in the darkness map's green channel.
+// An area written into the darkness map as `uOut`: what a sense that sees in magical darkness
+// perceives, at the level it sees there, in green; where a light would shine, in blue.
 export const pierceFragment = `${GLSL_VERSION}
-uniform float uLevel;
+uniform vec4 uOut;
 out vec4 finalColor;
 void main() {
-  finalColor = vec4(0.0, uLevel, 0.0, 0.0);
+  finalColor = uOut;
 }`;

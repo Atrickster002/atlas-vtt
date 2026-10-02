@@ -98,16 +98,44 @@ describe('magical darkness in the composite', () => {
     expect(luminance(at(UNLIT))).toBeGreaterThan(100);
   });
 
-  it('shows magical darkness apart from the unlit dark: a faint cool veil, soft at its edge', async () => {
-    const at = await render(sightWith([]), { lights: [darkness] });
-    const [r, g, b] = at(SWALLOWED);
-    expect(b).toBeGreaterThan(r + 3);
-    expect(b).toBeGreaterThan(g);
-    expect(luminance(at(SWALLOWED))).toBeGreaterThan(luminance(at(UNLIT)));
-    // The veil fades out inside the radius: nothing of it one screen pixel beyond.
-    const rim = luminance(at({ x: darkness.x, y: darkness.y - 96 }));
-    expect(rim).toBeLessThan(luminance(at({ x: darkness.x, y: darkness.y - 60 })));
-    expect(at({ x: darkness.x, y: darkness.y - 106 })).toEqual(at(UNLIT));
+  describe('the veil the players see in its place', () => {
+    const cool = ([r, g, b]: readonly number[]): boolean => b! > r! + 3 && b! > g!;
+
+    it('lies over daylight the darkness swallows: faint and cool, soft at its edge', async () => {
+      const at = await render(sightWith([]), { ambient: 1, lights: [darkness] });
+      expect(cool(at(SWALLOWED))).toBe(true);
+      expect(luminance(at(SWALLOWED))).toBeLessThan(VEIL);
+      // The darkness and its veil fade out inside the radius: daylight as ever one screen pixel beyond.
+      const beyond = at({ x: darkness.x, y: darkness.y - 106 });
+      expect(luminance(beyond)).toBeGreaterThan(100);
+      expect(beyond).toEqual(at({ x: darkness.x, y: darkness.y - 160 }));
+    });
+
+    it('lies over a lamp\'s light the darkness swallows, where the rule counts that light, and nowhere else in the darkness', async () => {
+      // A darkness that reaches far past the lamp's light, and the lamp with the area the rule gives it.
+      const wide: EngineLight = { ...darkness, dim: 300 };
+      const shining: EngineLight = { ...lamp, area: lightReach({ x: lamp.x, y: lamp.y }, lamp.dim, [wall], lamp.bright, lamp).polygon };
+      const at = await render(sightWith([]), { lights: [shining, wide] });
+      expect(cool(at(SWALLOWED))).toBe(true);
+      expect(luminance(at(SWALLOWED))).toBeLessThan(VEIL);
+      // 310 px from the lamp, 230 px into the darkness: no light of the lamp's is swallowed here.
+      const past = { x: 560, y: 512 };
+      expect(at(past)).toEqual((await render(sightWith([]), { lights: [] }))(past));
+    });
+
+    it('lies over what a sense that does not see in magical darkness would show', async () => {
+      const at = await render(sightWith(sense('darkvision')), { lights: [darkness] });
+      expect(cool(at(SWALLOWED))).toBe(true);
+      expect(luminance(at(SWALLOWED))).toBeLessThan(VEIL);
+    });
+
+    it('is not drawn where nothing is swallowed: an unlit room looks the same with the source as without it', async () => {
+      const at = await render(sightWith([]), { lights: [darkness] });
+      const without = await render(sightWith([]), { lights: [] });
+      for (let x = darkness.x - 96; x <= darkness.x + 96; x += 16) {
+        for (let y = darkness.y - 96; y <= darkness.y + 96; y += 16) expect([x, y, at({ x, y })]).toEqual([x, y, without({ x, y })]);
+      }
+    });
   });
 
   it('agrees with the rule: where `lightLevelAt` says magically dark the picture is dark, where it says lit the picture is lit', async () => {
@@ -178,7 +206,9 @@ describe('magical darkness in the composite', () => {
     const beside: EngineLight = { ...lamp, x: 330, y: 380 };
     const far: EngineLight = { ...darkness, x: 330, y: 560, dim: 60 };
     const at = await render(sightWith([]), { lights: [beside, far] });
-    const veil = await render(sightWith([]), { lights: [far] });
+    // Nothing but the veil over the light it swallows: as over swallowed daylight, where no light is to bounce.
+    const veil = await render(sightWith([]), { ambient: 1, lights: [far] });
+    expect(luminance(at({ x: 330, y: 570 }))).toBeLessThan(VEIL);
     expect(at({ x: 330, y: 570 })).toEqual(veil({ x: 330, y: 570 }));
   });
 

@@ -37,7 +37,7 @@ export class LightingWorld {
   /** Created with the first darkness source; `trim` frees it once the scene has none and the composite has let go of it. */
   private darkness: DarknessMap | null = null;
   /** Each darkness source's area as the rule counts it, kept while the source and the walls stay. */
-  private readonly darkAreas = new Map<string, { light: EngineLight; walls: readonly WallSegment[]; polygon: Polygon }>();
+  private readonly areas = new Map<string, { light: EngineLight; walls: readonly WallSegment[]; polygon: Polygon }>();
   private pierce: readonly PierceShape[] = [];
   /** Created with the scene's first ambient zone; `trim` frees it once the scene has none. */
   private zoneTexture: ZoneMap | null = null;
@@ -168,7 +168,7 @@ export class LightingWorld {
     if (!this.darknessMap()) {
       this.darkness?.destroy();
       this.darkness = null;
-      this.darkAreas.clear();
+      this.areas.clear();
     }
     if (!this.zoneMap()) {
       this.zoneTexture?.destroy();
@@ -219,7 +219,7 @@ export class LightingWorld {
     for (const light of this.lights) {
       if (keys.has(light.key)) continue;
       this.flicker.forget(light.key);
-      this.darkAreas.delete(light.key);
+      this.areas.delete(light.key);
     }
   }
 
@@ -231,7 +231,10 @@ export class LightingWorld {
 
   private drawDarkness(): void {
     this.darkness ??= new DarknessMap(this.renderer, this.bounds, this.texel);
-    this.darkness.draw(this.lights.filter((light) => light.darkness).map((light) => this.darknessOf(light)), this.pierce);
+    const sources = this.lights.filter((light) => light.darkness);
+    // Where a light near a darkness would shine: the darkness veils what it swallows there.
+    const lit = this.lights.filter((light) => !light.darkness && sources.some((source) => Math.hypot(source.x - light.x, source.y - light.y) < source.dim + light.dim));
+    this.darkness.draw(sources.map((light) => this.darknessOf(light)), this.pierce, lit.map((light) => ({ origin: { x: light.x, y: light.y }, polygon: this.areaOf(light) })));
   }
 
   private drawLightMap(sample: (light: EngineLight) => FlickerSample): void {
@@ -257,16 +260,17 @@ export class LightingWorld {
    * and rule cannot differ.
    */
   private darknessOf(light: EngineLight): DrawnDarkness {
-    return { origin: { x: light.x, y: light.y }, dim: light.dim, soft: Math.min(DARKNESS.rim, (LIGHT_REACH - 1) * light.dim), polygon: light.area ?? this.tracedArea(light) };
+    return { origin: { x: light.x, y: light.y }, dim: light.dim, soft: Math.min(DARKNESS.rim, (LIGHT_REACH - 1) * light.dim), polygon: this.areaOf(light) };
   }
 
-  /** The area of a darkness that came without one, kept while the source and the walls stay. */
-  private tracedArea(light: EngineLight): Polygon {
+  /** The area the rule counts for a light: the one it came with, else traced here and kept while the light and the walls stay. */
+  private areaOf(light: EngineLight): Polygon {
+    if (light.area) return light.area;
     const walls = this.walls ?? [];
-    let area = this.darkAreas.get(light.key);
-    if (!area || area.walls !== walls || area.light.x !== light.x || area.light.y !== light.y || area.light.dim !== light.dim) {
-      area = { light, walls, polygon: lightReach({ x: light.x, y: light.y }, light.dim, walls, 0, { darkness: true }).polygon };
-      this.darkAreas.set(light.key, area);
+    let area = this.areas.get(light.key);
+    if (!area || area.walls !== walls || area.light.x !== light.x || area.light.y !== light.y || area.light.dim !== light.dim || !sameCone(area.light.cone, light.cone)) {
+      area = { light, walls, polygon: lightReach({ x: light.x, y: light.y }, light.dim, walls, light.bright, light).polygon };
+      this.areas.set(light.key, area);
     }
     return area.polygon;
   }

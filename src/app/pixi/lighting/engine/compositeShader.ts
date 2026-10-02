@@ -23,9 +23,11 @@ import { WALL_PUSH_GLSL } from './wallPushGlsl';
  * uDarkness (read only while uHasDarkness is set) is the darkness map: red is how much of the
  * light magical darkness swallows (the lights it swallows are gone from the light map already;
  * here the ambient light and the bounce go too, and what is perceived without light), green
- * what a sense that sees in magical darkness perceives of it (0.5 as dim light, 1 as bright).
- * In place of the map the players see a faint cool veil there (uVeil), so that magical darkness
- * tells apart from the unlit dark; the GM sees the dim map under a stronger one (uGmVeil).
+ * what a sense that sees in magical darkness perceives of it (0.5 as dim light, 1 as bright),
+ * blue where a light it swallows would shine. Where it swallows something the players would see
+ * (ambient light, a light, what a sense shows) they see a faint cool veil in its place (uVeil),
+ * so that magical darkness tells apart from the unlit dark; where it swallows nothing there is
+ * none. The GM sees the dim map under a stronger veil everywhere in it (uGmVeil).
  * uZones (read only while uHasZones is set) is the zone map: the ambient light of the scene's
  * zones, premultiplied by their share of the pixel in alpha, which is 1 inside a zone, where the
  * rule counts it; uZonesLifted is the same where dim light is perceived as bright.
@@ -157,8 +159,9 @@ void main() {
   float d = wallDistance(world);
   float front = clamp((d - uCore) / uPixelWorld + 0.5, 0.0, 1.0) * (1.0 - smoothstep(uBand, uBand + uTexel, d));
   // r: the share of the light magical darkness swallows here; g: what sees in it, and how.
-  vec2 dark = vec2(0.0);
-  if (uHasDarkness > 0.5) dark = textureLod(uDarkness, world / uLightWorld, 0.0).rg;
+  // b: where a light it swallows would shine.
+  vec3 dark = vec3(0.0);
+  if (uHasDarkness > 0.5) dark = textureLod(uDarkness, world / uLightWorld, 0.0).rgb;
   // The ambient light of the zones here, and their share of the pixel.
   vec4 zone = vec4(0.0);
   vec4 zoneLifted = vec4(0.0);
@@ -178,12 +181,14 @@ void main() {
   }
   // Magical darkness swallows the ambient light and the bounce; the lights it swallows are not in the light map.
   float lightLeft = 1.0 - dark.r;
-  vec3 ambient = uAmbient * lightLeft;
-  vec3 ambientAsBright = ambient * uAmbientLift;
+  // The ambient light here before the darkness takes of it.
+  vec3 ambientGiven = uAmbient;
+  vec3 ambientAsBright = uAmbient * uAmbientLift * lightLeft;
   if (uHasZones > 0.5) {
-    ambient = (zone.rgb + uAmbient * (1.0 - zone.a)) * lightLeft;
+    ambientGiven = zone.rgb + uAmbient * (1.0 - zone.a);
     ambientAsBright = (zoneLifted.rgb + uAmbient * uAmbientLift * (1.0 - zoneLifted.a)) * lightLeft;
   }
+  vec3 ambient = ambientGiven * lightLeft;
   bounce *= lightLeft;
   vec4 sight = textureLod(uTexture, vTextureCoord, 0.0);
   // Senses: what is perceived without light is seen too.
@@ -234,10 +239,14 @@ void main() {
   // nothing where the picture is as bright (lit and sensed places are exactly as the light
   // shows them), all of it in the dark, and at a light's rim the two add up to the memory's
   // brightness, so the light fades into the memory beneath it without a darker ring between.
-  // Magical darkness keeps its veil over it.
   float lacking = max(dot(memory - visible, LUMA), 0.0) / max(dot(memory, LUMA), 1e-5);
   vec3 inSight = visible + memory * (recalls * lacking);
-  vec3 player = mix(memory, inSight + uVeil * dark.r, seen);
+  // The players see the veil only where the darkness takes something from their picture: ambient
+  // light, a light's light (blue of the darkness map), or what a sense that does not see in it
+  // would show. Over unlit floor and over memory there is none: it would give away where the
+  // darkness is although nothing is swallowed there.
+  float taken = max(max(clamp(dot(ambientGiven, LUMA) * 50.0, 0.0, 1.0), dark.b), max(sight.g, sight.b) * (1.0 - clamp(dark.g * 2.0, 0.0, 1.0)));
+  vec3 player = mix(memory, inSight + uVeil * (dark.r * taken), seen);
   visible += uVeil * dark.r;
 
   // The GM always sees the map and every light at full strength: a dim floor screen-blended under
