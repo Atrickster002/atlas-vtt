@@ -90,6 +90,24 @@ export const FAMILIES: Record<string, Family> = {
       return wall(`n${i}`, c.x, c.y, d.x, d.y);
     })];
   },
+  // Two crowds of ends, and between them two short walls on their own that stop nothing or stop one way only, each
+  // nearer to the other's far end than to its own crowd: the nearest end in a direction is then the mate of the end wanted.
+  airlock: (rand) => {
+    const spin = turn(rand);
+    const place = (x: number, y: number): XY => {
+      const [dx, dy] = [x - 504 + (rand() - 0.5) * 0.4, y - 504 + (rand() - 0.5) * 0.4];
+      return { x: C.x + dx * Math.cos(spin) - dy * Math.sin(spin), y: C.y + dx * Math.sin(spin) + dy * Math.cos(spin) };
+    };
+    const lone = (id: string, a: XY, b: XY): WallSegment => {
+      const open = rand() < 0.5;
+      return wall(id, a.x, a.y, b.x, b.y, open ? { type: 'door', closed: false } : { direction: rand() < 0.5 ? 'left' : 'right' });
+    };
+    const crowd = (name: string, x: number, y: number, away: number): WallSegment[] => Array.from({ length: 6 + Math.floor(rand() * 3) }, (_, i) => {
+      const p = place(x + (i % 3), y + Math.floor(i / 3)), q = place(x - 70 + i * 30, y + away * 145);
+      return wall(`${name}${i}`, p.x, p.y, q.x, q.y);
+    });
+    return [lone('lone1', place(500, 500), place(498.5, 503.5)), lone('lone2', place(510, 504), place(508.5, 507.5)), ...crowd('n', 508, 492, -1), ...crowd('s', 498.5, 514.5, 1)];
+  },
 };
 
 /**
