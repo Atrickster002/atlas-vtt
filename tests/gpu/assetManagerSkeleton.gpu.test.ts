@@ -163,6 +163,56 @@ describe('the asset manager while its content loads', () => {
     expect(Math.abs(header[0]!.height - skeletonHeader[0]!.height)).toBeLessThanOrEqual(SLACK);
   });
 
+  it('keeps only the rows around the view mounted while it scrolls', async () => {
+    flushSync(() => root.render(React.createElement(Content, { ...contentProps('tokens', false), assets: assetsOf('tokens', 600) })));
+    await expect.poll(() => host.querySelectorAll('.atlas-asset-card').length).toBeGreaterThan(CARDS_COMPARED);
+    await settled();
+    const pane = host.querySelector<HTMLElement>('.atlas-asset-manager-content')!;
+    const atRest = pane.querySelectorAll('.atlas-asset-card').length;
+
+    let most = 0;
+    for (let step = 0; step < 80; step++) {
+      pane.scrollTop += 90;
+      await nextFrame();
+      most = Math.max(most, pane.querySelectorAll('.atlas-asset-card').length);
+    }
+
+    // Rows above the view join those below it; cards scrolled past must not stay mounted.
+    expect(most).toBeLessThanOrEqual(atRest * 2);
+  });
+
+  it('shows placeholders in the rows that are not mounted, where their cards will be', async () => {
+    flushSync(() => root.render(React.createElement(Content, { ...contentProps('tokens', false), assets: assetsOf('tokens', 600) })));
+    await expect.poll(() => host.querySelector('.atlas-asset-grid-rest')).not.toBeNull();
+    // A measured card gives the rows their height one render later.
+    await settled();
+    await settled();
+    const pane = host.querySelector<HTMLElement>('.atlas-asset-manager-content')!;
+    const grid = host.querySelector<HTMLElement>('.atlas-asset-grid-virtual')!;
+    const rest = host.querySelector<HTMLElement>('.atlas-asset-grid-rest')!;
+    const cards = Array.from(grid.querySelectorAll<HTMLElement>('.atlas-asset-card'));
+    const lowest = Math.max(...cards.map((card) => card.getBoundingClientRect().bottom));
+    const gap = parseFloat(getComputedStyle(grid).columnGap);
+
+    // The placeholders begin one gap below the last mounted row, and animate nothing.
+    expect(Math.abs(rest.getBoundingClientRect().top - (lowest + gap))).toBeLessThanOrEqual(SLACK);
+    expect(getComputedStyle(rest).animationName).toBe('none');
+
+    // The first placeholder's art is drawn where the art of the card that follows the mounted ones will be.
+    const tile = decodeURIComponent(getComputedStyle(rest).maskImage);
+    const [, cx, cy, radius] = /<circle cx='([\d.]+)' cy='([\d.]+)' r='([\d.]+)'/.exec(tile)!.map(Number);
+    const drawn = { left: rest.getBoundingClientRect().left + cx! - radius!, top: rest.getBoundingClientRect().top + cy! - radius!, size: radius! * 2 };
+    const before = pane.scrollTop;
+    pane.scrollTop += 600;
+    await expect.poll(() => grid.querySelector(`[data-asset-id="tokens-${cards.length}"]`)).not.toBeNull();
+    const art = grid.querySelector(`[data-asset-id="tokens-${cards.length}"] .atlas-asset-card-thumb`)!.getBoundingClientRect();
+    const scrolled = pane.scrollTop - before;
+
+    expect(Math.abs(art.left - drawn.left)).toBeLessThanOrEqual(SLACK);
+    expect(Math.abs(art.top + scrolled - drawn.top)).toBeLessThanOrEqual(SLACK);
+    expect(Math.abs(art.width - drawn.size)).toBeLessThanOrEqual(SLACK);
+  });
+
   it('fills the pane with placeholders and no further, when the number of assets is not known', async () => {
     flushSync(() => root.render(React.createElement(Content, contentProps('tokens', true))));
     await settled();

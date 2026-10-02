@@ -93,17 +93,16 @@ it('shows the skeleton of the new tab when its load takes longer, and keeps it l
   expect(pane('maps').textContent).toBe('Keep');
 });
 
-it('opens without content of its own, never with the empty library, until the first load is in', () => {
+it('opens on the skeleton, never on the empty library, and shows the content as soon as it is loaded', () => {
   loaded.tab = null;
   loaded.assets = [];
   const { rerender } = render(<AssetManager isOpen onClose={() => {}} />);
-  expect(pane('tokens').dataset.state).toBe('waiting');
-
-  act(() => { vi.advanceTimersByTime(SKELETON_DELAY_MS); });
   expect(pane('tokens').dataset.state).toBe('skeleton');
+  expect(pane('tokens').textContent).toBe('');
 
+  // No minimum time: nothing was on screen before this skeleton.
   finishLoading('tokens', [GOBLIN], rerender);
-  act(() => { vi.advanceTimersByTime(SKELETON_MIN_VISIBLE_MS); });
+  act(() => { vi.advanceTimersByTime(0); });
   expect(pane('tokens').dataset.state).toBe('content');
   expect(pane('tokens').textContent).toBe('Goblin');
 });

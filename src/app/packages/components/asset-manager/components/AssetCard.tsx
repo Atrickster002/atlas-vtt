@@ -27,7 +27,8 @@ function ArtFallback({ asset }: { asset: AnyAsset }): React.JSX.Element {
 /**
  * The card's art. Every image holds its place with a placeholder until it can
  * be painted; art whose thumbnail is still being made shows only the
- * placeholder, never the full image.
+ * placeholder, never the full image. Images load with their card: the grid
+ * mounts rows ahead of the view, so their art is there when they scroll in.
  */
 function Artwork({ asset }: { asset: AnyAsset }): React.JSX.Element {
   if (asset.type === 'encounters' && asset.tokenPreviews.length > 0) {
@@ -42,7 +43,6 @@ function Artwork({ asset }: { asset: AnyAsset }): React.JSX.Element {
             alt={`${asset.name} token ${index + 1}`}
             showRing={preview.showRing}
             ringColor={preview.ringColor}
-            lazy
             reveal
           />
         ))}
@@ -57,8 +57,8 @@ function Artwork({ asset }: { asset: AnyAsset }): React.JSX.Element {
   }
   if (asset.thumbnailUrl) {
     return asset.type === 'tokens'
-      ? <TokenPortrait src={asset.thumbnailUrl} alt={asset.name} showRing={asset.showRing} lazy reveal />
-      : <RevealImage src={asset.thumbnailUrl} alt={asset.name} lazy fallback={<ArtFallback asset={asset} />} />;
+      ? <TokenPortrait src={asset.thumbnailUrl} alt={asset.name} showRing={asset.showRing} reveal />
+      : <RevealImage src={asset.thumbnailUrl} alt={asset.name} fallback={<ArtFallback asset={asset} />} />;
   }
   return <ArtFallback asset={asset} />;
 }

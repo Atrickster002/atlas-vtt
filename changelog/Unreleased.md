@@ -59,7 +59,8 @@
 - The lighting menu is laid out like the other tool menus: what the tool does and how walls are drawn are rows with a tick, and the time of day shows which one is chosen
 - Switches in the tool menus can be reached with Tab and switched with Space or Enter, and screen readers announce them. Every menu row is now rounded alike on both sides
 - A token you drop on a square lies on top of the tokens already there, and so does one you place, paste or duplicate. Before, the token that stood there first stayed on top. The order is saved with the scene and follows undo
-- While the asset manager loads, it shows placeholders in the shape of what is coming: cards, folders, tags, the statblock list and the statblock itself. The content then takes their place without moving. A load that takes only a moment shows no placeholder at all
+- The asset manager opens on placeholders in the shape of what is coming: cards, folders, tags, the statblock list and the statblock itself. The content then takes their place without moving. Switching tab or collection shows them only when the load takes longer than a moment
+- Scrolling the asset manager is smooth in large collections. Cards scrolled out of view no longer stay loaded, rows that are not drawn yet show placeholders instead of empty space, and the art of the next rows is loaded before they scroll in
 - The asset manager stays smooth while its content loads. Thumbnails made in the background appear a few at a time, starting with the cards on screen, and no longer redraw the whole library as each one finishes. A card waits for its thumbnail instead of loading the full image, so a page of maps no longer holds every map in memory. Reading the statblocks of a large library no longer freezes the window
 
 ## Fixed

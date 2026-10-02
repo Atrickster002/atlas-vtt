@@ -21,9 +21,6 @@ export interface ContentProps extends ContentPaneProps {
   assetCount: number | null;
 }
 
-/** The refinement of a pane that is loading: no search or filter reads like it, so it has a pane of its own. */
-const LOADING_REFINEMENT = '\u0000loading';
-
 interface PanePlace {
   key: string;
   tab: Tab;
@@ -54,12 +51,13 @@ function usePanePlace(tab: Tab, folderId: string | null, depth: number, refineme
  * The asset manager's content area. Opening a folder, going back or switching
  * tabs slides the new pane in from the side it lies on; searching, filtering by
  * tags or sorting crossfades to a new pane of the same folder. A place that is
- * loading has a pane of its own, which the loaded one crossfades over.
+ * loading shows its skeleton in the pane its content will have, so the cards
+ * take the place of their placeholders without a transition between them.
  */
 export function Content({
   selectedFolderId, folderDepth, refinement, loading, showSkeleton, assetCount, ...paneProps
 }: ContentProps): React.JSX.Element {
-  const place = usePanePlace(paneProps.activeTab, selectedFolderId, folderDepth, loading ? LOADING_REFINEMENT : refinement);
+  const place = usePanePlace(paneProps.activeTab, selectedFolderId, folderDepth, refinement);
 
   return (
     <MotionConfig reducedMotion="user">

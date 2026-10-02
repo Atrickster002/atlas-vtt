@@ -18,13 +18,17 @@ export interface LoadingRevealOptions {
  * lasted `delayMs` and then stays for at least `minVisibleMs`, also when the
  * load ends before that. While this is false and the load runs, show what was
  * there before; show the content once both are false.
+ *
+ * A load that already runs when the component mounts has nothing before it to
+ * keep: its skeleton shows from the first frame and leaves when the load ends.
  */
 export function useLoadingReveal(
   loading: boolean,
   { delayMs = SKELETON_DELAY_MS, minVisibleMs = SKELETON_MIN_VISIBLE_MS }: LoadingRevealOptions = {},
 ): boolean {
-  const [shown, setShown] = useState(false);
-  const shownAt = useRef(0);
+  const [shown, setShown] = useState(loading);
+  // Unset for the skeleton of a load that ran at mount: it has no minimum time.
+  const shownAt = useRef(Number.NEGATIVE_INFINITY);
 
   useEffect(() => {
     if (loading === shown) return undefined;
