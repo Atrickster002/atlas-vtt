@@ -90,6 +90,9 @@ export interface LightSource {
 
 export type LightInput = Omit<LightSource, 'id' | 'kind'>;
 
+/** Changes to a placed light: a field given as undefined is removed, so a light can be put back exactly as it was. */
+export type LightChanges = { [Field in keyof LightInput]?: LightInput[Field] | undefined };
+
 /**
  * An area of the map with ambient light of its own: a cave mouth that is dark by day, a lit hall
  * in a dark dungeon. Map geometry the GM draws like walls (undo-tracked, in `objects.lightZones`);

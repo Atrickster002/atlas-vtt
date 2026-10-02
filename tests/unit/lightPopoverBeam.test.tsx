@@ -33,6 +33,7 @@ describe('LightPopover: darkness and beams', () => {
     fireEvent.click(shines());
     fireEvent.click(screen.getByRole('option', { name: 'Always' }));
     expect(shines().textContent).toBe('Always');
+    expect('activeBelowAmbient' in light()).toBe(false);
   });
 
   it('names a level that is no time of day, and offers it only while the light has it', () => {

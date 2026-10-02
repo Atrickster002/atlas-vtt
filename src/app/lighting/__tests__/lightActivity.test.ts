@@ -31,7 +31,7 @@ describe('a light that follows the ambient light', () => {
   });
 
   it('offers the times of day a lamp comes on at, and names any other level', () => {
-    expect(LIGHT_SCHEDULES.map(({ label, level }) => [label, level])).toEqual([['Always', 1], ['From dusk', 0.5], ['At night', 0.15]]);
+    expect(LIGHT_SCHEDULES.map(({ label, level }) => [label, level])).toEqual([['Always', undefined], ['From dusk', 0.5], ['At night', 0.15]]);
     expect(scheduleOf({})).toEqual({ value: 'always', label: 'Always' });
     expect(scheduleOf({ activeBelowAmbient: 0.5 })).toEqual({ value: 'dusk', label: 'From dusk' });
     expect(scheduleOf({ activeBelowAmbient: 0.15 })).toEqual({ value: 'night', label: 'At night' });

@@ -201,10 +201,10 @@ export class LightInteraction {
     const lightId = store.getState().lightPopover;
     const grabbed = lightId ? store.getState().objects.lights[lightId] : undefined;
     if (!lightId || !grabbed) return;
-    // A light that was never turned faces up, which is rotation 0.
-    const rotation = grabbed.rotation ?? 0;
+    // A light that was never turned has no rotation, and faces up as with 0; a cancelled turn leaves it without one.
+    const rotation = grabbed.rotation;
     // The handle keeps its angle to the pointer, so the light does not turn when it is grabbed off-centre.
-    const offset = rotation - directionTo(grabbed, grabbedAt);
+    const offset = (rotation ?? 0) - directionTo(grabbed, grabbedAt);
     beginHistoryTransaction(store);
     rings.setDragging('rotation');
 

@@ -11,7 +11,7 @@ import type AtlasVTTPlugin from '../../main';
 import type { TokenEntity, Character, NotePin, TextElement, DrawingStroke } from './types';
 import type { FogOperation, FogOperationInput } from './types/fogTypes';
 import type { WallSegment, WallInput } from './types/wallTypes';
-import { DEFAULT_SCENE_LIGHTING, type LightInput, type LightSource, type LightZone, type LightZoneInput, type SceneLighting } from './types/lightingTypes';
+import { DEFAULT_SCENE_LIGHTING, type LightChanges, type LightInput, type LightSource, type LightZone, type LightZoneInput, type SceneLighting } from './types/lightingTypes';
 import type { AudioSource, AudioInput } from './types/audioTypes';
 import type { AnyWidget, WidgetSettings } from './types/widgetTypes';
 import type { InitiativeState, InitiativeEntry, InitiativeConfig } from './types/initiativeTypes';
@@ -187,7 +187,7 @@ export interface ViewAtlasState {
 
   // Light actions
   addLight: (data: LightInput) => string;
-  updateLight: (id: string, changes: Partial<LightSource>) => void;
+  updateLight: (id: string, changes: LightChanges) => void;
   deleteLight: (id: string) => void;
   addLightZone: (data: LightZoneInput) => string;
   updateLightZone: (id: string, changes: Partial<LightZoneInput>) => void;
@@ -1221,8 +1221,11 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
 
           updateLight: (id, changes) => set((draft) => {
             const light = draft.objects.lights[id];
-            if (light) {
-              Object.assign(light, changes);
+            if (!light) return;
+            Object.assign(light, changes);
+            // A field given as undefined is removed, not stored as undefined.
+            for (const field of Object.keys(changes) as (keyof LightChanges)[]) {
+              if (changes[field] === undefined) delete light[field];
             }
           }),
 

@@ -1,5 +1,5 @@
 import React from 'react';
-import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MotionGlobalConfig } from 'framer-motion';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import type { Application } from 'pixi.js';
@@ -137,9 +137,15 @@ describe('the light popover on the map', () => {
     const beam = store.getState().addLight({ x: 600, y: 400, rotation: 90, emission: { ...genericLight('candle'), angle: 90 } });
     act(() => store.getState().openLightPopover(beam));
     expect(position()).toEqual({ x: 600 - 70 - 12 - 272, y: 230 });
-    act(() => store.getState().updateLight(beam, { rotation: 270 }));
+    act(() => store.getState().updateLight(beam, { rotation: 265 }));
     frame();
     expect(position()).toEqual({ x: 246, y: 230 });
+    // The slider is let go (here: a key on its thumb): the beam now points at the popover, which makes way.
+    const direction = screen.getByRole('slider', { name: 'Direction' });
+    act(() => direction.focus());
+    fireEvent.keyDown(direction, { key: 'ArrowRight' });
+    expect(store.getState().objects.lights[beam]!.rotation).toBe(270);
+    expect(position()).toEqual({ x: 600 + 70 + 12, y: 230 });
   });
 
   it('travels to another light that is opened, as the same popover', () => {

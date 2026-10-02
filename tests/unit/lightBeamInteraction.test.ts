@@ -90,6 +90,20 @@ describe('the rings of a light that shines one way', () => {
     expect(store.getState().objects.lights[torch]!.rotation).toBe(134);
   });
 
+  it('leave a light that was never turned without a rotation when its first turn is cancelled', () => {
+    const { store, torch, lights, press, move } = beam();
+    store.setState((state) => {
+      const { rotation: _rotation, ...unturned } = state.objects.lights[torch]!;
+      return { objects: { ...state.objects, lights: { ...state.objects.lights, [torch]: unturned } } };
+    });
+    // Unturned, the beam faces up: its handle is above the light.
+    press(400, 300 - 560 - 22);
+    move(700, 300);
+    expect(store.getState().objects.lights[torch]!.rotation).toBe(90);
+    lights.cancel();
+    expect('rotation' in store.getState().objects.lights[torch]!).toBe(false);
+  });
+
   it('put the light back when the turn is cancelled, and leave no undo step', () => {
     const { store, torch, lights, press, move, steps } = beam();
     press(982, 300);

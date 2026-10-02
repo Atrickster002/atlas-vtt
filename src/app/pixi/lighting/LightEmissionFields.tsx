@@ -33,6 +33,8 @@ interface LightEmissionFieldsProps {
   maxRange: number;
   /** A placed light's own direction, in degrees; a carried light faces as its token does and has none to set. */
   direction?: { degrees: number; onChange: (degrees: number) => void };
+  /** The beam's width or direction was set and let go. */
+  onBeamCommit?: () => void;
   /** Rows only a placed light has, among those every light has. */
   more?: React.ReactNode;
   /** A slider is pressed, or the system colour picker opens and closes: where a host that writes at once makes the gesture one undo step. */
@@ -50,7 +52,7 @@ interface LightEmissionFieldsProps {
  * colour or dim. Every control reports the whole emission at once.
  */
 export function LightEmissionFields({
-  emission, onChange, presets, unit, unitDistance, maxRange, direction, more, onSliderPointerDown = NOTHING, onPickStart = NOTHING, onPickEnd = NOTHING,
+  emission, onChange, presets, unit, unitDistance, maxRange, direction, more, onBeamCommit, onSliderPointerDown = NOTHING, onPickStart = NOTHING, onPickEnd = NOTHING,
 }: LightEmissionFieldsProps): React.ReactElement {
   const flickerId = useId();
   const outshinesId = useId();
@@ -75,10 +77,10 @@ export function LightEmissionFields({
         {ranges}
         <div className="atlas-light-popover__beam">
           <SliderField label="Beam" value={beam} {...BEAM_SLIDER} display={narrow ? `${beam}°` : direction ? 'All' : 'All around'}
-            onPointerDown={onSliderPointerDown} onChange={(value) => onChange(withBeam(emission, value))} />
+            onPointerDown={onSliderPointerDown} onChange={(value) => onChange(withBeam(emission, value))} {...(onBeamCommit && { onCommit: onBeamCommit })} />
           {direction && (
             <SliderField label="Direction" value={direction.degrees} min={0} max={360 - DIRECTION_STEP} step={DIRECTION_STEP} display={narrow ? `${direction.degrees}°` : '–'}
-              disabled={!narrow} onPointerDown={onSliderPointerDown} onChange={direction.onChange} />
+              disabled={!narrow} onPointerDown={onSliderPointerDown} onChange={direction.onChange} {...(onBeamCommit && { onCommit: onBeamCommit })} />
           )}
         </div>
         <SliderField label="Intensity" value={emission.intensity} min={0} max={2} step={0.05} display={`${Math.round(emission.intensity * 100)} %`}

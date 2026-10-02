@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef } from 'react';
+import { useCallback, useLayoutEffect, useRef } from 'react';
 import type React from 'react';
 import { beamOf } from '../../lighting/lightBeam';
 import { gameUnitsToWorld, unitScaleOf } from '../../lighting/lightingUnits';
@@ -33,17 +33,19 @@ interface Frame {
  * with `translate` on the map's own frame clock, so it follows pan, zoom and a dragged light in
  * the frame the canvas shows them, and its `transform-origin` is the light, which it grows out
  * of. The ring and the beam it keeps clear of are those it found when it took its place: tuning
- * or turning the light does not move the popover under the pointer. When `lightId` changes, the same popover travels
+ * or turning the light does not move the popover under the pointer. The function it returns is
+ * for when the beam's width or direction was set and let go: the popover then makes way if the
+ * beam's handles came to lie under it. When `lightId` changes, the same popover travels
  * to the other light. `unitDistance` is the game units a grid cell spans.
  */
-export function useLightPopoverPosition(ref: React.RefObject<HTMLElement | null>, lightId: string, unitDistance: number): void {
+export function useLightPopoverPosition(ref: React.RefObject<HTMLElement | null>, lightId: string, unitDistance: number): () => void {
   const store = useViewStoreHook();
   const { renderer, pixiApp } = useAtlasUI();
   const target = useRef(lightId);
   const units = useRef(unitDistance);
   units.current = unitDistance;
-  /** Places the popover; with `anew`, on the best side for the light as it is now. */
-  const place = useRef<((anew?: boolean) => void) | null>(null);
+  /** Places the popover: 'anew' on the best side for the light as it is now, 'beam' where it is unless the beam's handles now lie under it. */
+  const place = useRef<((how?: 'anew' | 'beam') => void) | null>(null);
 
   useLayoutEffect(() => {
     const element = ref.current;
@@ -76,7 +78,8 @@ export function useLightPopoverPosition(ref: React.RefObject<HTMLElement | null>
     let beam: VisionCone | undefined;
     let placedFor = '';
 
-    const update = (anew = false): void => {
+    const update = (how?: 'anew' | 'beam'): void => {
+      const anew = how === 'anew';
       // A light that is gone keeps the popover where it was while it leaves.
       const state = store.getState();
       const light = state.objects.lights[target.current];
@@ -84,7 +87,7 @@ export function useLightPopoverPosition(ref: React.RefObject<HTMLElement | null>
       const zoom = viewport.scale.x;
       const at = viewport.toScreen(light.x, light.y);
       const key = `${at.x},${at.y},${zoom},${light.emission.bright},${light.emission.dim}`;
-      if (key === placedFor && !anew) return;
+      if (key === placedFor && !how) return;
       placedFor = key;
       const scale = unitScaleOf({ unitDistance: units.current }, state.grid);
       const bright = gameUnitsToWorld(light.emission.bright, scale);
@@ -94,6 +97,8 @@ export function useLightPopoverPosition(ref: React.RefObject<HTMLElement | null>
         ring = bright;
         beam = beamOf(light);
       }
+      // The beam was set and let go: it is the beam to keep clear of from now on.
+      if (how === 'beam') beam = beamOf(light);
       const anchor = { x: frame.x + at.x, y: frame.y + at.y };
       const handlesOf = (cone: VisionCone | undefined): { x: number; y: number }[] =>
         ringHandlePoints({ center: anchor, radius: { bright: bright * zoom, dim: dim * zoom }, ...(cone && { cone }) }, 1);
@@ -141,9 +146,11 @@ export function useLightPopoverPosition(ref: React.RefObject<HTMLElement | null>
     if (target.current === lightId || !element) return;
     const from = element.style.translate;
     target.current = lightId;
-    place.current?.(true);
+    place.current?.('anew');
     const to = element.style.translate;
     if (!from || from === to || prefersReducedMotion(element)) return;
     element.animate([{ translate: from }, { translate: to }], { duration: MOTION_SLOW_MS, easing: MOTION_EASE_OUT });
   }, [lightId, ref]);
+
+  return useCallback(() => place.current?.('beam'), []);
 }

@@ -52,7 +52,7 @@ function LightPopover({ lightId }: { lightId: string }): React.ReactElement | nu
   const ref = useRef<HTMLElement>(null);
   const present = useIsPresent();
   const variants = useAnchoredPopoverVariants();
-  useLightPopoverPosition(ref, lightId, unitDistance);
+  const makeWay = useLightPopoverPosition(ref, lightId, unitDistance);
   useFocusWhileOpen(ref, present);
 
   // A slider drag writes on every move; the transaction makes the whole drag one undo step.
@@ -108,6 +108,7 @@ function LightPopover({ lightId }: { lightId: string }): React.ReactElement | nu
         unitDistance={unitDistance}
         maxRange={maxRange}
         more={<ShinesRow light={light} onChange={(activeBelowAmbient) => store.getState().updateLight(light.id, { activeBelowAmbient })} />}
+        onBeamCommit={makeWay}
         direction={{ degrees: light.rotation ?? 0, onChange: (rotation) => store.getState().updateLight(light.id, { rotation }) }}
         onSliderPointerDown={onSliderPointerDown}
         onPickStart={beginPick}
@@ -128,7 +129,7 @@ function LightPopover({ lightId }: { lightId: string }): React.ReactElement | nu
 }
 
 /** When a placed light shines: always, or only from a time of day on, like a street lamp. */
-function ShinesRow({ light, onChange }: { light: LightSource; onChange: (level: number) => void }): React.ReactElement {
+function ShinesRow({ light, onChange }: { light: LightSource; onChange: (level: number | undefined) => void }): React.ReactElement {
   const id = useId();
   const current = scheduleOf(light);
   // A level that is no time of day is offered only while the light has it.
