@@ -52,10 +52,25 @@ export function softEdge(dim: number, cellSize: number): number {
 /**
  * A light that shines one way gives its full light inside its cone, where the rules count it,
  * and falls off past the cone's sides over its soft edge (`softEdge`, a width, not an angle: an
- * angle grows with the distance), steeply at first. Its own space (the cone's apex) is lit all
- * around and fades out over `CONE_APEX_FADE` times that radius.
+ * angle grows with the distance), steeply at first. That width is also held to a share
+ * (`BEAM_EDGE`) of the beam's half-width at that distance (`beamEdge`), so a narrow or short
+ * beam has a narrow edge: a fixed width lit more floor beside such a beam than the beam itself
+ * (`beamSpill.gpu.test.ts`). A beam wider than a half turn leaves a dark wedge behind the
+ * light, and the edge is held to that wedge's half-width instead, so it never fills the wedge.
+ * The beam's far end fades over the edge it has there (`beamEnd`), and its own space (the
+ * cone's apex), which is lit all around, over the edge it has at that radius.
  */
-export const CONE_APEX_FADE = 1.6;
+export const BEAM_EDGE = 0.06;
+
+/** The width of a beam's soft edge at `distance` from its light: `edge` (`softEdge`), and no more than `BEAM_EDGE` of the half-width there of the beam of `angle` (radians), or of the dark wedge behind it. */
+export function beamEdge(edge: number, distance: number, angle: number): number {
+  return Math.min(edge, BEAM_EDGE * distance * Math.sin(Math.min(angle / 2, Math.PI - angle / 2)));
+}
+
+/** How far past its dim radius a beam of `angle` (radians) fades out: `edge`, and no more than `BEAM_EDGE` of the beam's half-width at that radius. */
+export function beamEnd(edge: number, dim: number, angle: number): number {
+  return Math.min(edge, BEAM_EDGE * dim * Math.sin(Math.min(angle / 2, Math.PI / 2)));
+}
 
 /**
  * A source of magical darkness swallows all light up to its radius; over the last `rim` world

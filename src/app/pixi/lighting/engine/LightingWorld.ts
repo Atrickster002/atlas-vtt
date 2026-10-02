@@ -1,6 +1,6 @@
 import type { Renderer, Texture } from 'pixi.js';
 import type { WallSegment } from '../../../types/wallTypes';
-import { BOUNCE, DARKNESS, FLICKER_INTERVAL_MS, LIGHT_REACH, tileWallReach, wallRadius, worldTexel } from '../../../lighting/lightingConstants';
+import { BOUNCE, DARKNESS, FLICKER_INTERVAL_MS, LIGHT_REACH, beamEnd, tileWallReach, wallRadius, worldTexel } from '../../../lighting/lightingConstants';
 import { changedWallRects } from '../../../lighting/wallChanges';
 import { allSegments, splitBlocking, type Rect } from '../../../lighting/segments';
 import { lightReach } from '../../../vision/sight';
@@ -245,7 +245,7 @@ export class LightingWorld {
       if (!tile) continue;
       const { intensity, radiusScale } = sample(light);
       // Flicker breathes the bright radius only: where a light ends is where the rules end it.
-      drawn.push({ tile, bright: light.bright * radiusScale, dim: light.dim, reach: light.edge === undefined ? light.dim * LIGHT_REACH : light.dim + light.edge, color: light.color, intensity: light.intensity * intensity, cone: light.cone, edge: light.edge });
+      drawn.push({ tile, bright: light.bright * radiusScale, dim: light.dim, reach: light.edge === undefined || !light.cone ? light.dim * LIGHT_REACH : light.dim + beamEnd(light.edge, light.dim, light.cone.angle), color: light.color, intensity: light.intensity * intensity, cone: light.cone, edge: light.edge });
     }
     this.lightMap.draw(drawn);
   }

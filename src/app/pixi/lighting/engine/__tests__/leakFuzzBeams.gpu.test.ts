@@ -1,6 +1,6 @@
 /// <reference types="vite/client" />
 import { describe, expect, it } from 'vitest';
-import { CONE_APEX_FADE, LIGHT_REACH, sealTolerance, softEdge, worldTexel } from '../../../../lighting/lightingConstants';
+import { LIGHT_REACH, sealTolerance, softEdge, worldTexel } from '../../../../lighting/lightingConstants';
 import { placeLight } from '../../../../lighting/lightPlacement';
 import { sealWalls } from '../../../../lighting/sealWalls';
 import { allSegments, splitBlocking } from '../../../../lighting/segments';
@@ -92,7 +92,7 @@ async function fuzz({ seed, trials, allAround = false, turned = false }: FuzzOpt
           const off = Math.acos(Math.min(1, Math.max(-1, ((x - at.x) * Math.cos(cone.facing) + (y - at.y) * Math.sin(cone.facing)) / Math.max(d, 1e-4)))) - cone.angle / 2;
           // Across the cone's nearer edge in front of the light, from the light itself behind it.
           const across = off < Math.PI / 2 ? d * Math.sin(Math.max(off, 0)) : d;
-          if (d < dim + edge + EDGE && (across < edge + EDGE || d < apex * CONE_APEX_FADE + EDGE)) outside = false;
+          if (d < dim + edge + EDGE && (across < edge + EDGE || d < apex + edge + EDGE)) outside = false;
           // Inside the beam and the dim radius the light is all there; past the radius a beam ends sooner.
           if ((off > -EDGE && d > apex - EDGE) || d > dim - EDGE) inside = false;
         }

@@ -1,5 +1,5 @@
 import { Container, Mesh, UniformGroup, type Geometry, type Renderer, type RenderTexture, type Shader } from 'pixi.js';
-import { CONE_APEX_FADE, HALO, LIGHT_LEVELS, LIGHT_REACH } from '../../../lighting/lightingConstants';
+import { HALO, LIGHT_LEVELS, LIGHT_REACH } from '../../../lighting/lightingConstants';
 import type { VisionCone } from '../../../vision/visionCone';
 import type { MapBounds } from '../../../vision/visibility';
 import { destroyTree } from '../../utils/destroyTree';
@@ -29,7 +29,6 @@ interface Slot {
   light: Float32Array;
   color: Float32Array;
   cone: Float32Array;
-  spill: Float32Array;
 }
 
 function isDarkness(light: DrawnLight | DrawnDarkness): light is DrawnDarkness {
@@ -84,7 +83,7 @@ export class LightMap {
       slot.color.set(light.color);
       const { cone } = light;
       slot.cone.set(cone ? [Math.cos(cone.facing), Math.sin(cone.facing), cone.angle / 2, cone.apex ?? 0] : ALL_AROUND);
-      slot.spill[0] = light.edge ?? (LIGHT_REACH - 1) * light.dim;
+      u.uEdge = light.edge ?? (LIGHT_REACH - 1) * light.dim;
       slot.mesh.shader!.resources.uTile = light.tile.texture.source;
     });
     this.darkSlots.forEach((slot, i) => {
@@ -119,7 +118,6 @@ export class LightMap {
     const light = new Float32Array(2);
     const color = new Float32Array(3);
     const cone = new Float32Array(ALL_AROUND);
-    const spill = new Float32Array([1, CONE_APEX_FADE]);
     const uniforms = new UniformGroup({
       uRect: { value: rect, type: 'vec4<f32>' },
       uMapWorld: { value: new Float32Array(this.world), type: 'vec2<f32>' },
@@ -135,13 +133,13 @@ export class LightMap {
       uHaloSize: { value: HALO.size, type: 'f32' },
       uTexel: { value: this.texel, type: 'f32' },
       uCone: { value: cone, type: 'vec4<f32>' },
-      uSpill: { value: spill, type: 'vec2<f32>' },
+      uEdge: { value: 1, type: 'f32' },
     });
     const shader = createShader(ENGINE_SHADERS.lightMap, { lightUniforms: uniforms, uTile: this.placeholder.source });
     const mesh = new Mesh({ geometry: this.geometry, shader });
     mesh.blendMode = 'add';
     this.scene.addChild(mesh);
-    return { mesh, uniforms, rect, light, color, cone, spill };
+    return { mesh, uniforms, rect, light, color, cone };
   }
 
   destroy(): void {

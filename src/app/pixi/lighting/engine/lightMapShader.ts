@@ -1,3 +1,4 @@
+import { BEAM_EDGE } from '../../../lighting/lightingConstants';
 import { GLSL_VERSION } from './glsl';
 
 export const lightMapVertex = `${GLSL_VERSION}
@@ -24,9 +25,10 @@ void main() {
 // shows the dim range at the same share of the bright range whatever its colour.
 // A light that shines one way (`uCone`: its facing as a unit vector, half its angle, the radius
 // of its own space; half an angle of π or more is no cone) keeps all of this inside its cone and
-// within its own space, and falls off past the cone's sides over `uSpill.x` world pixels (steeply:
-// what lies there is lit and not counted) and past its own space over `uSpill.y` times that radius. The tile knows nothing of the cone, so turning a
-// light traces nothing.
+// within its own space. Past the cone's sides it falls off over its edge (steeply: what lies
+// there is lit and not counted): `uEdge` world pixels, or `BEAM_EDGE` of the beam's half-width
+// at that distance where that is less (`beamEdge`). Past its own space it falls off over the
+// edge it has at that radius. The tile knows nothing of the cone, so turning a light traces nothing.
 // The colour is `uLightColor`: PIXI sets `uColor` itself, as a vec4, on every mesh shader that declares it.
 export const lightMapFragment = `${GLSL_VERSION}
 in vec2 vWorld;
@@ -43,19 +45,23 @@ uniform float uHaloGain;
 uniform float uHaloSize;
 uniform float uTexel;
 uniform vec4 uCone;
-uniform vec2 uSpill;
+uniform float uEdge;
 uniform sampler2D uTile;
 out vec4 finalColor;
 const vec3 LUMA = vec3(0.2126, 0.7152, 0.0722);
 float smoother(float u) { return u * u * u * (u * (u * 6.0 - 15.0) + 10.0); }
+// The width of the beam's soft edge at d from the light (beamEdge).
+float edgeAt(float d) {
+  return max(min(uEdge, ${BEAM_EDGE.toFixed(4)} * d * sin(min(uCone.z, 3.14159265 - uCone.z))), 1e-3);
+}
 // The share of the light a point at v from the light gets by where the light faces.
 float inCone(vec2 v, float d) {
   float off = acos(clamp(dot(v, uCone.xy) / max(d, 1e-4), -1.0, 1.0)) - uCone.z;
   // How far past the cone's nearer edge: across it in front of the light, from the light itself behind it.
   float across = off < 1.5708 ? d * sin(max(off, 0.0)) : d;
-  float left = 1.0 - clamp(across / max(uSpill.x, 1e-3), 0.0, 1.0);
+  float left = 1.0 - clamp(across / edgeAt(d), 0.0, 1.0);
   float beam = left * left;
-  float own = 1.0 - smoother(clamp((d - uCone.w) / max(uCone.w * (uSpill.y - 1.0), 1e-3), 0.0, 1.0));
+  float own = 1.0 - smoother(clamp((d - uCone.w) / edgeAt(uCone.w), 0.0, 1.0));
   return max(beam, own);
 }
 void main() {
