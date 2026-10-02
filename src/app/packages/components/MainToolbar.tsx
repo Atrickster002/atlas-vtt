@@ -12,18 +12,19 @@ import { CoinIcon } from "../../react/components/CoinIcon"
 import { useAtlasUI } from "src/app/react/root/AtlasUIContext"
 import { Toggle } from "./primitives/Toggle"
 import { DiceDropdownMenu } from "../../react/components/dice/DiceDropdownMenu"
-import { AMBIENT_AUDIO_ENABLED, WALLS_AND_LIGHTING_ENABLED } from "../../featureFlags"
+import { AMBIENT_AUDIO_ENABLED } from "../../featureFlags"
 import { isAtlasToolAvailable } from "../../tools/toolAvailability"
+import { useExperimentalFeature } from "../../react/hooks/useExperimentalFeature"
 import { ResponsiveToolbar } from "./toolbar/ResponsiveToolbar"
 import { MoveToolGroup } from "./toolbar/MoveToolGroup"
 import { FogToolGroup } from "./toolbar/FogToolGroup"
 import { DrawToolGroup } from "./toolbar/DrawToolGroup"
 import { TextToolGroup } from "./toolbar/TextToolGroup"
 import { MeasureToolGroup } from "./toolbar/MeasureToolGroup"
-import { WallToolGroup } from "./toolbar/WallToolGroup"
+import { LightingToolGroup } from "./toolbar/LightingToolGroup"
 import { useToolbarHotkeys } from "./toolbar/useToolbarHotkeys"
 import {
-  drawToolFace, fogToolFace, measureToolFace, moveToolFace, textToolFace, wallToolFace,
+  drawToolFace, fogToolFace, measureToolFace, moveToolFace, textToolFace, lightingToolFace,
   type Tool, type ToolFace,
 } from "./toolbar/toolFaces"
 import type { ToolGroupControls } from "./toolbar/ToolGroup"
@@ -64,6 +65,7 @@ export const MainToolbar = forwardRef<HTMLDivElement, MainToolbarProps>(({ viewI
   const isGMView = useAtlasStore(state => state.isGMView)
   const setGMView = useAtlasStore(state => state.setGMView)
   const hotkeyLabel = useHotkeyLabels()
+  const lightingOn = useExperimentalFeature('dynamicLighting')
 
   const isActualPlayerView = view?.getViewType?.() === 'atlas-vtt-player'
 
@@ -177,10 +179,10 @@ export const MainToolbar = forwardRef<HTMLDivElement, MainToolbarProps>(({ viewI
       ? [toolGroupItem('text', textToolFace(activeTool), hotkeyLabel('text'), <TextToolGroup {...groupControls('text')} />)]
       : []),
     toolGroupItem('measure', measureToolFace(activeTool), hotkeyLabel('measure'), <MeasureToolGroup {...groupControls('measure')} />),
-    ...(dm ? [toolButtonItem('pin', "note-pin", MapPin, "Note Pin Tool", hotkeyLabel('pin'))] : []),
-    ...(dm && WALLS_AND_LIGHTING_ENABLED
-      ? [toolGroupItem('wall', wallToolFace(activeTool), hotkeyLabel('wall'), <WallToolGroup {...groupControls('wall')} />)]
+    ...(dm && lightingOn
+      ? [toolGroupItem('wall', lightingToolFace(activeTool), hotkeyLabel('wall'), <LightingToolGroup {...groupControls('wall')} />)]
       : []),
+    ...(dm ? [toolButtonItem('pin', "note-pin", MapPin, "Note Pin Tool", hotkeyLabel('pin'))] : []),
     ...(dm && AMBIENT_AUDIO_ENABLED
       ? [toolButtonItem('audio', "audio", Volume2, "Ambient Sound", hotkeyLabel('audio'))]
       : []),

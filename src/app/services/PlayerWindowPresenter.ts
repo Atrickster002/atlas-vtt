@@ -5,8 +5,9 @@ import { AtlasView, ATLAS_VIEW_TYPE } from '../atlas-view';
 import type { ViewAtlasState } from '../storeFactory';
 import { playerWindowStore } from '../stores/playerWindowStore';
 import type { SceneTab } from '../types/sceneTabTypes';
-import { PlayerWindowService, type PlayerFrameSource } from './PlayerWindowService';
-import { getRenderedFrames } from '../pixi/RenderScheduler';
+import type { PlayerFrameSource } from './PlayerFrameMirror';
+import { PlayerWindowService } from './PlayerWindowService';
+import { rendersOnChange, requestRender, setBeforeRender } from '../pixi/RenderScheduler';
 
 /** Unsubscribes the tab watcher of the view whose tab is currently presented. */
 let stopWatchingPresentedTab: (() => void) | null = null;
@@ -118,28 +119,38 @@ function watchPresentedTab(view: AtlasView, service: PlayerWindowService): void 
   const stopWatchingWindow = playerWindowStore.subscribe((state) => {
     if (!state.presentedTabId) stopWatchingPresentedTab?.();
   });
+  // Leaving the presented tab is known at once, before the canvas changes
   const stopWatchingTabs = view.tabMetaStore.subscribe((state, previous) => {
     if (state.activeTabId === previous.activeTabId) return;
     const { presentedTabId } = playerWindowStore.getState();
-    if (!presentedTabId) return;
-
-    if (state.activeTabId === presentedTabId) {
-      void resumePresentedTab(view, service, presentedTabId);
-    } else {
-      service.holdCurrentFrame();
-    }
+    if (presentedTabId && state.activeTabId !== presentedTabId) service.holdCurrentFrame();
+  });
+  // Coming back is not: the tab is active before its scene starts loading, and a retry after
+  // a failed load changes no tab. Players see the scene again once the store holds it as loaded.
+  const stopWatchingScene = view.atlasStore.subscribe((state, previous) => {
+    const { presentedTabId } = playerWindowStore.getState();
+    if (!presentedTabId || !showsScene(state) || showsScene(previous)) return;
+    if (state.mapPath === findTab(view, presentedTabId)?.filePath) void resumePresentedTab(view, service, presentedTabId);
   });
   stopWatchingPresentedTab = (): void => {
     stopWatchingTabs();
+    stopWatchingScene();
     stopWatchingWindow();
     stopWatchingPresentedTab = null;
     watchedView = null;
   };
 }
 
+/** Whether the store holds a scene completely: loaded, and its tokens drawn. */
+function showsScene(state: ViewAtlasState): boolean {
+  return state.mapLoaded && !state.isMapLoading;
+}
+
 async function resumePresentedTab(view: AtlasView, service: PlayerWindowService, tabId: string): Promise<void> {
   const source = await waitForRenderedFrameSource(view);
-  if (!source || view.tabMetaStore.getState().activeTabId !== tabId) return;
+  const state = view.atlasStore.getState();
+  // The DM may have moved on while the frames were drawn
+  if (!source || !showsScene(state) || state.mapPath !== findTab(view, tabId)?.filePath) return;
   service.releaseHeldFrame(source);
 }
 
@@ -151,14 +162,23 @@ function findTab(view: AtlasView, tabId: string): SceneTab | undefined {
 async function waitForRenderedFrameSource(view: AtlasView): Promise<PlayerFrameSource | null> {
   await waitForMapLoaded(view.atlasStore);
   await nextAnimationFrames(2);
+  // A scene that failed to load leaves a canvas without fog and tokens; players must not see it
+  if (!view.atlasStore.getState().mapLoaded) return null;
   const renderer = view.serviceManager.getRendererService().getRenderer();
-  const canvas = renderer?.getAppInstance()?.canvas;
-  if (!renderer || !canvas?.instanceOf(HTMLCanvasElement)) return null;
+  const app = renderer?.getAppInstance();
+  const canvas = app?.canvas;
+  if (!renderer || !app || !canvas?.instanceOf(HTMLCanvasElement)) return null;
   return {
     canvas,
     store: view.atlasStore,
     withPlayerSafeFrame: (capture, settings, camera) => renderer.withPlayerSafeFrame(capture, settings, camera),
-    getRenderedFrames: () => getRenderedFrames(renderer.getAppInstance()),
+    ...(rendersOnChange(app) ? {
+      beforeRender: {
+        listen: (listener) => setBeforeRender(app, listener),
+        requestRender: () => requestRender(app),
+        withPlayerSafeFrame: (capture, settings, camera) => renderer.withPlayerSafeFrame(capture, settings, camera, true),
+      },
+    } : {}),
     getCamera: () => {
       const viewport = view.serviceManager.getRendererService().getViewport();
       return viewport ? { centerX: viewport.center.x, centerY: viewport.center.y, scale: viewport.scale.x } : undefined;
