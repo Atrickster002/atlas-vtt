@@ -20,17 +20,19 @@ const door = (id: string, type: WallSegment['type'], x1: number, y1: number, x2:
 type Point = readonly [number, number];
 const SEEN: Point = [100, 128];
 const UNSEEN: Point = [220, 128];
-const SECRET: Point = [60, 80];
+const SECRET: Point = [60, 176];
 const HALL = {
   lighting: { enabled: true, ambient: 1 },
   objects: {
-    walls: { seen: door('seen', 'door', 100, 108, 100, 148), unseen: door('unseen', 'door', 220, 108, 220, 148), secret: door('secret', 'secret-door', 40, 80, 80, 80) },
+    walls: { seen: door('seen', 'door', 100, 108, 100, 148), unseen: door('unseen', 'door', 220, 108, 220, 148), secret: door('secret', 'secret-door', 40, 176, 80, 176) },
     lights: {},
     tokens: { t: visionToken(60, 128, 5) },
   },
   exploredMask: null,
 } as unknown as SavedScene;
 
+/** A badge is read on the left leaf of its glyph, which is solid in a closed door's: this far from its middle, on the token's side of every door. */
+const LEAF: Point = [-4, -3];
 /** The leaf in a closed door's badge, and in a secret door's as the GM sees it. */
 const DOOR_BLUE = [68, 170, 255];
 const SECRET_ORANGE = [255, 136, 68];
@@ -63,10 +65,10 @@ describe('door badges in the players\' frame', () => {
 
   type Frame = (point: Point) => number[];
 
-  /** What the canvas shows at the three doors, read in the task that rendered it. */
+  /** What the canvas shows in the badges of the three doors, read in the task that rendered it. */
   function atDoors(): Frame {
     const canvas = scene.renderer.canvas as HTMLCanvasElement;
-    const pixels = new Map([SEEN, UNSEEN, SECRET].map((point) => [point, copiedPixel(canvas, point[0], point[1])]));
+    const pixels = new Map([SEEN, UNSEEN, SECRET].map((point) => [point, copiedPixel(canvas, point[0] + LEAF[0], point[1] + LEAF[1])]));
     return (point) => pixels.get(point) ?? [];
   }
 
