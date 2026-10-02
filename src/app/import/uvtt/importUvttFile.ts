@@ -136,8 +136,8 @@ async function importFile(deps: UvttImportDeps, file: File, collectionId: string
   const source = new Blob([map.image.bytes], { type: map.image.type });
   const sourceSize = await imageDimensions(source);
   if (!sourceSize) return refused(UNREADABLE_IMAGE);
-  if (Math.max(sourceSize.width, sourceSize.height) > UVTT_LIMITS.imageSide) {
-    return refused(`The map image is larger than ${UVTT_LIMITS.imageSide.toLocaleString('en-US')} pixels on a side.`);
+  if (sourceSize.width * sourceSize.height > UVTT_LIMITS.imagePixels) {
+    return refused(`The map image is too large to open: ${sourceSize.width} × ${sourceSize.height} pixels.`);
   }
   const sourceCell = cellSizeOn(map, sourceSize);
   if (typeof sourceCell !== 'number') return sourceCell;

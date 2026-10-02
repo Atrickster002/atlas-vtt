@@ -64,8 +64,8 @@ describe('reading a Universal VTT file', () => {
     expect(problemOf(text)).toContain(problem);
   });
 
-  it('refuses a text longer than 50 MB before parsing it', () => {
-    expect(problemOf('x'.repeat(UVTT_LIMITS.fileBytes + 1))).toBe('The file is larger than 50 MB.');
+  it('refuses a text longer than 150 MB before parsing it', () => {
+    expect(problemOf('x'.repeat(UVTT_LIMITS.fileBytes + 1))).toBe('The file is larger than 150 MB.');
   });
 
   it.each([

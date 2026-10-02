@@ -5,7 +5,7 @@ import { parseUvtt } from '../../src/app/import/uvtt/parseUvtt';
 import { uvttImportSummary } from '../../src/app/import/uvtt/runUvttImport';
 import { uvttToScene } from '../../src/app/import/uvtt/uvttToScene';
 import { UVTT_LIMITS } from '../../src/app/import/uvtt/uvttTypes';
-import type { ProcessedImage } from '../../src/app/imageProcessing/imageProcessing';
+import { MEMORY_BUDGET_BYTES, type ProcessedImage } from '../../src/app/imageProcessing/imageProcessing';
 import { sealTolerance } from '../../src/app/lighting/lightingConstants';
 import { readSceneLighting } from '../../src/app/lighting/sceneLightingOptions';
 import { sealWalls } from '../../src/app/lighting/sealWalls';
@@ -197,6 +197,22 @@ describe('importing a Universal VTT file', () => {
     expect(result.scaledDown).toEqual(scaledDown);
   });
 
+  it('takes an image longer than 16,384 pixels on a side while its pixels fit the image workers\' memory', async () => {
+    const b = await bench();
+    // The size of a real export: 114 × 64 cells at 150 pixels
+    const file = cryptWith((crypt) => {
+      crypt.resolution = { map_origin: { x: 0, y: 0 }, map_size: { x: 114, y: 64 }, pixels_per_grid: 150 };
+      crypt.image = base64Of(pngHeader(17_100, 9_600));
+    });
+    b.convertImage.mockImplementation(async () => converted(new Blob([pngHeader(8192, 4599)])));
+
+    const result = arrived(await importUvttFile(b.deps, uvttFile(file), COLLECTION));
+
+    expect(sceneState(b, result.scenePath).grid.size).toBe(8192 / 114);
+    expect(UVTT_LIMITS.imagePixels).toBe(MEMORY_BUDGET_BYTES / 4);
+    expect(UVTT_LIMITS.imagePixels).toBeGreaterThan(17_100 * 9_600);
+  });
+
   it('imports baked lights switched off, on a scene in daylight', async () => {
     const b = await bench();
 
@@ -299,7 +315,7 @@ describe('importing a Universal VTT file', () => {
 
 describe('a Universal VTT file that is refused', () => {
   const refusals: Array<[string, () => File, string]> = [
-    ['is larger than 50 MB', () => new File([new Uint8Array(UVTT_LIMITS.fileBytes + 1)], 'huge.dd2vtt'), 'The file is larger than 50 MB.'],
+    ['is larger than 150 MB', () => new File([new Uint8Array(UVTT_LIMITS.fileBytes + 1)], 'huge.dd2vtt'), 'The file is larger than 150 MB.'],
     ['is not JSON', () => uvttFile('PK\x03\x04 not a map'), 'The file is not a Universal VTT map (it is not valid JSON).'],
     ['has a wall point that is not a number', () => uvttFile(cryptSetting('line_of_sight.0.0.x', 'a')), 'Point 1 of wall line 1 (x) is missing or not a number.'],
     ['holds an image that is no image', () => uvttFile(cryptSetting('image', base64Of(new TextEncoder().encode('MZ executable')))), 'The map image in the file is not a PNG, WebP or JPEG image.'],
@@ -310,7 +326,7 @@ describe('a Universal VTT file that is refused', () => {
       crypt.image = base64Of(pngHeader(800, 600));
     })), 'The map image is too small for its grid: 800 × 600 pixels for 400 × 300 squares.'],
     ['states an origin that puts its walls and lights off the image', () => uvttFile(cryptSetting('resolution.map_origin', { x: 500, y: 500 })), 'Nothing in the file lies on its map image: its walls, doors and lights are all outside it.'],
-    ['holds an image too large to decode', () => uvttFile(cryptSetting('image', base64Of(pngHeader(40_000, 32_000)))), 'The map image is larger than 16,384 pixels on a side.'],
+    ['holds an image with more pixels than the image workers decode', () => uvttFile(cryptSetting('image', base64Of(pngHeader(20_000, 16_000)))), 'The map image is too large to open: 20000 × 16000 pixels.'],
   ];
 
   it.each(refusals)('when it %s, changes nothing', async (_label, file, problem) => {

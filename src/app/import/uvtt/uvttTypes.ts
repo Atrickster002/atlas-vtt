@@ -8,7 +8,8 @@ export const UVTT_EXTENSIONS = ['dd2vtt', 'uvtt', 'df2vtt'] as const;
 
 /** What an import accepts; a file beyond any of these is refused with the reason. */
 export const UVTT_LIMITS = {
-  fileBytes: 50 * 1024 * 1024,
+  /** Exports with a large JPEG reach 30 MB; the same map as PNG is several times that. */
+  fileBytes: 150 * 1024 * 1024,
   /** Wall segments and doors together. */
   wallSegments: 20_000,
   lights: 2_000,
@@ -22,8 +23,11 @@ export const UVTT_LIMITS = {
    * numbers plain to reckon with: what lies beyond the map is cut off or left out (`placeableRect`).
    */
   distance: 1_000_000,
-  /** Pixels along one side of the map image. */
-  imageSide: 16_384,
+  /**
+   * Pixels of the map image: what the image workers' memory budget holds decoded, at four bytes a
+   * pixel (`MEMORY_BUDGET_BYTES`, 1 GiB). As many as a square of 16,384 pixels, in any shape.
+   */
+  imagePixels: 268_435_456,
 } as const;
 
 export interface UvttPoint {
