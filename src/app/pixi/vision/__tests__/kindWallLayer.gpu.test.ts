@@ -41,7 +41,7 @@ async function zoomSteps(count: number): Promise<number[]> {
   ticker.autoStart = false;
   const stage = new Container();
   const viewport = new Viewport({ screenWidth: SCREEN, screenHeight: SCREEN, events: renderer.events, ticker });
-  stage.addChild(viewport as unknown as Container);
+  stage.addChild(viewport);
   const state = { objects: { walls: kindWalls(count) } } as unknown as ViewAtlasState;
   const store = { getState: () => state, subscribe: () => () => undefined } as unknown as StoreApi<ViewAtlasState>;
   const walls = new WallRenderer(viewport, store);
