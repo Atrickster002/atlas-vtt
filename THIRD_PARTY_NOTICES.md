@@ -10,7 +10,6 @@
 - The dice toast knotwork corners are cropped from "Celtic knot border" by pitr on [ClipSafari](https://www.clipsafari.com/clips/o213700-celtic-knot-border), released under [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/).
 - The numerals of the 3D dice panel are set in "Fantaisie Artistique" (1998) by George Williams, a free font listed under the [SIL Open Font License 1.1](https://openfontlicense.org) on [FontSpace](https://www.fontspace.com/george-williams/fantaisie-artistique). The font is bundled in `styles.css`.
 - The sci-fi dice numerals are set in [Oxanium](https://github.com/sevmeyer/oxanium) by Severin Meyer, Copyright 2019 The Oxanium Project Authors, licensed under the [SIL Open Font License 1.1](https://openfontlicense.org). The font is bundled in `styles.css`.
-- The Paper look sets its text in [Alegreya](https://github.com/huertatipografica/Alegreya) by Juan Pablo del Peral, Copyright 2011 The Alegreya Project Authors, licensed under the [SIL Open Font License 1.1](https://openfontlicense.org). Four latin styles are bundled in `styles.css`.
 - The 3D dice face artwork (numeral sheet and card stock) is an original work by the Atlas VTT author and is covered by this repository's [GNU Affero General Public License v3.0](LICENSE).
 - Interface icons are [Lucide](https://lucide.dev) (ISC), provided by Obsidian and the bundled lucide-react package.
 - The token ring and the timer sound are original works by the Atlas VTT author and are covered by this repository's [GNU Affero General Public License v3.0](LICENSE).
