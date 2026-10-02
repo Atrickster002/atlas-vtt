@@ -17,8 +17,11 @@ export const UVTT_LIMITS = {
   pixelsPerCell: 4_096,
   /** Pixels of the image a cell spans at least; smaller cells hold no token and a grid of them no map. */
   cellPixels: 10,
-  /** Largest coordinate of a position, and longest range of a light, in cells: four times the largest map. */
-  distance: 16_384,
+  /**
+   * Largest coordinate of a position and longest range of a light, in cells. It only keeps the
+   * numbers plain to reckon with: what lies beyond the map is cut off or left out (`placeableRect`).
+   */
+  distance: 1_000_000,
   /** Pixels along one side of the map image. */
   imageSide: 16_384,
 } as const;

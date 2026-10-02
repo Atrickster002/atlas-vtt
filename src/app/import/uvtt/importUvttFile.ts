@@ -12,6 +12,7 @@ import { TransferFiles } from '../../services/assetTransfer/transferFiles';
 import { newSceneFile } from '../../services/newSceneFile';
 import { JSON_FOLDERS, defaultJsonPath } from '../../services/vault-sync/assetFiles';
 import { UVTT_TOO_LARGE, parseUvtt } from './parseUvtt';
+import { wallsCrowd } from './uvttCrowding';
 import { uvttSceneName } from './uvttFileNames';
 import { uvttCellSize, uvttToScene, type UvttCounts, type UvttScene } from './uvttToScene';
 import { UVTT_LIMITS, type UvttMap, type UvttRefusal } from './uvttTypes';
@@ -41,6 +42,7 @@ export type UvttImportResult = UvttImported | UvttRefusal;
 const refused = (problem: string): UvttRefusal => ({ ok: false, problem });
 
 const UNREADABLE_IMAGE = 'The map image in the file could not be read.';
+const CROWDED_WALLS = 'The walls in the file end too close together in too many places for Atlas to join them.';
 
 /**
  * World pixels a cell of the map spans on an image of `image` pixels, or why that image cannot
@@ -143,6 +145,14 @@ async function importFile(deps: UvttImportDeps, file: File, collectionId: string
   const collection = await deps.assetService.getCollection(collectionId);
   if (!collection) return refused('The collection no longer exists. Choose another collection and try again.');
 
+  // Where things lie on the map does not depend on the size the image is saved at
+  const unit = resolveMeasurementSettings(deps.assetService.getCollectionSettings(collection.id).gridDefaults, null);
+  const placed = uvttToScene(map, { cellSize: sourceCell, unit });
+  if (placed.onImage === 0 && placed.skipped.outside > 0) {
+    return refused('Nothing in the file lies on its map image: its walls, doors and lights are all outside it.');
+  }
+  if (wallsCrowd(Object.values(placed.walls), sourceSize)) return refused(CROWDED_WALLS);
+
   let image: ProcessedImage;
   try {
     image = await deps.convertImage(source);
@@ -155,8 +165,10 @@ async function importFile(deps: UvttImportDeps, file: File, collectionId: string
   const cellSize = cellSizeOn(map, size);
   if (typeof cellSize !== 'number') return cellSize;
 
-  const settings = deps.assetService.getCollectionSettings(collection.id);
-  const scene = uvttToScene(map, { cellSize, unit: resolveMeasurementSettings(settings.gridDefaults, null) });
+  const scene = cellSize === sourceCell ? placed : uvttToScene(map, { cellSize, unit });
+  // A map scaled down has its walls closer together
+  if (scene !== placed && wallsCrowd(Object.values(scene.walls), size)) return refused(CROWDED_WALLS);
+  if (scene.skipped.outside > 0) console.debug(`[Atlas] ${file.name}: left out what the map does not take`, scene.skipped);
   const written = await writeImport(deps, { baseName: uvttSceneName(file.name), collection, image, scene });
   if (!written.ok) return written;
   return {

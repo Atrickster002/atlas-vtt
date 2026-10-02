@@ -6,13 +6,16 @@ import { uvttImportSummary } from '../../src/app/import/uvtt/runUvttImport';
 import { uvttToScene } from '../../src/app/import/uvtt/uvttToScene';
 import { UVTT_LIMITS } from '../../src/app/import/uvtt/uvttTypes';
 import type { ProcessedImage } from '../../src/app/imageProcessing/imageProcessing';
+import { sealTolerance } from '../../src/app/lighting/lightingConstants';
 import { readSceneLighting } from '../../src/app/lighting/sceneLightingOptions';
+import { sealWalls } from '../../src/app/lighting/sealWalls';
 import { AssetService, type Asset } from '../../src/app/services/AssetService';
 import { AssetThumbnailService } from '../../src/app/services/AssetThumbnailService';
 import { createAtlasStorage, migrateMapFile, parseSceneFile, type GridState } from '../../src/app/services/MapPersistence';
 import { createViewAtlasStore } from '../../src/app/storeFactory';
 import type { CollectionGridDefaults } from '../../src/app/types/collectionSettingsTypes';
 import type { SceneLighting } from '../../src/app/types/lightingTypes';
+import type { WallSegment } from '../../src/app/types/wallTypes';
 import { base64Of, cryptFile, cryptSetting, cryptWith, pngHeader } from '../fixtures/uvttFiles';
 import { createInMemoryApp, interceptWrites, type InMemoryApp } from '../mocks/inMemoryVault';
 
@@ -245,22 +248,43 @@ describe('importing a Universal VTT file', () => {
     expect(before.map((record) => record.type).sort()).toEqual(['map', 'scene']);
   });
 
-  it('writes only numbers a scene can hold, however far the file\'s positions lie', async () => {
+  it('cuts walls that reach far beyond the map, so the scene opens at once', async () => {
     const b = await bench();
     const file = cryptWith((crypt) => {
-      crypt.resolution = { map_origin: { x: -16_384, y: 16_384 }, map_size: { x: 1, y: 1 }, pixels_per_grid: 4096 };
-      crypt.image = base64Of(pngHeader(16_384, 16_384));
-      crypt.line_of_sight = [[{ x: 16_384, y: -16_384 }, { x: -16_384, y: 16_384 }]];
-      crypt.lights = [{ position: { x: 16_384, y: 16_384 }, range: 16_384, intensity: 16_384 }];
+      crypt.line_of_sight = Array.from({ length: 150 }, (_, i) => [{ x: -16_384, y: i * 0.05 - 300 }, { x: 16_384, y: i * 0.05 + 300 }]);
+      crypt.objects_line_of_sight = [];
+    });
+
+    const result = arrived(await importUvttFile(b.deps, uvttFile(file), COLLECTION));
+
+    const state = sceneState(b, result.scenePath);
+    const walls = Object.values(state.objects.walls) as WallSegment[];
+    for (const point of walls.flatMap((wall) => [wall.p1, wall.p2])) {
+      expect(Math.abs(point.x - 500)).toBeLessThanOrEqual(600);
+      expect(Math.abs(point.y - 400)).toBeLessThanOrEqual(500);
+    }
+    expect(result.counts.walls).toBe(150);
+    const started = performance.now();
+    sealWalls(walls, sealTolerance(2));
+    expect(performance.now() - started).toBeLessThan(100);
+  });
+
+  it('places a wall across a map of one cell on a large image on that image', async () => {
+    const b = await bench();
+    const file = cryptWith((crypt) => {
+      crypt.resolution = { map_origin: { x: 0, y: 0 }, map_size: { x: 1, y: 1 }, pixels_per_grid: 4096 };
+      crypt.image = base64Of(pngHeader(8192, 8192));
+      crypt.line_of_sight = [[{ x: -16_384, y: 0.5 }, { x: 16_384, y: 0.5 }]];
+      crypt.objects_line_of_sight = [];
+      crypt.portals = [];
+      crypt.lights = [];
     });
 
     const { scenePath } = arrived(await importUvttFile(b.deps, uvttFile(file), COLLECTION));
 
-    const numbers: number[] = [];
-    JSON.parse(b.vault.files.get(scenePath)!, (_key, value: unknown) => { if (typeof value === 'number') numbers.push(value); return value; });
-    expect(b.vault.files.get(scenePath)).not.toContain('null,');
-    expect(numbers.every(Number.isFinite)).toBe(true);
-    expect(sceneState(b, scenePath).objects.walls.wall_uvtt_1).toMatchObject({ p1: { x: 32_768 * 16_384, y: -32_768 * 16_384 } });
+    expect(sceneState(b, scenePath).objects.walls).toEqual({
+      wall_uvtt_1: { id: 'wall_uvtt_1', kind: 'wall', type: 'solid', chainId: 'chain_uvtt_1', p1: { x: -8192, y: 4096 }, p2: { x: 16_384, y: 4096 } },
+    });
   });
 
   it('gives a new scene of the collection its token settings', async () => {
@@ -285,6 +309,7 @@ describe('a Universal VTT file that is refused', () => {
       crypt.resolution = { map_size: { x: 400, y: 300 }, pixels_per_grid: 2 };
       crypt.image = base64Of(pngHeader(800, 600));
     })), 'The map image is too small for its grid: 800 × 600 pixels for 400 × 300 squares.'],
+    ['states an origin that puts its walls and lights off the image', () => uvttFile(cryptSetting('resolution.map_origin', { x: 500, y: 500 })), 'Nothing in the file lies on its map image: its walls, doors and lights are all outside it.'],
     ['holds an image too large to decode', () => uvttFile(cryptSetting('image', base64Of(pngHeader(40_000, 32_000)))), 'The map image is larger than 16,384 pixels on a side.'],
   ];
 
@@ -337,6 +362,23 @@ describe('a Universal VTT file that is refused', () => {
     expect(problemOf(await importUvttFile(b.deps, uvttFile(cryptFile()), COLLECTION))).toBe('The map image is too small for its grid: 50 × 40 pixels for 10 × 8 squares.');
 
     expect(filesOf(b)).toEqual(before);
+  });
+
+  it.each([
+    ['20,000 walls that cross the map almost on top of each other', (i: number) => [{ x: -16_384, y: -16_384 + i }, { x: 16_384, y: 16_384 - i }]],
+    ['20,000 walls that fan out from one point', (i: number) => [{ x: 5, y: 4 }, { x: 5 + 3 * Math.cos(i), y: 4 + 3 * Math.sin(i) }]],
+  ])('when it holds %s, changes nothing and takes no time over it', async (_label, line) => {
+    const b = await bench();
+    const before = filesOf(b);
+    const file = uvttFile(cryptWith((crypt) => { crypt.line_of_sight = Array.from({ length: 20_000 }, (_, i) => line(i)); crypt.objects_line_of_sight = []; crypt.portals = []; }));
+
+    const started = performance.now();
+    const problem = problemOf(await importUvttFile(b.deps, file, COLLECTION));
+
+    expect(performance.now() - started).toBeLessThan(2000);
+    expect(problem).toBe('The walls in the file end too close together in too many places for Atlas to join them.');
+    expect(filesOf(b)).toEqual(before);
+    expect(b.convertImage).not.toHaveBeenCalled();
   });
 
   it('never throws, even when the file cannot be read at all', async () => {

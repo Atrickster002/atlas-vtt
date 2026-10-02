@@ -5,9 +5,12 @@ import { DND_5E } from '../../src/app/gameSystems/presets/dnd5e';
 import { resolveMeasurementSettings } from '../../src/app/grid/measurementFormat';
 import type { GameUnit } from '../../src/app/grid/statedDistance';
 import { parseUvtt } from '../../src/app/import/uvtt/parseUvtt';
+import { wallsCrowd } from '../../src/app/import/uvtt/uvttCrowding';
 import { uvttCellSize, uvttToScene, type UvttScene } from '../../src/app/import/uvtt/uvttToScene';
 import type { UvttMap } from '../../src/app/import/uvtt/uvttTypes';
+import { sealTolerance } from '../../src/app/lighting/lightingConstants';
 import { gameUnitsToWorld, unitScaleOf } from '../../src/app/lighting/lightingUnits';
+import { sealWalls } from '../../src/app/lighting/sealWalls';
 import type { CollectionGridDefaults } from '../../src/app/types/collectionSettingsTypes';
 import type { WallSegment } from '../../src/app/types/wallTypes';
 import { cryptFile, cryptSetting, cryptWith } from '../fixtures/uvttFiles';
@@ -180,5 +183,161 @@ describe('the lighting of a scene from a Universal VTT file', () => {
   it('is daylight where the image carries its own light or the file names none', () => {
     expect(sceneOf(cryptSetting('environment.baked_lighting', true)).lighting).toEqual({ enabled: true, ambient: 1 });
     expect(sceneOf(cryptSetting('environment', undefined)).lighting).toEqual({ enabled: true, ambient: 1 });
+  });
+});
+
+describe('what a Universal VTT file holds outside its map', () => {
+  /** The crypt (10 × 8 cells at 100 px) with only `lines` as its walls, no door and no light. */
+  const walled = (lines: Array<Array<{ x: number; y: number }>>): UvttScene => sceneOf(cryptWith((crypt) => {
+    crypt.line_of_sight = lines;
+    crypt.objects_line_of_sight = [];
+    crypt.portals = [];
+    crypt.lights = [];
+  }));
+
+  it('keeps a wall up to one cell beyond the image', () => {
+    const scene = walled([[{ x: -1, y: -1 }, { x: 11, y: 9 }], [{ x: -0.5, y: 4 }, { x: 10.5, y: 4 }]]);
+
+    expect(wallsOf(scene).map(ends)).toEqual([[-100, -100, 1100, 900], [-50, 400, 1050, 400]]);
+    expect(scene.skipped.outside).toBe(0);
+  });
+
+  it('cuts a wall that leaves the map where it leaves, and keeps the end that stays as it is', () => {
+    const scene = walled([[{ x: 3.3, y: 2.7 }, { x: 5000, y: 2.7 }], [{ x: 5, y: -16_000 }, { x: 5, y: 3.1 }]]);
+
+    expect(wallsOf(scene).map(ends)).toEqual([[3.3 * 100, 2.7 * 100, 1100, 2.7 * 100], [500, -100, 500, 3.1 * 100]]);
+  });
+
+  it('cuts a wall that crosses the whole map at both ends', () => {
+    const [wall] = wallsOf(walled([[{ x: -16_384, y: -16_384 }, { x: 16_384, y: 16_384 }]]));
+
+    expect(ends(wall!)).toEqual([-100, -100, 900, 900]);
+  });
+
+  it('drops a wall that lies wholly outside, also one that only passes a corner', () => {
+    const scene = walled([
+      [{ x: 20, y: 1 }, { x: 30, y: 7 }],
+      [{ x: -5, y: 3 }, { x: 3, y: -5 }],
+      [{ x: 12, y: -1 }, { x: 12, y: 9 }],
+      [{ x: 2, y: 2 }, { x: 4, y: 2 }],
+    ]);
+
+    expect(wallsOf(scene).map(ends)).toEqual([[200, 200, 400, 200]]);
+    expect(scene.counts.walls).toBe(1);
+    expect(scene.skipped.outside).toBe(3);
+  });
+
+  it('follows a line out of the map and back in, segment by segment', () => {
+    const scene = walled([[{ x: 9, y: 4 }, { x: 14, y: 4 }, { x: 14, y: 6 }, { x: 9, y: 6 }]]);
+
+    expect(wallsOf(scene).map(ends)).toEqual([[900, 400, 1100, 400], [1100, 600, 900, 600]]);
+    expect(scene.skipped.outside).toBe(1);
+  });
+
+  it('counts the map from the origin the file states', () => {
+    const scene = sceneOf(cryptWith((crypt) => {
+      (crypt.resolution as Record<string, unknown>).map_origin = { x: 100, y: -50 };
+      crypt.line_of_sight = [[{ x: 101, y: -49 }, { x: 5000, y: -49 }]];
+      crypt.objects_line_of_sight = [];
+      crypt.portals = [];
+      crypt.lights = [{ position: { x: 105, y: -46 }, range: 2 }, { position: { x: 5, y: 4 }, range: 2 }];
+    }));
+
+    expect(wallsOf(scene).map(ends)).toEqual([[100, 100, 1100, 100]]);
+    expect(Object.values(scene.lights).map((light) => [light.x, light.y])).toEqual([[500, 400]]);
+    expect(scene.skipped.outside).toBe(1);
+  });
+
+  it('drops a door with an end outside and a light outside, and keeps those within a cell of the image', () => {
+    const scene = sceneOf(cryptWith((crypt) => {
+      crypt.line_of_sight = [];
+      crypt.objects_line_of_sight = [];
+      crypt.portals = [
+        { bounds: [{ x: 10.5, y: 3 }, { x: 10.5, y: 4 }], closed: true },
+        { bounds: [{ x: 10.5, y: 3 }, { x: 11.5, y: 3 }], closed: true },
+        { bounds: [{ x: 400, y: 3 }, { x: 401, y: 3 }], closed: true },
+      ];
+      crypt.lights = [{ position: { x: -1, y: 9 }, range: 2 }, { position: { x: -1.01, y: 4 }, range: 2 }, { position: { x: 5, y: 9000 }, range: 2 }];
+    }));
+
+    expect(wallsOf(scene).map(ends)).toEqual([[1050, 300, 1050, 400]]);
+    expect(Object.values(scene.lights).map((light) => [light.x, light.y])).toEqual([[-100, 900]]);
+    expect(scene.counts).toEqual({ walls: 0, doors: 1, lights: 1 });
+    expect(scene.skipped.outside).toBe(4);
+    expect(scene.onImage).toBe(2);
+  });
+
+  it('tells when nothing of the file lies on its image', () => {
+    const off = sceneOf(cryptWith((crypt) => { (crypt.resolution as Record<string, unknown>).map_origin = { x: 4000, y: 4000 }; }));
+
+    expect(off).toMatchObject({ walls: {}, lights: {}, onImage: 0, counts: { walls: 0, doors: 0, lights: 0 } });
+    expect(off.skipped.outside).toBe(12);
+    expect(sceneOf(cryptFile()).onImage).toBe(12);
+  });
+
+  it('never places anything farther than one cell from the image, whatever the file says', () => {
+    const far = [-1_000_000, -16_384, -3, 0.5, 4, 9.5, 14, 16_384, 1_000_000];
+    const lines = far.flatMap((x1) => far.map((y2) => [{ x: x1, y: 4 }, { x: 5, y: y2 }]));
+    const scene = sceneOf(cryptWith((crypt) => {
+      crypt.line_of_sight = lines;
+      crypt.portals = far.map((x) => ({ bounds: [{ x, y: 2 }, { x: 5, y: 2 }] }));
+      crypt.lights = far.map((x) => ({ position: { x, y: x }, range: 3 }));
+    }));
+
+    const coordinates = [
+      ...wallsOf(scene).flatMap((wall) => [wall.p1, wall.p2]),
+      ...Object.values(scene.lights),
+    ];
+    expect(coordinates.length).toBeGreaterThan(50);
+    for (const { x, y } of coordinates) {
+      expect(x).toBeGreaterThanOrEqual(-100);
+      expect(x).toBeLessThanOrEqual(1100);
+      expect(y).toBeGreaterThanOrEqual(-100);
+      expect(y).toBeLessThanOrEqual(900);
+    }
+  });
+});
+
+describe('walls that crowd', () => {
+  const IMAGE = { width: 1000, height: 800 };
+  const wallsFrom = (lines: Array<Array<{ x: number; y: number }>>): WallSegment[] => wallsOf(sceneOf(cryptWith((crypt) => {
+    crypt.line_of_sight = lines;
+    crypt.objects_line_of_sight = [];
+    crypt.portals = [];
+  })));
+  const across = (count: number): Array<Array<{ x: number; y: number }>> => Array.from({ length: count }, (_, i) => [{ x: -16_384, y: -16_384 + i }, { x: 16_384, y: 16_384 - i }]);
+
+  it('are not found in a map as a map maker draws it', () => {
+    expect(wallsCrowd(wallsOf(sceneOf(cryptFile())), IMAGE)).toBe(false);
+    // A cave wall drawn point by point, a point every 25 pixels
+    const cave = [Array.from({ length: 400 }, (_, i) => ({ x: 5 + (3 + 0.4 * Math.sin(i / 3)) * Math.cos(i / 63.6), y: 4 + (3 + 0.4 * Math.sin(i / 3)) * Math.sin(i / 63.6) }))];
+    expect(wallsCrowd(wallsFrom(cave), IMAGE)).toBe(false);
+    // Twelve rooms meeting in one corner
+    expect(wallsCrowd(wallsFrom(Array.from({ length: 12 }, (_, i) => [{ x: 5, y: 4 }, { x: 5 + 3 * Math.cos(i), y: 4 + 3 * Math.sin(i) }])), IMAGE)).toBe(false);
+  });
+
+  it('are found where a thousand walls end within a few pixels of each other', () => {
+    expect(wallsCrowd(wallsFrom(across(1000)), IMAGE)).toBe(true);
+  });
+
+  it('are found where thousands of walls meet in one point', () => {
+    expect(wallsCrowd(wallsFrom(Array.from({ length: 5000 }, (_, i) => [{ x: 5, y: 4 }, { x: 5 + 3 * Math.cos(i), y: 4 + 3 * Math.sin(i) }])), IMAGE)).toBe(true);
+  });
+
+  it('are told from the others before any joint is built, however many there are', () => {
+    const walls = wallsFrom(across(20_000));
+
+    const started = performance.now();
+    expect(wallsCrowd(walls, IMAGE)).toBe(true);
+    expect(performance.now() - started).toBeLessThan(500);
+  });
+
+  it('leave sealing quick wherever they are not found', () => {
+    const walls = wallsFrom(across(300));
+    expect(wallsCrowd(walls, IMAGE)).toBe(false);
+
+    const started = performance.now();
+    sealWalls(walls, sealTolerance(2));
+    expect(performance.now() - started).toBeLessThan(1000);
   });
 });

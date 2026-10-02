@@ -6,6 +6,7 @@ import { unitScaleOf } from '../../lighting/lightingUnits';
 import type { GridState } from '../../services/MapPersistence';
 import type { LightEmission, LightSource, SceneLighting } from '../../types/lightingTypes';
 import type { WallSegment } from '../../types/wallTypes';
+import { clipSegment, isWithin, placeableRect } from './uvttClip';
 import type { UvttLight, UvttMap, UvttPoint } from './uvttTypes';
 
 /** Where a file's map goes: onto an image whose cells are `cellSize` world pixels wide, in a collection measuring in `unit`. */
@@ -20,6 +21,12 @@ export interface UvttCounts {
   lights: number;
 }
 
+/** What of a file a scene does not take, for the log. */
+export interface UvttSkipped {
+  /** Wall segments, doors and lights that lie outside the map (`placeableRect`). */
+  outside: number;
+}
+
 /** What a file gives a scene, in Atlas' own terms: world pixels for positions, game units for light. */
 export interface UvttScene {
   grid: Pick<GridState, 'size' | 'offsetX' | 'offsetY'>;
@@ -27,6 +34,9 @@ export interface UvttScene {
   lights: Record<string, LightSource>;
   lighting: SceneLighting;
   counts: UvttCounts;
+  skipped: UvttSkipped;
+  /** How many of the file's wall segments, doors and lights lie on the map; none of many means the file's origin is off. */
+  onImage: number;
 }
 
 /** A scene whose image carries its own light is shown as it is; so is one whose file names no ambient light. */
@@ -53,35 +63,60 @@ function emissionOf(light: UvttLight, { unit, cellSize }: UvttTarget): LightEmis
  * the file's grid is the scene's. Each wall line becomes one segment per pair of points, which
  * keep the exact coordinates they share; a door spans its two ends. A light is bright to half its
  * range and ends at its range, and is switched off where the image shows its glow already.
+ *
+ * Nothing is placed farther than one cell from the image: a wall is cut where it leaves that
+ * rectangle, and a wall, a door or a light outside it is left out.
  */
 export function uvttToScene(map: UvttMap, target: UvttTarget): UvttScene {
   const { cellSize } = target;
-  const toWorld = (point: UvttPoint): UvttPoint => ({ x: (point.x - map.origin.x) * cellSize, y: (point.y - map.origin.y) * cellSize });
+  const rect = placeableRect(map.size);
+  const fromCorner = (point: UvttPoint): UvttPoint => ({ x: point.x - map.origin.x, y: point.y - map.origin.y });
+  const toWorld = (cell: UvttPoint): UvttPoint => ({ x: cell.x * cellSize, y: cell.y * cellSize });
   const walls: Record<string, WallSegment> = {};
   const counts: UvttCounts = { walls: 0, doors: 0, lights: 0 };
+  const skipped: UvttSkipped = { outside: 0 };
+  let onImage = 0;
   let segments = 0;
 
   const addWall = (from: UvttPoint, to: UvttPoint, rest: Pick<WallSegment, 'type' | 'closed' | 'chainId'>): boolean => {
     if (from.x === to.x && from.y === to.y) return false;
     const id = `wall_uvtt_${++segments}`;
-    walls[id] = { id, kind: 'wall', p1: from, p2: to, ...rest };
+    walls[id] = { id, kind: 'wall', p1: toWorld(from), p2: toWorld(to), ...rest };
     return true;
   };
 
   map.polylines.forEach((line, lineIndex) => {
-    const points = line.map(toWorld);
-    for (let index = 1; index < points.length; index++) {
-      if (addWall(points[index - 1]!, points[index]!, { type: 'solid', chainId: `chain_uvtt_${lineIndex + 1}` })) counts.walls++;
+    const cells = line.map(fromCorner);
+    for (let index = 1; index < cells.length; index++) {
+      const inside = clipSegment(cells[index - 1]!, cells[index]!, rect);
+      if (!inside) {
+        skipped.outside++;
+        continue;
+      }
+      onImage++;
+      if (addWall(inside[0], inside[1], { type: 'solid', chainId: `chain_uvtt_${lineIndex + 1}` })) counts.walls++;
     }
   });
   for (const portal of map.portals) {
-    if (addWall(toWorld(portal.bounds[0]), toWorld(portal.bounds[1]), { type: 'door', closed: portal.closed })) counts.doors++;
+    const [from, to] = [fromCorner(portal.bounds[0]), fromCorner(portal.bounds[1])];
+    if (!isWithin(from, rect) || !isWithin(to, rect)) {
+      skipped.outside++;
+      continue;
+    }
+    onImage++;
+    if (addWall(from, to, { type: 'door', closed: portal.closed })) counts.doors++;
   }
 
   const lights: Record<string, LightSource> = {};
   for (const light of map.lights) {
+    const position = fromCorner(light.position);
+    if (!isWithin(position, rect)) {
+      skipped.outside++;
+      continue;
+    }
+    onImage++;
     const id = `light_uvtt_${++counts.lights}`;
-    lights[id] = { id, kind: 'light', ...toWorld(light.position), emission: emissionOf(light, target), ...(map.bakedLighting && { hidden: true }) };
+    lights[id] = { id, kind: 'light', ...toWorld(position), emission: emissionOf(light, target), ...(map.bakedLighting && { hidden: true }) };
   }
 
   const ambient = map.bakedLighting || map.ambientLight === null ? DAYLIGHT : brightnessOf(map.ambientLight);
@@ -91,6 +126,8 @@ export function uvttToScene(map: UvttMap, target: UvttTarget): UvttScene {
     lights,
     lighting: { enabled: true, ambient },
     counts,
+    skipped,
+    onImage,
   };
 }
 
