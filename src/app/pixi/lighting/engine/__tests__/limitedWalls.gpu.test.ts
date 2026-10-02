@@ -1,3 +1,4 @@
+import type { RenderTexture } from 'pixi.js';
 import { afterEach, describe, expect, it } from 'vitest';
 import { wallBand, worldTexel } from '../../../../lighting/lightingConstants';
 import { sealedWalls } from '../../../../lighting/sealWalls';
@@ -7,7 +8,8 @@ import { SEES_ALL, computeSight, lightReach, type Sight } from '../../../../visi
 import { distSqToSegment } from '../../../../vision/visionGeometry';
 import { LightingEngine } from '../LightingEngine';
 import type { EngineLight, EngineScene } from '../types';
-import { createTestRenderer, renderThroughEngine, type PixelReader } from './gpuTestUtils';
+import { distToOutline, fuzzRooms, insidePolygon, roomOutline, type P } from './fuzzRooms';
+import { createTestRenderer, readFloats, renderThroughEngine, type PixelReader } from './gpuTestUtils';
 import { watchGl } from './strictGl';
 
 const SIZE = 640;
@@ -130,5 +132,41 @@ describe('limited walls in the picture', () => {
     }
     expect(lit).toBeGreaterThan(800);
     expect(dark).toBeGreaterThan(200);
+  });
+
+  it('leaves no texel of the light map lit beyond a second ring of limited walls, however thin the slivers of the rule\'s polygon', async () => {
+    const big = { width: 2048, height: 2048 };
+    const renderer = await createTestRenderer(64);
+    cleanup.push(() => renderer.destroy());
+    const engine = new LightingEngine(renderer);
+    cleanup.push(() => engine.destroy());
+    engine.setEnabled(true);
+    let rooms = 0, lit = 0;
+    const stray: string[] = [];
+    for (const room of fuzzRooms(29, 40)) {
+      if (!room.lights.every((at) => insidePolygon(at, roomOutline(room))) || !insidePolygon(room.centre, room.outline)) continue;
+      rooms++;
+      const [cx, cy] = room.centre;
+      const grown = (at: { x: number; y: number }): { x: number; y: number } => ({ x: cx + (at.x - cx) * 1.3, y: cy + (at.y - cy) * 1.3 });
+      const ring = room.walls.slice(0, room.roomWallCount).map(({ direction: _direction, ...wall }): WallSegment => ({ ...wall, id: `ring:${wall.id}`, p1: grown(wall.p1), p2: grown(wall.p2), limited: true }));
+      const walls = sealedWalls([...room.walls.map((wall): WallSegment => ({ ...wall, limited: true })), ...ring], worldTexel(big));
+      const outer = ring.flatMap((wall): P[] => [[wall.p1.x, wall.p1.y], [wall.p2.x, wall.p2.y]]);
+      for (const [lx, ly] of room.lights) {
+        engine.update({ bounds: big, albedo: null, walls, lights: [{ ...torch, x: lx, y: ly, bright: 400, dim: 800 }], sight: SEES_ALL, sightRadius: 20, ambient: 0 });
+        const map = (engine as unknown as { world: { lightMap: { texture: RenderTexture } } }).world.lightMap.texture;
+        const texels = readFloats(renderer, map);
+        const width = map.source.pixelWidth;
+        for (let i = 0; i < texels.length; i += 4) {
+          if (texels[i]! <= 0) continue;
+          const at: P = [((i / 4) % width) * 2 + 1, Math.floor(i / 4 / width) * 2 + 1];
+          if (insidePolygon(at, outer)) lit++;
+          // A texel within the wall's own width of the ring is the wall's, as with any wall.
+          else if (distToOutline(at, outer) > 3) stray.push(`${rooms}: ${at}`);
+        }
+      }
+    }
+    expect(rooms).toBeGreaterThan(20);
+    expect(lit).toBeGreaterThan(1_000_000);
+    expect(stray).toEqual([]);
   });
 });
