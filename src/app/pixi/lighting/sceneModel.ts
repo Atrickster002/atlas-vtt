@@ -1,5 +1,6 @@
 import type { MeasurementSettings } from '../../grid/measurementFormat';
 import { sleeps } from '../../lighting/lightActivity';
+import { lightZoneList } from '../../lighting/lightZones';
 import { worldTexel } from '../../lighting/lightingConstants';
 import { unitScaleOf } from '../../lighting/lightingUnits';
 import { sealedWalls } from '../../lighting/sealWalls';
@@ -12,10 +13,11 @@ import { exploredShapes, type ExploredShapes } from '../../vision/exploredShapes
 import { quenched, sourcesInDarkness } from '../../vision/magicalDarkness';
 import { seenSpots, type SeenSpot } from '../../vision/perception';
 import type { SightRules } from '../../vision/sightRules';
-import { SightCache, sceneSight, sightOptionsChanged, sightSources, type LightReach, type Sight } from '../../vision/sight';
+import { ambientAt } from '../../vision/lightLevels';
+import { SightCache, sceneSight, sightOptionsChanged, sightSources, type AmbientLight, type AmbientZone, type LightReach, type Sight } from '../../vision/sight';
 import type { MapBounds } from '../../vision/visibility';
 import { wallList } from '../../vision/wallList';
-import type { EngineLight } from './engine/types';
+import type { EngineLight, EngineZone } from './engine/types';
 import { LightReaches } from './lightReaches';
 import { activeLights, engineLight } from './lightSources';
 
@@ -28,6 +30,10 @@ export interface SceneModel {
   sight: Sight;
   /** What the tokens see now, for explored memory to record; null when nothing is recorded. */
   explored: ExploredShapes | null;
+  /** The scene's ambient zones as the engine draws them; the same list while the zones stay. */
+  zones: readonly EngineZone[];
+  /** The ambient light as the rules read it: the scene's lighting itself, or with its zones when it has any. */
+  ambient: AmbientLight;
 }
 
 type SceneState = Pick<ViewAtlasState, 'objects' | 'lighting' | 'grid' | 'heldTokens'>;
@@ -35,6 +41,7 @@ type SceneState = Pick<ViewAtlasState, 'objects' | 'lighting' | 'grid' | 'heldTo
 interface Built {
   walls: ViewAtlasState['objects']['walls'];
   lights: ViewAtlasState['objects']['lights'];
+  zones: ViewAtlasState['objects']['lightZones'];
   tokens: Record<string, TokenEntity>;
   grid: ViewAtlasState['grid'];
   lighting: SceneLighting;
@@ -44,7 +51,7 @@ interface Built {
 
 /**
  * A scene's lights, their reaches and its sight, worked out from the store and again only when
- * what they are built from changes: the walls, the placed lights, the grid, the sight options,
+ * what they are built from changes: the walls, the placed lights, the light zones, the grid, the sight options,
  * an ambient light that wakes or puts out a light that follows it,
  * the sight rules of the map's collection and the tokens as sight and light read them (`SightTokens`: a dragged token stands where its
  * drag began until the drop, so a drag builds nothing).
@@ -57,19 +64,19 @@ export class SceneModelBuilder {
 
   /** The model of `state`, and whether this call built it anew. */
   update(state: SceneState, bounds: MapBounds, measurement: () => MeasurementSettings, sightRules?: () => SightRules): { model: SceneModel; rebuilt: boolean } {
-    const { walls, lights } = state.objects;
+    const { walls, lights, lightZones: zones } = state.objects;
     const { grid, lighting } = state;
     const tokens = this.sightTokens.read(state);
     const rules = sightRules?.();
     const last = this.built;
-    if (last && last.walls === walls && last.lights === lights && last.tokens === tokens && last.grid === grid && last.rules === rules) {
-      const same = !sightOptionsChanged(last.lighting, lighting) && !awakeLightsChanged(lights, last.lighting.ambient, lighting.ambient);
+    if (last && last.walls === walls && last.lights === lights && last.zones === zones && last.tokens === tokens && last.grid === grid && last.rules === rules) {
+      const same = !sightOptionsChanged(last.lighting, lighting) && !awakeLightsChanged(lights, withZones(last.lighting, lightZoneList(zones)), withZones(lighting, lightZoneList(zones)));
       // The lighting is noted either way: the next update compares with it, not with an older one.
       last.lighting = lighting;
       if (same) return { model: last.model, rebuilt: false };
     }
     const model = this.build(state, tokens, bounds, measurement(), rules);
-    this.built = { walls, lights, tokens, grid, lighting, rules, model };
+    this.built = { walls, lights, zones, tokens, grid, lighting, rules, model };
     return { model, rebuilt: true };
   }
 
@@ -81,22 +88,34 @@ export class SceneModelBuilder {
   private build(state: SceneState, tokens: Record<string, TokenEntity>, bounds: MapBounds, measurement: MeasurementSettings, rules: SightRules | undefined): SceneModel {
     const scale = unitScaleOf(measurement, state.grid);
     const walls = sealedWalls(wallList(state.objects.walls), worldTexel(bounds));
-    const shining = activeLights(state.objects.lights, tokens, state.lighting.ambient).map((light) => engineLight(light, scale));
+    const zoneList = lightZoneList(state.objects.lightZones);
+    const ambient = withZones(state.lighting, zoneList);
+    const shining = activeLights(state.objects.lights, tokens, ambient).map((light) => engineLight(light, scale));
     const everyReach = this.lightReaches.sync(shining, walls);
     // A light whose flame stands in magical darkness it does not outshine gives nothing: the picture and the rule both leave it out.
     const out = shining.map((light) => !light.darkness && quenched(light, light.priority ?? 0, everyReach));
     const lights = shining.filter((_, i) => !out[i]);
     const reaches = everyReach.filter((_, i) => !out[i]);
-    const sight = sceneSight(state.lighting, sourcesInDarkness(sightSources(tokens, scale, bounds, rules), state.lighting, reaches), walls, this.sightCache);
-    return { walls, lights, reaches, sight, explored: exploredShapes(sight, state.lighting, reaches) };
+    const sight = sceneSight(state.lighting, sourcesInDarkness(sightSources(tokens, scale, bounds, rules), ambient, reaches), walls, this.sightCache);
+    // Half a cell: the width of a zone's soft edge past its outline.
+    const zones = zoneList.map(({ polygon, ambient: level, ambientColor }) => ({ polygon, ambient: level, ...(ambientColor && { ambientColor }), soft: scale.cellSize / 2 }));
+    return { walls, lights, reaches, sight, explored: exploredShapes(sight, ambient, reaches), zones: zones.length > 0 ? zones : NO_ZONES, ambient };
   }
 }
 
-/** Whether a light that follows the ambient light wakes or falls asleep between two ambient levels. */
-function awakeLightsChanged(lights: ViewAtlasState['objects']['lights'], before: number, after: number): boolean {
-  if (before === after) return false;
+const NO_ZONES: readonly EngineZone[] = [];
+
+/** The scene's lighting as the rules read it: itself, or with its zones when it has any. */
+export function withZones<Lighting extends SceneLighting>(lighting: Lighting, zones: readonly AmbientZone[]): Lighting & AmbientLight {
+  return zones.length > 0 ? { ...lighting, zones } : lighting;
+}
+
+/** Whether a light that follows the ambient light wakes or falls asleep between two ambient lights. */
+function awakeLightsChanged(lights: ViewAtlasState['objects']['lights'], before: AmbientLight, after: AmbientLight): boolean {
+  if (before.ambient === after.ambient) return false;
   for (const id in lights) {
-    if (sleeps(lights[id]!, before) !== sleeps(lights[id]!, after)) return true;
+    const light = lights[id]!;
+    if (sleeps(light, ambientAt(light, before)) !== sleeps(light, ambientAt(light, after))) return true;
   }
   return false;
 }
@@ -127,7 +146,7 @@ export class SceneSpots {
     this.inputs = inputs;
     if (last && (Object.keys(inputs) as (keyof SpotInputs)[]).every((key) => last[key] === inputs[key])) return this.spots;
     const { cellSize } = unitScaleOf(measurement(), state.grid);
-    const spots = seenSpots(model.sight, state.lighting, model.reaches, inputs.tokens, cellSize, model.walls, { conditions: inputs.rules?.conditions ?? [], held: inputs.held });
+    const spots = seenSpots(model.sight, withZones(state.lighting, model.ambient.zones ?? []), model.reaches, inputs.tokens, cellSize, model.walls, { conditions: inputs.rules?.conditions ?? [], held: inputs.held });
     // The footprints are cut by the walls: with other walls they are other footprints at the same places.
     if (last?.model.walls !== model.walls || !sameSpots(spots, this.spots)) this.spots = spots;
     return this.spots;

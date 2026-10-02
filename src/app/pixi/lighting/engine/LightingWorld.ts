@@ -11,7 +11,8 @@ import { DarknessMap, type DrawnDarkness, type PierceShape } from './DarknessMap
 import { LightMap, type DrawnLight } from './LightMap';
 import { RadianceCascades } from './RadianceCascades';
 import { TileCache } from './TileCache';
-import type { EngineLight } from './types';
+import type { EngineLight, EngineZone } from './types';
+import { ZoneMap, type ZoneLook } from './ZoneMap';
 
 /**
  * Everything the lighting keeps in world space for one map: the wall field, each light's tile,
@@ -37,6 +38,12 @@ export class LightingWorld {
   /** Each darkness source's area as the rule counts it, kept while the source and the walls stay. */
   private readonly darkAreas = new Map<string, { light: EngineLight; walls: readonly WallSegment[]; polygon: Polygon }>();
   private pierce: readonly PierceShape[] = [];
+  /** Created with the scene's first ambient zone; `trim` frees it once the scene has none. */
+  private zoneTexture: ZoneMap | null = null;
+  private zones: readonly EngineZone[] = NO_ZONES;
+  private zoneLook: ZoneLook = {};
+  /** The walls changed since the zones were drawn: their soft edges end at walls. */
+  private zonesStale = false;
   private readonly tiles: TileCache;
   private readonly flicker = new LightFlicker();
   private walls: readonly WallSegment[] | null = null;
@@ -81,6 +88,7 @@ export class LightingWorld {
       if (changed === 'all' || changed.length > 0) {
         this.rebuildFields(walls);
         this.bounceDirty = true;
+        this.zonesStale = true;
       }
     }
     // A darkness has no tile: its area is the rule's polygon, which changes with any wall.
@@ -124,17 +132,47 @@ export class LightingWorld {
     return drew;
   }
 
+  /** The zone map while the scene has an ambient zone: the composite reads it only then. */
+  zoneMap(): ZoneMap | null {
+    return this.zones.length > 0 ? this.zoneTexture : null;
+  }
+
+  get holdsZoneMap(): boolean {
+    return !!this.zoneTexture;
+  }
+
+  /**
+   * The scene's ambient zones (the same list while they stay) and what of the scene decides their
+   * light; call it after `update`, which brings the walls their soft edges end at. Drawn anew
+   * only when the zones, that look or the walls changed.
+   */
+  setZones(zones: readonly EngineZone[] = NO_ZONES, look: ZoneLook): void {
+    const sameLook = look.ambientColor === this.zoneLook.ambientColor && look.litThreshold === this.zoneLook.litThreshold && look.brightThreshold === this.zoneLook.brightThreshold;
+    if (zones === this.zones && sameLook && !this.zonesStale) return;
+    this.zones = zones;
+    this.zoneLook = { ambientColor: look.ambientColor, litThreshold: look.litThreshold, brightThreshold: look.brightThreshold };
+    this.zonesStale = false;
+    if (zones.length === 0) return;
+    this.zoneTexture ??= new ZoneMap(this.renderer, this.bounds, this.texel);
+    this.zoneTexture.draw(zones, this.zoneLook, this.fieldAll());
+  }
+
   /** Whether the darkness map's texture is allocated. */
   get holdsDarknessMap(): boolean {
     return !!this.darkness;
   }
 
-  /** Frees the darkness map of a scene that has no darkness source left; call it once nothing reads the map (`darknessMap()` is null). */
+  /** Frees the darkness map and the zone map of a scene that has no darkness source or zone left; call it once nothing reads them (`darknessMap()`, `zoneMap()` are null). */
   trim(): void {
-    if (this.darknessMap()) return;
-    this.darkness?.destroy();
-    this.darkness = null;
-    this.darkAreas.clear();
+    if (!this.darknessMap()) {
+      this.darkness?.destroy();
+      this.darkness = null;
+      this.darkAreas.clear();
+    }
+    if (!this.zoneMap()) {
+      this.zoneTexture?.destroy();
+      this.zoneTexture = null;
+    }
   }
 
   /** Animated lights or bounce still to build: keep calling `animate`. */
@@ -153,6 +191,7 @@ export class LightingWorld {
     this.cascades.destroy();
     this.lightMap.destroy();
     this.darkness?.destroy();
+    this.zoneTexture?.destroy();
     this.allField?.destroy();
     this.field.destroy();
   }
@@ -225,6 +264,8 @@ export class LightingWorld {
     return { origin: { x: light.x, y: light.y }, dim: light.dim, soft: Math.min(DARKNESS.rim, (LIGHT_REACH - 1) * light.dim), polygon: area.polygon };
   }
 }
+
+const NO_ZONES: readonly EngineZone[] = [];
 
 function sameLights(a: readonly EngineLight[], b: readonly EngineLight[]): boolean {
   return a.length === b.length && a.every((x, i) => {

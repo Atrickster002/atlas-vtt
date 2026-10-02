@@ -49,7 +49,7 @@ export function footprints(room: FuzzRoom, outline: readonly P[], walls: readonl
   const oneWay = room.walls.filter((wall) => wall.direction);
   const kept = places.filter((p) => insidePolygon(p, outline) && oneWay.every((wall) => blocksFrom(wall, { x: p[0], y: p[1] })));
   const tokens = Object.fromEntries(kept.map(([x, y], i) => [`p${i}`, { id: `p${i}`, kind: 'token', imagePath: '', x, y, size: SIZES[i % SIZES.length]!, vision: { enabled: true } }]));
-  const model: SceneModel = { walls, lights: [], reaches: [], sight: NO_SIGHT, explored: null };
+  const model: SceneModel = { walls, lights: [], reaches: [], sight: NO_SIGHT, explored: null, zones: [], ambient: { ambient: 0 } };
   return new SceneSpots().update(model, { objects: { tokens, walls: {}, lights: {} }, lighting: { enabled: true, ambient: 0 }, grid: null, heldTokens: {} } as unknown as Parameters<SceneSpots['update']>[1], MEASUREMENT);
 }
 const sense = (id: string): SenseDefinition => [...GENERIC_SENSES, ...Object.values(BUILT_IN_SENSES).flat()].find((candidate) => candidate.id === id)!;
@@ -94,6 +94,18 @@ export interface Report {
   senseDarkInside: number;
   senseDarkRevealed: number;
   /** Rooms whose lights shone as beams too, the pixels inside the room those lit, and the lit ones past its walls. */
+  /**
+   * Rooms that were also given an ambient zone of daylight in a pitch-black scene, a little
+   * smaller than the room: the lit pixels past the walls, the pixels the rule counts as lit
+   * (inside the zone) and those of them that are not as bright as the day, and the pixels
+   * beyond the zone's soft edge with those of them that are lit all the same.
+   */
+  zoneRooms: number;
+  zoneLeaks: number;
+  zoneInside: number;
+  zoneWrong: number;
+  zoneOutside: number;
+  zoneStray: number;
   beamRooms: number;
   beamInside: number;
   beamLeaks: number;

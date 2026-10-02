@@ -7,6 +7,7 @@ import { lightMapFragment, lightMapVertex } from './lightMapShader';
 import { sightFragment, sightVertex } from './sightShader';
 import { tileFragment, tileVertex } from './tileShader';
 import { tileSmoothFragment } from './tileSmoothShader';
+import { zoneFragment } from './zoneShader';
 
 export interface EngineShaderSource {
   readonly name: string;
@@ -26,6 +27,7 @@ export const ENGINE_SHADERS = {
   lightMap: { name: 'atlas-light-map', vertex: lightMapVertex, fragment: lightMapFragment },
   darkness: { name: 'atlas-darkness', vertex: darknessVertex, fragment: darknessFragment },
   pierce: { name: 'atlas-darkness-pierce', vertex: pierceVertex, fragment: pierceFragment },
+  zone: { name: 'atlas-ambient-zone', vertex: lightMapVertex, fragment: zoneFragment },
   bounceEmission: { name: 'atlas-bounce-emission', vertex: cascadeVertex, fragment: emissionFragment },
   bounceCascade: { name: 'atlas-bounce-cascade', vertex: cascadeVertex, fragment: cascadeFragment },
   bounceResolve: { name: 'atlas-bounce-resolve', vertex: cascadeVertex, fragment: resolveFragment },

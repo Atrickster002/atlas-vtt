@@ -24,6 +24,9 @@ import { WALL_PUSH_GLSL } from './wallPushGlsl';
  * what a sense that sees in magical darkness perceives of it (0.5 as dim light, 1 as bright).
  * In place of the map the players see a faint cool veil there (uVeil), so that magical darkness
  * tells apart from the unlit dark; the GM sees the dim map under a stronger one (uGmVeil).
+ * uZones (read only while uHasZones is set) is the zone map: the ambient light of the scene's
+ * zones, premultiplied by their share of the pixel in alpha, which is 1 inside a zone, where the
+ * rule counts it; uZonesLifted is the same where dim light is perceived as bright.
  */
 export const compositeFragment = `${GLSL_VERSION}
 in vec2 vTextureCoord;
@@ -61,6 +64,9 @@ uniform vec3 uVeil;
 uniform vec3 uGmVeil;
 uniform float uGreyLevel;
 uniform vec2 uDarkLevels;
+uniform sampler2D uZones;
+uniform sampler2D uZonesLifted;
+uniform float uHasZones;
 ${fieldGlsl('uField')}
 float clearance(vec2 w) { return uFieldClearance(w); }
 ${TRACE_GLSL}
@@ -116,10 +122,11 @@ vec3 brighter(vec3 a, vec3 b) {
 
 // Senses: the scene where dim light is perceived as bright. Every light is taken at its bright
 // level (the light map's alpha is its luminance there), dim ambient light raised to bright
-// (uAmbientLift); bounce stays as it is. No light, no change: darkness is not lit by this.
+// (the ambient light is given so: by uAmbientLift, or a zone's own); bounce stays as it is. No light, no
+// change: darkness is not lit by this.
 vec3 litAsBright(vec3 albedo, vec4 lamps, vec3 bounce, vec3 ambient) {
   vec3 direct = lamps.rgb * (lamps.a / max(dot(lamps.rgb, LUMA), 1e-4));
-  vec3 light = ambient * uAmbientLift + (direct + bounce * uBounceGain) * uExposure;
+  vec3 light = ambient + (direct + bounce * uBounceGain) * uExposure;
   float level = dot(light, LUMA);
   vec3 lit = neutral(albedo * light);
   float fill = 1.0 - lamps.a * uExposure / max(level, 1e-4);
@@ -142,14 +149,31 @@ void main() {
   // r: the share of the light magical darkness swallows here; g: what sees in it, and how.
   vec2 dark = vec2(0.0);
   if (uHasDarkness > 0.5) dark = textureLod(uDarkness, world / uLightWorld, 0.0).rg;
+  // The ambient light of the zones here, and their share of the pixel.
+  vec4 zone = vec4(0.0);
+  vec4 zoneLifted = vec4(0.0);
+  if (uHasZones > 0.5) {
+    zone = textureLod(uZones, world / uLightWorld, 0.0);
+    zoneLifted = textureLod(uZonesLifted, world / uLightWorld, 0.0);
+  }
   if (front > 0.0) {
     vec2 floorAt = climbFromWall(world, uBand);
     lamps = mix(lamps, textureLod(uLightMap, floorAt / uLightWorld, 0.0), front);
     bounce = mix(bounce, bounceAt(floorAt), front);
+    // A wall's face has the ambient light of the floor in front of it, on its own side.
+    if (uHasZones > 0.5) {
+      zone = mix(zone, textureLod(uZones, floorAt / uLightWorld, 0.0), front);
+      zoneLifted = mix(zoneLifted, textureLod(uZonesLifted, floorAt / uLightWorld, 0.0), front);
+    }
   }
   // Magical darkness swallows the ambient light and the bounce; the lights it swallows are not in the light map.
   float lightLeft = 1.0 - dark.r;
   vec3 ambient = uAmbient * lightLeft;
+  vec3 ambientAsBright = ambient * uAmbientLift;
+  if (uHasZones > 0.5) {
+    ambient = (zone.rgb + uAmbient * (1.0 - zone.a)) * lightLeft;
+    ambientAsBright = (zoneLifted.rgb + uAmbient * uAmbientLift * (1.0 - zoneLifted.a)) * lightLeft;
+  }
   bounce *= lightLeft;
   vec4 sight = textureLod(uTexture, vTextureCoord, 0.0);
   // Senses: what is perceived without light is seen too.
@@ -169,7 +193,7 @@ void main() {
   lit = mix(lit, vec3(dot(lit, LUMA)) * vec3(0.86, 0.96, 1.18), night);
 
   // Senses: dim light as bright.
-  if (sight.a > 0.0) lit = mix(lit, litAsBright(albedo, lamps, bounce, ambient), sight.a);
+  if (sight.a > 0.0) lit = mix(lit, litAsBright(albedo, lamps, bounce, ambientAsBright), sight.a);
 
   // Senses in magical darkness: only one that sees there perceives it (green of the darkness
   // map), at the level it sees there instead of the level of its look in the dark.

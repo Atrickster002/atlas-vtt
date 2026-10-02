@@ -3,7 +3,8 @@ import type { Viewport } from 'pixi-viewport';
 import type { ViewAtlasState, ViewAtlasStore } from '../../storeFactory';
 import type { MeasurementSettings } from '../../grid/measurementFormat';
 import { sceneLook, type SceneLook } from '../../lighting/sceneLightingOptions';
-import { SEES_ALL, type AmbientLight, type LightReach, type Sight } from '../../vision/sight';
+import type { SceneLighting } from '../../types/lightingTypes';
+import { SEES_ALL, type AmbientLight, type AmbientZone, type LightReach, type Sight } from '../../vision/sight';
 import type { SightRules } from '../../vision/sightRules';
 import type { MapBounds } from '../../vision/visibility';
 import type { HideableLayer } from '../playerSafeFrame';
@@ -71,6 +72,9 @@ export class LightingRenderer implements SceneLightingView {
   private readonly spots = new SceneSpots();
   private reaches: LightReach[] = [];
   private sight: Sight = SEES_ALL;
+  /** The zones of the scene as the rules read them, and the ambient light made of them and the scene's lighting. */
+  private zones: readonly AmbientZone[] = [];
+  private ambient: { lighting: SceneLighting; zones: readonly AmbientZone[]; light: AmbientLight } | null = null;
   /** The last scene without its look (`SceneLook`), reused while only the look changes. */
   private lastScene: SceneWithoutLook | null = null;
   private attemptState: AttemptState = 'none';
@@ -109,7 +113,13 @@ export class LightingRenderer implements SceneLightingView {
 
   currentSight(): Sight { return this.sight; }
   lightReaches(): LightReach[] { return this.reaches; }
-  ambientLight(): AmbientLight { return this.deps.store.getState().lighting; }
+  /** The scene's lighting as the rules read it: with its zones when it has any, the same object while both stay. */
+  ambientLight(): AmbientLight {
+    const { lighting } = this.deps.store.getState();
+    if (this.zones.length === 0) return lighting;
+    if (this.ambient?.lighting !== lighting || this.ambient.zones !== this.zones) this.ambient = { lighting, zones: this.zones, light: { ...lighting, zones: this.zones } };
+    return this.ambient.light;
+  }
 
   renderForFrame<T>(frame: SceneFrame, render: () => T): T {
     // Bounce still to build after an edit belongs in the picture; so does a world a restored context took.
@@ -194,12 +204,13 @@ export class LightingRenderer implements SceneLightingView {
   }
 
   /** A model built anew: its sight and reaches are the view's, and what the tokens now see is recorded. */
-  private takeModel({ walls, lights, reaches, sight, explored }: SceneModel, state: ViewAtlasState, bounds: MapBounds): SceneWithoutLook {
+  private takeModel({ walls, lights, reaches, sight, explored, zones, ambient }: SceneModel, state: ViewAtlasState, bounds: MapBounds): SceneWithoutLook {
     this.reaches = reaches;
     this.sight = sight;
+    this.zones = ambient.zones ?? [];
     this.sightChanged = true;
     if (explored) this.memory.record(explored);
-    return { bounds, albedo: this.deps.albedo(), walls, lights, sight, sightRadius: (state.grid?.size ?? DEFAULT_CELL_SIZE) * 0.5 };
+    return { bounds, albedo: this.deps.albedo(), walls, lights, sight, sightRadius: (state.grid?.size ?? DEFAULT_CELL_SIZE) * 0.5, zones };
   }
 
   /**

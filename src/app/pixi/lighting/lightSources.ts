@@ -7,6 +7,8 @@ import { gameUnitsToWorld, type UnitScale } from '../../lighting/lightingUnits';
 import { MIN_SOFTNESS, TINT_TO_WHITE, softEdge } from '../../lighting/lightingConstants';
 import { srgbToLinear } from '../../lighting/srgb';
 import { kindOf } from '../../vision/sight';
+import { ambientAt } from '../../vision/lightLevels';
+import type { AmbientLight } from '../../vision/sight';
 import type { EngineLight } from './engine/types';
 
 /** A light that shines right now: placed on the map or carried by a token. */
@@ -25,10 +27,11 @@ export interface ActiveLight {
  * follow the ambient light, awake (`isLightOn`), and those tokens carry. Both the picture and
  * the rule are built from this list, so a sleeping lamp lights neither.
  */
-export function activeLights(lights: Record<string, LightSource>, tokens: Record<string, TokenEntity>, ambient = 0): ActiveLight[] {
+export function activeLights(lights: Record<string, LightSource>, tokens: Record<string, TokenEntity>, ambient: number | AmbientLight = 0): ActiveLight[] {
   const active: ActiveLight[] = [];
   for (const light of Object.values(lights)) {
-    if (isLightOn(light, ambient)) active.push({ key: `light:${light.id}`, x: light.x, y: light.y, emission: light.emission, ...turned(light.rotation) });
+    // The ambient light where the light stands: that of a zone around it, else the scene's.
+    if (isLightOn(light, typeof ambient === 'number' ? ambient : ambientAt(light, ambient))) active.push({ key: `light:${light.id}`, x: light.x, y: light.y, emission: light.emission, ...turned(light.rotation) });
   }
   for (const token of Object.values(tokens)) {
     if (token.light) active.push({ key: `token:${token.id}`, x: token.x, y: token.y, emission: token.light, ...turned(token.rotation) });

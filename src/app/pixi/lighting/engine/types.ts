@@ -28,6 +28,15 @@ export interface EngineLight {
   edge?: number;
 }
 
+/** An area with ambient light of its own (`LightZone`), in world pixels; inside `polygon` the rule counts its level. */
+export interface EngineZone {
+  polygon: { x: number; y: number }[];
+  ambient: number;
+  ambientColor?: string;
+  /** Width of its soft edge past the outline, where no wall is. */
+  soft: number;
+}
+
 /**
  * Everything the engine lights, in world pixels, with the scene options the composite draws:
  * ambient light, and how the players' view shows what no token sees now (unset options keep
@@ -46,6 +55,8 @@ export interface EngineScene extends Pick<SceneLighting, 'ambientColor' | 'explo
   /** Footprint radius of a vision token, for the soft edges of its sight. */
   sightRadius: number;
   ambient: number;
+  /** The scene's ambient zones in their order, the same list while they stay; none draws exactly as before zones existed. */
+  zones?: readonly EngineZone[];
 }
 
 /**

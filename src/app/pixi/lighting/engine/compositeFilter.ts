@@ -14,6 +14,7 @@ import { DEFAULT_AMBIENT_COLOR, DEFAULT_EXPLORED_COLOR, DEFAULT_UNEXPLORED_COLOR
 import { srgbToLinear } from '../../../lighting/srgb';
 import { ENGINE_SHADERS } from './engineShaders';
 import type { DarknessMap } from './DarknessMap';
+import type { ZoneMap } from './ZoneMap';
 import { createPlaceholder, engineProgram } from './gpu';
 import type { LightingWorld } from './LightingWorld';
 import { DARK_SIGHT_LEVELS, darkLooks, type DarkLooks } from './senseDrawing';
@@ -35,6 +36,10 @@ export interface CompositeFilter {
   setDarkLooks(looks: DarkLooks): void;
   /** The world's darkness map while the scene has a darkness source, null otherwise: nothing of it is read then. */
   setDarkness(map: DarknessMap | null): void;
+  /** The world's zone map while the scene has an ambient zone, null otherwise: nothing of it is read then. */
+  setZones(map: ZoneMap | null): void;
+  /** Both of the above. */
+  setMaps(darkness: DarknessMap | null, zones: ZoneMap | null): void;
   setMode(mode: LightingMode): void;
   /** No token has vision: line of sight hides nothing. */
   setAllSeen(all: boolean): void;
@@ -107,6 +112,7 @@ export function createCompositeFilter(world: LightingWorld, explored: Texture): 
     uColourLevel: { value: 0, type: 'f32' },
     uAmbientLift: { value: 1, type: 'f32' },
     uHasDarkness: { value: 0, type: 'f32' },
+    uHasZones: { value: 0, type: 'f32' },
     uVeil: { value: new Float32Array(DARKNESS.veil), type: 'vec3<f32>' },
     uGmVeil: { value: new Float32Array(DARKNESS.gmVeil), type: 'vec3<f32>' },
     uGreyLevel: { value: 0, type: 'f32' },
@@ -114,9 +120,10 @@ export function createCompositeFilter(world: LightingWorld, explored: Texture): 
     uFluSpacing: { value: BOUNCE.probe, type: 'f32' },
   });
   const u = group.uniforms;
-  // Bound while the scene has no darkness source, so the filter never holds a destroyed map.
+  // Bound while the scene has no darkness source and no ambient zone, so the filter never holds a destroyed map.
   const noDarkness = createPlaceholder();
   let darkness: DarknessMap | null = null;
+  let zones: ZoneMap | null = null;
   const filter = new AreaAwareFilter({
     glProgram: engineProgram(ENGINE_SHADERS.composite),
     resources: {
@@ -125,6 +132,8 @@ export function createCompositeFilter(world: LightingWorld, explored: Texture): 
       uLightMap: world.lightMap.texture.source,
       uFluence: world.cascades.fluence.source,
       uDarkness: noDarkness.source,
+      uZones: noDarkness.source,
+      uZonesLifted: noDarkness.source,
       ...world.fieldAll().resources(),
     },
     blendRequired: true,
@@ -159,6 +168,18 @@ export function createCompositeFilter(world: LightingWorld, explored: Texture): 
       filter.resources.uDarkness = (map?.texture ?? noDarkness).source;
       u.uHasDarkness = map ? 1 : 0;
       group.update();
+    },
+    setZones(map): void {
+      if (map === zones) return;
+      zones = map;
+      filter.resources.uZones = (map?.texture ?? noDarkness).source;
+      filter.resources.uZonesLifted = (map?.lifted ?? noDarkness).source;
+      u.uHasZones = map ? 1 : 0;
+      group.update();
+    },
+    setMaps(darknessMap, zoneMap): void {
+      composite.setDarkness(darknessMap);
+      composite.setZones(zoneMap);
     },
     setMode(mode): void {
       u.uMode = mode === 'player' ? 1 : 0;
