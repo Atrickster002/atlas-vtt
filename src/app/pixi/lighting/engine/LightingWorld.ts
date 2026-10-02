@@ -57,7 +57,7 @@ export class LightingWorld {
     this.tiles = new TileCache(renderer, this.fields.tiles, bounds);
   }
 
-  /** Every wall that blocks light, one-way walls too, which bounce and the zones treat as blocking both ways. */
+  /** Every wall that blocks light, one-way walls too, which bounce treats as blocking both ways. */
   fieldAll(): CapsuleField {
     return this.fields.light();
   }
@@ -147,7 +147,7 @@ export class LightingWorld {
     this.zonesStale = false;
     if (zones.length === 0) return;
     this.zoneTexture ??= new ZoneMap(this.renderer, this.bounds, this.texel);
-    this.zoneTexture.draw(zones, this.zoneLook, this.fieldAll());
+    this.zoneTexture.draw(zones, this.zoneLook, this.fields.zones());
   }
 
   /** Whether the darkness map's texture is allocated. */

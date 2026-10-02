@@ -1,6 +1,6 @@
 import type { Renderer } from 'pixi.js';
 import { wallRadius } from '../../../lighting/lightingConstants';
-import { allSegments, splitBlocking } from '../../../lighting/segments';
+import { allSegments, solidSegments, splitBlocking, type Seg } from '../../../lighting/segments';
 import type { WallSegment } from '../../../types/wallTypes';
 import type { MapBounds } from '../../../vision/visibility';
 import { CapsuleField } from './CapsuleField';
@@ -16,9 +16,10 @@ export interface BoundFields {
  *
  * - `tiles`: the two-way solid walls that block light, which every light's tile is traced through
  *   (a one-way wall joins a light's own field where it blocks from the light's side; a limited
- *   wall is in no tile's field: `LimitedMasks`);
- * - `light()`: every wall that blocks light, one-way and limited ones too, which bounce, the
- *   zones and the composite's wall faces treat as solid and as blocking both ways;
+ *   wall is in no tile's field: `LimitedTileMask`);
+ * - `light()`: every wall that blocks light, one-way and limited ones too, which bounce and
+ *   the composite's wall faces treat as solid and as blocking both ways;
+ * - `zones()`: the same without the limited walls, which an ambient zone ends at;
  * - `sight()`: every wall that blocks sight, limited ones too, which the explored memory's blur
  *   must not cross.
  *
@@ -32,8 +33,13 @@ export class WallFields {
   readonly tiles: CapsuleField;
   private lightField: CapsuleField | null = null;
   private sightField: CapsuleField | null = null;
+  /** Built when a zone is first drawn in a scene with both limited and one-way walls, and anew after the walls changed. */
+  private zoneField: CapsuleField | null = null;
+  private zoneSegments: Seg[] | null = null;
   private hasOneWay = false;
   private hasKinds = false;
+  private hasLimited = false;
+  private zoneStale = true;
   private current: BoundFields;
 
   constructor(private readonly renderer: Renderer, private readonly bounds: MapBounds, private readonly texel: number) {
@@ -49,6 +55,21 @@ export class WallFields {
     return this.hasKinds ? this.sightField! : this.light();
   }
 
+  /**
+   * The walls an ambient zone ends at: those that stop light, but not the limited ones. Light
+   * passes a first limited wall and so does a zone's soft edge, and a zone is drawn across a
+   * limited wall's line (a wall's capsule is left out of a brighter zone, which made a hedge in
+   * a lit clearing a black line). The field of all light walls in a scene without limited
+   * walls, the tiles' field in one without one-way walls, else a field of its own.
+   */
+  zones(): CapsuleField {
+    if (!this.zoneSegments) return this.hasLimited ? this.tiles : this.light();
+    this.zoneField ??= this.create();
+    if (this.zoneStale) this.zoneField.build(this.zoneSegments);
+    this.zoneStale = false;
+    return this.zoneField;
+  }
+
   /** The fields the composite binds, the same object for as long as they are the same fields. */
   bound(): BoundFields {
     if (this.current.light !== this.light() || this.current.sight !== this.sight()) this.current = { light: this.light(), sight: this.sight() };
@@ -60,6 +81,9 @@ export class WallFields {
     this.tiles.build(light.twoWay);
     // Limited walls are walls for all but the tiles, like one-way ones.
     this.hasOneWay = light.oneWay.length > 0 || light.limited.length > 0;
+    this.hasLimited = light.limited.length > 0;
+    this.zoneSegments = this.hasLimited && light.oneWay.length > 0 ? solidSegments(light) : null;
+    this.zoneStale = true;
     if (this.hasOneWay) {
       this.lightField ??= this.create();
       this.lightField.build(allSegments(light));
@@ -72,6 +96,7 @@ export class WallFields {
   }
 
   destroy(): void {
+    this.zoneField?.destroy();
     this.sightField?.destroy();
     this.lightField?.destroy();
     this.tiles.destroy();
