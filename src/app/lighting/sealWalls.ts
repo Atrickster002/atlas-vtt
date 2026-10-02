@@ -2,6 +2,7 @@ import type { Point } from '../types/visionTypes';
 import type { WallSegment } from '../types/wallTypes';
 import { sealTolerance } from './lightingConstants';
 import { PointTree } from './pointTree';
+import { plugs } from './sealPlugs';
 import { blocksNothing } from './segments';
 
 /** A hair past the wall a bridge lands on, so the two cross instead of merely touching. */
@@ -9,7 +10,9 @@ const OVERSHOOT = 0.01;
 
 /** A wall end with more than this many others near it, or walls passing it, is bridged to fewer than all of them. */
 const MAX_BRIDGES = 8;
-/** A wall end that more walls than this pass within the tolerance is closed off whole instead (`plug`). */
+/** A wall end whose bridges across passing walls would be more than this, however few of them are kept, is closed off whole instead (`plugs`). */
+const MAX_CORNERS = 12;
+/** So is one that more walls than this pass, whatever they would come to: it is looked at no further. */
 const MAX_PASSING = 64;
 
 interface End {
@@ -42,7 +45,9 @@ interface Junction {
  * (`endBridges`), and one that more walls pass is bridged across those that reach farthest from
  * it (`middleBridges`). Both stop every ray that a bridge for every pair would stop, between
  * points farther than the tolerance from the wall ends. A damaged or foreign map with thousands
- * of ends in one place would otherwise make millions of bridges and never open.
+ * of ends in one place would otherwise make millions of bridges and never open: as it is, at
+ * most `MAX_BRIDGES` bridges are begun at a place, as many again to the far ends of walls on
+ * their own, and sixteen across the walls that pass it (twelve of its own, or a plug's).
  */
 export function sealWalls(walls: readonly WallSegment[], tolerance: number): WallSegment[] {
   const junctions = new Map<string, Junction>();
@@ -185,13 +190,17 @@ interface MiddleBridge {
  * landings (`farthest`). A ray is stopped by the bridges of an end exactly when one of their
  * landings lies beyond it, and for every line that is so of a corner of the hull, if of any
  * landing at all, so the fewer bridges stop the same rays. The nearest ones would not: eight
- * walls passing an end nearer than the wall it stops short of left that gap open.
+ * walls passing an end nearer than the wall it stops short of left that gap open. The corners
+ * are kept as the walls are met, so an end holds a handful of landings however many walls pass it.
  *
- * An end that more than `MAX_PASSING` walls pass is closed off whole (`plug`): no ray enters
- * the tolerance around it, which stops all that its bridges would and more.
+ * An end with more than `MAX_CORNERS` such corners, or that more than `MAX_PASSING` walls pass,
+ * is closed off whole (`plugs`): no ray enters the tolerance around it, which stops all that
+ * its bridges would and more.
  */
 function middleBridges(walls: readonly WallSegment[], junctions: readonly Junction[], tree: PointTree, tolerance: number): WallSegment[] {
   const passing: (MiddleBridge[] | undefined)[] = [];
+  /** How many walls passed each end so far. */
+  const passed = new Uint8Array(junctions.length);
   // An end that is closed off whole is looked at no more, which is what keeps a pile of walls beside a pile of ends quick.
   const plugged = new Uint8Array(junctions.length);
   walls.forEach((wall, j) => {
@@ -207,23 +216,23 @@ function middleBridges(walls: readonly WallSegment[], junctions: readonly Juncti
       // The end that stops short: of the earliest wall. This wall's own ends are its p1 and p2, which are not beside it.
       const end = junction.ends[0]!;
       const across = acrossDirection(p, foot, walls[end.wall]![end.end === 'p1' ? 'p2' : 'p1'], dx, dy);
-      const list = (passing[index] ??= []);
+      let list = (passing[index] ??= []);
       list.push({ wall: j, end, landing: { x: foot.x + across.x * OVERSHOOT, y: foot.y + across.y * OVERSHOOT } });
-      if (list.length > MAX_PASSING) plugged[index] = 1;
+      if (++passed[index]! <= MAX_BRIDGES) return;
+      // Only the corners of the hull count from the ninth wall on: what lies inside it now lies inside it for good.
+      passing[index] = list = farthest(p, list);
+      if (list.length > MAX_CORNERS || passed[index]! > MAX_PASSING) plugged[index] = 1;
     });
   });
   const kept: MiddleBridge[] = [];
-  const plugs: WallSegment[] = [];
   passing.forEach((list, index) => {
-    if (!list) return;
-    if (plugged[index]) plugs.push(...plug(junctions[index]!, tolerance));
-    else kept.push(...(list.length > MAX_BRIDGES ? farthest(junctions[index]!.point, list) : list));
+    if (list && !plugged[index]) kept.push(...list);
   });
   return [
     ...kept
       .sort((a, b) => a.wall - b.wall || a.end.wall - b.end.wall || a.end.end.localeCompare(b.end.end))
       .map(({ wall, end, landing }) => bridge(`seal:${end.label}:${walls[wall]!.id}`, end.point, landing)),
-    ...plugs,
+    ...plugs(junctions.filter((junction) => plugged[junction.index]).map((junction) => junction.point), tolerance + OVERSHOOT).map(({ id, p1, p2 }) => bridge(id, p1, p2)),
   ];
 }
 
@@ -243,16 +252,6 @@ function farthest(point: Point, bridges: readonly MiddleBridge[]): MiddleBridge[
   };
   const hull = new Set([...half(corners), ...half([...corners].reverse())]);
   return bridges.filter((candidate) => [...hull].some((corner) => corner.bridge === candidate));
-}
-
-/**
- * Eight bridges around a wall end, an octagon that holds the circle of the tolerance around it:
- * what closes an end that walls beyond counting pass. Every ray through that circle is stopped.
- */
-function plug(junction: Junction, tolerance: number): WallSegment[] {
-  const radius = tolerance / Math.cos(Math.PI / 8);
-  const corner = (k: number): Point => ({ x: junction.point.x + Math.cos((k * Math.PI) / 4) * radius, y: junction.point.y + Math.sin((k * Math.PI) / 4) * radius });
-  return Array.from({ length: 8 }, (_, k) => bridge(`seal:${junction.ends[0]!.label}:plug${k}`, corner(k), corner(k + 1)));
 }
 
 /** Unit vector from `p` across the wall at `foot`; for an end on the wall, away from its own wall. */

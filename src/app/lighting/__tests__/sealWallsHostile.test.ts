@@ -4,9 +4,10 @@ import { sealWalls } from '../sealWalls';
 import { TOLERANCE, key, random, wall } from './sealFixtures';
 
 /**
- * Inputs made to be slow: ends along a diagonal, where no box around them tells one direction
- * from the next, and strokes side by side, whose points come as sorted runs. A foreign or
- * damaged map may hold them, and a map must open all the same.
+ * Inputs made to be slow or to make bridges without end: ends along a diagonal, where no box
+ * around them tells one direction from the next; strokes side by side, whose points come as
+ * sorted runs; walls beyond counting that pass one end from every side. A foreign or damaged
+ * map may hold any of them, and a map must open all the same.
  */
 const SQRT2 = Math.SQRT2;
 type Maker = () => WallSegment[];
@@ -32,11 +33,41 @@ function staircase(): WallSegment[] {
   });
 }
 
+/** 64 long walls tangent to a circle of ten pixels, and short walls with both ends on a diagonal in the half pixel at its middle. */
+function tangents(): WallSegment[] {
+  const rand = random(23);
+  const long = Array.from({ length: 64 }, (_, k) => {
+    const a = (k / 64) * Math.PI * 2, [fx, fy] = [500 + Math.cos(a) * 10, 500 + Math.sin(a) * 10];
+    return wall(`tangent${k}`, fx - Math.sin(a) * 300, fy + Math.cos(a) * 300, fx + Math.sin(a) * 300, fy - Math.cos(a) * 300);
+  });
+  const short = Array.from({ length: 19_936 }, (_, i) => {
+    const [s, t] = [rand() * 0.35, rand() * 0.35];
+    return wall(`short${i}`, 500 + s, 500 + s, 500 + t, 500 + t);
+  });
+  return [...long, ...short];
+}
+
+/** 64 long walls on either side of a stretch of 300 px, each at its own slope, and short walls with their ends along that stretch. */
+function bundle(): WallSegment[] {
+  const rand = random(29);
+  const long = Array.from({ length: 64 }, (_, k) => {
+    const d = (k - 31.5) * 0.36, slope = d * 0.0008;
+    return wall(`bundle${k}`, 300, 500 + d - slope * 350, 1000, 500 + d + slope * 350);
+  });
+  const short = Array.from({ length: 19_936 }, (_, i) => {
+    const x = 500 + rand() * 300;
+    return wall(`short${i}`, x, 500, x + rand() * 0.2, 500);
+  });
+  return [...long, ...short];
+}
+
 const HOSTILE: [string, Maker][] = [
+  ['ends on a diagonal in half a pixel inside 64 tangent walls', tangents],
   ['both ends of 20,000 walls on one diagonal in nine pixels', onLine(20_000, 9, 1)],
   ['the same on the other diagonal', onLine(20_000, 9, -1)],
   ['the same on a line a millionth off the diagonal', onLine(20_000, 9, 1.000001)],
   ['a staircase of 20,000 steps along a diagonal', staircase],
+  ['64 long walls along 300 px and 19,936 short walls beside them', bundle],
   ['one chain of 60,000 segments on a diagonal in twelve pixels', () => chain('c', 60_000, 12, 1)],
   ['two chains of 30,000 crossing as an X', () => [...chain('a', 30_000, 12, 1), ...chain('b', 30_000, 12, -1)]],
   // Two sorted runs one after the other: the tree's quickselect took the middle point as its pivot, the least of what was left each time.
@@ -56,6 +87,7 @@ describe('sealWalls on hostile input', () => {
     expect(ms).toBeLessThan(3000);
     // At most eight bridges are begun at a place, eight more to the far ends of walls on their own, and sixteen across the walls that pass it.
     expect(bridges).toBeLessThanOrEqual(places(walls) * 32);
-    expect(bridges).toBeLessThan(700_000);
+    // None of these makes more than a few bridges for each of its places.
+    expect(bridges).toBeLessThan(places(walls) * 6);
   });
 });

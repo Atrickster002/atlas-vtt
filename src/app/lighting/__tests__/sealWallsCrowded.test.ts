@@ -194,18 +194,46 @@ describe('sealWalls with crowded wall ends', () => {
     expect(bridges[0]!.p2.y).toBeCloseTo(11.51, 9);
   });
 
-  it('closes an end off whole when more walls pass it than can be told apart: no ray goes through the tolerance around it', () => {
-    const post = wall('post', 500, 300, 500, 500);
-    const passing = Array.from({ length: 100 }, (_, i) => {
-      const towards = (i / 100) * Math.PI * 2, foot = { x: 500 + Math.cos(towards) * (3 + (i % 9)), y: 500 + Math.sin(towards) * (3 + (i % 9)) };
+  /** A post whose end `count` walls pass on every side, three to eleven pixels from it. */
+  function ringed(count: number): WallSegment[] {
+    const passing = Array.from({ length: count }, (_, i) => {
+      const towards = (i / count) * Math.PI * 2, foot = { x: 500 + Math.cos(towards) * (3 + (i % 9)), y: 500 + Math.sin(towards) * (3 + (i % 9)) };
       return wall(`pass${i}`, foot.x - Math.sin(towards) * 60, foot.y + Math.cos(towards) * 60, foot.x + Math.sin(towards) * 60, foot.y - Math.cos(towards) * 60);
     });
-    const bridges = bridgesOf([post, ...passing]).filter((b) => b.id.startsWith('seal:post:p2:'));
-    expect(bridges.map((b) => b.id)).toEqual(Array.from({ length: 8 }, (_, k) => `seal:post:p2:plug${k}`));
+    return [wall('post', 500, 300, 500, 500), ...passing];
+  }
+
+  it('keeps at most twelve bridges from an end across the walls that pass it, and closes it off whole where there would be more', () => {
+    for (const count of [9, 12, 13, 30, 64, 65, 100]) {
+      const bridges = bridgesOf(ringed(count)).filter((b) => b.id.startsWith('seal:post:p2:') || b.id.startsWith('seal:plug:'));
+      const plug = bridges.filter((b) => b.id.startsWith('seal:plug:'));
+      // Bridges of its own, twelve at most, or a plug of sixteen: never both, never more.
+      expect([count, plug.length === 0 || plug.length === bridges.length, bridges.length <= (plug.length ? 16 : 12)]).toEqual([count, true, true]);
+      if (count <= 12) expect(plug).toEqual([]);
+      if (count > 64) expect(plug).toHaveLength(16);
+    }
+    // Sixteen walls that all reach as far, from sixteen sides: sixteen corners, more than are kept.
+    const around = Array.from({ length: 16 }, (_, i) => {
+      const towards = (i / 16) * Math.PI * 2, foot = { x: 500 + Math.cos(towards) * 9, y: 500 + Math.sin(towards) * 9 };
+      return wall(`around${i}`, foot.x - Math.sin(towards) * 60, foot.y + Math.cos(towards) * 60, foot.x + Math.sin(towards) * 60, foot.y - Math.cos(towards) * 60);
+    });
+    expect(bridgesOf([wall('post', 500, 300, 500, 500), ...around]).filter((b) => b.id.startsWith('seal:plug:'))).toHaveLength(16);
+  });
+
+  it('closes an end off whole with sixteen bridges around it that hold the tolerance and reach little past it', () => {
+    const bridges = bridgesOf(ringed(100)).filter((b) => b.id.startsWith('seal:plug:'));
+    expect(bridges.map((b) => b.id)).toEqual(Array.from({ length: 16 }, (_, k) => `seal:plug:4000:4000:${k}`));
     for (const b of bridges) {
       expect(Math.hypot(b.p1.x - b.p2.x, b.p1.y - b.p2.y)).toBeLessThanOrEqual(TOLERANCE);
-      // Each side of the plug lies outside the circle of the tolerance, or on it.
-      expect(Math.hypot((b.p1.x + b.p2.x) / 2 - 500, (b.p1.y + b.p2.y) / 2 - 500)).toBeGreaterThanOrEqual(TOLERANCE - 1e-9);
+      // Each side lies outside the circle of the tolerance around the end, and no corner farther than 0.45 px past it.
+      expect(Math.hypot((b.p1.x + b.p2.x) / 2 - 500, (b.p1.y + b.p2.y) / 2 - 500)).toBeGreaterThan(TOLERANCE);
+      expect(Math.hypot(b.p1.x - 500, b.p1.y - 500)).toBeLessThan(TOLERANCE + 0.45);
     }
+  });
+
+  it('gives ends that lie in one eighth of a pixel one plug between them', () => {
+    const heap = Array.from({ length: 300 }, (_, i) => wall(`short${i}`, 500.01 + (i % 20) * 0.004, 500.01 + Math.floor(i / 20) * 0.004, 500.012 + (i % 20) * 0.004, 500.014 + Math.floor(i / 20) * 0.004));
+    const bridges = bridgesOf([...ringed(100).slice(1), ...heap]).filter((b) => b.id.startsWith('seal:plug:'));
+    expect(bridges).toHaveLength(16);
   });
 });
