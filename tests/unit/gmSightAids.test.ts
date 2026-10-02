@@ -81,12 +81,8 @@ describe('the ranges of a selected vision token', () => {
     expect(aids.rings.rings()[0]!.rings.map((ring) => [ring.radius, ring.style])).toEqual([[840, 'sight'], [420, 'sense'], [210, 'creatures']]);
     store.getState().setSelection([add(900, { enabled: true, senses: [{ id: 'low-light-vision' }, { id: 'darkvision', range: 30 }] })]);
     aids.update();
-    expect(labels(aids)).toEqual(['Darkvision 30ft', 'No limit: Sight, Low-light vision']);
-    // What has no limit is named beside the token, down and to the right of its rim.
-    const noLimit = aids.rings.view.children[1]!.children[1]!;
-    expect(noLimit.x).toBeCloseTo(900 + (31 + 12) * Math.SQRT1_2);
-    expect(noLimit.y).toBeCloseTo(500 + (31 + 12) * Math.SQRT1_2);
-    expect(noLimit.pivot.x).toBeLessThan(0);
+    // What has no limit has neither ring nor label: Edit Token says it.
+    expect(labels(aids)).toEqual(['Darkvision 30ft']);
   });
 
   it('are drawn for vision tokens only, on a lit scene, and for a handful of tokens at most', () => {
@@ -150,7 +146,7 @@ describe('the ranges of a selected vision token in the edge cases', () => {
     const id = add(500, { enabled: true, angle: 90 });
     store.getState().setSelection([id]);
     aids.update();
-    expect(labels(aids)).toEqual(['No limit: Sight']);
+    expect(labels(aids)).toEqual([]);
     expect(aids.rings.rings()[0]).toMatchObject({ cone: { angle: Math.PI / 2 }, coneReach: Math.hypot(4000, 4000) });
     const stroked = lines(aids).context.instructions.filter((instruction) => instruction.action === 'stroke');
     // The dark rim and the line, each of the two edges.

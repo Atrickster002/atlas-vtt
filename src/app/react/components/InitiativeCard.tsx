@@ -16,6 +16,8 @@ interface InitiativeCardProps {
   entry: InitiativeEntry;
   index: number;
   isHoveredForPreview: boolean;
+  /** The fight runs by sides: a combatant has no number there and never the turn by itself. */
+  bySides?: boolean;
   onDragStart: (index: number) => void;
   onDragOver: (index: number) => void;
   onDragEnd: () => void;
@@ -31,6 +33,7 @@ export const InitiativeCard: React.FC<InitiativeCardProps> = ({
   entry,
   index,
   isHoveredForPreview,
+  bySides = false,
   onDragStart,
   onDragOver,
   onDragEnd,
@@ -197,9 +200,10 @@ export const InitiativeCard: React.FC<InitiativeCardProps> = ({
   // Build class names
   const cardClasses = [
     'atlas-initiative-card',
-    entry.isActive && 'atlas-initiative-card--active',
+    entry.isActive && !bySides && 'atlas-initiative-card--active',
     defeated && 'atlas-initiative-card--defeated',
     hiddenFromPlayers && 'atlas-initiative-card--hidden',
+    entry.sitsOut && 'atlas-initiative-card--sitting-out',
     isHoveredForPreview && 'atlas-initiative-card--preview-hover',
     dropPosition === 'above' && 'atlas-initiative-card--drop-above',
     dropPosition === 'below' && 'atlas-initiative-card--drop-below',
@@ -262,9 +266,11 @@ export const InitiativeCard: React.FC<InitiativeCardProps> = ({
       </div>
 
       {/* Initiative number */}
-      <span className="atlas-initiative-card__initiative">
-        {entry.initiative}
-      </span>
+      {!bySides && (
+        <span className="atlas-initiative-card__initiative">
+          {entry.initiative}
+        </span>
+      )}
 
       {/* Resource bars */}
       {bars.length > 0 && (

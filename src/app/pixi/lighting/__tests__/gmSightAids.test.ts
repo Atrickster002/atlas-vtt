@@ -63,18 +63,16 @@ describe('senseRings', () => {
   const source = (overrides: Partial<SightSource> = {}): SightSource => ({ tokenId: 't', origin: { x: 500, y: 500 }, range: UNLIMITED, senses: [], ...overrides });
 
   it('draws a ring for sight with a range and for each sense with a distance, widest first', () => {
-    const { rings, unbounded, center } = senseRings(source({ range: 120, senses: [darkvision(60), tremorsense(90), senseSource('blindsight', 30)] }), UNLIMITED, feet);
+    const { rings, center } = senseRings(source({ range: 120, senses: [darkvision(60), tremorsense(90), senseSource('blindsight', 30)] }), UNLIMITED, feet);
     expect(center).toEqual({ x: 500, y: 500 });
     expect(rings.map((ring) => [ring.label, ring.radius, ring.style])).toEqual([
       ['Sight 120ft', 120, 'sight'], ['Tremorsense 90ft', 90, 'creatures'], ['Darkvision 60ft', 60, 'sense'], ['Blindsight 30ft', 30, 'sense'],
     ]);
-    expect(unbounded).toEqual([]);
   });
 
-  it('names what reaches without limit instead of drawing it', () => {
-    const { rings, unbounded } = senseRings(source({ senses: [senseSource('low-light-vision', UNLIMITED), darkvision(60)] }), UNLIMITED, feet);
+  it('draws no ring for what reaches without limit', () => {
+    const { rings } = senseRings(source({ senses: [senseSource('low-light-vision', UNLIMITED), darkvision(60)] }), UNLIMITED, feet);
     expect(rings.map((ring) => ring.label)).toEqual(['Darkvision 60ft']);
-    expect(unbounded).toEqual(['Sight', 'Low-light vision']);
   });
 
   it('caps a sense of the eyes at the sight range, and gives it the cone; the others reach all around', () => {

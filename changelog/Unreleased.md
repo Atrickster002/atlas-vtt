@@ -34,6 +34,9 @@
 - Each collection has dice rules in its settings (new Dice tab): the default roll and how critical results are recognised (natural, roll-under, doubles, high total or none). A bare bonus in a statblock, such as +3, now rolls with the collection's default roll, e.g. 1d10+3 in Cyberpunk RED. Every game system preset sets them
 - Dice can explode. In a collection's Dice settings, choose whether its default dice or all dice roll again on their highest face, once or again and again, and whether a lowest face rolls again and subtracts; Cyberpunk RED is set up this way. A single roll explodes with ! after its dice, such as 2d6! (once) or 2d6!i (again and again). Each extra die is thrown when the die before it has landed
 - Tokens can track up to six resources: each game system brings its own (Cairn's STR, Daggerheart's Stress) and you can add more, like ammunition, in the collection settings' new Resources tab: it shows a token with six sockets, and you click the socket where a resource should appear. The first two show as bars below the token; the others show as wheels beside it while you hover or select the token, two on its right and two on its left. Each resource reads its maximum from a statblock field, and one set to static just shows that number, such as an armour class. A scene's token settings show or hide each resource on that map, and the player view settings choose which bars players see
+- The initiative tracker can run a fight by sides: the players and their opponents take turns as two groups, and nothing is rolled. Cairn collections do so, players first. Right-click a card to move a combatant to the other side or, during a fight, to let it sit out the round, as after a failed DEX save in Cairn's first round. Tokens with vision switched on start on the players' side
+- Choose how a collection's initiative tracker works under Default Widgets in the collection settings: in turn order, with the dice a combatant rolls, or by sides, with the side that acts first. Cyberpunk RED collections roll a d10
+- The initiative tracker has a Clear button that removes every combatant and ends the fight
 
 ## Improved
 
@@ -60,6 +63,7 @@
 - An open player window costs far less, so the GM view stays smooth on large maps with lighting
 - What a token sees and the light it carries follow it while you drag it, for you and for the players. To show the players nothing along the way and update both when you drop the token, switch on "Update sight when a token is dropped" in Lighting settings
 - Session view (the GM view switch in the toolbar, D) now also shows the players' lighting: the map as their tokens see it, without the tokens they cannot see, light markers and wall lines
+- Edit Token has two columns: the token's name, resources and vision on the left, the light it carries on the right. It fits an ordinary window without scrolling, and a narrow window shows it as one column
 - Players see a badge on each door their characters see, in the player window too. A locked door looks closed to them, and a secret door has no badge. In session view, and while you hold H, click these badges to open and close the doors
 - The lighting menu is laid out like the other tool menus: what the tool does and how walls are drawn are rows with a tick, and the time of day shows which one is chosen
 - Switches in the tool menus can be reached with Tab and switched with Space or Enter, and screen readers announce them. Every menu row is now rounded alike on both sides
@@ -70,11 +74,13 @@
 - Statblock previews leave room at the window's edges for what a theme draws around them. The Atlas VTT theme's ivy is no longer cut off above and below a tall statblock
 - In the initiative tracker, a combatant whose token is hidden carries a crossed-out eye: the players' list leaves it out. Right-click its card to hide it from the players or show it again
 - The DM screen of a map without statblocks no longer shows a box saying so. The note beside it stays where it was
+- The player view button of a scene tab moved to the tab's left end, away from the close button, so you no longer close a scene when you meant to show it to the players. Contributed by ISorokaI
 
 ## Fixed
 
 - Opening the asset manager no longer flashes "No characters yet" before the library appears, and its tabs no longer count 0 first. Switching the collection no longer shows the previous collection's cards while the new one loads
 - A statblock defined in a code block no longer flashes "No Fantasy Statblocks creature found" while it is read
+- Cone measurements follow the game system. A D&D 5e cone is now as wide as it is long (about 53°) instead of twice as wide, other systems keep the quarter circle, and Grid & Measurement in the collection settings has a Cone Angle to change it. Contributed by ISorokaI
 - Escape closes a light's settings, clears the selection or cancels a wall being drawn even while a tooltip is showing. Before, the first Escape closed only the tooltip
 - Explored areas stay on the players' screen while a token stands in them in the dark. Before, a remembered room turned black as soon as a token had it in its line of sight without light, and showed again from behind a wall; a thin grey line also ran along the edges of shadows
 - Map shortcuts work on any keyboard layout. On a Russian, Greek or other non-Latin layout, the key in the same physical place as the Latin letter now triggers its shortcut. Contributed by ISorokaI
@@ -89,6 +95,7 @@
 - Spawn on Map and Spawn Multiple now work in the asset manager opened from the scene browser, the dashboard or a command: tokens and encounters go to the open scene, and when no scene is open Atlas says so instead of doing nothing
 - You can create a scene by right-clicking a map. Before, a scene could only be made by double-clicking a map, which nothing pointed to
 - The dice tray no longer shows on top of the asset manager and the DM dashboard
+- A selected token's resource buttons stay above neighbouring tokens, so the minus button is no longer hidden behind a token diagonally below it. Contributed by ISorokaI
 - Panels in the player window, such as dice rolls and widgets, follow Obsidian's light or dark theme and its accent colour. Before, they stayed dark
 - A roll such as d20+2d6 no longer adds a stray +2 to its total, and subtracted dice (2d6-1d4) now subtract
 - A natural 1 or 20 counts as critical even when a modifier is added, and a maxed damage die never does
