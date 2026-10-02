@@ -2,6 +2,7 @@ import type { Point } from '../types/visionTypes';
 import type { WallSegment } from '../types/wallTypes';
 import { sealTolerance } from './lightingConstants';
 import { PointGrid } from './pointGrid';
+import { blocksNothing } from './segments';
 
 /** A hair past the wall a bridge lands on, so the two cross instead of merely touching. */
 const OVERSHOOT = 0.01;
@@ -88,7 +89,9 @@ export function sealedWalls(walls: readonly WallSegment[], texel: number): reado
  * nearer to B than A is (the directions are narrower than 60°), and so on from there, so a chain
  * of bridges leads from A to B without leaving the circle around B that A lies on. What a bridge
  * from A to B would part, the chain parts too, but for what lies inside that circle, within the
- * tolerance of both.
+ * tolerance of both. The two ends of one wall need no bridge, the wall being between them; where
+ * that wall is an open door or blocks one way only it parts nothing, so its other end is not the
+ * nearest that counts, and the next nearest in that direction is taken.
  */
 function endBridges(walls: readonly WallSegment[], junctions: ReadonlyMap<string, Junction>, grid: PointGrid<Junction>, tolerance: number): WallSegment[] {
   const bridges = new Map<number, WallSegment>();
@@ -102,6 +105,8 @@ function endBridges(walls: readonly WallSegment[], junctions: ReadonlyMap<string
     grid.eachWithin(a.point, tolerance, (b, dx, dy, distance) => {
       if (distance === 0) return;
       if (count++ < MAX_BRIDGES) few.push(b);
+      // The chain may run along a wall from one of its ends to the other only if the wall stops everything.
+      if (endsOfOneOpenWall(walls, a, b)) return;
       // The octant: which half plane on each axis, and which axis is the longer.
       const octant = (dx < 0 ? 4 : 0) + (dy < 0 ? 2 : 0) + (Math.abs(dx) < Math.abs(dy) ? 1 : 0);
       if (nearest[octant] && nearestDistance[octant]! <= distance) return;
@@ -117,6 +122,13 @@ function endBridges(walls: readonly WallSegment[], junctions: ReadonlyMap<string
     }
   }
   return [...bridges.values()];
+}
+
+/** Whether two places hold nothing but the two ends of one wall, and that wall is an open door or blocks one way only. */
+function endsOfOneOpenWall(walls: readonly WallSegment[], a: Junction, b: Junction): boolean {
+  if (a.ends.length !== 1 || b.ends.length !== 1 || a.ends[0]!.wall !== b.ends[0]!.wall) return false;
+  const wall = walls[a.ends[0]!.wall]!;
+  return blocksNothing(wall) || !!wall.direction;
 }
 
 /**

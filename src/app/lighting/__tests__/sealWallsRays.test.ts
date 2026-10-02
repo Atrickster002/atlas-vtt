@@ -166,3 +166,40 @@ describe('a wall end that stops short of many walls', () => {
     expect(pointInPolygon({ x: 690, y: 495 }, computeVisibility({ x: 400, y: 495 }, 1000, ladder(dashes)))).toBe(true);
   });
 });
+
+describe('a short wall that blocks nothing between two crowded ends', () => {
+  /**
+   * Nine walls end in a row above (500, 496) and nine in a row below (500, 504), about a pixel
+   * apart; between the rows, on their line, stands a wall of 5 px on its own. Every end's nearest
+   * neighbour towards the other row is the next in its own, and then that wall's end.
+   */
+  function crowds(between: Partial<WallSegment>, seed: number): WallSegment[] {
+    const rand = random(seed);
+    const row = (name: string, y: number, away: number): WallSegment[] => Array.from({ length: 9 }, (_, i) => {
+      const p = { x: 500, y: y + away * (i + (i ? rand() * 0.3 : 0)) };
+      return wall(`${name}${i}`, p.x, p.y, p.x + (i % 2 ? 150 : -150), p.y + away * (20 + i * 15));
+    });
+    return [...row('n', 496, -1), ...row('s', 504, 1), wall('between', 500, 497.5, 500, 502.5, between)];
+  }
+  const KINDS: [string, Partial<WallSegment>][] = [
+    ['an open door', { type: 'door', closed: false }], ['an open secret door', { type: 'secret-door', closed: false }],
+    ['a one-way wall', { direction: 'left' }], ['a one-way wall the other way', { direction: 'right' }],
+    ['a closed door', { type: 'door', closed: true }], ['a solid wall', {}],
+  ];
+
+  it.each(KINDS)('is not counted on to close the gap between them: %s', (_name, between) => {
+    for (let seed = 1; seed <= 20; seed++) {
+      const walls = crowds(between, seed);
+      // Rays from west to east and back through the gap, which a bridge for every pair closes.
+      const capped = sealWalls(walls, TOLERANCE);
+      const all = sealAllPairs(walls);
+      for (let y = 496.5; y <= 503.5; y += 0.5) {
+        for (const [a, b] of [[{ x: 440, y }, { x: 560, y: 1000 - y }], [{ x: 560, y }, { x: 440, y: 1000 - y }]] as const) {
+          expect(stops(a, b, all)).toBeDefined();
+          expect([seed, y, a.x, !!stops(a, b, capped)]).toEqual([seed, y, a.x, true]);
+        }
+      }
+      expect(leaks(walls, random(seed + 99), 300)).toEqual([]);
+    }
+  });
+});
