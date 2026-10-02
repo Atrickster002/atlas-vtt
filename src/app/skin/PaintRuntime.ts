@@ -24,7 +24,7 @@ interface Painted {
 export class PaintRuntime {
   private readonly painted = new WeakMap<Element, Painted>();
   private readonly pending = new Set<Element>();
-  private readonly view: Window & typeof globalThis;
+  private readonly view: NonNullable<Document['defaultView']>;
   private readonly sizes: ResizeObserver;
   private readonly changes: MutationObserver;
   private frame: number | null = null;
