@@ -73,11 +73,13 @@
 - Statblock previews leave room at the window's edges for what a theme draws around them. The Atlas VTT theme's ivy is no longer cut off above and below a tall statblock
 - In the initiative tracker, a combatant whose token is hidden carries a crossed-out eye: the players' list leaves it out. Right-click its card to hide it from the players or show it again
 - The DM screen of a map without statblocks no longer shows a box saying so. The note beside it stays where it was
+- The player view button of a scene tab moved to the tab's left end, away from the close button, so you no longer close a scene when you meant to show it to the players. Contributed by ISorokaI
 
 ## Fixed
 
 - Opening the asset manager no longer flashes "No characters yet" before the library appears, and its tabs no longer count 0 first. Switching the collection no longer shows the previous collection's cards while the new one loads
 - A statblock defined in a code block no longer flashes "No Fantasy Statblocks creature found" while it is read
+- Cone measurements follow the game system. A D&D 5e cone is now as wide as it is long (about 53°) instead of twice as wide, other systems keep the quarter circle, and Grid & Measurement in the collection settings has a Cone Angle to change it. Contributed by ISorokaI
 - Escape closes a light's settings, clears the selection or cancels a wall being drawn even while a tooltip is showing. Before, the first Escape closed only the tooltip
 - Explored areas stay on the players' screen while a token stands in them in the dark. Before, a remembered room turned black as soon as a token had it in its line of sight without light, and showed again from behind a wall; a thin grey line also ran along the edges of shadows
 - Map shortcuts work on any keyboard layout. On a Russian, Greek or other non-Latin layout, the key in the same physical place as the Latin letter now triggers its shortcut. Contributed by ISorokaI
@@ -92,6 +94,7 @@
 - Spawn on Map and Spawn Multiple now work in the asset manager opened from the scene browser, the dashboard or a command: tokens and encounters go to the open scene, and when no scene is open Atlas says so instead of doing nothing
 - You can create a scene by right-clicking a map. Before, a scene could only be made by double-clicking a map, which nothing pointed to
 - The dice tray no longer shows on top of the asset manager and the DM dashboard
+- A selected token's resource buttons stay above neighbouring tokens, so the minus button is no longer hidden behind a token diagonally below it. Contributed by ISorokaI
 - Panels in the player window, such as dice rolls and widgets, follow Obsidian's light or dark theme and its accent colour. Before, they stayed dark
 - A roll such as d20+2d6 no longer adds a stray +2 to its total, and subtracted dice (2d6-1d4) now subtract
 - A natural 1 or 20 counts as critical even when a modifier is added, and a maxed damage die never does
