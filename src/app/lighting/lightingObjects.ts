@@ -1,3 +1,4 @@
+import { LIMITED_WALLS } from '../featureFlags';
 import { isRecord } from '../services/assetMetadataGuards';
 import type { LightEmission, LightSource } from '../types/lightingTypes';
 import type { WallSegment } from '../types/wallTypes';
@@ -76,7 +77,9 @@ const NO_LIGHTS: readonly LightSource[] = [];
 /**
  * A wall: none without two ends that are numbers; a door is locked only where its `locked` is
  * `true`, a wall blocks one thing only where `blocks` names sight or light (anything else
- * reads as a wall for both), and it is limited only where `limited` is `true`.
+ * reads as a wall for both), and it is limited only where `limited` is `true` and limited
+ * walls are switched on (`LIMITED_WALLS`): this is the one place that decides it, for sight,
+ * light, the sealing, the engine's fields and masks, the wall editor's look and its menu.
  */
 export function readWall(value: unknown): WallSegment | null {
   if (!isRecord(value)) return null;
@@ -89,6 +92,8 @@ function wallOf(value: Record<string, unknown>): WallSegment | null {
   if (typeof value.id !== 'string' || !isEnd(value.p1) || !isEnd(value.p2)) return null;
   const { locked, blocks, limited, ...rest } = value;
   const flag = (it: unknown): boolean => it === undefined || it === true;
-  if (flag(locked) && flag(limited) && (blocks === undefined || blocks === 'sight' || blocks === 'light')) return value as unknown as WallSegment;
-  return { ...rest, ...(locked === true && { locked }), ...(limited === true && { limited }), ...((blocks === 'sight' || blocks === 'light') && { blocks }) } as unknown as WallSegment;
+  // With limited walls switched off, a wall that says it is limited reads as a wall like any other: it blocks.
+  const isLimited = LIMITED_WALLS && limited === true;
+  if (flag(locked) && (limited === undefined || isLimited) && (blocks === undefined || blocks === 'sight' || blocks === 'light')) return value as unknown as WallSegment;
+  return { ...rest, ...(locked === true && { locked }), ...(isLimited ? { limited: true } : {}), ...((blocks === 'sight' || blocks === 'light') && { blocks }) } as unknown as WallSegment;
 }

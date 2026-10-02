@@ -14,3 +14,11 @@ export const AMBIENT_AUDIO_ENABLED = false;
 
 /** Walls & dynamic lighting: wall tool, light sources, token vision, collection vision settings. */
 export const WALLS_AND_LIGHTING_ENABLED = true;
+
+/**
+ * Limited walls (hedges, low walls: sight and light pass the first and stop at the second).
+ * Off: the rule that counts them is not yet safe (see CLAUDE.md, "Limited walls"). While it is
+ * off no wall reads as limited (`readWall`), so none of the code that counts them runs, and
+ * the wall menu does not offer the switch. Do not switch it on before the open points are closed.
+ */
+export const LIMITED_WALLS = false;

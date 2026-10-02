@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { readWall } from '../../lighting/lightingObjects';
 import type { Point } from '../../types/visionTypes';
 import type { WallChannel, WallSegment } from '../../types/wallTypes';
@@ -6,6 +6,9 @@ import { lightLevelAt } from '../lightLevels';
 import { computeSight, lightReach } from '../sight';
 import { blocksFrom, computeVisibility, pointInPolygon } from '../visibility';
 import { crossedByHand, distanceToSegment as distance } from './byHand';
+
+// Limited walls are switched off in the release (`LIMITED_WALLS`); their tests run with them on, so the parked code does not rot.
+vi.mock('../../featureFlags', async (original) => ({ ...(await original<typeof import('../../featureFlags')>()), LIMITED_WALLS: true }));
 
 let id = 0;
 function wall(x1: number, y1: number, x2: number, y2: number, overrides: Partial<WallSegment> = {}): WallSegment {

@@ -1,3 +1,4 @@
+import { LIMITED_WALLS } from '../../featureFlags';
 import { readLight, readWall } from '../../lighting/lightingObjects';
 import type { ViewAtlasStore } from '../../storeFactory';
 import type { WallChannel } from '../../types/wallTypes';
@@ -104,8 +105,10 @@ export function showWallMenu(context: LightingMenuContext, worldX: number, world
     children: [blocks('Sight and light', undefined), blocks('Sight only', 'sight'), blocks('Light only', 'light')],
   });
   // A hedge or a low wall: on while every selected wall is limited, and then takes it from all of them.
-  const allLimited = selected.every((id) => readWall(allWalls[id])?.limited);
-  entries.push({ type: 'item', label: 'Limited (see past the first)', icon: 'grip-horizontal', checked: allLimited, onClick: () => walls.updateSelected({ limited: allLimited ? undefined : true }) });
+  if (LIMITED_WALLS) {
+    const allLimited = selected.every((id) => readWall(allWalls[id])?.limited);
+    entries.push({ type: 'item', label: 'Limited (see past the first)', icon: 'grip-horizontal', checked: allLimited, onClick: () => walls.updateSelected({ limited: allLimited ? undefined : true }) });
+  }
 
   entries.push({
     type: 'item',

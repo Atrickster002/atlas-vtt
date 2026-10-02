@@ -1,8 +1,11 @@
 // The harness first: it mocks what the controller imports.
 import { contextMenuOpened, event, setup, type Setup } from './lightingControllerHarness';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { getHistoryStore } from '../../src/app/stores/history';
 import type { WallSegment } from '../../src/app/types/wallTypes';
+
+// Limited walls are switched off in the release (`LIMITED_WALLS`); the tests of their menu run with them on, so the parked code does not rot.
+vi.mock('../../src/app/featureFlags', async (original) => ({ ...(await original<typeof import('../../src/app/featureFlags')>()), LIMITED_WALLS: true }));
 
 interface Entry {
   type: string;
