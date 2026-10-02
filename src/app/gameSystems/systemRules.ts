@@ -20,6 +20,7 @@ import { sameInitiativeRules } from './initiativeRules';
 import { sameLightPresets } from './lightPresetRules';
 import { sameSenses } from './senseRules';
 import { hasVisionDefaults, sameVisionDefaults } from './visionDefaults';
+import { DEFAULT_CONE_ANGLE } from '../grid/measurementFormat';
 
 /** Measurement of a collection that never set any: 5-foot squares, every diagonal counts 1. */
 export const DEFAULT_GRID_DEFAULTS: Readonly<CollectionGridDefaults> = {
@@ -85,6 +86,8 @@ function sameGridDefaults(a: CollectionGridDefaults, b: CollectionGridDefaults):
     && a.unitDistance === b.unitDistance
     && a.measurementMode === b.measurementMode
     && (a.diagonalRule ?? 'equidistant') === (b.diagonalRule ?? 'equidistant')
+    // Rules without a cone angle of their own measure with the preset's
+    && (b.coneAngle === undefined || (a.coneAngle ?? DEFAULT_CONE_ANGLE) === b.coneAngle)
     && bandsA.length === bandsB.length
     && bandsA.every((band, i) => band.name === bandsB[i]!.name && band.maxSquares === bandsB[i]!.maxSquares);
 }
