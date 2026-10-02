@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { lightZoneList, newZoneAmbient, zoneHandlePoint } from '../../src/app/lighting/lightZones';
+import { MAX_ZONE_CORNERS, lightZoneList, newZoneAmbient, zoneHandlePoint } from '../../src/app/lighting/lightZones';
 import { migrateMapFile } from '../../src/app/services/MapPersistence';
 import { createViewAtlasStore, type ViewAtlasStore } from '../../src/app/storeFactory';
 import { getHistoryStore } from '../../src/app/stores/history';
@@ -75,6 +75,13 @@ describe('light zones as read from a map file', () => {
     expect(lightZoneList(zones)).toEqual([zone({ id: 'bright', ambient: 1 })]);
     expect(lightZoneList(undefined)).toEqual([]);
     expect(lightZoneList('zones' as never)).toEqual([]);
+  });
+
+  it('drop a zone with more corners than the engine reads: its outline is a list of 64', () => {
+    const round = (corners: number): { x: number; y: number }[] => Array.from({ length: corners }, (_, i) => ({ x: Math.cos((i / corners) * Math.PI * 2) * 100, y: Math.sin((i / corners) * Math.PI * 2) * 100 }));
+    expect(MAX_ZONE_CORNERS).toBe(64);
+    const zones = { most: zone({ id: 'most', polygon: round(64) }), more: zone({ id: 'more', polygon: round(65) }), many: zone({ id: 'many', polygon: round(500) }) };
+    expect(lightZoneList(zones).map(({ id }) => id)).toEqual(['most']);
   });
 
   it('are the same list while the record is the same', () => {

@@ -32,7 +32,7 @@ describe('magical darkness at walls', () => {
     vi.restoreAllMocks();
   });
 
-  async function setup(scene: Partial<EngineScene> = {}): Promise<{ engine: LightingEngine; at: (point: { x: number; y: number }) => number; update: (next: Partial<EngineScene>) => void }> {
+  async function setup(scene: Partial<EngineScene> = {}): Promise<{ engine: LightingEngine; at: (point: { x: number; y: number }) => number; update: (next: Partial<EngineScene>) => void; again: () => (point: { x: number; y: number }) => number }> {
     const renderer = await createTestRenderer(SIZE);
     cleanup.push(() => renderer.destroy());
     const engine = new LightingEngine(renderer);
@@ -50,7 +50,11 @@ describe('magical darkness at walls', () => {
     update({});
     const read = renderThroughEngine(engine, renderer, camera);
     expect(watch.findings).toEqual([]);
-    return { engine, update, at: (point) => luminance(read(Math.floor(point.x) + camera.x, Math.floor(point.y) + camera.y)) };
+    const again = (): ((point: { x: number; y: number }) => number) => {
+      const next = renderThroughEngine(engine, renderer, camera);
+      return (point) => luminance(next(Math.floor(point.x) + camera.x, Math.floor(point.y) + camera.y));
+    };
+    return { engine, update, again, at: (point) => luminance(read(Math.floor(point.x) + camera.x, Math.floor(point.y) + camera.y)) };
   }
 
   const rule = (lights: readonly EngineLight[]): LightReach[] => lights.map((light) => lightReach({ x: light.x, y: light.y }, light.dim, walls, light.bright, light));
@@ -65,6 +69,35 @@ describe('magical darkness at walls', () => {
     }
     // Past the wall's far end the rule counts the darkness on: a line has no shadow.
     expect(at({ x: 695, y: 512 })).toBeLessThan(VEIL);
+  });
+
+  it('is drawn anew when a wall changes: a wall put across it ends the darkness there, and gives it back when it goes', async () => {
+    const lights = [darkness];
+    const { at, update, again } = await setup({ walls: [], lights });
+    const beyond = { x: 372, y: 512 };
+    expect(at(beyond)).toBeLessThan(VEIL);
+    // The same lights, and a wall between the source and the point.
+    update({ walls: [ACROSS] });
+    expect(again()(beyond)).toBeGreaterThan(200);
+    expect(again()({ x: 430, y: 512 })).toBeLessThan(VEIL);
+    update({ walls: [] });
+    expect(again()(beyond)).toBeLessThan(VEIL);
+  });
+
+  it('gives a lamp its light back where a new wall, far from the lamp, shades it from the darkness', async () => {
+    // A lamp 290 px from the source, inside a darkness of 400 px that swallows its light.
+    const wide: EngineLight = { ...darkness, dim: 400 };
+    const lamp: EngineLight = { key: 'lamp', x: 800, y: 512, bright: 50, dim: 100, flame: 2, color: [1, 1, 1], intensity: 1, animation: 'none' };
+    const scene: EngineScene = { bounds, albedo: null, walls: [], lights: [lamp, wide], sight: SEES_ALL, sightRadius: 20, ambient: 0 };
+    const { engine, at, again } = await setup(scene);
+    const beside = { x: 760, y: 512 };
+    expect(at(beside)).toBeLessThan(VEIL);
+    // A short wall right at the source, far outside the lamp's reach: its shadow holds the lamp.
+    // The update alone draws it, before the bounce that follows a wall change redraws the lights.
+    engine.update({ ...scene, walls: [wall('shade', 540, 470, 540, 554)] });
+    expect(again()(beside)).toBeGreaterThan(60);
+    engine.update(scene);
+    expect(again()(beside)).toBeLessThan(VEIL);
   });
 
   it('agrees with the rule in daylight everywhere but on a wall\'s own core and the darkness\' rim', async () => {

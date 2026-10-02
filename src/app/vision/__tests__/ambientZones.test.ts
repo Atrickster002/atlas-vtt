@@ -84,6 +84,17 @@ describe('explored memory with ambient zones', () => {
     expect(exploredShapes(blind, day, [torch])?.ambient).toBeUndefined();
   });
 
+  it('keeps a darkness source\'s area out of the memory in a scene with zones too, unless a sense sees in it', () => {
+    const darkness = lightReach({ x: 300, y: 250 }, 120, [], 0, { darkness: true });
+    expect(exploredShapes(sight, day, [torch, darkness])).toMatchObject({
+      polygons: [torch.polygon, darkvision.polygon],
+      except: { areas: [darkness.polygon], unless: [] },
+    });
+    const truesight = region(generic('truesight'), rect(0, 0, 400, 400));
+    expect(exploredShapes({ all: false, regions: [eyes, truesight] }, day, [darkness])?.except).toEqual({ areas: [darkness.polygon], unless: [truesight.polygon] });
+    expect(exploredShapes(sight, day, [torch])).not.toHaveProperty('except');
+  });
+
   it('records as before without zones', () => {
     expect(exploredShapes(sight, { ambient: 1, zones: [] }, [torch])).toEqual({ polygons: [eyes.polygon, darkvision.polygon], clip: null });
   });

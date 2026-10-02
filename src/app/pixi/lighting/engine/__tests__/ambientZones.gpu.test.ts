@@ -107,6 +107,20 @@ describe('ambient zones in the composite', () => {
     expect(open.at({ x: 392, y: 450 })).toBeLessThan(200);
   });
 
+  it('is drawn anew when a wall changes: a doorway that is closed ends the zone\'s soft edge there', async () => {
+    const scene = { bounds, albedo: null, lights: [], sight: SEES_ALL, sightRadius: 20, ambient: 1, zones: [cave] };
+    const { engine, at, again } = await setup({ ...scene, walls });
+    expect(at({ x: 392, y: 550 })).toBeLessThan(200);
+    // The same zones, and a door across the doorway.
+    engine.update({ ...scene, walls: [...walls, wall('door', 400, 520, 400, 580)] });
+    engine.flush();
+    expect(again()({ x: 392, y: 550 })).toBeGreaterThan(230);
+    // And open again: the darkness of the cave reaches out as before.
+    engine.update({ ...scene, walls });
+    engine.flush();
+    expect(again()({ x: 392, y: 550 })).toBeLessThan(200);
+  });
+
   describe('a lit room in a dark scene, its zone drawn on the room\'s walls', () => {
     /** The cave's four sides as walls, and the zone's corners on their ends. */
     const room = [wall('n', 400, 400, 700, 400), wall('e', 700, 400, 700, 700), wall('s', 700, 700, 400, 700), wall('w', 400, 700, 400, 400)];
@@ -122,9 +136,9 @@ describe('ambient zones in the composite', () => {
 
     it('lights its walls\' faces from inside: a face has the ambient light of the floor in front of it', async () => {
       const { at } = await setup({ ambient: 0, zones: [lit], walls: room, sight: viewer(550) });
-      expect(at({ x: 405, y: 550 })).toBeGreaterThan(230);
-      expect(at({ x: 550, y: 405 })).toBeGreaterThan(230);
-      expect(at({ x: 430, y: 550 })).toBeGreaterThan(230);
+      // From the wall's core on (three pixels from its centre line) the face is as bright as the floor.
+      for (const x of [403.5, 404.5, 405.5, 407.5, 430]) expect([x, at({ x, y: 550 }) > 230]).toEqual([x, true]);
+      for (const y of [403.5, 404.5, 405.5]) expect([y, at({ x: 550, y }) > 230]).toEqual([y, true]);
     });
 
     it('keeps the walls inside a dark zone dark by day, their core too, and lights a wall on its edge only from the day side', async () => {
@@ -132,7 +146,7 @@ describe('ambient zones in the composite', () => {
       const { at } = await setup({ ambient: 1, zones: [cave], walls: [...room, pillar] });
       for (const x of [546, 549, 550.5, 552, 555]) expect([x, at({ x, y: 550 }) < 6]).toEqual([x, true]);
       // The west wall stands between the day and the cave: daylight on its outer face, none within.
-      expect(at({ x: 394.5, y: 550 })).toBeGreaterThan(200);
+      for (const x of [394.5, 395.5, 396.5]) expect([x, at({ x, y: 550 }) > 200]).toEqual([x, true]);
       expect(at({ x: 405, y: 550 })).toBeLessThan(6);
       expect(at({ x: 400.5, y: 550 })).toBeLessThan(6);
       expect(at({ x: 399.5, y: 550 })).toBeLessThan(6);
