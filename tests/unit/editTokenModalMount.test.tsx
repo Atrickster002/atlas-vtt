@@ -67,8 +67,8 @@ describe('openEditTokenModal', () => {
 
   it('says in one line what the vision switch means', () => {
     open();
-    expect(screen.getByText('Players see what it sees, and always see it.')).toBeTruthy();
-    expect(vision().getAttribute('aria-describedby')).toBe(screen.getByText('Players see what it sees, and always see it.').id);
+    expect(screen.getByText('The players see the map through this token. The token itself is always visible to them.')).toBeTruthy();
+    expect(vision().getAttribute('aria-describedby')).toBe(screen.getByText('The players see the map through this token. The token itself is always visible to them.').id);
   });
 
   it('shows sight range, angle and senses only for a token with vision', () => {
@@ -93,8 +93,8 @@ describe('openEditTokenModal', () => {
 
   it('adds a sense with its range and saves it', () => {
     const { saved } = open({ vision: { enabled: true } });
-    fireEvent.click(screen.getByRole('button', { name: 'Add sense' }));
-    fireEvent.click(screen.getByRole('button', { name: /^Darkvision/ }));
+    fireEvent.keyDown(screen.getByRole('button', { name: 'Add sense' }), { key: 'ArrowDown' });
+    fireEvent.click(screen.getByRole('menuitem', { name: /^Darkvision/ }));
     fireEvent.change(screen.getByLabelText('Darkvision range'), { target: { value: '60' } });
     save();
     expect(saved().vision).toEqual({ enabled: true, senses: [{ id: darkvision.id, range: 60 }] });
@@ -102,8 +102,8 @@ describe('openEditTokenModal', () => {
 
   it('saves no list of senses when one is added and removed again, so the token still follows its statblock', () => {
     const { saved } = open({ vision: { enabled: true } });
-    fireEvent.click(screen.getByRole('button', { name: 'Add sense' }));
-    fireEvent.click(screen.getByRole('button', { name: /^Darkvision/ }));
+    fireEvent.keyDown(screen.getByRole('button', { name: 'Add sense' }), { key: 'ArrowDown' });
+    fireEvent.click(screen.getByRole('menuitem', { name: /^Darkvision/ }));
     fireEvent.click(screen.getByRole('button', { name: 'Remove Darkvision' }));
     save();
     expect(saved().vision).toEqual({ enabled: true });
@@ -118,10 +118,10 @@ describe('openEditTokenModal', () => {
 
   it('closes on Escape, but not when a control inside took the key', () => {
     open({ vision: { enabled: true } });
-    fireEvent.click(screen.getByRole('button', { name: 'Add sense' }));
-    fireEvent.keyDown(screen.getByRole('group', { name: 'Senses to add' }), { key: 'Escape' });
+    fireEvent.keyDown(screen.getByRole('button', { name: 'Add sense' }), { key: 'ArrowDown' });
+    fireEvent.keyDown(screen.getByRole('menu'), { key: 'Escape' });
     expect(screen.getByText('Edit Token')).toBeTruthy();
-    expect(screen.queryByRole('group', { name: 'Senses to add' })).toBeNull();
+    expect(screen.queryByRole('menu')).toBeNull();
     fireEvent.keyDown(document.body, { key: 'Escape' });
     expect(screen.queryByText('Edit Token')).toBeNull();
   });
@@ -138,10 +138,10 @@ describe('openEditTokenModal in a collection with senses of its own', () => {
     const token: TokenEntity = { id: 't', kind: 'token', imagePath: 't.png', x: 0, y: 0, vision: { enabled: true } };
     store.setState({ persistenceEnabled: false, mapPath: 'atlas-vtt/collections/coven/scenes/Hut.atlasmap', objects: { ...store.getState().objects, tokens: { t: token } } });
     act(() => openEditTokenModal(token, store, app, []));
-    fireEvent.click(screen.getByRole('button', { name: 'Add sense' }));
+    fireEvent.keyDown(screen.getByRole('button', { name: 'Add sense' }), { key: 'ArrowDown' });
     // Only what the collection defines: its own sense, none of the generic ones it replaced.
-    expect(screen.queryByRole('button', { name: /^Darkvision/ })).toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: /^Witch sight/ }));
+    expect(screen.queryByRole('menuitem', { name: /^Darkvision/ })).toBeNull();
+    fireEvent.click(screen.getByRole('menuitem', { name: /^Witch sight/ }));
     save();
     expect(store.getState().objects.tokens.t!.vision).toEqual({ enabled: true, senses: [{ id: 'home-witch' }] });
     vi.restoreAllMocks();

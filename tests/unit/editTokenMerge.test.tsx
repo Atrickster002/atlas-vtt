@@ -73,8 +73,8 @@ describe('Edit Token writes senses, light and resources together', () => {
   it('editing only senses keeps resources, hand-set maxima and extra statblock quantities', () => {
     const resources = { hp: { current: 3, max: 8 }, ammo: { current: 2, max: 6 }, mana: { current: 1, max: 4 } };
     const { saved } = open({ vision: { enabled: true }, light: torch, resources, overriddenMax: ['ammo'] });
-    fireEvent.click(screen.getByRole('button', { name: 'Add sense' }));
-    fireEvent.click(screen.getByRole('button', { name: /^Darkvision/ }));
+    fireEvent.keyDown(screen.getByRole('button', { name: 'Add sense' }), { key: 'ArrowDown' });
+    fireEvent.click(screen.getByRole('menuitem', { name: /^Darkvision/ }));
     fireEvent.change(screen.getByLabelText('Darkvision range'), { target: { value: '60' } });
     save();
     expect(saved().vision).toEqual({ enabled: true, senses: [{ id: darkvision.id, range: 60 }] });
@@ -112,8 +112,8 @@ describe('Edit Token writes senses, light and resources together', () => {
     const first = open({ vision: { enabled: true }, resources: { hp: { current: 8, max: 8 } } });
     // Damage arrives while the modal is open (the map, undo, another view).
     act(() => first.store.getState().updateToken('t', { resources: { hp: { current: 2, max: 8 } }, x: 140 }));
-    fireEvent.click(screen.getByRole('button', { name: 'Add sense' }));
-    fireEvent.click(screen.getByRole('button', { name: /^Darkvision/ }));
+    fireEvent.keyDown(screen.getByRole('button', { name: 'Add sense' }), { key: 'ArrowDown' });
+    fireEvent.click(screen.getByRole('menuitem', { name: /^Darkvision/ }));
     save();
     expect(first.saved().resources).toEqual({ hp: { current: 2, max: 8 } });
     expect(first.saved().x).toBe(140);

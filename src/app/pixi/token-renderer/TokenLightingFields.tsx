@@ -50,7 +50,7 @@ export function TokenVisionSection({ vision, onChange, context }: TokenVisionSec
     <EditTokenSection title="Vision">
       <SwitchRow
         label="Vision (party member)"
-        hint="Players see what it sees, and always see it."
+        hint="The players see the map through this token. The token itself is always visible to them."
         value={vision.enabled}
         onChange={(enabled) => onChange({ ...vision, enabled })}
       />
