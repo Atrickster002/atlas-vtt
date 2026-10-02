@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { WallSegment } from '../../types/wallTypes';
 import { sealWalls } from '../sealWalls';
-import { TOLERANCE, key, random, wall } from './sealFixtures';
+import { TOLERANCE, key, random, timeBound, wall } from './sealFixtures';
 
 /**
  * Inputs made to be slow or to make bridges without end: ends along a diagonal, where no box
@@ -95,7 +95,7 @@ describe('sealWalls on hostile input', () => {
     const ms = performance.now() - started;
     console.info(`sealWalls, ${name}: ${walls.length} walls, ${places(walls)} places, ${bridges} bridges, ${ms.toFixed(0)} ms`);
     // Under a second each on the machine this was written on, run alone; the bound leaves room for a loaded one.
-    expect(ms).toBeLessThan(3000);
+    expect(ms).toBeLessThan(timeBound(3000));
     // At most eight bridges are begun at a place, eight more to the far ends of walls on their own, and sixteen across the walls that pass it.
     expect(bridges).toBeLessThanOrEqual(places(walls) * 32);
     // None of these makes more than a few bridges for each of its places.

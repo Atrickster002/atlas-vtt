@@ -39,6 +39,9 @@
 - Darkvision follows each game system's rules. In a D&D 5e collection it also shows dim light as bright, Pathfinder 2e's shows darkness in black and white, and Old-School Essentials' infravision shows it in heat tones.
 - The Magical light shines bright to 20 ft and dim to 40 ft. A magical light with other ranges keeps them and shows as a Custom light.
 - A collection's HP and secondary resource bars are now set in its new Resources tab instead of Default Widgets. Collections, scenes and tokens keep their bars, values and switches
+- Hold Ctrl/Cmd over a token in the asset manager to see its statblock, as on the map. With tokens selected, Ctrl/Cmd adds to the selection and opens no statblock
+- The collection export and import dialogs open a token's statblock the same way: hold Ctrl/Cmd over the token. Before, it opened by itself when the pointer rested on a token
+- A token with a linked statblock shows a scroll badge in the asset manager, the one the export and import dialogs use, instead of the accent-coloured link. Click it to open the statblock, as before
 - Choose how the dice look in the command palette's Dice settings: light card, dark with light numbers, or your Obsidian accent colour (the numbers turn dark or light to stay readable), each shown as a d20. Sci-fi numbers suit futuristic games; the choice also sets the font of roll totals
 - The dice tray (R) shows drawn dice, has a modifier you can step up and down, and always shows the formula it will roll. Take a die back with the − under it
 - An exported collection carries every note its pinned notes lead to: the notes they link to, the notes those link to, and the images and PDFs they show. The export dialog lists each note below the note that led to it and says why it is there; untick a note to leave out everything only it links to. The images and PDFs have a list of their own
@@ -94,6 +97,7 @@
 - A light's dim range is now visibly lit out to its edge and the light ends just past it, so what looks dark on the map is dark. Before, the outer part of the dim range was drawn nearly black although tokens standing there still showed
 - Scene thumbnails and snapshot previews show a scene's dynamic lighting as the GM sees it. They also leave out pins, linked hexes, light markers, door badges and wall lines, and follow changes to the scene's lighting
 - A scene keeps its thumbnail when the graphics device resets or the scene could not be opened again, instead of getting a blank or outdated one
+- Clicking a pile of tokens selects the one on top. Before, a click could pick a token lying underneath, most easily after placing a token on an occupied square or hex
 - Exporting a collection now packs its loot tables: the bases picked in the collection's Loot settings and every item note they list. An import puts them into the collection's folder, where the loot roller finds them again. Before, the importing vault got the setting without the base or its items
 - Text fields and dropdowns have one background everywhere. Before, some took the colour of the panel around them, so fields in one dialog could differ in dark mode and in themes that colour their fields
 - The collection settings stay in place when a tab grows long enough to scroll. Before, the scrollbar pushed the whole tab to the left

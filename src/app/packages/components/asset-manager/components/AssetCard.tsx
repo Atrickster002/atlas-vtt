@@ -1,5 +1,5 @@
 import React, { memo, useEffect, useId } from 'react';
-import { Map as MapIcon, Link } from 'lucide-react';
+import { Map as MapIcon, ScrollText } from 'lucide-react';
 import type { AnyAsset } from '../types';
 import type { AssetCardHandlers } from '../hooks/useAssetCardHandlers';
 import { TokenPortrait } from '../../shared/TokenPortrait';
@@ -122,7 +122,7 @@ export const AssetCard = memo(function AssetCard({
                   className="atlas-asset-statblock-indicator"
                   onClick={(event) => { event.stopPropagation(); onOpenStatblock(statblockPath); }}
                 >
-                  <Link size={12} />
+                  <ScrollText />
                 </div>
               </LabelTooltip>
             )}

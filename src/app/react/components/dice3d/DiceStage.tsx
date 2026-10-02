@@ -47,10 +47,15 @@ interface DiceStageProps {
   ref?: React.Ref<DiceStageHandle>;
 }
 
+/** How long the light takes to swell once the dice lie. */
+const GLEAM = 0.28;
+
 /**
- * Afterglow in which only the light swells and the sparks burn out before the
- * loop stops. Longer than the longest spark of the high-crit burst, or it
- * freezes mid-shower.
+ * The longest the loop runs on after the dice came to rest: longer than the
+ * longest spark of the high-crit burst. It stops as soon as the light has
+ * swelled and the stage is still (`DiceRenderer.isStill`): an ordinary
+ * landing's sparks are out after half of this. Without a renderer nobody can
+ * tell, and it runs the whole time.
  */
 const AFTERGLOW = 1.45;
 
@@ -58,7 +63,8 @@ const AFTERGLOW = 1.45;
  * The stage: a canvas and a clock. The clock lives here, the maths in
  * `dice3d/`, which is why the throw can be tested without drawing a frame.
  * Without WebGL the canvas stays empty and the maths still runs. The loop stops
- * once every die rests and the afterglow ran out.
+ * once every die rests and the stage is still, at the latest when the afterglow
+ * ran out.
  */
 export function DiceStage({ scene, crit, onSettled, muted, style, frame, seed, label, className, ref }: DiceStageProps): React.ReactElement {
   const { speed, maxWallHits } = style;
@@ -116,7 +122,7 @@ export function DiceStage({ scene, crit, onSettled, muted, style, frame, seed, l
     if (!renderer) return;
     const resting = diceRef.current.filter((die) => die.anim.phase === 'rest');
     const emphasis = resting.length === diceRef.current.length && resting.length > 0
-      ? Math.min(1, Math.min(...resting.map((die) => die.anim.restFor)) / (0.28 * speed))
+      ? Math.min(1, Math.min(...resting.map((die) => die.anim.restFor)) / (GLEAM * speed))
       : 0;
     renderer.render(diceRef.current, emphasis, crit);
   }, [crit, speed]);
@@ -150,7 +156,10 @@ export function DiceStage({ scene, crit, onSettled, muted, style, frame, seed, l
       if (!muted) rollEnd(wheelRef.current);
       settledCb.current();
     }
-    return !allResting || Math.min(...diceRef.current.map((die) => die.anim.restFor)) < AFTERGLOW * speed;
+    if (!allResting) return true;
+    const rested = Math.min(...diceRef.current.map((die) => die.anim.restFor));
+    if (rested < GLEAM * speed) return true;
+    return rested < AFTERGLOW * speed && rendererRef.current?.isStill() !== true;
   }, [muted, speed]);
 
   const start = useCallback((): void => {

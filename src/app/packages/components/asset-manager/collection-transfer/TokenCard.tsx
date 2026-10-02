@@ -12,15 +12,13 @@ interface TokenCardProps {
   state: ItemState;
   media: ContentMedia;
   onToggle: (key: string, include: boolean) => void;
-  onHover: (item: ContentItem & { token: TokenPreview }, card: HTMLElement) => void;
-  onLeave: () => void;
 }
 
 /**
  * A token as it looks when spawned (its art, framed by the ring unless it has
- * none) with its name. Tokens with a statblock show its preview on hover.
+ * none) with its name. Tokens with a statblock carry its badge; the grid opens it.
  */
-export const TokenCard = memo(function TokenCard({ item, state, media, onToggle, onHover, onLeave }: TokenCardProps): React.JSX.Element {
+export const TokenCard = memo(function TokenCard({ item, state, media, onToggle }: TokenCardProps): React.JSX.Element {
   const { token } = item;
   const image = useContentImage(media, [token.thumbnailPath, token.imagePath]);
   const body = (
@@ -39,8 +37,7 @@ export const TokenCard = memo(function TokenCard({ item, state, media, onToggle,
       className="atlas-transfer-token"
       role="listitem"
       data-state={state}
-      onPointerEnter={(event) => onHover(item, event.currentTarget)}
-      onPointerLeave={onLeave}
+      data-item-key={item.key}
     >
       {state === undefined ? <div className="atlas-transfer-token__body">{body}</div> : (
         <label className="atlas-transfer-token__body">
