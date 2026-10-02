@@ -19,8 +19,8 @@ function TabCount({ count }: { count: number | undefined }): React.JSX.Element {
 
 /**
  * The asset type tabs. Wide headers show them side by side; narrow ones show
- * the current type as a menu button instead (the header's container queries
- * pick one), so the toolbar stays a single row.
+ * the current type as a menu button instead (the toolbar's `data-compact`
+ * steps pick one), so the toolbar stays a single row.
  */
 export function TabSwitcher({ activeTab, onTabChange, assetCounts }: TabSwitcherProps): React.JSX.Element {
   const labelId = useId();
