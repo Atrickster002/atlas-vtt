@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { wallBand, worldTexel } from '../../../../lighting/lightingConstants';
 import { sealedWalls } from '../../../../lighting/sealWalls';
 import type { WallSegment } from '../../../../types/wallTypes';
+import { grazes, turningPoints } from '../../../../vision/__tests__/byHand';
 import { lightLevelAt } from '../../../../vision/lightLevels';
 import { SEES_ALL, computeSight, lightReach, type Sight } from '../../../../vision/sight';
 import { distSqToSegment } from '../../../../vision/visionGeometry';
@@ -132,6 +133,61 @@ describe('limited walls in the picture', () => {
     }
     expect(lit).toBeGreaterThan(800);
     expect(dark).toBeGreaterThan(200);
+  });
+
+  it.each([12, 40])('lights nothing past the second limited wall in the soft shadow of a solid wall that a hedge joins: flame %d', async (flame) => {
+    const renderer = await createTestRenderer(64);
+    cleanup.push(() => renderer.destroy());
+    const engine = new LightingEngine(renderer);
+    cleanup.push(() => engine.destroy());
+    engine.setEnabled(true);
+    // The rays from the flame's edge pass the solid wall's end through the first hedge and reach the second; the ray from its middle is stopped by the wall.
+    const walls = sealedWalls([line(500, 512, 500, 900), line(500, 120, 500, 512, { limited: true }), line(600, 60, 600, 960, { limited: true })], worldTexel(bounds));
+    engine.update({ bounds, albedo: null, walls, lights: [{ ...torch, x: 400, y: 512, flame }], sight: SEES_ALL, sightRadius: 20, ambient: 0 });
+    const map = (engine as unknown as { world: { lightMap: { texture: RenderTexture } } }).world.lightMap.texture;
+    const texels = readFloats(renderer, map);
+    const width = map.source.pixelWidth;
+    let east = 0, soft = 0, farSoft = 0, behindOne = 0;
+    for (let i = 0; i < texels.length; i += 4) {
+      if (texels[i]! <= 0) continue;
+      const x = ((i / 4) % width) * 2 + 1, y = Math.floor(i / 4 / width) * 2 + 1;
+      // Past the second hedge's own length (above its end at y = 60, light that crossed the first hedge alone goes by).
+      if (x > 603 && y > 70) east++;
+      else if (x > 603) continue;
+      // Between the wall and the second hedge, below the wall's end: the wall's soft shadow, which crossed one hedge at most.
+      else if (x > 506 && x < 594 && y > 514 && y < 700) soft++;
+      // Behind the wall's far end, where the ray from the flame's middle is stopped and meets no limited wall: its soft shadow there is any wall's.
+      else if (x > 506 && x < 594 && y > 904 && 512 + ((y - 512) * 100) / (x - 400) < 896) farSoft++;
+      else if (x > 506 && x < 594 && y < 500) behindOne++;
+    }
+    expect({ east, soft: soft > 8 ? 'soft' : soft, farSoft: farSoft > 8 ? 'soft' : farSoft, behindOne: behindOne > 5000 }).toEqual({ east: 0, soft: 'soft', farSoft: 'soft', behindOne: true });
+  });
+
+  it('gives a solid wall behind a single hedge a hard shadow: behind a limited wall a light is the rule\'s reach', async () => {
+    const renderer = await createTestRenderer(64);
+    cleanup.push(() => renderer.destroy());
+    const engine = new LightingEngine(renderer);
+    cleanup.push(() => engine.destroy());
+    engine.setEnabled(true);
+    const light = { ...torch, flame: 40 };
+    const walls = sealedWalls([hedge(450), line(550, 512, 550, 900)], worldTexel(bounds));
+    const reach = lightReach({ x: light.x, y: light.y }, light.dim, walls, light.bright);
+    const turning = turningPoints(walls);
+    engine.update({ bounds, albedo: null, walls, lights: [light], sight: SEES_ALL, sightRadius: 20, ambient: 0 });
+    const map = (engine as unknown as { world: { lightMap: { texture: RenderTexture } } }).world.lightMap.texture;
+    const texels = readFloats(renderer, map);
+    const width = map.source.pixelWidth;
+    let shadow = 0, lit = 0, dark = 0;
+    for (let i = 0; i < texels.length; i += 4) {
+      const p = { x: ((i / 4) % width) * 2 + 1, y: Math.floor(i / 4 / width) * 2 + 1 };
+      // Behind the hedge and clear of the walls' own width and of the ray through the solid wall's end.
+      if (p.x < 460 || Math.abs(p.x - 550) < 8 || grazes(light, p, turning, 4)) continue;
+      const rule = lightLevelAt(p, { ambient: 0 }, [reach]) !== 'dark';
+      // The rule's reach is a polygon of 64 sides around the dim radius: within two pixels of it a chord decides.
+      if (texels[i]! > 0 && !rule && Math.hypot(p.x - light.x, p.y - light.y) < light.dim - 2) shadow++;
+      if (rule) (texels[i]! > 0 ? lit++ : dark++);
+    }
+    expect({ shadow, dark, lit: lit > 20_000 }).toEqual({ shadow: 0, dark: 0, lit: true });
   });
 
   it('leaves no texel of the light map lit beyond a second ring of limited walls, however thin the slivers of the rule\'s polygon', async () => {

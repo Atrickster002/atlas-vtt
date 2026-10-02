@@ -77,7 +77,7 @@ async function fuzz(name: ShapeName, seed: number, trials: number, lie = false):
       const turning = turningPoints(walls);
       const lights: EngineLight[] = shape.places.map(([x, y], i) => {
         const dim = 500 + rand() * 500;
-        return { key: i % 2 === 0 ? `token:t${i}` : `l${i}`, x, y, bright: dim / 2, dim, flame: 2 + rand() * 40, color: [1, 1, 1], intensity: 1, animation: 'none' };
+        return { key: i % 2 === 0 ? `token:t${i}` : `l${i}`, x, y, bright: dim / 2, dim, flame: 2 + rand() * 38, color: [1, 1, 1], intensity: 1, animation: 'none' };
       });
       const base = { bounds: BOUNDS, albedo: null, walls, sight: SEES_ALL, sightRadius: 31, ambient: 0 } satisfies Partial<EngineScene>;
       engine.setExplored(blank.texture);
@@ -165,7 +165,7 @@ async function fuzz(name: ShapeName, seed: number, trials: number, lie = false):
   }
 }
 
-const CLEAN = { pastSecond: 0, lightWrong: 0, sightLeaks: 0, memoryLeaks: 0, sightWrong: 0 };
+const CLEAN = { pastSecond: 0, shadowBehindOne: 0, lightWrong: 0, sightLeaks: 0, memoryLeaks: 0, sightWrong: 0 };
 const SCENES = Math.max(12, Math.round(TRIALS / 3));
 
 describe('leak fuzz: limited walls in shapes no room makes', () => {

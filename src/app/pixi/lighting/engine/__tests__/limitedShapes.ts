@@ -43,6 +43,30 @@ export function crossingHedges(rand: () => number): Shape {
   return { walls, places: placesAround(walls, rand, 2) };
 }
 
-export const SHAPES = { crossingHedges } as const;
+/**
+ * A solid wall with a hedge that joins its end, straight on or at a bend, and a long second
+ * hedge behind both. The light stands before the joint: the rays from the edge of its flame
+ * pass the solid wall's end through the first hedge, where the ray from its middle is stopped.
+ */
+export function hedgeOnWall(rand: () => number): Shape {
+  const jx = MIDDLE + (rand() - 0.5) * 80, jy = MIDDLE + (rand() - 0.5) * 80;
+  const along = rand() * Math.PI * 2, bend = (rand() - 0.5) * 1.2;
+  const reach = (angle: number, length: number): [number, number] => [jx + Math.cos(angle) * length, jy + Math.sin(angle) * length];
+  const walls = [wall(jx, jy, ...reach(along, 250 + rand() * 200)), hedge(jx, jy, ...reach(along + Math.PI + bend, 250 + rand() * 200))];
+  // Behind: to the left of the solid wall's direction.
+  const back = along - Math.PI / 2, turn = (rand() - 0.5) * 0.3, off = 70 + rand() * 120;
+  const [bx, by] = reach(back, off);
+  walls.push(hedge(bx - Math.cos(along + turn) * 520, by - Math.sin(along + turn) * 520, bx + Math.cos(along + turn) * 520, by + Math.sin(along + turn) * 520));
+  if (rand() < 0.4) walls.push(hedge(...reach(back, off + 60 + rand() * 80), ...reach(back + 0.8, off + 300)));
+  const places: P[] = [];
+  for (let attempt = 0; attempt < 30 && places.length < 2; attempt++) {
+    const front = along + Math.PI / 2 + (rand() - 0.5) * 1.2;
+    const p: P = [jx + Math.cos(front) * (70 + rand() * 220), jy + Math.sin(front) * (70 + rand() * 220)];
+    if (walls.every((w) => distance(p, w) > 45)) places.push(p);
+  }
+  return { walls, places };
+}
+
+export const SHAPES = { crossingHedges, hedgeOnWall } as const;
 export type ShapeName = keyof typeof SHAPES;
 export { hedge, wall, placesAround };

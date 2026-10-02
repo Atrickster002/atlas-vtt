@@ -90,7 +90,7 @@ export class TileCache {
     const traced = this.tracer.trace([placed.x, placed.y], placed.flame, rect, oneWayField);
     oneWayField?.destroy();
     // The rule counts from where the light is, wherever a wall it stands in made the engine place it.
-    const texture = blocking.limited.length > 1 ? this.limited.apply(traced, rect, { x: light.x, y: light.y }, walls) : traced;
+    const texture = blocking.limited.length > 0 ? this.limited.apply(traced, rect, { x: light.x, y: light.y }, walls) : traced;
     return { x: placed.x, y: placed.y, flame: placed.flame, rect, texture };
   }
 

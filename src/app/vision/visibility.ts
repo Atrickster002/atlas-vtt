@@ -59,7 +59,20 @@ export function sweepVisibility(origin: Point, radius: number, walls: readonly W
   return sweep(origin, radius, walls, channel);
 }
 
-function sweep(origin: Point, radius: number, walls: readonly WallSegment[], channel?: WallChannel): Swept {
+/**
+ * What a light's tile keeps of itself where limited walls stand (`LimitedTileMask`): along
+ * every ray, as far as the first limited wall, or as far as `sweepVisibility` reaches where
+ * that is farther. Before the first limited wall the tile is what it is in any scene, with the
+ * soft shadows of its solid walls; behind one, a light is exactly the rule's reach, because a
+ * soft shadow there is made of rays from the flame's edge that crossed limited walls the ray
+ * from its middle did not, which nothing counts. A ray that meets no limited wall keeps the
+ * whole radius. `stops` names the limited walls an edge of the polygon lies on.
+ */
+export function sweepLightMask(origin: Point, radius: number, walls: readonly WallSegment[], channel?: WallChannel): Swept {
+  return sweep(origin, radius, walls, channel, true);
+}
+
+function sweep(origin: Point, radius: number, walls: readonly WallSegment[], channel?: WallChannel, mask = false): Swept {
   const blocking = wallsInReach(walls, origin, radius, channel);
   // Rays count limited walls only where there are any: every other scene is swept as it always was.
   const counting = blocking.some((wall) => wall.limited);
@@ -103,13 +116,29 @@ function sweep(origin: Point, radius: number, walls: readonly WallSegment[], cha
       if (angle >= span.from - SPAN_SLACK || angle <= span.to + SPAN_SLACK) meet(span.wall);
     }
     const second = counting ? secondCrossing(hits) : null;
-    const stopped = second !== null && second.t < reach;
-    if (stopped) reach = second.t;
-    stops.push(stopped ? second.walls : null);
+    let stop: readonly WallSegment[] | null = null;
+    if (second !== null && second.t < reach) {
+      reach = second.t;
+      stop = second.walls;
+    }
+    if (mask) {
+      const first = hits.reduce((nearest, hit) => (hit.t < nearest.t ? hit : nearest), FAR);
+      if (first.t >= radius) {
+        reach = radius;
+        stop = null;
+      } else if (first.t > reach) {
+        reach = first.t;
+        stop = hits.filter((hit) => hit.t === first.t).map((hit) => hit.wall);
+      }
+    }
+    stops.push(stop);
     return { x: origin.x + dx * reach, y: origin.y + dy * reach };
   });
   return { polygon, stops };
 }
+
+/** No limited wall on a ray. */
+const FAR = { t: Infinity };
 
 interface AngularSpan {
   wall: WallSegment;

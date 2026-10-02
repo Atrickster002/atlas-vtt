@@ -3,7 +3,7 @@ import { limitedMargin } from '../../../lighting/lightingConstants';
 import type { Rect } from '../../../lighting/segments';
 import type { Point } from '../../../types/visionTypes';
 import type { WallSegment } from '../../../types/wallTypes';
-import { sweepVisibility, wallsInReach, type Swept } from '../../../vision/visibility';
+import { sweepLightMask, wallsInReach, type Swept } from '../../../vision/visibility';
 import { ENGINE_SHADERS } from './engineShaders';
 import { createPlaceholder, createShader, createTarget, renderInto } from './gpu';
 
@@ -11,14 +11,17 @@ import { createPlaceholder, createShader, createTarget, renderInto } from './gpu
  * Takes out of a light's tile what limited walls stop. A sphere trace cannot count the walls it
  * crosses, so the tile is traced through solid walls only, and then:
  *
- * 1. Everything beyond the visibility polygon of the light's place over the limited walls alone
- *    (`sweepVisibility`, the sweep the rule's reach is made with) is written as 0: for every
- *    edge of the polygon, the strip between the two rays from that edge outward, which together
- *    are all that lies outside it, the polygon being star-shaped (`beyond`). Solid walls and
- *    limited ones stop a ray independently, at whichever comes first, so what is left of the
- *    tile is the rule's reach, with the soft shadows of solid walls as they were. Around every
- *    edge that lies on a limited wall that stopped the light, a box a capsule's width to every
- *    side is written as 0 too: the wall's capsule, as a tile is dark inside a solid wall's.
+ * 1. Everything beyond the polygon of `sweepLightMask` is written as 0: along every ray from
+ *    the light's place the tile is kept as far as the first limited wall, and behind that wall
+ *    only as far as the rule's own reach (`computeVisibility`: the first solid wall or the
+ *    second limited one). So before the first limited wall a light is what it is in any scene,
+ *    with the soft shadows of solid walls, and behind one it is the rule's reach and nothing
+ *    else: a soft shadow there would be light from the flame's edge that passed a solid wall's
+ *    end through limited walls the count from the flame's middle never met. For every edge of
+ *    the polygon the strip between the two rays from that edge outward is drawn, which together
+ *    are all that lies outside it, the polygon being star-shaped (`beyond`). Around every edge
+ *    that lies on a limited wall, a box a capsule's width to every side is written as 0 too:
+ *    the wall's capsule, as a tile is dark inside a solid wall's.
  * 2. Around every limited wall, as far, each texel takes the darkest of itself and what lies
  *    across the wall (`limitedFragment`): a ray that runs along a wall and stops elsewhere
  *    lights the floor beside it though the wall's other side is dark, and no edge of the
@@ -28,7 +31,7 @@ import { createPlaceholder, createShader, createTarget, renderInto } from './gpu
  * way the light came to it, and the composite gives the wall's near face the light of the
  * floor in front of it, as it does for every wall.
  *
- * A light that fewer than two limited walls can stop keeps its tile as it is.
+ * A light that no limited wall can stop keeps its tile as it is.
  */
 export class LimitedTileMask {
   private readonly world = new Float32Array(2);
@@ -54,10 +57,11 @@ export class LimitedTileMask {
   apply(tile: RenderTexture, rect: Rect, origin: Point, walls: readonly WallSegment[]): RenderTexture {
     // Far enough to hold the whole tile, whose light stands inside it.
     const radius = Math.hypot(rect[2], rect[3]) + 2;
-    const limited = wallsInReach(walls, origin, radius, 'light').filter((wall) => wall.limited);
-    if (limited.length < 2) return tile;
-    const swept = sweepVisibility(origin, radius, limited, 'light');
-    if (!swept.stops.some((stop) => stop !== null)) return tile;
+    const inReach = wallsInReach(walls, origin, radius, 'light');
+    const limited = inReach.filter((wall) => wall.limited);
+    if (limited.length === 0) return tile;
+    const swept = sweepLightMask(origin, radius, inReach, 'light');
+    if (!swept.polygon.some((corner) => Math.hypot(corner.x - origin.x, corner.y - origin.y) < radius - 1)) return tile;
     const corner = { x: rect[0], y: rect[1] };
     const { pixelWidth, pixelHeight } = tile.source;
     this.world.set([pixelWidth * this.texel, pixelHeight * this.texel]);
