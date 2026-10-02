@@ -194,6 +194,26 @@ $gap: $spacing-s;
   gap: $gap;
 }
 
+// A light zone's popover: its name is text, not a number, and the four times of day share the
+// popover's width by what each needs, with the track and its options concentric in the popover.
+.atlas-light-popover--zone {
+  .atlas-light-popover__range > input {
+    padding: 0 $spacing-s;
+    text-align: start;
+  }
+
+  .atlas-segmented {
+    @include atlas-panel-inset-radius($gap);
+  }
+
+  .atlas-segmented__option {
+    flex: 1 1 auto;
+    padding-inline: $spacing-xs;
+    white-space: nowrap;
+    @include atlas-panel-inset-radius($gap + $spacing-xs);
+  }
+}
+
 // A light zone's ambient light: the slider with the colour of the light beside it.
 .atlas-light-popover__ambient {
   @include atlas-flex-row($gap);

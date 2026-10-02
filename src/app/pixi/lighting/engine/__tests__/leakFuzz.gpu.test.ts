@@ -10,6 +10,7 @@ import { DARKNESS, LIGHT_REACH, sealTolerance, wallBand, wallCore, worldTexel } 
 import { perceivedLevel } from '../../../../gameSystems/senseRules';
 import { lightLevelAt } from '../../../../vision/lightLevels';
 import { SEES_ALL, computeSight, lightReach } from '../../../../vision/sight';
+import { distSqToSegment } from '../../../../vision/visionGeometry';
 import type { MapBounds } from '../../../../vision/visibility';
 import { createTestRenderer } from './gpuTestUtils';
 import { distToOutline, fuzzRooms, insidePolygon, rng, roomOutline, type P } from './fuzzRooms';
@@ -120,7 +121,8 @@ async function fuzz({ seed, trials, gap = false, bounds = { width: 2048, height:
       let zoned: Uint8ClampedArray | null = null;
       let daylight: Uint8ClampedArray | null = null;
       const shrink = 0.8 + rand() * 0.195;
-      const zone: EngineZone | null = darkness ? null : { polygon: room.outline.map(([px, py]) => ({ x: room.centre[0] + (px - room.centre[0]) * shrink, y: room.centre[1] + (py - room.centre[1]) * shrink })), ambient: 1, soft: ZONE_SOFT };
+      // Drawn towards the centre the outline is star-shaped around, which three corners need not surround.
+      const zone: EngineZone | null = darkness || !insidePolygon(room.centre, room.outline) ? null : { polygon: room.outline.map(([px, py]) => ({ x: room.centre[0] + (px - room.centre[0]) * shrink, y: room.centre[1] + (py - room.centre[1]) * shrink })), ambient: 1, soft: ZONE_SOFT };
       if (zone) {
         report.zoneRooms++;
         for (const lit of [false, true]) {
@@ -178,11 +180,14 @@ async function fuzz({ seed, trials, gap = false, bounds = { width: 2048, height:
             // A zone ends at walls; a wall's own core may take of it, as of darkness.
             if (!inside && d > core && lit > 0) report.zoneLeaks++;
             const fromEdge = distToOutline(p, zoneOutline);
-            if (insidePolygon(p, zoneOutline) && fromEdge > core) {
+            // A wall's face takes the ambient light of the floor in front of it, a band away, and farther
+            // out of the corner between two walls: that close to the zone's outline a face may differ from the rule.
+            const face = wallBand(texel) + 1.5 / scale;
+            const onFace = fromEdge <= 3 * face && walls.some((wall) => distSqToSegment({ x: p[0], y: p[1] }, wall.p1, wall.p2) < face * face);
+            if (insidePolygon(p, zoneOutline) && fromEdge > core && !onFace) {
               report.zoneInside++;
               if (Math.abs(lit - daylight[o]! - daylight[o + 1]! - daylight[o + 2]!) > 6) report.zoneWrong++;
-            // A wall's face takes the ambient light of the floor in front of it, a band away.
-            } else if (inside && fromEdge > ZONE_SOFT + wallBand(texel) + 1.5 / scale) {
+            } else if (inside && fromEdge > ZONE_SOFT + face) {
               report.zoneOutside++;
               if (lit > 0) report.zoneStray++;
             }

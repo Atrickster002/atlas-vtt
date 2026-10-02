@@ -176,7 +176,7 @@ export async function createThumbnailScene(lighting: SceneLighting, antialias: b
 }
 
 export function overlayLayers({ pins, hexLinks, gmOverlays }: ThumbnailScene['overlays']): Container[] {
-  return [pins, hexLinks, gmOverlays.wallEditor, gmOverlays.doorBadges, gmOverlays.lightMarkers, gmOverlays.rangeRings, gmOverlays.sightAids] as Container[];
+  return [pins, hexLinks, ...Object.values(gmOverlays)] as Container[];
 }
 
 /** A JPEG or PNG data URL as pixels. */
