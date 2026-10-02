@@ -34,7 +34,7 @@ export interface UvttPoint {
   y: number;
 }
 
-/** A door or window: `bounds` are its two ends. */
+/** A door (closed) or a window (not closed): `bounds` are its two ends. */
 export interface UvttPortal {
   bounds: [UvttPoint, UvttPoint];
   closed: boolean;

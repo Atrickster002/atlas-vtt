@@ -27,6 +27,8 @@ export interface UvttSkipped {
   outside: number;
   /** Lights without a range, which light nothing. */
   unlit: number;
+  /** Portals that are not closed: Dungeondraft's windows, which stop movement and neither light nor sight. */
+  windows: number;
 }
 
 /** What a file gives a scene, in Atlas' own terms: world pixels for positions, game units for light. */
@@ -64,7 +66,8 @@ function emissionOf(light: UvttLight, { unit, cellSize }: UvttTarget): LightEmis
  * The walls, doors, lights and lighting of a file as a scene holds them. A position `p` of the
  * file lies at `(p - origin) * cellSize` world pixels, with the image's top-left corner at 0, so
  * the file's grid is the scene's. Each wall line becomes one segment per pair of points, which
- * keep the exact coordinates they share; a door spans its two ends. A light ends at its range,
+ * keep the exact coordinates they share. A closed portal becomes a closed door between its two
+ * ends; an open one is a window in Dungeondraft and nothing in Atlas. A light ends at its range,
  * is bright to half of that, and is switched off where the image shows its glow already; one
  * without a range is left out.
  *
@@ -78,7 +81,7 @@ export function uvttToScene(map: UvttMap, target: UvttTarget): UvttScene {
   const toWorld = (cell: UvttPoint): UvttPoint => ({ x: cell.x * cellSize, y: cell.y * cellSize });
   const walls: Record<string, WallSegment> = {};
   const counts: UvttCounts = { walls: 0, doors: 0, lights: 0 };
-  const skipped: UvttSkipped = { outside: 0, unlit: 0 };
+  const skipped: UvttSkipped = { outside: 0, unlit: 0, windows: 0 };
   let onImage = 0;
   let segments = 0;
 
@@ -108,7 +111,8 @@ export function uvttToScene(map: UvttMap, target: UvttTarget): UvttScene {
       continue;
     }
     onImage++;
-    if (addWall(from, to, { type: 'door', closed: portal.closed })) counts.doors++;
+    if (!portal.closed) skipped.windows++;
+    else if (addWall(from, to, { type: 'door', closed: true })) counts.doors++;
   }
 
   const lights: Record<string, LightSource> = {};

@@ -80,18 +80,33 @@ describe('the walls of a Universal VTT file', () => {
 });
 
 describe('the doors of a Universal VTT file', () => {
-  it('span the two ends of each portal and are closed or open as the file says', () => {
+  it('span the two ends of each closed portal', () => {
     const scene = sceneOf(cryptWith((crypt) => {
       crypt.portals = [
         { bounds: [{ x: 4.5, y: 3.25 }, { x: 4.5, y: 4.25 }], closed: true },
-        { bounds: [{ x: 2, y: 7 }, { x: 3, y: 7 }], closed: false, freestanding: true },
+        { bounds: [{ x: 2, y: 7 }, { x: 3, y: 7 }], freestanding: true },
       ];
     }));
     const doors = wallsOf(scene).filter((wall) => wall.type === 'door');
 
     expect(doors.map(ends)).toEqual([[450, 325, 450, 425], [200, 700, 300, 700]]);
-    expect(doors.map((door) => door.closed)).toEqual([true, false]);
+    expect(doors.map((door) => door.closed)).toEqual([true, true]);
     expect(scene.counts).toEqual({ walls: 10, doors: 2, lights: 1 });
+  });
+
+  it('leave out the open portals, which are windows: light and sight pass them', () => {
+    const scene = sceneOf(cryptWith((crypt) => {
+      crypt.portals = [
+        { bounds: [{ x: 4.5, y: 3.25 }, { x: 4.5, y: 4.25 }], closed: true },
+        { bounds: [{ x: 2, y: 7 }, { x: 3, y: 7 }], closed: false },
+        { bounds: [{ x: 9, y: 2 }, { x: 9, y: 3 }], closed: false },
+        { bounds: [{ x: 400, y: 2 }, { x: 400, y: 3 }], closed: false },
+      ];
+    }));
+
+    expect(wallsOf(scene).filter((wall) => wall.type === 'door').map(ends)).toEqual([[450, 325, 450, 425]]);
+    expect(scene.counts.doors).toBe(1);
+    expect(scene.skipped).toMatchObject({ windows: 2, outside: 1 });
   });
 });
 
