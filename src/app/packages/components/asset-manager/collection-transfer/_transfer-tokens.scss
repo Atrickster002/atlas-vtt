@@ -77,7 +77,7 @@ $portrait-size: 64px;
     background: var(--background-secondary);
   }
 
-  // Marks tokens whose statblock opens on hover.
+  // Marks tokens whose statblock opens with Mod held.
   &__statblock {
     position: absolute;
     right: -$spacing-xs;

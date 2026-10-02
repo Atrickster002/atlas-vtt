@@ -2,18 +2,20 @@ import React from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { App as ObsidianApp } from 'obsidian';
 import FantasyStatblock from '../react/components/FantasyStatblock';
-import { toTokenVitals } from './statblockVitalsSync';
-import type { NotePreviewUIManager, TokenPreviewAnchor } from './NotePreviewUIManager';
+import { toTokenVitals, type TokenVitals } from './statblockVitalsSync';
+import type { NotePreviewUIManager, PreviewAnchorRef, TokenPreviewAnchor } from './NotePreviewUIManager';
 import './statblock-preview-window.scss';
 
 /**
- * Floating CMD+hover preview window for token statblocks.
+ * Floating CMD+hover preview window for token statblocks: of a token placed on
+ * a map, which its map's preview manager tracks, or of a token in a list (the
+ * library, a collection being exported or imported).
  */
 export class StatblockPreviewWindow {
   public notePath: string;
   public element: HTMLElement | null = null;
-  public originatingPin: TokenPreviewAnchor;
-  private manager: NotePreviewUIManager;
+  public originatingPin: PreviewAnchorRef | null;
+  private manager: NotePreviewUIManager | null;
   private initialPos?: { x: number; y: number } | undefined;
   private reactRoot: Root | null = null;
   private resizeObserver: ResizeObserver | null = null;
@@ -22,12 +24,14 @@ export class StatblockPreviewWindow {
   constructor(
     private app: ObsidianApp,
     notePath: string,
-    originatingToken: TokenPreviewAnchor,
-    manager: NotePreviewUIManager,
+    originatingToken: TokenPreviewAnchor | TokenVitals,
+    manager: NotePreviewUIManager | null,
     initialPos?: { x: number; y: number },
+    /** The note's text when it is not in the vault, e.g. inside a collection being imported. */
+    noteContent?: string,
   ) {
     this.notePath = notePath;
-    this.originatingPin = originatingToken;
+    this.originatingPin = 'type' in originatingToken ? originatingToken : null;
     this.manager = manager;
     this.initialPos = initialPos;
 
@@ -38,12 +42,13 @@ export class StatblockPreviewWindow {
       this.setPosition(initialPos.x, initialPos.y);
     }
 
-    // The pin carries the hovered token's vitals; the statblock mirrors them.
+    // The hovered token's vitals; the statblock mirrors them.
     const vitals = [toTokenVitals(originatingToken)];
     this.reactRoot = createRoot(this.element);
     this.reactRoot.render(
       React.createElement(FantasyStatblock, {
         notePath,
+        noteContent,
         app: this.app,
         tokens: vitals,
       }),
@@ -137,7 +142,7 @@ export class StatblockPreviewWindow {
       this.element = null;
     }
 
-    this.manager.handlePreviewClosed(this);
+    this.manager?.handlePreviewClosed(this);
   }
 
   getIsPinned(): boolean {

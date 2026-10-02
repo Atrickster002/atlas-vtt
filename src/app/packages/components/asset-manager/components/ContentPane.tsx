@@ -15,6 +15,7 @@ import { useAssetCardHandlers, type DraggedItems } from '../hooks/useAssetCardHa
 import type { AssetService } from '../../../../services/AssetService';
 import type { AtlasView } from '../../../../atlas-view';
 import { useSpawnCountTyping } from '../hooks/useSpawnCountTyping';
+import { useAssetStatblockPreview } from '../hooks/useAssetStatblockPreview';
 import { useRememberedScroll, type ScrollMemory } from '../hooks/useRememberedScroll';
 import { useScrollbarGutter } from '../../primitives/useScrollbarGutter';
 import { Button } from '../../primitives/button';
@@ -104,6 +105,10 @@ export function ContentPane(props: ContentPaneProps): React.JSX.Element {
     onSpawnCountChange: props.onSpawnCountChange,
   });
   useSpawnCountTyping(scrollElement, props.onSpawnCountChange);
+  useAssetStatblockPreview({
+    app: props.app, container: scrollElement, assets,
+    suspended: selectedAssetIds.length > 0 || draggedItems !== null,
+  });
   useScrollbarGutter(scrollElement);
   useRememberedScroll(scrollElement, props.scrollKey, props.scrollMemory);
 
