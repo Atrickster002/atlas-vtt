@@ -48,6 +48,9 @@ interface Report {
   /** The same of the memory saved into the map file and drawn back from it. */
   restored: number;
   restoredLeaks: number;
+  /** And of a mask as older versions saved it, at half the memory's size. */
+  older: number;
+  olderLeaks: number;
 }
 
 interface FuzzOptions {
@@ -57,6 +60,16 @@ interface FuzzOptions {
   gap?: number;
   bounds?: MapBounds;
   resolution?: number;
+}
+
+/** The memory as older versions saved it: at 1,024 px on its longer side at most. */
+function halved(source: HTMLCanvasElement): string {
+  const scale = Math.min(1, 1024 / Math.max(source.width, source.height));
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.max(1, Math.round(source.width * scale));
+  canvas.height = Math.max(1, Math.round(source.height * scale));
+  canvas.getContext('2d')!.drawImage(source, 0, 0, canvas.width, canvas.height);
+  return canvas.toDataURL('image/png');
 }
 
 /** A point outside the room, 60 px or more from its walls, for a token that looks at the room from the dark. */
@@ -86,8 +99,9 @@ function outsideOf(room: FuzzRoom, outline: readonly P[], bounds: MapBounds, ran
  * stamped into an `ExploredTexture`): with no one looking, the memory shows inside the room and
  * never past its walls. A memory texel on the centre line shows half on either side, so the
  * bound is one and a half memory texels, and on a large map, where that is more than a wall is
- * thick, the wall's core. The memory is then saved as the map file keeps it, at half its size,
- * and drawn back as a reopened scene draws it: the same bound holds.
+ * thick, the wall's core. The memory is then saved as the map file keeps it and drawn back as a
+ * reopened scene draws it, which changes nothing, and once more from a mask of half its size, as
+ * older versions saved it: the same bound holds.
  */
 async function fuzz({ seed, trials, gap = 0, bounds = { width: 2048, height: 2048 }, resolution = 1 }: FuzzOptions): Promise<Report> {
   vi.stubGlobal('createEl', (tag: string, options?: { attr?: Record<string, string> }): HTMLElement => {
@@ -106,7 +120,7 @@ async function fuzz({ seed, trials, gap = 0, bounds = { width: 2048, height: 204
     engine.setEnabled(true);
     engine.setMode('player');
     const rand = rng(seed + 5);
-    const report: Report = { rooms: 0, within: 0, room: 0, across: 0, leaks: 0, inside: 0, wrong: 0, outside: 0, stray: 0, watched: 0, atWalls: 0, seenLit: 0, remembered: 0, memoryLeaks: 0, restored: 0, restoredLeaks: 0 };
+    const report: Report = { rooms: 0, within: 0, room: 0, across: 0, leaks: 0, inside: 0, wrong: 0, outside: 0, stray: 0, watched: 0, atWalls: 0, seenLit: 0, remembered: 0, memoryLeaks: 0, restored: 0, restoredLeaks: 0, older: 0, olderLeaks: 0 };
     for (const room of fuzzRooms(seed, trials, gap || false)) {
       const texel = worldTexel(bounds);
       const walls = sealWalls(room.walls, sealTolerance(texel));
@@ -144,9 +158,12 @@ async function fuzz({ seed, trials, gap = 0, bounds = { width: 2048, height: 204
       if (recorded) memory.add(recorded);
       engine.setExplored(memory.texture);
       const remembered = shoot({ ambient: 0, zones: [], sight: NO_SIGHT });
-      // The same memory as the map file keeps it, at half the size, and a reopened scene draws it.
+      // The same memory as the map file keeps it and a reopened scene draws it.
       await memory.load(saveExploredMask(memory.toCanvas()));
       const restored = shoot({ ambient: 0, zones: [], sight: NO_SIGHT });
+      // And as a file of an older version keeps it: at half the size.
+      await memory.load(halved(memory.toCanvas()));
+      const older = shoot({ ambient: 0, zones: [], sight: NO_SIGHT });
 
       const filter = 1.5 / scale + 0.01;
       // A wall takes the ambient light of the floor beside it, a band away and farther out of a corner between two walls.
@@ -171,6 +188,9 @@ async function fuzz({ seed, trials, gap = 0, bounds = { width: 2048, height: 204
           const reshown = restored[o]! + restored[o + 1]! + restored[o + 2]!;
           if (inside && reshown > 0) report.restored++;
           if (!inside && d > Math.min(1.5 * memoryTexel, wallCore(texel)) + filter && reshown > 0) report.restoredLeaks++;
+          const old = older[o]! + older[o + 1]! + older[o + 2]!;
+          if (inside && old > 0) report.older++;
+          if (!inside && d > Math.min(1.5 * memoryTexel, wallCore(texel)) + filter && old > 0) report.olderLeaks++;
           // Every third pixel: the walls are asked for each.
           if (sx % 3 !== 0 || sy % 3 !== 0) continue;
           const fromEdge = distToOutline(p, zoneOutline);
@@ -197,7 +217,7 @@ async function fuzz({ seed, trials, gap = 0, bounds = { width: 2048, height: 204
 }
 
 /** What every run of closed rooms holds. */
-const CLEAN = { leaks: 0, wrong: 0, stray: 0, seenLit: 0, memoryLeaks: 0, restoredLeaks: 0 };
+const CLEAN = { leaks: 0, wrong: 0, stray: 0, seenLit: 0, memoryLeaks: 0, restoredLeaks: 0, olderLeaks: 0 };
 
 describe('leak fuzz: ambient zones and explored memory', () => {
   it('lets no zone light and no memory past the walls of closed rooms, and shows a zone where the rule counts it', { timeout: 3_600_000 }, async () => {
@@ -210,8 +230,9 @@ describe('leak fuzz: ambient zones and explored memory', () => {
     expect(report.watched).toBeGreaterThan(TRIALS / 4);
     expect(report.atWalls).toBeGreaterThan(TRIALS * 20);
     expect(report.remembered).toBeGreaterThan(TRIALS * 100);
-    // Sharpening the saved memory's edges costs it next to nothing of what it held.
-    expect(report.restored).toBeGreaterThan(report.remembered * 0.98);
+    // What is restored is what was saved; an older, smaller mask loses next to nothing to the sharpening of its edges.
+    expect(report.restored).toBe(report.remembered);
+    expect(report.older).toBeGreaterThan(report.remembered * 0.98);
     expect(report).toMatchObject(CLEAN);
   });
 
@@ -221,7 +242,8 @@ describe('leak fuzz: ambient zones and explored memory', () => {
     console.info(`leak fuzz (zones, memory, ${side} px map): ${JSON.stringify({ trials: SIDE_TRIALS, ...report })}`);
     expect(report.inside).toBeGreaterThan(SIDE_TRIALS * 80);
     expect(report.remembered).toBeGreaterThan(SIDE_TRIALS * 80);
-    expect(report.restored).toBeGreaterThan(report.remembered * 0.98);
+    expect(report.restored).toBe(report.remembered);
+    expect(report.older).toBeGreaterThan(report.remembered * 0.98);
     expect(report).toMatchObject(CLEAN);
   });
 
@@ -239,5 +261,6 @@ describe('leak fuzz: ambient zones and explored memory', () => {
     expect(report.seenLit).toBeGreaterThan(100);
     expect(report.memoryLeaks).toBeGreaterThan(100);
     expect(report.restoredLeaks).toBeGreaterThan(100);
+    expect(report.olderLeaks).toBeGreaterThan(100);
   });
 });
