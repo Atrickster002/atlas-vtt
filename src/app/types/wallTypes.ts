@@ -18,6 +18,12 @@ export interface WallSegment {
    * stops light and lets sight through. Unset, it stops both. A door keeps its kind.
    */
   blocks?: WallChannel | undefined;
+  /**
+   * A hedge, a low wall, a fence: sight and light pass the first limited wall on their way and
+   * stop at the second, so what stands at it or right behind it is seen, and nothing through
+   * two. A solid wall stops them as ever. With `blocks`, it is limited for that thing alone.
+   */
+  limited?: boolean | undefined;
   chainId?: string;               // Groups segments from same draw action
 }
 

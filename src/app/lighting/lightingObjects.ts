@@ -75,8 +75,8 @@ const NO_LIGHTS: readonly LightSource[] = [];
 
 /**
  * A wall: none without two ends that are numbers; a door is locked only where its `locked` is
- * `true`, and a wall blocks one thing only where `blocks` names sight or light (anything else
- * reads as a wall for both).
+ * `true`, a wall blocks one thing only where `blocks` names sight or light (anything else
+ * reads as a wall for both), and it is limited only where `limited` is `true`.
  */
 export function readWall(value: unknown): WallSegment | null {
   if (!isRecord(value)) return null;
@@ -87,8 +87,8 @@ export function readWall(value: unknown): WallSegment | null {
 function wallOf(value: Record<string, unknown>): WallSegment | null {
   const isEnd = (end: unknown): boolean => isRecord(end) && finite(end.x) && finite(end.y);
   if (typeof value.id !== 'string' || !isEnd(value.p1) || !isEnd(value.p2)) return null;
-  const { locked, blocks, ...rest } = value;
-  const sound = (locked === undefined || locked === true) && (blocks === undefined || blocks === 'sight' || blocks === 'light');
-  if (sound) return value as unknown as WallSegment;
-  return { ...rest, ...(locked === true && { locked }), ...((blocks === 'sight' || blocks === 'light') && { blocks }) } as unknown as WallSegment;
+  const { locked, blocks, limited, ...rest } = value;
+  const flag = (it: unknown): boolean => it === undefined || it === true;
+  if (flag(locked) && flag(limited) && (blocks === undefined || blocks === 'sight' || blocks === 'light')) return value as unknown as WallSegment;
+  return { ...rest, ...(locked === true && { locked }), ...(limited === true && { limited }), ...((blocks === 'sight' || blocks === 'light') && { blocks }) } as unknown as WallSegment;
 }
