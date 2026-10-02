@@ -47,7 +47,6 @@ import type { HexLinkPointerHandlers } from './hexLinks/HexLinkInteraction';
 import type { LightPointerHandlers } from './lighting/LightInteraction';
 import { runInBackground } from '../utils/backgroundTask';
 import { isModHeld } from '../keyboard/modKey';
-import type { ResourcesExtent } from './TokenUIRenderer';
 
 /** What the lighting controller answers about a right-click on a door's badge. */
 export interface DoorMenuHandlers {
@@ -1460,8 +1459,8 @@ export class TokenRenderer {
   }
 
   /** How far a selected token's resources reach beyond its bottom, right and top edges, in world units. */
-  public resourcesExtent(tokenId: string): Readonly<ResourcesExtent> {
-    return this.uiManager.resourcesExtent(tokenId);
+  public barsReach(tokenId: string): number {
+    return this.uiManager.barsReach(tokenId);
   }
 
   /** Tokens and their bars and nameplates as the GM view shows them, whatever view the canvas is in: for a picture of the scene. */

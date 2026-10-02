@@ -45,7 +45,6 @@ import { mapMeasurementSettings } from './services/mapMeasurementSettings';
 import { findAtlasLeafByViewId } from './utils/atlasLeafLookup';
 import { destroyTree } from './pixi/utils/destroyTree';
 import { requestRender } from './pixi/RenderScheduler';
-import { NO_RESOURCES_EXTENT } from './pixi/TokenUIRenderer';
 
 export class PixiRendererOrchestrator { // Renamed class
   private _isDestroyed: boolean = false;
@@ -360,7 +359,7 @@ export class PixiRendererOrchestrator { // Renamed class
         this.store,
         this.eventBus
     );
-    this.selectionManager.resourcesExtentProvider = (tokenId) => this.tokenRenderer?.resourcesExtent(tokenId) ?? NO_RESOURCES_EXTENT;
+    this.selectionManager.barsReachProvider = (tokenId) => this.tokenRenderer?.barsReach(tokenId) ?? 0;
 
     // Initialize FogOfWarRenderer after pins so it can be on top when active
     this.fogRenderer = new FogOfWarRenderer(viewport, this.app, this.eventBus, this.store);

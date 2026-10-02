@@ -12,6 +12,8 @@ export const HP: ResourceDefinition = { ...HP_RESOURCE };
 export const STRESS: ResourceDefinition = { ...STRESS_RESOURCE };
 export const STR: ResourceDefinition = { ...HP_RESOURCE, key: 'str', name: 'STR', field: 'stats.0', color: '#dc2626', defeatedWhenSpent: false };
 export const AMMO: ResourceDefinition = { ...HP_RESOURCE, key: 'ammo', name: 'Ammo', field: 'ammo', color: '#f59e0b', defeatedWhenSpent: false };
+/** A value that never changes in play, such as an armour class. */
+export const ARMOR: ResourceDefinition = { ...HP_RESOURCE, key: 'armor', name: 'Armor', field: 'ac', direction: 'static', color: '#94a3b8', defeatedWhenSpent: false };
 
 /** Where the token UI draws `resources`: bars stacked from 2 units below the token, wheels in their own places. */
 export function resourceSlots(resources: readonly VisibleResource[]): ResourceSlot[] {

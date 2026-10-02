@@ -127,10 +127,10 @@ function EditTokenModalInner({ initial, definitions, resourceDefaults, lighting,
             <>
               <div className="atlas-edit-token__section-divider" />
               <div className="atlas-edit-token__section-label">Resources</div>
-              {definitions.map(({ key, name: resourceName }) => (
+              {definitions.map(({ key, name: resourceName, direction }) => (
                 <NumberOverrideField
                   key={key}
-                  label={`Max ${resourceName}`}
+                  label={direction === 'static' ? resourceName : `Max ${resourceName}`}
                   value={maxInputs[key] ?? ''}
                   onChange={(value) => setMaxInputs((current) => ({ ...current, [key]: value }))}
                   placeholder={defaultPlaceholder(resourceDefaults[key]?.max)}

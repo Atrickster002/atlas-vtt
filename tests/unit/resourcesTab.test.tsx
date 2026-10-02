@@ -3,7 +3,9 @@ import React, { useState } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ResourcesTab } from '../../src/app/react/components/collection-settings/ResourcesTab';
 import { HP_RESOURCE, isDraftResourceKey } from '../../src/app/resources/resourceDefinitions';
+import { RESOURCE_COLORS } from '../../src/app/resources/resourceColors';
 import { slottedResources } from '../../src/app/resources/resourceSlots';
+import { STARTER_TOKENS } from '../../src/app/services/starterTokens';
 import type { ResourceDefinition } from '../../src/app/resources/resourceTypes';
 
 const STR: ResourceDefinition = { ...HP_RESOURCE, key: 'str', name: 'STR', field: 'stats.0', color: '#dc2626', defeatedWhenSpent: false };
@@ -25,6 +27,15 @@ const last = (onChange: ReturnType<typeof vi.fn>): ResourceDefinition[] => onCha
 afterEach(cleanup);
 
 describe('ResourcesTab', () => {
+  it('shows the sockets around a real token: the fighter\'s art in Atlas\' own ring', () => {
+    render(<Editor initial={[{ ...HP_RESOURCE }]} />);
+    const rig = screen.getByRole('group', { name: 'Resource sockets' });
+    expect(rig.querySelector('.atlas-token-portrait .atlas-token-ring')).not.toBeNull();
+    expect(rig.querySelector<HTMLImageElement>('.atlas-token-portrait img')!.src).toBe(STARTER_TOKENS.find(({ name }) => name === 'Fighter')!.image);
+    // The picture is decoration: it has no name of its own and is not announced
+    expect(rig.querySelector('.atlas-csm-token-art')!.getAttribute('aria-hidden')).toBe('true');
+  });
+
   it('shows a token with six sockets, the filled ones named and none of them numbered', () => {
     render(<Editor initial={[{ ...HP_RESOURCE }, STR]} />);
     expect(sockets()).toHaveLength(6);
@@ -60,8 +71,10 @@ describe('ResourcesTab', () => {
     expect(last(onChange).find((r) => r.key === 'str')!.visibleToPlayers).toBe(true);
     fireEvent.click(screen.getByRole('button', { name: 'Does not defeat the token' }));
     expect(last(onChange).find((r) => r.key === 'str')!.defeatedWhenSpent).toBe(true);
-    fireEvent.change(screen.getByLabelText('Colour'), { target: { value: '#112233' } });
-    expect(last(onChange).find((r) => r.key === 'str')!.color).toBe('#112233');
+    // The colour is one of the curated ones, picked in the card; no free colour picker
+    fireEvent.click(screen.getByRole('button', { name: 'Teal' }));
+    expect(last(onChange).find((r) => r.key === 'str')!.color).toBe('#14b8a6');
+    expect(document.querySelector('input[type="color"]')).toBeNull();
     // HP was never touched
     expect(last(onChange).find((r) => r.key === 'hp')).toEqual({ ...HP_RESOURCE, slot: 0 });
 
@@ -135,5 +148,33 @@ describe('ResourcesTab', () => {
     expect(places(last(onChange))).toEqual([['STR', 0], ['HP', 4]]);
     // A drag selects nothing
     expect(screen.queryByRole('button', { name: 'Remove' })).toBeNull();
+  });
+
+  it('cycles how a resource counts through drains, fills and static, and a static one cannot defeat', () => {
+    const onChange = vi.fn();
+    render(<Editor initial={[{ ...HP_RESOURCE }]} onChange={onChange} />);
+    fireEvent.click(socket('HP: bar below the token'));
+    fireEvent.click(screen.getByRole('button', { name: /^Drains/ }));
+    expect(last(onChange)[0]!.direction).toBe('fills');
+    fireEvent.click(screen.getByRole('button', { name: /^Fills/ }));
+    expect(last(onChange)[0]).toMatchObject({ direction: 'static' });
+    // HP defeated its token; a static value never does
+    expect(last(onChange)[0]).not.toHaveProperty('defeatedWhenSpent', true);
+    expect((screen.getByRole('button', { name: 'A static value never defeats the token' }) as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(screen.getByRole('button', { name: /^Static/ }));
+    expect(last(onChange)[0]!.direction).toBe('drains');
+  });
+
+  it('shows which of the curated colours a resource has, and gives a new resource one that is still free', () => {
+    const onChange = vi.fn();
+    render(<Editor initial={[{ ...HP_RESOURCE }]} onChange={onChange} />);
+    fireEvent.click(socket('HP: bar below the token'));
+    const swatches = within(screen.getByRole('group', { name: 'Colour' })).getAllByRole('button');
+    expect(swatches).toHaveLength(20);
+    expect(swatches.filter((swatch) => swatch.getAttribute('aria-pressed') === 'true').map((swatch) => swatch.getAttribute('aria-label'))).toEqual(['Green']);
+    fireEvent.click(within(screen.getByRole('group', { name: 'Resource sockets' })).getAllByRole('button', { name: 'Empty socket: wheel on the right' })[0]!);
+    const added = last(onChange).find((resource) => resource.key !== 'hp')!;
+    expect(added.color).not.toBe(HP_RESOURCE.color);
+    expect(RESOURCE_COLORS.map(({ value }) => value)).toContain(added.color);
   });
 });

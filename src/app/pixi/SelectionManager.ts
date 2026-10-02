@@ -7,13 +7,12 @@ import type { ViewAtlasState, ViewAtlasStore } from '../storeFactory';
 import { EventEmitter } from 'events';
 import { getDrawingBounds, type DrawingBounds } from './drawingGeometry';
 import type { LayerVisibility } from './playerSafeFrame';
-import { NO_RESOURCES_EXTENT, type ResourcesExtent } from './TokenUIRenderer';
 
 export class SelectionManager {
   private viewport: Viewport;
   private tokenRendererProvider: () => ({ [id: string]: Container });
-  /** How far a selected token's bars and wheels reach beyond its edges, in world units. */
-  public resourcesExtentProvider: (tokenId: string) => Readonly<ResourcesExtent> = () => NO_RESOURCES_EXTENT;
+  /** How far a selected token's bars reach below it, in world units; the frame encloses them. */
+  public barsReachProvider: (tokenId: string) => number = () => 0;
   private fogSpriteProvider: () => ({ [id: string]: Container });
   private hitTestTokensProvider?: (worldX: number, worldY: number) => string | null;
 
@@ -387,12 +386,11 @@ export class SelectionManager {
           // we use the tokenGroup's position and the sprite's dimensions
           const halfWidth = sprite.width / 2;
           const halfHeight = sprite.height / 2;
-          // The selection reaches around the resources drawn below and beside the token
-          const extent = this.resourcesExtentProvider(id);
-          const spriteLeft = tokenGroup.position.x - halfWidth - extent.left;
-          const spriteTop = tokenGroup.position.y - halfHeight - extent.above;
-          const spriteRight = tokenGroup.position.x + halfWidth + extent.right;
-          const spriteBottom = tokenGroup.position.y + halfHeight + extent.below;
+          const spriteLeft = tokenGroup.position.x - halfWidth;
+          const spriteTop = tokenGroup.position.y - halfHeight;
+          const spriteRight = tokenGroup.position.x + halfWidth;
+          // The selection reaches around the bars below the token; its wheels stand outside
+          const spriteBottom = tokenGroup.position.y + halfHeight + this.barsReachProvider(id);
           
           minX = Math.min(minX, spriteLeft);
           minY = Math.min(minY, spriteTop);

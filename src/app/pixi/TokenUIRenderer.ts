@@ -33,17 +33,6 @@ function textResolutionFor(uiScale: number): number {
   return Math.min(TEXT_RESOLUTION * Math.max(1, uiScale), MAX_TEXT_RESOLUTION);
 }
 
-/** How far a selected token's resources reach beyond its edges, in world units. */
-export interface ResourcesExtent {
-  below: number;
-  right: number;
-  left: number;
-  above: number;
-}
-
-/** The extent of a token that shows no resources. */
-export const NO_RESOURCES_EXTENT: Readonly<ResourcesExtent> = { below: 0, right: 0, left: 0, above: 0 };
-
 export class TokenUIRenderer {
   private container: Container;
   /** `update` found a bar, nameplate or condition to show. */
@@ -463,23 +452,14 @@ export class TokenUIRenderer {
   }
 
   /**
-   * How far the resources of this token, selected, reach beyond its bottom, right, left and
-   * top edges, in world units. Taken at the selected size itself, not at the size the UI is
-   * still growing from, so the selection frame drawn when the selection changes fits.
+   * How far this token's bars reach below it while it is selected, in world units; the
+   * selection frame encloses them. The wheels stand outside the frame. Taken at the selected
+   * size itself, not at the size the UI is still growing from, so the frame drawn when the
+   * selection changes fits.
    */
-  public getResourcesExtent(): ResourcesExtent {
-    const scale = this.selectedScale();
+  public getBarsReach(): number {
     const bars = this.resources.view.visible ? this.resources.layout() : [];
-    const wheels = this.besideToken.visible ? this.wheels.extent() : { right: 0, left: 0, up: 0 };
-    const anchor = this.wheelAnchor();
-    // Both anchors lie as far from the token's edge; a side without wheels reaches nowhere
-    const beyondEdge = (reach: number): number => (reach > 0 ? anchor.x - this.currentTokenSize / 2 + reach * scale : 0);
-    return {
-      below: Math.max(0, ...bars.map((slot) => slot.top + slot.height)) * scale,
-      right: beyondEdge(wheels.right),
-      left: beyondEdge(wheels.left),
-      above: Math.max(0, wheels.up * scale - this.currentTokenSize),
-    };
+    return Math.max(0, ...bars.map((slot) => slot.top + slot.height)) * this.selectedScale();
   }
 
   private canAnimateValues(): boolean {

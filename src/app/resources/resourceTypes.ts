@@ -3,8 +3,11 @@
  * collection. A token stores one value per definition key.
  */
 
-/** How a resource counts: `drains` starts full and goes down, `fills` starts at 0 and goes up. */
-export type ResourceDirection = 'drains' | 'fills';
+/**
+ * How a resource counts: `drains` starts full and goes down, `fills` starts at 0 and goes up. `static` does not
+ * count at all: a value that stays as its statblock gives it, such as an armour class, shown as that one number.
+ */
+export type ResourceDirection = 'drains' | 'fills' | 'static';
 
 export interface ResourceDefinition {
   /** Stable id derived from the name at creation; tokens key their values by it. Never renamed. */
@@ -25,7 +28,7 @@ export interface ResourceDefinition {
   slot?: number;
 }
 
-/** `current` counts in the resource's direction: remaining when draining, used when filling. */
+/** `current` counts in the resource's direction: remaining when draining, used when filling. A static value is its `max`. */
 export interface ResourceValue {
   current: number;
   max: number;

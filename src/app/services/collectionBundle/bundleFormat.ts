@@ -3,7 +3,7 @@ import { isRecord } from '../assetMetadataGuards';
 import { SNAPSHOTS_DIR } from '../../snapshots/snapshotPaths';
 
 /** Bumped when the zip layout or manifest shape changes. */
-export const BUNDLE_FORMAT = 5;
+export const BUNDLE_FORMAT = 6;
 /** Oldest format this version still imports. */
 const OLDEST_BUNDLE_FORMAT = 2;
 export const BUNDLE_MANIFEST = 'manifest.json';
@@ -14,10 +14,12 @@ export const BUNDLE_FILES_DIR = 'files';
  * `asset-file` is the file that backs an asset record: token image, map JSON, scene, encounter or player JSON.
  * `linked-note` is a note a scene's pins or characters open, or one such a note links to, however far along;
  * `note-attachment` is an image or PDF one of those notes shows (format 5); `cover` is the collection's cover image (format 4).
+ * `loot-base` is a `.base` file the collection's settings pick as a loot source and `loot-item` a file the base
+ * holds (format 6).
  */
 const BUNDLE_FILE_ROLES = [
   'asset-file', 'thumbnail', 'scene-map', 'scene-thumbnail', 'scene-snapshot', 'scene-snapshot-thumbnail', 'background', 'token-image', 'statblock-note', 'statblock-image',
-  'linked-note', 'note-attachment', 'cover',
+  'linked-note', 'note-attachment', 'cover', 'loot-base', 'loot-item',
 ] as const;
 export type BundleFileRole = typeof BUNDLE_FILE_ROLES[number];
 
@@ -36,7 +38,7 @@ export interface BundleFile {
   sha256?: string;
   /** Ids of the bundle's assets that use this file (format 3). */
   owners?: string[];
-  /** Paths of the bundled notes that link to this file; it travels while one of them or an owner does (format 5). */
+  /** Paths of the bundled files this one travels with: the notes that link to it (format 5), a loot item's bases (format 6). It is packed while one of them or an owner is. */
   linkedFrom?: string[];
 }
 

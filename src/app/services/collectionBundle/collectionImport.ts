@@ -6,7 +6,7 @@ import { reportFileStep, type BundleProgressListener } from './bundleProgress';
 import { bundleCover, bundleFileReader, openBundle, type BundleFileReader, type OpenedBundle } from './bundleReader';
 import { settingsFromBundle } from './bundleSettings';
 import { assetFingerprint, fieldFingerprint } from './fingerprints';
-import { gatherImportInputs, installedAsset, ownAsset, planTargets, referencedStrings, vaultFileHash, type ImportTargets } from './importInputs';
+import { gatherImportInputs, installedAsset, installedSettings, ownAsset, planTargets, referencedStrings, vaultFileHash, type ImportTargets } from './importInputs';
 import { storeLegacyCollectionResources } from '../collectionScenes';
 import { ImportJournal, saveOpenMaps } from './importJournal';
 import { planImport, resolvePlan, type ImportAction, type ImportPlan, type PlannedItem, type Resolution } from './importPlan';
@@ -232,7 +232,7 @@ async function applyImport(
 
 /** The collection record after the import: release identity from the bundle, each field from whichever side won. */
 async function mergedCollection(assets: AssetService, { bundle, existing, targets }: ImportContext, actions: ReadonlyMap<string, ImportAction>, name: string): Promise<CollectionMetadata> {
-  const theirs = bundle.manifest.collection;
+  const theirs: CollectionMetadata = { ...bundle.manifest.collection, settings: installedSettings(bundle.manifest.collection, targets) };
   const now = Date.now();
   const merged: CollectionMetadata = {
     ...(existing ?? theirs),

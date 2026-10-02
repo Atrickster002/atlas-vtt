@@ -14,6 +14,12 @@ export function comparableSettings(settings: CollectionSettings | undefined): Co
   return sameResourceDefinitions(resources, legacyCollectionResources(rest, BUILT_IN_SYSTEM_PRESETS)) ? rest : settings;
 }
 
+/** `settings` with each loot base at the path `pathOf` gives it; a base without one is left out. */
+export function withLootBases(settings: CollectionSettings, pathOf: (path: string) => string | undefined): CollectionSettings {
+  const { lootBases } = settings;
+  return lootBases ? { ...settings, lootBases: lootBases.flatMap((path) => pathOf(path) ?? []) } : settings;
+}
+
 /** The settings an import takes from a bundle. One written by an older Atlas names no resources: the vault keeps its own. */
 export function settingsFromBundle(theirs: CollectionSettings, mine: CollectionSettings | undefined): CollectionSettings {
   return theirs.resources || !mine?.resources ? theirs : { ...theirs, resources: mine.resources };

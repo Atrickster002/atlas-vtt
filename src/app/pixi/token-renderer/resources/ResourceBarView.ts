@@ -49,13 +49,16 @@ export class ResourceBarView {
       this.drawnTop = top;
       this.drawTrack(top, inner);
     }
-    this.fill.set(value.max > 0 ? value.current / value.max : 0, {
+    // A static value fills its bar: there is no share of it to show
+    const fixed = definition.direction === 'static';
+    this.fill.set(fixed ? 1 : value.max > 0 ? value.current / value.max : 0, {
       x: inner.x + FILL_INSET,
       y: inner.y + FILL_INSET,
       width: inner.width - FILL_INSET * 2,
       height: inner.height - FILL_INSET * 2,
     }, animate);
-    this.label.setValue(value);
+    if (fixed) this.label.setFixed(value.max);
+    else this.label.setValue(value);
     this.label.position.set(0, top + height / 2);
     return height;
   }

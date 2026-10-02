@@ -45,4 +45,9 @@ describe('resource definitions', () => {
     // Renaming a saved resource never changes its key
     expect(withFinalKeys([{ ...hp, name: 'Hit Protection' }]).map((d) => d.key)).toEqual(['hp']);
   });
+
+  it('reads a static value, which never defeats its token', () => {
+    const stored = { key: 'armor', name: 'Armor', field: 'ac', direction: 'static', color: '#94a3b8', visibleToPlayers: false, defeatedWhenSpent: true };
+    expect(parseResourceDefinition(stored)).toEqual({ key: 'armor', name: 'Armor', field: 'ac', direction: 'static', color: '#94a3b8', visibleToPlayers: false });
+  });
 });

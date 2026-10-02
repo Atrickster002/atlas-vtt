@@ -1,3 +1,4 @@
+import { RESOURCE_COLORS } from '../../../../resources/resourceColors';
 import { draftResourceKey, isDraftResourceKey } from '../../../../resources/resourceDefinitions';
 import { slottedResources } from '../../../../resources/resourceSlots';
 import { MAX_RESOURCES, type ResourceDefinition } from '../../../../resources/resourceTypes';
@@ -55,9 +56,10 @@ export function resourcesBySocket(resources: readonly ResourceDefinition[]): Arr
   return sockets;
 }
 
-const NEW_COLORS = ['#3b82f6', '#f59e0b', '#8b5cf6', '#84cc16', '#06b6d4', '#ec4899'];
+/** The curated colours in the order new resources take them: far apart first. */
+const NEW_COLORS = ['#3b82f6', '#f59e0b', '#8b5cf6', '#84cc16', '#06b6d4', '#ec4899', ...RESOURCE_COLORS.map(({ value }) => value)];
 
-/** A resource for the empty socket `slot`, in a colour no other resource has. Its key is settled from its name when it is saved. */
+/** A resource for the empty socket `slot`, in a curated colour no other resource has. Its key is settled from its name when it is saved. */
 export function newResourceAt(slot: number, resources: readonly ResourceDefinition[]): ResourceDefinition {
   const taken = new Set(resources.map((resource) => resource.color.toLowerCase()));
   return {

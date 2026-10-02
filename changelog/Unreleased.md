@@ -28,7 +28,7 @@
 - Draw Steel is a built-in game system preset, with distances in squares, 2d10 power rolls that are critical on a 19 or 20, a Stamina bar and its nine conditions. Contributed by jSQrD-dev
 - Each collection has dice rules in its settings (new Dice tab): the default roll and how critical results are recognised (natural, roll-under, doubles, high total or none). A bare bonus in a statblock, such as +3, now rolls with the collection's default roll, e.g. 1d10+3 in Cyberpunk RED. Every game system preset sets them
 - Dice can explode. In a collection's Dice settings, choose whether its default dice or all dice roll again on their highest face, once or again and again, and whether a lowest face rolls again and subtracts; Cyberpunk RED is set up this way. A single roll explodes with ! after its dice, such as 2d6! (once) or 2d6!i (again and again). Each extra die is thrown when the die before it has landed
-- Tokens can track up to six resources: each game system brings its own (Cairn's STR, Daggerheart's Stress) and you can add more, like ammunition, in the collection settings' new Resources tab: it shows a token with six sockets, and you click the socket where a resource should appear. The first two show as bars below the token; the others show as wheels beside it while you hover or select the token, two on its right and two on its left. Each resource reads its maximum from a statblock field. A scene's token settings show or hide each resource on that map, and the player view settings choose which bars players see
+- Tokens can track up to six resources: each game system brings its own (Cairn's STR, Daggerheart's Stress) and you can add more, like ammunition, in the collection settings' new Resources tab: it shows a token with six sockets, and you click the socket where a resource should appear. The first two show as bars below the token; the others show as wheels beside it while you hover or select the token, two on its right and two on its left. Each resource reads its maximum from a statblock field, and one set to static just shows that number, such as an armour class. A scene's token settings show or hide each resource on that map, and the player view settings choose which bars players see
 
 ## Improved
 
@@ -44,7 +44,7 @@
 - Imported notes keep the folders they had, so the links between them still work
 - The GM dashboard is now called the DM screen. Press Tab on a map to open it; a custom key you set for it is kept
 - Large token imports are much faster. 1,000 tokens from Fantasy Statblocks now take about 40 seconds instead of 11 minutes, and imports of thousands of tokens no longer slow down as they go
-- The token creator and the Fantasy Statblocks list stay smooth with thousands of images
+- The token creator and the Fantasy Statblocks list stay smooth with thousands of images. With a contribution by DeastinY
 - Statblocks that share one image read and convert it only once
 - In the GM view, every light shines at full strength and a badge with its kind and colour marks every light; areas no token sees are shown slightly faded instead of dimmed
 - Flickering lights take about a quarter of the graphics card time they did on a 120 Hz display, and half on a 60 Hz one
@@ -87,3 +87,4 @@
 - A light's dim range is now visibly lit out to its edge and the light ends just past it, so what looks dark on the map is dark. Before, the outer part of the dim range was drawn nearly black although tokens standing there still showed
 - Scene thumbnails and snapshot previews show a scene's dynamic lighting as the GM sees it. They also leave out pins, linked hexes, light markers, door badges and wall lines, and follow changes to the scene's lighting
 - A scene keeps its thumbnail when the graphics device resets or the scene could not be opened again, instead of getting a blank or outdated one
+- Exporting a collection now packs its loot tables: the bases picked in the collection's Loot settings and every item note they list. An import puts them into the collection's folder, where the loot roller finds them again. Before, the importing vault got the setting without the base or its items

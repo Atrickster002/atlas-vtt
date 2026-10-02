@@ -25,6 +25,12 @@ vi.mock('../../src/app/imageProcessing/imageProcessing', () => ({
   optimizeImage: vi.fn(async (source: Blob) => ({ image: new Blob([`COVER:${await source.text()}`]), thumbnail: null, preview: null })),
 }));
 
+// Obsidian runs a base's query; here each base holds the item notes a test gives it.
+const lootItems = vi.hoisted(() => new Map<string, string[]>());
+vi.mock('../../src/app/loot/lootBaseItems', () => ({
+  readLootBaseItems: vi.fn(async (_app: unknown, path: string) => lootItems.get(path) ?? null),
+}));
+
 const MAP_PATH = 'atlas-vtt/collections/source/scenes/Cave.atlasmap';
 const NOTE_PATH = 'Bestiary/Goblin.md';
 const NOTE_IMAGE = 'Bestiary/goblin.png';
@@ -149,7 +155,7 @@ describe('exporting', () => {
     const manifest = JSON.parse(await zip.file('manifest.json')!.async('string')) as {
       format: number; release: unknown; collection: Record<string, unknown>; files: Array<{ vaultPath: string; sha256: string; owners: string[] }>;
     };
-    expect(manifest).toMatchObject({ format: 5, release: { kind: 'release', notes: 'First release' }, collection: { version: 1, author: 'Dungeon Tube' } });
+    expect(manifest).toMatchObject({ format: 6, release: { kind: 'release', notes: 'First release' }, collection: { version: 1, author: 'Dungeon Tube' } });
     const image = manifest.files.find((file) => file.vaultPath === TOKEN_IMAGE)!;
     expect(image.sha256).toMatch(/^[0-9a-f]{64}$/);
     expect(image.owners).toHaveLength(3);
@@ -1206,5 +1212,128 @@ describe('notes linked from pinned notes', () => {
     await transferAssets(creator.vault.app, creator.assets, { assetIds: [cave!.id], targetCollectionId: 'target', mode: 'move' });
     const notes = [...creator.vault.files.keys()].filter((path) => path.includes('/notes/')).sort();
     expect(notes).toEqual([`${folder}/Index.md`, `${folder}/Room2.md`, 'atlas-vtt/collections/target/notes/Room1.md']);
+  });
+});
+
+describe('loot tables', () => {
+  const BASE = 'Reference/Items/Items.base';
+  const SHIELD = 'Reference/Items/Armor/Shield.md';
+  const ROPE = 'Reference/Items/Gear/Rope.md';
+  const BASE_TEXT = [
+    'filters:', '  and:', '    - file.inFolder("Reference/Items")',
+    'views:', '  - type: table', '    name: Armor', '    filters:', '      and:', "        - 'file.inFolder(\"Reference/Items/Armor\")'", '',
+  ].join('\n');
+  const LOOT = 'atlas-vtt/collections/source/loot';
+
+  /** The creator's vault with a loot base of two items picked in the collection's settings. */
+  async function lootVault(): Promise<Vault> {
+    const creator = await creatorVault();
+    for (const [path, content] of Object.entries({ [BASE]: BASE_TEXT, [SHIELD]: '---\nprice: 10\n---\n', [ROPE]: '---\nprice: 5\n---\n' })) {
+      await creator.vault.app.vault.create(path, content);
+    }
+    lootItems.set(BASE, [SHIELD, ROPE]);
+    await creator.assets.updateCollectionSettings('source', { lootBases: [BASE], lootCurrency: 'gp' });
+    return creator;
+  }
+
+  beforeEach(() => { lootItems.clear(); });
+
+  it('carries the loot bases with their items and installs them where the collection and the bases find them', async () => {
+    const creator = await lootVault();
+    const preview = await prepareCollectionExport(creator.vault.app, creator.assets, 'source');
+    expect(preview.files).toEqual(expect.arrayContaining([
+      { vaultPath: BASE, role: 'loot-base' },
+      { vaultPath: SHIELD, role: 'loot-item', linkedFrom: [BASE] },
+      { vaultPath: ROPE, role: 'loot-item', linkedFrom: [BASE] },
+    ]));
+    const blob = await exportFrom(creator);
+
+    const fan = await emptyVault();
+    const review = await importInto(fan, blob);
+    expect(review.contents.find((group) => group.category === 'loot')?.items).toEqual([{ key: `file:${BASE}`, name: 'Items' }]);
+    expect(fan.vault.files.get(`${LOOT}/${SHIELD}`)).toBe('---\nprice: 10\n---\n');
+    expect(fan.vault.files.get(`${LOOT}/${ROPE}`)).toBe('---\nprice: 5\n---\n');
+    expect(fan.vault.files.get(`${LOOT}/${BASE}`)).toBe(BASE_TEXT.replaceAll('"Reference/Items', `"${LOOT}/Reference/Items`));
+    expect((await fan.assets.getCollection('source'))?.settings).toMatchObject({ lootBases: [`${LOOT}/${BASE}`], lootCurrency: 'gp' });
+
+    expect((await reviewImport(fan, blob)).review).toMatchObject({ upToDate: true, conflicts: [] });
+  });
+
+  it('counts a base and its items as one change, and takes an item the publisher adds', async () => {
+    const creator = await lootVault();
+    const fan = await emptyVault();
+    await importInto(fan, await exportFrom(creator));
+
+    const helmet = 'Reference/Items/Armor/Helmet.md';
+    await creator.vault.app.vault.create(helmet, '---\nprice: 10\n---\n');
+    lootItems.set(BASE, [SHIELD, ROPE, helmet]);
+    const { review, apply } = await reviewImport(fan, await exportFrom(creator, { kind: 'release', version: 2 }));
+    // The base's unit holds only a new file, which the plan calls added; its three items do not count on their own.
+    expect(review).toMatchObject({ relation: 'newer', conflicts: [], counts: expect.objectContaining({ added: 1, updated: 0 }) });
+    await apply();
+    expect(fan.vault.files.get(`${LOOT}/${helmet}`)).toBe('---\nprice: 10\n---\n');
+  });
+
+  it('takes along the notes an item links to, and leaves them behind with the base', async () => {
+    const creator = await lootVault();
+    const rules = 'Reference/Rules/Armor.md';
+    creator.vault.files.set(SHIELD, '---\nsource: "[[Reference/Rules/Armor|Armor]]"\n---\n');
+    await creator.vault.app.vault.create(rules, 'A shield gives +1 Armor.');
+    const preview = await prepareCollectionExport(creator.vault.app, creator.assets, 'source');
+    expect(preview.files).toContainEqual({ vaultPath: rules, role: 'linked-note', linkedFrom: [SHIELD] });
+
+    const fan = await emptyVault();
+    await importInto(fan, await exportFrom(creator));
+    expect(fan.vault.files.get(`atlas-vtt/collections/source/notes/${rules}`)).toBe('A shield gives +1 Armor.');
+    expect(fan.vault.app.metadataCache.resolvedLinks[`${LOOT}/${SHIELD}`]).toEqual({ [`atlas-vtt/collections/source/notes/${rules}`]: 1 });
+
+    const bundle = await exportCollectionBundle(creator.vault.app, creator.assets, preview, { kind: 'release', version: 2, excluded: new Set([`file:${BASE}`]) });
+    expect((await manifestOf(bundle.blob)).files.map((file) => file.vaultPath)).not.toContain(rules);
+  });
+
+  it('leaves out a loot base the user excluded, with its items and its place in the settings', async () => {
+    const creator = await lootVault();
+    const preview = await prepareCollectionExport(creator.vault.app, creator.assets, 'source');
+    const bundle = await exportCollectionBundle(creator.vault.app, creator.assets, preview, { kind: 'release', version: 1, excluded: new Set([`file:${BASE}`]) });
+    const manifest = await manifestOf(bundle.blob);
+    const paths = manifest.files.map((file) => file.vaultPath);
+    for (const path of [BASE, SHIELD, ROPE]) expect(paths).not.toContain(path);
+    expect(manifest.collection.settings).toMatchObject({ lootBases: [], lootCurrency: 'gp' });
+  });
+
+  it('keeps an item with its base when a scene that pins it is left out', async () => {
+    const creator = await lootVault();
+    const map = JSON.parse(creator.vault.files.get(MAP_PATH)!) as { state: { objects: { pins: Record<string, unknown> } } };
+    map.state.objects.pins = { p1: { id: 'p1', kind: 'pin', x: 0, y: 0, notePath: SHIELD } };
+    creator.vault.files.set(MAP_PATH, JSON.stringify(map));
+    const [scene] = await creator.assets.getAssets('source', 'scene');
+    const preview = await prepareCollectionExport(creator.vault.app, creator.assets, 'source');
+    const bundle = await exportCollectionBundle(creator.vault.app, creator.assets, preview, { kind: 'release', version: 1, excluded: new Set([`asset:${scene!.id}`]) });
+    expect((await manifestOf(bundle.blob)).files).toContainEqual(expect.objectContaining({ vaultPath: SHIELD, role: 'loot-item' }));
+  });
+
+  it('reports a base that is gone or that Obsidian cannot run, and packs neither', async () => {
+    const creator = await lootVault();
+    await creator.assets.updateCollectionSettings('source', { lootBases: [BASE, 'Reference/Gone.base'] });
+    lootItems.delete(BASE);
+    const preview = await prepareCollectionExport(creator.vault.app, creator.assets, 'source');
+    expect(preview.missing.map((missing) => missing.path)).toEqual([BASE, 'Reference/Gone.base']);
+    expect(preview.files.map((file) => file.vaultPath)).not.toContain(BASE);
+  });
+
+  it('shares an installed copy under the names the publisher gave its loot', async () => {
+    const creator = await lootVault();
+    const fan = await emptyVault();
+    await importInto(fan, await exportFrom(creator));
+    lootItems.set(`${LOOT}/${BASE}`, [`${LOOT}/${SHIELD}`, `${LOOT}/${ROPE}`]);
+
+    const shared = await exportFrom(fan, { kind: 'share' });
+    const manifest = await manifestOf(shared);
+    expect(manifest.files).toEqual(expect.arrayContaining([
+      expect.objectContaining({ vaultPath: BASE, role: 'loot-base' }),
+      expect.objectContaining({ vaultPath: SHIELD, role: 'loot-item', linkedFrom: [BASE] }),
+    ]));
+    expect(manifest.collection.settings).toMatchObject({ lootBases: [BASE] });
+    expect((await reviewImport(creator, shared)).review).toMatchObject({ upToDate: true, conflicts: [] });
   });
 });
