@@ -43,9 +43,10 @@ interface Junction {
  * A bridge blocks what the walls it joins block (`shared`): the one thing where they all block
  * that thing only, else both, a curtain's joint with glass too. So for sight and for light alike,
  * every joint between two walls that block it is closed for it, and a bridge that blocks more
- * than its walls only ever closes more. Where a place is crowded and bridged to fewer than all,
- * its bridges block both: the chain that stands in for a pair's bridge may lead over the ends of
- * walls of the other kind.
+ * than its walls only ever closes more. A bridge between two limited walls is limited, so a row
+ * of hedges counts as one hedge; where a limited wall meets a solid one the bridge is solid.
+ * Where a place is crowded and bridged to fewer than all, its bridges are solid and block both:
+ * the chain that stands in for a pair's bridge may lead over the ends of walls of any sort.
  *
  * The bridges grow with the wall ends, not with their pairs: an end with more than
  * `MAX_BRIDGES` others near it is bridged to the nearest in each of eight directions only
@@ -138,12 +139,12 @@ function kindOf(walls: readonly WallSegment[], junction: Junction): BridgeKind {
 
 /**
  * Whether two places hold nothing but the two ends of one wall, and that wall does not stop
- * everything: an open door, a wall that blocks one way only, or one that blocks one thing only.
+ * everything: an open door, a wall that blocks one way only or one thing only, or a limited wall.
  */
 function endsOfOneOpenWall(walls: readonly WallSegment[], a: Junction, b: Junction): boolean {
   if (a.ends.length !== 1 || b.ends.length !== 1 || a.ends[0]!.wall !== b.ends[0]!.wall) return false;
   const wall = walls[a.ends[0]!.wall]!;
-  return blocksNothing(wall) || !!wall.direction || wall.blocks !== undefined;
+  return blocksNothing(wall) || !!wall.direction || wall.blocks !== undefined || !!wall.limited;
 }
 
 /**
@@ -289,5 +290,5 @@ function pointKey(p: Point): string {
 }
 
 function bridge(id: string, p1: Point, p2: Point, kind: BridgeKind = BOTH): WallSegment {
-  return { id, kind: 'wall', type: 'solid', p1: { ...p1 }, p2: { ...p2 }, ...(kind.blocks && { blocks: kind.blocks }) };
+  return { id, kind: 'wall', type: 'solid', p1: { ...p1 }, p2: { ...p2 }, ...(kind.blocks && { blocks: kind.blocks }), ...(kind.limited && { limited: true }) };
 }
