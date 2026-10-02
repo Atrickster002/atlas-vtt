@@ -231,6 +231,24 @@ describe('sealWalls with crowded wall ends', () => {
     }
   });
 
+  it('leaves what passes a plugged end half a pixel beyond the tolerance alone, from every side', () => {
+    const plug = bridgesOf(ringed(100)).filter((b) => b.id.startsWith('seal:plug:'));
+    const crossing = (a: { x: number; y: number }, b: { x: number; y: number }, w: WallSegment): boolean => {
+      const side = (p: { x: number; y: number }, q: { x: number; y: number }, r: { x: number; y: number }): number => Math.sign((q.x - p.x) * (r.y - p.y) - (q.y - p.y) * (r.x - p.x));
+      return side(a, b, w.p1) !== side(a, b, w.p2) && side(w.p1, w.p2, a) !== side(w.p1, w.p2, b);
+    };
+    for (let k = 0; k < 360; k++) {
+      const towards = (k / 360) * Math.PI * 2;
+      // A line that passes the end at 13.5 px (the octagon reached 14.07), and one at 12.9 px, which the plug must stop.
+      const line = (off: number): [{ x: number; y: number }, { x: number; y: number }] => {
+        const foot = { x: 500 + Math.cos(towards) * off, y: 500 + Math.sin(towards) * off };
+        return [{ x: foot.x - Math.sin(towards) * 40, y: foot.y + Math.cos(towards) * 40 }, { x: foot.x + Math.sin(towards) * 40, y: foot.y - Math.cos(towards) * 40 }];
+      };
+      expect([k, plug.some((b) => crossing(...line(13.5), b))]).toEqual([k, false]);
+      expect([k, plug.some((b) => crossing(...line(12.9), b))]).toEqual([k, true]);
+    }
+  });
+
   it('gives ends that lie in one eighth of a pixel one plug between them', () => {
     const heap = Array.from({ length: 300 }, (_, i) => wall(`short${i}`, 500.01 + (i % 20) * 0.004, 500.01 + Math.floor(i / 20) * 0.004, 500.012 + (i % 20) * 0.004, 500.014 + Math.floor(i / 20) * 0.004));
     const bridges = bridgesOf([...ringed(100).slice(1), ...heap]).filter((b) => b.id.startsWith('seal:plug:'));

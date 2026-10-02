@@ -139,7 +139,48 @@ function leaks(walls: WallSegment[], rand: () => number, rays: number): { from: 
   return found;
 }
 
+/** Of `rays` rays through the junction: those all pairs stops and the capped bridging lets through, and those only the capped one stops. */
+function compare(walls: WallSegment[], rand: () => number, rays: number): { asked: number; leaks: number; overSeals: number } {
+  const capped = sealWalls(walls, TOLERANCE);
+  const all = sealAllPairs(walls);
+  const counts = { asked: 0, leaks: 0, overSeals: 0 };
+  for (let i = 0; i < rays; i++) {
+    const through = at(turn(rand), Math.sqrt(rand()) * 30);
+    const heading = turn(rand);
+    const a = at(heading, 14 + rand() * 120, through), b = at(heading + Math.PI, 14 + rand() * 120, through);
+    if (!clearOfEnds(a, walls) || !clearOfEnds(b, walls)) continue;
+    counts.asked++;
+    const [byAll, byCapped] = [!!stops(a, b, all), !!stops(a, b, capped)];
+    if (byAll && !byCapped) counts.leaks++;
+    if (byCapped && !byAll) counts.overSeals++;
+  }
+  return counts;
+}
+
 describe('capped bridging against a bridge for every pair', () => {
+  it('counts, for every family, the rays it lets through that all pairs stops (none) and those it alone stops', { timeout: 300_000 }, () => {
+    const table: Record<string, { asked: number; leaks: number; overSeals: number }> = {};
+    for (const name of Object.keys(FAMILIES)) {
+      const total = { asked: 0, leaks: 0, overSeals: 0 };
+      for (let seed = 1; seed <= 60; seed++) {
+        const rand = random(seed * 2_147_483 + name.length);
+        const plain = FAMILIES[name]!(rand);
+        for (const walls of [plain, mixed(plain, rand)]) {
+          const counts = compare(walls, rand, 1500);
+          total.asked += counts.asked;
+          total.leaks += counts.leaks;
+          total.overSeals += counts.overSeals;
+        }
+      }
+      table[name] = total;
+    }
+    console.info(`sealing against all pairs, rays asked / leaks / stopped by the capped bridging alone:\n${Object.entries(table).map(([name, t]) => `  ${name}: ${t.asked} / ${t.leaks} / ${t.overSeals}`).join('\n')}`);
+    expect(Object.fromEntries(Object.entries(table).map(([name, t]) => [name, t.leaks]))).toEqual(Object.fromEntries(Object.keys(table).map((name) => [name, 0])));
+    // Only a plug stops more than a bridge for every pair does, and only walls beyond counting passing an end make one.
+    for (const name of ['ring', 'twoClusters', 'line', 'octant', 'airlock', 'stroke', 'ladder']) expect([name, table[name]!.overSeals]).toEqual([name, 0]);
+  });
+
+
   it.each(Object.keys(FAMILIES))('lets no ray through a junction that all pairs would stop: %s', (name) => {
     for (let seed = 1; seed <= 40; seed++) {
       const rand = random(seed * 7919 + name.length);
