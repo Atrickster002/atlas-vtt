@@ -10,11 +10,21 @@ export const UVTT_TOO_LARGE = `The file is larger than ${UVTT_LIMITS.fileBytes /
 const TOO_MANY_WALLS = `The file has more than ${count(UVTT_LIMITS.wallSegments)} wall segments.`;
 const TOO_MANY_LIGHTS = `The file has more than ${count(UVTT_LIMITS.lights)} lights.`;
 
-function readPolylines(value: unknown, what: string): UvttPoint[][] {
+/** Wall segments and doors a file may still add; counted before anything is read, so a file over the limit costs no reading. */
+interface SegmentBudget {
+  left: number;
+}
+
+function spend(budget: SegmentBudget, segments: number): void {
+  budget.left -= segments;
+  if (budget.left < 0) refuse(TOO_MANY_WALLS);
+}
+
+function readPolylines(value: unknown, what: string, budget: SegmentBudget): UvttPoint[][] {
   return readList(value, `The list of ${what}s`, UVTT_LIMITS.wallSegments, TOO_MANY_WALLS).map((line, index) => {
     const label = `${what} ${index + 1}`;
     if (!Array.isArray(line)) return refuse(`${capitalized(label)} is not a list of positions.`);
-    if (line.length > UVTT_LIMITS.wallSegments + 1) return refuse(TOO_MANY_WALLS);
+    spend(budget, Math.max(0, line.length - 1));
     return line.map((point, pointIndex) => readPoint(point, `Point ${pointIndex + 1} of ${label}`));
   });
 }
@@ -41,10 +51,6 @@ function readLight(value: unknown, index: number): UvttLight {
   };
 }
 
-function segmentsOf(polylines: readonly UvttPoint[][]): number {
-  return polylines.reduce((total, line) => total + Math.max(0, line.length - 1), 0);
-}
-
 /**
  * A file's content with what the import places things by checked: the map's size and origin,
  * every position, each light's range, and the image. What a file states beyond that (its format
@@ -60,9 +66,11 @@ function readMap(root: unknown): UvttMap {
   };
   const origin = isAbsent(resolution.map_origin) ? { x: 0, y: 0 } : readPoint(resolution.map_origin, 'The map\'s origin');
 
-  const polylines = [...readPolylines(file.line_of_sight, 'wall line'), ...readPolylines(file.objects_line_of_sight, 'object outline')];
-  const portals = readList(file.portals, 'The list of doors', UVTT_LIMITS.wallSegments, TOO_MANY_WALLS).map(readPortal);
-  if (segmentsOf(polylines) + portals.length > UVTT_LIMITS.wallSegments) refuse(TOO_MANY_WALLS);
+  const budget: SegmentBudget = { left: UVTT_LIMITS.wallSegments };
+  const polylines = [...readPolylines(file.line_of_sight, 'wall line', budget), ...readPolylines(file.objects_line_of_sight, 'object outline', budget)];
+  const doors = readList(file.portals, 'The list of doors', UVTT_LIMITS.wallSegments, TOO_MANY_WALLS);
+  spend(budget, doors.length);
+  const portals = doors.map(readPortal);
   const lights = readList(file.lights, 'The list of lights', UVTT_LIMITS.lights, TOO_MANY_LIGHTS).map(readLight);
 
   const environment = isRecord(file.environment) ? file.environment : {};
