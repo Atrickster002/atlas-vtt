@@ -47,7 +47,7 @@ export function computeVisibility(origin: Point, radius: number, walls: readonly
   return cone && cone.angle < 2 * Math.PI ? clipToCone(origin, polygon, cone) : polygon;
 }
 
-/** A visibility polygon with, for each of its corners, the limited walls the ray stopped at as its second, or null. */
+/** A visibility polygon with, for each of its corners, the limited walls that stopped the ray there as its second, or null. */
 export interface Swept {
   polygon: Polygon;
   stops: (readonly WallSegment[] | null)[];

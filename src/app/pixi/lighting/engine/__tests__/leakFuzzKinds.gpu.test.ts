@@ -17,7 +17,7 @@ import { LightingEngine } from '../LightingEngine';
 import type { EngineLight, EngineScene } from '../types';
 import { createTestRenderer } from './gpuTestUtils';
 import { distToOutline, fuzzRooms, insidePolygon, rng, roomOutline, type P } from './fuzzRooms';
-import { NO_SIGHT, footprints, renderView } from './leakFuzzScene';
+import { NO_SIGHT, footprints, inPenumbra, renderView } from './leakFuzzScene';
 
 const SIZE = 384;
 const TRIALS = Number(import.meta.env.VITE_LEAK_TRIALS ?? 24);
@@ -78,7 +78,7 @@ const other = (channel: WallChannel): WallChannel => (channel === 'sight' ? 'lig
  * light with the walls that block light, sight and memory with those that block sight. And the
  * rule is asked at sampled points: where it counts light that passes every wall by a band or
  * more, the picture is lit; where it counts a point as seen or unseen, away from the edges of
- * sight, the picture agrees.
+ * sight and the soft edges of its shadows, the picture agrees.
  */
 async function fuzz({ seed, trials, gap = false, bounds = { width: 2048, height: 2048 }, resolution = 1 }: FuzzOptions): Promise<Report> {
   vi.stubGlobal('createEl', (tag: string): HTMLElement => document.createElement(tag));
@@ -180,7 +180,7 @@ async function fuzz({ seed, trials, gap = false, bounds = { width: 2048, height:
             report.ruleLit++;
             if (sum(lit, o) === 0) report.lightWrong++;
           }
-          if (edges.every((edge) => distToOutline(p, edge) > filter + 1)) {
+          if (edges.every((edge) => distToOutline(p, edge) > filter + 1) && !inPenumbra(p, sight, sightRadius)) {
             report.ruleSight++;
             if (sight.regions.some((region) => pointInPolygon(point, region.polygon!)) !== sum(seen, o) > 0) report.sightWrong++;
           }

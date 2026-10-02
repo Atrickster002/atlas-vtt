@@ -1,19 +1,6 @@
 import { BEAM_EDGE, BEAM_EDGE_TEXELS } from '../../../lighting/lightingConstants';
 import { GLSL_VERSION } from './glsl';
 
-/** What a light's fragment reads besides the tile when it is drawn through a mask of limited walls (`LimitedMasks`). */
-const MASK_INPUTS = `flat in vec4 vEdge;
-flat in float vMargin;
-uniform float uMargin;
-`;
-/** Nothing within `uMargin` of the triangle's outer edge where that lies on a limited wall that stopped the light. */
-const MASK_TEST = `  if (vMargin > 0.5) {
-    vec2 along = vEdge.zw - vEdge.xy;
-    vec2 nearest = vEdge.xy + along * clamp(dot(vWorld - vEdge.xy, along) / max(dot(along, along), 1e-6), 0.0, 1.0);
-    if (distance(vWorld, nearest) < uMargin) discard;
-  }
-`;
-
 export const lightMapVertex = `${GLSL_VERSION}
 in vec2 aPosition;
 uniform vec4 uRect;
@@ -43,9 +30,9 @@ void main() {
 // at that distance where that is less, though never under a texel (`beamEdge`). Past its own space it falls off over the
 // edge it has at that radius. The tile knows nothing of the cone, so turning a light traces nothing.
 // The colour is `uLightColor`: PIXI sets `uColor` itself, as a vec4, on every mesh shader that declares it.
-const fragment = (masked: boolean): string => `${GLSL_VERSION}
+export const lightMapFragment = `${GLSL_VERSION}
 in vec2 vWorld;
-${masked ? MASK_INPUTS : ''}uniform vec4 uRect;
+uniform vec4 uRect;
 uniform vec2 uLight;
 uniform float uBright;
 uniform float uDim;
@@ -78,7 +65,7 @@ float inCone(vec2 v, float d) {
   return max(beam, own);
 }
 void main() {
-${masked ? MASK_TEST : ''}  ivec2 texel = ivec2(floor((vWorld - uRect.xy) / uTexel));
+  ivec2 texel = ivec2(floor((vWorld - uRect.xy) / uTexel));
   ivec2 size = textureSize(uTile, 0);
   if (any(lessThan(texel, ivec2(0))) || any(greaterThanEqual(texel, size))) discard;
   float d = distance(vWorld, uLight);
@@ -95,26 +82,3 @@ ${masked ? MASK_TEST : ''}  ivec2 texel = ivec2(floor((vWorld - uRect.xy) / uTex
   if (uCone.z < 3.14159) light *= inCone(vWorld - uLight, d);
   finalColor = vec4(light, dot(light, LUMA) * atBright);
 }`;
-
-export const lightMapFragment = fragment(false);
-
-/**
- * The same light drawn as the fan of its mask (`LimitedMasks`) instead of its tile's rectangle:
- * inside the polygon the rule counts over limited walls, in world pixels over the whole map target.
- */
-export const lightMapMaskedVertex = `${GLSL_VERSION}
-in vec2 aPosition;
-in vec4 aEdge;
-in float aMargin;
-uniform vec2 uMapWorld;
-out vec2 vWorld;
-flat out vec4 vEdge;
-flat out float vMargin;
-void main() {
-  vWorld = aPosition;
-  vEdge = aEdge;
-  vMargin = aMargin;
-  gl_Position = vec4(aPosition / uMapWorld * 2.0 - 1.0, 0.0, 1.0);
-}`;
-
-export const lightMapMaskedFragment = fragment(true);
