@@ -54,9 +54,11 @@ export class ExploredTexture {
     this.clear();
   }
 
-  add(shapes: ExploredShapes): void {
+  /** Stamps `shapes` in; `level` (0..1) is what a fully covered texel then holds at least: 1 for the memory itself. */
+  add(shapes: ExploredShapes, level = 1): void {
     const region = stampRegion(shapes, this.scale, this.texture);
     if (!region) return;
+    this.mergeSprite.alpha = level;
     this.scratch.begin(shapes);
     for (const tile of tilesOf(region)) {
       this.mergeSprite.texture = this.scratch.renderTile(this.scale, tile.x, tile.y);

@@ -1,15 +1,13 @@
 import type { Renderer, Texture } from 'pixi.js';
-import { ExploredEditStack, editPolygons, packCoverage, unpackCoverage, type ExploredEdit } from '../../lighting/exploredEdits';
+import { editPolygons, type ExploredEdit } from '../../lighting/exploredEdits';
 import type { ViewAtlasStore } from '../../storeFactory';
 import { forgetExploredEdits } from '../../stores/exploredEditHistory';
-import { HISTORY_LIMIT } from '../../stores/history';
 import type { ExploredShapes } from '../../vision/exploredShapes';
 import type { MapBounds } from '../../vision/visibility';
 import { saveExploredMask } from './exploredMaskSaving';
 import { ExploredSaveScheduler } from './ExploredSaveScheduler';
+import { ExploredSteps } from './ExploredSteps';
 import { ExploredTexture } from './ExploredTexture';
-import { readCoverage, writeCoverage } from './exploredTexels';
-import type { TexelRegion } from './StampScratch';
 
 const EXPLORED_SAVE_DELAY = 2000;
 
@@ -37,10 +35,10 @@ export interface ExploredMemoryDeps {
  * saved mask.
  *
  * The GM edits it by hand too (`edit`). Each edit is one undo step: the store counts the edits
- * (`exploredEdits`, in its undo history), and this keeps the texels each one changed
- * (`ExploredEditStack`) and puts them back when undo or redo changes the count. The steps last
- * while the scene stays loaded; where they are lost before the history is (the texture is
- * replaced, the view goes), they leave the history too (`forgetExploredEdits`).
+ * (`exploredEdits`, in its undo history), and `ExploredSteps` keeps what each one changed and
+ * puts it back when undo or redo changes the count. The steps last while the scene stays
+ * loaded; where they are lost before the history is (the texture is replaced, the view goes),
+ * they leave the history too (`forgetExploredEdits`).
  */
 export class ExploredMemory {
   private texture: ExploredTexture | null = null;
@@ -52,13 +50,14 @@ export class ExploredMemory {
   private ready = true;
   private contextLost = false;
   private readonly saver: ExploredSaveScheduler;
-  private readonly edits = new ExploredEditStack<TexelRegion>(HISTORY_LIMIT);
+  private readonly steps: ExploredSteps;
   /** The store's count of edits the texture stands at. */
   private revision: number;
   private readonly unsubscribe: () => void;
 
   constructor(private readonly deps: ExploredMemoryDeps) {
     this.saver = new ExploredSaveScheduler(() => deps.store.getState().mapPath, () => deps.guard(() => this.save()), EXPLORED_SAVE_DELAY);
+    this.steps = new ExploredSteps(deps.renderer);
     this.revision = deps.store.getState().exploredEdits;
     // Undo and redo move the count; an edit of this memory's own has moved `revision` along with it.
     this.unsubscribe = deps.store.subscribe((state) => this.follow(state.exploredEdits, state.isMapLoading));
@@ -71,8 +70,9 @@ export class ExploredMemory {
   }
 
   record(shapes: ExploredShapes): void {
-    if (!this.texture) return;
+    if (!this.texture || !this.bounds) return;
     this.texture.add(shapes);
+    this.steps.sightRecorded(shapes, this.bounds);
     this.saver.schedule();
   }
 
@@ -85,19 +85,12 @@ export class ExploredMemory {
     const texture = this.texture;
     if (!texture || !this.bounds || !this.isMemory()) return false;
     const shapes: ExploredShapes = { polygons: editPolygons(edit, this.bounds), clip: null };
-    const { renderer } = this.deps;
+    // The steps can tell only so many edits apart: before that runs out, the older ones can no longer be undone.
+    if (this.steps.full) this.forgetEdits();
     let changed = false;
     this.deps.guard(() => {
-      const region = texture.regionOf(shapes);
-      if (!region) return;
-      const before = readCoverage(renderer, texture.texture, region);
-      if (edit.mode === 'reveal') texture.add(shapes);
-      else texture.erase(shapes);
-      const after = readCoverage(renderer, texture.texture, region);
-      if (after.every((value, i) => value === before[i])) return;
-      this.edits.record(this.revision + 1, { region, before: packCoverage(before), after: packCoverage(after) });
-      changed = true;
-      this.deps.onChange();
+      changed = this.steps.apply(texture, shapes, edit.mode, this.revision + 1);
+      if (changed) this.deps.onChange();
     });
     if (!changed) return false;
     this.revision++;
@@ -164,22 +157,26 @@ export class ExploredMemory {
   }
 
   /**
-   * The store's count of edits changed without an edit here: undo or redo. The texels of each
-   * step between go back in. A load starts the count over too, which takes no edit back.
+   * The store's count of edits changed without an edit here: undo or redo. Each step between is
+   * taken back or made again on the texture. A load starts the count over too, which takes no
+   * edit back; and where the texture cannot be written (a lost context, an engine that
+   * stopped), nothing is saved and no one is told.
    */
   private follow(count: number, loading: boolean): void {
     if (count === this.revision) return;
-    const patches = loading ? [] : this.edits.path(this.revision, count);
-    const undone = count < this.revision;
+    const from = this.revision;
     this.revision = count;
     const texture = this.texture;
-    if (!texture || patches.length === 0 || this.contextLost) return;
+    if (!texture || loading || this.contextLost || !this.steps.leads(from, count)) return;
+    let travelled = false;
     this.deps.guard(() => {
-      for (const { region, packed } of patches) writeCoverage(this.deps.renderer, texture.texture, region, unpackCoverage(packed, region.width * region.height));
+      this.steps.travel(texture, from, count);
+      travelled = true;
       this.deps.onChange();
     });
+    if (!travelled) return;
     this.saver.schedule();
-    this.deps.onTravel(undone);
+    this.deps.onTravel(count < from);
   }
 
   /**
@@ -188,8 +185,8 @@ export class ExploredMemory {
    * (a restored WebGL context).
    */
   forgetEdits(): void {
-    if (this.edits.size === 0) return;
-    this.edits.clear();
+    if (this.steps.size === 0) return;
+    this.steps.clear();
     forgetExploredEdits(this.deps.store);
   }
 

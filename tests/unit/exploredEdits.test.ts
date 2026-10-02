@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ExploredEditStack, editPolygons, packCoverage, strokePolygons, unpackCoverage } from '../../src/app/lighting/exploredEdits';
+import { ExploredEditStack, editPolygons, packCoverage, strokePolygons, travelledCoverage, unpackCoverage } from '../../src/app/lighting/exploredEdits';
 import type { Point } from '../../src/app/types/visionTypes';
 
 /** Whether `point` lies in one of the polygons (even-odd). */
@@ -122,17 +122,18 @@ describe('packCoverage', () => {
 });
 
 describe('ExploredEditStack', () => {
-  const step = (name: string): { region: string; before: Uint8Array; after: Uint8Array } => ({ region: name, before: Uint8Array.from([0]), after: Uint8Array.from([1]) });
-  const names = (stack: ExploredEditStack<string>, from: number, to: number): string[] => stack.path(from, to).map((patch) => `${patch.region}:${patch.packed[0] === 0 ? 'before' : 'after'}`);
+  let serial = 0;
+  const step = (name: string): { region: string; before: Uint8Array; after: Uint8Array; serial: number } => ({ region: name, before: Uint8Array.from([0]), after: Uint8Array.from([1]), serial: ++serial });
+  const names = (stack: ExploredEditStack<string>, from: number, to: number): string[] => stack.path(from, to).map((taken) => taken.region);
 
   it('undoes the newest step first and redoes the oldest first', () => {
     const stack = new ExploredEditStack<string>(50);
     stack.record(1, step('a'));
     stack.record(2, step('b'));
     stack.record(3, step('c'));
-    expect(names(stack, 3, 2)).toEqual(['c:before']);
-    expect(names(stack, 3, 0)).toEqual(['c:before', 'b:before', 'a:before']);
-    expect(names(stack, 0, 2)).toEqual(['a:after', 'b:after']);
+    expect(names(stack, 3, 2)).toEqual(['c']);
+    expect(names(stack, 3, 0)).toEqual(['c', 'b', 'a']);
+    expect(names(stack, 0, 2)).toEqual(['a', 'b']);
     expect(names(stack, 2, 2)).toEqual([]);
   });
 
@@ -143,14 +144,14 @@ describe('ExploredEditStack', () => {
     stack.record(3, step('c'));
     stack.record(2, step('d'));
     expect(stack.size).toBe(2);
-    expect(names(stack, 0, 3)).toEqual(['a:after', 'd:after']);
+    expect(names(stack, 0, 3)).toEqual(['a', 'd']);
   });
 
   it('keeps as many steps as the undo history, and leaves out a step it no longer has', () => {
     const stack = new ExploredEditStack<string>(3);
     for (let revision = 1; revision <= 5; revision++) stack.record(revision, step(String(revision)));
     expect(stack.size).toBe(3);
-    expect(names(stack, 5, 0)).toEqual(['5:before', '4:before', '3:before']);
+    expect(names(stack, 5, 0)).toEqual(['5', '4', '3']);
   });
 
   it('forgets everything when cleared', () => {
@@ -159,5 +160,46 @@ describe('ExploredEditStack', () => {
     stack.clear();
     expect(stack.size).toBe(0);
     expect(names(stack, 1, 0)).toEqual([]);
+  });
+});
+
+describe('travelledCoverage', () => {
+  const bytes = (...values: number[]): Uint8Array => Uint8Array.from(values);
+  /** A Reveal over the first three texels of five: unexplored, half explored and explored before it. */
+  const revealed = { before: bytes(0, 100, 255, 0, 255), after: bytes(255, 255, 255, 0, 255), serial: 3 };
+  /** A Forget over the first three. */
+  const forgotten = { before: bytes(255, 100, 0, 0, 255), after: bytes(0, 0, 0, 0, 255), serial: 3 };
+
+  it('takes a step back and makes it again on the texels it changed', () => {
+    expect(travelledCoverage(revealed, revealed.after, null, true)).toEqual(revealed.before);
+    expect(travelledCoverage(revealed, revealed.before, null, false)).toEqual(revealed.after);
+    expect(travelledCoverage(forgotten, forgotten.after, null, true)).toEqual(forgotten.before);
+    expect(travelledCoverage(forgotten, forgotten.before, null, false)).toEqual(forgotten.after);
+  });
+
+  it('leaves the texels the step did not change as they are now, whatever was recorded there since', () => {
+    // The last two texels are in the step's rectangle and not its own: sight has recorded the fourth since.
+    const now = bytes(255, 255, 255, 255, 40);
+    expect([...travelledCoverage(revealed, now, null, true)].slice(3)).toEqual([255, 40]);
+    expect([...travelledCoverage(revealed, now, null, false)].slice(3)).toEqual([255, 40]);
+  });
+
+  it('never lowers a texel when it gives memory back: what was recorded on top stays', () => {
+    // The Forget is undone on a texel that was half explored before and that sight has fully seen since.
+    expect(travelledCoverage(forgotten, bytes(0, 255, 0, 0, 255), null, true)).toEqual(bytes(255, 255, 0, 0, 255));
+    expect(travelledCoverage(revealed, bytes(0, 100, 255, 90, 255), null, false)).toEqual(bytes(255, 255, 255, 90, 255));
+  });
+
+  it('does not take away what the party has seen since the step was first made', () => {
+    // Sight recorded the first texel while this step (3) or a later one was the newest, the second while an earlier one was.
+    const seen = bytes(3, 2, 0, 0, 0);
+    expect(travelledCoverage(revealed, revealed.after, seen, true)).toEqual(bytes(255, 100, 255, 0, 255));
+    expect(travelledCoverage(revealed, revealed.after, bytes(7, 7, 7, 7, 7), true)).toEqual(revealed.after);
+    // A Forget made again forgets what it forgot, except what was seen after it.
+    expect(travelledCoverage(forgotten, forgotten.before, seen, false)).toEqual(bytes(255, 0, 0, 0, 255));
+  });
+
+  it('counts sight recorded before the step as not seen since', () => {
+    expect(travelledCoverage(forgotten, forgotten.before, bytes(2, 2, 2, 2, 2), false)).toEqual(forgotten.after);
   });
 });

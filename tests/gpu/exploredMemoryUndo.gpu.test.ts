@@ -73,15 +73,83 @@ describe('undoing and redoing edits of the explored memory', () => {
     expect(redAt(200, 128)).toBe(0);
   });
 
-  it('takes back only the texels of its stroke: what the tokens see afterwards elsewhere stays remembered', async () => {
+  it('takes back only the texels its stroke changed: what the party sees afterwards inside the stroke\'s rectangle stays remembered', async () => {
     const { lighting, store, history, redAt } = await scene();
-    lighting.editExplored(reveal(RIGHT_ROOM));
-    // Day breaks: the token's sight is recorded in the left room.
+    // A thin stroke from corner to corner: the rectangle around it is nearly the whole map.
+    lighting.editExplored(reveal({ type: 'brush', brushRadius: 6, points: [{ x: 20, y: 20 }, { x: 236, y: 236 }] }));
+    expect(redAt(200, 200)).toBe(255);
+    expect(redAt(40, 150)).toBe(0);
+    // Day breaks: the token's sight is recorded in the left room, 77 px off the stroke at (40, 150).
     store.getState().setSceneLighting({ ambient: 1 });
-    expect(redAt(60, 128)).toBe(255);
+    expect(redAt(40, 150)).toBe(255);
+
     history().undo();
+    expect(redAt(200, 200)).toBe(0);
+    expect(redAt(40, 150)).toBe(255);
+    history().redo();
+    expect(redAt(200, 200)).toBe(255);
+    expect(redAt(40, 150)).toBe(255);
+    history().undo();
+    expect(redAt(40, 150)).toBe(255);
+  });
+
+  it('never takes away by an undo what the party has really seen since: a revealed texel it then saw stays explored', async () => {
+    const { lighting, store, history, redAt } = await scene();
+    lighting.editExplored(reveal({ type: 'brush', brushRadius: 6, points: [{ x: 20, y: 20 }, { x: 236, y: 236 }] }));
+    // The token at (60, 128) sees 70 px by day: the stroke at (80, 80) lies in its sight, at (200, 200) it does not.
+    store.getState().setSceneLighting({ ambient: 1 });
+    history().undo();
+    expect(redAt(80, 80)).toBe(255);
+    expect(redAt(200, 200)).toBe(0);
+    expect(redAt(22, 22)).toBe(0);
+  });
+
+  it('brings back what a whole-map forget took, keeps what was explored in between, and forgets by a redo only what was not seen since', async () => {
+    const { lighting, store, history, redAt } = await scene({ lighting: { ambient: 1 } });
+    /** In the circle the party sees by day, in the room the GM revealed, and where no one has looked. */
+    const memory = (): number[] => [redAt(60, 190), redAt(200, 128), redAt(20, 20)];
+    lighting.editExplored(reveal(RIGHT_ROOM));
+    expect(memory()).toEqual([255, 255, 0]);
+    lighting.resetExplored();
+    expect(memory()).toEqual([0, 0, 0]);
+    // Play goes on: night falls and day breaks, and the party sees its surroundings again.
+    store.getState().setSceneLighting({ ambient: 0 });
+    store.getState().setSceneLighting({ ambient: 1 });
+    expect(memory()).toEqual([255, 0, 0]);
+
+    history().undo();
+    expect(memory()).toEqual([255, 255, 0]);
+    history().redo();
+    // Forgotten again: the room the party has not seen since. What it saw after the forget stays.
+    expect(memory()).toEqual([255, 0, 0]);
+    history().undo();
+    expect(memory()).toEqual([255, 255, 0]);
+  });
+
+  it('keeps what sight recorded before an edit out of that rule: a forget takes it, and its redo takes it again', async () => {
+    const { lighting, history, redAt, moveParty } = await scene({ lighting: { ambient: 1 } });
+    lighting.editExplored(reveal(RIGHT_ROOM));
+    // Seen after the first edit and before the second.
+    moveParty(60, 60);
+    expect(redAt(60, 10)).toBe(255);
+    lighting.resetExplored();
+    expect(redAt(60, 10)).toBe(0);
+    history().undo();
+    expect(redAt(60, 10)).toBe(255);
+    history().redo();
+    expect(redAt(60, 10)).toBe(0);
     expect(redAt(200, 128)).toBe(0);
-    expect(redAt(60, 128)).toBe(255);
+  });
+
+  it('never leaves a step that does nothing, however many edits a scene sees', async () => {
+    const { lighting, history, textureHash } = await scene();
+    for (let i = 0; i < 300; i++) lighting.editExplored(i % 2 ? forget(RIGHT_ROOM) : reveal(RIGHT_ROOM));
+    expect(history().pastStates.length).toBeGreaterThan(0);
+    while (history().pastStates.length > 0) {
+      const before = textureHash();
+      history().undo();
+      expect(textureHash()).not.toBe(before);
+    }
   });
 
   it('keeps a step for every step the undo history keeps', async () => {

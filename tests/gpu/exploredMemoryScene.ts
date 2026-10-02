@@ -50,7 +50,7 @@ export interface MemoryScene {
   travels: boolean[];
   /** Why the engine gave up, each time it did. */
   unavailable: LightingUnavailable[];
-  /** Moves the party's token, as a drop writes it to the store. */
+  /** Moves the party's token, so its sight is worked out and recorded anew. */
   moveParty: (x: number, y: number) => void;
   /** Destroys the lighting view, as when the Canvas fallback takes its place or the map view closes. */
   destroyLighting: () => void;
@@ -146,7 +146,8 @@ export function memoryScenes(): { scene: (options?: MemorySceneOptions) => Promi
       overlayTextures,
       travels,
       unavailable,
-      moveParty: (x, y) => store.setState((state) => ({ objects: { ...state.objects, tokens: { ...state.objects.tokens, party: { ...PARTY, x, y } } } })),
+      // No undo step of its own: the tests step through the memory's.
+      moveParty: (x, y) => history.getState().untracked(() => store.setState((state) => ({ objects: { ...state.objects, tokens: { ...state.objects.tokens, party: { ...PARTY, x, y } } } }))),
       destroyLighting,
       settle: async () => {
         for (let frame = 0; frame < 6; frame++) await nextFrame();

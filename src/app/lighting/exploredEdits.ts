@@ -105,25 +105,50 @@ export function unpackCoverage(packed: Uint8Array, length: number): Uint8Array {
   return coverage;
 }
 
-/** A rectangle of texels of the memory, and the coverage it holds, packed. */
-export interface CoveragePatch<Region> {
-  region: Region;
-  packed: Uint8Array;
-}
+/** The most edits one count of sight's records can tell apart (`ExploredStep.serial`): a byte, 0 being "never". */
+export const MAX_STEP_SERIAL = 255;
 
-/** One edit of the memory as an undo step: the texels it changed, before and after. */
+/**
+ * One edit of the memory as an undo step: the texels of its region before and after it, packed.
+ * Only those that differ are the edit's own; the others are left alone when it is taken back.
+ */
 export interface ExploredStep<Region> {
   region: Region;
   before: Uint8Array;
   after: Uint8Array;
+  /** Which edit of the scene this was, counted from 1 and never reused: what sight records afterwards is marked with the newest. */
+  serial: number;
 }
 
 /**
- * The edits made to a scene's explored memory by hand, each kept as the texels it changed, so
- * undo and redo can put the memory back. Steps are numbered as the store counts them
- * (`exploredEdits`): step n leads from the memory after n − 1 edits to the memory after n. It
- * holds as many steps as the undo history holds (`limit`), so no step the history can reach is
- * missing here.
+ * A region's coverage after one of its steps is undone or redone.
+ *
+ * - A texel the step did not change keeps what it holds now, whatever was recorded there since.
+ * - Where the step is taken in the direction that gives memory (a Forget undone, a Reveal
+ *   redone), the texel gets the step's value, or keeps what it holds if that is more.
+ * - Where it is taken in the direction that takes memory away (a Reveal undone, a Forget
+ *   redone), the texel gets the step's value, unless the party has really seen it since the
+ *   step was first made: `seen` holds, per texel, the serial of the newest step at the time
+ *   sight last recorded it (0 for never), so `seen >= step.serial` is "seen since".
+ */
+export function travelledCoverage(step: { before: Uint8Array; after: Uint8Array; serial: number }, current: Uint8Array, seen: Uint8Array | null, undone: boolean): Uint8Array {
+  const [target, other] = undone ? [step.before, step.after] : [step.after, step.before];
+  const coverage = new Uint8Array(current);
+  for (let i = 0; i < coverage.length; i++) {
+    const to = target[i]!;
+    const from = other[i]!;
+    if (to > from) coverage[i] = Math.max(to, current[i]!);
+    else if (to < from && !(seen && seen[i]! >= step.serial)) coverage[i] = to;
+  }
+  return coverage;
+}
+
+/**
+ * The edits made to a scene's explored memory by hand, each kept as the texels of its region
+ * before and after, so undo and redo can put the memory back. Steps are numbered as the store
+ * counts them (`exploredEdits`): step n leads from the memory after n − 1 edits to the memory
+ * after n. It holds as many steps as the undo history holds (`limit`), so no step the history
+ * can reach is missing here.
  */
 export class ExploredEditStack<Region> {
   private readonly steps = new Map<number, ExploredStep<Region>>();
@@ -143,24 +168,18 @@ export class ExploredEditStack<Region> {
   }
 
   /**
-   * What to write, in order, to take the memory from `from` edits to `to`: each undone step's
-   * texels as they were before it, or each redone step's as they were after. A step that is not
-   * kept is left out.
+   * The steps to take, in order, to bring the memory from `from` edits to `to`: undone from the
+   * newest back when `to` is less, redone from the oldest on otherwise. A step that is not kept
+   * is left out.
    */
-  path(from: number, to: number): CoveragePatch<Region>[] {
-    const patches: CoveragePatch<Region>[] = [];
-    if (to < from) {
-      for (let revision = from; revision > to; revision--) {
-        const step = this.steps.get(revision);
-        if (step) patches.push({ region: step.region, packed: step.before });
-      }
-    } else {
-      for (let revision = from + 1; revision <= to; revision++) {
-        const step = this.steps.get(revision);
-        if (step) patches.push({ region: step.region, packed: step.after });
-      }
+  path(from: number, to: number): ExploredStep<Region>[] {
+    const steps: ExploredStep<Region>[] = [];
+    const undone = to < from;
+    for (let revision = undone ? from : from + 1; undone ? revision > to : revision <= to; revision += undone ? -1 : 1) {
+      const step = this.steps.get(revision);
+      if (step) steps.push(step);
     }
-    return patches;
+    return steps;
   }
 
   clear(): void {
