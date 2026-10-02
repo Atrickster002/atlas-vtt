@@ -54,11 +54,9 @@
     }
   }
 
+  // A token portrait (`createTokenPortrait`): square, with the token's ring
   &__avatar {
     width: 100%;
-    aspect-ratio: 1;
-    object-fit: cover;
-    border-radius: $radius-s;
   }
 
   &__value {

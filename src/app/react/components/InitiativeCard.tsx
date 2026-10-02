@@ -10,6 +10,7 @@ import { useAtlasStore } from '../ViewStoreContext';
 import { zoomToTokenWithHighlight } from '../../pixi/utils/tokenHighlight';
 import { isModHeld, isModKey } from '../../keyboard/modKey';
 import { LabelTooltip } from '../../packages/components/primitives/tooltip';
+import { TokenPortrait } from '../../packages/components/shared/TokenPortrait';
 
 interface InitiativeCardProps {
   entry: InitiativeEntry;
@@ -24,7 +25,7 @@ interface InitiativeCardProps {
 
 /**
  * Individual initiative tracker card
- * Displays token avatar, name, initiative value and the bars of the token's resources
+ * Displays the token as the map shows it (its ring, or unframed), its initiative value and the bars of its resources
  */
 export const InitiativeCard: React.FC<InitiativeCardProps> = ({
   entry,
@@ -228,26 +229,26 @@ export const InitiativeCard: React.FC<InitiativeCardProps> = ({
 
       {/* Avatar with optional instance badge */}
       <div className="atlas-initiative-card__avatar-wrapper">
-        <div className="atlas-initiative-card__avatar">
-          {entry.imagePath ? (
-            <img
-              src={getImageUrl(entry.imagePath)}
-              alt={entry.name}
-              onError={(e) => {
-                e.currentTarget.hide();
-              }}
-            />
-          ) : (
-            entry.isNPC ? <Bot /> : <User />
-          )}
+        {entry.imagePath ? (
+          <TokenPortrait
+            className="atlas-initiative-card__portrait"
+            src={getImageUrl(entry.imagePath)}
+            alt={entry.name}
+            showRing={token?.showRing !== false}
+            ringColor={token?.ringColor}
+          />
+        ) : (
+          <div className="atlas-initiative-card__avatar">
+            {entry.isNPC ? <Bot /> : <User />}
+          </div>
+        )}
 
-          {/* Defeated overlay */}
-          {defeated && (
-            <div className="atlas-initiative-card__defeated-overlay">
-              <Skull />
-            </div>
-          )}
-        </div>
+        {/* Defeated overlay */}
+        {defeated && (
+          <div className="atlas-initiative-card__defeated-overlay">
+            <Skull />
+          </div>
+        )}
 
         {instanceBadge != null && (
           <span className="atlas-initiative-card__instance-badge">{instanceBadge}</span>

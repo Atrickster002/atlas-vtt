@@ -4,6 +4,7 @@ import { AssetService } from './AssetService';
 import type { App } from 'obsidian';
 import type { ViewAtlasState } from '../storeFactory';
 import type { InitiativeEntry } from '../types/initiativeTypes';
+import { createTokenPortrait } from '../packages/components/shared/tokenPortraitElement';
 import { PlayerSceneOverlay, type PlayerSettings } from './PlayerSceneOverlay';
 import type { SettingsService } from './SettingsService';
 import './player-initiative.scss';
@@ -19,6 +20,14 @@ interface InitiativeScene {
   mapPath: string | null;
   /** The HP of every initiative token, in entry order, as a key that changes when one of them does. */
   hp: string;
+  /** Whether each initiative token has a ring, and its colour, in entry order, as such a key. */
+  rings: string;
+}
+
+/** A token's ring as the list draws it; the map frames a token unless its ring is switched off. */
+interface TokenRing {
+  showRing: boolean;
+  ringColor?: string | undefined;
 }
 
 /** Read-only initiative projection; never mounts the DM tracker or its controls. */
@@ -35,7 +44,11 @@ export class PlayerInitiativePanel extends PlayerSceneOverlay<InitiativeScene> {
       .map((entry) => entry.tokenId)
       .join(TOKEN_ID_SEPARATOR);
     const hp = JSON.stringify(entries.map((entry) => tokens?.[entry.tokenId]?.resources?.hp ?? null));
-    return { initiative, initiativeTrackerOpen, visibleTokenIds, mapPath: mapPath ?? null, hp };
+    const rings = JSON.stringify(entries.map((entry): TokenRing => {
+      const token = tokens?.[entry.tokenId];
+      return { showRing: token?.showRing !== false, ringColor: token?.ringColor };
+    }));
+    return { initiative, initiativeTrackerOpen, visibleTokenIds, mapPath: mapPath ?? null, hp, rings };
   }
 
   protected render(container: HTMLElement, scene: InitiativeScene, settings: PlayerSettings): void {
@@ -55,16 +68,18 @@ export class PlayerInitiativePanel extends PlayerSceneOverlay<InitiativeScene> {
     // Players see HP where the map's collection shows it to them
     const hpVisible = mapResources(AssetService.getInstance(this.app), scene.mapPath).some((definition) => definition.key === 'hp' && definition.visibleToPlayers);
     const hpOf = JSON.parse(scene.hp) as Array<ResourceValue | null>;
+    const ringOf = JSON.parse(scene.rings) as TokenRing[];
     for (const entry of entries) {
-      const hp = hpVisible ? hpOf[initiative.entries.indexOf(entry)] ?? null : null;
-      this.renderEntry(list, entry, settings, initiative.isActive, hp);
+      const index = initiative.entries.indexOf(entry);
+      const hp = hpVisible ? hpOf[index] ?? null : null;
+      this.renderEntry(list, entry, settings, initiative.isActive, hp, ringOf[index] ?? { showRing: true });
     }
     if (initiative.isActive) {
       panel.createDiv({ cls: 'atlas-player-initiative__round', text: `Round ${initiative.round}` });
     }
   }
 
-  private renderEntry(parent: HTMLElement, entry: InitiativeEntry, settings: PlayerSettings, combatActive: boolean, hp: ResourceValue | null): void {
+  private renderEntry(parent: HTMLElement, entry: InitiativeEntry, settings: PlayerSettings, combatActive: boolean, hp: ResourceValue | null, ring: TokenRing): void {
     const card = parent.createDiv({ cls: 'atlas-player-initiative__card', attr: { role: 'listitem' } });
     if (combatActive && entry.isActive) {
       card.addClass('atlas-player-initiative__card--active');
@@ -73,10 +88,7 @@ export class PlayerInitiativePanel extends PlayerSceneOverlay<InitiativeScene> {
     if (entry.imagePath) {
       const src = /^(?:https?:|data:|blob:|app:)/.test(entry.imagePath)
         ? entry.imagePath : this.app.vault.adapter.getResourcePath(entry.imagePath);
-      card.createEl('img', {
-        cls: 'atlas-player-initiative__avatar',
-        attr: { src, alt: settings.showTokenNameplates ? entry.name : '' },
-      });
+      createTokenPortrait(card, { src, alt: settings.showTokenNameplates ? entry.name : '', cls: 'atlas-player-initiative__avatar', ...ring });
     }
     card.createSpan({ cls: 'atlas-player-initiative__value', text: String(entry.initiative) });
     if (settings.showTokenNameplates) {

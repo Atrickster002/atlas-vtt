@@ -183,6 +183,28 @@ describe('player initiative panel', () => {
     expect(doc.body.textContent).toContain('Round 4');
   });
 
+  it('shows each token as the map does: inside its ring in the ring\'s colour, or unframed without one', () => {
+    const { store, doc } = setup();
+    const portrait = (): Element | null => doc.querySelector('[aria-label="Initiative order"] .atlas-token-portrait');
+    const withArt = (token: Partial<TokenEntity>): void => {
+      const { objects, initiative } = store.getState();
+      store.setState({
+        initiative: { ...initiative, entries: [{ ...initiative.entries[0]!, imagePath: 'data:image/png;base64,AAAA' }] },
+        objects: { ...objects, tokens: { hero: { ...objects.tokens.hero!, ...token } as TokenEntity } },
+      });
+    };
+
+    withArt({ ringColor: '#c0392b' });
+    expect(portrait()?.classList.contains('atlas-token-portrait--unframed')).toBe(false);
+    expect(portrait()?.querySelector('img')?.getAttribute('src')).toBe('data:image/png;base64,AAAA');
+    expect(portrait()?.querySelector<HTMLElement>('.atlas-token-ring')?.style.getPropertyValue('--atlas-token-ring-color')).toBe('#c0392b');
+
+    // The list follows the token when the GM takes its ring away
+    withArt({ showRing: false });
+    expect(portrait()?.classList.contains('atlas-token-portrait--unframed')).toBe(true);
+    expect(portrait()?.querySelector('.atlas-token-ring')).toBeNull();
+  });
+
   it('defaults on for old settings and persists the DM choice across reloads', async () => {
     const { app } = createInMemoryApp({ files: { 'atlas-vtt/settings.json': JSON.stringify({ localPlayerView: { showWidgets: false } }) } });
     const settings = new SettingsService(app);
