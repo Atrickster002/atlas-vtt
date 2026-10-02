@@ -1,6 +1,6 @@
 import { BOUNCE_GATHER_GLSL } from './cascadeShaders';
-import { GLSL_VERSION, SRGB_GLSL, TRACE_GLSL, fieldGlsl } from './glsl';
-import { WALL_PUSH_GLSL } from './wallPushGlsl';
+import { GLSL_VERSION, SRGB_GLSL, TRACE_GLSL, fieldGlsl, traceGlsl } from './glsl';
+import { WALL_PUSH_GLSL, wallPushGlsl } from './wallPushGlsl';
 
 /**
  * The lighting layer's final pass. uTexture is the layer itself, what the vision tokens
@@ -31,6 +31,9 @@ import { WALL_PUSH_GLSL } from './wallPushGlsl';
  * uZones (read only while uHasZones is set) is the zone map: the ambient light of the scene's
  * zones, premultiplied by their share of the pixel in alpha, which is 1 inside a zone, where the
  * rule counts it; uZonesLifted is the same where dim light is perceived as bright.
+ * Two wall fields: uField holds the walls that stop light (the faces of walls and the bounce
+ * read it), uSightField those that stop sight (the explored memory's blur must not cross them).
+ * They are one texture bound twice unless a wall of the scene blocks one thing only.
  */
 export const compositeFragment = `${GLSL_VERSION}
 in vec2 vTextureCoord;
@@ -72,9 +75,13 @@ uniform sampler2D uZones;
 uniform sampler2D uZonesLifted;
 uniform float uHasZones;
 ${fieldGlsl('uField')}
+${fieldGlsl('uSightField')}
 float clearance(vec2 w) { return uFieldClearance(w); }
+float sightClearance(vec2 w) { return uSightFieldClearance(w); }
 ${TRACE_GLSL}
+${traceGlsl('sightReaches', 'sightClearance')}
 ${WALL_PUSH_GLSL}
+${wallPushGlsl('uSightField', 'Sight')}
 ${BOUNCE_GATHER_GLSL}
 ${SRGB_GLSL}
 
@@ -99,7 +106,7 @@ vec3 neutral(vec3 color) {
 }
 
 // Explored memory is stamped with hard-edged polygons: blur it over a disc of two memory texels,
-// shrunk to the pixel's wall clearance so memory never smears across a wall. 12 Vogel taps,
+// shrunk to the pixel's clearance from the walls that stop sight, so memory never smears across one. 12 Vogel taps,
 // Gaussian in distance. A read takes in the memory texels around it, a diagonal of one at most,
 // so no tap comes nearer than that to a wall. On a large map that is wider than a wall: there a
 // wall's face remembers the floor in front of it, and where walls leave no room for that (on a
@@ -110,17 +117,17 @@ float exploredAt(vec2 w) {
   vec2 size = vec2(textureSize(uExplored, 0));
   float texel = size.x >= size.y ? uMapSize.x / size.x : uMapSize.y / size.y;
   float footprint = 1.4143 * texel;
-  if (footprint > uFieldParams.y) {
-    w = climbFromWall(w, footprint);
-    if (uFieldDistance(w) < footprint) {
+  if (footprint > uSightFieldParams.y) {
+    w = climbFromWallSight(w, footprint);
+    if (uSightFieldDistance(w) < footprint) {
       // No room: the one memory texel the pixel lies in, if the way to its middle is clear. A texel
       // whose middle lies behind a wall was recorded from there, and one whose middle can be
       // reached lies whole on this side of every wall (a wall is as thick as the texel is wide).
       vec2 cell = clamp(floor(w / uMapSize * size), vec2(0.0), size - 1.0);
-      return reaches(w, (cell + 0.5) / size * uMapSize) ? texelFetch(uExplored, ivec2(cell), 0).r : 0.0;
+      return sightReaches(w, (cell + 0.5) / size * uMapSize) ? texelFetch(uExplored, ivec2(cell), 0).r : 0.0;
     }
   }
-  float r = min(2.0 * texel, min(clearance(w), uFieldDistance(w) - footprint));
+  float r = min(2.0 * texel, min(sightClearance(w), uSightFieldDistance(w) - footprint));
   float sum = textureLod(uExplored, clamp(w / uMapSize, 0.0, 1.0), 0.0).r;
   if (r < 0.25 * texel) return sum;
   float weights = 1.0;

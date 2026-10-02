@@ -53,7 +53,7 @@ export class TileCache {
       this.entries.delete(key);
       dirty = true;
     }
-    const blocking = splitBlocking(walls);
+    const blocking = splitBlocking(walls, 'light');
     for (const light of lights) {
       const entry = this.entries.get(light.key);
       if (entry && sameShape(entry.light, light) && !touches(entry.tile, changed)) {
@@ -77,7 +77,7 @@ export class TileCache {
     if (!placed) return null;
     const rect = this.tileRect(placed.x, placed.y, light.dim * LIGHT_REACH);
     if (!rect) return null;
-    const blockingOneWay = blocking.oneWay.filter((wall) => blocksFrom(wall, placed));
+    const blockingOneWay = blocking.oneWay.filter((wall) => blocksFrom(wall, placed, 'light'));
     let oneWayField: CapsuleField | null = null;
     if (blockingOneWay.length > 0) {
       oneWayField = new CapsuleField(this.renderer, rect, texel, wallRadius(texel), 'uOneWay');
