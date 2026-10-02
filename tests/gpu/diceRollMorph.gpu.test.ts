@@ -20,9 +20,9 @@ const LAYOUT = `
   .atlas-dice-roll__content { display: flex; flex-direction: column; }
   .atlas-dice-roll__floor { width: 100%; aspect-ratio: 16 / 10; }
   .atlas-dice-roll__row { min-height: 54px; }
-  .atlas-dice-roll__stage { position: absolute; inset: 0; }
+  .atlas-dice-roll__stage { position: absolute; inset: 0; overflow: hidden; }
   .atlas-dice-roll--compact .atlas-dice-roll__stage { inset: 4px auto auto 4px; height: 46px; aspect-ratio: 1; }
-  .atlas-dice-stage__canvas { display: block; width: 100%; height: 100%; }
+  .atlas-dice-stage__canvas { position: absolute; bottom: 0; left: 0; display: block; max-width: none; }
 `;
 /** Longer than the morph's spring. */
 const MORPH_FRAMES = 40;
@@ -125,6 +125,25 @@ describe('the roll stack rearranging', () => {
     const row = heights[heights.length - 1] ?? 0;
     expect(row).toBeLessThan(large / 2);
     expect(heights.some((height) => height > row + 20 && height < large - 20)).toBe(true);
+  });
+
+  it('keeps the canvas of a roll shrinking to a row, and shows its bottom left corner', async () => {
+    const first = roll('first');
+    show([first]);
+    await worstOverMorph(() => null);
+    const canvas = host.querySelector('canvas')!;
+    const { width, height } = canvas;
+    show([first, roll('second')]);
+    await worstOverMorph(() => null);
+
+    const stage = host.querySelector<HTMLElement>('.atlas-dice-roll--compact .atlas-dice-roll__stage')!;
+    expect(stage.contains(canvas)).toBe(true);
+    expect([canvas.width, canvas.height]).toEqual([width, height]);
+    const shown = stage.getBoundingClientRect();
+    const drawn = canvas.getBoundingClientRect();
+    expect(drawn.left).toBeCloseTo(shown.left, 0);
+    expect(drawn.bottom).toBeCloseTo(shown.bottom, 0);
+    expect(drawn.height).toBeGreaterThan(shown.height * 2);
   });
 
   it('keeps the dice on a panel that moves up', async () => {
