@@ -33,6 +33,10 @@ export interface WorldSettings {
   /** Whether the date bar shows at all (also switched from the map's More options menu). */
   showDateBar: boolean;
   dateBarPosition: DateBarPosition;
+  /** Shown after a year, e.g. "eO" or "AD"; empty = the calendar file's own label. */
+  yearLabel: string;
+  /** Shown after a year before year 0, e.g. "fO" or "BC"; empty = the calendar file's own label. */
+  yearLabelBefore: string;
 }
 
 export const DEFAULT_WORLD_SETTINGS: WorldSettings = {
@@ -45,6 +49,8 @@ export const DEFAULT_WORLD_SETTINGS: WorldSettings = {
   dateBar: 'always',
   showDateBar: true,
   dateBarPosition: 'bottom',
+  yearLabel: '',
+  yearLabelBefore: '',
 };
 
 function text(value: unknown, fallback: string): string {
@@ -70,6 +76,8 @@ export function readWorldSettings(value: unknown): WorldSettings {
     dateBarPosition: DATE_BAR_POSITIONS.some(({ position }) => position === value.dateBarPosition)
       ? value.dateBarPosition as DateBarPosition
       : defaults.dateBarPosition,
+    yearLabel: text(value.yearLabel, defaults.yearLabel),
+    yearLabelBefore: text(value.yearLabelBefore, defaults.yearLabelBefore),
   };
 }
 

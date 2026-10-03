@@ -37,6 +37,28 @@ export function worldSettingsSection(app: App, settingsService: SettingsService)
         },
       },
       {
+        name: 'Year label',
+        desc: 'Written after every year, e.g. "eO" or "AD". Empty: the label the calendar file gives.',
+        aliases: ['era', 'year name', 'reckoning'],
+        render: (setting) => {
+          setting.addText((text) => text
+            .setPlaceholder(calendarFileLabel(calendars, 'after'))
+            .setValue(world().yearLabel)
+            .onChange((yearLabel) => updateWorldSettings(settingsService, { yearLabel })));
+        },
+      },
+      {
+        name: 'Year label before year 0',
+        desc: 'Written after years before year 0, e.g. "fO" or "BC". Empty: the label the calendar file gives.',
+        aliases: ['era', 'year name'],
+        render: (setting) => {
+          setting.addText((text) => text
+            .setPlaceholder(calendarFileLabel(calendars, 'before'))
+            .setValue(world().yearLabelBefore)
+            .onChange((yearLabelBefore) => updateWorldSettings(settingsService, { yearLabelBefore })));
+        },
+      },
+      {
         name: 'Default viewing date',
         desc: 'Used by scenes that have no viewing date of their own. Empty: such scenes show all times.',
         aliases: ['time slider', 'viewing date'],
@@ -110,4 +132,10 @@ export function worldSettingsSection(app: App, settingsService: SettingsService)
       },
     ],
   };
+}
+
+/** The label the calendar file itself gives, shown as the placeholder of the year label fields. */
+function calendarFileLabel(calendars: CalendarService, side: 'after' | 'before'): string {
+  const own = calendars.calendars().find((calendar) => calendar.id === calendars.calendar().id) ?? calendars.calendar();
+  return (side === 'after' ? own.eraAfter : own.eraBefore) || 'None';
 }

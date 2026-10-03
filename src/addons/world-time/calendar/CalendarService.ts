@@ -1,7 +1,7 @@
 import { normalizePath, TAbstractFile, type App, type EventRef } from 'obsidian';
 import { SettingsService } from 'src/app/services/SettingsService';
-import { worldSettingsOf } from '../worldSettings';
-import { pickCalendar, readCalendarFile, type CalendarDefinition, type CalendarFile } from './calendarDefinition';
+import { worldSettingsOf, type WorldSettings } from '../worldSettings';
+import { pickCalendar, readCalendarFile, withYearLabels, type CalendarDefinition, type CalendarFile } from './calendarDefinition';
 
 /**
  * The vault's calendar file (`world.calendarPath` in the settings), read once
@@ -30,6 +30,7 @@ export class CalendarService {
   private current: CalendarDefinition = pickCalendar(this.file);
   private loadedPath = '';
   private loadedId = '';
+  private loadedLabels = '';
   private problem: string | null = null;
   private revision = 0;
   private readonly listeners = new Set<() => void>();
@@ -47,6 +48,7 @@ export class CalendarService {
     this.unsubscribeSettings = SettingsService.forApp(app)?.onChange(() => {
       const settings = this.settings();
       if (normalizePath(settings.calendarPath) !== this.loadedPath || settings.calendarId !== this.loadedId) void this.load();
+      else if (labelsKey(settings) !== this.loadedLabels) this.pick();
     }) ?? null;
     void this.load();
   }
@@ -80,7 +82,7 @@ export class CalendarService {
     this.listeners.clear();
   }
 
-  private settings(): { calendarPath: string; calendarId: string } {
+  private settings(): WorldSettings {
     return worldSettingsOf(SettingsService.forApp(this.app));
   }
 
@@ -104,8 +106,20 @@ export class CalendarService {
     // A later load may have started while this one read the disk.
     if (this.loadedPath !== path) return;
     this.file = readCalendarFile(parsed);
-    this.current = pickCalendar(this.file, settings.calendarId || undefined);
+    this.pick();
+  }
+
+  /** Takes the chosen calendar from the loaded file, with the year labels from the settings. */
+  private pick(): void {
+    const settings = this.settings();
+    this.loadedLabels = labelsKey(settings);
+    this.current = withYearLabels(pickCalendar(this.file, settings.calendarId || undefined), settings);
     this.revision++;
     for (const listener of this.listeners) listener();
   }
+}
+
+function labelsKey(settings: WorldSettings): string {
+  return `${settings.yearLabel}
+${settings.yearLabelBefore}`;
 }

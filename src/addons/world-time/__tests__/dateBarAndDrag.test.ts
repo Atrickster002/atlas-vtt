@@ -37,3 +37,15 @@ describe('time mask while a pin is dragged', () => {
     expect(second.hidden).toEqual({ still: true, moved: true });
   });
 });
+
+describe('year labels', () => {
+  it('replace the calendar file\'s labels, and an empty choice keeps them', async () => {
+    const { withYearLabels } = await import('../calendar/calendarDefinition');
+    const { formatYear } = await import('../calendar/dateMath');
+    const file = { ...calendar, eraAfter: 'eO', eraBefore: 'fO' };
+    expect(formatYear(withYearLabels(file, { yearLabel: 'AD', yearLabelBefore: 'BC' }), 1236)).toBe('1236 AD');
+    expect(formatYear(withYearLabels(file, { yearLabel: 'AD', yearLabelBefore: 'BC' }), -40)).toBe('40 BC');
+    expect(withYearLabels(file, { yearLabel: ' ', yearLabelBefore: '' })).toBe(file);
+    expect(readWorldSettings({ yearLabel: ' DoD ' }).yearLabel).toBe('DoD');
+  });
+});

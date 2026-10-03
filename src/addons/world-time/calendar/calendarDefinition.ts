@@ -156,6 +156,13 @@ export function pickCalendar(file: CalendarFile, id?: string): CalendarDefinitio
     ?? fallbackCalendar();
 }
 
+/** The calendar with the year labels the user chose in place of its own; an empty choice keeps the file's. */
+export function withYearLabels(calendar: CalendarDefinition, labels: { yearLabel: string; yearLabelBefore: string }): CalendarDefinition {
+  const eraAfter = labels.yearLabel.trim() || calendar.eraAfter;
+  const eraBefore = labels.yearLabelBefore.trim() || calendar.eraBefore;
+  return eraAfter === calendar.eraAfter && eraBefore === calendar.eraBefore ? calendar : { ...calendar, eraAfter, eraBefore };
+}
+
 export function monthOf(calendar: CalendarDefinition, month: number): CalendarMonth | undefined {
   return calendar.months[month - 1];
 }
