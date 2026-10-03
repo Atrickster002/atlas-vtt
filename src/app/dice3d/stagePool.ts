@@ -45,6 +45,12 @@ interface DocumentDice {
   lent: number;
   /** Whether its stages are being built ahead. */
   warming: boolean;
+  /**
+   * Whether its context is lost. The browser blocks WebGL for a page whose
+   * contexts keep getting lost, so the stages would stay blank (white on some
+   * systems) until the context comes back after a GPU reset or sleep.
+   */
+  lost: boolean;
 }
 
 const documents = new Map<Document, DocumentDice>();
@@ -52,7 +58,7 @@ const documents = new Map<Document, DocumentDice>();
 function diceOf(doc: Document): DocumentDice {
   let dice = documents.get(doc);
   if (dice === undefined) {
-    dice = { gpu: undefined, idle: [], lent: 0, warming: false };
+    dice = { gpu: undefined, idle: [], lent: 0, warming: false, lost: false };
     documents.set(doc, dice);
   }
   return dice;
@@ -60,15 +66,32 @@ function diceOf(doc: Document): DocumentDice {
 
 function gpuOf(doc: Document, dice: DocumentDice): DiceGpu | null {
   if (dice.gpu !== undefined) return dice.gpu;
+  // Adopted before the context is created, so the canvas and its context
+  // belong to the document the stages are shown in.
+  const canvas = doc.adoptNode(createEl('canvas'));
+  canvas.addEventListener('webglcontextlost', (): void => {
+    dice.lost = true;
+  });
+  canvas.addEventListener('webglcontextrestored', (): void => {
+    dice.lost = false;
+  });
   try {
-    // Adopted before the context is created, so the canvas and its context
-    // belong to the document the stages are shown in.
-    dice.gpu = new DiceGpu(doc.adoptNode(createEl('canvas')));
+    dice.gpu = new DiceGpu(canvas);
   } catch {
-    // No WebGL (jsdom, very old devices): the math runs, the picture is missing.
+    // No WebGL (jsdom, a blocked or broken GPU): the math runs, the picture is missing.
     dice.gpu = null;
   }
   return dice.gpu;
+}
+
+/**
+ * Whether `doc` can show 3D dice: not where its context could not be made or is
+ * lost. Its rolls then show as result cards. The context is made here if no
+ * stage made it yet, so a roll before the warm-up finds out too.
+ */
+export function canShowDice(doc: Document): boolean {
+  const dice = diceOf(doc);
+  return gpuOf(doc, dice) !== null && !dice.lost;
 }
 
 function buildStage(doc: Document, dice: DocumentDice): StageLease {
