@@ -10,7 +10,7 @@ const path = require('path');
 
 const STABLE = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;
 const BETA = /^((?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*))-beta\.(0|[1-9]\d*)$/;
-// Private builds `x.y.z-world.N` on top of release x.y.z (Lukas's Atlas with add-ons).
+// Private builds `x.y.z-world.N` on top of release x.y.z (Atlas with add-ons).
 const WORLD = /^((?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*))-world\.(0|[1-9]\d*)$/;
 const CHANNEL_BRANCHES = { main: 'stable', beta: 'beta' };
 
