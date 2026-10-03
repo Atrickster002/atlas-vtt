@@ -38,6 +38,7 @@ import { tokenLightingEntries } from '../../react/components/context-menu/tokenL
 import { mapLightPresets } from '../../services/mapCollectionRules';
 import { conditionsSubmenu } from '../../react/components/context-menu/conditionsMenu';
 import { holdTokens } from '../../lighting/sightOnDrop';
+import { addonObjectMenuEntries } from '../../addons/addonHost';
 
 interface DragState {
   isDragging: boolean;
@@ -731,6 +732,8 @@ export class InteractionController implements ITokenInteractionController {
       });
     }
 
+
+    entries.push(...addonObjectMenuEntries(this.store, 'token', token.id, { app: this.obsApp }));
 
     // Destructive actions row (Kill + Delete side by side)
     entries.push({

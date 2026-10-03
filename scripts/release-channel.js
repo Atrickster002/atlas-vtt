@@ -10,6 +10,8 @@ const path = require('path');
 
 const STABLE = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;
 const BETA = /^((?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*))-beta\.(0|[1-9]\d*)$/;
+// Private builds `x.y.z-world.N` on top of release x.y.z (Lukas's Atlas with add-ons).
+const WORLD = /^((?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*))-world\.(0|[1-9]\d*)$/;
 const CHANNEL_BRANCHES = { main: 'stable', beta: 'beta' };
 
 function parseVersion(version) {
@@ -19,6 +21,10 @@ function parseVersion(version) {
   const beta = typeof version === 'string' ? version.match(BETA) : null;
   if (beta) {
     return { version, base: beta[1], channel: 'beta', iteration: Number(beta[2]) };
+  }
+  const world = typeof version === 'string' ? version.match(WORLD) : null;
+  if (world) {
+    return { version, base: world[1], channel: 'world', iteration: Number(world[2]) };
   }
   throw new Error(`Invalid version "${version}": use x.y.z for stable releases or x.y.z-beta.N for beta builds`);
 }
