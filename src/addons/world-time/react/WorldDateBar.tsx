@@ -21,7 +21,7 @@ const STEP_UNITS: ReadonlyArray<{ unit: StepUnit; label: string }> = [
 ];
 
 /**
- * The scene's viewing date (Atlas world fork): a slider over the scene's
+ * The scene's viewing date: a slider over the scene's
  * dates, step buttons, a field to type a date, "latest" and "all times".
  * DM only; the player window mirrors the canvas, so players follow.
  */

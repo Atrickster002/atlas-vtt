@@ -16,7 +16,7 @@ async function openTimeline(plugin: Plugin): Promise<void> {
 }
 
 /**
- * Registers the world-time parts of the Atlas world fork that live outside a
+ * Registers the world-time parts that live outside a
  * map view: the timeline pane, its commands, and the release of the shared
  * calendar and note index when the plugin unloads.
  */

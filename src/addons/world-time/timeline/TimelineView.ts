@@ -15,7 +15,7 @@ const ZOOMS: Record<TimelineZoom, string> = { era: 'Eras', century: 'Centuries',
 const IMPORTANCE: Record<string, string> = { '1': 'All events', '2': 'Importance 2+', '3': 'Importance 3+', '4': 'Importance 4+', '5': 'World-shaking' };
 
 /**
- * The world's history (Atlas world fork): every `type: event` note in date
+ * The world's history: every `type: event` note in date
  * order with era bands, filtered by place (with the places inside it),
  * person, faction, importance and text. Clicking opens the note; the clock
  * button moves the last used scene to the event's date.

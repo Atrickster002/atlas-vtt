@@ -5,7 +5,7 @@ import { CalendarService } from '../calendar/CalendarService';
 import { addDateField } from '../ui/dateSetting';
 import { DATE_BAR_POSITIONS, updateWorldSettings, worldSettingsOf, type DateBarMode, type DateBarPosition, type WorldSettings } from '../worldSettings';
 
-/** Settings of the Atlas world fork: calendar, default date, ghosts, rumours, event notes. */
+/** Settings: calendar, default date, ghosts, rumours, event notes. */
 export function worldSettingsSection(app: App, settingsService: SettingsService): AtlasSettingSection {
   const world = (): WorldSettings => worldSettingsOf(settingsService);
   const calendars = CalendarService.forApp(app);

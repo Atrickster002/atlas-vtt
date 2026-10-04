@@ -1,8 +1,8 @@
 import { isRecord } from 'src/app/services/assetMetadataGuards';
 
 /**
- * Calendars as `atlas-vtt/world/calendar.json` defines them (format:
- * reference/formats/calendar.json of the world project). Unfilled entries
+ * Calendars as the calendar file (`atlas-vtt/world/calendar.json` by default)
+ * defines them; see the add-on's README for the format. Unfilled entries
  * ("TODO …" names, empty month lists) are tolerated: a calendar without months
  * takes the Arcivalian structure, a placeholder name becomes "Month N".
  */
@@ -45,7 +45,7 @@ export interface CalendarFile {
 
 export const ARCIVALIAN_ID = 'arcivalian';
 
-/** 12 × 30 days and 5 festival days, as DATA-MODEL.md describes the Arcivalian year. */
+/** 12 × 30 days and 5 festival days, the Arcivalian year of Drakar och Demoner's Altor. */
 function arcivalianMonths(): CalendarMonth[] {
   const months: CalendarMonth[] = [];
   for (let n = 1; n <= 12; n++) months.push({ n, name: `Month ${n}`, days: 30, intercalary: false });

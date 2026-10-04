@@ -23,7 +23,7 @@ function scenePlaces(app: App, view: AtlasView): string[] {
 }
 
 /**
- * "Log event" (Atlas world fork): writes a `type: event` note dated at the
+ * "Log event": writes a `type: event` note dated at the
  * scene's viewing date, with the selected pins' notes as its places, so what
  * the party did becomes part of the world's history and shows on the map.
  */

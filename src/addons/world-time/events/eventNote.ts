@@ -33,7 +33,7 @@ function yamlLinks(targets: readonly string[]): string {
   return `[${targets.filter((target) => target.trim() !== '').map((target) => yamlString(`[[${target.trim()}]]`)).join(', ')}]`;
 }
 
-/** The note's text in the living-world event format (DATA-MODEL.md). */
+/** The note's text in the living-world event format. */
 export function eventNoteContent(draft: EventNoteDraft): string {
   const lines = [
     '---',
@@ -46,7 +46,6 @@ export function eventNoteContent(draft: EventNoteDraft): string {
     `importance: ${Math.min(5, Math.max(1, Math.round(draft.importance)))}`,
     ...(draft.rumour ? [`rumour: ${yamlString(draft.rumour)}`] : []),
     `known_by: ${draft.knownBy}`,
-    'canon: invented',
     'tags: [world, event]',
     '---',
     `# ${draft.name.trim() || 'Untitled event'}`,

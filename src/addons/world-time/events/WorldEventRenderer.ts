@@ -22,7 +22,7 @@ const RUMOUR_COLOR = 0x9a9a9a;
 
 /**
  * Shows world events as small markers beside the pins of the places they
- * happened at (Atlas world fork). GM-only like pins: hidden in player views
+ * happened at. GM-only like pins: hidden in player views
  * and left out of every player frame (`getContainer` is a DM layer).
  */
 /** What the markers depend on of the pins: which there are, their notes and hex links, not where they stand. */

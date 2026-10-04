@@ -3,8 +3,8 @@ import { normalizeWorldDate } from '../calendar/worldDate';
 import type { NoteDates } from '../dating/effectiveDates';
 
 /**
- * What the world fork reads from a note's frontmatter (field names from the
- * world project's DATA-MODEL.md). Pure: link resolution is passed in.
+ * What the world-time add-on reads from a note's frontmatter (field names in
+ * the add-on's README). Pure: link resolution is passed in.
  */
 
 /** A link from frontmatter: the text as written and the vault path it resolves to (if any). */
@@ -119,7 +119,7 @@ function optional<K extends string, V>(key: K, value: V | undefined): Partial<Re
   return value === undefined ? {} : ({ [key]: value } as Record<K, V>);
 }
 
-/** Everything the world fork needs from one note; null when the note has nothing of it. */
+/** Everything the world-time add-on needs from one note; null when the note has nothing of it. */
 export function readWorldNote(path: string, frontmatter: unknown, resolve: LinkResolver): WorldNoteRecord | null {
   if (!isRecord(frontmatter)) return null;
   const type = readText(frontmatter.type)?.toLowerCase();

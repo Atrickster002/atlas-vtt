@@ -23,7 +23,7 @@ function shared<T>(values: readonly T[]): T | undefined {
 }
 
 /**
- * Sets when map objects exist (Atlas world fork). Ends left empty fall back to
+ * Sets when map objects exist. Ends left empty fall back to
  * the linked note's frontmatter unless inheriting is switched off. Saving
  * applies to every object in one undo step.
  */

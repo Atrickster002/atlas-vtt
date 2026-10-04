@@ -8,7 +8,7 @@ import { addDateField } from './dateSetting';
 import { ImagePathSuggest } from './ImagePathSuggest';
 
 /**
- * Scene-level world time (Atlas world fork): the slider's bounds and the map
+ * Scene-level world time: the slider's bounds and the map
  * variants (backgrounds valid only in a period). Edits apply at once.
  */
 export class SceneWorldTimeModal extends Modal {

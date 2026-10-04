@@ -15,7 +15,7 @@ export const DATE_BAR_POSITIONS: ReadonlyArray<{ position: DateBarPosition; labe
   { position: 'right', label: 'Right' },
 ];
 
-/** World-time settings (Atlas world fork), stored in Atlas' settings file under `world`. */
+/** World-time settings, stored in Atlas' settings file under `world`. */
 export interface WorldSettings {
   /** Vault path of the calendar file. */
   calendarPath: string;
@@ -45,7 +45,7 @@ export const DEFAULT_WORLD_SETTINGS: WorldSettings = {
   defaultViewingDate: '',
   showGhosted: false,
   rumourYears: 1,
-  eventsFolder: 'Dragonbane/World/History',
+  eventsFolder: 'World/Events',
   dateBar: 'always',
   showDateBar: true,
   dateBarPosition: 'bottom',

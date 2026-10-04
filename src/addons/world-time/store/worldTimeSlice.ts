@@ -5,7 +5,7 @@ import { EMPTY_TIME_MASK, type DatedObjects, type TimeMask } from '../dating/tim
 import type { MapVariant, SceneWorldTime } from '../sceneWorldTime';
 
 /**
- * World time of the loaded scene (Atlas world fork). `worldTime` is saved in
+ * World time of the loaded scene. `worldTime` is saved in
  * the map file; the mask and the effective background are derived by
  * `WorldTimeController` and never saved.
  */

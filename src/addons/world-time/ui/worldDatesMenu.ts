@@ -6,7 +6,7 @@ import { worldAppOf } from '../worldApp';
 import { WorldDatesModal } from './WorldDatesModal';
 
 /**
- * The "Set dates…" context menu entry (Atlas world fork). It acts on the
+ * The "Set dates…" context menu entry. It acts on the
  * selected objects of `kind` when the clicked one is among them, else on the
  * clicked one. Empty in the player view or before the view's world time is set up.
  */

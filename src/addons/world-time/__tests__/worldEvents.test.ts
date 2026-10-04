@@ -98,7 +98,7 @@ describe('timeline', () => {
 });
 
 describe('logged event notes', () => {
-  it('writes the DATA-MODEL frontmatter', () => {
+  it('writes the event frontmatter', () => {
     const content = eventNoteContent({
       name: 'The party burns the "Red" camp', date: '1236-04-12', places: ['Otag'], people: [], factions: ['Red Hand'],
       importance: 7, rumour: 'Smoke over the hills', knownBy: 'common', summary: 'They did.',
