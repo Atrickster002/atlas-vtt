@@ -36,5 +36,9 @@ export const CALL_OF_CTHULHU: SystemPreset = {
       { name: 'Stunned', color: '#fbbf24', icon: 'knocked-out-stars' },
     ]),
     resources: [{ ...HP_RESOURCE }],
+    statblockRoles: [
+      { id: 'creature', name: 'Creature', templateId: 'builtin:percentile-creature' },
+      { id: 'character', name: 'Character', templateId: 'builtin:percentile-creature' },
+    ],
   },
 };

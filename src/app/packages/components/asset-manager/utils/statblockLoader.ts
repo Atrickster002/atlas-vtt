@@ -1,7 +1,8 @@
 import type { App as ObsidianApp } from 'obsidian';
-import { resolveLinkedCreature } from '../../../../creatures/linkedCreature';
+import { difficultyLabel, scalarText } from '../../../../creatures/statblockRating';
 import type { ResourceDefinition, ResourceValue } from '../../../../resources/resourceTypes';
 import { startingResources } from '../../../../resources/statblockResourceValues';
+import { readStatblock } from '../../../../statblocks/resolve/readStatblock';
 
 export interface StatblockOverrides {
   name?: string;
@@ -10,15 +11,10 @@ export interface StatblockOverrides {
   resources?: Record<string, ResourceValue>;
 }
 
-/** A non-empty challenge rating or tier as bestiaries store it, e.g. `5` or `"1/4"`. */
-function isLabelValue(value: unknown): value is string | number {
-  return typeof value === 'number' || (typeof value === 'string' && value !== '');
-}
-
 /**
- * Resolves what a token takes from the Fantasy Statblocks creature backing a
- * linked statblock note: its name, difficulty and the starting values of the
- * collection's resources.
+ * Resolves what a token takes from the statblock of a linked note: its name,
+ * difficulty and the starting values of the collection's resources. A native
+ * statblock's template says which fields hold its hit points and rating.
  */
 export async function loadStatblockOverrides(
   app: ObsidianApp,
@@ -28,21 +24,18 @@ export async function loadStatblockOverrides(
   const overrides: StatblockOverrides = {};
 
   try {
-    const creature = await resolveLinkedCreature(app, statblockPath);
-    if (!creature) return overrides;
+    const statblock = await readStatblock(app, statblockPath);
+    if (!statblock) return overrides;
+    const { fields, meanings } = statblock;
 
-    const resources = startingResources(creature, definitions);
+    const resources = startingResources(fields, definitions, meanings);
     if (Object.keys(resources).length > 0) overrides.resources = resources;
 
-    if (isLabelValue(creature.cr)) {
-      overrides.difficulty = `CR ${creature.cr}`;
-    } else if (isLabelValue(creature.tier)) {
-      overrides.difficulty = `T${creature.tier}`;
-    }
+    const difficulty = difficultyLabel(fields, meanings);
+    if (difficulty !== undefined) overrides.difficulty = difficulty;
 
-    if (creature.name) {
-      overrides.name = creature.name;
-    }
+    const name = scalarText(fields.name);
+    if (name !== null) overrides.name = name;
   } catch (error) {
     console.error('[statblockLoader] Failed to load statblock data:', error);
   }

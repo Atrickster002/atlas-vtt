@@ -1,8 +1,8 @@
 /**
  * CollectionSettingsModal
  *
- * Vertical-tabbed modal for configuring per-collection settings:
- *   Game System | Dice | Grid & Measurement | Vision | Default Widgets | Conditions | Resources | Creature Filters | Loot
+ * Vertical-tabbed modal for configuring per-collection settings (`settingsTabs`):
+ *   Game System | Dice | Grid & Measurement | Vision | Default Widgets | Conditions | Resources | Statblocks | Creature Filters | Loot
  *
  * Opens after collection creation and via a gear button in the sidebar.
  */
@@ -10,42 +10,35 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { motion } from 'framer-motion';
-import { Dice5, Dices, Eye, Gauge, Grid3X3, LayoutGrid, ListFilter, ShieldAlert } from 'lucide-react';
-import { CoinIcon } from './CoinIcon';
 import { Button } from '../../packages/components/primitives/button';
 import { useAtlasUI } from '../root/AtlasUIContext';
 import { AssetService } from '../../services/AssetService';
-import type { InitiativeRules } from '../../types/initiativeRulesTypes';
 import type { SystemPreset } from '../../types/systemPresetTypes';
 import { deleteSystemPreset } from '../../services/systemPresetDeletion';
 import { syncCollectionSystem } from '../../services/collectionSystemSync';
+import { handledByAnotherControl } from '../../keyboard/tooltipEscape';
 import { useSystemPresets } from '../hooks/useSystemPresets';
-import { savedResources, useCollectionSettingsDraft } from './collection-settings/useCollectionSettingsDraft';
-
-import { GridMeasurementTab } from './collection-settings/GridMeasurementTab';
-import { collectionConeAngle } from '../../gameSystems/coneAngle';
-import { VisionTab } from './collection-settings/VisionTab';
+import { useCollectionSettingsDraft } from './collection-settings/useCollectionSettingsDraft';
 import { useExperimentalFeature } from '../hooks/useExperimentalFeature';
-import { DefaultWidgetsTab } from './collection-settings/DefaultWidgetsTab';
-import { ConditionsTab } from './collection-settings/ConditionsTab';
-import { ResourcesTab } from './collection-settings/ResourcesTab';
-import { discoverResourceFields } from '../../resources/resourceFields';
-import { LootTab } from './collection-settings/LootTab';
-import { SystemTab } from './collection-settings/SystemTab';
-import { DiceTab } from './collection-settings/DiceTab';
 import { collectionDiceRules, isValidDiceRules } from '../../gameSystems/diceRules';
 import { collectionInitiativeRules, isValidInitiativeRules } from '../../gameSystems/initiativeRules';
-import { collectionLightPresets } from '../../gameSystems/lightPresetRules';
-import { editedSenses, sensesAreValid } from '../../gameSystems/senseEditing';
+import { sensesAreValid } from '../../gameSystems/senseEditing';
 import { collectionSenses } from '../../gameSystems/senseRules';
-import { CreatureFiltersTab } from './collection-settings/CreatureFiltersTab';
+import type { TemplateId } from '../../statblocks/model/templateTypes';
+import { collectionStatblockRoles } from '../../statblocks/roles/collectionStatblockRoles';
+import { statblockRolesAreValid } from '../../statblocks/roles/roleValidation';
 import { useCollectionCreatures } from './collection-settings/useCollectionCreatures';
+import { useRoleTemplates } from './collection-settings/useRoleTemplates';
 import { isCompleteCreatureFilter } from '../../creatures/creatureFilterDefinitions';
 import { areRangeBandsValid } from '../../grid/measurementFormat';
 
 import { SettingsContent } from './collection-settings/SettingsContent';
+import { SettingsTabContent } from './collection-settings/SettingsTabContent';
+import { settingsTabs, type CollectionSettingsTab, type FeatureSwitches } from './collection-settings/settingsTabs';
 import { CloseButton } from '../../packages/components/primitives/CloseButton';
 import { dialogOverlayMotion, useDialogWindowVariants } from '../../packages/components/primitives/dialogMotion';
+
+export type { CollectionSettingsTab } from './collection-settings/settingsTabs';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -55,31 +48,11 @@ interface CollectionSettingsModalProps {
   collectionId: string;
   /** The tab it opens on; Game System by default. */
   initialTab?: CollectionSettingsTab;
-}
-
-export type CollectionSettingsTab = 'system' | 'dice' | 'grid' | 'vision' | 'widgets' | 'conditions' | 'resources' | 'creatureFilters' | 'loot';
-
-interface TabDef {
-  id: CollectionSettingsTab;
-  label: string;
-  icon: React.ReactNode;
-}
-
-const TABS: TabDef[] = [
-  { id: 'system', label: 'Game System', icon: <Dices size={16} /> },
-  { id: 'dice', label: 'Dice', icon: <Dice5 size={16} /> },
-  { id: 'grid', label: 'Grid & Measure', icon: <Grid3X3 size={16} /> },
-  { id: 'vision', label: 'Vision', icon: <Eye size={16} /> },
-  { id: 'widgets', label: 'Default Widgets', icon: <LayoutGrid size={16} /> },
-  { id: 'conditions', label: 'Conditions', icon: <ShieldAlert size={16} /> },
-  { id: 'resources', label: 'Resources', icon: <Gauge size={16} /> },
-  { id: 'creatureFilters', label: 'Creature Filters', icon: <ListFilter size={16} /> },
-  { id: 'loot', label: 'Loot', icon: <CoinIcon size={16} /> },
-];
-
-/** Whether what was typed is the system's rules to the letter; a roll with a space or another case is kept as typed. */
-function isSameAsTyped(typed: InitiativeRules, system: InitiativeRules): boolean {
-  return typed.mode === system.mode && typed.firstSide === system.firstSide && typed.roll === system.roll;
+  /**
+   * Opens a statblock template for this collection (`collectionId`). The Statblocks tab's Edit
+   * saves the settings and closes the dialog first; without it the tab offers no Edit.
+   */
+  onEditTemplate?: (templateId: TemplateId, collectionId: string) => void;
 }
 
 // ── Component ──────────────────────────────────────────────────────────────
@@ -89,9 +62,13 @@ export function CollectionSettingsModal({
   onClose,
   collectionId,
   initialTab = 'system',
+  onEditTemplate,
 }: CollectionSettingsModalProps): React.ReactElement | null {
   const { app } = useAtlasUI();
-  const lightingOn = useExperimentalFeature('dynamicLighting');
+  const features: FeatureSwitches = {
+    dynamicLighting: useExperimentalFeature('dynamicLighting'),
+    statblockEditor: useExperimentalFeature('statblockEditor'),
+  };
   const assetService = app ? AssetService.getInstance(app) : null;
   const systemPresets = useSystemPresets(app);
   const windowVariants = useDialogWindowVariants();
@@ -102,8 +79,9 @@ export function CollectionSettingsModal({
 
   // Local draft of settings — only persisted on Save
   const draft = useCollectionSettingsDraft(assetService, collectionId, isOpen);
-  const { gridDefaults, conditions } = draft;
-  const collectionCreatures = useCollectionCreatures(app ?? null, assetService, collectionId, isOpen && (activeTab === 'creatureFilters' || activeTab === 'resources'));
+  const offersFields = isOpen && (activeTab === 'creatureFilters' || activeTab === 'resources');
+  const collectionCreatures = useCollectionCreatures(app ?? null, assetService, collectionId, offersFields);
+  const roleTemplates = useRoleTemplates(app ?? null, collectionStatblockRoles(draft, systemPresets.presets), offersFields);
 
   // Resolve the collection name for the header
   useEffect(() => {
@@ -122,11 +100,11 @@ export function CollectionSettingsModal({
     return () => { cancelled = true; };
   }, [isOpen, collectionId, assetService]);
 
-  // Close on Escape key
+  // Close on Escape key, unless an open list or another control in the dialog took it
   useEffect(() => {
     if (!isOpen) return;
     const handleKeyDown = (e: KeyboardEvent): void => {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape' && !handledByAnotherControl(e)) onClose();
     };
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
@@ -139,26 +117,34 @@ export function CollectionSettingsModal({
   const senses = collectionSenses(draft, systemPresets.presets);
   // What the collection's game system gives it; an edit that ends up there again stores nothing.
   const systemSenses = collectionSenses({ systemPresetId: draft.systemPresetId }, systemPresets.presets);
-  const canSave = areRangeBandsValid(gridDefaults.abstractRangeBands)
+  const canSave = areRangeBandsValid(draft.gridDefaults.abstractRangeBands)
     && isValidDiceRules(dice)
     && isValidInitiativeRules(initiative)
     && sensesAreValid(senses)
     && draft.customCreatureFilters.every(isCompleteCreatureFilter)
+    && statblockRolesAreValid(draft.statblockRoles ?? [])
     // A resource without a name or a statblock field could never show
     && draft.resources.every((resource) => resource.name.trim() !== '' && resource.field.trim() !== '');
 
-  const handleSave = async (): Promise<void> => {
-    if (!app || !assetService || !canSave) return;
+  /** Saves the draft and closes the dialog; false when nothing was saved. */
+  const save = async (): Promise<boolean> => {
+    if (!app || !assetService || !canSave) return false;
 
     try {
       await assetService.updateCollectionSettings(collectionId, draft.toSettings());
       // Widgets and token conditions follow the saved game system in every scene.
       await syncCollectionSystem(app, collectionId, systemPresets.presets);
       onClose();
+      return true;
     } catch (err) {
       console.error('[CollectionSettingsModal] Failed to save:', err);
+      return false;
     }
   };
+
+  const editTemplate = onEditTemplate && ((templateId: TemplateId): void => {
+    void save().then((saved) => { if (saved) onEditTemplate(templateId, collectionId); });
+  });
 
   const handleDeletePreset = async (preset: SystemPreset): Promise<void> => {
     if (!app || !systemPresets.service) return;
@@ -199,7 +185,7 @@ export function CollectionSettingsModal({
         <div className="atlas-collection-settings-body">
           {/* Vertical tab sidebar */}
           <nav className="atlas-collection-settings-sidebar">
-            {TABS.filter((tab) => tab.id !== 'vision' || lightingOn).map((tab) => (
+            {settingsTabs(features).map((tab) => (
               <Button
                 key={tab.id}
                 variant="ghost"
@@ -214,87 +200,20 @@ export function CollectionSettingsModal({
 
           {/* Tab content */}
           <SettingsContent>
-            {activeTab === 'system' && systemPresets.service && (
-              <SystemTab
-                service={systemPresets.service}
-                presets={systemPresets.presets}
-                rules={{
-                  gridDefaults,
-                  conditions,
-                  defaultWidgets: draft.defaultWidgets,
-                  dice,
-                  initiative,
-                  resources: savedResources(draft.resources),
-                  ...(draft.defaultTokenVision && { defaultTokenVision: draft.defaultTokenVision }),
-                  senses,
-                  lightPresets: collectionLightPresets(draft, systemPresets.presets),
-                }}
-                presetId={draft.systemPresetId}
-                onApplyPreset={draft.applyPreset}
-                onPresetIdChange={draft.setSystemPresetId}
-                onDeletePreset={handleDeletePreset}
-              />
-            )}
-            {activeTab === 'dice' && (
-              <DiceTab dice={dice} onChange={draft.setDice} />
-            )}
-            {activeTab === 'grid' && (
-              <GridMeasurementTab
-                gridDefaults={gridDefaults}
-                coneAngle={collectionConeAngle(gridDefaults, draft.systemPresetId)}
-                onChange={draft.setGridDefaults}
-              />
-            )}
-            {activeTab === 'vision' && lightingOn && (
-              <VisionTab
-                gridDefaults={gridDefaults}
-                vision={draft.defaultTokenVision}
-                onChange={draft.setDefaultTokenVision}
-                senses={senses}
-                onSensesChange={(next) => draft.setSenses(editedSenses(next, systemSenses))}
-              />
-            )}
-            {activeTab === 'widgets' && (
-              <DefaultWidgetsTab
-                defaultWidgets={draft.defaultWidgets}
-                onChange={draft.setDefaultWidgets}
-                initiative={initiative}
-                // Rules that are the game system's again store nothing, so the collection keeps following it
-                onInitiativeChange={(next) => draft.setInitiative(isSameAsTyped(next, systemInitiative) ? undefined : next)}
-              />
-            )}
-            {activeTab === 'conditions' && (
-              <ConditionsTab
-                conditions={conditions}
-                onChange={draft.setConditions}
-              />
-            )}
-            {activeTab === 'resources' && (
-              <ResourcesTab
-                resources={draft.resources}
-                onChange={draft.setResources}
-                fieldSuggestions={discoverResourceFields(collectionCreatures.creatures.map((creature) => creature.fields))}
-              />
-            )}
-            {activeTab === 'creatureFilters' && (
-              <CreatureFiltersTab
-                hidden={draft.hiddenCreatureFilters}
-                onHiddenChange={draft.setHiddenCreatureFilters}
-                custom={draft.customCreatureFilters}
-                onCustomChange={draft.setCustomCreatureFilters}
-                creatures={collectionCreatures.creatures}
-                pending={collectionCreatures.pending}
-              />
-            )}
-            {activeTab === 'loot' && app && (
-              <LootTab
-                app={app}
-                lootBases={draft.lootBases}
-                onBasesChange={draft.setLootBases}
-                currency={draft.lootCurrency}
-                onCurrencyChange={draft.setLootCurrency}
-              />
-            )}
+            <SettingsTabContent
+              tab={activeTab}
+              app={app}
+              collectionId={collectionId}
+              draft={draft}
+              systemPresets={systemPresets}
+              rules={{ dice, initiative, systemInitiative, senses, systemSenses }}
+              features={features}
+              creatures={collectionCreatures}
+              roleTemplates={roleTemplates}
+              canSave={canSave}
+              onDeletePreset={handleDeletePreset}
+              onEditTemplate={editTemplate}
+            />
           </SettingsContent>
         </div>
 
@@ -303,7 +222,7 @@ export function CollectionSettingsModal({
           <Button variant="outline" className="atlas-csm-cancel" onClick={onClose}>
             Cancel
           </Button>
-          <Button variant="default" className="atlas-csm-save" disabled={!canSave} onClick={() => { void handleSave(); }}>
+          <Button variant="default" className="atlas-csm-save" disabled={!canSave} onClick={() => { void save(); }}>
             Save
           </Button>
         </div>

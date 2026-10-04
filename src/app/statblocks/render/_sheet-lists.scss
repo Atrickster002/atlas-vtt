@@ -1,0 +1,98 @@
+@use '../../../../styles/tokens' as *;
+
+// Lists in the native card: chips, bulleted and numbered words, entries ("Claws." run in before the text)
+// and spell lists.
+
+.atlas-sb-sheet {
+  // ── Chips ─────────────────────────────────────────────────────────────────
+  .atlas-sb-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: $spacing-xs;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .atlas-sb-chip {
+    display: inline-flex;
+    align-items: center;
+    height: 20px;
+    padding: 0 $spacing-s;
+    border-radius: $radius-full;
+    background: var(--background-modifier-hover);
+    color: var(--text-muted);
+    font-size: $font-ui-smaller;
+    white-space: nowrap;
+  }
+
+  // ── Bulleted and numbered words ───────────────────────────────────────────
+  .atlas-sb-word-list {
+    margin: 0;
+    padding-left: 20px;
+    font-size: $font-ui-small;
+    line-height: var(--line-height-normal);
+  }
+
+  .atlas-sb-word-list--bullets {
+    list-style: disc;
+  }
+
+  .atlas-sb-word-list--numbered {
+    list-style: decimal;
+  }
+
+  // ── Entries ───────────────────────────────────────────────────────────────
+  .atlas-sb-entries {
+    font-size: $font-ui-small;
+    line-height: var(--line-height-normal);
+
+    > * + * {
+      margin-top: $spacing-s;
+    }
+  }
+
+  .atlas-sb-trait--run-in .atlas-sb-trait-name {
+    margin-right: 0.3em;
+    font-style: italic;
+    font-weight: $font-weight-semibold;
+  }
+
+  .atlas-sb-trait--heading .atlas-sb-trait-name {
+    display: block;
+    margin: 0 0 2px;
+    font-weight: $font-weight-semibold;
+  }
+
+  .atlas-sb-entry-extras {
+    margin-right: 0.3em;
+  }
+
+  .atlas-sb-entry-extra + .atlas-sb-entry-extra {
+    margin-left: $spacing-s;
+  }
+
+  .atlas-sb-entry-extra-label {
+    color: var(--text-muted);
+    font-weight: $font-weight-semibold;
+  }
+
+  // ── Spells ────────────────────────────────────────────────────────────────
+  .atlas-sb-spells-block {
+    font-size: $font-ui-small;
+
+    > * + * {
+      margin-top: $spacing-s;
+    }
+  }
+
+  .atlas-sb-spell-list {
+    margin: $spacing-xs 0 0;
+    padding-left: 20px;
+    text-wrap: pretty;
+  }
+
+  .atlas-sb-spell-level {
+    font-weight: $font-weight-semibold;
+  }
+}

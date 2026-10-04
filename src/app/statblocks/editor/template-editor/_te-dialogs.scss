@@ -1,0 +1,70 @@
+// The template editor's delete dialog and its undo toast (§7.8, §7.10).
+
+@use '../../../../../styles/tokens' as *;
+@use '../../../../../styles/mixins' as *;
+
+.atlas-vtt-plugin {
+  // ── Delete dialog ───────────────────────────────────────────────────────
+  .atlas-te-dialog {
+    @include atlas-modal-window;
+    width: 440px;
+
+    &:focus {
+      outline: none;
+    }
+  }
+
+  .atlas-te-dialog__header {
+    @include atlas-modal-header;
+  }
+
+  .atlas-te-dialog__body {
+    @include atlas-modal-body;
+  }
+
+  .atlas-te-dialog__footer {
+    @include atlas-modal-footer;
+  }
+
+  .atlas-te-dialog__field {
+    @include atlas-flex-col($spacing-s);
+    align-items: stretch;
+  }
+
+  .atlas-te-dialog__text {
+    margin: 0;
+    color: var(--text-muted);
+  }
+
+  .atlas-te-dialog__label {
+    @include atlas-field-label;
+  }
+
+  // ── Undo toast: a capsule, its button concentric at the ends ────────────
+  .atlas-te-toast {
+    @include atlas-elevated-surface;
+    @include atlas-flex-row($spacing-xs);
+    position: absolute;
+    left: 50%;
+    bottom: $spacing-l;
+    z-index: 2;
+    translate: -50% 0;
+    padding: $spacing-xs;
+    border-radius: calc(var(--input-height) / 2 + #{$spacing-xs} + #{$border-width-m});
+    box-shadow: $shadow-md;
+    font-size: $font-ui-small;
+
+    .btn {
+      border-radius: calc(var(--input-height) / 2);
+    }
+  }
+
+  .atlas-te-toast__text {
+    padding-inline: $spacing-s;
+    white-space: nowrap;
+  }
+}
+
+.atlas-vtt-plugin.atlas-te-dialog-overlay {
+  @include atlas-modal-overlay($z-atlas-modal);
+}

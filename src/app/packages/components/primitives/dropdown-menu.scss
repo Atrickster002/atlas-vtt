@@ -166,6 +166,10 @@
   color: var(--text-normal);
 }
 
+.atlas-dropdown-toggle-row--disabled .atlas-dropdown-toggle-row__label {
+  color: var(--text-faint);
+}
+
 /* A label of a section or control, on the menu's text edge */
 .atlas-dropdown-label {
   padding-inline: var(--atlas-menu-text-inset, 0px);

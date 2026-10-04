@@ -5,8 +5,8 @@ import {
   type FantasyStatblocksApi,
   type FantasyStatblocksCreature,
 } from '../services/FantasyStatblocksService';
-import { hasBestiaryFrontmatter, parseStatblockFence, resolveStatblockNote } from '../services/statblockNoteSource';
-import { workSlices } from '../utils/workSlices';
+import type { StatblockSource } from '../statblocks/model/resolvedTypes';
+import { cachedFrontmatter, type FrontmatterRecord } from '../statblocks/notes/statblockSource';
 
 /** The bestiary as one lookup, built once and reused for many notes. */
 export interface BestiaryLookup {
@@ -31,66 +31,46 @@ function withExtensions(api: FantasyStatblocksApi | null, creature: FantasyStatb
   return resolved && resolved.path === creature.path ? resolved : creature;
 }
 
-/** The creature a note's frontmatter defines, as Fantasy Statblocks' watcher parses it. */
-function frontmatterCreature(app: App, file: TFile): FantasyStatblocksCreature {
-  const frontmatter: Record<string, unknown> = app.metadataCache.getFileCache(file)?.frontmatter ?? {};
-  const name = typeof frontmatter.name === 'string' && frontmatter.name.trim() ? frontmatter.name : file.basename;
-  return { ...frontmatter, name, path: file.path };
+/** A statblock record from frontmatter, as Fantasy Statblocks' watcher parses it: named after the note when it names nothing. */
+export function frontmatterCreature(frontmatter: FrontmatterRecord, path: string): FantasyStatblocksCreature {
+  const basename = path.split('/').pop()?.replace(/\.md$/, '') ?? path;
+  const name = typeof frontmatter.name === 'string' && frontmatter.name.trim() ? frontmatter.name : basename;
+  return { ...frontmatter, name, path };
+}
+
+function markdownFile(app: App, path: string): TFile | null {
+  const file = app.vault.getAbstractFileByPath(path);
+  return file instanceof TFile && file.extension === 'md' ? file : null;
 }
 
 /**
- * The creature a linked statblock note describes, with the fields Fantasy
- * Statblocks renders: its bestiary entry when the plugin parsed the note, else
- * the note's frontmatter (the plugin parses notes only with "auto parse" on),
- * else the note's ```statblock fence. A note that is none of these falls back
- * to the bestiary creature of the same name, as token links always have.
+ * The creature a statblock note describes, given what the predicate found in
+ * it (`statblockSourceOf`). Native notes read only their own frontmatter, never
+ * the bestiary's copy, which lags behind Atlas' writes. Everything else keeps
+ * Fantasy Statblocks' order: its bestiary entry when the plugin parsed the
+ * note, else the note's frontmatter (the plugin parses notes only with "auto
+ * parse" on), else the note's ```statblock fence, else the bestiary creature
+ * of the note's name, as token links always have.
  */
-export async function resolveLinkedCreature(
+export async function linkedCreatureFor(
   app: App,
   notePath: string,
-  bestiary: BestiaryLookup = bestiaryLookup(),
+  source: StatblockSource | null,
+  bestiary: BestiaryLookup,
 ): Promise<FantasyStatblocksCreature | null> {
   const { api, byPath } = bestiary;
-  const parsed = byPath.get(notePath);
+  const parsed = source?.kind === 'atlas' ? undefined : byPath.get(notePath);
   if (parsed) return withExtensions(api, parsed);
 
-  const file = app.vault.getAbstractFileByPath(notePath);
-  if (file instanceof TFile && file.extension === 'md') {
-    const frontmatterOnly = hasBestiaryFrontmatter(app, file)
-      && app.metadataCache.getFileCache(file)?.frontmatter?.statblock !== 'inline';
-    if (frontmatterOnly) return frontmatterCreature(app, file);
-
-    const params = parseStatblockFence(await app.vault.cachedRead(file));
-    if (params) {
-      const creature = await resolveCreatureFromFence(app, params, notePath);
-      if (creature) return { ...creature, path: notePath };
-    }
+  const file = markdownFile(app, notePath);
+  if (file && (source?.kind === 'atlas' || source?.kind === 'fs-frontmatter')) {
+    return frontmatterCreature(cachedFrontmatter(app, file) ?? {}, notePath);
+  }
+  if (source?.kind === 'fs-fence') {
+    const creature = await resolveCreatureFromFence(app, source.params, notePath);
+    if (creature) return { ...creature, path: notePath };
   }
 
   const basename = notePath.split('/').pop()?.replace(/\.md$/, '') ?? '';
   return basename && api?.hasCreature(basename) ? api.getCreatureFromBestiary(basename) : null;
-}
-
-/**
- * The creatures of the vault's statblock notes that the bestiary lacks: notes
- * Fantasy Statblocks renders from a ```statblock fence, which it never parses,
- * and statblock frontmatter it has not parsed. Tokens link to these like any
- * bestiary note. An aborted read stops at the next note.
- */
-export async function unparsedStatblockNotes(
-  app: App,
-  bestiary: BestiaryLookup = bestiaryLookup(),
-  signal?: AbortSignal,
-): Promise<FantasyStatblocksCreature[]> {
-  const creatures: FantasyStatblocksCreature[] = [];
-  const pause = workSlices();
-  for (const file of app.vault.getMarkdownFiles()) {
-    await pause();
-    if (signal?.aborted) break;
-    if (bestiary.byPath.has(file.path) || !(await resolveStatblockNote(app, file))) continue;
-    const creature = await resolveLinkedCreature(app, file.path, bestiary);
-    const name = typeof creature?.name === 'string' && creature.name.trim() ? creature.name : file.basename;
-    creatures.push({ ...creature, name, path: file.path });
-  }
-  return creatures;
 }

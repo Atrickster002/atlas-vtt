@@ -34,5 +34,6 @@ export const DRAW_STEEL: SystemPreset = {
     ]),
     // Stamina is the system's hit points and keeps their key, so tokens keep their values when a collection changes system.
     resources: [{ ...HP_RESOURCE, name: 'Stamina', field: 'stamina' }],
+    statblockRoles: [{ id: 'monster', name: 'Monster', templateId: 'builtin:draw-steel-monster' }],
   },
 };

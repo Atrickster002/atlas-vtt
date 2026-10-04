@@ -29,7 +29,7 @@ it('stages statblocks beside uploads and applies ring and tag edits to the same 
   const { container } = render(<AtlasUIContext.Provider value={{ app, view: null, pixiApp: null, renderer: null }}><TokenCreator isOpen onClose={vi.fn()} /></AtlasUIContext.Provider>);
   fireEvent.change(container.querySelector('input[type=file]')!, { target: { files: [new File(['art'], 'Wolf.png', { type: 'image/png' })] } });
   await screen.findByDisplayValue('Wolf');
-  fireEvent.click(screen.getByRole('button', { name: 'Fantasy Statblocks' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Statblock notes' }));
   await screen.findByLabelText('System / layout');
   fireEvent.click(screen.getByRole('button', { name: 'Add 1 to import' }));
   await screen.findByDisplayValue('Goblin');

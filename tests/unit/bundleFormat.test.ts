@@ -63,6 +63,7 @@ describe('manifest checks', () => {
       .toBe('This collection export contains a file Atlas will not write: atlas-vtt/../.obsidian/app.json');
   });
 });
+
 describe('scene snapshots', () => {
   const scene = { id: 'scene-1', type: 'scene', name: 'Cave', tags: [], data: { mapPath: 'atlas-vtt/collections/source/scenes/Cave.atlasmap' } };
   const snapshot = (vaultPath: string, owners = ['scene-1']): Record<string, unknown> => ({ vaultPath, role: 'scene-snapshot', owners });
@@ -84,3 +85,12 @@ describe('scene snapshots', () => {
   });
 });
 
+describe('statblock templates', () => {
+  const template = { vaultPath: 'atlas-vtt/statblock-templates/Marsh creature.atlastemplate', role: 'statblock-template', sha256: 'b'.repeat(64) } as const;
+
+  it('travel in format 7, which a bundle says only when it packs one', () => {
+    expect(manifestProblem(manifest({ format: 7, files: [template] }))).toBeNull();
+    expect(bundleFormatFor([template])).toBe(7);
+    expect(bundleFormatFor([{ vaultPath: 'atlas-vtt/assets/goblin.webp', role: 'token-image' }])).toBe(6);
+  });
+});

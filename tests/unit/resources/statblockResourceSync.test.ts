@@ -23,7 +23,7 @@ describe('fillMissingResources', () => {
   const statblocks: Record<string, Record<string, unknown>> = { 'Troll.md': { hp: 14, stats: [15, 12, 7] }, 'Rat.md': { hp: 2 } };
   const run = async (tokens: Record<string, object>, definitions = [HP_RESOURCE, STR]) => {
     const apply = vi.fn();
-    const read = vi.fn(async (path: string) => statblocks[path] ?? null);
+    const read = vi.fn(async (path: string) => (statblocks[path] ? { fields: statblocks[path] } : null));
     await fillMissingResources({ tokens: () => tokens as never, apply }, definitions, read);
     return { apply, read };
   };

@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback, useRef, useMemo, useLayoutEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { TFile, App } from 'obsidian';
-import FantasyStatblock from './FantasyStatblock';
+import { LinkedStatblock } from '../../statblocks/render/LinkedStatblock';
 import type { TokenVitals } from '../../services/statblockVitalsSync';
 import { isModKey } from '../../keyboard/modKey';
 import { previewEdgeGaps, type PreviewEdgeGaps } from './statblock/previewEdgeGap';
@@ -181,7 +181,7 @@ export function StatblockHoverPreview({
   return createPortal(
     <div ref={containerRef} className={className} style={positionStyles}>
       {app && (
-        <FantasyStatblock notePath={notePath} app={app} tokens={vitals ? [vitals] : []} />
+        <LinkedStatblock app={app} path={notePath} variant="hover" tokens={vitals ? [vitals] : []} />
       )}
     </div>,
     document.body

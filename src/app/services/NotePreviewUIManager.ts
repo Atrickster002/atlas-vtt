@@ -5,7 +5,7 @@ import type { NotePin } from '../types';
 import type { TokenVitals } from './statblockVitalsSync';
 import { NotePreviewWindow } from './NotePreviewWindow';
 import { StatblockPreviewWindow } from './StatblockPreviewWindow';
-import { findCreatureForNotePath } from './FantasyStatblocksService';
+import { isStatblockNote, statblockNoteKnown, unparsedFrontmatterStatblock } from '../statblocks/resolve/statblockNote';
 import { MapLinkPreview } from './MapLinkPreview';
 import { linkedFilePath, linkedMapPath, linkedSceneFile } from './sceneLinks';
 import { runInBackground } from '../utils/backgroundTask';
@@ -63,6 +63,8 @@ export class NotePreviewUIManager {
   private mapUnloading = false;
   private activePreviews: Map<string, IPreviewWindow> = new Map();
   private isModifierKeyDown = false;
+  /** Counts `hideAllUnpinnedPreviews`, so a preview decided after a read knows it was hidden or replaced meanwhile. */
+  private hideCount = 0;
   private lastHoveredPinId: string | null = null;
   /** Element under the pointer, kept until it leaves; replayed on each CMD/Ctrl press. */
   private currentHover: {
@@ -314,14 +316,17 @@ export class NotePreviewUIManager {
       return;
     }
 
-    // Check file type for specialized previews
+    // A token whose note is a statblock gets the statblock preview
     const file = this.app.vault.getAbstractFileByPath(linkedFilePath(pin.notePath));
-    if (file instanceof TFile) {
+    if (file instanceof TFile && 'type' in pin && pin.type === 'token') {
+      // Only a note whose statblock is in a fence is read; a hide or another hover meanwhile wins.
+      // A frontmatter statblock Fantasy Statblocks has not parsed shows as the note, where the plugin draws any fence it holds.
+      const hides = this.hideCount;
+      const isStatblock = !unparsedFrontmatterStatblock(this.app, file)
+        && (statblockNoteKnown(this.app, file) || await isStatblockNote(this.app, file));
+      if (hides !== this.hideCount) return;
 
-      // Notes backed by a Fantasy Statblocks creature → rich statblock preview for tokens
-      const isStatblock = findCreatureForNotePath(file.path) !== null;
-
-      if (isStatblock && 'type' in pin && pin.type === 'token') {
+      if (isStatblock) {
         const statblockPreview = new StatblockPreviewWindow(
           this.app, 
           pin.notePath, 
@@ -394,6 +399,7 @@ export class NotePreviewUIManager {
   }
 
   public hideAllUnpinnedPreviews(excludeNotePath?: string | null): void {
+    this.hideCount++;
     this.activePreviews.forEach((preview) => {
       if (preview.notePath === excludeNotePath && this.isModifierKeyDown) return; // Don't hide if it's the current hover target & mod down
       if (!preview.getIsPinned()) {

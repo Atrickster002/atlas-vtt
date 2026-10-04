@@ -5,6 +5,8 @@ import { cn } from '../../../../utils/cn';
 export interface SelectOption<T extends string> {
   value: T;
   label: string;
+  /** A quiet word after the label in the list ("Built-in"); the closed select shows the label alone. */
+  detail?: string;
 }
 
 interface SelectProps<T extends string> {
@@ -84,6 +86,7 @@ export function Select<T extends string>({ value, options, onChange, labelledBy,
       {options.map(option => <button key={option.value} type="button" role="option" aria-selected={option.value === value}
         className={cn('atlas-select-option', option.value === value && 'atlas-selected')} onClick={() => pick(option.value)}>
         <span className="atlas-select-option-text">{option.label}</span>
+        {option.detail && <span className="atlas-select-option-detail">{option.detail}</span>}
         <Check aria-hidden="true" className="atlas-select-check" />
       </button>)}
     </div>}

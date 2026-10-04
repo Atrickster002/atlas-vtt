@@ -7,6 +7,8 @@ import { movedPathOf, rewriteMapReferences, type MovedPath, type PathMove } from
 import { SceneSnapshotService } from '../snapshots/SceneSnapshotService';
 import { allSnapshotFiles, hiddenSnapshotFiles } from '../snapshots/sceneSnapshotFolders';
 import { STATBLOCK_IMAGE_KEYS } from './statblockImageKeys';
+import { NoteFieldWriter } from '../statblocks/notes/NoteFieldWriter';
+import type { NotePatch } from '../statblocks/notes/patchTypes';
 
 /**
  * Propagates file path changes (renames/moves) across all storage layers:
@@ -187,31 +189,28 @@ export class FileReferenceService {
   /**
    * Statblock notes name their artwork by vault path in `image` (what Atlas
    * writes when it links a token), `token` or the older `token-image`. Obsidian keeps
-   * wikilinks there up to date itself, but not plain paths.
+   * wikilinks there up to date itself, but not plain paths. The cache picks the notes;
+   * the writer rewrites each key the note itself still holds, through its open editor if
+   * it has one, so unsaved typing there is kept.
    */
   private async updateStatblockFrontmatter(moved: MovedPath): Promise<void> {
-    const mdFiles = this.app.vault.getFiles().filter(f => f.extension === 'md');
-
-    for (const mdFile of mdFiles) {
-      try {
-        const frontmatter = this.app.metadataCache.getFileCache(mdFile)?.frontmatter;
-        if (!frontmatter) continue;
-
-        const targets = STATBLOCK_IMAGE_KEYS.flatMap((key) => {
-          const value: unknown = frontmatter[key];
-          const target = typeof value === 'string' ? moved(value) : null;
-          return target === null ? [] : [[key, target] as const];
-        });
-        if (targets.length === 0) continue;
-
-        await this.app.fileManager.processFrontMatter(mdFile, (latest: Record<string, unknown>) => {
-          for (const [key, target] of targets) latest[key] = target;
-        });
-      } catch (error) {
-        console.error(`[FileReferenceService] Error updating frontmatter in ${mdFile.path}:`, error);
-      }
+    const writer = NoteFieldWriter.forApp(this.app);
+    for (const mdFile of this.app.vault.getFiles().filter((file) => file.extension === 'md')) {
+      const frontmatter = this.app.metadataCache.getFileCache(mdFile)?.frontmatter;
+      if (!frontmatter || imagePatches(frontmatter, moved).length === 0) continue;
+      const outcome = await writer.patchNow(mdFile.path, (latest) => imagePatches(latest ?? {}, moved));
+      if (outcome.problem) console.error(`[FileReferenceService] Could not update the image of ${mdFile.path}: ${outcome.problem}`);
     }
   }
+}
+
+/** A path change for each image key of a statblock's frontmatter that names a moved file. */
+function imagePatches(frontmatter: Readonly<Record<string, unknown>>, moved: MovedPath): NotePatch[] {
+  return STATBLOCK_IMAGE_KEYS.flatMap((key): NotePatch[] => {
+    const value = frontmatter[key];
+    const target = typeof value === 'string' ? moved(value) : null;
+    return typeof value === 'string' && target !== null ? [{ op: 'set', path: [key], base: value, next: target }] : [];
+  });
 }
 
 const basename = (path: string): string => path.slice(path.lastIndexOf('/') + 1).replace(/\.[^.]+$/, '');

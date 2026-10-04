@@ -27,6 +27,7 @@ import { GENERIC_SENSES } from './senses/generic';
 import { parseSenseDefinitions } from './senseValidation';
 import { parseVisionDefaults } from './visionDefaults';
 import { isHexColor } from '../utils/hexColor';
+import { parseStatblockRoles } from '../statblocks/roles/roleValidation';
 
 const UNIT_TYPES: readonly GridUnitType[] = ['feet', 'yards', 'meters', 'units', 'custom'];
 const MEASUREMENT_MODES: readonly MeasurementMode[] = ['metric', 'abstract'];
@@ -151,6 +152,8 @@ export function parseUserPreset(raw: unknown): SystemPreset | null {
     : withLegacyBars([{ ...HP_RESOURCE }], defaultWidgets);
   const senses = parseSenseDefinitions(raw.rules.senses);
   const lightPresets = parseLightPresets(raw.rules.lightPresets);
+  // An empty list names no roles: the preset's collections offer the generic ones.
+  const statblockRoles = parseStatblockRoles(raw.rules.statblockRoles);
   // A collection set from the preset has these senses, so only they can be a default.
   const defaultTokenVision = parseVisionDefaults(raw.rules.defaultTokenVision, senses ?? GENERIC_SENSES);
   return {
@@ -168,6 +171,7 @@ export function parseUserPreset(raw: unknown): SystemPreset | null {
       ...(defaultTokenVision && { defaultTokenVision }),
       ...(senses && { senses }),
       ...(lightPresets?.length && { lightPresets }),
+      ...(statblockRoles?.length && { statblockRoles }),
     },
   };
 }

@@ -1,6 +1,7 @@
 /**
  * Click-to-roll dice notation, routed through Atlas' own dice tool (toast, roll
- * log).
+ * log) or, without a map on screen, the surface the statblock is drawn on
+ * (`statblockRolls.ts`).
  *
  * Two halves, deliberately separate:
  *
@@ -13,8 +14,7 @@
  */
 
 import type { App } from 'obsidian';
-import type { DiceRollResult } from '../tools/DiceTool';
-import { ATLAS_VIEW_TYPE } from '../atlas-view';
+import { rollStatblockDice, type DiceRollSource, type OffMapRolls } from './statblockRolls';
 
 /**
  * Dice expressions (`2d8+3`) plus bare attack bonuses (`+4`, `ATK: +4`). A
@@ -36,53 +36,8 @@ const HIT_POINTS_SELECTOR = '[data-hit-points]';
 /** Elements whose text must never be rewritten. */
 const SKIPPED_TAGS = new Set(['SCRIPT', 'STYLE', 'INPUT', 'TEXTAREA', 'BUTTON']);
 
-export interface DiceRollSource {
-  tokenId?: string | undefined;
-  statblockPath?: string | undefined;
-  tokenName?: string | undefined;
-  tokenImagePath?: string | undefined;
-  abilityName?: string | undefined;
-}
-
 /** Receives clicks on hit dice, in place of the ordinary roll. */
 export type HitPointsRollHandler = (formula: string, abilityName: string | undefined) => void;
-
-interface DiceToolLike {
-  rollDice(formula: string, source?: DiceRollResult['source']): DiceRollResult;
-}
-
-/**
- * Resolves Atlas' dice tool from the open map view. Returns null when no map is
- * open, in which case dice are left as plain text.
- */
-function resolveDiceTool(app: App): DiceToolLike | null {
-  for (const leaf of app.workspace.getLeavesOfType(ATLAS_VIEW_TYPE)) {
-    const view = leaf.view as unknown as {
-      serviceManager?: { getToolController?: () => { getDiceTool?: () => DiceToolLike } };
-    };
-    const diceTool = view?.serviceManager?.getToolController?.()?.getDiceTool?.();
-    if (diceTool) return diceTool;
-  }
-  return null;
-}
-
-/**
- * Rolls through the dice tool of the open map, tagged with its statblock source.
- * Returns null when no map is open.
- */
-export function rollStatblockDice(app: App, formula: string, source: DiceRollSource): DiceRollResult | null {
-  const diceTool = resolveDiceTool(app);
-  if (!diceTool) return null;
-
-  const rollSource: NonNullable<DiceRollResult['source']> = { type: 'statblock' };
-  if (source.tokenId) rollSource.tokenId = source.tokenId;
-  if (source.statblockPath) rollSource.statblockPath = source.statblockPath;
-  if (source.tokenName) rollSource.tokenName = source.tokenName;
-  if (source.tokenImagePath) rollSource.tokenImagePath = source.tokenImagePath;
-  if (source.abilityName) rollSource.abilityName = source.abilityName;
-
-  return diceTool.rollDice(formula, rollSource);
-}
 
 /**
  * Turns matched display text into a formula the dice tool understands. A bare
@@ -95,10 +50,10 @@ export function toRollFormula(text: string): string {
 /** Nearest heading-ish label above the roll, used to title the dice toast. */
 function abilityNameFor(node: Node): string | undefined {
   const el = node.parentElement?.closest<HTMLElement>(
-    '.atlas-sb-trait, .atlas-sb-property, li, p, tr',
+    '.atlas-sb-trait, .atlas-sb-property, .atlas-sb-labelled, li, p, tr',
   );
   const name = el?.querySelector<HTMLElement>(
-    '.atlas-sb-trait-name, .atlas-sb-property-name, strong, em, b, i',
+    '.atlas-sb-trait-name, .atlas-sb-property-name, .atlas-sb-label, strong, em, b, i',
   )?.textContent;
   return name?.trim().replace(/[:.]$/, '') || undefined;
 }
@@ -170,12 +125,14 @@ export function linkDiceIn(root: HTMLElement): void {
  * so this never mutates the container. Returns a disposer.
  *
  * Dice on the hit-points line go to `onRollHitPoints` when one is given.
+ * `offMap` is read at each roll: where it shows rolls no map on screen shows.
  */
 export function attachDiceRolling(
   el: HTMLElement,
   app: App,
   getSource: () => DiceRollSource,
   onRollHitPoints?: HitPointsRollHandler,
+  offMap?: () => OffMapRolls | null,
 ): () => void {
   const roll = (link: HTMLElement): void => {
     const formula = link.dataset.formula;
@@ -187,7 +144,7 @@ export function attachDiceRolling(
       return;
     }
 
-    rollStatblockDice(app, formula, { ...getSource(), abilityName });
+    rollStatblockDice(app, formula, { ...getSource(), abilityName }, offMap?.());
   };
 
   const onClick = (event: MouseEvent): void => {
@@ -198,11 +155,13 @@ export function attachDiceRolling(
     roll(link);
   };
 
+  // Enter and Space roll a focused die; the editing around it never sees the key.
   const onKeyDown = (event: KeyboardEvent): void => {
     if (event.key !== 'Enter' && event.key !== ' ') return;
     const link = (event.target as HTMLElement | null)?.closest<HTMLElement>(`.${LINK_CLASS}`);
     if (!link) return;
     event.preventDefault();
+    event.stopPropagation();
     roll(link);
   };
 

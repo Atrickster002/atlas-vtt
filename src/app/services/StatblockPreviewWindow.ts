@@ -1,11 +1,19 @@
 import React from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { App as ObsidianApp } from 'obsidian';
-import FantasyStatblock from '../react/components/FantasyStatblock';
+import { LinkedStatblock } from '../statblocks/render/LinkedStatblock';
+import type { LibraryTemplate } from '../statblocks/model/resolvedTypes';
 import { toTokenVitals, type TokenVitals } from './statblockVitalsSync';
 import type { NotePreviewUIManager, PreviewAnchorRef, TokenPreviewAnchor } from './NotePreviewUIManager';
 import './statblock-preview-window.scss';
 import { previewEdgeGaps } from '../react/components/statblock/previewEdgeGap';
+
+/** A statblock note that is not in the vault, such as a note of a collection being imported. */
+export interface OutsideNote {
+  text: string;
+  /** Templates that came with the note (its bundle's own), found before the vault's. */
+  templates?: readonly LibraryTemplate[] | undefined;
+}
 
 /**
  * Floating CMD+hover preview window for token statblocks: of a token placed on
@@ -28,8 +36,8 @@ export class StatblockPreviewWindow {
     originatingToken: TokenPreviewAnchor | TokenVitals,
     manager: NotePreviewUIManager | null,
     initialPos?: { x: number; y: number },
-    /** The note's text when it is not in the vault, e.g. inside a collection being imported. */
-    noteContent?: string,
+    /** The note when it is not in the vault, e.g. inside a collection being imported. */
+    outsideNote?: OutsideNote,
   ) {
     this.notePath = notePath;
     this.originatingPin = 'type' in originatingToken ? originatingToken : null;
@@ -47,10 +55,12 @@ export class StatblockPreviewWindow {
     const vitals = [toTokenVitals(originatingToken)];
     this.reactRoot = createRoot(this.element);
     this.reactRoot.render(
-      React.createElement(FantasyStatblock, {
-        notePath,
-        noteContent,
+      React.createElement(LinkedStatblock, {
         app: this.app,
+        path: notePath,
+        noteText: outsideNote?.text,
+        bundleTemplates: outsideNote?.templates,
+        variant: 'hover',
         tokens: vitals,
       }),
     );

@@ -6,8 +6,10 @@ import { STATBLOCK_IMAGE_KEYS, type StatblockImageKey } from '../statblockImageK
 
 /** Bumped when the zip layout or manifest shape changes: the newest format this version reads and writes. */
 export const BUNDLE_FORMAT = 8;
-/** What a bundle without a user preset says, so Atlas versions that stop at format 6 still import it. */
-const FORMAT_WITHOUT_PRESETS = 6;
+/** What a bundle with statblock templates and no user preset says, so Atlas versions that stop at format 7 still import it. */
+const FORMAT_WITHOUT_PRESETS = 7;
+/** What a bundle without statblock templates says, so Atlas versions that stop at format 6 still import it. */
+const FORMAT_WITHOUT_TEMPLATES = 6;
 /** Oldest format this version still imports. */
 const OLDEST_BUNDLE_FORMAT = 2;
 export const BUNDLE_MANIFEST = 'manifest.json';
@@ -19,24 +21,33 @@ export const BUNDLE_FILES_DIR = 'files';
  * `linked-note` is a note a scene's pins or characters open, or one such a note links to, however far along;
  * `note-attachment` is an image or PDF one of those notes shows (format 5); `cover` is the collection's cover image (format 4).
  * `loot-base` is a `.base` file the collection's settings pick as a loot source and `loot-item` a file the base
- * holds (format 6). `system-preset` is the user game system preset the collection's settings name (format 8): it is
+ * holds (format 6). `statblock-template` is a statblock template the collection's roles or its notes name
+ * (format 7): it is placed by its template id in the library folder, never at its path.
+ * `system-preset` is the user game system preset the collection's settings name (format 8): it is
  * matched by its preset id and placed in the presets folder, never at its path.
  */
 const BUNDLE_FILE_ROLES = [
   'asset-file', 'thumbnail', 'scene-map', 'scene-thumbnail', 'scene-snapshot', 'scene-snapshot-thumbnail', 'background', 'token-image', 'statblock-note', 'statblock-image',
-  'linked-note', 'note-attachment', 'cover', 'loot-base', 'loot-item', 'system-preset',
+  'linked-note', 'note-attachment', 'cover', 'loot-base', 'loot-item', 'statblock-template', 'system-preset',
 ] as const;
 export type BundleFileRole = typeof BUNDLE_FILE_ROLES[number];
+
+/** Markdown notes, whatever brought them along: any of them may be a native statblock naming its template. */
+export const NOTE_FILE_ROLES: ReadonlySet<BundleFileRole> = new Set<BundleFileRole>(['statblock-note', 'linked-note', 'loot-item']);
+
+/** Statblock templates, which are matched by their template id and not by their path. */
+export const TEMPLATE_ROLE = 'statblock-template' satisfies BundleFileRole;
 
 /** A user game system preset, which is matched by its preset id and not by its path. */
 export const PRESET_ROLE = 'system-preset' satisfies BundleFileRole;
 
 /** Files an import matches by the id inside them, never as files at a path. */
-export const ID_MATCHED_ROLES: ReadonlySet<BundleFileRole> = new Set<BundleFileRole>([PRESET_ROLE]);
+export const ID_MATCHED_ROLES: ReadonlySet<BundleFileRole> = new Set<BundleFileRole>([TEMPLATE_ROLE, PRESET_ROLE]);
 
-/** The format a manifest says: 8 only when the bundle packs a user preset. */
+/** The format a manifest says: 8 only when the bundle packs a user preset, 7 when it packs a statblock template. */
 export function bundleFormatFor(files: readonly BundleFile[]): number {
-  return files.some((file) => file.role === PRESET_ROLE) ? BUNDLE_FORMAT : FORMAT_WITHOUT_PRESETS;
+  if (files.some((file) => file.role === PRESET_ROLE)) return BUNDLE_FORMAT;
+  return files.some((file) => file.role === TEMPLATE_ROLE) ? FORMAT_WITHOUT_PRESETS : FORMAT_WITHOUT_TEMPLATES;
 }
 
 /** Statblock notes and their artwork: files an importing vault may already have, and then reuses in place. */

@@ -48,6 +48,37 @@ export default defineConfig([
       ],
     },
   },
+  // Statblocks: only the drag-and-drop wrapper may import dnd-kit, and the pure
+  // core (model, format, expressions, values, the patcher, the FS layout
+  // converter) imports neither Obsidian nor React. The core rule is used
+  // because the obsidianmd preset owns the TypeScript variant, and overriding
+  // it would drop its options.
+  {
+    files: ["src/**/*.{ts,tsx}"],
+    ignores: ["src/app/statblocks/editor/dnd/**"],
+    rules: {
+      "no-restricted-imports": ["error", {
+        patterns: [{ group: ["@dnd-kit/*"], message: "Only statblocks/editor/dnd/ imports dnd-kit." }],
+      }],
+    },
+  },
+  {
+    files: [
+      "src/app/statblocks/{model,format,expressions,values}/**/*.{ts,tsx}",
+      "src/app/statblocks/notes/{frontmatterPatch,frontmatterBounds,frontmatterModel,yamlSplice,yamlDocument,yamlValueText,listIdentity,patchTypes}.ts",
+      "src/app/statblocks/fs/{fsLayoutToTemplate,fsBlocks,fsBlockParts,fsLeafBlocks,fsCallbackPatterns,fsCallbackSyntax,fsCallbackLexer,fsImportState,fsScripts,fsLayoutTypes,fsTrackReplacement}.ts",
+    ],
+    rules: {
+      "no-restricted-imports": ["error", {
+        paths: [
+          { name: "obsidian", message: "The statblock core is pure: no Obsidian." },
+          { name: "react", message: "The statblock core is pure: no React." },
+          { name: "react-dom", message: "The statblock core is pure: no React." },
+        ],
+        patterns: [{ group: ["@dnd-kit/*"], message: "Only statblocks/editor/dnd/ imports dnd-kit." }],
+      }],
+    },
+  },
   {
     files: SCRIPT_FILES,
     languageOptions: {

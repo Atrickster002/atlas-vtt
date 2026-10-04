@@ -11,7 +11,7 @@ import { DiceRollHeader } from './DiceRollHeader';
 import { DiceRollEngraving } from './DiceRollEngraving';
 import { DiceRollChip } from './DiceRollChip';
 import { hasBreakdown, rollBreakdown, rollLabel } from './diceRollText';
-import { useElementHeight } from './useElementHeight';
+import { useElementHeight } from '../../hooks/useElementHeight';
 
 interface DiceRollPanelProps {
   result: DiceRollResult;

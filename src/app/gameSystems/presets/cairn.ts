@@ -41,5 +41,6 @@ export const CAIRN: SystemPreset = {
       { key: 'str', name: 'STR', field: 'stats.0', direction: 'drains', color: '#dc2626', visibleToPlayers: false },
     ],
     lightPresets: CAIRN_LIGHTS,
+    statblockRoles: [{ id: 'creature', name: 'Creature', templateId: 'builtin:cairn-creature' }],
   },
 };

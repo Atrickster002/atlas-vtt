@@ -22,6 +22,10 @@ import type { TokenVisionDefaults } from '../../../types/lightingTypes';
 import type { LightPresetDefinition } from '../../../types/lightPresetTypes';
 import type { SenseDefinition } from '../../../types/senseTypes';
 import type { SystemPreset } from '../../../types/systemPresetTypes';
+import type { StatblockRole, StatblockRoleFolders } from '../../../statblocks/model/roleTypes';
+import {
+  parseStatblockRoleFolders, parseStatblockRoles, savedRoleFolders, savedStatblockRoles,
+} from '../../../statblocks/roles/roleValidation';
 
 export interface CollectionSettingsDraft {
   gridDefaults: CollectionGridDefaults;
@@ -59,6 +63,13 @@ export interface CollectionSettingsDraft {
   setLootBases: (lootBases: string[]) => void;
   lootCurrency: string;
   setLootCurrency: (lootCurrency: string) => void;
+  /** Unset while the collection takes the roles of its preset; read with `collectionStatblockRoles`. */
+  statblockRoles: readonly StatblockRole[] | undefined;
+  /** Set only once the GM edits the roles (`editedStatblockRoles`), so an untouched collection keeps following its preset. */
+  setStatblockRoles: (roles: readonly StatblockRole[] | undefined) => void;
+  /** The collection's own folder per role id; a preset neither sets nor clears them. */
+  statblockRoleFolders: StatblockRoleFolders;
+  setStatblockRoleFolders: (folders: StatblockRoleFolders) => void;
   applyPreset: (preset: SystemPreset) => void;
   /** Leaves the collection without a game system, as if it had never been set up. */
   clearSystem: () => void;
@@ -93,6 +104,8 @@ export function useCollectionSettingsDraft(
   const [lootCurrency, setLootCurrency] = useState('');
   const [customCreatureFilters, setCustomCreatureFilters] = useState<CreatureFilterDefinition[]>([]);
   const [hiddenCreatureFilters, setHiddenCreatureFilters] = useState<string[]>([]);
+  const [statblockRoles, setStatblockRoles] = useState<readonly StatblockRole[] | undefined>(undefined);
+  const [statblockRoleFolders, setStatblockRoleFolders] = useState<StatblockRoleFolders>({});
 
   useEffect(() => {
     if (!isOpen || !assetService) return;
@@ -115,6 +128,10 @@ export function useCollectionSettingsDraft(
     setLootCurrency(settings.lootCurrency ?? '');
     setCustomCreatureFilters(parseCreatureFilters(settings.customCreatureFilters));
     setHiddenCreatureFilters(parseHiddenCreatureFilters(settings.hiddenCreatureFilters));
+    // An empty list is no list of its own: the collection then reads its preset's.
+    const ownRoles = parseStatblockRoles(settings.statblockRoles);
+    setStatblockRoles(ownRoles?.length ? ownRoles : undefined);
+    setStatblockRoleFolders(parseStatblockRoleFolders(settings.statblockRoleFolders) ?? {});
   }, [isOpen, collectionId, assetService]);
 
   const applyPreset = (preset: SystemPreset): void => {
@@ -125,10 +142,11 @@ export function useCollectionSettingsDraft(
     setDefaultWidgets(rules.defaultWidgets);
     setDice(rules.dice);
     setDefaultTokenVision(rules.defaultTokenVision);
-    // The collection reads its preset's senses, light presets and initiative rules until they are edited.
+    // The collection reads its preset's senses, light presets, initiative rules and roles until they are edited.
     setSenses(undefined);
     setLightPresets(undefined);
     setInitiative(undefined);
+    setStatblockRoles(undefined);
     setSystemPresetId(preset.id);
   };
 
@@ -143,6 +161,7 @@ export function useCollectionSettingsDraft(
     setSenses(vanilla.senses);
     setLightPresets(vanilla.lightPresets);
     setInitiative(vanilla.initiative);
+    setStatblockRoles(vanilla.statblockRoles);
     setSystemPresetId(undefined);
   };
 
@@ -164,6 +183,8 @@ export function useCollectionSettingsDraft(
       systemPresetId,
       lootBases,
       lootCurrency: lootCurrency.trim() || undefined,
+      statblockRoles: statblockRoles?.length ? savedStatblockRoles(statblockRoles) : undefined,
+      statblockRoleFolders: savedRoleFolders(statblockRoleFolders, statblockRoles),
     };
   };
 
@@ -182,6 +203,8 @@ export function useCollectionSettingsDraft(
     systemPresetId, setSystemPresetId,
     lootBases, setLootBases,
     lootCurrency, setLootCurrency,
+    statblockRoles, setStatblockRoles,
+    statblockRoleFolders, setStatblockRoleFolders,
     applyPreset, clearSystem, toSettings,
   };
 }

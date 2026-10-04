@@ -17,7 +17,7 @@ function Editor({ initial, onChange = vi.fn(), fields = ['hp', 'stats.0', 'ammo'
   fields?: string[];
 }): React.ReactElement {
   const [resources, setResources] = useState(initial);
-  return <ResourcesTab resources={resources} fieldSuggestions={fields} onChange={(next) => { setResources(next); onChange(next); }} />;
+  return <ResourcesTab resources={resources} fieldSuggestions={fields.map((path) => ({ path }))} onChange={(next) => { setResources(next); onChange(next); }} />;
 }
 const sockets = (): HTMLElement[] => within(screen.getByRole('group', { name: 'Resource sockets' })).getAllByRole('button');
 const socket = (name: string | RegExp): HTMLElement => within(screen.getByRole('group', { name: 'Resource sockets' })).getByRole('button', { name });

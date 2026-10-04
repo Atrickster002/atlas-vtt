@@ -35,5 +35,9 @@ export const DAGGERHEART: SystemPreset = {
     ]),
     // Every Daggerheart character and adversary tracks Hit Points and Stress.
     resources: [{ ...HP_RESOURCE }, { ...STRESS_RESOURCE }],
+    statblockRoles: [
+      { id: 'adversary', name: 'Adversary', templateId: 'builtin:generic-creature' },
+      { id: 'environment', name: 'Environment', templateId: 'builtin:generic-hazard' },
+    ],
   },
 };

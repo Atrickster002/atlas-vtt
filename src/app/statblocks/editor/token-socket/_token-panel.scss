@@ -1,0 +1,179 @@
+// The panel the socket opens: header, Ring switch, linked tokens, footer.
+
+@use '../../../../../styles/tokens' as *;
+@use '../../../../../styles/mixins' as *;
+@use 'socket-shared' as *;
+
+.atlas-vtt-plugin {
+  // ── The panel ───────────────────────────────────────────────────────────
+  &.atlas-sb-token-popover {
+    position: fixed;
+    top: var(--atlas-sb-socket-top, auto);
+    right: var(--atlas-sb-socket-right, 0);
+    bottom: var(--atlas-sb-socket-bottom, auto);
+    z-index: $z-popover;
+    width: min(#{$panel-width}, calc(100vw - 2 * #{$spacing-s}));
+    translate: var(--atlas-keep-in-view-x);
+  }
+
+  .atlas-sb-token-popover__motion {
+    transform-origin: top right;
+  }
+
+  &.atlas-sb-token-popover[data-above] > .atlas-sb-token-popover__motion {
+    transform-origin: bottom right;
+  }
+
+  // Holds the focus while a control it pressed goes away; it shows no ring of its own.
+  .atlas-sb-token-panel:focus {
+    outline: none;
+  }
+
+  .atlas-sb-token-panel .btn[aria-disabled='true'] {
+    cursor: default;
+    opacity: 0.6;
+  }
+
+  .atlas-sb-token-panel {
+    @include atlas-elevated-surface;
+    @include atlas-panel-radius($radius-2xl);
+    display: flex;
+    flex-direction: column;
+    max-height: min(560px, var(--atlas-keep-in-view-max-height, 560px));
+    overflow: hidden;
+    color: var(--text-normal);
+    font-size: $font-ui-small;
+  }
+
+  .atlas-sb-token-panel__header {
+    @include atlas-flex-row($spacing-s);
+    @include atlas-close-header($panel-inset);
+    flex-shrink: 0;
+    border-bottom: $border-width-s solid var(--divider-color);
+  }
+
+  .atlas-sb-token-panel__title {
+    flex: 1;
+    margin: 0;
+    font-size: $font-ui-small;
+    font-weight: $font-weight-semibold;
+  }
+
+  // Padding equals the gap between the sections.
+  .atlas-sb-token-panel__body {
+    @include atlas-flex-col($panel-inset);
+    flex: 1 1 auto;
+    min-height: 0;
+    padding: $panel-inset;
+    overflow-y: auto;
+    @include atlas-scrollbar;
+  }
+
+  // The Ring switch: its label starts on the panel's text edge.
+  .atlas-sb-token-panel__body > .atlas-dropdown-toggle-row {
+    --atlas-menu-text-inset: 0px;
+    flex-shrink: 0;
+  }
+
+  .atlas-sb-token-panel__section {
+    @include atlas-flex-col($spacing-s);
+    align-items: stretch;
+  }
+
+  .atlas-sb-token-panel__label {
+    margin: 0;
+    color: var(--text-muted);
+    font-size: $font-ui-smaller;
+    font-weight: $font-weight-semibold;
+  }
+
+  .atlas-sb-token-panel__linked {
+    @include atlas-flex-col($spacing-xs);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .atlas-sb-token-panel__row {
+    @include atlas-flex-row($spacing-s);
+    min-height: var(--input-height);
+  }
+
+  .atlas-sb-token-panel__portrait {
+    width: $linked-art;
+    flex-shrink: 0;
+  }
+
+  .atlas-sb-token-panel__name {
+    @include atlas-truncate;
+    flex: 1;
+    min-width: 0;
+  }
+
+  // A capsule: its height is fixed and only its ends take padding, for the curve.
+  .atlas-sb-token-panel__badge {
+    display: inline-flex;
+    align-items: center;
+    flex-shrink: 0;
+    height: 20px;
+    padding-inline: $spacing-s;
+    border-radius: $radius-full;
+    background: color-mix(in oklch, var(--interactive-accent) 16%, transparent);
+    color: var(--text-accent);
+    font-size: $font-ui-smaller;
+    white-space: nowrap;
+  }
+
+  .atlas-sb-token-panel__unlink svg {
+    width: $icon-xs;
+    height: $icon-xs;
+  }
+
+  input.atlas-sb-token-panel__search {
+    width: 100%;
+  }
+
+  .atlas-sb-token-panel__empty {
+    margin: 0;
+    padding: $spacing-m;
+    color: var(--text-muted);
+    font-size: $font-ui-smaller;
+    text-align: center;
+  }
+
+  .atlas-sb-token-panel__hidden {
+    @include atlas-visually-hidden;
+  }
+
+  // The footer's controls sit in the panel's bottom corners, concentric with them.
+  .atlas-sb-token-panel__footer {
+    @include atlas-flex-row($spacing-s);
+    flex-shrink: 0;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    padding: $panel-inset;
+    border-top: $border-width-s solid var(--divider-color);
+
+    > .btn {
+      gap: $spacing-xs;
+
+      svg {
+        width: $icon-xs;
+        height: $icon-xs;
+      }
+    }
+
+    > .btn:first-child {
+      @include atlas-panel-inset-radius($panel-inset, bottom-left);
+    }
+
+    > .btn:nth-child(2) {
+      @include atlas-panel-inset-radius($panel-inset, bottom-right);
+    }
+  }
+
+  .atlas-sb-token-panel__status {
+    color: var(--text-muted);
+    font-size: $font-ui-smaller;
+  }
+}

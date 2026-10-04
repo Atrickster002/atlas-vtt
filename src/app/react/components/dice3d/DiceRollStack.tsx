@@ -29,7 +29,7 @@ export function DiceRollStack({ rolls, muted, onClose, onDone }: DiceRollStackPr
           style={roll.style}
           compact={i !== large}
           leaving={roll.leaving === true}
-          muted={muted}
+          muted={muted || roll.muted === true}
           onClose={() => onClose(roll.result.id)}
           onDone={() => onDone(roll.result.id)}
         />

@@ -1,4 +1,8 @@
+import { ratingText, scalarText, statblockRating } from '../../../../creatures/statblockRating';
 import type { FantasyStatblocksCreature } from '../../../../services/FantasyStatblocksService';
+import { NO_MEANINGS, type FieldMeanings } from '../../../../statblocks/resolve/fieldMeanings';
+
+type StatblockFields = Readonly<Record<string, unknown>>;
 
 /** A note-backed creature a token can link to. */
 export interface StatblockEntry {
@@ -8,20 +12,21 @@ export interface StatblockEntry {
   detail: string;
 }
 
-/** A frontmatter value worth showing: a number or a non-blank string. */
-function label(value: unknown): string | null {
-  if (typeof value === 'number') return String(value);
-  return typeof value === 'string' && value.trim() !== '' ? value.trim() : null;
+const RATING_NAMES: Readonly<Record<string, string>> = { cr: 'CR ', tier: 'Tier ', level: 'Level ' };
+
+/** The value of the field the template gives `meaning`, else of the conventional key, as text. */
+function meantText(fields: StatblockFields, meant: string | undefined, conventional: string): string | null {
+  return (meant === undefined ? null : scalarText(fields[meant])) ?? scalarText(fields[conventional]);
 }
 
-/** The creature's kind and rating as its system notes them: "Huge Dragon · CR 16", "Solo · Tier 1". */
-export function describeCreature(creature: FantasyStatblocksCreature): string {
-  const kind = [label(creature.size), label(creature.type)].filter(Boolean).join(' ');
-  const cr = label(creature.cr);
-  const tier = label(creature.tier);
-  const level = label(creature.level);
-  const rating = cr ? `CR ${cr}` : tier ? `Tier ${tier}` : level ? `Level ${level}` : '';
-  return [kind, rating].filter(Boolean).join(' · ');
+/**
+ * The creature's kind and rating as its system notes them: "Huge Dragon · CR 16", "Solo · Tier 1".
+ * A native template's size, creature type and rating fields are read before the conventional keys.
+ */
+export function describeCreature(fields: StatblockFields, meanings: FieldMeanings = NO_MEANINGS): string {
+  const kind = [meantText(fields, meanings.size, 'size'), meantText(fields, meanings['creature-type'], 'type')].filter(Boolean).join(' ');
+  const rating = statblockRating(fields, meanings, ['cr', 'tier', 'level']);
+  return [kind, rating ? ratingText(rating, RATING_NAMES) : ''].filter(Boolean).join(' · ');
 }
 
 /** The folder a note lives in, `/` for the vault root. */
@@ -30,16 +35,21 @@ export function noteFolder(path: string): string {
   return slash > 0 ? path.slice(0, slash) : '/';
 }
 
+/** The entry of one statblock note, named after `fallbackName` where its statblock names nothing. */
+export function statblockEntry(path: string, fields: StatblockFields, meanings: FieldMeanings, fallbackName: string): StatblockEntry {
+  return { path, name: scalarText(fields.name) ?? fallbackName, detail: describeCreature(fields, meanings) || noteFolder(path) };
+}
+
+/** Entries sorted by name. */
+export function sortedEntries(entries: Iterable<StatblockEntry>): StatblockEntry[] {
+  return [...entries].sort((a, b) => a.name.localeCompare(b.name));
+}
+
 /** Only note-backed creatures can be linked (the link is a note path), sorted by name. */
 export function statblockEntries(creatures: readonly FantasyStatblocksCreature[]): StatblockEntry[] {
-  return creatures
+  return sortedEntries(creatures
     .filter((creature): creature is FantasyStatblocksCreature & { path: string } => Boolean(creature.name && creature.path))
-    .map((creature) => ({
-      path: creature.path,
-      name: creature.name,
-      detail: describeCreature(creature) || noteFolder(creature.path),
-    }))
-    .sort((a, b) => a.name.localeCompare(b.name));
+    .map((creature) => statblockEntry(creature.path, creature, NO_MEANINGS, creature.name)));
 }
 
 /**

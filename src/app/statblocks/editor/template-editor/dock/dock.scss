@@ -1,0 +1,184 @@
+// ═══════════════════════════════════════════════════════════════════════════
+// The template editor's dock and floating panels (§2.5–2.8)
+// ═══════════════════════════════════════════════════════════════════════════
+// The dock floats at the note column's left edge; a dock panel opens beside
+// it and the Settings panel beside the card, both over the note column.
+// Imported by EditorFloats.tsx, so the rules take the scope themselves.
+
+@use '../../../../../../styles/tokens' as *;
+@use '../../../../../../styles/mixins' as *;
+@use '../te-palette';
+@use '../te-outline-fields';
+
+$dock-button: 32px;
+$dock-inset: $spacing-xs;
+$dock-width: $dock-button + 2 * $dock-inset;
+// A bar narrower than 48 px is a capsule: its end buttons cap their corner at half its width.
+$dock-end-radius: atlas-panel-inset-radius-value($dock-inset, $dock-button * 0.5);
+$panel-space: $spacing-s;
+$settings-width: 300px;
+
+.atlas-vtt-plugin {
+  // Only transform and opacity animate in the floating panels (§14): the
+  // controls' colour fades change at once there, their presses still move.
+  :is(.atlas-te-dock, .atlas-te-floating) :is(.btn, .atlas-toggle__switch, .slider-thumb) {
+    transition-property: transform;
+  }
+
+  // ── The dock ────────────────────────────────────────────────────────────
+  .atlas-te-dock {
+    @include atlas-elevated-surface;
+    @include atlas-corner-shape;
+    @include atlas-flex-col($dock-inset);
+    position: absolute;
+    top: $spacing-l;
+    left: $spacing-s;
+    z-index: 3;
+    align-items: center;
+    width: $dock-width;
+    padding: $dock-inset;
+    border-radius: $dock-width * 0.5;
+    box-shadow: $shadow-md;
+
+    .atlas-tool-button button.btn {
+      @include atlas-corner-shape;
+      width: $dock-button;
+      height: $dock-button;
+      padding: 0;
+      border: none;
+      border-radius: $radius-l;
+      background: transparent;
+      box-shadow: none;
+      color: var(--text-muted);
+
+      &:hover,
+      &.is-active {
+        background: var(--background-modifier-hover);
+        color: var(--text-normal);
+      }
+
+      // The open panel's button is ringed in the accent.
+      &.is-active {
+        box-shadow: inset 0 0 0 $border-width-s var(--interactive-accent);
+      }
+
+      &:focus-visible {
+        outline: 2px solid var(--interactive-accent);
+        outline-offset: -2px;
+      }
+    }
+
+    > .atlas-tool-button:first-child button.btn {
+      border-start-start-radius: $dock-end-radius;
+      border-start-end-radius: $dock-end-radius;
+    }
+
+    > .atlas-tool-button:last-child button.btn {
+      border-end-start-radius: $dock-end-radius;
+      border-end-end-radius: $dock-end-radius;
+    }
+  }
+
+  .atlas-te-dock__divider {
+    width: $dock-button - 2 * $spacing-xs;
+    height: $border-width-s;
+    background: var(--divider-color);
+  }
+
+  // ── Floating panels ─────────────────────────────────────────────────────
+  .atlas-te-floating {
+    @include atlas-elevated-surface;
+    @include atlas-panel-radius($radius-2xl);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    box-shadow: $shadow-md;
+    transform-origin: top left;
+
+    &[data-from='top'] {
+      transform-origin: top center;
+    }
+  }
+
+  .atlas-te-floating__header,
+  .atlas-te-settings .atlas-te-insp__header {
+    @include atlas-flex-row($spacing-s);
+    @include atlas-close-header($spacing-m);
+    justify-content: space-between;
+    flex-shrink: 0;
+  }
+
+  .atlas-te-floating:not([data-collapsed]) .atlas-te-floating__header {
+    border-bottom: $border-width-s solid var(--divider-color);
+  }
+
+  .atlas-te-floating__title {
+    color: var(--text-normal);
+    font-size: $font-ui-small;
+    font-weight: $font-weight-semibold;
+  }
+
+  .atlas-te-floating__controls {
+    @include atlas-flex-row($spacing-xs);
+    flex-shrink: 0;
+    margin-inline-start: auto;
+  }
+
+  .atlas-te-floating__body {
+    min-height: 0;
+    overflow-y: auto;
+    background: var(--background-secondary);
+    @include atlas-scrollbar;
+  }
+
+  .atlas-te-floating__content {
+    @include atlas-flex-col($panel-space);
+    align-items: stretch;
+    padding: $panel-space;
+  }
+
+  // A dock panel: beside the dock, or under the capsule in a stacked view (its top set inline).
+  .atlas-te-dock-panel {
+    position: absolute;
+    top: $spacing-l;
+    left: $spacing-s + $dock-width + $spacing-s;
+    z-index: 3;
+    max-height: calc(100% - 2 * #{$spacing-l});
+
+    &[data-from='top'] {
+      left: $spacing-s;
+      max-height: calc(100% - var(--atlas-te-capsule-bottom, #{$spacing-l}) - #{$spacing-l});
+    }
+  }
+
+  // ── Settings ────────────────────────────────────────────────────────────
+  // The anchor moves by transform, so the panel glides to a newly selected block (§14).
+  .atlas-te-settings-anchor {
+    position: absolute;
+    top: 0;
+    left: 0;
+    z-index: 3;
+    width: $settings-width;
+    transition: transform $transition-normal $transition-ease-out;
+
+    &:not([data-placed]) {
+      visibility: hidden;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      transition: none;
+    }
+  }
+
+  .atlas-te-settings {
+    max-height: var(--atlas-te-settings-max-height, none);
+    overflow-y: auto;
+    @include atlas-scrollbar;
+  }
+
+  // A pinned panel's pin is filled in the accent; an open one is an outline.
+  .atlas-te-floating__pin[data-pinned] svg {
+    fill: currentColor;
+    color: var(--interactive-accent);
+  }
+}

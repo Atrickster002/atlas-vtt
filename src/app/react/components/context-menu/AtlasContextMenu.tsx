@@ -23,6 +23,8 @@ export type ContextMenuEntry =
     keepOpen?: boolean;
     /** − value + controls after the label, also driven by the + and - keys while the item is highlighted. */
     stepper?: MenuStepper;
+    /** Muted text at the row's end, e.g. the template a statblock role starts from. */
+    hint?: string;
   }
   | {
     type: 'submenu';
@@ -55,6 +57,11 @@ function runEntryAction(entry: ContextMenuItemEntry): void {
 }
 
 // ── Icon helper ─────────────────────────────────────────────────────────────
+
+/** An Obsidian icon in a menu row's icon slot; an empty name keeps the slot, so labels line up. */
+export function MenuIcon({ name }: { name: string }): React.ReactElement {
+  return name ? <ObsidianIcon name={name} /> : <span className="atlas-ctx-icon-spacer" />;
+}
 
 function ObsidianIcon({ name }: { name: string }): React.ReactElement {
   const ref = useRef<HTMLSpanElement>(null);
@@ -126,8 +133,9 @@ function ItemContent({ entry }: { entry: ContextMenuItemEntry }): React.ReactEle
           <span className="atlas-ctx-item__label">{entry.label}</span>
         </span>
       ) : entry.label}
-      {(entry.stepper || entry.checked !== undefined) && (
+      {(entry.hint || entry.stepper || entry.checked !== undefined) && (
         <span className="atlas-ctx-item__trailing">
+          {entry.hint && <span className="atlas-ctx-item__hint">{entry.hint}</span>}
           {entry.stepper && <Stepper stepper={entry.stepper} />}
           {entry.checked !== undefined && (
             <DropdownMenu.ItemIndicator forceMount className="atlas-ctx-item__check">

@@ -1,8 +1,10 @@
 import { TFile, normalizePath, type App } from 'obsidian';
-import { getFantasyStatblocksApi, resolveCreatureFromFence, resolveLayout, type FantasyStatblocksCreature } from './FantasyStatblocksService';
-import { resolveStatblockNote } from './statblockNoteSource';
+import { getFantasyStatblocksApi, type FantasyStatblocksCreature } from './FantasyStatblocksService';
 import type { TokenAsset } from './AssetService';
-import { tokenSizeFromCreatureSize } from '../pixi/token-renderer/tokenSizing';
+import type { BestiaryLookup } from '../creatures/linkedCreature';
+import { tokenSizeFromStatblock } from '../pixi/token-renderer/tokenSizing';
+import { statblockSourceOf } from '../statblocks/notes/statblockSource';
+import { readStatblock } from '../statblocks/resolve/readStatblock';
 import { STATBLOCK_IMAGE_KEYS, type StatblockImageKey } from './statblockImageKeys';
 
 export type StatblockImportStatus = 'ready' | 'imported' | 'missing-image' | 'remote-image' | 'conflict';
@@ -37,7 +39,7 @@ export function imageReference(value: unknown): string | undefined {
 }
 
 /** The first artwork field of a statblock that holds a reference, with that reference. */
-export function statblockImageField(fields: Record<string, unknown>): { key: StatblockImageKey; reference: string } | undefined {
+export function statblockImageField(fields: Readonly<Record<string, unknown>>): { key: StatblockImageKey; reference: string } | undefined {
   for (const key of STATBLOCK_IMAGE_KEYS) {
     const reference = imageReference(fields[key]);
     if (reference) return { key, reference };
@@ -53,9 +55,14 @@ export function localImage(app: App, reference: string, sourcePath: string): TFi
   return resolved instanceof TFile && /^(png|jpe?g|webp|gif|bmp|svg|avif)$/i.test(resolved.extension) ? resolved : null;
 }
 
+/**
+ * The bestiary a scan reads besides the notes: Fantasy Statblocks' once it
+ * has resolved, and none without the plugin, when native statblocks and
+ * Fantasy Statblocks' notes are read from the notes alone.
+ */
 export function requireResolvedBestiary(): FantasyStatblocksCreature[] {
   const api = getFantasyStatblocksApi();
-  if (!api) throw new Error('Enable Fantasy Statblocks to import creatures.');
+  if (!api) return [];
   if (!api.isResolved()) throw new Error('Fantasy Statblocks is still loading. Try scanning again in a moment.');
   return api.getBestiaryCreatures();
 }
@@ -64,6 +71,8 @@ export function requireResolvedBestiary(): FantasyStatblocksCreature[] {
 export interface StatblockLookup {
   creatures: ReadonlyMap<string, FantasyStatblocksCreature>;
   tokens: ReadonlyMap<string, readonly TokenAsset[]>;
+  /** The same entries as the resolver reads them. */
+  bestiary: BestiaryLookup;
 }
 
 /** Built once per scan: looking notes up in the bestiary one by one grows with notes × creatures. */
@@ -79,34 +88,32 @@ export function statblockLookup(assets: readonly TokenAsset[], bestiary: readonl
     const path = normalizePath(asset.statblockPath);
     tokens.set(path, [...(tokens.get(path) ?? []), asset]);
   }
-  return { creatures, tokens };
+  return { creatures, tokens, bestiary: { api: getFantasyStatblocksApi(), byPath: creatures } };
 }
 
-/** Identity is always the note path; a matching basename is not proof of a statblock. */
+/**
+ * The import row of a note, read by the resolver: its layout column names the template or
+ * Fantasy Statblocks layout it renders with. Identity is always the note path; a matching
+ * basename is not proof of a statblock.
+ */
 export async function statblockImportCandidate(app: App, file: TFile, lookup: StatblockLookup): Promise<StatblockImportCandidate | null> {
   const path = normalizePath(file.path);
-  const entry = lookup.creatures.get(path);
-  const source = await resolveStatblockNote(app, file);
-  if (!source && !entry) return null;
-  const creature = source?.kind === 'codeblock'
-    ? await resolveCreatureFromFence(app, source.params, path)
-    : entry ?? app.metadataCache.getFileCache(file)?.frontmatter;
-  const name = typeof creature?.name === 'string' && creature.name.trim() ? creature.name : file.basename;
-  const requested = typeof creature?.layout === 'string' ? creature.layout :
-    typeof creature?.statblock === 'string' && !['true', 'inline'].includes(creature.statblock) ? creature.statblock : undefined;
-  const layout = resolveLayout(app, requested);
-  const layoutName = requested ? (layout?.id === requested || layout?.name === requested ? layout.name : requested) : layout?.name ?? 'Unspecified';
-  const row = { path, name, layoutName };
+  if (!lookup.creatures.has(path) && !(await statblockSourceOf(app, file))) return null;
+  const statblock = await readStatblock(app, path, lookup.bestiary);
+  const named = statblock?.fields.name;
+  const name = typeof named === 'string' && named.trim() ? named : file.basename;
+  const row = { path, name, layoutName: statblock?.lookName ?? 'Unspecified' };
   const linked = lookup.tokens.get(path) ?? [];
   if (linked.length > 1) return { ...row, status: 'conflict', detail: 'Multiple tokens already link to this note. Review their links first.' };
   const existing = linked[0];
   if (existing) return { ...row, status: 'imported', detail: 'An Atlas token already links to this note.', imagePath: existing.imagePath, showRing: existing.showRing !== false };
-  if (!creature) return { ...row, status: 'conflict', detail: 'The statblock could not be resolved. Check its name or note reference.' };
-  const image = statblockImageField(creature)?.reference;
+  if (!statblock) return { ...row, status: 'conflict', detail: 'The statblock could not be resolved. Check its name or note reference.' };
+  const { fields, meanings } = statblock;
+  const image = statblockImageField(fields)?.reference;
   if (!image) return { ...row, status: 'missing-image', detail: 'Add an image to this statblock to create a token.' };
   if (/^(?:[a-z][a-z0-9+.-]*:|\/\/)/i.test(image)) return { ...row, status: 'remote-image', detail: 'Save the image in your vault and link it from the statblock.' };
   const imageFile = localImage(app, image, path);
   if (!imageFile) return { ...row, status: 'missing-image', detail: 'The linked image is missing or its format is unsupported.' };
-  const size = tokenSizeFromCreatureSize(creature.size);
+  const size = tokenSizeFromStatblock(fields, meanings);
   return { ...row, status: 'ready', detail: 'Ready to create a linked token.', imagePath: imageFile.path, ...(size !== undefined && { size }) };
 }

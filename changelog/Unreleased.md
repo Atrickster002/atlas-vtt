@@ -1,5 +1,7 @@
 ## New
 
+- Statblocks show without the Fantasy Statblocks plugin: Atlas draws them itself on token hovers, in the DM screen and in the asset manager
+- Statblock templates for 5E (2014 and 2024), Cairn, Draw Steel and Fate, and general ones for creatures, NPCs and hazards
 - Customize the toolbar from the command palette: drag tools to reorder them, or into the tray above it to hide them. With a contribution by oscar-eriksson
 
 ## Important changes
@@ -12,6 +14,8 @@
 
 - A scene can measure at its own scale: Distance per cell in the command palette's Grid Settings sets how far one cell of that map reaches, in place of the collection's, for the ruler and for how far lights and senses reach on it. Leave it empty to follow the collection. Contributed by ISorokaI
 - Number every cell of a square grid, the same way hex grids already could. A new Letters and numbers format (A1, B1, …) is available on square and hex grids alike
+- The creature filter Layout is now called Template. Type `template:` in the search; `layout:` still works
+- The token creator finds statblock notes without the Fantasy Statblocks plugin too. Its image source is now called Statblock notes
 - An open map uses much less graphics memory: 3D dice share one drawing context per window, and with dynamic lighting on the map no longer keeps antialiasing buffers it does not draw into
 - On narrow windows, tools move into More tools from the right; the command palette always stays
 - Walls join: click a wall's end point to draw on from it, and a wall you end near another wall's end point lands exactly on it. A dragged end point joins the one you drop it on, and from then on they move together. Hold Alt to place a point freely
@@ -21,6 +25,7 @@
 
 ## Fixed
 
+- Hovering a token whose note holds its statblock in a code block shows the statblock, not the plain note
 - Grid lines no longer break up or vanish at some zoom levels after the grid size was changed. Zoomed out, a line thinner than a screen pixel is drawn one pixel wide and fainter instead. Contributed by ISorokaI
 - Links in Fantasy Statblocks bestiary statblocks show as links instead of raw text such as `rules/skills.md#Perception|Perception`, and a click opens the note in a new tab. Contributed by ISorokaI
 - The asset manager opens and scrolls faster with many tokens: every token card used to make the browser read the token ring image anew, which on slower computers froze the Characters tab with a few dozen tokens. Contributed by ISorokaI

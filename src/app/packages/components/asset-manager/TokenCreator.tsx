@@ -16,6 +16,8 @@ import { saveTokenPreviews } from './token-creator/saveTokenPreviews';
 import { useAssetCatalog } from './token-creator/useAssetCatalog';
 import { useAssetTags } from './token-creator/useAssetTags';
 import { useTokenPreviews } from './token-creator/useTokenPreviews';
+import { useStatblockRow } from './token-creator/useStatblockRow';
+import type { SavedToken } from './token-creator/tokenStatblocks';
 import { useFrameProgress } from '../primitives/useFrameProgress';
 import { modeNoun } from './token-creator/types';
 import { uvttFilesAmong, type ImportMaps } from './hooks/useUvttImport';
@@ -48,6 +50,7 @@ export function TokenCreator({ isOpen, onClose, mode = 'token', selectedCollecti
 
   const [collection, setCollection] = useState(selectedCollection);
   const { tags: availableTags, createTag, isCreatingTag } = useAssetTags(assetService, isOpen, collection, mode === 'map' ? 'maps' : 'tokens');
+  const statblockRow = useStatblockRow(app, collection, mode === 'token' && !editToken);
   const selectedPreviews = previews.previews.filter(p => p.isSelected);
   const selectedTags = selectedPreviews[0]?.tags?.filter(tag => selectedPreviews.every(p => p.tags?.includes(tag))) ?? [];
   const queuedPaths = useMemo(() => previews.previews.flatMap(p => p.statblockPath ? [p.statblockPath] : []), [previews.previews]);
@@ -114,6 +117,7 @@ export function TokenCreator({ isOpen, onClose, mode = 'token', selectedCollecti
     const total = previews.previews.length;
     setIsSubmitting(true);
     setSaveError('');
+    const savedTokens: SavedToken[] = [];
     try {
       const saved = await saveTokenPreviews({
         app,
@@ -127,6 +131,7 @@ export function TokenCreator({ isOpen, onClose, mode = 'token', selectedCollecti
         editToken: editToken ?? null,
         waitForOptimized: previews.waitForOptimized,
         onProgress: reportSaveProgress,
+        onTokensSaved: (tokens) => savedTokens.push(...tokens),
       });
       if (saved > 0) app.workspace.trigger('atlas-vtt:refresh-assets');
       if (saved === total) onClose();
@@ -135,10 +140,12 @@ export function TokenCreator({ isOpen, onClose, mode = 'token', selectedCollecti
       setSaveError(error instanceof Error ? error.message : 'Could not save previews.');
       if (error instanceof AssetRegistrationUncertainError) setSaveBlocked(true);
     } finally {
+      // Tokens registered before a failure get their statblocks too.
+      statblockRow.createFor(savedTokens);
       setIsSubmitting(false);
       clearSaveProgress();
     }
-  }, [usingStatblocks, app, assetService, canSubmit, collection, editToken, mode, onClose, previews, importController, reportSaveProgress, clearSaveProgress]);
+  }, [usingStatblocks, app, assetService, canSubmit, collection, editToken, mode, onClose, previews, importController, reportSaveProgress, clearSaveProgress, statblockRow]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -220,6 +227,7 @@ export function TokenCreator({ isOpen, onClose, mode = 'token', selectedCollecti
           onCreateTag={createTag}
           tagsDisabled={!assetService || isSubmitting || selectedPreviews.length === 0}
           onToggleTag={previews.toggleTag}
+          statblocks={statblockRow}
         />
 
         <header className="atlas-token-creator__header">

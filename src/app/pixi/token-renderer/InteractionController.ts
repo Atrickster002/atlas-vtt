@@ -26,6 +26,8 @@ import { beginHistoryTransaction, endHistoryTransaction } from '../../stores/his
 import { initiativeEntryForToken } from '../../stores/initiativeEntries';
 import { EventEmitter } from 'events';
 import { StatblockDialogService } from '../../services/StatblockDialogService';
+import { AssetService } from '../../services/AssetService';
+import { createStatblockEntry, editInStatblockPane, newStatblockOption, type EntryContext, type TokenCreationContext } from '../../statblocks/editor/create/entryPoints';
 import { TokenStatblockLinkService } from '../../services/TokenStatblockLinkService';
 import type { ConditionDefinition } from '../../types/collectionSettingsTypes';
 import { dynamicLightingOn } from '../../experimental/experimentalFeatures';
@@ -653,6 +655,7 @@ export class InteractionController implements ITokenInteractionController {
         label: 'Edit Statblock',
         icon: 'file-text',
         onClick: async () => {
+          if (obsApp && editInStatblockPane(obsApp, statblockPath, this.statblockEntryContext())) return;
           if (obsApp) {
             const file = obsApp.vault.getAbstractFileByPath(statblockPath);
             if (file) await obsApp.workspace.openLinkText(file.path, '', true);
@@ -694,10 +697,13 @@ export class InteractionController implements ITokenInteractionController {
               },
               character?.name || 'Token',
               { imagePath: token.imagePath, showRing: token.showRing },
+              newStatblockOption(obsApp, this.tokenCreationContext(token, character?.name || 'Token')),
             );
           }
         },
       });
+      const create = token.imagePath ? createStatblockEntry(obsApp, this.tokenCreationContext(token, character?.name || 'Token')) : null;
+      if (create) entries.push(create);
     }
 
 
@@ -796,6 +802,21 @@ export class InteractionController implements ITokenInteractionController {
 
   setDragRuler(ruler: DragRuler): void {
     this.dragRuler = ruler;
+  }
+
+  /** The statblock editor opens from the map for the map's collection. */
+  private statblockEntryContext(): EntryContext {
+    const mapPath = this.store.getState().mapPath;
+    return { collectionId: mapPath ? AssetService.getInstance(this.obsApp).getCollectionForMap(mapPath) : null, from: 'map' };
+  }
+
+  /** A statblock made for the token: named after it, linked to it on this map too. */
+  private tokenCreationContext(token: TokenEntity, name: string): TokenCreationContext {
+    return {
+      ...this.statblockEntryContext(),
+      token: { imagePath: token.imagePath, name },
+      onLinked: (statblockPath) => this.store.getState().updateToken(token.id, { statblockPath }),
+    };
   }
 
   private hasResources(character: Character | undefined): boolean {

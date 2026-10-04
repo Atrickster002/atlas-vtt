@@ -13,7 +13,7 @@
   display: flex;
   flex-direction: column;
   width: max-content;
-  max-width: min(480px, calc(100vw - #{$spacing-s}));
+  max-width: min($statblock-preview-max-width, calc(100vw - #{$spacing-s}));
   padding: $spacing-s;
   overflow: visible;
   box-sizing: border-box;
@@ -21,8 +21,8 @@
   animation: atlas-statblock-preview-in $transition-normal $transition-ease-out;
   transform-origin: right center;
 
-  @media (min-width: 1600px) {
-    max-width: min(540px, calc(100vw - #{$spacing-s}));
+  @media (min-width: $statblock-preview-wide-from) {
+    max-width: min($statblock-preview-wide-max-width, calc(100vw - #{$spacing-s}));
   }
 
   @include atlas-statblock-contained-card;

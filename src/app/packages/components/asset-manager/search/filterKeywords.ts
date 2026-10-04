@@ -6,7 +6,7 @@ import type { Tab } from '../types';
 
 /** A keyword of the asset search and what it filters. */
 export type FilterKeyword = QueryKeyword & (
-  | { kind: 'name' | 'tag' | 'statblock' | 'layout' }
+  | { kind: 'name' | 'tag' | 'statblock' | 'template' }
   | { kind: 'range' | 'options'; filterId: string }
 );
 
@@ -66,15 +66,15 @@ export function filterKeywords(tab: Tab, definitions: readonly CreatureFilterDef
     { kind: 'tag', prefix: 'tag', aliases: ['tags'], numeric: false, description: 'Tag' },
   ];
   if (tab !== 'tokens') return keywords;
-  keywords.push(
-    { kind: 'statblock', prefix: 'statblock', aliases: ['sb'], numeric: false, description: 'With or without a statblock: yes or no', accepts: (value) => statblockValue(value) !== null },
-    { kind: 'layout', prefix: 'layout', aliases: [], numeric: false, negatable: true, description: 'Statblock layout' },
-  );
-  const taken = new Set(keywords.flatMap((keyword) => [keyword.prefix, ...keyword.aliases]));
+  keywords.push({ kind: 'statblock', prefix: 'statblock', aliases: ['sb'], numeric: false, description: 'With or without a statblock: yes or no', accepts: (value) => statblockValue(value) !== null });
+  // Last, so a typed "t" offers the type before it; `layout:` is its name from before native templates
+  const template: FilterKeyword = { kind: 'template', prefix: 'template', aliases: ['layout'], numeric: false, negatable: true, description: 'Statblock template or layout' };
+  const taken = new Set([...keywords, template].flatMap((keyword) => [keyword.prefix, ...keyword.aliases]));
   for (const definition of definitions) {
     const keyword = creatureKeyword(definition, taken);
     if (keyword) keywords.push(keyword);
   }
+  keywords.push(template);
   return keywords;
 }
 
@@ -83,7 +83,7 @@ export function suggestedKeywords(keywords: readonly FilterKeyword[], facets: Cr
   return keywords.filter((keyword) => {
     switch (keyword.kind) {
       case 'tag': return hasTags;
-      case 'layout': return (facets?.layouts.length ?? 0) > 1;
+      case 'template': return (facets?.layouts.length ?? 0) > 1;
       case 'range': return facets?.ranges.some((facet) => facet.definition.id === keyword.filterId && facet.values.length > 0) ?? false;
       case 'options': return facets?.options.some((facet) => facet.definition.id === keyword.filterId && facet.options.length > 0) ?? false;
       default: return true;

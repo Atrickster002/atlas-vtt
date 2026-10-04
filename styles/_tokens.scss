@@ -116,6 +116,16 @@ $input-height-l: 44px;
 $close-button-size: var(--input-height);
 $close-button-gap: $spacing-s;
 
+// ── Statblock surfaces ───────────────────────────────────────────────────────
+// Mirrors src/app/statblocks/render/statblockSurfaceWidths.ts (a unit test keeps
+// them equal): the hover preview is at most 480px wide, 540px from a 1600px
+// wide window; DM screen feeds are 340px to 540px.
+$statblock-preview-max-width: 480px;
+$statblock-preview-wide-max-width: 540px;
+$statblock-preview-wide-from: 1600px;
+$statblock-feed-min-width: 340px;
+$statblock-feed-max-width: 540px;
+
 // ── Breakpoints (for responsive layouts) ─────────────────────────────────────
 $breakpoint-xs: 480px;
 $breakpoint-s:  640px;

@@ -12,7 +12,10 @@ vi.mock('../../src/app/resources/useMapResources', async () => {
   const definitions = [(await import('../../src/app/resources/resourceDefinitions')).HP_RESOURCE];
   return { useMapResources: () => definitions };
 });
-vi.mock('../../src/app/react/root/AtlasUIContext', () => ({ useAtlasUI: () => ({ app, view }) }));
+vi.mock('../../src/app/react/root/AtlasUIContext', async () => ({
+  useAtlasUI: () => ({ app, view }),
+  AtlasUIContext: (await import('react')).createContext(null),
+}));
 vi.mock('../../src/app/react/ViewStoreContext', () => ({
   useAtlasStore: (selector: (value: typeof state) => unknown) => selector(state),
 }));
@@ -34,6 +37,8 @@ const app = {
       : '## Notes\nAn old Atlas creature note.',
   },
   metadataCache: {
+    on: vi.fn(() => ({})),
+    offref: vi.fn(),
     getFileCache: (file: TFile) => ({ frontmatter: file.path === creaturePath
       ? { statblock: true, name: creature.name }
       : { 'atlas-type': 'statblock', 'template-id': 'old-template', name: 'New Creature 32' } }),

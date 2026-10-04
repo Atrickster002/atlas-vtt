@@ -138,7 +138,7 @@ export function StatblockImportContent({ app, queuedPaths, onAdd, onClose, contr
             </div>
             {filtered.length > 0
               ? <StatblockList app={app} rows={filtered} selected={selected} queued={queued} disabled={disabled} scrollElement={scrollElement} onToggle={toggle} />
-              : <p>{query ? 'No statblocks match your search.' : 'No statblock notes found. Enable frontmatter parsing in Fantasy Statblocks, or add a statblock code block to a note.'}</p>}
+              : <p>{query ? 'No statblocks match your search.' : 'No statblock notes found in your vault.'}</p>}
           </>
         )}
       </div>

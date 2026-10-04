@@ -76,7 +76,7 @@ export function activeFilterChips({ selection, definitions, facets, tagIds, tags
     const options = facets?.options.find((facet) => facet.definition.id === definition.id)?.options;
     addGroup(definition.id, definition.label, pickChips(definition.id, picks, options, setSelection));
   }
-  addGroup(LAYOUT_FACET, 'Layout', pickChips(LAYOUT_FACET, selection.layouts, facets?.layouts, setSelection));
+  addGroup(LAYOUT_FACET, 'Template', pickChips(LAYOUT_FACET, selection.layouts, facets?.layouts, setSelection));
   if (tagIds.length > 0) {
     groups.push({
       key: 'tags',

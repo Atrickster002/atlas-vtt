@@ -1,6 +1,6 @@
 import { mapResources } from '../resources/collectionResources';
 import type { ResourceDefinition, ResourceDefsProvider } from '../resources/resourceTypes';
-import { fillMissingResources, syncedResources } from '../resources/statblockResourceSync';
+import { fillMissingResources, type StatblockFields } from '../resources/statblockResourceSync';
 import { runUntracked } from '../stores/history';
 import { fitTokenArtwork, syncTokenArtwork } from './token-renderer/tokenArtwork';
 import type { AtlasSettings } from '../services/SettingsService';
@@ -37,7 +37,9 @@ import { requestRender } from './RenderScheduler';
 import { normalizeImagePath } from '../utils/pathUtils';
 import { prefersReducedMotion } from '../utils/motion';
 import { destroyTree } from './utils/destroyTree';
-import { buildStatblockLinkUpdates, readStatblockVitals, STATBLOCK_UNLINK_UPDATES } from './token-renderer/statblockFrontmatter';
+import { buildStatblockLinkUpdates } from './token-renderer/statblockFrontmatter';
+import { applyLinkChange, syncLinkedTokens } from './token-renderer/statblockTokenSync';
+import { followStatblockImage } from '../services/followStatblockImage';
 import type { TokenGroupContainer } from './token-renderer/types';
 import type { ConditionDefinition } from '../types/collectionSettingsTypes';
 import { setCanvasCursor } from './utils/canvasCursor';
@@ -104,6 +106,8 @@ export class TokenRenderer {
   private themeObserver: MutationObserver | null = null;
   private isLocalPlayerMode: boolean = false;
   private isDestroyed = false;
+  /** Link changes of the statblock link service, applied in the order they came. */
+  private linkChanges: Promise<void> = Promise.resolve();
 
   // Store event handlers for proper cleanup
   private _handleGridTypeChange?: EventListener;
@@ -473,82 +477,26 @@ export class TokenRenderer {
       if (isCharacter) {
         const statblockPath = file.path;
 
-        // Read through the link service so this listener and the writer agree
-        // on which frontmatter key holds the statblock's image.
-        const newTokenImage = this.tokenStatblockLinkService.readStatblockImage(file);
-        if (newTokenImage) {
-          // Get the current token linked to this statblock
-          const currentTokenImage = await this.tokenStatblockLinkService.getTokenLinkedToStatblock(statblockPath);
-          
-          // If the token-image has changed, update the link
-          if (!currentTokenImage || !this.tokenStatblockLinkService.arePathsEquivalent(currentTokenImage, newTokenImage)) {
-            // Use the centralized service to link the new token to the statblock
-            // This will automatically handle unlinking the old token and updating all instances
-            await this.tokenStatblockLinkService.linkTokenToStatblock(
-              newTokenImage,
-              statblockPath,
-              { 
-                showConfirmation: false, // No confirmation needed for metadata-driven updates
-                updateStatblockAvatar: false // We're responding to a statblock change, don't update it again
-              }
-            );
-          }
-        } else {
-          // If token-image was removed, check if we need to unlink
-          const currentTokenImage = await this.tokenStatblockLinkService.getTokenLinkedToStatblock(statblockPath);
-          if (currentTokenImage) {
-            // Unlink the token from this statblock
-            await this.tokenStatblockLinkService.unlinkToken(
-              currentTokenImage,
-              { updateStatblockAvatar: false } // We're responding to a statblock change, don't update it again
-            );
-          }
-        }
+        // The link moves only to a token asset the note's image names; any other image leaves it.
+        const linkedImage = await followStatblockImage(
+          this.tokenStatblockLinkService,
+          statblockPath,
+          this.tokenStatblockLinkService.readStatblockImage(file),
+        );
         
-        // Update tokens on the current map that are linked to this statblock with new data
-        const vitals = readStatblockVitals(metadata.frontmatter);
-        const tokens = this.store.getState().objects.tokens;
-        for (const [tokenId, token] of Object.entries(tokens)) {
-          if (token.kind !== 'character' || token.statblockPath !== statblockPath) continue;
-
-          // Refresh statblock-derived data but keep live values such as the current HP
-          const updates: TokenUpdates = { name: vitals.name || token.name };
-
-          const resources = syncedResources(token, metadata.frontmatter, this.resourceDefsProvider());
-          if (JSON.stringify(resources) !== JSON.stringify(token.resources ?? {})) {
-            updates.resources = resources;
-          }
-
-          if (vitals.difficulty !== undefined) {
-            updates.difficulty = vitals.difficulty;
-          }
-
-          if (newTokenImage && token.imagePath !== newTokenImage) {
-            updates.imagePath = newTokenImage;
-          }
-
-          this.store.getState().updateToken(tokenId, updates);
+        // Linked tokens follow the statblock as the resolver reads it (renamed keys, meanings),
+        // untracked: a statblock edit must not become an undo step of this map.
+        const statblock = await this.tokenStatblockLinkService.readStatblockRecord(statblockPath);
+        if (statblock && !this.isDestroyed) {
+          syncLinkedTokens(this.store, statblockPath, statblock, this.resourceDefsProvider(), linkedImage);
         }
       }
     });
     
     // Listen for token-statblock link changes from the centralized service
+    // A link reads its statblock first, so the changes are applied one after another, in order.
     const handleLinkChange = (event: LinkChangeEvent): void => {
-      // Find tokens on the current map that use the affected image
-      const tokens = this.store.getState().objects.tokens;
-      const affectedTokenIds = Object.keys(tokens).filter(
-        (tokenId) => tokens[tokenId]?.imagePath === event.tokenImagePath
-      );
-
-      if (event.type === 'linked' && event.statblockPath) {
-        // Token was linked to a statblock - update all instances with statblock data
-        void this.updateTokensWithStatblockData(affectedTokenIds, event.statblockPath);
-      } else if (event.type === 'unlinked') {
-        // Token was unlinked from statblock - clear ALL statblock-derived data
-        for (const tokenId of affectedTokenIds) {
-          this.store.getState().updateToken(tokenId, STATBLOCK_UNLINK_UPDATES);
-        }
-      }
+      this.linkChanges = this.linkChanges.then(() => this.applyStatblockLinkChange(event));
     };
     
     // Subscribe to link changes
@@ -978,12 +926,9 @@ export class TokenRenderer {
               character = { ...token, statblockPath: linkedStatblockPath };
 
               try {
-                const statblockFile = this.obsApp.vault.getAbstractFileByPath(linkedStatblockPath);
-                const frontmatter = statblockFile instanceof TFile
-                  ? this.obsApp.metadataCache.getFileCache(statblockFile)?.frontmatter
-                  : undefined;
-                if (frontmatter) {
-                  character = { ...character, ...buildStatblockLinkUpdates(frontmatter, token.name, this.resourceDefsProvider(), token.resources) };
+                const statblock = await this.tokenStatblockLinkService.readStatblockRecord(linkedStatblockPath);
+                if (statblock) {
+                  character = { ...character, ...buildStatblockLinkUpdates(statblock, token.name, this.resourceDefsProvider(), token.resources) };
                 }
               } catch (error) {
                 console.error(`[TokenRenderer] Failed to load statblock data for token ${token.id}:`, error);
@@ -1356,32 +1301,30 @@ export class TokenRenderer {
   }
 
   /**
-   * Updates multiple tokens with data from a statblock
+   * Applies a link change to the open map. A link reads its statblock through the resolver first,
+   * as closed maps are linked, so renamed keys and the template's meanings count.
    */
-  private async updateTokensWithStatblockData(tokenIds: string[], statblockPath: string): Promise<void> {
+  private async applyStatblockLinkChange(event: LinkChangeEvent): Promise<void> {
     try {
-      const statblockFile = this.obsApp.vault.getAbstractFileByPath(statblockPath);
-      if (!(statblockFile instanceof TFile)) return;
-      
-      const metadata = this.obsApp.metadataCache.getFileCache(statblockFile);
-      const frontmatter = metadata?.frontmatter;
-      if (!frontmatter) return;
-      
-      for (const tokenId of tokenIds) {
-        const token = this.store.getState().objects.tokens[tokenId];
-        if (!token) continue;
-
-        const currentName = token.kind === 'character' ? token.name : undefined;
-        this.store.getState().updateToken(tokenId, {
-          statblockPath,
-          // Maxima set by hand belonged to the previous statblock.
-          overriddenMax: undefined,
-          ...buildStatblockLinkUpdates(frontmatter, currentName, this.resourceDefsProvider(), token.resources)
-        });
-      }
+      const statblock = event.type === 'linked' && event.statblockPath
+        ? await this.tokenStatblockLinkService.readStatblockRecord(event.statblockPath)
+        : null;
+      if (this.isDestroyed) return;
+      applyLinkChange(this.store, event, (token, statblockPath) => statblock && this.statblockLinkUpdates(token, statblockPath, statblock));
     } catch (error) {
-      console.error('[TokenRenderer] Failed to update tokens with statblock data:', error);
+      console.error('[TokenRenderer] Failed to apply a statblock link change:', error);
     }
+  }
+
+  /** What a token freshly linked to the statblock takes from it. */
+  private statblockLinkUpdates(token: TokenEntity, statblockPath: string, statblock: StatblockFields): TokenUpdates {
+    const currentName = token.kind === 'character' ? token.name : undefined;
+    return {
+      statblockPath,
+      // Maxima set by hand belonged to the previous statblock.
+      overriddenMax: undefined,
+      ...buildStatblockLinkUpdates(statblock, currentName, this.resourceDefsProvider(), token.resources),
+    };
   }
 
   /**

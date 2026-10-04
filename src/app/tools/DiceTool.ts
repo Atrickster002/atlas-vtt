@@ -72,22 +72,8 @@ export class DiceTool {
     return result;
   }
 
-  /** Rolls the formula; one without dice (`+3`) is added to the collection's default roll. */
   private parseAndRoll(formula: string): DiceRollResult {
-    const rules = this.getDiceRules();
-    const complete = hasDiceTerm(formula) ? formula : withDefaultRoll(formula, rules.defaultRoll);
-    const { rolls, modifiers, total } = rollFormula(complete, Math.random, rules);
-
-    return {
-      id: `roll_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`,
-      timestamp: Date.now(),
-      formula: complete,
-      rolls,
-      modifiers,
-      total,
-      crit: getDiceCrit(rolls, rules),
-      player: 'Player' // TODO: Get actual player name from session
-    };
+    return rollDiceFormula(formula, this.getDiceRules());
   }
 
   public clearHistory(): void {
@@ -118,6 +104,26 @@ export class DiceTool {
   public getState(): DiceToolState {
     return { ...this.state };
   }
+}
+
+/**
+ * Rolls a formula by a collection's dice rules, as the dice tool does but
+ * without telling anyone: one without dice (`+3`) is added to the default roll.
+ */
+export function rollDiceFormula(formula: string, rules: DiceRules): DiceRollResult {
+  const complete = hasDiceTerm(formula) ? formula : withDefaultRoll(formula, rules.defaultRoll);
+  const { rolls, modifiers, total } = rollFormula(complete, Math.random, rules);
+
+  return {
+    id: `roll_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`,
+    timestamp: Date.now(),
+    formula: complete,
+    rolls,
+    modifiers,
+    total,
+    crit: getDiceCrit(rolls, rules),
+    player: 'Player' // TODO: Get actual player name from session
+  };
 }
 
 /** `+3` with `1d20` gives `1d20+3`; a bare number counts as a bonus. */

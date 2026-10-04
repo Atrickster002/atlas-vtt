@@ -63,5 +63,6 @@ export const SHADOWDARK: SystemPreset = {
     lightPresets: SHADOWDARK_LIGHTS,
     widgets: [SHADOWDARK_TORCH],
     resources: [{ ...HP_RESOURCE }],
+    statblockRoles: [{ id: 'monster', name: 'Monster', templateId: 'builtin:bx-creature' }],
   },
 };

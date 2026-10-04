@@ -409,6 +409,13 @@ $swatch: 24px;
   }
 }
 
+// A template's name for the field comes first; the path a resource stores follows it
+.atlas-csm-field-chip__path {
+  margin-inline-start: $spacing-xs;
+  color: var(--text-faint);
+  font-family: var(--font-monospace);
+}
+
 @media (hover: hover) and (pointer: fine) {
   .atlas-csm-field-chip:hover {
     color: var(--text-normal);

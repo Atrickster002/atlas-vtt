@@ -1,0 +1,24 @@
+// What the socket's partials share: sizes, and the fading layer of hover and press.
+
+@use '../../../../../styles/tokens' as *;
+
+// The card's token size (_sheet-media.scss pins its portrait at the same).
+$socket-size: 72px;
+$ring-width: 2px;
+// Five tokens a row; a narrower window keeps fewer (the grid fills what is there).
+$panel-width: 468px;
+$choice-min: 72px;
+$panel-inset: $spacing-m;
+$choice-art: 52px;
+$linked-art: 32px;
+// Three rows of tokens before the grid scrolls.
+$grid-max-height: 3 * ($choice-art + 3 * $spacing-xs + 30px) + 2 * $spacing-s;
+
+// A pseudo-element filling its box, at rest invisible.
+@mixin socket-layer {
+  content: '';
+  position: absolute;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity $transition-fast $transition-ease;
+}

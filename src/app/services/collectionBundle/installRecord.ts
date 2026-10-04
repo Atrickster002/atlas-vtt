@@ -39,6 +39,18 @@ interface InstalledAsset extends InstalledItem {
 }
 
 /**
+ * A statblock template the collection brought, fingerprinted by content without its id
+ * (`templateFingerprint`). Templates are found by id, so a later update finds the file wherever
+ * the user moved it.
+ */
+export interface InstalledTemplate extends InstalledItem {
+  /** Its id in this vault: the bundle's, or a copy's when the vault's own had changed. */
+  localId: string;
+  /** Where its file was after the import. */
+  target: string;
+}
+
+/**
  * A user game system preset the collection brought, fingerprinted by content without its id
  * (`presetFingerprint`). Presets are found by id, wherever their file is.
  */
@@ -63,6 +75,8 @@ export interface InstallRecord {
   /** Keyed by the asset's id in the bundle. */
   assets: Record<string, InstalledAsset>;
   fields: Partial<Record<CollectionField, InstalledItem>>;
+  /** Keyed by the template's id in the bundle; missing in records of bundles without templates. */
+  templates?: Record<string, InstalledTemplate>;
   /** Keyed by the preset's id in the bundle; missing in records of bundles without a user preset. */
   presets?: Record<string, InstalledPreset>;
 }

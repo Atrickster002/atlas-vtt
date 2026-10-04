@@ -40,5 +40,10 @@ export const DND_5E: SystemPreset = {
     resources: [{ ...HP_RESOURCE }],
     senses: DND_5E_SENSES,
     lightPresets: DND_5E_LIGHTS,
+    // 5e writes NPCs in the monster statblock format.
+    statblockRoles: [
+      { id: 'monster', name: 'Monster', templateId: 'builtin:5e-2024-monster' },
+      { id: 'npc', name: 'NPC', templateId: 'builtin:5e-2024-monster' },
+    ],
   },
 };

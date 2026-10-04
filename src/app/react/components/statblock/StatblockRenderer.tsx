@@ -3,27 +3,20 @@ import type { App } from 'obsidian';
 import type { StatblockItem, StatblockLayout, StatblockMonster } from './statblockTypes';
 import { runCallback } from './layoutCallbacks';
 import { isVisible, slugify } from './statblockUtils';
-import { StatblockEditContext, type StatblockEditApi } from './statblockEditContext';
+import { StatblockEditContext, type StatblockEditApi } from '../../../statblocks/render/shared/statblockEditContext';
+import type { StatblockPortrait } from '../../../statblocks/render/shared/tokenPortrait';
 import {
   HeadingBlock,
   ImageBlock,
   PropertyBlock,
-  SavesBlock,
   SectionHeading,
-  SpellsBlock,
   SubheadingBlock,
   TableBlock,
   TextBlock,
-  TraitsBlock,
 } from './StatblockBlocks';
+import { SavesBlock, SpellsBlock, TraitsBlock } from './StatblockListBlocks';
 import { TokenPortrait } from '../../../packages/components/shared/TokenPortrait';
 import './statblock.scss';
-
-export interface StatblockPortrait {
-  src: string;
-  ringColor?: string | undefined;
-  showRing?: boolean | undefined;
-}
 
 export interface StatblockRendererProps {
   monster: StatblockMonster;

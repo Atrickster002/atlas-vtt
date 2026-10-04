@@ -102,6 +102,15 @@ $ctx-inset: $spacing-xs;
   }
 }
 
+// What a row stands for, muted after its label (a role's template).
+.atlas-ctx-item__hint {
+  @include atlas-truncate;
+  max-width: 140px;
+  // Room from the label, which the row's gap alone keeps too close.
+  padding-left: $spacing-s;
+  color: var(--text-muted);
+}
+
 // ── Check mark and value stepper (checkable and valued items) ────────────────
 
 .atlas-ctx-item__check {

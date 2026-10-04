@@ -38,11 +38,12 @@ const IMPORTING = 'Importing collection';
 
 function describeImport(result: CollectionImportResult): string {
   const name = `“${result.collectionName}” v${result.version}`;
-  if (result.created) return `Imported ${name}.`;
+  const switched = result.switchedNotes > 0 ? ` ${plural(result.switchedNotes, 'statblock')} now use the template copies.` : '';
+  if (result.created) return `Imported ${name}.${switched}`;
   const parts = [`${plural(result.written, 'file')} written`, `${plural(result.removed, 'file')} removed`];
   if (result.keptLocal > 0) parts.push(`${plural(result.keptLocal, 'item')} kept as you had them`);
   const backup = result.backupCount > 0 ? ` Replaced files were backed up to ${result.backupFolder}.` : '';
-  return `Updated ${name}: ${parts.join(', ')}.${backup}`;
+  return `Updated ${name}: ${parts.join(', ')}.${switched}${backup}`;
 }
 
 function downloadBlob(blob: Blob, fileName: string): void {

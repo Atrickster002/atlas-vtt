@@ -1,0 +1,103 @@
+// The selected block's toolbar (spec §4.2): a 36 px capsule of five controls,
+// below the block; its buttons sit $spacing-xs inside the border, so their
+// outer corners run concentric with the capsule's ends. It takes the pointer
+// over its whole capsule while its block is selected.
+
+@use '../../../../../../styles/tokens' as *;
+@use '../../../../../../styles/mixins' as *;
+
+$toolbar-height: 36px;
+$toolbar-inset: $spacing-xs;
+$toolbar-button: calc(#{$toolbar-height} - 2 * #{$border-width-m} - 2 * #{$toolbar-inset});
+$chip-max: 88px;
+$dot: 6px;
+
+.atlas-vtt-plugin {
+  .atlas-te-toolbar {
+    @include atlas-elevated-surface;
+    @include atlas-keep-in-view;
+    position: absolute;
+    left: var(--atlas-te-toolbar-x);
+    top: var(--atlas-te-toolbar-y);
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    gap: $toolbar-inset;
+    box-sizing: border-box;
+    height: $toolbar-height;
+    padding: $toolbar-inset;
+    border-radius: $toolbar-height * 0.5;
+    box-shadow: $shadow-md;
+    pointer-events: auto;
+
+    &[data-hidden] {
+      visibility: hidden;
+      pointer-events: none;
+    }
+
+    .atlas-tool-button button.btn,
+    .atlas-te-toolbar__type.btn {
+      @include atlas-corner-shape;
+      height: $toolbar-button;
+      border: none;
+      border-radius: calc(#{$toolbar-button} / 2);
+      background: transparent;
+      box-shadow: none;
+      color: var(--text-muted);
+
+      &:hover:not([aria-disabled='true']) {
+        background: var(--background-modifier-hover);
+        color: var(--text-normal);
+      }
+
+      &:focus-visible {
+        outline: 2px solid var(--interactive-accent);
+        outline-offset: -2px;
+      }
+
+      svg {
+        flex: none;
+        width: $icon-s;
+        height: $icon-s;
+      }
+    }
+
+    .atlas-tool-button button.btn {
+      width: $toolbar-button;
+      padding: 0;
+    }
+  }
+
+  // The block's plain name, with its glyph: it opens Turn into.
+  .atlas-te-toolbar__type.btn {
+    @include atlas-flex-row($spacing-xs);
+    max-width: $chip-max;
+    padding: 0 $spacing-s;
+    font-size: $font-ui-smaller;
+  }
+
+  .atlas-te-toolbar__type-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .atlas-te-toolbar__settings,
+  .atlas-te-toolbar__more {
+    position: relative;
+    display: flex;
+  }
+
+  // A setting beyond the basics is in use.
+  .atlas-te-toolbar__settings[data-in-use]::after {
+    content: '';
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    width: $dot;
+    height: $dot;
+    border-radius: $radius-full;
+    background: var(--interactive-accent);
+    pointer-events: none;
+  }
+}

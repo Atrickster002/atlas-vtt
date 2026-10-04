@@ -1,19 +1,22 @@
 import type { App } from 'obsidian';
 import { comparedBytes } from './recordPayload';
 import type { Asset, AssetService, CollectionMetadata } from '../AssetService';
-import { BUNDLE_MANIFEST, PRESET_ROLE, bundleFormatFor, zipPathFor, type BundleFile, type CollectionBundleManifest } from './bundleFormat';
+import { collectionFolderPath } from '../assetPaths';
+import { BUNDLE_MANIFEST, PRESET_ROLE, TEMPLATE_ROLE, bundleFormatFor, zipPathFor, type BundleFile, type CollectionBundleManifest } from './bundleFormat';
 import { flushPresetEdits, packedPresetRecord, withSystemPresetFile } from './bundlePresetFiles';
-import { rewriteContent } from './bundleContent';
+import { rewriteContent, toBuffer } from './bundleContent';
 import { selectContent } from './bundleContents';
-import { withLootBases } from './bundleSettings';
+import { exportedSettings, folderBelow } from './bundleSettings';
 import { reportFileStep, type BundleProgressListener } from './bundleProgress';
 import { coverCandidates, coverFileFor, currentCover, type CoverCandidate, type CoverChoice, type CurrentCover } from './collectionCover';
-import { CollectionReferenceCollector, type MissingReference } from './collectionReferences';
+import { CollectionReferenceCollector, withStatblockTemplates, type MissingReference } from './collectionReferences';
 import { sha256 } from './hashing';
-import { readInstallRecord, type InstalledPreset } from './installRecord';
+import { readInstallRecord, type InstalledPreset, type InstalledTemplate } from './installRecord';
 import { withLinkedFiles } from './noteLinks';
 import { remapPaths } from './pathRemap';
 import { originNames, recordRelease } from './releaseRecord';
+import { flushTemplateEdits, packTemplateFile } from '../../statblocks/bundles/bundleTemplates';
+import { systemPresetsOf } from '../mapCollectionRules';
 import { readVaultBinary, vaultFileSize } from '../../utils/hiddenVaultFiles';
 
 /**
@@ -89,7 +92,7 @@ export async function prepareCollectionExport(app: App, assets: AssetService, co
   if (!collection) throw new Error(`Collection ${collectionId} not found`);
   const collectionAssets = (await assets.getAssets(collectionId)).filter((asset) => EXPORTED_TYPES.has(asset.type));
   const { files: referenced, missing } = await new CollectionReferenceCollector(app, assets).collect(collectionAssets, collection.settings.lootBases);
-  const files = withSystemPresetFile(app, withLinkedFiles(app, referenced), collection.settings);
+  const files = withSystemPresetFile(app, await withStatblockTemplates(app, withLinkedFiles(app, referenced), collection.settings), collection.settings);
   const fileSizes = new Map<string, number>();
   for (const file of files) fileSizes.set(file.vaultPath, await vaultFileSize(app, file.vaultPath));
   const publisher = await publisherOf(app, assets, collection);
@@ -160,30 +163,39 @@ export async function exportCollectionBundle(
     : { collectionId: preview.collection.id, name: preview.collection.name, names: new Map<string, string>() };
   const named = (value: string): string => origin.names.get(value) ?? value;
   const exported = await exportedCollection(assets, preview, choice, exportedAt);
-  // The settings name only the loot bases that travel, as the bundle names them.
+  // The settings name only the loot bases that travel and the role folders of the collection, as the bundle names them.
   const packed = new Set(selected.files.map((file) => file.vaultPath));
   const collection: CollectionMetadata = {
     ...exported,
     id: origin.collectionId,
     name: choice.kind === 'share' ? origin.name : exported.name,
-    settings: withLootBases(exported.settings, (path) => (packed.has(path) ? named(path) : undefined)),
+    settings: exportedSettings(exported.settings, systemPresetsOf(app), {
+      file: (path) => (packed.has(path) ? named(path) : undefined),
+      folder: (folder) => folderBelow(folder, collectionFolderPath(preview.collection.id), collectionFolderPath(origin.collectionId)),
+    }),
   };
   if (cover) collection.coverPath = named(cover.path);
   else delete collection.coverPath;
   const { default: JSZip } = await import('jszip');
   const zip = new JSZip();
   const files: BundleFile[] = [];
+  const templates: Record<string, InstalledTemplate> = {};
   const presets: Record<string, InstalledPreset> = {};
+  if (selected.files.some((file) => file.role === TEMPLATE_ROLE)) await flushTemplateEdits(app);
   if (selected.files.some((file) => file.role === PRESET_ROLE)) await flushPresetEdits(app);
   for (const [index, file] of selected.files.entries()) {
     reportFileStep(onProgress, 'Adding', index, selected.files.length, 0, 0.6);
     const content = await readVaultBinary(app, file.vaultPath);
     if (!content) continue;
+    // Templates travel without code (§6.5); a file that is no template stays behind.
+    const template = file.role === TEMPLATE_ROLE ? await packTemplateFile(file.vaultPath, content) : null;
+    if (file.role === TEMPLATE_ROLE && !template) continue;
+    if (template) templates[template.installed.localId] = template.installed;
     // A preset file that holds no preset stays behind.
     const preset = file.role === PRESET_ROLE ? await packedPresetRecord(content) : null;
     if (file.role === PRESET_ROLE && !preset) continue;
     if (preset) presets[preset.localId] = preset;
-    const data = rewriteContent(file, comparedBytes(file.vaultPath, content), origin.names);
+    const data = template ? toBuffer(template.text) : rewriteContent(file, comparedBytes(file.vaultPath, content), origin.names);
     const bundlePath = named(file.vaultPath);
     files.push({
       ...file,
@@ -215,7 +227,7 @@ export async function exportCollectionBundle(
   });
   return {
     blob,
-    commit: () => (choice.kind === 'share' ? Promise.resolve() : recordRelease(app, assets, preview.collection, manifest, cover, presets)),
+    commit: () => (choice.kind === 'share' ? Promise.resolve() : recordRelease(app, assets, preview.collection, manifest, cover, templates, presets)),
     fileName: bundleFileName(collection.name, collection.version),
     collectionName: collection.name,
     version: collection.version,

@@ -13,6 +13,12 @@
   @include atlas-focus-ring;
 }
 
+// Kept in place and focusable (a tooltip says why), dimmed and inert.
+.atlas-toggle--disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
 .atlas-toggle__switch {
   height: 2.5rem;
   width: 3.75rem;

@@ -10,6 +10,7 @@ import type { InitiativeRules } from './initiativeRulesTypes';
 import type { TokenVisionDefaults } from './lightingTypes';
 import type { LightPresetDefinition } from './lightPresetTypes';
 import type { SenseDefinition } from './senseTypes';
+import type { StatblockRole } from '../statblocks/model/roleTypes';
 import type { AnyWidget } from './widgetTypes';
 
 /** The parts of a collection's settings that a game system defines. */
@@ -48,6 +49,11 @@ export interface SystemRules {
    * collections offer the generic ones (`collectionLightPresets`).
    */
   lightPresets?: readonly LightPresetDefinition[];
+  /**
+   * The kinds of statblock the system's GMs make, each with the template it starts from. Unset
+   * for a system that names none: its collections offer the generic roles (`collectionStatblockRoles`).
+   */
+  statblockRoles?: readonly StatblockRole[];
 }
 
 /** Built-in preset ids start with this; user presets never do. */

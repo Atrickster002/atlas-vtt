@@ -7,6 +7,10 @@ import { isRecord } from '../assetMetadataGuards';
 import { localImage, statblockImageField } from '../statblockImportCandidates';
 import { linkedFilePath } from '../sceneLinks';
 import { readLootBaseItems } from '../../loot/lootBaseItems';
+import { withTemplateFiles } from '../../statblocks/bundles/bundleTemplates';
+import { collectionStatblockRoles } from '../../statblocks/roles/collectionStatblockRoles';
+import type { CollectionSettings } from '../../types/collectionSettingsTypes';
+import { systemPresetsOf } from '../mapCollectionRules';
 import type { BundleFile, BundleFileRole } from './bundleFormat';
 
 /** The scene thumbnail lives next to its map file. */
@@ -200,4 +204,14 @@ export class CollectionReferenceCollector {
     this.files.set(path, { vaultPath: path, role, owners: [...owners] });
     return true;
   }
+}
+
+/**
+ * `files` with the statblock templates the collection needs: those its roles start from (its
+ * own roles, or its system's) and those its notes name, once every note is known
+ * (`withLinkedFiles` first). Built-in templates never travel.
+ */
+export function withStatblockTemplates(app: App, files: readonly BundleFile[], settings: CollectionSettings): Promise<BundleFile[]> {
+  const roles = collectionStatblockRoles(settings, systemPresetsOf(app));
+  return withTemplateFiles(app, files, roles.map((role) => role.templateId));
 }

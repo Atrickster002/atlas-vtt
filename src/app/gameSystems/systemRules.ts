@@ -21,6 +21,7 @@ import { sameLightPresets } from './lightPresetRules';
 import { sameSenses } from './senseRules';
 import { hasVisionDefaults, sameVisionDefaults } from './visionDefaults';
 import { DEFAULT_CONE_ANGLE } from '../grid/measurementFormat';
+import { sameStatblockRoles } from '../statblocks/roles/collectionStatblockRoles';
 
 /** Measurement of a collection that never set any: 5-foot squares, every diagonal counts 1. */
 export const DEFAULT_GRID_DEFAULTS: Readonly<CollectionGridDefaults> = {
@@ -33,12 +34,13 @@ export const DEFAULT_GRID_DEFAULTS: Readonly<CollectionGridDefaults> = {
 
 /** What a game system sets in a collection's settings. */
 export type SystemSettings = Required<Pick<CollectionSettings, 'gridDefaults' | 'conditions' | 'defaultWidgets' | 'dice' | 'resources'>>
-  & Pick<CollectionSettings, 'systemPresetId' | 'defaultTokenVision' | 'senses' | 'lightPresets' | 'initiative'>;
+  & Pick<CollectionSettings, 'systemPresetId' | 'defaultTokenVision' | 'senses' | 'lightPresets' | 'initiative' | 'statblockRoles'>;
 
 /**
  * A collection without a game system: default measurement and dice, HP as its only resource
  * (its bar on for new scenes), no conditions, no default widgets, no default vision, and no
- * senses, light presets or initiative rules of its own, so it uses the generic ones.
+ * senses, light presets, initiative rules or statblock roles of its own, so it uses the generic
+ * ones. Role folders are the collection's own and stay.
  */
 export function vanillaSystemSettings(): SystemSettings {
   return {
@@ -52,6 +54,7 @@ export function vanillaSystemSettings(): SystemSettings {
     senses: undefined,
     lightPresets: undefined,
     initiative: undefined,
+    statblockRoles: undefined,
   };
 }
 
@@ -110,8 +113,8 @@ function enabledWidgets(defaultWidgets: Record<string, boolean> | undefined): st
 
 /**
  * Whether a collection's `rules` play as `preset` does; condition ids do not matter. Rules
- * without senses, light presets or initiative rules of their own read the preset's, so they are
- * the same in that.
+ * without senses, light presets, initiative rules or statblock roles of their own read the
+ * preset's, so they are the same in that. Role folders are no part of the rules.
  */
 export function sameSystemRules(preset: SystemRules, rules: SystemRules): boolean {
   return sameGridDefaults(preset.gridDefaults, rules.gridDefaults)
@@ -122,6 +125,7 @@ export function sameSystemRules(preset: SystemRules, rules: SystemRules): boolea
     && (rules.senses === undefined || sameSenses(preset.senses, rules.senses))
     && (rules.lightPresets === undefined || sameLightPresets(preset.lightPresets, rules.lightPresets))
     && (rules.initiative === undefined || sameInitiativeRules(preset.initiative, rules.initiative))
+    && (!rules.statblockRoles?.length || sameStatblockRoles(preset.statblockRoles, rules.statblockRoles))
     && preset.conditions.length === rules.conditions.length
     && preset.conditions.every((condition, i) => sameCondition(condition, rules.conditions[i]!));
 }

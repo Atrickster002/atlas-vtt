@@ -12,6 +12,11 @@ export const EXPERIMENTAL_FEATURES = [
     label: 'Dynamic lighting',
     hint: 'Walls, lights, token vision and senses: the Lighting tool, and a collection\'s Vision settings. While off, lit scenes show unlit and keep their walls and lights.',
   },
+  {
+    id: 'statblockEditor',
+    label: 'Statblock editor',
+    hint: 'Statblock roles and templates: a collection\'s Statblocks settings, and editing statblocks in Atlas. While off, statblocks show as before.',
+  },
 ] as const;
 
 export type ExperimentalFeatureId = (typeof EXPERIMENTAL_FEATURES)[number]['id'];

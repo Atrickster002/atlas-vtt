@@ -1,0 +1,70 @@
+// The pattern editor: text with each value as a chip (§5.6, §7.4).
+
+@use '../../../../../../styles/tokens' as *;
+@use '../../../../../../styles/mixins' as *;
+
+.atlas-vtt-plugin {
+  // ── Pattern editor ──────────────────────────────────────────────────────
+  .atlas-te-pattern {
+    @include atlas-flex-col($spacing-xs);
+    position: relative;
+    align-items: stretch;
+    min-width: 0;
+  }
+
+  .atlas-te-pattern__row {
+    @include atlas-flex-row($spacing-xs);
+    align-items: flex-start;
+
+    > .atlas-te-input {
+      flex: 1;
+    }
+  }
+
+  .atlas-te-pattern__line {
+    display: block;
+    padding-block: calc((var(--input-height) - 1.6em - 2px) / 2);
+    line-height: 1.6;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    cursor: text;
+
+    &:empty::before {
+      content: attr(data-placeholder);
+      color: var(--text-faint);
+      pointer-events: none;
+    }
+  }
+
+  .atlas-te-chip {
+    display: inline-block;
+    margin-inline: 1px;
+    padding: 0 $spacing-xs;
+    border-radius: $radius-full;
+    background: color-mix(in oklch, var(--interactive-accent) 16%, transparent);
+    color: var(--text-normal);
+    font-size: $font-ui-smaller;
+    line-height: 1.5;
+    white-space: nowrap;
+    user-select: all;
+    cursor: default;
+  }
+
+  .atlas-te-chip--problem {
+    background: color-mix(in oklch, var(--text-error) 14%, transparent);
+    color: var(--text-error);
+  }
+
+  .atlas-te-pattern__preview {
+    @include atlas-truncate;
+    margin: 0;
+    color: var(--text-muted);
+    font-size: $font-ui-smaller;
+  }
+
+  .atlas-te-pattern__preview--problem {
+    color: var(--text-error);
+    white-space: normal;
+    text-wrap: pretty;
+  }
+}

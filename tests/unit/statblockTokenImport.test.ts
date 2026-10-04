@@ -3,6 +3,7 @@ import { TFile } from 'obsidian';
 import { StatblockTokenImportService } from '../../src/app/services/StatblockTokenImportService';
 import { AssetService } from '../../src/app/services/AssetService';
 import { TokenStatblockLinkService } from '../../src/app/services/TokenStatblockLinkService';
+import { TemplateLibrary } from '../../src/app/statblocks/library/TemplateLibrary';
 import { createInMemoryApp } from '../mocks/inMemoryVault';
 
 // Workers and canvases do not exist in jsdom; the conversion itself is covered by the image pipeline's tests.
@@ -211,12 +212,12 @@ describe('bulk importing recognized statblock notes', () => {
     expect(files.get(image)).toBe('image-bytes');
   });
 
-  it('requires a loaded bestiary and serializes import sessions', async () => {
+  it('reads the notes alone without Fantasy Statblocks, waits for a bestiary that loads, and serializes import sessions', async () => {
     const { app, assets } = setup();
     const importer = new StatblockTokenImportService(app, assets);
     const api = window.FantasyStatblocks;
     Reflect.deleteProperty(window, 'FantasyStatblocks');
-    await expect(importer.scan()).rejects.toThrow('Enable Fantasy Statblocks');
+    expect((await importer.scan()).map((row) => [row.path, row.status])).toEqual([[note, 'ready']]);
     Object.assign(window, { FantasyStatblocks: { ...api, isResolved: () => false } });
     await expect(importer.scan()).rejects.toThrow('still loading');
     Object.assign(window, { FantasyStatblocks: api });
@@ -224,6 +225,17 @@ describe('bulk importing recognized statblock notes', () => {
     await expect(importer.import([note], 'Default')).rejects.toThrow('already running');
     expect((await first).items[0]?.status).toBe('created');
     expect((await importer.import([note], 'Default')).items[0]?.status).toBe('skipped');
+  });
+
+  it('lists native statblocks without Fantasy Statblocks, naming their template in the layout column', async () => {
+    const { app, assets, files, frontmatter } = setup();
+    Reflect.deleteProperty(window, 'FantasyStatblocks');
+    const warden = 'Bestiary/Warden.md';
+    files.set(warden, 'Native note');
+    frontmatter[warden] = { statblock: true, 'atlas-template': 'builtin:generic-creature', name: 'Warden', image };
+    const rows = await new StatblockTokenImportService(app, assets).scan();
+    expect(rows.map((row) => [row.path, row.layoutName, row.status])).toEqual([[note, 'Unspecified', 'ready'], [warden, 'Creature', 'ready']]);
+    TemplateLibrary.release(app);
   });
 
   it('shares the safe import path with the single-note command', async () => {
