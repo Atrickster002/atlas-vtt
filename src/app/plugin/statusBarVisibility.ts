@@ -1,12 +1,11 @@
 import type { Plugin, View, WorkspaceLeaf } from 'obsidian';
 import { ATLAS_VIEW_TYPE } from '../atlas-view';
-import { PLAYER_VIEW_TYPE } from '../player-view';
 import { DASHBOARD_VIEW_TYPE } from '../dashboard-view';
 import { TEMPLATE_EDITOR_VIEW_TYPE } from '../statblocks/editor/templateEditorState';
 import { STATBLOCK_NOTE_CLASS } from '../statblocks/notes/openEditors';
 
 const HIDE_STATUS_BAR_CLASS = 'atlas-hide-status-bar';
-const HIDING_VIEW_TYPES = [ATLAS_VIEW_TYPE, PLAYER_VIEW_TYPE, DASHBOARD_VIEW_TYPE, TEMPLATE_EDITOR_VIEW_TYPE];
+const HIDING_VIEW_TYPES = [ATLAS_VIEW_TYPE, DASHBOARD_VIEW_TYPE, TEMPLATE_EDITOR_VIEW_TYPE];
 
 /** Whether a view's bottom-right corner holds Atlas UI: a map, a template editor, a note with its statblock beside it. */
 function coversStatusBar(view: View): boolean {

@@ -1,25 +1,25 @@
-import { mapResources } from '../resources/collectionResources';
-import type { ResourceDefinition, ResourceDefsProvider } from '../resources/resourceTypes';
-import { fillMissingResources, type StatblockFields } from '../resources/statblockResourceSync';
-import { runUntracked } from '../stores/history';
+import type { FogCoverage } from '../fog/fogCoverage';
+import { StatblockTokenSync } from '../plugin/StatblockTokenSync';
+import { TokenCollectionSync } from '../plugin/TokenCollectionSync';
+import type { ResourceDefsProvider } from '../resources/resourceTypes';
 import { fitTokenArtwork, syncTokenArtwork } from './token-renderer/tokenArtwork';
 import type { AtlasSettings } from '../services/SettingsService';
 import { HIDDEN_TOKEN_ALPHA, gmTokenLayers, type HideableLayer, type LayerVisibility } from './playerSafeFrame';
 import type { TokenPerception } from './lighting/playerLightingLayers';
-import { PlayerSightTokens, seenTokens } from './token-renderer/PlayerSightTokens';
+import { PlayerSightTokens, seenByPlayers, seenTokens } from './token-renderer/PlayerSightTokens';
+import { PlayersViewWatch } from './token-renderer/PlayersViewWatch';
+import type { TokenSeen } from '../vision/measureOrigin';
 import { Sprite, Container, Graphics, Application, FederatedPointerEvent } from "pixi.js";
 import { Viewport } from "pixi-viewport";
-import { App as ObsidianApp, TFile, parseYaml } from 'obsidian';
+import { App as ObsidianApp } from 'obsidian';
 import type { TokenEntity } from "../types";
 import type { TokenGestureEventDetail } from '../types/atlasWindowEvents';
 import type { GridSystem } from "../grid/GridSystem";
 import { getDrawingBounds } from "./drawingGeometry";
-import type { TokenUpdates, ViewAtlasStore } from '../storeFactory';
+import type { ViewAtlasStore } from '../storeFactory';
 import { EventEmitter } from 'events';
-import { StatblockDialogService } from '../services/StatblockDialogService';
-import { AssetService } from '../services/AssetService';
 import { AssetValidationService } from '../services/AssetValidationService';
-import { TokenStatblockLinkService, type LinkChangeEvent } from '../services/TokenStatblockLinkService';
+import { TokenStatblockLinkService } from '../services/TokenStatblockLinkService';
 import { SpriteFactory } from './token-renderer/SpriteFactory';
 import { computeTokenPixelSize } from './token-renderer/tokenSizing';
 import { TextureCache } from './token-renderer/TextureCache';
@@ -27,8 +27,8 @@ import { UIManager } from './token-renderer/UIManager';
 import { InteractionController } from './token-renderer/InteractionController';
 import { DragRuler } from './token-renderer/DragRuler';
 import { DragRulerView } from './token-renderer/DragRulerView';
-import { mapMeasurementSettings } from '../services/mapMeasurementSettings';
 import { SyncService } from './token-renderer/SyncService';
+import { createSceneSource } from '../plugin/host/sceneSource';
 import { updateInstanceBadge } from './token-renderer/InstanceBadge';
 import { HiddenTokenIcon } from './token-renderer/HiddenTokenIcon';
 import { DownedTokenOverlay } from './token-renderer/DownedTokenOverlay';
@@ -37,11 +37,7 @@ import { requestRender } from './RenderScheduler';
 import { normalizeImagePath } from '../utils/pathUtils';
 import { prefersReducedMotion } from '../utils/motion';
 import { destroyTree } from './utils/destroyTree';
-import { buildStatblockLinkUpdates } from './token-renderer/statblockFrontmatter';
-import { applyLinkChange, syncLinkedTokens } from './token-renderer/statblockTokenSync';
-import { followStatblockImage } from '../services/followStatblockImage';
 import type { TokenGroupContainer } from './token-renderer/types';
-import type { ConditionDefinition } from '../types/collectionSettingsTypes';
 import { setCanvasCursor } from './utils/canvasCursor';
 import { markHandled, resetHandled } from './utils/handledEvents';
 import { watchClick } from './utils/clickRelease';
@@ -69,12 +65,11 @@ export class TokenRenderer {
   private selectionOverlayUpdater: () => void;
   private store: ViewAtlasStore;
   private eventBus: EventEmitter;
-  private statblockDialogService: StatblockDialogService;
-  private assetService: AssetService;
+  private collectionSync: TokenCollectionSync;
   /** The resources of the map's collection; set once the asset service is wired. */
   private resourceDefsProvider: ResourceDefsProvider = () => [];
   private assetValidationService?: AssetValidationService;
-  private tokenStatblockLinkService: TokenStatblockLinkService;
+  private statblockSync: StatblockTokenSync;
   private spriteFactory: SpriteFactory;
   private textureCache: TextureCache;
   private readonly hiddenTokenIcon = new HiddenTokenIcon();
@@ -106,8 +101,6 @@ export class TokenRenderer {
   private themeObserver: MutationObserver | null = null;
   private isLocalPlayerMode: boolean = false;
   private isDestroyed = false;
-  /** Link changes of the statblock link service, applied in the order they came. */
-  private linkChanges: Promise<void> = Promise.resolve();
 
   // Store event handlers for proper cleanup
   private _handleGridTypeChange?: EventListener;
@@ -135,8 +128,9 @@ export class TokenRenderer {
   private doorMenuHandlers?: DoorMenuHandlers;
   /** The tokens as the players' sight shows them: which are left out, and the outlines of sensed ones. */
   private readonly playerSight = new PlayerSightTokens({ tokens: () => this.store.getState().objects.tokens, sprites: () => this.tokenSprites, held: () => this.heldTokenIds });
+  private readonly playersView = new PlayersViewWatch();
   private lightHandlers?: LightPointerHandlers;
-  /** Tokens the pointer holds or drags; they stay on the canvas until released, whatever the players see. */
+  /** Tokens held by the pointer; lighting alone does not hide them until release. */
   private heldTokenIds: ReadonlySet<string> = new Set();
   private lastHoveredPinId: string | null = null;
 
@@ -168,13 +162,7 @@ export class TokenRenderer {
     this.store = store;
     this.eventBus = eventBus;
     this.viewId = viewId || `tokenrenderer-${Date.now()}-${Math.random()}`;
-    this.statblockDialogService = new StatblockDialogService(obsApp);
-    this.assetService = AssetService.getInstance(obsApp);
-    // Tokens drawn before the index is loaded read their collection's rules as unknown
-    this.assetService.initialize().then(() => this.refreshCollectionRules(), (err: unknown) => {
-      console.error('[TokenRenderer] Failed to initialize AssetService:', err);
-    });
-    this.tokenStatblockLinkService = TokenStatblockLinkService.getInstance(obsApp);
+    const tokenStatblockLinkService = TokenStatblockLinkService.getInstance(obsApp);
 
     // Check if this is a player view to disable interactions
     const isPlayerView = this.store.getState().isPlayerView || false;
@@ -208,9 +196,10 @@ export class TokenRenderer {
     
     // Set up interaction controller callbacks
     this.interactionController.setTokenSpriteProvider((tokenId: string) => this.tokenSprites[tokenId] || null);
-    this.interactionController.setUIPositionUpdater((tokenId: string, x: number, y: number) => 
-      this.uiManager.syncUIPosition(tokenId, x, y)
-    );
+    this.interactionController.setUIPositionUpdater((tokenId: string, x: number, y: number) => {
+      this.uiManager.syncUIPosition(tokenId, x, y);
+      this.refreshDisplayedToken(tokenId);
+    });
     this.interactionController.setControlsPositionUpdater((x: number, y: number, tokenSize: number) =>
       this.uiManager.updateControlsPosition(x, y, tokenSize)
     );
@@ -229,28 +218,34 @@ export class TokenRenderer {
       }
     });
     
-    // Wire condition definitions provider (shared by InteractionController + UIManager/TokenUIRenderers)
-    const conditionDefsProvider = (): ConditionDefinition[] => {
-      const mapPath = this.store.getState().mapPath;
-      if (!mapPath) return [];
-      const collectionId = this.assetService.getCollectionForMap(mapPath);
-      if (!collectionId) return [];
-      return this.assetService.getCollectionSettings(collectionId).conditions;
-    };
-    this.interactionController.conditionDefsProvider = conditionDefsProvider;
-    this.uiManager.conditionDefsProvider = conditionDefsProvider;
-    this.resourceDefsProvider = (): readonly ResourceDefinition[] => mapResources(this.assetService, this.store.getState().mapPath);
+    this.collectionSync = new TokenCollectionSync(obsApp, store.getState, {
+      refreshRules: () => this.refreshCollectionRules(),
+      refreshArt: (path) => this.refreshArt(path),
+    });
+    this.interactionController.conditionDefsProvider = this.collectionSync.conditions;
+    this.uiManager.conditionDefsProvider = this.collectionSync.conditions;
+    this.resourceDefsProvider = this.collectionSync.resources;
     this.interactionController.resourceDefsProvider = this.resourceDefsProvider;
     this.uiManager.resourceDefsProvider = this.resourceDefsProvider;
+    this.statblockSync = new StatblockTokenSync(obsApp, store, tokenStatblockLinkService, this.resourceDefsProvider);
 
     // Initialize sync service
-    this.syncService = new SyncService(this.store, this.gridSystem, this.eventBus);
+    this.syncService = new SyncService(
+      createSceneSource(this.store, state => ({
+        tokens: state.objects.tokens,
+        isMapLoading: state.isMapLoading,
+        selectedIds: state.selectedIds,
+      })),
+      (tokenId, x, y) => this.store.getState().moveToken(tokenId, x, y),
+      this.eventBus,
+    );
     
     // Set up sync service callbacks
     this.syncService.setTokenSpriteProvider((tokenId: string) => this.tokenSprites[tokenId] || null);
-    this.syncService.setUIPositionUpdater((tokenId: string, x: number, y: number) => 
-      this.uiManager.syncUIPosition(tokenId, x, y)
-    );
+    this.syncService.setUIPositionUpdater((tokenId: string, x: number, y: number) => {
+      this.uiManager.syncUIPosition(tokenId, x, y);
+      this.refreshDisplayedToken(tokenId);
+    });
     this.syncService.setControlsPositionUpdater((x: number, y: number, tokenSize: number) =>
       this.uiManager.updateControlsPosition(x, y, tokenSize)
     );
@@ -277,7 +272,8 @@ export class TokenRenderer {
       new DragRulerView(this.viewport, this.tokenContainer),
       this.gridSystem,
       this.store,
-      () => mapMeasurementSettings(this.assetService, this.store.getState()),
+      this.collectionSync.measurement,
+      (id) => this.tokenSprites[id]?.visible ?? false,
     );
     this.interactionController.setDragRuler(this.dragRuler);
 
@@ -306,18 +302,16 @@ export class TokenRenderer {
     // Listen for player mode changes (local player view toggle)
     const handlePlayerModeChange = (isPlayerMode: boolean) => {
       this.isLocalPlayerMode = isPlayerMode;
-      this.refreshTokenVisibility();
+      this.refreshPlayerSight();
     };
     
     this.eventBus.on('player-mode-changed', handlePlayerModeChange);
 
-    // Listen for GM view toggle to update hidden token visibility
-    let prevGMView = this.store.getState().isGMView;
-    const gmViewUnsubscribe = this.store.subscribe((state) => {
-      if (state.isGMView !== prevGMView) {
-        prevGMView = state.isGMView;
-        this.refreshTokenVisibility();
-      }
+    // Fog and perspective changes affect presentation even when no token or light changed.
+    const gmViewUnsubscribe = this.store.subscribe((state, previous) => {
+      if (state.isGMView !== previous.isGMView || state.isPlayerView !== previous.isPlayerView ||
+          state.objects.fog !== previous.objects.fog || state.mapPath !== previous.mapPath ||
+          state.isMapLoading !== previous.isMapLoading) this.refreshPlayerSight();
     });
     const origUnsubGM = this._unsubscribeFromStore;
     this._unsubscribeFromStore = () => {
@@ -452,56 +446,6 @@ export class TokenRenderer {
 
     window.addEventListener('atlas-tokens-resize-update', this._handleResizeUpdate);
     
-    // Condition badges follow edits to the map's collection conditions
-    const handleCollectionSettingsChange = this.obsApp.workspace.on('atlas-vtt:collection-settings-changed', (collectionId) => {
-      const mapPath = this.store.getState().mapPath;
-      if (mapPath && this.assetService.getCollectionForMap(mapPath) === collectionId) this.refreshCollectionRules();
-    });
-
-    // Tokens show the new content of an edited image file, e.g. a re-cropped token
-    const handleFileModified = this.obsApp.vault.on('modify', (file) => { void this.refreshArt(file.path); });
-
-    // Listen to statblock metadata changes
-    const handleMetadataChange = this.obsApp.metadataCache.on('changed', async (file: TFile) => {
-      // Check if this is a statblock file being edited
-      const cache = this.obsApp.metadataCache.getFileCache(file);
-      const metadata = cache;
-      if (!metadata?.frontmatter) return;
-      
-      // Check if it's a character/statblock file (has HP or is marked as a character)
-      const isCharacter = metadata.frontmatter.hp !== undefined ||
-                         metadata.frontmatter.statblock !== undefined ||
-                         metadata.frontmatter.isCharacter === true ||
-                         metadata.frontmatter.type === 'character';
-      
-      if (isCharacter) {
-        const statblockPath = file.path;
-
-        // The link moves only to a token asset the note's image names; any other image leaves it.
-        const linkedImage = await followStatblockImage(
-          this.tokenStatblockLinkService,
-          statblockPath,
-          this.tokenStatblockLinkService.readStatblockImage(file),
-        );
-        
-        // Linked tokens follow the statblock as the resolver reads it (renamed keys, meanings),
-        // untracked: a statblock edit must not become an undo step of this map.
-        const statblock = await this.tokenStatblockLinkService.readStatblockRecord(statblockPath);
-        if (statblock && !this.isDestroyed) {
-          syncLinkedTokens(this.store, statblockPath, statblock, this.resourceDefsProvider(), linkedImage);
-        }
-      }
-    });
-    
-    // Listen for token-statblock link changes from the centralized service
-    // A link reads its statblock first, so the changes are applied one after another, in order.
-    const handleLinkChange = (event: LinkChangeEvent): void => {
-      this.linkChanges = this.linkChanges.then(() => this.applyStatblockLinkChange(event));
-    };
-    
-    // Subscribe to link changes
-    this.tokenStatblockLinkService.on('link-changed', handleLinkChange);
-    
     // Store cleanup function
     const originalUnsubscribe = this._unsubscribeFromViewport;
     this._unsubscribeFromViewport = () => {
@@ -511,13 +455,8 @@ export class TokenRenderer {
       // Clean up map load listeners
       this.eventBus.off('map-loaded', handleMapLoaded);
       // Clean up metadata change listener
-      this.obsApp.metadataCache.offref(handleMetadataChange);
-      this.obsApp.vault.offref(handleFileModified);
-      this.obsApp.workspace.offref(handleCollectionSettingsChange);
-      // Clean up link change listener
-      if (this.tokenStatblockLinkService && typeof this.tokenStatblockLinkService.off === 'function') {
-        this.tokenStatblockLinkService.off('link-changed', handleLinkChange);
-      }
+      this.statblockSync.destroy();
+      this.collectionSync.destroy();
     };
   }
   
@@ -569,7 +508,6 @@ export class TokenRenderer {
   private syncUIPosition(tokenId: string, x: number, y: number): void {
     this.uiManager.syncUIPosition(tokenId, x, y);
   }
-
 
   private reestablishTokenInteractivity(tokenGroup: Container): void {
     const isPlayerView = this.store.getState().isPlayerView || false;
@@ -697,25 +635,26 @@ export class TokenRenderer {
     this.downedTokenOverlay.update(tokenGroup, downed, animate);
   }
 
-  /**
-   * Re-applies visibility to every rendered token. Needed when the perspective
-   * changes (GM view / player mode): the tokens themselves are unchanged, so an
-   * incremental sync would skip them and hidden tokens would stay on screen.
-   */
-  private refreshTokenVisibility(): void {
-    const tokens = this.store.getState().objects.tokens;
-    const perception = this.playerSight.perception();
-    for (const [id, tokenGroup] of Object.entries(this.tokenSprites)) {
-      const token = tokens[id];
-      if (token && tokenGroup) {
-        this.applyTokenVisibilityPolicy(token, tokenGroup, undefined, perception);
-      }
-    }
+  /** How the players perceive each token while this canvas shows their view of a lit scene (`PlayerSightTokens.setProvider`). */
+  public setPlayerSightProvider(provider: () => TokenPerception | undefined, active?: () => boolean): void {
+    this.playerSight.setProvider(provider, active);
   }
 
-  /** How the players perceive each token while this canvas shows their view of a lit scene (`PlayerSightTokens.setProvider`). */
-  public setPlayerSightProvider(provider: () => TokenPerception | undefined): void {
-    this.playerSight.setProvider(provider);
+  /** Shares the committed coverage with the fog renderer, independently of lighting. */
+  public setFogCoverageProvider(provider: () => FogCoverage | null): void {
+    this.playerSight.setFogProvider(provider, () => this.isInPlayerMode());
+    this.refreshPlayerSight();
+  }
+
+  /** Movement can lead the store; apply fog before the displayed position is rendered. */
+  private refreshDisplayedToken(tokenId: string): void {
+    const token = this.store.getState().objects.tokens[tokenId];
+    const sprite = this.tokenSprites[tokenId];
+    const perception = this.playerSight.perception();
+    if (!token || !sprite || !perception) return;
+    this.applyTokenVisibilityPolicy(token, sprite, token, perception);
+    this.playerSight.syncOutline(tokenId, perception);
+    this.playersView.moved(tokenId, seenByPlayers(this.store.getState().objects.tokens, perception)(tokenId));
   }
 
   /** The tokens the canvas shows: those a selection may take. */
@@ -733,6 +672,13 @@ export class TokenRenderer {
       this.applyTokenVisibilityPolicy(token, tokenGroup, token, perception);
     }
     this.playerSight.syncOutlines(perception);
+    this.dragRuler.refreshVisibility();
+    this.notifyPlayersView();
+  }
+
+  /** Tells whoever follows the players' view (`onPlayersViewChange`) which tokens they see now. */
+  private notifyPlayersView(): void {
+    this.playersView.passed(() => Object.keys(this.store.getState().objects.tokens), this.playersSeeOnCanvas());
   }
 
   /** The layer of the sensed tokens' outlines, for the list of what the players' view shows. */
@@ -916,29 +862,8 @@ export class TokenRenderer {
         let heldArt: string | null = null;
         let tokenGroup: TokenGroupContainer | null = null;
         try {
-          let character: TokenEntity = token;
+          const character = await this.statblockSync.prepareToken(token);
 
-          // A character whose image is linked to a statblock but that has no path set yet
-          // starts out with the statblock's data
-          if (token.imagePath) {
-            const linkedStatblockPath = await this.tokenStatblockLinkService.getStatblockLinkedToToken(token.imagePath);
-            if (linkedStatblockPath && token.kind === 'character' && !token.statblockPath) {
-              character = { ...token, statblockPath: linkedStatblockPath };
-
-              try {
-                const statblock = await this.tokenStatblockLinkService.readStatblockRecord(linkedStatblockPath);
-                if (statblock) {
-                  character = { ...character, ...buildStatblockLinkUpdates(statblock, token.name, this.resourceDefsProvider(), token.resources) };
-                }
-              } catch (error) {
-                console.error(`[TokenRenderer] Failed to load statblock data for token ${token.id}:`, error);
-              }
-            }
-          }
-          
-          // Enhance character with statblock name if needed
-          character = await this.enhanceCharacterWithStatblockName(character);
-          
           // Load texture; the group holds it from here on
           heldArt = character.imagePath ?? '';
           const texture = await this.textureCache.acquire(heldArt);
@@ -1019,6 +944,7 @@ export class TokenRenderer {
     // Update instance badges for all tokens after any changes
     if (totalChanges > 0) {
       this.refreshInstanceBadges();
+      this.notifyPlayersView();
     }
 
     // A selected token that was resized or moved (size menu, undo) takes its selection frame along
@@ -1108,49 +1034,6 @@ export class TokenRenderer {
     if (token.imagePath !== prevToken.imagePath) return true;
 
     return false;
-  }
-
-  /**
-   * Enhance character object with statblock name for nameplate display
-   */
-  private async enhanceCharacterWithStatblockName(character: TokenEntity): Promise<TokenEntity> {
-    // A custom name wins over the statblock name; without a statblock there is nothing to load
-    if (character.kind !== 'character' || character.name || !character.statblockPath) {
-      return character;
-    }
-
-    const statblockPath = character.statblockPath;
-
-    try {
-      const file = this.obsApp.vault.getAbstractFileByPath(statblockPath);
-      if (!(file instanceof TFile)) {
-        console.warn(`[TokenRenderer] Statblock file not found: ${statblockPath}`);
-        return character;
-      }
-      
-      const content = await this.obsApp.vault.read(file);
-      const match = content.match(/^---\n([\s\S]*?)\n---\n([\s\S]*)$/);
-      
-      if (!match) {
-        console.warn(`[TokenRenderer] Invalid statblock format in file: ${statblockPath}`);
-        return character;
-      }
-      
-      const statblockData: unknown = parseYaml(match[1]!);
-      if (!statblockData || typeof statblockData !== 'object') {
-        console.warn(`[TokenRenderer] Failed to parse YAML in statblock: ${statblockPath}`);
-        return character;
-      }
-
-      const name = 'name' in statblockData ? statblockData.name : undefined;
-      return {
-        ...character,
-        statblockName: typeof name === 'string' && name ? name : null
-      };
-    } catch (error) {
-      console.error(`[TokenRenderer] Error loading statblock at ${statblockPath}:`, error);
-      return character;
-    }
   }
 
   /** Detaches a token group's pointer handlers, destroys it with all of its children and drops its hold on its art. */
@@ -1286,45 +1169,8 @@ export class TokenRenderer {
     this.fillMissingResources();
   }
 
-  /** Linked tokens start the collection's resources they do not hold yet, e.g. one defined after they were placed. */
   private fillMissingResources(): void {
-    if (this.store.getState().isPlayerView) return;
-    runInBackground(fillMissingResources(
-      {
-        tokens: () => this.store.getState().objects.tokens,
-        // Not an edit of the game master's: it must not become an undo step.
-        apply: (entries) => runUntracked(this.store, () => this.store.getState().updateTokens(entries)),
-      },
-      this.resourceDefsProvider(),
-      (path) => this.tokenStatblockLinkService.readStatblockRecord(path),
-    ), 'Starting missing token resources');
-  }
-
-  /**
-   * Applies a link change to the open map. A link reads its statblock through the resolver first,
-   * as closed maps are linked, so renamed keys and the template's meanings count.
-   */
-  private async applyStatblockLinkChange(event: LinkChangeEvent): Promise<void> {
-    try {
-      const statblock = event.type === 'linked' && event.statblockPath
-        ? await this.tokenStatblockLinkService.readStatblockRecord(event.statblockPath)
-        : null;
-      if (this.isDestroyed) return;
-      applyLinkChange(this.store, event, (token, statblockPath) => statblock && this.statblockLinkUpdates(token, statblockPath, statblock));
-    } catch (error) {
-      console.error('[TokenRenderer] Failed to apply a statblock link change:', error);
-    }
-  }
-
-  /** What a token freshly linked to the statblock takes from it. */
-  private statblockLinkUpdates(token: TokenEntity, statblockPath: string, statblock: StatblockFields): TokenUpdates {
-    const currentName = token.kind === 'character' ? token.name : undefined;
-    return {
-      statblockPath,
-      // Maxima set by hand belonged to the previous statblock.
-      overriddenMax: undefined,
-      ...buildStatblockLinkUpdates(statblock, currentName, this.resourceDefsProvider(), token.resources),
-    };
+    this.statblockSync.fillMissingResources();
   }
 
   /**
@@ -1401,8 +1247,33 @@ export class TokenRenderer {
     }
   }
 
+  /**
+   * How a players' frame perceives each token: `lighting` (the scene's lighting) with
+   * committed fog, whatever the canvas itself shows. Reads only.
+   */
+  public playerFramePerception(lighting?: TokenPerception): TokenPerception | undefined {
+    return this.playerSight.framePerception(lighting);
+  }
+
+  /** Whether the players see each token in their frame, by `lighting` with committed fog; never a hidden or missing one. */
+  public playersSeeInFrame(lighting?: TokenPerception): TokenSeen {
+    return seenByPlayers(this.store.getState().objects.tokens, this.playerFramePerception(lighting));
+  }
+
+  /** The same while the canvas shows the players' view (session view, the peek); null in the GM view. */
+  public playersSeeOnCanvas(): TokenSeen | null {
+    const shows = this.playerSight.showsPlayers() || this.isInPlayerMode();
+    return shows ? seenByPlayers(this.store.getState().objects.tokens, this.playerSight.perception()) : null;
+  }
+
+  /** Calls `listener` whenever what the players see of the tokens may have changed. Returns the function that stops it. */
+  public onPlayersViewChange(listener: () => void): () => void {
+    return this.playersView.listen(listener);
+  }
+
   /** Player overlays prepared for the next mirrored frame; `perception` leaves out what the players do not see and outlines what they only sense. */
   public getPlayerViewLayers(settings: AtlasSettings['localPlayerView'], perception?: TokenPerception): LayerVisibility[] {
+    perception = this.playerFramePerception(perception);
     const isSeen = seenTokens(perception);
     return [...this.playerSight.frameLayers(perception), ...this.uiManager.getPlayerViewLayers(settings, isSeen), ...this.dragRuler.getPlayerViewLayers(isSeen)];
   }

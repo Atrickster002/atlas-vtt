@@ -13,6 +13,7 @@ import { SheetContext, type SheetContextValue } from './sheetContext';
 import { sheetState } from './sheetState';
 import { OpenTabsContext, useOpenTabsState } from './tabs/openTabs';
 import type { SheetMode, SheetVariant, StatblockTokenContext } from './sheetTypes';
+import type { TokenRollContext } from '../../types/diceRollOrigin';
 import '../../react/components/statblock/statblock.scss';
 import './statblock-sheet.scss';
 
@@ -33,6 +34,10 @@ export interface StatblockSheetProps {
   token?: StatblockTokenContext | undefined;
   /** Every token the statblock stands for, whose hit points its hit dice roll; defaults to `token`. */
   rollTokens?: readonly TokenVitals[] | undefined;
+  /** The map view that owns the statblock, where it renders outside one; rolls go to that map. */
+  viewId?: string | undefined;
+  /** The view, scene and tokens the statblock was opened for; rolls for them name it. */
+  originContext?: TokenRollContext | undefined;
   mode?: SheetMode | undefined;
   /** Renders Markdown, resolves images and rolls dice; without it values show as plain text. */
   app?: App | undefined;
@@ -64,6 +69,8 @@ export function StatblockSheet({
   lookups,
   token,
   rollTokens,
+  viewId,
+  originContext,
   mode = 'view',
   app,
   sourcePath,
@@ -83,6 +90,8 @@ export function StatblockSheet({
     notePath: sourcePath,
     tokens: rollTokens ?? (token ? [token] : []),
     name: valueText(state.reader('name')) || undefined,
+    viewId,
+    originContext,
   });
 
   const slug = slugify(name) || undefined;

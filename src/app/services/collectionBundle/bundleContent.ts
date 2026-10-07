@@ -1,7 +1,7 @@
 import { NOTE_FILE_ROLES, type BundleFile, type BundleFileRole } from './bundleFormat';
 import { movedFolders, remapPaths, type PathMap } from './pathRemap';
 import { NO_TEMPLATE_IDS, rewriteNoteTemplate, type TemplateIdMap } from '../../statblocks/bundles/bundleTemplateIds';
-import { sha256 } from './hashing';
+import { sha256 } from '../../utils/hashing';
 
 /** JSON files carry vault paths and asset ids that must follow the files and records they point at. */
 const JSON_ROLES: ReadonlySet<BundleFileRole> = new Set<BundleFileRole>(['asset-file', 'scene-map', 'scene-snapshot']);

@@ -8,8 +8,10 @@ import { createTabMetaStore, type TabMetaStore } from './stores/tabMetaStore';
 import type { SceneTab } from './types/sceneTabTypes';
 import type AtlasVTTPlugin from '../../main';
 import { claimWorkspaceLeafFocus } from './utils/activeLeafGuard';
+import { t } from './i18n';
 import { isScenePath } from './utils/sceneFiles';
 import { runInBackground } from './utils/backgroundTask';
+import { restoreLinkedSnapshot } from './links/openAtlasLink';
 
 import { ATLAS_VIEW_TYPE } from './atlasViewType';
 
@@ -167,6 +169,18 @@ export class AtlasView extends FileView {
     }
   }
 
+  /**
+   * Obsidian passes the `#` part of a link that opened this view here: a link
+   * to one of the scene's snapshots offers to restore it once the scene is open.
+   */
+  setEphemeralState(state: unknown): void {
+    super.setEphemeralState(state);
+    const subpath = isRecord(state) && typeof state.subpath === 'string' ? state.subpath : null;
+    const mapPath = this.file?.path;
+    if (!subpath || !mapPath) return;
+    runInBackground(restoreLinkedSnapshot(this.app, mapPath, subpath), `Opening a link to a snapshot of ${mapPath}`, t('snapshots.restoreFailed'));
+  }
+
   getState(): AtlasViewState {
     const { tabs, activeTabId } = this.tabMetaStore.getState();
 
@@ -227,7 +241,7 @@ export class AtlasView extends FileView {
     try {
       // Show loading overlay immediately if we have a file to load
       if (this.file instanceof TFile) {
-        this.store.getState().setMapLoading(true, 0, 'Initializing...');
+        this.store.getState().setMapLoading(true, 0, t('view.initializing'));
       }
 
 
@@ -367,7 +381,7 @@ export class AtlasView extends FileView {
     // Resolve the TFile from the tab's filePath
     const abstractFile = this.app.vault.getAbstractFileByPath(normalizePath(tab.filePath));
     if (!(abstractFile instanceof TFile)) {
-      new Notice(`Scene file not found: ${tab.filePath}`);
+      new Notice(t('view.sceneNotFound', { path: tab.filePath }));
       this.tabMetaStore.getState().removeTab(tabId);
       return;
     }
@@ -561,7 +575,6 @@ export class AtlasView extends FileView {
     if (!file) return;
 
     const request = ++this.sceneRequests;
-    await this.flushPendingSaves();
     // Only a loaded scene has a camera to keep
     const tabId = this.loadedTabId();
     if (tabId) this.saveViewportState(tabId);
@@ -570,6 +583,10 @@ export class AtlasView extends FileView {
     // running is stopped as well: finishing meanwhile, it would mark the store as loaded
     // with the content from before and queue that for saving.
     this._serviceManager.getMapService().suspendForRewrite();
+    // What is pending reaches the file before the rewrite, including what the unloading scene
+    // saved on its way out (the explored memory): flushed later, by the load, it would land on
+    // the rewritten file and put the old scene back.
+    await this.flushPendingSaves();
     try {
       await rewrite(file);
     } catch (error) {
@@ -648,7 +665,7 @@ export class AtlasView extends FileView {
   private async performSceneLoad(file: TFile): Promise<boolean> {
     // The renderer still shows the previous scene; its pending thumbnail is taken now or never
     this._serviceManager.flushSceneThumbnail();
-    this.store.getState().setMapLoading(true, 0, 'Preparing...');
+    this.store.getState().setMapLoading(true, 0, t('view.preparing'));
     this.currentMapFilePath = file.path;
 
     const rendererService = this._serviceManager.getRendererService();
@@ -843,7 +860,7 @@ export class AtlasView extends FileView {
   getDisplayText(): string {
     // Display the map name if available
     const mapFilePath = this._serviceManager.getMapService().getCurrentMapFilePath();
-    return mapFilePath ? `Atlas: ${mapFilePath.split('/').pop()}` : "Atlas Canvas";
+    return mapFilePath ? `Atlas: ${mapFilePath.split('/').pop()}` : t('view.canvas');
   }
 
   getIcon(): string {

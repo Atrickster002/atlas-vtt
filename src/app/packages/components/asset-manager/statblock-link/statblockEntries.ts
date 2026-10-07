@@ -1,6 +1,7 @@
-import { ratingText, scalarText, statblockRating } from '../../../../creatures/statblockRating';
+import { ratingText, scalarText, statblockRating, type StatblockRating } from '../../../../creatures/statblockRating';
 import type { FantasyStatblocksCreature } from '../../../../services/FantasyStatblocksService';
 import { NO_MEANINGS, type FieldMeanings } from '../../../../statblocks/resolve/fieldMeanings';
+import { t } from '../../../../i18n';
 
 type StatblockFields = Readonly<Record<string, unknown>>;
 
@@ -12,7 +13,13 @@ export interface StatblockEntry {
   detail: string;
 }
 
-const RATING_NAMES: Readonly<Record<string, string>> = { cr: 'CR ', tier: 'Tier ', level: 'Level ' };
+const RATING_KEYS = { cr: 'am.rating.cr', tier: 'am.rating.tier', level: 'am.rating.level' } as const;
+
+/** "CR 16", "Tier 1", "Level 3"; another rating field under its own name. */
+function ratingLabel(rating: StatblockRating): string {
+  const key = Object.hasOwn(RATING_KEYS, rating.key) ? RATING_KEYS[rating.key as keyof typeof RATING_KEYS] : null;
+  return key ? t(key, { value: rating.value }) : ratingText(rating, {});
+}
 
 /** The value of the field the template gives `meaning`, else of the conventional key, as text. */
 function meantText(fields: StatblockFields, meant: string | undefined, conventional: string): string | null {
@@ -26,7 +33,7 @@ function meantText(fields: StatblockFields, meant: string | undefined, conventio
 export function describeCreature(fields: StatblockFields, meanings: FieldMeanings = NO_MEANINGS): string {
   const kind = [meantText(fields, meanings.size, 'size'), meantText(fields, meanings['creature-type'], 'type')].filter(Boolean).join(' ');
   const rating = statblockRating(fields, meanings, ['cr', 'tier', 'level']);
-  return [kind, rating ? ratingText(rating, RATING_NAMES) : ''].filter(Boolean).join(' · ');
+  return [kind, rating ? ratingLabel(rating) : ''].filter(Boolean).join(' · ');
 }
 
 /** The folder a note lives in, `/` for the vault root. */

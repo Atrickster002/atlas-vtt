@@ -28,6 +28,7 @@ import { useToolbarEditor } from "./toolbar/editor/useToolbarEditor"
 import type { Tool } from "./toolbar/toolFaces"
 import type { ToolbarContext, ToolMenu } from "./toolbar/toolbarContext"
 import type { ResponsiveToolbarItem } from "./toolbar/toolbarTypes"
+import { t } from '../../i18n';
 
 interface MainToolbarProps {
   viewId?: string;
@@ -187,8 +188,8 @@ export const MainToolbar = forwardRef<HTMLDivElement, MainToolbarProps>(({ viewI
                   onChange={toggleGMView}
                   iconOn={Eye}
                   iconOff={EyeOff}
-                  tooltipOn={`GM View (${hotkeyLabel('gmView')})`}
-                  tooltipOff={`Session View (${hotkeyLabel('gmView')})`}
+                  tooltipOn={t('toolbar.gmView', { key: hotkeyLabel('gmView') })}
+                  tooltipOff={t('toolbar.sessionView', { key: hotkeyLabel('gmView') })}
                 />
               )}
             />
@@ -231,8 +232,8 @@ export const MainToolbar = forwardRef<HTMLDivElement, MainToolbarProps>(({ viewI
           borderRadius: 'var(--atlas-radius-l)',
           zIndex: 1000
         }}>
-          <p>Dice tool not initialized. Please try reloading the view.</p>
-          <button onClick={() => setDiceTrayOpen(false)}>Close</button>
+          <p>{t('toolbar.diceFailed')}</p>
+          <button onClick={() => setDiceTrayOpen(false)}>{t('common.close')}</button>
         </div>
       )}
     </TooltipProvider>

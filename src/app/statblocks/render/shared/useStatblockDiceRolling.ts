@@ -4,6 +4,8 @@ import { attachDiceRolling } from '../../../services/statblockDiceLinks';
 import { rollHitPoints } from '../../../services/statblockHitPoints';
 import type { DiceRollSource } from '../../../services/statblockRolls';
 import type { TokenVitals } from '../../../services/statblockVitalsSync';
+import { AtlasUIContext } from '../../../react/root/AtlasUIContext';
+import type { TokenRollContext } from '../../../types/diceRollOrigin';
 import { OffMapRollsContext } from './offMapRolls';
 
 export interface StatblockDiceRolling {
@@ -14,14 +16,20 @@ export interface StatblockDiceRolling {
   tokens: readonly TokenVitals[];
   /** Names a roll made while no token is given. */
   name: string | undefined;
+  /** The map view that owns the statblock, where it renders outside one; else the view it renders in. */
+  viewId?: string | undefined;
+  /** The view, scene and tokens the statblock was opened for; rolls for them name it. */
+  originContext?: TokenRollContext | undefined;
 }
 
 /** A ref callback for the statblock's container; what it returns detaches the listeners. */
 export type StatblockDiceRef = (el: HTMLElement | null) => (() => void) | undefined;
 
-function rollSource({ notePath, tokens, name }: StatblockDiceRolling): DiceRollSource {
+function rollSource({ notePath, tokens, name, viewId, originContext }: StatblockDiceRolling): DiceRollSource {
   const [token] = tokens;
   return {
+    viewId,
+    originContext,
     tokenId: token?.id,
     statblockPath: notePath,
     tokenName: token?.name ?? name,
@@ -36,8 +44,10 @@ function rollSource({ notePath, tokens, name }: StatblockDiceRolling): DiceRollS
  * line put rolled hit points on the tokens. Only listens, so it is safe on DOM
  * React owns; the options are read at the moment of a roll.
  */
-export function useStatblockDiceRolling(options: StatblockDiceRolling): StatblockDiceRef {
+export function useStatblockDiceRolling(rolling: StatblockDiceRolling): StatblockDiceRef {
   const offMap = useContext(OffMapRollsContext);
+  const ownView = useContext(AtlasUIContext)?.view?.viewId;
+  const options = { ...rolling, viewId: rolling.viewId ?? ownView };
   const latest = useRef({ options, offMap });
   useLayoutEffect(() => {
     latest.current = { options, offMap };
@@ -51,8 +61,8 @@ export function useStatblockDiceRolling(options: StatblockDiceRolling): Statbloc
       app,
       () => rollSource(latest.current.options),
       (formula, abilityName) => {
-        const { options: { notePath, tokens }, offMap: shownOn } = latest.current;
-        rollHitPoints(app, formula, notePath ?? '', tokens, abilityName, shownOn);
+        const { options: { notePath, tokens, viewId, originContext }, offMap: shownOn } = latest.current;
+        rollHitPoints(app, formula, notePath ?? '', tokens, abilityName, viewId, originContext, shownOn);
       },
       () => latest.current.offMap,
     );

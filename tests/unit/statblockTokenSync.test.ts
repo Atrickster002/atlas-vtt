@@ -1,96 +1,129 @@
-import { describe, expect, it } from 'vitest';
-import { applyLinkChange, statblockTokenChanges, syncLinkedTokens } from '../../src/app/pixi/token-renderer/statblockTokenSync';
-import { HP_RESOURCE } from '../../src/app/resources/resourceDefinitions';
-import type { LinkChangeEvent } from '../../src/app/services/TokenStatblockLinkService';
-import { createViewAtlasStore, type ViewAtlasStore } from '../../src/app/storeFactory';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { StatblockTokenSync } from '../../src/app/plugin/StatblockTokenSync';
+import { createViewAtlasStore } from '../../src/app/storeFactory';
 import { getHistoryStore } from '../../src/app/stores/history';
-import { builtInTemplate } from '../../src/app/statblocks/library/builtInTemplates';
-import type { LibraryTemplate } from '../../src/app/statblocks/model/resolvedTypes';
-import { resolveNative } from '../../src/app/statblocks/resolve/resolveStatblock';
-import type { Character } from '../../src/app/types';
-import { createInMemoryApp } from '../mocks/inMemoryVault';
+import type { ResourceDefinition } from '../../src/app/resources/resourceTypes';
+import { HP, STRESS } from '../mocks/resourceFixtures';
+import { character, statblockFixture } from '../mocks/statblockTokenSync';
 
-const WARDEN = 'Bestiary/Marsh Warden.md';
-const warden: Character = {
-  id: 't1', kind: 'character', x: 0, y: 0, imagePath: 'art/warden.webp', name: 'Marsh Warden',
-  statblockPath: WARDEN, resources: { hp: { current: 10, max: 14 } },
-};
+afterEach(() => vi.restoreAllMocks());
 
-function mapWith(tokens: Record<string, Character>): { store: ViewAtlasStore; steps: () => number } {
-  const { app } = createInMemoryApp({ files: {} });
-  const store = createViewAtlasStore(app, `token-sync-${Math.random()}`);
+function setup(isPlayerView = false) {
+  const fixture = statblockFixture();
+  const store = createViewAtlasStore(fixture.app, 'statblock-sync-test', undefined, isPlayerView);
   store.getState().setPersistenceEnabled(false);
-  store.getState().setMapPath('maps/marsh.atlasmap');
-  store.getState().setTokens(tokens);
-  const history = getHistoryStore(store)!;
-  history.getState().clear();
-  return { store, steps: () => history.getState().pastStates.length };
+  let definitions: readonly ResourceDefinition[] = [HP];
+  const sync = new StatblockTokenSync(fixture.app, store, fixture.links, () => definitions);
+  return { ...fixture, store, sync, setDefinitions: (next: readonly ResourceDefinition[]): void => { definitions = next; } };
 }
 
-describe('linked tokens following their statblock', () => {
-  it('take a statblock edit without it becoming an undo step of the open map', () => {
-    const { store, steps } = mapWith({ t1: warden, t2: { ...warden, id: 't2', statblockPath: 'Bestiary/Other.md' } });
-
-    syncLinkedTokens(store, WARDEN, { fields: { name: 'Marsh Warden', hp: 30, cr: 2 } }, [HP_RESOURCE], null);
-
-    const { t1, t2 } = store.getState().objects.tokens as Record<string, Character>;
-    expect(t1).toMatchObject({ resources: { hp: { current: 10, max: 30 } }, difficulty: 'CR 2' });
-    expect(t2?.resources).toEqual({ hp: { current: 10, max: 14 } });
-    expect(steps()).toBe(0);
+describe('StatblockTokenSync', () => {
+  it('refreshes linked characters while preserving current values and hand-set maxima', async () => {
+    const f = setup();
+    f.store.getState().addToken(character({ resources: { hp: { current: 3, max: 10 } } }));
+    f.store.getState().addToken(character({ id: 'manual', resources: { hp: { current: 2, max: 7 } }, overriddenMax: ['hp'] }));
+    f.store.getState().addToken(character({ id: 'other', statblockPath: 'Other.md' }));
+    f.store.getState().addToken({ ...character({ id: 'plain' }), kind: 'token' });
+    await f.change();
+    expect(f.store.getState().objects.tokens.hero).toMatchObject({ name: 'Hero', difficulty: '15', resources: { hp: { current: 3, max: 20 } } });
+    expect(f.store.getState().objects.tokens.manual?.resources?.hp).toEqual({ current: 2, max: 7 });
+    expect(f.store.getState().objects.tokens.other).toMatchObject({ name: 'Custom' });
+    expect(f.store.getState().objects.tokens.plain).toMatchObject({ name: 'Custom' });
+    f.sync.destroy();
   });
 
-  it('leave tokens already in step alone', () => {
-    const { store, steps } = mapWith({ t1: { ...warden, difficulty: 'CR 2' } });
-    const before = store.getState().objects;
-
-    syncLinkedTokens(store, WARDEN, { fields: { name: 'Marsh Warden', hp: 14, cr: 2 } }, [HP_RESOURCE], null);
-
-    expect(store.getState().objects).toBe(before);
-    expect(steps()).toBe(0);
+  it('ignores files without character markers or cached frontmatter', async () => {
+    const f = setup();
+    f.store.getState().addToken(character());
+    vi.mocked(f.app.metadataCache.getFileCache).mockReturnValueOnce({ frontmatter: { name: 'Not a character' } }).mockReturnValueOnce(null);
+    await f.change();
+    await f.change();
+    expect(f.store.getState().objects.tokens.hero).toMatchObject({ name: 'Custom' });
+    expect(f.links.getTokenLinkedToStatblock).not.toHaveBeenCalled();
+    f.sync.destroy();
   });
 
-  it('read a value its template moved to a new key from the note\'s former key', () => {
-    const generic = builtInTemplate('builtin:generic-creature')!;
-    const fields = generic.template.fields.map((field) => (field.key === 'hp' ? { ...field, key: 'vigour', formerKeys: ['hp'] } : field));
-    const template: LibraryTemplate = { template: { ...generic.template, fields }, name: 'Generic', status: 'ok', builtIn: true, path: null };
-    const resolved = resolveNative(WARDEN, { kind: 'atlas', templateId: generic.id }, { name: 'Marsh Warden', hp: 22 }, { get: () => template });
-
-    const changes = statblockTokenChanges({ t1: warden }, WARDEN, resolved, [{ ...HP_RESOURCE, field: 'vigour' }], 'art/new.webp');
-
-    expect(changes).toEqual([{ id: 't1', changes: { resources: { hp: { current: 10, max: 22 } }, imagePath: 'art/new.webp' } }]);
-  });
-});
-
-describe('open-map tokens following a change of their art\'s link', () => {
-  const art = warden.imagePath;
-  const unlinked = (fromNote?: boolean): LinkChangeEvent => ({ type: 'unlinked', tokenImagePath: art, statblockPath: null, ...(fromNote && { fromNote }) });
-  const other: Character = { ...warden, id: 't3', imagePath: 'art/ogre.webp', statblockPath: 'Bestiary/Ogre.md' };
-
-  it('take an unlink the note\'s image caused without it becoming an undo step', () => {
-    const { store, steps } = mapWith({ t1: warden, t2: { ...warden, id: 't2' }, t3: other });
-
-    applyLinkChange(store, unlinked(true), () => null);
-
-    const { t1, t2, t3 } = store.getState().objects.tokens as Record<string, Character>;
-    expect([t1?.statblockPath, t1?.resources, t2?.resources]).toEqual([undefined, undefined, undefined]);
-    expect(t3).toEqual(other);
-    expect(steps()).toBe(0);
+  it('updates image links without writing the avatar back to the note', async () => {
+    const f = setup();
+    f.store.getState().addToken(character());
+    f.links.readStatblockImage.mockReturnValue('new.png');
+    f.links.getTokenLinkedToStatblock.mockResolvedValue('old.png');
+    await f.change();
+    expect(f.links.linkTokenToStatblock).toHaveBeenCalledWith('new.png', 'Hero.md', { showConfirmation: false, updateStatblockAvatar: false, fromNote: true });
+    expect(f.store.getState().objects.tokens.hero?.imagePath).toBe('new.png');
+    // An image that is no token asset, or none at all, leaves the link where it is.
+    f.links.findAssetByAnyPath.mockResolvedValueOnce(null);
+    f.links.readStatblockImage.mockReturnValue('art.png');
+    await f.change();
+    f.links.readStatblockImage.mockReturnValue(null);
+    await f.change();
+    expect(f.links.linkTokenToStatblock).toHaveBeenCalledTimes(1);
+    expect(f.links.unlinkToken).not.toHaveBeenCalled();
+    f.sync.destroy();
   });
 
-  it('take a link the note\'s image caused untracked, with what the statblock gives', () => {
-    const { store, steps } = mapWith({ t1: { ...warden, statblockPath: undefined, resources: undefined } });
-
-    applyLinkChange(store, { type: 'linked', tokenImagePath: art, statblockPath: WARDEN, fromNote: true }, (_token, path) => ({ statblockPath: path, resources: { hp: { current: 9, max: 9 } } }));
-
-    expect(store.getState().objects.tokens.t1).toMatchObject({ statblockPath: WARDEN, resources: { hp: { current: 9, max: 9 } } });
-    expect(steps()).toBe(0);
+  it('keeps equivalent image links without relinking', async () => {
+    const f = setup();
+    f.links.readStatblockImage.mockReturnValue('new.png');
+    f.links.getTokenLinkedToStatblock.mockResolvedValue('same.png');
+    f.links.arePathsEquivalent.mockReturnValue(true);
+    await f.change();
+    expect(f.links.linkTokenToStatblock).not.toHaveBeenCalled();
+    f.sync.destroy();
   });
 
-  it('make a link change made by hand one undo step for all its tokens', () => {
-    const { store, steps } = mapWith({ t1: warden, t2: { ...warden, id: 't2' } });
+  it('links every matching image and clears only derived fields when unlinked', async () => {
+    const f = setup();
+    f.store.getState().addToken(character({ overriddenMax: ['hp'], resources: { hp: { current: 2, max: 7 } } }));
+    f.store.getState().addToken({ ...character({ id: 'plain' }), kind: 'token' });
+    f.store.getState().addToken(character({ id: 'other', imagePath: 'other.png' }));
+    f.link({ type: 'linked', tokenImagePath: 'hero.png', statblockPath: 'Hero.md' });
+    await vi.waitFor(() => expect(f.store.getState().objects.tokens.hero?.statblockPath).toBe('Hero.md'));
+    await vi.waitFor(() => expect(f.store.getState().objects.tokens.hero?.name).toBe('Hero'));
+    for (const id of ['hero', 'plain']) {
+      expect(f.store.getState().objects.tokens[id]).toMatchObject({ statblockPath: 'Hero.md', name: 'Hero', difficulty: '15', resources: { hp: { current: 20, max: 20 } } });
+      expect(f.store.getState().objects.tokens[id]?.overriddenMax).toBeUndefined();
+    }
+    f.link({ type: 'unlinked', tokenImagePath: 'hero.png', statblockPath: null });
+    await vi.waitFor(() => expect(f.store.getState().objects.tokens.hero?.statblockPath).toBeUndefined());
+    const hero = f.store.getState().objects.tokens.hero;
+    expect(hero).toMatchObject({ x: 10, y: 20, imagePath: 'hero.png' });
+    for (const key of ['statblockPath', 'name', 'statblockName', 'resources', 'difficulty', 'overriddenMax']) {
+      expect(hero).not.toHaveProperty(key, expect.anything());
+    }
+    expect(f.store.getState().objects.tokens.other).toMatchObject({ name: 'Custom', statblockPath: 'Hero.md' });
+    f.sync.destroy();
+  });
 
-    applyLinkChange(store, unlinked(), () => null);
+  it('reads current resource definitions and fills missing values without an undo step', async () => {
+    const f = setup();
+    f.store.getState().addToken(character({ resources: { hp: { current: 2, max: 7 } } }));
+    const history = getHistoryStore(f.store)!;
+    const before = history.getState().pastStates.length;
+    f.setDefinitions([HP, STRESS]);
+    f.sync.fillMissingResources();
+    await vi.waitFor(() => expect(f.store.getState().objects.tokens.hero?.resources?.stress).toEqual({ current: 0, max: 6 }));
+    expect(f.store.getState().objects.tokens.hero?.resources?.hp).toEqual({ current: 2, max: 7 });
+    expect(history.getState().pastStates).toHaveLength(before);
+    f.sync.destroy();
+  });
 
-    expect(steps()).toBe(1);
+  it('does not initialize resources in a player view', () => {
+    const f = setup(true);
+    f.store.getState().addToken(character());
+    f.sync.fillMissingResources();
+    expect(f.links.readStatblockRecord).not.toHaveBeenCalled();
+    f.sync.destroy();
+  });
+
+  it('removes its metadata and link listeners on destruction', () => {
+    const f = setup();
+    f.store.getState().addToken(character());
+    expect(f.links.listenerCount('link-changed')).toBe(1);
+    f.sync.destroy();
+    expect(f.app.metadataCache.offref).toHaveBeenCalledWith(f.ref);
+    expect(f.links.listenerCount('link-changed')).toBe(0);
+    f.link({ type: 'unlinked', tokenImagePath: 'hero.png', statblockPath: null });
+    expect(f.store.getState().objects.tokens.hero).toMatchObject({ name: 'Custom' });
   });
 });

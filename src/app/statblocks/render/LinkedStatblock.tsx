@@ -12,6 +12,7 @@ import type { TemplateId } from '../model/templateTypes';
 import { LinkedSheet, type DrawnStatblock } from './LinkedSheet';
 import type { SheetVariant } from './sheetTypes';
 import { useLinkedStatblock, useNativeTemplateId, type LinkedStatblockResult } from './useLinkedStatblock';
+import type { TokenRollContext } from '../../types/diceRollOrigin';
 
 export interface LinkedStatblockProps {
   app: App;
@@ -25,6 +26,10 @@ export interface LinkedStatblockProps {
   variant: SheetVariant;
   /** Tokens the statblock is shown for: their art replaces its image, their hit points roll from it. */
   tokens?: TokenVitals[] | undefined;
+  /** The map view that owns the statblock, where it renders outside one; rolls go to that map. */
+  viewId?: string | undefined;
+  /** The view, scene and tokens the statblock was opened for; rolls for them name it. */
+  originContext?: TokenRollContext | undefined;
   /** The DM screen's controls for each token's resources. */
   tokenActions?: StatblockTokenActions | undefined;
   /** Offered beside "Template not found"; without it the notice offers nothing. */
@@ -35,13 +40,15 @@ export interface LinkedStatblockProps {
 const NO_TOKENS: TokenVitals[] = [];
 
 /** Today's renderer for a Fantasy Statblocks statblock while the plugin is loaded (§6.1, until M7). */
-function FantasyView({ app, path, noteText, tokens, tokenActions, className }: LinkedStatblockProps): React.JSX.Element {
+function FantasyView({ app, path, noteText, tokens, viewId, originContext, tokenActions, className }: LinkedStatblockProps): React.JSX.Element {
   return (
     <FantasyStatblock
       app={app}
       notePath={path}
       noteContent={noteText}
       {...(tokens ? { tokens } : {})}
+      viewId={viewId}
+      originContext={originContext}
       {...(tokenActions ? { tokenActions } : {})}
       {...(className ? { className } : {})}
     />
@@ -70,6 +77,8 @@ function ResolvedView(props: LinkedStatblockProps & { templateId: TemplateId | n
         statblock={result.statblock}
         variant={props.variant}
         tokens={props.tokens ?? NO_TOKENS}
+        viewId={props.viewId}
+        originContext={props.originContext}
         tokenActions={props.tokenActions}
         onChooseTemplate={props.onChooseTemplate}
         className={className}

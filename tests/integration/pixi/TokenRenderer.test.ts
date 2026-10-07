@@ -18,13 +18,18 @@ import { MeasureRenderer } from '../../../src/app/pixi/MeasureRenderer';
 import { PinRenderer } from '../../../src/app/pixi/PinRenderer';
 import { FogOfWarRenderer } from '../../../src/app/pixi/fog/FogOfWarRenderer';
 import { TextTool } from '../../../src/app/tools/TextTool';
+import { TokenStatblockLinkService } from '../../../src/app/services/TokenStatblockLinkService';
 import { AssetService } from '../../../src/app/services/AssetService';
 import { createViewAtlasStore } from '../../../src/app/storeFactory';
 import { computeTokenPixelSize } from '../../../src/app/pixi/token-renderer/tokenSizing';
 import { getHistoryStore } from '../../../src/app/stores/history';
 import type { GridSystem } from '../../../src/app/grid/GridSystem';
 import { createInMemoryApp } from '../../mocks/inMemoryVault';
+import { DEFAULT_SETTINGS } from '../../../src/app/services/atlasSettings';
+import { fogCoverage } from '../../../src/app/fog/fogCoverage';
+import { fogRectangle } from '../../helpers/fogOperations';
 import { stubJsdomGraphics } from '../../mocks/jsdomGraphics';
+import { wirePlayerMeasurements } from '../../helpers/playerMeasureWiring';
 
 const openContextMenuGlobal = vi.hoisted(() => vi.fn());
 vi.mock('../../../src/app/react/root/ContextMenuContext', () => ({
@@ -96,6 +101,7 @@ describe('TokenRenderer Integration Tests', () => {
   let selectionOverlayUpdater: ReturnType<typeof vi.fn>;
   let obsidianApp: ReturnType<typeof createInMemoryApp>['app'];
   let restoreGraphics: () => void;
+  let emitVault: ReturnType<typeof createInMemoryApp>['emit'];
   let viewportPointerDownListeners: number;
   let isRendererDestroyed: boolean;
   let canvas: HTMLCanvasElement;
@@ -140,7 +146,9 @@ describe('TokenRenderer Integration Tests', () => {
     restoreGraphics = stubJsdomGraphics();
     (AssetService as unknown as { instance: AssetService | null }).instance = null;
 
-    obsidianApp = createInMemoryApp({ files: { [GOBLIN_IMAGE]: 'goblin-bytes', [ORC_IMAGE]: 'orc-bytes' } }).app;
+    const vault = createInMemoryApp({ files: { [GOBLIN_IMAGE]: 'goblin-bytes', [ORC_IMAGE]: 'orc-bytes' } });
+    obsidianApp = vault.app;
+    emitVault = vault.emit;
     // The viewport only needs the event system's DOM element to bind wheel/pointer listeners.
     const events = { domElement: document.createElement('canvas') } as unknown as EventSystem;
     viewport = new Viewport({ screenWidth: 800, screenHeight: 600, worldWidth: 2000, worldHeight: 2000, events });
@@ -167,6 +175,65 @@ describe('TokenRenderer Integration Tests', () => {
     destroyRenderer();
     viewport.destroy();
     restoreGraphics();
+  });
+
+  it('reloads only changed token art and removes the vault listener on destroy', async () => {
+    store.getState().addToken(token({ id: 'goblin' }));
+    store.getState().addToken(token({ id: 'orc', imagePath: ORC_IMAGE }));
+    await waitForTokens('goblin', 'orc');
+    const previous = tokenSprite('goblin').texture;
+    const untouched = tokenSprite('orc').texture;
+    const file = obsidianApp.vault.getFileByPath(GOBLIN_IMAGE);
+    expect(file).not.toBeNull();
+    emitVault('modify', file);
+    await vi.waitFor(() => expect(tokenSprite('goblin').texture).not.toBe(previous));
+    expect(previous.destroyed).toBe(true);
+    expect(tokenSprite('orc').texture).toBe(untouched);
+    destroyRenderer();
+    const reads = vi.spyOn(obsidianApp.vault, 'readBinary').mockClear();
+    emitVault('modify', file);
+    await Promise.resolve();
+    expect(reads).not.toHaveBeenCalled();
+    reads.mockRestore();
+  });
+
+  it('loads tokens already present when the renderer is constructed', async () => {
+    destroyRenderer();
+    const existing = { ...token({ id: 'existing' }), kind: 'character' as const, name: 'Existing' };
+    store.getState().addToken(existing);
+    tokenRenderer = createRenderer();
+    isRendererDestroyed = false;
+    await waitForTokens('existing');
+    expect(tokenSprite('existing').texture.label).toBe(GOBLIN_IMAGE);
+  });
+
+  it('applies statblock links to matching tokens and stops listening when destroyed', async () => {
+    const file = await obsidianApp.vault.create('Goblin.md', '---\nname: Goblin\nhp: 12\n---\n');
+    const cache = vi.spyOn(obsidianApp.metadataCache, 'getFileCache').mockImplementation(
+      (candidate) => candidate.path === file.path ? { frontmatter: { name: 'Goblin', hp: 12, difficulty: 14 } } : null,
+    );
+    const links = TokenStatblockLinkService.getInstance(obsidianApp);
+    const lookup = vi.spyOn(links, 'getStatblockLinkedToToken').mockResolvedValue(null);
+    // The service is shared by every test and holds the first test's vault, so the note is read here.
+    const record = vi.spyOn(links, 'readStatblockRecord').mockResolvedValue({ fields: { name: 'Goblin', hp: 12, difficulty: 14 } });
+    const linked = { ...token({ id: 'linked' }), kind: 'character' as const, name: 'Old', overriddenMax: ['hp'] };
+    store.getState().addToken(linked);
+    const other = { ...token({ id: 'other', imagePath: ORC_IMAGE }), kind: 'character' as const, name: 'Other' };
+    store.getState().addToken(other);
+    await waitForTokens('linked', 'other');
+    const listenerCount = links.listenerCount('link-changed');
+    links.emit('link-changed', { type: 'linked', tokenImagePath: GOBLIN_IMAGE, statblockPath: file.path });
+    // The link reads its statblock through the resolver first.
+    await vi.waitFor(() => expect(store.getState().objects.tokens.linked).toMatchObject({ statblockPath: file.path, name: 'Goblin', difficulty: '14' }));
+    expect(store.getState().objects.tokens.linked?.overriddenMax).toBeUndefined();
+    expect(store.getState().objects.tokens.other).toMatchObject({ name: 'Other' });
+    destroyRenderer();
+    expect(links.listenerCount('link-changed')).toBe(listenerCount - 1);
+    links.emit('link-changed', { type: 'unlinked', tokenImagePath: GOBLIN_IMAGE, statblockPath: null });
+    expect(store.getState().objects.tokens.linked).toMatchObject({ statblockPath: file.path, name: 'Goblin' });
+    lookup.mockRestore();
+    record.mockRestore();
+    cache.mockRestore();
   });
 
   describe('Token Creation/Destruction', () => {
@@ -323,6 +390,142 @@ describe('TokenRenderer Integration Tests', () => {
         expect(ringAfter).not.toBe(ringBefore);
       });
       expect(ringBefore?.destroyed).toBe(true);
+    });
+  });
+
+  describe('committed fog visibility', () => {
+    const paint = fogRectangle({ x: 150, y: 0, width: 100, height: 400 });
+    const wireFog = (): void => tokenRenderer.setFogCoverageProvider(() => fogCoverage(store.getState().objects.fog));
+    const setFog = (covered = true): void => store.setState((state) => ({
+      objects: { ...state.objects, fog: covered ? { paint } : {} },
+    }));
+
+    it('filters unlit session tokens and hits, refreshes on fog alone, and preserves GM view', async () => {
+      wireFog();
+      store.getState().addToken(token({ id: 'covered', x: 200 }));
+      await waitForTokens('covered');
+      setFog();
+      expect(tokenGroup('covered').visible).toBe(true);
+      store.getState().setGMView(false);
+      expect(tokenGroup('covered').visible).toBe(false);
+      expect(tokenRenderer.hitTestTokens(200, 100)).toBeNull();
+      expect(tokenRenderer.visibleTokenIds()).toEqual([]);
+      setFog(false);
+      expect(tokenGroup('covered').visible).toBe(true);
+      setFog();
+      expect(tokenGroup('covered').visible).toBe(false);
+      store.getState().setGMView(true);
+      expect(tokenGroup('covered').visible).toBe(true);
+    });
+
+    it('filters a player frame without lighting, including nameplates, while preserving the GM canvas', async () => {
+      wireFog();
+      setFog();
+      const named = { ...token({ id: 'covered', x: 200, kind: 'character', showNameplate: true }), name: 'Goblin' };
+      store.getState().addToken(named);
+      await waitForTokens('covered');
+      const layers = tokenRenderer.getPlayerViewLayers({ ...DEFAULT_SETTINGS.localPlayerView, showTokenNameplates: true });
+      expect(layers).toContainEqual({ layer: tokenGroup('covered'), visible: false });
+      expect(layers.some(({ layer, visible }) => layer !== tokenGroup('covered') && visible === false)).toBe(true);
+      expect(tokenGroup('covered').visible).toBe(true);
+    });
+
+    it('retains fog when lighting is removed and applies it during an existing unlit peek', async () => {
+      wireFog();
+      setFog();
+      store.getState().addToken(token({ id: 'covered', x: 200 }));
+      await waitForTokens('covered');
+      let peeking = true;
+      tokenRenderer.setPlayerSightProvider(() => undefined, () => peeking);
+      tokenRenderer.refreshPlayerSight();
+      expect(tokenGroup('covered').visible).toBe(false);
+      peeking = false;
+      tokenRenderer.refreshPlayerSight();
+      expect(tokenGroup('covered').visible).toBe(true);
+      store.getState().setGMView(false);
+      tokenRenderer.clearLighting();
+      expect(tokenGroup('covered').visible).toBe(false);
+    });
+
+    it('hides a held token at its displayed centre before the store catches up, and completes the drag', async () => {
+      wireFog();
+      setFog();
+      store.getState().setGMView(false);
+      store.getState().addToken(token({ id: 'moving', x: 105, y: 105 }));
+      await waitForTokens('moving');
+      viewport.emit('pointerdown', pointerEvent(105, 105));
+      viewport.emit('pointermove', pointerEvent(120, 105));
+      viewport.emit('pointermove', pointerEvent(180, 105));
+      expect(tokenGroup('moving').x).toBe(180);
+      expect(store.getState().objects.tokens['moving']?.x).not.toBe(180);
+      expect(tokenGroup('moving').visible).toBe(false);
+      const rulerLayers = tokenRenderer.getPlayerViewLayers(DEFAULT_SETTINGS.localPlayerView).slice(-2);
+      expect(rulerLayers).toHaveLength(2);
+      expect(rulerLayers.every(({ layer, visible }) => !visible && !layer.visible)).toBe(true);
+      viewport.emit('pointermove', pointerEvent(320, 105));
+      expect(tokenGroup('moving').visible).toBe(true);
+      viewport.emit('pointerup', pointerEvent(320, 105));
+      expect(store.getState().objects.tokens['moving']?.x).toBe(tokenGroup('moving').x);
+      expect(store.getState().objects.tokens['moving']?.x).toBeGreaterThan(250);
+    });
+
+    it.each(['release', 'cancel'])('finishes a covered drag on %s as one undo step', async (ending) => {
+      wireFog();
+      setFog();
+      store.getState().setGMView(false);
+      store.getState().addToken(token({ id: 'moving', x: 105, y: 105 }));
+      await waitForTokens('moving');
+      const history = getHistoryStore(store)!;
+      const before = history.getState().pastStates.length;
+      viewport.emit('pointerdown', pointerEvent(105, 105));
+      viewport.emit('pointermove', pointerEvent(180, 105));
+      expect(tokenGroup('moving').visible).toBe(false);
+      if (ending === 'cancel') viewport.options.events.domElement.dispatchEvent(new Event('pointercancel'));
+      else viewport.emit('pointerup', pointerEvent(180, 105));
+      expect(store.getState().isDragging).toBe(false);
+      expect(store.getState().objects.tokens.moving?.x).toBe(175);
+      expect(history.getState().pastStates).toHaveLength(before + 1);
+      expect(tokenGroup('moving').visible).toBe(false);
+      history.getState().undo();
+      await vi.waitFor(() => expect(tokenGroup('moving').x).toBe(105));
+      expect(tokenGroup('moving').visible).toBe(true);
+    });
+
+    it('updates only the moving token outline during animation', async () => {
+      wireFog();
+      setFog();
+      const perceive = vi.fn((_id: string) => 'sensed' as const);
+      tokenRenderer.setPlayerSightProvider(() => perceive);
+      store.getState().addToken(token({ id: 'moving', x: 100 }));
+      store.getState().addToken(token({ id: 'stationary', x: 350 }));
+      await waitForTokens('moving', 'stationary');
+      tokenRenderer.refreshPlayerSight();
+      perceive.mockClear();
+      eventBus.emit('animate-token-to-position', { tokenId: 'moving', targetX: 120, targetY: 100 });
+      ticker.advance(10);
+      expect(perceive).toHaveBeenCalled();
+      expect(perceive.mock.calls.every(([id]) => id === 'moving')).toBe(true);
+    });
+
+    it('uses the displayed centre during path animation and keeps the animation running', async () => {
+      wireFog();
+      setFog();
+      store.getState().setGMView(false);
+      store.getState().addToken(token({ id: 'moving' }));
+      await waitForTokens('moving');
+      eventBus.emit('animate-token-path', {
+        tokenId: 'moving', finalX: 300, finalY: 100,
+        path: [{ x: 150, y: 100, timestamp: 0 }, { x: 250, y: 100, timestamp: 500 }], duration: 1000,
+      });
+      ticker.advance(200);
+      expect(tokenGroup('moving').x).toBeGreaterThan(150);
+      expect(tokenGroup('moving').x).toBeLessThan(250);
+      expect(store.getState().objects.tokens['moving']?.x).toBe(100);
+      expect(tokenGroup('moving').visible).toBe(false);
+      ticker.advance(600);
+      expect(tokenGroup('moving').x).toBe(300);
+      expect(tokenGroup('moving').visible).toBe(true);
+      expect(ticker.size).toBe(0);
     });
   });
 
@@ -935,6 +1138,187 @@ describe('TokenRenderer Integration Tests', () => {
           expect(tokenGroup('token-1').alpha).toBe(0.5);
         });
       });
+    });
+  });
+
+  // Measurements and other marks follow the tokens the players see: in their frame, and on the canvas while it shows their view.
+  describe('What the players see of the tokens', () => {
+    const paint = fogRectangle({ x: 150, y: 0, width: 100, height: 400 });
+    const wireFog = (): void => tokenRenderer.setFogCoverageProvider(() => fogCoverage(store.getState().objects.fog));
+    const setFog = (): void => store.setState((state) => ({ objects: { ...state.objects, fog: { paint } } }));
+
+    it('answers for a players\' frame by its sight and committed fog, never for a hidden or missing token', async () => {
+      wireFog();
+      setFog();
+      store.getState().addToken(token({ id: 'seen' }));
+      store.getState().addToken(token({ id: 'hidden', x: 300, isHidden: true }));
+      store.getState().addToken(token({ id: 'covered', x: 200 }));
+      store.getState().addToken(token({ id: 'dark', x: 400 }));
+      await waitForTokens('seen', 'hidden', 'covered', 'dark');
+      const seen = tokenRenderer.playersSeeInFrame((id) => (id === 'dark' ? 'unseen' : 'seen'));
+      expect(['seen', 'hidden', 'covered', 'dark', 'missing'].map(seen)).toEqual([true, false, false, false, false]);
+      expect(['seen', 'dark'].map(tokenRenderer.playersSeeInFrame())).toEqual([true, true]);
+    });
+
+    it('answers for the canvas only while it shows the players\' view: session view or the peek', async () => {
+      let peeking = false;
+      tokenRenderer.setPlayerSightProvider(() => (peeking ? () => 'unseen' : undefined), () => peeking);
+      store.getState().addToken(token({ id: 'goblin' }));
+      await waitForTokens('goblin');
+      expect(tokenRenderer.playersSeeOnCanvas()).toBeNull();
+      store.getState().setGMView(false);
+      expect(tokenRenderer.playersSeeOnCanvas()?.('goblin')).toBe(true);
+      store.getState().setGMView(true);
+      peeking = true;
+      tokenRenderer.refreshPlayerSight();
+      expect(tokenRenderer.playersSeeOnCanvas()?.('goblin')).toBe(false);
+    });
+
+    it('tells its listeners after every pass over the players\' sight and every change of the tokens', async () => {
+      const listener = vi.fn();
+      const stop = tokenRenderer.onPlayersViewChange(listener);
+      store.getState().addToken(token({ id: 'goblin' }));
+      await waitForTokens('goblin');
+      listener.mockClear();
+      store.getState().setGMView(false);
+      expect(listener).toHaveBeenCalled();
+      listener.mockClear();
+      store.getState().updateToken('goblin', { isHidden: true });
+      expect(listener).toHaveBeenCalled();
+      listener.mockClear();
+      store.getState().deleteToken('goblin');
+      expect(listener).toHaveBeenCalled();
+      stop();
+      listener.mockClear();
+      store.getState().setGMView(true);
+      expect(listener).not.toHaveBeenCalled();
+    });
+
+    it('tells them of a drag in session view only when the dragged token enters or leaves the players\' sight', async () => {
+      wireFog();
+      setFog();
+      store.getState().setGMView(false);
+      store.getState().addToken(token({ id: 'moving', x: 105, y: 105 }));
+      await waitForTokens('moving');
+      const listener = vi.fn();
+      tokenRenderer.onPlayersViewChange(listener);
+      // One write of the live positions to the store, at the drag's first step.
+      vi.spyOn(Date, 'now').mockReturnValue(1000);
+      viewport.emit('pointerdown', pointerEvent(105, 105));
+      viewport.emit('pointermove', pointerEvent(120, 105));
+      const calls: number[] = [];
+      for (const x of [130, 140, 180, 200, 220, 320, 330]) {
+        listener.mockClear();
+        viewport.emit('pointermove', pointerEvent(x, 105));
+        calls.push(listener.mock.calls.length);
+      }
+      expect(calls).toEqual([0, 0, 1, 0, 0, 1, 0]);
+      viewport.emit('pointerup', pointerEvent(330, 105));
+      vi.mocked(Date.now).mockRestore();
+    });
+
+    it('in the GM view, a drag asks nothing of the players\' sight or fog', async () => {
+      const coverage = vi.fn(() => fogCoverage(store.getState().objects.fog));
+      tokenRenderer.setFogCoverageProvider(coverage);
+      setFog();
+      tokenRenderer.setPlayerSightProvider(() => undefined, () => false);
+      store.getState().addToken(token({ id: 'moving', x: 105, y: 105 }));
+      await waitForTokens('moving');
+      const listener = vi.fn();
+      tokenRenderer.onPlayersViewChange(listener);
+      viewport.emit('pointerdown', pointerEvent(105, 105));
+      coverage.mockClear();
+      listener.mockClear();
+      for (const x of [120, 180, 320]) viewport.emit('pointermove', pointerEvent(x, 105));
+      expect(coverage).not.toHaveBeenCalled();
+      expect(listener).not.toHaveBeenCalled();
+      viewport.emit('pointerup', pointerEvent(320, 105));
+    });
+  });
+
+  describe('Measurements in the players\' picture', () => {
+    let measure: MeasureRenderer;
+    let unwire: () => void;
+    let perception: ((id: string) => 'seen' | 'unseen') | undefined;
+    let peeking: boolean;
+
+    beforeEach(() => {
+      perception = undefined;
+      peeking = false;
+      const active = (): boolean => peeking || !store.getState().isGMView;
+      tokenRenderer.setPlayerSightProvider(() => (active() ? perception : undefined), active);
+      tokenRenderer.setFogCoverageProvider(() => fogCoverage(store.getState().objects.fog));
+      measure = new MeasureRenderer(viewport, eventBus, store, gridSystem);
+      unwire = wirePlayerMeasurements({ measure, tokens: tokenRenderer, store, grid: gridSystem, lighting: () => perception });
+    });
+
+    afterEach(() => {
+      unwire();
+      measure.destroy();
+    });
+
+    /** The measurement parts' `visible` on the canvas, the live ruler first. */
+    const onCanvas = (): boolean[] => measure.getGmViewLayers().map(({ layer }) => layer.visible);
+    /** What a players' frame shows of them. */
+    const inFrame = (): boolean[] => measure.getPlayerViewLayers(tokenRenderer.playersSeeInFrame(perception)).map(({ visible }) => visible);
+    const keepRuler = (x: number): void => {
+      eventBus.emit('measure-persistence-changed', true);
+      store.getState().setActiveTool('measure');
+      viewport.emit('pointerdown', pointerEvent(x, 105));
+      viewport.emit('pointermove', pointerEvent(x, 400));
+      viewport.emit('pointerup', pointerEvent(x, 400));
+    };
+
+    it('leaves a ruler from a hidden token out of the frame and session view, and keeps it in a picture of the scene', async () => {
+      store.getState().addToken(token({ id: 'goblin', x: 105, y: 105, isHidden: true }));
+      await waitForTokens('goblin');
+      store.getState().setActiveTool('measure');
+      viewport.emit('pointerdown', pointerEvent(105, 105));
+      viewport.emit('pointermove', pointerEvent(105, 400));
+      expect(onCanvas()).toEqual([true, true, true]);
+      expect(inFrame()).toEqual([false, false, false]);
+      store.getState().setGMView(false);
+      expect(onCanvas()).toEqual([false, false, false]);
+      const picture = captureSceneFrame({ gmViewLayers: [...tokenRenderer.getGmViewLayers(), ...measure.getGmViewLayers()], markerLayers: [], lighting: undefined },
+        {} as never, () => onCanvas());
+      expect(picture).toEqual([true, true, true]);
+      expect(onCanvas()).toEqual([false, false, false]);
+      store.getState().setGMView(true);
+      expect(onCanvas()).toEqual([true, true, true]);
+    });
+
+    it('hides a kept ruler during the peek while its token is out of the players\' sight', async () => {
+      store.getState().addToken(token({ id: 'goblin', x: 105, y: 105 }));
+      await waitForTokens('goblin');
+      keepRuler(105);
+      perception = () => 'unseen';
+      expect(onCanvas()).toEqual([true, false, false, true, true, true]);
+      peeking = true;
+      tokenRenderer.refreshPlayerSight();
+      expect(onCanvas()).toEqual([true, false, false, false, false, false]);
+      perception = () => 'seen';
+      tokenRenderer.refreshPlayerSight();
+      expect(onCanvas()).toEqual([true, false, false, true, true, true]);
+      peeking = false;
+      tokenRenderer.refreshPlayerSight();
+    });
+
+    it('hides a kept ruler in session view once its token is deleted, or the map reloads without it', async () => {
+      store.getState().addToken(token({ id: 'goblin', x: 105, y: 105 }));
+      store.getState().addToken(token({ id: 'orc', x: 315, y: 105 }));
+      await waitForTokens('goblin', 'orc');
+      keepRuler(105);
+      keepRuler(315);
+      store.getState().setGMView(false);
+      expect(onCanvas()).toEqual([true, false, false, true, true, true, true, true, true]);
+      store.getState().deleteToken('goblin');
+      expect(onCanvas()).toEqual([true, false, false, false, false, false, true, true, true]);
+      store.setState((state) => ({ mapPath: 'maps/other.atlasmap', objects: { ...state.objects, tokens: {} } }));
+      eventBus.emit('map-loaded');
+      expect(onCanvas()).toEqual([true, false, false, false, false, false, false, false, false]);
+      expect(inFrame()).toEqual([true, false, false, false, false, false, false, false, false]);
+      store.getState().setGMView(true);
+      expect(onCanvas()).toEqual([true, false, false, true, true, true, true, true, true]);
     });
   });
 

@@ -27,6 +27,8 @@ import type { TransferMode } from '../../../../services/assetTransfer/transferPl
 import type { CreateScenePrefill } from '../hooks/useAssetCrud';
 import { scenePrefillFromMap } from '../utils/sceneCreation';
 import { createStatblockEntry } from '../../../../statblocks/editor/create/entryPoints';
+import { copyAssetLink } from '../../../../links/atlasLinkText';
+import { t } from '../../../../i18n';
 
 export interface AssetContextMenuDeps {
   app: ObsidianApp;
@@ -86,7 +88,7 @@ export function buildAssetContextMenuEntries(
   if (asset.type === 'encounters') {
     entries.push({
       type: 'item',
-      label: 'Spawn Encounter',
+      label: t('am.menu.spawnEncounter'),
       icon: 'target',
       onClick: async () => {
         const ids = await spawnEncounterTokens(spawnCtx, asset);
@@ -100,7 +102,7 @@ export function buildAssetContextMenuEntries(
     const spawnCount = selectedAssets.filter((a) => a.type === 'tokens').length;
     entries.push({
       type: 'item',
-      label: spawnCount > 1 ? `Spawn ${spawnCount} Tokens on Map` : 'Spawn on Map',
+      label: spawnCount > 1 ? t('am.menu.spawnTokens', { count: spawnCount }) : t('am.menu.spawn'),
       icon: 'map-pin',
       onClick: async () => {
         const ids = await spawnSelectedTokens(spawnCtx, selectedAssets);
@@ -110,11 +112,11 @@ export function buildAssetContextMenuEntries(
     if (spawnCount <= 1) {
       entries.push({
         type: 'submenu',
-        label: 'Spawn Multiple',
+        label: t('am.menu.spawnMultiple'),
         icon: 'copy-plus',
         children: SPAWN_MULTIPLE_COUNTS.map((count) => ({
           type: 'item' as const,
-          label: `${count} tokens`,
+          label: t('am.menu.nTokens', { count }),
           onClick: async (): Promise<void> => {
             const ids = await spawnTokenAsset(spawnCtx, asset, count);
             if (ids.length > 0) deps.onClose();
@@ -129,7 +131,7 @@ export function buildAssetContextMenuEntries(
     const tokenAssets = selectedAssets.filter((a) => a.type === 'tokens');
     entries.push({
       type: 'item',
-      label: `Save ${tokenAssets.length} Tokens as Encounter`,
+      label: t('am.menu.saveAsEncounter', { count: tokenAssets.length }),
       icon: 'target',
       onClick: () => deps.handleSaveAsEncounter(tokenAssets),
     });
@@ -139,7 +141,7 @@ export function buildAssetContextMenuEntries(
   if (asset.type === 'tokens') {
     entries.push({
       type: 'item',
-      label: 'Edit Token',
+      label: t('am.menu.editToken'),
       icon: 'edit',
       onClick: () => {
         deps.setEditingToken(asset);
@@ -148,10 +150,10 @@ export function buildAssetContextMenuEntries(
     });
   } else {
     const label =
-      asset.type === 'encounters' ? 'Rename Encounter'
-      : asset.type === 'maps' ? 'Rename Map'
-      : asset.type === 'scenes' ? 'Rename Scene'
-      : 'Rename';
+      asset.type === 'encounters' ? t('am.menu.renameEncounter')
+      : asset.type === 'maps' ? t('am.menu.renameMap')
+      : asset.type === 'scenes' ? t('am.menu.renameScene')
+      : t('common.rename');
 
     entries.push({
       type: 'item',
@@ -160,8 +162,8 @@ export function buildAssetContextMenuEntries(
       onClick: () => {
         deps.setInputModalState({
           isOpen: true,
-          title: `Rename "${asset.name}"`,
-          placeholder: 'Enter new name',
+          title: t('am.menu.renameTitle', { name: asset.name }),
+          placeholder: t('am.menu.newName'),
           defaultValue: asset.name,
           onConfirm: (newName: string) => {
             if (newName.trim() === asset.name) return;
@@ -171,7 +173,7 @@ export function buildAssetContextMenuEntries(
               runInBackground(
                 renameScene(deps.app, assetService, asset.id, newName).then(() => deps.loadAssetsForActiveTab()),
                 `Renaming scene ${asset.id}`,
-                'Could not rename the scene'
+                t('am.menu.renameSceneFailed')
               );
               return;
             }
@@ -208,14 +210,14 @@ export function buildAssetContextMenuEntries(
     const hasStatblock = Boolean(asset.statblockPath);
     entries.push({
       type: 'item',
-      label: hasStatblock ? 'Change Statblock' : 'Link Statblock',
+      label: hasStatblock ? t('am.menu.changeStatblock') : t('am.menu.linkStatblock'),
       icon: 'file-text',
       onClick: () => deps.openStatblockLinkModal(asset),
     });
     if (hasStatblock) {
       entries.push({
         type: 'item',
-        label: 'Unlink Statblock',
+        label: t('am.menu.unlinkStatblock'),
         icon: 'unlink',
         onClick: () => deps.unlinkStatblock(asset),
       });
@@ -227,11 +229,22 @@ export function buildAssetContextMenuEntries(
   }
 
 
+  // ── Copy link (a single scene or encounter) ───────────────────
+  const { assetService } = deps;
+  if ((asset.type === 'scenes' || asset.type === 'encounters') && selectedAssets.length <= 1 && assetService) {
+    entries.push({
+      type: 'item',
+      label: t('atlasLinks.copyLink'),
+      icon: 'link',
+      onClick: () => runInBackground(copyAssetLink(deps.app, assetService, asset.id), `Copying a link to ${asset.id}`),
+    });
+  }
+
   // ── Move to Folder ────────────────────────────────────────────
   if (deps.folders.filter((f) => f.type === asset.type).length > 0) {
     entries.push({
       type: 'item',
-      label: 'Move to Folder',
+      label: t('am.menu.moveToFolder'),
       icon: 'folder',
       onClick: () => deps.setIsMoveModalOpen(true),
     });
@@ -250,8 +263,8 @@ export function buildAssetContextMenuEntries(
       })),
     });
     entries.push(
-      collectionSubmenu('Move to Collection', 'folder-input', 'move'),
-      collectionSubmenu('Copy to Collection', 'copy', 'copy'),
+      collectionSubmenu(t('am.menu.moveToCollection'), 'folder-input', 'move'),
+      collectionSubmenu(t('am.menu.copyToCollection'), 'copy', 'copy'),
     );
   }
 
@@ -259,7 +272,7 @@ export function buildAssetContextMenuEntries(
   // ── Tags ──────────────────────────────────────────────────────
   entries.push({
     type: 'item',
-    label: 'Tags',
+    label: t('am.menu.tags'),
     icon: 'tag',
     onClick: () => {
       const assetsToTag = deps.selectedAssetIds.includes(asset.id)
@@ -299,20 +312,20 @@ export function buildAssetContextMenuEntries(
   const deleteCount = selectedAssets.length;
   entries.push({
     type: 'item',
-    label: deleteCount > 1 ? `Delete ${deleteCount} Items` : 'Delete',
+    label: deleteCount > 1 ? t('am.menu.deleteItems', { count: deleteCount }) : t('common.delete'),
     icon: 'trash',
     destructive: true,
     onClick: async () => {
       const msg = deleteCount > 1
-        ? `Are you sure you want to delete ${deleteCount} selected items?`
-        : `Are you sure you want to delete "${asset.name}"?`;
+        ? t('am.menu.confirmDeleteMany', { count: deleteCount })
+        : t('am.menu.confirmDelete', { name: asset.name });
       const impact = deps.assetService
         ? await findTokenDeleteImpact(deps.app, deps.assetService, selectedAssets)
         : null;
       const confirmed = await confirmAction({
-        title: deleteCount > 1 ? 'Delete items' : 'Delete item',
+        title: deleteCount > 1 ? t('am.menu.deleteItemsTitle') : t('am.menu.deleteItemTitle'),
         message: [msg, ...(impact ? describeTokenDeleteImpact(impact) : [])],
-        confirmLabel: 'Delete',
+        confirmLabel: t('common.delete'),
         destructive: true,
       });
       if (!confirmed) return;

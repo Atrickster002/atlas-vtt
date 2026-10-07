@@ -5,6 +5,7 @@ import { StatblockTokenResources, type StatblockTokenActions } from '../../react
 import type { StatblockMonster } from '../../react/components/statblock/statblockTypes';
 import { templateQuantityLook } from '../../resources/quantityLooks';
 import type { TokenVitals } from '../../services/statblockVitalsSync';
+import type { TokenRollContext } from '../../types/diceRollOrigin';
 import { cn } from '../../../utils/cn';
 import { AUTO_TEMPLATE_ID } from '../model/autoTemplate';
 import type { ResolvedStatblock } from '../model/resolvedTypes';
@@ -24,6 +25,10 @@ export interface LinkedSheetProps {
   variant: SheetVariant;
   /** Every token the statblock is shown for; their hit points roll from it, the first one's art replaces its image. */
   tokens: TokenVitals[];
+  /** The map view that owns the statblock, where it renders outside one; rolls go to that map. */
+  viewId?: string | undefined;
+  /** The view, scene and tokens the statblock was opened for; rolls for them name it. */
+  originContext?: TokenRollContext | undefined;
   /** The DM screen's controls for each token's resources, under the blocks. */
   tokenActions?: StatblockTokenActions | undefined;
   /** Offered where the note's template is missing; not offered without it. */
@@ -83,7 +88,7 @@ function useTokenContext(app: App, tokens: TokenVitals[], tokenActions: Statbloc
 }
 
 /** A statblock drawn with its template (or the auto template) through `StatblockSheet`. */
-export function LinkedSheet({ app, statblock, variant, tokens, tokenActions, onChooseTemplate, className }: LinkedSheetProps): React.JSX.Element {
+export function LinkedSheet({ app, statblock, variant, tokens, viewId, originContext, tokenActions, onChooseTemplate, className }: LinkedSheetProps): React.JSX.Element {
   const token = useTokenContext(app, tokens, tokenActions);
   // The DM screen draws as boxes and names what the template's Track blocks and Scores slots do.
   const look = useMemo(() => templateQuantityLook(statblock.template), [statblock.template]);
@@ -100,6 +105,8 @@ export function LinkedSheet({ app, statblock, variant, tokens, tokenActions, onC
         variant={variant}
         token={token}
         rollTokens={tokens}
+        viewId={viewId}
+        originContext={originContext}
         app={app}
         sourcePath={statblock.path}
         header={<TemplateNotice statblock={statblock} onChooseTemplate={onChooseTemplate} />}

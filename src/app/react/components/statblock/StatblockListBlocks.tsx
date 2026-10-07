@@ -6,6 +6,7 @@ import { SectionHeading, type BlockProps } from './StatblockBlocks';
 import { StatblockMarkdown } from '../../../statblocks/render/shared/StatblockMarkdown';
 import { EntryLine } from '../../../statblocks/render/shared/EntryLine';
 import { spellGroups } from '../../../statblocks/render/shared/spellGroups';
+import { t } from '../../../i18n';
 
 /** `saves` — a list of save/skill pairs. */
 export function SavesBlock({ item, monster, app, sourcePath }: BlockProps): React.JSX.Element | null {
@@ -109,7 +110,7 @@ export function SpellsBlock({ item, monster, app, sourcePath }: BlockProps): Rea
         <React.Fragment key={group.header}>
           {groupIndex === 0 && (
             <div className="atlas-sb-section-heading">
-              {item.heading ?? 'Spellcasting'}
+              {item.heading ?? t('statblock.spellcasting')}
               <div className="atlas-sb-rule" />
             </div>
           )}

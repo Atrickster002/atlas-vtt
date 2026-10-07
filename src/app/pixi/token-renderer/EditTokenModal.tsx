@@ -2,7 +2,8 @@ import React, { useState, useRef, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
 import type { App } from 'obsidian';
 import type { StoreApi } from 'zustand';
-import type { TokenUpdates, ViewAtlasState } from '../../storeFactory';
+import type { ViewAtlasState } from '../../storeFactory';
+import type { TokenUpdates } from '../../types/viewState';
 import type { TokenEntity } from '../../types';
 import { CloseButton } from '../../packages/components/primitives/CloseButton';
 import { Button } from '../../packages/components/primitives/button';
@@ -26,6 +27,7 @@ import { unitScaleOf } from '../../lighting/lightingUnits';
 import { maxLightRange } from '../../lighting/lightRanges';
 import { lightForm, lightFromForm, visionForm, visionFromForm, type LightForm, type VisionForm } from '../../lighting/tokenLighting';
 import { numberText } from '../../utils/numberInput';
+import { t } from '../../i18n';
 
 interface EditTokenValues {
   name: string;
@@ -106,7 +108,7 @@ function EditTokenModalInner({ initial, definitions, lighting, showLighting, sta
     <div className="atlas-modal-overlay" onClick={onClose}>
       <div className="atlas-modal atlas-edit-token-modal" onClick={(e) => e.stopPropagation()}>
         <div className="atlas-modal-header">
-          <h3>Edit Token</h3>
+          <h3>{t('editToken.title')}</h3>
           <CloseButton onClick={onClose} />
         </div>
 
@@ -131,8 +133,8 @@ function EditTokenModalInner({ initial, definitions, lighting, showLighting, sta
         </div>
 
         <div className="atlas-modal-footer">
-          <Button variant="outline" size="sm" onClick={onClose}>Cancel</Button>
-          <Button variant="default" size="sm" onClick={handleSave}>Save</Button>
+          <Button variant="outline" size="sm" onClick={onClose}>{t('common.cancel')}</Button>
+          <Button variant="default" size="sm" onClick={handleSave}>{t('common.save')}</Button>
         </div>
       </div>
     </div>

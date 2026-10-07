@@ -14,6 +14,7 @@ import { EditableField } from '../../../statblocks/render/shared/EditableField';
 import { hitPointsAttribute, namesHitPoints } from '../../../statblocks/render/shared/hitPoints';
 import { statblockImageSrc } from '../../../statblocks/render/shared/statblockImage';
 import { LabelTooltip } from '../../../packages/components/primitives/tooltip';
+import { t } from '../../../i18n';
 
 /** Values that map cleanly onto a single editable frontmatter entry. */
 function isEditableScalar(value: unknown): boolean {
@@ -186,7 +187,7 @@ export function TableBlock({ item, monster }: BlockProps): React.JSX.Element | n
                 path={[item.properties?.[0] ?? '', index]}
                 value={stringify(value)}
                 editable={isEditableScalar(value)}
-                label={headers[index] ?? `value ${index + 1}`}
+                label={headers[index] ?? t('statblock.valueN', { n: index + 1 })}
               >
                 {stringify(value)}
               </EditableField>
@@ -230,7 +231,7 @@ export function ImageBlock({
 
   return (
     <div className="atlas-sb-image">
-      <LabelTooltip label={src ? 'Change token for this statblock' : 'Assign a token to this statblock'}>
+      <LabelTooltip label={src ? t('statblock.changeToken') : t('statblock.assignTokenHint')}>
         <button
           type="button"
           className="atlas-sb-image-button"
@@ -239,7 +240,7 @@ export function ImageBlock({
           {src ? (
             <img src={src} alt={stringify(monster.name)} />
           ) : (
-            <span className="atlas-sb-image-placeholder">Assign token</span>
+            <span className="atlas-sb-image-placeholder">{t('statblock.assignToken')}</span>
           )}
         </button>
       </LabelTooltip>

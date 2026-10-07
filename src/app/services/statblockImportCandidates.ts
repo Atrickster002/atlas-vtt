@@ -6,6 +6,7 @@ import { tokenSizeFromStatblock } from '../pixi/token-renderer/tokenSizing';
 import { statblockSourceOf } from '../statblocks/notes/statblockSource';
 import { readStatblock } from '../statblocks/resolve/readStatblock';
 import { STATBLOCK_IMAGE_KEYS, type StatblockImageKey } from './statblockImageKeys';
+import { t } from '../i18n';
 
 export type StatblockImportStatus = 'ready' | 'imported' | 'missing-image' | 'remote-image' | 'conflict';
 export interface StatblockImportCandidate {
@@ -102,18 +103,18 @@ export async function statblockImportCandidate(app: App, file: TFile, lookup: St
   const statblock = await readStatblock(app, path, lookup.bestiary);
   const named = statblock?.fields.name;
   const name = typeof named === 'string' && named.trim() ? named : file.basename;
-  const row = { path, name, layoutName: statblock?.lookName ?? 'Unspecified' };
+  const row = { path, name, layoutName: statblock?.lookName ?? t('sbImport.unspecified') };
   const linked = lookup.tokens.get(path) ?? [];
-  if (linked.length > 1) return { ...row, status: 'conflict', detail: 'Multiple tokens already link to this note. Review their links first.' };
+  if (linked.length > 1) return { ...row, status: 'conflict', detail: t('sbCandidate.conflict') };
   const existing = linked[0];
-  if (existing) return { ...row, status: 'imported', detail: 'An Atlas token already links to this note.', imagePath: existing.imagePath, showRing: existing.showRing !== false };
-  if (!statblock) return { ...row, status: 'conflict', detail: 'The statblock could not be resolved. Check its name or note reference.' };
+  if (existing) return { ...row, status: 'imported', detail: t('sbCandidate.imported'), imagePath: existing.imagePath, showRing: existing.showRing !== false };
+  if (!statblock) return { ...row, status: 'conflict', detail: t('sbCandidate.unresolved') };
   const { fields, meanings } = statblock;
   const image = statblockImageField(fields)?.reference;
-  if (!image) return { ...row, status: 'missing-image', detail: 'Add an image to this statblock to create a token.' };
-  if (/^(?:[a-z][a-z0-9+.-]*:|\/\/)/i.test(image)) return { ...row, status: 'remote-image', detail: 'Save the image in your vault and link it from the statblock.' };
+  if (!image) return { ...row, status: 'missing-image', detail: t('sbCandidate.noImage') };
+  if (/^(?:[a-z][a-z0-9+.-]*:|\/\/)/i.test(image)) return { ...row, status: 'remote-image', detail: t('sbCandidate.remote') };
   const imageFile = localImage(app, image, path);
-  if (!imageFile) return { ...row, status: 'missing-image', detail: 'The linked image is missing or its format is unsupported.' };
+  if (!imageFile) return { ...row, status: 'missing-image', detail: t('sbCandidate.missingImage') };
   const size = tokenSizeFromStatblock(fields, meanings);
-  return { ...row, status: 'ready', detail: 'Ready to create a linked token.', imagePath: imageFile.path, ...(size !== undefined && { size }) };
+  return { ...row, status: 'ready', detail: t('sbCandidate.ready'), imagePath: imageFile.path, ...(size !== undefined && { size }) };
 }

@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
 import { ChevronDown } from 'lucide-react';
 import { cn } from '../../../../utils/cn';
-import type { DiceRollResult } from '../../../tools/DiceTool';
+import type { DiceRollResult } from '../../../types/diceTypes';
 import { TokenPortrait } from '../../../packages/components/shared/TokenPortrait';
 import { useDiceAvatar } from './useDiceAvatar';
+import type { RollSourcePresentation } from './diceSourcePresentation';
 import { DICE_TOAST_KNOT_SYMBOL_ID } from './diceToastOrnament';
 import { dieLabel } from '../../../tools/diceLabels';
+import { t } from '../../../i18n';
 
 export type ToastPhase = 'entering' | 'visible' | 'exiting';
 
@@ -13,18 +15,24 @@ const CORNERS = ['tl', 'tr', 'bl', 'br'] as const;
 
 interface DiceToastProps {
   result: DiceRollResult;
+  /** Who the roll names; unset looks it up as the GM's window does. */
+  presentation?: RollSourcePresentation | null | undefined;
   phase: ToastPhase;
   onDismiss: () => void;
 }
 
-export function DiceToast({ result, phase, onDismiss }: DiceToastProps): React.ReactElement {
+export function DiceToast({ result, presentation, phase, onDismiss }: DiceToastProps): React.ReactElement {
   const [isExpanded, setIsExpanded] = useState(false);
 
   const crit = result.crit;
   const source = result.source;
-  const sourceTokenName = source?.tokenName ?? 'Unknown';
-  const avatar = useDiceAvatar(source);
-  const hasSource = source?.type === 'statblock' && Boolean(source.tokenName);
+  const avatar = useDiceAvatar(source, presentation);
+  const presented = presentation !== undefined;
+  // A presented roll shows exactly its name, or none: no placeholder, initial or alt text stands in.
+  const sourceTokenName = presented ? presentation?.name ?? '' : source?.tokenName ?? t('dice.unknown');
+  const hasSource = presented
+    ? Boolean(avatar || presentation?.name)
+    : source?.type === 'statblock' && Boolean(source.tokenName);
 
   const handleToggleDetails = (e: React.MouseEvent): void => {
     e.stopPropagation();
@@ -69,7 +77,7 @@ export function DiceToast({ result, phase, onDismiss }: DiceToastProps): React.R
             </div>
           ))}
         <div className="atlas-dice-toast__content">
-          {hasSource && <span className="atlas-dice-toast__name">{sourceTokenName}</span>}
+          {hasSource && sourceTokenName && <span className="atlas-dice-toast__name">{sourceTokenName}</span>}
           {source?.abilityName && (
             <span className="atlas-dice-toast__ability">{source.abilityName}</span>
           )}
@@ -80,7 +88,7 @@ export function DiceToast({ result, phase, onDismiss }: DiceToastProps): React.R
         <ChevronDown
           className={cn('atlas-dice-toast__chevron', isExpanded && 'atlas-dice-toast__chevron--open')}
         />
-        <span className="atlas-dice-toast__details-label">Details</span>
+        <span className="atlas-dice-toast__details-label">{t('dice.details')}</span>
       </div>
         {isExpanded && (
           <div className="atlas-dice-toast__details">

@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { applyGridMark, createMarkBacking, type GridMarkColor, type UnlitGrid } from '../../../../grid/gridLightingMark';
 import { computeSight, SEES_ALL, type Sight } from '../../../../vision/sight';
 import { LightingEngine } from '../LightingEngine';
-import type { EngineScene } from '../types';
+import type { EngineLight, EngineScene } from '../types';
 import { createTestRenderer, readRgba, type PixelReader } from './gpuTestUtils';
 
 const SIZE = 256;
@@ -39,8 +39,11 @@ class TestGrid implements UnlitGrid {
   }
 }
 
-function scene(sight: Sight, ambient: number): EngineScene {
-  return { bounds: { width: SIZE, height: SIZE }, albedo: null, walls: [], lights: [], sight, sightRadius: 20, ambient };
+/** A bright light right over the grid's line. */
+const lamp: EngineLight = { key: 'l', x: LINE[0], y: LINE[1], bright: 80, dim: 160, flame: 10, color: [1, 1, 1], intensity: 1, animation: 'none' };
+
+function scene(sight: Sight, ambient: number, lights: EngineLight[]): EngineScene {
+  return { bounds: { width: SIZE, height: SIZE }, albedo: null, walls: [], lights, sight, sightRadius: 20, ambient };
 }
 
 /** A token's sight far from everything drawn: the players see nothing of it. */
@@ -52,14 +55,14 @@ describe('the grid under dynamic lighting', () => {
     while (cleanup.length) cleanup.pop()!();
   });
 
-  async function engineFor(sight: Sight, ambient: number, mode: 'gm' | 'player'): Promise<{ engine: LightingEngine; renderer: WebGLRenderer }> {
+  async function engineFor(sight: Sight, ambient: number, mode: 'gm' | 'player', lights: EngineLight[] = []): Promise<{ engine: LightingEngine; renderer: WebGLRenderer }> {
     const renderer = await createTestRenderer(SIZE);
     cleanup.push(() => renderer.destroy());
     const engine = new LightingEngine(renderer);
     cleanup.push(() => engine.destroy());
     engine.setEnabled(true);
     engine.setMode(mode);
-    engine.update(scene(sight, ambient));
+    engine.update(scene(sight, ambient, lights));
     engine.flush();
     return { engine, renderer };
   }
@@ -133,12 +136,22 @@ describe('the grid under dynamic lighting', () => {
     }
   });
 
-  it('turns a colour picked against the map white where the light is low', async () => {
+  it('draws a colour picked against the map white where the ambient light is low, whatever the lights', async () => {
     const black = { color: 0x000000, contrasting: true };
     const dark = await engineFor(SEES_ALL, 0, 'gm');
     expect(Math.min(...render(dark.engine, dark.renderer, new TestGrid(black))(...LINE))).toBeGreaterThan(245);
+    const lit = await engineFor(SEES_ALL, 0, 'gm', [lamp]);
+    expect(Math.min(...render(lit.engine, lit.renderer, new TestGrid(black))(...LINE))).toBeGreaterThan(245);
     const day = await engineFor(SEES_ALL, 1, 'gm');
     expect(Math.max(...render(day.engine, day.renderer, new TestGrid(black))(...LINE))).toBeLessThan(8);
+  });
+
+  it('keeps a colour of its own under a light', async () => {
+    const { engine, renderer } = await engineFor(SEES_ALL, 0, 'gm', [lamp]);
+    const [r, g, b] = render(engine, renderer, new TestGrid({ color: RED, contrasting: false }))(...LINE);
+    expect(r).toBeGreaterThan(245);
+    expect(g).toBeLessThan(8);
+    expect(b).toBeLessThan(8);
   });
 
   it('lets the grid draw itself once lighting is off', async () => {

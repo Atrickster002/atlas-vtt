@@ -1,12 +1,13 @@
+import './src/app/plugin/host/initializeHost';
 import { Plugin } from 'obsidian';
 // Tailwind first, so the custom SCSS can override it.
 import './styles/index.css';
 import './styles/main.scss';
 import { AtlasView, ATLAS_VIEW_TYPE } from './src/app/atlas-view';
 import { LocalPlayerView, LOCAL_PLAYER_VIEW_TYPE } from './src/app/local-player-view';
-import { PlayerView, PLAYER_VIEW_TYPE } from './src/app/player-view';
 import { DashboardView, DASHBOARD_VIEW_TYPE } from './src/app/dashboard-view';
 import { initializeAtlasStorage } from './src/app/atlasStorageInit';
+import { t } from './src/app/i18n';
 import { CreatureIndex } from './src/app/creatures/CreatureIndex';
 import { TemplateLibrary } from './src/app/statblocks/library/TemplateLibrary';
 import { registerStatblockFence } from './src/app/statblocks/render/statblockFence';
@@ -46,6 +47,7 @@ import { registerAtlasLeafSync } from './src/app/plugin/atlasLeaves';
 import { EXTENSION_ATLASMAP } from './src/app/utils/sceneFiles';
 import { registerColorSwatchIcons } from './src/app/plugin/colorSwatchIcons';
 import { HeaderAutocompleteSuggest } from './src/app/plugin/HeaderAutocompleteSuggest';
+import { registerAtlasLinks } from './src/app/links/registerAtlasLinks';
 import { registerCommands } from './src/app/plugin/registerCommands';
 import { registerPlayerWindowReloadCleanup } from './src/app/plugin/playerWindowReload';
 import { registerReturnToAtlasOnClose } from './src/app/plugin/returnToAtlasOnClose';
@@ -78,7 +80,7 @@ export default class AtlasVTTPlugin extends Plugin {
     const errorLog = new AtlasErrorLog();
     this.register(errorLog.attach());
     const issueReporter = new IssueReporter(this.app, this.manifest, errorLog);
-    this.addCommand({ id: 'report-issue', name: 'Report an issue…', callback: () => issueReporter.open() });
+    this.addCommand({ id: 'report-issue', name: t('command.reportIssue'), callback: () => issueReporter.open() });
 
     // Capture this before migrations/services can create Atlas's storage folder.
     const existingInstallation = this.app.vault.adapter.exists('atlas-vtt');
@@ -121,7 +123,7 @@ export default class AtlasVTTPlugin extends Plugin {
       releaseBuild: __ATLAS_RELEASE_BUILD__,
     });
     this.changelogService = changelogService;
-    this.addCommand({ id: 'view-changelog', name: 'View changelog', callback: () => changelogService.open() });
+    this.addCommand({ id: 'view-changelog', name: t('command.viewChangelog'), callback: () => changelogService.open() });
 
     this.globalAssetManager = new GlobalAssetManagerService(this.app);
     this.imageDisplayService = new ImageDisplayService(this.app);
@@ -135,6 +137,7 @@ export default class AtlasVTTPlugin extends Plugin {
       supportSettingsSection(issueReporter),
     ]));
     this.registerEditorSuggest(new HeaderAutocompleteSuggest(this.app));
+    registerAtlasLinks(this);
     registerAtlasLeafSync(this);
     registerReturnToAtlasOnClose(this);
     registerPlayerWindowReloadCleanup(this);
@@ -208,7 +211,6 @@ export default class AtlasVTTPlugin extends Plugin {
     this.registerExtensions([EXTENSION_ATLASMAP], ATLAS_VIEW_TYPE);
     this.registerView(ATLAS_VIEW_TYPE, (leaf) => new AtlasView(leaf, this));
     this.registerView(LOCAL_PLAYER_VIEW_TYPE, (leaf) => new LocalPlayerView(leaf));
-    this.registerView(PLAYER_VIEW_TYPE, (leaf) => new PlayerView(leaf, this));
     this.registerView(DASHBOARD_VIEW_TYPE, (leaf) => new DashboardView(leaf, this));
     registerLootQueryView(this);
     this.registerView(TEMPLATE_EDITOR_VIEW_TYPE, (leaf) => new TemplateEditorView(leaf));

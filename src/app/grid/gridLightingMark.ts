@@ -3,7 +3,7 @@ import { Graphics, type Container } from 'pixi.js';
 /** The colour the lighting composite paints a marked grid in. */
 export interface GridMarkColor {
   color: number;
-  /** The colour was picked to contrast with the map, lit: the composite turns it white where the light is low. */
+  /** The colour was picked to contrast with the map, lit: the composite draws it white where the ambient light is low, whatever the lights. */
   contrasting: boolean;
 }
 

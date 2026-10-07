@@ -1,3 +1,4 @@
+import { EventEmitter } from 'events';
 import type { App } from 'obsidian';
 import type { LocalPlayerView } from '../../src/app/local-player-view';
 import { describe, expect, test, vi, beforeEach } from 'vitest';
@@ -63,6 +64,7 @@ interface FakeView {
   view: any;
   canvas: HTMLCanvasElement;
   withPlayerSafeFrame: ReturnType<typeof vi.fn>;
+  playerRollTokens: ReturnType<typeof vi.fn>;
   atlasStore: ReturnType<typeof createStore<SceneState>>;
 }
 
@@ -72,18 +74,21 @@ function createFakeView(app?: Application): FakeView {
   const atlasStore = createStore<SceneState>(() => ({ isMapLoading: false, mapLoaded: true, mapPath: null }));
   const canvas = document.createElement('canvas');
   const withPlayerSafeFrame = vi.fn((capture: () => void) => capture());
-  const renderer = { getAppInstance: () => (app ? Object.assign(app, { canvas }) : { canvas }), withPlayerSafeFrame };
+  const playerRollTokens = vi.fn(() => new Map());
+  const diceEvents = new EventEmitter();
+  const renderer = { getAppInstance: () => (app ? Object.assign(app, { canvas }) : { canvas }), withPlayerSafeFrame, playerRollTokens };
   const view = {
+    viewId: 'view-1',
     tabMetaStore,
     atlasStore,
-    serviceManager: { getRendererService: () => ({ getRenderer: () => renderer, getViewport: () => undefined }) },
+    serviceManager: { getEventBus: () => diceEvents, getRendererService: () => ({ getRenderer: () => renderer, getViewport: () => undefined }) },
     switchToTab: vi.fn(async (tabId: string) => {
       tabMetaStore.getState().setActiveTab(tabId);
     }),
     register: vi.fn(),
   };
   Object.setPrototypeOf(view, AtlasView.prototype);
-  return { view, canvas, withPlayerSafeFrame, atlasStore };
+  return { view, canvas, withPlayerSafeFrame, playerRollTokens, atlasStore };
 }
 
 /** Matches the frame source the presenter builds for `canvas`. */
@@ -122,6 +127,7 @@ describe('PlayerWindowPresenter', () => {
 
     // Frames are captured through the renderer so DM-only layers stay out of the player view.
     const source: PlayerFrameSource = serviceMock.openPlayerWindow.mock.calls[0][0];
+    expect(source.diceEvents).toBe(view.serviceManager.getEventBus());
     const capture = vi.fn();
     const settings = new SettingsService({} as any).getLocalPlayerViewSettings();
     source.withPlayerSafeFrame(capture, settings);
@@ -159,6 +165,31 @@ describe('PlayerWindowPresenter', () => {
     ticker.update(64);
     expect(listener).toHaveBeenCalledTimes(1);
     scheduler.destroy();
+  });
+
+  test('binds the rendered source to its view and scene, which rolls are named from', async () => {
+    const { view, atlasStore, playerRollTokens } = createFakeView();
+    const dungeon = view.tabMetaStore.getState().addTab('maps/dungeon.md', 'Dungeon');
+    atlasStore.setState({ mapPath: 'maps/dungeon.md' });
+
+    await presentTabInPlayerWindow({} as any, view, dungeon);
+    const source: PlayerFrameSource = serviceMock.openPlayerWindow.mock.calls[0][0];
+    expect(source.rollSources).toMatchObject({ viewId: 'view-1', mapPath: 'maps/dungeon.md' });
+    source.rollSources!.shownTokens(['wolf']);
+    expect(playerRollTokens).toHaveBeenCalledWith('maps/dungeon.md', ['wolf']);
+
+    // The scene is the one rendered: another loading into the same store does not take its place
+    atlasStore.setState({ mapPath: 'maps/tavern.md' });
+    source.rollSources!.shownTokens();
+    expect(playerRollTokens).toHaveBeenLastCalledWith('maps/dungeon.md', undefined);
+  });
+
+  test('offers no answers about rolls for a canvas that shows no scene file', async () => {
+    const { view } = createFakeView();
+    const tavern = view.tabMetaStore.getState().addTab('maps/tavern.md', 'Tavern');
+    await presentTabInPlayerWindow({} as any, view, tavern);
+    const source: PlayerFrameSource = serviceMock.openPlayerWindow.mock.calls[0][0];
+    expect(source.rollSources).toBeUndefined();
   });
 
   test('does not present a tab whose scene failed to load', async () => {

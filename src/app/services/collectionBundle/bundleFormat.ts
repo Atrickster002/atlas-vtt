@@ -1,8 +1,9 @@
 import type { Asset, CollectionMetadata } from '../AssetService';
 import { isLibraryOwnFile } from '../library/libraryPaths';
-import { isRecord } from '../assetMetadataGuards';
+import { isRecord } from '../../utils/guards';
 import { LEGACY_SNAPSHOTS_DIR } from '../../snapshots/snapshotPaths';
 import { STATBLOCK_IMAGE_KEYS, type StatblockImageKey } from '../statblockImageKeys';
+import { t } from '../../i18n';
 
 /** Bumped when the zip layout or manifest shape changes: the newest format this version reads and writes. */
 export const BUNDLE_FORMAT = 8;
@@ -146,9 +147,9 @@ const isBundleRelease = (value: unknown): value is BundleRelease =>
 
 /** Why a bundle cannot be imported, or null when its manifest is sound. */
 export function manifestProblem(value: unknown): string | null {
-  if (!isRecord(value) || typeof value.format !== 'number') return 'This file is not an Atlas collection export.';
-  if (value.format > BUNDLE_FORMAT) return 'This collection was exported by a newer version of Atlas. Update Atlas to import it.';
-  if (value.format < OLDEST_BUNDLE_FORMAT) return 'This collection export is too old to import.';
+  if (!isRecord(value) || typeof value.format !== 'number') return t('bundle.notExport');
+  if (value.format > BUNDLE_FORMAT) return t('bundle.tooNew');
+  if (value.format < OLDEST_BUNDLE_FORMAT) return t('bundle.tooOld');
   const { collection, assets, files, release } = value;
   const isSound = typeof value.exportedAt === 'number'
     && isRecord(collection)
@@ -163,9 +164,9 @@ export function manifestProblem(value: unknown): string | null {
       && (asset.tags === undefined || (Array.isArray(asset.tags) && asset.tags.every((tag) => typeof tag === 'string'))))
     && Array.isArray(files)
     && files.every(isBundleFile);
-  if (!isSound) return 'This collection export is damaged.';
+  if (!isSound) return t('bundle.damaged');
   const { coverPath } = collection;
-  if (coverPath !== undefined && !files.some((file) => file.role === 'cover' && file.vaultPath === coverPath)) return 'This collection export is damaged.';
+  if (coverPath !== undefined && !files.some((file) => file.role === 'cover' && file.vaultPath === coverPath)) return t('bundle.damaged');
   const sceneIds = new Set(assets.flatMap((asset) => (isRecord(asset) && asset.type === 'scene' && typeof asset.id === 'string' ? [asset.id] : [])));
   // An earlier version's snapshot is placed by its scene, so it must name one of the bundle's scenes.
   const isPlaceable = (file: BundleFile): boolean => isSafeBundlePath(file.vaultPath)
@@ -173,6 +174,6 @@ export function manifestProblem(value: unknown): string | null {
   const unsafe = files.find((file) => !isPlaceable(file)
     || isLibraryOwnFile(file.vaultPath)
     || (file.statblockImage && !isSafeBundlePath(file.statblockImage.path)));
-  if (unsafe) return `This collection export contains a file Atlas will not write: ${unsafe.vaultPath}`;
+  if (unsafe) return t('bundle.unsafe', { path: unsafe.vaultPath });
   return null;
 }

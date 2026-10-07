@@ -1,5 +1,5 @@
 import type { StatblockMonster } from '../react/components/statblock/statblockTypes';
-import { isRecord } from '../services/assetMetadataGuards';
+import { isRecord } from '../utils/guards';
 import { normalizedKey, parseResourceValue } from './resourceFields';
 import { quantityKey, type QuantityLook } from './quantityLooks';
 import type { ResourceDefinition, ResourceHolder, ResourceValue } from './resourceTypes';

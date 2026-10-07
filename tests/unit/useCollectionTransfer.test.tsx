@@ -95,7 +95,7 @@ it('says how many statblocks the import switched to the copies of their template
   await vi.waitFor(() => expect(hook.result.current.transfer?.step).toBe('import-review'));
   await act(async () => hook.result.current.confirmImport({ switchReusedNotes: true }));
   expect(hook.result.current.transfer).toMatchObject({
-    message: expect.stringContaining('1 item kept as you had them. 2 statblocks now use the template copies. Replaced files'),
+    message: expect.stringContaining('1 item kept as you had them. Replaced files were backed up to atlas-vtt/.atlas-data/backups/source/2026-09-23 19-30-05. 2 statblocks now use the template copies.'),
   });
 });
 

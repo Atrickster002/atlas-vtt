@@ -239,6 +239,10 @@ export function normalizePath(path: string): string {
   return path.replace(/\\/g, '/').replace(/\/+/g, '/');
 }
 
+export function getLanguage(): string {
+  return 'en';
+}
+
 export function base64ToArrayBuffer(base64: string): ArrayBuffer {
   return Uint8Array.from(atob(base64), (char) => char.charCodeAt(0)).buffer;
 }
@@ -254,6 +258,10 @@ export class Component {
   onunload(): void {}
   register(cb: () => void): void {
     this.cleanups.push(cb);
+  }
+  registerDomEvent<K extends keyof HTMLElementEventMap>(el: HTMLElement, type: K, callback: (event: HTMLElementEventMap[K]) => unknown): void {
+    el.addEventListener(type, callback);
+    this.register(() => el.removeEventListener(type, callback));
   }
   addChild<T>(child: T): T {
     return child;
@@ -321,6 +329,14 @@ export class Modal {
   close(): void {}
   onOpen(): void {}
   onClose(): void {}
+}
+
+/** Obsidian's editor suggester; Obsidian sets `context` when one of its suggestions is chosen. */
+export abstract class EditorSuggest<T> {
+  context: { editor: unknown; file: unknown; start: unknown; end: unknown; query: string } | null = null;
+  /** Never read: present so a subclass's item type is used. */
+  protected readonly item?: T;
+  constructor(public app: any) {}
 }
 
 /** Obsidian's prompt of suggestions: a modal with a search field; the tests choose items directly. */

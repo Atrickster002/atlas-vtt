@@ -10,7 +10,7 @@ import { exportedSettings, folderBelow } from './bundleSettings';
 import { reportFileStep, type BundleProgressListener } from './bundleProgress';
 import { coverCandidates, coverFileFor, currentCover, type CoverCandidate, type CoverChoice, type CurrentCover } from './collectionCover';
 import { CollectionReferenceCollector, withStatblockTemplates, type MissingReference } from './collectionReferences';
-import { sha256 } from './hashing';
+import { sha256 } from '../../utils/hashing';
 import { readInstallRecord, type InstalledPreset, type InstalledTemplate } from './installRecord';
 import { withLinkedFiles } from './noteLinks';
 import { remapPaths } from './pathRemap';
@@ -18,6 +18,7 @@ import { originNames, recordRelease } from './releaseRecord';
 import { flushTemplateEdits, packTemplateFile } from '../../statblocks/bundles/bundleTemplates';
 import { systemPresetsOf } from '../mapCollectionRules';
 import { readVaultBinary, vaultFileSize } from '../../utils/hiddenVaultFiles';
+import { t } from '../../i18n';
 
 /**
  * The kinds of content Atlas has today, as the asset manager shows them. Older
@@ -184,7 +185,7 @@ export async function exportCollectionBundle(
   if (selected.files.some((file) => file.role === TEMPLATE_ROLE)) await flushTemplateEdits(app);
   if (selected.files.some((file) => file.role === PRESET_ROLE)) await flushPresetEdits(app);
   for (const [index, file] of selected.files.entries()) {
-    reportFileStep(onProgress, 'Adding', index, selected.files.length, 0, 0.6);
+    reportFileStep(onProgress, 'bundle.step.adding', index, selected.files.length, 0, 0.6);
     const content = await readVaultBinary(app, file.vaultPath);
     if (!content) continue;
     // Templates travel without code (§6.5); a file that is no template stays behind.
@@ -223,7 +224,7 @@ export async function exportCollectionBundle(
   zip.file(BUNDLE_MANIFEST, JSON.stringify(manifest, null, 2));
 
   const blob = await zip.generateAsync({ type: 'blob', streamFiles: true }, ({ percent }) => {
-    onProgress({ message: 'Compressing…', fraction: 0.6 + (percent / 100) * 0.4 });
+    onProgress({ message: t('bundle.compressing'), fraction: 0.6 + (percent / 100) * 0.4 });
   });
   return {
     blob,

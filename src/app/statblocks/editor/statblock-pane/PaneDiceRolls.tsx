@@ -4,8 +4,10 @@ import { AtlasUIContext, type AtlasUIContextValue } from '../../../react/root/At
 import { DiceRollDisplay, type DiceRollSubscription } from '../../../react/components/dice/DiceRollDisplay';
 import { diceRulesOfCollection } from '../../../services/mapDiceRules';
 import type { OffMapRolls } from '../../../services/statblockRolls';
-import { rollDiceFormula, type DiceRollResult } from '../../../tools/DiceTool';
+import { rollDiceFormula } from '../../../tools/DiceTool';
+import type { DiceRollResult } from '../../../types/diceTypes';
 import { OffMapRollsContext } from '../../render/shared/offMapRolls';
+import { offlineDiceInputs } from '../../../services/offlineDiceInputs';
 
 type RollListener = (result: DiceRollResult, options: { muted: boolean }) => void;
 interface ShownRoll {
@@ -40,7 +42,10 @@ export function PaneDiceRolls({ app, collectionId, children }: PaneDiceRollsProp
   });
 
   const offMap = useMemo((): OffMapRolls => ({
-    roll: (formula, source) => ({ ...rollDiceFormula(formula, diceRulesOfCollection(app, collection.current)), source }),
+    roll: (formula, source) => {
+      const result = rollDiceFormula(formula, diceRulesOfCollection(app, collection.current), offlineDiceInputs());
+      return result && { ...result, source };
+    },
     show: (result, muted) => {
       if (listeners.current.size === 0) {
         waiting.current.push({ result, muted });

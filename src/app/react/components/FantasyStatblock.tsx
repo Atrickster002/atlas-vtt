@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { TFile, type App } from 'obsidian';
 import {
   findCreatureForNotePath,
@@ -17,8 +17,13 @@ import { useTokenPortrait } from '../../statblocks/render/shared/tokenPortrait';
 import { StatblockTokenResources, type StatblockTokenActions } from './statblock/StatblockTokenResources';
 import { useBestiaryRevision } from '../hooks/useBestiaryRevision';
 import { StatblockSkeleton } from './statblock/StatblockSkeleton';
+import { t } from '../../i18n';
+import { AtlasUIContext } from '../root/AtlasUIContext';
+import type { TokenRollContext } from '../../types/diceRollOrigin';
 
 interface FantasyStatblockProps {
+  /** Owning map when this block renders in a separate React root. */
+  viewId?: string | undefined;
   /** Vault path of the note backing the Fantasy Statblocks creature */
   notePath: string;
   /** The note's text when it is not in the vault, e.g. inside a collection being imported; `notePath` then names it. */
@@ -27,6 +32,8 @@ interface FantasyStatblockProps {
   app: App;
   /** Tokens whose resources drive the statblock's vitals — one block per token */
   tokens?: TokenVitals[];
+  /** The view, scene and tokens the statblock was opened for, taken with `tokens`; rolls for them name it. */
+  originContext?: TokenRollContext | undefined;
   className?: string;
   tokenActions?: StatblockTokenActions;
 }
@@ -46,10 +53,15 @@ export function FantasyStatblock({
   tokens = [],
   className,
   tokenActions,
+  viewId: suppliedViewId,
+  originContext,
 }: FantasyStatblockProps): React.JSX.Element {
+  const context = useContext(AtlasUIContext);
+  const viewId = suppliedViewId ?? context?.view?.viewId;
   const ref = useRef<HTMLDivElement>(null);
-  const tokensRef = useRef<TokenVitals[]>(tokens);
-  tokensRef.current = tokens;
+  // The tokens and the scene they were taken from stay together for the click that reads them.
+  const rollsRef = useRef({ tokens, originContext });
+  rollsRef.current = { tokens, originContext };
 
   const key = useMemo(() => vitalsKey(tokens), [tokens]);
 
@@ -132,6 +144,8 @@ export function FantasyStatblock({
     notePath,
     tokens,
     name: typeof monster?.name === 'string' ? monster.name : undefined,
+    viewId,
+    originContext,
   });
   const containerRef = useCallback((el: HTMLDivElement | null): (() => void) | undefined => {
     ref.current = el;
@@ -141,7 +155,7 @@ export function FantasyStatblock({
   // Mirror the tokens' resources into any vitals track the layout renders.
   useEffect(() => {
     if (ref.current && !tokenActions) {
-      syncStatblockVitals(ref.current, tokensRef.current);
+      syncStatblockVitals(ref.current, rollsRef.current.tokens);
     }
   }, [key, monster, tokenActions]);
 
@@ -150,7 +164,7 @@ export function FantasyStatblock({
   if (!api) {
     return (
       <div className="atlas-statblock-missing-hint">
-        Install and enable the Fantasy Statblocks plugin to preview statblocks.
+        {t('statblock.pluginMissing')}
       </div>
     );
   }

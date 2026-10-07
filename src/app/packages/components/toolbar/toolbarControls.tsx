@@ -13,6 +13,7 @@ import { TextToolGroup } from "./TextToolGroup"
 import { drawToolFace, fogToolFace, lightingToolFace, measureToolFace, moveToolFace, textToolFace, type Tool, type ToolFace } from "./toolFaces"
 import { buttonItem, toolGroupItem, type ToolbarItemBody } from "./toolbarItems"
 import type { ToolbarContext } from "./toolbarContext"
+import { t } from "../../../i18n"
 
 /** A tool without family members: pinned while in use. */
 function toolButtonItem(ctx: ToolbarContext, tool: Tool, icon: ToolFace["icon"], label: string, shortcut: string): ToolbarItemBody {
@@ -28,8 +29,8 @@ export const TOOLBAR_CONTROL_ITEMS = {
   text: ctx => toolGroupItem(ctx, 'text', textToolFace(ctx.activeTool), <TextToolGroup {...ctx.groupControls('text')} />),
   measure: ctx => toolGroupItem(ctx, 'measure', measureToolFace(ctx.activeTool), <MeasureToolGroup {...ctx.groupControls('measure')} />),
   wall: ctx => toolGroupItem(ctx, 'wall', lightingToolFace(ctx.activeTool), <LightingToolGroup {...ctx.groupControls('wall')} />),
-  pin: ctx => toolButtonItem(ctx, "note-pin", MapPin, "Note Pin Tool", ctx.hotkeyLabel('pin')),
-  audio: ctx => toolButtonItem(ctx, "audio", Volume2, "Ambient Sound", ctx.hotkeyLabel('audio')),
+  pin: ctx => toolButtonItem(ctx, "note-pin", MapPin, t('toolbar.notePin'), ctx.hotkeyLabel('pin')),
+  audio: ctx => toolButtonItem(ctx, "audio", Volume2, t('toolbar.ambientSound'), ctx.hotkeyLabel('audio')),
   dice: ({ dice, hotkeyLabel }) => ({
     kind: 'button',
     // The dice tray hangs from this button.
@@ -37,26 +38,26 @@ export const TOOLBAR_CONTROL_ITEMS = {
     active: dice.open,
     element: (
       <div ref={dice.buttonRef} className="relative flex items-center">
-        <ToolButton icon={Dices} label="Roll Dice" shortcut={hotkeyLabel('diceTray')} isActive={dice.open} onClick={dice.toggle} />
+        <ToolButton icon={Dices} label={t('toolbar.rollDice')} shortcut={hotkeyLabel('diceTray')} isActive={dice.open} onClick={dice.toggle} />
         {dice.tool && (
           <DiceDropdownMenu diceTool={dice.tool} isOpen={dice.open} onToggle={dice.toggle} triggerRef={dice.buttonRef} />
         )}
       </div>
     ),
-    menuEntry: { icon: Dices, label: "Roll Dice", shortcut: hotkeyLabel('diceTray'), isActive: dice.open, onSelect: dice.toggle },
+    menuEntry: { icon: Dices, label: t('toolbar.rollDice'), shortcut: hotkeyLabel('diceTray'), isActive: dice.open, onSelect: dice.toggle },
   }),
   // Windows that float on their own do not pin.
   loot: ({ loot, hotkeyLabel }) => buttonItem({
-    icon: CoinIcon, label: "Loot Roller", shortcut: hotkeyLabel('lootRoller'),
+    icon: CoinIcon, label: t('toolbar.lootRoller'), shortcut: hotkeyLabel('lootRoller'),
     isActive: loot.open, pinned: false, onClick: () => loot.setOpen(!loot.open),
   }),
   assets: ({ assets, hotkeyLabel }) => buttonItem({
-    icon: ImageIcon, label: "Asset Manager", shortcut: hotkeyLabel('assets'),
+    icon: ImageIcon, label: t('toolbar.assetManager'), shortcut: hotkeyLabel('assets'),
     isActive: assets.open, pinned: false, onClick: assets.toggle,
   }),
   // The way into the toolbar editor: always pinned, so it never moves into "More tools".
   palette: ({ palette, hotkeyLabel }) => buttonItem({
-    icon: Command, label: "Command Palette", shortcut: hotkeyLabel('palette'),
+    icon: Command, label: t('toolbar.commandPalette'), shortcut: hotkeyLabel('palette'),
     isActive: palette.open, pinned: true, onClick: () => palette.setOpen(!palette.open),
   }),
 } satisfies Record<ToolbarControlId, (ctx: ToolbarContext) => ToolbarItemBody>

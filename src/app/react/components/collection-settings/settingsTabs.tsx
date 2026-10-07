@@ -2,6 +2,7 @@ import React from 'react';
 import { Dice5, Dices, Eye, Gauge, Grid3X3, LayoutGrid, ListFilter, ScrollText, ShieldAlert } from 'lucide-react';
 import type { ExperimentalFeatureId } from '../../../experimental/experimentalFeatures';
 import { CoinIcon } from '../CoinIcon';
+import { t } from '../../../i18n';
 
 export type CollectionSettingsTab =
   'system' | 'dice' | 'grid' | 'vision' | 'widgets' | 'conditions' | 'resources' | 'statblocks' | 'creatureFilters' | 'loot';
@@ -15,16 +16,16 @@ export interface SettingsTabDef {
 }
 
 const TABS: readonly SettingsTabDef[] = [
-  { id: 'system', label: 'Game System', icon: <Dices size={16} /> },
+  { id: 'system', label: t('csm.tab.system'), icon: <Dices size={16} /> },
   { id: 'dice', label: 'Dice', icon: <Dice5 size={16} /> },
-  { id: 'grid', label: 'Grid & Measure', icon: <Grid3X3 size={16} /> },
-  { id: 'vision', label: 'Vision', icon: <Eye size={16} />, feature: 'dynamicLighting' },
-  { id: 'widgets', label: 'Default Widgets', icon: <LayoutGrid size={16} /> },
-  { id: 'conditions', label: 'Conditions', icon: <ShieldAlert size={16} /> },
+  { id: 'grid', label: t('csm.tab.grid'), icon: <Grid3X3 size={16} /> },
+  { id: 'vision', label: t('csm.tab.vision'), icon: <Eye size={16} />, feature: 'dynamicLighting' },
+  { id: 'widgets', label: t('csm.tab.widgets'), icon: <LayoutGrid size={16} /> },
+  { id: 'conditions', label: t('csm.tab.conditions'), icon: <ShieldAlert size={16} /> },
   { id: 'resources', label: 'Resources', icon: <Gauge size={16} /> },
   { id: 'statblocks', label: 'Statblocks', icon: <ScrollText size={16} />, feature: 'statblockEditor' },
-  { id: 'creatureFilters', label: 'Creature Filters', icon: <ListFilter size={16} /> },
-  { id: 'loot', label: 'Loot', icon: <CoinIcon size={16} /> },
+  { id: 'creatureFilters', label: t('csm.tab.creatureFilters'), icon: <ListFilter size={16} /> },
+  { id: 'loot', label: t('csm.tab.loot'), icon: <CoinIcon size={16} /> },
 ];
 
 /** Which experimental features are switched on, by id. */

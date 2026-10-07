@@ -16,6 +16,7 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { runInBackground } from './utils/backgroundTask';
+import { t } from './i18n';
 import { mapThumbnailPath } from './utils/dataFileMigration';
 import { byLastOpened, SceneOpenHistory, type SceneRecency } from './services/sceneOpenHistory';
 
@@ -111,17 +112,17 @@ const Dashboard: React.FC<DashboardProps> = ({
     const hours = Math.floor(diff / (1000 * 60 * 60));
     const days = Math.floor(diff / (1000 * 60 * 60 * 24));
 
-    if (minutes < 1) return 'Just now';
-    if (minutes < 60) return `${minutes}m ago`;
-    if (hours < 24) return `${hours}h ago`;
-    return `${days}d ago`;
+    if (minutes < 1) return t('dashboard.justNow');
+    if (minutes < 60) return t('dashboard.minutesAgo', { count: minutes });
+    if (hours < 24) return t('dashboard.hoursAgo', { count: hours });
+    return t('dashboard.daysAgo', { count: days });
   };
 
   const heroScene = recentScenes[0] ?? null;
 
   const actionTiles = [
-    { key: 'create', icon: Plus, title: 'Create Scene', desc: 'Browse maps & build a scene', onClick: onCreateMap },
-    { key: 'assets', icon: FolderOpen, title: 'Asset Manager', desc: 'Your scenes & assets', onClick: onOpenAssetManager },
+    { key: 'create', icon: Plus, title: t('dashboard.createScene'), desc: t('dashboard.createSceneDesc'), onClick: onCreateMap },
+    { key: 'assets', icon: FolderOpen, title: t('dashboard.assets'), desc: t('dashboard.assetsDesc'), onClick: onOpenAssetManager },
   ] as const;
 
   return (
@@ -133,7 +134,7 @@ const Dashboard: React.FC<DashboardProps> = ({
             <h1 className="dashboard-title">
               Atlas<span>VTT</span>
             </h1>
-            <p className="dashboard-tagline">Gather your party and venture forth.</p>
+            <p className="dashboard-tagline">{t('dashboard.tagline')}</p>
           </div>
 
           <div className="dashboard-columns">
@@ -153,7 +154,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                   </div>
                   <div className="hero-card-body">
                     <span className="hero-card-eyebrow">
-                      <Clock size={13} /> Continue your adventure
+                      <Clock size={13} /> {t('dashboard.continue')}
                     </span>
                     <span className="hero-card-title">{heroScene.name}</span>
                     <span className="hero-card-meta">
@@ -174,8 +175,8 @@ const Dashboard: React.FC<DashboardProps> = ({
                     <span className="hero-card-eyebrow">
                       <Sparkles size={13} /> Begin
                     </span>
-                    <span className="hero-card-title">Create your first scene</span>
-                    <span className="hero-card-meta">Choose a map and start your campaign</span>
+                    <span className="hero-card-title">{t('dashboard.firstScene')}</span>
+                    <span className="hero-card-meta">{t('dashboard.firstSceneMeta')}</span>
                   </div>
                   <span className="hero-card-go">
                     <Plus size={18} />
@@ -200,11 +201,11 @@ const Dashboard: React.FC<DashboardProps> = ({
 
             <aside className="dashboard-recent">
               <div className="dashboard-panel">
-                <div className="panel-heading">Recent Scenes</div>
+                <div className="panel-heading">{t('dashboard.recent')}</div>
                 {isLoading ? (
                   <div className="recent-loading">
                     <Loader2 size={20} className="spinner" />
-                    <span>Loading scenes&hellip;</span>
+                    <span>{t('dashboard.loadingScenes')}</span>
                   </div>
                 ) : recentScenes.length > 0 ? (
                   <div className="recent-scenes">
@@ -236,7 +237,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                 ) : (
                   <div className="recent-empty">
                     <FileText size={28} className="empty-icon" />
-                    <p>No scenes yet. Create one to begin your journey.</p>
+                    <p>{t('dashboard.noScenes')}</p>
                   </div>
                 )}
               </div>
@@ -263,7 +264,7 @@ export class DashboardView extends ItemView {
   }
 
   getDisplayText(): string {
-    return "Atlas dashboard";
+    return t('dashboard.title');
   }
 
   getIcon(): string {
@@ -289,7 +290,7 @@ export class DashboardView extends ItemView {
       );
     } catch (error) {
       console.error('[DashboardView] Error during React rendering:', error);
-      containerEl.createDiv({ text: 'Dashboard loading failed. Please check console for errors.' });
+      containerEl.createDiv({ text: t('dashboard.failed') });
     }
   }
 
@@ -304,7 +305,7 @@ export class DashboardView extends ItemView {
     try {
       const file = this.app.vault.getAbstractFileByPath(filePath);
       if (!file) {
-        new Notice(`Scene file not found: ${filePath}`);
+        new Notice(t('view.sceneNotFound', { path: filePath }));
         return;
       }
 
@@ -316,7 +317,7 @@ export class DashboardView extends ItemView {
       this.app.workspace.setActiveLeaf(leaf);
     } catch (error) {
       console.error('Error opening scene:', error);
-      new Notice('Error opening scene');
+      new Notice(t('dashboard.openFailed'));
     }
   }
 
@@ -325,7 +326,7 @@ export class DashboardView extends ItemView {
     const maps = await assetService.getAssets(undefined, 'map');
 
     if (maps.length === 0) {
-      new Notice('Add a map image first, then create a scene from it.');
+      new Notice(t('dashboard.addMapFirst'));
     }
 
     const globalAM = new GlobalAssetManagerService(this.app);

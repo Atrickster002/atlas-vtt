@@ -5,6 +5,7 @@ import { ToolButton } from '../../packages/components/primitives/ToolButton';
 import { TooltipProvider } from '../../packages/components/primitives/tooltip';
 import { UndoBarSlot } from '../../packages/components/toolbar/UndoBarSlot';
 import { useUndoRedo } from '../hooks/useUndoRedo';
+import { t } from '../../i18n';
 
 interface UndoRedoControlsProps {
   viewId?: string;
@@ -19,8 +20,8 @@ export const UndoRedoControls: React.FC<UndoRedoControlsProps> = ({ viewId }): R
   return (
     <TooltipProvider delayDuration={300}>
       <UndoBarSlot>
-        <ToolButton icon={Undo2} label="Undo" shortcut={hotkeyLabel('undo')} isActive={false} disabled={!canUndo} onClick={undo} />
-        <ToolButton icon={Redo2} label="Redo" shortcut={hotkeyLabel('redo')} isActive={false} disabled={!canRedo} onClick={redo} />
+        <ToolButton icon={Undo2} label={t('history.undo')} shortcut={hotkeyLabel('undo')} isActive={false} disabled={!canUndo} onClick={undo} />
+        <ToolButton icon={Redo2} label={t('history.redo')} shortcut={hotkeyLabel('redo')} isActive={false} disabled={!canRedo} onClick={redo} />
       </UndoBarSlot>
     </TooltipProvider>
   );

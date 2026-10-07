@@ -37,6 +37,7 @@ import { SettingsTabContent } from './collection-settings/SettingsTabContent';
 import { settingsTabs, type CollectionSettingsTab, type FeatureSwitches } from './collection-settings/settingsTabs';
 import { CloseButton } from '../../packages/components/primitives/CloseButton';
 import { dialogOverlayMotion, useDialogWindowVariants } from '../../packages/components/primitives/dialogMotion';
+import { t } from '../../i18n';
 
 export type { CollectionSettingsTab } from './collection-settings/settingsTabs';
 
@@ -175,10 +176,10 @@ export function CollectionSettingsModal({
         {/* Header */}
         <div className="atlas-collection-settings-header">
           <h3 id="atlas-csm-title">
-            {collectionName} Settings
+            {t('csm.title', { name: collectionName })}
             {releaseLine && <span className="atlas-collection-settings-release">{releaseLine}</span>}
           </h3>
-          <CloseButton onClick={onClose} aria-label="Close settings" />
+          <CloseButton onClick={onClose} aria-label={t('csm.close')} />
         </div>
 
         {/* Body — sidebar + content */}
@@ -220,10 +221,10 @@ export function CollectionSettingsModal({
         {/* Footer */}
         <div className="atlas-collection-settings-footer">
           <Button variant="outline" className="atlas-csm-cancel" onClick={onClose}>
-            Cancel
+            {t('common.cancel')}
           </Button>
           <Button variant="default" className="atlas-csm-save" disabled={!canSave} onClick={() => { void save(); }}>
-            Save
+            {t('common.save')}
           </Button>
         </div>
       </motion.div>

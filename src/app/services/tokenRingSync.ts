@@ -10,7 +10,8 @@ import type { App } from 'obsidian';
 import { ATLAS_VIEW_TYPE } from '../atlasViewType';
 import { tokenFromFile, tokenToFile } from '../resources/resourceFileFormat';
 import { runUntracked } from '../stores/history';
-import type { TokenUpdates, ViewAtlasStore } from '../storeFactory';
+import type { ViewAtlasStore } from '../storeFactory';
+import type { TokenUpdates } from '../types/viewState';
 import { AssetService, type TokenAsset } from './AssetService';
 import { isPersistedMapEnvelope } from './MapPersistence';
 

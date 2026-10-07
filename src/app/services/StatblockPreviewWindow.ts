@@ -7,6 +7,7 @@ import { toTokenVitals, type TokenVitals } from './statblockVitalsSync';
 import type { NotePreviewUIManager, PreviewAnchorRef, TokenPreviewAnchor } from './NotePreviewUIManager';
 import './statblock-preview-window.scss';
 import { previewEdgeGaps } from '../react/components/statblock/previewEdgeGap';
+import type { TokenRollContext } from '../types/diceRollOrigin';
 
 /** A statblock note that is not in the vault, such as a note of a collection being imported. */
 export interface OutsideNote {
@@ -38,6 +39,9 @@ export class StatblockPreviewWindow {
     initialPos?: { x: number; y: number },
     /** The note when it is not in the vault, e.g. inside a collection being imported. */
     outsideNote?: OutsideNote,
+    viewId?: string,
+    /** The view, scene and token a token on a map was hovered in; none for a token in a list. */
+    originContext?: TokenRollContext,
   ) {
     this.notePath = notePath;
     this.originatingPin = 'type' in originatingToken ? originatingToken : null;
@@ -56,6 +60,8 @@ export class StatblockPreviewWindow {
     this.reactRoot = createRoot(this.element);
     this.reactRoot.render(
       React.createElement(LinkedStatblock, {
+        viewId,
+        originContext,
         app: this.app,
         path: notePath,
         noteText: outsideNote?.text,
