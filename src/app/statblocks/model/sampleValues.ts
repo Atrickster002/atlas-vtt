@@ -1,3 +1,4 @@
+import { pickText } from '../values/choicePicks';
 import { sampleEntryTexts, sampleNumber, samplePairs, sampleText } from './sampleHints';
 import type { FieldKey, FieldValue, StatblockTemplate, TemplateField } from './templateTypes';
 
@@ -42,8 +43,16 @@ function sampleDice(field: TemplateField): string {
   return /hit dice|\bhd\b|hit_dice/i.test(`${field.key} ${field.label}`) ? SAMPLE_HIT_DICE : SAMPLE_DICE;
 }
 
+/** The number each sample pick of a numbered choice gets: one a distance or a count reads naturally as. */
+const SAMPLE_PICK_NUMBERS = [60, 30];
+
 function sampleChoice(field: TemplateField): FieldValue {
   const options = field.options ?? [];
+  if (field.several || field.numbered) {
+    const shown = (field.several ? options.slice(0, 2) : options.slice(0, 1))
+      .map((option, index) => ({ option, number: field.numbered ? SAMPLE_PICK_NUMBERS[index] ?? null : null, unit: field.unit?.trim() ?? '' }));
+    return shown.length > 0 ? shown.map(pickText).join(', ') : sampleText(field);
+  }
   if (field.meaning === 'size' && options.includes('Medium')) return 'Medium';
   return options[0] ?? sampleText(field);
 }

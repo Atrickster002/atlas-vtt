@@ -6,7 +6,8 @@
  */
 
 import { parseRating } from '../../creatures/creatureValues';
-import type { FieldType, FieldValue, TemplateField } from '../model/templateTypes';
+import type { FieldType, FieldValue } from '../model/templateTypes';
+import { choiceText, readChoice, unreadProblem, type ChoiceShape } from './choicePicks';
 import { isDiceNotation, parseDiceNotation } from './diceNotation';
 import { isWholeNumberText, parseNumberText } from './numberText';
 import { splitListText } from './listText';
@@ -19,7 +20,7 @@ export type CoercionResult =
   | { ok: false; raw: string; problem: string };
 
 /** What a choice field accepts; other types ignore it. */
-export type CoercionConstraints = Pick<TemplateField, 'options' | 'open'>;
+export type CoercionConstraints = ChoiceShape;
 
 type Coercer = (text: string, input: string, constraints: CoercionConstraints | undefined) => CoercionResult;
 
@@ -49,7 +50,15 @@ function coerceDice(text: string, input: string): CoercionResult {
   return refused(input, problem);
 }
 
+/** Several options, or each with a number: the picks the text names, written as the field writes them. */
+function coercePicks(text: string, input: string, constraints: CoercionConstraints): CoercionResult {
+  const read = readChoice(constraints, text);
+  const problem = (constraints.options ?? []).length > 0 ? unreadProblem(constraints, read.unread) : null;
+  return problem === null ? kept(choiceText(constraints, read)) : refused(input, problem);
+}
+
 function coerceChoice(text: string, input: string, constraints: CoercionConstraints | undefined): CoercionResult {
+  if (constraints && (constraints.several || constraints.numbered)) return coercePicks(text, input, constraints);
   const options = constraints?.options ?? [];
   const wanted = text.toLowerCase();
   const option = options.find((candidate) => candidate.trim().toLowerCase() === wanted);

@@ -50,6 +50,7 @@ export const TEMPLATE_KEYS = keyOrder<keyof StatblockTemplate>({
 
 export const FIELD_KEYS = keyOrder<keyof TemplateField>({
   key: true, label: true, type: true, meaning: true, formerKeys: true, unit: true, options: true, open: true,
+  several: true, numbered: true,
   slots: true, slotKeys: true, entry: true, prompt: true,
 });
 

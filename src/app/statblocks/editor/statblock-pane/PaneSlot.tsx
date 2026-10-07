@@ -1,6 +1,8 @@
 import React, { useRef } from 'react';
 import type { TemplateBlock, TemplateField } from '../../model/templateTypes';
 import { blockDisplay } from '../../render/blockDisplay';
+import { picksChoice } from '../../values/choicePicks';
+import { ChoicePicksInput } from './ChoicePicksInput';
 import { ChoiceValueInput } from './ChoiceValueInput';
 import { ConflictChip } from './ConflictChip';
 import { DerivedValue, patternInWords } from './DerivedValue';
@@ -18,9 +20,11 @@ function FieldInput({ field, autoFocus }: { field: TemplateField; autoFocus: boo
   switch (field.type) {
     case 'list': return <ListValueInput field={field} autoFocus={autoFocus} />;
     case 'markdown': case 'spells': return <MarkdownValueInput field={field} autoFocus={autoFocus} />;
-    case 'choice': return field.options?.length
-      ? <ChoiceValueInput field={field} autoFocus={autoFocus} />
-      : <TextValueInput field={field} autoFocus={autoFocus} />;
+    case 'choice':
+      if (picksChoice(field)) return <ChoicePicksInput field={field} autoFocus={autoFocus} />;
+      return field.options?.length
+        ? <ChoiceValueInput field={field} autoFocus={autoFocus} />
+        : <TextValueInput field={field} autoFocus={autoFocus} />;
     default: return <TextValueInput field={field} autoFocus={autoFocus} />;
   }
 }

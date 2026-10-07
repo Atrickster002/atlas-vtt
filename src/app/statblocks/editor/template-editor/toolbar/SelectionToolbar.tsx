@@ -8,11 +8,11 @@ import { useKeepInView } from '../../../../packages/components/primitives/useKee
 import { observeResize } from '../../../../utils/observeResize';
 import { cn } from '../../../../../utils/cn';
 import { blockSpec } from '../../../model/blockCatalogue';
-import type { TemplateBlock } from '../../../model/templateTypes';
+import type { FieldType, TemplateBlock } from '../../../model/templateTypes';
 import { CHROME_ATTRIBUTE } from '../../interaction/chrome';
 import { PANEL_SCROLL_SELECTOR } from '../../panel-frame/panelSelectors';
 import { blockFrame } from '../editorChrome';
-import { blockGlyph } from '../editorGlyphs';
+import { FIELD_TYPE_LABELS, blockGlyph, fieldTypeGlyph } from '../editorGlyphs';
 import type { ChromeStyle } from '../LabelEditor';
 import { shortcutText } from '../shortcutText';
 import { HIDDEN_TOOLBAR, placeBelow, type ToolbarPlacement } from './toolbarBelow';
@@ -34,6 +34,8 @@ export interface SelectionToolbarProps {
   /** Set for the Name or the token picture, which every statblock keeps: what the chip calls it. It neither turns into another block nor goes. */
   coreLabel: string | null;
   onTurnInto: (chip: HTMLElement) => void;
+  /** Set where the block's property may hold another kind of value: the kind in use, and the menu that changes it. */
+  valueKind?: { type: FieldType; onOpen: (button: HTMLElement) => void } | undefined;
   onSettings?: (() => void) | undefined;
   onAddBelow: () => void;
   onDelete: () => void;
@@ -54,10 +56,22 @@ function measure(stage: HTMLElement, layer: HTMLElement, blockId: string, toolba
   });
 }
 
+/** Kind of value: the glyph of the kind the property holds; it opens the kinds to choose from. */
+function ValueKindButton({ type, onOpen }: { type: FieldType; onOpen: (button: HTMLElement) => void }): React.JSX.Element {
+  const ref = useRef<HTMLSpanElement>(null);
+  return (
+    <span ref={ref} className="atlas-te-toolbar__kind">
+      <ToolButton icon={fieldTypeGlyph(type)} label={`Kind of value: ${FIELD_TYPE_LABELS[type]}`} isActive={false}
+        onClick={() => { if (ref.current) onOpen(ref.current); }} />
+    </span>
+  );
+}
+
 /**
- * The selected block's toolbar (spec §4.2): exactly five controls, below the
+ * The selected block's toolbar (spec §4.2): five controls, below the
  * block (above it only without room), in a layer over the editor, kept in
- * view. The type chip turns the block into another, Settings opens its
+ * view, and a sixth, Kind of value, on blocks whose property may hold another
+ * kind (choices among them). The type chip turns the block into another, Settings opens its
  * settings (a dot while any further setting is in use), then Add below,
  * Delete and More, which opens the block's menu. It stays shown and takes the
  * pointer over its whole capsule for as long as its block is selected, since
@@ -126,6 +140,7 @@ export function SelectionToolbar(props: SelectionToolbarProps): React.JSX.Elemen
           <span className="atlas-te-toolbar__type-name">{chipLabel}</span>
         </Button>
       </LabelTooltip>
+      {props.valueKind && <ValueKindButton {...props.valueKind} />}
       {props.onSettings && (
         <span className="atlas-te-toolbar__settings" data-in-use={props.settingsInUse || undefined}>
           <ToolButton icon={Settings2} label="Settings" shortcut={shortcutText(['Shift'], '⏎')} isActive={false} onClick={props.onSettings} />

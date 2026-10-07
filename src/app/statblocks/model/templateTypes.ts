@@ -69,11 +69,15 @@ export interface TemplateField {
   meaning?: FieldMeaning;
   /** Keys this field had before renames, newest first; read when `key` is absent. */
   formerKeys?: FieldKey[];
-  /** number: written after the value ("ft."). */
+  /** number, and choice with `numbered`: written after the number ("ft."). */
   unit?: string;
   /** choice: offered values; `open` accepts others too. */
   options?: string[];
   open?: boolean;
+  /** choice: several of the options at once, written as one line in the order of `options` ("Common, Elvish"). */
+  several?: boolean;
+  /** choice: each pick carries a number, written after it with `unit` ("darkvision 60 ft."). */
+  numbered?: boolean;
   /** scores: one label per slot, in stored order. */
   slots?: string[];
   /** scores: the key of each slot where a Scores column reads a pairs field ("strength"). Default: the labels in lower case. */

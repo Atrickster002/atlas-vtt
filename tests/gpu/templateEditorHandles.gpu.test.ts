@@ -124,7 +124,7 @@ describe('handles and menus in the template editor', () => {
     expect(document.activeElement?.getAttribute('data-block-id')).toBe('stat-hp1');
   });
 
-  it('sets the toolbar of five controls below the selected block, never over it', async () => {
+  it('sets the toolbar below the selected block, never over it: five controls, and Kind of value on a value', async () => {
     mount(new FakeSession(sampleTemplate()), 1280);
     await frames(2);
     const ac = centreOf(frame('stat-ac1'));
@@ -133,12 +133,13 @@ describe('handles and menus in the template editor', () => {
       await frames(3);
     });
     const toolbar = document.querySelector<HTMLElement>('.atlas-te-toolbar')!;
-    expect(toolbar.querySelectorAll('button')).toHaveLength(5);
+    expect(toolbar.querySelectorAll('button')).toHaveLength(6);
     const box = toolbar.getBoundingClientRect();
     const block = frame('stat-ac1').getBoundingClientRect();
     expect(box.top).toBeGreaterThanOrEqual(block.bottom + 8);
     expect(intersects(box, block)).toBe(false);
-    expect(box.width).toBeLessThanOrEqual(220);
+    // A compact capsule: 220 px held its five controls, the sixth adds one button.
+    expect(box.width).toBeLessThanOrEqual(240);
   });
 
   it('keeps the toolbar shown and in reach while the pointer crosses the line below on its way there', async () => {

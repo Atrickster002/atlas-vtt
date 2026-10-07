@@ -129,3 +129,19 @@ describe('field values', () => {
     expect(writtenFields(template)).toEqual([field]);
   });
 });
+
+describe('choices', () => {
+  it('keep their options and whether they take several, each with a number, through a write and a read', () => {
+    const senses = { key: 'senses', label: 'Senses', type: 'choice', options: ['darkvision', 'blindsight'], several: true, numbered: true, unit: 'ft.' };
+    const { template, problems } = read([senses]);
+    expect(problems).toEqual([]);
+    expect(template.fields).toEqual([senses]);
+    expect(writtenFields(template)).toEqual([senses]);
+  });
+
+  it('read a switch that is no boolean as unset, and say so', () => {
+    const { template, problems } = read([{ key: 'senses', label: 'Senses', type: 'choice', several: 'yes' }]);
+    expect(template.fields[0]?.several).toBeUndefined();
+    expect(problems).toEqual([expect.stringContaining('several')]);
+  });
+});

@@ -174,11 +174,14 @@ describe('TemplateEditor', () => {
     expect(session.steps).toBe(0);
   });
 
-  it('acts from the block toolbar: five controls, Delete and Add below among them', () => {
+  it('acts from the block toolbar: five controls, a sixth for the kind of a value, Delete and Add below among them', () => {
     const { session, frame } = setup();
+    fireEvent.click(frame('title001'));
+    expect(within(screen.getByRole('toolbar', { name: /^Name toolbar/ })).getAllByRole('button')).toHaveLength(5);
     fireEvent.click(frame('stat-ac1'));
     const toolbar = screen.getByRole('toolbar', { name: 'Value toolbar' });
-    expect(within(toolbar).getAllByRole('button')).toHaveLength(5);
+    expect(within(toolbar).getAllByRole('button')).toHaveLength(6);
+    expect(within(toolbar).getByRole('button', { name: 'Kind of value: Number' })).toBeTruthy();
     fireEvent.click(within(toolbar).getByText('Delete').closest('button')!);
     expect(shape(session.template.layout.blocks)).toContain('section1(stat-hp1)');
     expect(session.steps).toBe(1);

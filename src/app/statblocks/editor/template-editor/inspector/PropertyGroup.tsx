@@ -10,7 +10,8 @@ import { EntryParts } from './EntryParts';
 import { propertySummary } from './groupSummaries';
 import type { GroupProps } from './groupProps';
 import { InspectorGroup } from './InspectorGroup';
-import { SelectSetting, SettingNote, SwitchSetting, TextSetting } from './InspectorControls';
+import { ChoiceSettings } from './ChoiceSettings';
+import { SelectSetting, SettingNote, TextSetting } from './InspectorControls';
 import { KeySetting, MeaningSetting } from './propertyControls';
 
 function statblocks(count: number): string {
@@ -46,16 +47,7 @@ export function PropertyGroup({ block, template, session, readOnly }: GroupProps
           disabled={readOnly}
         />
       )}
-      {field.type === 'choice' && (
-        <>
-          <TextSetting label="Choices" value={textFromList(field.options)} placeholder="Small, Medium, Large" session={session} disabled={readOnly}
-            onText={(text) => {
-              const options = listFromText(text);
-              if (!sameList(options, field.options)) edit({ options: options.length > 0 ? options : undefined });
-            }} />
-          <SwitchSetting label="Allow other values" value={field.open === true} onChange={(open) => edit({ open: open || undefined })} disabled={readOnly} />
-        </>
-      )}
+      {field.type === 'choice' && <ChoiceSettings field={field} session={session} readOnly={readOnly} edit={edit} />}
       {field.type === 'scores' && (
         <TextSetting label="Labels" value={textFromList(field.slots)} placeholder="Body, Mind, Spirit" session={session} disabled={readOnly}
           onText={(text) => {

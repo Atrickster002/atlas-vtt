@@ -45,11 +45,13 @@ export interface TextSettingProps {
   code?: boolean | undefined;
   /** Says what is wrong with the text as typed, under the input. */
   check?: ((text: string) => string | null) | undefined;
+  /** Names the input for a control elsewhere that brings focus to it (`data-focus-key`). */
+  focusKey?: string | undefined;
 }
 
 /** A text the template holds; typing it is one undo step. */
 export function TextSetting(props: TextSettingProps): React.JSX.Element {
-  const { label, value, session, onText, disabled, mode, multiline = false, wide = multiline, placeholder, code = false, check } = props;
+  const { label, value, session, onText, disabled, mode, multiline = false, wide = multiline, placeholder, code = false, check, focusKey } = props;
   const text = useGestureText({ value, session, onText, mode, multiline });
   const problem = check?.(text.value) ?? null;
   const problemId = useId();
@@ -61,6 +63,7 @@ export function TextSetting(props: TextSettingProps): React.JSX.Element {
     className: cn('atlas-te-input', code && 'atlas-te-input--code'),
     'aria-invalid': problem ? true : undefined,
     'aria-describedby': problem ? problemId : undefined,
+    'data-focus-key': focusKey,
   };
   return (
     <Setting label={label} wide={wide}>

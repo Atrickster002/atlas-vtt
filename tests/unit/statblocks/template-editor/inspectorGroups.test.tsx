@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, screen, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { MotionGlobalConfig } from 'framer-motion';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { findBlock } from '../../../../src/app/statblocks/model/treeQueries';
@@ -84,6 +84,11 @@ describe('the Settings panel in layers (spec §10)', () => {
     typeAndLeave(within(group('Property')).getByRole('textbox', { name: 'Choices' }), 'Light, Heavy');
     fireEvent.click(within(group('Property')).getByRole('switch', { name: 'Allow other values' }));
     expect(fieldOf(session, 'ac')).toMatchObject({ options: ['Light', 'Heavy'], open: true });
+    fireEvent.click(within(group('Property')).getByRole('switch', { name: 'Pick several' }));
+    fireEvent.click(within(group('Property')).getByRole('switch', { name: 'Each with a number' }));
+    typeAndLeave(within(group('Property')).getByRole('textbox', { name: 'Unit' }), 'ft.');
+    expect(fieldOf(session, 'ac')).toMatchObject({ several: true, numbered: true, unit: 'ft.' });
+    expect(group('Property').textContent).toContain('A statblock reads “Light 60 ft., Heavy 30 ft.”.');
     typeAndLeave(within(group('Property')).getByRole('textbox', { name: 'Prompt when empty' }), 'Add armour');
     expect(fieldOf(session, 'ac')).toMatchObject({ prompt: 'Add armour' });
     choose(group('Property'), 'Atlas reads it as', 'Armor');
@@ -236,6 +241,32 @@ describe('the Settings panel in layers (spec §10)', () => {
     const { frame } = mountEditor(session);
     fireEvent.click(frame('script01'));
     expect(within(group('Basics')).queryByRole('button', { name: 'Replace with Track blocks' })).toBeNull();
+  });
+});
+
+describe('Kind of value on the toolbar', () => {
+  it('turns a value into a choice and opens Settings at its choices, then takes several with a number each', async () => {
+    const { session, frame } = mountEditor(new FakeSession(sampleTemplate()), { menus: true });
+    fireEvent.click(frame('stat-ac1'));
+    const kind = screen.getByRole('button', { name: 'Kind of value: Number' });
+    act(() => { fireEvent.click(kind); });
+    act(() => { fireEvent.click(screen.getByRole('menuitemcheckbox', { name: 'One of a list' })); });
+    expect(fieldOf(session, 'ac')).toMatchObject({ type: 'choice' });
+    await waitFor(() => expect(document.activeElement).toBe(within(group('Property')).getByRole('textbox', { name: 'Choices' })));
+    typeAndLeave(within(group('Property')).getByRole('textbox', { name: 'Choices' }), 'darkvision, blindsight');
+
+    act(() => { fireEvent.click(screen.getByRole('button', { name: 'Kind of value: One of a list' })); });
+    act(() => { fireEvent.click(screen.getByRole('menuitemcheckbox', { name: 'Pick several' })); });
+    act(() => { fireEvent.click(screen.getByRole('button', { name: 'Kind of value: One of a list' })); });
+    act(() => { fireEvent.click(screen.getByRole('menuitemcheckbox', { name: 'Each with a number' })); });
+    expect(fieldOf(session, 'ac')).toMatchObject({ options: ['darkvision', 'blindsight'], several: true, numbered: true });
+  });
+
+  it('is not offered on the Name, whose kind never changes', () => {
+    const { frame } = mountEditor(new FakeSession(sampleTemplate()), { menus: true });
+    fireEvent.click(frame('title001'));
+    expect(document.querySelector('.atlas-te-toolbar')).not.toBeNull();
+    expect(screen.queryByRole('button', { name: /^Kind of value/ })).toBeNull();
   });
 });
 

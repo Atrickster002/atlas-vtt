@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { App } from 'obsidian';
 import { chooseCollection, linkingCollectionIds, resolveCollectionContext, roleNameFor } from '../../../../src/app/statblocks/editor/collectionContext';
-import { choiceOptions } from '../../../../src/app/statblocks/editor/statblock-pane/ChoiceValueInput';
+import { choiceOptions } from '../../../../src/app/statblocks/editor/statblock-pane/ChoiceOptionList';
 import { singular } from '../../../../src/app/statblocks/editor/statblock-pane/entryNoun';
 import { keysOutsideTemplate, templateGroups, unshownKeys } from '../../../../src/app/statblocks/editor/statblock-pane/templateChoices';
 import { builtInEntry } from '../../../../src/app/statblocks/library/templateFiles';

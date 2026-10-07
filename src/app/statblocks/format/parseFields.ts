@@ -55,6 +55,8 @@ export function parseField(raw: unknown, index: number, ctx: FieldContext): Temp
     ...r.opt('unit', asString, TEXT),
     ...r.optList('options', asString, TEXT),
     ...r.opt('open', asBoolean, 'true or false'),
+    ...r.opt('several', asBoolean, 'true or false'),
+    ...r.opt('numbered', asBoolean, 'true or false'),
     ...r.optList('slots', asString, TEXT),
     ...r.optList('slotKeys', asString, TEXT),
     ...r.opt('entry', (value) => readEntryShape(value, r.where, ctx.problems), 'an object'),

@@ -42,6 +42,8 @@ export function useFieldDraft(field: TemplateField, inputRef: RefObject<TextFiel
   }, [autoFocus, inputRef]);
 
   const commit = useCallback(async (text: string = draftRef.current): Promise<void> => {
+    // What was committed is the draft now, also before the input renders it: an input that goes at once writes nothing more.
+    draftRef.current = text;
     if (text === written.current.text) return;
     const base = written.current.read;
     const next: FieldValue | undefined = valueForText(field, text);

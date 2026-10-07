@@ -179,6 +179,16 @@
     }
   }
 
+  // The dropdown's mark: the list opens with the input, as a select's does.
+  .atlas-sb-pane-choice__chevron {
+    flex: none;
+    align-self: center;
+    width: $icon-xs;
+    height: $icon-xs;
+    color: var(--text-faint);
+    pointer-events: none;
+  }
+
   // Rows of the context-menu look, without the select's `!important` resets: they are no buttons.
   .atlas-sb-pane-option {
     @include atlas-flex-row($spacing-s);

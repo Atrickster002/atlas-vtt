@@ -11,9 +11,13 @@ import { turnSelectionInto } from './blockActions';
 import { clipOf } from './blockClipboard';
 import { moveIntoContainer } from './blockMoves';
 import { blockFrame } from './editorChrome';
+import { useTemplateEditor } from './editorContext';
+import { CHOICES_FOCUS_KEY } from './inspector/ChoiceSettings';
 import { moreOptionsInUse } from './inspector/groupSummaries';
+import { revealInspectorGroup } from './inspector/InspectorGroup';
 import { blockMenu } from './menus/blockMenu';
 import { emptyCardMenu, newerTemplateMenu } from './menus/otherMenus';
+import { kindChangeableField, valueKindMenu } from './menus/valueKindMenu';
 import { primaryOf, type BlockSelection } from './selection';
 import type { SessionSnapshot } from './sessionTypes';
 import { addTabTo, splitListIntoTabs } from './tabActions';
@@ -49,11 +53,12 @@ const NATIVE_MENU = 'input, textarea, [contenteditable="true"]';
 /**
  * The template editor's chrome over the card (spec §3–§5): the gutter handle
  * of the pointed-at block (drag it by the handle only; click for its menu),
- * the five-control toolbar below the selected block, and one menu per block
+ * the toolbar below the selected block, and one menu per block
  * by the handle, a right-click (which selects first), the toolbar's More and
  * Shift+F10.
  */
 export function TeSurfaceChrome({ layer, stage, snapshot, state, target, menuOpen, onMenuOpenChange, onSettings }: TeSurfaceChromeProps): React.JSX.Element {
+  const { app } = useTemplateEditor();
   const store = useMemo(() => hoverStoreOf(stage), [stage]);
   const stageRef = useMemo(() => ({ current: stage }), [stage]);
   const editable = !snapshot.readOnly;
@@ -141,6 +146,11 @@ export function TeSurfaceChrome({ layer, stage, snapshot, state, target, menuOpe
   const primary = primaryOf(state.selection);
   const block = primary ? findBlock(snapshot.template.layout.blocks, primary)?.block : undefined;
   const frameOf = (id: string): HTMLElement | null => blockFrame(stage, id);
+  const kindField = block && state.selection.length === 1 ? kindChangeableField(snapshot.template, block) : null;
+  const editChoices = (): void => {
+    revealInspectorGroup(app, 'property', CHOICES_FOCUS_KEY);
+    onSettings?.();
+  };
 
   return (
     <>
@@ -166,6 +176,10 @@ export function TeSurfaceChrome({ layer, stage, snapshot, state, target, menuOpe
             const turn = menuOf(primary).find((row) => row.kind === 'submenu' && row.id === 'turn-into');
             if (turn?.kind === 'submenu') open(turn.children, { from: chip }, frameOf(primary), frameOf(primary));
           }}
+          valueKind={block && kindField ? {
+            type: kindField.type,
+            onOpen: (button) => open(valueKindMenu({ session: target.session, block, field: kindField, editable, editChoices }), { from: button }, frameOf(block.id), frameOf(block.id)),
+          } : undefined}
           onSettings={onSettings}
           onAddBelow={() => state.openInsert({ after: primary })}
           onDelete={() => runBlockCommand(target, 'delete')}

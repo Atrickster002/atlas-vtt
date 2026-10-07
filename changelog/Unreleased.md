@@ -4,6 +4,8 @@
 
 - Statblock templates for 5E (2014 and 2024), Cairn, Draw Steel and Fate, and general ones for creatures, NPCs and hazards
 
+- A template can limit a value to a list of choices, picked from a dropdown: one, several, or several each with a number, like senses or movement
+
 ## Improved
 
 - Fog paint and erase strokes now use consistent shapes.

@@ -6,6 +6,7 @@
  */
 
 import type { FieldType, FieldValue, TemplateField } from '../model/templateTypes';
+import { picksChoice } from './choicePicks';
 import { isEmptyValue } from './emptyValue';
 import { isPlainRecord } from './fieldValueOf';
 import { coerce } from './valueCoercion';
@@ -18,7 +19,7 @@ export interface ValueMisfit {
   problem: string;
 }
 
-type FitField = Pick<TemplateField, 'type' | 'options' | 'open'>;
+type FitField = Pick<TemplateField, 'type' | 'options' | 'open' | 'several' | 'numbered' | 'unit'>;
 
 /** What each type holds, for the label and the sentence. */
 const TYPE_NOUNS: Readonly<Record<FieldType, { noun: string; label: string }>> = {
@@ -98,5 +99,7 @@ export function valueMisfit(field: FitField, value: FieldValue | undefined): Val
 
 function misfitProblem(field: FitField, value: FieldValue): string | null {
   if (CHECKED_TEXT.has(field.type) && isScalar(value)) return textProblem(field, valueText(value));
+  // Several picks may be stored as a list, or as a record of options and numbers.
+  if (picksChoice(field) && !holdsRecords(value)) return textProblem(field, valueText(value));
   return SHAPE_FITS[field.type](value) ? null : `${shortQuote(value)} isn't ${TYPE_NOUNS[field.type].noun}.`;
 }
