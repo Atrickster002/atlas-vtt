@@ -2,6 +2,7 @@ import { ratingText, scalarText, statblockRating, type StatblockRating } from '.
 import type { FantasyStatblocksCreature } from '../../../../services/FantasyStatblocksService';
 import { NO_MEANINGS, type FieldMeanings } from '../../../../statblocks/resolve/fieldMeanings';
 import { t } from '../../../../i18n';
+import { valueText } from '../../../../creatures/statblockValues';
 
 type StatblockFields = Readonly<Record<string, unknown>>;
 
@@ -55,8 +56,10 @@ export function sortedEntries(entries: Iterable<StatblockEntry>): StatblockEntry
 /** Only note-backed creatures can be linked (the link is a note path), sorted by name. */
 export function statblockEntries(creatures: readonly FantasyStatblocksCreature[]): StatblockEntry[] {
   return sortedEntries(creatures
-    .filter((creature): creature is FantasyStatblocksCreature & { path: string } => Boolean(creature.name && creature.path))
-    .map((creature) => statblockEntry(creature.path, creature, NO_MEANINGS, creature.name)));
+    .filter((creature): creature is FantasyStatblocksCreature & { path: string } => typeof creature.path === 'string' && creature.path !== '')
+    // The bestiary's own entries come as Fantasy Statblocks parsed them: a name may be a number
+    .map((creature) => statblockEntry(creature.path, creature, NO_MEANINGS, valueText(creature.name, { joiner: ', ', parens: false })))
+    .filter((entry) => entry.name !== ''));
 }
 
 /**

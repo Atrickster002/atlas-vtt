@@ -31,6 +31,7 @@ import { useCollectionCreatures } from './collection-settings/useCollectionCreat
 import { useRoleTemplates } from './collection-settings/useRoleTemplates';
 import { isCompleteCreatureFilter } from '../../creatures/creatureFilterDefinitions';
 import { areRangeBandsValid } from '../../grid/measurementFormat';
+import { isUnitDistance } from '../../grid/unitDistance';
 
 import { SettingsContent } from './collection-settings/SettingsContent';
 import { SettingsTabContent } from './collection-settings/SettingsTabContent';
@@ -119,6 +120,7 @@ export function CollectionSettingsModal({
   // What the collection's game system gives it; an edit that ends up there again stores nothing.
   const systemSenses = collectionSenses({ systemPresetId: draft.systemPresetId }, systemPresets.presets);
   const canSave = areRangeBandsValid(draft.gridDefaults.abstractRangeBands)
+    && isUnitDistance(draft.gridDefaults.unitDistance)
     && isValidDiceRules(dice)
     && isValidInitiativeRules(initiative)
     && sensesAreValid(senses)

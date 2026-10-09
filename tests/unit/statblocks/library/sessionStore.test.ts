@@ -7,7 +7,7 @@ import { insertBlock, moveBlock, removeBlock } from '../../../../src/app/statblo
 import type { StatblockTemplate } from '../../../../src/app/statblocks/model/templateTypes';
 import {
   abandonHistoryTransaction, beginHistoryTransaction, endHistoryTransaction, getHistoryStore, runUntracked,
-} from '../../../../src/app/stores/history';
+} from '../../../../src/app/statblocks/library/sessionHistory';
 import { MARSH_CREATURE } from '../../../fixtures/statblockTemplateFixtures';
 
 const withLayout = (edit: (template: StatblockTemplate) => StatblockTemplate['layout']) =>

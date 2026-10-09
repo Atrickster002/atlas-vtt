@@ -82,7 +82,7 @@ export function SubheadingBlock({
 }: BlockProps): React.JSX.Element | null {
   const parts = (item.properties ?? [])
     .filter((property) => property in monster)
-    .map((property) => stringify(monster[property], 0, ', ', false));
+    .map((property) => stringify(monster[property], ', ', false));
 
   if (!parts.length) return null;
 

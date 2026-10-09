@@ -6,7 +6,7 @@
  */
 
 import type { App } from 'obsidian';
-import { frontmatterCreature } from '../../creatures/linkedCreature';
+import { fantasyFrontmatterCreature } from '../../creatures/linkedCreature';
 import { getFantasyStatblocksApi, resolveCreatureFromFence } from '../../services/FantasyStatblocksService';
 import type { LibraryTemplate, ResolveContext, ResolvedStatblock, TemplateLookup } from '../model/resolvedTypes';
 import type { TemplateId } from '../model/templateTypes';
@@ -38,7 +38,7 @@ export async function resolveStatblockText(text: string, path: string, context: 
 
   const loaded = getFantasyStatblocksApi() !== null;
   const creature = source.kind === 'fs-frontmatter'
-    ? frontmatterCreature(frontmatter, path)
+    ? fantasyFrontmatterCreature(frontmatter, path)
     : await resolveCreatureFromFence(context.app, source.params, path);
   if (!creature) return !loaded && source.kind === 'fs-fence' ? resolveInlineFence(path, source) : null;
   return resolveFantasy(path, source, { ...creature, path }, {

@@ -23,12 +23,11 @@ function isHeaderLine(entry: unknown): entry is string {
   return typeof entry === 'string' && (entry.trim().endsWith(':') || !entry.includes(':'));
 }
 
-function spellLine(entry: unknown, textOf: (value: unknown) => string): SpellLine {
+/** A statblock is the user's own text: an empty list item is null, and anything else that names no level is no spell line. */
+function spellLine(entry: unknown, textOf: (value: unknown) => string): SpellLine | null {
   if (typeof entry === 'string') return { spells: entry };
-  const record = entry !== null && typeof entry === 'object' ? entry as Record<string, unknown> : {};
-  const [level] = Object.keys(record);
-  const spells = textOf(Object.values(record)[0]);
-  return level === undefined ? { spells } : { level, spells };
+  const [level, spells] = Object.entries(entry !== null && typeof entry === 'object' ? entry : {})[0] ?? [];
+  return level === undefined || spells === undefined ? null : { level, spells: textOf(spells) };
 }
 
 /**
@@ -47,8 +46,10 @@ export function spellGroups(
       groups.push({ header: ensureColon(entry), spells: [] });
       continue;
     }
+    const line = spellLine(entry, textOf);
+    if (!line) continue;
     if (!groups.length) groups.push({ header: defaultHeader, spells: [] });
-    groups[groups.length - 1]?.spells.push(spellLine(entry, textOf));
+    groups[groups.length - 1]?.spells.push(line);
   }
   return groups;
 }

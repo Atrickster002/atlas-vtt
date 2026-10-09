@@ -8,7 +8,7 @@ import type { App } from 'obsidian';
 import type { StoreApi } from 'zustand';
 import {
   abandonHistoryTransaction, beginHistoryTransaction, endHistoryTransaction, getHistoryStore, runUntracked, type HistoryState,
-} from '../../stores/history';
+} from './sessionHistory';
 import type { LibraryTemplate } from '../model/resolvedTypes';
 import type { StatblockTemplate, TemplateId } from '../model/templateTypes';
 import { createTemplateDraftStore, type TemplateDraftStore, type TemplateEdit } from './sessionStore';
@@ -175,7 +175,7 @@ export class SessionCore {
     this.listeners.clear();
   }
 
-  private history(): StoreApi<HistoryState> {
+  private history(): StoreApi<HistoryState<unknown>> {
     const history = getHistoryStore(this.store);
     if (!history) throw new Error('A template draft store has no history.');
     return history;

@@ -1,6 +1,7 @@
 /** Reads the senses line out of a statblock's fields, whatever shape Fantasy Statblocks holds it in. */
 
 import { NO_MEANINGS, type FieldMeanings } from '../statblocks/resolve/fieldMeanings';
+import { boundedText } from './statblockValues';
 
 function words(key: string): string {
   return key.replace(/_/g, ' ');
@@ -33,7 +34,7 @@ function afterModifier(perception: unknown): string | null {
     const after = typeof line === 'string' && modifierEnd >= 0 ? line.slice(modifierEnd + 1).trim() : '';
     return after ? [after] : [];
   });
-  return senses.length > 0 ? senses.join(', ') : null;
+  return senses.length > 0 ? boundedText(senses.join(', ')) : null;
 }
 
 /** The phrases of a senses value: a text, a list of texts or named entries, or senses kept by name. */
@@ -54,5 +55,5 @@ function phrasesOf(senses: unknown): string[] {
 export function sensesTextOf(fields: Readonly<Record<string, unknown>>, meanings: FieldMeanings = NO_MEANINGS): string | null {
   const meant = meanings.senses === undefined ? [] : phrasesOf(fields[meanings.senses]);
   const phrases = meant.length > 0 ? meant : phrasesOf(fields.senses);
-  return phrases.length > 0 ? phrases.join(', ') : afterModifier(fields.perception);
+  return phrases.length > 0 ? boundedText(phrases.join(', ')) : afterModifier(fields.perception);
 }

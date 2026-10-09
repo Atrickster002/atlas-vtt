@@ -8,7 +8,7 @@ import { castDraft } from 'immer';
 import { temporal } from 'zundo';
 import { immer } from 'zustand/middleware/immer';
 import { createStore, type StoreApi } from 'zustand/vanilla';
-import { createHistoryOptions, type HistorySlice } from '../../stores/history';
+import { createHistoryOptions, type HistorySlice } from './sessionHistory';
 import type { StatblockTemplate } from '../model/templateTypes';
 
 /** An edit of a template: a pure function that returns its input when it changes nothing. */

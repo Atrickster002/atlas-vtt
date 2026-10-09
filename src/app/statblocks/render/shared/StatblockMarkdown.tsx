@@ -1,9 +1,10 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import { Component, Keymap, MarkdownRenderer, type App } from 'obsidian';
 import { diceLinkProps, linkDiceIn, splitDiceSegments } from '../../../services/statblockDiceLinks';
 import { decodeStatblockLinks, statblockLinksAsText } from '../../../services/statblockLinks';
 import { runInBackground } from '../../../utils/backgroundTask';
 import { inlineMarkdown } from './inlineMarkdown';
+import { boundedText } from '../../../creatures/statblockValues';
 
 interface MarkdownTextProps {
   /** Raw text, which may contain markdown and wiki links */
@@ -20,9 +21,10 @@ const OBSIDIAN_LINK_ROOTS = '.markdown-preview-view, .cm-content';
 
 /** Text with dice notation rendered as clickable spans. */
 function DiceText({ text }: { text: string }): React.JSX.Element {
+  const segments = useMemo(() => splitDiceSegments(text), [text]);
   return (
     <>
-      {splitDiceSegments(text).map((segment, index) =>
+      {segments.map((segment, index) =>
         segment.dice ? (
           <span key={index} {...diceLinkProps(segment.text)}>
             {segment.text}
@@ -40,13 +42,17 @@ function DiceText({ text }: { text: string }): React.JSX.Element {
  * and embeds behave exactly as they do elsewhere in the vault.
  */
 export function StatblockMarkdown({
-  text,
+  text: given,
   app,
   sourcePath = '',
   markdown = true,
   className,
 }: MarkdownTextProps): React.JSX.Element {
   const ref = useRef<HTMLSpanElement>(null);
+  // Blocks join texts (a list of saves, the parts of a subheading); what reads the text on has the limit of one.
+  const text = boundedText(given);
+  const shownAsRead = !markdown || !app;
+  const asRead = useMemo(() => (shownAsRead ? statblockLinksAsText(text) : ''), [shownAsRead, text]);
 
   useEffect(() => {
     const el = ref.current;
@@ -88,10 +94,10 @@ export function StatblockMarkdown({
     };
   }, [text, app, sourcePath, markdown]);
 
-  if (!markdown || !app) {
+  if (shownAsRead) {
     return (
       <span className={className}>
-        <DiceText text={statblockLinksAsText(text)} />
+        <DiceText text={asRead} />
       </span>
     );
   }

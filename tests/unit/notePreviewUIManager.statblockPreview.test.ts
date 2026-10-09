@@ -9,7 +9,7 @@ import { StatblockPreviewWindow } from '../../src/app/services/StatblockPreviewW
 import type { ViewAtlasStore } from '../../src/app/storeFactory';
 
 vi.mock('../../src/app/services/FantasyStatblocksService', () => ({
-  findCreatureForNotePath: (): object => ({}),
+  hasCreatureForNotePath: (): boolean => true,
   getFantasyStatblocksApi: (): object => ({}),
 }));
 const statblockProps = vi.hoisted(() => [] as Array<Record<string, unknown>>);

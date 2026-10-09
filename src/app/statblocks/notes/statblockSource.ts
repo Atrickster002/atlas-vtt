@@ -12,7 +12,8 @@
  *   and is no marker.
  */
 
-import { parseYaml, type App, type TFile } from 'obsidian';
+import type { App, TFile } from 'obsidian';
+import { parseNoteYaml } from '../../services/noteYaml';
 import type { StatblockSource } from '../model/resolvedTypes';
 import type { TemplateId } from '../model/templateTypes';
 import { isPlainRecord } from '../values/fieldValueOf';
@@ -32,7 +33,7 @@ export function parseStatblockFence(content: string): Record<string, unknown> | 
   const match = STATBLOCK_FENCE.exec(content);
   if (!match) return null;
   try {
-    const params: unknown = parseYaml(match[1] ?? '');
+    const params: unknown = parseNoteYaml(match[1] ?? '');
     return isPlainRecord(params) ? params : {};
   } catch {
     // A malformed fence is still a statblock fence; Fantasy Statblocks renders an error for it rather than ignoring it.
@@ -45,7 +46,7 @@ export function frontmatterOfText(text: string): FrontmatterRecord | null {
   const yaml = cacheFrontmatter(text);
   if (yaml === null) return null;
   try {
-    const frontmatter: unknown = parseYaml(yaml);
+    const frontmatter: unknown = parseNoteYaml(yaml);
     return isPlainRecord(frontmatter) ? frontmatter : null;
   } catch {
     return null;
