@@ -12,9 +12,24 @@ import type { AtlasUIContextValue } from '../../src/app/react/root/AtlasUIContex
 const detectGridFromMapImage = vi.fn<() => Promise<AlignmentResult | null>>();
 const snapGridToMapGray = vi.fn<(gray: MapGray, candidates: AlignmentResult[]) => AlignmentResult | null>();
 vi.mock('../../src/app/pixi/gridDetection/detectGrid', () => ({
-  detectGridFromMapImage: () => detectGridFromMapImage(),
-  readMapGray: () => Promise.resolve({ image: { width: 1, height: 1, data: new Float32Array(1) }, size: { width: 1000, height: 1000 } }),
-  snapGridToMapGray: (gray: MapGray, candidates: AlignmentResult[]) => snapGridToMapGray(gray, candidates),
+  pictureOf: () => ({ size: { width: 1000, height: 1000 }, bitmap: () => Promise.resolve(null) }),
+}));
+// The worker's side of a detection: what it finds, without its edges on the map's lines.
+vi.mock('../../src/app/pixi/gridDetection/gridDetectionService', () => ({
+  detectGridOfMap: async () => ({ result: await detectGridFromMapImage(), hits: null }),
+  detectGridInGray: (gray: MapGray, options: { candidates: AlignmentResult[] }) => Promise.resolve({ result: snapGridToMapGray(gray, options.candidates), hits: null }),
+}));
+
+// The freehand preview under the pointer is PIXI's to draw: here only where a click places the grid matters.
+vi.mock('../../src/app/pixi/FreehandGridPreview', () => ({
+  freehandCellSize: (scale: number) => 80 / scale,
+  FreehandGridPreview: class {
+    view = {};
+    showAt(): void {}
+    hide(): void {}
+    setGridType(): void {}
+    destroy(): void {}
+  },
 }));
 
 import { GridAlignmentOverlay } from '../../src/app/react/components/GridAlignmentOverlay';
@@ -63,7 +78,7 @@ function open(grid: GridState = SCENE_GRID): Harness {
   };
   const canvas = document.body.createEl('canvas');
   const gridSystem = { updateOptions: vi.fn(), setAlignmentMode: vi.fn() };
-  const viewport = { toWorld: (x: number, y: number) => ({ x, y }), scale: { x: 1, set: vi.fn() }, moveCenter: vi.fn(), addChild: vi.fn(), on: vi.fn(), off: vi.fn() };
+  const viewport = { toWorld: (x: number, y: number) => ({ x, y }), scale: { x: 1, set: vi.fn() }, center: { x: 500, y: 500 }, moveCenter: vi.fn(), emit: vi.fn(), addChild: vi.fn(), on: vi.fn(), off: vi.fn() };
   const renderer = {
     getViewportInstance: () => viewport,
     getGridSystem: () => gridSystem,
@@ -71,6 +86,9 @@ function open(grid: GridState = SCENE_GRID): Harness {
     getMapImage: () => mapImage,
     cancelGridAlignment: () => mapImage.setStretch(readMapStretch(store.getState().grid?.mapStretch)),
     applyGridAlignment: vi.fn(),
+    // No WebGL here: detections show their answers without the scan over the map.
+    getAppInstance: () => ({ renderer: { name: 'canvas' } }),
+    addDmScreenOverlay: () => () => undefined,
   };
   const view = { atlasStore: store, renderer } as unknown as AtlasView;
   const onClose = vi.fn();
@@ -80,6 +98,16 @@ function open(grid: GridState = SCENE_GRID): Harness {
     </AtlasUIContext.Provider>,
   );
   return { store, gridSystem, stretches, canvas, onClose };
+}
+
+/** The Apply button: there from the start, to be pressed once there is a grid. */
+function applyButton(): HTMLButtonElement {
+  return screen.getByText('Apply').closest('button') as HTMLButtonElement;
+}
+
+/** Resolves once the panel has a grid to apply. */
+function gridToApply(): Promise<void> {
+  return waitFor(() => expect(applyButton().disabled).toBe(false));
 }
 
 /** A short left click on the map at a world point. */
@@ -106,18 +134,15 @@ describe('GridAlignmentOverlay', () => {
     detectGridFromMapImage.mockResolvedValue({ gridType: 'hex-horizontal', cellSize: 35.3, offsetX: 4, offsetY: 9, confidence: 0.51, mapStretch: { x: 1.048, y: 1 } });
     const { store, gridSystem, stretches, onClose } = open();
 
-    fireEvent.click(screen.getByText('Auto-detect from map image'));
-    await screen.findByText('The map is drawn 4.8% wider, so that its cells are regular.');
+    fireEvent.click(screen.getByText('Detect grid'));
+    await gridToApply();
 
     expect(stretches.at(-1)).toEqual({ x: 1.048, y: 1 });
     expect(lastPreview(gridSystem)).toMatchObject({ type: 'hex-horizontal', size: 35.3, offsetX: 4, offsetY: 9, isAligning: true });
-    // A detected grid is a preview like any other: nothing asks for a measurement, and the arrow keys nudge it.
-    expect(screen.queryByText(/Click a hex corner/)).toBeNull();
+    // A detected grid is a preview like any other: nothing asks for a measurement, and no key moves it.
+    expect(screen.queryByText(/Click a corner of a hex/)).toBeNull();
     fireEvent.keyDown(window, { key: 'ArrowRight' });
-    expect(lastPreview(gridSystem)).toMatchObject({ offsetX: 5, offsetY: 9 });
-    fireEvent.keyDown(window, { key: 'ArrowLeft' });
-    // The panel's grid type is the detected one from here on.
-    expect(screen.getByRole('radio', { name: /Flat/ }).getAttribute('aria-checked')).toBe('true');
+    expect(lastPreview(gridSystem)).toMatchObject({ offsetX: 4, offsetY: 9 });
 
     fireEvent.click(screen.getByText('Apply'));
 
@@ -131,8 +156,8 @@ describe('GridAlignmentOverlay', () => {
   it('moves nothing where the applied alignment draws the map as the scene has it', async () => {
     detectGridFromMapImage.mockResolvedValue({ gridType: 'square', cellSize: 64, offsetX: 3, offsetY: 5, confidence: 0.9 });
     const { store } = open();
-    fireEvent.click(screen.getByText('Auto-detect from map image'));
-    await screen.findByText(/Grid: squares, 64/);
+    fireEvent.click(screen.getByText('Detect grid'));
+    await gridToApply();
 
     fireEvent.click(screen.getByText('Apply'));
 
@@ -143,8 +168,8 @@ describe('GridAlignmentOverlay', () => {
   it('ends the alignment when the view opens another scene, with the map put back', async () => {
     detectGridFromMapImage.mockResolvedValue({ gridType: 'square', cellSize: 64, offsetX: 0, offsetY: 0, confidence: 0.6, mapStretch: { x: 1, y: 1.1 } });
     const { store, stretches, onClose } = open();
-    fireEvent.click(screen.getByText('Auto-detect from map image'));
-    await screen.findByText('The map is drawn 10.0% taller, so that its cells are regular.');
+    fireEvent.click(screen.getByText('Detect grid'));
+    await gridToApply();
 
     act(() => store.setState({ isMapLoading: true }));
 
@@ -157,54 +182,59 @@ describe('GridAlignmentOverlay', () => {
     let answer: (found: unknown) => void = () => undefined;
     detectGridFromMapImage.mockReturnValue(new Promise((resolve) => { answer = resolve; }));
     const { stretches } = open();
-    fireEvent.click(screen.getByText('Auto-detect from map image'));
+    fireEvent.click(screen.getByText('Detect grid'));
 
-    fireEvent.click(screen.getByText('Reset'));
+    fireEvent.click(screen.getByText('Measure'));
     await act(async () => {
       answer({ gridType: 'hex-horizontal', cellSize: 35.3, offsetX: 4, offsetY: 9, confidence: 0.51, mapStretch: { x: 1.048, y: 1 } });
       await Promise.resolve();
     });
 
-    expect(screen.queryByText(/The map is drawn/)).toBeNull();
+    expect(applyButton().disabled).toBe(true);
     expect(stretches.every((stretch) => stretch.x === 1 && stretch.y === 1)).toBe(true);
+    // The grid can be looked for again, and the grid type is still the scene's: the answer nobody waited for set nothing.
+    expect(screen.getByText('Detect grid')).toBeTruthy();
     expect(screen.getByRole('radio', { name: /Pointy/ }).getAttribute('aria-checked')).toBe('true');
-    expect((screen.getByText('Auto-detect from map image').closest('button') as HTMLButtonElement).disabled).toBe(false);
   });
 
   it('puts the map back as the scene has it when a previewed stretch is cancelled', async () => {
     detectGridFromMapImage.mockResolvedValue({ gridType: 'square', cellSize: 64, offsetX: 0, offsetY: 0, confidence: 0.6, mapStretch: { x: 1, y: 1.1 } });
     const { store, stretches } = open();
-    fireEvent.click(screen.getByText('Auto-detect from map image'));
-    await screen.findByText('The map is drawn 10.0% taller, so that its cells are regular.');
+    fireEvent.click(screen.getByText('Detect grid'));
+    await gridToApply();
 
-    fireEvent.click(screen.getByText('Cancel'));
+    fireEvent.keyDown(window, { key: 'Escape' });
 
     expect(stretches.at(-1)).toEqual(NO_STRETCH);
     expect(store.getState().grid).toBe(SCENE_GRID);
   });
 
   it('goes back from a detected grid to measuring when a tab is chosen', async () => {
-    detectGridFromMapImage.mockResolvedValue({ gridType: 'hex-vertical', cellSize: 35.3, offsetX: 4, offsetY: 9, confidence: 0.51, mapStretch: { x: 1.048, y: 1 } });
+    detectGridFromMapImage.mockResolvedValue({ gridType: 'hex-horizontal', cellSize: 35.3, offsetX: 4, offsetY: 9, confidence: 0.51, mapStretch: { x: 1.048, y: 1 } });
     const { stretches } = open();
-    fireEvent.click(screen.getByText('Auto-detect from map image'));
-    await screen.findByText('The map is drawn 4.8% wider, so that its cells are regular.');
+    fireEvent.click(screen.getByText('Detect grid'));
+    await gridToApply();
 
     fireEvent.click(screen.getByText('Measure'));
 
-    await screen.findByText('Click a hex corner in the top-left area.');
+    await screen.findByText('Click a corner of a hex.');
+    // The panel's grid type is the detected one from here on.
+    expect(screen.getByRole('radio', { name: /Flat/ }).getAttribute('aria-checked')).toBe('true');
     expect(stretches.at(-1)).toEqual(NO_STRETCH);
-    expect((screen.getByText('Apply') as HTMLButtonElement).disabled).toBe(true);
+    // Nothing to apply until something is measured.
+    expect(applyButton().disabled).toBe(true);
   });
 
   it('fits one measurement to the map\'s lines: the chosen grid type first, the lines\' answer previewed', async () => {
     snapGridToMapGray.mockReturnValue({ gridType: 'hex-vertical', cellSize: 35.37, offsetX: 1, offsetY: 2, confidence: 0.5, mapStretch: { x: 1.048, y: 1 } });
     const { store, gridSystem, canvas } = open();
+    fireEvent.click(screen.getByText('Measure'));
 
     // The corners to the left and right of a pointy hex 34 px wide: once read as the edge of a huge flat hex.
     clickMap(canvas, 100, 100);
     clickMap(canvas, 134, 100);
 
-    await screen.findByText("Fitted to the map's lines (50% of the grid found on the map).");
+    await gridToApply();
     const candidates = snapGridToMapGray.mock.calls[0]![1];
     expect(candidates[0]).toMatchObject({ gridType: 'hex-vertical', cellSize: 34 });
     expect(candidates.map((c) => c.gridType)).toContain('hex-horizontal');
@@ -217,6 +247,7 @@ describe('GridAlignmentOverlay', () => {
   it('keeps the grid as measured where the lines answer nothing, after all four measurements', async () => {
     snapGridToMapGray.mockReturnValue(null);
     const { gridSystem, canvas } = open({ ...SCENE_GRID, type: 'square' });
+    fireEvent.click(screen.getByText('Measure'));
 
     for (const [x, y] of [[100, 100], [600, 100], [100, 600], [600, 600]]) {
       clickMap(canvas, x!, y!);
@@ -225,23 +256,71 @@ describe('GridAlignmentOverlay', () => {
       await waitFor(() => expect(screen.queryByText("Fitting to the map's lines…")).toBeNull());
     }
 
-    await screen.findByText("The map's lines gave no match: this is the grid as you set it.");
+    await gridToApply();
     expect(snapGridToMapGray).toHaveBeenCalledTimes(2);
     expect(lastPreview(gridSystem)).toMatchObject({ type: 'square', size: 50, offsetX: 0, offsetY: 0 });
   });
 
-  it('measures by hand alone with fitting switched off, in the grid type picked in the panel', async () => {
-    const { gridSystem, canvas } = open();
-    fireEvent.click(screen.getByRole('switch'));
-    fireEvent.click(screen.getByRole('radio', { name: /Square/ }));
+  it('starts a way of aligning anew when it is chosen again', async () => {
+    snapGridToMapGray.mockReturnValue({ gridType: 'hex-vertical', cellSize: 35.37, offsetX: 1, offsetY: 2, confidence: 0.5 });
+    const { canvas } = open();
+    fireEvent.click(screen.getByText('Measure'));
+    clickMap(canvas, 100, 100);
+    clickMap(canvas, 134, 100);
+    await gridToApply();
 
-    for (const [x, y] of [[100, 100], [600, 100], [100, 600], [600, 600]]) {
-      clickMap(canvas, x!, y!);
-      clickMap(canvas, x! + 50, y!);
-    }
+    // No button to start over: the way already chosen is the way back to its beginning.
+    fireEvent.click(screen.getByText('Measure'));
+    await screen.findByText('Click a corner of a hex.');
+    expect(applyButton().disabled).toBe(true);
+  });
 
-    await waitFor(() => expect(lastPreview(gridSystem)).toMatchObject({ type: 'square', size: 50 }));
+  it('opens without a way of aligning by hand chosen: the map is left as it is until the GM measures or places', () => {
+    const { gridSystem } = open();
+    // The two ways are offered and neither is taken: no grid type to pick, nothing to click on the map, nothing to apply.
+    expect(screen.getAllByRole('radio').map((radio) => radio.getAttribute('aria-checked'))).toEqual(['false', 'false']);
+    expect(screen.queryByText(/Click a corner/)).toBeNull();
+    expect(applyButton().disabled).toBe(true);
+    expect(gridSystem.updateOptions).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByText('Measure'));
+    expect(screen.getAllByRole('radiogroup')).toHaveLength(2);
+    expect(screen.getByRole('radio', { name: 'Measure' }).getAttribute('aria-checked')).toBe('true');
+    expect(screen.getByText('Click a corner of a hex.')).toBeTruthy();
+  });
+
+  it('shows only the search while a detection runs, and opens measuring where the map has no grid to find', async () => {
+    let answer: (found: AlignmentResult | null) => void = () => undefined;
+    detectGridFromMapImage.mockReturnValue(new Promise((resolve) => { answer = resolve; }));
+    open();
+    fireEvent.click(screen.getByText('Detect grid'));
+
+    // The words of the search stand where its button was; the ways by hand stay, to go on by hand at any time.
+    await screen.findByText('Looking at the map…');
+    expect(screen.queryByText('Detect grid')).toBeNull();
+    expect(screen.getAllByRole('radiogroup')).toHaveLength(1);
+
+    // No grid: said in a notice beside the panel, and measuring opens. The panel gets no words of its own.
+    await act(async () => { answer(null); });
+    await screen.findByText('Click a corner of a hex.');
+    expect(screen.queryByText(/No grid found/)).toBeNull();
+  });
+
+  it('keeps a grid placed freehand exactly as it was placed: the map\'s lines are never asked', async () => {
+    // A map with a printed grid of another size, which a fit would snap the placed grid to.
+    snapGridToMapGray.mockReturnValue({ gridType: 'hex-vertical', cellSize: 35.37, offsetX: 1, offsetY: 2, confidence: 0.9 });
+    const { store, gridSystem, canvas } = open();
+    fireEvent.click(screen.getByText('Freehand'));
+
+    clickMap(canvas, 300, 400);
+    await gridToApply();
+    // The zoom gives the cell its size (80 px on screen at a scale of 1) and the click its place.
+    expect(lastPreview(gridSystem)).toMatchObject({ type: 'hex-vertical', size: 80, enabled: true });
     expect(snapGridToMapGray).not.toHaveBeenCalled();
-    expect(screen.queryByText("The map's lines gave no match: this is the grid as you set it.")).toBeNull();
+
+    fireEvent.click(screen.getByText('Apply'));
+    expect(store.getState().grid).toMatchObject({ type: 'hex-vertical', size: 80, visible: true });
+    expect(snapGridToMapGray).not.toHaveBeenCalled();
   });
 });
+

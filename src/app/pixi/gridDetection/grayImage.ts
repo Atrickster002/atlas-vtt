@@ -10,21 +10,24 @@ export interface GrayImage {
   data: Float32Array;
 }
 
-/** Draws any canvas-compatible source into a canvas no larger than `maxSide` and reads its luminance. */
+/**
+ * Draws any canvas-compatible source into a canvas no larger than `maxSide` and reads its luminance.
+ * A worker has no document to make a canvas in and hands in one of its own.
+ */
 export function grayFromCanvasSource(
   source: CanvasImageSource,
   sourceWidth: number,
   sourceHeight: number,
   maxSide: number,
+  canvas: HTMLCanvasElement | OffscreenCanvas = getDomHost().createCanvas(),
 ): GrayImage | null {
   const scale = Math.min(1, maxSide / Math.max(sourceWidth, sourceHeight));
   const width = Math.max(1, Math.round(sourceWidth * scale));
   const height = Math.max(1, Math.round(sourceHeight * scale));
 
-  const canvas = getDomHost().createCanvas();
   canvas.width = width;
   canvas.height = height;
-  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  const ctx = readingContext(canvas);
   if (!ctx) return null;
   ctx.drawImage(source, 0, 0, width, height);
 
@@ -35,6 +38,12 @@ export function grayFromCanvasSource(
     data[i] = 0.299 * rgba[o]! + 0.587 * rgba[o + 1]! + 0.114 * rgba[o + 2]!;
   }
   return { width, height, data };
+}
+
+function readingContext(canvas: HTMLCanvasElement | OffscreenCanvas): CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D | null {
+  // Each kind of canvas has a `getContext` of its own, which TypeScript will not call through their union.
+  if (typeof OffscreenCanvas !== 'undefined' && canvas instanceof OffscreenCanvas) return canvas.getContext('2d', { willReadFrequently: true });
+  return (canvas as HTMLCanvasElement).getContext('2d', { willReadFrequently: true });
 }
 
 /** Box-filter downsample by an integer factor. */

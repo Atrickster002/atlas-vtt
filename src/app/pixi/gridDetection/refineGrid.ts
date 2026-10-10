@@ -10,7 +10,7 @@
  */
 
 import type { GridType } from '../../grid/GridSystem';
-import { normaliseGridOffset } from '../../grid/gridPlacement';
+import { normaliseGridOffset } from '../../grid/gridOffset';
 import type { GrayImage } from './grayImage';
 import { aspectOf, rotationOf } from './edgeProfile';
 import type { LatticeCandidate } from './edgeProfile';

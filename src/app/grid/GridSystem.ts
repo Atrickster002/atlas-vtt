@@ -12,6 +12,7 @@ import { contrastColorForPixels } from './gridContrastColor';
 import { snapTokenCenter } from './gridPlacement';
 import { numberCells, type CellLattice, type CellNumberStyle } from './cellNumbering';
 import { hexLattice } from './hexLattice';
+import { cssColorToHexNumber, getObsidianAccentColor } from '../pixi/utils/colorUtils';
 import { squareLattice } from './squareLattice';
 import { CellNumberLabels, type CellNumberView } from './cellNumberLabels';
 import { destroyTree } from '../pixi/utils/destroyTree';
@@ -56,8 +57,10 @@ export interface GridOptions {
   cellNumbers?: CellNumberStyle | undefined;
 }
 
-/** Colour of every grid preview while the grid is being aligned. */
-export const ALIGNMENT_GRID_COLOR = 0x00ff00;
+/** Colour of every grid preview while the grid is being aligned: the theme's accent, which the panel's own controls carry too. */
+export function alignmentGridColor(): number {
+  return cssColorToHexNumber(getObsidianAccentColor());
+}
 
 /**
  * Manages a static grid overlay that exactly matches the map image,
@@ -148,7 +151,7 @@ export class GridSystem implements UnlitGrid {
     if (!mapRect) return;
     // `??`, not `||`: black is 0x000000 and must not fall through to the automatic colour.
     // While the automatic colour is read the grid waits for it rather than flash in another colour.
-    const gridColor = isAligning ? ALIGNMENT_GRID_COLOR : (color ?? this.getAutoColor());
+    const gridColor = isAligning ? alignmentGridColor() : (color ?? this.getAutoColor());
     if (gridColor === null) return;
 
     const { x: mapX, y: mapY, width: mapWidth, height: mapHeight } = mapRect;

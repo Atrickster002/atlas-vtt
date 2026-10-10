@@ -18,7 +18,7 @@
   top: $spacing-xl;
   right: $spacing-xl;
   z-index: 1001;
-  width: 320px;
+  width: 300px;
   pointer-events: auto;
 
   // ── Header row: title + close ───────────────────────────────────────
@@ -43,153 +43,11 @@
     }
   }
 
-
-  // ── Tab switcher (segmented control) ───────────────────────────────
-  .atlas-grid-alignment-tabs {
-    display: flex;
-    gap: $spacing-xs;
-    background: var(--background-secondary);
-    border-radius: $radius-l;
-    padding: $spacing-xs;
-  }
-
-  .atlas-grid-alignment-tab {
-    flex: 1;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: $spacing-xs;
-    padding: $spacing-s;
-    border: none;
-    border-radius: $radius-m;
-    font-size: 0.8125rem;
-    font-weight: 500;
-    background: transparent;
-    color: var(--text-muted);
-    cursor: pointer;
-    transition: all $transition-fast $transition-ease;
-
-    &:hover:not(.is-active) {
-      color: var(--text-normal);
-    }
-
-    &.is-active {
-      background: var(--background-primary);
-      color: var(--text-normal);
-      box-shadow: $shadow-sm;
-    }
-
-    svg {
-      width: 14px;
-      height: 14px;
-      flex-shrink: 0;
-    }
-  }
-
-  // Lucide's hexagon is pointy-top; turned a quarter it shows flat-top hexes.
-  .atlas-grid-alignment-icon--flat {
-    transform: rotate(90deg);
-  }
-
-  // ── Switch row: its label on the panel's text edge, the switch at the end ──
-  .atlas-grid-alignment-switch {
-    @include atlas-flex-row($spacing-m);
-    justify-content: space-between;
-    font-size: 0.8125rem;
-    color: var(--text-normal);
-  }
-
-  // ── Progress indicator (Intersections tab) ───────────────────────────
-  .atlas-grid-alignment-progress {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0;
-  }
-
-  .atlas-grid-alignment-step {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: $button-height-s;
-    height: $button-height-s;
-    border-radius: 50%;
-    font-size: 0.75rem;
-    font-weight: 600;
-    flex-shrink: 0;
-    background: var(--background-secondary);
-    border: $border-width-m solid var(--background-modifier-border);
-    color: var(--text-muted);
-    transition: all 150ms $transition-ease;
-
-    svg {
-      width: 14px;
-      height: 14px;
-    }
-
-    &--active {
-      background: var(--interactive-accent);
-      border-color: var(--interactive-accent);
-      color: var(--text-on-accent);
-    }
-
-    &--completed {
-      background: transparent;
-      border-color: var(--interactive-accent);
-      color: var(--interactive-accent);
-    }
-  }
-
-  .atlas-grid-alignment-step-connector {
-    width: $spacing-xl;
-    height: $border-width-m;
-    background: var(--background-modifier-border);
-    flex-shrink: 0;
-    transition: background 150ms $transition-ease;
-
-    &--completed {
-      background: var(--interactive-accent);
-    }
-  }
-
-  // ── Instructions block ──────────────────────────────────────────────
-  .atlas-grid-alignment-hint {
-    @include atlas-inset-surface;
-    margin: 0;
-    padding: $spacing-m;
-    font-size: 0.8125rem;
-    line-height: 1.5;
-    color: var(--text-muted);
-  }
-
-  // ── Result display ──────────────────────────────────────────────────
-  .atlas-grid-alignment-result {
-    @include atlas-flex-col($spacing-xs);
-    font-size: 0.8125rem;
-    font-family: var(--font-monospace);
-    font-variant-numeric: tabular-nums;
-    color: var(--text-muted);
-  }
-
-  .atlas-grid-alignment-measurements {
-    font-size: 0.75rem;
-    color: var(--text-faint);
-  }
-
-  // ── Action buttons row ──────────────────────────────────────────────
-  // The last row: its outer button sits in the panel's bottom-right corner.
-  .atlas-grid-alignment-actions {
-    @include atlas-flex-row($spacing-s);
-    justify-content: flex-end;
-
-    > :last-child {
-      @include atlas-panel-inset-radius($spacing-m, bottom-right);
-    }
-  }
-
+  // ── Buttons ─────────────────────────────────────────────────────────
   .atlas-grid-alignment-btn {
     display: flex;
     align-items: center;
+    justify-content: center;
     gap: $spacing-xs;
     font-size: 0.8125rem;
     font-weight: 500;
@@ -212,6 +70,77 @@
 
   .atlas-grid-alignment-btn--wide {
     width: 100%;
-    justify-content: center;
+  }
+
+  // ── Words ───────────────────────────────────────────────────────────
+  // What to do now, in the text's own colour.
+  .atlas-grid-alignment-instruction {
+    margin: 0;
+    font-size: 0.8125rem;
+    line-height: 1.4;
+    color: var(--text-normal);
+  }
+
+  // ── A detection at work: its words where the button was, as tall as the button ──
+  .atlas-grid-alignment-working-row {
+    @include atlas-flex-row($spacing-m);
+    min-height: $button-height-m;
+  }
+
+  // One line of status gives way to the next in place.
+  .atlas-grid-alignment-status {
+    display: grid;
+    margin: 0;
+    font-size: 0.8125rem;
+
+    > * {
+      grid-area: 1 / 1;
+    }
+  }
+
+  // ── Measurements taken, once one was not enough ─────────────────────
+  .atlas-grid-alignment-dots {
+    display: flex;
+    gap: $spacing-xs;
+
+    span {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--background-modifier-border);
+      transition: background-color $transition-normal $transition-ease-out;
+
+      &.is-done {
+        background: var(--interactive-accent);
+      }
+    }
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// A detection under way
+// ═══════════════════════════════════════════════════════════════════════════
+// The panel says that Atlas is at work in Obsidian's own terms: a light passes through the words
+// that name the step. The map itself shows the search (`pixi/gridAlignment/`).
+
+@keyframes atlas-scan-words {
+  from { background-position: 130% 0; }
+  to { background-position: -130% 0; }
+}
+
+.atlas-grid-alignment-panel {
+  .atlas-grid-alignment-working {
+    background: linear-gradient(100deg, var(--text-muted) 38%, var(--text-normal) 50%, var(--text-muted) 62%) 0 0 / 260% 100%;
+    background-clip: text;
+    -webkit-background-clip: text;
+    color: transparent;
+    animation: atlas-scan-words 2000ms linear infinite;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .atlas-grid-alignment-working {
+      animation: none;
+      color: var(--text-muted);
+    }
   }
 }

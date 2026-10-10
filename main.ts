@@ -10,6 +10,7 @@ import { initializeAtlasStorage } from './src/app/atlasStorageInit';
 import { t } from './src/app/i18n';
 import { CreatureIndex } from './src/app/creatures/CreatureIndex';
 import { disposeImageProcessing } from './src/app/imageProcessing/imageProcessing';
+import { disposeGridDetection } from './src/app/pixi/gridDetection/gridDetectionService';
 import { registerLootQueryView } from './src/app/loot/lootQueryView';
 import { GlobalAssetManagerService } from './src/app/services/GlobalAssetManagerService';
 import { releaseOverlayBodyClass } from './src/app/packages/components/asset-manager/hooks/useOverlayBodyClass';
@@ -188,6 +189,7 @@ export default class AtlasVTTPlugin extends Plugin {
     TileDecoderClient.release(this.app);
     MapImageService.release(this.app);
     disposeImageProcessing();
+    disposeGridDetection();
   }
 
   private registerAtlasViews(): void {

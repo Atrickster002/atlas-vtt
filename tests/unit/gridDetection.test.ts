@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { detectGridInImage, detectGridInMapGray, snapGridToMapGray } from '../../src/app/pixi/gridDetection/detectGrid';
+import { inkOf, runDetection } from '../../src/app/pixi/gridDetection/detectionJob';
+import type { DetectionEvent } from '../../src/app/pixi/gridDetection/detectionJob';
 import { gridLineSamples } from '../../src/app/pixi/gridDetection/gridTemplate';
 import type { GrayImage } from '../../src/app/pixi/gridDetection/grayImage';
 import { fftInPlace } from '../../src/app/pixi/gridDetection/fft';
@@ -513,4 +515,52 @@ describe('grids a program drew, whose lines are all alike', () => {
     // Nor is the map taken for hexes a fifth off regular, which a third of its lines would agree with.
     expect(detectGridInImage(gray.image)).toBeNull();
   }, 60000);
+});
+
+describe('a detection as the worker runs it', () => {
+  const map = syntheticMap('square', 64, 20, 28, 640, 480);
+  const gray = { image: map, size: { width: 1280, height: 960 } };
+
+  it('reports the fits it finds without finding anything else', () => {
+    const events: DetectionEvent[] = [];
+    const { result, hits } = runDetection({ gray, ink: true }, (event) => events.push(event));
+
+    // Listening changes nothing: the answer is the one a plain detection gives.
+    expect(result).toEqual(detectGridInMapGray(map, gray.size));
+    expect(result?.gridType).toBe('square');
+
+    expect(events[0]?.type).toBe('ink');
+    const fits = events.flatMap((event) => (event.type === 'fit' ? [event.fit] : []));
+    expect(fits.length).toBeGreaterThan(0);
+    // The answer is one of the grids reported on the way.
+    expect(fits).toContainEqual(result);
+
+    // Every edge named as lying on a line of the map lies on a line of the answer's grid.
+    expect(hits!.length % 4).toBe(0);
+    expect(hits!.length).toBeGreaterThan(100);
+    for (let i = 0; i < hits!.length; i += 2) {
+      expect(distanceToGrid('square', result!.cellSize, result!.offsetX, result!.offsetY, { x: hits![i]!, y: hits![i + 1]! })).toBeLessThan(0.05);
+    }
+  });
+
+  it('reads the line evidence small, with the grid in it', () => {
+    const ink = inkOf(map);
+    expect(Math.max(ink.width, ink.height)).toBeLessThanOrEqual(768);
+    expect(ink.data).toHaveLength(ink.width * ink.height);
+    // Along a grid line the ink is strong, along the middle of a column of cells there is little.
+    const columnMean = (x: number): number => {
+      let sum = 0;
+      for (let y = 0; y < ink.height; y++) sum += ink.data[y * ink.width + x]!;
+      return sum / ink.height;
+    };
+    expect(columnMean(20 + 64 * 3)).toBeGreaterThan(150);
+    expect(columnMean(20 + 64 * 3 + 32)).toBeLessThan(40);
+  });
+
+  it('asks for no line evidence where nobody wants it, and names no edges for a map without a grid', () => {
+    const blank = { image: { width: 256, height: 256, data: new Float32Array(256 * 256).fill(128) }, size: { width: 256, height: 256 } };
+    const events: DetectionEvent[] = [];
+    expect(runDetection({ gray: blank, ink: false }, (event) => events.push(event))).toEqual({ result: null, hits: null });
+    expect(events).toEqual([]);
+  });
 });

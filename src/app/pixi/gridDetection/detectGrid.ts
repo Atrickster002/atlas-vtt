@@ -192,8 +192,15 @@ function sharesMapLinesOnly(image: GrayImage, fit: RefinedGrid): boolean {
   return fit.gridType === 'square' && fit.support < DECISIVE_SUPPORT && sharesLinesOnly(image, fit);
 }
 
+/** Hears what a detection under way does: every grid it tries on the map, and every one the map's lines support. */
+export interface DetectionWatch {
+  /** A grid of this type, about this size and of this shape is fitted next. */
+  tried?(proposal: Proposal): void;
+  fitted?(fit: RefinedGrid): void;
+}
+
 /** Fits every proposal the map's lines may support, strongest first, and keeps those they do. */
-function fitProposals(image: GrayImage, spectra: Spectra, proposals: Proposal[], { minSize, maxSize, firstDecisive, minFactor, minSupport, maxSquareAspect, ownLinesOnly }: Round): RefinedGrid[] {
+function fitProposals(image: GrayImage, spectra: Spectra, proposals: Proposal[], { minSize, maxSize, firstDecisive, minFactor, minSupport, maxSquareAspect, ownLinesOnly }: Round, watch?: DetectionWatch): RefinedGrid[] {
   const attempted: Proposal[] = [];
   const fits: RefinedGrid[] = [];
   const weak: RefinedGrid[] = [];
@@ -204,6 +211,7 @@ function fitProposals(image: GrayImage, spectra: Spectra, proposals: Proposal[],
     const { gridType, size, harmonicsLeft } = proposal;
     if (attempted.some((earlier) => isSameAttempt(earlier, proposal)) || size < minSize || size > maxSize) continue;
     attempted.push(proposal);
+    watch?.tried?.(proposal);
 
     const fitted = fitProposal(image, spectra, proposal, minFactor);
     const maxAspect = gridType === 'square' ? maxSquareAspect : MAX_STRETCH_FACTOR;
@@ -217,6 +225,7 @@ function fitProposals(image: GrayImage, spectra: Spectra, proposals: Proposal[],
     }
     if (ownLinesOnly && sharesMapLinesOnly(image, refined)) continue;
     fits.push(refined);
+    watch?.fitted?.(refined);
     if (harmonicsLeft > 0) queue.push(...harmonicProposals(image, refined, proposal));
     if (refined.support < DECISIVE_SUPPORT) continue;
     if (firstDecisive) break;
@@ -279,7 +288,7 @@ function densestSquareGrid(image: GrayImage, best: RefinedGrid, rivals: RefinedG
  * (`RefinedGrid.aspect`), which for a regular grid is the image itself. With a `hint`, only grids
  * of its type and about its size are looked for.
  */
-export function detectGridInImage(image: GrayImage, hint?: GridHint): RefinedGrid | null {
+export function detectGridInImage(image: GrayImage, hint?: GridHint, watch?: DetectionWatch): RefinedGrid | null {
   // A size that is no positive number hints at nothing.
   if (hint && !(hint.cellSize > 0 && Number.isFinite(hint.cellSize))) return null;
   const factor = spectrumFactor(image);
@@ -293,11 +302,11 @@ export function detectGridInImage(image: GrayImage, hint?: GridHint): RefinedGri
 
   // A hint's sizes all lie within a few percent of each other: the first that settles the grid is it.
   const round: Round = { minSize, maxSize, firstDecisive: hint !== undefined, minFactor: 1, minSupport: hint ? MIN_HINTED_SUPPORT : MIN_SUPPORT, maxSquareAspect: hint ? MAX_STRETCH_FACTOR : MAX_DETECTED_SQUARE_ASPECT, ownLinesOnly: hint !== undefined };
-  const fits = fitProposals(image, spectra, [...hinted, ...wanted(firstRoundProposals(spectra, factor))], round);
+  const fits = fitProposals(image, spectra, [...hinted, ...wanted(firstRoundProposals(spectra, factor))], round, watch);
   // A regular grid that most of the map's lines agree with is the map's grid: only otherwise is a second round worth its time.
   if (!fits.some((fit) => fit.support >= DECISIVE_SUPPORT)) {
     // A large map is searched reduced, which costs a fraction; what its lines support there is fitted on the map itself.
-    fits.push(...fitProposals(image, spectra, wanted(secondRoundProposals(image, spectra, factor)), { ...round, minFactor: secondRoundFactor(image) }));
+    fits.push(...fitProposals(image, spectra, wanted(secondRoundProposals(image, spectra, factor)), { ...round, minFactor: secondRoundFactor(image) }, watch));
   }
   if (fits.length === 0) return null;
   const chosen = chooseFit(image, fits);
@@ -305,7 +314,7 @@ export function detectGridInImage(image: GrayImage, hint?: GridHint): RefinedGri
   return sharesMapLinesOnly(image, chosen) ? null : chosen;
 }
 
-interface ImageSize {
+export interface ImageSize {
   width: number;
   height: number;
 }
@@ -316,18 +325,38 @@ export interface MapGray {
   size: ImageSize;
 }
 
-/** The map's luminance at up to `MAX_ANALYSIS_SIDE` a side, with the image's own size; null for a map too small or without pixels. */
-export async function readMapGray(map: DetectableMap): Promise<MapGray | null> {
+/**
+ * A map's picture, for whoever reads its luminance: the detection's worker, so that reading up to
+ * sixteen million pixels holds no frame of the window's. `bitmap` hands out a picture of its own
+ * each time; whoever takes one closes it.
+ */
+export interface MapPicture {
+  size: ImageSize;
+  bitmap(): Promise<ImageBitmap | null>;
+}
+
+/** The picture of a map at up to `MAX_ANALYSIS_SIDE` a side; null for a map too small or without pixels. */
+export function pictureOf(map: DetectableMap): MapPicture | null {
   const size = map.imageSize;
   if (!size || size.width < 64 || size.height < 64) return null;
-  const bitmap = await map.overview(MAX_ANALYSIS_SIDE);
-  if (!bitmap) return null;
+  return { size, bitmap: () => map.overview(MAX_ANALYSIS_SIDE) };
+}
+
+/** The luminance of a map's picture of `size` pixels, which is closed; `canvas` is the worker's own where there is no document. */
+export function grayOfBitmap(bitmap: ImageBitmap, size: ImageSize, canvas?: OffscreenCanvas): MapGray | null {
   try {
-    const image = grayFromCanvasSource(bitmap, bitmap.width, bitmap.height, MAX_ANALYSIS_SIDE);
+    const image = grayFromCanvasSource(bitmap, bitmap.width, bitmap.height, MAX_ANALYSIS_SIDE, canvas);
     return image ? { image, size } : null;
   } finally {
     bitmap.close();
   }
+}
+
+/** The map's luminance at up to `MAX_ANALYSIS_SIDE` a side, with the image's own size; null for a map too small or without pixels. */
+export async function readMapGray(map: DetectableMap): Promise<MapGray | null> {
+  const picture = pictureOf(map);
+  const bitmap = await picture?.bitmap();
+  return picture && bitmap ? grayOfBitmap(bitmap, picture.size) : null;
 }
 
 /** Detects the grid of a map image and returns it in world coordinates. */
@@ -352,7 +381,13 @@ export function detectGridInMapGray(image: GrayImage, size: ImageSize): Alignmen
  * multiples of each other the densest, as in detection, and a grid type further down the list only
  * where the types before it settled nothing. Null where the lines support none of them.
  */
-export function snapGridToMapGray({ image, size }: MapGray, candidates: AlignmentResult[]): AlignmentResult | null {
+export function snapGridToMapGray(gray: MapGray, candidates: AlignmentResult[]): AlignmentResult | null {
+  const snapped = snapGridInMapGray(gray, candidates);
+  return snapped ? gridInWorld(snapped, gray.image, gray.size) : null;
+}
+
+/** `snapGridToMapGray` with the grid as the image has it, and every supported fit reported on the way. */
+export function snapGridInMapGray({ image, size }: MapGray, candidates: AlignmentResult[], watch?: DetectionWatch): RefinedGrid | null {
   const mapPerPixel = size.width / image.width;
   const asked: GridHint[] = [];
   const fits: RefinedGrid[] = [];
@@ -369,29 +404,40 @@ export function snapGridToMapGray({ image, size }: MapGray, candidates: Alignmen
     if (asked.some((earlier) => earlier.gridType === hint.gridType && sameAspect(earlier.aspect, hint.aspect) && sameSize(earlier.cellSize, hint.cellSize))) continue;
     if (fits.some((fit) => fit.gridType !== hint.gridType && fit.support >= DECISIVE_SUPPORT)) break;
     asked.push(hint);
-    const detected = detectGridInImage(image, hint);
+    const detected = detectGridInImage(image, hint, watch);
     if (detected) fits.push(detected);
   }
-  return fits.length > 0 ? gridInWorld(chooseFit(image, fits), image, size) : null;
+  return fits.length > 0 ? chooseFit(image, fits) : null;
 }
 
 /**
  * A grid found in the luminance `image` of a map image of `size` pixels, as the world sees it: the
  * world of the map drawn turned level and stretched as the result's `mapStretch` says.
  */
-function gridInWorld(detected: RefinedGrid, image: GrayImage, size: ImageSize): AlignmentResult {
+export function gridInWorld(detected: RefinedGrid, image: GrayImage, size: ImageSize): AlignmentResult {
+  const stretch = stretchForAspect(detected.aspect, detected.rotation);
+  const world = worldPlaceOf(detected, image, size);
+  const round2 = (value: number): number => Math.round(value * 100) / 100;
+  const offset = world(detected.offsetX, detected.offsetY);
+  return {
+    gridType: detected.gridType,
+    cellSize: round2(detected.cellSize * (size.width / image.width) * stretch.x),
+    offsetX: round2(offset.x),
+    offsetY: round2(offset.y),
+    confidence: round2(detected.support),
+    ...(sameStretch(stretch, NO_STRETCH) ? {} : { mapStretch: stretch }),
+  };
+}
+
+/** Where a place of a detected grid's squared-up image lies in the world `gridInWorld` gives the grid in. */
+export function worldPlaceOf(detected: RefinedGrid, image: GrayImage, size: ImageSize): (x: number, y: number) => { x: number; y: number } {
   const mapPerPixel = size.width / image.width;
   const stretch = stretchForAspect(detected.aspect, detected.rotation);
   // The world begins at the corner of the box that holds the image once it is turned level.
   const { corner } = turnedBox(image.width, image.height, stretch);
-  const round2 = (value: number): number => Math.round(value * 100) / 100;
-  // Detected offsets index pixels; a pixel's centre is half a pixel further in continuous image space.
-  return {
-    gridType: detected.gridType,
-    cellSize: round2(detected.cellSize * mapPerPixel * stretch.x),
-    offsetX: round2((detected.offsetX + 0.5 - corner.x) * mapPerPixel * stretch.x),
-    offsetY: round2((detected.offsetY * detected.aspect + 0.5 - corner.y) * mapPerPixel * stretch.y),
-    confidence: round2(detected.support),
-    ...(sameStretch(stretch, NO_STRETCH) ? {} : { mapStretch: stretch }),
-  };
+  // Detected places index pixels; a pixel's centre is half a pixel further in continuous image space.
+  return (x, y) => ({
+    x: (x + 0.5 - corner.x) * mapPerPixel * stretch.x,
+    y: (y * detected.aspect + 0.5 - corner.y) * mapPerPixel * stretch.y,
+  });
 }

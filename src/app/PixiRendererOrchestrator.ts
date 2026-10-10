@@ -229,11 +229,12 @@ export class PixiRendererOrchestrator { // Renamed class
             const updates: Partial<GridOptions> = {};
             let needsOptionsUpdate = false;
             
-            // Handle visibility separately as it uses setEnabled
+            // A grid that is hidden goes at once. One that is shown is shown below, with whatever else
+            // changed: switched on first it stood for a moment as it was before (a new scene's grid of
+            // 70 px squares flashed over the hexes just found for it).
             const visible = typeof grid.visible === 'boolean' ? grid.visible : true;
-            if (visible !== currentOptions.enabled) {
-              this.gridSystem.setEnabled(visible);
-            }
+            const shown = visible && !currentOptions.enabled;
+            if (!visible && currentOptions.enabled) this.gridSystem.setEnabled(false);
             
             // Collect all other updates
             if (grid.type !== undefined && grid.type !== currentOptions.type) {
@@ -276,8 +277,9 @@ export class PixiRendererOrchestrator { // Renamed class
             }
             
             // Apply all updates at once
+            if (shown && !needsOptionsUpdate) this.gridSystem.setEnabled(true);
             if (needsOptionsUpdate) {
-              this.gridSystem.updateOptions(updates);
+              this.gridSystem.updateOptions(shown ? { ...updates, enabled: true } : updates);
               
               // Re-snap all tokens to the new grid if grid type, size, or offset changed
               if (updates.type || updates.size || updates.offsetX !== undefined || updates.offsetY !== undefined) {
