@@ -1,11 +1,27 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // Grid Alignment Overlay
 // ═══════════════════════════════════════════════════════════════════════════
-// Floating panel for the grid alignment tool (Intersections and Freehand tabs).
-// All child classes scoped under .atlas-grid-alignment-panel.
+// Floating panel for the grid alignment tool (Intersections and Freehand tabs), with the hint for
+// aligning by hand below it. The panel holds controls alone and is as tall in every state.
 
 @use '../../../../styles/tokens' as *;
 @use '../../../../styles/mixins' as *;
+
+// ── The panel and its hint, one below the other ─────────────────────────
+.atlas-grid-alignment {
+  @include atlas-flex-col($spacing-s);
+
+  position: fixed;
+  top: $spacing-xl;
+  right: $spacing-xl;
+  z-index: 1001;
+  width: 300px;
+
+  // Closed while the engine works on the map: out of sight until that is over.
+  &[hidden] {
+    display: none;
+  }
+}
 
 // ── Floating control panel ──────────────────────────────────────────────
 .atlas-grid-alignment-panel {
@@ -14,11 +30,6 @@
   @include atlas-flex-col($spacing-m);
   @include atlas-panel-padding;
 
-  position: fixed;
-  top: $spacing-xl;
-  right: $spacing-xl;
-  z-index: 1001;
-  width: 300px;
   pointer-events: auto;
 
   // ── Header row: title + close ───────────────────────────────────────
@@ -72,35 +83,53 @@
     width: 100%;
   }
 
-  // ── Words ───────────────────────────────────────────────────────────
+  // What a detection is doing, for screen readers: the button and the map show it.
+  .atlas-grid-alignment-status {
+    @include atlas-visually-hidden;
+  }
+
+}
+
+// ── What to click next, while aligning by hand ──────────────────────────
+// A surface of its own below the panel: it comes, goes and wraps without the panel changing.
+@keyframes atlas-grid-alignment-hint-in {
+  from {
+    opacity: 0;
+    transform: translateY(-#{$spacing-xs});
+  }
+}
+
+.atlas-grid-alignment-hint {
+  @include atlas-elevated-surface;
+  @include atlas-panel-radius($radius-2xl);
+  @include atlas-flex-row($spacing-m);
+  @include atlas-panel-padding;
+
+  pointer-events: auto;
+  animation: atlas-grid-alignment-hint-in $transition-normal $transition-ease-out;
+
+  // A way that asks for nothing right now (a grid placed, a fit shown) has no hint.
+  &:empty {
+    display: none;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+  }
+
   // What to do now, in the text's own colour.
   .atlas-grid-alignment-instruction {
+    flex: 1;
     margin: 0;
     font-size: 0.8125rem;
     line-height: 1.4;
     color: var(--text-normal);
   }
 
-  // ── A detection at work: its words where the button was, as tall as the button ──
-  .atlas-grid-alignment-working-row {
-    @include atlas-flex-row($spacing-m);
-    min-height: $button-height-m;
-  }
-
-  // One line of status gives way to the next in place.
-  .atlas-grid-alignment-status {
-    display: grid;
-    margin: 0;
-    font-size: 0.8125rem;
-
-    > * {
-      grid-area: 1 / 1;
-    }
-  }
-
-  // ── Measurements taken, once one was not enough ─────────────────────
+  // Measurements taken, once one was not enough.
   .atlas-grid-alignment-dots {
     display: flex;
+    flex-shrink: 0;
     gap: $spacing-xs;
 
     span {
@@ -120,27 +149,83 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // A detection under way
 // ═══════════════════════════════════════════════════════════════════════════
-// The panel says that Atlas is at work in Obsidian's own terms: a light passes through the words
-// that name the step. The map itself shows the search (`pixi/gridAlignment/`).
+// The button that started it stays where it is and shows the work: light passes through it in two
+// soft bands, each drifting at its own even pace, so no two passes look alike and one of them is
+// always under way, and its icon breathes. Transform
+// and opacity alone, so it keeps moving whatever the window is busy with. The map itself shows the
+// search (`pixi/gridAlignment/`).
 
-@keyframes atlas-scan-words {
-  from { background-position: 130% 0; }
-  to { background-position: -130% 0; }
+@keyframes atlas-detect-light {
+  from {
+    opacity: 0;
+    transform: translateX(-100%);
+  }
+
+  15%,
+  85% {
+    opacity: 1;
+  }
+
+  to {
+    opacity: 0;
+    transform: translateX(100%);
+  }
 }
 
-.atlas-grid-alignment-panel {
-  .atlas-grid-alignment-working {
-    background: linear-gradient(100deg, var(--text-muted) 38%, var(--text-normal) 50%, var(--text-muted) 62%) 0 0 / 260% 100%;
-    background-clip: text;
-    -webkit-background-clip: text;
-    color: transparent;
-    animation: atlas-scan-words 2000ms linear infinite;
+@keyframes atlas-detect-breath {
+  from {
+    opacity: 0.55;
+    transform: scale(0.86);
+  }
+}
+
+.atlas-grid-alignment-panel .atlas-grid-alignment-detect {
+  position: relative;
+  overflow: hidden;
+
+  &::before,
+  &::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity $transition-slow $transition-ease-out;
+  }
+
+  // A wide, faint light and a narrower, brighter one.
+  &::before {
+    background: linear-gradient(100deg, transparent 15%, rgb(255 255 255 / 0.16) 50%, transparent 85%);
+  }
+
+  &::after {
+    background: linear-gradient(100deg, transparent 30%, rgb(255 255 255 / 0.24) 50%, transparent 70%);
+  }
+
+  &[data-working] {
+    &::before {
+      animation: atlas-detect-light 2600ms linear infinite;
+    }
+
+    &::after {
+      animation: atlas-detect-light 1900ms linear -900ms infinite;
+    }
+
+    svg {
+      animation: atlas-detect-breath 1100ms $transition-ease-in-out infinite alternate;
+    }
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .atlas-grid-alignment-working {
-      animation: none;
-      color: var(--text-muted);
+    &[data-working] {
+      &::before,
+      &::after {
+        animation: none;
+      }
+
+      svg {
+        animation-duration: 2200ms;
+      }
     }
   }
 }

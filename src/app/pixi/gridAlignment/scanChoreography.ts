@@ -19,6 +19,13 @@ export const LOCK_MS = 1500;
 const HOLD_MS = 500;
 /** Then the glow dies down, slowly: the last thing a detection shows. The scene's own grid stands under it by then. */
 export const LOCK_FADE_MS = 1800;
+/**
+ * An answer's glow dies down like an ember, quickly at first and then for a long while. Below this
+ * share the eye no longer follows it on a map (measured on black: a line's light is under a fifth
+ * of what it was, and half of that a quarter of a second later), so whoever waits for the scan need
+ * not wait out the rest, most of a second.
+ */
+const QUIET_GLOW = 0.2;
 /** A better grid replaces the shown one no sooner than this after the last: fits arrive up to ten a second. */
 export const SWAP_MS = 260;
 const SCRIM = 0.11;
@@ -211,6 +218,7 @@ export class ScanChoreography {
       back: this.back.look(seconds),
       trial: this.trialSlot.look(seconds),
       revealed,
+      quiet: false,
       still: false,
     };
     const gone = frame.scrim === 0 && frame.looking === 0 && frame.front.alpha === 0 && frame.back.alpha === 0 && frame.trial.alpha === 0;
@@ -218,6 +226,7 @@ export class ScanChoreography {
     const glowGone = !this.locked || this.inPhase >= LOCK_FADE_MS;
     if (this.phase === 'leaving' && gone && glowGone) this.phase = 'idle';
     frame.still = this.phase === 'idle';
+    frame.quiet = frame.still || (this.phase === 'leaving' && gone && frame.lock.glow <= QUIET_GLOW);
     return frame;
   }
 

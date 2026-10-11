@@ -5,7 +5,7 @@ export const align = {
   'align.checking': 'Found {type}. Checking the cell size…',
   'align.cornerFirst': 'Click a corner of a cell.',
   'align.cornerNext': 'Now the next corner to the right.',
-  'align.find': 'Detect grid',
+  'align.find': 'Auto detect',
   'align.flat': 'Flat',
   'align.flatHexes': 'flat-top hexes',
   'align.freehandHint': 'Zoom until a preview cell covers one cell of the map, then click.',

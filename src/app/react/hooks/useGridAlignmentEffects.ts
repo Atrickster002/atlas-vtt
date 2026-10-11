@@ -52,10 +52,10 @@ interface SceneWatch {
 }
 
 /**
- * Ends the alignment with `end` on Escape, and when the view loads another scene: what was
- * measured belongs to the map it was measured on.
+ * Ends the alignment with `end` when the view loads another scene (what was measured belongs to
+ * the map it was measured on), and closes it with `close` on Escape, as its close button does.
  */
-export function useAlignmentEnds(store: SceneWatch | null | undefined, end: () => void): void {
+export function useAlignmentEnds(store: SceneWatch | null | undefined, end: () => void, close: () => void): void {
   useEffect(() => {
     if (!store) return undefined;
     const mapPath = store.getState().mapPath;
@@ -72,11 +72,11 @@ export function useAlignmentEnds(store: SceneWatch | null | undefined, end: () =
       if (e.key !== 'Escape') return;
       e.preventDefault();
       e.stopPropagation();
-      end();
+      close();
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [end]);
+  }, [close]);
 }
 
 // ---------------------------------------------------------------------------

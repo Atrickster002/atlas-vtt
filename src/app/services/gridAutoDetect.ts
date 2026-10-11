@@ -1,8 +1,8 @@
 import type { StoreApi } from 'zustand';
-import type { DetectableMap } from '../pixi/gridDetection/detectGrid';
-import { NO_GRID } from '../pixi/gridDetection/detectionJob';
-import type { DetectionEvent, DetectionOutcome } from '../pixi/gridDetection/detectionJob';
-import { detectGridOfMap } from '../pixi/gridDetection/gridDetectionService';
+import type { DetectableMap } from '../pixi/spectralEngine/detectGrid';
+import { NO_GRID } from '../pixi/spectralEngine/detectionJob';
+import type { DetectionEvent, DetectionOutcome } from '../pixi/spectralEngine/detectionJob';
+import { detectGridOfMap } from '../pixi/spectralEngine/spectralEngineService';
 import { runUntracked } from '../stores/history';
 import { gridAlignedTo } from '../pixi/gridAlignmentMath';
 import type { GridState } from '../types/gridTypes';

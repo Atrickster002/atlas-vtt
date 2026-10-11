@@ -1,12 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { MapGray } from '../../src/app/pixi/gridDetection/detectGrid';
-import type { DetectionOutcome } from '../../src/app/pixi/gridDetection/detectionJob';
-import type { DetectionReply, DetectionRequest } from '../../src/app/pixi/gridDetection/detectionProtocol';
+import type { MapGray } from '../../src/app/pixi/spectralEngine/detectGrid';
+import type { DetectionOutcome } from '../../src/app/pixi/spectralEngine/detectionJob';
+import type { DetectionReply, DetectionRequest } from '../../src/app/pixi/spectralEngine/detectionProtocol';
 
 const runDetection = vi.fn<() => DetectionOutcome>();
-vi.mock('../../src/app/pixi/gridDetection/detectionJob', () => ({ runDetection: () => runDetection(), NO_GRID: { result: null, hits: null } }));
+vi.mock('../../src/app/pixi/spectralEngine/detectionJob', () => ({ runDetection: () => runDetection(), NO_GRID: { result: null, hits: null } }));
 
-import { GridDetectionClient } from '../../src/app/pixi/gridDetection/GridDetectionClient';
+import { SpectralEngineClient } from '../../src/app/pixi/spectralEngine/SpectralEngineClient';
 
 const FOUND: DetectionOutcome = { result: { gridType: 'square', cellSize: 64, offsetX: 1, offsetY: 2, confidence: 0.8 }, hits: null };
 
@@ -36,9 +36,9 @@ class FakeWorker extends EventTarget {
   }
 }
 
-function clientWithWorkers(): { client: GridDetectionClient; workers: FakeWorker[] } {
+function clientWithWorkers(): { client: SpectralEngineClient; workers: FakeWorker[] } {
   const workers: FakeWorker[] = [];
-  const client = new GridDetectionClient(() => {
+  const client = new SpectralEngineClient(() => {
     const worker = new FakeWorker();
     workers.push(worker);
     return worker as unknown as Worker;
@@ -46,7 +46,7 @@ function clientWithWorkers(): { client: GridDetectionClient; workers: FakeWorker
   return { client, workers };
 }
 
-describe('GridDetectionClient', () => {
+describe('SpectralEngineClient', () => {
   beforeEach(() => {
     vi.useFakeTimers();
     runDetection.mockReset();
@@ -122,7 +122,7 @@ describe('GridDetectionClient', () => {
   });
 
   it('detects on the main thread where no worker can be made', async () => {
-    const client = new GridDetectionClient(() => {
+    const client = new SpectralEngineClient(() => {
       throw new Error('workers are blocked');
     });
     const detection = client.detect(gray());

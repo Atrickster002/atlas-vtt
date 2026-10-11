@@ -41,6 +41,8 @@ export interface ScanFrame {
   trial: LatticeLook;
   /** True in the one step the locking wave has passed the whole map: the scene's own grid may show now. */
   revealed: boolean;
+  /** Nothing is left that the eye follows: at most the last of an answer's glow is still going. */
+  quiet: boolean;
   /** Nothing is left to show or to move. */
   still: boolean;
 }

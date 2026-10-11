@@ -45,7 +45,7 @@ export function detectionStopped(): Error {
   return new Error('Grid detection has stopped.');
 }
 
-export class GridDetectionClient {
+export class SpectralEngineClient {
   private worker: Worker | null = null;
   /** The worker has answered once: an error after that is a crash, before it a worker that cannot run here. */
   private proven = false;

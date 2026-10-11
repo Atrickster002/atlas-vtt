@@ -13,9 +13,11 @@ const GRID_TYPES: readonly SegmentedOption<GridType>[] = [
 interface GridTypePickerProps {
   value: GridType;
   onChange: (type: GridType) => void;
+  /** Shown, but not to be chosen from right now. */
+  disabled?: boolean;
 }
 
 /** The grid alignment panel's choice of grid: squares, pointy-top hexes or flat-top hexes. */
-export function GridTypePicker({ value, onChange }: GridTypePickerProps): React.ReactElement {
-  return <SegmentedControl value={value} options={GRID_TYPES} onChange={onChange} ariaLabel={t('align.gridType')} />;
+export function GridTypePicker({ value, onChange, disabled = false }: GridTypePickerProps): React.ReactElement {
+  return <SegmentedControl value={value} options={GRID_TYPES} onChange={onChange} ariaLabel={t('align.gridType')} disabled={disabled} />;
 }

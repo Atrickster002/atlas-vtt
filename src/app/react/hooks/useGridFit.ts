@@ -7,12 +7,12 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { AtlasView } from '../../atlas-view';
 import type { GridAlignmentController } from '../../pixi/GridAlignmentController';
 import type { AlignmentPoint, AlignmentResult } from '../../pixi/gridAlignmentMath';
-import { pictureOf } from '../../pixi/gridDetection/detectGrid';
-import type { MapPicture } from '../../pixi/gridDetection/detectGrid';
-import type { DetectOptions } from '../../pixi/gridDetection/GridDetectionClient';
-import { NO_GRID } from '../../pixi/gridDetection/detectionJob';
-import type { DetectionOutcome } from '../../pixi/gridDetection/detectionJob';
-import { detectGridInGray } from '../../pixi/gridDetection/gridDetectionService';
+import { pictureOf } from '../../pixi/spectralEngine/detectGrid';
+import type { MapPicture } from '../../pixi/spectralEngine/detectGrid';
+import type { DetectOptions } from '../../pixi/spectralEngine/SpectralEngineClient';
+import { NO_GRID } from '../../pixi/spectralEngine/detectionJob';
+import type { DetectionOutcome } from '../../pixi/spectralEngine/detectionJob';
+import { detectGridInGray } from '../../pixi/spectralEngine/spectralEngineService';
 
 /** Who watches a fit: hears what it finds on its way, and may end it. */
 export type FitWatch = Pick<DetectOptions, 'onEvent' | 'signal'>;

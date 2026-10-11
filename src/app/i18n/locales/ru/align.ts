@@ -5,7 +5,7 @@ export const align: Translation = {
   'align.checking': 'Найдена сетка: {type}. Проверяю размер клетки…',
   'align.cornerFirst': 'Щёлкните угол клетки.',
   'align.cornerNext': 'Теперь следующий угол справа.',
-  'align.find': 'Определить сетку',
+  'align.find': 'Автоопределение',
   'align.flat': 'Плоские',
   'align.flatHexes': 'гексы с плоской вершиной',
   'align.freehandHint': 'Приближайте, пока клетка образца не совпадёт с клеткой карты, затем щёлкните.',

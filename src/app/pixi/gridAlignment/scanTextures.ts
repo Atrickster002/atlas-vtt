@@ -1,7 +1,7 @@
 import { BufferImageSource, Texture } from 'pixi.js';
 import { getDomHost } from '../../host/dom';
 import type { MapBounds } from '../gridAlignmentMath';
-import type { InkMap } from '../gridDetection/detectionJob';
+import type { InkMap } from '../spectralEngine/detectionJob';
 
 /** Longest side of the texture the grid's edges on the map's lines are drawn into. */
 const HITS_SIDE = 1536;

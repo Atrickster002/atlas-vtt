@@ -11,7 +11,7 @@ import type { Texture } from 'pixi.js';
 import { alignmentGridColor } from '../grid/GridSystem';
 import type { GridType } from '../grid/GridSystem';
 import { gridOffsetCenteredAt } from '../grid/gridPlacement';
-import { gridLineSegments } from './gridDetection/gridTemplate';
+import { gridLineSegments } from './spectralEngine/gridTemplate';
 import { radialFadeGroups } from './radialFade';
 import type { FadeStop } from './radialFade';
 import { destroyTree } from './utils/destroyTree';

@@ -1,8 +1,8 @@
 import { afterAll, describe, expect, it } from 'vitest';
-import { detectGridInMapGray } from '../../src/app/pixi/gridDetection/detectGrid';
-import type { MapGray } from '../../src/app/pixi/gridDetection/detectGrid';
-import type { DetectionEvent } from '../../src/app/pixi/gridDetection/detectionJob';
-import { detectGridInGray, disposeGridDetection } from '../../src/app/pixi/gridDetection/gridDetectionService';
+import { detectGridInMapGray } from '../../src/app/pixi/spectralEngine/detectGrid';
+import type { MapGray } from '../../src/app/pixi/spectralEngine/detectGrid';
+import type { DetectionEvent } from '../../src/app/pixi/spectralEngine/detectionJob';
+import { detectGridInGray, disposeSpectralEngine } from '../../src/app/pixi/spectralEngine/spectralEngineService';
 
 /**
  * Grid detection runs in a worker of its own, so the window keeps painting while a grid is looked
@@ -26,7 +26,7 @@ function squareMap(side: number, cell: number, offset: number): MapGray {
 }
 
 describe('grid detection worker', () => {
-  afterAll(disposeGridDetection);
+  afterAll(disposeSpectralEngine);
 
   it('finds the grid a detection on the main thread finds, and reports on the way while frames go on', async () => {
     const gray = squareMap(3072, 96, 17);

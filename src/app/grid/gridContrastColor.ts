@@ -1,5 +1,5 @@
-import { grayFromCanvasSource } from '../pixi/gridDetection/grayImage';
-import type { GrayImage } from '../pixi/gridDetection/grayImage';
+import { grayFromCanvasSource } from '../pixi/spectralEngine/grayImage';
+import type { GrayImage } from '../pixi/spectralEngine/grayImage';
 import type { MapPixels } from '../pixi/mapImage/mapImageView';
 
 const BLACK = 0x000000;

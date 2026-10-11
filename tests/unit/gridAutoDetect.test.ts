@@ -1,9 +1,9 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { createInMemoryApp } from '../mocks/inMemoryVault';
-import type { DetectableMap } from '../../src/app/pixi/gridDetection/detectGrid';
+import type { DetectableMap } from '../../src/app/pixi/spectralEngine/detectGrid';
 
 const detectGridFromMapImage = vi.fn();
-vi.mock('../../src/app/pixi/gridDetection/gridDetectionService', () => ({
+vi.mock('../../src/app/pixi/spectralEngine/spectralEngineService', () => ({
   detectGridOfMap: async (map: DetectableMap) => ({ result: (await detectGridFromMapImage(map)) as unknown, hits: null }),
 }));
 

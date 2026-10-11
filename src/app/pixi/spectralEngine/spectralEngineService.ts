@@ -1,14 +1,14 @@
-/** The app's one grid detection client: every map and panel asks it, and it is gone with the plugin. */
+/** The app's one Spectral Engine client: every map and panel asks it, and it is gone with the plugin. */
 
-import { detectionStopped, GridDetectionClient } from './GridDetectionClient';
-import type { DetectOptions, MapPixels } from './GridDetectionClient';
+import { detectionStopped, SpectralEngineClient } from './SpectralEngineClient';
+import type { DetectOptions, MapPixels } from './SpectralEngineClient';
 import { pictureOf } from './detectGrid';
 import type { DetectableMap } from './detectGrid';
 import { NO_GRID } from './detectionJob';
 import type { DetectionOutcome } from './detectionJob';
 import DetectionWorker from './detectionWorker?worker&inline';
 
-let client: GridDetectionClient | null = null;
+let client: SpectralEngineClient | null = null;
 /** Set on unload, so work finishing afterwards cannot start a worker for a plugin that is gone. */
 let disposed = false;
 
@@ -18,7 +18,7 @@ let disposed = false;
  */
 export function detectGridInGray(pixels: MapPixels, options?: DetectOptions): Promise<DetectionOutcome> {
   if (disposed) return Promise.reject(detectionStopped());
-  client ??= new GridDetectionClient(() => new DetectionWorker({ name: 'Atlas grid detection' }));
+  client ??= new SpectralEngineClient(() => new DetectionWorker({ name: 'Atlas grid detection' }));
   return client.detect(pixels, options);
 }
 
@@ -29,7 +29,7 @@ export function detectGridOfMap(map: DetectableMap, options?: DetectOptions): Pr
 }
 
 /** Stops the worker; called when the plugin unloads. */
-export function disposeGridDetection(): void {
+export function disposeSpectralEngine(): void {
   disposed = true;
   client?.dispose();
   client = null;

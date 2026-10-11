@@ -7,7 +7,7 @@ import { GridScanLayer } from '../../src/app/pixi/gridAlignment/GridScanLayer';
 import { LOCK_FADE_MS, LOCK_MS } from '../../src/app/pixi/gridAlignment/scanChoreography';
 import { ScanPace } from '../../src/app/pixi/gridAlignment/scanPace';
 import type { AlignmentResult } from '../../src/app/pixi/gridAlignmentMath';
-import { gridLineSamples } from '../../src/app/pixi/gridDetection/gridTemplate';
+import { gridLineSamples } from '../../src/app/pixi/spectralEngine/gridTemplate';
 
 /**
  * The grid scan draws its grids in a shader, from the distance to the nearest line, while the
