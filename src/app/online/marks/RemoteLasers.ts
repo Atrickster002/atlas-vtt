@@ -6,58 +6,65 @@ import { MAX_TRAIL_SAMPLES, type BeamPoint } from '../../pixi/laser/laserBeamGeo
 import { destroyTree } from '../../pixi/utils/destroyTree';
 import { usesCanvasRenderer } from '../../pixi/utils/rendererType';
 import { LASER_FADE_TIME } from '../../tools/laserPointerSettings';
+import { PointerTrack, type TrackPoint } from './PointerTrack.ts';
 
 /** Where Atlas draws the laser: above the fog and every mark. */
 export const LASER_Z = 2000;
 
-/** One sender's laser as it arrives: its look, pointer and the trail added since the last. */
+/** One sender's laser as it arrives: its look, pointer, the trail added since the last and the time that trail covers. */
 export type RemoteLaser = { readonly who: string } & LaserState;
-
-interface TrailPoint {
-  readonly x: number;
-  readonly y: number;
-  readonly at: number;
-}
 
 interface Beam {
   readonly view: LaserBeamView;
-  trail: TrailPoint[];
+  readonly track: PointerTrack;
+  /** The sender's laser as it last told it; null once the sender stopped. */
   state: RemoteLaser | null;
+  look: { readonly color: string; readonly size: number };
+  /** The newest place the track was given; null while the pointer is away. */
+  newest: TrackPoint | null;
+}
+
+/** The samples a laser's message adds: its trail points, then the pointer where it is not the last of them. */
+function samplesOf(laser: RemoteLaser, newest: TrackPoint | null): TrackPoint[] {
+  const points: TrackPoint[] = [];
+  for (let index = 0; index + 1 < laser.pts.length; index += 2) points.push({ x: laser.pts[index] ?? 0, y: laser.pts[index + 1] ?? 0, trail: true });
+  const last = points.at(-1) ?? newest;
+  if (laser.at !== null && (last === null || last.x !== laser.at[0] || last.y !== laser.at[1])) points.push({ x: laser.at[0], y: laser.at[1], trail: laser.on });
+  return points;
 }
 
 /**
- * Other people's lasers, drawn with Atlas's own beam: one per sender, its trail stamped as it
- * arrives and fading as Atlas's does. A sender missing from an update stops pointing; its beam goes
- * once its trail has faded.
+ * Other people's lasers, drawn with Atlas's own beam: one per sender. A message says where the
+ * pointer was; the beam is drawn from a `PointerTrack`, a moment behind, so the pointer moves on
+ * every frame and its trail grows behind it and fades as it did for its sender. A sender missing
+ * from an update stops pointing; its beam goes once what it sent is drawn and its trail has faded.
  */
 export class RemoteLasers {
   readonly container = new Container({ label: 'remote-lasers', zIndex: LASER_Z, eventMode: 'none', interactiveChildren: false });
   private readonly beams = new Map<string, Beam>();
   private readonly renderer: Renderer;
   private readonly zoom: () => number;
-  /** How long the trail a message carries took to draw: its points are spread over it. */
-  private readonly spread: number;
+  /** The senders' nominal send interval, in ms. */
+  private readonly interval: number;
 
-  constructor(renderer: Renderer, zoom: () => number, spread: number) {
+  constructor(renderer: Renderer, zoom: () => number, interval: number) {
     this.renderer = renderer;
     this.zoom = zoom;
-    this.spread = spread;
+    this.interval = interval;
   }
 
-  /** Every laser as it is now (`now` in ms, the clock `tick` runs on). */
+  /** Every laser as it is now, with the trail points new since the last update (`now` in ms, the clock `tick` runs on). */
   update(lasers: readonly RemoteLaser[], now: number): void {
     const present = new Set(lasers.map((laser) => laser.who));
-    for (const [who, beam] of this.beams) if (!present.has(who)) beam.state = null;
+    for (const [who, beam] of this.beams) if (!present.has(who)) this.leave(beam, null);
     for (const laser of lasers) {
-      const beam = this.beams.get(laser.who) ?? this.addBeam(laser.who);
+      const beam = this.beams.get(laser.who) ?? this.addBeam(laser);
+      const points = samplesOf(laser, beam.newest);
+      beam.track.push(points, laser.span, now);
+      beam.newest = points.at(-1) ?? beam.newest;
       beam.state = laser;
-      const count = laser.pts.length / 2;
-      for (let index = 0; index < count; index += 1) {
-        const x = laser.pts[index * 2] ?? 0;
-        const y = laser.pts[index * 2 + 1] ?? 0;
-        beam.trail.push({ x, y, at: now - ((count - 1 - index) * this.spread) / count });
-      }
-      if (beam.trail.length > MAX_TRAIL_SAMPLES) beam.trail.splice(0, beam.trail.length - MAX_TRAIL_SAMPLES);
+      beam.look = laser;
+      if (laser.at === null) this.leave(beam, laser);
     }
   }
 
@@ -70,18 +77,24 @@ export class RemoteLasers {
   tick(now: number): void {
     const zoom = this.zoom() || 1;
     for (const [who, beam] of this.beams) {
-      beam.trail = beam.trail.filter((point) => now - point.at < LASER_FADE_TIME);
-      const state = beam.state;
-      if (state === null && beam.trail.length === 0) {
+      const at = beam.track.at(now);
+      const moving = beam.track.busy(now);
+      const trail: BeamPoint[] = [];
+      for (const point of beam.track.played(now)) {
+        const life = 1 - (now - point.at) / LASER_FADE_TIME;
+        if (point.trail && life > 0) trail.push({ x: point.x, y: point.y, life });
+      }
+      if (trail.length > MAX_TRAIL_SAMPLES) trail.splice(0, trail.length - MAX_TRAIL_SAMPLES);
+      if (beam.state === null && at === null && !moving && trail.length === 0) {
         this.removeBeam(who, beam);
         continue;
       }
-      const pointer = state?.at ? { x: state.at[0], y: state.at[1] } : null;
-      const trail: BeamPoint[] = beam.trail.map((point) => ({ x: point.x, y: point.y, life: 1 - (now - point.at) / LASER_FADE_TIME }));
-      if (state?.on === true && pointer !== null) trail.push({ ...pointer, life: 1 });
-      const dot = pointer !== null && state?.on !== true ? { ...pointer, life: 1 } : null;
-      const look = state ?? { color: '#ffffff', size: 16 };
-      beam.view.draw({ trail, dot, pointer, color: look.color, width: beamWidth(look.size, zoom), zoom });
+      const pointer = at === null ? null : { x: at.x, y: at.y };
+      // On its way the pointer draws where its sender drew; at rest, while its sender still does.
+      const draws = at !== null && (moving ? at.trail : beam.state?.on === true);
+      if (pointer !== null && draws) trail.push({ ...pointer, life: 1 });
+      const dot = pointer !== null && !draws ? { ...pointer, life: 1 } : null;
+      beam.view.draw({ trail, dot, pointer, color: beam.look.color, width: beamWidth(beam.look.size, zoom), zoom });
     }
   }
 
@@ -94,11 +107,18 @@ export class RemoteLasers {
     destroyTree(this.container);
   }
 
-  private addBeam(who: string): Beam {
+  /** The pointer is away: what it sent is still drawn, and it comes back apart from where it left. */
+  private leave(beam: Beam, state: RemoteLaser | null): void {
+    beam.state = state;
+    beam.newest = null;
+    beam.track.end();
+  }
+
+  private addBeam(laser: RemoteLaser): Beam {
     const view = usesCanvasRenderer(this.renderer) ? new CanvasLaserBeam() : new LaserBeam();
     this.container.addChild(view.view);
-    const beam: Beam = { view, trail: [], state: null };
-    this.beams.set(who, beam);
+    const beam: Beam = { view, track: new PointerTrack({ interval: this.interval, keep: LASER_FADE_TIME }), state: laser, look: laser, newest: null };
+    this.beams.set(laser.who, beam);
     return beam;
   }
 
