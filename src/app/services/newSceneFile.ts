@@ -22,9 +22,10 @@ export interface NewSceneFile {
 /**
  * An empty scene on `background` for a collection with `settings`: Atlas' default grid, to be
  * aligned to the image on the first load, measuring as the collection does, and the token
- * settings a new scene of the collection starts with.
+ * settings a new scene of the collection starts with. Without `detectGrid` (a table that plays
+ * without a grid) the scene has none until the GM aligns one: no lines, and nothing snaps.
  */
-export function newSceneFile(settings: CollectionSettings, background: string | null): NewSceneFile {
+export function newSceneFile(settings: CollectionSettings, background: string | null, detectGrid = true): NewSceneFile {
   const { gridDefaults } = settings;
   return {
     state: {
@@ -33,8 +34,8 @@ export function newSceneFile(settings: CollectionSettings, background: string | 
       background,
       grid: {
         enabled: true,
-        visible: true,
-        snapToGrid: true,
+        visible: detectGrid,
+        snapToGrid: detectGrid,
         type: 'square',
         size: 70,
         offsetX: 0,
@@ -42,7 +43,7 @@ export function newSceneFile(settings: CollectionSettings, background: string | 
         opacity: 0.5,
         lineType: 'solid',
         lineWidth: 1,
-        autoDetect: true,
+        ...(detectGrid && { autoDetect: true }),
         ...(gridDefaults && {
           unitType: gridDefaults.unitType,
           unitDistance: gridDefaults.unitDistance,

@@ -14,6 +14,8 @@ export const grid = {
   'grid.show': 'Show grid',
   'grid.snap': 'Snap to grid',
   'grid.snapHint': 'Tokens, pins and measurements settle on cell centres',
+  'grid.detectOnNewScenes': 'Detect grid on new scenes',
+  'grid.detectOnNewScenesHint': 'Off for games without a grid: new scenes have no grid and nothing snaps until you align one',
   'grid.type': 'Grid type',
   'grid.type.hexFlat': 'Hex (Flat)',
   'grid.type.hexPointy': 'Hex (Pointy)',

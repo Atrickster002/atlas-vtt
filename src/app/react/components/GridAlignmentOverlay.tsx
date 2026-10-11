@@ -164,7 +164,8 @@ export function GridAlignmentOverlay({ onClose }: GridAlignmentOverlayProps): Re
     const currentGrid = store.getState().grid;
     if (!currentGrid) return;
     const renderer = view?.renderer;
-    const grid = { ...gridAlignedTo(currentGrid, result), enabled: true, visible: true };
+    // An aligned grid is a grid in use: it shows, and tokens snap to it.
+    const grid = { ...gridAlignedTo(currentGrid, result), enabled: true, visible: true, snapToGrid: true };
     // The map keeps the stretch the preview gave it (the renderer follows the store's), and what
     // stands on the map keeps its place on it.
     const from = readMapStretch(currentGrid.mapStretch);

@@ -211,7 +211,8 @@ describe('GridAlignmentOverlay', () => {
       answer({ gridType: 'hex-horizontal', cellSize: 35.3, offsetX: 4, offsetY: 9, confidence: 0.51 });
       await Promise.resolve();
     });
-    expect(store.getState().grid).toMatchObject({ type: 'hex-horizontal', size: 35.3, offsetX: 4, offsetY: 9 });
+    // An aligned grid is in use: it shows and is snapped to, whatever the scene had before.
+    expect(store.getState().grid).toMatchObject({ type: 'hex-horizontal', size: 35.3, offsetX: 4, offsetY: 9, visible: true, snapToGrid: true });
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 

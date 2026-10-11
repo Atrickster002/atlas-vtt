@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import { MapIcon } from 'lucide-react';
 import type { AssetService } from '../../../services/AssetService';
 import { newSceneFile } from '../../../services/newSceneFile';
+import { SettingsService } from '../../../services/SettingsService';
 import { normalizeImagePath } from '../../../utils/pathUtils';
 import { ensureFolder } from '../../../plugin/vaultFolders';
 import { useAtlasUI } from '../../../react/root/AtlasUIContext';
@@ -97,6 +98,7 @@ export default function CreateSceneModal({
       const mapData = newSceneFile(
         assetService.getCollectionSettings(collectionId),
         backgroundPath ? normalizeImagePath(backgroundPath) : null,
+        SettingsService.forApp(app)?.detectsGridOnNewScenes() ?? true,
       );
 
       const scenePath = normalizePath(`atlas-vtt/collections/${collectionId}/scenes/${sceneName.trim()}.atlasmap`);

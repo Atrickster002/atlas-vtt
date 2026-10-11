@@ -245,6 +245,17 @@ export class SettingsService {
     this.commit();
   }
 
+  /** Whether a new scene looks for the grid of its map: on unless the file says `false`. */
+  detectsGridOnNewScenes(): boolean {
+    return this.settings.detectGridOnNewScenes !== false;
+  }
+
+  setDetectGridOnNewScenes(on: boolean): void {
+    if (this.detectsGridOnNewScenes() === on) return;
+    this.settings.detectGridOnNewScenes = on;
+    this.commit();
+  }
+
   /** Whether the GM switched an experimental feature on: off unless the file says `true`. */
   isExperimentalOn(id: ExperimentalFeatureId): boolean {
     return this.settings.experimental[id] === true;

@@ -26,7 +26,8 @@ export interface DetectionShow {
 /**
  * Aligns the grid of a freshly created scene to its map image, once. New scenes
  * carry `grid.autoDetect`; the GM view consumes the flag on the first load. A map
- * without a detectable grid simply gets its grid hidden. The renderer follows the
+ * without a detectable grid gets its grid hidden and nothing snaps on it; a found grid
+ * shows and is snapped to. The renderer follows the
  * store's grid, so writing the store is all that is needed, except for the map's stretch
  * (`GridState.mapStretch`), which a load shows itself: the caller draws the map with it.
  * Detection reads the map's pixels from the tile worker and runs in a worker of its own: nothing is
@@ -55,13 +56,13 @@ export async function autoDetectGridOnFirstLoad(
   const detected = outcome.result;
   if (!detected) {
     show.none?.();
-    runUntracked(store, () => setGrid({ ...settled, visible: false }));
+    runUntracked(store, () => setGrid({ ...settled, visible: false, snapToGrid: false }));
     return 'none';
   }
 
   await show.found?.(outcome);
   if (!isCurrent()) return 'skipped';
-  runUntracked(store, () => setGrid({ ...gridAlignedTo(settled, detected), visible: true }));
+  runUntracked(store, () => setGrid({ ...gridAlignedTo(settled, detected), visible: true, snapToGrid: true }));
   return 'found';
 }
 
