@@ -2,6 +2,7 @@ import { type App, type WorkspaceLeaf } from 'obsidian';
 import { showNotice } from '../../ui/notice';
 import { activeAtlasLeaf, sceneStoreOf, selectedTokenIds, tokenLabel, type SceneStore } from './atlasView.ts';
 import { obsidianHttp } from './account/obsidianHttp.ts';
+import { BookShelf } from './book/BookShelf.ts';
 import { createTable } from './createTable.ts';
 import { newGate } from './joinGate.ts';
 import { LogKeeper, type LogStore } from './log/logStore.ts';
@@ -76,7 +77,7 @@ export class OnlineControl {
   /** The running table's log, kept with it and told to its panels. */
   readonly logs: LogKeeper;
 
-  constructor(app: App, ownership: Ownership, save: (table: SavedTable | null) => void = () => undefined, account: HostAccount = NO_ACCOUNT, logStore?: LogStore) {
+  constructor(app: App, ownership: Ownership, save: (table: SavedTable | null) => void = () => undefined, account: HostAccount = NO_ACCOUNT, logStore?: LogStore, private readonly shelf = new BookShelf()) {
     this.app = app;
     this.ownership = ownership;
     this.save = save;
@@ -255,7 +256,7 @@ export class OnlineControl {
         // The account page says why; the dock shows what the relay says of the account now.
         if (end === 'no-access') void this.account.refresh(true);
       },
-    }, savedLog);
+    }, this.shelf, savedLog);
     this.current = table;
     table.start();
     this.changed();

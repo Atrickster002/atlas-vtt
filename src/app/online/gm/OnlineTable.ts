@@ -3,6 +3,8 @@ import { normalizePath, type App, type WorkspaceLeaf } from 'obsidian';
 import { showNotice } from '../../ui/notice';
 import { scaleInWindow } from './assetVariants.ts';
 import { ATLAS_VIEW_TYPE, type SceneStore } from './atlasView.ts';
+import type { BookShelf } from './book/BookShelf.ts';
+import { tableBook, type TableBook } from './book/tableBook.ts';
 import { companionTimers, every } from './companionTimers.ts';
 import type { CreatedTable } from './createdTable.ts';
 import { ImageShare } from './image/ImageShare.ts';
@@ -70,11 +72,13 @@ export class OnlineTable {
   readonly log: TableLog;
   /** The image the GM shows every player over the map, while one is shown. */
   readonly image: ImageShare;
+  /** The players' books: each one's own pages besides the table, kept on this device's shelf. */
+  private readonly books: TableBook;
   /** The join link players open. */
   readonly link: string;
   private readonly stopOwnership: () => void;
 
-  constructor(app: App, origin: string, table: CreatedTable, mapPath: string | null, ownership: Ownership, gate: GateSettings, events: OnlineTableEvents, savedLog?: unknown) {
+  constructor(app: App, origin: string, table: CreatedTable, mapPath: string | null, ownership: Ownership, gate: GateSettings, events: OnlineTableEvents, shelf: BookShelf, savedLog?: unknown) {
     this.app = app;
     this.ownership = ownership;
     this.events = events;
@@ -104,6 +108,12 @@ export class OnlineTable {
       randomId: () => randomHex(12),
       scaleImage: scaleInWindow,
       changed: () => events.changed(),
+    });
+    this.books = tableBook({
+      app, shelf, ownership, randomId: () => randomHex(12),
+      send: (body, to) => this.connection.send(body, to),
+      scene: () => this.bound()?.book() ?? null,
+      readImage: (path) => this.readImage(path),
     });
     this.watch = new TabWatch<SceneBinding>({
       leaves: () => app.workspace.getLeavesOfType(ATLAS_VIEW_TYPE),
@@ -143,11 +153,12 @@ export class OnlineTable {
       left: (player) => {
         this.bound()?.share.playerLeft(player);
         this.image.playerLeft(player);
+        this.books.share.playerLeft(player);
         ownership.left(player);
         this.log.left(player);
       },
-      // The log and the shown image are the table's, so they hear players while no scene is shared too.
-      message: (from, body) => void (this.log.receive(from, body) || this.image.receive(from, body) || this.bound()?.share.receive(from, body)),
+      // The log, the shown image and the books are the table's, so they hear players while no scene is shared too.
+      message: (from, body) => void (this.log.receive(from, body) || this.image.receive(from, body) || this.books.share.receive(from, body) || this.bound()?.share.receive(from, body)),
       access: (closesAt) => this.setClosing(closesAt),
     }, this.gate);
     this.stopOwnership = ownership.onChange(() => this.bound()?.share.ownersChanged());
@@ -191,6 +202,7 @@ export class OnlineTable {
 
   start(): void {
     this.connection.start();
+    this.books.start();
     this.watch.check();
     this.stopWatchTimer = every(companionTimers(), WATCH_MS, () => this.watch.check());
     // Atlas presenting another scene is followed at once; the timer catches everything else
@@ -230,6 +242,7 @@ export class OnlineTable {
     this.stopOwnership();
     this.gate.dispose();
     this.log.dispose();
+    this.books.stop();
     this.closing = null;
     this.events.ended(end);
   }
@@ -257,13 +270,14 @@ export class OnlineTable {
     return binding !== null && this.watch.isLive(binding) ? binding : null;
   }
 
-  /** The scene, tokens and the rest to one player or to all, or no scene while the shared tab is gone; then the log and the shown image. */
+  /** The scene, tokens and the rest to one player or to all, or no scene while the shared tab is gone; then the log, the shown image and the books. */
   private resend(to?: string): void {
     const binding = this.bound();
     if (binding === null) this.connection.send({ t: 'scene', scene: null }, to);
     else binding.share.resend(to);
     this.log.resend(to);
     this.image.resend(to);
+    this.books.share.resend(to);
   }
 
   /** Players see no scene while the shared tab is gone, so nothing of what they saw lingers or moves. */

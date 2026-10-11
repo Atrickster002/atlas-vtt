@@ -78,9 +78,12 @@ export function mapLayerSourceOf(renderer: unknown, view: unknown): MapLayerSour
         return place === null ? [] : [place];
       });
     },
-    collections: () => {
-      const assets = call(field(view, 'serviceManager'), 'getAssetService');
-      return isFunction(field(assets, 'getCollectionForMap')) && isFunction(field(assets, 'getCollectionSettings')) ? assets as CollectionLookup : null;
-    },
+    collections: () => collectionsOf(view),
   };
+}
+
+/** Where an Atlas view looks up a map's collection and its settings (its asset service), or null when it has none. */
+export function collectionsOf(view: unknown): CollectionLookup | null {
+  const assets = call(field(view, 'serviceManager'), 'getAssetService');
+  return isFunction(field(assets, 'getCollectionForMap')) && isFunction(field(assets, 'getCollectionSettings')) ? assets as CollectionLookup : null;
 }

@@ -38,7 +38,7 @@ export interface CollectionLookup {
 }
 
 /** How `AssetService.getCollectionForMap` recognises a map that lies in a collection's folder. */
-const COLLECTION_FOLDER = /collections\/[^/]+\//;
+export const COLLECTION_FOLDER = /collections\/[^/]+\//;
 
 /**
  * The resources tokens on a map track: its collection's. A map outside every collection

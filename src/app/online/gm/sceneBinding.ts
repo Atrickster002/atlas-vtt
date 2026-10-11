@@ -6,8 +6,9 @@ import type { GridGeometry } from '../../grid/gridDistance';
 import { resolveMeasurementSettings } from '../../grid/measurementFormat';
 import { diceSourceOf } from './atlasDice.ts';
 import { accentColour, atlasPlayerSettings, lightingSourceOf, measurementOf } from './atlasLighting.ts';
-import { mapLayerSourceOf } from './atlasMapLayers.ts';
+import { collectionsOf, mapLayerSourceOf } from './atlasMapLayers.ts';
 import { asTokenSource, call, drawnTokenPlaces, tokenRulesOf, type SceneStore } from './atlasView.ts';
+import { bookSceneOf, type BookScene } from './book/bookScene.ts';
 import { companionTimers } from './companionTimers.ts';
 import { GmMarks } from './gmMarks.ts';
 import type { LoggedRoll } from './log/TableLog.ts';
@@ -24,6 +25,8 @@ export interface SceneBinding extends TabBinding {
   readonly share: SceneShare;
   /** The view's store as players may see it: frozen on the presented scene while the GM works on another tab. */
   readonly store: SceneStore;
+  /** The scene as the players' books read it; null while it is not shown, loads or cannot be read. */
+  book(): BookScene | null;
 }
 
 export interface SceneBindingPorts {
@@ -107,6 +110,7 @@ export function bindScene(ports: SceneBindingPorts, tab: AtlasTab, presented: Pr
   const binding: SceneBinding = {
     share,
     store,
+    book: () => (shown() ? bookSceneOf(store.getState(), asTokenSource(renderer), tokenRulesOf(renderer), collectionsOf(leaf.view)) : null),
     get showing() {
       return !store.held;
     },

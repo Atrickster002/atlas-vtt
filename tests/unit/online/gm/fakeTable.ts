@@ -112,7 +112,7 @@ export class FakeTabs implements TabSource {
 export class FakeView {
   isViewClosing = false;
   readonly containerEl = { ownerDocument: {} };
-  readonly serviceManager = { getRendererService: () => ({ getRenderer: () => this.renderer }) };
+  readonly serviceManager = { getRendererService: () => ({ getRenderer: () => this.renderer }), getAssetService: () => workspace.assets };
   readonly tabMetaStore: FakeTabs;
   constructor(readonly atlasStore: SceneStore, public renderer: object | null) {
     this.tabMetaStore = new FakeTabs(atlasStore.getState().mapPath);
@@ -152,13 +152,24 @@ export function switchScene(tab: FakeTab, next: SceneState): void {
   tab.store.set(next);
 }
 
-/** The open Atlas leaves, the scene Atlas presents (null: none), the vault's files, and who told Atlas they show its presented scene. */
+/**
+ * The open Atlas leaves, the scene Atlas presents (null: none), the vault's files, who told Atlas they show its
+ * presented scene, and Atlas's asset service as far as a test gives it one (where a map's collection is looked up).
+ */
 export const workspace = {
   leaves: [] as WorkspaceLeaf[],
   presented: null as Presented | null,
   files: new Map<string, Uint8Array>(),
   shownElsewhere: 0,
+  assets: null as object | null,
 };
+
+const workspaceListeners = new Map<string, Set<(...args: unknown[]) => void>>();
+
+/** Triggers a workspace event, as Atlas does when a collection's settings change. */
+export function trigger(name: string, ...args: unknown[]): void {
+  for (const listener of [...(workspaceListeners.get(name) ?? [])]) listener(...args);
+}
 
 const presentedListeners = new Set<(scene: Presented | null) => void>();
 
@@ -191,9 +202,17 @@ export const app = {
     getLeavesOfType: (type: string) => workspace.leaves.filter((leaf) => (leaf.view as unknown as FakeView).getViewType() === type),
     getMostRecentLeaf: () => workspace.leaves[0] ?? null,
     setActiveLeaf: () => undefined,
+    on: (name: string, listener: (...args: unknown[]) => void) => {
+      workspaceListeners.set(name, (workspaceListeners.get(name) ?? new Set()).add(listener));
+      return { name, listener };
+    },
+    offref: (ref: { name: string; listener: (...args: unknown[]) => void }) => void workspaceListeners.get(ref.name)?.delete(ref.listener),
   },
   vault: {
-    getFileByPath: (path: string) => (workspace.files.has(path) ? { path } : null),
+    getFileByPath: (path: string) => {
+      const bytes = workspace.files.get(path);
+      return bytes === undefined ? null : { path, stat: { mtime: 0, size: bytes.length } };
+    },
     readBinary: (file: { path: string }) => Promise.resolve(workspace.files.get(file.path)?.slice().buffer),
   },
   plugins: { plugins: { 'atlas-vtt': { presentedScene: atlasPresented } } },

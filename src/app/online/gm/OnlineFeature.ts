@@ -5,6 +5,8 @@ import { AccountControl } from './account/AccountControl.ts';
 import { obsidianHttp } from './account/obsidianHttp.ts';
 import { secretTokenStore } from './account/tokenStore.ts';
 import { activeAtlasLeaf } from './atlasView.ts';
+import { BookShelf } from './book/BookShelf.ts';
+import { readBooks } from './book/bookStore.ts';
 import { CompanionDiagnostics } from './companionDiagnostics.ts';
 import { companionTimers, every, stopCompanionTimers } from './companionTimers.ts';
 import { DockMounts } from './dock/DockMounts.ts';
@@ -21,7 +23,7 @@ import { Ownership, readOwnership } from './ownership.ts';
 import { readSavedTable, type SavedTable } from './savedTable.ts';
 import { DEFAULT_SETTINGS, onlineSettingsSections, readSettings, type OnlineSettings } from './settings.ts';
 
-/** How long a change of the table's log waits before the data file is written. */
+/** How long a change of the table's log or of a player's book waits before the data file is written. */
 const LOG_SAVE_MS = 10_000;
 /** How often the tab the table's log stands on and Atlas's image display are looked for. */
 const SYNC_MS = 1_000;
@@ -44,6 +46,8 @@ export class OnlineFeature extends Component {
   /** The running table's log as saved with it; undefined while there is none. */
   private savedLog: unknown = undefined;
   private logSave: number | null = null;
+  /** The players' books kept on this device; they outlive tables. */
+  private books = new BookShelf();
   private docks: DockMounts | null = null;
   private logs: LogMounts | null = null;
   /** False before loading and after unloading: commands are offered and data is taken in only while true. */
@@ -108,10 +112,11 @@ export class OnlineFeature extends Component {
     const ownership = new Ownership(readOwnership(record.ownership), () => void this.saveSettings());
     this.savedTable = readSavedTable(record.table);
     this.savedLog = this.savedTable === null ? undefined : record.tableLog;
+    this.books = new BookShelf(readBooks(record.books), () => this.saveSoon());
     this.online = new OnlineControl(this.app, ownership, (table) => {
       this.savedTable = table;
       void this.saveSettings();
-    }, this.account, { read: () => this.savedLog, write: (entries) => this.keepLog(entries) });
+    }, this.account, { read: () => this.savedLog, write: (entries) => this.keepLog(entries) }, this.books);
     // Atlas's "Display on player view" reaches the players online too, while a table runs.
     const images = new ImageTakeover<TFile>(() => atlasImageDisplay(this.app), {
       share: () => this.online.table?.image ?? null,
@@ -191,18 +196,18 @@ export class OnlineFeature extends Component {
     this.docks = null;
     this.logs?.dispose();
     this.logs = null;
-    // A log change that still waits to be saved is saved now.
+    // A change of the log or of a book that still waits to be saved is saved now.
     if (this.logSave !== null) void this.saveSettings();
     // Unloading closes the connection only: the table stays on the server and comes back on the next load.
     this.online.close();
     stopCompanionTimers();
   }
 
-  /** Saves the settings with the table's players, token owners and player tokens. */
+  /** Saves the settings with the table's players, token owners and player tokens, its log and the players' books. */
   async saveSettings(): Promise<void> {
     if (this.logSave !== null) companionTimers().clearTimer(this.logSave);
     this.logSave = null;
-    await this.data.write({ ...this.settings, ownership: this.online.ownership.toData(), table: this.savedTable, ...(this.savedLog !== undefined && { tableLog: this.savedLog }) });
+    await this.data.write({ ...this.settings, ownership: this.online.ownership.toData(), table: this.savedTable, ...(this.savedLog !== undefined && { tableLog: this.savedLog }), books: this.books.toData() });
   }
 
   /** What one of online play's commands does; the plugin registers the commands once (`registerOnlinePlay`). */
@@ -216,6 +221,11 @@ export class OnlineFeature extends Component {
     if (cleared && this.savedLog === undefined) return;
     this.savedLog = cleared ? undefined : log;
     if (cleared) return void this.saveSettings();
+    this.saveSoon();
+  }
+
+  /** Writes the data file within `LOG_SAVE_MS`: every message or note would write it otherwise. */
+  private saveSoon(): void {
     this.logSave ??= companionTimers().setTimer(() => void this.saveSettings(), LOG_SAVE_MS);
   }
 

@@ -11,14 +11,17 @@ export interface AssetAnswerPorts {
   scaleImage?: ScaleImage | undefined;
 }
 
-/** What players may be sent now: the assets of their current picture. */
+/**
+ * What a player may be sent now: the assets of their current picture. Each question names the player
+ * who asks, for a picture that is not the same for everyone (a player's own book).
+ */
 export interface PictureAssets {
   /** The shared map's image, while one is shared. */
-  map(): { readonly hash: string; readonly bytes: Uint8Array; readonly mime: string } | null;
+  map(player: string): { readonly hash: string; readonly bytes: Uint8Array; readonly mime: string } | null;
   /** The explored memory by hash, while it is the one players were sent. */
-  explored(hash: string): Uint8Array | undefined;
+  explored(hash: string, player: string): Uint8Array | undefined;
   /** The vault path of artwork the picture shows (a token's or an initiative portrait's), by hash. */
-  artPath(hash: string): string | undefined;
+  artPath(hash: string, player: string): string | undefined;
 }
 
 /**
@@ -37,10 +40,10 @@ export class AssetAnswers {
   answer(from: string, request: PlayerAssetRequest): void {
     const { hash, maxSide } = request;
     const first = request.from ?? 0;
-    const map = this.picture.map();
+    const map = this.picture.map(from);
     const isMap = map?.hash === hash;
-    const explored = isMap ? undefined : this.picture.explored(hash);
-    const art = isMap || explored !== undefined ? undefined : this.picture.artPath(hash);
+    const explored = isMap ? undefined : this.picture.explored(hash, from);
+    const art = isMap || explored !== undefined ? undefined : this.picture.artPath(hash, from);
     if (!isMap && explored === undefined && art === undefined) return this.refuse(hash, from);
     if (!this.served.take(from, maxSide === undefined ? hash : `${hash}@${maxSide}`, first, this.ports.now())) return;
     if (explored !== undefined) return this.serve(hash, explored, from, first);
@@ -54,10 +57,10 @@ export class AssetAnswers {
     else this.served.forget(player);
   }
 
-  /** Reads artwork again and serves it while it still has the hash the picture names. */
+  /** Reads artwork again and serves it while it still has the hash the player's picture names. */
   private async serveArt(hash: string, path: string, to: string, first: number, maxSide: number | undefined): Promise<void> {
     const image = await this.ports.readImage(path).catch(() => null);
-    if (image === null || this.picture.artPath(hash) !== path || (await sha256Hex(image.bytes)) !== hash) return this.refuse(hash, to);
+    if (image === null || this.picture.artPath(hash, to) !== path || (await sha256Hex(image.bytes)) !== hash) return this.refuse(hash, to);
     await this.serveImage(hash, image.bytes, image.mime, to, first, maxSide);
   }
 
@@ -65,14 +68,14 @@ export class AssetAnswers {
   private async serveImage(hash: string, bytes: Uint8Array, mime: string, to: string, first: number, maxSide: number | undefined): Promise<void> {
     if (maxSide === undefined || this.variants === null) return this.serve(hash, bytes, to, first);
     const variant = await this.variants.get(hash, bytes, mime, maxSide);
-    if (!this.inPicture(hash)) return this.refuse(hash, to);
+    if (!this.inPicture(hash, to)) return this.refuse(hash, to);
     if (variant === null) return this.serve(hash, bytes, to, first);
     this.ports.send({ t: 'asset-variant', hash, maxSide, variant: variant.ref, width: variant.width, height: variant.height }, to);
     this.serve(variant.ref.hash, variant.bytes, to, first);
   }
 
-  private inPicture(hash: string): boolean {
-    return this.picture.map()?.hash === hash || this.picture.artPath(hash) !== undefined;
+  private inPicture(hash: string, player: string): boolean {
+    return this.picture.map(player)?.hash === hash || this.picture.artPath(hash, player) !== undefined;
   }
 
   private serve(hash: string, bytes: Uint8Array, to: string, first: number): void {

@@ -1,0 +1,71 @@
+import { normalizePath, type App } from 'obsidian';
+import type { GmMessage } from '../../protocol/index.ts';
+import { setLootRecipientSource } from '../../../loot/lootRecipients';
+import { scaleInWindow } from '../assetVariants.ts';
+import { companionTimers } from '../companionTimers.ts';
+import type { Ownership } from '../ownership.ts';
+import type { VaultImage } from '../TokenShare.ts';
+import type { BookScene } from './bookScene.ts';
+import { BookShare } from './BookShare.ts';
+import type { BookShelf } from './BookShelf.ts';
+
+export interface TableBookPorts {
+  readonly app: App;
+  /** The books kept on this device. */
+  readonly shelf: BookShelf;
+  readonly ownership: Ownership;
+  send(body: GmMessage, to: string): void;
+  /** The shared scene as the books read it, or null while none is shown. */
+  scene(): BookScene | null;
+  readImage(path: string): Promise<VaultImage | null>;
+  randomId(): string;
+}
+
+/** A running table's books, and what they hang on while it runs. */
+export interface TableBook {
+  readonly share: BookShare;
+  start(): void;
+  stop(): void;
+}
+
+/**
+ * The books of a running table in Obsidian: read from the vault and the table's ownership, told at
+ * once when tokens change hands or a collection's settings change (its world map), and named to the
+ * loot roller as the people an item can be handed to for as long as the table runs.
+ */
+export function tableBook(ports: TableBookPorts): TableBook {
+  const { app, ownership } = ports;
+  const timers = companionTimers();
+  const share = new BookShare({
+    send: (body, to) => ports.send(body, to),
+    now: () => timers.now(),
+    setTimer: (run, ms) => timers.setTimer(run, ms),
+    clearTimer: (timer) => timers.clearTimer(timer),
+    clock: () => Date.now(),
+    randomId: () => ports.randomId(),
+    scene: () => ports.scene(),
+    players: () => ownership.list(),
+    ownerOf: (tokenId) => ownership.ownerOf(tokenId),
+    readImage: (path) => ports.readImage(path),
+    stat: (path) => {
+      const file = app.vault.getFileByPath(normalizePath(path));
+      return file === null ? null : { mtime: file.stat.mtime, size: file.stat.size };
+    },
+    scaleImage: scaleInWindow,
+  }, ports.shelf);
+  let stops: (() => void)[] = [];
+  return {
+    share,
+    start: () => {
+      if (stops.length > 0) return;
+      const settings = app.workspace.on('atlas-vtt:collection-settings-changed', () => share.update());
+      stops = [ownership.onChange(() => share.update()), () => app.workspace.offref(settings), () => setLootRecipientSource(null), () => share.stop()];
+      share.start();
+      setLootRecipientSource(share);
+    },
+    stop: () => {
+      for (const stop of stops) stop();
+      stops = [];
+    },
+  };
+}
