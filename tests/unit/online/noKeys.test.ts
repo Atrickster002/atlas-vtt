@@ -40,6 +40,20 @@ describe('online play\'s source', () => {
     });
   }
 
+  const naming = (pattern: RegExp): string[] => files.filter((file) => pattern.test(readFileSync(file, 'utf8'))).map((file) => path.relative(ROOT, file)).sort();
+
+  it('reads the account token in one place, and sends it from two', () => {
+    // The secret itself is read by the token store alone, and the store by the account control alone.
+    expect(naming(/getSecret\(/)).toEqual(['gm/account/tokenStore.ts']);
+    expect(naming(/tokens\.get\(/)).toEqual(['gm/account/AccountControl.ts']);
+    // A bearer is written by the table request and by the account's own calls (what it may host, sign-out).
+    expect(naming(/Bearer \$\{/)).toEqual(['gm/account/relayAccount.ts', 'gm/createTable.ts']);
+    // Every request of online play that may carry it goes through the transport that refuses redirects.
+    expect(naming(/requestUrl\(/)).toEqual(['gm/account/obsidianHttp.ts', 'gm/companionDiagnostics.ts']);
+    expect(readFileSync(path.join(ROOT, 'gm/account/obsidianHttp.ts'), 'utf8')).toContain('export const obsidianHttp: Http = refusingRedirects(requestUrlHttp, answersWithRedirect);');
+    expect(readFileSync(path.join(ROOT, 'gm/companionDiagnostics.ts'), 'utf8')).not.toMatch(/Authorization|Bearer|token\(|secretStorage/);
+  });
+
   it('asks the relay only for tables and for the account', () => {
     const paths = new Set(files.flatMap((file) => readFileSync(file, 'utf8').match(/\/api\/(?:tables|me|invites)[a-z/]*/g) ?? []));
     expect([...paths].sort()).toEqual(['/api/me', '/api/tables', '/api/tables/']);

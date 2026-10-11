@@ -16,7 +16,7 @@ import { advanceSettled as advance } from './settled.ts';
 const seen = vi.hoisted(() => {
   /** The relay's answer to a table request. */
   const created: { status: number; json: unknown } = { status: 201, json: null };
-  return { notices: [] as string[], marks: [] as { disposed: boolean; renderer: () => unknown }[], created, requests: [] as { readonly url?: string; readonly headers?: Record<string, string> }[] };
+  return { redirects: false, notices: [] as string[], marks: [] as { disposed: boolean; renderer: () => unknown }[], created, requests: [] as { readonly url?: string; readonly headers?: Record<string, string> }[] };
 });
 
 vi.mock('obsidian', () => ({
@@ -32,6 +32,12 @@ vi.mock('obsidian', () => ({
   },
   PluginSettingTab: class {},
   Setting: class {},
+}));
+
+// Whether the relay's address answers with a redirect is asked over the network; here the test says.
+vi.mock('../../../../src/app/online/gm/account/redirects.ts', async (original) => ({
+  ...(await original<typeof import('../../../../src/app/online/gm/account/redirects.ts')>()),
+  answersWithRedirect: () => Promise.resolve(seen.redirects),
 }));
 
 // The GM's marks draw with PIXI over Atlas's canvas; here they only record what was built and let go.
@@ -72,7 +78,7 @@ const sentSince = (socket: FakeSocket, from: number): string[] => socket.bodies(
 describe('the online table', () => {
   let saves: (SavedTable | null)[] = [];
   /** A signed-in GM: tables are asked for with the account's token, and nothing else. */
-  const signedIn = { token: (): string => 'account-token', signedOutByServer: vi.fn(), refresh: vi.fn(() => Promise.resolve()) };
+  const signedIn = { token: (): string | null => 'account-token', signedOutByServer: vi.fn(), refresh: vi.fn(() => Promise.resolve()) };
   const control = (ownership = new Ownership(readOwnership(undefined), () => undefined)): OnlineControl =>
     new OnlineControl(app, ownership, (table) => saves.push(table), signedIn);
 
@@ -84,6 +90,7 @@ describe('the online table', () => {
     seen.notices.length = 0;
     seen.marks.length = 0;
     seen.requests.length = 0;
+    seen.redirects = false;
     signedIn.refresh.mockClear();
     seen.created = { status: 201, json: { code: 'b'.repeat(26), secret: 'n'.repeat(43) } };
     saves = [];
@@ -251,7 +258,7 @@ describe('the online table', () => {
     expect(online.lost()).toBe('no-access');
     expect(seen.notices).toEqual(['The online table was closed. This account may not host online tables now.']);
     expect(signedIn.refresh).toHaveBeenCalledWith(true);
-    await advance(10 * 60_000);
+    await advance(40_000);
     expect(FakeSocket.all).toHaveLength(1);
   });
 
@@ -266,7 +273,7 @@ describe('the online table', () => {
     expect(online.lost()).toBe('superseded');
     expect(seen.notices).toEqual(['The online table was closed. This account started another table.']);
     expect(signedIn.refresh).not.toHaveBeenCalled();
-    await advance(10 * 60_000);
+    await advance(40_000);
     expect(FakeSocket.all).toHaveLength(1);
 
     // The next table starts clean: what the last one ended by is forgotten.
@@ -336,6 +343,32 @@ describe('the online table', () => {
     expect(await online.start(tab.leaf)).toBeNull();
     expect(seen.notices.at(-1)).toBe('Sign in to host first.');
     expect(seen.requests).toHaveLength(3);
+  });
+
+  it('never sends the token to an address that answers with a redirect', async () => {
+    const tab = atlasTab(caveScene());
+    workspace.leaves = [tab.leaf];
+    const online = control();
+    seen.redirects = true;
+    expect(await online.start(tab.leaf)).toBeNull();
+    expect(seen.notices.at(-1)).toBe('This server sends requests on to another address. Atlas does not send your sign-in there.');
+    expect(seen.requests).toEqual([]);
+    seen.redirects = false;
+    expect(await online.start(tab.leaf)).not.toBeNull();
+    expect(seen.requests.map((request) => [request.url, request.headers?.Authorization])).toEqual([['https://play.atlas-vtt.dev/api/tables', 'Bearer account-token']]);
+    online.stop();
+  });
+
+  it('comes back to a saved table on Atlas\'s table server, with its secret alone', async () => {
+    workspace.leaves = [atlasTab(caveScene()).leaf];
+    const online = new OnlineControl(app, new Ownership(readOwnership(undefined), () => undefined), (table) => saves.push(table), signedIn);
+    online.resume(SAVED);
+    await advance(0);
+    expect(FakeSocket.all.map((socket) => socket.url)).toEqual([`wss://play.atlas-vtt.dev/api/tables/${SAVED.code}/socket`]);
+    expect(FakeSocket.all[0]?.frames()[0]).toMatchObject({ t: 'hello', secret: SAVED.secret });
+    // The secret is in the hello to that socket and nowhere else: no request was made at all.
+    expect(seen.requests).toEqual([]);
+    online.close();
   });
 
   it('makes tables on Atlas\'s table server', async () => {

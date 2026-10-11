@@ -23,7 +23,7 @@ export interface PlayerTokenRow {
 
 /** The GM's account as starting a table needs it. */
 export interface HostAccount {
-  /** The account token, or null while signed out. */
+  /** The account's token, or null while signed out. */
   token(): string | null;
   /** The relay refused the token. */
   signedOutByServer(): void;
