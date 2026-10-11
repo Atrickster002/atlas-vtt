@@ -1,4 +1,4 @@
-import { GM_AUTHOR, type LogEntry, type LogReactionEmoji } from '../protocol/index.ts';
+import { GM_AUTHOR, PLAYER_COLOURS, playerColourVariable, playerTone, type LogEntry, type LogReactionEmoji } from '../protocol/index.ts';
 
 /** Rows of one author this close together read as one message block. */
 const GROUP_WINDOW_MS = 7 * 60_000;
@@ -29,23 +29,19 @@ export function reactionsFor(entry: LogEntry, self: string | null): readonly Sho
     .map((reaction) => ({ emoji: reaction.emoji, count: reaction.by.length, mine: self !== null && reaction.by.includes(self) }));
 }
 
-/** Obsidian's colour variables a player's colour is picked from. */
-export const AUTHOR_COLOURS = ['--color-red', '--color-orange', '--color-yellow', '--color-green', '--color-cyan', '--color-blue', '--color-purple', '--color-pink'] as const;
+/** Obsidian's colour variables a player's colour is picked from: the table's player colours. */
+export const AUTHOR_COLOURS = PLAYER_COLOURS;
 /** The GM's colour. */
 export const GM_COLOUR = '--interactive-accent';
 
-/** Which of `AUTHOR_COLOURS` an author has (`'gm'` for the GM): a sum over the id's characters, so it never changes. */
+/** Which of `AUTHOR_COLOURS` an author has (`'gm'` for the GM): the player's colour everywhere at the table (`playerTone`). */
 export function authorTone(who: string): number | 'gm' {
-  if (who === GM_AUTHOR) return 'gm';
-  let sum = 0;
-  for (const char of who) sum = (sum * 31 + char.charCodeAt(0)) % 9973;
-  return sum % AUTHOR_COLOURS.length;
+  return who === GM_AUTHOR ? 'gm' : playerTone(who);
 }
 
 /** The CSS variable that holds an author's colour. */
 export function authorColour(who: string): string {
-  const tone = authorTone(who);
-  return tone === 'gm' ? GM_COLOUR : AUTHOR_COLOURS[tone] ?? GM_COLOUR;
+  return playerColourVariable(who);
 }
 
 /** The letter on an author's disc: the first character of the name, in upper case. */

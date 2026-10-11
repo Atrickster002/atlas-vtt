@@ -2,10 +2,11 @@
 import type { WorkspaceLeaf } from 'obsidian';
 import { describe, expect, it } from 'vitest';
 import {
-  badgeOf, closingOf, groupsOf, menuModel, onlineApi, playerColour, seatsNoteOf, selectionBarOf, tooltipOf, PLAYER_COLOURS,
+  badgeOf, closingOf, groupsOf, menuModel, onlineApi, playerColour, seatsNoteOf, selectionBarOf, tooltipOf,
   type ControlSource, type OnlineSnapshot, type SceneFacts,
 } from '../../../../src/app/online/gm/dock/panelModel.ts';
 import { closingText, type LostTable } from '../../../../src/app/online/gm/tableEnd.ts';
+import { PLAYER_COLOURS } from '../../../../src/app/online/protocol/index.ts';
 
 const ANA = { id: 'a'.repeat(20), name: 'Ana', online: true };
 const BEN = { id: 'b'.repeat(20), name: 'Ben', online: false };
@@ -145,7 +146,7 @@ describe('the list', () => {
 
   it('gives every player a colour that never changes', () => {
     expect(playerColour(ANA.id)).toBe(playerColour('a'.repeat(20)));
-    for (const id of [ANA.id, BEN.id, CLEM.id, 'x', '']) expect(playerColour(id)).toBeLessThan(PLAYER_COLOURS);
+    for (const id of [ANA.id, BEN.id, CLEM.id, 'x', '']) expect(playerColour(id)).toBeLessThan(PLAYER_COLOURS.length);
   });
 });
 

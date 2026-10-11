@@ -5,14 +5,7 @@
 @use '../../../../../styles/mixins' as *;
 @use 'online' as *;
 
-.atlas-online-colour-0 { --atlas-online-player: var(--color-red); }
-.atlas-online-colour-1 { --atlas-online-player: var(--color-orange); }
-.atlas-online-colour-2 { --atlas-online-player: var(--color-yellow); }
-.atlas-online-colour-3 { --atlas-online-player: var(--color-green); }
-.atlas-online-colour-4 { --atlas-online-player: var(--color-cyan); }
-.atlas-online-colour-5 { --atlas-online-player: var(--color-blue); }
-.atlas-online-colour-6 { --atlas-online-player: var(--color-purple); }
-.atlas-online-colour-7 { --atlas-online-player: var(--color-pink); }
+// A player's colour is `--atlas-online-player`, set by `atlas-online-colour-N` (`marks/styles/_player-colours.scss`).
 
 .atlas-online-dock {
   // Title, the status in words, and the close button $close-button-gap inside the corner.
