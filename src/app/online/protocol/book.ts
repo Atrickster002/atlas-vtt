@@ -1,5 +1,5 @@
 import { isSide, parseAsset, type AssetRef } from './asset.ts';
-import { MAX_PLAYER_FRAME, PROTOCOL_VERSION, SHOWN, UNSEEN, UNSHOWN } from './relay.ts';
+import { bookLine, bookText } from './bookText.ts';
 import { isRecord } from './shape.ts';
 import { MAX_TOKEN_VALUE } from './tokenUI.ts';
 
@@ -28,7 +28,6 @@ export type ItemTone = (typeof ITEM_TONES)[number];
 
 const HEX_COLOUR = /^#[0-9a-f]{6}$/;
 const DIRECTIONS: readonly unknown[] = ['drains', 'fills', 'static'];
-const LINE_BREAK = /\r\n|[\n\r\u2028\u2029]/;
 
 /** A resource of the player's own character, by name: what its bar shows, as a number too. */
 export interface SheetResource {
@@ -131,25 +130,6 @@ const isId = (value: unknown): value is string => typeof value === 'string' && B
 const isValue = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value) && Math.abs(value) <= MAX_TOKEN_VALUE;
 const isTime = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value) && value >= 0;
 const isShare = (value: unknown): value is number => typeof value === 'number' && value >= 0 && value <= 1;
-
-/**
- * One line of a book as shown: unshown characters removed, white space collapsed. Null when too
- * much is left, or nothing that shows unless `empty` allows that.
- */
-export function bookLine(value: unknown, max: number, empty = false): string | null {
-  if (typeof value !== 'string' || value.length > max * 4) return null;
-  const line = value.replace(UNSHOWN, ' ').replace(UNSEEN, '').replace(/\s+/g, ' ').trim();
-  if ([...line].length > max) return null;
-  return line === '' ? (empty ? '' : null) : SHOWN.test(line) ? line : null;
-}
-
-/** Several lines of a book as shown: every line cleaned of unshown characters, its indent kept; null when too much is left. */
-export function bookText(value: unknown, max: number): string | null {
-  if (typeof value !== 'string' || value.length > max * 4) return null;
-  const lines = value.split(LINE_BREAK).map((line) => line.replace(UNSHOWN, ' ').replace(UNSEEN, '').trimEnd());
-  const text = lines.join('\n').replace(/\n{3,}/g, '\n\n').replace(/^\n+|\n+$/g, '');
-  return [...text].length <= max ? text : null;
-}
 
 function parseList<T>(value: unknown, max: number, parse: (entry: unknown) => T | null): T[] | null {
   if (!Array.isArray(value) || value.length > max) return null;
@@ -297,9 +277,4 @@ export function parsePlayerBookMessage(value: Record<string, unknown>): PlayerBo
     default:
       return null;
   }
-}
-
-/** Whether the relay takes a player's message: a long note in a script of many bytes a character may not fit one frame. */
-export function fitsPlayerFrame(body: PlayerBookMessage): boolean {
-  return new TextEncoder().encode(JSON.stringify({ v: PROTOCOL_VERSION, t: 'send', body })).length <= MAX_PLAYER_FRAME;
 }
