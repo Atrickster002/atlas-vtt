@@ -60,6 +60,7 @@ import { frameView } from './services/playerFrameDemand';
 import { MapController } from './MapController';
 import { NO_STRETCH, readMapStretch, sameStretch, type MapStretch } from './grid/mapStretch';
 import { fitZoomRange } from './pixi/fitMapRect';
+import { viewCentreInClient, worldToClient, type ClientPoint } from './pixi/utils/worldToClient';
 
 export class PixiRendererOrchestrator { // Renamed class
   private _isDestroyed: boolean = false;
@@ -309,17 +310,15 @@ export class PixiRendererOrchestrator { // Renamed class
         if (!vp) return;
         const detail = e.detail;
         if (detail && typeof detail.callback === 'function') {
-          let clientX, clientY;
+          const canvas = this.pixiAppManager.getCanvasElement();
+          let at: ClientPoint;
           if (typeof detail.worldX === 'number' && typeof detail.worldY === 'number') {
-            const screenPos = vp.toScreen(detail.worldX, detail.worldY);
-            clientX = screenPos.x;
-            clientY = screenPos.y;
+            at = worldToClient(vp, canvas, detail.worldX, detail.worldY);
           } else {
             console.warn('[PixiRendererOrchestrator] get-viewport-position event had no worldX/Y.');
-            clientX = vp.screenWidth / 2;
-            clientY = vp.screenHeight / 2;
+            at = viewCentreInClient(vp, canvas);
           }
-          detail.callback(clientX, clientY);
+          detail.callback(at.x, at.y);
         }
       };
       window.addEventListener('get-viewport-position', this.getViewportPositionHandler);
@@ -975,17 +974,14 @@ export class PixiRendererOrchestrator { // Renamed class
       this.audioRenderer.setSelectedAudio(hitId);
       // Open config panel
       if (this.viewport) {
-        const screenPos = this.viewport.toScreen(worldX, worldY);
-        const canvasRect = this.pixiAppManager.getCanvasElement()?.getBoundingClientRect();
-        const sx = (canvasRect?.left ?? 0) + screenPos.x;
-        const sy = (canvasRect?.top ?? 0) + screenPos.y;
+        const at = worldToClient(this.viewport, this.pixiAppManager.getCanvasElement(), worldX, worldY);
         openAudioConfigPanel(
           hitId,
           this.store,
           this.soundRegistry,
           (soundId) => this.previewSound(soundId),
-          sx,
-          sy,
+          at.x,
+          at.y,
         );
       }
       return true;
@@ -1013,17 +1009,14 @@ export class PixiRendererOrchestrator { // Renamed class
 
     // Open config panel for the new source
     if (this.viewport) {
-      const screenPos = this.viewport.toScreen(worldX, worldY);
-      const canvasRect = this.pixiAppManager.getCanvasElement()?.getBoundingClientRect();
-      const sx = (canvasRect?.left ?? 0) + screenPos.x;
-      const sy = (canvasRect?.top ?? 0) + screenPos.y;
+      const at = worldToClient(this.viewport, this.pixiAppManager.getCanvasElement(), worldX, worldY);
       openAudioConfigPanel(
         newId,
         this.store,
         this.soundRegistry,
         (soundId) => this.previewSound(soundId),
-        sx,
-        sy,
+        at.x,
+        at.y,
       );
     }
 

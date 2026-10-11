@@ -158,11 +158,7 @@ export class DrawingInteraction {
       { type: 'item', label: t('common.delete'), icon: 'trash', destructive: true, onClick: () => this.store.getState().deleteSelected() },
     );
 
-    const original = e.originalEvent as unknown;
-    const position = original instanceof MouseEvent
-      ? { x: original.clientX, y: original.clientY }
-      : { x: e.global.x, y: e.global.y };
-    openContextMenuGlobal(entries, position);
+    openContextMenuGlobal(entries, { x: e.clientX, y: e.clientY });
   }
 
   public destroy(): void {

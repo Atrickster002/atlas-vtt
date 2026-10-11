@@ -263,11 +263,7 @@ export class PinRenderer {
     if (!pin) return;
 
     if (e.button === 2) {
-      const originalEvent = e.originalEvent;
-      const pos = originalEvent instanceof MouseEvent
-        ? { x: originalEvent.clientX, y: originalEvent.clientY }
-        : { x: e.global.x, y: e.global.y };
-      this.showPinContextMenu(pin, pos);
+      this.showPinContextMenu(pin, { x: e.clientX, y: e.clientY });
       return;
     }
 
