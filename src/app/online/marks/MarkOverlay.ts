@@ -63,8 +63,9 @@ export class MarkOverlay {
       return;
     }
     this.attach(host);
-    this.lasers?.update(marks.lasers, performance.now());
-    this.measures?.update(marks.measures);
+    const now = performance.now();
+    this.lasers?.update(marks.lasers, now);
+    this.measures?.update(marks.measures, now);
     this.wake();
   }
 
@@ -90,7 +91,7 @@ export class MarkOverlay {
       const world = new Container({ sortableChildren: true });
       app.stage.addChild(world);
       this.lasers = new RemoteLasers(app.renderer, () => this.zoom, MARKS_INTERVAL_MS);
-      this.measures = new RemoteMeasures(() => this.zoom, this.rules);
+      this.measures = new RemoteMeasures(() => this.zoom, this.rules, MARKS_INTERVAL_MS);
       world.addChild(this.measures.container, this.lasers.container);
       app.ticker.add(() => this.tick());
       this.app = app;
@@ -141,8 +142,11 @@ export class MarkOverlay {
       this.zoom = host.viewport.scale.x;
       this.measures?.rescale();
     }
-    this.lasers?.tick(performance.now());
-    if (this.lasers?.busy !== true) this.idle += 1;
+    const now = performance.now();
+    this.lasers?.tick(now);
+    this.measures?.tick(now);
+    // A pointer or an end still on its way to where its sender left it keeps the frames coming.
+    if (this.lasers?.busy !== true && this.measures?.busy !== true) this.idle += 1;
     if (this.idle >= IDLE_FRAMES) app.ticker.stop();
   }
 }

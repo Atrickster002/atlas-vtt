@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
 import {
-  ASSET_CHUNK_BYTES, CLOSE, FINAL_CLOSE_CODES, GATE_CLOSE_CODES, MAX_ASSET_BYTES, MAX_LIVE_TOKENS, MAX_TOKEN_CONDITIONS, MAX_TOKENS, parseClientFrame, parseGmMessage, parsePlayerMessage, parseRelayFrame,
+  ASSET_CHUNK_BYTES, CLOSE, FINAL_CLOSE_CODES, GATE_CLOSE_CODES, MAX_ASSET_BYTES, MAX_LASER_SPAN_MS, MAX_LIVE_TOKENS, MAX_TOKEN_CONDITIONS, MAX_TOKENS, parseClientFrame, parseGmMessage, parsePlayerMessage, parseRelayFrame,
   playerName,
 } from '../../../../src/app/online/protocol/index.ts';
 
@@ -324,6 +324,19 @@ describe('marks', () => {
       { ...measure, live: { shape: 'sphere', a: [0, 0], b: [1, 1] } }, { ...measure, kept: Array.from({ length: 21 }, () => measure.kept[0]) },
       { ...measure, kept: [{ shape: 'line', a: [0], b: [1, 1] }] }, { ...measure, color: '#fff' },
     ]) expect(parsePlayerMessage(bad), JSON.stringify(bad)).toBeNull();
+  });
+
+  it('read the time a laser\'s points cover, in whole milliseconds up to a second, and a laser that says none', () => {
+    const marks = { t: 'marks', scene: 's1', lasers: [{ who: 'gm', ...laserState }], measures: [] };
+    for (const span of [0, 33, MAX_LASER_SPAN_MS]) {
+      expect(parsePlayerMessage({ ...laser, span })).toEqual({ ...laser, span });
+      expect(parseGmMessage({ ...marks, lasers: [{ who: 'gm', ...laserState, span }, { who: PLAYER, ...laserState }] })).toEqual({ ...marks, lasers: [{ who: 'gm', ...laserState, span }, { who: PLAYER, ...laserState }] });
+    }
+    expect(parsePlayerMessage(laser)).not.toHaveProperty('span');
+    for (const span of [-1, MAX_LASER_SPAN_MS + 1, 16.5, '33', null, Number.NaN, Number.POSITIVE_INFINITY, [33], true]) {
+      expect(parsePlayerMessage({ ...laser, span }), String(span)).toBeNull();
+      expect(parseGmMessage({ ...marks, lasers: [{ who: 'gm', ...laserState, span }] }), String(span)).toBeNull();
+    }
   });
 
   it('read the GM\'s marks, by the GM and players, and refuse unknown senders', () => {

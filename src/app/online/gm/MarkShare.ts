@@ -1,4 +1,4 @@
-import { GM_MARKS, MARKS_INTERVAL_MS, MAX_MARK_LASER_NUMBERS, type GmMessage, type LaserState, type MarksMessage, type MeasureState, type PlayerLaser, type PlayerMeasure } from '../protocol/index.ts';
+import { GM_MARKS, MARKS_INTERVAL_MS, MAX_LASER_SPAN_MS, MAX_MARK_LASER_NUMBERS, type GmMessage, type LaserState, type MarksMessage, type MeasureState, type PlayerLaser, type PlayerMeasure } from '../protocol/index.ts';
 import type { SceneSource } from '../../host/sceneSource';
 import type { Measurements } from '../../pixi/MeasureRenderer';
 import { GmMeasures, type PlayersView } from './gmMeasures.ts';
@@ -26,7 +26,10 @@ export interface MarkSharePorts extends PacerClock {
   gmMarks?(): GmMarkSource | null;
   /** The GM's accent colour as `#rrggbb`, which the GM's measurements are drawn in; null while it cannot be read. */
   accent?(): string | null;
-  /** Draws the players' marks for the GM. */
+  /**
+   * Draws the players' marks for the GM: every player's as they are now, called as each arrives. A
+   * laser's `pts` are those new since the call before, so only the laser that just arrived has any.
+   */
   showPlayerMarks?(marks: PlayerMarks): void;
 }
 
@@ -37,18 +40,30 @@ const isEmpty = (marks: MarksMessage): boolean => marks.lasers.length === 0 && m
 /** Obsidian's default accent, for when the theme's cannot be read. */
 const DEFAULT_ACCENT = '#8a5cf5';
 
+/** A player's trail points not sent on yet, and the time they cover: null when a message of them told none. */
+interface WaitingTrail {
+  readonly pts: number[];
+  readonly span: number | null;
+}
+
 interface PlayerLaserState {
   state: LaserState;
-  /** Trail points received since the last `marks` message. */
-  pts: number[];
+  /** What came since the last `marks` message; null when nothing did. */
+  waiting: WaitingTrail | null;
   at: number;
 }
+
+type LaserEntry = MarksMessage['lasers'][number];
+
+/** A laser as `marks` and the GM's overlay take it: its look and pointer, with these trail points and the time they cover. */
+const laserEntry = (who: string, { color, size, at, on }: LaserState, pts: readonly number[], span: number | null): LaserEntry => ({ who, color, size, at, pts, on, ...(span !== null && { span }) });
 
 /**
  * Everyone's marks in the shared scene, sent to all as one `marks` message at most every
  * `MARKS_INTERVAL_MS`, only when something changed: the GM's measurements players may see
  * (`GmMeasures`), the GM's laser, and each player's checked laser and measurements. Each client
- * leaves out its own.
+ * leaves out its own. The GM's own overlay does not wait for that pace: it is shown a player's marks
+ * as they arrive.
  */
 export class MarkShare {
   private readonly ports: MarkSharePorts;
@@ -91,20 +106,28 @@ export class MarkShare {
     if (message.t === 'laser') {
       const state = this.laserRate.take(from, now) ? checkLaser(message, context) : null;
       if (state === null) return;
-      const pts = [...(this.lasers.get(from)?.pts ?? []), ...state.pts].slice(-MAX_MARK_LASER_NUMBERS);
-      this.lasers.set(from, { state, pts, at: now });
+      const waiting = this.lasers.get(from)?.waiting ?? { pts: [], span: 0 };
+      const pts = [...waiting.pts, ...state.pts].slice(-MAX_MARK_LASER_NUMBERS);
+      const span = waiting.span === null || state.span === undefined ? null : Math.min(MAX_LASER_SPAN_MS, waiting.span + state.span);
+      this.lasers.set(from, { state, waiting: { pts, span }, at: now });
+      this.show(from);
     } else {
       const state = this.measureRate.take(from, now) ? checkMeasure(message, context) : null;
       if (state === null) return;
       if (state.live === null && state.kept.length === 0) this.measures.delete(from);
       else this.measures.set(from, state);
+      this.show();
     }
     this.pacer.request();
   }
 
   /** A player left: their marks go. */
   playerLeft(player: string): void {
-    if (this.lasers.delete(player) || this.measures.delete(player)) this.pacer.request();
+    const hadLaser = this.lasers.delete(player);
+    const hadMeasures = this.measures.delete(player);
+    if (!hadLaser && !hadMeasures) return;
+    this.show();
+    this.pacer.request();
   }
 
   /**
@@ -115,7 +138,14 @@ export class MarkShare {
     const source = this.scene === null ? null : (this.ports.gmMarks?.() ?? null);
     if (source !== this.source) this.follow(source);
     const now = this.ports.now();
-    for (const [player, laser] of this.lasers) if (now - laser.at > LASER_SILENCE_MS) this.lasers.delete(player);
+    let silent = false;
+    for (const [player, laser] of this.lasers) {
+      if (now - laser.at > LASER_SILENCE_MS) {
+        this.lasers.delete(player);
+        silent = true;
+      }
+    }
+    if (silent) this.show();
     if (this.scene !== null) this.pacer.request();
   }
 
@@ -149,31 +179,40 @@ export class MarkShare {
     measured();
   }
 
+  /** Shows the GM every player's marks as they are now; `arrived` is the player whose laser just came, with its new trail points. */
+  private show(arrived?: string): void {
+    if (this.ports.showPlayerMarks === undefined) return;
+    const lasers = [...this.lasers].map(([who, { state }]) => (who === arrived ? laserEntry(who, state, state.pts, state.span ?? null) : laserEntry(who, state, [], null)));
+    this.ports.showPlayerMarks({ lasers, measures: this.playerMeasures() });
+  }
+
+  private playerMeasures(): MarksMessage['measures'] {
+    return [...this.measures].map(([who, state]) => ({ who, ...state }));
+  }
+
   private send(): void {
     if (this.scene === null) return;
-    const playerLasers = [...this.lasers].map(([who, { state, pts }]) => ({ who, ...state, pts }));
-    for (const laser of this.lasers.values()) laser.pts = [];
-    const playerMeasures = [...this.measures].map(([who, state]) => ({ who, ...state }));
+    const playerLasers = [...this.lasers].map(([who, { state, waiting }]) => laserEntry(who, state, waiting?.pts ?? [], waiting?.span ?? null));
+    for (const laser of this.lasers.values()) laser.waiting = null;
     const body: MarksMessage = {
       t: 'marks',
       scene: this.scene,
       lasers: [...this.gmLaser(), ...playerLasers.filter((laser) => laser.at !== null || laser.on || laser.pts.length > 0)],
-      measures: [...this.gmMeasures(), ...playerMeasures],
+      measures: [...this.gmMeasures(), ...this.playerMeasures()],
     };
     const text = JSON.stringify(body);
     // Nothing to tell before anyone made a mark: players start without any.
     if (text === this.last?.text || (this.last === null && isEmpty(body))) return;
     this.last = { body, text };
     this.ports.send(body);
-    this.ports.showPlayerMarks?.({ lasers: playerLasers, measures: playerMeasures });
   }
 
   private gmLaser(): MarksMessage['lasers'] {
     const source = this.source;
     if (source === null) return [];
     const { at, on } = source.laser.state();
-    const pts = source.laser.takePoints(MAX_MARK_LASER_NUMBERS);
-    return at === null && !on && pts.length === 0 ? [] : [{ who: GM_MARKS, ...source.laserLook(), at, pts, on }];
+    const { pts, span } = source.laser.takeTrail(MAX_MARK_LASER_NUMBERS);
+    return at === null && !on && pts.length === 0 ? [] : [{ who: GM_MARKS, ...source.laserLook(), at, pts, on, ...(span !== undefined && { span }) }];
   }
 
   private gmMeasures(): MarksMessage['measures'] {
