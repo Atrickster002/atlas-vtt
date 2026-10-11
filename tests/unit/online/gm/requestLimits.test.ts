@@ -55,4 +55,17 @@ describe("how often a player is sent one asset", () => {
     if (served.take('alice', HASH, 0, 50)) taken += 1;
     expect(taken).toBe(MAX_SERVES_PER_ASSET);
   });
+
+  it('remembers nothing older than a window, however long requests keep coming', () => {
+    const served = new ServedAssets();
+    const assets = Array.from({ length: 40 }, (_, index) => index.toString(16).padStart(64, '0'));
+    let most = 0;
+    // An hour of one player asking for every asset from another chunk and at another side each second.
+    for (let second = 0; second < 3600; second++) {
+      for (const asset of assets) served.take('alice', `${asset}@${256 + second}`, second % 300, second * 1000);
+      most = Math.max(most, served.size);
+    }
+    // Per asset: the sends of this window and the last, and one count.
+    expect(most).toBeLessThanOrEqual(assets.length * (2 * MAX_SERVES_PER_ASSET + 1));
+  });
 });
