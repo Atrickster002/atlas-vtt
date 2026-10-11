@@ -11,8 +11,8 @@ export const MAX_MARK_LASER_NUMBERS = 64;
 export const MAX_KEPT = 20;
 /** The most kept measurements one sender has in a `marks` message (the GM keeps more than a player). */
 export const MAX_MARK_KEPT = 50;
-/** The shortest time between two `marks` messages: about 15 a second (the last change always goes out). */
-export const MARKS_INTERVAL_MS = 66;
+/** The shortest time between two `marks` messages, and between two of a player's lasers or measurements: about 30 a second (the last change always goes out). */
+export const MARKS_INTERVAL_MS = 33;
 /** The longest span a laser message tells, in ms. */
 export const MAX_LASER_SPAN_MS = 1000;
 /** Who a mark is from: a player's relay id, or the GM. */
@@ -72,7 +72,7 @@ const MAX_LASER_SIZE = 1000;
 
 const isCoordinate = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value) && Math.abs(value) <= MAX_COORDINATE;
 const isSceneId = (value: unknown): value is string => typeof value === 'string' && value.length > 0 && value.length <= MAX_SCENE_ID;
-const isSpan = (value: unknown): value is number => Number.isInteger(value) && (value as number) >= 0 && (value as number) <= MAX_LASER_SPAN_MS;
+const isSpan = (value: unknown): value is number => typeof value === 'number' && Number.isInteger(value) && value >= 0 && value <= MAX_LASER_SPAN_MS;
 const isWho = (value: unknown): value is string => value === GM_MARKS || (typeof value === 'string' && PLAYER_ID_PATTERN.test(value));
 
 function parsePoint(value: unknown): MarkPoint | null {

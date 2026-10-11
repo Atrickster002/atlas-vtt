@@ -10,8 +10,8 @@ export interface MarkContext {
   readonly map: MapSize | null;
 }
 
-/** Laser and measure messages a player may send a second, each: the client sends at most 20. */
-export const MARKS_PER_SECOND = 25;
+/** Laser and measure messages a player may send a second, each: the client sends one every `MARKS_INTERVAL_MS`, about 30. */
+export const MARKS_PER_SECOND = 40;
 
 /** A rate per player for one kind of mark: anything above `MARKS_PER_SECOND` is dropped. */
 export const markRate = (): MoveRate => new MoveRate(MARKS_PER_SECOND, MARKS_PER_SECOND);
@@ -50,7 +50,7 @@ export function checkLaser(message: PlayerLaser, context: MarkContext): LaserSta
     const point: MarkPoint = [message.pts[index] ?? Number.NaN, message.pts[index + 1] ?? Number.NaN];
     if (nearMap(point, context.map)) pts.push(...point);
   }
-  return { color, size, at, pts, on: message.on };
+  return { color, size, at, pts, on: message.on, ...(message.span !== undefined && { span: message.span }) };
 }
 
 const measureNearMap = (measure: SharedMeasure, map: MapSize | null): boolean => nearMap(measure.a, map) && nearMap(measure.b, map);

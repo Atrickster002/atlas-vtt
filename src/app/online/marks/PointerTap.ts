@@ -1,4 +1,4 @@
-import type { LaserState, MarkPoint } from '../protocol/index.ts';
+import { MAX_LASER_SPAN_MS, type LaserState, type MarkPoint } from '../protocol/index.ts';
 
 /** A pointer event as a viewport sends it: the button and where it is on the canvas. */
 export type TapEvent = { readonly button: number } & Readonly<Record<'global', { readonly x: number; readonly y: number }>>;
@@ -19,12 +19,22 @@ export interface Press {
   readonly at: MarkPoint;
 }
 
+/**
+ * What a laser drew since it was last asked: its trail points (x, y flat, oldest first) and the time
+ * they cover, as a laser message tells it (`LaserState.span`): whole milliseconds from the pointer's
+ * place the last take ended on to where it is now. No span before the pointer was seen twice.
+ */
+export interface TrailBatch {
+  readonly pts: number[];
+  readonly span?: number;
+}
+
 /** Where a laser is and what it drew since it was last asked, and the last press on the map. */
 export interface LaserSource {
   /** The pointer while the laser shows it, and whether it draws. */
   state(): Pick<LaserState, 'at' | 'on'>;
-  /** The trail points drawn since the last call (x, y flat, oldest first), at most `max` numbers. */
-  takePoints(max: number): number[];
+  /** The trail drawn since the last call, at most `max` numbers of it (the newest). */
+  takeTrail(max: number): TrailBatch;
   lastPress(): Press | null;
   /** Calls `listener` whenever any of that changed; returns the function that stops it. */
   subscribe(listener: () => void): () => void;
@@ -32,7 +42,7 @@ export interface LaserSource {
 
 /** Closest two trail points may be, in screen pixels: closer ones are hand jitter. */
 const MIN_SPACING_PX = 3;
-/** The most trail points kept between two calls of `takePoints`. */
+/** The most trail points kept between two calls of `takeTrail`. */
 const MAX_PENDING = 100;
 
 const rounded = (value: number): number => Math.round(value * 10) / 10;
@@ -46,8 +56,12 @@ export class PointerTap implements LaserSource {
   private readonly viewport: TapViewport;
   private readonly canvas: EventTarget;
   private readonly isLaser: () => boolean;
+  private readonly now: () => number;
   private readonly listeners = new Set<() => void>();
   private pointer: MarkPoint | null = null;
+  /** When the pointer last moved, and the moment the last take ended on (kept in whole milliseconds, so the spans told add up to the time that passed). */
+  private movedAt: number | null = null;
+  private takenAt: number | null = null;
   private pointing = false;
   private quick = false;
   private pending: number[] = [];
@@ -61,10 +75,12 @@ export class PointerTap implements LaserSource {
     this.changed();
   };
 
-  constructor(viewport: TapViewport, canvas: EventTarget, isLaser: () => boolean) {
+  /** `now` is the clock the spans are measured on, in ms. */
+  constructor(viewport: TapViewport, canvas: EventTarget, isLaser: () => boolean, now: () => number = () => performance.now()) {
     this.viewport = viewport;
     this.canvas = canvas;
     this.isLaser = isLaser;
+    this.now = now;
     viewport.on('pointerdown', this.onDown);
     viewport.on('pointermove', this.onMove);
     viewport.on('pointerup', this.onUp);
@@ -77,10 +93,19 @@ export class PointerTap implements LaserSource {
     return { at: shows ? this.pointer : null, on: this.pointing };
   }
 
-  takePoints(max: number): number[] {
-    const points = this.pending.slice(Math.max(0, this.pending.length - max));
+  takeTrail(max: number): TrailBatch {
+    const pts = this.pending.slice(Math.max(0, this.pending.length - max));
     this.pending = [];
-    return points;
+    const { movedAt, takenAt } = this;
+    if (movedAt === null) return { pts };
+    if (takenAt === null) {
+      this.takenAt = movedAt;
+      return { pts };
+    }
+    const passed = Math.max(0, Math.round(movedAt - takenAt));
+    const span = Math.min(passed, MAX_LASER_SPAN_MS);
+    this.takenAt = passed > MAX_LASER_SPAN_MS ? movedAt : takenAt + span;
+    return { pts, span };
   }
 
   lastPress(): Press | null {
@@ -130,6 +155,7 @@ export class PointerTap implements LaserSource {
   private track(event: TapEvent): MarkPoint | null {
     const world = this.viewport.toWorld(event.global);
     if (!Number.isFinite(world.x) || !Number.isFinite(world.y)) return null;
+    this.movedAt = this.now();
     this.pointer = [rounded(world.x), rounded(world.y)];
     return this.pointer;
   }

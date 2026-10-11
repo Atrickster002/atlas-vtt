@@ -1,4 +1,4 @@
-import type { LaserSource, Press } from '../../../../src/app/online/marks/index.ts';
+import type { LaserSource, Press, TrailBatch } from '../../../../src/app/online/marks/index.ts';
 import type { GmMessage, LaserState, MarksMessage } from '../../../../src/app/online/protocol/index.ts';
 import type { Measurements } from '../../../../src/app/pixi/MeasureRenderer';
 import type { TokenFootprint } from '../../../../src/app/vision/measureOrigin';
@@ -10,6 +10,8 @@ export class FakeLaser implements LaserSource {
   at: LaserState['at'] = null;
   on = false;
   pts: number[] = [];
+  /** The time the points of the next take cover; none while unset. */
+  span: number | undefined;
   press: Press | null = null;
   private readonly listeners = new Set<() => void>();
 
@@ -17,10 +19,12 @@ export class FakeLaser implements LaserSource {
     return { at: this.at, on: this.on };
   }
 
-  takePoints(max: number): number[] {
-    const taken = this.pts.slice(-max);
+  takeTrail(max: number): TrailBatch {
+    const pts = this.pts.slice(-max);
+    const { span } = this;
     this.pts = [];
-    return taken;
+    this.span = undefined;
+    return span === undefined ? { pts } : { pts, span };
   }
 
   lastPress(): Press | null {
@@ -47,8 +51,9 @@ export interface MarkHarness {
   readonly share: MarkShare;
   /** Every `marks` message sent, with whom it went to. */
   readonly sent: { readonly body: MarksMessage; readonly to: string | undefined }[];
-  /** What the GM's overlay was last told to draw. */
+  /** What the GM's overlay was last told to draw, and everything it was told, in order. */
   shown: PlayerMarks | null;
+  readonly shows: PlayerMarks[];
   readonly laser: FakeLaser;
   /** Sets the GM's measurements as the measure renderer would, and lets the share read them. */
   measure(next: Measurements): Promise<void>;
@@ -84,6 +89,7 @@ export function markHarness(map: MapSize | null = { width: 2000, height: 2000 })
   const harness: MarkHarness = {
     sent: [],
     shown: null,
+    shows: [],
     laser,
     footprints: [],
     seen: () => true,
@@ -98,6 +104,7 @@ export function markHarness(map: MapSize | null = { width: 2000, height: 2000 })
       accent: () => '#123456',
       showPlayerMarks: (marks) => {
         harness.shown = marks;
+        harness.shows.push(marks);
       },
       now: () => now,
       setTimer: (run, ms) => {
