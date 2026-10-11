@@ -53,13 +53,17 @@ export const CLOSE = {
   /** The GM answered a knock neither way in time. */
   noAnswer: 4013,
   tooManyKnocks: 4014,
+  /** The table's account may not host (any more): a GM's hello is refused, and the table is over for everyone at it. */
+  noAccess: 4015,
+  /** The table ended because its account started another table. */
+  superseded: 4016,
 } as const;
 
 /** The close codes of the join gates: the player's page stops and says why; only a new try by the player connects again. */
 export const GATE_CLOSE_CODES: readonly number[] = [CLOSE.wrongCode, CLOSE.paused, CLOSE.declined, CLOSE.noAnswer, CLOSE.tooManyKnocks];
 
 /** Close codes after which a client gives up instead of reconnecting. */
-export const FINAL_CLOSE_CODES: readonly number[] = [CLOSE.badSecret, CLOSE.version, CLOSE.ended, CLOSE.replaced, CLOSE.kicked, ...GATE_CLOSE_CODES];
+export const FINAL_CLOSE_CODES: readonly number[] = [CLOSE.badSecret, CLOSE.version, CLOSE.ended, CLOSE.replaced, CLOSE.kicked, CLOSE.noAccess, CLOSE.superseded, ...GATE_CLOSE_CODES];
 
 /** A player as the GM knows them: the relay's id and the name they gave, shown as text only. */
 export interface PlayerInfo {
@@ -117,6 +121,11 @@ export type RelayFrame =
   | { readonly v: 1; readonly t: 'player-joined'; readonly id: string; readonly name: string }
   | { readonly v: 1; readonly t: 'player-left'; readonly id: string }
   | { readonly v: 1; readonly t: 'gm'; readonly online: boolean }
+  /**
+   * To the GM: the table's account may no longer host, and the table closes at `closesAt` (the relay's
+   * clock, in milliseconds) unless the account may host again by then; null once it may.
+   */
+  | { readonly v: 1; readonly t: 'access'; readonly closesAt: number | null }
   /** A game message; `from` names the player on the GM's side, stamped by the relay. */
   | { readonly v: 1; readonly t: 'game'; readonly from?: string; readonly body: unknown };
 
@@ -243,6 +252,9 @@ export function parseRelayFrame(text: string): RelayFrame | null {
       return typeof value.wait === 'string' && SECRET_PATTERN.test(value.wait) ? { v: 1, t: 'waiting', wait: value.wait } : { v: 1, t: 'waiting' };
     case 'gm':
       return typeof value.online === 'boolean' ? { v: 1, t: 'gm', online: value.online } : null;
+    case 'access':
+      if (value.closesAt === null) return { v: 1, t: 'access', closesAt: null };
+      return typeof value.closesAt === 'number' && Number.isFinite(value.closesAt) ? { v: 1, t: 'access', closesAt: value.closesAt } : null;
     case 'game':
       if (!('body' in value)) return null;
       if (value.from === undefined) return { v: 1, t: 'game', body: value.body };

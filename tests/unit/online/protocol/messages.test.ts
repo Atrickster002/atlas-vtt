@@ -1,6 +1,9 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
-import { ASSET_CHUNK_BYTES, MAX_ASSET_BYTES, MAX_LIVE_TOKENS, MAX_TOKEN_CONDITIONS, MAX_TOKENS, parseClientFrame, parseGmMessage, parsePlayerMessage, parseRelayFrame, playerName } from '../../../../src/app/online/protocol/index.ts';
+import {
+  ASSET_CHUNK_BYTES, CLOSE, FINAL_CLOSE_CODES, GATE_CLOSE_CODES, MAX_ASSET_BYTES, MAX_LIVE_TOKENS, MAX_TOKEN_CONDITIONS, MAX_TOKENS, parseClientFrame, parseGmMessage, parsePlayerMessage, parseRelayFrame,
+  playerName,
+} from '../../../../src/app/online/protocol/index.ts';
 
 const HASH = 'a'.repeat(64);
 
@@ -111,6 +114,18 @@ describe('relay frames', () => {
     expect(parseRelayFrame(`{"v":1,"t":"welcome","role":"gm","players":[{"id":"${id}","name":"Ana"}]}`)).toEqual({ v: 1, t: 'welcome', role: 'gm', players: [{ id, name: 'Ana' }] });
     expect(parseRelayFrame(`{"v":1,"t":"player-joined","id":"${id}","name":"Ana"}`)).toEqual({ v: 1, t: 'player-joined', id, name: 'Ana' });
     expect(parseRelayFrame(`{"v":1,"t":"player-joined","id":"${id}","name":""}`)).toBeNull();
+  });
+
+  it('read the word that the table closes because its account may no longer host, and that it may again', () => {
+    expect(parseRelayFrame('{"v":1,"t":"access","closesAt":1760000000000}')).toEqual({ v: 1, t: 'access', closesAt: 1760000000000 });
+    expect(parseRelayFrame('{"v":1,"t":"access","closesAt":null,"more":1}')).toEqual({ v: 1, t: 'access', closesAt: null });
+    for (const text of ['{"v":1,"t":"access"}', '{"v":1,"t":"access","closesAt":"soon"}', '{"v":1,"t":"access","closesAt":1e999}']) expect(parseRelayFrame(text), text).toBeNull();
+  });
+
+  it('are final when the account may not host or started another table: no client tries again', () => {
+    expect([CLOSE.noAccess, CLOSE.superseded]).toEqual([4015, 4016]);
+    expect(FINAL_CLOSE_CODES).toEqual(expect.arrayContaining([CLOSE.noAccess, CLOSE.superseded]));
+    expect(GATE_CLOSE_CODES).not.toEqual(expect.arrayContaining([CLOSE.noAccess, CLOSE.superseded]));
   });
 });
 
