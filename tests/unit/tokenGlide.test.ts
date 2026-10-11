@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Container, Ticker } from 'pixi.js';
-import { TokenGlide, glideStep } from '../../src/app/pixi/token-renderer/TokenGlide';
+import { TokenGlide, glideStep, placedAtOnce } from '../../src/app/pixi/token-renderer/TokenGlide';
 
 type Step = (ticker: Pick<Ticker, 'deltaMS'>) => void;
 
@@ -57,5 +57,27 @@ describe('TokenGlide', () => {
     expect(h.sprite.position.x).toBe(70);
     expect(h.steps.size).toBe(0);
     expect(h.moves).toEqual([70]);
+  });
+});
+
+describe('whether a move the store made is shown at once', () => {
+  const glides = { held: false, pointerDrags: false, loading: false, mayGlide: true };
+
+  it('glides an ordinary move', () => {
+    expect(placedAtOnce(glides)).toBe(false);
+  });
+
+  it('places a token this view\'s own pointer drags: the drag draws it', () => {
+    expect(placedAtOnce({ ...glides, held: true, pointerDrags: true })).toBe(true);
+  });
+
+  it('glides a token someone else holds: a player dragging it online sends places, and nothing here draws the way between them', () => {
+    expect(placedAtOnce({ ...glides, held: true, pointerDrags: false })).toBe(false);
+  });
+
+  it('places everything while a map loads, and a move that may not be shown on its way', () => {
+    expect(placedAtOnce({ ...glides, loading: true })).toBe(true);
+    expect(placedAtOnce({ ...glides, mayGlide: false })).toBe(true);
+    expect(placedAtOnce({ ...glides, held: true, pointerDrags: false, mayGlide: false })).toBe(true);
   });
 });
