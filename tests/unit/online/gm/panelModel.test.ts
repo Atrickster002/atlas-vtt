@@ -115,12 +115,20 @@ describe('the list', () => {
 
   it('groups tokens by player in name order, then the free ones, leaving out tokens the scene lost', () => {
     const groups = groupsOf(snapshot({ players: [CLEM, BEN, ANA], playerTokens: claims }), scene());
-    expect(groups.map((group) => [group.player?.name ?? null, group.tokens.map((token) => token.tokenId)])).toEqual([
-      ['Ana', ['wolf']], ['Ben', ['ogre']], ['clem', []], [null, ['bear']],
+    // A player's first token is their picture (`face`), not a row of its own; the free ones stay rows.
+    expect(groups.map((group) => [group.player?.name ?? null, group.face?.tokenId ?? null, group.tokens.map((token) => token.tokenId)])).toEqual([
+      ['Ana', 'wolf', []], ['Ben', 'ogre', []], ['clem', null, []], [null, null, ['bear']],
     ]);
     const bear = groups[3]?.tokens[0];
     expect(bear).toMatchObject({ label: 'Bear', hidden: true, ringColor: '#ff0000', showRing: true, owner: null });
-    expect(groups[0]?.tokens[0]).toMatchObject({ showRing: false, hidden: false, owner: { name: 'Ana', initial: 'A' } });
+    expect(groups[0]?.face).toMatchObject({ showRing: false, hidden: false, owner: { name: 'Ana', initial: 'A' } });
+  });
+
+  it('shows a player with several tokens by the first of them, in the scene\'s order, and lists the others', () => {
+    const both = [{ tokenId: 'ogre', label: 'Ogre', claimedBy: ANA.id }, { tokenId: 'wolf', label: 'Wolf', claimedBy: ANA.id }];
+    const [ana] = groupsOf(snapshot({ players: [ANA], playerTokens: both }), scene());
+    expect(ana?.face?.tokenId).toBe('ogre');
+    expect(ana?.tokens.map((token) => token.tokenId)).toEqual(['wolf']);
   });
 
   it('keeps its order when a player goes away', () => {
@@ -130,7 +138,7 @@ describe('the list', () => {
   });
 
   it('has a free group to say there are no player tokens, and none while every player token is taken', () => {
-    expect(groupsOf(snapshot(), scene())).toEqual([{ player: null, tokens: [] }]);
+    expect(groupsOf(snapshot(), scene())).toEqual([{ player: null, face: null, tokens: [] }]);
     const taken = groupsOf(snapshot({ players: [ANA], playerTokens: [{ tokenId: 'wolf', label: 'Wolf', claimedBy: ANA.id }] }), scene());
     expect(taken.map((group) => group.player?.name ?? null)).toEqual(['Ana']);
   });

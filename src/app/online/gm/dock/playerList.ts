@@ -17,26 +17,43 @@ export interface ListActions {
   imageSrc(imagePath: string): string;
 }
 
-/** The player's initial in their colour, with a dot for whether they are here. */
-function avatar(parent: HTMLElement, player: GroupPlayer): void {
+/** The player's picture, with a dot for whether they are here: the token they play, or their initial in their colour. */
+function avatar(parent: HTMLElement, player: GroupPlayer, face: TokenRow | null, actions: ListActions): void {
   const presence = player.online ? 'atlas-online-tone--green' : 'atlas-online-tone--muted';
-  parent.createSpan({ cls: `atlas-online-avatar atlas-online-colour-${player.colour} ${presence}`, text: player.initial, attr: { 'aria-hidden': 'true' } });
+  if (face === null) {
+    parent.createSpan({ cls: `atlas-online-avatar atlas-online-colour-${player.colour} ${presence}`, text: player.initial, attr: { 'aria-hidden': 'true' } });
+    return;
+  }
+  const picture = parent.createSpan({ cls: `atlas-online-avatar atlas-online-avatar--token ${presence}`, attr: { 'aria-hidden': 'true' } });
+  createTokenPortrait(picture, { src: actions.imageSrc(face.imagePath), alt: '', showRing: face.showRing, ringColor: face.ringColor ?? undefined, cls: 'atlas-online-avatar__portrait' });
+}
+
+/** A mark beside a name for a token the players do not see. */
+function hiddenMark(parent: HTMLElement): void {
+  setIcon(parent.createSpan({ cls: 'atlas-online-token__hidden', attr: { 'aria-label': 'Hidden from players' } }), 'eye-off');
 }
 
 /**
- * A player's row: avatar (its dot says whether they are here), name, and their menu, a ghost button
- * that shows while the pointer is over the row or focus is in it.
+ * A player's row: their picture (its dot says whether they are here), the name they chose, and their
+ * menu, a ghost button that shows while the pointer is over the row or focus is in it. A player who
+ * plays a token is shown by it (`face`) and has no row for it besides: pressing the picture or the
+ * name selects that token on the map, as its own row did.
  */
-function playerRow(list: HTMLElement, player: GroupPlayer, tokens: readonly TokenRow[], actions: ListActions): void {
+function playerRow(list: HTMLElement, player: GroupPlayer, face: TokenRow | null, tokens: readonly TokenRow[], actions: ListActions): void {
   const row = list.createDiv({ cls: ['atlas-online-player', ...(player.online ? [] : ['is-away'])] });
-  avatar(row, player);
-  row.createSpan({ cls: 'atlas-online-player__name', text: player.name });
-  row.createSpan({ cls: 'atlas-online-sr-only', text: player.online ? 'Online' : 'Away' });
+  const main = face === null
+    ? row.createDiv({ cls: 'atlas-online-player__main' })
+    : row.createEl('button', { cls: 'atlas-online-player__main', attr: { type: 'button', 'data-focus-key': `face:${face.tokenId}` } });
+  avatar(main, player, face, actions);
+  main.createSpan({ cls: 'atlas-online-player__name', text: player.name });
+  if (face?.hidden) hiddenMark(main);
+  main.createSpan({ cls: 'atlas-online-sr-only', text: `${player.online ? 'Online' : 'Away'}${face === null ? '' : `, plays ${face.label}`}` });
+  if (face !== null) main.addEventListener('click', () => actions.selectToken(face.tokenId));
   const more = row.createEl('button', { cls: 'atlas-online-icon-button atlas-online-player__more', attr: { type: 'button', 'aria-label': `${player.name}: options`, 'aria-haspopup': 'menu', 'data-focus-key': `player:${player.id}` } });
   setIcon(more, 'more-horizontal');
   more.addEventListener('click', () => {
     const selected = actions.selected();
-    const owned = tokens.map((token) => token.tokenId);
+    const owned = [...(face === null ? [] : [face]), ...tokens].map((token) => token.tokenId);
     const menu = new Menu();
     menu.addItem((item) => item.setTitle('Assign selected tokens here').setIcon('user-plus').setDisabled(selected.length === 0).onClick(() => actions.assign(selected, player.id)));
     menu.addItem((item) => item.setTitle('Release all').setIcon('undo-2').setDisabled(owned.length === 0).onClick(() => actions.release(owned)));
@@ -77,21 +94,18 @@ function tokenRow(list: HTMLElement, token: TokenRow, players: readonly OnlinePl
   const main = row.createEl('button', { cls: 'atlas-online-token__main', attr: { type: 'button', 'data-focus-key': `token:${token.tokenId}` } });
   createTokenPortrait(main, { src: actions.imageSrc(token.imagePath), alt: '', showRing: token.showRing, ringColor: token.ringColor ?? undefined, cls: 'atlas-online-token__portrait' });
   main.createSpan({ cls: 'atlas-online-token__name', text: token.label });
-  if (token.hidden) {
-    const hidden = main.createSpan({ cls: 'atlas-online-token__hidden', attr: { 'aria-label': 'Hidden from players' } });
-    setIcon(hidden, 'eye-off');
-  }
+  if (token.hidden) hiddenMark(main);
   main.addEventListener('click', () => actions.selectToken(token.tokenId));
   ownerPicker(row, token, players, actions);
 }
 
-/** The players, each with their tokens, then the free player tokens. */
+/** The players, each shown by the token they play and with their further tokens, then the free player tokens. */
 export function renderPlayerList(parent: HTMLElement, groups: readonly PlayerGroup[], players: readonly OnlinePlayer[], actions: ListActions): HTMLElement {
   const list = parent.createDiv({ cls: 'atlas-online-list', attr: { 'data-scroll-key': 'list' } });
   for (const group of groups) {
     if (group.player === null && group.tokens.length === 0) continue;
     const block = list.createDiv({ cls: 'atlas-online-group' });
-    if (group.player !== null) playerRow(block, group.player, group.tokens, actions);
+    if (group.player !== null) playerRow(block, group.player, group.face, group.tokens, actions);
     else block.createDiv({ cls: 'atlas-online-group-label', text: 'Unclaimed' });
     for (const token of group.tokens) tokenRow(block, token, players, actions);
   }

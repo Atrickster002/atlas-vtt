@@ -160,6 +160,38 @@
     padding: $online-inset;
   }
 
+  // The player's picture and name. A button where the player plays a token: pressing it selects that token.
+  .atlas-online-player__main {
+    &,
+    &:hover,
+    &:active,
+    &:focus-visible {
+      display: flex;
+      flex: 0 1 auto;
+      align-items: center;
+      justify-content: flex-start;
+      gap: $spacing-s;
+      min-width: 0;
+      height: auto;
+      padding: 0;
+      border: none;
+      border-radius: $online-row-radius;
+      background: transparent;
+      box-shadow: none;
+      color: inherit;
+      font-size: $font-ui-small;
+      text-align: left;
+    }
+  }
+
+  button.atlas-online-player__main {
+    cursor: pointer;
+
+    &:focus-visible {
+      box-shadow: $online-focus-ring;
+    }
+  }
+
   .atlas-online-avatar {
     position: relative;
     display: flex;
@@ -188,6 +220,16 @@
       background: var(--atlas-online-tone);
       box-shadow: 0 0 0 2px var(--background-primary);
     }
+  }
+
+  // The token a player plays is their picture: it fills the avatar, which keeps the dot.
+  .atlas-online-avatar--token {
+    background: none;
+  }
+
+  .atlas-online-avatar__portrait {
+    width: 100%;
+    height: 100%;
   }
 
   .atlas-online-player__name {

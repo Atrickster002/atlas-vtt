@@ -243,6 +243,9 @@ export interface TokenRow {
 /** A player and their tokens, or (player null) the player tokens nobody has claimed. */
 export interface PlayerGroup {
   readonly player: GroupPlayer | null;
+  /** The token shown as the player's picture: the first they play, in the scene's order. Null without one, and for the free tokens. */
+  readonly face: TokenRow | null;
+  /** The player's further tokens, each a row of its own; for the free group, all of them. */
   readonly tokens: readonly TokenRow[];
 }
 
@@ -258,8 +261,9 @@ const groupPlayer = (player: OnlinePlayer): GroupPlayer => ({ ...player, initial
 const byName = (a: OnlinePlayer, b: OnlinePlayer): number => a.name.localeCompare(b.name) || a.id.localeCompare(b.id);
 
 /**
- * The list: every player by name (so it never reorders when someone goes away), each with their tokens
- * in the scene's order, then the free player tokens. Tokens the scene no longer has are left out.
+ * The list: every player by name (so it never reorders when someone goes away), each shown by the
+ * first token they play, with their further tokens in the scene's order, then the free player
+ * tokens. Tokens the scene no longer has are left out.
  */
 export function groupsOf(snapshot: OnlineSnapshot, scene: SceneFacts): PlayerGroup[] {
   const players = [...snapshot.players].sort(byName).map(groupPlayer);
@@ -270,9 +274,12 @@ export function groupsOf(snapshot: OnlineSnapshot, scene: SceneFacts): PlayerGro
     const owner = claim.claimedBy === null ? null : known.get(claim.claimedBy) ?? null;
     return [{ tokenId: claim.tokenId, label: claim.label, imagePath: token.imagePath, showRing: token.showRing !== false, ringColor: token.ringColor ?? null, hidden: token.isHidden === true, owner }];
   });
-  const groups: PlayerGroup[] = players.map((player) => ({ player, tokens: rows.filter((row) => row.owner?.id === player.id) }));
+  const groups: PlayerGroup[] = players.map((player) => {
+    const [face = null, ...tokens] = rows.filter((row) => row.owner?.id === player.id);
+    return { player, face, tokens };
+  });
   const free = rows.filter((row) => row.owner === null);
-  return free.length > 0 || groups.length === 0 ? [...groups, { player: null, tokens: free }] : groups;
+  return free.length > 0 || groups.length === 0 ? [...groups, { player: null, face: null, tokens: free }] : groups;
 }
 
 export type SelectionBar =
