@@ -191,15 +191,15 @@ export class GridAlignmentController {
   /** Tells `onScan` how the scan under way ends: its last glow, then nothing. */
   private sayWhenStill(scan: GridScanLayer): void {
     const run = this.scanRun;
-    const say = (state: ScanState) => (): void => {
+    const say = (state: ScanState): void => {
       if (run === this.scanRun) this.onScan?.(state);
     };
     if (!scan.showing) {
-      say('none')();
+      say('none');
       return;
     }
-    scan.whenQuiet(say('fading'));
-    scan.whenStill(say('none'));
+    scan.whenQuiet(() => say('fading'));
+    scan.whenStill(() => say('none'));
   }
 
   /** Ends a scan nobody waits for any more. */

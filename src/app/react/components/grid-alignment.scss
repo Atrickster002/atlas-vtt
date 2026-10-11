@@ -87,7 +87,6 @@
   .atlas-grid-alignment-status {
     @include atlas-visually-hidden;
   }
-
 }
 
 // ── What to click next, while aligning by hand ──────────────────────────
@@ -151,9 +150,8 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // The button that started it stays where it is and shows the work: light passes through it in two
 // soft bands, each drifting at its own even pace, so no two passes look alike and one of them is
-// always under way, and its icon breathes. Transform
-// and opacity alone, so it keeps moving whatever the window is busy with. The map itself shows the
-// search (`pixi/gridAlignment/`).
+// always under way, and its icon breathes. Transform and opacity alone, so it keeps moving whatever
+// the window is busy with. The map itself shows the search (`pixi/gridAlignment/`).
 
 @keyframes atlas-detect-light {
   from {

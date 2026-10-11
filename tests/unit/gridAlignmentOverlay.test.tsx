@@ -351,7 +351,6 @@ describe('GridAlignmentOverlay', () => {
     // Nothing else is to be chosen until the search is over; closing stays.
     expect(['Measure', 'Freehand', 'Square'].every((name) => screen.getByRole<HTMLButtonElement>('radio', { name }).disabled)).toBe(true);
     expect(applyButton().disabled).toBe(true);
-    expect(screen.getByRole<HTMLButtonElement>('radio', { name: 'Square' }).disabled).toBe(true);
 
     // No grid: said in a notice beside the panel, and measuring opens. The panel gets no words of its own.
     await act(async () => { answer(null); });

@@ -3,8 +3,7 @@ import { Notice } from 'obsidian';
 import { Crosshair, Scan } from 'lucide-react';
 import { useAtlasUI } from '../root/AtlasUIContext';
 import { GridAlignmentController } from '../../pixi/GridAlignmentController';
-import type { ScanState } from '../../pixi/GridAlignmentController';
-import type { AlignmentResult } from '../../pixi/GridAlignmentController';
+import type { AlignmentResult, ScanState } from '../../pixi/GridAlignmentController';
 import type { GridType } from '../../grid/GridSystem';
 import { gridAlignedTo } from '../../pixi/gridAlignmentMath';
 import { movedWithMap, readMapStretch, sameStretch } from '../../grid/mapStretch';
@@ -78,8 +77,8 @@ export function GridAlignmentOverlay({ onClose }: GridAlignmentOverlayProps): Re
     if (!renderer || !viewport || !gridSystem || !canvasEl) return;
     const mapImage = renderer.getMapImage?.() ?? null;
 
-    const scan = createGridScan(view?.app, () => store?.getState(), renderer);
-    controllerRef.current = new GridAlignmentController(viewport, gridSystem, canvasEl, mapImage, scan);
+    const scanLayer = createGridScan(view?.app, () => store?.getState(), renderer);
+    controllerRef.current = new GridAlignmentController(viewport, gridSystem, canvasEl, mapImage, scanLayer);
     controllerRef.current.onScan = setScan;
     setControllerVersion(v => v + 1);
   }, [view, store]);
