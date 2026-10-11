@@ -53,10 +53,23 @@ interface PlayerLaserState {
   at: number;
 }
 
+interface PlayerMeasureState {
+  state: MeasureState;
+  /** The time the messages since the last `marks` message cover: null when one of them told none, undefined when none came. */
+  covered: number | null | undefined;
+}
+
 type LaserEntry = MarksMessage['lasers'][number];
+type MeasureEntry = MarksMessage['measures'][number];
 
 /** A laser as `marks` and the GM's overlay take it: its look and pointer, with these trail points and the time they cover. */
 const laserEntry = (who: string, { color, size, at, on }: LaserState, pts: readonly number[], span: number | null): LaserEntry => ({ who, color, size, at, pts, on, ...(span !== null && { span }) });
+
+/** A sender's measurements as `marks` and the GM's overlay take them, with the time since the live one's end was last told. */
+const measureEntry = (who: string, { color, live, kept }: MeasureState, span: number | null): MeasureEntry => ({ who, color, live, kept, ...(live !== null && span !== null && { span }) });
+
+/** The time messages cover together: null once one of them told none, and no more than a message may tell. */
+const spansAdded = (covered: number | null, span: number | undefined): number | null => (covered === null || span === undefined ? null : Math.min(MAX_LASER_SPAN_MS, covered + span));
 
 /**
  * Everyone's marks in the shared scene, sent to all as one `marks` message at most every
@@ -71,7 +84,7 @@ export class MarkShare {
   private readonly pacer: Pacer;
   private readonly gm = new GmMeasures();
   private readonly lasers = new Map<string, PlayerLaserState>();
-  private readonly measures = new Map<string, MeasureState>();
+  private readonly measures = new Map<string, PlayerMeasureState>();
   private readonly laserRate: MoveRate = markRate();
   private readonly measureRate: MoveRate = markRate();
   private scene: string | null = null;
@@ -108,15 +121,15 @@ export class MarkShare {
       if (state === null) return;
       const waiting = this.lasers.get(from)?.waiting ?? { pts: [], span: 0 };
       const pts = [...waiting.pts, ...state.pts].slice(-MAX_MARK_LASER_NUMBERS);
-      const span = waiting.span === null || state.span === undefined ? null : Math.min(MAX_LASER_SPAN_MS, waiting.span + state.span);
-      this.lasers.set(from, { state, waiting: { pts, span }, at: now });
-      this.show(from);
+      this.lasers.set(from, { state, waiting: { pts, span: spansAdded(waiting.span, state.span) }, at: now });
+      this.show({ laser: from });
     } else {
       const state = this.measureRate.take(from, now) ? checkMeasure(message, context) : null;
       if (state === null) return;
+      const covered = this.measures.get(from)?.covered;
       if (state.live === null && state.kept.length === 0) this.measures.delete(from);
-      else this.measures.set(from, state);
-      this.show();
+      else this.measures.set(from, { state, covered: spansAdded(covered === undefined ? 0 : covered, state.span) });
+      this.show({ measure: from });
     }
     this.pacer.request();
   }
@@ -170,7 +183,7 @@ export class MarkShare {
     const { measurements } = source;
     const measured = (): void => queueMicrotask(() => {
       if (this.source !== source || measurements === null) return;
-      this.gm.follow(measurements.get(), source.laser.lastPress(), source);
+      this.gm.follow(measurements.get(), source.laser.lastPress(), source, this.ports.now());
       this.pacer.request();
     });
     const request = (): void => this.pacer.request();
@@ -179,26 +192,29 @@ export class MarkShare {
     measured();
   }
 
-  /** Shows the GM every player's marks as they are now; `arrived` is the player whose laser just came, with its new trail points. */
-  private show(arrived?: string): void {
+  /**
+   * Shows the GM every player's marks as they are now. `arrived` names the player whose laser or
+   * measurements just came: only that mark is shown with what its message brought, its new trail
+   * points and its span, since the overlay adds each to what it has.
+   */
+  private show(arrived: { readonly laser?: string; readonly measure?: string } = {}): void {
     if (this.ports.showPlayerMarks === undefined) return;
-    const lasers = [...this.lasers].map(([who, { state }]) => (who === arrived ? laserEntry(who, state, state.pts, state.span ?? null) : laserEntry(who, state, [], null)));
-    this.ports.showPlayerMarks({ lasers, measures: this.playerMeasures() });
-  }
-
-  private playerMeasures(): MarksMessage['measures'] {
-    return [...this.measures].map(([who, state]) => ({ who, ...state }));
+    const lasers = [...this.lasers].map(([who, { state }]) => (who === arrived.laser ? laserEntry(who, state, state.pts, state.span ?? null) : laserEntry(who, state, [], null)));
+    const measures = [...this.measures].map(([who, { state }]) => measureEntry(who, state, who === arrived.measure ? (state.span ?? null) : null));
+    this.ports.showPlayerMarks({ lasers, measures });
   }
 
   private send(): void {
     if (this.scene === null) return;
     const playerLasers = [...this.lasers].map(([who, { state, waiting }]) => laserEntry(who, state, waiting?.pts ?? [], waiting?.span ?? null));
     for (const laser of this.lasers.values()) laser.waiting = null;
+    const playerMeasures = [...this.measures].map(([who, { state, covered }]) => measureEntry(who, state, covered ?? null));
+    for (const held of this.measures.values()) held.covered = undefined;
     const body: MarksMessage = {
       t: 'marks',
       scene: this.scene,
       lasers: [...this.gmLaser(), ...playerLasers.filter((laser) => laser.at !== null || laser.on || laser.pts.length > 0)],
-      measures: [...this.gmMeasures(), ...this.playerMeasures()],
+      measures: [...this.gmMeasures(), ...playerMeasures],
     };
     const text = JSON.stringify(body);
     // Nothing to tell before anyone made a mark: players start without any.
@@ -218,6 +234,7 @@ export class MarkShare {
   private gmMeasures(): MarksMessage['measures'] {
     if (this.source === null) return [];
     const { live, kept } = this.gm.shown(this.source.seen());
-    return live === null && kept.length === 0 ? [] : [{ who: GM_MARKS, color: this.ports.accent?.() ?? DEFAULT_ACCENT, live, kept }];
+    const span = this.gm.takeSpan();
+    return live === null && kept.length === 0 ? [] : [measureEntry(GM_MARKS, { color: this.ports.accent?.() ?? DEFAULT_ACCENT, live, kept }, span ?? null)];
   }
 }

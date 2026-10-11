@@ -54,6 +54,39 @@ describe('RemoteMeasures', () => {
     expect(measures.busy).toBe(false);
   });
 
+  it('moves an end on every frame, however its messages arrive, when they tell their time', () => {
+    // An end dragged a pixel a millisecond, told 30 times a second; two messages arrive together after a late one, one comes early.
+    const delays = [20, 20, 62, 20, 20, 4, 20, 20, 45, 20, 20, 20];
+    let covered = 0;
+    let arrived = 0;
+    const messages = Array.from({ length: 120 }, (_, index) => {
+      const sent = ((index + 1) * 100) / 3;
+      const span = Math.round(sent) - covered;
+      covered += span;
+      arrived = Math.max(arrived, sent + (delays[index % delays.length] ?? 20));
+      return { end: sent, span, arrived };
+    });
+    measures.update([measure(line(0))], 0);
+    const places: number[] = [];
+    let next = 0;
+    let newest = 0;
+    for (let now = 0; now < 4000; now += FRAME) {
+      for (; next < messages.length && (messages[next]?.arrived ?? Infinity) <= now; next += 1) {
+        const message = messages[next];
+        if (message === undefined) break;
+        measures.update([{ ...measure(line(message.end)), span: message.span }], message.arrived);
+        newest = message.end;
+      }
+      measures.tick(now);
+      const place = (labels().at(-1)?.x ?? 0) * 2;
+      expect(place).toBeLessThanOrEqual(newest + 1e-6);
+      if (now > 1500) places.push(place);
+    }
+    const steps = places.slice(1).map((place, index) => place - (places[index] ?? 0));
+    expect(Math.min(...steps)).toBeGreaterThan(0.5 * FRAME);
+    expect(Math.max(...steps)).toBeLessThan(1.5 * FRAME);
+  });
+
   it('says it is busy while an end still moves', () => {
     measures.update([measure(line(0))], 0);
     run(0, 66);

@@ -2,7 +2,7 @@ import { MAX_COORDINATE, MAX_MARK_KEPT, type MarkPoint, type SharedMeasure } fro
 import type { Measurements } from '../../pixi/MeasureRenderer';
 import type { MeasureRecord } from '../../pixi/utils/measureDrawing';
 import { measureOriginOf, measureShownToPlayers, type MeasureOrigin, type TokenFootprint, type TokenSeen } from '../../vision/measureOrigin';
-import type { Press } from '../marks/index.ts';
+import { SpanMeter, type Press } from '../marks/index.ts';
 
 /** What the GM's measurements are judged by: where tokens stand and which ones the players see now. */
 export interface PlayersView {
@@ -39,17 +39,22 @@ export class GmMeasures {
   private last: { readonly record: MeasureRecord; readonly origin: MeasureOrigin } | null = null;
   private readonly kept = new WeakMap<MeasureRecord, MeasureOrigin>();
   private records: Measurements = { live: null, kept: [] };
+  /** The time between the ends of the live measurement that players are told. */
+  private readonly meter = new SpanMeter();
 
-  /** Takes the measurements as they are now; `press` is the last press on the map, which began the live one if it is new. */
-  follow(records: Measurements, press: Press | null, view: PlayersView): void {
+  /** Takes the measurements as they are at `now` (ms); `press` is the last press on the map, which began the live one if it is new. */
+  follow(records: Measurements, press: Press | null, view: PlayersView, now: number): void {
     this.records = records;
     const { live } = records;
     if (live === null) {
       // The next live measurement is a new one, wherever it starts.
       if (this.live !== null) this.live = { ...this.live, start: { x: Number.NaN, y: Number.NaN } };
+      this.meter.reset();
     } else {
       const current = this.live;
       const fresh = current === null || (press !== null && press.serial !== current.press) || !samePoint(live.start, current.start);
+      if (fresh) this.meter.reset();
+      if (fresh || this.last === null || !samePoint(this.last.record.end, live.end)) this.meter.moved(now);
       const pressed = press !== null && press.serial !== current?.press ? [{ x: press.at[0], y: press.at[1] }] : [];
       const next = fresh ? { start: live.start, press: press?.serial ?? null, origin: measureOriginOf([...pressed, live.start], view.footprints(), view.seen()) } : current;
       this.live = next;
@@ -72,11 +77,17 @@ export class GmMeasures {
     return { live: shownLive, kept: shownKept.slice(-MAX_MARK_KEPT) };
   }
 
+  /** The time from the live measurement's end as it was last taken to its end now, in whole ms; none for the first of a measurement. */
+  takeSpan(): number | undefined {
+    return this.meter.take();
+  }
+
   /** Forgets every origin: another scene. */
   reset(): void {
     this.live = null;
     this.last = null;
     this.records = { live: null, kept: [] };
+    this.meter.reset();
   }
 }
 

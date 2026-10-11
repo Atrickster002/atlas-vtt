@@ -57,12 +57,13 @@ const measureNearMap = (measure: SharedMeasure, map: MapSize | null): boolean =>
 
 /**
  * A player's measurements as the GM takes them, or null when they are refused: another scene, or a
- * colour that is not a swatch. Measurements off the map are left out.
+ * colour that is not a swatch. Measurements off the map are left out, and with the one being drawn its span.
  */
 export function checkMeasure(message: PlayerMeasure, context: MarkContext): MeasureState | null {
   if (context.scene === null || message.scene !== context.scene) return null;
   const color = swatchColour(message.color);
   if (color === null) return null;
   const live = message.live !== null && measureNearMap(message.live, context.map) ? message.live : null;
-  return { color, live, kept: message.kept.filter((measure) => measureNearMap(measure, context.map)) };
+  const kept = message.kept.filter((measure) => measureNearMap(measure, context.map));
+  return { color, live, kept, ...(live !== null && message.span !== undefined && { span: message.span }) };
 }

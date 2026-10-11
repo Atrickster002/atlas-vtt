@@ -13,7 +13,7 @@ export const MAX_KEPT = 20;
 export const MAX_MARK_KEPT = 50;
 /** The shortest time between two `marks` messages, and between two of a player's lasers or measurements: about 30 a second (the last change always goes out). */
 export const MARKS_INTERVAL_MS = 33;
-/** The longest span a laser message tells, in ms. */
+/** The longest span a laser or a measurement message tells, in ms. */
 export const MAX_LASER_SPAN_MS = 1000;
 /** Who a mark is from: a player's relay id, or the GM. */
 export const GM_MARKS = 'gm';
@@ -43,11 +43,16 @@ export interface LaserState {
   readonly span?: number;
 }
 
-/** A player's measurements as they are now: the one being drawn and the kept ones. */
+/**
+ * A player's measurements as they are now: the one being drawn and the kept ones. `span` is the time
+ * in whole milliseconds from the end of `live` the sender's last message told to the one this message
+ * tells, so a receiver can move the end as it was dragged; a sender that tells none is drawn as it arrives.
+ */
 export interface MeasureState {
   readonly color: string;
   readonly live: SharedMeasure | null;
   readonly kept: readonly SharedMeasure[];
+  readonly span?: number;
 }
 
 /** A player's laser in the shared scene. */
@@ -110,11 +115,12 @@ function readAll<T>(values: readonly unknown[], read: (value: unknown) => T | nu
 }
 
 function parseMeasureState(value: Record<string, unknown>, maxKept: number): MeasureState | null {
-  const { color, live, kept } = value;
+  const { color, live, kept, span } = value;
   if (typeof color !== 'string' || !COLOR.test(color) || !Array.isArray(kept) || kept.length > maxKept) return null;
+  if (span !== undefined && !isSpan(span)) return null;
   const measure = live === null ? null : parseMeasure(live);
   const records = readAll(kept, parseMeasure);
-  return (live !== null && measure === null) || records === null ? null : { color, live: measure, kept: records };
+  return (live !== null && measure === null) || records === null ? null : { color, live: measure, kept: records, ...(span !== undefined && { span }) };
 }
 
 /** A player's laser or measurements as the GM reads them, or null for anything malformed. */
