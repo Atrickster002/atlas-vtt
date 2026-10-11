@@ -1,9 +1,8 @@
 import { requestUrl } from 'obsidian';
 import { bodyOf, type Http } from './http.ts';
-import { answersWithRedirect, refusingRedirects } from './redirects.ts';
 
 /** Obsidian's `requestUrl`, which no browser's CORS rules hold back. */
-const requestUrlHttp: Http = async (request) => {
+export const obsidianHttp: Http = async (request) => {
   const { body, contentType } = bodyOf(request);
   const response = await requestUrl({
     url: request.url,
@@ -21,6 +20,3 @@ const requestUrlHttp: Http = async (request) => {
   }
   return { status: response.status, json };
 };
-
-/** How online play reaches the account service and the relay: `requestUrl`, with no token sent to an address that redirects. */
-export const obsidianHttp: Http = refusingRedirects(requestUrlHttp, answersWithRedirect);

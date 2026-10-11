@@ -48,10 +48,13 @@ describe('online play\'s source', () => {
     expect(naming(/tokens\.get\(/)).toEqual(['gm/account/AccountControl.ts']);
     // A bearer is written by the table request and by the account's own calls (what it may host, sign-out).
     expect(naming(/Bearer \$\{/)).toEqual(['gm/account/relayAccount.ts', 'gm/createTable.ts']);
-    // Every request of online play that may carry it goes through the transport that refuses redirects.
+    // The diagnostics make requests of their own, and never with it.
     expect(naming(/requestUrl\(/)).toEqual(['gm/account/obsidianHttp.ts', 'gm/companionDiagnostics.ts']);
-    expect(readFileSync(path.join(ROOT, 'gm/account/obsidianHttp.ts'), 'utf8')).toContain('export const obsidianHttp: Http = refusingRedirects(requestUrlHttp, answersWithRedirect);');
     expect(readFileSync(path.join(ROOT, 'gm/companionDiagnostics.ts'), 'utf8')).not.toMatch(/Authorization|Bearer|token\(|secretStorage/);
+  });
+
+  it('imports no Node built-in: every request goes through Obsidian or the browser', () => {
+    expect(naming(/from\s+['"](?:node:|(?:http|https|net|tls|fs|path|url|crypto|child_process|os|stream|zlib|dns|events|buffer|util)['"/])|require\(|import\(\s*['"](?:node:|https?['"])/)).toEqual([]);
   });
 
   it('asks the relay only for tables and for the account', () => {

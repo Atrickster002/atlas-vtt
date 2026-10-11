@@ -16,7 +16,7 @@ import { advanceSettled as advance } from './settled.ts';
 const seen = vi.hoisted(() => {
   /** The relay's answer to a table request. */
   const created: { status: number; json: unknown } = { status: 201, json: null };
-  return { redirects: false, notices: [] as string[], marks: [] as { disposed: boolean; renderer: () => unknown }[], created, requests: [] as { readonly url?: string; readonly headers?: Record<string, string> }[] };
+  return { notices: [] as string[], marks: [] as { disposed: boolean; renderer: () => unknown }[], created, requests: [] as { readonly url?: string; readonly headers?: Record<string, string> }[] };
 });
 
 vi.mock('obsidian', () => ({
@@ -32,12 +32,6 @@ vi.mock('obsidian', () => ({
   },
   PluginSettingTab: class {},
   Setting: class {},
-}));
-
-// Whether the relay's address answers with a redirect is asked over the network; here the test says.
-vi.mock('../../../../src/app/online/gm/account/redirects.ts', async (original) => ({
-  ...(await original<typeof import('../../../../src/app/online/gm/account/redirects.ts')>()),
-  answersWithRedirect: () => Promise.resolve(seen.redirects),
 }));
 
 // The GM's marks draw with PIXI over Atlas's canvas; here they only record what was built and let go.
@@ -90,7 +84,6 @@ describe('the online table', () => {
     seen.notices.length = 0;
     seen.marks.length = 0;
     seen.requests.length = 0;
-    seen.redirects = false;
     signedIn.refresh.mockClear();
     seen.created = { status: 201, json: { code: 'b'.repeat(26), secret: 'n'.repeat(43) } };
     saves = [];
@@ -343,20 +336,6 @@ describe('the online table', () => {
     expect(await online.start(tab.leaf)).toBeNull();
     expect(seen.notices.at(-1)).toBe('Sign in to host first.');
     expect(seen.requests).toHaveLength(3);
-  });
-
-  it('never sends the token to an address that answers with a redirect', async () => {
-    const tab = atlasTab(caveScene());
-    workspace.leaves = [tab.leaf];
-    const online = control();
-    seen.redirects = true;
-    expect(await online.start(tab.leaf)).toBeNull();
-    expect(seen.notices.at(-1)).toBe('This server sends requests on to another address. Atlas does not send your sign-in there.');
-    expect(seen.requests).toEqual([]);
-    seen.redirects = false;
-    expect(await online.start(tab.leaf)).not.toBeNull();
-    expect(seen.requests.map((request) => [request.url, request.headers?.Authorization])).toEqual([['https://play.atlas-vtt.dev/api/tables', 'Bearer account-token']]);
-    online.stop();
   });
 
   it('comes back to a saved table on Atlas\'s table server, with its secret alone', async () => {
