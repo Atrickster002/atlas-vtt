@@ -52,10 +52,7 @@ export function tableBook(ports: TableBookPorts): TableBook {
       const file = app.vault.getFileByPath(normalizePath(path));
       return file === null ? null : { mtime: file.stat.mtime, size: file.stat.size };
     },
-    mayShowWorldMap: async (path) => {
-      const scene = ports.scene();
-      return scene !== null && mayShowWorldMap(scene.collection, path);
-    },
+    mayShowWorldMap: (collection, path) => mayShowWorldMap(collection, path),
     scaleImage: scaleInWindow,
   }, ports.shelf);
   let stops: (() => void)[] = [];

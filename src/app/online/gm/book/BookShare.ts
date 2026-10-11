@@ -30,8 +30,8 @@ export interface BookSharePorts extends Timers {
   readImage(path: string): Promise<VaultImage | null>;
   /** The file at a vault path as it is now, or null when there is none. */
   stat(path: string): FileStat | null;
-  /** Whether the image at a vault path may be shown to players as the shared scene's world map. */
-  mayShowWorldMap(path: string): Promise<boolean>;
+  /** Whether the image at a vault path may be shown to players as a collection's world map. */
+  mayShowWorldMap(collection: string, path: string): Promise<boolean>;
   /** Scales an image for a player who asks for a longest side; without it players get originals only. */
   scaleImage?: ScaleImage | undefined;
 }
@@ -91,7 +91,7 @@ export class BookShare implements LootRecipientSource {
     this.ports = ports;
     this.shelf = shelf;
     this.art = new ArtRefs((path) => ports.readImage(path), () => this.update());
-    this.maps = new WorldMaps({ stat: (path) => ports.stat(path), readImage: (path) => ports.readImage(path), mayShow: (path) => ports.mayShowWorldMap(path), read: () => this.update() });
+    this.maps = new WorldMaps({ stat: (path) => ports.stat(path), readImage: (path) => ports.readImage(path), mayShow: (collection, path) => ports.mayShowWorldMap(collection, path), read: () => this.update() });
     this.answers = new AssetAnswers({ send: (body, to) => ports.send(body, to), now: () => ports.now(), readImage: (path) => ports.readImage(path), scaleImage: ports.scaleImage }, {
       map: () => null,
       explored: () => undefined,
@@ -122,7 +122,7 @@ export class BookShare implements LootRecipientSource {
     const scene = this.ports.scene();
     const players = this.ports.players();
     if (scene !== null) {
-      const map = this.maps.get(scene.worldMap);
+      const map = this.maps.get(scene.worldMap, scene.collection);
       // Being read: the books go out once it is known, with it.
       if (map === undefined) return;
       this.worldMap = map;
