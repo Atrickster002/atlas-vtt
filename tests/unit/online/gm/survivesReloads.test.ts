@@ -7,6 +7,7 @@ import { ARM_MS } from '../../../../src/app/online/gm/joinGate.ts';
 import { OnlineControl } from '../../../../src/app/online/gm/OnlineControl.ts';
 import { Ownership, readOwnership } from '../../../../src/app/online/gm/ownership.ts';
 import { readSavedTable, type SavedTable } from '../../../../src/app/online/gm/savedTable.ts';
+import { closingText } from '../../../../src/app/online/gm/tableEnd.ts';
 import { app, atlasTab, FakeSocket, png, present, switchScene, workspace } from './fakeTable.ts';
 import { fakeTokenSource } from './fakeTokenSource.ts';
 import { sceneState } from './shareHarness.ts';
@@ -226,15 +227,86 @@ describe('the online table', () => {
     FakeSocket.all[0]?.closeWith(CLOSE.replaced);
     expect(online.table).toBeNull();
     expect(saves.at(-1)).toEqual(SAVED);
-    expect(online.lost()).toBe(false);
+    expect(online.lost()).toBeNull();
 
     online.resume(SAVED);
     await advance(0);
     FakeSocket.all[1]?.closeWith(CLOSE.ended);
     expect(online.table).toBeNull();
     expect(saves.at(-1)).toBeNull();
-    expect(online.lost()).toBe(true);
+    expect(online.lost()).toBe('refused');
     expect(seen.notices).toEqual(['Another Obsidian took over the online table.', 'The server closed the online table.']);
+    expect(signedIn.refresh).not.toHaveBeenCalled();
+  });
+
+  it('drops a table whose account may not host, says so, asks what the account may do now, and never tries again', async () => {
+    workspace.leaves = [atlasTab(caveScene()).leaf];
+    const online = control();
+    online.resume(SAVED);
+    await advance(0);
+    FakeSocket.all[0]?.relay({ t: 'welcome', role: 'gm', players: [] });
+    FakeSocket.all[0]?.closeWith(CLOSE.noAccess);
+    expect(online.table).toBeNull();
+    expect(saves.at(-1)).toBeNull();
+    expect(online.lost()).toBe('no-access');
+    expect(seen.notices).toEqual(['The online table was closed. This account may not host online tables now.']);
+    expect(signedIn.refresh).toHaveBeenCalledWith(true);
+    await advance(10 * 60_000);
+    expect(FakeSocket.all).toHaveLength(1);
+  });
+
+  it('drops a table that ended because its account started another, says so, and never tries again', async () => {
+    workspace.leaves = [atlasTab(caveScene()).leaf];
+    const online = control();
+    online.resume(SAVED);
+    await advance(0);
+    FakeSocket.all[0]?.closeWith(CLOSE.superseded);
+    expect(online.table).toBeNull();
+    expect(saves.at(-1)).toBeNull();
+    expect(online.lost()).toBe('superseded');
+    expect(seen.notices).toEqual(['The online table was closed. This account started another table.']);
+    expect(signedIn.refresh).not.toHaveBeenCalled();
+    await advance(10 * 60_000);
+    expect(FakeSocket.all).toHaveLength(1);
+
+    // The next table starts clean: what the last one ended by is forgotten.
+    const tab = atlasTab(caveScene());
+    workspace.leaves = [tab.leaf];
+    await online.start(tab.leaf);
+    expect(online.lost()).toBeNull();
+    online.stop();
+  });
+
+  it('knows when the relay closes a table whose account may no longer host, tells the GM once per time, and forgets it at the relay\'s word or a welcome', async () => {
+    workspace.leaves = [atlasTab(caveScene()).leaf];
+    const online = control();
+    let changes = 0;
+    online.onChange(() => (changes += 1));
+    online.resume(SAVED);
+    await advance(0);
+    const socket = FakeSocket.all[0];
+    if (socket === undefined) throw new Error('no socket');
+    socket.relay({ t: 'welcome', role: 'gm', players: [] });
+    expect(online.table?.closesAt).toBeNull();
+    const closesAt = Date.UTC(2026, 9, 12, 14, 30);
+    const before = changes;
+    socket.relay({ t: 'access', closesAt });
+    expect(online.table?.closesAt).toBe(closesAt);
+    expect(changes).toBeGreaterThan(before);
+    expect(seen.notices).toEqual([closingText(closesAt)]);
+    // A welcome clears it, and the relay's reminder behind the welcome names the same time: no second notice.
+    socket.relay({ t: 'welcome', role: 'gm', players: [] });
+    expect(online.table?.closesAt).toBeNull();
+    socket.relay({ t: 'access', closesAt });
+    expect(online.table?.closesAt).toBe(closesAt);
+    expect(seen.notices).toHaveLength(1);
+    // The account may host again.
+    socket.relay({ t: 'access', closesAt: null });
+    expect(online.table?.closesAt).toBeNull();
+    // The table stays as it is all the while: nothing was closed or dropped.
+    expect(online.status()).toBe('online');
+    expect(saves.at(-1)).toEqual(SAVED);
+    online.close();
   });
 
   it('asks for a table with the account\'s token alone, and forgets a token the relay refuses', async () => {

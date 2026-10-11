@@ -101,15 +101,16 @@ const last = (): FakeSocket => {
   return socket;
 };
 
-function table(): { connection: TableConnection; timers: ReturnType<typeof fakeTimers>; statuses: TableStatus[]; welcomes: number[] } {
+function table(): { connection: TableConnection; timers: ReturnType<typeof fakeTimers>; statuses: TableStatus[]; welcomes: number[]; closing: (number | null)[] } {
   const timers = fakeTimers();
   const statuses: TableStatus[] = [];
   const welcomes: number[] = [];
+  const closing: (number | null)[] = [];
   const connection = new TableConnection('https://relay.example', 'abcdefghijklmnopqrstuvwxyz', 'host-secret-0123456789abcdefABCDEF', {
-    status: (status) => statuses.push(status), welcome: (players) => welcomes.push(players.length), joined: () => undefined, left: () => undefined, message: () => undefined,
+    status: (status) => statuses.push(status), welcome: (players) => welcomes.push(players.length), joined: () => undefined, left: () => undefined, message: () => undefined, access: (closesAt) => closing.push(closesAt),
   }, null, timers);
   connection.start();
-  return { connection, timers, statuses, welcomes };
+  return { connection, timers, statuses, welcomes, closing };
 }
 
 beforeEach(() => {
@@ -217,6 +218,40 @@ describe('the GM\'s try to reach the table', () => {
     expect(timers.pending()).toBe(0);
     timers.advance(10 * 60_000);
     expect(FakeSocket.all).toHaveLength(1);
+  });
+
+  it('stops for good when the account may not host, or started another table: neither is tried again', () => {
+    for (const code of [CLOSE.noAccess, CLOSE.superseded]) {
+      FakeSocket.all = [];
+      const { connection, timers, statuses } = table();
+      last().welcome();
+      last().drop(code);
+      expect(statuses.at(-1), String(code)).toBe('refused');
+      expect(connection.closeCode).toBe(code);
+      expect(timers.pending()).toBe(0);
+      timers.advance(10 * 60_000);
+      expect(FakeSocket.all, String(code)).toHaveLength(1);
+    }
+  });
+
+  it('passes on when the relay says the table closes, and that it no longer does: by its word, or by a welcome', () => {
+    const { timers, closing } = table();
+    last().welcome();
+    expect(closing).toEqual([null]);
+    last().receive('{"v":1,"t":"access","closesAt":1760000000000}');
+    last().receive('{"v":1,"t":"access","closesAt":null}');
+    last().receive('{"v":1,"t":"access","closesAt":1760000000000}');
+    expect(closing).toEqual([null, 1760000000000, null, 1760000000000]);
+    // The socket drops and comes back: the welcome clears the word, and the relay's reminder behind it sets it again.
+    last().drop();
+    timers.advance(1_000);
+    last().welcome();
+    expect(closing.at(-1)).toBeNull();
+    last().receive('{"v":1,"t":"access","closesAt":1760000000000}');
+    expect(closing.at(-1)).toBe(1760000000000);
+    // A frame that is no such word changes nothing.
+    last().receive('{"v":1,"t":"access","closesAt":"soon"}');
+    expect(closing).toHaveLength(6);
   });
 });
 

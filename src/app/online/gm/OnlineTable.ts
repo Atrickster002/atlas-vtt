@@ -1,4 +1,4 @@
-import { CLOSE, type ConnectionStats } from '../protocol/index.ts';
+import type { ConnectionStats } from '../protocol/index.ts';
 import { Notice, normalizePath, type App, type WorkspaceLeaf } from 'obsidian';
 import { scaleInWindow } from './assetVariants.ts';
 import { ATLAS_VIEW_TYPE, type SceneStore } from './atlasView.ts';
@@ -13,6 +13,7 @@ import { bindScene, type SceneBinding } from './sceneBinding.ts';
 import { imageMimeType } from './SceneShare.ts';
 import { TabWatch, type LostReason } from './sharedTab.ts';
 import { TableConnection, type TableStatus } from './TableConnection.ts';
+import { closingText, tableEndOf, tableEndText, type TableEnd } from './tableEnd.ts';
 import type { VaultImage } from './TokenShare.ts';
 
 function randomHex(bytes: number): string {
@@ -27,8 +28,8 @@ export interface OnlineTableEvents {
   status(status: TableStatus): void;
   /** Players see this map file now. */
   mapPath(path: string): void;
-  /** The table ended: stopped (by the GM, or closed for a reload), refused by the server, or taken over by another Obsidian. */
-  ended(status: 'stopped' | 'refused' | 'replaced'): void;
+  /** The table ended: stopped (by the GM, or closed for a reload), or closed by the relay for good, for the reason given. */
+  ended(end: 'stopped' | TableEnd): void;
   /** The gates' settings changed: they are kept with the table. */
   gate(settings: GateSettings): void;
   /** What the panels show of the gates changed: who waits, a pause. */
@@ -57,6 +58,9 @@ export class OnlineTable {
   private stopWatchTimer: () => void = () => undefined;
   private stopFollowingPresented: () => void = () => undefined;
   private currentStatus: TableStatus = 'connecting';
+  private closing: number | null = null;
+  /** The closing time the GM was last told with a notice: a reconnect names the same one again. */
+  private toldClosing: number | null = null;
   private readonly events: OnlineTableEvents;
   readonly ownership: Ownership;
   /** The table's gates: the join code, the two switches, and who waits for an answer. */
@@ -143,6 +147,7 @@ export class OnlineTable {
       },
       // The log and the shown image are the table's, so they hear players while no scene is shared too.
       message: (from, body) => void (this.log.receive(from, body) || this.image.receive(from, body) || this.bound()?.share.receive(from, body)),
+      access: (closesAt) => this.setClosing(closesAt),
     }, this.gate);
     this.stopOwnership = ownership.onChange(() => this.bound()?.share.ownersChanged());
   }
@@ -165,6 +170,11 @@ export class OnlineTable {
 
   get status(): TableStatus {
     return this.currentStatus;
+  }
+
+  /** When the relay closes the table because its account may no longer host (the relay's clock), or null. */
+  get closesAt(): number | null {
+    return this.closing;
   }
 
   /** How the table's connection went, for feedback's diagnostics. */
@@ -205,16 +215,33 @@ export class OnlineTable {
 
   private setStatus(status: TableStatus): void {
     this.currentStatus = status;
-    const replaced = status === 'refused' && this.connection.closeCode === CLOSE.replaced;
-    if (status === 'refused') new Notice(replaced ? 'Another Obsidian took over the online table.' : 'The server closed the online table.');
-    if (status === 'stopped' || status === 'refused') {
-      this.stopWatch();
-      this.stopOwnership();
-      this.gate.dispose();
-      this.log.dispose();
-      this.events.ended(replaced ? 'replaced' : status);
+    if (status === 'stopped') this.finish('stopped');
+    else if (status === 'refused') {
+      const end = tableEndOf(this.connection.closeCode);
+      new Notice(tableEndText(end));
+      this.finish(end);
     }
     this.events.status(status);
+  }
+
+  private finish(end: 'stopped' | TableEnd): void {
+    this.stopWatch();
+    this.stopOwnership();
+    this.gate.dispose();
+    this.log.dispose();
+    this.closing = null;
+    this.events.ended(end);
+  }
+
+  /** The relay named when the table closes for want of access, or took it back; the GM is told once per time, also while the control is closed. */
+  private setClosing(closesAt: number | null): void {
+    if (closesAt === this.closing) return;
+    this.closing = closesAt;
+    if (closesAt !== null && closesAt !== this.toldClosing) {
+      this.toldClosing = closesAt;
+      new Notice(closingText(closesAt));
+    }
+    this.events.changed();
   }
 
   private stopWatch(): void {

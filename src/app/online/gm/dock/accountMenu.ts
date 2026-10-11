@@ -1,5 +1,6 @@
 import type { AccountApi } from '../account/AccountControl.ts';
 import { accessText, accountText, noticeText, planText, UNREACHABLE_TEXT, type AccountView } from '../account/accountView.ts';
+import { tableEndText, type LostTable } from '../tableEnd.ts';
 import { statusLine, textButton } from './controls.ts';
 
 /** What the menu's sign-in parts do. */
@@ -32,9 +33,11 @@ const INTRO = 'Players see this map in their browsers and move their own tokens.
 /** A code as the approve page shows it: two groups of four. */
 export const shownCode = (code: string): string => (code.length === 8 ? `${code.slice(0, 4)}-${code.slice(4)}` : code);
 
-function intro(layer: HTMLElement, title = 'Online play'): HTMLElement {
+/** The menu's title and, after a table the server ended, the line that says how. */
+function intro(layer: HTMLElement, lost: LostTable | null, title = 'Online play'): HTMLElement {
   const head = layer.createDiv({ cls: 'atlas-online-text-block' });
   head.createDiv({ cls: 'atlas-online-title', text: title });
+  if (lost !== null) statusLine(head, { text: tableEndText(lost), tone: 'red' }).setAttribute('role', 'alert');
   return head;
 }
 
@@ -71,10 +74,12 @@ function startButton(layer: HTMLElement, starting: boolean, enabled: boolean, ac
 /**
  * The menu before a table runs: signed out, waiting for the browser,
  * checking the account, unreachable, signed in without access (the relay's reason, and the way to the
- * account page), or able to host.
+ * account page), or able to host. `lost` says how the last table ended when the server ended it; a
+ * table closed because the account may not host comes with the way to the account page in every state.
  */
-export function renderAccountMenu(layer: HTMLElement, account: AccountView, starting: boolean, actions: AccountActions): void {
-  const head = intro(layer, account.kind === 'waiting' ? 'Sign in to host' : undefined);
+export function renderAccountMenu(layer: HTMLElement, account: AccountView, starting: boolean, lost: LostTable | null, actions: AccountActions): void {
+  const head = intro(layer, lost, account.kind === 'waiting' ? 'Sign in to host' : undefined);
+  if (lost === 'no-access' && account.kind !== 'no-access') accountPageButton(layer, actions);
   switch (account.kind) {
     case 'signed-out': {
       help(head, INTRO);

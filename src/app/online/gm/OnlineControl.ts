@@ -10,6 +10,7 @@ import { presentOnPlayerView, presentedSceneSource, showPresentedElsewhere, type
 import type { SavedTable } from './savedTable.ts';
 import { RELAY_ORIGIN } from './servers.ts';
 import type { TableStatus } from './TableConnection.ts';
+import type { LostTable } from './tableEnd.ts';
 
 /** A player token of a scene, or a token a player was given there, as the GM's panels list it. */
 export interface PlayerTokenRow {
@@ -66,7 +67,7 @@ export class OnlineControl {
   private current: OnlineTable | null = null;
   private saved: SavedTable | null = null;
   private starting = false;
-  private ended: TableStatus | null = null;
+  private ended: LostTable | null = null;
   private readonly listeners = new Set<() => void>();
   private readonly account: HostAccount;
   /** Atlas told that players see its presented scene online, while a table runs. */
@@ -114,9 +115,9 @@ export class OnlineControl {
     return this.starting;
   }
 
-  /** Whether the last table ended without the GM stopping it: the server closed it. Cleared by the next start. */
-  lost(): boolean {
-    return this.ended === 'refused';
+  /** How the last table ended, if the server ended it and not the GM; null otherwise. Cleared by the next start. */
+  lost(): LostTable | null {
+    return this.ended;
   }
 
   /** Whether a table can be started now: none runs or is starting, and an Atlas tab is active. */
@@ -243,13 +244,15 @@ export class OnlineControl {
       mapPath: (mapPath) => {
         if (this.current === table && this.saved !== null) this.keep({ ...this.saved, mapPath });
       },
-      ended: (status) => {
+      ended: (end) => {
         if (this.current !== table) return;
         this.current = null;
         this.syncShown();
-        this.ended = status === 'refused' ? 'refused' : 'stopped';
-        // A table the server ended is gone; one another Obsidian took over lives on there.
-        if (status === 'refused') this.keep(null);
+        // A table the server ended is gone; one the GM stopped was dropped by `stop`, and one another Obsidian took over lives on there.
+        this.ended = end === 'stopped' || end === 'replaced' ? null : end;
+        if (this.ended !== null) this.keep(null);
+        // The account page says why; the dock shows what the relay says of the account now.
+        if (end === 'no-access') void this.account.refresh(true);
       },
     }, savedLog);
     this.current = table;
