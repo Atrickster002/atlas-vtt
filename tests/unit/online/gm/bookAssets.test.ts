@@ -164,7 +164,9 @@ describe('what a player\'s book lets them ask for and write', () => {
     await advance(100);
     expect(maps(delivered(socket).slice(since))).toEqual([[ANA, 640], [BEN, 640]]);
 
-    for (const unsendable of ['maps/missing.png', 'maps/world.svg', undefined]) {
+    // An image that is no artwork of the collection is no map, whatever the settings name: a bundle may have written them.
+    workspace.files.set('Private/Passport.png', png(30, 40));
+    for (const unsendable of ['maps/missing.png', 'maps/world.svg', 'Private/Passport.png', undefined]) {
       workspace.files.set('maps/world.svg', png(10, 10));
       name('maps/other world.png');
       await advance(100);

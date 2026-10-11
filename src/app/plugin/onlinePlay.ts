@@ -1,9 +1,11 @@
 import { requireApiVersion, type Plugin } from 'obsidian';
 import { SECRET_STORAGE_VERSION } from '../online/gm/account/tokenStore.ts';
 import { ONLINE_COMMANDS } from '../online/gm/onlineCommands.ts';
+import { setWorldMapGate } from '../online/gm/book/worldMapGate.ts';
 import { OnlineFeature } from '../online/gm/OnlineFeature.ts';
 import { onlineDataFile } from '../online/gm/onlineData.ts';
 import type { SettingsService } from '../services/SettingsService';
+import { collectionWorldMap } from '../services/worldMap';
 import type { AtlasSettingSection } from '../settings/settingSections';
 import { showNotice } from '../ui/notice';
 
@@ -30,6 +32,7 @@ export function registerOnlinePlay(plugin: Plugin, settings: SettingsService): O
     }
     if (on === (feature !== null)) return;
     if (feature !== null) plugin.removeChild(feature);
+    setWorldMapGate(on ? async (collectionId, path) => (await collectionWorldMap(plugin.app, collectionId)) === path : null);
     feature = on ? plugin.addChild(new OnlineFeature(plugin, onlineDataFile(plugin.app))) : null;
   };
   // Registered once: a command asks whichever feature is loaded, and is not offered while none is.
@@ -37,6 +40,7 @@ export function registerOnlinePlay(plugin: Plugin, settings: SettingsService): O
     plugin.addCommand({ id, name, checkCallback: (checking) => feature?.runCommand(id, checking) ?? false });
   }
   plugin.register(settings.onChange(sync));
+  plugin.register(() => setWorldMapGate(null));
   sync();
   return { settingsSections: () => feature?.settingsSections() ?? [] };
 }

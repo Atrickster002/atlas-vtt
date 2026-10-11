@@ -30,6 +30,8 @@ export interface BookSharePorts extends Timers {
   readImage(path: string): Promise<VaultImage | null>;
   /** The file at a vault path as it is now, or null when there is none. */
   stat(path: string): FileStat | null;
+  /** Whether the image at a vault path may be shown to players as the shared scene's world map. */
+  mayShowWorldMap(path: string): Promise<boolean>;
   /** Scales an image for a player who asks for a longest side; without it players get originals only. */
   scaleImage?: ScaleImage | undefined;
 }
@@ -89,7 +91,7 @@ export class BookShare implements LootRecipientSource {
     this.ports = ports;
     this.shelf = shelf;
     this.art = new ArtRefs((path) => ports.readImage(path), () => this.update());
-    this.maps = new WorldMaps({ stat: (path) => ports.stat(path), readImage: (path) => ports.readImage(path), read: () => this.update() });
+    this.maps = new WorldMaps({ stat: (path) => ports.stat(path), readImage: (path) => ports.readImage(path), mayShow: (path) => ports.mayShowWorldMap(path), read: () => this.update() });
     this.answers = new AssetAnswers({ send: (body, to) => ports.send(body, to), now: () => ports.now(), readImage: (path) => ports.readImage(path), scaleImage: ports.scaleImage }, {
       map: () => null,
       explored: () => undefined,
@@ -107,6 +109,12 @@ export class BookShare implements LootRecipientSource {
     this.stopPoll = null;
     for (const timer of this.owed.values()) this.ports.clearTimer(timer);
     this.owed.clear();
+  }
+
+  /** A collection's settings changed: the world map is read anew, since another image may be it now or this one no longer. */
+  settingsChanged(): void {
+    this.maps.forget();
+    this.update();
   }
 
   /** Reads the scene again and sends each connected player what changed for them: the whole book, or the sheet alone. */

@@ -7,6 +7,7 @@ import type { Ownership } from '../ownership.ts';
 import type { VaultImage } from '../TokenShare.ts';
 import type { BookScene } from './bookScene.ts';
 import { BookShare } from './BookShare.ts';
+import { mayShowWorldMap } from './worldMapGate.ts';
 import type { BookShelf } from './BookShelf.ts';
 
 export interface TableBookPorts {
@@ -51,6 +52,10 @@ export function tableBook(ports: TableBookPorts): TableBook {
       const file = app.vault.getFileByPath(normalizePath(path));
       return file === null ? null : { mtime: file.stat.mtime, size: file.stat.size };
     },
+    mayShowWorldMap: async (path) => {
+      const scene = ports.scene();
+      return scene !== null && mayShowWorldMap(scene.collection, path);
+    },
     scaleImage: scaleInWindow,
   }, ports.shelf);
   let stops: (() => void)[] = [];
@@ -58,7 +63,7 @@ export function tableBook(ports: TableBookPorts): TableBook {
     share,
     start: () => {
       if (stops.length > 0) return;
-      const settings = app.workspace.on('atlas-vtt:collection-settings-changed', () => share.update());
+      const settings = app.workspace.on('atlas-vtt:collection-settings-changed', () => share.settingsChanged());
       stops = [ownership.onChange(() => share.update()), () => app.workspace.offref(settings), () => setLootRecipientSource(null), () => share.stop()];
       share.start();
       setLootRecipientSource(share);

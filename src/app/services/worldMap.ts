@@ -19,7 +19,7 @@ export async function worldMapCandidates(app: App, assets: readonly Asset[]): Pr
  */
 export async function collectionWorldMap(app: App, collectionId: string): Promise<string | null> {
   const assets = AssetService.getInstance(app);
-  const path = (await assets.getCollectionSettings(collectionId))?.worldMap;
+  const path = assets.getCollectionSettings(collectionId).worldMap;
   if (!path) return null;
   const candidates = await worldMapCandidates(app, await assets.getAssets(collectionId));
   return candidates.some((candidate) => candidate.sourcePath === path) ? path : null;

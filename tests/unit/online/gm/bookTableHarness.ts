@@ -10,6 +10,7 @@ import { app, atlasTab, FakeSocket, png, present, workspace, type FakeTab } from
 import { fakeTokenSource } from './fakeTokenSource.ts';
 import { advanceSettled } from './settled.ts';
 import { sceneState } from './shareHarness.ts';
+import { setWorldMapGate } from '../../../../src/app/online/gm/book/worldMapGate.ts';
 
 /*
  * A running table with two heroes in a cave of the collection `Cairn`, for tests of the players'
@@ -105,6 +106,8 @@ export interface OpenTable {
  */
 export async function openTable(shelf: BookShelf, players: readonly PlayerInfo[], owners: Readonly<Record<string, string>> = { [BRANNOCH]: ANA, [MIRA]: BEN }): Promise<OpenTable> {
   workspace.files = vaultFiles();
+  // As Atlas answers, in short: an image under a maps folder is the collection's artwork, anything else in the vault is not.
+  setWorldMapGate((_collection, path) => Promise.resolve(path.includes('maps/')));
   workspace.assets = {
     getCollectionForMap: (path: string) => (path.includes('collections/Cairn/') ? 'Cairn' : null),
     getCollectionSettings: () => ({ conditions: [], worldMap: WORLD_MAP }),

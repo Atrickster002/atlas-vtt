@@ -14,6 +14,8 @@ export interface WorldMapPorts {
   stat(path: string): FileStat | null;
   /** The image at a vault path, or null when it is missing or of a type players cannot be sent. */
   readImage(path: string): Promise<VaultImage | null>;
+  /** Whether the image at a vault path may be shown as the world map: settings alone are no proof (a bundle or a hand edit may have written them). */
+  mayShow(path: string): Promise<boolean>;
   /** A map that was being read is known now. */
   read(): void;
 }
@@ -53,8 +55,14 @@ export class WorldMaps {
     return undefined;
   }
 
+  /** Forgets what was read: what may be shown as the map can change while its file stays as it is. */
+  forget(): void {
+    this.last = null;
+  }
+
   private async load(path: string): Promise<WorldMapFile | null> {
     try {
+      if (!(await this.ports.mayShow(path))) return null;
       const image = await this.ports.readImage(path);
       if (image === null || image.bytes.length > MAX_ASSET_BYTES || !IMAGE_MIME_TYPES.includes(image.mime)) return null;
       const size = await imageDimensions(new Blob([image.bytes], { type: image.mime }));
