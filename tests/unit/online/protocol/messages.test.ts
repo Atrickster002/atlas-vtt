@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
 import {
-  ASSET_CHUNK_BYTES, CLOSE, FINAL_CLOSE_CODES, GATE_CLOSE_CODES, MAX_ASSET_BYTES, MAX_LASER_SPAN_MS, MAX_LIVE_TOKENS, MAX_TOKEN_CONDITIONS, MAX_TOKENS, parseClientFrame, parseGmMessage, parsePlayerMessage, parseRelayFrame,
+  ASSET_CHUNK_BYTES, CLOSE, FINAL_CLOSE_CODES, GATE_CLOSE_CODES, MAX_ASSET_BYTES, MAX_CURSOR_NUMBERS, MAX_LASER_SPAN_MS, MAX_LIVE_TOKENS, MAX_PLAYER_NAME, MAX_PLAYERS, MAX_TOKEN_CONDITIONS, MAX_TOKENS, parseClientFrame, parseGmMessage, parsePlayerMessage, parseRelayFrame,
   playerName,
 } from '../../../../src/app/online/protocol/index.ts';
 
@@ -292,6 +292,12 @@ describe('rules', () => {
     expect(parseGmMessage({ ...rules, accent: null })).toEqual({ ...rules, accent: null });
   });
 
+  it('read whether everyone shows their cursor: only when the GM says so', () => {
+    expect(parseGmMessage(rules)).not.toHaveProperty('cursors');
+    expect(parseGmMessage({ ...rules, cursors: true })).toEqual({ ...rules, cursors: true });
+    for (const cursors of [false, 'yes', 1, null]) expect(parseGmMessage({ ...rules, cursors }), String(cursors)).toBeNull();
+  });
+
   it('refuse a missing grid, an unknown unit or rule, a bad distance, cone or band, and an accent that is no colour', () => {
     for (const bad of [
       { ...rules, grid: null }, { ...rules, snap: 'yes' }, { ...rules, accent: 'red' }, { ...rules, accent: '#8a5cf5; x' },
@@ -357,6 +363,43 @@ describe('marks', () => {
     expect(parseGmMessage(marks)).toEqual(marks);
     expect(parseGmMessage({ ...marks, lasers: [{ who: 'someone', ...laserState }] })).toBeNull();
     expect(parseGmMessage({ ...marks, measures: [{ who: 'gm', ...measureState, kept: 'all' }] })).toBeNull();
+  });
+});
+
+describe('cursors', () => {
+  const PLAYER = 'a'.repeat(20);
+  const cursor = { t: 'cursor', scene: 's1', at: [10, 20], pts: [1, 2, 3, 4] };
+  const cursors = { t: 'cursors', scene: 's1', cursors: [{ who: 'gm', at: [5, 5], pts: [] }, { who: PLAYER, name: 'Ana', at: [10, 20], pts: [1, 2], span: 33 }] };
+
+  it('read a player\'s cursor: where it is, or that it left, the places it passed and the time they cover', () => {
+    expect(parsePlayerMessage(cursor)).toEqual(cursor);
+    expect(parsePlayerMessage({ ...cursor, at: null, pts: [] })).toEqual({ ...cursor, at: null, pts: [] });
+    for (const span of [0, 33, MAX_LASER_SPAN_MS]) expect(parsePlayerMessage({ ...cursor, span })).toEqual({ ...cursor, span });
+    expect(parsePlayerMessage({ ...cursor, name: 'Mallory', who: 'gm', color: '#ff0000' })).toEqual(cursor);
+  });
+
+  it('refuse a cursor with odd or too many numbers, places that are none or far off, a bad span or no scene', () => {
+    for (const bad of [
+      { ...cursor, pts: [1, 2, 3] }, { ...cursor, pts: Array.from({ length: MAX_CURSOR_NUMBERS + 2 }, () => 1) }, { ...cursor, pts: [1, '2'] }, { ...cursor, pts: 'none' },
+      { ...cursor, at: [Number.NaN, 0] }, { ...cursor, at: [2e6, 0] }, { ...cursor, at: [1] }, { t: 'cursor', scene: 's1', pts: [] },
+      { ...cursor, span: -1 }, { ...cursor, span: MAX_LASER_SPAN_MS + 1 }, { ...cursor, span: 1.5 }, { ...cursor, span: '33' },
+      { ...cursor, scene: '' }, { ...cursor, scene: 's'.repeat(65) },
+    ]) expect(parsePlayerMessage(bad), JSON.stringify(bad).slice(0, 80)).toBeNull();
+  });
+
+  it('read everyone\'s cursors as the GM sends them on, each by whose it is, a player\'s with their name', () => {
+    expect(parseGmMessage(cursors)).toEqual(cursors);
+    expect(parseGmMessage({ ...cursors, cursors: [] })).toEqual({ ...cursors, cursors: [] });
+    expect(parseGmMessage({ ...cursors, cursors: Array.from({ length: MAX_PLAYERS + 1 }, () => cursors.cursors[0]) })).not.toBeNull();
+  });
+
+  it('refuse cursors of unknown senders, too many of them, a name that shows nothing or is too long, and any bad cursor among them', () => {
+    const [gm, ana] = cursors.cursors;
+    for (const bad of [
+      { ...cursors, cursors: [{ ...gm, who: 'someone' }] }, { ...cursors, cursors: Array.from({ length: MAX_PLAYERS + 2 }, () => gm) }, { ...cursors, cursors: 'all' }, { t: 'cursors', scene: 's1' },
+      { ...cursors, cursors: [{ ...ana, name: ' ' }] }, { ...cursors, cursors: [{ ...ana, name: 'n'.repeat(MAX_PLAYER_NAME + 1) }] }, { ...cursors, cursors: [{ ...ana, name: 7 }] },
+      { ...cursors, cursors: [{ ...ana, name: ' Ana\u202e' }] }, { ...cursors, cursors: [gm, { ...ana, pts: [1] }] }, { ...cursors, cursors: [{ ...ana, span: 2000 }] }, { ...cursors, scene: '' },
+    ]) expect(parseGmMessage(bad), JSON.stringify(bad).slice(0, 90)).toBeNull();
   });
 });
 
