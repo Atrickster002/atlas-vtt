@@ -6,7 +6,7 @@ import type { OnlineApi } from './panelModel.ts';
 /** What every control shares: online play, and what the plugin knows besides. */
 export interface DockDeps {
   readonly api: OnlineApi;
-  /** The GM's account: sign-in, invite keys, what it may host. */
+  /** The GM's account: sign-in, what the relay says it may host, and the way to its page. */
   readonly account: AccountApi;
   openSettings(): void;
   /** The URL the vault serves an image at. */

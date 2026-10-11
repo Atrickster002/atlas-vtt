@@ -17,13 +17,23 @@ export interface HostAccess {
 /** Why the relay did not answer: the token is no longer signed in, or the account service or relay cannot be reached. */
 export type AccountTrouble = 'signed-out' | 'unreachable';
 
-export type MeAnswer = { readonly kind: 'me'; readonly account: AccountInfo; readonly access: HostAccess | null } | { readonly kind: AccountTrouble | 'unavailable' };
+/** Why an account may not host, as the relay names it in `/api/me` and when it refuses a table. */
+export const ACCESS_REFUSALS = ['no-access', 'access-ended', 'access-revoked', 'account-restricted', 'terms-not-accepted'] as const;
+export type AccessRefusal = (typeof ACCESS_REFUSALS)[number];
 
-export type RedeemRefusal = 'invalid' | 'used' | 'expired' | 'too-many-tries' | 'already-has-access' | 'rate-limited';
+/** The refusal a relay named, or null for one this version does not know. */
+export function accessRefusal(value: unknown): AccessRefusal | null {
+  return ACCESS_REFUSALS.find((refusal) => refusal === value) ?? null;
+}
 
-export type RedeemAnswer = { readonly kind: 'ok'; readonly access: HostAccess } | { readonly kind: 'refused'; readonly reason: RedeemRefusal } | { readonly kind: AccountTrouble };
+/** The relay's answer about an account: what it may host, or why it may not (null: for a reason this version does not know). The plugin only shows it. */
+export type Hosting = { readonly access: HostAccess } | { readonly access: null; readonly reason: AccessRefusal | null };
 
-const REFUSALS: readonly RedeemRefusal[] = ['invalid', 'used', 'expired', 'too-many-tries', 'already-has-access'];
+/** The signed-in account with what the relay says of it. */
+export type AccountAnswer = { readonly account: AccountInfo } & Hosting;
+
+/** What `/api/me` gave: the account's answer, the trouble that kept it, or `unavailable` for an answer that names no account. */
+export type MeAnswer = AccountAnswer | AccountTrouble | 'unavailable';
 
 function accessOf(json: unknown): HostAccess | null {
   const plan = field(json, 'plan');
@@ -43,12 +53,12 @@ function accountOf(json: unknown): AccountInfo | null {
 /** The trouble a status stands for, or null for an answer to read. */
 function troubleOf(status: number): AccountTrouble | null {
   if (status === 401) return 'signed-out';
-  return status === 0 || status >= 500 ? 'unreachable' : null;
+  return status === 0 || status === 429 || status >= 500 ? 'unreachable' : null;
 }
 
 /**
- * The GM's account at the relay: `/api/me`, redeeming an invite key, and the account's online data.
- * Each call sends the token in the `Authorization` header only.
+ * The GM's account at the relay: `/api/me`, the account and what it may host. The call sends the
+ * token in the `Authorization` header only.
  */
 export class RelayAccount {
   private readonly http: Http;
@@ -62,41 +72,18 @@ export class RelayAccount {
   }
 
   async me(): Promise<MeAnswer> {
-    const response = await this.call('GET', '/api/me');
-    const trouble = troubleOf(response.status) ?? (response.status === 429 ? 'unreachable' : null);
-    if (trouble !== null) return { kind: trouble };
-    const account = accountOf(field(response.json, 'account'));
-    if (response.status !== 200 || account === null) return { kind: 'unavailable' };
-    return { kind: 'me', account, access: accessOf(field(response.json, 'access')) };
-  }
-
-  async redeem(key: string): Promise<RedeemAnswer> {
-    const response = await this.call('POST', '/api/invites/redeem', { key });
+    const response = await this.call('/api/me');
     const trouble = troubleOf(response.status);
-    if (trouble !== null) return { kind: trouble };
+    if (trouble !== null) return trouble;
+    const account = accountOf(field(response.json, 'account'));
+    if (response.status !== 200 || account === null) return 'unavailable';
     const access = accessOf(field(response.json, 'access'));
-    if (response.status === 200 && access !== null) return { kind: 'ok', access };
-    const error = field(response.json, 'error');
-    const reason = REFUSALS.find((refusal) => refusal === error) ?? (response.status === 429 ? 'rate-limited' : 'invalid');
-    return { kind: 'refused', reason };
+    return access === null ? { account, access, reason: accessRefusal(field(response.json, 'reason')) } : { account, access };
   }
 
-  /** The account's online data as JSON text, or the trouble that kept it. */
-  async exportData(): Promise<{ readonly kind: 'data'; readonly text: string } | { readonly kind: AccountTrouble }> {
-    const response = await this.call('GET', '/api/me/data');
-    if (response.status === 200) return { kind: 'data', text: JSON.stringify(response.json, null, 2) };
-    return { kind: troubleOf(response.status) ?? 'unreachable' };
-  }
-
-  async deleteData(): Promise<{ readonly kind: 'deleted' } | { readonly kind: AccountTrouble }> {
-    const response = await this.call('DELETE', '/api/me/data');
-    if (response.status === 200) return { kind: 'deleted' };
-    return { kind: troubleOf(response.status) ?? 'unreachable' };
-  }
-
-  private async call(method: 'GET' | 'POST' | 'DELETE', path: string, json?: unknown): Promise<{ readonly status: number; readonly json: unknown }> {
+  private async call(path: string): Promise<{ readonly status: number; readonly json: unknown }> {
     try {
-      return await this.http({ url: `${this.origin}${path}`, method, authorization: `Bearer ${this.token}`, ...(json === undefined ? {} : { json }) });
+      return await this.http({ url: `${this.origin}${path}`, method: 'GET', authorization: `Bearer ${this.token}` });
     } catch {
       return { status: 0, json: null };
     }

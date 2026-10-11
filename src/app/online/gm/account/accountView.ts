@@ -1,60 +1,55 @@
-import type { AccountInfo, HostAccess, RedeemRefusal } from './relayAccount.ts';
+import type { AccessRefusal, AccountAnswer, AccountInfo, HostAccess } from './relayAccount.ts';
 
 /**
- * What the dock and the settings show of the GM's account, as pure rules. The create key, while set,
- * hosts without an account (the owner's override); otherwise the GM signs in with an Atlas account
- * and hosts with its early-access grant.
+ * What the dock and the settings show of the GM's account, as pure rules. The GM signs in with an
+ * Atlas account, and the relay says what it may host or why it may not: nothing here decides that.
  */
 
 /** A line that tells the GM why they are signed out. */
 export type SignedOutNotice = 'timed-out' | 'declined' | 'server' | 'unreachable' | null;
 
 export type AccountView =
-  | { readonly kind: 'owner' }
   | { readonly kind: 'signed-out'; readonly notice: SignedOutNotice }
   /** The sign-in waits for approval in the browser; the code is null until the service gave one. */
   | { readonly kind: 'waiting'; readonly userCode: string | null }
   | { readonly kind: 'checking' }
   | { readonly kind: 'unreachable' }
-  | { readonly kind: 'no-access'; readonly account: AccountInfo; readonly redeeming: boolean; readonly redeemError: string | null }
+  /** The relay says the account may not host; `reason` is null for one this version does not know. */
+  | { readonly kind: 'no-access'; readonly account: AccountInfo; readonly reason: AccessRefusal | null }
   | { readonly kind: 'can-host'; readonly account: AccountInfo; readonly access: HostAccess };
 
 /** What the account control knows when it decides what to show. */
 export interface AccountFacts {
-  readonly createKey: boolean;
   readonly signingIn: boolean;
   readonly userCode: string | null;
   readonly token: boolean;
   /** The last answer of `/api/me` for this token; null until one came. */
-  readonly me: { readonly account: AccountInfo; readonly access: HostAccess | null } | 'unreachable' | null;
+  readonly me: AccountAnswer | 'unreachable' | null;
   readonly notice: SignedOutNotice;
-  readonly redeeming: boolean;
-  readonly redeemError: string | null;
 }
 
 export function accountView(facts: AccountFacts): AccountView {
-  if (facts.createKey) return { kind: 'owner' };
   if (facts.signingIn) return { kind: 'waiting', userCode: facts.userCode };
   if (!facts.token) return { kind: 'signed-out', notice: facts.notice };
   if (facts.me === null) return { kind: 'checking' };
   if (facts.me === 'unreachable') return { kind: 'unreachable' };
-  const { account, access } = facts.me;
-  return access === null ? { kind: 'no-access', account, redeeming: facts.redeeming, redeemError: facts.redeemError } : { kind: 'can-host', account, access };
+  const { account } = facts.me;
+  return facts.me.access === null ? { kind: 'no-access', account, reason: facts.me.reason } : { kind: 'can-host', account, access: facts.me.access };
 }
 
-/** Whether a table can be asked for in this state. */
-export const mayHost = (view: AccountView): boolean => view.kind === 'owner' || view.kind === 'can-host';
-
-const REDEEM_TEXT: Readonly<Record<RedeemRefusal, string>> = {
-  invalid: 'This key isn’t valid.',
-  used: 'This key has already been used.',
-  expired: 'This key has expired.',
-  'too-many-tries': 'Too many tries, try again tomorrow.',
-  'rate-limited': 'Too many tries, wait a minute.',
-  'already-has-access': 'Your account can host already.',
+const ACCESS_TEXT: Readonly<Record<AccessRefusal, string>> = {
+  'no-access': 'Online play is in early access. Redeem an invite key on your account page.',
+  'access-ended': 'Your access to online play has ended. See your account page.',
+  'access-revoked': 'Your access to online play was withdrawn. See your account page.',
+  'account-restricted': 'Your account is restricted and cannot host online tables. See your account page.',
+  'terms-not-accepted': 'Accept the current Terms on your account page to host online tables.',
 };
 
-export const redeemText = (reason: RedeemRefusal): string => REDEEM_TEXT[reason];
+/** What is said of an account that may not host, whatever the reason. */
+export const NO_HOSTING_TEXT = 'This account may not host online tables now.';
+
+/** Why the relay says the account may not host, and where the way on is: the account page. */
+export const accessText = (reason: AccessRefusal | null): string => (reason === null ? `${NO_HOSTING_TEXT} See your account page.` : ACCESS_TEXT[reason]);
 
 export const UNREACHABLE_TEXT = 'Can’t reach Atlas sign-in right now.';
 export const SERVER_SIGNED_OUT_TEXT = 'You were signed out. Running tables keep going.';
@@ -82,4 +77,3 @@ export function planText(access: HostAccess): string {
 export function accountText(account: AccountInfo): string {
   return account.name === '' || account.name === account.handle ? `@${account.handle}` : `${account.name} (@${account.handle})`;
 }
-

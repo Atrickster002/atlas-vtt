@@ -1,8 +1,9 @@
+import { renderClosingRow, type ClosingRowActions } from './closingRow.ts';
 import { inviteRow, surfaceHeader, textButton, type MenuEntry } from './controls.ts';
 import { renderFeedback, type FeedbackActions, type FeedbackView } from './feedbackForm.ts';
 import { gateEntries, gateRowsOf, renderCodeRow, renderPausedRow, type GateRowActions, type GateRows } from './gateRows.ts';
 import { renderImageRow, type ImageRowActions } from './imageRow.ts';
-import { groupsOf, seatsNoteOf, selectionBarOf, statusOf, type OnlinePlayer, type OnlineSnapshot, type PlayerGroup, type SceneFacts, type SelectionBar, type Tone } from './panelModel.ts';
+import { closingOf, groupsOf, seatsNoteOf, selectionBarOf, statusOf, type OnlinePlayer, type OnlineSnapshot, type PlayerGroup, type SceneFacts, type SelectionBar, type Tone } from './panelModel.ts';
 import { renderPlayerList, type ListActions } from './playerList.ts';
 import { renderSelectionBar, type SelectionActions } from './selectionBar.ts';
 
@@ -21,6 +22,8 @@ export interface PanelView {
   readonly gate: GateRows | null;
   /** Players are shown an image over the map. */
   readonly imageShown: boolean;
+  /** The table closes because its account may no longer host: the line that says when; null otherwise. */
+  readonly closing: string | null;
   readonly groups: readonly PlayerGroup[];
   readonly players: readonly OnlinePlayer[];
   readonly bar: SelectionBar | null;
@@ -31,10 +34,10 @@ export interface PanelView {
 export function panelView(snapshot: OnlineSnapshot, scene: SceneFacts, feedback: FeedbackView, qr = false): PanelView {
   const groups = groupsOf(snapshot, scene);
   const players = groups.flatMap((group) => (group.player === null ? [] : [group.player]));
-  return { status: statusOf(snapshot), seatsNote: seatsNoteOf(snapshot), link: snapshot.link, qr, gate: gateRowsOf(snapshot.gate), imageShown: snapshot.imageShown === true, groups, players, bar: selectionBarOf(snapshot, scene), feedback };
+  return { status: statusOf(snapshot), seatsNote: seatsNoteOf(snapshot), link: snapshot.link, qr, gate: gateRowsOf(snapshot.gate), imageShown: snapshot.imageShown === true, closing: closingOf(snapshot), groups, players, bar: selectionBarOf(snapshot, scene), feedback };
 }
 
-export interface PanelActions extends ListActions, SelectionActions, FeedbackActions, GateRowActions, ImageRowActions {
+export interface PanelActions extends ListActions, SelectionActions, FeedbackActions, GateRowActions, ImageRowActions, ClosingRowActions {
   close(): void;
   stop(): void;
   copy(): Promise<boolean>;
@@ -89,7 +92,7 @@ function stopConfirm(layer: HTMLElement, actions: PanelActions, redraw: () => vo
 /**
  * The online panel: the working surface while players are at the table. A header with the title, the
  * status as a dot, "…" (Settings, Send feedback, the gates' New code and two switches, Stop table) and
- * Close; the line of a pause; the line of a shown image; Copy invite link and the join code; the players with their tokens; the bar for the selected tokens or to show this map; the feedback form and Stop's
+ * Close; the line of a table that closes for want of access; the line of a pause; the line of a shown image; Copy invite link and the join code; the players with their tokens; the bar for the selected tokens or to show this map; the feedback form and Stop's
  * confirmation while open. Redrawn whole on every change, keeping focus and the list's scroll position.
  */
 export function renderPanel(layer: HTMLElement, view: PanelView, actions: PanelActions): void {
@@ -109,6 +112,7 @@ export function renderPanel(layer: HTMLElement, view: PanelView, actions: PanelA
     } },
   ];
   surfaceHeader(layer, 'Online table', view.status, statusInWords(view), entries, () => actions.close());
+  renderClosingRow(layer, view.closing, actions);
   renderPausedRow(layer, view.gate, actions);
   renderImageRow(layer, view.imageShown, actions);
   if (view.link !== null) inviteRow(layer, () => actions.copy(), { open: view.qr, toggle: () => actions.toggleQr() });

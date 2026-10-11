@@ -1,4 +1,5 @@
 import { type App, type WorkspaceLeaf } from 'obsidian';
+import { showNotice } from '../../ui/notice';
 import { activeAtlasLeaf, sceneStoreOf, selectedTokenIds, tokenLabel, type SceneStore } from './atlasView.ts';
 import { obsidianHttp } from './account/obsidianHttp.ts';
 import { createTable } from './createTable.ts';
@@ -9,9 +10,8 @@ import type { KnownPlayer, Ownership } from './ownership.ts';
 import { presentOnPlayerView, presentedSceneSource, showPresentedElsewhere, type ShownElsewhere } from './presentedScene.ts';
 import type { SavedTable } from './savedTable.ts';
 import { RELAY_ORIGIN } from './servers.ts';
-import type { OnlineSettings } from './settings.ts';
 import type { TableStatus } from './TableConnection.ts';
-import { showNotice } from '../../ui/notice';
+import type { LostTable } from './tableEnd.ts';
 
 /** A player token of a scene, or a token a player was given there, as the GM's panels list it. */
 export interface PlayerTokenRow {
@@ -24,7 +24,7 @@ export interface PlayerTokenRow {
 
 /** The GM's account as starting a table needs it. */
 export interface HostAccount {
-  /** The account token, or null while signed out. */
+  /** The account's token, or null while signed out. */
   token(): string | null;
   /** The relay refused the token. */
   signedOutByServer(): void;
@@ -62,14 +62,13 @@ function workScene(store: SceneStore | null): WorkScene | null {
  */
 export class OnlineControl {
   private readonly app: App;
-  private readonly settings: () => OnlineSettings;
   readonly ownership: Ownership;
   /** Keeps the running table in the companion's data (null: none runs), so a reload comes back to it. */
   private readonly save: (table: SavedTable | null) => void;
   private current: OnlineTable | null = null;
   private saved: SavedTable | null = null;
   private starting = false;
-  private ended: TableStatus | null = null;
+  private ended: LostTable | null = null;
   private readonly listeners = new Set<() => void>();
   private readonly account: HostAccount;
   /** Atlas told that players see its presented scene online, while a table runs. */
@@ -77,9 +76,8 @@ export class OnlineControl {
   /** The running table's log, kept with it and told to its panels. */
   readonly logs: LogKeeper;
 
-  constructor(app: App, settings: () => OnlineSettings, ownership: Ownership, save: (table: SavedTable | null) => void = () => undefined, account: HostAccount = NO_ACCOUNT, logStore?: LogStore) {
+  constructor(app: App, ownership: Ownership, save: (table: SavedTable | null) => void = () => undefined, account: HostAccount = NO_ACCOUNT, logStore?: LogStore) {
     this.app = app;
-    this.settings = settings;
     this.ownership = ownership;
     this.save = save;
     this.logs = new LogKeeper(logStore);
@@ -118,9 +116,9 @@ export class OnlineControl {
     return this.starting;
   }
 
-  /** Whether the last table ended without the GM stopping it: the server closed it. Cleared by the next start. */
-  lost(): boolean {
-    return this.ended === 'refused';
+  /** How the last table ended, if the server ended it and not the GM; null otherwise. Cleared by the next start. */
+  lost(): LostTable | null {
+    return this.ended;
   }
 
   /** Whether a table can be started now: none runs or is starting, and an Atlas tab is active. */
@@ -132,17 +130,16 @@ export class OnlineControl {
   async start(leaf: WorkspaceLeaf | null = activeAtlasLeaf(this.app)): Promise<OnlineTable | null> {
     if (this.current !== null || this.starting) return this.current;
     if (leaf === null || sceneStoreOf(leaf) === null) return refused('Open an Atlas map tab first.');
-    // The create key, while set, hosts as the owner; otherwise the GM's account does.
-    const createKey = this.settings().createKey;
-    const bearer = createKey !== '' ? createKey : this.account.token();
-    if (bearer === null) return refused('Sign in to host first.');
+    const token = this.account.token();
+    if (token === null) return refused('Sign in to host first.');
     this.starting = true;
     this.changed();
-    const created = await createTable(obsidianHttp, RELAY_ORIGIN, bearer).finally(() => (this.starting = false));
+    // Whether this account may host is the relay's answer alone: nothing here looks at what the account was last said to hold.
+    const created = await createTable(obsidianHttp, RELAY_ORIGIN, token).finally(() => (this.starting = false));
     if ('message' in created) {
       this.changed();
-      if (createKey === '' && created.status === 401) this.account.signedOutByServer();
-      else if (createKey === '' && created.status === 403) void this.account.refresh(true);
+      if (created.status === 401) this.account.signedOutByServer();
+      else if (created.status === 403) void this.account.refresh(true);
       return created.status === 401 ? null : refused(created.message);
     }
     this.ownership.reset();
@@ -248,13 +245,15 @@ export class OnlineControl {
       mapPath: (mapPath) => {
         if (this.current === table && this.saved !== null) this.keep({ ...this.saved, mapPath });
       },
-      ended: (status) => {
+      ended: (end) => {
         if (this.current !== table) return;
         this.current = null;
         this.syncShown();
-        this.ended = status === 'refused' ? 'refused' : 'stopped';
-        // A table the server ended is gone; one another Obsidian took over lives on there.
-        if (status === 'refused') this.keep(null);
+        // A table the server ended is gone; one the GM stopped was dropped by `stop`, and one another Obsidian took over lives on there.
+        this.ended = end === 'stopped' || end === 'replaced' ? null : end;
+        if (this.ended !== null) this.keep(null);
+        // The account page says why; the dock shows what the relay says of the account now.
+        if (end === 'no-access') void this.account.refresh(true);
       },
     }, savedLog);
     this.current = table;

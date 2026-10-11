@@ -3,6 +3,7 @@ import type { AccountView } from '../account/accountView.ts';
 import type { GateActions, GateView } from '../joinGate.ts';
 import { gateRowsOf, type GateRows } from './gateRows.ts';
 import type { OnlineControl } from '../OnlineControl.ts';
+import { closingText, type LostTable } from '../tableEnd.ts';
 
 /**
  * What the control on the map reads of online play, and what it shows from that. The control reads
@@ -44,6 +45,10 @@ export interface OnlineSnapshot {
   readonly gate: GateView | null;
   /** Players are shown an image over the map ("Display on player view"); absent while they are shown none. */
   readonly imageShown?: boolean;
+  /** How the last table ended, when the server ended it; absent once another was started. */
+  readonly lost?: LostTable;
+  /** When the relay closes the running table because its account may no longer host; absent while it does not. */
+  readonly closesAt?: number;
 }
 
 export interface OnlineApi {
@@ -72,6 +77,7 @@ export type ControlSource = Pick<OnlineControl, 'onChange' | 'status' | 'link' |
     readonly presentedName: string | null;
     readonly gate: GateActions & { view(): GateView };
     readonly image: { readonly isShown: boolean };
+    readonly closesAt: number | null;
   } | null;
 };
 
@@ -87,10 +93,11 @@ export function onlineApi(control: ControlSource, hideImage: () => void): Online
     if (current === 'connecting') return onlineLink !== null && onlineLink === control.link() ? 'reconnecting' : 'connecting';
     if (current !== null) return current;
     if (control.isStarting()) return 'starting';
-    return control.lost() ? 'refused' : 'idle';
+    return control.lost() !== null ? 'refused' : 'idle';
   };
   return {
     snapshot: () => ({
+      ...lostOf(control),
       status: status(),
       link: control.link(),
       sharedLeaf: control.table?.sharedTab ?? null,
@@ -126,6 +133,13 @@ export function onlineApi(control: ControlSource, hideImage: () => void): Online
   };
 }
 
+/** How the last table ended and when the running one closes, as the snapshot carries them: only what there is. */
+function lostOf(control: ControlSource): Pick<OnlineSnapshot, 'lost' | 'closesAt'> {
+  const lost = control.lost();
+  const closesAt = control.table?.closesAt ?? null;
+  return { ...(lost !== null && { lost }), ...(closesAt !== null && { closesAt }) };
+}
+
 /** Whether a table runs or is being created. */
 export const isRunning = (status: OnlineStatus): boolean => status === 'starting' || status === 'connecting' || status === 'online' || status === 'reconnecting';
 
@@ -154,6 +168,9 @@ export function seatsNoteOf(snapshot: OnlineSnapshot): string | null {
 }
 
 const playersText = (count: number): string => (count === 1 ? '1 player' : `${count} players`);
+
+/** The line of a table that closes because its account may no longer host; null while it does not. */
+export const closingOf = (snapshot: OnlineSnapshot): string | null => (snapshot.closesAt === undefined ? null : closingText(snapshot.closesAt));
 
 /** The button's tooltip. */
 export function tooltipOf(snapshot: OnlineSnapshot): string {
@@ -195,13 +212,13 @@ export interface SceneFacts {
 }
 
 export type MenuModel =
-  | { readonly kind: 'start'; readonly account: AccountView; readonly starting: boolean }
-  | { readonly kind: 'waiting'; readonly link: string | null; readonly status: { readonly text: string; readonly tone: Tone }; readonly isShared: boolean; readonly gate: GateRows | null; readonly qr: boolean; readonly imageShown: boolean };
+  | { readonly kind: 'start'; readonly account: AccountView; readonly starting: boolean; readonly lost: LostTable | null }
+  | { readonly kind: 'waiting'; readonly link: string | null; readonly status: { readonly text: string; readonly tone: Tone }; readonly isShared: boolean; readonly gate: GateRows | null; readonly qr: boolean; readonly imageShown: boolean; readonly closing: string | null };
 
-/** The connection menu: sign in and start a table, or the running table's link while players are awaited (`qr`: its QR card is open). */
+/** The connection menu: sign in and start a table (after one the server ended: how it ended), or the running table's link while players are awaited (`qr`: its QR card is open). */
 export function menuModel(snapshot: OnlineSnapshot, scene: SceneFacts, account: AccountView, qr = false): MenuModel {
-  if (!isRunning(snapshot.status) || snapshot.status === 'starting') return { kind: 'start', account, starting: snapshot.status === 'starting' };
-  return { kind: 'waiting', link: snapshot.link, status: statusOf(snapshot), isShared: scene.isShared, gate: gateRowsOf(snapshot.gate), qr, imageShown: snapshot.imageShown === true };
+  if (!isRunning(snapshot.status) || snapshot.status === 'starting') return { kind: 'start', account, starting: snapshot.status === 'starting', lost: snapshot.status === 'refused' ? snapshot.lost ?? 'refused' : null };
+  return { kind: 'waiting', link: snapshot.link, status: statusOf(snapshot), isShared: scene.isShared, gate: gateRowsOf(snapshot.gate), qr, imageShown: snapshot.imageShown === true, closing: closingOf(snapshot) };
 }
 
 /** The number of player colours (`atlas-online-colour-0` to `-7`). */

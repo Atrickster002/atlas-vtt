@@ -7,6 +7,7 @@ import { ARM_MS } from '../../../../src/app/online/gm/joinGate.ts';
 import { OnlineControl } from '../../../../src/app/online/gm/OnlineControl.ts';
 import { Ownership, readOwnership } from '../../../../src/app/online/gm/ownership.ts';
 import { readSavedTable, type SavedTable } from '../../../../src/app/online/gm/savedTable.ts';
+import { closingText } from '../../../../src/app/online/gm/tableEnd.ts';
 import { app, atlasTab, FakeSocket, png, present, switchScene, workspace } from './fakeTable.ts';
 import { fakeTokenSource } from './fakeTokenSource.ts';
 import { sceneState } from './shareHarness.ts';
@@ -15,7 +16,7 @@ import { advanceSettled as advance } from './settled.ts';
 const seen = vi.hoisted(() => {
   /** The relay's answer to a table request. */
   const created: { status: number; json: unknown } = { status: 201, json: null };
-  return { notices: [] as string[], marks: [] as { disposed: boolean; renderer: () => unknown }[], created, requests: [] as { readonly headers?: Record<string, string> }[] };
+  return { notices: [] as string[], marks: [] as { disposed: boolean; renderer: () => unknown }[], created, requests: [] as { readonly url?: string; readonly headers?: Record<string, string> }[] };
 });
 
 vi.mock('obsidian', () => ({
@@ -25,7 +26,7 @@ vi.mock('obsidian', () => ({
     }
   },
   normalizePath: (path: string) => path,
-  requestUrl: (request: { readonly headers?: Record<string, string> }) => {
+  requestUrl: (request: { readonly url?: string; readonly headers?: Record<string, string> }) => {
     seen.requests.push(request);
     return Promise.resolve(seen.created);
   },
@@ -70,8 +71,10 @@ const sentSince = (socket: FakeSocket, from: number): string[] => socket.bodies(
 
 describe('the online table', () => {
   let saves: (SavedTable | null)[] = [];
+  /** A signed-in GM: tables are asked for with the account's token, and nothing else. */
+  const signedIn = { token: (): string | null => 'account-token', signedOutByServer: vi.fn(), refresh: vi.fn(() => Promise.resolve()) };
   const control = (ownership = new Ownership(readOwnership(undefined), () => undefined)): OnlineControl =>
-    new OnlineControl(app, () => ({ createKey: 'key', reportErrors: false }), ownership, (table) => saves.push(table));
+    new OnlineControl(app, ownership, (table) => saves.push(table), signedIn);
 
   beforeEach(() => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'performance', 'Date'] });
@@ -81,6 +84,7 @@ describe('the online table', () => {
     seen.notices.length = 0;
     seen.marks.length = 0;
     seen.requests.length = 0;
+    signedIn.refresh.mockClear();
     seen.created = { status: 201, json: { code: 'b'.repeat(26), secret: 'n'.repeat(43) } };
     saves = [];
     workspace.leaves = [];
@@ -223,28 +227,99 @@ describe('the online table', () => {
     FakeSocket.all[0]?.closeWith(CLOSE.replaced);
     expect(online.table).toBeNull();
     expect(saves.at(-1)).toEqual(SAVED);
-    expect(online.lost()).toBe(false);
+    expect(online.lost()).toBeNull();
 
     online.resume(SAVED);
     await advance(0);
     FakeSocket.all[1]?.closeWith(CLOSE.ended);
     expect(online.table).toBeNull();
     expect(saves.at(-1)).toBeNull();
-    expect(online.lost()).toBe(true);
+    expect(online.lost()).toBe('refused');
     expect(seen.notices).toEqual(['Another Obsidian took over the online table.', 'The server closed the online table.']);
+    expect(signedIn.refresh).not.toHaveBeenCalled();
   });
 
-  it('hosts with the GM\'s account while no create key is set, and forgets a token the relay refuses', async () => {
+  it('drops a table whose account may not host, says so, asks what the account may do now, and never tries again', async () => {
+    workspace.leaves = [atlasTab(caveScene()).leaf];
+    const online = control();
+    online.resume(SAVED);
+    await advance(0);
+    FakeSocket.all[0]?.relay({ t: 'welcome', role: 'gm', players: [] });
+    FakeSocket.all[0]?.closeWith(CLOSE.noAccess);
+    expect(online.table).toBeNull();
+    expect(saves.at(-1)).toBeNull();
+    expect(online.lost()).toBe('no-access');
+    expect(seen.notices).toEqual(['The online table was closed. This account may not host online tables now.']);
+    expect(signedIn.refresh).toHaveBeenCalledWith(true);
+    await advance(40_000);
+    expect(FakeSocket.all).toHaveLength(1);
+  });
+
+  it('drops a table that ended because its account started another, says so, and never tries again', async () => {
+    workspace.leaves = [atlasTab(caveScene()).leaf];
+    const online = control();
+    online.resume(SAVED);
+    await advance(0);
+    FakeSocket.all[0]?.closeWith(CLOSE.superseded);
+    expect(online.table).toBeNull();
+    expect(saves.at(-1)).toBeNull();
+    expect(online.lost()).toBe('superseded');
+    expect(seen.notices).toEqual(['The online table was closed. This account started another table.']);
+    expect(signedIn.refresh).not.toHaveBeenCalled();
+    await advance(40_000);
+    expect(FakeSocket.all).toHaveLength(1);
+
+    // The next table starts clean: what the last one ended by is forgotten.
+    const tab = atlasTab(caveScene());
+    workspace.leaves = [tab.leaf];
+    await online.start(tab.leaf);
+    expect(online.lost()).toBeNull();
+    online.stop();
+  });
+
+  it('knows when the relay closes a table whose account may no longer host, tells the GM once per time, and forgets it at the relay\'s word or a welcome', async () => {
+    workspace.leaves = [atlasTab(caveScene()).leaf];
+    const online = control();
+    let changes = 0;
+    online.onChange(() => (changes += 1));
+    online.resume(SAVED);
+    await advance(0);
+    const socket = FakeSocket.all[0];
+    if (socket === undefined) throw new Error('no socket');
+    socket.relay({ t: 'welcome', role: 'gm', players: [] });
+    expect(online.table?.closesAt).toBeNull();
+    const closesAt = Date.UTC(2026, 9, 12, 14, 30);
+    const before = changes;
+    socket.relay({ t: 'access', closesAt });
+    expect(online.table?.closesAt).toBe(closesAt);
+    expect(changes).toBeGreaterThan(before);
+    expect(seen.notices).toEqual([closingText(closesAt)]);
+    // A welcome clears it, and the relay's reminder behind the welcome names the same time: no second notice.
+    socket.relay({ t: 'welcome', role: 'gm', players: [] });
+    expect(online.table?.closesAt).toBeNull();
+    socket.relay({ t: 'access', closesAt });
+    expect(online.table?.closesAt).toBe(closesAt);
+    expect(seen.notices).toHaveLength(1);
+    // The account may host again.
+    socket.relay({ t: 'access', closesAt: null });
+    expect(online.table?.closesAt).toBeNull();
+    // The table stays as it is all the while: nothing was closed or dropped.
+    expect(online.status()).toBe('online');
+    expect(saves.at(-1)).toEqual(SAVED);
+    online.close();
+  });
+
+  it('asks for a table with the account\'s token alone, and forgets a token the relay refuses', async () => {
     const tab = atlasTab(caveScene());
     workspace.leaves = [tab.leaf];
     let token: string | null = 'account-token';
     const account = { token: () => token, signedOutByServer: vi.fn(() => (token = null)), refresh: vi.fn(() => Promise.resolve()) };
-    const online = new OnlineControl(app, () => ({ createKey: '', reportErrors: false }), new Ownership(readOwnership(undefined), () => undefined), (table) => saves.push(table), account);
+    const online = new OnlineControl(app, new Ownership(readOwnership(undefined), () => undefined), (table) => saves.push(table), account);
 
     seen.created = { status: 403, json: { error: 'no-access' } };
     expect(await online.start(tab.leaf)).toBeNull();
     expect(account.refresh).toHaveBeenCalledWith(true);
-    expect(seen.notices.at(-1)).toBe('Online play is in early access. Redeem an invite key first.');
+    expect(seen.notices.at(-1)).toBe('Online play is in early access. Redeem an invite key on your account page.');
 
     seen.created = { status: 201, json: { code: 'b'.repeat(26), secret: 'n'.repeat(43), maxPlayers: 2 } };
     await online.start(tab.leaf);
@@ -261,6 +336,28 @@ describe('the online table', () => {
     expect(await online.start(tab.leaf)).toBeNull();
     expect(seen.notices.at(-1)).toBe('Sign in to host first.');
     expect(seen.requests).toHaveLength(3);
+  });
+
+  it('comes back to a saved table on Atlas\'s table server, with its secret alone', async () => {
+    workspace.leaves = [atlasTab(caveScene()).leaf];
+    const online = new OnlineControl(app, new Ownership(readOwnership(undefined), () => undefined), (table) => saves.push(table), signedIn);
+    online.resume(SAVED);
+    await advance(0);
+    expect(FakeSocket.all.map((socket) => socket.url)).toEqual([`wss://play.atlas-vtt.dev/api/tables/${SAVED.code}/socket`]);
+    expect(FakeSocket.all[0]?.frames()[0]).toMatchObject({ t: 'hello', secret: SAVED.secret });
+    // The secret is in the hello to that socket and nowhere else: no request was made at all.
+    expect(seen.requests).toEqual([]);
+    online.close();
+  });
+
+  it('makes tables on Atlas\'s table server', async () => {
+    const tab = atlasTab(caveScene());
+    workspace.leaves = [tab.leaf];
+    const online = new OnlineControl(app, new Ownership(readOwnership(undefined), () => undefined), (table) => saves.push(table), signedIn);
+    await online.start(tab.leaf);
+    expect(seen.requests[0]?.url).toBe('https://play.atlas-vtt.dev/api/tables');
+    expect(online.link()).toBe(`https://play.atlas-vtt.dev/#${'b'.repeat(26)}`);
+    online.stop();
   });
 
   it('tells the relay its gates first on every welcome, keeps them with the table, and passes on who knocks and the GM\'s answer', async () => {

@@ -1,5 +1,6 @@
 // A table's gates in the control: the cards of newcomers who wait for the GM (over the control, never
-// in the menu's or the panel's flow), the line of a pause, and the join code's row.
+// in the menu's or the panel's flow), the lines of a pause and of a table that closes for want of
+// access, and the join code's row.
 @use '../../../../../styles/tokens' as *;
 @use '../../../../../styles/mixins' as *;
 @use 'online' as *;
@@ -8,6 +9,7 @@
   // One row each: what it says on the text edge, what to do about it at the row's end.
   .atlas-online-knock,
   .atlas-online-paused,
+  .atlas-online-closing,
   .atlas-online-image-row {
     display: flex;
     align-items: center;
@@ -65,7 +67,8 @@
     }
   }
 
-  .atlas-online-paused__text {
+  .atlas-online-paused__text,
+  .atlas-online-closing__text {
     flex: 1;
     min-width: 0;
     padding-left: $online-text-inset;

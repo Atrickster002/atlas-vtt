@@ -45,7 +45,7 @@ describe('the running table\'s shown image', () => {
 
   it('is the table\'s: shown, served, sent to who joins and again after a reconnect while no scene is shared at all', async () => {
     const changes: number[] = [];
-    const online = new OnlineControl(app, () => ({ createKey: 'key', reportErrors: false }), new Ownership(readOwnership(undefined), () => undefined));
+    const online = new OnlineControl(app, new Ownership(readOwnership(undefined), () => undefined));
     online.onChange(() => changes.push(changes.length));
     const table = online.resume(SAVED);
     if (table === null) throw new Error('no table');

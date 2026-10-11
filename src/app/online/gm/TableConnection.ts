@@ -16,6 +16,8 @@ export interface TableEvents {
   joined(player: PlayerInfo): void;
   left(player: string): void;
   message(from: string, body: unknown): void;
+  /** The table closes at `closesAt` (the relay's clock) because its account may no longer host; null: it does not, said by the relay or by a welcome. */
+  access(closesAt: number | null): void;
 }
 
 /** The table's gates as the connection needs them: what the relay is told, and what it says back. */
@@ -221,11 +223,14 @@ export class TableConnection {
       if (this.gate !== null) socket.send(JSON.stringify({ v: PROTOCOL_VERSION, t: 'gate', ...this.gate.frame() }));
       this.queue.attach(this.pulse.start(socket));
       this.setStatus('online');
+      // A table that still closes for want of access says so again after its welcome.
+      this.events.access(null);
       this.gate?.welcomed(frame.waiting ?? []);
       this.events.welcome(frame.players);
     } else if (frame.t === 'knock') this.gate?.knocked({ id: frame.id, name: frame.name });
     else if (frame.t === 'knock-gone') this.gate?.gone(frame.id, frame.full === true);
     else if (frame.t === 'gate-paused') this.gate?.paused(frame.until);
+    else if (frame.t === 'access') this.events.access(frame.closesAt);
     else if (frame.t === 'player-joined') {
       this.players.add(frame.id);
       this.events.joined({ id: frame.id, name: frame.name });

@@ -461,6 +461,7 @@ export class Setting {
   setName(name: string): this { this.nameEl.textContent = name; return this; }
   setDesc(desc: string): this { this.descEl.textContent = desc; return this; }
   setClass(cls: string): this { this.settingEl.classList.add(cls); return this; }
+  clear(): this { this.controlEl.replaceChildren(); return this; }
 
   private create<T extends HTMLElement>(tag: string): T {
     const el = this.settingEl.ownerDocument.createElement(tag) as T;

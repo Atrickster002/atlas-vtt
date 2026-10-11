@@ -21,7 +21,8 @@ const { CompanionDiagnostics } = await import('../../../../src/app/online/gm/com
 
 const CODE = 'abcdefghijklmnopqrstuvwxyz';
 const SECRET = 'host-secret-0123456789abcdefABCDEF';
-const CREATE_KEY = 'create-key-Zk3pL9xQ2vB7nM4tR8wY';
+/** A session token as the account service hands them out: the one credential left, and no report may carry it. */
+const ACCOUNT_TOKEN = 'Zk3pL9xQ2vB7nM4tR8wYc1dE5fG6hJ0a';
 const JOIN_CODE = '483912';
 
 /** A target that dispatches errors and rejections as a window would. */
@@ -33,7 +34,6 @@ function companion(facts: Partial<CompanionFacts> = {}): { diagnostics: Instance
     reportErrors: () => switched.on,
     setReportErrors: (on) => void (switched.on = on),
     table: () => ({ code: CODE, secret: SECRET, gate: { code: JOIN_CODE } }),
-    createKey: () => CREATE_KEY,
     playerNames: () => ['Alice Liddell'],
     connection: () => ({ status: 'online', reconnects: 1, lastClose: 1006, latencyMs: 40, players: 2 }),
     ...facts,
@@ -60,16 +60,16 @@ beforeEach(() => {
 afterEach(() => vi.restoreAllMocks());
 
 describe('the companion\'s error reports', () => {
-  it('go to the table\'s server for its own errors, without its key, secret, code or player names, and are named in the console', async () => {
+  it('go to the table\'s server for its own errors, without its secret, code, an account token or player names, and are named in the console', async () => {
     const { win } = companion();
-    throwIn(win, ownError(`Alice Liddell lost ${CODE} with ${SECRET} and ${CREATE_KEY}`));
+    throwIn(win, ownError(`Alice Liddell lost ${CODE} with ${SECRET} and ${ACCOUNT_TOKEN}`));
     await settle();
     expect(sent).toHaveLength(1);
     expect(sent[0]?.url).toBe('https://play.atlas-vtt.dev/api/reports');
     expect(sent[0]?.body).toMatchObject({ source: 'companion', kind: 'error', browser: 'Obsidian 1.14.4', build: '0.0.1+dev atlas 0.6.1', os: 'macOS' });
     expect(sent[0]?.body.table).toMatch(/^[0-9a-f]{12}$/);
     const text = JSON.stringify(sent);
-    for (const forbidden of [CODE, SECRET, CREATE_KEY, 'Alice', 'Liddell']) expect(text).not.toContain(forbidden);
+    for (const forbidden of [CODE, SECRET, ACCOUNT_TOKEN, 'Alice', 'Liddell']) expect(text).not.toContain(forbidden);
     expect(console.warn).toHaveBeenCalledWith(expect.stringMatching(/^Atlas Online: error [0-9a-f]{10} reported to play\.atlas-vtt\.dev$/));
   });
 
