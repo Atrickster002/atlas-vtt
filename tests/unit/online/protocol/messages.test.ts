@@ -339,6 +339,19 @@ describe('marks', () => {
     }
   });
 
+  it('read the time since a measurement\'s end was last told, like a laser\'s', () => {
+    const marks = { t: 'marks', scene: 's1', lasers: [], measures: [{ who: 'gm', ...measureState }] };
+    for (const span of [0, 33, MAX_LASER_SPAN_MS]) {
+      expect(parsePlayerMessage({ ...measure, span })).toEqual({ ...measure, span });
+      expect(parseGmMessage({ ...marks, measures: [{ who: 'gm', ...measureState, span }, { who: PLAYER, ...measureState }] })).toEqual({ ...marks, measures: [{ who: 'gm', ...measureState, span }, { who: PLAYER, ...measureState }] });
+    }
+    expect(parsePlayerMessage(measure)).not.toHaveProperty('span');
+    for (const span of [-1, MAX_LASER_SPAN_MS + 1, 16.5, '33', null, Number.NaN, [33], true]) {
+      expect(parsePlayerMessage({ ...measure, span }), String(span)).toBeNull();
+      expect(parseGmMessage({ ...marks, measures: [{ who: 'gm', ...measureState, span }] }), String(span)).toBeNull();
+    }
+  });
+
   it('read the GM\'s marks, by the GM and players, and refuse unknown senders', () => {
     const marks = { t: 'marks', scene: 's1', lasers: [{ who: 'gm', ...laserState }, { who: PLAYER, ...laserState }], measures: [{ who: PLAYER, ...measureState }] };
     expect(parseGmMessage(marks)).toEqual(marks);

@@ -64,6 +64,16 @@ describe('PointerTap', () => {
     expect(tap.takeTrail(64).span).toBe(20);
   });
 
+  it('counts no time for a pointer that is told to move and stays where it is', () => {
+    const { tap, send } = tapped();
+    send('pointermove', 5, 0);
+    tap.takeTrail(64);
+    send('pointermove', 5.01, 40);
+    expect(tap.takeTrail(64)).toEqual({ pts: [], span: 0 });
+    send('pointermove', 9, 100);
+    expect(tap.takeTrail(64).span).toBe(100);
+  });
+
   it('gives the newest points when more were drawn than a message holds', () => {
     const { tap, send } = tapped();
     send('pointerdown', 0, 0);

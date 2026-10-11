@@ -56,8 +56,9 @@ const liveRecord = ({ told, end }: Live): MeasureRecord => ({ shape: told.shape,
 /**
  * Other people's measurements, drawn as Atlas draws its own (`drawMeasurement`) in the sender's
  * colour, each with its distance on a pill, worked out here by the scene's rules. The end of a
- * measurement being drawn moves through a `PointerTrack`, so it glides between two messages, and
- * its label says the distance to the end as drawn; kept measurements stand as they arrive.
+ * measurement being drawn moves through a `PointerTrack`, timed by the span its messages tell, so it
+ * glides between two messages, and its label says the distance to the end as drawn; kept
+ * measurements stand as they arrive.
  */
 export class RemoteMeasures {
   readonly container = new Container({ label: 'remote-measures', zIndex: MAP_LAYER_Z.measure, eventMode: 'none', interactiveChildren: false });
@@ -90,7 +91,7 @@ export class RemoteMeasures {
       const kept = entry.kept.map(recordOf);
       const keptChanged = colour !== drawn.colour || !sameRecords(kept, drawn.kept);
       const before = drawn.live;
-      drawn.live = this.follow(before, entry.live, now);
+      drawn.live = this.follow(before, entry, now);
       // Nothing to draw anew for a sender whose measurements stand, or whose end only moved on: `tick` draws that.
       if (!keptChanged && drawn.live === before) continue;
       if (keptChanged) this.drawKept(drawn, kept, colour, rules);
@@ -155,7 +156,7 @@ export class RemoteMeasures {
    * The measurement being drawn after a message: the same one with its end moved on, or a new one
    * (another start or shape), which stands where it begins and does not glide from the last.
    */
-  private follow(live: Live | null, told: SharedMeasure | null, now: number): Live | null {
+  private follow(live: Live | null, { live: told, span }: RemoteMeasure, now: number): Live | null {
     if (told === null) return null;
     const end = { x: told.b[0], y: told.b[1] };
     if (live === null || live.told.shape !== told.shape || !sameMark(live.told.a, told.a)) {
@@ -163,7 +164,8 @@ export class RemoteMeasures {
       track.push([end], undefined, now);
       return { told, track, end };
     }
-    if (!sameMark(live.told.b, told.b)) live.track.push([end], undefined, now);
+    // An end that stands is no new sample, unless its message says that time passed for its sender.
+    if (!sameMark(live.told.b, told.b) || (span ?? 0) > 0) live.track.push([end], span, now);
     live.told = told;
     return live;
   }

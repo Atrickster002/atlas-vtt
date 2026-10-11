@@ -177,6 +177,41 @@ describe('MarkShare', () => {
     expect(lastMarks(harness)?.lasers.find((entry) => entry.who === ANA)?.span).toBe(30);
   });
 
+  it('sends a measurement being dragged on with the time since its end was last told: the GM\'s own, and a player\'s as it came', async () => {
+    const harness = markHarness();
+    harness.share.setScene('s1');
+    const drag = (x: number): Promise<void> => harness.measure({ live: { shape: 'line', start: { x: 0, y: 0 }, end: { x, y: 0 } }, kept: [] });
+    await drag(0);
+    harness.advance(MARKS_INTERVAL_MS);
+    expect(lastMarks(harness)?.measures[0]).toEqual({ who: 'gm', color: '#123456', live: { shape: 'line', a: [0, 0], b: [0, 0] }, kept: [] });
+    harness.advance(7);
+    await drag(10);
+    harness.advance(8);
+    await drag(20);
+    harness.share.receive(BEN, measure({ span: 400 }));
+    expect(harness.shown?.measures).toEqual([{ who: BEN, color: '#66ffa9', live: { shape: 'line', a: [10, 10], b: [80, 10] }, kept: [], span: 400 }]);
+    harness.advance(5);
+    harness.share.receive(BEN, measure({ live: { shape: 'line', a: [10, 10], b: [90, 10] }, span: 5 }));
+    harness.share.receive(ANA, measure({ span: 9 }));
+    // The GM's overlay is told the time of the measurement that just arrived, and no time again for those that stand.
+    expect(harness.shown?.measures).toEqual([
+      { who: BEN, color: '#66ffa9', live: { shape: 'line', a: [10, 10], b: [90, 10] }, kept: [] },
+      { who: ANA, color: '#66ffa9', live: { shape: 'line', a: [10, 10], b: [80, 10] }, kept: [], span: 9 },
+    ]);
+    harness.advance(MARKS_INTERVAL_MS);
+    expect(lastMarks(harness)?.measures).toEqual([
+      { who: 'gm', color: '#123456', live: { shape: 'line', a: [0, 0], b: [20, 0] }, kept: [], span: 48 },
+      { who: BEN, color: '#66ffa9', live: { shape: 'line', a: [10, 10], b: [90, 10] }, kept: [], span: 405 },
+      { who: ANA, color: '#66ffa9', live: { shape: 'line', a: [10, 10], b: [80, 10] }, kept: [], span: 9 },
+    ]);
+    // A player who tells no time is sent on without one, as is one whose measurements stand; no time passed for the GM's.
+    harness.share.receive(BEN, measure({ live: { shape: 'line', a: [10, 10], b: [95, 10] }, span: 30 }));
+    harness.share.receive(BEN, measure({ live: { shape: 'line', a: [10, 10], b: [99, 10] } }));
+    harness.advance(MARKS_INTERVAL_MS);
+    expect(lastMarks(harness)?.measures.map((entry) => entry.span)).toEqual([0, undefined, undefined]);
+    expect(checkMeasure(measure({ live: { shape: 'line', a: [0, 0], b: [0, 9000] }, span: 33 }), CONTEXT)).toEqual({ color: '#66ffa9', live: null, kept: [] });
+  });
+
   it('forgets a laser that went silent, a player who left and the marks of another scene', () => {
     const harness = markHarness();
     harness.share.setScene('s1');
