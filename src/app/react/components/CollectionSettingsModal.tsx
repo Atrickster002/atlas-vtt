@@ -31,6 +31,7 @@ import { ConditionsTab } from './collection-settings/ConditionsTab';
 import { ResourcesTab } from './collection-settings/ResourcesTab';
 import { discoverResourceFields } from '../../resources/resourceFields';
 import { LootTab } from './collection-settings/LootTab';
+import { WorldMapField } from './collection-settings/WorldMapField';
 import { SystemTab } from './collection-settings/SystemTab';
 import { DiceTab } from './collection-settings/DiceTab';
 import { collectionDiceRules, isValidDiceRules } from '../../gameSystems/diceRules';
@@ -94,6 +95,7 @@ export function CollectionSettingsModal({
 }: CollectionSettingsModalProps): React.ReactElement | null {
   const { app } = useAtlasUI();
   const lightingOn = useExperimentalFeature('dynamicLighting');
+  const onlinePlayOn = useExperimentalFeature('onlinePlay');
   const assetService = app ? AssetService.getInstance(app) : null;
   const systemPresets = useSystemPresets(app);
   const windowVariants = useDialogWindowVariants();
@@ -247,6 +249,9 @@ export function CollectionSettingsModal({
                 coneAngle={collectionConeAngle(gridDefaults, draft.systemPresetId)}
                 onChange={draft.setGridDefaults}
               />
+            )}
+            {activeTab === 'grid' && onlinePlayOn && app && (
+              <WorldMapField app={app} collectionId={collectionId} value={draft.worldMap} onChange={draft.setWorldMap} />
             )}
             {activeTab === 'vision' && lightingOn && (
               <VisionTab

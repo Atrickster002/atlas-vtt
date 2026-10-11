@@ -15,10 +15,18 @@ export function comparableSettings(settings: CollectionSettings | undefined): Co
   return sameResourceDefinitions(resources, legacyCollectionResources(rest, BUILT_IN_SYSTEM_PRESETS)) ? rest : settings;
 }
 
-/** `settings` with each loot base at the path `pathOf` gives it; a base without one is left out. */
-export function withLootBases(settings: CollectionSettings, pathOf: (path: string) => string | undefined): CollectionSettings {
-  const { lootBases } = settings;
-  return lootBases ? { ...settings, lootBases: lootBases.flatMap((path) => pathOf(path) ?? []) } : settings;
+/**
+ * `settings` with the files they name (each loot base, the world map) at the path `pathOf`
+ * gives it; a base without one is left out, and a world map without one is none.
+ */
+export function withSettingsFiles(settings: CollectionSettings, pathOf: (path: string) => string | undefined): CollectionSettings {
+  const { lootBases, worldMap, ...rest } = settings;
+  const placedWorldMap = worldMap === undefined ? undefined : pathOf(worldMap);
+  return {
+    ...rest,
+    ...(lootBases && { lootBases: lootBases.flatMap((path) => pathOf(path) ?? []) }),
+    ...(placedWorldMap !== undefined && { worldMap: placedWorldMap }),
+  };
 }
 
 /** The settings an import takes from a bundle. One written by an older Atlas names no resources: the vault keeps its own. */
@@ -40,7 +48,7 @@ export function withPresetId<T extends { systemPresetId?: string | undefined }>(
   return id ? { ...settings, systemPresetId: id } : settings;
 }
 
-/** The bundle's settings as the import stores them: its loot bases at the paths they get in this vault, its game system the preset's id here. */
+/** The bundle's settings as the import stores them: its loot bases and its world map at the paths they get in this vault, its game system the preset's id here. */
 export function importedSettings(collection: CollectionMetadata, places: ImportedPlaces): CollectionSettings {
-  return withPresetId(withLootBases(collection.settings, (path) => places.paths.get(path) ?? path), places.presetIds);
+  return withPresetId(withSettingsFiles(collection.settings, (path) => places.paths.get(path) ?? path), places.presetIds);
 }

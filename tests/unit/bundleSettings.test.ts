@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { fieldFingerprint } from '../../src/app/services/collectionBundle/fingerprints';
-import { settingsFromBundle } from '../../src/app/services/collectionBundle/bundleSettings';
+import { settingsFromBundle, withSettingsFiles } from '../../src/app/services/collectionBundle/bundleSettings';
 import type { CollectionMetadata } from '../../src/app/services/AssetService';
 import { HP, STR, STRESS } from '../mocks/resourceFixtures';
 
@@ -26,5 +26,18 @@ describe('a collection\'s settings in a bundle', () => {
     expect(settingsFromBundle({ ...daggerheart, lootCurrency: 'gp' }, mine)).toEqual({ ...daggerheart, lootCurrency: 'gp', resources: mine.resources });
     expect(settingsFromBundle({ ...daggerheart, resources: [HP] }, mine).resources).toEqual([HP]);
     expect(settingsFromBundle(daggerheart, undefined)).toEqual(daggerheart);
+  });
+
+  it('name their loot bases and their world map where those files are, and none that has no place', () => {
+    const settings = { ...daggerheart, lootBases: ['Loot/Items.base', 'Loot/Gone.base'], worldMap: 'Maps/World.webp' };
+    const places = new Map([['Loot/Items.base', 'pack/Items.base'], ['Maps/World.webp', 'pack/World.webp']]);
+    expect(withSettingsFiles(settings, (path) => places.get(path))).toEqual({ ...daggerheart, lootBases: ['pack/Items.base'], worldMap: 'pack/World.webp' });
+
+    const withoutMap = withSettingsFiles(settings, (path) => (path.endsWith('.base') ? path : undefined));
+    expect(withoutMap).toEqual({ ...daggerheart, lootBases: settings.lootBases });
+    expect(withoutMap).not.toHaveProperty('worldMap');
+    // Settings that name no files stay as they are, without an empty list or an unset map.
+    expect(withSettingsFiles(daggerheart, () => undefined)).toEqual(daggerheart);
+    expect(Object.keys(withSettingsFiles(daggerheart, () => undefined))).toEqual(Object.keys(daggerheart));
   });
 });

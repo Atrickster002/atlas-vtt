@@ -1,0 +1,98 @@
+// ═══════════════════════════════════════════════════════════════════════════
+// Collection settings — the campaign's world map
+// ═══════════════════════════════════════════════════════════════════════════
+// Imported inside the `.atlas-vtt-plugin` scope of styles/main.scss. The cards of the picker are
+// the cover cards of the export dialog (collection-transfer/_transfer-covers.scss).
+
+@use '../../../../../styles/tokens' as *;
+@use '../../../../../styles/mixins' as *;
+
+// The least width of a choice: wide enough to tell maps apart, with several to a row of the dialog.
+$choice-min-width: 140px;
+$thumb-height: 40px;
+
+.atlas-csm-world-map__chosen {
+  @include atlas-inset-surface;
+  @include atlas-flex-row($gap: $spacing-s);
+  padding: $spacing-s;
+  min-width: 0;
+}
+
+.atlas-csm-world-map__thumb {
+  position: relative;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  height: $thumb-height;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  border-radius: $radius-s;
+  background: var(--background-primary);
+  color: var(--text-muted);
+
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  svg {
+    width: $icon-s;
+    height: $icon-s;
+  }
+}
+
+.atlas-csm-world-map__text {
+  @include atlas-flex-col(0);
+  flex: 1;
+  min-width: 0;
+}
+
+.atlas-csm-world-map__name,
+.atlas-csm-world-map__place {
+  @include atlas-truncate;
+}
+
+.atlas-csm-world-map__name {
+  font-size: $font-ui-small;
+  font-weight: $font-weight-medium;
+  color: var(--text-normal);
+}
+
+.atlas-csm-world-map__place {
+  font-size: $font-ui-smaller;
+  color: var(--text-faint);
+}
+
+.atlas-csm-world-map__chosen--missing :is(.atlas-csm-world-map__thumb, .atlas-csm-world-map__place) {
+  color: var(--text-warning);
+}
+
+.atlas-csm-world-map__clear.btn--icon {
+  width: $button-height-s;
+  height: $button-height-s;
+  flex-shrink: 0;
+  color: var(--text-muted);
+
+  &:hover {
+    color: var(--text-normal);
+  }
+}
+
+// The padding leaves room for the ring around the chosen card, which lies outside it.
+.atlas-csm-world-map__choices {
+  @include atlas-inset-surface;
+  @include atlas-scrollbar;
+  --atlas-skeleton-surface: var(--background-secondary);
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax($choice-min-width, 1fr));
+  gap: $spacing-s;
+  max-height: 320px;
+  padding: $spacing-s;
+  overflow-y: auto;
+}
+
+.atlas-csm-world-map__placeholder {
+  aspect-ratio: 16 / 9;
+  border-radius: $radius-l;
+}

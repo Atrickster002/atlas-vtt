@@ -5,7 +5,7 @@ import { BUNDLE_MANIFEST, PRESET_ROLE, bundleFormatFor, zipPathFor, type BundleF
 import { flushPresetEdits, packedPresetRecord, withSystemPresetFile } from './bundlePresetFiles';
 import { rewriteContent } from './bundleContent';
 import { selectContent } from './bundleContents';
-import { withLootBases } from './bundleSettings';
+import { withSettingsFiles } from './bundleSettings';
 import { reportFileStep, type BundleProgressListener } from './bundleProgress';
 import { coverCandidates, coverFileFor, currentCover, type CoverCandidate, type CoverChoice, type CurrentCover } from './collectionCover';
 import { CollectionReferenceCollector, type MissingReference } from './collectionReferences';
@@ -162,13 +162,13 @@ export async function exportCollectionBundle(
     : { collectionId: preview.collection.id, name: preview.collection.name, names: new Map<string, string>() };
   const named = (value: string): string => origin.names.get(value) ?? value;
   const exported = await exportedCollection(assets, preview, choice, exportedAt);
-  // The settings name only the loot bases that travel, as the bundle names them.
+  // The settings name only the loot bases and the world map that travel, as the bundle names them.
   const packed = new Set(selected.files.map((file) => file.vaultPath));
   const collection: CollectionMetadata = {
     ...exported,
     id: origin.collectionId,
     name: choice.kind === 'share' ? origin.name : exported.name,
-    settings: withLootBases(exported.settings, (path) => (packed.has(path) ? named(path) : undefined)),
+    settings: withSettingsFiles(exported.settings, (path) => (packed.has(path) ? named(path) : undefined)),
   };
   if (cover) collection.coverPath = named(cover.path);
   else delete collection.coverPath;

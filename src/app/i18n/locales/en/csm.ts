@@ -97,5 +97,13 @@ export const csm = {
   'csm.widgets.initiativeDesc': 'Turn-order tracker for combat encounters',
   'csm.widgets.timer': 'Timer',
   'csm.widgets.timerDesc': 'Countdown timer for timed encounters or breaks',
+  'csm.worldMap.change': 'Change image',
+  'csm.worldMap.choose': 'Choose image',
+  'csm.worldMap.clear': 'Remove world map',
+  'csm.worldMap.hint': 'Players can open it at any time during online play.',
+  'csm.worldMap.loading': 'Loading artwork',
+  'csm.worldMap.missing': 'Image not found',
+  'csm.worldMap.none': 'No map or scene of this collection has artwork yet',
+  'csm.worldMap.title': 'World map',
   'csm.loot.views': { one: '{count} view', other: '{count} views' },
 } as const satisfies Record<string, Message>;
