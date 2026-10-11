@@ -13,7 +13,7 @@ import type { SceneState } from '../../../../src/app/online/gm/atlasView.ts';
 export const GENERIC_SOURCE: LightingSource = { rules: () => GENERIC_SIGHT_RULES, measurement: () => resolveMeasurementSettings(undefined, null) };
 
 /** Atlas with dynamic lighting on and token names shown to players. */
-export const LIGHTING_ON: AtlasPlayerSettings = { dynamicLighting: true, showNames: true, showDiceRolls: false, showInitiative: true, showWidgets: true };
+export const LIGHTING_ON: AtlasPlayerSettings = { dynamicLighting: true, showNames: true, showDiceRolls: false, showInitiative: true, showWidgets: true, showCursors: false };
 
 /** The GM's lighting of a scene as Atlas's renderer works it out: the model and the players' footprints. */
 export function gmModel(state: ModelState, source: LightingSource, bounds: MapBounds): { readonly model: SceneModel; readonly spots: SeenSpot[] } {

@@ -29,6 +29,8 @@ export interface AtlasPlayerSettings {
   readonly showInitiative: boolean;
   /** Whether players see the scene's widgets (the player view's setting); false when it cannot be read. */
   readonly showWidgets: boolean;
+  /** Whether everyone at the table sees everyone else's cursor (the player view's setting); false when it cannot be read. */
+  readonly showCursors: boolean;
 }
 
 /** A field of an object by name, unchecked; undefined for anything that has none. */
@@ -65,6 +67,7 @@ export function atlasPlayerSettings(app: App): AtlasPlayerSettings {
     showDiceRolls: field(view, 'showDiceRolls') === true,
     showInitiative: field(view, 'showInitiative') === true,
     showWidgets: field(view, 'showWidgets') === true,
+    showCursors: field(view, 'showCursors') === true,
   };
 }
 

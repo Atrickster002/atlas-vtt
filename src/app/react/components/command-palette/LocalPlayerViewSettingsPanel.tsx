@@ -11,6 +11,7 @@ import { AssetService } from '../../../services/AssetService';
 import { runInBackground } from '../../../utils/backgroundTask';
 import { openPlayerWindow } from '../../../services/PlayerWindowPresenter';
 import { SettingsService, type AtlasSettings } from '../../../services/SettingsService';
+import { useExperimentalFeature } from '../../hooks/useExperimentalFeature';
 import { SettingRow, SettingToggleRow } from './SettingRows';
 import { t } from '../../../i18n';
 
@@ -22,6 +23,7 @@ const DEFAULT_LOCAL_PLAYER_VIEW_SETTINGS = {
   showInitiative: true,
   showDiceRolls: false,
   showCommandPalette: false,
+  showCursors: false,
 };
 
 type LocalPlayerViewSettings = AtlasSettings['localPlayerView'];
@@ -31,6 +33,11 @@ const UI_TOGGLES: ReadonlyArray<{ key: LocalPlayerViewToggleKey; label: string }
   { key: 'showWidgets', label: t('lpv.showWidgets') },
   { key: 'showInitiative', label: t('lpv.showInitiative') },
   { key: 'showDiceRolls', label: t('lpv.showDiceRolls') },
+];
+
+/** What only an online table has: shown while online play is switched on. */
+const ONLINE_TOGGLES: ReadonlyArray<{ key: LocalPlayerViewToggleKey; label: string }> = [
+  { key: 'showCursors', label: t('lpv.showCursors') },
 ];
 
 const TOKEN_TOGGLES: ReadonlyArray<{ key: LocalPlayerViewToggleKey; label: string }> = [
@@ -72,6 +79,7 @@ function PlayerBarToggles({ app }: { app: App }): React.ReactElement | null {
 export function LocalPlayerViewSettingsPanel(): React.ReactElement {
   const { app, view } = useAtlasUI();
   const settingsService: SettingsService | undefined = view?.serviceManager?.getSettingsService();
+  const onlinePlay = useExperimentalFeature('onlinePlay', settingsService);
   const [localSettings, setLocalSettings] = useState<LocalPlayerViewSettings>(
     () => settingsService?.getLocalPlayerViewSettings() || DEFAULT_LOCAL_PLAYER_VIEW_SETTINGS,
   );
@@ -105,6 +113,7 @@ export function LocalPlayerViewSettingsPanel(): React.ReactElement {
       <div className="atlas-command-palette-panel-column">
         <h3 className="atlas-command-palette-panel-heading">{t('lpv.interface')}</h3>
         {UI_TOGGLES.map(renderToggle)}
+        {onlinePlay && ONLINE_TOGGLES.map(renderToggle)}
       </div>
 
       <div className="atlas-command-palette-panel-column">

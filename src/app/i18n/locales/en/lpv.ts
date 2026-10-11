@@ -6,6 +6,7 @@ export const lpv = {
   'lpv.notePreviews': 'Note previews',
   'lpv.notePreviewsHint': 'Note previews are not shared with the player window.',
   'lpv.openWindow': 'Open player window',
+  'lpv.showCursors': 'Show everyone\'s cursors',
   'lpv.showDiceRolls': 'Show dice rolls',
   'lpv.showInitiative': 'Show initiative panel',
   'lpv.showWidgets': 'Show widgets',
