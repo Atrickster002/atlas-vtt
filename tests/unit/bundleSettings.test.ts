@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { fieldFingerprint } from '../../src/app/services/collectionBundle/fingerprints';
-import { settingsFromBundle, withSettingsFiles } from '../../src/app/services/collectionBundle/bundleSettings';
+import { importedSettings, settingsFromBundle, withSettingsFiles } from '../../src/app/services/collectionBundle/bundleSettings';
 import type { CollectionMetadata } from '../../src/app/services/AssetService';
 import { HP, STR, STRESS } from '../mocks/resourceFixtures';
 
@@ -39,5 +39,16 @@ describe('a collection\'s settings in a bundle', () => {
     // Settings that name no files stay as they are, without an empty list or an unset map.
     expect(withSettingsFiles(daggerheart, () => undefined)).toEqual(daggerheart);
     expect(Object.keys(withSettingsFiles(daggerheart, () => undefined))).toEqual(Object.keys(daggerheart));
+  });
+  it('take a bundle\'s world map only when the bundle brought its image', () => {
+    const collection = { id: 'c', name: 'c', settings: { ...daggerheart, lootBases: ['Loot/Items.base'], worldMap: 'Private/Passport.png' } } as unknown as CollectionMetadata;
+    // An image the bundle does not hold is no world map, although a loot base keeps its path.
+    const unknown = importedSettings(collection, { paths: new Map() });
+    expect(unknown).not.toHaveProperty('worldMap');
+    expect(unknown.lootBases).toEqual(['Loot/Items.base']);
+    // Nor is a file the vault already had and the collection does not own.
+    const paths = new Map([['Private/Passport.png', 'Private/Passport.png']]);
+    expect(importedSettings(collection, { paths, shared: new Set(['Private/Passport.png']) })).not.toHaveProperty('worldMap');
+    expect(importedSettings(collection, { paths: new Map([['Private/Passport.png', 'atlas-vtt/assets/World.png']]) }).worldMap).toBe('atlas-vtt/assets/World.png');
   });
 });
