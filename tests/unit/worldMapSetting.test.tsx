@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { App } from 'obsidian';
 import { CollectionSettingsModal } from '../../src/app/react/components/CollectionSettingsModal';
 import { WorldMapField } from '../../src/app/react/components/collection-settings/WorldMapField';
-import { worldMapCandidates } from '../../src/app/react/components/collection-settings/useWorldMapCandidates';
+import { worldMapCandidates } from '../../src/app/services/worldMap';
 import { AtlasUIContext } from '../../src/app/react/root/AtlasUIContext';
 import { AssetService, type Asset } from '../../src/app/services/AssetService';
 import { SettingsService } from '../../src/app/services/SettingsService';

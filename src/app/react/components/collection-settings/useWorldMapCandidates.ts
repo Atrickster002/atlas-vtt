@@ -1,17 +1,8 @@
 import { useEffect, useState } from 'react';
 import type { App } from 'obsidian';
-import { AssetService, type Asset } from '../../../services/AssetService';
-import { coverCandidates, type CoverCandidate } from '../../../services/collectionBundle/collectionCover';
-import { sceneThumbnailPath } from '../../../services/collectionBundle/collectionReferences';
-
-/**
- * The artwork of a collection's maps and scenes that can be its world map, each image once.
- * A scene without artwork offers none: its thumbnail is a small picture Atlas makes anew.
- */
-export async function worldMapCandidates(app: App, assets: readonly Asset[]): Promise<CoverCandidate[]> {
-  const thumbnails = new Set(assets.flatMap((asset) => (asset.type === 'scene' && asset.data?.mapPath ? [sceneThumbnailPath(asset.data.mapPath)] : [])));
-  return (await coverCandidates(app, assets)).filter((candidate) => !thumbnails.has(candidate.sourcePath));
-}
+import { AssetService } from '../../../services/AssetService';
+import type { CoverCandidate } from '../../../services/collectionBundle/collectionCover';
+import { worldMapCandidates } from '../../../services/worldMap';
 
 interface WorldMapCandidates {
   candidates: readonly CoverCandidate[];
