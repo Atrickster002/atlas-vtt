@@ -116,6 +116,24 @@ describe('RemoteLasers', () => {
     expect(back).toEqual(new Set([null, 900]));
   });
 
+  it('counts the time a pointer rested in place, so what it does next is not taken for late', () => {
+    lasers.update([laser()], 0);
+    // The sender's pointer stays where it is, and its messages say that time passes.
+    for (let now = INTERVAL; now <= 198; now += INTERVAL) {
+      lasers.update([laser({ span: INTERVAL })], now);
+      run(now, now + INTERVAL - 1);
+    }
+    // Then it moves 100 px a message, for longer than lateness is remembered: the drawn pointer stays about a message behind.
+    let furthest = 0;
+    for (let step = 1; step <= 100; step += 1) {
+      const now = 198 + step * INTERVAL;
+      lasers.update([laser({ at: [step * 100, 0], span: INTERVAL })], now);
+      run(now, now + INTERVAL - 1);
+      furthest = Math.max(furthest, step * 100 - (frames.at(-1)?.pointer?.x ?? 0));
+    }
+    expect(furthest).toBeLessThan(150);
+  });
+
   it('leaves a sender alone whose laser did not change when another one\'s did', () => {
     lasers.update([laser(), laser({ who: BEN, at: [50, 50] })], 0);
     run(0, 100);

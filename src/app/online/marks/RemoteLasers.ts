@@ -24,12 +24,19 @@ interface Beam {
   newest: TrackPoint | null;
 }
 
-/** The samples a laser's message adds: its trail points, then the pointer where it is not the last of them. */
+/**
+ * The samples a laser's message adds: its trail points, then the pointer where it is not the last of
+ * them. A pointer that rests where it was is no new sample, unless its message says that time passed:
+ * that time is part of the sender's timeline, and what the pointer does next would be taken for late.
+ */
 function samplesOf(laser: RemoteLaser, newest: TrackPoint | null): TrackPoint[] {
   const points: TrackPoint[] = [];
   for (let index = 0; index + 1 < laser.pts.length; index += 2) points.push({ x: laser.pts[index] ?? 0, y: laser.pts[index + 1] ?? 0, trail: true });
+  if (laser.at === null) return points;
+  const [x, y] = laser.at;
   const last = points.at(-1) ?? newest;
-  if (laser.at !== null && (last === null || last.x !== laser.at[0] || last.y !== laser.at[1])) points.push({ x: laser.at[0], y: laser.at[1], trail: laser.on });
+  const rests = last !== null && last.x === x && last.y === y;
+  if (!rests || (points.length === 0 && (laser.span ?? 0) > 0)) points.push({ x, y, trail: laser.on });
   return points;
 }
 

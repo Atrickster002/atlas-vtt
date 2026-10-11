@@ -1,4 +1,4 @@
-import type { MeasureState, SharedMeasure } from '../protocol/index.ts';
+import type { MarkPoint, MeasureState, SharedMeasure } from '../protocol/index.ts';
 import { Container, Graphics, type Text } from 'pixi.js';
 import { pathLengthInCells, type GridGeometry } from '../../grid/gridDistance';
 import { formatDistance, type MeasurementSettings } from '../../grid/measurementFormat';
@@ -47,6 +47,7 @@ interface Drawn {
 export const recordOf = ({ shape, a, b }: SharedMeasure): MeasureRecord => ({ shape, start: { x: a[0], y: a[1] }, end: { x: b[0], y: b[1] } });
 
 const colourNumber = (hex: string): number => Number.parseInt(hex.slice(1), 16);
+const sameMark = (a: MarkPoint, b: MarkPoint): boolean => a[0] === b[0] && a[1] === b[1];
 const samePoint = (a: { readonly x: number; readonly y: number }, b: { readonly x: number; readonly y: number }): boolean => a.x === b.x && a.y === b.y;
 const sameRecords = (a: readonly MeasureRecord[], b: readonly MeasureRecord[]): boolean =>
   a.length === b.length && a.every((record, index) => record.shape === b[index]?.shape && samePoint(record.start, b[index].start) && samePoint(record.end, b[index].end));
@@ -87,8 +88,12 @@ export class RemoteMeasures {
       const drawn = known ?? this.add(entry.who);
       const colour = colourNumber(entry.color);
       const kept = entry.kept.map(recordOf);
-      if (colour !== drawn.colour || !sameRecords(kept, drawn.kept)) this.drawKept(drawn, kept, colour, rules);
-      drawn.live = this.follow(drawn.live, entry.live, now);
+      const keptChanged = colour !== drawn.colour || !sameRecords(kept, drawn.kept);
+      const before = drawn.live;
+      drawn.live = this.follow(before, entry.live, now);
+      // Nothing to draw anew for a sender whose measurements stand, or whose end only moved on: `tick` draws that.
+      if (!keptChanged && drawn.live === before) continue;
+      if (keptChanged) this.drawKept(drawn, kept, colour, rules);
       this.fitLabels(drawn);
       kept.forEach((record, index) => this.write(drawn.labels[index], record, rules));
       this.drawLive(drawn, rules);
@@ -153,12 +158,12 @@ export class RemoteMeasures {
   private follow(live: Live | null, told: SharedMeasure | null, now: number): Live | null {
     if (told === null) return null;
     const end = { x: told.b[0], y: told.b[1] };
-    if (live === null || live.told.shape !== told.shape || live.told.a[0] !== told.a[0] || live.told.a[1] !== told.a[1]) {
+    if (live === null || live.told.shape !== told.shape || !sameMark(live.told.a, told.a)) {
       const track = new PointerTrack({ interval: this.interval });
       track.push([end], undefined, now);
       return { told, track, end };
     }
-    if (live.told.b[0] !== end.x || live.told.b[1] !== end.y) live.track.push([end], undefined, now);
+    if (!sameMark(live.told.b, told.b)) live.track.push([end], undefined, now);
     live.told = told;
     return live;
   }

@@ -123,15 +123,15 @@ export class PointerTrack {
     if (points.length === 0) return;
     this.advance(now);
     const last = this.samples.at(-1);
-    const fresh = last === undefined || this.ended || now - this.arrived > TRACK_REST_MS;
+    const floor = last?.t ?? Number.NEGATIVE_INFINITY;
+    const apart = last === undefined || this.ended;
+    const fresh = apart || now - this.arrived > TRACK_REST_MS;
     const span = saidSpan(spanMs);
-    const live = Math.max(last?.t ?? Number.NEGATIVE_INFINITY, now - this.lead);
+    const live = Math.max(floor, now - this.lead);
     const head = fresh || span === null ? live : this.head + span;
     const covers = fresh ? Math.min(span ?? this.interval, this.interval) : head - this.head;
     const count = points.length;
-    const floor = last?.t ?? Number.NEGATIVE_INFINITY;
     const moment = (index: number): number => Math.max(floor, head - (covers * (count - 1 - index)) / count);
-    const apart = last === undefined || this.ended;
     // After a rest the pointer leaves where it rested one interval before the first new sample.
     const from = fresh && !apart ? Math.max(floor, moment(0) - this.interval) : moment(0);
     if (fresh && !apart) this.samples.push({ x: last.x, y: last.y, trail: false, t: from, start: false, at: Number.NaN });
@@ -195,7 +195,8 @@ export class PointerTrack {
     const before = this.clock;
     const passes = Number.isFinite(before) ? now - before : 0;
     this.clock = now;
-    if (this.arrivals.length > 0 && now - (this.arrivals[0]?.at ?? now) > JITTER_WINDOW_MS) {
+    const oldest = this.arrivals[0];
+    if (oldest !== undefined && now - oldest.at > JITTER_WINDOW_MS) {
       this.arrivals = this.arrivals.filter((arrival) => now - arrival.at <= JITTER_WINDOW_MS);
       if (this.arrivals.length > 0) this.lead = this.arrivals.reduce((min, arrival) => Math.min(min, arrival.lead), Number.POSITIVE_INFINITY);
     }

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { Bounds, Text } from 'pixi.js';
+import { Bounds, Graphics, Text } from 'pixi.js';
 import { RemoteMeasures, type MeasureRules, type RemoteMeasure } from '../../../../src/app/online/marks/RemoteMeasures.ts';
 import { formatDistance, resolveMeasurementSettings } from '../../../../src/app/grid/measurementFormat';
 import type { SharedMeasure } from '../../../../src/app/online/protocol/index.ts';
@@ -81,6 +81,17 @@ describe('RemoteMeasures', () => {
     measures.update([measure(null, [line(140), line(700)])], 70);
     expect(labels().map((label) => label.x)).toEqual([70, 350]);
     expect(measures.busy).toBe(false);
+  });
+
+  it('draws nothing anew for a sender whose measurements did not change', () => {
+    measures.update([measure(line(700), [line(140)])], 0);
+    run(0, 100);
+    const cleared = vi.spyOn(Graphics.prototype, 'clear');
+    measures.update([measure(line(700), [line(140)])], 100);
+    expect(cleared).not.toHaveBeenCalled();
+    measures.update([measure(line(700), [line(140), line(280)])], 110);
+    expect(cleared).toHaveBeenCalled();
+    expect(labels().map((label) => label.x)).toEqual([70, 140, 350]);
   });
 
   it('forgets a sender who has no measurements left or is not named', () => {
