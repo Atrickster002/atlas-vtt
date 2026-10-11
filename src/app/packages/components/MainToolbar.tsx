@@ -44,6 +44,7 @@ export const MainToolbar = forwardRef<HTMLDivElement, MainToolbarProps>(({ viewI
   const hotkeyLabel = useHotkeyLabels()
   const experimentalOn: Record<ExperimentalFeatureId, boolean> = {
     dynamicLighting: useExperimentalFeature('dynamicLighting'),
+    onlinePlay: useExperimentalFeature('onlinePlay'),
   }
   const liveLayout = useToolbarLayout()
   // During a drag the bar keeps the layout it began with; changes made elsewhere wait for the drop.

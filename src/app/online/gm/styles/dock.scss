@@ -1,0 +1,214 @@
+// The GM's control for online tables, at the bottom left of every Atlas map view. Built on Atlas's
+// own tokens and mixins.
+@use '../../../../../styles/tokens' as *;
+@use '../../../../../styles/mixins' as *;
+// The menu's and the panel's content; their rhythm is `_online.scss`.
+@use 'controls';
+@use 'panel';
+@use 'panel-foot';
+@use 'gate';
+@use 'image-row';
+@use 'qr';
+
+// The collapsed control stands as high as Atlas's bars: a 40 px control with $spacing-s around it,
+// inside the border, so its top and bottom edges run level with the undo/redo bar and the toolbar.
+// Sizes are content sizes: the browser snaps the border to device pixels, as it does the bars'.
+$dock-inner: calc(#{$button-height-l} + 2 * #{$spacing-s});
+
+// The room the control takes in the row: first in the start slot, so the undo/redo bar and the
+// toolbar always stand clear of the collapsed button. Its transparent border snaps like the
+// control's. It never changes while the control opens.
+.atlas-online-room {
+  flex: none;
+  box-sizing: content-box;
+  width: calc(#{$dock-inner} + #{$spacing-s});
+  border-inline: $border-width-m solid transparent;
+  pointer-events: none;
+}
+
+// One element in every state: the button, and the menu or panel it grows into (morph.ts sets its
+// real width and height while open). Its bottom-left corner never moves, and it lies over the row's
+// bars while open. Its corner is the bars' and the panels' alike, so nothing eases between them.
+.atlas-online-dock {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  z-index: 1;
+  box-sizing: content-box;
+  width: $dock-inner;
+  height: $dock-inner;
+  pointer-events: auto;
+  font-size: $font-ui-small;
+  @include atlas-elevated-surface;
+  @include atlas-panel-radius($radius-2xl);
+}
+
+// Clips the content while the control grows; the badge lies outside it, over the corner.
+.atlas-online-dock__content {
+  position: absolute;
+  inset: 0;
+  overflow: clip;
+  border-radius: var(--atlas-panel-inner-radius);
+  @include atlas-corner-shape;
+}
+
+// The collapsed control is the button, filled to its border. It grows along while the control opens
+// (inert and faded out), so its accent swells into the menu.
+.atlas-online-dock .atlas-online-dock__button {
+  position: absolute;
+  inset: 0;
+  width: auto;
+  height: auto;
+  padding: 0;
+  border: none;
+  border-radius: inherit;
+  background: transparent;
+  box-shadow: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background-color $transition-fast $transition-ease, color $transition-fast $transition-ease;
+  @include atlas-corner-shape;
+
+  &:hover {
+    background: var(--background-modifier-hover);
+    color: var(--text-normal);
+  }
+
+  &.is-active,
+  &.is-active:hover {
+    background: var(--interactive-accent);
+    color: var(--text-on-accent);
+  }
+
+  &:focus {
+    box-shadow: none;
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--interactive-accent);
+    outline-offset: -2px;
+  }
+}
+
+// The globe stays centred where the button rests, at the bottom left, while the button grows.
+.atlas-online-dock__face {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: $dock-inner;
+  height: $dock-inner;
+}
+
+// A box of the collapsed control's inner size over its resting place: the badge and the tooltip hang from it.
+.atlas-online-dock__pin {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: $dock-inner;
+  height: $dock-inner;
+  pointer-events: none;
+
+  // Kept from Atlas's tooltip look; placed above the button, starting at its left edge so it stays in view.
+  .atlas-online-tooltip {
+    position: absolute;
+    left: 0;
+    bottom: calc(100% + #{$spacing-s} + 2px + #{$border-width-m});
+  }
+}
+
+// ── Badge ───────────────────────────────────────────────────────────────────
+
+.atlas-online-tone--green { --atlas-online-tone: var(--color-green); }
+.atlas-online-tone--amber { --atlas-online-tone: var(--color-orange); }
+.atlas-online-tone--red { --atlas-online-tone: var(--color-red); }
+.atlas-online-tone--muted { --atlas-online-tone: var(--text-faint); }
+
+// Where it sat on the toolbar-sized button: over that button's top-right corner, $spacing-xs out.
+.atlas-online-badge {
+  position: absolute;
+  top: calc(#{$spacing-s} - #{$spacing-xs});
+  right: calc(#{$spacing-s} - #{$spacing-xs});
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  border-radius: $radius-full;
+  background: var(--atlas-online-tone);
+  // A ring in the control's colour keeps it apart from the button under it.
+  box-shadow: 0 0 0 2px var(--background-primary);
+  pointer-events: none;
+
+  &[hidden] {
+    display: none;
+  }
+}
+
+.atlas-online-badge--dot {
+  width: 10px;
+  height: 10px;
+}
+
+.atlas-online-badge--count {
+  min-width: 16px;
+  height: 16px;
+  padding: 0 $spacing-xs;
+  color: var(--text-on-accent);
+  font-size: 10px;
+  font-weight: $font-weight-bold;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.atlas-online-badge--pulse {
+  animation: atlas-online-pulse 1.6s $transition-ease-out infinite;
+}
+
+@keyframes atlas-online-pulse {
+  from { box-shadow: 0 0 0 2px var(--background-primary), 0 0 0 2px color-mix(in oklch, var(--atlas-online-tone) 60%, transparent); }
+  to { box-shadow: 0 0 0 2px var(--background-primary), 0 0 0 8px color-mix(in oklch, var(--atlas-online-tone) 0%, transparent); }
+}
+
+// ── Content ─────────────────────────────────────────────────────────────────
+
+// The menu's or panel's content, laid out at its final width at the control's bottom left, where it
+// stays while the control grows around it. Clipped, never a scroll container: Chromium scrolls a
+// hidden overflow to anchor or reveal content, which moved the layers while the control grew.
+.atlas-online-layer {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-s;
+  padding: $spacing-s;
+  // The room there is (morph.ts); the player list scrolls inside it.
+  max-height: var(--atlas-online-layer-max, none);
+  // Faded in by morph.ts once the control has begun to grow.
+  opacity: 0;
+
+  > * {
+    flex: none;
+  }
+}
+
+.atlas-online-layer--leaving {
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .atlas-online-badge--pulse {
+    animation: none;
+  }
+}
+
+// The players' marks over the GM's map (`MarkOverlay`): laid over Atlas's canvas, never in the way of a press.
+.atlas-online-marks {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+}
