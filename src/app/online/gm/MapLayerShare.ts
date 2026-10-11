@@ -1,0 +1,158 @@
+import { Pacer, type PacerClock } from '../marks/index.ts';
+import type { GmMessage, SharedAnnotations } from '../protocol/index.ts';
+import { FogCoverageCache } from '../../fog/FogCoverageCache';
+import type { FogCoverage } from '../../fog/fogCoverage';
+import type { ViewState } from '../../types/viewState';
+import { ArtRefs } from './artRefs.ts';
+import type { AtlasPlayerSettings } from './atlasLighting.ts';
+import type { MapLayerSource } from './atlasMapLayers.ts';
+import type { SceneState, SceneStore } from './atlasView.ts';
+import { sharedInitiative } from './initiativeInputs.ts';
+import { sharedAnnotations, sharedDoors, sharedGrid } from './mapLayerInputs.ts';
+import type { VaultImage } from './TokenShare.ts';
+import { WidgetShare } from './WidgetShare.ts';
+
+export interface MapLayerSharePorts extends PacerClock {
+  send(body: GmMessage, to?: string): void;
+  /** What the shared tab's renderer tells of grid, doors, sensed tokens and collection, or null while it has none. */
+  mapLayers(): MapLayerSource | null;
+  atlasSettings(): AtlasPlayerSettings;
+  readImage(path: string): Promise<VaultImage | null>;
+}
+
+/** The shortest time between two sends of the map's layers, as for the token list. */
+export const MAP_LAYER_INTERVAL_MS = 66;
+
+type LayerMessage = Extract<GmMessage, { t: 'grid' | 'doors' | 'sensed' | 'annotations' | 'initiative' }>;
+type LayerState = SceneState & Partial<Pick<ViewState, 'initiative' | 'initiativeTrackerOpen'>>;
+
+interface Sent {
+  readonly scene: string;
+  readonly text: string;
+  readonly body: LayerMessage;
+}
+
+/** What the drawings and texts were last worked out from. */
+interface AnnotationKey {
+  readonly drawings: unknown;
+  readonly texts: unknown;
+  readonly fog: FogCoverage | null;
+}
+
+/**
+ * What players see of the map beside its tokens, fog and lighting, sent to all whenever it changes, at
+ * most every `MAP_LAYER_INTERVAL_MS`: the grid, the drawings and texts that fog does not cover whole,
+ * the initiative list, the widgets (`WidgetShare`) and, in a lit scene, the badges of the doors they see and the outlines of the
+ * tokens they only sense. Pins are the GM's alone and never sent.
+ */
+export class MapLayerShare {
+  private readonly store: SceneStore;
+  private readonly ports: MapLayerSharePorts;
+  private readonly pacer: Pacer;
+  private readonly fog = new FogCoverageCache();
+  private readonly art: ArtRefs;
+  private readonly widgets: WidgetShare;
+  private scene: { readonly id: string; readonly lit: boolean } | null = null;
+  private readonly last = new Map<LayerMessage['t'], Sent>();
+  private annotations: { readonly key: AnnotationKey; readonly value: SharedAnnotations } | null = null;
+  private annotationsSent: SharedAnnotations | null = null;
+  /** Vault paths of the portraits the last initiative list shows, by hash. */
+  private shownArt = new Map<string, string>();
+
+  constructor(store: SceneStore, ports: MapLayerSharePorts) {
+    this.store = store;
+    this.ports = ports;
+    this.pacer = new Pacer(ports, MAP_LAYER_INTERVAL_MS, () => this.flush());
+    this.art = new ArtRefs((path) => ports.readImage(path), () => this.update());
+    this.widgets = new WidgetShare(store, { ...ports, showWidgets: () => ports.atlasSettings().showWidgets });
+  }
+
+  /** The shared scene the layers belong to; null sends none. */
+  setScene(scene: { readonly id: string; readonly lit: boolean } | null): void {
+    if (scene?.id === this.scene?.id) return;
+    this.scene = scene;
+    this.last.clear();
+    this.annotations = null;
+    this.annotationsSent = null;
+    this.shownArt = new Map();
+    this.art.clear();
+    this.fog.reset();
+    this.pacer.cancel();
+    this.widgets.setScene(scene?.id ?? null);
+    this.update();
+  }
+
+  /** Works the layers out again; they go out now, or once the interval has passed. */
+  update(): void {
+    if (this.scene !== null) this.pacer.request();
+    this.widgets.update();
+  }
+
+  /** The last layers again, to one player or to all. */
+  resend(to?: string): void {
+    for (const sent of this.last.values()) if (sent.scene === this.scene?.id) this.ports.send(sent.body, to);
+    this.widgets.resend(to);
+  }
+
+  /** The vault path of a portrait the players' initiative list shows, by its hash. */
+  artPath(hash: string): string | undefined {
+    return this.shownArt.get(hash);
+  }
+
+  stop(): void {
+    this.setScene(null);
+  }
+
+  private flush(): void {
+    const scene = this.scene;
+    const state: LayerState = this.store.getState();
+    const source = this.ports.mapLayers();
+    if (scene === null || source === null || !state.mapLoaded || state.isMapLoading) return;
+    const settings = this.ports.atlasSettings();
+    this.publish({ t: 'grid', scene: scene.id, grid: sharedGrid(source.grid()) });
+    const fog = this.fog.get(state.objects.fog, state.mapPath);
+    const annotations = this.annotationsOf(state, fog);
+    // Drawings may run to megabytes: they are compared as text only when worked out anew.
+    if (annotations !== this.annotationsSent) {
+      this.annotationsSent = annotations;
+      this.publish({ t: 'annotations', scene: scene.id, ...annotations });
+    }
+    const art = new Map<string, string>();
+    const list = sharedInitiative({
+      state, shown: settings.showInitiative, showNames: settings.showNames, collections: source.collections(),
+      art: (path) => {
+        const ref = this.art.get(path);
+        if (ref !== null) art.set(ref.hash, path);
+        return ref;
+      },
+    });
+    this.shownArt = art;
+    this.publish({ t: 'initiative', scene: scene.id, list });
+    if (!scene.lit) return;
+    const seen = source.doorsSeen(state.objects.walls, fog);
+    if (seen !== null) this.publish({ t: 'doors', scene: scene.id, doors: sharedDoors(state.objects.walls, seen) });
+    const sensed = source.sensed(state.objects.tokens);
+    if (sensed !== null) this.publish({ t: 'sensed', scene: scene.id, tokens: sensed });
+  }
+
+  /** The drawings and texts, worked out again only when they or the fog changed. */
+  private annotationsOf(state: SceneState, fog: FogCoverage | null): SharedAnnotations {
+    const key: AnnotationKey = { drawings: state.objects.drawings, texts: state.objects.texts, fog };
+    const known = this.annotations;
+    if (known !== null && known.key.drawings === key.drawings && known.key.texts === key.texts && known.key.fog === key.fog) return known.value;
+    const value = sharedAnnotations(state.objects.drawings, state.objects.texts, fog);
+    this.annotations = { key, value };
+    return value;
+  }
+
+  /** Sends a message unless it says what the last of its kind said. */
+  private publish(body: LayerMessage): void {
+    const scene = this.scene;
+    if (scene === null) return;
+    const text = JSON.stringify(body);
+    const last = this.last.get(body.t);
+    if (last?.scene === scene.id && last.text === text) return;
+    this.last.set(body.t, { scene: scene.id, text, body });
+    this.ports.send(body);
+  }
+}

@@ -42,6 +42,7 @@ import { registerColorSwatchIcons } from './src/app/plugin/colorSwatchIcons';
 import { HeaderAutocompleteSuggest } from './src/app/plugin/HeaderAutocompleteSuggest';
 import { registerAtlasLinks } from './src/app/links/registerAtlasLinks';
 import { registerCommands } from './src/app/plugin/registerCommands';
+import { registerOnlinePlay } from './src/app/plugin/onlinePlay';
 import { registerPlayerWindowReloadCleanup } from './src/app/plugin/playerWindowReload';
 import { registerReturnToAtlasOnClose } from './src/app/plugin/returnToAtlasOnClose';
 import { runStartupMigration } from './src/app/plugin/startupMigration';
@@ -122,6 +123,7 @@ export default class AtlasVTTPlugin extends Plugin {
     this.globalAssetManager = new GlobalAssetManagerService(this.app);
     this.imageDisplayService = new ImageDisplayService(this.app);
 
+    const onlinePlay = registerOnlinePlay(this, this.settingsService);
     this.addSettingTab(new AtlasSettingTab(this.app, this, () => [
       navigationSettingsSection(this.settingsService),
       diceSettingsSection(this.settingsService),
@@ -130,6 +132,7 @@ export default class AtlasVTTPlugin extends Plugin {
       hotkeySettingsSection(this.settingsService),
       onboardingSettingsSection(this.settingsService),
       changelogSettingsSection(this.settingsService, changelogService, this.manifest.version),
+      ...onlinePlay.settingsSections(),
       supportSettingsSection(issueReporter),
     ]));
     this.registerEditorSuggest(new HeaderAutocompleteSuggest(this.app));
