@@ -1,4 +1,5 @@
-import { Notice, type App, type WorkspaceLeaf } from 'obsidian';
+import { type App, type WorkspaceLeaf } from 'obsidian';
+import { showNotice } from '../../ui/notice';
 import { activeAtlasLeaf, sceneStoreOf, selectedTokenIds, tokenLabel, type SceneStore } from './atlasView.ts';
 import { obsidianHttp } from './account/obsidianHttp.ts';
 import { createTable } from './createTable.ts';
@@ -45,7 +46,7 @@ function activeStore(app: App): SceneStore | null {
 }
 
 function refused(text: string): null {
-  new Notice(text);
+  showNotice(text);
   return null;
 }
 
@@ -173,7 +174,7 @@ export class OnlineControl {
 
   /** Shows the active scene of this Atlas tab on Atlas's player view, which players online see too. */
   share(leaf: WorkspaceLeaf): void {
-    if (!presentOnPlayerView(this.app, leaf)) new Notice('Atlas cannot show this map on the player view.');
+    if (!presentOnPlayerView(this.app, leaf)) showNotice('Atlas cannot show this map on the player view.');
   }
 
   /** Every player the table knows: those online first, then by name. */

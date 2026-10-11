@@ -27,7 +27,7 @@ import {
   History,
 } from 'lucide-react';
 import { CoinIcon } from './CoinIcon';
-import { Notice } from 'obsidian';
+
 import { useStore } from 'zustand';
 import { useAtlasStore, useViewStoreHook } from '../ViewStoreContext';
 import { useAtlasUI } from '../root/AtlasUIContext';
@@ -54,6 +54,7 @@ import { placePalette, type PalettePosition } from './command-palette/palettePla
 import { customizeToolbarCommand } from './command-palette/customizeToolbarCommand';
 import { isSettingsPanelId, type CommandOption, type SettingsPanelId } from './command-palette/types';
 import { t } from '../../i18n';
+import { showNotice } from '../../ui/notice';
 
 interface CommandPaletteProps {
   isOpen: boolean;
@@ -309,7 +310,7 @@ export function CommandPalette({ isOpen, onClose, toolbarRef, onCustomizeToolbar
         if (service?.isWindowOpen()) {
           service.toggleCameraFreeze();
         } else {
-          new Notice(t('palette.noPlayerWindow'));
+          showNotice(t('palette.noPlayerWindow'));
         }
       },
       isToggle: true,

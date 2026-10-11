@@ -1,9 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Notice, normalizePath } from 'obsidian';
+import { normalizePath } from 'obsidian';
 import { motion } from 'framer-motion';
 import { MapIcon } from 'lucide-react';
 import type { AssetService } from '../../../services/AssetService';
 import { newSceneFile } from '../../../services/newSceneFile';
+import { SettingsService } from '../../../services/SettingsService';
 import { normalizeImagePath } from '../../../utils/pathUtils';
 import { ensureFolder } from '../../../plugin/vaultFolders';
 import { useAtlasUI } from '../../../react/root/AtlasUIContext';
@@ -13,6 +14,7 @@ import { dialogOverlayMotion, useDialogWindowVariants } from '../primitives/dial
 import { TagPicker } from './token-creator/TagPicker';
 import { useAssetTags } from './token-creator/useAssetTags';
 import { t } from '../../../i18n';
+import { showNotice } from '../../../ui/notice';
 
 interface CreateSceneModalProps {
   isOpen: boolean;
@@ -97,12 +99,13 @@ export default function CreateSceneModal({
       const mapData = newSceneFile(
         assetService.getCollectionSettings(collectionId),
         backgroundPath ? normalizeImagePath(backgroundPath) : null,
+        SettingsService.forApp(app)?.detectsGridOnNewScenes() ?? true,
       );
 
       const scenePath = normalizePath(`atlas-vtt/collections/${collectionId}/scenes/${sceneName.trim()}.atlasmap`);
 
       if (app.vault.getAbstractFileByPath(scenePath)) {
-        new Notice(t('am.scene.nameTaken', { name: sceneName.trim() }));
+        showNotice(t('am.scene.nameTaken', { name: sceneName.trim() }));
         return;
       }
 
@@ -130,7 +133,7 @@ export default function CreateSceneModal({
       onSceneCreated();
     } catch (error) {
       console.error('[CreateSceneModal] Error creating scene:', error);
-      new Notice(t('am.scene.createFailed', { error: error instanceof Error ? error.message : String(error) }));
+      showNotice(t('am.scene.createFailed', { error: error instanceof Error ? error.message : String(error) }));
     } finally {
       setIsCreating(false);
     }

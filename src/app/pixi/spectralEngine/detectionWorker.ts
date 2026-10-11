@@ -1,4 +1,4 @@
-/** Entry of the grid detection worker that `GridDetectionClient` runs. Bundled inline into main.js by Vite. */
+/** Entry of the grid detection worker that `SpectralEngineClient` runs. Bundled inline into main.js by Vite. */
 
 import { grayOfBitmap } from './detectGrid';
 import type { MapGray } from './detectGrid';

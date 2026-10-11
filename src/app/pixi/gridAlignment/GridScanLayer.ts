@@ -10,7 +10,7 @@ import type { Viewport } from 'pixi-viewport';
 import { alignmentGridColor } from '../../grid/GridSystem';
 import type { MapStretch } from '../../grid/mapStretch';
 import type { AlignmentPoint, AlignmentResult, MapBounds } from '../gridAlignmentMath';
-import type { DetectionEvent, InkMap } from '../gridDetection/detectionJob';
+import type { DetectionEvent, InkMap } from '../spectralEngine/detectionJob';
 import { requestRender } from '../RenderScheduler';
 import { destroyTree } from '../utils/destroyTree';
 import { createGridScanShader } from './gridScanShader';
@@ -63,6 +63,7 @@ export class GridScanLayer {
   private hits: Texture | null = null;
   private onRevealed: (() => void) | null = null;
   private onStill: (() => void) | null = null;
+  private onQuiet: (() => void) | null = null;
   /** Passes the scan through as it is, at whatever resolution it is given. */
   private readonly half = new AlphaFilter({ alpha: 1 });
   private ticking = false;
@@ -181,9 +182,19 @@ export class GridScanLayer {
     this.tick();
   }
 
-  /** Calls `still` once, when the scan under way has nothing left to show. */
+  /** Calls `still` once, when the scan under way has nothing left to show, however it ends. */
   whenStill(still: () => void): void {
     this.onStill = still;
+  }
+
+  /** Calls `quiet` once, when the scan under way shows nothing the eye still follows (`ScanFrame.quiet`), however it ends. */
+  whenQuiet(quiet: () => void): void {
+    this.onQuiet = quiet;
+  }
+
+  /** Whether a scan is on the map: from its start until it has nothing left to show. */
+  get showing(): boolean {
+    return this.ticking;
   }
 
   /** The detection found no grid. */
@@ -231,6 +242,12 @@ export class GridScanLayer {
     this.frame(this.host.app.ticker);
   }
 
+  private sayQuiet(): void {
+    const quiet = this.onQuiet;
+    this.onQuiet = null;
+    quiet?.();
+  }
+
   private stop(): void {
     // A view that closes destroys its app, ticker and all, before the panel over it is gone: there is nothing to leave then.
     const ticker = this.host.app.ticker as Ticker | null;
@@ -240,6 +257,11 @@ export class GridScanLayer {
     this.choreography = null;
     this.setInk(null);
     this.setHits(null);
+    // Last: whoever hears this may destroy the scan (a new scene's detection does).
+    this.sayQuiet();
+    const still = this.onStill;
+    this.onStill = null;
+    still?.();
   }
 
   private readonly frame = (ticker: Ticker): void => {
@@ -257,12 +279,10 @@ export class GridScanLayer {
     }
     const frame = this.choreography.step(ticker.deltaMS);
     if (frame.revealed) this.reveal();
+    if (frame.quiet) this.sayQuiet();
     if (frame.still) {
       this.stop();
       requestRender(app);
-      const still = this.onStill;
-      this.onStill = null;
-      still?.();
       return;
     }
 

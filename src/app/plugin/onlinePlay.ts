@@ -1,10 +1,11 @@
-import { Notice, requireApiVersion, type Plugin } from 'obsidian';
+import { requireApiVersion, type Plugin } from 'obsidian';
 import { SECRET_STORAGE_VERSION } from '../online/gm/account/tokenStore.ts';
 import { ONLINE_COMMANDS } from '../online/gm/onlineCommands.ts';
 import { OnlineFeature } from '../online/gm/OnlineFeature.ts';
 import { onlineDataFile } from '../online/gm/onlineData.ts';
 import type { SettingsService } from '../services/SettingsService';
 import type { AtlasSettingSection } from '../settings/settingSections';
+import { showNotice } from '../ui/notice';
 
 /** Online play as the plugin holds it. */
 export interface OnlinePlay {
@@ -25,7 +26,7 @@ export function registerOnlinePlay(plugin: Plugin, settings: SettingsService): O
     const on = wanted && requireApiVersion(SECRET_STORAGE_VERSION);
     if (wanted && !on && !toldTooOld) {
       toldTooOld = true;
-      new Notice(`Online play needs Obsidian ${SECRET_STORAGE_VERSION} or newer.`);
+      showNotice(`Online play needs Obsidian ${SECRET_STORAGE_VERSION} or newer.`);
     }
     if (on === (feature !== null)) return;
     if (feature !== null) plugin.removeChild(feature);

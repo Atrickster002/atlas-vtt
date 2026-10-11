@@ -1,6 +1,6 @@
 import { mapResources } from '../../../../resources/collectionResources';
 import type { ResourceDefinition } from '../../../../resources/resourceTypes';
-import { Notice, App as ObsidianApp } from 'obsidian';
+import { App as ObsidianApp } from 'obsidian';
 import type { TokenAsset, AnyAsset, EncounterAsset } from '../types';
 import { loadStatblockOverrides, type StatblockOverrides } from './statblockLoader';
 import { AssetService } from '../../../../services/AssetService';
@@ -21,6 +21,7 @@ import { mapVisionDefaults } from '../../../../gameSystems/visionDefaults';
 import { systemPresetsOf } from '../../../../services/mapCollectionRules';
 import type { TokenVision, TokenVisionDefaults } from '../../../../types/lightingTypes';
 import { placementVision } from '../../../../creatures/placementVision';
+import { showNotice } from '../../../../ui/notice';
 
 // ─── Viewport helpers ───────────────────────────────────────────────
 
@@ -65,7 +66,7 @@ interface SpawnTarget {
 async function getSpawnTarget(ctx: SpawnContext): Promise<SpawnTarget | null> {
   const view = ctx.view ?? await loadAtlasView(ctx.app);
   if (!view) {
-    new Notice('No scene is open. Open a scene to add tokens to it.');
+    showNotice('No scene is open. Open a scene to add tokens to it.');
     return null;
   }
   if (view !== ctx.view) void ctx.app.workspace.revealLeaf(view.leaf);
@@ -73,7 +74,7 @@ async function getSpawnTarget(ctx: SpawnContext): Promise<SpawnTarget | null> {
   const viewport = rendererService.getViewport() as ViewportLike | null;
   const { mapPath, isMapLoading } = view.getStore().getState();
   if (!viewport || !mapPath || isMapLoading) {
-    new Notice('The scene is still loading. Add the tokens once it is open.');
+    showNotice('The scene is still loading. Add the tokens once it is open.');
     return null;
   }
   const gridSystem = rendererService.getGridSystem() as GridSystemLike | null;
@@ -325,7 +326,7 @@ export async function spawnEncounterTokens(
   }
 
   const ids = addSpawnedTokens(target, tokens);
-  new Notice(ids.length < tokensToSpawn.length
+  showNotice(ids.length < tokensToSpawn.length
     ? t('am.spawnedPartial', { count: ids.length, expected: tokensToSpawn.length, name: encounter.name })
     : t('am.spawned', { count: ids.length, name: encounter.name }));
   return ids;

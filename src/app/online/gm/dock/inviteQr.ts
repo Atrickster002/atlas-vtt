@@ -1,5 +1,5 @@
 import { shownJoinCode } from '../../protocol/index.ts';
-import { Notice, setIcon } from 'obsidian';
+import { setIcon } from 'obsidian';
 import { animatePanelIn, animatePanelOutAndRemove } from '../../../ui/panelMotion';
 import { prefersReducedMotion } from '../../../utils/motion';
 import atlasIcon from '../assets/atlas-icon.png?inline';
@@ -7,6 +7,7 @@ import { COPIED_MS } from './controls.ts';
 import { BAR_GAP, copyImage, detachedEl, roomAbove, rowOf } from './dockDom.ts';
 import { qrDrawing, qrMatrix, type QrDrawing } from './qrDrawing.ts';
 import { qrImageBlob } from './qrImage.ts';
+import { showNotice } from '../../../ui/notice';
 
 const SVG = 'http://www.w3.org/2000/svg';
 /** The code's side the card aims at, in CSS pixels: large enough to scan across a table. */
@@ -188,7 +189,7 @@ export class InviteQr {
     const style = (el: Element): CSSStyleDeclaration => card.win.getComputedStyle(el);
     const png = qrImageBlob(card, drawing, { dark: style(code).fill, light: style(plate).backgroundColor, icon });
     void copyImage(card, png).then((copied) => {
-      if (!copied) new Notice('The image could not be copied.');
+      if (!copied) showNotice('The image could not be copied.');
       else if (this.card === card) this.say(card);
     });
   }

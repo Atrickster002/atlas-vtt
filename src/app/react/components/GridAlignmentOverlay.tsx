@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Notice } from 'obsidian';
+
 import { Crosshair, Scan } from 'lucide-react';
 import { useAtlasUI } from '../root/AtlasUIContext';
 import { GridAlignmentController } from '../../pixi/GridAlignmentController';
-import type { AlignmentResult } from '../../pixi/GridAlignmentController';
+import type { AlignmentResult, ScanState } from '../../pixi/GridAlignmentController';
 import type { GridType } from '../../grid/GridSystem';
 import { gridAlignedTo } from '../../pixi/gridAlignmentMath';
 import { movedWithMap, readMapStretch, sameStretch } from '../../grid/mapStretch';
@@ -16,12 +16,12 @@ import { useGridFit } from '../hooks/useGridFit';
 import { SegmentedControl } from '../../packages/components/primitives/SegmentedControl';
 import type { SegmentedOption } from '../../packages/components/primitives/SegmentedControl';
 import { DetectedGridPreview } from './DetectedGridPreview';
-import { DetectionStatus } from './DetectionStatus';
 import { GridTypePicker } from './GridTypePicker';
 import { IntersectionsTab } from './IntersectionsTab';
 import { FreehandTab } from './FreehandTab';
 import { CloseButton } from '../../packages/components/primitives/CloseButton';
 import { t } from '../../i18n';
+import { showNotice } from '../../ui/notice';
 
 type AlignmentTab = 'intersections' | 'freehand';
 /** What the choice of a manual way holds while none is chosen. */
@@ -55,6 +55,12 @@ export function GridAlignmentOverlay({ onClose }: GridAlignmentOverlayProps): Re
   const [, setControllerVersion] = useState(0);
   const [detecting, setDetecting] = useState(false);
   const [detectionStatus, setDetectionStatus] = useState<string | null>(null);
+  /** What a scan shows on the map: a search, a fit or a found grid being drawn, then the last of its glow. */
+  const [scan, setScan] = useState<ScanState>('none');
+  // Nothing is to be chosen while the map shows the engine at work: a click would cut what it shows short.
+  const busy = detecting || scan === 'working';
+  /** Closed while the engine was at work: the panel is out of sight, and gone once the work is over. */
+  const [leaving, setLeaving] = useState(false);
   /** What auto-detect found: shown in place of the tab until the GM measures or places a grid themselves. */
   const [detected, setDetected] = useState<AlignmentResult | null>(null);
 
@@ -72,8 +78,9 @@ export function GridAlignmentOverlay({ onClose }: GridAlignmentOverlayProps): Re
     if (!renderer || !viewport || !gridSystem || !canvasEl) return;
     const mapImage = renderer.getMapImage?.() ?? null;
 
-    const scan = createGridScan(view?.app, () => store?.getState(), renderer);
-    controllerRef.current = new GridAlignmentController(viewport, gridSystem, canvasEl, mapImage, scan);
+    const scanLayer = createGridScan(view?.app, () => store?.getState(), renderer);
+    controllerRef.current = new GridAlignmentController(viewport, gridSystem, canvasEl, mapImage, scanLayer);
+    controllerRef.current.onScan = setScan;
     setControllerVersion(v => v + 1);
   }, [view, store]);
 
@@ -125,12 +132,12 @@ export function GridAlignmentOverlay({ onClose }: GridAlignmentOverlayProps): Re
   }, []);
 
   const handleAutoDetect = useCallback((): void => {
-    if (detecting || !view?.renderer?.getMapImage?.()) return;
+    if (busy || !view?.renderer?.getMapImage?.()) return;
     controllerRef.current?.cleanupVisuals();
     clearAlignment();
     setDetecting(true);
     setDetectionStatus(t('align.analysing'));
-  }, [view, detecting, clearAlignment]);
+  }, [view, busy, clearAlignment]);
 
   useGridAutoDetect(view, controllerRef, detecting, {
     status: setDetectionStatus,
@@ -144,7 +151,8 @@ export function GridAlignmentOverlay({ onClose }: GridAlignmentOverlayProps): Re
       setDetecting(false);
       setDetectionStatus(null);
       // Said beside the panel, not in it: the panel holds its controls and nothing else.
-      new Notice(t('align.noGrid'));
+      showNotice(t('align.noGrid'));
+      if (leaving) return;
       // The way on from a map without a grid to find is to show Atlas one cell of it.
       setActiveTab((tab) => tab ?? 'intersections');
     },
@@ -156,7 +164,8 @@ export function GridAlignmentOverlay({ onClose }: GridAlignmentOverlayProps): Re
     const currentGrid = store.getState().grid;
     if (!currentGrid) return;
     const renderer = view?.renderer;
-    const grid = { ...gridAlignedTo(currentGrid, result), enabled: true, visible: true };
+    // An aligned grid is a grid in use: it shows, and tokens snap to it.
+    const grid = { ...gridAlignedTo(currentGrid, result), enabled: true, visible: true, snapToGrid: true };
     // The map keeps the stretch the preview gave it (the renderer follows the store's), and what
     // stands on the map keeps its place on it.
     const from = readMapStretch(currentGrid.mapStretch);
@@ -198,7 +207,21 @@ export function GridAlignmentOverlay({ onClose }: GridAlignmentOverlayProps): Re
     setGridType(type);
   }, [gridType, restartTab]);
 
-  useAlignmentEnds(store, handleCancel);
+  /** Closes the panel. The engine's work on the map is never cut short: it plays out, and the grid it finds is the scene's. */
+  const handleClose = useCallback((): void => {
+    if (busy) setLeaving(true);
+    else handleCancel();
+  }, [busy, handleCancel]);
+
+  useEffect(() => {
+    // The panel is out of sight, so nothing waits for it: the scan plays out to its very end. A found
+    // grid becomes the result one render after the search ends.
+    if (!leaving || detecting || scan !== 'none' || (detected && !result && controllerRef.current)) return;
+    if (result) handleApply();
+    else handleCancel();
+  }, [leaving, detecting, scan, detected, result, handleApply, handleCancel]);
+
+  useAlignmentEnds(store, handleCancel, handleClose);
 
   // -----------------------------------------------------------------------
   // Render
@@ -206,35 +229,48 @@ export function GridAlignmentOverlay({ onClose }: GridAlignmentOverlayProps): Re
 
   // Measuring or placing by hand: not while a detection runs or its answer is shown.
   const ManualTab = activeTab && !detected && !detecting ? TAB_COMPONENTS[activeTab] : null;
+  // Auto detect's own work: its search, and the grid it found being drawn.
+  const autoDetecting = detecting || (scan === 'working' && !ManualTab);
 
   return (
     <div className="atlas-vtt-plugin atlas-vtt-root" style={{ pointerEvents: 'none' }}>
-      <div className="atlas-grid-alignment-panel">
-        <div className="atlas-grid-alignment-header">
-          <div className="atlas-grid-alignment-title">
-            <Crosshair size={16} />
-            <span>{t('align.title')}</span>
+      <div className="atlas-grid-alignment" hidden={leaving}>
+        <div className="atlas-grid-alignment-panel">
+          <div className="atlas-grid-alignment-header">
+            <div className="atlas-grid-alignment-title">
+              <Crosshair size={16} />
+              <span>{t('align.title')}</span>
+            </div>
+            <CloseButton onClick={handleClose} />
           </div>
-          <CloseButton onClick={handleCancel} />
-        </div>
 
-        {/* The three ways to a grid stay where they are in every state: another one is one click away. */}
-        {detecting ? (
-          <DetectionStatus status={detectionStatus} />
-        ) : (
+          {/* The three ways to a grid stay where they are in every state: another one is one click away. */}
+          {/* A detection at work shows in its own button, as light passing through it; its words are for screen readers. */}
           <button
-            className={`atlas-grid-alignment-btn atlas-grid-alignment-btn--wide ${ManualTab || detected ? 'atlas-grid-alignment-btn--secondary' : 'atlas-grid-alignment-btn--primary'}`}
+            className={`atlas-grid-alignment-btn atlas-grid-alignment-btn--wide atlas-grid-alignment-detect ${!autoDetecting && (ManualTab || detected) ? 'atlas-grid-alignment-btn--secondary' : 'atlas-grid-alignment-btn--primary'}`}
+            data-working={autoDetecting || undefined}
+            aria-busy={autoDetecting || undefined}
+            disabled={busy && !autoDetecting}
             onClick={handleAutoDetect}
           >
             <Scan size={14} />
             {t('align.find')}
           </button>
-        )}
-        <SegmentedControl value={ManualTab && activeTab ? activeTab : NO_TAB} options={ALIGNMENT_TABS} onChange={handleTabChange} ariaLabel={t('align.orByHand')} />
+          <p className="atlas-grid-alignment-status" aria-live="polite">{detecting ? detectionStatus : null}</p>
+          <SegmentedControl value={ManualTab && activeTab ? activeTab : NO_TAB} options={ALIGNMENT_TABS} onChange={handleTabChange} ariaLabel={t('align.orByHand')} disabled={busy} />
 
-        {ManualTab && (
-          <>
-            <GridTypePicker value={gridType} onChange={handleGridTypeChange} />
+          {/* Every control keeps its place, so the panel is as tall in every state: the grid type is for aligning by hand. */}
+          <GridTypePicker value={gridType} onChange={handleGridTypeChange} disabled={!ManualTab || busy} />
+          {detected && <DetectedGridPreview controller={controllerRef.current} detected={detected} setResult={setResult} />}
+
+          <button className="atlas-grid-alignment-btn atlas-grid-alignment-btn--primary atlas-grid-alignment-btn--wide" disabled={!result || busy} onClick={handleApply}>
+            {t('common.apply')}
+          </button>
+        </div>
+
+        {/* What to click next stands below the panel, which therefore never changes with it. */}
+        <div className="atlas-grid-alignment-hint">
+          {ManualTab && (
             <ManualTab
               key={resetKey}
               controller={controllerRef.current}
@@ -243,14 +279,8 @@ export function GridAlignmentOverlay({ onClose }: GridAlignmentOverlayProps): Re
               gridType={gridType}
               fit={fit}
             />
-          </>
-        )}
-        {detected && <DetectedGridPreview controller={controllerRef.current} detected={detected} setResult={setResult} />}
-
-        {/* Always in its place, so the panel is as tall with a grid to apply as without one. */}
-        <button className="atlas-grid-alignment-btn atlas-grid-alignment-btn--primary atlas-grid-alignment-btn--wide" disabled={!result} onClick={handleApply}>
-          {t('common.apply')}
-        </button>
+          )}
+        </div>
       </div>
     </div>
   );

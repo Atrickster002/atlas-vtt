@@ -113,6 +113,16 @@ describe('ScanChoreography', () => {
     expect(after.slice(revealedAt).every((frame) => frame.still || frame.lock.radius > REACH)).toBe(true);
     expect(after.at(-1)!.still).toBe(true);
     expect(scan.active).toBe(false);
+
+    // Whoever waits for the scan is let go when only the last fifth of the glow is left, well before the very end.
+    const quietAt = after.findIndex((frame) => frame.quiet);
+    const stillAt = after.findIndex((frame) => frame.still);
+    expect(quietAt).toBeGreaterThan(revealedAt);
+    expect(after[quietAt - 1]!.lock.glow).toBeGreaterThan(0.2);
+    expect(after[quietAt]!).toMatchObject({ scrim: 0, looking: 0 });
+    expect(after[quietAt]!.front.alpha).toBe(0);
+    expect((stillAt - quietAt) * FRAME_MS).toBeGreaterThan(700);
+    expect(after.slice(quietAt).every((frame) => frame.quiet)).toBe(true);
   });
 
   it('never stands still while it looks: the etching creeps on and the grids being tried follow each other', () => {

@@ -1,5 +1,5 @@
 /**
- * Automatic grid detection from the map image: spectral analysis proposes grid
+ * The Spectral Engine, Atlas' grid detection from the map image: spectral analysis proposes grid
  * types and rough cell sizes, the lattice fit makes each proposal precise, and the
  * proposal whose edges really sit on lines of the map wins.
  *
@@ -32,8 +32,14 @@ const MIN_SUPPORT = 0.05;
 const HARMONIC_MULTIPLES = [2, 0.5];
 /** A square fit with lines of its own between the map's is a harmonic of the map's grid, which may be three or five times as large as well. */
 const FINER_COPY_MULTIPLES = [3, 5];
-/** The smallest cells looked for, in pixels of the analysed image. */
-const MIN_CELL_SIZE = 12;
+/** The smallest cells looked for, in pixels of the analysed image: in smaller ones the flanks a line is compared with (`lineProbe`) and the window it is looked for in (`MAX_REACH_IN_CELLS`) reach the next line. */
+const MIN_CELL_SIZE = 8;
+/**
+ * Cells smaller than this are the map's grid only where its lines settle it (`DECISIVE_SUPPORT`): the
+ * window a line is looked for in shrinks with the cell, so chance puts more of a small grid's edges
+ * on lines of any map, and a seventh of a large grid's cell or the lettering of a small map fits a little.
+ */
+const SURE_CELL_SIZE = 12;
 /**
  * A square fit with cells further off regular than this has taken every fourth line one way and
  * every fifth the other for a grid: columns and rows of a square grid fit each on their own. Hexes
@@ -112,6 +118,8 @@ interface Round {
   /** Sizes outside this range are not fitted. */
   minSize: number;
   maxSize: number;
+  /** Cells smaller than this need a fit that settles the grid. */
+  sureSize: number;
   /** Ends at the first fit that settles the grid, where the sizes are known not to be harmonics of it. */
   firstDecisive: boolean;
   /** The image is reduced at least this many times before it is searched. */
@@ -200,7 +208,7 @@ export interface DetectionWatch {
 }
 
 /** Fits every proposal the map's lines may support, strongest first, and keeps those they do. */
-function fitProposals(image: GrayImage, spectra: Spectra, proposals: Proposal[], { minSize, maxSize, firstDecisive, minFactor, minSupport, maxSquareAspect, ownLinesOnly }: Round, watch?: DetectionWatch): RefinedGrid[] {
+function fitProposals(image: GrayImage, spectra: Spectra, proposals: Proposal[], { minSize, maxSize, sureSize, firstDecisive, minFactor, minSupport, maxSquareAspect, ownLinesOnly }: Round, watch?: DetectionWatch): RefinedGrid[] {
   const attempted: Proposal[] = [];
   const fits: RefinedGrid[] = [];
   const weak: RefinedGrid[] = [];
@@ -219,6 +227,7 @@ function fitProposals(image: GrayImage, spectra: Spectra, proposals: Proposal[],
     const refined: RefinedGrid = { ...fitted, support: acceptedSupport(image, fitted) };
     // Hexes further off regular than any print are a tile set's, whose lines agree with them all over the map.
     if (isOffRegularBeyond(fitted.aspect, maxSquareAspect) && refined.support < DECISIVE_SUPPORT) continue;
+    if (refined.cellSize < sureSize && refined.support < DECISIVE_SUPPORT) continue;
     if (refined.support < minSupport) {
       if (refined.support > 0) weak.push(refined);
       continue;
@@ -301,7 +310,7 @@ export function detectGridInImage(image: GrayImage, hint?: GridHint, watch?: Det
     : [];
 
   // A hint's sizes all lie within a few percent of each other: the first that settles the grid is it.
-  const round: Round = { minSize, maxSize, firstDecisive: hint !== undefined, minFactor: 1, minSupport: hint ? MIN_HINTED_SUPPORT : MIN_SUPPORT, maxSquareAspect: hint ? MAX_STRETCH_FACTOR : MAX_DETECTED_SQUARE_ASPECT, ownLinesOnly: hint !== undefined };
+  const round: Round = { minSize, maxSize, sureSize: hint ? 0 : SURE_CELL_SIZE, firstDecisive: hint !== undefined, minFactor: 1, minSupport: hint ? MIN_HINTED_SUPPORT : MIN_SUPPORT, maxSquareAspect: hint ? MAX_STRETCH_FACTOR : MAX_DETECTED_SQUARE_ASPECT, ownLinesOnly: hint !== undefined };
   const fits = fitProposals(image, spectra, [...hinted, ...wanted(firstRoundProposals(spectra, factor))], round, watch);
   // A regular grid that most of the map's lines agree with is the map's grid: only otherwise is a second round worth its time.
   if (!fits.some((fit) => fit.support >= DECISIVE_SUPPORT)) {

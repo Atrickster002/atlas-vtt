@@ -1,4 +1,4 @@
-import { App, Notice, TFile } from 'obsidian';
+import { App, TFile } from 'obsidian';
 import { MapController } from '../MapController';
 import { EventEmitter } from 'events';
 import { RendererService } from './RendererService';
@@ -13,6 +13,7 @@ import { LatestRequestQueue } from './latestRequestQueue';
 import { fillStoreFromMapFile } from './mapFileFallback';
 import { t } from '../i18n';
 import type { ViewCamera } from '../pixi/viewCamera';
+import { showNotice } from '../ui/notice';
 
 /** How long a scene may take to load before the load is given up. */
 export const STALLED_LOAD_MS = 30_000;
@@ -228,7 +229,7 @@ export class MapService {
   private recoverFromFailedLoad(rendererService: RendererService, filePath: string, error: unknown): void {
     // Without this the view only shows an empty canvas
     const reason = describeError(error).replace(/^\[\w+\]\s*/, '');
-    new Notice(t('map.openFailed', { name: sceneNameOf(filePath), reason }), 0);
+    showNotice(t('map.openFailed', { name: sceneNameOf(filePath), reason }), 0);
 
     // A load that failed before it switched the store leaves the previous map open and saved as before
     const mapStillLoaded = this.store.getState().mapLoaded;

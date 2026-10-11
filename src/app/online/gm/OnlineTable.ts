@@ -1,5 +1,6 @@
 import type { ConnectionStats } from '../protocol/index.ts';
-import { Notice, normalizePath, type App, type WorkspaceLeaf } from 'obsidian';
+import { normalizePath, type App, type WorkspaceLeaf } from 'obsidian';
+import { showNotice } from '../../ui/notice';
 import { scaleInWindow } from './assetVariants.ts';
 import { ATLAS_VIEW_TYPE, type SceneStore } from './atlasView.ts';
 import { companionTimers, every } from './companionTimers.ts';
@@ -83,7 +84,7 @@ export class OnlineTable {
       answer: (id, admit) => this.connection.answer(id, admit),
       save: (settings) => events.gate(settings),
       changed: () => events.changed(),
-      paused: () => new Notice(PAUSED_TEXT),
+      paused: () => showNotice(PAUSED_TEXT),
       timers: companionTimers(),
     });
     const timers = companionTimers();
@@ -120,7 +121,7 @@ export class OnlineTable {
       lost: (reason) => {
         this.withdraw();
         const notice = LOST_NOTICES[reason];
-        if (notice !== null) new Notice(notice);
+        if (notice !== null) showNotice(notice);
       },
       mapPath: (path) => events.mapPath(path),
     }, mapPath);
@@ -218,7 +219,7 @@ export class OnlineTable {
     if (status === 'stopped') this.finish('stopped');
     else if (status === 'refused') {
       const end = tableEndOf(this.connection.closeCode);
-      new Notice(tableEndText(end));
+      showNotice(tableEndText(end));
       this.finish(end);
     }
     this.events.status(status);
@@ -239,7 +240,7 @@ export class OnlineTable {
     this.closing = closesAt;
     if (closesAt !== null && closesAt !== this.toldClosing) {
       this.toldClosing = closesAt;
-      new Notice(closingText(closesAt));
+      showNotice(closingText(closesAt));
     }
     this.events.changed();
   }

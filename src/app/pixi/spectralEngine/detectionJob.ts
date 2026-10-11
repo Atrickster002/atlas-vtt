@@ -1,6 +1,6 @@
 /**
  * One grid detection from start to answer, with what it has to show on the way. It runs in the
- * detection worker, or on the main thread where no worker can start (`GridDetectionClient`), and
+ * detection worker, or on the main thread where no worker can start (`SpectralEngineClient`), and
  * touches neither a document nor PIXI.
  */
 

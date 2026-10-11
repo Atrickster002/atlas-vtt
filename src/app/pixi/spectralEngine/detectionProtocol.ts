@@ -2,7 +2,7 @@ import type { AlignmentResult } from '../gridAlignmentMath';
 import type { ImageSize, MapGray } from './detectGrid';
 import type { DetectionEvent, DetectionOutcome } from './detectionJob';
 
-/** What `GridDetectionClient` asks of the detection worker: one job at a time. */
+/** What `SpectralEngineClient` asks of the detection worker: one job at a time. */
 export interface DetectionRequest {
   id: number;
   /** Names the map image; its pixels come along only where the worker does not hold them yet. */

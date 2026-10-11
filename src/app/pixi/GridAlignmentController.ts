@@ -16,7 +16,7 @@ import { AlignmentMarks } from './gridAlignment/AlignmentMarks';
 import type { GridScanLayer } from './gridAlignment/GridScanLayer';
 import { getQuadrantBounds } from './gridAlignmentMath';
 import type { AlignmentPoint, AlignmentResult, MapBounds } from './gridAlignmentMath';
-import type { DetectionEvent, DetectionOutcome } from './gridDetection/detectionJob';
+import type { DetectionEvent, DetectionOutcome } from './spectralEngine/detectionJob';
 import type { DetectableMap } from './mapImage/mapImageView';
 import { glideViewport } from './utils/viewportGlide';
 
@@ -33,12 +33,22 @@ export type { AlignmentPoint, AlignmentResult } from './gridAlignmentMath';
 const QUADRANT_PADDING = 1.2;
 const FULL_MAP_PADDING = 1.1;
 
+/**
+ * What a scan shows on the map: the engine at work and its answer being drawn (`working`), only the
+ * last of the answer's glow, which the eye no longer follows (`fading`), or nothing.
+ */
+export type ScanState = 'working' | 'fading' | 'none';
+
 export class GridAlignmentController {
   private readonly marks: AlignmentMarks;
   /** A detection's answer waits behind the scan's locking wave: the grid shows once the wave has passed. */
   private awaitingReveal = false;
   /** Ends the camera's glide where it is. */
   private endGlide: (() => void) | null = null;
+  /** Counts the scans begun, so that an earlier one's end says nothing about a later one. */
+  private scanRun = 0;
+  /** Hears what a scan shows on the map, from its start until it has nothing left to show. */
+  onScan: ((scan: ScanState) => void) | null = null;
 
   /** `scan` shows detections on the map while they run; without one only their answers show. The controller owns it. */
   constructor(
@@ -150,6 +160,8 @@ export class GridAlignmentController {
     const { scan } = this;
     if (!scan) return () => undefined;
     scan.start(origin);
+    this.scanRun++;
+    this.onScan?.(scan.showing ? 'working' : 'none');
     return (event) => scan.show(event);
   }
 
@@ -162,6 +174,7 @@ export class GridAlignmentController {
     if (!scan) return;
     if (!result) {
       scan.miss();
+      this.sayWhenStill(scan);
       return;
     }
     // The wave runs over the map as the result draws it.
@@ -172,12 +185,29 @@ export class GridAlignmentController {
       this.awaitingReveal = false;
       this.gridSystem.updateOptions({ enabled: true, isAligning: true });
     });
+    this.sayWhenStill(scan);
+  }
+
+  /** Tells `onScan` how the scan under way ends: its last glow, then nothing. */
+  private sayWhenStill(scan: GridScanLayer): void {
+    const run = this.scanRun;
+    const say = (state: ScanState): void => {
+      if (run === this.scanRun) this.onScan?.(state);
+    };
+    if (!scan.showing) {
+      say('none');
+      return;
+    }
+    scan.whenQuiet(() => say('fading'));
+    scan.whenStill(() => say('none'));
   }
 
   /** Ends a scan nobody waits for any more. */
   cancelScan(): void {
     this.awaitingReveal = false;
     this.scan?.cancel();
+    this.scanRun++;
+    this.onScan?.('none');
   }
 
   // -----------------------------------------------------------------------

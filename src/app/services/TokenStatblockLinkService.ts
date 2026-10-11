@@ -1,5 +1,5 @@
 import { StatblockTokenImportService } from './StatblockTokenImportService';
-import { App, TFile, Notice, Modal } from 'obsidian';
+import { App, TFile, Modal } from 'obsidian';
 import { EventEmitter } from 'events';
 import { AssetService, type TokenAsset } from './AssetService';
 import { resolveLinkedCreature } from '../creatures/linkedCreature';
@@ -14,6 +14,7 @@ import { STATBLOCK_IMAGE_KEYS } from './statblockImageKeys';
 import type { BaseToken, Character } from '../types';
 import { ATLAS_NATIVE_MODAL_CLASSES } from '../ui/nativeModal';
 import { t } from '../i18n';
+import { showNotice } from '../ui/notice';
 
 export interface TokenStatblockLink {
   tokenImagePath: string;
@@ -100,7 +101,7 @@ export class TokenStatblockLinkService extends EventEmitter {
     // Get the statblock file
     const statblockFile = this.app.vault.getAbstractFileByPath(statblockPath);
     if (!(statblockFile instanceof TFile)) {
-      new Notice(t('link.notFound', { path: statblockPath }));
+      showNotice(t('link.notFound', { path: statblockPath }));
       return false;
     }
     
@@ -166,7 +167,7 @@ export class TokenStatblockLinkService extends EventEmitter {
     this.app.workspace.trigger('atlas-vtt:refresh-assets');
     
     // Show success notice
-    new Notice(t('link.linked'));
+    showNotice(t('link.linked'));
     
     return true;
   }
@@ -207,7 +208,7 @@ export class TokenStatblockLinkService extends EventEmitter {
     if (notify) this.app.workspace.trigger('atlas-vtt:refresh-assets');
     
     // Show a notice to confirm unlinking
-    new Notice(t('link.unlinked'));
+    showNotice(t('link.unlinked'));
     
     // Clear the statblock's image if it still points at this token.
     if (updateStatblockAvatar) {
@@ -273,12 +274,12 @@ export class TokenStatblockLinkService extends EventEmitter {
       const item = result.items[0];
       if (item?.asset) {
         this.emit('link-changed', { type: 'linked', tokenImagePath: item.asset.imagePath, statblockPath });
-        new Notice(t('link.created', { name: item.name }));
+        showNotice(t('link.created', { name: item.name }));
         return item.asset.imagePath;
       }
-      new Notice(item?.message ?? t('link.noneCreated'));
+      showNotice(item?.message ?? t('link.noneCreated'));
     } catch (error) {
-      new Notice(error instanceof Error ? error.message : t('link.importFailed'));
+      showNotice(error instanceof Error ? error.message : t('link.importFailed'));
     }
     return null;
   }

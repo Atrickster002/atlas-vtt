@@ -1,11 +1,12 @@
 import { createElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import { Notice } from 'obsidian';
+
 import { PlayerWindowService } from './PlayerWindowService';
 import { PlayerLootWindow } from '../react/components/loot/PlayerLootWindow';
 import { MOTION_EASE_OUT, MOTION_NORMAL_MS } from '../utils/motion';
 import type { LootDraw } from '../loot/lootRoller';
 import { t } from '../i18n';
+import { showNotice } from '../ui/notice';
 
 type Listener = (shownIds: ReadonlySet<string>) => void;
 
@@ -54,7 +55,7 @@ export class PlayerLootDisplay {
     }
     const win = PlayerWindowService.getInstance()?.getWindow();
     if (!win) {
-      new Notice(t('loot.openPlayerView'));
+      showNotice(t('loot.openPlayerView'));
       return;
     }
     // Rebuilt in a new player window, or when the page dropped it.

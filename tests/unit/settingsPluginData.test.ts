@@ -68,6 +68,18 @@ describe('Atlas settings in the plugin data', () => {
     expect(data.stored()).not.toHaveProperty('systemPresets');
   });
 
+  it('looks for the grid of new scenes unless the GM switched that off', async () => {
+    const { settings, data } = await loaded();
+    expect(settings.detectsGridOnNewScenes()).toBe(true);
+
+    settings.setDetectGridOnNewScenes(false);
+    await settings.saveSettingsNow();
+    expect(settings.detectsGridOnNewScenes()).toBe(false);
+    expect(data.stored()).toMatchObject({ detectGridOnNewScenes: false });
+    // Anything but a plain false, as another version may write, reads as on.
+    expect((await loaded({ detectGridOnNewScenes: 'no' })).settings.detectsGridOnNewScenes()).toBe(true);
+  });
+
   it('reads the plugin data again when it changed on disk and tells every listener', async () => {
     const { settings, data } = await loaded({ diceColour: 'card' });
     const heard = vi.fn();

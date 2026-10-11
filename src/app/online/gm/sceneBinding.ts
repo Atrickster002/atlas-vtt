@@ -1,7 +1,7 @@
 import { scaleInWindow } from './assetVariants.ts';
 import type { MeasureRules } from '../marks/index.ts';
 import type { GmMessage } from '../protocol/index.ts';
-import { Notice, type App } from 'obsidian';
+import { type App } from 'obsidian';
 import type { GridGeometry } from '../../grid/gridDistance';
 import { resolveMeasurementSettings } from '../../grid/measurementFormat';
 import { diceSourceOf } from './atlasDice.ts';
@@ -17,6 +17,7 @@ import { PresentedStore } from './presentedStore.ts';
 import { SceneShare } from './SceneShare.ts';
 import type { AtlasTab, TabBinding } from './sharedTab.ts';
 import type { VaultImage } from './TokenShare.ts';
+import { showNotice } from '../../ui/notice';
 
 /** A shared view's scene and the GM's marks on it. */
 export interface SceneBinding extends TabBinding {
@@ -95,7 +96,7 @@ export function bindScene(ports: SceneBindingPorts, tab: AtlasTab, presented: Pr
     send: (body, to) => live() && ports.send(body, to),
     sendLive: (body, key) => live() && ports.sendLive(body, key),
     drawnPlaces: (tokenIds) => drawnTokenPlaces(shownRenderer(), tokenIds),
-    notice: (text) => live() && new Notice(text),
+    notice: (text) => live() && showNotice(text),
     seats: heldSeats(ports.seats, () => store.held),
     randomId: () => ports.randomId(),
     logRoll: (roll) => live() && ports.logRoll(roll),

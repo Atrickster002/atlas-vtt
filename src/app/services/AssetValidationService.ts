@@ -1,6 +1,7 @@
-import { App, Notice, TFile, normalizePath } from 'obsidian';
+import { App, TFile, normalizePath } from 'obsidian';
 import type { MapFile } from './MapPersistence';
 import { t } from '../i18n';
+import { showNotice } from '../ui/notice';
 
 /** The parts of a map that reference vault images; satisfied by a MapFile and by the live store state. */
 export interface MapAssetReferences {
@@ -111,7 +112,7 @@ export class AssetValidationService {
         
         message += `\n${t('validation.placeholders')}`;
 
-        new Notice(message, 5000);
+        showNotice(message, 5000);
     }
 
     clearCache(): void {

@@ -7,7 +7,7 @@ import { GridScanLayer } from '../../src/app/pixi/gridAlignment/GridScanLayer';
 import { LOCK_FADE_MS, LOCK_MS } from '../../src/app/pixi/gridAlignment/scanChoreography';
 import { ScanPace } from '../../src/app/pixi/gridAlignment/scanPace';
 import type { AlignmentResult } from '../../src/app/pixi/gridAlignmentMath';
-import { gridLineSamples } from '../../src/app/pixi/gridDetection/gridTemplate';
+import { gridLineSamples } from '../../src/app/pixi/spectralEngine/gridTemplate';
 
 /**
  * The grid scan draws its grids in a shader, from the distance to the nearest line, while the
@@ -26,6 +26,13 @@ interface Stage {
   world: Container;
   scan: GridScanLayer;
   overlays: Container[];
+}
+
+/** A pace that never steps down: a browser that ticks at 30 frames a second under load would get the scan at half its pixels. */
+class SteadyPace extends ScanPace {
+  override frame(): boolean {
+    return false;
+  }
 }
 
 let open: Stage | null = null;
@@ -84,7 +91,8 @@ describe('grid scan', () => {
   for (const [scale, x, y] of [[1, 0, 0], [0.6, 40, -25]] as const) {
     for (const grid of grids) {
       it(`draws ${grid.gridType} on the lines the grid drawers draw, with the map at ${scale}`, async () => {
-        const view = await stage(scale, x, y);
+        // Where the lines lie is asked of the scan at its full pixels, whatever pace this machine keeps today.
+        const view = await stage(scale, x, y, new SteadyPace());
         const revealed = new Promise<void>((resolve) => view.scan.lock(grid as AlignmentResult, null, resolve));
         await revealed;
         // The answer stands sharp over the whole map after the swell, which bends the grid with the map
@@ -215,6 +223,36 @@ describe('grid scan', () => {
     }, pace);
     expect(scan).toBeNull();
     app.destroy(true, { children: true });
+  });
+
+  it('may be destroyed by whoever hears that it is still, as a new scene\'s detection does', async () => {
+    const view = await stage();
+    const thrown: unknown[] = [];
+    const heard = (event: ErrorEvent): void => {
+      event.preventDefault();
+      thrown.push(event.error);
+    };
+    window.addEventListener('error', heard);
+    let stills = 0;
+    view.scan.whenStill(() => {
+      stills++;
+      view.scan.destroy();
+    });
+    view.scan.start();
+    await wait(100);
+    view.scan.cancel();
+    await wait(600);
+    window.removeEventListener('error', heard);
+
+    expect(thrown).toEqual([]);
+    expect(stills).toBe(1);
+    // The app's ticker goes on: a throw inside it would have ended every later frame of the map.
+    let ticks = 0;
+    const count = (): void => { ticks++; };
+    view.app.ticker.add(count);
+    await wait(100);
+    view.app.ticker.remove(count);
+    expect(ticks).toBeGreaterThan(0);
   });
 
   it('goes quietly when its view is closed under a running scan: the app is destroyed first', async () => {

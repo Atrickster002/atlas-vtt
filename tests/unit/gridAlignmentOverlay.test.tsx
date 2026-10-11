@@ -3,7 +3,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { create } from 'zustand';
 import type { AlignmentResult } from '../../src/app/pixi/gridAlignmentMath';
-import type { MapGray } from '../../src/app/pixi/gridDetection/detectGrid';
+import type { MapGray } from '../../src/app/pixi/spectralEngine/detectGrid';
 import { NO_STRETCH, readMapStretch, type MapStretch } from '../../src/app/grid/mapStretch';
 import type { GridState } from '../../src/app/types/gridTypes';
 import type { AtlasView } from '../../src/app/atlas-view';
@@ -11,11 +11,11 @@ import type { AtlasUIContextValue } from '../../src/app/react/root/AtlasUIContex
 
 const detectGridFromMapImage = vi.fn<() => Promise<AlignmentResult | null>>();
 const snapGridToMapGray = vi.fn<(gray: MapGray, candidates: AlignmentResult[]) => AlignmentResult | null>();
-vi.mock('../../src/app/pixi/gridDetection/detectGrid', () => ({
+vi.mock('../../src/app/pixi/spectralEngine/detectGrid', () => ({
   pictureOf: () => ({ size: { width: 1000, height: 1000 }, bitmap: () => Promise.resolve(null) }),
 }));
 // The worker's side of a detection: what it finds, without its edges on the map's lines.
-vi.mock('../../src/app/pixi/gridDetection/gridDetectionService', () => ({
+vi.mock('../../src/app/pixi/spectralEngine/spectralEngineService', () => ({
   detectGridOfMap: async () => ({ result: await detectGridFromMapImage(), hits: null }),
   detectGridInGray: (gray: MapGray, options: { candidates: AlignmentResult[] }) => Promise.resolve({ result: snapGridToMapGray(gray, options.candidates), hits: null }),
 }));
@@ -134,7 +134,7 @@ describe('GridAlignmentOverlay', () => {
     detectGridFromMapImage.mockResolvedValue({ gridType: 'hex-horizontal', cellSize: 35.3, offsetX: 4, offsetY: 9, confidence: 0.51, mapStretch: { x: 1.048, y: 1 } });
     const { store, gridSystem, stretches, onClose } = open();
 
-    fireEvent.click(screen.getByText('Detect grid'));
+    fireEvent.click(screen.getByText('Auto detect'));
     await gridToApply();
 
     expect(stretches.at(-1)).toEqual({ x: 1.048, y: 1 });
@@ -156,7 +156,7 @@ describe('GridAlignmentOverlay', () => {
   it('moves nothing where the applied alignment draws the map as the scene has it', async () => {
     detectGridFromMapImage.mockResolvedValue({ gridType: 'square', cellSize: 64, offsetX: 3, offsetY: 5, confidence: 0.9 });
     const { store } = open();
-    fireEvent.click(screen.getByText('Detect grid'));
+    fireEvent.click(screen.getByText('Auto detect'));
     await gridToApply();
 
     fireEvent.click(screen.getByText('Apply'));
@@ -168,7 +168,7 @@ describe('GridAlignmentOverlay', () => {
   it('ends the alignment when the view opens another scene, with the map put back', async () => {
     detectGridFromMapImage.mockResolvedValue({ gridType: 'square', cellSize: 64, offsetX: 0, offsetY: 0, confidence: 0.6, mapStretch: { x: 1, y: 1.1 } });
     const { store, stretches, onClose } = open();
-    fireEvent.click(screen.getByText('Detect grid'));
+    fireEvent.click(screen.getByText('Auto detect'));
     await gridToApply();
 
     act(() => store.setState({ isMapLoading: true }));
@@ -178,29 +178,61 @@ describe('GridAlignmentOverlay', () => {
     expect(store.getState().grid).toBe(SCENE_GRID);
   });
 
-  it('shows nothing of a detection that answers after the GM went on by hand', async () => {
+  it('lets no other way be chosen while a detection runs: its answer is what the panel shows', async () => {
     let answer: (found: unknown) => void = () => undefined;
     detectGridFromMapImage.mockReturnValue(new Promise((resolve) => { answer = resolve; }));
-    const { stretches } = open();
-    fireEvent.click(screen.getByText('Detect grid'));
+    open();
+    fireEvent.click(screen.getByText('Auto detect'));
 
+    // A click on a way by hand does nothing until the search is over.
     fireEvent.click(screen.getByText('Measure'));
+    expect(screen.getByRole('radio', { name: 'Measure' }).getAttribute('aria-checked')).toBe('false');
     await act(async () => {
-      answer({ gridType: 'hex-horizontal', cellSize: 35.3, offsetX: 4, offsetY: 9, confidence: 0.51, mapStretch: { x: 1.048, y: 1 } });
+      answer({ gridType: 'hex-horizontal', cellSize: 35.3, offsetX: 4, offsetY: 9, confidence: 0.51 });
       await Promise.resolve();
     });
 
-    expect(applyButton().disabled).toBe(true);
-    expect(stretches.every((stretch) => stretch.x === 1 && stretch.y === 1)).toBe(true);
-    // The grid can be looked for again, and the grid type is still the scene's: the answer nobody waited for set nothing.
-    expect(screen.getByText('Detect grid')).toBeTruthy();
-    expect(screen.getByRole('radio', { name: /Pointy/ }).getAttribute('aria-checked')).toBe('true');
+    expect(applyButton().disabled).toBe(false);
+    expect(screen.getByRole('radio', { name: /Flat/ }).getAttribute('aria-checked')).toBe('true');
+  });
+
+  it('lets a search play out when the panel is closed under it, and takes the grid it finds', async () => {
+    let answer: (found: unknown) => void = () => undefined;
+    detectGridFromMapImage.mockReturnValue(new Promise((resolve) => { answer = resolve; }));
+    const { store, onClose } = open();
+    fireEvent.click(screen.getByText('Auto detect'));
+
+    // Closed: the panel is out of sight, the search goes on.
+    fireEvent.click(document.querySelector('.atlas-close-btn')!);
+    expect(onClose).not.toHaveBeenCalled();
+    expect(document.querySelector<HTMLElement>('.atlas-grid-alignment')!.hidden).toBe(true);
+
+    await act(async () => {
+      answer({ gridType: 'hex-horizontal', cellSize: 35.3, offsetX: 4, offsetY: 9, confidence: 0.51 });
+      await Promise.resolve();
+    });
+    // An aligned grid is in use: it shows and is snapped to, whatever the scene had before.
+    expect(store.getState().grid).toMatchObject({ type: 'hex-horizontal', size: 35.3, offsetX: 4, offsetY: 9, visible: true, snapToGrid: true });
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('closes without a grid when the search it was closed under finds none', async () => {
+    let answer: (found: unknown) => void = () => undefined;
+    detectGridFromMapImage.mockReturnValue(new Promise((resolve) => { answer = resolve; }));
+    const { store, onClose } = open();
+    fireEvent.click(screen.getByText('Auto detect'));
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(onClose).not.toHaveBeenCalled();
+
+    await act(async () => { answer(null); await Promise.resolve(); });
+    expect(store.getState().grid).toEqual(SCENE_GRID);
+    expect(onClose).toHaveBeenCalledTimes(1);
   });
 
   it('puts the map back as the scene has it when a previewed stretch is cancelled', async () => {
     detectGridFromMapImage.mockResolvedValue({ gridType: 'square', cellSize: 64, offsetX: 0, offsetY: 0, confidence: 0.6, mapStretch: { x: 1, y: 1.1 } });
     const { store, stretches } = open();
-    fireEvent.click(screen.getByText('Detect grid'));
+    fireEvent.click(screen.getByText('Auto detect'));
     await gridToApply();
 
     fireEvent.keyDown(window, { key: 'Escape' });
@@ -212,7 +244,7 @@ describe('GridAlignmentOverlay', () => {
   it('goes back from a detected grid to measuring when a tab is chosen', async () => {
     detectGridFromMapImage.mockResolvedValue({ gridType: 'hex-horizontal', cellSize: 35.3, offsetX: 4, offsetY: 9, confidence: 0.51, mapStretch: { x: 1.048, y: 1 } });
     const { stretches } = open();
-    fireEvent.click(screen.getByText('Detect grid'));
+    fireEvent.click(screen.getByText('Auto detect'));
     await gridToApply();
 
     fireEvent.click(screen.getByText('Measure'));
@@ -277,28 +309,48 @@ describe('GridAlignmentOverlay', () => {
 
   it('opens without a way of aligning by hand chosen: the map is left as it is until the GM measures or places', () => {
     const { gridSystem } = open();
-    // The two ways are offered and neither is taken: no grid type to pick, nothing to click on the map, nothing to apply.
-    expect(screen.getAllByRole('radio').map((radio) => radio.getAttribute('aria-checked'))).toEqual(['false', 'false']);
+    const gridTypes = (): HTMLButtonElement[] => ['Square', 'Pointy', 'Flat'].map((name) => screen.getByRole<HTMLButtonElement>('radio', { name }));
+    // The two ways are offered and neither is taken: the grid type stands in its place but is not to be picked, nothing to click on the map, nothing to apply.
+    expect(['Measure', 'Freehand'].map((name) => screen.getByRole('radio', { name }).getAttribute('aria-checked'))).toEqual(['false', 'false']);
+    expect(gridTypes().every((type) => type.disabled)).toBe(true);
     expect(screen.queryByText(/Click a corner/)).toBeNull();
     expect(applyButton().disabled).toBe(true);
     expect(gridSystem.updateOptions).not.toHaveBeenCalled();
 
     fireEvent.click(screen.getByText('Measure'));
-    expect(screen.getAllByRole('radiogroup')).toHaveLength(2);
     expect(screen.getByRole('radio', { name: 'Measure' }).getAttribute('aria-checked')).toBe('true');
-    expect(screen.getByText('Click a corner of a hex.')).toBeTruthy();
+    expect(gridTypes().some((type) => type.disabled)).toBe(false);
   });
 
-  it('shows only the search while a detection runs, and opens measuring where the map has no grid to find', async () => {
+  it('says what to click below the panel, which holds the same controls in every state', () => {
+    open();
+    const panel = document.querySelector('.atlas-grid-alignment-panel')!;
+    const controls = (): string[] => [...panel.querySelectorAll('button')].map((button) => button.textContent ?? '');
+    const atOpen = controls();
+
+    fireEvent.click(screen.getByText('Measure'));
+    const hint = screen.getByText('Click a corner of a hex.');
+    expect(panel.contains(hint)).toBe(false);
+    expect(hint.closest('.atlas-grid-alignment-hint')).not.toBeNull();
+    expect(controls()).toEqual(atOpen);
+
+    fireEvent.click(screen.getByText('Freehand'));
+    expect(controls()).toEqual(atOpen);
+  });
+
+  it('shows a detection in its own button, and opens measuring where the map has no grid to find', async () => {
     let answer: (found: AlignmentResult | null) => void = () => undefined;
     detectGridFromMapImage.mockReturnValue(new Promise((resolve) => { answer = resolve; }));
     open();
-    fireEvent.click(screen.getByText('Detect grid'));
+    fireEvent.click(screen.getByText('Auto detect'));
 
-    // The words of the search stand where its button was; the ways by hand stay, to go on by hand at any time.
-    await screen.findByText('Looking at the map…');
-    expect(screen.queryByText('Detect grid')).toBeNull();
-    expect(screen.getAllByRole('radiogroup')).toHaveLength(1);
+    // The button stays and shows the work; the words of the search are for screen readers alone.
+    const words = await screen.findByText('Looking at the map…');
+    expect(words.className).toBe('atlas-grid-alignment-status');
+    expect(screen.getByText('Auto detect').closest('button')!.getAttribute('aria-busy')).toBe('true');
+    // Nothing else is to be chosen until the search is over; closing stays.
+    expect(['Measure', 'Freehand', 'Square'].every((name) => screen.getByRole<HTMLButtonElement>('radio', { name }).disabled)).toBe(true);
+    expect(applyButton().disabled).toBe(true);
 
     // No grid: said in a notice beside the panel, and measuring opens. The panel gets no words of its own.
     await act(async () => { answer(null); });

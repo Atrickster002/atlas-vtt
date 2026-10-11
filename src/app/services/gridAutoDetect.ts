@@ -1,8 +1,8 @@
 import type { StoreApi } from 'zustand';
-import type { DetectableMap } from '../pixi/gridDetection/detectGrid';
-import { NO_GRID } from '../pixi/gridDetection/detectionJob';
-import type { DetectionEvent, DetectionOutcome } from '../pixi/gridDetection/detectionJob';
-import { detectGridOfMap } from '../pixi/gridDetection/gridDetectionService';
+import type { DetectableMap } from '../pixi/spectralEngine/detectGrid';
+import { NO_GRID } from '../pixi/spectralEngine/detectionJob';
+import type { DetectionEvent, DetectionOutcome } from '../pixi/spectralEngine/detectionJob';
+import { detectGridOfMap } from '../pixi/spectralEngine/spectralEngineService';
 import { runUntracked } from '../stores/history';
 import { gridAlignedTo } from '../pixi/gridAlignmentMath';
 import type { GridState } from '../types/gridTypes';
@@ -26,9 +26,10 @@ export interface DetectionShow {
 /**
  * Aligns the grid of a freshly created scene to its map image, once. New scenes
  * carry `grid.autoDetect`; the GM view consumes the flag on the first load. A map
- * without a detectable grid simply gets its grid hidden. The renderer follows the
- * store's grid, so writing the store is all that is needed, except for the map's stretch
- * (`GridState.mapStretch`), which a load shows itself: the caller draws the map with it.
+ * without a detectable grid gets its grid hidden and nothing snaps on it; a found grid
+ * shows and is snapped to. The renderer follows the store's grid, so writing the store is
+ * all that is needed, except for the map's stretch (`GridState.mapStretch`), which a load
+ * shows itself: the caller draws the map with it.
  * Detection reads the map's pixels from the tile worker and runs in a worker of its own: nothing is
  * written once `isCurrent` says the load was overtaken meanwhile. It runs once the scene is shown,
  * so what it writes is no step of the GM's to undo.
@@ -55,13 +56,13 @@ export async function autoDetectGridOnFirstLoad(
   const detected = outcome.result;
   if (!detected) {
     show.none?.();
-    runUntracked(store, () => setGrid({ ...settled, visible: false }));
+    runUntracked(store, () => setGrid({ ...settled, visible: false, snapToGrid: false }));
     return 'none';
   }
 
   await show.found?.(outcome);
   if (!isCurrent()) return 'skipped';
-  runUntracked(store, () => setGrid({ ...gridAlignedTo(settled, detected), visible: true }));
+  runUntracked(store, () => setGrid({ ...gridAlignedTo(settled, detected), visible: true, snapToGrid: true }));
   return 'found';
 }
 

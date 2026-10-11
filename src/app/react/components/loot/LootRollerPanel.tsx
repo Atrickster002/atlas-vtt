@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { GripHorizontal } from 'lucide-react';
-import { Notice, type App } from 'obsidian';
+import { type App } from 'obsidian';
 import { CoinIcon } from '../CoinIcon';
 import { CloseButton } from '../../../packages/components/primitives/CloseButton';
 import { useDialogWindowVariants } from '../../../packages/components/primitives/dialogMotion';
@@ -26,6 +26,7 @@ import { LootEmptyState } from './LootEmptyState';
 import { LootRollerTutorials } from './LootRollerTutorials';
 import { CollectionSettingsModal } from '../CollectionSettingsModal';
 import { t } from '../../../i18n';
+import { showNotice } from '../../../ui/notice';
 
 const MARGIN = 12;
 /** Small enough for a laptop map view, big enough for the source list and one column of cards. */
@@ -41,7 +42,7 @@ function openLink(app: App, link: string): void {
 function openItemNote(app: App, draw: LootDraw): void {
   const note = app.vault.getFileByPath(draw.notePath);
   if (!note) {
-    new Notice(t('loot.noteGone', { name: draw.name }));
+    showNotice(t('loot.noteGone', { name: draw.name }));
     return;
   }
   runInBackground(app.workspace.getLeaf('tab').openFile(note), `Opening ${note.path}`, t('loot.openFailed'));

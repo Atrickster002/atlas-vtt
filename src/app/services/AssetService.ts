@@ -1,7 +1,7 @@
 import { parseResourceDefinitions } from '../resources/resourceDefinitions';
 import { wasTokenRegistrationSaved } from './assetRegistrationRecovery';
 import { SettingsService } from './SettingsService';
-import { App, Notice, TFile, TFolder } from 'obsidian';
+import { App, TFile, TFolder } from 'obsidian';
 import { ensureAdapterFolder } from '../plugin/vaultFolders';
 import type { TokenStateSnapshot } from '../types';
 import type { CellCoord, EncounterFormation } from '../encounters/encounterFormation';
@@ -29,6 +29,7 @@ import { LEGACY_INDEX_FILE, LIBRARY_FILE, recordFilePath } from './library/libra
 import { isPayloadUnread, serializeRecord } from './library/recordFile';
 import { libraryClock, parseLibraryState } from './library/libraryState';
 import { trashSceneSnapshots } from '../snapshots/sceneSnapshotFolders';
+import { showNotice } from '../ui/notice';
 
 export interface BaseAsset {
   id: string;
@@ -442,10 +443,10 @@ export class AssetService {
     try {
       copyPath = await preserveUnreadableMetadata(this.app.vault.adapter, stored.path);
     } catch (error) {
-      new Notice(t('index.unreadable', { path: stored.path }), 0);
+      showNotice(t('index.unreadable', { path: stored.path }), 0);
       throw error;
     }
-    new Notice(t('index.rebuilding', { path: copyPath }), 0);
+    showNotice(t('index.rebuilding', { path: copyPath }), 0);
     this.metadata = await this.createDefaultMetadata();
   }
 

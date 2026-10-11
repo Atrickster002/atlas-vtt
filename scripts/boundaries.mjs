@@ -40,7 +40,7 @@ export const BOUNDARIES = {
       "src/app/featureFlags.ts",
       "src/app/audio/dataUrl.ts",
       "src/app/keyboard/tooltipEscape.ts",
-      "src/app/pixi/gridDetection/grayImage.ts",
+      "src/app/pixi/spectralEngine/grayImage.ts",
       "src/app/pixi/mapImage/mapImageView.ts",
       "src/app/pixi/mapImage/pyramid.ts",
       "src/app/pixi/lighting/lightFlicker.ts",

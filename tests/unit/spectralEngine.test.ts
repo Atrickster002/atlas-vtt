@@ -1,10 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { detectGridInImage, detectGridInMapGray, snapGridToMapGray } from '../../src/app/pixi/gridDetection/detectGrid';
-import { inkOf, runDetection } from '../../src/app/pixi/gridDetection/detectionJob';
-import type { DetectionEvent } from '../../src/app/pixi/gridDetection/detectionJob';
-import { gridLineSamples } from '../../src/app/pixi/gridDetection/gridTemplate';
-import type { GrayImage } from '../../src/app/pixi/gridDetection/grayImage';
-import { fftInPlace } from '../../src/app/pixi/gridDetection/fft';
+import { detectGridInImage, detectGridInMapGray, snapGridToMapGray } from '../../src/app/pixi/spectralEngine/detectGrid';
+import { inkOf, runDetection } from '../../src/app/pixi/spectralEngine/detectionJob';
+import type { DetectionEvent } from '../../src/app/pixi/spectralEngine/detectionJob';
+import { gridLineSamples } from '../../src/app/pixi/spectralEngine/gridTemplate';
+import type { GrayImage } from '../../src/app/pixi/spectralEngine/grayImage';
+import { fftInPlace } from '../../src/app/pixi/spectralEngine/fft';
 import type { GridType } from '../../src/app/grid/GridSystem';
 import { axialToPixel, createHexLayout, hexVertices, isHexGridType, pixelToAxial } from '../../src/app/grid/hexGeometry';
 
@@ -493,6 +493,14 @@ describe('grids a program drew, whose lines are all alike', () => {
 
     expect(detected.gridType).toBe('square');
     expect(detected.cellSize).toBeCloseTo(20, 1);
+  }, 60000);
+
+  // A map uploaded small (a preview of 400 px) has cells of ten pixels: its grid is that one, not every second line of it.
+  it('finds the cells of a small picture, and not four of them as one', () => {
+    const detected = detectGridInImage(drawnGrid(10, 1, 400, 300, 120))!;
+
+    expect(detected.gridType).toBe('square');
+    expect(detected.cellSize).toBeCloseTo(10, 1);
   }, 60000);
 
   it('fits a measurement to cells that are rectangles', () => {

@@ -1,9 +1,9 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { createInMemoryApp } from '../mocks/inMemoryVault';
-import type { DetectableMap } from '../../src/app/pixi/gridDetection/detectGrid';
+import type { DetectableMap } from '../../src/app/pixi/spectralEngine/detectGrid';
 
 const detectGridFromMapImage = vi.fn();
-vi.mock('../../src/app/pixi/gridDetection/gridDetectionService', () => ({
+vi.mock('../../src/app/pixi/spectralEngine/spectralEngineService', () => ({
   detectGridOfMap: async (map: DetectableMap) => ({ result: (await detectGridFromMapImage(map)) as unknown, hits: null }),
 }));
 
@@ -40,6 +40,18 @@ describe('autoDetectGridOnFirstLoad', () => {
     expect(detectGridFromMapImage).toHaveBeenCalledWith(mapImage);
     expect(store.getState().grid).toMatchObject({ type: 'hex-vertical', size: 83.21, offsetX: 40.2, offsetY: 17.7, visible: true, color: '#00FFFF' });
     expect(store.getState().grid).not.toHaveProperty('autoDetect');
+  });
+
+  it('snaps to a grid it found and to nothing where the map has none', async () => {
+    detectGridFromMapImage.mockResolvedValue({ gridType: 'square', cellSize: 64, offsetX: 0, offsetY: 0, confidence: 0.8 });
+    const found = setup({ ...NEW_GRID, snapToGrid: false });
+    await autoDetectGridOnFirstLoad(found, mapImage);
+    expect(found.getState().grid?.snapToGrid).toBe(true);
+
+    detectGridFromMapImage.mockResolvedValue(null);
+    const none = setup({ ...NEW_GRID, snapToGrid: true });
+    await autoDetectGridOnFirstLoad(none, mapImage);
+    expect(none.getState().grid).toMatchObject({ visible: false, snapToGrid: false });
   });
 
   it('writes the stretch a map with cells that are not regular needs, and none for a regular one', async () => {

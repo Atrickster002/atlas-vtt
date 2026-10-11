@@ -8,9 +8,9 @@ import type { RefObject } from 'react';
 import type { AtlasView } from '../../atlas-view';
 import type { GridAlignmentController } from '../../pixi/GridAlignmentController';
 import type { AlignmentResult } from '../../pixi/gridAlignmentMath';
-import { NO_GRID } from '../../pixi/gridDetection/detectionJob';
-import type { DetectionEvent, DetectionOutcome } from '../../pixi/gridDetection/detectionJob';
-import { detectGridOfMap } from '../../pixi/gridDetection/gridDetectionService';
+import { NO_GRID } from '../../pixi/spectralEngine/detectionJob';
+import type { DetectionEvent, DetectionOutcome } from '../../pixi/spectralEngine/detectionJob';
+import { detectGridOfMap } from '../../pixi/spectralEngine/spectralEngineService';
 import { describeGridType } from './useGridAlignmentEffects';
 import { t } from '../../i18n';
 
