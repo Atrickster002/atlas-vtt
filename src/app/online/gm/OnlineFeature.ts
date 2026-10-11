@@ -35,7 +35,7 @@ export class OnlineFeature extends Component {
   settings: OnlineSettings = { ...DEFAULT_SETTINGS };
   /** The GM's side of online play, for panels and commands: table, players and player tokens. */
   online: OnlineControl;
-  /** The GM's Atlas account, which hosts tables unless the create key is set. */
+  /** The GM's Atlas account, which tables are asked for with. */
   readonly account: AccountControl;
   private readonly app: App;
   /** The running table as saved in this device's data, so a reload comes back to it. */
@@ -54,12 +54,11 @@ export class OnlineFeature extends Component {
   constructor(private readonly plugin: Plugin, private readonly data: OnlineDataFile) {
     super();
     this.app = plugin.app;
-    this.online = new OnlineControl(this.app, () => this.settings, new Ownership(readOwnership(undefined), () => undefined));
+    this.online = new OnlineControl(this.app, new Ownership(readOwnership(undefined), () => undefined));
     this.account = new AccountControl({
       http: obsidianHttp,
       timers: companionTimers(),
       tokens: secretTokenStore(this.app),
-      createKey: () => this.settings.createKey !== '',
       openUrl: (url) => void window.open(url),
       notify: (text) => new Notice(text),
     });
@@ -95,7 +94,6 @@ export class OnlineFeature extends Component {
         void this.saveSettings();
       },
       table: () => this.savedTable,
-      createKey: () => this.settings.createKey,
       playerNames: () => this.online.players().map((player) => player.name),
       connection: () => this.online.table?.connectionStats() ?? null,
     }, version, () => version);
@@ -109,7 +107,7 @@ export class OnlineFeature extends Component {
     const ownership = new Ownership(readOwnership(record.ownership), () => void this.saveSettings());
     this.savedTable = readSavedTable(record.table);
     this.savedLog = this.savedTable === null ? undefined : record.tableLog;
-    this.online = new OnlineControl(this.app, () => this.settings, ownership, (table) => {
+    this.online = new OnlineControl(this.app, ownership, (table) => {
       this.savedTable = table;
       void this.saveSettings();
     }, this.account, { read: () => this.savedLog, write: (entries) => this.keepLog(entries) });

@@ -1,9 +1,10 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
 import { AccountControl } from '../../../../src/app/online/gm/account/AccountControl.ts';
-import { accountText, planText } from '../../../../src/app/online/gm/account/accountView.ts';
+import { accessText, accountText, planText } from '../../../../src/app/online/gm/account/accountView.ts';
 import { DeviceSignIn } from '../../../../src/app/online/gm/account/deviceFlow.ts';
 import type { HttpRequest, HttpResponse } from '../../../../src/app/online/gm/account/http.ts';
+import { ACCESS_REFUSALS } from '../../../../src/app/online/gm/account/relayAccount.ts';
 import type { Timers } from '../../../../src/app/online/gm/companionTimers.ts';
 import { ACCOUNTS_ORIGIN as ACCOUNTS, RELAY_ORIGIN as RELAY } from '../../../../src/app/online/gm/servers.ts';
 
@@ -58,8 +59,7 @@ class FakeServers {
   reachable = true;
   /** What polling answers, one entry per poll (the last repeats). */
   polls: HttpResponse[] = [{ status: 400, json: { error: 'authorization_pending' } }];
-  me: HttpResponse = { status: 200, json: { account: MARA, access: null } };
-  redeem: HttpResponse = { status: 200, json: { access: { plan: 'beta', maxPlayers: 12, endsAt: null } } };
+  me: HttpResponse = { status: 200, json: { account: MARA, access: null, reason: 'no-access' } };
 
   readonly http = (request: HttpRequest): Promise<HttpResponse> => {
     this.requests.push(request);
@@ -69,8 +69,6 @@ class FakeServers {
     if (path === '/auth/device/token') return Promise.resolve(this.polls.length > 1 ? this.polls.shift() ?? this.polls[0]! : this.polls[0]!);
     if (path === '/auth/sign-out') return Promise.resolve({ status: 200, json: { success: true } });
     if (path === '/api/me') return Promise.resolve(this.me);
-    if (path === '/api/invites/redeem') return Promise.resolve(this.redeem);
-    if (path === '/api/me/data') return Promise.resolve(request.method === 'DELETE' ? { status: 200, json: { deleted: true } } : { status: 200, json: { userId: MARA.id, grants: [] } });
     return Promise.resolve({ status: 404, json: null });
   };
 
@@ -79,7 +77,7 @@ class FakeServers {
   }
 }
 
-function setup(createKey = false): { control: AccountControl; servers: FakeServers; timers: FakeTimers; tokens: { value: string | null }; opened: string[]; notices: string[] } {
+function setup(): { control: AccountControl; servers: FakeServers; timers: FakeTimers; tokens: { value: string | null }; opened: string[]; notices: string[] } {
   const servers = new FakeServers();
   const timers = new FakeTimers();
   const tokens = { value: null as string | null };
@@ -89,7 +87,6 @@ function setup(createKey = false): { control: AccountControl; servers: FakeServe
     http: servers.http,
     timers,
     tokens: { get: () => tokens.value, set: (token) => (tokens.value = token), clear: () => (tokens.value = null) },
-    createKey: () => createKey,
     openUrl: (url) => void opened.push(url),
     notify: (text) => void notices.push(text),
   });
@@ -127,7 +124,7 @@ describe('the device sign-in', () => {
     await timers.advance(10_000);
     await done;
     expect(tokens.value).toBe('bearer-token');
-    expect(control.view()).toEqual({ kind: 'no-access', account: MARA, redeeming: false, redeemError: null });
+    expect(control.view()).toEqual({ kind: 'no-access', account: MARA, reason: 'no-access' });
     expect(servers.requests.at(-1)).toMatchObject({ url: `${RELAY}/api/me`, authorization: 'Bearer bearer-token' });
     expect(timers.pending).toBe(0);
     // The token never travels in a URL.
@@ -181,22 +178,34 @@ describe('the device sign-in', () => {
 });
 
 describe('the signed-in account', () => {
-  it('shows what it may host, redeems a key and says why one is refused', async () => {
+  it('shows what the relay says it may host, and for each reason it may not the relay\'s own', async () => {
     const { control, servers, tokens } = setup();
     tokens.value = 'tok';
     expect(control.view()).toEqual({ kind: 'checking' });
+    for (const reason of ACCESS_REFUSALS) {
+      servers.me = { status: 200, json: { account: MARA, access: null, reason } };
+      await control.refresh(true);
+      expect(control.view()).toEqual({ kind: 'no-access', account: MARA, reason });
+    }
+    // A reason a later relay names, or none at all, is still no access: for a reason not known here.
+    for (const json of [{ account: MARA, access: null, reason: 'something-new' }, { account: MARA, access: null }]) {
+      servers.me = { status: 200, json };
+      await control.refresh(true);
+      expect(control.view()).toEqual({ kind: 'no-access', account: MARA, reason: null });
+    }
+    // The key was redeemed on the website: the next question shows it.
+    servers.me = { status: 200, json: { account: MARA, access: { plan: 'beta', maxPlayers: 12, endsAt: null } } };
     await control.refresh(true);
-    expect(control.view()).toMatchObject({ kind: 'no-access' });
-    servers.redeem = { status: 400, json: { error: 'expired' } };
-    await control.redeem('AAAA-BBBB-CCCC-DDDD');
-    expect(control.view()).toMatchObject({ kind: 'no-access', redeemError: 'This key has expired.' });
-    servers.redeem = { status: 429, json: { error: 'too-many-tries' } };
-    await control.redeem('AAAA-BBBB-CCCC-DDDD');
-    expect(control.view()).toMatchObject({ redeemError: 'Too many tries, try again tomorrow.' });
-    servers.redeem = { status: 200, json: { access: { plan: 'beta', maxPlayers: 12, endsAt: null } } };
-    await control.redeem('AAAA-BBBB-CCCC-DDDD');
     expect(control.view()).toEqual({ kind: 'can-host', account: MARA, access: { plan: 'beta', maxPlayers: 12, endsAt: null } });
-    expect(servers.requests.find((request) => request.url.endsWith('/redeem'))).toMatchObject({ method: 'POST', json: { key: 'AAAA-BBBB-CCCC-DDDD' }, authorization: 'Bearer tok' });
+    // The account is only ever asked about: nothing is posted to the relay, and the token goes in the header.
+    expect(new Set(servers.paths())).toEqual(new Set(['GET /api/me']));
+    expect(servers.requests.every((request) => request.authorization === 'Bearer tok' && !request.url.includes('tok'))).toBe(true);
+  });
+
+  it('opens the account page on Atlas\'s website', () => {
+    const { control, opened } = setup();
+    control.openAccountPage();
+    expect(opened).toEqual(['https://atlas-vtt.dev/account']);
   });
 
   it('forgets a token the relay refuses, says running tables go on, and asks again only after a while', async () => {
@@ -236,14 +245,6 @@ describe('the signed-in account', () => {
     await control.signOut();
     expect(tokens.value).toBeNull();
   });
-
-  it('downloads and deletes the online data, and the owner\'s create key needs no account', async () => {
-    const { control, tokens } = setup();
-    tokens.value = 'tok';
-    expect(JSON.parse((await control.exportData()) ?? '')).toEqual({ userId: MARA.id, grants: [] });
-    expect(await control.deleteData()).toBe(true);
-    expect(setup(true).control.view()).toEqual({ kind: 'owner' });
-  });
 });
 
 describe('the account in words', () => {
@@ -252,5 +253,15 @@ describe('the account in words', () => {
     expect(planText({ plan: 'free', maxPlayers: 2, endsAt: null })).toBe('Free · up to 2 players');
     expect(accountText(MARA)).toBe('Mara (@mara)');
     expect(accountText({ ...MARA, name: 'mara' })).toBe('@mara');
+  });
+
+  it('has one sentence for each reason an account may not host, each naming the account page', () => {
+    expect(accessText('no-access')).toBe('Online play is in early access. Redeem an invite key on your account page.');
+    expect(accessText('access-ended')).toBe('Your access to online play has ended. See your account page.');
+    expect(accessText('access-revoked')).toBe('Your access to online play was withdrawn. See your account page.');
+    expect(accessText('account-restricted')).toBe('Your account is restricted and cannot host online tables. See your account page.');
+    expect(accessText('terms-not-accepted')).toBe('Accept the current Terms on your account page to host online tables.');
+    expect(accessText(null)).toBe('This account may not host online tables now. See your account page.');
+    expect(new Set([...ACCESS_REFUSALS, null].map(accessText)).size).toBe(ACCESS_REFUSALS.length + 1);
   });
 });

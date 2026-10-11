@@ -17,14 +17,11 @@ export interface MenuActions extends AccountActions, GateRowActions, ImageRowAct
   openSettings(): void;
 }
 
-/** The control focused before a redraw and the invite key being typed, so a redraw keeps both. */
+/** The control focused before a redraw, so a redraw keeps it. */
 function keep(layer: HTMLElement): () => void {
   const active = layer.doc.activeElement;
   const focus = active !== null && layer.contains(active) ? active.getAttribute('data-focus-key') : null;
-  const key = layer.querySelector<HTMLInputElement>('.atlas-online-redeem__input')?.value ?? '';
   return () => {
-    const input = layer.querySelector<HTMLInputElement>('.atlas-online-redeem__input');
-    if (input !== null) input.value = key;
     if (focus === null) return;
     // A control that left with the state hands focus to the first one there is now.
     const target = layer.querySelector<HTMLElement>(`[data-focus-key="${CSS.escape(focus)}"]`) ?? layer.querySelector<HTMLElement>('button:not([disabled]), input');

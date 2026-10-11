@@ -12,7 +12,7 @@ const CLEM = { id: 'c'.repeat(20), name: 'clem', online: true };
 
 const snapshot = (over: Partial<OnlineSnapshot> = {}): OnlineSnapshot => ({ status: 'online', link: 'https://play.atlas-vtt.dev/#code', sharedLeaf: null, sharedName: null, sharedTokens: {}, players: [], playerTokens: [], seats: null, gate: null, ...over });
 
-const OWNER = { kind: 'owner' } as const;
+const CAN_HOST = { kind: 'can-host', account: { id: 'acc_mara', handle: 'mara', name: 'Mara' }, access: { plan: 'beta', maxPlayers: 12, endsAt: null } } as const;
 
 /** A table's gates as the control reads them: a fixed view, and every choice recorded. */
 function fakeGate(): NonNullable<ControlSource['table']>['gate'] & { calls: unknown[][] } {
@@ -59,7 +59,7 @@ describe('the badge', () => {
 describe('the menu', () => {
   it('offers Start without a table, with what the account may do', () => {
     expect(menuModel(snapshot({ status: 'idle' }), scene(), SIGNED_OUT)).toEqual({ kind: 'start', account: SIGNED_OUT, starting: false });
-    expect(menuModel(snapshot({ status: 'starting' }), scene(), OWNER)).toEqual({ kind: 'start', account: OWNER, starting: true });
+    expect(menuModel(snapshot({ status: 'starting' }), scene(), CAN_HOST)).toEqual({ kind: 'start', account: CAN_HOST, starting: true });
   });
 
   it('says the table is full once as many players are online as the plan seats', () => {
@@ -70,18 +70,18 @@ describe('the menu', () => {
   });
 
   it('shows the link, the status and the shared map while players are awaited', () => {
-    expect(menuModel(snapshot({ status: 'connecting' }), scene({ isShared: false }), OWNER)).toEqual({
+    expect(menuModel(snapshot({ status: 'connecting' }), scene({ isShared: false }), CAN_HOST)).toEqual({
       kind: 'waiting', link: 'https://play.atlas-vtt.dev/#code', status: { text: 'Connecting…', tone: 'amber' }, isShared: false, gate: null, qr: false, imageShown: false,
     });
     // The gates come along: the GM needs the code before the first player can join.
     // Who waits is not among it: a knock must not draw the menu anew under the GM's pointer.
     const gate = { code: '483912', requireCode: true, askToJoin: true, paused: false, pauseArmed: false };
     const waiting = [{ id: 'm'.repeat(20), name: 'Mira', answered: false, full: false, armed: false }];
-    expect(menuModel(snapshot({ gate: { ...gate, waiting } }), scene(), OWNER)).toEqual({ kind: 'waiting', link: 'https://play.atlas-vtt.dev/#code', status: { text: 'Online, waiting for players', tone: 'green' }, isShared: true, gate, qr: false, imageShown: false });
+    expect(menuModel(snapshot({ gate: { ...gate, waiting } }), scene(), CAN_HOST)).toEqual({ kind: 'waiting', link: 'https://play.atlas-vtt.dev/#code', status: { text: 'Online, waiting for players', tone: 'green' }, isShared: true, gate, qr: false, imageShown: false });
     // The QR card's state is part of the menu, whose button says whether it is open.
-    expect(menuModel(snapshot(), scene(), OWNER, true)).toMatchObject({ kind: 'waiting', qr: true });
+    expect(menuModel(snapshot(), scene(), CAN_HOST, true)).toMatchObject({ kind: 'waiting', qr: true });
     // An image shown before anyone joined has its line here too.
-    expect(menuModel(snapshot({ imageShown: true }), scene(), OWNER)).toMatchObject({ kind: 'waiting', imageShown: true });
+    expect(menuModel(snapshot({ imageShown: true }), scene(), CAN_HOST)).toMatchObject({ kind: 'waiting', imageShown: true });
   });
 });
 

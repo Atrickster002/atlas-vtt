@@ -1,5 +1,5 @@
 import type { AccountApi } from '../account/AccountControl.ts';
-import { accountText, noticeText, planText, UNREACHABLE_TEXT, type AccountView } from '../account/accountView.ts';
+import { accessText, accountText, noticeText, planText, UNREACHABLE_TEXT, type AccountView } from '../account/accountView.ts';
 import { statusLine, textButton } from './controls.ts';
 
 /** What the menu's sign-in parts do. */
@@ -11,7 +11,8 @@ export interface AccountActions {
   signOut(): void;
   /** Asks the relay again (after it could not be reached). */
   retry(): void;
-  redeem(key: string): void;
+  /** Opens the account page of the website: invite keys are redeemed there, and it says what the account may host. */
+  openAccountPage(): void;
 }
 
 /** The sign-in actions over the account control; `start` is the dock's own. */
@@ -22,7 +23,7 @@ export function accountActions(account: AccountApi): Omit<AccountActions, 'start
     reopenSignIn: () => account.reopenSignIn(),
     signOut: () => void account.signOut(),
     retry: () => void account.refresh(true),
-    redeem: (key) => void account.redeem(key),
+    openAccountPage: () => account.openAccountPage(),
   };
 }
 
@@ -37,8 +38,8 @@ function intro(layer: HTMLElement, title = 'Online play'): HTMLElement {
   return head;
 }
 
-function help(parent: HTMLElement, text: string, cls = ''): HTMLElement {
-  return parent.createDiv({ cls: `atlas-online-help ${cls}`.trim(), text });
+function help(parent: HTMLElement, text: string): void {
+  parent.createDiv({ cls: 'atlas-online-help', text });
 }
 
 function button(layer: HTMLElement, text: string, focusKey: string, onClick: () => void, kind: 'plain' | 'cta' = 'plain', corner = false): HTMLButtonElement {
@@ -57,22 +58,8 @@ function accountRow(layer: HTMLElement, text: string, actions: AccountActions, c
   if (corner) out.addClass('atlas-online-corner-button');
 }
 
-/** The invite key field and Redeem, with the reason the last key was refused. */
-function redeemRow(layer: HTMLElement, redeeming: boolean, error: string | null, actions: AccountActions): void {
-  const form = layer.createEl('form', { cls: 'atlas-online-redeem' });
-  const input = form.createEl('input', {
-    cls: 'atlas-online-redeem__input',
-    attr: { type: 'text', placeholder: 'Invite key', spellcheck: 'false', autocomplete: 'off', 'aria-label': 'Invite key', 'data-focus-key': 'invite-key', maxlength: '64' },
-  });
-  const redeem = textButton(form, redeeming ? 'Redeeming…' : 'Redeem', () => undefined);
-  redeem.type = 'submit';
-  redeem.dataset.focusKey = 'redeem';
-  redeem.disabled = redeeming;
-  form.addEventListener('submit', (event) => {
-    event.preventDefault();
-    if (input.value.trim() !== '') actions.redeem(input.value.trim());
-  });
-  if (error !== null) help(layer, error, 'atlas-online-error').setAttribute('role', 'alert');
+function accountPageButton(layer: HTMLElement, actions: AccountActions, kind: 'plain' | 'cta' = 'plain'): void {
+  button(layer, 'Open account page', 'account-page', () => actions.openAccountPage(), kind);
 }
 
 /** Start online table: the menu's last control, in its bottom corners. */
@@ -82,16 +69,14 @@ function startButton(layer: HTMLElement, starting: boolean, enabled: boolean, ac
 }
 
 /**
- * The menu before a table runs: as the owner (create key), signed out, waiting for the browser,
- * checking the account, unreachable, signed in without access (invite key), or able to host.
+ * The menu before a table runs: signed out, waiting for the browser,
+ * checking the account, unreachable, signed in without access (the relay's reason, and the way to the
+ * account page), or able to host.
  */
 export function renderAccountMenu(layer: HTMLElement, account: AccountView, starting: boolean, actions: AccountActions): void {
+  const head = intro(layer, account.kind === 'waiting' ? 'Sign in to host' : undefined);
   switch (account.kind) {
-    case 'owner':
-      help(intro(layer), INTRO);
-      return startButton(layer, starting, true, actions);
     case 'signed-out': {
-      const head = intro(layer);
       help(head, INTRO);
       help(head, 'Use your Atlas account to host tables.');
       const notice = noticeText(account.notice);
@@ -100,7 +85,6 @@ export function renderAccountMenu(layer: HTMLElement, account: AccountView, star
       return;
     }
     case 'waiting': {
-      const head = intro(layer, 'Sign in to host');
       if (account.userCode === null) {
         statusLine(head, { text: 'Opening your browser…', tone: 'amber' });
       } else {
@@ -113,27 +97,21 @@ export function renderAccountMenu(layer: HTMLElement, account: AccountView, star
       return;
     }
     case 'checking':
-      statusLine(intro(layer), { text: 'Checking your account…', tone: 'muted' });
+      statusLine(head, { text: 'Checking your account…', tone: 'muted' });
       return startButton(layer, starting, false, actions);
-    case 'unreachable': {
-      const head = intro(layer);
+    case 'unreachable':
       statusLine(head, { text: UNREACHABLE_TEXT, tone: 'red' });
       help(head, 'Running tables are unaffected.');
       button(layer, 'Try again', 'retry', () => actions.retry(), 'plain', true);
       return;
-    }
-    case 'no-access': {
-      const head = intro(layer, 'Online play is in early access');
-      help(head, 'Enter your invite key to host tables.');
-      redeemRow(layer, account.redeeming, account.redeemError, actions);
+    case 'no-access':
+      help(head, accessText(account.reason));
+      accountPageButton(layer, actions, 'cta');
       return accountRow(layer, accountText(account.account), actions, true);
-    }
-    case 'can-host': {
-      const head = intro(layer);
+    case 'can-host':
       help(head, INTRO);
       help(head, planText(account.access));
       accountRow(layer, accountText(account.account), actions, false);
       return startButton(layer, starting, true, actions);
-    }
   }
 }

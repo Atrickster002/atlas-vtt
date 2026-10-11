@@ -59,7 +59,7 @@ const mapHash = (scene: unknown): unknown => (scene as { map?: { hash?: string }
 
 /** A running table restored from `SAVED`, welcomed by the relay with Ana at it. */
 async function running(ownership = new Ownership(readOwnership(undefined), () => undefined)): Promise<{ online: OnlineControl; socket: FakeSocket }> {
-  const online = new OnlineControl(app, () => ({ createKey: 'key', reportErrors: false }), ownership);
+  const online = new OnlineControl(app, ownership);
   online.resume(SAVED);
   await advance(0);
   const socket = FakeSocket.all.at(-1);

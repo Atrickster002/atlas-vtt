@@ -16,7 +16,6 @@ export interface CompanionFacts {
   setReportErrors(on: boolean): void;
   /** The running table's code, host secret and join code, or null. */
   table(): { readonly code: string; readonly secret: string; readonly gate: { readonly code: string } } | null;
-  createKey(): string;
   /** The names of the table's players. */
   playerNames(): readonly string[];
   connection(): ConnectionStats | null;
@@ -31,8 +30,8 @@ async function postJson(url: string, body: unknown): Promise<number> {
  * The companion's diagnostics: its own uncaught errors and unhandled rejections (those whose stack runs
  * through this plugin; Obsidian's and other plugins' are left alone) are named in the console, and go to
  * the table's server only once the GM switched error reports on (off by default: Obsidian's developer
- * policy and §25 TDDDG), once each and rate-limited, redacted of the create key, the table's code and
- * secret, its join code and the players' names. Feedback from the online panel goes there when the GM sends it.
+ * policy and §25 TDDDG), once each and rate-limited, redacted of the table's code and secret, its join
+ * code and the players' names. Feedback from the online panel goes there when the GM sends it.
  */
 export class CompanionDiagnostics implements CompanionFeedback {
   readonly reporter: ErrorReporter;
@@ -51,7 +50,7 @@ export class CompanionDiagnostics implements CompanionFeedback {
       table: () => this.tag(),
       known: () => {
         const table = facts.table();
-        return [facts.createKey(), table?.code ?? '', table?.secret ?? '', ...this.joinCodes(), ...facts.playerNames()].filter((text) => text !== '');
+        return [table?.code ?? '', table?.secret ?? '', ...this.joinCodes(), ...facts.playerNames()].filter((text) => text !== '');
       },
       post: async (report) => {
         await postJson(`${RELAY_ORIGIN}${REPORTS_PATH}`, report);

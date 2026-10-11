@@ -9,7 +9,6 @@ import type { KnownPlayer, Ownership } from './ownership.ts';
 import { presentOnPlayerView, presentedSceneSource, showPresentedElsewhere, type ShownElsewhere } from './presentedScene.ts';
 import type { SavedTable } from './savedTable.ts';
 import { RELAY_ORIGIN } from './servers.ts';
-import type { OnlineSettings } from './settings.ts';
 import type { TableStatus } from './TableConnection.ts';
 
 /** A player token of a scene, or a token a player was given there, as the GM's panels list it. */
@@ -61,7 +60,6 @@ function workScene(store: SceneStore | null): WorkScene | null {
  */
 export class OnlineControl {
   private readonly app: App;
-  private readonly settings: () => OnlineSettings;
   readonly ownership: Ownership;
   /** Keeps the running table in the companion's data (null: none runs), so a reload comes back to it. */
   private readonly save: (table: SavedTable | null) => void;
@@ -76,9 +74,8 @@ export class OnlineControl {
   /** The running table's log, kept with it and told to its panels. */
   readonly logs: LogKeeper;
 
-  constructor(app: App, settings: () => OnlineSettings, ownership: Ownership, save: (table: SavedTable | null) => void = () => undefined, account: HostAccount = NO_ACCOUNT, logStore?: LogStore) {
+  constructor(app: App, ownership: Ownership, save: (table: SavedTable | null) => void = () => undefined, account: HostAccount = NO_ACCOUNT, logStore?: LogStore) {
     this.app = app;
-    this.settings = settings;
     this.ownership = ownership;
     this.save = save;
     this.logs = new LogKeeper(logStore);
@@ -131,17 +128,16 @@ export class OnlineControl {
   async start(leaf: WorkspaceLeaf | null = activeAtlasLeaf(this.app)): Promise<OnlineTable | null> {
     if (this.current !== null || this.starting) return this.current;
     if (leaf === null || sceneStoreOf(leaf) === null) return refused('Open an Atlas map tab first.');
-    // The create key, while set, hosts as the owner; otherwise the GM's account does.
-    const createKey = this.settings().createKey;
-    const bearer = createKey !== '' ? createKey : this.account.token();
-    if (bearer === null) return refused('Sign in to host first.');
+    const token = this.account.token();
+    if (token === null) return refused('Sign in to host first.');
     this.starting = true;
     this.changed();
-    const created = await createTable(obsidianHttp, RELAY_ORIGIN, bearer).finally(() => (this.starting = false));
+    // Whether this account may host is the relay's answer alone: nothing here looks at what the account was last said to hold.
+    const created = await createTable(obsidianHttp, RELAY_ORIGIN, token).finally(() => (this.starting = false));
     if ('message' in created) {
       this.changed();
-      if (createKey === '' && created.status === 401) this.account.signedOutByServer();
-      else if (createKey === '' && created.status === 403) void this.account.refresh(true);
+      if (created.status === 401) this.account.signedOutByServer();
+      else if (created.status === 403) void this.account.refresh(true);
       return created.status === 401 ? null : refused(created.message);
     }
     this.ownership.reset();

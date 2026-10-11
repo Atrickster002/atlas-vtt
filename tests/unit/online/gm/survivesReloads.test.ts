@@ -15,7 +15,7 @@ import { advanceSettled as advance } from './settled.ts';
 const seen = vi.hoisted(() => {
   /** The relay's answer to a table request. */
   const created: { status: number; json: unknown } = { status: 201, json: null };
-  return { notices: [] as string[], marks: [] as { disposed: boolean; renderer: () => unknown }[], created, requests: [] as { readonly headers?: Record<string, string> }[] };
+  return { notices: [] as string[], marks: [] as { disposed: boolean; renderer: () => unknown }[], created, requests: [] as { readonly url?: string; readonly headers?: Record<string, string> }[] };
 });
 
 vi.mock('obsidian', () => ({
@@ -25,7 +25,7 @@ vi.mock('obsidian', () => ({
     }
   },
   normalizePath: (path: string) => path,
-  requestUrl: (request: { readonly headers?: Record<string, string> }) => {
+  requestUrl: (request: { readonly url?: string; readonly headers?: Record<string, string> }) => {
     seen.requests.push(request);
     return Promise.resolve(seen.created);
   },
@@ -70,8 +70,10 @@ const sentSince = (socket: FakeSocket, from: number): string[] => socket.bodies(
 
 describe('the online table', () => {
   let saves: (SavedTable | null)[] = [];
+  /** A signed-in GM: tables are asked for with the account's token, and nothing else. */
+  const signedIn = { token: (): string => 'account-token', signedOutByServer: vi.fn(), refresh: vi.fn(() => Promise.resolve()) };
   const control = (ownership = new Ownership(readOwnership(undefined), () => undefined)): OnlineControl =>
-    new OnlineControl(app, () => ({ createKey: 'key', reportErrors: false }), ownership, (table) => saves.push(table));
+    new OnlineControl(app, ownership, (table) => saves.push(table), signedIn);
 
   beforeEach(() => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'performance', 'Date'] });
@@ -81,6 +83,7 @@ describe('the online table', () => {
     seen.notices.length = 0;
     seen.marks.length = 0;
     seen.requests.length = 0;
+    signedIn.refresh.mockClear();
     seen.created = { status: 201, json: { code: 'b'.repeat(26), secret: 'n'.repeat(43) } };
     saves = [];
     workspace.leaves = [];
@@ -234,17 +237,17 @@ describe('the online table', () => {
     expect(seen.notices).toEqual(['Another Obsidian took over the online table.', 'The server closed the online table.']);
   });
 
-  it('hosts with the GM\'s account while no create key is set, and forgets a token the relay refuses', async () => {
+  it('asks for a table with the account\'s token alone, and forgets a token the relay refuses', async () => {
     const tab = atlasTab(caveScene());
     workspace.leaves = [tab.leaf];
     let token: string | null = 'account-token';
     const account = { token: () => token, signedOutByServer: vi.fn(() => (token = null)), refresh: vi.fn(() => Promise.resolve()) };
-    const online = new OnlineControl(app, () => ({ createKey: '', reportErrors: false }), new Ownership(readOwnership(undefined), () => undefined), (table) => saves.push(table), account);
+    const online = new OnlineControl(app, new Ownership(readOwnership(undefined), () => undefined), (table) => saves.push(table), account);
 
     seen.created = { status: 403, json: { error: 'no-access' } };
     expect(await online.start(tab.leaf)).toBeNull();
     expect(account.refresh).toHaveBeenCalledWith(true);
-    expect(seen.notices.at(-1)).toBe('Online play is in early access. Redeem an invite key first.');
+    expect(seen.notices.at(-1)).toBe('Online play is in early access. Redeem an invite key on your account page.');
 
     seen.created = { status: 201, json: { code: 'b'.repeat(26), secret: 'n'.repeat(43), maxPlayers: 2 } };
     await online.start(tab.leaf);
@@ -261,6 +264,16 @@ describe('the online table', () => {
     expect(await online.start(tab.leaf)).toBeNull();
     expect(seen.notices.at(-1)).toBe('Sign in to host first.');
     expect(seen.requests).toHaveLength(3);
+  });
+
+  it('makes tables on Atlas\'s table server', async () => {
+    const tab = atlasTab(caveScene());
+    workspace.leaves = [tab.leaf];
+    const online = new OnlineControl(app, new Ownership(readOwnership(undefined), () => undefined), (table) => saves.push(table), signedIn);
+    await online.start(tab.leaf);
+    expect(seen.requests[0]?.url).toBe('https://play.atlas-vtt.dev/api/tables');
+    expect(online.link()).toBe(`https://play.atlas-vtt.dev/#${'b'.repeat(26)}`);
+    online.stop();
   });
 
   it('tells the relay its gates first on every welcome, keeps them with the table, and passes on who knocks and the GM\'s answer', async () => {

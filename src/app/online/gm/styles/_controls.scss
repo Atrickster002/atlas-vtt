@@ -189,31 +189,9 @@
     }
   }
 
-  // The invite key field and Redeem, laid out as the join link and its copy button.
-  .atlas-online-redeem {
-    display: flex;
-    gap: $spacing-s;
-    margin: 0;
-  }
-
-  .atlas-online-redeem__input {
-    flex: 1;
-    min-width: 0;
-    height: var(--input-height);
-    border-radius: $radius-m;
-    font-family: var(--font-monospace);
-    font-size: $font-ui-small;
-    @include atlas-corner-shape;
-  }
-
-  // A refusal or the full table's note, on the text edge.
-  .atlas-online-error,
+  // The full table's note, on the text edge.
   .atlas-online-seats {
     padding: 0 $online-text-inset;
-  }
-
-  .atlas-online-error {
-    color: var(--text-error);
   }
 
   // ── Feedback ──────────────────────────────────────────────────────────────
