@@ -19,6 +19,28 @@ export function glideStep(from: Point, to: Point, elapsedMs: number): Point {
   return { x: to.x - dx, y: to.y - dy };
 }
 
+/** What decides how a move the store made is shown. */
+export interface StoreMove {
+  /** The store notes the token as held (`heldTokens`). */
+  held: boolean;
+  /** This view's own pointer is dragging tokens. */
+  pointerDrags: boolean;
+  /** The map is loading. */
+  loading: boolean;
+  /** The move may be shown on its way (`TokenRenderer.mayGlide`). */
+  mayGlide: boolean;
+}
+
+/**
+ * Whether a move the store made is put in its place at once instead of glided. A token this view's
+ * own pointer drags is drawn by that drag; a load shows the scene as it is; a move that may not be
+ * shown on its way never is. A token held by someone else glides: a player dragging it online only
+ * sends places, a few a second and bunched by the network, and nothing here draws the way between.
+ */
+export function placedAtOnce({ held, pointerDrags, loading, mayGlide }: StoreMove): boolean {
+  return (held && pointerDrags) || loading || !mayGlide;
+}
+
 export interface TokenGlideDeps {
   /** The ticker the glides step on; without one a token is put in its place at once. */
   getTicker(): Ticker | null;
