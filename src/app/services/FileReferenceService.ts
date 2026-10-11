@@ -13,7 +13,7 @@ import { STATBLOCK_IMAGE_KEYS } from './statblockImageKeys';
  * - Asset metadata (assets-metadata.json), including scene records of a renamed map
  * - Map files (.atlasmap token instances and pin targets) and scene snapshots
  * - Statblock frontmatter (the image fields)
- * - Collection loot bases
+ * - Collection loot bases and world maps
  * - The thumbnail of a renamed map
  *
  * The open map is updated separately by its view, from the same vault event.
@@ -44,7 +44,7 @@ export class FileReferenceService {
     for (const { from, to } of fileMoves) await this.renameMapThumbnail(from, to);
     await this.updateMapFiles(moved);
     await this.updateStatblockFrontmatter(moved);
-    await this.updateLootBases(moved);
+    await this.updateCollectionFiles(moved);
   }
 
   /**
@@ -169,14 +169,17 @@ export class FileReferenceService {
   }
 
   // ---------------------------------------------------------------------------
-  /** Collections keep rolling on a loot base after it is renamed or moved. */
-  private async updateLootBases(moved: MovedPath): Promise<void> {
+  /** Collections keep rolling on a loot base, and keep their world map, after its file is renamed or moved. */
+  private async updateCollectionFiles(moved: MovedPath): Promise<void> {
     const assetService = AssetService.getInstance(this.app);
     for (const collection of await assetService.getCollections()) {
-      const lootBases = collection.settings.lootBases;
-      if (!lootBases?.some((path) => moved(path) !== null)) continue;
+      const { lootBases, worldMap } = collection.settings;
+      const movedWorldMap = moved(worldMap);
+      const basesMoved = lootBases?.some((path) => moved(path) !== null) ?? false;
+      if (!basesMoved && movedWorldMap === null) continue;
       await assetService.updateCollectionSettings(collection.id, {
-        lootBases: lootBases.map((path) => moved(path) ?? path),
+        ...(lootBases && basesMoved && { lootBases: lootBases.map((path) => moved(path) ?? path) }),
+        ...(movedWorldMap !== null && { worldMap: movedWorldMap }),
       });
     }
   }

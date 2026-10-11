@@ -1392,6 +1392,41 @@ describe('loot tables', () => {
   });
 });
 
+describe('the world map', () => {
+  /** The creator's vault whose world map is the artwork of its scene. */
+  async function worldMapVault(): Promise<Vault> {
+    const creator = await creatorVault();
+    await creator.assets.updateCollectionSettings('source', { worldMap: BACKGROUND, lootCurrency: 'gp' });
+    return creator;
+  }
+
+  it('travels with the scene whose artwork it is, and the collection finds it where the import puts that image', async () => {
+    const blob = await exportFrom(await worldMapVault());
+    expect((await manifestOf(blob)).collection.settings).toMatchObject({ worldMap: BACKGROUND });
+
+    const fan = await emptyVault();
+    await importInto(fan, blob);
+    const [scene] = await fan.assets.getAssets('source', 'scene');
+    const map = JSON.parse(fan.vault.files.get(scene!.data!.mapPath!)!) as { state: { background: string } };
+    const settings = (await fan.assets.getCollection('source'))?.settings;
+    expect(settings).toMatchObject({ worldMap: map.state.background, lootCurrency: 'gp' });
+    expect(fan.vault.files.get(settings!.worldMap!)).toBe('BG');
+
+    expect((await reviewImport(fan, blob)).review).toMatchObject({ upToDate: true, conflicts: [] });
+  });
+
+  it('is none in a bundle that leaves its image behind', async () => {
+    const creator = await worldMapVault();
+    const [scene] = await creator.assets.getAssets('source', 'scene');
+    const preview = await prepareCollectionExport(creator.vault.app, creator.assets, 'source');
+    const bundle = await exportCollectionBundle(creator.vault.app, creator.assets, preview, { kind: 'release', version: 1, excluded: new Set([`asset:${scene!.id}`]) });
+    const manifest = await manifestOf(bundle.blob);
+    expect(manifest.files.map((file) => file.vaultPath)).not.toContain(BACKGROUND);
+    expect(manifest.collection.settings).toMatchObject({ lootCurrency: 'gp' });
+    expect(manifest.collection.settings).not.toHaveProperty('worldMap');
+  });
+});
+
 describe('record files of an installed collection', () => {
   it('read as unchanged after Atlas rewrote them for a collection installed under another name', async () => {
     const creator = await creatorVault();

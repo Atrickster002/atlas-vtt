@@ -20,6 +20,8 @@ export type ContextMenuEntry =
     destructive?: boolean;
     /** Drawn before the label, e.g. a condition's badge. */
     leading?: React.ReactNode;
+    /** Said after the label in a quieter tone, e.g. the character a player plays. */
+    detail?: string;
     /** Choosing the item leaves the menu open, for toggles that are often picked several at a time. */
     keepOpen?: boolean;
     /** − value + controls after the label, also driven by the + and - keys while the item is highlighted. */
@@ -118,15 +120,25 @@ function stepperKeys(stepper: MenuStepper | undefined): ((event: React.KeyboardE
   };
 }
 
+/** The label, in an element of its own where something stands beside it that it has to make room for. */
+function itemLabel(entry: ContextMenuItemEntry): React.ReactNode {
+  const label = <span className="atlas-ctx-item__label">{entry.label}</span>;
+  if (entry.leading) {
+    return (
+      <span className="atlas-ctx-item__leading">
+        {entry.leading}
+        {label}
+      </span>
+    );
+  }
+  return entry.detail !== undefined ? label : entry.label;
+}
+
 function ItemContent({ entry }: { entry: ContextMenuItemEntry }): React.ReactElement {
   return (
     <>
-      {entry.leading ? (
-        <span className="atlas-ctx-item__leading">
-          {entry.leading}
-          <span className="atlas-ctx-item__label">{entry.label}</span>
-        </span>
-      ) : entry.label}
+      {itemLabel(entry)}
+      {entry.detail !== undefined && <span className="atlas-ctx-item__detail">{entry.detail}</span>}
       {(entry.stepper || entry.checked !== undefined) && (
         <span className="atlas-ctx-item__trailing">
           {entry.stepper && <Stepper stepper={entry.stepper} />}
