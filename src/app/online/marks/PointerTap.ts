@@ -1,4 +1,5 @@
-import { MAX_LASER_SPAN_MS, type LaserState, type MarkPoint } from '../protocol/index.ts';
+import type { LaserState, MarkPoint } from '../protocol/index.ts';
+import { SpanMeter } from './SpanMeter.ts';
 
 /** A pointer event as a viewport sends it: the button and where it is on the canvas. */
 export type TapEvent = { readonly button: number } & Readonly<Record<'global', { readonly x: number; readonly y: number }>>;
@@ -59,9 +60,7 @@ export class PointerTap implements LaserSource {
   private readonly now: () => number;
   private readonly listeners = new Set<() => void>();
   private pointer: MarkPoint | null = null;
-  /** When the pointer last moved, and the moment the last take ended on (kept in whole milliseconds, so the spans told add up to the time that passed). */
-  private movedAt: number | null = null;
-  private takenAt: number | null = null;
+  private readonly meter = new SpanMeter();
   private pointing = false;
   private quick = false;
   private pending: number[] = [];
@@ -96,16 +95,8 @@ export class PointerTap implements LaserSource {
   takeTrail(max: number): TrailBatch {
     const pts = this.pending.slice(Math.max(0, this.pending.length - max));
     this.pending = [];
-    const { movedAt, takenAt } = this;
-    if (movedAt === null) return { pts };
-    if (takenAt === null) {
-      this.takenAt = movedAt;
-      return { pts };
-    }
-    const passed = Math.max(0, Math.round(movedAt - takenAt));
-    const span = Math.min(passed, MAX_LASER_SPAN_MS);
-    this.takenAt = passed > MAX_LASER_SPAN_MS ? movedAt : takenAt + span;
-    return { pts, span };
+    const span = this.meter.take();
+    return span === undefined ? { pts } : { pts, span };
   }
 
   lastPress(): Press | null {
@@ -155,9 +146,12 @@ export class PointerTap implements LaserSource {
   private track(event: TapEvent): MarkPoint | null {
     const world = this.viewport.toWorld(event.global);
     if (!Number.isFinite(world.x) || !Number.isFinite(world.y)) return null;
-    this.movedAt = this.now();
-    this.pointer = [rounded(world.x), rounded(world.y)];
-    return this.pointer;
+    const at: MarkPoint = [rounded(world.x), rounded(world.y)];
+    const { pointer } = this;
+    // Time counts only for a pointer that is somewhere else: a message that tells a span has a new place to go with it.
+    if (pointer === null || pointer[0] !== at[0] || pointer[1] !== at[1]) this.meter.moved(this.now());
+    this.pointer = at;
+    return at;
   }
 
   private addPoint([x, y]: MarkPoint): void {
