@@ -13,6 +13,8 @@ export const MAX_KEPT = 20;
 export const MAX_MARK_KEPT = 50;
 /** The shortest time between two `marks` messages: about 15 a second (the last change always goes out). */
 export const MARKS_INTERVAL_MS = 66;
+/** The longest span a laser message tells, in ms. */
+export const MAX_LASER_SPAN_MS = 1000;
 /** Who a mark is from: a player's relay id, or the GM. */
 export const GM_MARKS = 'gm';
 
@@ -26,13 +28,19 @@ export interface SharedMeasure {
   readonly b: MarkPoint;
 }
 
-/** A laser as it is now: the pointer (null while off the map or not pointing), the trail points added since the last message (x, y flat), and whether it draws. */
+/**
+ * A laser as it is now: the pointer (null while off the map or not pointing), the trail points added
+ * since the last message (x, y flat), and whether it draws. `span` is the time in whole milliseconds
+ * from the pointer's place the sender's last message ended on to the one this message ends on, so a
+ * receiver can draw the points when they were made; a sender that tells none is drawn as it arrives.
+ */
 export interface LaserState {
   readonly color: string;
   readonly size: number;
   readonly at: MarkPoint | null;
   readonly pts: readonly number[];
   readonly on: boolean;
+  readonly span?: number;
 }
 
 /** A player's measurements as they are now: the one being drawn and the kept ones. */
@@ -64,6 +72,7 @@ const MAX_LASER_SIZE = 1000;
 
 const isCoordinate = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value) && Math.abs(value) <= MAX_COORDINATE;
 const isSceneId = (value: unknown): value is string => typeof value === 'string' && value.length > 0 && value.length <= MAX_SCENE_ID;
+const isSpan = (value: unknown): value is number => Number.isInteger(value) && (value as number) >= 0 && (value as number) <= MAX_LASER_SPAN_MS;
 const isWho = (value: unknown): value is string => value === GM_MARKS || (typeof value === 'string' && PLAYER_ID_PATTERN.test(value));
 
 function parsePoint(value: unknown): MarkPoint | null {
@@ -80,12 +89,13 @@ function parseMeasure(value: unknown): SharedMeasure | null {
 }
 
 function parseLaserState(value: Record<string, unknown>, maxNumbers: number): LaserState | null {
-  const { color, size, at, pts, on } = value;
+  const { color, size, at, pts, on, span } = value;
   if (typeof color !== 'string' || !COLOR.test(color) || typeof size !== 'number' || !Number.isFinite(size) || size <= 0 || size > MAX_LASER_SIZE) return null;
   if (typeof on !== 'boolean' || !Array.isArray(pts) || pts.length > maxNumbers || pts.length % 2 !== 0 || !pts.every(isCoordinate)) return null;
+  if (span !== undefined && !isSpan(span)) return null;
   const point = at === null ? null : parsePoint(at);
   if (at !== null && point === null) return null;
-  return { color, size, at: point, pts, on };
+  return { color, size, at: point, pts, on, ...(span !== undefined && { span }) };
 }
 
 /** Every item read, or null when any was malformed. */
