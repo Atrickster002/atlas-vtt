@@ -217,6 +217,36 @@ describe('grid scan', () => {
     app.destroy(true, { children: true });
   });
 
+  it('may be destroyed by whoever hears that it is still, as a new scene\'s detection does', async () => {
+    const view = await stage();
+    const thrown: unknown[] = [];
+    const heard = (event: ErrorEvent): void => {
+      event.preventDefault();
+      thrown.push(event.error);
+    };
+    window.addEventListener('error', heard);
+    let stills = 0;
+    view.scan.whenStill(() => {
+      stills++;
+      view.scan.destroy();
+    });
+    view.scan.start();
+    await wait(100);
+    view.scan.cancel();
+    await wait(600);
+    window.removeEventListener('error', heard);
+
+    expect(thrown).toEqual([]);
+    expect(stills).toBe(1);
+    // The app's ticker goes on: a throw inside it would have ended every later frame of the map.
+    let ticks = 0;
+    const count = (): void => { ticks++; };
+    view.app.ticker.add(count);
+    await wait(100);
+    view.app.ticker.remove(count);
+    expect(ticks).toBeGreaterThan(0);
+  });
+
   it('goes quietly when its view is closed under a running scan: the app is destroyed first', async () => {
     const view = await stage();
     view.scan.start();

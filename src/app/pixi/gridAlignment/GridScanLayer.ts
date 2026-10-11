@@ -255,12 +255,13 @@ export class GridScanLayer {
     this.ticking = false;
     this.view.visible = false;
     this.choreography = null;
+    this.setInk(null);
+    this.setHits(null);
+    // Last: whoever hears this may destroy the scan (a new scene's detection does).
     this.sayQuiet();
     const still = this.onStill;
     this.onStill = null;
     still?.();
-    this.setInk(null);
-    this.setHits(null);
   }
 
   private readonly frame = (ticker: Ticker): void => {
