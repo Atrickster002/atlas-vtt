@@ -1,4 +1,5 @@
 export * from './asset.ts';
+export * from './book.ts';
 export * from './build.ts';
 export * from './claims.ts';
 export * from './delta.ts';

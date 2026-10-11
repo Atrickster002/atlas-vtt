@@ -1,4 +1,5 @@
 import { ASSET_CHUNK_BYTES, isCount, isHash, isMaxSide, MAX_ASSET_BYTES, parseAsset, parseAssetVariant, type AssetRef, type AssetVariant } from './asset.ts';
+import { isBookType, isPlayerBookType, parseBookMessage, parsePlayerBookMessage, type BookMessage, type PlayerBookMessage } from './book.ts';
 import { isDeltaOf, parseDelta, parseSeq, type DeltaMessage, type DeltaOf } from './delta.ts';
 import { parseFog, type SharedFog } from './fog.ts';
 import { parseImageMessage, type ImageMessage } from './image.ts';
@@ -80,7 +81,9 @@ export type GmMessage =
   | MarksMessage
   /** The table's log: chat, rolls, who came and went. It belongs to the table, not to a scene. */
   | LogMessage
-  | ImageMessage;
+  | ImageMessage
+  /** A player's own pages besides the table: character, items, notes, pins. It belongs to the table, not to a scene. */
+  | BookMessage;
 
 /** A player whose `tokens`, `sight` or `fog` messages no longer follow on (a delta it cannot apply) asks for the whole message. */
 export interface PlayerResync {
@@ -100,7 +103,7 @@ export interface PlayerAssetRequest {
   readonly maxSide?: number;
 }
 
-export type PlayerMessage = PlayerAssetRequest | PlayerResync | PlayerMove | PlayerDrag | PlayerDragCancel | PlayerClaim | PlayerRoll | PlayerLaser | PlayerMeasure | PlayerLogMessage;
+export type PlayerMessage = PlayerAssetRequest | PlayerResync | PlayerMove | PlayerDrag | PlayerDragCancel | PlayerClaim | PlayerRoll | PlayerLaser | PlayerMeasure | PlayerLogMessage | PlayerBookMessage;
 
 const MAX_CHUNKS = Math.ceil(MAX_ASSET_BYTES / ASSET_CHUNK_BYTES);
 const BASE64 = /^[A-Za-z0-9+/]*={0,2}$/;
@@ -221,6 +224,7 @@ export function parseGmMessage(value: unknown): GmMessage | null {
     case 'shown-image':
       return parseImageMessage(value);
     default:
+      if (isBookType(value.t)) return parseBookMessage(value);
       return isSceneId(value.scene) ? parseSceneInput(value, value.scene) : null;
   }
 }
@@ -234,6 +238,7 @@ export function parsePlayerMessage(value: unknown): PlayerMessage | null {
   if (value.t === 'roll') return parsePlayerRoll(value);
   if (value.t === 'laser' || value.t === 'measure') return parsePlayerMark(value);
   if (isPlayerLogType(value.t)) return parsePlayerLog(value);
+  if (isPlayerBookType(value.t)) return parsePlayerBookMessage(value);
   if (value.t === 'resync') return isSceneId(value.scene) && isDeltaOf(value.of) ? { t: 'resync', scene: value.scene, of: value.of } : null;
   return value.t === 'asset-request' ? parseAssetRequest(value) : null;
 }
