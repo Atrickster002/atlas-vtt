@@ -1,5 +1,5 @@
 import { CLOSE, type ConnectionStats } from '../protocol/index.ts';
-import { Notice, normalizePath, type App, type WorkspaceLeaf } from 'obsidian';
+import { normalizePath, type App, type WorkspaceLeaf } from 'obsidian';
 import { scaleInWindow } from './assetVariants.ts';
 import { ATLAS_VIEW_TYPE, type SceneStore } from './atlasView.ts';
 import { companionTimers, every } from './companionTimers.ts';
@@ -14,6 +14,7 @@ import { imageMimeType } from './SceneShare.ts';
 import { TabWatch, type LostReason } from './sharedTab.ts';
 import { TableConnection, type TableStatus } from './TableConnection.ts';
 import type { VaultImage } from './TokenShare.ts';
+import { showNotice } from '../../ui/notice';
 
 function randomHex(bytes: number): string {
   return [...crypto.getRandomValues(new Uint8Array(bytes))].map((byte) => byte.toString(16).padStart(2, '0')).join('');
@@ -79,7 +80,7 @@ export class OnlineTable {
       answer: (id, admit) => this.connection.answer(id, admit),
       save: (settings) => events.gate(settings),
       changed: () => events.changed(),
-      paused: () => new Notice(PAUSED_TEXT),
+      paused: () => showNotice(PAUSED_TEXT),
       timers: companionTimers(),
     });
     const timers = companionTimers();
@@ -116,7 +117,7 @@ export class OnlineTable {
       lost: (reason) => {
         this.withdraw();
         const notice = LOST_NOTICES[reason];
-        if (notice !== null) new Notice(notice);
+        if (notice !== null) showNotice(notice);
       },
       mapPath: (path) => events.mapPath(path),
     }, mapPath);
@@ -206,7 +207,7 @@ export class OnlineTable {
   private setStatus(status: TableStatus): void {
     this.currentStatus = status;
     const replaced = status === 'refused' && this.connection.closeCode === CLOSE.replaced;
-    if (status === 'refused') new Notice(replaced ? 'Another Obsidian took over the online table.' : 'The server closed the online table.');
+    if (status === 'refused') showNotice(replaced ? 'Another Obsidian took over the online table.' : 'The server closed the online table.');
     if (status === 'stopped' || status === 'refused') {
       this.stopWatch();
       this.stopOwnership();

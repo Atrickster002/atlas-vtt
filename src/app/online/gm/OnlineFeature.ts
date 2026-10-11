@@ -1,4 +1,4 @@
-import { Component, Notice, type App, type Plugin, type TFile } from 'obsidian';
+import { Component, type App, type Plugin, type TFile } from 'obsidian';
 import type { AtlasSettingSection } from '../../settings/settingSections';
 import { AccountControl } from './account/AccountControl.ts';
 import { obsidianHttp } from './account/obsidianHttp.ts';
@@ -19,6 +19,7 @@ import type { OnlineTable } from './OnlineTable.ts';
 import { Ownership, readOwnership } from './ownership.ts';
 import { readSavedTable, type SavedTable } from './savedTable.ts';
 import { DEFAULT_SETTINGS, onlineSettingsSections, readSettings, type OnlineSettings } from './settings.ts';
+import { showNotice } from '../../ui/notice';
 
 /** How long a change of the table's log waits before the data file is written. */
 const LOG_SAVE_MS = 10_000;
@@ -61,7 +62,7 @@ export class OnlineFeature extends Component {
       tokens: secretTokenStore(this.app),
       createKey: () => this.settings.createKey !== '',
       openUrl: (url) => void window.open(url),
-      notify: (text) => new Notice(text),
+      notify: (text) => showNotice(text),
     });
   }
 
@@ -118,7 +119,7 @@ export class OnlineFeature extends Component {
       share: () => this.online.table?.image ?? null,
       readFile: (file) => readShownFile(this.app, file),
       localWindowOpen: () => localPlayerWindowOpen(this.app),
-      notice: (text) => new Notice(text),
+      notice: (text) => showNotice(text),
     });
     this.register(() => images.dispose());
     const docks = new DockMounts(this.app.workspace, {
@@ -169,7 +170,7 @@ export class OnlineFeature extends Component {
     this.command('copy-online-table-link', (checking) => {
       const link = this.online.link();
       if (link === null) return false;
-      if (!checking) void copyText(activeDocument.body, link).then((copied) => new Notice(copied ? 'Join link copied.' : 'The link could not be copied.'));
+      if (!checking) void copyText(activeDocument.body, link).then((copied) => showNotice(copied ? 'Join link copied.' : 'The link could not be copied.'));
       return true;
     });
     this.command('make-selected-player-tokens', (checking) => this.markSelected(checking, true));
@@ -225,8 +226,8 @@ export class OnlineFeature extends Component {
     if (activeAtlasLeaf(this.app) === null) return false;
     if (checking) return true;
     const count = this.online.markSelected(player);
-    if (count === 0) new Notice('Select tokens on the map first.');
-    else new Notice(player ? `${tokensText(count)} can now be claimed by players.` : `${tokensText(count)} now belong to the GM.`);
+    if (count === 0) showNotice('Select tokens on the map first.');
+    else showNotice(player ? `${tokensText(count)} can now be claimed by players.` : `${tokensText(count)} now belong to the GM.`);
     return true;
   }
 

@@ -1,9 +1,10 @@
 import { useEffect, useRef } from 'react';
-import { Notice, type App } from 'obsidian';
+import { type App } from 'obsidian';
 import { runUvttImport } from '../../../../import/uvtt/runUvttImport';
 import { isUvttFileName } from '../../../../import/uvtt/uvttFileNames';
 import { useStableCallback } from '../../../../react/hooks/useStableCallback';
 import type { AssetService } from '../../../../services/AssetService';
+import { showNotice } from '../../../../ui/notice';
 
 /**
  * Imports Universal VTT files into a collection and opens the scene of the last one that
@@ -50,7 +51,7 @@ function sayNotMaps(files: readonly File[]): void {
   const names = files.map((file) => file.name);
   const last = names.pop();
   const which = names.length > 0 ? `${names.join(', ')} and ${last} are not maps` : `${last} is not a map`;
-  new Notice(`${which} Atlas can import. Drop a .dd2vtt, .uvtt or .df2vtt file.`);
+  showNotice(`${which} Atlas can import. Drop a .dd2vtt, .uvtt or .df2vtt file.`);
 }
 
 /**
@@ -87,7 +88,7 @@ export function useUvttImport(options: UvttImportOptions): ImportMaps {
       await app.workspace.getLeaf(false).openFile(scene);
     } catch (error) {
       console.error('[Atlas] An imported scene could not be opened', error);
-      new Notice(`"${last.name}" could not be opened. It is in the Scenes tab.`);
+      showNotice(`"${last.name}" could not be opened. It is in the Scenes tab.`);
       return;
     }
     now.onSceneOpened();

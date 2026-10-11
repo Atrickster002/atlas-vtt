@@ -1,4 +1,4 @@
-import { App, ItemView, WorkspaceLeaf, TFile, Notice } from "obsidian";
+import { App, ItemView, WorkspaceLeaf, TFile } from "obsidian";
 import type AtlasVTTPlugin from '../../main';
 import { createRoot, Root } from 'react-dom/client';
 import React, { useState, useEffect } from 'react';
@@ -19,6 +19,7 @@ import { runInBackground } from './utils/backgroundTask';
 import { t } from './i18n';
 import { mapThumbnailPath } from './utils/dataFileMigration';
 import { byLastOpened, SceneOpenHistory, type SceneRecency } from './services/sceneOpenHistory';
+import { showNotice } from './ui/notice';
 
 export const DASHBOARD_VIEW_TYPE = "atlas-vtt-dashboard";
 
@@ -305,7 +306,7 @@ export class DashboardView extends ItemView {
     try {
       const file = this.app.vault.getAbstractFileByPath(filePath);
       if (!file) {
-        new Notice(t('view.sceneNotFound', { path: filePath }));
+        showNotice(t('view.sceneNotFound', { path: filePath }));
         return;
       }
 
@@ -317,7 +318,7 @@ export class DashboardView extends ItemView {
       this.app.workspace.setActiveLeaf(leaf);
     } catch (error) {
       console.error('Error opening scene:', error);
-      new Notice(t('dashboard.openFailed'));
+      showNotice(t('dashboard.openFailed'));
     }
   }
 
@@ -326,7 +327,7 @@ export class DashboardView extends ItemView {
     const maps = await assetService.getAssets(undefined, 'map');
 
     if (maps.length === 0) {
-      new Notice(t('dashboard.addMapFirst'));
+      showNotice(t('dashboard.addMapFirst'));
     }
 
     const globalAM = new GlobalAssetManagerService(this.app);

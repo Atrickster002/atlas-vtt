@@ -14,6 +14,7 @@
 @use '../src/app/online/gm/styles/dock';
 @use '../src/app/online/tableLog/styles/table-log';
 @use './native-tooltips';
+@use './notices';
 
 // Registered so `atlas-scrollbar-while-scrolling` can fade the thumb. At-rules
 // must stay at the root: inside the scope block below they would be invalid.

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Notice } from 'obsidian';
+
 import { Crosshair, Scan } from 'lucide-react';
 import { useAtlasUI } from '../root/AtlasUIContext';
 import { GridAlignmentController } from '../../pixi/GridAlignmentController';
@@ -21,6 +21,7 @@ import { IntersectionsTab } from './IntersectionsTab';
 import { FreehandTab } from './FreehandTab';
 import { CloseButton } from '../../packages/components/primitives/CloseButton';
 import { t } from '../../i18n';
+import { showNotice } from '../../ui/notice';
 
 type AlignmentTab = 'intersections' | 'freehand';
 /** What the choice of a manual way holds while none is chosen. */
@@ -150,7 +151,7 @@ export function GridAlignmentOverlay({ onClose }: GridAlignmentOverlayProps): Re
       setDetecting(false);
       setDetectionStatus(null);
       // Said beside the panel, not in it: the panel holds its controls and nothing else.
-      new Notice(t('align.noGrid'));
+      showNotice(t('align.noGrid'));
       if (leaving) return;
       // The way on from a map without a grid to find is to show Atlas one cell of it.
       setActiveTab((tab) => tab ?? 'intersections');

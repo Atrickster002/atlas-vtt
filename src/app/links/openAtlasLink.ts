@@ -1,4 +1,4 @@
-import { Notice, type App, type TFile } from 'obsidian';
+import { type App, type TFile } from 'obsidian';
 import type { AtlasView } from '../atlas-view';
 import { loadAtlasView, openMapInView } from '../plugin/atlasLeaves';
 import { AssetService } from '../services/AssetService';
@@ -8,6 +8,7 @@ import { formatServiceAsset } from '../packages/components/asset-manager/utils/a
 import { encounterOfFile, findSnapshot, snapshotsOfMap } from './atlasLinkAssets';
 import { snapshotNameOfSubpath } from './atlasLinkTargets';
 import { t } from '../i18n';
+import { showNotice } from '../ui/notice';
 
 /** How long a snapshot link waits for its scene to open before it gives up. */
 const SCENE_OPEN_TIMEOUT_MS = 30_000;
@@ -47,7 +48,7 @@ export async function restoreLinkedSnapshot(app: App, mapPath: string, subpath: 
   const { service, entries } = await snapshotsOfMap(app, mapPath);
   const entry = findSnapshot(entries, name);
   if (!entry) {
-    new Notice(t('atlasLinks.snapshotMissing', { name }));
+    showNotice(t('atlasLinks.snapshotMissing', { name }));
     return;
   }
   if (!(await whenSceneShown(app, mapPath)) || !(await confirmSnapshotRestore(entry))) return;
@@ -67,7 +68,7 @@ export async function placeEncounterFile(app: App, file: TFile): Promise<void> {
   const assets = AssetService.getInstance(app);
   const encounter = await encounterOfFile(assets, file.path);
   if (!encounter) {
-    new Notice(t('atlasLinks.encounterMissing'));
+    showNotice(t('atlasLinks.encounterMissing'));
     return;
   }
   const shown = formatServiceAsset(encounter, '', app);

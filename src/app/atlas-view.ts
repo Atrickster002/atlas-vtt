@@ -1,4 +1,4 @@
-import { FileView, WorkspaceLeaf, TFile, normalizePath, ViewStateResult, Notice } from "obsidian";
+import { FileView, WorkspaceLeaf, TFile, normalizePath, ViewStateResult } from "obsidian";
 import { ServiceManager } from './services/ServiceManager';
 import { SceneOpenHistory } from './services/sceneOpenHistory';
 import { createViewAtlasStore, ViewAtlasStore } from './storeFactory';
@@ -13,6 +13,7 @@ import { isScenePath } from './utils/sceneFiles';
 import { runInBackground } from './utils/backgroundTask';
 import { restoreLinkedSnapshot } from './links/openAtlasLink';
 import type { ViewCamera } from './pixi/viewCamera';
+import { showNotice } from './ui/notice';
 
 export const ATLAS_VIEW_TYPE = "atlas-vtt";
 
@@ -332,7 +333,7 @@ export class AtlasView extends FileView {
     // Resolve the TFile from the tab's filePath
     const abstractFile = this.app.vault.getAbstractFileByPath(normalizePath(tab.filePath));
     if (!(abstractFile instanceof TFile)) {
-      new Notice(t('view.sceneNotFound', { path: tab.filePath }));
+      showNotice(t('view.sceneNotFound', { path: tab.filePath }));
       this.tabMetaStore.getState().removeTab(tabId);
       return;
     }
@@ -554,7 +555,7 @@ export class AtlasView extends FileView {
    */
   public async onLoadFile(file: TFile, camera?: ViewCamera): Promise<void> {
     if (!isScenePath(file.path)) {
-      new Notice(`"${file.name}" is not an Atlas scene. To play on a map image, create a scene from it in the asset manager.`, 5000);
+      showNotice(`"${file.name}" is not an Atlas scene. To play on a map image, create a scene from it in the asset manager.`, 5000);
       // onOpen shows the loading overlay before it gets here; nothing else will hide it
       if (!this.currentMapFilePath) this.store.getState().setMapLoading(false);
       return;

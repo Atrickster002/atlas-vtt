@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Notice, type App as ObsidianApp } from 'obsidian';
+import { type App as ObsidianApp } from 'obsidian';
 import type { AssetService } from '../../../../services/AssetService';
 import type { BundleProgress, BundleProgressListener } from '../../../../services/collectionBundle/bundleProgress';
 import { exportCollectionBundle, prepareCollectionExport, type ExportChoice, type ExportPreview } from '../../../../services/collectionBundle/collectionExport';
@@ -8,6 +8,7 @@ import type { BundleFileReader } from '../../../../services/collectionBundle/bun
 import type { ImportReview } from '../../../../services/collectionBundle/importReview';
 import { describeError } from '../../../../utils/errors';
 import { t } from '../../../../i18n';
+import { showNotice } from '../../../../ui/notice';
 
 /** Where an export or import stands; the asset manager blocks while one is set. */
 export type CollectionTransfer =
@@ -78,7 +79,7 @@ export function useCollectionTransfer({ app, assetService, selectedCollection, o
     session.current = null;
     // An update can close the map view hosting this asset manager; the result must still reach the user.
     if (!isMounted.current) {
-      new Notice(message);
+      showNotice(message);
       return;
     }
     setTransfer({ step: 'done', title, message });

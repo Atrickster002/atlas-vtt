@@ -34,6 +34,6 @@ describe('the companion plugin', () => {
   });
 
   it('is asked to show an image in Atlas\'s own window only while that is open, since Atlas says so otherwise', () => {
-    expect(vendor('src/app/services/ImageDisplayService.ts')).toMatch(/if \(!playerWindowService \|\| !playerWindowService\.isWindowOpen\(\)\) \{\s*new Notice\(t\('image\.windowClosed'\)\);/);
+    expect(vendor('src/app/services/ImageDisplayService.ts')).toMatch(/if \(!playerWindowService \|\| !playerWindowService\.isWindowOpen\(\)\) \{\s*showNotice\(t\('image\.windowClosed'\)\);/);
   });
 });

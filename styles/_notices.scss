@@ -1,0 +1,36 @@
+// Atlas' messages (`showNotice`, `src/app/ui/notice.ts`) are Obsidian's notices in the look of
+// Atlas' floating surfaces: Obsidian's own box is one dark slab in every theme. Only notices Atlas
+// made carry the class, so Obsidian's and other plugins' keep their look.
+
+@use './tokens' as *;
+@use './mixins' as *;
+
+@keyframes atlas-notice-in {
+  from {
+    opacity: 0;
+    transform: translateY(-#{$spacing-xs});
+  }
+}
+
+.notice.atlas-notice {
+  @include atlas-elevated-surface;
+  @include atlas-panel-radius($radius-2xl);
+  @include atlas-panel-padding;
+
+  color: var(--text-normal);
+  font-size: $font-ui-small;
+  line-height: var(--line-height-tight);
+  animation: atlas-notice-in $transition-normal $transition-ease-out;
+
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+  }
+
+  a {
+    color: var(--text-accent);
+
+    &:hover {
+      color: var(--text-accent-hover);
+    }
+  }
+}

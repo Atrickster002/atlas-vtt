@@ -10,6 +10,7 @@
 - Grid detection no longer freezes the window while it runs. Closing the panel under a running detection lets it finish and takes the grid it finds, which one undo takes back
 - The camera glides between the areas of a measurement instead of jumping
 - Alignment marks and the grid preview use the theme's accent colour, and marks keep their size at every zoom
+- Atlas' messages at the edge of the window take the look of its panels in your theme, where they were Obsidian's dark box
 
 ## Fixed
 

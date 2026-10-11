@@ -1,4 +1,4 @@
-import { App, Notice } from 'obsidian';
+import { App } from 'obsidian';
 import type { StoreApi } from 'zustand';
 import type { LocalPlayerView } from '../local-player-view';
 import { AtlasView, ATLAS_VIEW_TYPE } from '../atlas-view';
@@ -11,6 +11,7 @@ import { viewportCamera } from './playerFrame';
 import { PlayerWindowService } from './PlayerWindowService';
 import { presentedSceneOf, readPresentedScene, type PresentedScene, type PresentedSceneStore } from './presentedScene';
 import { rendersOnChange, requestRender, setBeforeRender } from '../pixi/RenderScheduler';
+import { showNotice } from '../ui/notice';
 
 /** Unsubscribes the tab watcher of the view whose tab is currently presented. */
 let stopWatchingPresentedTab: (() => void) | null = null;
@@ -28,7 +29,7 @@ export async function presentActiveTab(app: App, options: PresentOptions = {}): 
   const view = app.workspace.getActiveViewOfType(AtlasView);
   const activeTabId = view?.tabMetaStore.getState().activeTabId ?? null;
   if (!view || !activeTabId) {
-    new Notice(t('present.noMap'));
+    showNotice(t('present.noMap'));
     return;
   }
   await presentTab(app, view, activeTabId, options);
@@ -49,7 +50,7 @@ export async function presentTab(app: App, view: AtlasView, tabId: string, { ope
 
   const source = await waitForRenderedFrameSource(view);
   if (!source) {
-    new Notice(t('present.noCanvas'));
+    showNotice(t('present.noCanvas'));
     return;
   }
 
@@ -66,7 +67,7 @@ export async function presentTab(app: App, view: AtlasView, tabId: string, { ope
     // Players who see the scene nowhere get the player window, and so does a GM who asks for it
     else if (openWindow || !presented.isShownElsewhere()) await openPlayerWindow(app);
   }
-  new Notice(t(presentedNotice(presented), { name: tab.displayName }));
+  showNotice(t(presentedNotice(presented), { name: tab.displayName }));
 }
 
 /** What players were shown: the player window, only what another plugin shows, or nothing until the window opens. */
@@ -81,7 +82,7 @@ function presentedNotice(presented: PresentedSceneStore): 'present.shows' | 'pre
  */
 export async function openPlayerWindow(app: App): Promise<void> {
   if (PlayerWindowService.getInstance()?.isWindowOpen()) {
-    new Notice(t('lpv.alreadyOpen'));
+    showNotice(t('lpv.alreadyOpen'));
     return;
   }
   const presented = presentedSceneOf(app);

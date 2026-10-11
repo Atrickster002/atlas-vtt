@@ -1,8 +1,9 @@
-import { Notice, type ButtonComponent, type Setting } from 'obsidian';
+import { type ButtonComponent, type Setting } from 'obsidian';
 import type { AtlasSettingSection } from '../../../settings/settingSections';
 import { ACCOUNT_PAGE_URL } from '../servers.ts';
 import type { AccountControl } from './AccountControl.ts';
 import { accountText, planText, type AccountView } from './accountView.ts';
+import { showNotice } from '../../../ui/notice';
 
 /** What the account row says. */
 function accountDesc(view: AccountView): string {
@@ -85,7 +86,7 @@ export function accountSections(account: AccountControl): AtlasSettingSection[] 
                 button.buttonEl.addClass('mod-warning');
                 return;
               }
-              if (await account.deleteData()) new Notice('Your online data was deleted.');
+              if (await account.deleteData()) showNotice('Your online data was deleted.');
             }));
           },
         },

@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { MoreVertical } from 'lucide-react';
-import { App, FileView, Notice } from 'obsidian';
+import { App, FileView } from 'obsidian';
 import { getActiveWorkspaceLeaf } from '../../utils/embeddedLeafFocus';
 import { openContextMenuGlobal, type ContextMenuEntry } from '../root/ContextMenuContext';
 import { LabelTooltip } from '../../packages/components/primitives/tooltip';
 import { t } from '../../i18n';
+import { showNotice } from '../../ui/notice';
 
 interface ViewActionsMenuProps {
   app: App;
@@ -51,10 +52,10 @@ export const ViewActionsMenu: React.FC<ViewActionsMenuProps> = ({ app, filePath 
           type: 'item', label: t('view.copyPath'), icon: 'copy',
           onClick: () => {
             navigator.clipboard.writeText(filePath).then(
-              () => new Notice(t('view.pathCopied')),
+              () => showNotice(t('view.pathCopied')),
               (error: unknown) => {
                 console.error('[ViewActionsMenu] Copying the file path failed:', error);
-                new Notice(t('view.copyFailed'));
+                showNotice(t('view.copyFailed'));
               },
             );
           },

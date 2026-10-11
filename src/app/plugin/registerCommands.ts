@@ -1,5 +1,5 @@
 import { TokenCreatorModal } from '../packages/components/asset-manager/token-creator/TokenCreatorModal';
-import { Notice, Plugin, TFile } from 'obsidian';
+import { Plugin, TFile } from 'obsidian';
 import { AtlasView } from '../atlas-view';
 import { DASHBOARD_VIEW_TYPE } from '../dashboard-view';
 import { t } from '../i18n';
@@ -9,6 +9,7 @@ import { openPlayerWindow, presentActiveTab } from '../services/PlayerWindowPres
 import { hasBestiaryFrontmatter } from '../services/statblockNoteSource';
 import { TokenStatblockLinkService } from '../services/TokenStatblockLinkService';
 import { cleanupMissingAssets } from './cleanupMissingAssets';
+import { showNotice } from '../ui/notice';
 
 export interface CommandDependencies {
   imageDisplay: ImageDisplayService;
@@ -28,7 +29,7 @@ async function openDashboard(plugin: Plugin): Promise<void> {
     plugin.app.workspace.setActiveLeaf(leaf);
   } catch (error) {
     console.error('[Atlas] Error opening dashboard:', error);
-    new Notice(t('notice.dashboardOpenFailed'));
+    showNotice(t('notice.dashboardOpenFailed'));
   }
 }
 
@@ -79,7 +80,7 @@ function registerPlayerViewCommands(plugin: Plugin, imageDisplay: ImageDisplaySe
     if (file && isImageFile(file)) {
       void imageDisplay.displayImageOnPlayerView(file);
     } else {
-      new Notice(t('notice.openImageFirst'));
+      showNotice(t('notice.openImageFirst'));
     }
   });
 }
