@@ -40,7 +40,8 @@ function menu(over: Partial<OnlineSnapshot>, account: AccountView): { lines: str
 describe('the online menu before a table runs', () => {
   it('asks a signed-out GM to sign in, and offers nothing that takes a key', () => {
     const shown = menu({}, { kind: 'signed-out', notice: null });
-    expect(shown.lines).toEqual(['Online play', 'Players see this map in their browsers and move their own tokens.', 'Use your Atlas account to host tables.']);
+    expect(shown.lines).toEqual(['Online play', 'Players see this map in their browsers and move their own tokens.']);
+    expect(shown.layer.querySelector('.atlas-online-tag')).toBeNull();
     expect(shown.buttons).toEqual(['Sign in to host']);
     expect(shown.layer.querySelector('input, form')).toBeNull();
   });
@@ -65,9 +66,13 @@ describe('the online menu before a table runs', () => {
     expect(menu({}, { kind: 'no-access', account: MARA, reason: null }).lines[1]).toBe('This account may not host online tables now. See your account page.');
   });
 
-  it('offers Start to an account the relay says may host, with its plan', () => {
+  it('offers Start to an account the relay says may host, with its plan as a small tag beside the title and no more words', () => {
     const shown = menu({}, CAN_HOST);
-    expect(shown.lines).toEqual(['Online play', 'Players see this map in their browsers and move their own tokens.', 'Early access · up to 12 players', 'Signed in as Mara (@mara)']);
+    expect(shown.lines).toEqual(['Online play', 'Signed in as Mara (@mara)']);
+    expect(shown.layer.querySelector('.atlas-online-title-row .atlas-online-tag')?.textContent).toBe('Early access');
+    // The ordinary plan needs no word; the others say theirs.
+    expect(menu({}, { ...CAN_HOST, access: { plan: 'host', maxPlayers: 12, endsAt: null } }).layer.querySelector('.atlas-online-tag')).toBeNull();
+    expect(menu({}, { ...CAN_HOST, access: { plan: 'free', maxPlayers: 2, endsAt: null } }).layer.querySelector('.atlas-online-tag')?.textContent).toBe('Free');
     expect(shown.buttons).toEqual(['Sign out', 'Start online table']);
     shown.press('Start online table');
     expect(shown.does.start).toHaveBeenCalledTimes(1);
