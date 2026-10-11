@@ -58,29 +58,38 @@ export const REPEAT_REQUEST_MS = 10_000;
  * the whole asset sent again or a new scaled copy made.
  */
 export const MAX_SERVES_PER_ASSET = 3;
+/** How many counts are kept before those nothing recent is left of are dropped. */
+const SENDS_SWEEP_AT = 2048;
 
 /**
  * Which player was last sent which asset from which chunk, and when: the same request again within
  * `REPEAT_REQUEST_MS` is ignored, one from another chunk (a download continued) is not, up to
- * `MAX_SERVES_PER_ASSET` of one asset.
+ * `MAX_SERVES_PER_ASSET` of one asset. Forgetting a player (they left, or were refused) lets them
+ * repeat a request at once but never empties that count, or leaving and coming back would.
  */
 export class ServedAssets {
+  /** Requests by player, asset with its side, and chunk: what a repeat is told by. */
   private readonly served = new Map<string, number>();
+  /** When each player was sent each asset, whatever they asked for: what the cap counts. */
+  private readonly sends = new Map<string, number[]>();
 
   /** Whether `player`'s request for `hash` (an asset, or `asset@side`) from chunk `from` is served now; noted when it is. */
   take(player: string, hash: string, from: number, now: number): boolean {
     const key = `${player}\n${hash}\n${from}`;
+    const last = this.served.get(key);
+    if (last !== undefined && now - last < REPEAT_REQUEST_MS) return false;
     const asset = `${player}\n${hash.split('@', 1)[0] ?? hash}`;
-    let recent = 0;
-    for (const [served, at] of [...this.served]) {
-      if (!served.startsWith(asset)) continue;
-      // What is older than the window no longer counts, and is not kept.
-      if (now - at >= REPEAT_REQUEST_MS) this.served.delete(served);
-      else recent += 1;
-    }
-    if (this.served.has(key) || recent >= MAX_SERVES_PER_ASSET) return false;
+    const recent = (this.sends.get(asset) ?? []).filter((at) => now - at < REPEAT_REQUEST_MS);
+    if (recent.length >= MAX_SERVES_PER_ASSET) return false;
+    if (this.sends.size >= SENDS_SWEEP_AT) this.sweep(now);
+    this.sends.set(asset, [...recent, now]);
     this.served.set(key, now);
     return true;
+  }
+
+  /** Drops the counts nothing recent is left of. */
+  private sweep(now: number): void {
+    for (const [asset, times] of [...this.sends]) if (times.every((at) => now - at >= REPEAT_REQUEST_MS)) this.sends.delete(asset);
   }
 
   /** Forgets what `player` was sent (of `hash` only, at any longest side, when named): they may ask again at once. */
