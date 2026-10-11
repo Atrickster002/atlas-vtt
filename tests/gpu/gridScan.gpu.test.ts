@@ -28,6 +28,13 @@ interface Stage {
   overlays: Container[];
 }
 
+/** A pace that never steps down: a browser that ticks at 30 frames a second under load would get the scan at half its pixels. */
+class SteadyPace extends ScanPace {
+  override frame(): boolean {
+    return false;
+  }
+}
+
 let open: Stage | null = null;
 
 async function stage(scale = 1, x = 0, y = 0, pace = new ScanPace()): Promise<Stage> {
@@ -84,7 +91,8 @@ describe('grid scan', () => {
   for (const [scale, x, y] of [[1, 0, 0], [0.6, 40, -25]] as const) {
     for (const grid of grids) {
       it(`draws ${grid.gridType} on the lines the grid drawers draw, with the map at ${scale}`, async () => {
-        const view = await stage(scale, x, y);
+        // Where the lines lie is asked of the scan at its full pixels, whatever pace this machine keeps today.
+        const view = await stage(scale, x, y, new SteadyPace());
         const revealed = new Promise<void>((resolve) => view.scan.lock(grid as AlignmentResult, null, resolve));
         await revealed;
         // The answer stands sharp over the whole map after the swell, which bends the grid with the map
