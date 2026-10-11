@@ -51,19 +51,34 @@ export function imageMimeType(path: string): string | null {
 
 /** How long a player's request for the asset it is being sent is ignored. */
 export const REPEAT_REQUEST_MS = 10_000;
+/**
+ * How often one player is sent one asset within `REPEAT_REQUEST_MS`, whatever chunk or longest side
+ * they ask for: the first request, a download continued, and one to spare. The chunk and the side
+ * are the player's to choose, so without this every other value would be a new request, each one
+ * the whole asset sent again or a new scaled copy made.
+ */
+export const MAX_SERVES_PER_ASSET = 3;
 
 /**
  * Which player was last sent which asset from which chunk, and when: the same request again within
- * `REPEAT_REQUEST_MS` is ignored, one from another chunk (a download continued) is not.
+ * `REPEAT_REQUEST_MS` is ignored, one from another chunk (a download continued) is not, up to
+ * `MAX_SERVES_PER_ASSET` of one asset.
  */
 export class ServedAssets {
   private readonly served = new Map<string, number>();
 
-  /** Whether `player`'s request for `hash` from chunk `from` is served now; noted when it is. */
+  /** Whether `player`'s request for `hash` (an asset, or `asset@side`) from chunk `from` is served now; noted when it is. */
   take(player: string, hash: string, from: number, now: number): boolean {
     const key = `${player}\n${hash}\n${from}`;
-    const last = this.served.get(key);
-    if (last !== undefined && now - last < REPEAT_REQUEST_MS) return false;
+    const asset = `${player}\n${hash.split('@', 1)[0] ?? hash}`;
+    let recent = 0;
+    for (const [served, at] of [...this.served]) {
+      if (!served.startsWith(asset)) continue;
+      // What is older than the window no longer counts, and is not kept.
+      if (now - at >= REPEAT_REQUEST_MS) this.served.delete(served);
+      else recent += 1;
+    }
+    if (this.served.has(key) || recent >= MAX_SERVES_PER_ASSET) return false;
     this.served.set(key, now);
     return true;
   }
