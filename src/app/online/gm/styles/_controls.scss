@@ -33,10 +33,31 @@
     padding: $online-text-inset;
   }
 
+  .atlas-online-title-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: $spacing-s;
+  }
+
   .atlas-online-title {
     font-size: $font-ui-medium;
     font-weight: $font-weight-semibold;
     color: var(--text-normal);
+  }
+
+  // The account's plan beside the title: a quiet capsule, never an accent.
+  .atlas-online-tag {
+    flex: none;
+    box-sizing: border-box;
+    height: 20px;
+    padding: 0 $spacing-s;
+    border: $border-width-s solid var(--background-modifier-border);
+    border-radius: $radius-full;
+    color: var(--text-muted);
+    font-size: $font-ui-smaller;
+    line-height: calc(20px - 2 * #{$border-width-s});
+    white-space: nowrap;
   }
 
   .atlas-online-help {

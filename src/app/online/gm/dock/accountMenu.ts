@@ -1,5 +1,5 @@
 import type { AccountApi } from '../account/AccountControl.ts';
-import { accessText, accountText, noticeText, planText, UNREACHABLE_TEXT, type AccountView } from '../account/accountView.ts';
+import { accessText, accountText, noticeText, planTag, UNREACHABLE_TEXT, type AccountView } from '../account/accountView.ts';
 import { tableEndText, type LostTable } from '../tableEnd.ts';
 import { statusLine, textButton } from './controls.ts';
 
@@ -33,10 +33,12 @@ const INTRO = 'Players see this map in their browsers and move their own tokens.
 /** A code as the approve page shows it: two groups of four. */
 export const shownCode = (code: string): string => (code.length === 8 ? `${code.slice(0, 4)}-${code.slice(4)}` : code);
 
-/** The menu's title and, after a table the server ended, the line that says how. */
-function intro(layer: HTMLElement, lost: LostTable | null, title = 'Online play'): HTMLElement {
+/** The menu's title, with the account's plan as a small tag beside it, and, after a table the server ended, the line that says how. */
+function intro(layer: HTMLElement, lost: LostTable | null, title = 'Online play', tag: string | null = null): HTMLElement {
   const head = layer.createDiv({ cls: 'atlas-online-text-block' });
-  head.createDiv({ cls: 'atlas-online-title', text: title });
+  const row = head.createDiv({ cls: 'atlas-online-title-row' });
+  row.createDiv({ cls: 'atlas-online-title', text: title });
+  if (tag !== null) row.createDiv({ cls: 'atlas-online-tag', text: tag });
   if (lost !== null) statusLine(head, { text: tableEndText(lost), tone: 'red' }).setAttribute('role', 'alert');
   return head;
 }
@@ -78,12 +80,12 @@ function startButton(layer: HTMLElement, starting: boolean, enabled: boolean, ac
  * table closed because the account may not host comes with the way to the account page in every state.
  */
 export function renderAccountMenu(layer: HTMLElement, account: AccountView, starting: boolean, lost: LostTable | null, actions: AccountActions): void {
-  const head = intro(layer, lost, account.kind === 'waiting' ? 'Sign in to host' : undefined);
+  const head = intro(layer, lost, account.kind === 'waiting' ? 'Sign in to host' : undefined, account.kind === 'can-host' ? planTag(account.access) : null);
   if (lost === 'no-access' && account.kind !== 'no-access') accountPageButton(layer, actions);
   switch (account.kind) {
     case 'signed-out': {
+      // The one sentence about what this is; the button says how to begin.
       help(head, INTRO);
-      help(head, 'Use your Atlas account to host tables.');
       const notice = noticeText(account.notice);
       if (notice !== null) statusLine(head, { text: notice, tone: account.notice === 'server' ? 'amber' : 'red' });
       button(layer, 'Sign in to host', 'sign-in', () => actions.signIn(), 'cta', true);
@@ -114,8 +116,6 @@ export function renderAccountMenu(layer: HTMLElement, account: AccountView, star
       accountPageButton(layer, actions, 'cta');
       return accountRow(layer, accountText(account.account), actions, true);
     case 'can-host':
-      help(head, INTRO);
-      help(head, planText(account.access));
       accountRow(layer, accountText(account.account), actions, false);
       return startButton(layer, starting, true, actions);
   }
