@@ -6,10 +6,11 @@ import { typedDistance } from '../../../grid/unitDistance';
 import { rulesForMap } from '../../../gameSystems/mapRules';
 import { rulesLookup } from '../../../services/mapRules';
 import { mapMeasurementSettings } from '../../../services/mapMeasurementSettings';
+import { t } from '../../../i18n';
 
 /**
  * How far one cell of this scene reaches, when its map is drawn at another scale than the
- * rest of its collection. Empty follows the collection. Written when the field is left, so
+ * rest of the rules it plays by. Empty follows those rules. Written when the field is left, so
  * typing a number is one undo step; text that is no distance puts the stored one back.
  */
 export function SceneUnitDistanceRow({ view }: { view: AtlasView | null }): React.ReactElement | null {
@@ -26,8 +27,11 @@ export function SceneUnitDistanceRow({ view }: { view: AtlasView | null }): Reac
   // Range bands name distances; there is no distance per cell to change.
   if (measurement.mode === 'abstract') return null;
   const unit = unitLabelFor(measurement.unitType);
-  const inCollection = rulesForMap(rules, state.mapPath).source.kind === 'collection';
-  const followed = `${measurement.ruleDistance}${unit ? ` ${unit}` : ''}`;
+  const { kind } = rulesForMap(rules, state.mapPath).source;
+  const distance = `${measurement.ruleDistance}${unit ? ` ${unit}` : ''}`;
+  const hint = kind === 'campaign' ? t('grid.distanceFromCampaign', { distance })
+    : kind === 'collection' ? t('grid.distanceFromCollection', { distance })
+      : t('grid.distanceFromGrid', { distance });
   const shown = stored === undefined ? '' : String(stored);
 
   const commit = (): void => {
@@ -42,14 +46,14 @@ export function SceneUnitDistanceRow({ view }: { view: AtlasView | null }): Reac
   };
 
   return (
-    <SettingRow label="Distance per cell" hint={inCollection ? `Empty uses the collection's ${followed}` : `Empty uses the grid's ${followed}`}>
+    <SettingRow label={t('grid.distancePerCell')} hint={hint}>
       <input
         type="text"
         inputMode="decimal"
         className="atlas-setting-input atlas-setting-input--sm"
         value={draft ?? shown}
         placeholder={String(measurement.ruleDistance)}
-        aria-label={`Distance per cell${unit ? ` in ${unit}` : ''}`}
+        aria-label={unit ? t('grid.distancePerCellIn', { unit }) : t('grid.distancePerCell')}
         onFocus={() => setDraft(shown)}
         onChange={(event) => setDraft(event.target.value)}
         onBlur={commit}

@@ -1,6 +1,9 @@
 import type { App } from 'obsidian';
+import { CampaignFiles } from '../campaigns/CampaignFiles';
+import { CampaignService } from '../campaigns/CampaignService';
+import type { CampaignSystem } from '../campaigns/campaignSystem';
 import { PlayedRules } from '../campaigns/playedRules';
-import { rulesForMap, type CollectionLookup, type MapRules, type RulesLookup } from '../gameSystems/mapRules';
+import { rulesForMap, type CollectionLookup, type MapRules, type RulesLookup, type RulesSource } from '../gameSystems/mapRules';
 import { AssetService } from './AssetService';
 import { SystemPresetFiles } from './systemPresets/SystemPresetFiles';
 
@@ -62,4 +65,17 @@ export function onMapRulesChange(
     app.workspace.offref(settingsRef);
     for (const stop of stops) stop?.();
   };
+}
+
+/**
+ * Changes the rules where they come from (`MapRules.source`): the collection's settings, or the
+ * campaign's system. A map without rules has nothing to change.
+ */
+export async function updateMapRules(app: App, source: RulesSource, changes: Partial<CampaignSystem>): Promise<void> {
+  if (source.kind === 'collection') {
+    await AssetService.getInstance(app).updateCollectionSettings(source.id, changes);
+    return;
+  }
+  const campaigns = CampaignFiles.forApp(app);
+  if (source.kind === 'campaign' && campaigns) new CampaignService(campaigns).update(source.id, { system: changes });
 }

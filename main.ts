@@ -105,7 +105,7 @@ export default class AtlasVTTPlugin extends Plugin {
     // So are campaigns: their folders are read once the storage is ready.
     const campaignFiles = CampaignFiles.open(this.app);
     // Every map plays by the system of the campaign this device plays, where it has one.
-    PlayedRules.open(this.app);
+    PlayedRules.open(this.app, campaignFiles);
     const campaignsRead = storageReady.catch(() => undefined).then(() => campaignFiles.load());
     void campaignsRead.catch((error: unknown) => console.error('[Atlas] Reading the campaigns failed:', error));
     // The campaign this device plays records the scenes its map views open.

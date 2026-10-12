@@ -7,8 +7,7 @@ import { useAtlasStore } from '../../ViewStoreContext';
 import { slottedResources } from '../../../resources/resourceSlots';
 import { shapeOf } from '../../../resources/visibleResources';
 import { useMapResources } from '../../../resources/useMapResources';
-import { AssetService } from '../../../services/AssetService';
-import { mapRules } from '../../../services/mapRules';
+import { mapRules, updateMapRules } from '../../../services/mapRules';
 import { runInBackground } from '../../../utils/backgroundTask';
 import { openPlayerWindow } from '../../../services/PlayerWindowPresenter';
 import { SettingsService, type AtlasSettings } from '../../../services/SettingsService';
@@ -53,13 +52,13 @@ function PlayerBarToggles({ app }: { app: App }): React.ReactElement | null {
   const resources = useMapResources();
   const mapPath = useAtlasStore((state) => state.mapPath);
   const { source } = mapRules(app, mapPath);
-  if (source.kind !== 'collection') return null;
+  if (source.kind === 'none') return null;
 
   const toggle = (key: string): void => {
     const next = resources.map((resource) => (
       resource.key === key ? { ...resource, visibleToPlayers: !resource.visibleToPlayers } : resource
     ));
-    runInBackground(AssetService.getInstance(app).updateCollectionSettings(source.id, { resources: next }), 'Saving what players see');
+    runInBackground(updateMapRules(app, source, { resources: next }), 'Saving what players see');
   };
 
   return (
