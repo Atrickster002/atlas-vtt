@@ -1,5 +1,5 @@
-@use '../../../../styles/tokens' as *;
-@use '../../../../styles/mixins' as *;
+@use '../../../../../styles/tokens' as *;
+@use '../../../../../styles/mixins' as *;
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Atlas VTT – Landing Dashboard
@@ -232,7 +232,7 @@
   }
 }
 
-// ── Recent scenes panel ─────────────────────────────────────────────────────
+// ── Panels and their rows ───────────────────────────────────────────────────
 
 .dashboard-panel {
   @include atlas-inset-surface;
@@ -249,6 +249,7 @@
 
 .panel-heading {
   flex-shrink: 0;
+  margin: 0;
   font-size: $font-ui-small;
   font-weight: $font-weight-medium;
   line-height: 1;
@@ -264,7 +265,8 @@
   @include atlas-scrollbar;
 }
 
-.recent-scene-item.btn {
+/// A scene or campaign in a panel: no resting fill, highlighted on hover.
+.dashboard-row.btn {
   @include atlas-focus-ring;
   display: flex;
   align-items: center;
@@ -283,30 +285,35 @@
     background: var(--background-modifier-hover);
   }
 
-  .recent-scene-content {
+  .dashboard-row__content {
     flex: 1;
     min-width: 0;
     @include atlas-flex-col($spacing-xs);
   }
 
-  .recent-scene-name {
+  .dashboard-row__name {
     font-size: $font-ui-small;
     font-weight: $font-weight-medium;
     color: var(--text-normal);
     @include atlas-truncate;
   }
 
-  .recent-scene-meta {
+  .dashboard-row__meta {
     @include atlas-flex-row($spacing-xs);
+    min-width: 0;
     font-size: $font-ui-smaller;
     color: var(--text-muted);
 
-    .recent-scene-collection {
+    > span {
       @include atlas-truncate;
+    }
+
+    .dashboard-row__collection {
       max-width: 140px;
     }
 
-    .recent-scene-separator {
+    .dashboard-row__separator {
+      flex-shrink: 0;
       color: var(--text-faint);
     }
   }
