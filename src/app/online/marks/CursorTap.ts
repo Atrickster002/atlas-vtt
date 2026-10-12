@@ -50,15 +50,17 @@ const rounded = (value: number): number => Math.round(value * 10) / 10;
  * stops nothing.
  *
  * The pointer's place on the canvas comes from the canvas's own pointer events, and its place in the
- * world is worked out once the event that moved the pointer or the camera has run to its end: a drag
- * moves the camera inside the very pointer event that moves the pointer, before or after any other
- * listener of it, and a place read in between pairs the pointer of one moment with the camera of
- * another, which others saw as a cursor sliding off the spot its owner held.
+ * world is worked out in a task of its own after the event that moved the pointer or the camera
+ * (`defer`): a drag moves the camera inside the very pointer event that moves the pointer, in PIXI's
+ * listener on the document, which runs before the canvas hears of the move. A place worked out in
+ * between, even in a microtask after that listener, pairs the new camera with the pointer of the
+ * move before, one drag step off, and every other place sent then zigzagged on everyone else's map.
  */
 export class CursorTap implements CursorSource {
   private readonly viewport: CursorViewport;
   private readonly canvas: CursorCanvas;
   private readonly now: () => number;
+  private readonly defer: (run: () => void) => void;
   private readonly listeners = new Set<() => void>();
   private readonly meter = new SpanMeter();
   private pointer: MarkPoint | null = null;
@@ -71,11 +73,15 @@ export class CursorTap implements CursorSource {
   private readonly onCamera = (): void => this.sample();
   private readonly onLeave = (): void => this.leave();
 
-  /** `now` is the clock spans and rests are measured on, in ms. */
-  constructor(viewport: CursorViewport, canvas: CursorCanvas, now: () => number = () => performance.now()) {
+  /**
+   * `now` is the clock spans and rests are measured on, in ms; `defer` runs work in a task after the
+   * one under way, once every listener of the event that started it has run.
+   */
+  constructor(viewport: CursorViewport, canvas: CursorCanvas, now: () => number = () => performance.now(), defer: (run: () => void) => void = (run) => void window.setTimeout(run, 0)) {
     this.viewport = viewport;
     this.canvas = canvas;
     this.now = now;
+    this.defer = defer;
     canvas.addEventListener('pointermove', this.onMove);
     canvas.addEventListener('pointerdown', this.onMove);
     viewport.on('moved', this.onCamera);
@@ -118,11 +124,11 @@ export class CursorTap implements CursorSource {
     this.sample();
   }
 
-  /** Works out the pointer's place in the world once the event under way has run to its end. */
+  /** Works out the pointer's place in the world in a task after the event under way. */
   private sample(): void {
     if (this.sampling || this.screen === null) return;
     this.sampling = true;
-    queueMicrotask(() => {
+    this.defer(() => {
       this.sampling = false;
       if (this.screen !== null) this.place(this.screen);
     });
