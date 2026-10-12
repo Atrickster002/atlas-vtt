@@ -77,11 +77,16 @@ function isBody(sides: number): sides is DieSides {
  *
  * A mimicked die lands on the highest face of its band (a d2's 2 shows the
  * d6's 6), so the face always reads back as the value everyone sees.
+ *
+ * A die that was rolled again is not thrown: the die that took its place
+ * stands for it. Dropped dice are thrown, since they were rolled. A Fate die
+ * has no body: its faces read −1, 0 and +1.
  */
 export function sceneFromRolls(
-  rolls: readonly Pick<RolledDie, 'max' | 'value' | 'negative' | 'exploded'>[],
+  rolled: readonly Pick<RolledDie, 'max' | 'min' | 'value' | 'negative' | 'exploded' | 'rerolled'>[],
 ): DiceScene | null {
-  if (rolls.length === 0) return null;
+  const rolls = rolled.filter((roll) => !roll.rerolled);
+  if (rolls.length === 0 || rolls.some((roll) => roll.min !== undefined)) return null;
 
   const plan: DiePlan[] = [];
   const faces: number[] = [];

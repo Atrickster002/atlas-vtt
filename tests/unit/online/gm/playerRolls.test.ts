@@ -81,7 +81,7 @@ describe('players\' rolls', () => {
 
   it('refuse a formula Atlas would complete or reject to the sender alone, with no roll and no notice', async () => {
     const gm = await table({ defaultRoll: '1d20', crit: 'natural' }, () => 0.5);
-    for (const formula of ['+3', '3', '', '0d6', '1d6 +', 'd20 + abc', '2d6 * 2', '1d1001']) {
+    for (const formula of ['+3', '3', '', '0d6', '1d6 +', 'd20 + abc', '2d6 ^ 2', '1d1001']) {
       gm.share.receive(ANA, { t: 'roll', scene: gm.scene, formula, token: null });
       await gm.advance(1000);
     }

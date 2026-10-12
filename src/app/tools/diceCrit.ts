@@ -9,13 +9,15 @@ export type DiceCrit = 'high' | 'low' | null;
  * default dice count: the first dice of the default roll's size, as many as it
  * rolls. A roll with fewer of them, such as a d8 under a d20 rule, never crits.
  * Dice rolled for an explosion are no default dice: the die that exploded is.
+ * Dice that were rolled again or dropped count for nothing, so the die kept of
+ * `2d20kh1` is the default die of a 1d20 rule.
  */
 export function getDiceCrit(rolls: readonly RolledDie[], rules: DiceRules): DiceCrit {
   const roll = parseDefaultRoll(rules.defaultRoll);
   if (!roll || rules.crit === 'none') return null;
 
   const values = rolls
-    .filter((die) => !die.negative && !die.exploded && die.max === roll.sides)
+    .filter((die) => !die.negative && !die.exploded && !die.rerolled && !die.dropped && die.max === roll.sides)
     .slice(0, roll.count)
     .map((die) => die.value);
   if (values.length < roll.count) return null;
