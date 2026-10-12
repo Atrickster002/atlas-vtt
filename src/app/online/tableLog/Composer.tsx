@@ -6,7 +6,7 @@ import { audienceNames } from './audience.ts';
 import { chosenSpeaker, parseComposerInput } from './chatCommands.ts';
 import { classes } from './classes.ts';
 import type { Suggestion } from './commandSuggestions.ts';
-import { CommandSuggestions, useSuggestions } from './CommandSuggestions.tsx';
+import { SuggestionList, useSuggestions } from './SuggestionList.tsx';
 import { RollModeMenu, SpeakerMenu } from './ComposerChoices.tsx';
 import { ComposerStrip } from './ComposerStrips.tsx';
 import { isComposing, useGrowingField } from './growField.ts';
@@ -151,7 +151,7 @@ export function Composer(props: ComposerProps): ReactElement {
       {help && <HelpCard onClose={() => { setHelp(false); toField(); }} />}
       {line !== null && <div className={classes('atlas-online-log__notice', warning !== null && 'atlas-online-log__notice--refused')} role="status">{line}</div>}
       <div className={classes('atlas-online-log__composer-box', !canSend && 'is-disabled')}>
-        {listOpen && <CommandSuggestions id={listId} list={suggestions} onComplete={complete} />}
+        {listOpen && <SuggestionList id={listId} list={suggestions} onComplete={complete} />}
         {reply !== null && <ComposerStrip text={reply.label} whisper={reply.whisper} clearLabel="Cancel reply" onClear={onClearReply} />}
         {whisperLabel !== null && (reply === null || reply.whisper === null) && (
           <ComposerStrip text={`To ${whisperLabel}`} locked clearLabel="Stop whispering" onClear={() => { state.setWhisperTo(null); toField(); }} />

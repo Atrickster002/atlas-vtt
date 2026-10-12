@@ -31,14 +31,14 @@ export function useSuggestions(draft: string, people: readonly TablePerson[], se
   };
 }
 
-export interface CommandSuggestionsProps {
+export interface SuggestionListProps {
   readonly id: string;
   readonly list: SuggestionList;
   readonly onComplete: (item: Suggestion) => void;
 }
 
 /** The commands or people the field offers, above it; the focus stays in the field, which names the row it is on. */
-export function CommandSuggestions({ id, list, onComplete }: CommandSuggestionsProps): ReactElement {
+export function SuggestionList({ id, list, onComplete }: SuggestionListProps): ReactElement {
   return (
     <div id={id} role="listbox" aria-label="Suggestions" className="atlas-dropdown-content atlas-dropdown-content--top atlas-online-log__suggestions">
       {list.items.map((item, index) => (
