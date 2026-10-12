@@ -1,7 +1,9 @@
 import type { RulesSettings } from '../gameSystems/mapRules';
 import { parseSystemRules } from '../gameSystems/presetValidation';
+import { rulesOfPreset } from '../gameSystems/systemRules';
 import { parseVisionDefaults } from '../gameSystems/visionDefaults';
 import { parseResourceDefinitions } from '../resources/resourceDefinitions';
+import type { SystemPreset } from '../types/systemPresetTypes';
 import { isRecord } from './campaignValues';
 
 /**
@@ -53,4 +55,14 @@ export function withSystemChanges(stored: unknown, changes: Partial<CampaignSyst
     else next[key] = structuredClone(value);
   }
   return next;
+}
+
+/**
+ * A campaign's system as rules to edit and compare with the presets. A campaign makes no scenes,
+ * so it keeps no default widgets: it takes its preset's, and reads as that preset where nothing
+ * else was changed.
+ */
+export function campaignRules(system: CampaignSystem, presets: readonly SystemPreset[]): RulesSettings {
+  const preset = presets.find((candidate) => candidate.id === system.systemPresetId);
+  return { ...system, defaultWidgets: preset ? rulesOfPreset(preset).defaultWidgets : {} };
 }

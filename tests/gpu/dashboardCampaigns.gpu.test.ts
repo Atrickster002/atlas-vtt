@@ -11,6 +11,11 @@ import { AssetService } from '../../src/app/services/AssetService';
 import { mapThumbnailPath } from '../../src/app/utils/dataFileMigration';
 import { createInMemoryApp } from '../mocks/inMemoryVault';
 import { memoryCampaigns } from '../mocks/memoryCampaigns';
+import { memoryPresets } from '../mocks/memoryPresets';
+import { SystemPresetFiles } from '../../src/app/services/systemPresets/SystemPresetFiles';
+
+// The campaign's game system dialog can delete a preset, which reaches the map views' services.
+vi.mock('events', async () => import('eventemitter3'));
 
 /**
  * The dashboard with campaigns, laid out by the plugin's stylesheet over Obsidian's default theme
@@ -153,6 +158,7 @@ describe('the dashboard with campaigns', () => {
     cleanup();
     style.remove();
     AssetService.resetInstance();
+    vi.restoreAllMocks();
   });
 
   for (const theme of ['dark', 'light'] as const) {
@@ -186,6 +192,35 @@ describe('the dashboard with campaigns', () => {
   }
 
   for (const theme of ['dark', 'light'] as const) {
+    it(`names the campaign's game system in a row like the others, and opens its settings (${theme})`, async () => {
+      vi.spyOn(SystemPresetFiles, 'forApp').mockReturnValue(memoryPresets() as unknown as SystemPresetFiles);
+      const system = { systemPresetId: 'builtin:cairn', gridDefaults: { unitType: 'feet', unitDistance: 5, measurementMode: 'metric' }, conditions: [], dice: { defaultRoll: '1d12', crit: 'roll-under' } };
+      await mount(theme, (sceneIds) => campaignsOf(sceneIds).map((campaign) => (campaign.id === 'a' ? { ...campaign, system } : campaign)));
+      fireEvent.click(query('.campaigns-panel .dashboard-row'));
+      await expect.poll(() => document.querySelector('.campaign-system__trigger')).not.toBeNull();
+      const trigger = query('.campaign-system__trigger').getBoundingClientRect();
+      const worldMap = query('.world-map-picker__trigger').getBoundingClientRect();
+      expect(trigger.height).toBeCloseTo(worldMap.height, 0);
+      expect(trigger.left).toBeCloseTo(worldMap.left, 0);
+      expect(trigger.right).toBeCloseTo(worldMap.right, 0);
+      expect(query('.campaign-system__trigger').textContent).toContain('Cairn');
+      expect(query('.campaign-system__trigger').textContent).toContain('Edited');
+      await shot(`system-row-${theme}`);
+
+      fireEvent.click(query('.campaign-system__trigger'));
+      await expect.poll(() => document.querySelector('.atlas-collection-settings-modal [role="radio"][aria-checked="true"]')).not.toBeNull();
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      const modal = query('.atlas-collection-settings-modal');
+      const tabs = [...modal.querySelectorAll('.atlas-collection-settings-tab')].map((tab) => tab.textContent);
+      expect(tabs).toEqual(['Game System', 'Dice', 'Grid & Measure', 'Conditions', 'Resources', 'Initiative']);
+      // The close button sits in the header's corner, inside the dialog.
+      const close = modal.querySelector('.atlas-collection-settings-header button')!.getBoundingClientRect();
+      const box = modal.getBoundingClientRect();
+      expect(close.right).toBeLessThan(box.right);
+      expect(close.top).toBeGreaterThan(box.top);
+      await page.screenshot({ path: `__screenshots__/atlas-campaigns-system-dialog-${theme}.png`, element: modal });
+    });
+
     it(`shows the party of the last scene at the row's end: ringed faces as a fan, the others side by side (${theme})`, async () => {
       await mount(theme, (sceneIds) => [
         ...campaignsOf(sceneIds).map((campaign) => (campaign.id === 'a' ? { ...campaign, lastScene: sceneIds.get('Blue Mouth Caves')! } : campaign)),
