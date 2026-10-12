@@ -62,8 +62,9 @@ export function replyTo(entry: GmLogEntry, readers: readonly string[] | null = n
 /**
  * Whom a message goes to: an answer to a whisper or a private roll goes to the people that one is
  * for, whatever else was asked, so a quote never reaches someone who was not shown what it quotes;
- * otherwise the people asked for. The author is never among them, and a player's whisper always
- * reaches the GM, who holds the log. Null where someone asked for is unknown or nobody is left.
+ * otherwise the people asked for. The author is never among them. As in Foundry, a whisper between
+ * players is not the GM's to read: the GM's device keeps it with the log and sends it on, and shows
+ * it to nobody else. Null where someone asked for is unknown or nobody is left.
  */
 function audience(draft: ChatDraft, answered: GmLogEntry | undefined, context: ChatContext): readonly string[] | null | undefined {
   const inherited = answered === undefined ? null : audienceOf(answered);
@@ -73,7 +74,6 @@ function audience(draft: ChatDraft, answered: GmLogEntry | undefined, context: C
   if (inherited === null && context.who === GM_AUTHOR && asked.length === 1 && asked[0] === GM_AUTHOR) return [GM_AUTHOR];
   if (inherited === null && !asked.every((id) => context.known(id))) return null;
   const to = new Set(asked.filter((id) => id !== context.who));
-  if (context.who !== GM_AUTHOR) to.add(GM_AUTHOR);
   return to.size === 0 ? null : [...to];
 }
 
@@ -131,6 +131,7 @@ export function keepsRolls(before: string, after: string): boolean {
 export function rollButton(entry: Extract<GmLogEntry, { kind: 'chat' }>, index: number): RollRequest | null {
   const mark = inlineMarks(entry.text)?.[index];
   if (mark === undefined || mark.mode === null) return null;
-  const to = audienceOf(entry);
+  // A button in a note only the GM has is rolled for the GM alone.
+  const to = entry.hidden === true ? [GM_AUTHOR] : audienceOf(entry);
   return { formula: mark.formula, mode: mark.mode, label: mark.label ?? mark.formula, ...(to !== null && { to }) };
 }
