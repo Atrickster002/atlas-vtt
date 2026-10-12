@@ -206,5 +206,6 @@ describe('rolls written into a text', () => {
     expect(inlineMarks('[[/shout 1d6]]')).toBeNull();
     expect(inlineMarks('[[1d4]]'.repeat(6))).toBeNull();
     expect(rolledFormulas('[[1d4]] [[/r 1d6]] [[2d8]]')).toEqual(['1d4', '2d8']);
+    expect(inlineMarks('hit for [[1d8+3[piercing]]] and [[/r 2d6[fire] + 1]]{Burn}')?.map(({ formula, label }) => [formula, label])).toEqual([['1d8+3[piercing]', null], ['2d6[fire] + 1', 'Burn']]);
   });
 });

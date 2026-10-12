@@ -91,7 +91,8 @@ export interface InlineMark {
   readonly label: string | null;
 }
 
-const INLINE = /\[\[(?:\/([a-z]+)\s+)?([^[\]]{1,100}?)\]\](?:\{([^{}\n]{1,40})\})?/gi;
+// A formula may hold labels in brackets (`1d8+3[fire]`), so its end is the first `]]` outside them.
+const INLINE = /\[\[(?:\/([a-z]+)\s+)?((?:[^[\]]|\[[^[\]]{0,24}\]){1,100}?)\]\](?:\{([^{}\n]{1,40})\})?/gi;
 
 const COMMAND_MODES: Readonly<Record<string, RollMode>> = {
   r: 'public', roll: 'public', pr: 'public', publicroll: 'public',
