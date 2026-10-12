@@ -1,4 +1,5 @@
-import { MarkOverlay, PointerTap, type MeasureRules, type OverlayHost, type TapViewport } from '../marks/index.ts';
+import { CursorOverlay, CursorTap, MarkOverlay, PointerTap, type CursorViewport, type MeasureRules, type OverlayHost, type TapViewport } from '../marks/index.ts';
+import type { SharedCursor } from '../protocol/index.ts';
 import type { App } from 'obsidian';
 import type { SceneSource } from '../../host/sceneSource';
 import type { Measurements } from '../../pixi/MeasureRenderer';
@@ -8,7 +9,7 @@ import { atlasLaserLook, field } from './atlasLighting.ts';
 import { asTokenSource, call, type SceneState, type SceneStore } from './atlasView.ts';
 import type { GmMarkSource, PlayerMarks } from './MarkShare.ts';
 
-type Viewport = TapViewport & OverlayHost['viewport'];
+type Viewport = TapViewport & CursorViewport & OverlayHost['viewport'];
 
 const isFunction = (value: unknown): value is (...args: never[]) => unknown => typeof value === 'function';
 const hasMethods = (value: unknown, names: readonly string[]): boolean => typeof value === 'object' && value !== null && names.every((name) => isFunction(field(value, name)));
@@ -37,7 +38,8 @@ function rendererParts(renderer: unknown): { readonly measurements: SceneSource<
  * The GM's marks on a shared Atlas tab, read from its renderer: the measure renderer's records, a
  * `PointerTap` on its viewport for Atlas's laser (whose state is private), and what the players see of
  * the tokens (`playerRollTokens`, the token list's own source). Built anew when the tab builds its
- * renderer anew. Also draws the players' marks over the tab (`MarkOverlay`).
+ * renderer anew. Also draws the players' marks over the tab (`MarkOverlay`) and their cursors
+ * (`CursorOverlay`), and follows the GM's own cursor (`CursorTap`).
  */
 export class GmMarks {
   private readonly app: App;
@@ -45,7 +47,8 @@ export class GmMarks {
   private readonly renderer: () => unknown;
   private readonly store: SceneStore;
   private readonly overlay: MarkOverlay;
-  private built: { readonly renderer: unknown; readonly source: GmMarkSource; readonly tap: PointerTap; readonly host: OverlayHost } | null = null;
+  private readonly cursors = new CursorOverlay((cursor) => cursor.name ?? '');
+  private built: { readonly renderer: unknown; readonly source: GmMarkSource; readonly taps: readonly { destroy(): void }[]; readonly host: OverlayHost } | null = null;
 
   constructor(app: App, renderer: () => unknown, store: SceneStore, rules: () => MeasureRules | null) {
     this.app = app;
@@ -59,15 +62,17 @@ export class GmMarks {
     const renderer = this.renderer();
     const built = this.built;
     if (built !== null && built.renderer === renderer) return built.source;
-    built?.tap.destroy();
+    built?.taps.forEach((tap) => tap.destroy());
     this.built = null;
     const parts = rendererParts(renderer);
     if (parts === null) return null;
     const state = (): SceneState & Partial<Pick<ViewState, 'activeTool' | 'tokenSettings'>> => this.store.getState();
     const tap = new PointerTap(parts.viewport, parts.canvas, () => state().activeTool === 'laser-pointer');
+    const cursor = new CursorTap(parts.viewport, parts.canvas);
     const source: GmMarkSource = {
       measurements: parts.measurements,
       laser: tap,
+      cursor,
       laserLook: () => atlasLaserLook(this.app),
       footprints: () => this.footprints(parts.tokens, state()),
       seen: () => {
@@ -81,7 +86,7 @@ export class GmMarks {
         return isFunction(stop) ? () => void stop() : () => undefined;
       },
     };
-    this.built = { renderer, source, tap, host: { canvas: parts.canvas, viewport: parts.viewport } };
+    this.built = { renderer, source, taps: [tap, cursor], host: { canvas: parts.canvas, viewport: parts.viewport } };
     return source;
   }
 
@@ -91,10 +96,18 @@ export class GmMarks {
     if (this.built !== null) this.overlay.show(marks, this.built.host);
   }
 
+  /** Draws the players' cursors over the tab's map. */
+  showPlayerCursors(cursors: readonly SharedCursor[]): void {
+    this.source();
+    if (this.built !== null) this.cursors.show(cursors, this.built.host);
+    else this.cursors.clear();
+  }
+
   dispose(): void {
-    this.built?.tap.destroy();
+    this.built?.taps.forEach((tap) => tap.destroy());
     this.built = null;
     this.overlay.dispose();
+    this.cursors.dispose();
   }
 
   /** Where every token stands, hidden ones included, as Atlas's measurements judge their start. */

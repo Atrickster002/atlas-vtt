@@ -93,7 +93,7 @@ export class OnlineTable {
       clock: () => Date.now(),
       now: () => timers.now(),
       randomId: () => randomHex(12),
-      nameOf: (player) => ownership.list().find((known) => known.id === player)?.name ?? null,
+      nameOf: (player) => ownership.nameOf(player),
       setTimer: (run, ms) => timers.setTimer(run, ms),
       clearTimer: (timer) => timers.clearTimer(timer),
       changed: () => events.log(),
@@ -117,6 +117,7 @@ export class OnlineTable {
         isLive: (binding) => this.watch.isLive(binding),
         randomId: () => randomHex(12),
         logRoll: (roll) => this.log.rolled(roll),
+        nameOf: (player) => ownership.nameOf(player),
       }, tab, presented),
       lost: (reason) => {
         this.withdraw();

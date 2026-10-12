@@ -9,7 +9,9 @@ export const MAX_LASER_NUMBERS = 32;
 export const MAX_MARK_LASER_NUMBERS = 64;
 /** The most numbers (x, y pairs) of places a player's cursor message carries. */
 export const MAX_CURSOR_NUMBERS = 32;
-/** The most numbers of places one cursor carries in a `cursors` message. */
+/** A cursor that has not moved for this long is at rest: the GM sends it to nobody until it moves again. */
+export const CURSOR_REST_MS = 5000;
+/** The most numbers of places one cursor carries in a `marks` message. */
 export const MAX_MARK_CURSOR_NUMBERS = 64;
 /** The most measurements a player keeps on the map. */
 export const MAX_KEPT = 20;
@@ -75,15 +77,6 @@ export type PlayerCursor = { readonly t: 'cursor'; readonly scene: string } & Cu
 /** One cursor the GM sends on: whose it is (`GM_MARKS` or a player's id) and, a player's, the name they go by at the table. */
 export type SharedCursor = { readonly who: string; readonly name?: string } & CursorState;
 
-/**
- * Everyone's cursors in the scene `scene`, sent only while the GM lets everyone see them. A sender
- * missing from it shows none: off the map, at rest for long, drawing with the laser, or switched off.
- */
-export interface CursorsMessage {
-  readonly t: 'cursors';
-  readonly scene: string;
-  readonly cursors: readonly SharedCursor[];
-}
 
 /** A player's laser in the shared scene. */
 export type PlayerLaser = { readonly t: 'laser'; readonly scene: string } & LaserState;
@@ -93,12 +86,16 @@ export type PlayerMeasure = { readonly t: 'measure'; readonly scene: string } & 
 /**
  * Everyone's marks in the scene `scene` but those players may not see: each laser and each sender's
  * measurements, by who made them (`GM_MARKS` or a player's id). A sender missing from it has none.
+ * `cursors` is there only while the GM lets everyone see cursors; a sender missing from it shows
+ * none (off the map, at rest for long, pointing with the laser). They ride in this message, not in
+ * one of their own, so everything that moves goes out in one frame per interval.
  */
 export interface MarksMessage {
   readonly t: 'marks';
   readonly scene: string;
   readonly lasers: readonly ({ readonly who: string } & LaserState)[];
   readonly measures: readonly ({ readonly who: string } & MeasureState)[];
+  readonly cursors?: readonly SharedCursor[];
 }
 
 const SHAPES: readonly string[] = ['line', 'circle', 'cone'];
@@ -185,7 +182,7 @@ function entryOf(value: unknown): { readonly who: string; readonly fields: Recor
 
 /** A `marks` message as the client reads it, or null for anything malformed. */
 export function parseMarks(value: Record<string, unknown>): MarksMessage | null {
-  const { scene, lasers, measures } = value;
+  const { scene, lasers, measures, cursors } = value;
   const max = MAX_PLAYERS + 1;
   if (!isSceneId(scene) || !Array.isArray(lasers) || !Array.isArray(measures) || lasers.length > max || measures.length > max) return null;
   const lasersRead = readAll(lasers, (value) => {
@@ -198,15 +195,15 @@ export function parseMarks(value: Record<string, unknown>): MarksMessage | null 
     const state = entry === null ? null : parseMeasureState(entry.fields, MAX_MARK_KEPT);
     return entry === null || state === null ? null : { who: entry.who, ...state };
   });
-  if (lasersRead === null || measuresRead === null) return null;
-  return { t: 'marks', scene, lasers: lasersRead, measures: measuresRead };
+  const cursorsRead = cursors === undefined ? undefined : parseCursorList(cursors);
+  if (lasersRead === null || measuresRead === null || cursorsRead === null) return null;
+  return { t: 'marks', scene, lasers: lasersRead, measures: measuresRead, ...(cursorsRead !== undefined && { cursors: cursorsRead }) };
 }
 
-/** A `cursors` message as the client reads it, or null for anything malformed. */
-export function parseCursors(value: Record<string, unknown>): CursorsMessage | null {
-  const { scene, cursors } = value;
-  if (!isSceneId(scene) || !Array.isArray(cursors) || cursors.length > MAX_PLAYERS + 1) return null;
-  const read = readAll(cursors, (value): SharedCursor | null => {
+/** The cursors of a `marks` message, or null when any is malformed. */
+function parseCursorList(cursors: unknown): SharedCursor[] | null {
+  if (!Array.isArray(cursors) || cursors.length > MAX_PLAYERS + 1) return null;
+  return readAll(cursors, (value): SharedCursor | null => {
     const entry = entryOf(value);
     const cursor = entry === null ? null : parseCursorState(entry.fields, MAX_MARK_CURSOR_NUMBERS);
     if (entry === null || cursor === null) return null;
@@ -215,5 +212,4 @@ export function parseCursors(value: Record<string, unknown>): CursorsMessage | n
     // A name is shown as text: only one that is already as the relay would show it.
     return typeof name === 'string' && playerName(name) === name ? { who: entry.who, name, ...cursor } : null;
   });
-  return read === null ? null : { t: 'cursors', scene, cursors: read };
 }

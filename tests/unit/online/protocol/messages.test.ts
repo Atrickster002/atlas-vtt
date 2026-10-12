@@ -369,7 +369,7 @@ describe('marks', () => {
 describe('cursors', () => {
   const PLAYER = 'a'.repeat(20);
   const cursor = { t: 'cursor', scene: 's1', at: [10, 20], pts: [1, 2, 3, 4] };
-  const cursors = { t: 'cursors', scene: 's1', cursors: [{ who: 'gm', at: [5, 5], pts: [] }, { who: PLAYER, name: 'Ana', at: [10, 20], pts: [1, 2], span: 33 }] };
+  const cursors = { t: 'marks', scene: 's1', lasers: [], measures: [], cursors: [{ who: 'gm', at: [5, 5], pts: [] }, { who: PLAYER, name: 'Ana', at: [10, 20], pts: [1, 2], span: 33 }] };
 
   it('read a player\'s cursor: where it is, or that it left, the places it passed and the time they cover', () => {
     expect(parsePlayerMessage(cursor)).toEqual(cursor);
@@ -387,8 +387,11 @@ describe('cursors', () => {
     ]) expect(parsePlayerMessage(bad), JSON.stringify(bad).slice(0, 80)).toBeNull();
   });
 
-  it('read everyone\'s cursors as the GM sends them on, each by whose it is, a player\'s with their name', () => {
+  it('read everyone\'s cursors as the GM sends them on with the marks, each by whose it is, a player\'s with their name', () => {
     expect(parseGmMessage(cursors)).toEqual(cursors);
+    const without = { t: 'marks', scene: 's1', lasers: [], measures: [] };
+    expect(parseGmMessage(without)).toEqual(without);
+    expect(parseGmMessage(without)).not.toHaveProperty('cursors');
     expect(parseGmMessage({ ...cursors, cursors: [] })).toEqual({ ...cursors, cursors: [] });
     expect(parseGmMessage({ ...cursors, cursors: Array.from({ length: MAX_PLAYERS + 1 }, () => cursors.cursors[0]) })).not.toBeNull();
   });
@@ -396,7 +399,7 @@ describe('cursors', () => {
   it('refuse cursors of unknown senders, too many of them, a name that shows nothing or is too long, and any bad cursor among them', () => {
     const [gm, ana] = cursors.cursors;
     for (const bad of [
-      { ...cursors, cursors: [{ ...gm, who: 'someone' }] }, { ...cursors, cursors: Array.from({ length: MAX_PLAYERS + 2 }, () => gm) }, { ...cursors, cursors: 'all' }, { t: 'cursors', scene: 's1' },
+      { ...cursors, cursors: [{ ...gm, who: 'someone' }] }, { ...cursors, cursors: Array.from({ length: MAX_PLAYERS + 2 }, () => gm) }, { ...cursors, cursors: 'all' }, { ...cursors, cursors: null }, { t: 'cursors', scene: 's1', cursors: [] },
       { ...cursors, cursors: [{ ...ana, name: ' ' }] }, { ...cursors, cursors: [{ ...ana, name: 'n'.repeat(MAX_PLAYER_NAME + 1) }] }, { ...cursors, cursors: [{ ...ana, name: 7 }] },
       { ...cursors, cursors: [{ ...ana, name: ' Ana\u202e' }] }, { ...cursors, cursors: [gm, { ...ana, pts: [1] }] }, { ...cursors, cursors: [{ ...ana, span: 2000 }] }, { ...cursors, scene: '' },
     ]) expect(parseGmMessage(bad), JSON.stringify(bad).slice(0, 90)).toBeNull();

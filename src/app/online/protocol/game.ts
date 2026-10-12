@@ -9,7 +9,7 @@ import { isPlayerLogType, parseLogMessage, parsePlayerLog, type LogMessage, type
 import { parsePlayerClaim, type PlayerClaim } from './claims.ts';
 import { parsePlayerRoll, parseRoll, parseRollRefused, type PlayerRoll, type RollMessage, type RollRefused } from './dice.ts';
 import { parseAnnotations, parseDoors, parseGrid, parseSensed, type SensedMark, type SharedAnnotations, type SharedDoor, type SharedGrid } from './mapLayers.ts';
-import { parseCursors, parseMarks, parsePlayerMark, type CursorsMessage, type MarksMessage, type PlayerCursor, type PlayerLaser, type PlayerMeasure } from './marks.ts';
+import { parseMarks, parsePlayerMark, type MarksMessage, type PlayerCursor, type PlayerLaser, type PlayerMeasure } from './marks.ts';
 import { isRecord } from './shape.ts';
 import { MAX_SCENE_ID, parseDragCancel, parseMoveRefused, parsePlayerMove, parseSnapGrid, type MoveRefused, type PlayerDrag, type PlayerDragCancel, type PlayerMove, type SnapGrid } from './moves.ts';
 import { parseRules, type RulesMessage } from './rules.ts';
@@ -78,7 +78,6 @@ export type GmMessage =
   | RollMessage
   | RollRefused
   | MarksMessage
-  | CursorsMessage
   /** The table's log: chat, rolls, who came and went. It belongs to the table, not to a scene. */
   | LogMessage
   | ImageMessage;
@@ -212,8 +211,6 @@ export function parseGmMessage(value: unknown): GmMessage | null {
       return parseRollRefused(value);
     case 'marks':
       return parseMarks(value);
-    case 'cursors':
-      return parseCursors(value);
     case 'delta':
       return parseDelta(value);
     case 'log':
