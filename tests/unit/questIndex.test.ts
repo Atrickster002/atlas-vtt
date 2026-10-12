@@ -84,6 +84,18 @@ describe('the quest index', () => {
     expect(titlesOf(index, WITHERWILD)).toEqual(['Other']);
   });
 
+  it('takes in the notes Obsidian loads after Atlas, whose metadata it had cached and reports as created only', () => {
+    const vault = questVault({});
+    const index = open(vault.app);
+    const heard = vi.fn();
+    index.onChange(heard);
+    expect(titlesOf(index)).toEqual([]);
+    vault.files.set('Quests/Crown.md', crown);
+    vault.emit('create', vault.app.vault.getAbstractFileByPath('Quests/Crown.md'));
+    expect(titlesOf(index)).toEqual(['Crown']);
+    expect(heard).toHaveBeenCalledTimes(1);
+  });
+
   it('reads a name only while it is the name of exactly one campaign', () => {
     const { app } = questVault({ 'Q/Crown.md': crown, 'Q/Moor.md': note('atlas-type: quest\ncampaign: The Moor') });
     const index = open(app);

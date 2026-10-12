@@ -14,7 +14,7 @@ function sameQuest(a: Quest | undefined, b: Quest | undefined): boolean {
 }
 
 /**
- * The vault's quest notes, read from Obsidian's metadata cache and kept current: a note's
+ * The vault's quest notes, read from Obsidian's metadata cache and kept current: a note loaded or made, a note's
  * frontmatter or text edited (in Obsidian, by hand, by a sync tool), a note renamed, moved or
  * deleted, or a folder holding notes renamed or deleted. A quest that did not change keeps its
  * object, and listeners hear of a change only when a quest is another (written anew, added or
@@ -53,6 +53,9 @@ export class QuestIndex {
     this.listen(app.metadataCache, 'changed', (file) => this.reread(file));
     this.listen(app.metadataCache, 'deleted', (file) => this.forget(file));
     this.listen(app.metadataCache, 'resolved', () => this.readUnread());
+    // While Obsidian starts, the vault reports every note it loads as created, after the plugin is loaded; a note whose
+    // metadata Obsidian cached in an earlier session is not reported as changed, so this is where those quests come in.
+    this.listen(app.vault, 'create', (file) => this.reread(file));
     this.listen(app.vault, 'rename', (file, oldPath) => this.renamed(file, oldPath));
     this.listen(app.vault, 'delete', (file) => this.forget(file));
     this.scan();
