@@ -111,10 +111,11 @@ export function TableLogPanel(props: TableLogPanelProps): ReactElement {
       act.ask(null);
       setClearing(false);
     } else if (replied !== undefined) act.reply(null);
+    else if (state.choices().whisperTo !== null) state.setWhisperTo(null);
     else if (floating && !pinned) latest.current.onClose();
     else return false;
     return true;
-  }, [editing, ui.asking, clearing, replied, floating, pinned, api, act]);
+  }, [editing, ui.asking, clearing, replied, state, floating, pinned, api, act]);
 
   const close = useCallback((): void => latest.current.onClose(), []);
   usePanelDismissal(root, floating && !pinned, escape, close);

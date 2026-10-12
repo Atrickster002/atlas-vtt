@@ -49,6 +49,23 @@ describe('the composer', () => {
     expect(actions.roll).toHaveBeenCalledWith({ formula: '1d20+2', mode: 'public', flavor: 'Spot' });
   });
 
+  it('takes Escape back step by step: a reply, then the whisper, and only then closes the panel', () => {
+    const state = new LogState(() => ME);
+    state.setPeople(PEOPLE);
+    const message: ChatEntry = { id: id(1), at: 1, who: KARA, name: 'Kara', kind: 'chat', text: 'psst', to: [ME] };
+    state.replace([message]);
+    state.setWhisperTo([KARA]);
+    const onClose = vi.fn();
+    const actions = { say: vi.fn(), roll: vi.fn(), edit: vi.fn(), remove: vi.fn(), react: vi.fn(), clear: vi.fn() };
+    render(<TableLogPanel state={state} actions={actions} self={ME} moderator={false} canSend speakers={SPEAKERS} variant="floating" onClose={onClose} />);
+    const field = screen.getByRole('combobox', { name: 'Message' });
+    press(field, 'Escape');
+    expect(state.choices().whisperTo).toBeNull();
+    expect(onClose).not.toHaveBeenCalled();
+    press(field, 'Escape');
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
   it('offers the commands for a slash, which the arrow keys and Tab complete, and Escape closes first', () => {
     const { field, onClose } = setup();
     typeIn(field, '/');
