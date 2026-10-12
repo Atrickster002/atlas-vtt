@@ -67,7 +67,10 @@ describe('players editing their characters\' resources at a running table', () =
   it('writes a player\'s edit to their own character\'s token, clamped, and sends them the sheet that follows it, and nobody else anything', async () => {
     const { online, socket, tab, from } = await openTable(new BookShelf(), PLAYERS);
     writable(tab);
-    expect(character(delivered(socket), ANA)?.resources).toEqual([{ key: 'hp', name: 'Hit Points', colour: '#cc3333', direction: 'drains', current: 7, max: 12, editable: true }]);
+    expect(character(delivered(socket), ANA)?.resources).toEqual([
+      { key: 'hp', name: 'Hit Points', colour: '#cc3333', direction: 'drains', current: 7, max: 12, editable: true },
+      { key: 'doom', name: 'Doom Track', colour: '#333333', direction: 'fills', current: DOOM, max: 99999, editable: true },
+    ]);
 
     let since = delivered(socket).length;
     from(ANA, { t: 'book-resource', key: 'hp', current: 3 });
@@ -76,7 +79,7 @@ describe('players editing their characters\' resources at a running table', () =
     expect(hpOf(tab, MIRA)).toEqual({ current: 4, max: 12 });
     const after = delivered(socket).slice(since);
     expect(ofType(after, 'book', 'book-sheet')).toMatchObject([{ to: ANA, body: { t: 'book-sheet' } }]);
-    expect(character(after, ANA)?.resources).toMatchObject([{ key: 'hp', current: 3, max: 12 }]);
+    expect(character(after, ANA)?.resources).toMatchObject([{ key: 'hp', current: 3, max: 12 }, { key: 'doom' }]);
     // Everyone's picture of the table draws Brannoch's bar at the new value, as for any write of the GM's.
     expect(JSON.stringify(after.filter(({ to, body }) => to === ALL_PLAYERS && body.t !== 'book-sheet'))).toContain('"current":3,"max":12');
 
@@ -88,7 +91,7 @@ describe('players editing their characters\' resources at a running table', () =
     from(ANA, { t: 'book-resource', key: 'hp', current: 600 });
     await advance(100);
     expect(ofType(delivered(socket).slice(since), 'book-sheet').filter(({ to }) => to === ANA)).toHaveLength(2);
-    expect(character(delivered(socket).slice(since), ANA)?.resources).toMatchObject([{ current: 12 }]);
+    expect(character(delivered(socket).slice(since), ANA)?.resources).toMatchObject([{ current: 12 }, { key: 'doom' }]);
 
     // Ben's edit names the same key, and changes his own character alone.
     from(BEN, { t: 'book-resource', key: 'hp', current: 1 });
@@ -98,12 +101,24 @@ describe('players editing their characters\' resources at a running table', () =
     online.stop();
   });
 
-  it('answers an edit of a resource players do not see, one the sheet does not name, or a malformed one with the whole book, and changes nothing', async () => {
+  it('takes an edit of a resource hidden from players, which is the player\'s own, and shows it to nobody else', async () => {
+    const { online, socket, tab, from } = await openTable(new BookShelf(), PLAYERS);
+    writable(tab);
+    const since = delivered(socket).length;
+    from(ANA, { t: 'book-resource', key: 'doom', current: 5 });
+    await advance(100);
+    expect(tab.store.getState().objects.tokens[BRANNOCH]?.resources?.doom).toEqual({ current: 5, max: 99999 });
+    const after = delivered(socket).slice(since);
+    expect(character(after, ANA)?.resources).toMatchObject([{ key: 'hp' }, { key: 'doom', current: 5 }]);
+    expect(JSON.stringify(after.filter(({ to }) => to !== ANA))).not.toContain('Doom');
+    online.stop();
+  });
+
+  it('answers an edit of a resource the sheet does not name, or a malformed one, with the whole book, and changes nothing', async () => {
     const { online, socket, tab, from } = await openTable(new BookShelf(), PLAYERS);
     writable(tab);
     const before = tab.store.getState();
     const since = delivered(socket).length;
-    from(ANA, { t: 'book-resource', key: 'doom', current: 0 });
     from(ANA, { t: 'book-resource', key: 'mana', current: 1 });
     from(ANA, { t: 'book-resource', key: 'hp', current: Number.NaN });
     await advance(6_000);
@@ -111,7 +126,7 @@ describe('players editing their characters\' resources at a running table', () =
     const books = ofType(delivered(socket).slice(since), 'book');
     expect(books.length).toBeGreaterThan(0);
     expect(books.every(({ to }) => to === ANA)).toBe(true);
-    expect(JSON.stringify(delivered(socket))).not.toContain(String(DOOM));
+    expect(JSON.stringify(delivered(socket).filter(({ to }) => to !== ANA))).not.toContain(String(DOOM));
     online.stop();
   });
 
@@ -166,7 +181,7 @@ describe('players editing their characters\' resources at a running table', () =
     await advance(100);
     expect(written).toEqual([[CAMPAIGN, 'lib-brannoch', 'hp', { current: 10, max: 10 }]]);
     expect(ofType(delivered(socket).slice(since), 'book', 'book-sheet')).toMatchObject([{ to: ANA, body: { t: 'book-sheet' } }]);
-    expect(character(delivered(socket).slice(since), ANA)?.resources).toMatchObject([{ key: 'hp', current: 10 }]);
+    expect(character(delivered(socket).slice(since), ANA)?.resources).toMatchObject([{ key: 'hp', current: 10 }, { key: 'doom' }]);
     online.stop();
   });
 });

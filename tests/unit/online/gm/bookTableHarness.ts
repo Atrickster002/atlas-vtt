@@ -64,24 +64,25 @@ export const BRANNOCH_ART = 'atlas-vtt/collections/Cairn/tokens/brannoch.png';
 export const MIRA_ART = 'atlas-vtt/collections/Cairn/tokens/mira.png';
 /** A value of the resource players never see: found in what was sent, it leaked. */
 export const DOOM = 31337;
+export const MIRA_DOOM = 27182;
 
 const SAVED: SavedTable = { code: 'a'.repeat(26), secret: 's'.repeat(43), maxPlayers: 12, mapPath: MAP, gate: { code: '483912', requireCode: false, askToJoin: false } };
 
-/** The collection's resources: hit points players see, and a doom track they never do. */
+/** The collection's resources: hit points players see, and a doom track hidden from players: only a character's own player sees theirs. */
 const RESOURCES: readonly ResourceDefinition[] = [
   { key: 'hp', name: 'Hit Points', field: 'hp', direction: 'drains', color: '#CC3333', visibleToPlayers: true },
   { key: 'doom', name: 'Doom Track', field: 'doom', direction: 'fills', color: '#333333', visibleToPlayers: false },
 ];
 
-const hero = (id: string, name: string, imagePath: string, hp: number): TokenEntity => ({
-  id, kind: 'character', name, imagePath, x: 140, y: 140, ringColor: '#abc', resources: { hp: { current: hp, max: 12 }, doom: { current: DOOM, max: 99999 } },
+const hero = (id: string, name: string, imagePath: string, hp: number, doom: number): TokenEntity => ({
+  id, kind: 'character', name, imagePath, x: 140, y: 140, ringColor: '#abc', resources: { hp: { current: hp, max: 12 }, doom: { current: doom, max: 99999 } },
 });
 
 /** The cave with Brannoch and Mira in it, in that order; `changes` are other fields of the two tokens. */
 export function cave(changes: { readonly brannoch?: Partial<TokenEntity>; readonly mira?: Partial<TokenEntity> } = {}): SceneState {
   const tokens = {
-    [BRANNOCH]: { ...hero(BRANNOCH, 'Brannoch', BRANNOCH_ART, 7), ...changes.brannoch } as TokenEntity,
-    [MIRA]: { ...hero(MIRA, 'Mira', MIRA_ART, 4), ...changes.mira } as TokenEntity,
+    [BRANNOCH]: { ...hero(BRANNOCH, 'Brannoch', BRANNOCH_ART, 7, DOOM), ...changes.brannoch } as TokenEntity,
+    [MIRA]: { ...hero(MIRA, 'Mira', MIRA_ART, 4, MIRA_DOOM), ...changes.mira } as TokenEntity,
   };
   return sceneState({ mapPath: MAP, background: 'maps/cave.png', objects: { ...sceneState().objects, tokens } });
 }

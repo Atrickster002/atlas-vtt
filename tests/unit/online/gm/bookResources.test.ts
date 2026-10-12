@@ -48,15 +48,19 @@ describe('a player\'s edit of a resource, checked', () => {
     expect(check(ogre, cave, 'hp', 99)).toEqual({ kind: 'token', from: ANA, tokenId: 'ogre', key: 'hp', current: 99 });
   });
 
-  it('is refused for a hidden or fixed resource, one the sheet does not offer, a token given away, and a player without a character', () => {
+  it('is refused for a fixed resource, one the sheet does not offer, a token given away, and a player without a character', () => {
     expect(check(ogre, cave, 'doom')).toBeNull();
     expect(check(ogre, cave, 'ac')).toBeNull();
     expect(check(ogre, cave, 'mana')).toBeNull();
     expect(check({ ...ogre, sheet: { ...sheet, resources: [{ ...sheet.resources[0]!, editable: false }] } }, cave, 'hp')).toBeNull();
     expect(check(ogre, cave, 'hp', 5, BEN)).toBeNull();
     expect(check(null, cave, 'hp')).toBeNull();
-    // The sheet offers HP, but the GM has hidden it from players since.
-    expect(check(ogre, { ...cave, resources: DEFINITIONS.map((definition) => ({ ...definition, visibleToPlayers: false })) }, 'hp')).toBeNull();
+  });
+
+  it('takes a resource hidden from players: the character is the player\'s own', () => {
+    const withDoom: PlayedCharacter = { ...ogre, sheet: { ...sheet, resources: [...sheet.resources, { key: 'doom', name: 'Doom', colour: '#111111', direction: 'fills', current: 3, max: 9, editable: true }] } };
+    expect(check(withDoom, cave, 'doom', 4)).toEqual({ kind: 'token', from: ANA, tokenId: 'ogre', key: 'doom', current: 4 });
+    expect(check(ogre, { ...cave, resources: DEFINITIONS.map((definition) => ({ ...definition, visibleToPlayers: false })) }, 'hp')).toMatchObject({ kind: 'token' });
   });
 
   it('goes to the character\'s values while the shared scene holds no token of it, or no scene is shared', () => {
@@ -114,15 +118,22 @@ describe('a player\'s edit on the real Atlas store', () => {
     expect(answers).toEqual([7]);
   });
 
-  it('refuses another player\'s token, a hidden or fixed resource, and a scene that loads', () => {
+  it('refuses another player\'s token, a fixed resource, and a scene that loads', () => {
     const { store, history, resources, answers } = writes();
     resources.write(edit(1, 'hp', ANA, 'bear'), (taken) => answers.push(taken));
-    resources.write(edit(1, 'doom'), (taken) => answers.push(taken));
     resources.write(edit(1, 'ac'), (taken) => answers.push(taken));
     runUntracked(store, () => store.setState((draft) => void (draft.isMapLoading = true)));
     resources.write(edit(1), (taken) => answers.push(taken));
-    expect(answers).toEqual([null, null, null, null]);
+    expect(answers).toEqual([null, null, null]);
     expect(history.getState().pastStates).toHaveLength(0);
+  });
+
+  it('writes a resource hidden from players to the player\'s own token', () => {
+    const { store, history, resources, answers } = writes();
+    resources.write(edit(5, 'doom'), (taken) => answers.push(taken));
+    expect(store.getState().objects.tokens.ogre?.resources?.doom).toEqual({ current: 5, max: 9 });
+    expect(history.getState().pastStates).toHaveLength(1);
+    expect(answers).toEqual([5]);
   });
 
   it('waits while the GM holds tokens, the latest edit winning, and becomes a step of its own after the GM\'s drop', async () => {

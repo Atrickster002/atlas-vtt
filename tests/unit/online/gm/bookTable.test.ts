@@ -6,7 +6,7 @@ import type { LootDraw } from '../../../../src/app/loot/lootRoller';
 import { BookShelf } from '../../../../src/app/online/gm/book/BookShelf.ts';
 import { readBooks } from '../../../../src/app/online/gm/book/bookStore.ts';
 import { FakeSocket, workspace } from './fakeTable.ts';
-import { ANA, BEN, BRANNOCH, BRANNOCH_ART, CAL, cave, delivered, DOOM, MAP, MIRA_ART, ofType, openTable, traffic, WORLD_MAP, type Delivered } from './bookTableHarness.ts';
+import { ANA, BEN, BRANNOCH, BRANNOCH_ART, CAL, cave, delivered, DOOM, MAP, MIRA_ART, MIRA_DOOM, ofType, openTable, traffic, WORLD_MAP, type Delivered } from './bookTableHarness.ts';
 import { advanceSettled as advance } from './settled.ts';
 
 vi.mock('obsidian', () => ({ Notice: class {}, normalizePath: (path: string) => path, requestUrl: () => Promise.resolve({ status: 201, json: null }), PluginSettingTab: class {}, Setting: class {} }));
@@ -66,15 +66,15 @@ describe('the players\' books at a running table', () => {
     vi.unstubAllGlobals();
   });
 
-  it('sends each player their own book and nobody another\'s: sheet, notes, items, and no path or hidden resource in anything sent', async () => {
+  it('sends each player their own book and nobody another\'s: sheet, notes, items, no path, and a hidden resource to its own player alone', async () => {
     const shelf = new BookShelf();
     const { online, socket, from } = await openTable(shelf, PLAYERS);
 
-    // Each player has their character's sheet, with the resource players see and the world map.
+    // Each player has their character's sheet, with its resources, also the one hidden from players, and the world map.
     const ana = held(delivered(socket), ANA);
     const ben = held(delivered(socket), BEN);
-    expect(ana?.character).toMatchObject({ name: 'Brannoch', ring: '#aabbcc', art: { mime: 'image/png' }, resources: [{ name: 'Hit Points', colour: '#cc3333', direction: 'drains', current: 7, max: 12 }] });
-    expect(ben?.character).toMatchObject({ name: 'Mira', resources: [{ name: 'Hit Points', current: 4, max: 12 }] });
+    expect(ana?.character).toMatchObject({ name: 'Brannoch', ring: '#aabbcc', art: { mime: 'image/png' }, resources: [{ name: 'Hit Points', colour: '#cc3333', direction: 'drains', current: 7, max: 12 }, { name: 'Doom Track', current: DOOM }] });
+    expect(ben?.character).toMatchObject({ name: 'Mira', resources: [{ name: 'Hit Points', current: 4, max: 12 }, { name: 'Doom Track', current: MIRA_DOOM }] });
     expect(ana?.worldMap).toMatchObject({ width: 1200, height: 800, image: { mime: 'image/png' } });
     expect(ben?.worldMap).toEqual(ana?.worldMap);
     expect(ana?.character?.art?.hash).not.toBe(ben?.character?.art?.hash);
@@ -109,11 +109,14 @@ describe('the players\' books at a running table', () => {
     const all = delivered(socket);
     expect(ofType(all, 'book', 'book-sheet', 'book-item').filter(({ to }) => to === ALL_PLAYERS || (to !== ANA && to !== BEN))).toEqual([]);
     const toBen = traffic(all.filter(({ to }) => to === BEN));
-    for (const hers of [SECRET_NOTE, 'Dig here', 'Thorns', 'Moon Blade', NOTE]) expect(toBen).not.toContain(hers);
+    for (const hers of [SECRET_NOTE, 'Dig here', 'Thorns', 'Moon Blade', NOTE, String(DOOM)]) expect(toBen).not.toContain(hers);
+    expect(traffic(all.filter(({ to }) => to === ANA))).not.toContain(String(MIRA_DOOM));
     expect(books(all, BEN).every((book) => book.character?.name === 'Mira' && book.notes.length + book.items.length + book.pins.length + book.purse.length === 0)).toBe(true);
-    // No vault path, no note path, no base, and nothing of the resource players never see, to anyone.
+    // No vault path, no note path, no base to anyone, and nothing of the resource hidden from players to all of them.
     const sent = traffic(all);
-    for (const secret of [BRANNOCH_ART, MIRA_ART, WORLD_MAP, 'The Wide World', MAP, 'collections/', 'Items/', 'Vault of Secrets', 'Hidden Hoard', 'draw-7', 'Doom', String(DOOM)]) expect(sent).not.toContain(secret);
+    for (const secret of [BRANNOCH_ART, MIRA_ART, WORLD_MAP, 'The Wide World', MAP, 'collections/', 'Items/', 'Vault of Secrets', 'Hidden Hoard', 'draw-7']) expect(sent).not.toContain(secret);
+    const toAll = traffic(all.filter(({ to }) => to === ALL_PLAYERS));
+    for (const secret of ['Doom', String(DOOM), String(MIRA_DOOM)]) expect(toAll).not.toContain(secret);
     online.stop();
     expect(lootRecipients()).toEqual([]);
   });
@@ -129,7 +132,7 @@ describe('the players\' books at a running table', () => {
     tab.store.set(cave({ brannoch: { resources: { hp: { current: 2, max: 12 }, doom: { current: DOOM, max: 99999 } } } }));
     await advance(1_000);
     const sheets = ofType(delivered(socket).slice(since), 'book', 'book-sheet', 'book-item');
-    expect(sheets).toMatchObject([{ to: ANA, body: { t: 'book-sheet', character: { name: 'Brannoch', resources: [{ current: 2, max: 12 }] } } }]);
+    expect(sheets).toMatchObject([{ to: ANA, body: { t: 'book-sheet', character: { name: 'Brannoch', resources: [{ current: 2, max: 12 }, { key: 'doom' }] } } }]);
 
     // Hidden by the GM, the character stays Ana's as it last was; nothing is read of the hidden token.
     since = delivered(socket).length;

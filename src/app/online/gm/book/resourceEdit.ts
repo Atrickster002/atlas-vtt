@@ -16,11 +16,11 @@ export type ResourceEdit =
   | { readonly kind: 'character'; readonly from: string; readonly placed: PlacedTokenSource; readonly key: string; readonly current: number };
 
 /**
- * The value a player may change of a token's resource: one players see (`visibleResources` for the
- * viewer `player`) that is no fixed value. Null for any other key.
+ * The value a player may change of their own character's resource: one its token holds
+ * (`visibleResources` for the viewer `owner`) that is no fixed value. Null for any other key.
  */
 export function editableValue(token: ResourceHolder, definitions: readonly ResourceDefinition[], key: string): ResourceValue | null {
-  const shown = visibleResources(token, definitions, 'player').find(({ definition }) => definition.key === key);
+  const shown = visibleResources(token, definitions, 'owner').find(({ definition }) => definition.key === key);
   return shown === undefined || shown.definition.direction === 'static' ? null : shown.value;
 }
 

@@ -10,13 +10,13 @@ const DIRECTIONS: readonly string[] = ['drains', 'fills', 'static'];
 const isValue = (value: number): boolean => Number.isFinite(value) && Math.abs(value) <= MAX_TOKEN_VALUE;
 
 /**
- * The resources on a character's sheet: those players may see (`visibleResources` for the viewer
- * `player`), bars and wheels alike, by name. A resource the GM hides from players is hidden from
- * its own player too, and nothing of it is read. Each names its key, and the player may change
- * every one but a fixed value (`static`), which the statblock gives.
+ * The resources on a character's sheet: every one its token holds (`visibleResources` for the
+ * viewer `owner`), bars and wheels alike, by name. Hiding a resource from players hides it on other
+ * tokens, never from the player whose character it is. Each names its key, and the player may
+ * change every one but a fixed value (`static`), which the statblock gives.
  */
 function sheetResources(token: ResourceHolder, definitions: readonly ResourceDefinition[]): SheetResource[] {
-  return visibleResources(token, definitions, 'player').flatMap(({ definition, value }): SheetResource[] => {
+  return visibleResources(token, definitions, 'owner').flatMap(({ definition, value }): SheetResource[] => {
     const name = clippedLine(definition.name, MAX_BOOK_TITLE);
     const colour = hexColour(definition.color);
     if (name === null || colour === null || !DIRECTIONS.includes(definition.direction) || !isValue(value.current) || !isValue(value.max)) return [];

@@ -7,6 +7,7 @@ import type { BookScene } from '../../../../src/app/online/gm/book/bookScene.ts'
 import { bookSceneOf } from '../../../../src/app/online/gm/book/bookScene.ts';
 import { Characters } from '../../../../src/app/online/gm/book/characters.ts';
 import { sheetOf } from '../../../../src/app/online/gm/book/bookSheet.ts';
+import { DAGGERHEART } from '../../../../src/app/gameSystems/presets/daggerheart';
 import { fakeTokenSource } from './fakeTokenSource.ts';
 import { sceneState, token } from './shareHarness.ts';
 
@@ -153,7 +154,7 @@ describe('a character\'s sheet', () => {
   const shown: ShownRollToken = { name: '  Sir\u00a0Brannoch  ', imagePath: 'art/b.png', showRing: false, ringColor: '#fff' };
   const art = { hash: 'a'.repeat(64), size: 10, mime: 'image/png' };
 
-  it('holds the resources players see, by name and in their order, and nothing of the others', () => {
+  it('holds the resources its token has, by name and in their order, and nothing of the others', () => {
     const sheet = sheetOf(shown, { resources: { hp: { current: 3, max: 9 }, ac: { current: 14, max: 14 }, luck: { current: 1, max: 0 }, doom: { current: 5, max: 6 }, odd: { current: Number.NaN, max: 4 } } }, [
       { key: 'ac', name: 'Armour', field: 'ac', direction: 'static', color: '#00F', visibleToPlayers: true, slot: 3 },
       { key: 'hp', name: 'Hit Points', field: 'hp', direction: 'drains', color: '#CC3333', visibleToPlayers: true, slot: 0 },
@@ -164,8 +165,23 @@ describe('a character\'s sheet', () => {
     ], () => art);
     expect(sheet).toEqual({
       name: 'Sir Brannoch', art, ring: null,
-      resources: [{ key: 'hp', name: 'Hit Points', colour: '#cc3333', direction: 'drains', current: 3, max: 9, editable: true }, { key: 'ac', name: 'Armour', colour: '#0000ff', direction: 'static', current: 14, max: 14, editable: false }],
+      resources: [
+        { key: 'hp', name: 'Hit Points', colour: '#cc3333', direction: 'drains', current: 3, max: 9, editable: true },
+        { key: 'doom', name: 'Doom', colour: '#111111', direction: 'fills', current: 5, max: 6, editable: true },
+        { key: 'ac', name: 'Armour', colour: '#0000ff', direction: 'static', current: 14, max: 14, editable: false },
+      ],
     });
+  });
+
+  it('holds its resources the GM hides from players: they hide other tokens\' values, not a character\'s own', () => {
+    // Daggerheart, as a campaign plays it: HP and Stress are hidden from players on the map.
+    const definitions = DAGGERHEART.rules.resources ?? [];
+    expect(definitions.every(({ visibleToPlayers }) => !visibleToPlayers)).toBe(true);
+    const sheet = sheetOf(shown, { resources: { hp: { current: 4, max: 6 }, stress: { current: 1, max: 6 } } }, definitions, () => art);
+    expect(sheet?.resources).toEqual([
+      { key: 'hp', name: 'HP', colour: '#22c55e', direction: 'drains', current: 4, max: 6, editable: true },
+      { key: 'stress', name: 'Stress', colour: '#a855f7', direction: 'fills', current: 1, max: 6, editable: true },
+    ]);
   });
 
   it('has a ring where the token has one, white where it names no colour, and an empty name where the token has none', () => {
