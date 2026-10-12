@@ -12,15 +12,15 @@ export interface SentBook {
   readonly sheet: string;
 }
 
-/** A book without quests: a player without a character gets none. */
+/** A book without quests: the campaign being played has none, or none is played. */
 export const NO_QUESTS: readonly BookQuest[] = [];
 
-/** What a player is sent now of their book, to compare with what they were sent last. */
+/** What a player is sent now of their book, to compare with what they were sent last. Quests are the party's: every player gets them, with a character or without. */
 export function sentOf(character: PlayedCharacter | null, worldMap: WorldMapFile | null, quests: readonly BookQuest[]): SentBook {
   return {
     book: character === null ? '' : `${character.collection}\n${character.key}`,
     map: worldMap === null ? '' : JSON.stringify(worldMap.map),
-    quests: character === null ? NO_QUESTS : quests,
+    quests,
     sheet: JSON.stringify(character?.sheet ?? null),
   };
 }

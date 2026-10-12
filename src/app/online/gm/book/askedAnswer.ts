@@ -16,7 +16,10 @@ export class AskedAnswer<T> {
     if (this.state !== null) return this.state.value;
     const asked = ++this.asked;
     this.state = 'asking';
-    void this.ask().catch(() => this.fallback).then((value) => {
+    void this.ask().catch((error: unknown) => {
+      console.error('[Atlas] Could not read what a book shows:', error);
+      return this.fallback;
+    }).then((value) => {
       if (asked !== this.asked) return;
       this.state = { value };
       this.answered();

@@ -91,7 +91,7 @@ describe('quests at a running table', () => {
     }).at(-1);
   }
 
-  it('sends the played campaign\'s quests to every player with a character, and again once a quest note changes', async () => {
+  it('sends the played campaign\'s quests to every player, and again once a quest note changes', async () => {
     quests = [quest(1, { title: 'The crown under the root', body: 'Ask the **abbot**. See [[Olm eggs]].' })];
     const table = await openTable(new BookShelf(), [{ id: ANA, name: 'Ana' }, { id: BEN, name: 'Ben' }]);
     expect(lastBook(table, ANA)?.quests).toEqual(quests);
@@ -134,6 +134,26 @@ describe('quests at a running table', () => {
     table.online.stop();
   });
 
+  it('sends the quests to a player without a character too, and takes no note on one from them', async () => {
+    quests = [quest(1, { title: 'The crown under the root' })];
+    const shelf = new BookShelf();
+    const table = await openTable(shelf, [{ id: ANA, name: 'Ana' }, { id: BEN, name: 'Ben' }, { id: CAL, name: 'Cal' }]);
+    expect(lastBook(table, CAL)?.character).toBeNull();
+    expect(lastBook(table, CAL)?.quests).toEqual(quests);
+
+    writeQuests([quest(1, { state: 'active', title: 'The crown under the root' })]);
+    await advance(100);
+    expect(lastBook(table, CAL)?.quests.map((kept) => kept.state)).toEqual(['active']);
+
+    const before = ofType(delivered(table.socket), 'book').filter(({ to }) => to === CAL).length;
+    table.from(CAL, { t: 'book-note', note: { id: id(70), title: '', body: 'Mine?', quest: id(1) } });
+    await advance(6_000);
+    expect(ofType(delivered(table.socket), 'book').filter(({ to }) => to === CAL).length).toBe(before + 1);
+    expect(lastBook(table, CAL)?.notes).toEqual([]);
+    expect(JSON.stringify(shelf.toData())).not.toContain('Mine?');
+    table.online.stop();
+  });
+
   it('serves a quest\'s whole text and its images to the players sent the quest, and to nobody else', async () => {
     const text = new TextEncoder().encode(`${'Über dem Fluss 🐸 '.repeat(12_000)}![[cellar.png|300]]`).slice();
     const cellar = png(8, 8);
@@ -147,7 +167,7 @@ describe('quests at a running table', () => {
     workspace.files.set('Quests/cellar.png', cellar);
     workspace.files.set('Quests/secret.png', png(9, 9));
     expect(lastBook(table, ANA)?.quests).toEqual(quests);
-    expect(lastBook(table, CAL)?.quests).toEqual([]);
+    expect(lastBook(table, CAL)?.quests).toEqual(quests);
 
     const since = delivered(table.socket).length;
     for (const player of [ANA, BEN, CAL]) for (const hash of [textHash, cellarHash, otherHash]) table.from(player, { t: 'asset-request', hash });
@@ -157,8 +177,8 @@ describe('quests at a running table', () => {
       const of = (type: string): string[] => [...new Set(ofType(sent, type).filter(({ body }) => body.hash === hash).map(({ to }) => to))].sort();
       return { served: of('asset-chunk'), refused: of('asset-refused') };
     };
-    expect(answered(textHash)).toEqual({ served: [ANA, BEN], refused: [CAL] });
-    expect(answered(cellarHash)).toEqual({ served: [ANA, BEN], refused: [CAL] });
+    expect(answered(textHash)).toEqual({ served: [ANA, BEN, CAL], refused: [] });
+    expect(answered(cellarHash)).toEqual({ served: [ANA, BEN, CAL], refused: [] });
     // An asset Atlas could serve but no quest a player was sent names is nobody's.
     expect(answered(otherHash)).toEqual({ served: [], refused: [ANA, BEN, CAL] });
     // The whole text arrives in chunks and is the text, byte for byte.

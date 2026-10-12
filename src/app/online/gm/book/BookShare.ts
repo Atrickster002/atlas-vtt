@@ -66,9 +66,9 @@ const UNNAMED = 'Unnamed character';
  * The players' books: each connected player's own pages besides the table, sent to that player
  * alone and never to all. A book is its character's (`Characters`): the sheet is read from the
  * shared scene, items, notes, pins and purse are kept on the shelf, the world map of the campaign
- * being played goes to everyone at the table, and its quests (the GM's quest notes, which no player
- * writes; their notes on one name it by its id) to every player with a character. It is the table's,
- * not a scene's, so it hears players while no scene is shared. What a player writes is taken as
+ * being played and its quests (the GM's quest notes, which no player writes) go to everyone at the
+ * table, with a character or without; notes on a quest name it by its id. It is the table's, not a
+ * scene's, so it hears players while no scene is shared. What a player writes is taken as
  * the protocol's parser cleaned it, only for a player with a character and within their rate; a
  * refused write is answered with the whole book. A player changes their own character's resources
  * through Atlas (`editResource`), and the sheet that follows tells them what was taken. A player is
