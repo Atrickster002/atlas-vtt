@@ -10,11 +10,9 @@ export interface SeatSource extends MineSource {
   claimOf(mapPath: string, tokenId: string, token: TokenEntity): Claim;
   /** Gives a token nobody has to a known player; false when it cannot. */
   claim(tokenId: string, playerId: string): boolean;
-  /** Takes a token back from its owner; false for anyone else's. */
-  release(tokenId: string, playerId: string): boolean;
 }
 
-/** What a player's claim or release is checked against. */
+/** What a player's claim is checked against. */
 export interface ClaimContext {
   /** The shared scene whose token list players were last sent, or null while none is. */
   readonly scene: string | null;
@@ -27,26 +25,23 @@ export interface ClaimContext {
 
 export type ClaimVerdict =
   | { readonly ok: true; readonly tokenId: string }
-  | { readonly ok: false; readonly reason: 'scene' | 'token' | 'not-player' | 'taken' | 'owner' };
+  | { readonly ok: false; readonly reason: 'scene' | 'token' | 'not-player' | 'taken' };
 
 /**
- * Whether the GM takes a player's claim or release: it names the shared scene and a token of the list
- * players see that is not hidden now; a claim needs a player token nobody has, a release a token of
- * the sender's own (by the id the relay stamped).
+ * Whether the GM takes a player's claim: it names the shared scene and a token of the list players
+ * see that is not hidden now, a player token nobody has. Only the GM gives a token back.
  */
-export function checkClaim(from: string, message: PlayerClaim, context: ClaimContext, seats: SeatSource): ClaimVerdict {
+export function checkClaim(message: PlayerClaim, context: ClaimContext, seats: SeatSource): ClaimVerdict {
   if (context.scene === null || context.mapPath === null || message.scene !== context.scene) return { ok: false, reason: 'scene' };
   const tokenId = context.listedToken(message.id);
   const token = tokenId === undefined ? undefined : context.tokens[tokenId];
   if (tokenId === undefined || token === undefined || token.isHidden === true) return { ok: false, reason: 'token' };
-  const owner = seats.ownerOf(tokenId);
-  if (message.t === 'release') return owner === from ? { ok: true, tokenId } : { ok: false, reason: 'owner' };
   if (!seats.isPlayerToken(context.mapPath, tokenId, token)) return { ok: false, reason: 'not-player' };
-  return owner === undefined ? { ok: true, tokenId } : { ok: false, reason: 'taken' };
+  return seats.ownerOf(tokenId) === undefined ? { ok: true, tokenId } : { ok: false, reason: 'taken' };
 }
 
 /**
- * Players' claims and releases: each checked (`checkClaim`, a rate per player) and applied to the
+ * Players' claims: each checked (`checkClaim`, a rate per player) and applied to the
  * owners, which sends everyone the new list and each player their own tokens. One message at a time,
  * so of two claims of one token the first wins and the second finds it taken.
  */
@@ -62,11 +57,11 @@ export class PlayerClaims {
     this.now = now;
   }
 
-  /** Applies a player's claim or release; false when it was refused. */
+  /** Applies a player's claim; false when it was refused. */
   receive(from: string, message: PlayerClaim): boolean {
     if (!this.rate.take(from, this.now())) return false;
-    const verdict = checkClaim(from, message, this.context(), this.seats);
+    const verdict = checkClaim(message, this.context(), this.seats);
     if (!verdict.ok) return false;
-    return message.t === 'claim' ? this.seats.claim(verdict.tokenId, from) : this.seats.release(verdict.tokenId, from);
+    return this.seats.claim(verdict.tokenId, from);
   }
 }

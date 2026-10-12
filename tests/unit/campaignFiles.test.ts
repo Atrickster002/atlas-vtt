@@ -5,6 +5,7 @@ import { CAMPAIGNS_FOLDER, isCampaignPath } from '../../src/app/campaigns/campai
 import { CampaignService } from '../../src/app/campaigns/CampaignService';
 import { MAX_USED_SCENES, withScenePlayed } from '../../src/app/campaigns/campaignUsage';
 import { parseCampaign } from '../../src/app/campaigns/campaignValidation';
+import { readCampaignSystem } from '../../src/app/campaigns/campaignSystem';
 import { createInMemoryApp } from '../mocks/inMemoryVault';
 
 const FOLDER = CAMPAIGNS_FOLDER;
@@ -204,5 +205,62 @@ describe('recording what was played', () => {
     await campaigns.flush();
     expect(files.get(path)).toBe(before);
     expect(withScenePlayed({ id: 'c2', name: 'Future', format: 2 }, 's1', 1)).toEqual({ id: 'c2', name: 'Future', format: 2 });
+  });
+});
+
+describe('a campaign\'s game system', () => {
+  const GRID = { unitType: 'feet', unitDistance: 5, measurementMode: 'metric' } as const;
+  const SYSTEM = {
+    systemPresetId: 'builtin:cairn',
+    gridDefaults: GRID,
+    conditions: [{ id: 'deprived', name: 'Deprived', color: '#aa5500' }],
+    dice: { defaultRoll: '1d20', crit: 'roll-under' },
+    resources: [{ key: 'hp', name: 'HP', field: 'hp', direction: 'drains', color: '#22c55e', visibleToPlayers: true }],
+  };
+
+  it('is read as a collection\'s rules are, field by field, and left unset where it holds none that can be used', () => {
+    expect(readCampaignSystem(SYSTEM)).toMatchObject({ systemPresetId: 'builtin:cairn', conditions: SYSTEM.conditions, dice: SYSTEM.dice, resources: [{ key: 'hp' }] });
+    expect(readCampaignSystem({ ...SYSTEM, dice: { defaultRoll: 'banana', crit: 'never' }, senses: 'all', systemPresetId: 7 })).not.toHaveProperty('dice');
+    expect(readCampaignSystem({ ...SYSTEM, senses: 'all', systemPresetId: 7 })).not.toHaveProperty('systemPresetId');
+    // An empty list is a system without resources; no list reads its preset's.
+    expect(readCampaignSystem({ ...SYSTEM, resources: [] })?.resources).toEqual([]);
+    expect(readCampaignSystem({ ...SYSTEM, resources: undefined })).not.toHaveProperty('resources');
+    // Default vision keeps the senses it names: which the system knows is decided where it is read.
+    expect(readCampaignSystem({ ...SYSTEM, defaultTokenVision: { range: 60, senses: [{ id: 'homebrew-sense' }] } })?.defaultTokenVision).toEqual({ range: 60, senses: [{ id: 'homebrew-sense' }] });
+    for (const unusable of [{ ...SYSTEM, gridDefaults: undefined }, { ...SYSTEM, conditions: 'none' }, 'cairn', null]) expect(readCampaignSystem(unusable)).toBeUndefined();
+    expect(parseCampaign({ id: 'c1', name: 'X', system: { conditions: [] } })).not.toHaveProperty('system');
+  });
+
+  it('is written into the campaign\'s file, changed field by field, keeps what a newer Atlas added, and is removed as a whole', async () => {
+    const path = `${FOLDER}/Witherwild/campaign.json`;
+    const { campaigns, files, service } = vault({ [path]: fileText({ id: 'c1', name: 'Witherwild', createdAt: 1 }) });
+    await campaigns.load();
+    service.update('c1', { system: SYSTEM as never });
+    await campaigns.flush();
+    expect(JSON.parse(files.get(path)!).system).toEqual(SYSTEM);
+    expect(service.get('c1')?.system?.systemPresetId).toBe('builtin:cairn');
+
+    files.set(path, fileText({ id: 'c1', name: 'Witherwild', createdAt: 1, system: { ...SYSTEM, weather: 'from a newer Atlas' } }));
+    service.update('c1', { system: { dice: { defaultRoll: '2d6', crit: 'none' }, initiative: undefined } });
+    await campaigns.flush();
+    expect(JSON.parse(files.get(path)!).system).toEqual({ ...SYSTEM, dice: { defaultRoll: '2d6', crit: 'none' }, weather: 'from a newer Atlas' });
+
+    expect(() => service.update('c1', { system: { gridDefaults: undefined } })).toThrow();
+    service.update('c1', { system: undefined, description: 'Hex crawl' });
+    await campaigns.flush();
+    expect(JSON.parse(files.get(path)!)).not.toHaveProperty('system');
+    expect(JSON.parse(files.get(path)!)).toMatchObject({ description: 'Hex crawl' });
+  });
+
+  it('of a campaign a newer Atlas saved is read and never changed', async () => {
+    const path = `${FOLDER}/Future/campaign.json`;
+    const { campaigns, files, service } = vault({ [path]: fileText({ id: 'c2', name: 'Future', createdAt: 1, format: 2, system: SYSTEM }) });
+    await campaigns.load();
+    const before = files.get(path);
+    expect(service.get('c2')).toMatchObject({ readOnly: true, system: { systemPresetId: 'builtin:cairn' } });
+    expect(() => service.update('c2', { system: undefined })).toThrow();
+    expect(() => service.update('c2', { system: { dice: { defaultRoll: '2d6', crit: 'none' } } })).toThrow();
+    await campaigns.flush();
+    expect(files.get(path)).toBe(before);
   });
 });

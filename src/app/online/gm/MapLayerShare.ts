@@ -119,7 +119,7 @@ export class MapLayerShare {
     }
     const art = new Map<string, string>();
     const list = sharedInitiative({
-      state, shown: settings.showInitiative, showNames: settings.showNames, collections: source.collections(),
+      state, shown: settings.showInitiative, showNames: settings.showNames, rules: source.rules(),
       art: (path) => {
         const ref = this.art.get(path);
         if (ref !== null) art.set(ref.hash, path);

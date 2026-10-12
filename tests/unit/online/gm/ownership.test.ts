@@ -106,16 +106,15 @@ describe('player tokens', () => {
     expect([owners.ownerOf('seeing'), owners.claimOf(MAP, 'seeing', seeing)]).toEqual([undefined, null]);
   });
 
-  it('are claimed once, by a player it knows, and given back only by their owner', () => {
+  it('are claimed once, by a player it knows, and given back only by the GM', () => {
     const { owners } = ownership();
     owners.joined({ id: ANA, name: 'Ana' });
     owners.joined({ id: BEN, name: 'Ben' });
     expect(owners.claim('seeing', 'c'.repeat(20))).toBe(false);
     expect(owners.claim('seeing', ANA)).toBe(true);
     expect(owners.claim('seeing', BEN)).toBe(false);
-    expect(owners.release('seeing', BEN)).toBe(false);
     expect(owners.ownerOf('seeing')).toBe(ANA);
-    expect(owners.release('seeing', ANA)).toBe(true);
+    owners.give(['seeing'], null);
     expect(owners.ownerOf('seeing')).toBeUndefined();
   });
 });

@@ -186,7 +186,7 @@ export class SceneShare {
   }
 
   /**
-   * A player's message: a drag, drop or cancelled drag of their own token (`PlayerMoves`), a claim or release of a player
+   * A player's message: a drag, drop or cancelled drag of their own token (`PlayerMoves`), a claim of a player
    * token (`PlayerClaims`; the owners' change sends the new list), a roll (`PlayerRolls`), a laser, measurement or cursor (`MarkShare`), a resync (a whole list), or an asset request, answered only
    * for the map, the explored memory or a token's artwork of the current picture, from the chunk the player asks for on.
    */
@@ -196,7 +196,7 @@ export class SceneShare {
     if (message.t === 'move') return this.moves.receive(from, message);
     if (message.t === 'drag') return this.moves.drag(from, message);
     if (message.t === 'drag-cancel') return this.moves.dragCancel(from, message);
-    if (message.t === 'claim' || message.t === 'release') return void this.claims?.receive(from, message);
+    if (message.t === 'claim') return void this.claims?.receive(from, message);
     if (message.t === 'roll') return this.dice.receive(from, message);
     if (message.t === 'laser' || message.t === 'measure' || message.t === 'cursor') return this.marks.receive(from, message);
     if (message.t === 'resync') return message.of === 'tokens' ? this.tokens.resync(from, message.scene) : this.inputs.resync(from, message.scene, message.of);

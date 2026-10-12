@@ -43,7 +43,9 @@ import { HeaderAutocompleteSuggest } from './src/app/plugin/HeaderAutocompleteSu
 import { registerAtlasLinks } from './src/app/links/registerAtlasLinks';
 import { registerCommands } from './src/app/plugin/registerCommands';
 import { CampaignFiles } from './src/app/campaigns/CampaignFiles';
+import { PlayedRules } from './src/app/campaigns/playedRules';
 import { recordCampaignPlay } from './src/app/campaigns/recordCampaignPlay';
+import { registerPartySync } from './src/app/plugin/partySync';
 import { registerOnlinePlay, type OnlinePlay } from './src/app/plugin/onlinePlay';
 import type { TableChat } from './src/app/online/gm/tableChat';
 import { registerPlayerWindowReloadCleanup } from './src/app/plugin/playerWindowReload';
@@ -103,10 +105,14 @@ export default class AtlasVTTPlugin extends Plugin {
     const presetFiles = SystemPresetFiles.open(this.app);
     // So are campaigns: their folders are read once the storage is ready.
     const campaignFiles = CampaignFiles.open(this.app);
+    // Every map plays by the system of the campaign this device plays, where it has one.
+    PlayedRules.open(this.app, campaignFiles);
     const campaignsRead = storageReady.catch(() => undefined).then(() => campaignFiles.load());
     void campaignsRead.catch((error: unknown) => console.error('[Atlas] Reading the campaigns failed:', error));
     // The campaign this device plays records the scenes its map views open.
     this.register(recordCampaignPlay(this.app, campaignFiles, campaignsRead));
+    // And keeps one set of values for each of its player characters, shared by every map view.
+    registerPartySync(this, campaignFiles, campaignsRead);
     // Settings carried over even when the data file migration failed, so they are not lost to the defaults.
     const settingsReady = storageReady.catch(() => undefined).then(async () => {
       await presetFiles.load();
@@ -195,6 +201,7 @@ export default class AtlasVTTPlugin extends Plugin {
     this.changelogService?.destroy();
     void this.settingsService?.saveSettingsNow();
     SystemPresetFiles.release(this.app);
+    PlayedRules.release(this.app);
     CampaignFiles.release(this.app);
     this.widgetSyncService?.destroy();
     this.widgetSyncService = undefined;

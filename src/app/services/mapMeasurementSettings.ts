@@ -1,15 +1,15 @@
 import { resolveMeasurementSettings, type MeasurementSettings } from '../grid/measurementFormat';
 import { collectionConeAngle } from '../gameSystems/coneAngle';
+import { rulesForMap, type RulesLookup } from '../gameSystems/mapRules';
 import type { ViewAtlasState } from '../storeFactory';
-import type { AssetService } from './AssetService';
 
-/** Measurement settings for the map in `state`, read from its collection when it has one. */
+/** Measurement settings for the map in `state`, read from the rules it plays by when it has any. */
 export function mapMeasurementSettings(
-  assetService: AssetService,
+  lookup: RulesLookup,
   state: Pick<ViewAtlasState, 'mapPath' | 'grid'>,
 ): MeasurementSettings {
-  const collectionId = state.mapPath ? assetService.getCollectionForMap(state.mapPath) : null;
-  if (!collectionId) return resolveMeasurementSettings(undefined, state.grid);
-  const { gridDefaults, systemPresetId } = assetService.getCollectionSettings(collectionId);
+  const { settings } = rulesForMap(lookup, state.mapPath);
+  if (!settings) return resolveMeasurementSettings(undefined, state.grid);
+  const { gridDefaults, systemPresetId } = settings;
   return { ...resolveMeasurementSettings(gridDefaults, state.grid), coneAngle: collectionConeAngle(gridDefaults, systemPresetId) };
 }

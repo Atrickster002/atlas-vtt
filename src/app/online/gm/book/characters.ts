@@ -30,8 +30,7 @@ const bookOf = (character: Pick<PlayedCharacter, 'collection' | 'key'>): string 
  * the scene's order (the token the GM's player list shows them by), as the players' frame shows it.
  * A character stays its player's for the table while the scene shows none of their tokens (another
  * scene, the token hidden or out of sight), with the sheet it last had. It ends when its token is
- * in the shared scene and no longer theirs (the GM gave it to someone else or took it back, or they
- * released it), when the table no longer knows the player, or when they play another character.
+ * in the shared scene and no longer theirs (the GM gave it to someone else or took it back), when the table no longer knows the player, or when they play another character.
  * A book is open to one player at a time: a token with the artwork of a character someone else
  * plays is passed over, so two players never read one book.
  */

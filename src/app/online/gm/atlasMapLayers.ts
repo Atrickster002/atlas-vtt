@@ -3,7 +3,8 @@ import type { FogCoverage } from '../../fog/fogCoverage';
 import type { GridOptions } from '../../grid/GridSystem';
 import { playerDoorSight } from '../../pixi/lighting/playerLightingLayers';
 import type { SceneLightingView } from '../../pixi/lighting/sceneLightingView';
-import type { CollectionLookup } from '../../resources/collectionResources';
+import { PlayedRules } from '../../campaigns/playedRules';
+import type { CollectionLookup, RulesLookup } from '../../gameSystems/mapRules';
 import type { TokenEntity } from '../../types';
 import type { WallSegment } from '../../types/wallTypes';
 import type { TokenPerception } from '../../vision/tokenPerception';
@@ -25,8 +26,8 @@ export interface MapLayerSource {
   doorsSeen(walls: Readonly<Record<string, WallSegment>>, fog: FogCoverage | null): ReadonlySet<string> | null;
   /** The tokens the players only sense now, where their frame outlines them; null as for the doors. */
   sensed(tokens: Readonly<Record<string, TokenEntity>>): SensedMark[] | null;
-  /** Where the map's collection and its settings are looked up (Atlas's asset service), or null. */
-  collections(): CollectionLookup | null;
+  /** Where the map's rules are looked up (Atlas's asset service and the played campaign), or null. */
+  rules(): RulesLookup | null;
 }
 
 const isFunction = (value: unknown): value is (...args: never[]) => unknown => typeof value === 'function';
@@ -78,12 +79,22 @@ export function mapLayerSourceOf(renderer: unknown, view: unknown): MapLayerSour
         return place === null ? [] : [place];
       });
     },
-    collections: () => collectionsOf(view),
+    rules: () => rulesLookupOf(view),
   };
 }
 
-/** Where an Atlas view looks up a map's collection and its settings (its asset service), or null when it has none. */
-export function collectionsOf(view: unknown): CollectionLookup | null {
+/**
+ * Where an Atlas view looks up a map's rules: its asset service for the map's collection and its
+ * settings, and its app for the campaign being played; null when it has no asset service.
+ */
+export function rulesLookupOf(view: unknown): RulesLookup | null {
   const assets = call(field(view, 'serviceManager'), 'getAssetService');
-  return isFunction(field(assets, 'getCollectionForMap')) && isFunction(field(assets, 'getCollectionSettings')) ? assets as CollectionLookup : null;
+  if (!isFunction(field(assets, 'getCollectionForMap')) || !isFunction(field(assets, 'getCollectionSettings'))) return null;
+  const collections = assets as CollectionLookup;
+  const app = field(view, 'app');
+  return {
+    getCollectionForMap: (mapPath) => collections.getCollectionForMap(mapPath),
+    getCollectionSettings: (collectionId) => collections.getCollectionSettings(collectionId),
+    playedSystem: () => (typeof app === 'object' && app !== null ? PlayedRules.forApp(app)?.played() ?? null : null),
+  };
 }

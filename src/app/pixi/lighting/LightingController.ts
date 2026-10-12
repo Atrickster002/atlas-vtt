@@ -12,6 +12,7 @@ import { heldForSight } from '../../lighting/sightOnDrop';
 import { CreatureIndex } from '../../creatures/CreatureIndex';
 import { tokenSensesResolver, type TokenSensesResolver } from '../../creatures/tokenSensesResolver';
 import { mapSenseRulesSource } from '../../services/mapSenseRules';
+import { rulesLookup } from '../../services/mapRules';
 import type { ViewAtlasStore } from '../../storeFactory';
 import type { SightRules } from '../../vision/sightRules';
 import type { MapBounds } from '../../vision/visibility';
@@ -92,7 +93,7 @@ export class LightingController {
   constructor(private readonly deps: LightingControllerDeps) {
     const { viewport, app, store, eventBus, obsApp } = deps;
     const assetService = AssetService.getInstance(obsApp);
-    const measurement = (): MeasurementSettings => mapMeasurementSettings(assetService, store.getState());
+    const measurement = (): MeasurementSettings => mapMeasurementSettings(rulesLookup(obsApp), store.getState());
     this.rules = new SightRulesWatch({
       obsApp,
       store,

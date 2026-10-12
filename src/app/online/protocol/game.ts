@@ -236,7 +236,7 @@ export function parsePlayerMessage(value: unknown): PlayerMessage | null {
   if (!isRecord(value)) return null;
   if (value.t === 'move' || value.t === 'drag') return parsePlayerMove(value, value.t);
   if (value.t === 'drag-cancel') return parseDragCancel(value);
-  if (value.t === 'claim' || value.t === 'release') return parsePlayerClaim(value);
+  if (value.t === 'claim') return parsePlayerClaim(value);
   if (value.t === 'roll') return parsePlayerRoll(value);
   if (value.t === 'laser' || value.t === 'measure' || value.t === 'cursor') return parsePlayerMark(value);
   if (isPlayerLogType(value.t)) return parsePlayerLog(value);

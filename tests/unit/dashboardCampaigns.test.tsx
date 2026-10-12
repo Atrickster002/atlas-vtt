@@ -1,12 +1,15 @@
 import React from 'react';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { MotionGlobalConfig } from 'framer-motion';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { App } from 'obsidian';
 import { CampaignPlay } from '../../src/app/campaigns/campaignPlay';
 import type { StoredCampaign } from '../../src/app/campaigns/campaignTypes';
 import { AssetService } from '../../src/app/services/AssetService';
+import { SystemPresetFiles } from '../../src/app/services/systemPresets/SystemPresetFiles';
 import { createInMemoryApp } from '../mocks/inMemoryVault';
 import { memoryCampaigns } from '../mocks/memoryCampaigns';
+import { memoryPresets } from '../mocks/memoryPresets';
 
 const dialogs = vi.hoisted(() => ({ confirmAction: vi.fn() }));
 vi.mock('../../src/app/ui/confirmDialog', () => ({ confirmAction: dialogs.confirmAction }));
@@ -318,5 +321,81 @@ describe('the party on a campaign\'s last scene', () => {
     ], { party: true });
     await act(async () => { await new Promise((resolve) => setTimeout(resolve, 20)); });
     expect(document.querySelectorAll('.campaign-face')).toHaveLength(0);
+  });
+});
+
+describe('a campaign\'s game system', () => {
+  // The dialog leaves at once, so a test sees the page as it is after a save.
+  beforeAll(() => { MotionGlobalConfig.skipAnimations = true; });
+  afterAll(() => { MotionGlobalConfig.skipAnimations = false; });
+
+  async function openPage(initial: StoredCampaign[]): Promise<Awaited<ReturnType<typeof renderDashboard>>> {
+    vi.spyOn(SystemPresetFiles, 'forApp').mockReturnValue(memoryPresets() as unknown as SystemPresetFiles);
+    const result = await renderDashboard(initial);
+    fireEvent.click(screen.getByRole('button', { name: /Cairn/ }));
+    await waitFor(() => expect(nameField().value).toBe('Cairn'));
+    return result;
+  }
+  const row = (): HTMLButtonElement => screen.getByRole('button', { name: 'Game system' });
+  const dialog = (): HTMLElement => screen.getByRole('dialog', { name: 'Cairn: Game System' });
+  const closed = async (): Promise<void> => { await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull()); };
+
+  it('is none until one is picked, and then the system every map of the campaign plays by', async () => {
+    const { storage } = await openPage([{ id: 'a', name: 'Cairn', createdAt: 1 }]);
+    expect(row().textContent).toContain('No game system');
+    fireEvent.click(row());
+    expect(within(dialog()).getByRole('radio', { name: /No game system/ }).getAttribute('aria-checked')).toBe('true');
+    // Without a system there is nothing else to set.
+    expect(within(dialog()).queryByRole('button', { name: 'Dice' })).toBeNull();
+
+    fireEvent.click(within(dialog()).getByRole('radio', { name: /D&D 5e/ }));
+    expect(within(dialog()).getByRole('button', { name: 'Dice' })).toBeTruthy();
+    expect(within(dialog()).queryByRole('button', { name: 'Default Widgets' })).toBeNull();
+    fireEvent.click(within(dialog()).getByRole('button', { name: 'Save' }));
+    await closed();
+
+    const system = storage.current()[0]!.system as Record<string, unknown>;
+    expect(system).toMatchObject({ systemPresetId: 'builtin:dnd5e', dice: { defaultRoll: '1d20', crit: 'natural' } });
+    expect(system).not.toHaveProperty('defaultWidgets');
+    expect(row().textContent).toContain('D&D 5e');
+    expect(row().textContent).not.toContain('Edited');
+  });
+
+  it('is edited with the tabs of a collection\'s settings, and marked as edited', async () => {
+    const { storage } = await openPage([{ id: 'a', name: 'Cairn', createdAt: 1 }]);
+    fireEvent.click(row());
+    fireEvent.click(within(dialog()).getByRole('radio', { name: /D&D 5e/ }));
+    fireEvent.click(within(dialog()).getByRole('button', { name: 'Dice' }));
+    fireEvent.change(within(dialog()).getByLabelText('Default Roll'), { target: { value: '2d6' } });
+    fireEvent.click(within(dialog()).getByRole('button', { name: 'Save' }));
+    await closed();
+
+    expect(storage.current()[0]!.system).toMatchObject({ systemPresetId: 'builtin:dnd5e', dice: { defaultRoll: '2d6' } });
+    expect(row().textContent).toContain('D&D 5e');
+    expect(row().textContent).toContain('Edited');
+
+    // What was not saved stays unsaved.
+    fireEvent.click(row());
+    fireEvent.click(within(dialog()).getByRole('button', { name: 'Dice' }));
+    fireEvent.change(within(dialog()).getByLabelText('Default Roll'), { target: { value: '3d6' } });
+    fireEvent.click(within(dialog()).getByRole('button', { name: 'Cancel' }));
+    await closed();
+    expect(storage.current()[0]!.system).toMatchObject({ dice: { defaultRoll: '2d6' } });
+  });
+
+  it('is removed by choosing no game system, which leaves every map to its collection', async () => {
+    const { storage } = await openPage([{ id: 'a', name: 'Cairn', createdAt: 1, system: { systemPresetId: 'builtin:cairn', gridDefaults: { unitType: 'feet', unitDistance: 5, measurementMode: 'metric' }, conditions: [] } }]);
+    expect(row().textContent).toContain('Cairn');
+    fireEvent.click(row());
+    fireEvent.click(within(dialog()).getByRole('radio', { name: /No game system/ }));
+    fireEvent.click(within(dialog()).getByRole('button', { name: 'Save' }));
+    await closed();
+    expect(storage.current()[0]).not.toHaveProperty('system');
+    expect(row().textContent).toContain('No game system');
+  });
+
+  it('cannot be changed in a campaign a newer Atlas saved', async () => {
+    await openPage([{ id: 'a', name: 'Cairn', createdAt: 1, format: 2 }]);
+    expect(row().disabled).toBe(true);
   });
 });

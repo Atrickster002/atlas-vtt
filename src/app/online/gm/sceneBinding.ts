@@ -5,7 +5,7 @@ import type { GridGeometry } from '../../grid/gridDistance';
 import { resolveMeasurementSettings } from '../../grid/measurementFormat';
 import { diceSourceOf } from './atlasDice.ts';
 import { accentColour, atlasPlayerSettings, lightingSourceOf, measurementOf } from './atlasLighting.ts';
-import { collectionsOf, mapLayerSourceOf } from './atlasMapLayers.ts';
+import { mapLayerSourceOf, rulesLookupOf } from './atlasMapLayers.ts';
 import { asTokenSource, call, drawnTokenPlaces, tokenRulesOf, type SceneStore } from './atlasView.ts';
 import { bookSceneOf, type BookScene } from './book/bookScene.ts';
 import { companionTimers } from './companionTimers.ts';
@@ -49,7 +49,7 @@ export interface SceneBindingPorts {
   rollRequest(from: string, answer: RollRequestAnswer): RollRequest | null;
 }
 
-/** Claims and releases are taken only while the presented scene is shown: a held list cannot show them. */
+/** Claims are taken only while the presented scene is shown: a held list cannot show them. */
 function heldSeats(seats: SeatSource, held: () => boolean): SeatSource {
   return {
     onlinePlayers: () => seats.onlinePlayers(),
@@ -57,7 +57,6 @@ function heldSeats(seats: SeatSource, held: () => boolean): SeatSource {
     isPlayerToken: (mapPath, tokenId, token) => seats.isPlayerToken(mapPath, tokenId, token),
     claimOf: (mapPath, tokenId, token) => seats.claimOf(mapPath, tokenId, token),
     claim: (tokenId, playerId) => !held() && seats.claim(tokenId, playerId),
-    release: (tokenId, playerId) => !held() && seats.release(tokenId, playerId),
   };
 }
 
@@ -124,7 +123,7 @@ export function bindScene(ports: SceneBindingPorts, tab: AtlasTab, presented: Pr
   const binding: SceneBinding = {
     share,
     store,
-    book: () => (shown() ? bookSceneOf(store.getState(), asTokenSource(renderer), tokenRulesOf(renderer), collectionsOf(leaf.view)) : null),
+    book: () => (shown() ? bookSceneOf(store.getState(), asTokenSource(renderer), tokenRulesOf(renderer), rulesLookupOf(leaf.view)) : null),
     get showing() {
       return !store.held;
     },

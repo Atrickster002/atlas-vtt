@@ -6,7 +6,7 @@ import { ATLAS_VIEW_TYPE } from '../atlas-view';
 import type { ViewAtlasStore } from '../storeFactory';
 import type { TokenUpdates } from '../types/viewState';
 import { rollStatblockDice } from './statblockDiceLinks';
-import { AssetService } from './AssetService';
+import { rulesLookup } from './mapRules';
 import type { TokenVitals } from './statblockVitalsSync';
 import type { TokenRollContext } from '../types/diceRollOrigin';
 
@@ -43,8 +43,8 @@ export function rollHitPoints(
 ): void {
   const placed = tokens.filter((token): token is PlacedToken => Boolean(token.id));
   const store = placed.length ? storeHoldingTokens(app, placed.map((token) => token.id), viewId) : null;
-  // The resource the collection fills from the statblock's hit points, whatever it is called.
-  const key = store && mapResources(AssetService.getInstance(app), store.getState().mapPath)
+  // The resource the map's rules fill from the statblock's hit points, whatever it is called.
+  const key = store && mapResources(rulesLookup(app), store.getState().mapPath)
     .find((definition) => isHitPointsKey(definition.field))?.key;
   if (!store || !key) {
     rollStatblockDice(app, formula, { statblockPath, abilityName, viewId });
