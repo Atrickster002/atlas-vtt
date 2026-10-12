@@ -12,14 +12,13 @@ import type { RollNotes } from './RollShare.ts';
 /**
  * Who is shown a private roll whole besides its roller: the GM (`gm`, and `blind`, where the roller
  * is not), or nobody else (`self`). A `gm` roll answering a button in a whisper is shown to the
- * whisper's people too (`whisper`).
+ * whisper's people instead (`whisper`): the GM sees it only where the whisper was the GM's too.
  */
 export function rollAudience(mode: Exclude<RollMode, 'public'>, who: string, whisper?: readonly string[]): readonly string[] {
   if (mode === 'self') return [who];
   if (mode === 'blind' || whisper === undefined) return ['gm'];
-  const to = new Set(whisper.filter((id) => id !== who));
-  if (who !== 'gm') to.add('gm');
-  return to.size === 0 ? ['gm'] : [...to];
+  const to = whisper.filter((id) => id !== who);
+  return to.length === 0 ? [who] : to;
 }
 
 /** The mode a roll button is rolled in: as its author set it, but never in the open from a whisper. */

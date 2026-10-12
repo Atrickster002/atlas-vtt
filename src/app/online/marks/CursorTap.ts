@@ -2,17 +2,20 @@ import type { MarkPoint } from '../protocol/index.ts';
 import { SpanMeter } from './SpanMeter.ts';
 import type { TrailBatch } from './PointerTap.ts';
 
-/** A pointer event as a viewport sends it: where it is on the canvas and what kind of pointer it is. */
-export type CursorEvent = Readonly<Record<'global', { readonly x: number; readonly y: number }>> & { readonly pointerType?: string };
+/** A pointer event on the map's canvas: where it is on the canvas, in CSS pixels, and what kind of pointer it is. */
+export type CursorEvent = Pick<PointerEvent, 'offsetX' | 'offsetY' | 'pointerType'>;
 
-/**
- * What the tap listens to: a pixi-viewport (any copy of PIXI) and where its world is. It follows the
- * pointer's events, and the camera's, which move the map under a pointer at rest.
- */
+/** The map's canvas, whose pointer events the tap follows. */
+export interface CursorCanvas {
+  addEventListener(type: 'pointermove' | 'pointerdown', listener: (event: CursorEvent) => void): void;
+  addEventListener(type: 'mouseleave', listener: () => void): void;
+  removeEventListener(type: 'pointermove' | 'pointerdown', listener: (event: CursorEvent) => void): void;
+  removeEventListener(type: 'mouseleave', listener: () => void): void;
+}
+
+/** What the tap reads the world from: a pixi-viewport (any copy of PIXI), whose camera moves the map under a pointer at rest. */
 export interface CursorViewport {
-  on(event: 'pointermove' | 'pointerdown', listener: (event: CursorEvent) => void): unknown;
   on(event: 'moved' | 'zoomed', listener: () => void): unknown;
-  off(event: 'pointermove' | 'pointerdown', listener: (event: CursorEvent) => void): unknown;
   off(event: 'moved' | 'zoomed', listener: () => void): unknown;
   toWorld(point: { readonly x: number; readonly y: number }): { readonly x: number; readonly y: number };
   readonly scale: { readonly x: number };
@@ -22,11 +25,14 @@ export interface CursorViewport {
 export interface CursorSource {
   /** The pointer over the map, or null while it is elsewhere. */
   at(): MarkPoint | null;
-  /** When the pointer last moved, on the tap's clock; null while it is away. */
+  /**
+   * When its owner last moved the pointer or the map under it (a scroll or zoom that leaves the
+   * pointer on the same place still counts: they are at work), on the tap's clock; null while it is away.
+   */
   movedAt(): number | null;
   /** The places passed since the last call (the newest `max` numbers) and the time they cover, as a laser tells it. */
   take(max: number): TrailBatch;
-  /** Calls `listener` whenever the pointer moved, came or left; returns the function that stops it. */
+  /** Calls `listener` whenever the pointer or the map under it moved, or the pointer came or left; returns the function that stops it. */
   subscribe(listener: () => void): () => void;
 }
 
@@ -42,10 +48,16 @@ const rounded = (value: number): number => Math.round(value * 10) / 10;
  * or pen over the map, in world coordinates, whatever the tool and the buttons, and every pan or
  * zoom that moves the map under it. A finger has no cursor, so touch is left out. It only listens and
  * stops nothing.
+ *
+ * The pointer's place on the canvas comes from the canvas's own pointer events, and its place in the
+ * world is worked out once the event that moved the pointer or the camera has run to its end: a drag
+ * moves the camera inside the very pointer event that moves the pointer, before or after any other
+ * listener of it, and a place read in between pairs the pointer of one moment with the camera of
+ * another, which others saw as a cursor sliding off the spot its owner held.
  */
 export class CursorTap implements CursorSource {
   private readonly viewport: CursorViewport;
-  private readonly canvas: EventTarget;
+  private readonly canvas: CursorCanvas;
   private readonly now: () => number;
   private readonly listeners = new Set<() => void>();
   private readonly meter = new SpanMeter();
@@ -54,19 +66,18 @@ export class CursorTap implements CursorSource {
   private screen: { readonly x: number; readonly y: number } | null = null;
   private moved: number | null = null;
   private pending: number[] = [];
+  private sampling = false;
   private readonly onMove = (event: CursorEvent): void => this.track(event);
-  private readonly onCamera = (): void => {
-    if (this.screen !== null) this.place(this.screen);
-  };
+  private readonly onCamera = (): void => this.sample();
   private readonly onLeave = (): void => this.leave();
 
   /** `now` is the clock spans and rests are measured on, in ms. */
-  constructor(viewport: CursorViewport, canvas: EventTarget, now: () => number = () => performance.now()) {
+  constructor(viewport: CursorViewport, canvas: CursorCanvas, now: () => number = () => performance.now()) {
     this.viewport = viewport;
     this.canvas = canvas;
     this.now = now;
-    viewport.on('pointermove', this.onMove);
-    viewport.on('pointerdown', this.onMove);
+    canvas.addEventListener('pointermove', this.onMove);
+    canvas.addEventListener('pointerdown', this.onMove);
     viewport.on('moved', this.onCamera);
     viewport.on('zoomed', this.onCamera);
     canvas.addEventListener('mouseleave', this.onLeave);
@@ -93,8 +104,8 @@ export class CursorTap implements CursorSource {
   }
 
   destroy(): void {
-    this.viewport.off('pointermove', this.onMove);
-    this.viewport.off('pointerdown', this.onMove);
+    this.canvas.removeEventListener('pointermove', this.onMove);
+    this.canvas.removeEventListener('pointerdown', this.onMove);
     this.viewport.off('moved', this.onCamera);
     this.viewport.off('zoomed', this.onCamera);
     this.canvas.removeEventListener('mouseleave', this.onLeave);
@@ -103,8 +114,18 @@ export class CursorTap implements CursorSource {
 
   private track(event: CursorEvent): void {
     if (event.pointerType === 'touch') return;
-    this.screen = { x: event.global.x, y: event.global.y };
-    this.place(this.screen);
+    this.screen = { x: event.offsetX, y: event.offsetY };
+    this.sample();
+  }
+
+  /** Works out the pointer's place in the world once the event under way has run to its end. */
+  private sample(): void {
+    if (this.sampling || this.screen === null) return;
+    this.sampling = true;
+    queueMicrotask(() => {
+      this.sampling = false;
+      if (this.screen !== null) this.place(this.screen);
+    });
   }
 
   /** The pointer is at `screen` on the canvas: where that is in the world, if it moved there. */
@@ -113,12 +134,15 @@ export class CursorTap implements CursorSource {
     if (!Number.isFinite(world.x) || !Number.isFinite(world.y)) return;
     const at: MarkPoint = [rounded(world.x), rounded(world.y)];
     const { pointer } = this;
-    if (pointer !== null && pointer[0] === at[0] && pointer[1] === at[1]) return;
     const now = this.now();
+    this.moved = now;
+    if (pointer !== null && pointer[0] === at[0] && pointer[1] === at[1]) {
+      this.changed();
+      return;
+    }
     // A pointer that comes back starts a path of its own: its first message tells no span.
     if (pointer === null) this.meter.reset();
     this.meter.moved(now);
-    this.moved = now;
     this.pointer = at;
     this.addPlace(at);
     this.changed();

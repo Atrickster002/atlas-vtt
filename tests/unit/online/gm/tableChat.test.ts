@@ -49,11 +49,17 @@ const last = (log: TableLog): GmLogEntry => log.entries()[log.entries().length -
 const settle = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0));
 
 describe('whispers', () => {
-  it('reach only their audience and the GM, and nobody else hears of them', () => {
+  it('reach only their audience, and nobody else hears of them, the GM neither', () => {
     const { log, to, sent } = table();
+    const heard: LogEntry[] = [];
+    log.listen((entry) => heard.push(entry));
     log.receive(MIRA, { t: 'chat', text: 'meet me outside', to: [TOM] });
     const entry = last(log);
-    expect(entry).toMatchObject({ kind: 'chat', who: MIRA, to: [TOM, 'gm'] });
+    expect(entry).toMatchObject({ kind: 'chat', who: MIRA, to: [TOM] });
+    expect(viewOf(entry, 'gm')).toBeNull();
+    expect(heard).toEqual([]);
+    log.remove(entry.id);
+    expect(last(log)).toBe(entry);
     expect(entriesTo(to(TOM))).toEqual([entry]);
     expect(entriesTo(to(ANA))).toEqual([]);
     expect(sent.every((item) => item.to !== undefined)).toBe(true);
@@ -64,12 +70,12 @@ describe('whispers', () => {
     const { log, sent } = table();
     log.receive(MIRA, { t: 'chat', text: 'psst', to: ['e'.repeat(20)] });
     log.receive(MIRA, { t: 'chat', text: 'note to self', to: [MIRA] });
-    expect(log.entries().filter((entry) => entry.kind === 'chat')).toHaveLength(1);
-    expect(last(log)).toMatchObject({ text: 'note to self', to: ['gm'] });
-    expect(sent.filter((item) => item.body.t === 'chat-refused')).toEqual([{ body: { t: 'chat-refused', reason: 'whisper' }, to: MIRA }]);
+    log.receive(MIRA, { t: 'chat', text: 'to the GM', to: ['gm'] });
+    expect(log.entries().filter((entry) => entry.kind === 'chat').map((entry) => (entry.kind === 'chat' ? entry.to : null))).toEqual([['gm']]);
+    expect(sent.filter((item) => item.body.t === 'chat-refused')).toEqual([{ body: { t: 'chat-refused', reason: 'whisper' }, to: MIRA }, { body: { t: 'chat-refused', reason: 'whisper' }, to: MIRA }]);
   });
 
-  it('from the GM go to the players named, and the GM sees every whisper', () => {
+  it('from the GM go to the players named, and the GM sees their own', () => {
     const { log, to } = table();
     void log.say({ text: 'you hear a voice', to: [ANA] });
     const entry = last(log);
@@ -85,7 +91,7 @@ describe('whispers', () => {
     const whisper = last(log);
     log.receive(TOM, { t: 'chat', text: 'agreed', reply: whisper.id });
     log.receive(TOM, { t: 'chat', text: 'everyone look', reply: whisper.id, to: [ANA] });
-    expect(log.entries().slice(-2).map((entry) => (entry.kind === 'chat' ? entry.to : null))).toEqual([[MIRA, 'gm'], [MIRA, 'gm']]);
+    expect(log.entries().slice(-2).map((entry) => (entry.kind === 'chat' ? entry.to : null))).toEqual([[MIRA], [MIRA]]);
     expect(entriesTo(to(ANA))).toEqual([]);
   });
 
@@ -253,6 +259,10 @@ describe('what the review found', () => {
     expect(rollAudience('gm', ANA, ['gm', ANA])).toEqual(['gm']);
     expect(rollAudience('gm', ANA, ['gm', ANA, TOM])).toEqual(['gm', TOM]);
     expect(rollAudience('gm', 'gm', ['gm', ANA])).toEqual([ANA]);
+    // Among players alone the GM is shown that a roll was made, not what it was.
+    expect(rollAudience('gm', ANA, [TOM, ANA])).toEqual([TOM]);
+    void log.say({ text: 'Note: [[/r 1d20]]{Ambush}', to: ['gm'] });
+    expect(log.requestOf('gm', { id: last(log).id, index: 0 })).toMatchObject({ to: ['gm'] });
   });
 });
 

@@ -45,7 +45,16 @@ export class MarkOverlay {
   private idle = 0;
   private zoom = 1;
   private disposed = false;
-  private readonly onCamera = (): void => this.wake();
+  /**
+   * The camera moved: the marks follow it at once, drawn now, since the map's own frame moved it (a
+   * smooth zoom's step) or a scroll event did, and the overlay's frame, before or after the map's in
+   * the same display frame, would draw them by the camera of the frame before as often as not.
+   */
+  private readonly onCamera = (): void => {
+    const shown = this.lasers?.busy === true || this.marks.measures.length > 0;
+    if (shown && this.followCamera()) this.app?.render();
+    this.wake();
+  };
   private readonly resized = new ResizeObserver(() => this.wake());
 
   constructor(rules: () => MeasureRules | null) {
@@ -125,6 +134,19 @@ export class MarkOverlay {
     if (this.app !== null && !this.app.ticker.started) this.app.ticker.start();
   }
 
+  /** Lays the marks under the map's camera as it is now; false while there is no live map to follow. */
+  private followCamera(): boolean {
+    const { world, host } = this;
+    if (world === null || host === null || host.viewport.destroyed === true) return false;
+    world.position.set(host.viewport.x, host.viewport.y);
+    world.scale.set(host.viewport.scale.x, host.viewport.scale.y);
+    if (host.viewport.scale.x !== this.zoom) {
+      this.zoom = host.viewport.scale.x;
+      this.measures?.rescale();
+    }
+    return true;
+  }
+
   private tick(): void {
     const { app, world, host } = this;
     if (app === null || world === null || host === null) return;
@@ -136,12 +158,7 @@ export class MarkOverlay {
     }
     const { clientWidth: width, clientHeight: height } = host.canvas;
     if (width !== app.screen.width || height !== app.screen.height) app.renderer.resize(width, height);
-    world.position.set(host.viewport.x, host.viewport.y);
-    world.scale.set(host.viewport.scale.x, host.viewport.scale.y);
-    if (host.viewport.scale.x !== this.zoom) {
-      this.zoom = host.viewport.scale.x;
-      this.measures?.rescale();
-    }
+    this.followCamera();
     const now = performance.now();
     this.lasers?.tick(now);
     this.measures?.tick(now);

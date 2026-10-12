@@ -117,9 +117,9 @@ export class TableLog {
     return this.changeText(GM_AUTHOR, id, text);
   }
 
-  /** The GM deletes a chat message, their own or a player's. */
+  /** The GM deletes a chat message, their own or a player's, of those the GM sees. */
   remove(id: string): void {
-    const entry = this.find(id);
+    const entry = this.visible(id, GM_AUTHOR);
     if (entry?.kind === 'chat') this.drop(entry);
   }
 
