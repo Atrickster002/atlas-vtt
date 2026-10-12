@@ -99,9 +99,8 @@ export async function statblockImportCandidate(app: App, file: TFile, lookup: St
   const layout = resolveLayout(app, requested);
   const layoutName = requested ? (layout?.id === requested || layout?.name === requested ? layout.name : requested) : layout?.name ?? t('sbImport.unspecified');
   const row = { path, name, layoutName };
-  const linked = lookup.tokens.get(path) ?? [];
-  if (linked.length > 1) return { ...row, status: 'conflict', detail: t('sbCandidate.conflict') };
-  const existing = linked[0];
+  // A note any token links already has its token; it may have several.
+  const existing = lookup.tokens.get(path)?.[0];
   if (existing) return { ...row, status: 'imported', detail: t('sbCandidate.imported'), imagePath: existing.imagePath, showRing: existing.showRing !== false };
   if (!creature) return { ...row, status: 'conflict', detail: t('sbCandidate.unresolved') };
   const image = statblockImageField(creature)?.reference;

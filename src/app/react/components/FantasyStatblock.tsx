@@ -127,7 +127,8 @@ export function FantasyStatblock({
     [app, creature],
   );
 
-  const portraitToken = tokens.find((token) => token.imagePath);
+  // Tokens of different art (variants sharing the statblock) leave the note's own picture.
+  const portraitToken = new Set(tokens.map((token) => token.imagePath)).size === 1 ? tokens[0] : undefined;
   const portraitPath = portraitToken?.imagePath;
   const portraitRingColor = portraitToken?.ringColor;
   const portraitShowRing = portraitToken?.showRing;
@@ -170,11 +171,7 @@ export function FantasyStatblock({
     [editable, bestiaryCreature, app, notePath, commit],
   );
 
-  /**
-   * Assigning a token also becomes the statblock's image: the link service
-   * writes the chosen token's art into the note's `image` frontmatter, so the
-   * pair stays in lockstep.
-   */
+  /** Links a token to the statblock; its art becomes the statblock's picture only where the note has none. */
   const assignToken = useCallback((): void => {
     const file = app.vault.getAbstractFileByPath(notePath);
     if (!(file instanceof TFile)) return;

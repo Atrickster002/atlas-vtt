@@ -15,6 +15,8 @@
 - The camera glides between the areas of a measurement instead of jumping
 - Alignment marks and the grid preview use the theme's accent colour, and marks keep their size at every zoom
 - Atlas' messages at the edge of the window take the look of its panels in your theme, where they were Obsidian's dark box
+- Several tokens can share one statblock, for colour variants of a creature or NPCs of one kind: linking another token keeps the first, and the DM screen shows them as one statblock
+- A statblock keeps its own picture: linking a token sets it only where the statblock has none, and a token copied to another collection keeps its statblock
 
 ## Fixed
 

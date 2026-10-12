@@ -4,7 +4,7 @@ import { createViewAtlasStore } from '../../src/app/storeFactory';
 import { getHistoryStore } from '../../src/app/stores/history';
 import type { ResourceDefinition } from '../../src/app/resources/resourceTypes';
 import { HP, STRESS } from '../mocks/resourceFixtures';
-import { character, statblockFixture } from '../mocks/statblockTokenSync';
+import { character, statblockFixture, tokenAsset } from '../mocks/statblockTokenSync';
 
 afterEach(() => vi.restoreAllMocks());
 
@@ -39,31 +39,35 @@ describe('StatblockTokenSync', () => {
     await f.change();
     await f.change();
     expect(f.store.getState().objects.tokens.hero).toMatchObject({ name: 'Custom' });
-    expect(f.links.getTokenLinkedToStatblock).not.toHaveBeenCalled();
+    expect(f.links.findAssetByAnyPath).not.toHaveBeenCalled();
     f.sync.destroy();
   });
 
-  it('updates image links without writing the avatar back to the note', async () => {
+  it('links a token the picture names that links no statblock, and leaves placed art alone', async () => {
     const f = setup();
     f.store.getState().addToken(character());
     f.links.readStatblockImage.mockReturnValue('new.png');
-    f.links.getTokenLinkedToStatblock.mockResolvedValue('old.png');
+    f.links.findAssetByAnyPath.mockResolvedValue(tokenAsset());
     await f.change();
-    expect(f.links.linkTokenToStatblock).toHaveBeenCalledWith('new.png', 'Hero.md', { showConfirmation: false, updateStatblockAvatar: false });
-    expect(f.store.getState().objects.tokens.hero?.imagePath).toBe('new.png');
-    f.links.readStatblockImage.mockReturnValue(null);
-    await f.change();
-    expect(f.links.unlinkToken).toHaveBeenCalledWith('old.png', { updateStatblockAvatar: false });
+    expect(f.links.linkTokenToStatblock).toHaveBeenCalledWith('new.png', 'Hero.md', { updateStatblockAvatar: false });
+    expect(f.store.getState().objects.tokens.hero?.imagePath).toBe('hero.png');
     f.sync.destroy();
   });
 
-  it('keeps equivalent image links without relinking', async () => {
+  it('never links, unlinks or takes a token because of the picture alone', async () => {
     const f = setup();
+    f.store.getState().addToken(character());
     f.links.readStatblockImage.mockReturnValue('new.png');
-    f.links.getTokenLinkedToStatblock.mockResolvedValue('same.png');
-    f.links.arePathsEquivalent.mockReturnValue(true);
+    f.links.findAssetByAnyPath.mockResolvedValue(tokenAsset({ statblockPath: 'Other.md' }));
+    await f.change();
+    f.links.findAssetByAnyPath.mockResolvedValue(tokenAsset({ statblockPath: 'Hero.md' }));
+    await f.change();
+    f.links.findAssetByAnyPath.mockResolvedValue(null);
+    await f.change();
+    f.links.readStatblockImage.mockReturnValue(null);
     await f.change();
     expect(f.links.linkTokenToStatblock).not.toHaveBeenCalled();
+    expect(f.store.getState().objects.tokens.hero).toMatchObject({ imagePath: 'hero.png', statblockPath: 'Hero.md' });
     f.sync.destroy();
   });
 

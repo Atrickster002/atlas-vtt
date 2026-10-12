@@ -245,9 +245,8 @@ describe('copying assets to another collection', () => {
     expect(vault.vault.files.get(copied.imagePath)).toBe('IMG');
     expect(vault.vault.files.get(copied.thumbnailPath!)).toBe('THUMB');
     expect(copied.thumbnailPath).not.toBe(TOKEN_THUMB);
-    // A statblock note links to one token, and the shared note shows the original's artwork.
-    expect(copied.statblockPath).toBeUndefined();
-    expect(result.unlinkedStatblocks).toEqual([copied]);
+    // A statblock may be linked by many tokens: the copy shares the original's.
+    expect(copied.statblockPath).toBe(STATBLOCK);
 
     // Deleting the copy must not take the original's artwork with it.
     await vault.assets.deleteAsset(copied.id);
@@ -288,10 +287,9 @@ describe('copying assets to another collection', () => {
     const orc = await vault.assets.addTokenAsset({ name: 'Orc', imagePath: 'atlas-vtt/assets/orc.webp', statblockPath: note, collection: 'source', tags: [] });
     await vault.vault.app.vault.process(new TFile(note), (text) => text.replace(TOKEN_IMAGE, orc.imagePath));
 
-    const result = await copy(vault, [orc.id]);
+    await copy(vault, [orc.id]);
 
     const copied = await only(vault.assets, 'target', 'token');
-    expect(result.unlinkedStatblocks).toEqual([]);
     expect(copied.statblockPath).toBe(`${TARGET}/statblocks/Orc.md`);
     expect(parseFrontmatter(vault.vault.files.get(copied.statblockPath!)!)?.image).toBe(copied.imagePath);
     expect(parseFrontmatter(vault.vault.files.get(note)!)?.image).toBe(orc.imagePath);
