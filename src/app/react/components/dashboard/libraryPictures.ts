@@ -8,7 +8,8 @@ export function sceneThumbnailUrl(app: App, mapPath: string): string | null {
   return resourceUrl(app, mapThumbnailPath(mapPath));
 }
 
-function resourceUrl(app: App, path: string | undefined): string | null {
+/** A vault file as a resource URL, or null when there is no such file. */
+export function resourceUrl(app: App, path: string | undefined): string | null {
   const file = path ? app.vault.getAbstractFileByPath(path) : null;
   return file instanceof TFile ? app.vault.getResourcePath(file) : null;
 }

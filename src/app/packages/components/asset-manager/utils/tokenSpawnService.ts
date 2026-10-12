@@ -136,6 +136,8 @@ interface TokenSpawnData extends StatblockOverrides {
   x: number;
   y: number;
   imagePath: string;
+  /** The library token it was placed from (`libraryTokenOf`). */
+  assetId?: string;
   kind: 'character';
   name: string;
   statblockPath?: string;
@@ -146,6 +148,8 @@ interface TokenSpawnData extends StatblockOverrides {
 
 /** What a spawned token inherits from its asset. */
 interface TokenSource {
+  /** The library token record the source was resolved from; unset when none was found. */
+  assetId?: string | undefined;
   imagePath: string;
   name: string;
   statblockPath: string | null;
@@ -174,6 +178,7 @@ async function resolveTokenSource(ctx: SpawnContext, ref: TokenSourceRef): Promi
     return null;
   }
   return {
+    ...(record && { assetId: record.id }),
     imagePath,
     name: ref.name || t('initiative.token'),
     statblockPath: record?.statblockPath ?? ref.statblockPath ?? null,
@@ -193,7 +198,7 @@ function spawnVisionDefaults(ctx: SpawnContext, target: SpawnTarget): TokenVisio
 async function buildTokenData(
   app: ObsidianApp,
   pos: { x: number; y: number },
-  { imagePath, name, statblockPath, size, showRing }: TokenSource,
+  { assetId, imagePath, name, statblockPath, size, showRing }: TokenSource,
   definitions: readonly ResourceDefinition[],
   visionDefaults: TokenVisionDefaults | undefined,
 ): Promise<TokenSpawnData> {
@@ -205,6 +210,7 @@ async function buildTokenData(
     name,
   };
 
+  if (assetId !== undefined) data.assetId = assetId;
   if (size !== undefined) data.size = size;
   if (showRing !== undefined) data.showRing = showRing;
 

@@ -2,6 +2,7 @@ import React from 'react';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { App } from 'obsidian';
+import { CampaignPlay } from '../../src/app/campaigns/campaignPlay';
 import type { StoredCampaign } from '../../src/app/campaigns/campaignTypes';
 import { AssetService } from '../../src/app/services/AssetService';
 import { createInMemoryApp } from '../mocks/inMemoryVault';
@@ -15,19 +16,43 @@ import { Dashboard } from '../../src/app/react/components/dashboard/Dashboard';
 const SCENE_PATH = 'atlas-vtt/collections/c/scenes/Cave.atlasmap';
 const DAY = 24 * 60 * 60 * 1000;
 
-/** A vault with one scene and one map, and the campaigns in memory. */
-async function renderDashboard(initial: StoredCampaign[] = []): Promise<{ app: App; storage: ReturnType<typeof memoryCampaigns>; mapId: string }> {
+const PARTY_TOKENS = {
+  t1: { imagePath: 'art/aria.webp', ringColor: '#aa3300' },
+  t2: { imagePath: 'art/olm.webp' },
+  t3: { imagePath: 'art/brom.webp' },
+  t4: { imagePath: 'art/finn.webp' },
+};
+
+/**
+ * A vault with one scene and one map, and the campaigns in memory. With `party`, the scene holds
+ * three player characters (Aria and Finn ringed, Brom without a ring) and an olm.
+ */
+async function renderDashboard(
+  initial: StoredCampaign[] | ((sceneId: string) => StoredCampaign[]) = [],
+  { party = false }: { party?: boolean } = {},
+): Promise<{ app: App; storage: ReturnType<typeof memoryCampaigns>; mapId: string }> {
+  const tokens = party ? PARTY_TOKENS : {};
   const { app } = createInMemoryApp({
     files: {
-      [SCENE_PATH]: JSON.stringify({ version: 4, state: { schema: 'atlas-vtt', version: 4, mapPath: SCENE_PATH, objects: {} } }),
+      [SCENE_PATH]: JSON.stringify({ version: 4, state: { schema: 'atlas-vtt', version: 4, mapPath: SCENE_PATH, objects: { tokens } } }),
       'atlas-vtt/assets/keep.webp': 'WEBP',
+      ...(party && { 'art/aria.webp': 'WEBP', 'art/olm.webp': 'WEBP', 'art/brom.webp': 'WEBP', 'art/finn.webp': 'WEBP' }),
     },
   });
   AssetService.resetInstance();
   const assets = AssetService.getInstance(app);
   await assets.initialize();
   const map = await assets.addAsset({ type: 'map', name: 'Keep', mapFilePath: 'atlas-vtt/assets/keep.webp', tags: [], collection: 'c' });
-  const storage = memoryCampaigns(initial);
+  if (party) {
+    await assets.addAssets([
+      { type: 'token', name: 'Aria', imagePath: 'art/aria.webp', tags: [], collection: 'c', playerCharacter: true },
+      { type: 'token', name: 'Olm', imagePath: 'art/olm.webp', tags: [], collection: 'c' },
+      { type: 'token', name: 'Brom', imagePath: 'art/brom.webp', tags: [], collection: 'c', playerCharacter: true, showRing: false },
+      { type: 'token', name: 'Finn', imagePath: 'art/finn.webp', tags: [], collection: 'c', playerCharacter: true },
+    ]);
+  }
+  const [scene] = await assets.getAssets(undefined, 'scene');
+  const storage = memoryCampaigns(typeof initial === 'function' ? initial(scene!.id) : initial);
   render(<Dashboard app={app} campaignStorage={storage} onOpenScene={vi.fn()} onCreateMap={vi.fn()} onOpenAssetManager={vi.fn()} />);
   await screen.findAllByText('Cave');
   return { app, storage, mapId: map.id };
@@ -85,7 +110,7 @@ describe('the campaigns on the dashboard', () => {
       { id: 'a', name: 'Cairn', createdAt: Date.now() - 10 * DAY },
       { id: 'b', name: 'Witherwild', createdAt: Date.now() - 20 * DAY, lastPlayed: Date.now() - 2 * DAY, nextSession: '2026-10-18' },
     ]);
-    const rows = within(screen.getByRole('region', { name: 'Campaigns' })).getAllByRole('button').filter((button) => button.textContent !== 'New campaign');
+    const rows = within(screen.getByRole('region', { name: 'Campaigns' })).getAllByRole('button').filter((button) => button.classList.contains('dashboard-row'));
     expect(rows.map((row) => row.querySelector('.dashboard-row__name')?.textContent)).toEqual(['Witherwild', 'Cairn']);
     expect(rows[0]!.textContent).toContain('Last played 2d ago');
     expect(rows[0]!.textContent).toContain('Next session');
@@ -202,5 +227,96 @@ describe('a campaign\'s page', () => {
     expect((screen.getByRole('textbox', { name: 'Description' }) as HTMLTextAreaElement).disabled).toBe(true);
     expect((screen.getByRole('button', { name: 'World map' }) as HTMLButtonElement).disabled).toBe(true);
     expect((screen.getByRole('button', { name: 'Delete campaign' }) as HTMLButtonElement).disabled).toBe(true);
+  });
+});
+
+describe('searching campaigns on the dashboard', () => {
+  const rowNames = (): string[] => [...document.querySelectorAll('.campaign-row .dashboard-row__name')].map((name) => name.textContent ?? '');
+
+  it('filters the campaigns by name and description, and says when none match', async () => {
+    await renderDashboard([
+      { id: 'a', name: 'Cairn', createdAt: 1, description: 'The olms rise.' },
+      { id: 'b', name: 'The Witherwild', createdAt: 2 },
+    ]);
+    const field = screen.getByRole('combobox', { name: 'Search campaigns' });
+    expect(screen.queryByRole('button', { name: 'Filters' })).toBeNull();
+    fireEvent.change(field, { target: { value: 'WITHER' } });
+    expect(rowNames()).toEqual(['The Witherwild']);
+    fireEvent.change(field, { target: { value: 'olms' } });
+    expect(rowNames()).toEqual(['Cairn']);
+    fireEvent.change(field, { target: { value: 'dragons' } });
+    expect(rowNames()).toEqual([]);
+    expect(screen.getByText('No campaigns match your search.')).toBeTruthy();
+    fireEvent.change(field, { target: { value: '' } });
+    expect(rowNames()).toEqual(['The Witherwild', 'Cairn']);
+  });
+
+  it('offers no search while there are no campaigns', async () => {
+    await renderDashboard();
+    expect(screen.queryByRole('combobox', { name: 'Search campaigns' })).toBeNull();
+  });
+});
+
+describe('playing a campaign', () => {
+  it('plays the campaign from its page on this device, marks it on the dashboard, and stops', async () => {
+    const { app } = await renderDashboard([{ id: 'a', name: 'Cairn', createdAt: 1 }, { id: 'b', name: 'Dolmenwood', createdAt: 2 }]);
+    const play = CampaignPlay.forApp(app);
+    fireEvent.click(screen.getByRole('button', { name: /Cairn/ }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Play' }));
+    expect(play.playing()).toBe('a');
+    expect(screen.getByText('Playing')).toBeTruthy();
+    expect(app.loadLocalStorage('atlas-vtt:playing-campaign')).toBe('a');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Dashboard' }));
+    expect(screen.getByRole('button', { name: /Cairn/ }).textContent).toContain('Playing');
+    expect(screen.getByRole('button', { name: /Dolmenwood/ }).textContent).not.toContain('Playing');
+
+    fireEvent.click(screen.getByRole('button', { name: /Cairn/ }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Stop' }));
+    expect(play.playing()).toBeNull();
+    expect(screen.getByRole('button', { name: 'Play' })).toBeTruthy();
+  });
+
+  it('ends the play at once when the GM deletes the campaign being played', async () => {
+    const { app, storage } = await renderDashboard([{ id: 'a', name: 'Cairn', createdAt: 1 }]);
+    const play = CampaignPlay.forApp(app);
+    fireEvent.click(screen.getByRole('button', { name: /Cairn/ }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Play' }));
+    dialogs.confirmAction.mockResolvedValueOnce(true);
+    fireEvent.click(screen.getByRole('button', { name: 'Delete campaign' }));
+    await waitFor(() => expect(storage.current()).toHaveLength(0));
+    expect(play.playing()).toBeNull();
+  });
+
+  it('cannot play a campaign a newer Atlas saved', async () => {
+    await renderDashboard([{ id: 'a', name: 'Cairn', createdAt: 1, format: 2 }]);
+    fireEvent.click(screen.getByRole('button', { name: /Cairn/ }));
+    expect(((await screen.findByRole('button', { name: 'Play' })) as HTMLButtonElement).disabled).toBe(true);
+  });
+});
+
+describe('the party on a campaign\'s last scene', () => {
+  it('shows the player characters who stood there, ringed ones as a fan, each named', async () => {
+    await renderDashboard((sceneId) => [{ id: 'a', name: 'Cairn', createdAt: 1, lastScene: sceneId, lastPlayed: 5 }], { party: true });
+    const row = screen.getByRole('button', { name: /Cairn/ });
+    await waitFor(() => expect(within(row).getAllByRole('img')).toHaveLength(3));
+    const fan = row.querySelector('.campaign-party__fan')!;
+    expect(within(fan as HTMLElement).getAllByRole('img')).toEqual([within(row).getByRole('img', { name: 'Aria' }), within(row).getByRole('img', { name: 'Finn' })]);
+    expect(within(row).getByRole('img', { name: 'Brom' }).closest('.campaign-party__row')).not.toBeNull();
+    expect(within(row).queryByRole('img', { name: 'Olm' })).toBeNull();
+    expect((fan.querySelector('.atlas-token-ring') as HTMLElement).style.getPropertyValue('--atlas-token-ring-color')).toBe('#aa3300');
+    expect(row.querySelector('.campaign-party__row .atlas-token-ring')).toBeNull();
+
+    fireEvent.click(row);
+    await waitFor(() => expect(document.querySelectorAll('.campaign-page .campaign-face')).toHaveLength(3));
+  });
+
+  it('shows nobody for a campaign never played, or whose last scene is gone', async () => {
+    await renderDashboard([
+      { id: 'a', name: 'Cairn', createdAt: 1 },
+      { id: 'b', name: 'Dolmenwood', createdAt: 2, lastScene: 'scene-gone' },
+    ], { party: true });
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 20)); });
+    expect(document.querySelectorAll('.campaign-face')).toHaveLength(0);
   });
 });

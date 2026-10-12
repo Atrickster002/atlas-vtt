@@ -52,6 +52,8 @@ export interface TokenAsset extends BaseAsset {
   /** Small preview written by AssetThumbnailService; regenerated when missing. */
   thumbnailPath?: string;
   statblockPath?: string; // Optional link to statblock note
+  /** Set (only ever to true) on the tokens that are the players' characters; see `characters/playerCharacters.ts`. */
+  playerCharacter?: true;
 }
 
 export interface MapAsset extends BaseAsset {
@@ -1402,6 +1404,32 @@ export class AssetService {
 
   async getTokenAssets(): Promise<TokenAsset[]> {
     return this.getAssets(undefined, 'token');
+  }
+
+  /** Every library token, read from the index in memory; none before it was loaded. For menus that open at once. */
+  loadedTokenAssets(): TokenAsset[] {
+    const assets = this.metadata ? Object.values(this.metadata.assets) : [];
+    return assets.filter((asset): asset is TokenAsset => asset.type === 'token');
+  }
+
+  /**
+   * Makes library tokens the players' characters, or no longer, in one save. An edit like any
+   * other: written to each token's record file and stamped; the flag is stored only as true.
+   * Tokens that already are what is asked, and ids that name no token, are left alone.
+   */
+  async setPlayerCharacters(ids: readonly string[], on: boolean): Promise<void> {
+    await this.ensureLoaded();
+    const assets = this.metadata!.assets;
+    const modifiedAt = Date.now();
+    let changed = false;
+    for (const id of ids) {
+      const asset = assets[id];
+      if (asset?.type !== 'token' || (asset.playerCharacter === true) === on) continue;
+      const { playerCharacter: _was, ...rest } = asset;
+      assets[id] = on ? { ...rest, playerCharacter: true, modifiedAt } : { ...rest, modifiedAt };
+      changed = true;
+    }
+    if (changed) await this.saveMetadata();
   }
 
   async deleteTokenAsset(id: string): Promise<void> {

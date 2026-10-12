@@ -1,13 +1,13 @@
 import { CAMPAIGN_FORMAT } from './campaignPaths';
 import type { Campaign, StoredCampaign } from './campaignTypes';
+import { readUsage } from './campaignUsage';
+import { isAssetId, isTime } from './campaignValues';
 
 /** The longest name and description a campaign takes, in characters. */
 export const MAX_CAMPAIGN_NAME = 120;
 export const MAX_CAMPAIGN_DESCRIPTION = 4000;
-const MAX_ASSET_ID = 200;
 const DAY = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
 
-const isTime = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value) && value >= 0;
 const textWithin = (value: unknown, max: number): string | undefined => (typeof value === 'string' && value.length <= max ? value : undefined);
 
 /** A campaign's name as it is kept: trimmed, at most `MAX_CAMPAIGN_NAME` characters; null for none. */
@@ -26,7 +26,7 @@ export function parseCampaign(stored: StoredCampaign): Campaign | null {
   if (name === null) return null;
   const description = textWithin(stored.description, MAX_CAMPAIGN_DESCRIPTION);
   const nextSession = typeof stored.nextSession === 'string' && DAY.test(stored.nextSession) ? stored.nextSession : undefined;
-  const worldMap = textWithin(stored.worldMap, MAX_ASSET_ID);
+  const used = readUsage(stored.used);
   return {
     id: stored.id,
     name,
@@ -35,7 +35,9 @@ export function parseCampaign(stored: StoredCampaign): Campaign | null {
     ...(isTime(stored.lastPlayed) && { lastPlayed: stored.lastPlayed }),
     ...(isTime(stored.playtime) && { playtime: stored.playtime }),
     ...(nextSession !== undefined && { nextSession }),
-    ...(worldMap !== undefined && worldMap !== '' && { worldMap }),
+    ...(isAssetId(stored.worldMap) && { worldMap: stored.worldMap }),
+    ...(isAssetId(stored.lastScene) && { lastScene: stored.lastScene }),
+    ...(used !== undefined && { used }),
     ...(typeof stored.format === 'number' && stored.format > CAMPAIGN_FORMAT && { readOnly: true as const }),
   };
 }

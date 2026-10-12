@@ -3,13 +3,14 @@ import { openContextMenuGlobal } from '../../../../react/root/ContextMenuContext
 import { buildAssetContextMenuEntries } from '../contextMenus/assetContextMenu';
 import { buildFolderContextMenuEntries } from '../contextMenus/folderContextMenu';
 import { buildContentContextMenuEntries } from '../contextMenus/contentContextMenu';
-import type { AnyAsset, Folder as FolderType } from '../types';
+import type { AnyAsset, Folder as FolderType, Tab } from '../types';
 import type { AssetData } from './useAssetData';
 import type { SelectionState } from './useSelectionHandlers';
 import type { AssetCrudActions } from './useAssetCrud';
 import type { TagsAndCollectionsState } from './useTagsAndCollections';
 import type { StatblockLinkState } from './useStatblockLink';
 import { tagGroupOfTab } from '../utils/assetTags';
+import { tabHasFolders } from '../utils/tabKinds';
 import { transferTargets, transferToCollection } from '../utils/collectionTransferActions';
 
 interface ContextMenuDeps {
@@ -20,6 +21,7 @@ interface ContextMenuDeps {
   statblock: StatblockLinkState;
   /** Id of the collection shown. */
   selectedCollection: string;
+  activeTab: Tab;
   onClose: () => void;
 }
 
@@ -30,7 +32,7 @@ interface ContextMenuHandlers {
 }
 
 export function useContextMenus({
-  data, sel, crud, tags, statblock, selectedCollection, onClose,
+  data, sel, crud, tags, statblock, selectedCollection, activeTab, onClose,
 }: ContextMenuDeps): ContextMenuHandlers {
   const handleAssetContextMenu = (asset: AnyAsset, event: React.MouseEvent): void => {
     if (!sel.selectedAssetIds.includes(asset.id)) {
@@ -84,6 +86,7 @@ export function useContextMenus({
     const entries = buildContentContextMenuEntries({
       sortBy: sel.sortBy, sortOptions: sel.sortOptions, setSortBy: sel.setSortBy,
       sortOrder: sel.sortOrder, setSortOrder: sel.setSortOrder,
+      canCreateFolder: tabHasFolders(activeTab),
       handleCreateFolder: crud.handleCreateFolder,
       handleRefresh: crud.handleRefresh,
     });

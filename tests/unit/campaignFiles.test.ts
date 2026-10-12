@@ -3,6 +3,7 @@ import { TFile, TFolder, type App } from 'obsidian';
 import { CampaignFiles } from '../../src/app/campaigns/CampaignFiles';
 import { CAMPAIGNS_FOLDER, isCampaignPath } from '../../src/app/campaigns/campaignPaths';
 import { CampaignService } from '../../src/app/campaigns/CampaignService';
+import { MAX_USED_SCENES, withScenePlayed } from '../../src/app/campaigns/campaignUsage';
 import { parseCampaign } from '../../src/app/campaigns/campaignValidation';
 import { createInMemoryApp } from '../mocks/inMemoryVault';
 
@@ -144,5 +145,64 @@ describe('CampaignFiles', () => {
     expect(service.nameError('  ')).not.toBeNull();
     expect(service.nameError('x'.repeat(121))).not.toBeNull();
     expect(service.nameError('Moor')).toBeNull();
+  });
+});
+
+describe('recording what was played', () => {
+  it('reads the last scene and the scenes used, leaving out what cannot be read', () => {
+    expect(parseCampaign({
+      id: 'c1', name: 'X', createdAt: 1, lastScene: 's1',
+      used: { scenes: { s1: { first: 1, last: 5 }, s2: { first: 9, last: 2 }, s3: { first: 'then', last: 3 }, ['x'.repeat(201)]: { first: 1, last: 1 } }, tokens: ['kept'] },
+    })).toEqual({ id: 'c1', name: 'X', createdAt: 1, lastScene: 's1', used: { scenes: { s1: { first: 1, last: 5 } } } });
+    expect(parseCampaign({ id: 'c1', name: 'X', createdAt: 1, lastScene: 7, used: { scenes: [] } })).toEqual({ id: 'c1', name: 'X', createdAt: 1 });
+    expect(parseCampaign({ id: 'c1', name: 'X', createdAt: 1, lastScene: '', used: 'all' })).toEqual({ id: 'c1', name: 'X', createdAt: 1 });
+  });
+
+  it('reads no more scenes than it remembers, and forgets the one used longest ago to make room', () => {
+    const scenes = Object.fromEntries(Array.from({ length: MAX_USED_SCENES }, (_, index) => [`s${index}`, { first: index + 10, last: index + 10 }]));
+    expect(Object.keys(parseCampaign({ id: 'c1', name: 'X', used: { scenes: { ...scenes, extra: { first: 1, last: 1 } } } })!.used!.scenes)).toHaveLength(MAX_USED_SCENES);
+    const next = withScenePlayed({ id: 'c1', name: 'X', used: { scenes } }, 'new', 99_999);
+    const kept = (next.used as { scenes: Record<string, unknown> }).scenes;
+    expect(Object.keys(kept)).toHaveLength(MAX_USED_SCENES);
+    expect(kept).not.toHaveProperty('s0');
+    expect(kept.new).toEqual({ first: 99_999, last: 99_999 });
+  });
+
+  it('writes the scene, when it was first and last played, and the last scene, keeping every other field', async () => {
+    const path = `${FOLDER}/Witherwild/campaign.json`;
+    const { campaigns, files, service } = vault({ [path]: fileText({ id: 'c1', name: 'Witherwild', createdAt: 1, used: { tokens: { t1: {} }, scenes: { s0: { first: 2, last: 3 } } } }) });
+    await campaigns.load();
+    expect(service.recordScene('c1', 's1', 100)).toBe(true);
+    expect(service.recordScene('c1', 's2', 200)).toBe(true);
+    expect(service.recordScene('c1', 's1', 300)).toBe(true);
+    await campaigns.flush();
+    expect(JSON.parse(files.get(path)!)).toEqual({
+      format: 1, id: 'c1', name: 'Witherwild', createdAt: 1, lastScene: 's1', lastPlayed: 300,
+      used: { tokens: { t1: {} }, scenes: { s0: { first: 2, last: 3 }, s1: { first: 100, last: 300 }, s2: { first: 200, last: 200 } } },
+    });
+    expect(service.get('c1')).toMatchObject({ lastScene: 's1', lastPlayed: 300 });
+  });
+
+  it('keeps the last scene another device played later, and still notes the scene', async () => {
+    const path = `${FOLDER}/Witherwild/campaign.json`;
+    const { campaigns, files, service } = vault({ [path]: fileText({ id: 'c1', name: 'Witherwild', createdAt: 1 }) });
+    await campaigns.load();
+    files.set(path, fileText({ id: 'c1', name: 'Witherwild', createdAt: 1, lastScene: 'laptop', lastPlayed: 500, used: 'broken' }));
+    service.recordScene('c1', 's1', 400);
+    await campaigns.flush();
+    expect(JSON.parse(files.get(path)!)).toMatchObject({ lastScene: 'laptop', lastPlayed: 500, used: { scenes: { s1: { first: 400, last: 400 } } } });
+  });
+
+  it('never writes a campaign a newer Atlas saved, or one that is gone', async () => {
+    const path = `${FOLDER}/Future/campaign.json`;
+    const { campaigns, files, service } = vault({ [path]: fileText({ id: 'c2', name: 'Future', createdAt: 1, format: 2 }) });
+    await campaigns.load();
+    const before = files.get(path);
+    expect(service.recordScene('c2', 's1', 100)).toBe(false);
+    expect(service.recordScene('gone', 's1', 100)).toBe(false);
+    expect(service.recordScene('c2', '', 100)).toBe(false);
+    await campaigns.flush();
+    expect(files.get(path)).toBe(before);
+    expect(withScenePlayed({ id: 'c2', name: 'Future', format: 2 }, 's1', 1)).toEqual({ id: 'c2', name: 'Future', format: 2 });
   });
 });

@@ -18,8 +18,23 @@ export interface Campaign {
   readonly nextSession?: string;
   /** The world map: a map or scene of any collection, by asset id. */
   readonly worldMap?: string;
+  /** The scene played last, by asset id. */
+  readonly lastScene?: string;
+  /** What the campaign used, by reference. */
+  readonly used?: CampaignUsage;
   /** Written by a newer Atlas: read, never changed here. */
   readonly readOnly?: true;
+}
+
+/** When a campaign first and last used something (milliseconds since the epoch). */
+export interface UsedSpan {
+  readonly first: number;
+  readonly last: number;
+}
+
+/** What a campaign used: the scenes played in it, keyed by asset id. */
+export interface CampaignUsage {
+  readonly scenes: Readonly<Record<string, UsedSpan>>;
 }
 
 /** A campaign as its file holds it, with every field a newer Atlas may have added. */

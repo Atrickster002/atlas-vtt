@@ -38,6 +38,7 @@ import { tokenSizeSubmenu } from '../../react/components/context-menu/tokenSizeM
 import { tokenLightingEntries } from '../../react/components/context-menu/tokenLightingMenu';
 import { mapLightPresets } from '../../services/mapCollectionRules';
 import { conditionsSubmenu } from '../../react/components/context-menu/conditionsMenu';
+import { placedPlayerCharacterEntry } from '../../react/components/context-menu/playerCharacterMenu';
 import { holdTokens } from '../../lighting/sightOnDrop';
 import { t } from '../../i18n';
 
@@ -683,6 +684,10 @@ export class InteractionController implements ITokenInteractionController {
       });
     }
 
+
+    // Player character: the library token it was placed from, for the GM alone
+    const playerCharacter = this.isPlayerView ? null : placedPlayerCharacterEntry(this.obsApp, token);
+    if (playerCharacter) entries.push(playerCharacter);
 
     // Ring color submenu
     const currentRingColor = token.ringColor;
