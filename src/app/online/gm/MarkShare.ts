@@ -1,4 +1,4 @@
-import { GM_MARKS, MARKS_INTERVAL_MS, MAX_LASER_SPAN_MS, MAX_MARK_LASER_NUMBERS, type GmMessage, type LaserState, type MarksMessage, type MeasureState, type PlayerCursor, type PlayerLaser, type PlayerMeasure } from '../protocol/index.ts';
+import { CURSOR_KEEPALIVE_MS, GM_MARKS, MARKS_INTERVAL_MS, MAX_LASER_SPAN_MS, MAX_MARK_LASER_NUMBERS, type GmMessage, type LaserState, type MarksMessage, type MeasureState, type PlayerCursor, type PlayerLaser, type PlayerMeasure } from '../protocol/index.ts';
 import type { SceneSource } from '../../host/sceneSource';
 import type { Measurements } from '../../pixi/MeasureRenderer';
 import { CursorShare, type CursorSharePorts } from './CursorShare.ts';
@@ -97,6 +97,8 @@ export class MarkShare {
   private source: GmMarkSource | null = null;
   private stopSource: (() => void) | null = null;
   private last: { readonly body: MarksMessage; readonly text: string } | null = null;
+  /** When marks last went out. */
+  private sentAt = Number.NEGATIVE_INFINITY;
 
   /** `map` is the shared map's size, which marks must stay near; null when it is unknown. */
   constructor(ports: MarkSharePorts, map: () => MapSize | null) {
@@ -237,9 +239,13 @@ export class MarkShare {
       ...(cursors !== undefined && { cursors }),
     };
     const text = JSON.stringify(body);
+    const now = this.ports.now();
+    // Cursors that show go out now and then while nothing changes, so a page can tell a GM that went silent.
+    const keepAlive = (body.cursors?.length ?? 0) > 0 && now - this.sentAt >= CURSOR_KEEPALIVE_MS;
     // Nothing to tell before anyone made a mark: players start without any.
-    if (text === this.last?.text || (this.last === null && isEmpty(body))) return;
+    if ((text === this.last?.text && !keepAlive) || (this.last === null && isEmpty(body))) return;
     this.last = { body, text };
+    this.sentAt = now;
     this.ports.send(body);
   }
 

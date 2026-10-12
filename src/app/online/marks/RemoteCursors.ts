@@ -12,8 +12,8 @@ export interface CursorCamera {
 /** How long a cursor takes to fade in or out, in ms (the stylesheet's transition: `_cursors.scss`). */
 export const CURSOR_FADE_MS = 160;
 /**
- * A cursor that brought no new place for this long goes, named or not: the GM leaves one out once it
- * rests for `CURSOR_REST_MS`, so only a GM that went silent (a lost connection) leaves one this long.
+ * A cursor nothing named for this long goes: the GM names every cursor it shows at least every
+ * `CURSOR_KEEPALIVE_MS`, so only a GM that went silent (a lost connection) leaves one this long.
  */
 export const CURSOR_STALE_MS = 2 * CURSOR_REST_MS;
 
@@ -25,8 +25,8 @@ interface Cursor {
   newest: TrackPoint | null;
   /** Whether the last update named it. */
   present: boolean;
-  /** When an update last brought it a new place. */
-  movedAt: number;
+  /** When an update last named it. */
+  heardAt: number;
   /** Since when it fades out to go; null while it stays. */
   leaving: number | null;
   shown: boolean;
@@ -48,8 +48,12 @@ function placesOf(cursor: SharedCursor, newest: TrackPoint | null): TrackPoint[]
   return places;
 }
 
-/** A length in CSS pixels on the device pixel grid, so text at rest stays sharp. */
-const onPixels = (value: number, ratio: number): number => Math.round(value * ratio) / ratio;
+/**
+ * A length in CSS pixels on the device pixel grid (`ratio` device pixels a CSS pixel), so text at rest
+ * stays sharp; unsnapped (`ratio` null) to a hundredth, so a cursor moving with a map that moves in
+ * fractions of a pixel keeps its place on the map instead of stepping against it.
+ */
+const onPixels = (value: number, ratio: number | null): number => (ratio === null ? Math.round(value * 100) / 100 : Math.round(value * ratio) / ratio);
 
 /**
  * Other people's cursors over a map, as elements of a layer laid over it: an arrow and a name tag in
@@ -79,7 +83,7 @@ export class RemoteCursors {
       const places = placesOf(shared, cursor.newest);
       cursor.track.push(places, shared.span, now);
       cursor.newest = places.at(-1) ?? cursor.newest;
-      if (places.length > 0 || !cursor.present) cursor.movedAt = now;
+      cursor.heardAt = now;
       cursor.present = true;
       cursor.leaving = null;
       const label = this.labelOf(shared);
@@ -93,10 +97,14 @@ export class RemoteCursors {
     return this.cursors.size;
   }
 
-  /** Draws every cursor as it is at `now` under `camera`; one that has faded out goes. */
-  tick(now: number, camera: CursorCamera, ratio: number): void {
+  /**
+   * Draws every cursor as it is at `now` under `camera`; one that has faded out goes. A cursor at rest
+   * under a `settled` camera lies on the device's pixels (`ratio` device pixels a CSS pixel); one that
+   * moves, or whose map moves, lies where it falls.
+   */
+  tick(now: number, camera: CursorCamera, ratio: number, settled: boolean): void {
     for (const [who, cursor] of this.cursors) {
-      if (cursor.present && now - cursor.movedAt >= CURSOR_STALE_MS) this.leave(cursor);
+      if (cursor.present && now - cursor.heardAt >= CURSOR_STALE_MS) this.leave(cursor);
       const at = cursor.track.at(now);
       const playing = cursor.track.busy(now);
       if (!cursor.present && !playing) cursor.leaving ??= now;
@@ -106,8 +114,9 @@ export class RemoteCursors {
       }
       this.setShown(cursor, at !== null && cursor.leaving === null);
       if (at === null) continue;
-      const x = onPixels(at.x * camera.scale + camera.x, ratio);
-      const y = onPixels(at.y * camera.scale + camera.y, ratio);
+      const snap = settled && !playing ? ratio : null;
+      const x = onPixels(at.x * camera.scale + camera.x, snap);
+      const y = onPixels(at.y * camera.scale + camera.y, snap);
       const transform = `translate3d(${x}px, ${y}px, 0)`;
       if (transform !== cursor.transform) {
         cursor.element.style.transform = transform;
@@ -138,7 +147,7 @@ export class RemoteCursors {
     const body = getDomHost().createDiv(element, 'atlas-online-cursor__body');
     getDomHost().createDiv(body, 'atlas-online-cursor__arrow');
     const label = getDomHost().createDiv(body, 'atlas-online-cursor__label');
-    const cursor: Cursor = { element, label, track: new PointerTrack({ interval: this.interval }), newest: null, present: false, movedAt: Number.NEGATIVE_INFINITY, leaving: null, shown: false, transform: '' };
+    const cursor: Cursor = { element, label, track: new PointerTrack({ interval: this.interval }), newest: null, present: false, heardAt: Number.NEGATIVE_INFINITY, leaving: null, shown: false, transform: '' };
     this.cursors.set(who, cursor);
     return cursor;
   }

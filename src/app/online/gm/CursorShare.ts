@@ -19,7 +19,7 @@ interface PlayerCursorState {
   at: CursorState['at'];
   /** The places that came since the last `marks` message and the time they cover: null when a message of them told none. */
   waiting: { readonly pts: number[]; readonly span: number | null } | null;
-  /** When it last moved, on the share's clock. */
+  /** When its last message came, on the share's clock: a page sends one only while its owner moves the pointer or the map. */
   movedAt: number;
 }
 
@@ -52,10 +52,9 @@ export class CursorShare {
     const state = this.rate.take(from, now) ? checkCursor(message, context) : null;
     if (state === null) return false;
     const held = this.cursors.get(from);
-    const moved = held === undefined || state.pts.length > 0 || state.at?.[0] !== held.at?.[0] || state.at?.[1] !== held.at?.[1];
     const waiting = held?.waiting ?? { pts: [], span: 0 };
     const pts = [...waiting.pts, ...state.pts].slice(-MAX_MARK_CURSOR_NUMBERS);
-    this.cursors.set(from, { at: state.at, waiting: { pts, span: spansAdded(waiting.span, state.span) }, movedAt: moved ? now : (held?.movedAt ?? now) });
+    this.cursors.set(from, { at: state.at, waiting: { pts, span: spansAdded(waiting.span, state.span) }, movedAt: now });
     this.show(from, state);
     return true;
   }

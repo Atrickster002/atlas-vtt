@@ -66,12 +66,15 @@ describe('everyone\'s cursors', () => {
     ]);
   });
 
-  it('leave out a cursor at rest until it moves again, and tell the GM\'s overlay', () => {
+  it('leave out a cursor whose owner did nothing for long until they do again, and tell the GM\'s overlay', () => {
     const harness = shown();
     harness.share.receive(ANA, cursor());
     harness.advance(CURSOR_REST_MS - 1);
+    // A page sends only while its owner is at work: the same place again (a scroll, a zoom) keeps the cursor.
     harness.share.receive(ANA, cursor({ pts: [] }));
+    harness.advance(CURSOR_REST_MS - 1);
     harness.share.update();
+    harness.advance(MARKS_INTERVAL_MS);
     expect(lastMarks(harness)?.cursors).toHaveLength(1);
     harness.advance(2);
     harness.share.update();
@@ -81,6 +84,22 @@ describe('everyone\'s cursors', () => {
     harness.share.receive(ANA, cursor({ at: [120, 100], pts: [120, 100] }));
     harness.advance(MARKS_INTERVAL_MS);
     expect(lastMarks(harness)?.cursors?.map(({ who }) => who)).toEqual([ANA]);
+  });
+
+  it('go out now and then while they show and nothing changes, so pages can tell a GM that went silent', () => {
+    const harness = shown();
+    harness.share.receive(ANA, cursor());
+    harness.advance(MARKS_INTERVAL_MS);
+    const before = harness.sent.length;
+    for (let second = 0; second < 4; second += 1) {
+      harness.advance(1000);
+      harness.share.update();
+    }
+    harness.advance(MARKS_INTERVAL_MS);
+    const again = harness.sent.slice(before);
+    expect(again.length).toBeGreaterThanOrEqual(1);
+    expect(again.length).toBeLessThanOrEqual(2);
+    expect(again.every(({ body }) => body.cursors?.every(({ pts }) => pts.length === 0))).toBe(true);
   });
 
   it('give way to their owner\'s laser while it shows its pointer', () => {

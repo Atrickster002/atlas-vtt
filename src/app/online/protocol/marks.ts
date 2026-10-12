@@ -11,6 +11,8 @@ export const MAX_MARK_LASER_NUMBERS = 64;
 export const MAX_CURSOR_NUMBERS = 32;
 /** A cursor that has not moved for this long is at rest: the GM sends it to nobody until it moves again. */
 export const CURSOR_REST_MS = 5000;
+/** The GM names every cursor it shows at least this often, also when nothing changed, so pages can tell a silent GM. */
+export const CURSOR_KEEPALIVE_MS = 2000;
 /** The most numbers of places one cursor carries in a `marks` message. */
 export const MAX_MARK_CURSOR_NUMBERS = 64;
 /** The most measurements a player keeps on the map. */

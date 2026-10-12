@@ -5,12 +5,18 @@ import { RemoteCursors } from './RemoteCursors.ts';
 
 /** The class of the marks overlay's canvas, which the cursors lie above. */
 const MARKS_CANVAS = 'atlas-online-marks';
+/** A camera that has not moved for this long has settled: cursors at rest go back onto whole pixels. */
+const CAMERA_SETTLE_MS = 120;
 
 /**
  * Other people's cursors over a map: a layer of elements laid over the map's canvas (and over the
  * marks overlay, when there is one), which lets every pointer event through. It draws on the display
  * frames of the canvas's own window, and only while a cursor is drawn or fading: with nobody's cursor
- * on the map it asks for no frame. Its layer is made with the first cursor to show.
+ * on the map it asks for no frame. It also draws at once whenever the viewport says its camera moved:
+ * a pan or zoom changes the camera inside the map's own frame (a smooth zoom's step) or a scroll
+ * event, and a frame of its own, before or after the map's in the same display frame, would place the
+ * cursors by the camera of the frame before as often as not. Its layer is made with the first cursor
+ * to show.
  */
 export class CursorOverlay {
   private readonly labelOf: (cursor: SharedCursor) => string;
@@ -19,6 +25,12 @@ export class CursorOverlay {
   private host: OverlayHost | null = null;
   private frame: number | null = null;
   private size = { width: -1, height: -1 };
+  /** The camera last drawn with, and since when it has not moved. */
+  private camera = { x: Number.NaN, y: Number.NaN, scale: Number.NaN };
+  private cameraSince = 0;
+  private readonly onCamera = (): void => {
+    if (this.draw()) this.wake();
+  };
 
   /** `labelOf` names a cursor's tag. */
   constructor(labelOf: (cursor: SharedCursor) => string) {
@@ -40,6 +52,7 @@ export class CursorOverlay {
   }
 
   dispose(): void {
+    this.detach();
     this.stop();
     this.cursors?.clear();
     this.layer?.remove();
@@ -52,7 +65,10 @@ export class CursorOverlay {
   private attach(host: OverlayHost): void {
     if (this.host?.canvas === host.canvas && this.host.viewport === host.viewport && this.layer?.isConnected === true) return;
     this.stop();
+    this.detach();
     this.host = host;
+    host.viewport.on('moved', this.onCamera);
+    host.viewport.on('zoomed', this.onCamera);
     const layer = this.layer ?? getDomHost().createDiv(host.canvas.ownerDocument.body, 'atlas-online-cursors');
     this.layer = layer;
     this.cursors ??= new RemoteCursors(layer, this.labelOf, MARKS_INTERVAL_MS);
@@ -60,6 +76,11 @@ export class CursorOverlay {
     while (anchor.nextElementSibling?.classList.contains(MARKS_CANVAS) === true) anchor = anchor.nextElementSibling;
     anchor.after(layer);
     this.size = { width: -1, height: -1 };
+  }
+
+  private detach(): void {
+    this.host?.viewport.off('moved', this.onCamera);
+    this.host?.viewport.off('zoomed', this.onCamera);
   }
 
   private wake(): void {
@@ -77,13 +98,19 @@ export class CursorOverlay {
   }
 
   private tick(): void {
+    // While a cursor is drawn the camera is read every frame: a camera that moves without a word still moves it.
+    if (this.draw()) this.wake();
+  }
+
+  /** Draws the cursors as they are now; false once there is nothing left to draw. */
+  private draw(): boolean {
     const { host, layer, cursors } = this;
-    if (host === null || layer === null || cursors === null) return;
+    if (host === null || layer === null || cursors === null || cursors.size === 0) return false;
     // The map under the layer is gone: its cursors go with it until they are shown over a live one.
     if (host.viewport.destroyed === true || !host.canvas.isConnected) {
       cursors.clear();
       layer.remove();
-      return;
+      return false;
     }
     const { clientWidth: width, clientHeight: height } = host.canvas;
     if (width !== this.size.width || height !== this.size.height) {
@@ -92,9 +119,13 @@ export class CursorOverlay {
       this.size = { width, height };
     }
     const view = host.canvas.ownerDocument.defaultView;
+    const now = performance.now();
     const camera = { x: host.viewport.x, y: host.viewport.y, scale: host.viewport.scale.x };
-    cursors.tick(performance.now(), camera, view?.devicePixelRatio || 1);
-    // While a cursor is drawn the camera is read every frame: a pan or zoom it is not told of still moves it.
-    if (cursors.size > 0) this.wake();
+    if (camera.x !== this.camera.x || camera.y !== this.camera.y || camera.scale !== this.camera.scale) {
+      this.camera = camera;
+      this.cameraSince = now;
+    }
+    cursors.tick(now, camera, view?.devicePixelRatio || 1, now - this.cameraSince >= CAMERA_SETTLE_MS);
+    return cursors.size > 0;
   }
 }
