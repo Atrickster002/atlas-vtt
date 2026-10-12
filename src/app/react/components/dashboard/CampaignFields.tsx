@@ -1,0 +1,149 @@
+import React, { useEffect, useId, useRef, useState } from 'react';
+import type { Campaign } from '../../../campaigns/campaignTypes';
+import type { CampaignService } from '../../../campaigns/CampaignService';
+import { isSessionDay, MAX_CAMPAIGN_DESCRIPTION } from '../../../campaigns/campaignValidation';
+import { CloseButton } from '../../../packages/components/primitives/CloseButton';
+import { t } from '../../../i18n';
+
+interface FieldProps {
+  campaign: Campaign;
+  service: CampaignService;
+  disabled: boolean;
+}
+
+/**
+ * A field's text while the GM edits it, and the stored value otherwise, so a change from another
+ * device shows at once without overwriting what is being typed.
+ */
+function useDraft(stored: string): [string, (next: string) => void, (focused: boolean) => void] {
+  const [draft, setDraft] = useState(stored);
+  const [isFocused, setFocused] = useState(false);
+  useEffect(() => {
+    if (!isFocused) setDraft(stored);
+  }, [stored, isFocused]);
+  return [draft, setDraft, setFocused];
+}
+
+/** The campaign's name as the page's heading, renamed in place: Enter or leaving the field saves, Escape reverts. */
+export function CampaignNameField({ campaign, service, disabled }: FieldProps): React.JSX.Element {
+  const [draft, setDraft, setFocused] = useDraft(campaign.name);
+  const labelId = useId();
+  const errorId = useId();
+  const changed = draft.trim() !== campaign.name;
+  const error = changed ? service.nameError(draft, campaign.id) : null;
+
+  // Escape leaves the field without saving what was typed.
+  const reverting = useRef(false);
+
+  const onKeyDown = (event: React.KeyboardEvent<HTMLInputElement>): void => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      if (error === null) event.currentTarget.blur();
+    } else if (event.key === 'Escape') {
+      event.preventDefault();
+      event.stopPropagation();
+      reverting.current = true;
+      event.currentTarget.blur();
+    }
+  };
+
+  const onBlur = (): void => {
+    if (changed && error === null && !reverting.current) service.rename(campaign.id, draft);
+    else setDraft(campaign.name);
+    reverting.current = false;
+    setFocused(false);
+  };
+
+  return (
+    <div className="campaign-name">
+      <span id={labelId} hidden>{t('campaign.nameLabel')}</span>
+      <input
+        className="campaign-name__input"
+        type="text"
+        value={draft}
+        aria-labelledby={labelId}
+        aria-invalid={error !== null}
+        aria-describedby={error ? errorId : undefined}
+        disabled={disabled}
+        onFocus={() => setFocused(true)}
+        onChange={(event) => setDraft(event.target.value)}
+        onKeyDown={onKeyDown}
+        onBlur={onBlur}
+      />
+      {error && <div id={errorId} className="campaign-field-error" role="alert">{error}</div>}
+    </div>
+  );
+}
+
+/** The campaign's description, saved when the GM leaves the field. */
+export function CampaignDescriptionField({ campaign, service, disabled }: FieldProps): React.JSX.Element {
+  const [draft, setDraft, setFocused] = useDraft(campaign.description ?? '');
+  const labelId = useId();
+
+  const save = (): void => {
+    setFocused(false);
+    if (draft.trim() === (campaign.description ?? '').trim()) return;
+    service.update(campaign.id, { description: draft.trim() === '' ? '' : draft });
+  };
+
+  return (
+    <div className="campaign-description">
+      <span id={labelId} className="panel-heading">{t('campaign.description')}</span>
+      <textarea
+        className="campaign-description__input"
+        value={draft}
+        aria-labelledby={labelId}
+        placeholder={t('campaign.descriptionPlaceholder')}
+        maxLength={MAX_CAMPAIGN_DESCRIPTION}
+        disabled={disabled}
+        onFocus={() => setFocused(true)}
+        onChange={(event) => setDraft(event.target.value)}
+        onBlur={save}
+      />
+    </div>
+  );
+}
+
+/** The day of the next session; a complete day is saved as it is picked, × clears it. */
+export function NextSessionField({ campaign, service, disabled, labelledBy }: FieldProps & { labelledBy: string }): React.JSX.Element {
+  const stored = campaign.nextSession ?? '';
+  const [draft, setDraft, setFocused] = useDraft(stored);
+
+  const onChange = (value: string): void => {
+    setDraft(value);
+    // A day typed in parts reads as empty until it is complete.
+    if (isSessionDay(value) && value !== stored) service.update(campaign.id, { nextSession: value });
+  };
+
+  const onBlur = (): void => {
+    setFocused(false);
+    if (draft === '' && stored !== '') service.update(campaign.id, { nextSession: '' });
+  };
+
+  return (
+    <div className="campaign-date">
+      <input
+        className="campaign-date__input"
+        type="date"
+        value={draft}
+        aria-labelledby={labelledBy}
+        disabled={disabled}
+        onFocus={() => setFocused(true)}
+        onChange={(event) => onChange(event.target.value)}
+        onBlur={onBlur}
+      />
+      <span className="campaign-clear-slot">
+        {stored !== '' && !disabled && (
+          <CloseButton
+            placement="inline"
+            aria-label={t('campaign.clearNextSession')}
+            onClick={() => {
+              setDraft('');
+              service.update(campaign.id, { nextSession: '' });
+            }}
+          />
+        )}
+      </span>
+    </div>
+  );
+}

@@ -28,6 +28,8 @@ interface TokenCreatorProps {
   selectedCollection?: string;
   editToken?: EditTokenInput | null;
   initialSource?: 'images' | 'statblocks';
+  /** New tokens are player characters: the creator was opened from the Player characters tab. */
+  playerCharacters?: boolean;
   /** Given to the map creator: takes the Universal VTT files among the added files, which become scenes at once. */
   onImportMaps?: ImportMaps;
 }
@@ -36,7 +38,7 @@ function hasFiles(e: React.DragEvent): boolean {
   return Array.from(e.dataTransfer.types).includes('Files');
 }
 
-export function TokenCreator({ isOpen, onClose, mode = 'token', selectedCollection = AssetService.defaultCollectionId(), editToken, initialSource = 'images', onImportMaps }: TokenCreatorProps): React.JSX.Element | null {
+export function TokenCreator({ isOpen, onClose, mode = 'token', selectedCollection = AssetService.defaultCollectionId(), editToken, initialSource = 'images', onImportMaps, playerCharacters = false }: TokenCreatorProps): React.JSX.Element | null {
   const { app } = useAtlasUI();
   const { assetService, collections } = useAssetCatalog(app, isOpen);
   const previews = useTokenPreviews(mode);
@@ -125,6 +127,7 @@ export function TokenCreator({ isOpen, onClose, mode = 'token', selectedCollecti
         onSaved: previews.removeMany,
         signal: importController.signal,
         editToken: editToken ?? null,
+        playerCharacters,
         waitForOptimized: previews.waitForOptimized,
         onProgress: reportSaveProgress,
       });
@@ -138,7 +141,7 @@ export function TokenCreator({ isOpen, onClose, mode = 'token', selectedCollecti
       setIsSubmitting(false);
       clearSaveProgress();
     }
-  }, [usingStatblocks, app, assetService, canSubmit, collection, editToken, mode, onClose, previews, importController, reportSaveProgress, clearSaveProgress]);
+  }, [usingStatblocks, app, assetService, canSubmit, collection, editToken, mode, playerCharacters, onClose, previews, importController, reportSaveProgress, clearSaveProgress]);
 
   useEffect(() => {
     if (!isOpen) return;

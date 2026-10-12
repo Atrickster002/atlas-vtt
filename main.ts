@@ -42,6 +42,8 @@ import { registerColorSwatchIcons } from './src/app/plugin/colorSwatchIcons';
 import { HeaderAutocompleteSuggest } from './src/app/plugin/HeaderAutocompleteSuggest';
 import { registerAtlasLinks } from './src/app/links/registerAtlasLinks';
 import { registerCommands } from './src/app/plugin/registerCommands';
+import { CampaignFiles } from './src/app/campaigns/CampaignFiles';
+import { recordCampaignPlay } from './src/app/campaigns/recordCampaignPlay';
 import { registerOnlinePlay, type OnlinePlay } from './src/app/plugin/onlinePlay';
 import type { TableChat } from './src/app/online/gm/tableChat';
 import { registerPlayerWindowReloadCleanup } from './src/app/plugin/playerWindowReload';
@@ -99,6 +101,12 @@ export default class AtlasVTTPlugin extends Plugin {
     });
     // The user's game system presets are vault files; reading them needs no migration.
     const presetFiles = SystemPresetFiles.open(this.app);
+    // So are campaigns: their folders are read once the storage is ready.
+    const campaignFiles = CampaignFiles.open(this.app);
+    const campaignsRead = storageReady.catch(() => undefined).then(() => campaignFiles.load());
+    void campaignsRead.catch((error: unknown) => console.error('[Atlas] Reading the campaigns failed:', error));
+    // The campaign this device plays records the scenes its map views open.
+    this.register(recordCampaignPlay(this.app, campaignFiles, campaignsRead));
     // Settings carried over even when the data file migration failed, so they are not lost to the defaults.
     const settingsReady = storageReady.catch(() => undefined).then(async () => {
       await presetFiles.load();
@@ -187,6 +195,7 @@ export default class AtlasVTTPlugin extends Plugin {
     this.changelogService?.destroy();
     void this.settingsService?.saveSettingsNow();
     SystemPresetFiles.release(this.app);
+    CampaignFiles.release(this.app);
     this.widgetSyncService?.destroy();
     this.widgetSyncService = undefined;
 

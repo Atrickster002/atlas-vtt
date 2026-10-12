@@ -1,0 +1,308 @@
+@use '../../../../../styles/tokens' as *;
+@use '../../../../../styles/mixins' as *;
+
+// Campaigns on the dashboard and a campaign's own page. Rows, panels and
+// thumbnails come from dashboard.scss.
+
+/// The party's faces in a dashboard row and on a campaign's page.
+$campaign-row-face: 32px;
+$campaign-page-face: 44px;
+
+/// A ghost control at Obsidian's control height: no fill until hovered.
+@mixin campaign-ghost-control {
+  @include atlas-ghost-button;
+  @include atlas-focus-ring;
+  flex-shrink: 0;
+  height: var(--input-height);
+  padding: 0 $spacing-s;
+  gap: $spacing-xs;
+  border-radius: $radius-m;
+}
+
+.campaign-field-error {
+  font-size: $font-ui-smaller;
+  color: var(--text-error);
+}
+
+// ── The dashboard's section ─────────────────────────────────────────────────
+
+.dashboard-panel.campaigns-panel {
+  height: auto;
+}
+
+.campaigns-panel__heading {
+  @include atlas-flex-row($spacing-s);
+  justify-content: space-between;
+  min-height: var(--input-height);
+}
+
+.campaigns-new-btn.btn {
+  @include campaign-ghost-control;
+}
+
+.campaign-rows {
+  @include atlas-flex-col($spacing-xs);
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  @include atlas-scrollbar;
+}
+
+// The asset manager's search, filling its own row here.
+.campaigns-search {
+  display: flex;
+
+  .atlas-asset-manager-search {
+    flex: 1 1 auto;
+    width: auto;
+  }
+}
+
+.campaign-playing {
+  @include atlas-flex-row($spacing-xs);
+  flex-shrink: 0;
+  color: var(--text-accent);
+  font-weight: $font-weight-medium;
+
+  &::before {
+    content: '';
+    width: 6px;
+    height: 6px;
+    border-radius: $radius-full;
+    background: currentColor;
+  }
+}
+
+// ── The party on a campaign's last scene ────────────────────────────────────
+
+.campaign-party {
+  --campaign-face-size: #{$campaign-row-face};
+  @include atlas-flex-row($spacing-s);
+  flex-shrink: 0;
+
+  &--page {
+    --campaign-face-size: #{$campaign-page-face};
+  }
+}
+
+.campaign-party__fan,
+.campaign-party__row {
+  display: flex;
+  align-items: center;
+}
+
+.campaign-party__row {
+  gap: $spacing-xs;
+}
+
+.campaign-face {
+  display: block;
+  flex-shrink: 0;
+  width: var(--campaign-face-size);
+  height: var(--campaign-face-size);
+
+  .atlas-token-portrait {
+    width: 100%;
+    height: 100%;
+  }
+}
+
+// Ringed tokens lie on one another as stacked tokens do on a map, turned a little about a point
+// below them, so the stack opens as a fan; the later lies on top.
+.campaign-party__fan .campaign-face {
+  transform: rotate(var(--campaign-face-turn, 0deg));
+  transform-origin: 50% 160%;
+
+  // Not `+`: each face's tooltip label stands between it and the next.
+  &:not(:first-child) {
+    margin-inline-start: calc(var(--campaign-face-size) * -0.42);
+  }
+}
+
+.campaign-new {
+  @include atlas-flex-col($spacing-xs);
+  padding: $spacing-s;
+}
+
+.campaign-new__input {
+  @include atlas-text-input;
+}
+
+.campaigns-empty {
+  font-size: $font-ui-small;
+  color: var(--text-muted);
+}
+
+// ── A campaign's page ───────────────────────────────────────────────────────
+
+.campaign-page {
+  @include atlas-flex-col($spacing-xl);
+}
+
+.campaign-page__back.btn {
+  @include campaign-ghost-control;
+  align-self: flex-start;
+  // The arrow lines up with the page's text.
+  margin-inline-start: -$spacing-s;
+}
+
+.campaign-page__header {
+  @include atlas-flex-col($spacing-xs);
+}
+
+.campaign-name {
+  @include atlas-flex-col($spacing-xs);
+}
+
+// Reads as the page's heading; it shows itself as a field on hover and focus.
+.campaign-name__input,
+.campaign-name__input:hover,
+.campaign-name__input:focus,
+.campaign-name__input:focus-visible,
+.campaign-name__input:disabled {
+  width: calc(100% + #{2 * $spacing-s});
+  height: auto;
+  margin-inline-start: -$spacing-s;
+  padding: $spacing-xs $spacing-s;
+  font-size: var(--h1-size);
+  font-weight: var(--h1-weight);
+  line-height: var(--h1-line-height);
+  font-family: inherit;
+  color: var(--text-normal);
+  background: transparent;
+  border: $border-width-s solid transparent;
+  border-radius: $radius-l;
+  box-shadow: none;
+  outline: none;
+  opacity: 1;
+  transition: background-color $transition-fast $transition-ease, border-color $transition-fast $transition-ease;
+}
+
+.campaign-name__input:hover:not(:focus):not(:disabled) {
+  background: var(--background-modifier-hover);
+}
+
+.campaign-name__input:focus,
+.campaign-name__input:focus-visible {
+  background: var(--background-modifier-form-field);
+  border-color: var(--interactive-accent);
+  box-shadow: 0 0 0 2px color-mix(in oklch, var(--interactive-accent) 20%, transparent);
+}
+
+.campaign-page__meta {
+  font-size: $font-ui-small;
+  color: var(--text-muted);
+}
+
+.campaign-page__play {
+  @include atlas-flex-row($spacing-m);
+  // Holds the party's room, so the page does not move when its faces arrive.
+  min-height: $campaign-page-face;
+  margin-top: $spacing-s;
+  font-size: $font-ui-small;
+}
+
+.campaign-page__start.btn {
+  height: var(--input-height);
+  padding: 0 $spacing-m;
+  gap: $spacing-xs;
+  border-radius: $radius-m;
+}
+
+.campaign-page__stop.btn {
+  @include campaign-ghost-control;
+}
+
+.campaign-page__locked {
+  @include atlas-help-text;
+  margin: 0;
+}
+
+.campaign-page__columns {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  align-items: start;
+  gap: $spacing-xl;
+
+  @media (max-width: $breakpoint-m) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.campaign-page__main,
+.campaign-page__side {
+  @include atlas-flex-col($spacing-m);
+  min-width: 0;
+}
+
+.campaign-description {
+  @include atlas-flex-col($spacing-s);
+}
+
+.campaign-description__input {
+  @include atlas-text-input;
+  height: auto;
+  min-height: 200px;
+  padding: $spacing-s;
+  line-height: var(--line-height-normal);
+  resize: vertical;
+}
+
+.dashboard-panel.campaign-settings {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  height: auto;
+}
+
+// Labels share one column, so every control starts and ends on the same lines.
+.campaign-setting {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: subgrid;
+  align-items: center;
+  min-height: var(--input-height);
+}
+
+// Holds a field's clear button, or its room while there is nothing to clear.
+.campaign-clear-slot {
+  flex-shrink: 0;
+  width: var(--input-height);
+  height: var(--input-height);
+}
+
+.campaign-setting__label {
+  flex-shrink: 0;
+  font-size: $font-ui-small;
+  color: var(--text-normal);
+}
+
+.campaign-date {
+  @include atlas-flex-row($spacing-xs);
+  min-width: 0;
+}
+
+.campaign-date__input {
+  @include atlas-text-input;
+  flex: 1;
+  min-width: 0;
+
+  .theme-dark & {
+    color-scheme: dark;
+  }
+}
+
+.campaign-page__delete.btn {
+  @include campaign-ghost-control;
+  align-self: flex-start;
+
+  &:hover:not(:disabled) {
+    color: var(--text-error);
+    background: color-mix(in oklch, var(--background-modifier-error) 12%, transparent);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .campaign-name__input {
+    transition: none;
+  }
+}

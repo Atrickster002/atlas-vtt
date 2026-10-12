@@ -23,6 +23,7 @@ import { confirmAction } from '../../../../ui/confirmDialog';
 import type { AtlasView } from '../../../../atlas-view';
 import { applyTokenDeleteImpact, describeTokenDeleteImpact, findTokenDeleteImpact } from '../utils/tokenDeleteImpact';
 import { tokenSizeSubmenu } from '../../../../react/components/context-menu/tokenSizeMenu';
+import { playerCharacterEntry, setPlayerCharacters } from '../../../../react/components/context-menu/playerCharacterMenu';
 import type { TransferMode } from '../../../../services/assetTransfer/transferPlan';
 import type { CreateScenePrefill } from '../hooks/useAssetCrud';
 import { scenePrefillFromMap } from '../utils/sceneCreation';
@@ -231,6 +232,16 @@ export function buildAssetContextMenuEntries(
       icon: 'link',
       onClick: () => runInBackground(copyAssetLink(deps.app, assetService, asset.id), `Copying a link to ${asset.id}`),
     });
+  }
+
+  // ── Player character (the selected tokens; the clicked one decides which way) ──
+  if (asset.type === 'tokens' && assetService) {
+    const tokenIds = selectedAssets.filter((a) => a.type === 'tokens').map((a) => a.id);
+    entries.push(playerCharacterEntry(asset.playerCharacter === true, (on) => runInBackground(
+      setPlayerCharacters(deps.app, assetService, tokenIds, on),
+      'Marking player characters',
+      t('token.playerCharacterFailed'),
+    )));
   }
 
   // ── Move to Folder ────────────────────────────────────────────

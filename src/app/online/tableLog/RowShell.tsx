@@ -1,8 +1,9 @@
-import { useLayoutEffect, useRef, useState, type FocusEvent, type MouseEvent, type PointerEvent, type ReactElement, type ReactNode } from 'react';
+import { useRef, useState, type FocusEvent, type KeyboardEvent, type MouseEvent, type PointerEvent, type ReactElement, type ReactNode } from 'react';
 import { classes } from './classes.ts';
 import type { ShownReaction } from './logAuthors.ts';
 import type { RowApi, RowFlags } from './panelTypes.ts';
 import { RowTools } from './RowTools.tsx';
+import { toList, useKeepFocus } from './useKeepFocus.ts';
 
 export interface RowShellProps extends RowFlags {
   readonly id: string;
@@ -14,28 +15,30 @@ export interface RowShellProps extends RowFlags {
   readonly children: ReactNode;
 }
 
-/** What a tap on a row is meant for itself: its buttons and fields. */
-const CONTROLS = 'button, textarea, input, a';
+/** What a press on a row is meant for itself: its buttons, fields and tools. */
+const CONTROLS = 'button, textarea, input, a, [contenteditable], [role="button"], [role="toolbar"]';
+
+/** Whether text of the row is selected: the click that ends a selection is no click on the row. */
+function selecting(row: HTMLElement | null): boolean {
+  return (row?.ownerDocument.getSelection()?.toString() ?? '') !== '';
+}
 
 /**
  * A chat message's or a roll's row: its place in the list, and its tools while the mouse is over
  * it, the keyboard is in it, a finger tapped it or it asks before deleting. The tools exist only
- * then, so a long log holds a few buttons, not a thousand.
+ * then, so a long log holds a few buttons, not a thousand. In the whole log a plain click on the
+ * row (not on a control, not ending a selection) or Enter on it opens its thread; a finger's tap
+ * shows its tools instead.
  */
-export function RowShell({ id, className, reactions, canEdit, canDelete, api, children, editing, asking, tapped, highlighted, tabStop }: RowShellProps): ReactElement {
+export function RowShell({ id, className, reactions, canEdit, canDelete, api, children, editing, asking, tapped, highlighted, selected, tabStop }: RowShellProps): ReactElement {
   const row = useRef<HTMLDivElement>(null);
   const pointer = useRef('mouse');
   const [hovered, setHovered] = useState(false);
   const [focused, setFocused] = useState(false);
   const active = !editing && (hovered || focused || tapped || asking);
+  const opener = api.thread === null && !editing;
 
-  // A row that leaves with the focus in it hands the focus to the list, never to the page behind the panel.
-  useLayoutEffect(() => {
-    const node = row.current;
-    return () => {
-      if (node?.contains(node.ownerDocument.activeElement) === true) node.closest<HTMLElement>('.atlas-online-log__list')?.focus({ preventScroll: true });
-    };
-  }, []);
+  useKeepFocus(row, toList);
 
   const onPointerEnter = (event: PointerEvent): void => {
     if (event.pointerType === 'mouse') setHovered(true);
@@ -52,13 +55,21 @@ export function RowShell({ id, className, reactions, canEdit, canDelete, api, ch
     if (asking && !hovered && !tapped) api.askDelete(null);
   };
   const onClick = (event: MouseEvent): void => {
-    if (pointer.current !== 'mouse' && (event.target as Element).closest(CONTROLS) === null) api.tap(id);
+    if ((event.target as Element).closest(CONTROLS) !== null) return;
+    if (pointer.current !== 'mouse') return api.tap(id);
+    const plain = event.button === 0 && !event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey;
+    if (opener && plain && !selecting(row.current)) api.openThread(id);
+  };
+  const onKeyDown = (event: KeyboardEvent): void => {
+    if (event.key !== 'Enter' || event.target !== event.currentTarget || !opener || event.nativeEvent.isComposing) return;
+    event.preventDefault();
+    api.openThread(id);
   };
 
   return (
     <div
       ref={row}
-      className={classes('atlas-online-log__row', className, active && 'is-active', highlighted && 'is-highlighted')}
+      className={classes('atlas-online-log__row', className, active && 'is-active', opener && 'is-opener', selected && 'is-selected', highlighted && 'is-highlighted')}
       data-entry={id}
       tabIndex={tabStop ? 0 : -1}
       onPointerDown={(event) => { pointer.current = event.pointerType; }}
@@ -67,6 +78,7 @@ export function RowShell({ id, className, reactions, canEdit, canDelete, api, ch
       onFocus={onFocus}
       onBlur={onBlur}
       onClick={onClick}
+      onKeyDown={onKeyDown}
     >
       {active && <RowTools id={id} reactions={reactions} canEdit={canEdit} canDelete={canDelete} asking={asking} api={api} />}
       {children}

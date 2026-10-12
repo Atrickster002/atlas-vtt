@@ -3,6 +3,7 @@ import type { CreatureFacets } from '../../../../creatures/creatureFilterEngine'
 import type { CreatureFilterDefinition, NumericRange } from '../../../../types/creatureFilterTypes';
 import type { QueryKeyword } from '../../../../search/querySyntax';
 import type { Tab } from '../types';
+import { isCharacterTab } from '../utils/tabKinds';
 import { t } from '../../../../i18n';
 
 /** A keyword of the asset search and what it filters. */
@@ -60,13 +61,13 @@ function creatureKeyword(definition: CreatureFilterDefinition, taken: Set<string
     : { kind: 'options', filterId: definition.id, prefix: names.prefix, aliases, numeric: false, negatable: true, description: definition.label };
 }
 
-/** The keywords the search of a tab understands: name and tag everywhere, statblock fields on the Characters tab. */
+/** The keywords the search of a tab understands: name and tag everywhere, statblock fields on the tabs of characters. */
 export function filterKeywords(tab: Tab, definitions: readonly CreatureFilterDefinition[]): FilterKeyword[] {
   const keywords: FilterKeyword[] = [
     { kind: 'name', prefix: 'name', aliases: ['n'], numeric: false, description: t('filters.keyword.name') },
     { kind: 'tag', prefix: 'tag', aliases: ['tags'], numeric: false, description: t('filters.tag') },
   ];
-  if (tab !== 'tokens') return keywords;
+  if (!isCharacterTab(tab)) return keywords;
   keywords.push(
     { kind: 'statblock', prefix: 'statblock', aliases: ['sb'], numeric: false, description: t('filters.keyword.statblock'), accepts: (value) => statblockValue(value) !== null },
     { kind: 'layout', prefix: 'layout', aliases: [], numeric: false, negatable: true, description: t('filters.keyword.layout') },

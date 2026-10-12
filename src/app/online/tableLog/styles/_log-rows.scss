@@ -35,6 +35,21 @@
       transition-duration: $transition-fast;
     }
 
+    // A row a click opens the thread of: pressed, it darkens; never while a control in it is pressed.
+    &.is-opener {
+      cursor: pointer;
+
+      &:active:not(:has(button:active, textarea:active, input:active, a:active)) {
+        background: var(--background-modifier-active-hover);
+        transition-duration: 0ms;
+      }
+    }
+
+    // The answer the message field is set to, in a thread.
+    &.is-selected {
+      background: var(--background-modifier-active-hover);
+    }
+
     // Where a reply's quote led: a wash of the accent that fades by itself.
     &.is-highlighted {
       background: $log-accent-wash;

@@ -12,7 +12,7 @@ export interface ViewUIState {
   isGridAlignmentOpen: boolean;
   isDiceLogOpen: boolean;
   isAssetManagerOpen: boolean;
-  assetManagerInitialTab?: 'scenes' | 'maps' | 'encounters' | 'tokens' | undefined;
+  assetManagerInitialTab?: 'scenes' | 'maps' | 'encounters' | 'tokens' | 'party' | undefined;
   isCommandPaletteOpen: boolean;
   isDiceTrayOpen: boolean;
   /** The placed light whose popover is open, with its range rings on the map. */

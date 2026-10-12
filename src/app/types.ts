@@ -38,6 +38,8 @@ export interface BaseToken {
   x: number;
   y: number;
   imagePath: string;
+  /** The library token it was placed from (`libraryTokenOf`); unset on tokens placed before tokens carried it. */
+  assetId?: string;
   tags?: string[];
   /** Hex colour for the Atlas ring; undefined uses white. */
   ringColor?: string;

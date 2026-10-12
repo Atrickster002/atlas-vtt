@@ -94,8 +94,12 @@ export interface RowApi {
   readonly remove: (id: string) => void;
   /** A tap on a row with a finger or pen: shows its tools, or hides them again. */
   readonly tap: (id: string) => void;
-  /** Scrolls to an entry and marks it for a moment; nothing where the list no longer has it. */
+  /** Scrolls to an entry and marks it for a moment; nothing where the viewer does not hold it. */
   readonly jumpTo: (id: string) => void;
+  /** The root of the thread the panel shows; null while it shows the whole log. */
+  readonly thread: string | null;
+  /** Shows the thread an entry is in; nothing where the viewer holds no such entry. */
+  readonly openThread: (id: string) => void;
 }
 
 /** What the panel knows of one row; all false for most rows, so they render once. */
@@ -104,6 +108,8 @@ export interface RowFlags {
   readonly asking: boolean;
   readonly tapped: boolean;
   readonly highlighted: boolean;
+  /** The answer the message field is set to, in a thread. */
+  readonly selected: boolean;
   /** The one row the Tab key reaches; the arrow keys move between rows. */
   readonly tabStop: boolean;
 }
