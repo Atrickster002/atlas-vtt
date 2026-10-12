@@ -26,7 +26,7 @@
     font-size: $font-ui-smaller;
     font-variant-numeric: tabular-nums;
     font-weight: $font-weight-medium;
-    transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease, transform $transition-press $transition-ease-out;
+    transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease;
     @include log-button-states(var(--background-secondary));
 
     @media (hover: hover) {
@@ -47,7 +47,7 @@
     }
 
     &:active {
-      transform: scale(0.95);
+      background: var(--background-modifier-active-hover);
     }
 
     #{$log-coarse} & {

@@ -167,7 +167,7 @@ $log-whisper-edge: color-mix(in oklch, var(--interactive-accent) 45%, transparen
     font-weight: $font-weight-semibold;
     line-height: var(--line-height-tight);
     vertical-align: baseline;
-    transition: background-color $transition-fast $transition-ease, transform $transition-press $transition-ease-out;
+    transition: background-color $transition-fast $transition-ease;
     @include log-button-states($log-accent-wash);
 
     @media (hover: hover) {
@@ -177,7 +177,7 @@ $log-whisper-edge: color-mix(in oklch, var(--interactive-accent) 45%, transparen
     }
 
     &:active:not(:disabled) {
-      transform: scale(0.97);
+      background: color-mix(in oklch, var(--interactive-accent) 34%, transparent);
     }
 
     &:disabled {

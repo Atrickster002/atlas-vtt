@@ -5,6 +5,7 @@ import { TokenPortrait } from '../../packages/components/shared/TokenPortrait';
 import { AuthorDisc } from './AuthorDisc.tsx';
 import { classes } from './classes.ts';
 import { reactionsFor, shownName } from './logAuthors.ts';
+import type { ThreadStat } from './logThreads.ts';
 import type { ShownEntry } from './LogState.ts';
 import type { Portrait, RollFace, RowApi, RowFlags } from './panelTypes.ts';
 import { ReactionChips } from './ReactionChips.tsx';
@@ -12,6 +13,7 @@ import { critClass, RollDice } from './rollDice.tsx';
 import { ROLL_MODE_INFO } from './rollModes.ts';
 import { RowShell } from './RowShell.tsx';
 import { SpeakerFace } from './SpeakerFace.tsx';
+import { ThreadPill } from './ThreadPill.tsx';
 
 export interface RollRowProps extends Omit<RowFlags, 'editing'> {
   readonly entry: RollEntry & Pick<ShownEntry, 'hidden'>;
@@ -20,6 +22,8 @@ export interface RollRowProps extends Omit<RowFlags, 'editing'> {
   /** The speaking token's portrait, where the roll names a speaker and the host has it. */
   readonly portrait: Portrait | null;
   readonly time: string;
+  /** Its thread's pill, where it has answers and the whole log shows. */
+  readonly thread: ThreadStat | null;
   readonly api: RowApi;
 }
 
@@ -41,7 +45,7 @@ function RollAvatar({ entry, face, portrait }: Pick<RollRowProps, 'entry' | 'fac
  * who rolled and what for, the roll button it answers, who sees it, the formula and its total, and
  * the dice on demand.
  */
-export const RollRow = memo(function RollRow({ entry, face, portrait, time, api, ...flags }: RollRowProps): ReactElement {
+export const RollRow = memo(function RollRow({ entry, face, portrait, time, thread, api, ...flags }: RollRowProps): ReactElement {
   const { id, who, name, roll, flavor, request, mode } = entry;
   const [open, setOpen] = useState(false);
   const dice = useId();
@@ -82,6 +86,7 @@ export const RollRow = memo(function RollRow({ entry, face, portrait, time, api,
         </div>
       </div>
       <ReactionChips id={id} reactions={reactions} api={api} />
+      <ThreadPill stat={thread} onOpen={() => api.openThread(id)} />
     </RowShell>
   );
 });
