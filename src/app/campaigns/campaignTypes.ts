@@ -1,4 +1,5 @@
 import type { StoredRecord } from '../services/recordFiles/recordLayout';
+import type { CampaignSystem } from './campaignSystem';
 
 /**
  * A campaign: a record of its own, in its own folder beside the collections and with nothing to
@@ -22,6 +23,8 @@ export interface Campaign {
   readonly lastScene?: string;
   /** What the campaign used, by reference. */
   readonly used?: CampaignUsage;
+  /** The game system every map plays by while the campaign is played; without one, each map's collection's. */
+  readonly system?: CampaignSystem;
   /** Written by a newer Atlas: read, never changed here. */
   readonly readOnly?: true;
 }
@@ -40,5 +43,10 @@ export interface CampaignUsage {
 /** A campaign as its file holds it, with every field a newer Atlas may have added. */
 export type StoredCampaign = StoredRecord;
 
-/** The fields a campaign's settings change; a field given as undefined is removed. */
-export type CampaignChanges = Partial<Pick<Campaign, 'description' | 'nextSession' | 'worldMap'>>;
+/**
+ * The fields a campaign's settings change; a field given as undefined is removed. `system` changes
+ * the stored system field by field (`CampaignService.update`).
+ */
+export type CampaignChanges = Partial<Pick<Campaign, 'description' | 'nextSession' | 'worldMap'>> & {
+  readonly system?: Partial<CampaignSystem> | undefined;
+};

@@ -1,8 +1,8 @@
 import React from 'react';
 import { SettingToggleRow } from './SettingRows';
 import type { AtlasView } from '../../../atlas-view';
-import { AssetService } from '../../../services/AssetService';
 import { mapResources } from '../../../resources/collectionResources';
+import { rulesLookup } from '../../../services/mapRules';
 import { slottedResources } from '../../../resources/resourceSlots';
 import { toggleHidden } from '../../../resources/sceneVisibility';
 import { shapeOf } from '../../../resources/visibleResources';
@@ -24,7 +24,7 @@ interface TokenSettingsPanelProps {
 export function TokenSettingsPanel({ view }: TokenSettingsPanelProps): React.ReactElement {
   const store = view?.atlasStore;
   const tokenSettings = store?.getState()?.tokenSettings ?? DEFAULT_TOKEN_SETTINGS;
-  const definitions = view && store ? mapResources(AssetService.getInstance(view.app), store.getState().mapPath) : [];
+  const definitions = view && store ? mapResources(rulesLookup(view.app), store.getState().mapPath) : [];
   const hidden = tokenSettings.hiddenResources ?? [];
 
   const change = (changes: Partial<typeof tokenSettings>): void => {

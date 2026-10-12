@@ -61,6 +61,7 @@ export function Dashboard({ app, campaignStorage, onOpenScene, onCreateMap, onOp
       <div className="dashboard-container">
         {service && openCampaign ? (
           <CampaignPage
+            app={app}
             campaign={openCampaign}
             service={service}
             worldMaps={worldMaps}

@@ -13,6 +13,7 @@ import { mapMeasurementSettings } from '../../services/mapMeasurementSettings';
 import type { SenseRules } from '../../creatures/tokenSensesResolver';
 import { mapLightPresets } from '../../services/mapCollectionRules';
 import { mapSenseRules } from '../../services/mapSenseRules';
+import { rulesLookup } from '../../services/mapRules';
 import { useStatblockSenses, type StatblockLink } from './useStatblockSenses';
 import { parseNumberInput } from './NumberOverrideField';
 import { buildResourceEdits } from '../../resources/resourceEdits';
@@ -149,9 +150,9 @@ function takesEnter(target: EventTarget | null): boolean {
   return (target as Element | null)?.closest?.('button, input[type="color"]') != null;
 }
 
-/** What the token's map and its collection say about vision and light. */
+/** What the rules the token's map plays by say about vision and light. */
 function lightingContext(state: ViewAtlasState, app: App, rules: SenseRules): TokenLightingContext {
-  const { unitType, unitDistance } = mapMeasurementSettings(AssetService.getInstance(app), state);
+  const { unitType, unitDistance } = mapMeasurementSettings(rulesLookup(app), state);
   return {
     unit: unitLabelFor(unitType),
     unitDistance,
@@ -178,7 +179,7 @@ export function openEditTokenModal(
   definitions: readonly ResourceDefinition[],
 ): void {
   const character = token.kind === 'character' ? token : undefined;
-  // The senses of the map's collection and what it measures in, as its statblocks are read with.
+  // The senses of the map's rules and what they measure in, as its statblocks are read with.
   const rules = mapSenseRules(app, AssetService.getInstance(app), store.getState());
   const lighting = lightingContext(store.getState(), app, rules);
   const statblock = character?.statblockPath ? { app, path: character.statblockPath, rules } : null;

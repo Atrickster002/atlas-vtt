@@ -1,6 +1,7 @@
 import type { App } from 'obsidian';
 import { CampaignFiles, type CampaignStorage } from '../campaigns/CampaignFiles';
 import { CampaignPlay } from '../campaigns/campaignPlay';
+import { onPlayedCampaignChange } from '../campaigns/playedCampaign';
 import { CampaignService } from '../campaigns/CampaignService';
 import type { WorldMapGate } from '../online/gm/book/worldMapGate.ts';
 import { campaignWorldMap } from '../services/worldMap';
@@ -23,9 +24,9 @@ export function campaignWorldMapGate(
     onChange: (listener) => {
       // A map's or scene's artwork may be another once the asset index changed or a scene was saved.
       const refs = [app.workspace.on('atlas-vtt:refresh-assets', () => listener()), app.workspace.on('atlas-vtt:scene-thumbnail-updated', () => listener())];
-      const stops = [play().onChange(listener), storage()?.onChange(listener) ?? ((): void => undefined)];
+      const stopCampaigns = onPlayedCampaignChange(app, listener, play, storage);
       return () => {
-        for (const stop of stops) stop();
+        stopCampaigns();
         for (const ref of refs) app.workspace.offref(ref);
       };
     },

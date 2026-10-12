@@ -12,7 +12,7 @@ import { useAnchoredPopoverVariants } from '../../packages/components/primitives
 import { TooltipProvider } from '../../packages/components/primitives/tooltip';
 import { useAtlasStore, useViewStoreHook } from '../../react/ViewStoreContext';
 import { useAtlasUI } from '../../react/root/AtlasUIContext';
-import { AssetService } from '../../services/AssetService';
+import { rulesLookup } from '../../services/mapRules';
 import { mapMeasurementSettings } from '../../services/mapMeasurementSettings';
 import { Select } from '../../packages/components/primitives/Select';
 import type { LightEmission, LightSource } from '../../types/lightingTypes';
@@ -41,9 +41,9 @@ export function LightPopoverHost(): React.ReactElement {
 function LightPopover({ lightId }: { lightId: string }): React.ReactElement | null {
   const store = useViewStoreHook();
   const { app } = useAtlasUI();
-  const assets = useMemo(() => AssetService.getInstance(app), [app]);
-  const unitType = useAtlasStore((state) => mapMeasurementSettings(assets, state).unitType);
-  const unitDistance = useAtlasStore((state) => mapMeasurementSettings(assets, state).unitDistance);
+  const rules = useMemo(() => rulesLookup(app), [app]);
+  const unitType = useAtlasStore((state) => mapMeasurementSettings(rules, state).unitType);
+  const unitDistance = useAtlasStore((state) => mapMeasurementSettings(rules, state).unitDistance);
   const maxRange = useAtlasStore((state) => maxLightRange(unitScaleOf({ unitDistance }, state.grid)));
   const current = useAtlasStore((state) => readLight(state.objects.lights[lightId]));
   // While it leaves, the popover still shows the light it had, also when that light was deleted.

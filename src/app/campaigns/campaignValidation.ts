@@ -1,4 +1,5 @@
 import { CAMPAIGN_FORMAT } from './campaignPaths';
+import { readCampaignSystem } from './campaignSystem';
 import type { Campaign, StoredCampaign } from './campaignTypes';
 import { readUsage } from './campaignUsage';
 import { isAssetId, isTime } from './campaignValues';
@@ -27,6 +28,7 @@ export function parseCampaign(stored: StoredCampaign): Campaign | null {
   const description = textWithin(stored.description, MAX_CAMPAIGN_DESCRIPTION);
   const nextSession = typeof stored.nextSession === 'string' && DAY.test(stored.nextSession) ? stored.nextSession : undefined;
   const used = readUsage(stored.used);
+  const system = readCampaignSystem(stored.system);
   return {
     id: stored.id,
     name,
@@ -38,6 +40,7 @@ export function parseCampaign(stored: StoredCampaign): Campaign | null {
     ...(isAssetId(stored.worldMap) && { worldMap: stored.worldMap }),
     ...(isAssetId(stored.lastScene) && { lastScene: stored.lastScene }),
     ...(used !== undefined && { used }),
+    ...(system !== undefined && { system }),
     ...(typeof stored.format === 'number' && stored.format > CAMPAIGN_FORMAT && { readOnly: true as const }),
   };
 }

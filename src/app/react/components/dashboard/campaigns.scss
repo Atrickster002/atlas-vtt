@@ -306,3 +306,40 @@ $campaign-page-face: 44px;
     transition: none;
   }
 }
+
+// The campaign's game system (CampaignSystemSetting.tsx): a button that names it and opens its settings.
+.campaign-system {
+  @include atlas-flex-row($spacing-xs);
+  min-width: 0;
+}
+
+.campaign-system__trigger {
+  @include atlas-select-trigger;
+  @include atlas-focus-ring;
+  flex: 1;
+  min-width: 0;
+  justify-content: flex-start;
+  font-weight: $font-weight-normal;
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+}
+
+.campaign-system__name {
+  @include atlas-truncate;
+  flex: 1;
+  min-width: 0;
+
+  &.is-empty {
+    color: var(--text-muted);
+  }
+}
+
+.campaign-system__icon {
+  flex-shrink: 0;
+  width: $icon-s;
+  height: $icon-s;
+  color: var(--text-faint);
+}

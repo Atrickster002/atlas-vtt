@@ -5,7 +5,7 @@ import type { GridGeometry } from '../../grid/gridDistance';
 import { resolveMeasurementSettings } from '../../grid/measurementFormat';
 import { diceSourceOf } from './atlasDice.ts';
 import { accentColour, atlasPlayerSettings, lightingSourceOf, measurementOf } from './atlasLighting.ts';
-import { collectionsOf, mapLayerSourceOf } from './atlasMapLayers.ts';
+import { mapLayerSourceOf, rulesLookupOf } from './atlasMapLayers.ts';
 import { asTokenSource, call, drawnTokenPlaces, tokenRulesOf, type SceneStore } from './atlasView.ts';
 import { bookSceneOf, type BookScene } from './book/bookScene.ts';
 import { companionTimers } from './companionTimers.ts';
@@ -123,7 +123,7 @@ export function bindScene(ports: SceneBindingPorts, tab: AtlasTab, presented: Pr
   const binding: SceneBinding = {
     share,
     store,
-    book: () => (shown() ? bookSceneOf(store.getState(), asTokenSource(renderer), tokenRulesOf(renderer), collectionsOf(leaf.view)) : null),
+    book: () => (shown() ? bookSceneOf(store.getState(), asTokenSource(renderer), tokenRulesOf(renderer), rulesLookupOf(leaf.view)) : null),
     get showing() {
       return !store.held;
     },

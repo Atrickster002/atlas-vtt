@@ -45,8 +45,8 @@ import { AudioRenderer } from './pixi/audio/AudioRenderer';
 import { SoundRegistry } from './audio/SoundRegistry';
 import { AudioBufferCache } from './audio/AudioBufferCache';
 import { SpatialAudioEngine } from './audio/SpatialAudioEngine';
-import { AssetService } from './services/AssetService';
 import { mapMeasurementSettings } from './services/mapMeasurementSettings';
+import { rulesLookup } from './services/mapRules';
 import { findAtlasLeafByViewId } from './utils/atlasLeafLookup';
 import { requestRender } from './pixi/RenderScheduler';
 import { MAP_LAYER_Z } from './pixi/mapLayerOrder';
@@ -956,8 +956,8 @@ export class PixiRendererOrchestrator { // Renamed class
   private wireMeasureRendererProvider(): void {
     const measure = this.measureRenderer;
     if (!measure) return;
-    const assetService = AssetService.getInstance(this.obsApp);
-    measure.measurementSettingsProvider = () => mapMeasurementSettings(assetService, this.store.getState());
+    const rules = rulesLookup(this.obsApp);
+    measure.measurementSettingsProvider = () => mapMeasurementSettings(rules, this.store.getState());
     const grid = this.gridSystem;
     if (grid) measure.playersView = measurePlayersView({ store: this.store, grid, tokens: () => this.tokenRenderer, lighting: () => this.lighting?.playerSight() });
     this.stopMeasuresFollowingPlayers?.();

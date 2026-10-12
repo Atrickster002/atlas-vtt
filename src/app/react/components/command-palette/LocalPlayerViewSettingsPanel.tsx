@@ -7,7 +7,7 @@ import { useAtlasStore } from '../../ViewStoreContext';
 import { slottedResources } from '../../../resources/resourceSlots';
 import { shapeOf } from '../../../resources/visibleResources';
 import { useMapResources } from '../../../resources/useMapResources';
-import { AssetService } from '../../../services/AssetService';
+import { mapRules, updateMapRules } from '../../../services/mapRules';
 import { runInBackground } from '../../../utils/backgroundTask';
 import { openPlayerWindow } from '../../../services/PlayerWindowPresenter';
 import { SettingsService, type AtlasSettings } from '../../../services/SettingsService';
@@ -45,21 +45,20 @@ const TOKEN_TOGGLES: ReadonlyArray<{ key: LocalPlayerViewToggleKey; label: strin
 ];
 
 /**
- * One switch per bar of the open scene's collection: whether players see it. Wheels show on
+ * One switch per bar of the rules the open scene plays by: whether players see it. Wheels show on
  * hover and selection only, which the player window has not, so they have no switch.
  */
 function PlayerBarToggles({ app }: { app: App }): React.ReactElement | null {
   const resources = useMapResources();
   const mapPath = useAtlasStore((state) => state.mapPath);
-  const assets = AssetService.getInstance(app);
-  const collectionId = mapPath ? assets.getCollectionForMap(mapPath) : null;
-  if (!collectionId) return null;
+  const { source } = mapRules(app, mapPath);
+  if (source.kind === 'none') return null;
 
   const toggle = (key: string): void => {
     const next = resources.map((resource) => (
       resource.key === key ? { ...resource, visibleToPlayers: !resource.visibleToPlayers } : resource
     ));
-    runInBackground(assets.updateCollectionSettings(collectionId, { resources: next }), 'Saving what players see');
+    runInBackground(updateMapRules(app, source, { resources: next }), 'Saving what players see');
   };
 
   return (

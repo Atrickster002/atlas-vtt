@@ -1,5 +1,5 @@
 import { mapResources } from '../resources/collectionResources';
-import { AssetService } from './AssetService';
+import { rulesLookup } from './mapRules';
 import type { App } from 'obsidian';
 import type { ViewAtlasState } from '../storeFactory';
 import { entryTokenOf, listedForPlayers, playerInitiativeList, renderPlayerInitiative, type EntryToken } from './playerInitiativeList';
@@ -45,8 +45,8 @@ export class PlayerInitiativePanel extends PlayerSceneOverlay<InitiativeScene> {
     if (!settings.showInitiative || !initiativeTrackerOpen || !initiative) return;
     const visibleTokenIds = new Set(scene.visibleTokenIds.split(TOKEN_ID_SEPARATOR));
     const tokenOf = JSON.parse(scene.tokens) as EntryToken[];
-    // Players see HP where the map's collection shows it to them
-    const hpVisible = mapResources(AssetService.getInstance(this.app), scene.mapPath).some((definition) => definition.key === 'hp' && definition.visibleToPlayers);
+    // Players see HP where the map's rules show it to them
+    const hpVisible = mapResources(rulesLookup(this.app), scene.mapPath).some((definition) => definition.key === 'hp' && definition.visibleToPlayers);
     const list = playerInitiativeList(
       initiative,
       (entry, index) => (visibleTokenIds.has(entry.tokenId) ? tokenOf[index] ?? { hp: null, showRing: true, side: 'opponents' } : null),

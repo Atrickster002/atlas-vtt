@@ -3,7 +3,7 @@ import type { ResourceDefinition } from '../../../../resources/resourceTypes';
 import { App as ObsidianApp } from 'obsidian';
 import type { TokenAsset, AnyAsset, EncounterAsset } from '../types';
 import { loadStatblockOverrides, type StatblockOverrides } from './statblockLoader';
-import { AssetService } from '../../../../services/AssetService';
+import type { AssetService } from '../../../../services/AssetService';
 import {
   FALLBACK_PITCH,
   cellPitch,
@@ -19,6 +19,7 @@ import { tokenFromFile } from '../../../../resources/resourceFileFormat';
 import { t } from '../../../../i18n';
 import { mapVisionDefaults } from '../../../../gameSystems/visionDefaults';
 import { systemPresetsOf } from '../../../../services/mapCollectionRules';
+import { rulesLookup } from '../../../../services/mapRules';
 import type { TokenVision, TokenVisionDefaults } from '../../../../types/lightingTypes';
 import { placementVision } from '../../../../creatures/placementVision';
 import { showNotice } from '../../../../ui/notice';
@@ -190,7 +191,7 @@ async function resolveTokenSource(ctx: SpawnContext, ref: TokenSourceRef): Promi
 /** What new tokens start with in the scene they are spawned into, from its collection. */
 function spawnVisionDefaults(ctx: SpawnContext, target: SpawnTarget): TokenVisionDefaults | undefined {
   return ctx.assetService
-    ? mapVisionDefaults(ctx.assetService, target.view.getStore().getState().mapPath, systemPresetsOf(ctx.app))
+    ? mapVisionDefaults(rulesLookup(ctx.app, ctx.assetService), target.view.getStore().getState().mapPath, systemPresetsOf(ctx.app))
     : undefined;
 }
 
@@ -226,10 +227,9 @@ async function buildTokenData(
   return data;
 }
 
-/** The resources of the collection the target map belongs to. */
+/** The resources of the rules the target map plays by. */
 function targetResources(ctx: SpawnContext, target: SpawnTarget): ResourceDefinition[] {
-  const assets = ctx.assetService ?? AssetService.getInstance(ctx.app);
-  return mapResources(assets, target.view.getStore().getState().mapPath);
+  return mapResources(rulesLookup(ctx.app, ctx.assetService ?? undefined), target.view.getStore().getState().mapPath);
 }
 
 function imageExists(app: ObsidianApp, imagePath: string): boolean {
