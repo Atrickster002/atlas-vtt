@@ -1,7 +1,9 @@
 import { t } from '../i18n';
 import type { CampaignStorage } from './CampaignFiles';
 import type { Campaign, CampaignChanges, StoredCampaign } from './campaignTypes';
+import { withScenePlayed } from './campaignUsage';
 import { campaignName, isSessionDay, MAX_CAMPAIGN_DESCRIPTION, parseCampaign } from './campaignValidation';
+import { isAssetId } from './campaignValues';
 
 /** The most recently played first, then the newest. */
 const byRecency = (a: Campaign, b: Campaign): number => (b.lastPlayed ?? 0) - (a.lastPlayed ?? 0) || b.createdAt - a.createdAt || a.name.localeCompare(b.name);
@@ -55,6 +57,17 @@ export class CampaignService {
       }
       return next;
     });
+  }
+
+  /**
+   * Records that the scene `sceneId` (its asset id) was played in the campaign at `at`. Returns
+   * whether it was recorded: a campaign that is gone, or that a newer Atlas wrote, is left alone.
+   */
+  recordScene(id: string, sceneId: string, at: number = Date.now()): boolean {
+    const campaign = this.get(id);
+    if (campaign === undefined || campaign.readOnly === true || !isAssetId(sceneId)) return false;
+    this.storage.update(id, (stored) => withScenePlayed(stored, sceneId, at));
+    return true;
   }
 
   /** Deletes the campaign and everything it keeps; the assets it used stay where they are. */

@@ -29,7 +29,7 @@ function headerProps(selected: number, tokens: number): HeaderProps {
     query: { suggestionsFor: () => null, commit: (text) => text, chips: [], activeCount: 0, panel: null, reset: noop },
     activeTab: 'tokens',
     onTabChange: noop,
-    assetCounts: { scenes: 12, maps: 34, encounters: 5, tokens },
+    assetCounts: { scenes: 12, maps: 34, encounters: 5, tokens, party: 4 },
     onCreateFolder: noop,
     onRefresh: noop,
     sidebarToggleLabel: 'Hide sidebar',

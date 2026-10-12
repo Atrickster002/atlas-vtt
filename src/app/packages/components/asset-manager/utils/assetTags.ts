@@ -1,12 +1,13 @@
 import { hasAssetTag, type TagGroup } from '../../../../services/tagGroups';
 import type { Tab, Tag } from '../types';
+import { isCharacterTab } from './tabKinds';
 
 /** A collection's tags, one list per tag group. */
 export type TagsByGroup = Record<TagGroup, Tag[]>;
 
 /** Characters share tags with encounters, maps with scenes. */
 export function tagGroupOfTab(tab: Tab): TagGroup {
-  return tab === 'tokens' || tab === 'encounters' ? 'tokens' : 'maps';
+  return isCharacterTab(tab) || tab === 'encounters' ? 'tokens' : 'maps';
 }
 
 /** An asset's tags with `tag` added (by name, as creators store it) or removed (by id or name). */

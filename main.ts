@@ -43,6 +43,7 @@ import { HeaderAutocompleteSuggest } from './src/app/plugin/HeaderAutocompleteSu
 import { registerAtlasLinks } from './src/app/links/registerAtlasLinks';
 import { registerCommands } from './src/app/plugin/registerCommands';
 import { CampaignFiles } from './src/app/campaigns/CampaignFiles';
+import { recordCampaignPlay } from './src/app/campaigns/recordCampaignPlay';
 import { registerOnlinePlay, type OnlinePlay } from './src/app/plugin/onlinePlay';
 import type { TableChat } from './src/app/online/gm/tableChat';
 import { registerPlayerWindowReloadCleanup } from './src/app/plugin/playerWindowReload';
@@ -102,7 +103,10 @@ export default class AtlasVTTPlugin extends Plugin {
     const presetFiles = SystemPresetFiles.open(this.app);
     // So are campaigns: their folders are read once the storage is ready.
     const campaignFiles = CampaignFiles.open(this.app);
-    void storageReady.catch(() => undefined).then(() => campaignFiles.load()).catch((error: unknown) => console.error('[Atlas] Reading the campaigns failed:', error));
+    const campaignsRead = storageReady.catch(() => undefined).then(() => campaignFiles.load());
+    void campaignsRead.catch((error: unknown) => console.error('[Atlas] Reading the campaigns failed:', error));
+    // The campaign this device plays records the scenes its map views open.
+    this.register(recordCampaignPlay(this.app, campaignFiles, campaignsRead));
     // Settings carried over even when the data file migration failed, so they are not lost to the defaults.
     const settingsReady = storageReady.catch(() => undefined).then(async () => {
       await presetFiles.load();

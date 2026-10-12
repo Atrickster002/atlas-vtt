@@ -1,24 +1,32 @@
 import React, { useId } from 'react';
-import { ArrowLeft, Trash2 } from 'lucide-react';
+import { ArrowLeft, Play, Square, Trash2 } from 'lucide-react';
 import type { Campaign } from '../../../campaigns/campaignTypes';
 import type { CampaignService } from '../../../campaigns/CampaignService';
 import { Button } from '../../../packages/components/primitives/button';
 import { confirmAction } from '../../../ui/confirmDialog';
 import { t } from '../../../i18n';
 import { CampaignDescriptionField, CampaignNameField, NextSessionField } from './CampaignFields';
-import { campaignActivity } from './CampaignsSection';
+import { campaignActivity, PlayingMark } from './CampaignRow';
 import type { WorldMapChoice } from './libraryPictures';
+import { PartyFaces } from './PartyFaces';
+import type { PartyFace } from './useCampaignParties';
 import { WorldMapPicker } from './WorldMapPicker';
 
 interface CampaignPageProps {
   campaign: Campaign;
   service: CampaignService;
   worldMaps: WorldMapChoice[];
+  /** Whether this device plays the campaign. */
+  isPlaying: boolean;
+  onPlay: () => void;
+  onStop: () => void;
+  /** The player characters on its last scene. */
+  party: readonly PartyFace[];
   onBack: () => void;
 }
 
-/** One campaign: its name, description, next session and world map, edited where they stand. */
-export function CampaignPage({ campaign, service, worldMaps, onBack }: CampaignPageProps): React.JSX.Element {
+/** One campaign: its name, description, next session and world map, edited where they stand; played from here. */
+export function CampaignPage({ campaign, service, worldMaps, isPlaying, onPlay, onStop, party, onBack }: CampaignPageProps): React.JSX.Element {
   const locked = campaign.readOnly === true;
   const nextSessionId = useId();
   const worldMapId = useId();
@@ -30,7 +38,9 @@ export function CampaignPage({ campaign, service, worldMaps, onBack }: CampaignP
       confirmLabel: t('common.delete'),
       destructive: true,
     });
-    if (confirmed) service.delete(campaign.id);
+    if (!confirmed) return;
+    service.delete(campaign.id);
+    if (isPlaying) onStop();
   };
 
   return (
@@ -44,6 +54,23 @@ export function CampaignPage({ campaign, service, worldMaps, onBack }: CampaignP
         <CampaignNameField campaign={campaign} service={service} disabled={locked} />
         <span className="campaign-page__meta">{campaignActivity(campaign)}</span>
         {locked && <p className="campaign-page__locked">{t('campaign.newerVersion')}</p>}
+        <div className="campaign-page__play">
+          {isPlaying ? (
+            <>
+              <PlayingMark />
+              <Button variant="ghost" className="campaign-page__stop" onClick={onStop}>
+                <Square size={14} />
+                <span>{t('campaign.stop')}</span>
+              </Button>
+            </>
+          ) : (
+            <Button className="campaign-page__start" disabled={locked} onClick={onPlay}>
+              <Play size={14} />
+              <span>{t('campaign.play')}</span>
+            </Button>
+          )}
+          <PartyFaces faces={party} size="page" />
+        </div>
       </header>
 
       <div className="campaign-page__columns">

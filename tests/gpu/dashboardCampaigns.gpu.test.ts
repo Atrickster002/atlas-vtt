@@ -45,6 +45,20 @@ const OTHER_SCENE = 'atlas-vtt/collections/Cairn/scenes/Hollow Oak.atlasmap';
 const DAY = 24 * 60 * 60 * 1000;
 const sceneFile = (path: string): string => JSON.stringify({ version: 4, state: { schema: 'atlas-vtt', version: 4, mapPath: path, objects: {} } });
 
+/** Cut-out art, as tokens without a ring have: a figure on a transparent ground. */
+function cutOut(hue: number): string {
+  const canvas = document.createElement('canvas');
+  canvas.width = 96;
+  canvas.height = 96;
+  const context = canvas.getContext('2d')!;
+  context.fillStyle = `hsl(${hue}, 45%, 50%)`;
+  context.beginPath();
+  context.ellipse(48, 30, 18, 20, 0, 0, Math.PI * 2);
+  context.ellipse(48, 82, 32, 30, 0, Math.PI, Math.PI * 2);
+  context.fill();
+  return canvas.toDataURL();
+}
+
 /** A small painted picture standing in for a scene's thumbnail. */
 function picture(hue: number): string {
   const canvas = document.createElement('canvas');
@@ -59,22 +73,49 @@ function picture(hue: number): string {
   return canvas.toDataURL();
 }
 
-/** Mounts the dashboard; `campaigns` gets the id of each scene by name, for world maps. */
-async function mount(theme: 'light' | 'dark', campaigns: (sceneIds: Map<string, string>) => StoredCampaign[] = () => []): Promise<ReturnType<typeof memoryCampaigns>> {
+const PARTY = [
+  { name: 'Aria', art: 'art/aria.webp', hue: 10, ring: true },
+  { name: 'Finn', art: 'art/finn.webp', hue: 130, ring: true },
+  { name: 'Tamsin', art: 'art/tamsin.webp', hue: 250, ring: true },
+  { name: 'Brom', art: 'art/brom.webp', hue: 40, ring: false },
+  { name: 'Wren', art: 'art/wren.webp', hue: 300, ring: false },
+];
+
+/** The cave scene's file, with the party standing on it. */
+const caveWithParty = (): string => JSON.stringify({
+  version: 4,
+  state: {
+    schema: 'atlas-vtt', version: 4, mapPath: SCENE_PATH,
+    objects: { tokens: Object.fromEntries(PARTY.map((member, index) => [`t${index}`, { imagePath: member.art, ...(index === 0 && { ringColor: '#c0392b' }) }])) },
+  },
+});
+
+/** Mounts the dashboard; `campaigns` gets the id of each scene by name, for world maps and last scenes. */
+async function mount(theme: 'light' | 'dark', campaigns: (sceneIds: Map<string, string>) => StoredCampaign[] = () => [], { party = false }: { party?: boolean } = {}): Promise<ReturnType<typeof memoryCampaigns>> {
   document.body.className = `theme-${theme}`;
   const { app } = createInMemoryApp({
     files: {
-      [SCENE_PATH]: sceneFile(SCENE_PATH),
+      [SCENE_PATH]: party ? caveWithParty() : sceneFile(SCENE_PATH),
       [OTHER_SCENE]: sceneFile(OTHER_SCENE),
       [mapThumbnailPath(SCENE_PATH)]: 'JPG',
       [mapThumbnailPath(OTHER_SCENE)]: 'JPG',
+      ...Object.fromEntries(PARTY.map((member) => [member.art, 'WEBP'])),
     },
   });
-  const pictures = new Map([[mapThumbnailPath(SCENE_PATH), picture(200)], [mapThumbnailPath(OTHER_SCENE), picture(90)]]);
+  const pictures = new Map([
+    [mapThumbnailPath(SCENE_PATH), picture(200)],
+    [mapThumbnailPath(OTHER_SCENE), picture(90)],
+    ...PARTY.map((member) => [member.art, member.ring ? picture(member.hue) : cutOut(member.hue)] as const),
+  ]);
   vi.mocked(app.vault.getResourcePath).mockImplementation((file: TFile) => pictures.get(file.path) ?? '');
   AssetService.resetInstance();
   const assets = AssetService.getInstance(app);
   await assets.initialize();
+  if (party) {
+    await assets.addAssets(PARTY.map((member) => ({
+      type: 'token' as const, name: member.name, imagePath: member.art, tags: [], collection: 'Cairn', playerCharacter: true as const, showRing: member.ring,
+    })));
+  }
   const scenes = await assets.getAssets(undefined, 'scene');
   const storage = memoryCampaigns(campaigns(new Map(scenes.map((scene) => [scene.name, scene.id]))));
   render(
@@ -129,6 +170,8 @@ describe('the dashboard with campaigns', () => {
       act(() => storage.update('a', (entry) => ({ ...entry, description: 'Blue Mouth Caves, below the Hollow Oak. The olms rise when the river runs red.' })));
       fireEvent.click(query('.campaigns-panel .dashboard-row'));
       await expect.poll(() => document.querySelector('.campaign-page')).not.toBeNull();
+      // The play row holds the party's room before any face is there.
+      expect(query('.campaign-page__play').offsetHeight).toBe(44);
       // Every control of a settings row ends at the panel's inner edge.
       const inner = query('.campaign-settings').getBoundingClientRect().right - 1 - 12;
       for (const row of document.querySelectorAll('.campaign-setting')) {
@@ -141,6 +184,68 @@ describe('the dashboard with campaigns', () => {
       await shot(`picker-${theme}`);
     });
   }
+
+  for (const theme of ['dark', 'light'] as const) {
+    it(`shows the party of the last scene at the row's end: ringed faces as a fan, the others side by side (${theme})`, async () => {
+      await mount(theme, (sceneIds) => [
+        ...campaignsOf(sceneIds).map((campaign) => (campaign.id === 'a' ? { ...campaign, lastScene: sceneIds.get('Blue Mouth Caves')! } : campaign)),
+      ], { party: true });
+      await expect.poll(() => document.querySelectorAll('.campaigns-panel .campaign-face').length).toBe(5);
+      const rows = [...document.querySelectorAll<HTMLElement>('.campaigns-panel .campaign-row')];
+      const [withParty, withoutParty] = [rows[0]!, rows[1]!];
+      expect(withParty.getBoundingClientRect().height).toBeCloseTo(withoutParty.getBoundingClientRect().height, 0);
+      expect(withParty.getBoundingClientRect().height).toBeCloseTo(query('.recent-scenes .dashboard-row').getBoundingClientRect().height, 0);
+
+      // Measured by layout boxes, which the fan's turn leaves alone.
+      const boxes = (selector: string): DOMRect[] => [...withParty.querySelectorAll<HTMLElement>(selector)].map((face) => {
+        const saved = face.style.transform;
+        face.style.transform = 'none';
+        const box = face.getBoundingClientRect();
+        face.style.transform = saved;
+        return box;
+      });
+      const fan = boxes('.campaign-party__fan .campaign-face');
+      const side = boxes('.campaign-party__row .campaign-face');
+      expect(fan).toHaveLength(3);
+      expect(side).toHaveLength(2);
+      for (let index = 1; index < fan.length; index += 1) expect(fan[index]!.left).toBeLessThan(fan[index - 1]!.right - 8);
+      expect(side[1]!.left).toBeGreaterThanOrEqual(side[0]!.right);
+      expect(side[0]!.left).toBeGreaterThanOrEqual(fan[2]!.right);
+      // Turned, not just shifted: the first and last ringed faces lean apart.
+      const turns = [...withParty.querySelectorAll<HTMLElement>('.campaign-party__fan .campaign-face')].map((face) => getComputedStyle(face).transform);
+      expect(turns[0]).not.toBe(turns[2]);
+      // The faces end at the row's inner edge, after the row's text.
+      const content = withParty.querySelector('.dashboard-row__content')!.getBoundingClientRect();
+      expect(fan[0]!.left).toBeGreaterThanOrEqual(content.right);
+      expect(side[1]!.right).toBeCloseTo(withParty.getBoundingClientRect().right - 8, 0);
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      await shot(`party-${theme}`);
+
+      // The page shows the same party, larger, beside the play control.
+      fireEvent.click(withParty);
+      await expect.poll(() => document.querySelectorAll('.campaign-page .campaign-face').length).toBe(5);
+      fireEvent.click(buttonNamed('Play'));
+      await expect.poll(() => document.querySelector('.campaign-page .campaign-playing')).not.toBeNull();
+      const play = query('.campaign-page__play').getBoundingClientRect();
+      expect(query('.campaign-page .campaign-face').offsetHeight).toBe(44);
+      expect(play.height).toBe(44);
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      await shot(`page-playing-${theme}`);
+      fireEvent.click(buttonNamed('Stop'));
+    });
+  }
+
+  it('lays the search out as a field of the control height across the panel', async () => {
+    await mount('dark', campaignsOf);
+    const field = query('.campaigns-search .atlas-asset-manager-search').getBoundingClientRect();
+    const panel = query('.campaigns-panel').getBoundingClientRect();
+    expect(field.height).toBeCloseTo(30, 0);
+    expect(field.left).toBeCloseTo(panel.left + 1 + 12, 0);
+    expect(field.right).toBeCloseTo(panel.right - 1 - 12, 0);
+    fireEvent.change(query('.campaigns-search input'), { target: { value: 'wither' } });
+    await expect.poll(() => document.querySelectorAll('.campaigns-panel .campaign-row').length).toBe(1);
+    await shot('search-dark');
+  });
 
   it('shows the empty state, then the new campaign field with its error', async () => {
     await mount('dark');

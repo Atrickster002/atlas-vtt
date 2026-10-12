@@ -20,6 +20,8 @@ export interface SaveTokenPreviewsOptions extends SaveImageContext {
   collection: string;
   tags: string[];
   editToken?: EditTokenInput | null;
+  /** New tokens become player characters; an edited token keeps what it is. */
+  playerCharacters?: boolean;
   /** Called with every batch of previews once their assets are registered. */
   onSaved?: (ids: string[]) => void;
   /** Called once per preview as it is saved or fails, with the count so far and the number being saved. */
@@ -116,7 +118,8 @@ async function savePreviews(options: SaveTokenPreviewsOptions): Promise<number> 
         : {
           type: 'token', showRing: preview.showRing !== false, name: preview.name, imagePath,
           ...(preview.size !== undefined && { size: preview.size }),
-          ...(preview.statblockPath ? { statblockPath: preview.statblockPath } : {}), ...metadata,
+          ...(preview.statblockPath ? { statblockPath: preview.statblockPath } : {}),
+          ...(options.playerCharacters && { playerCharacter: true as const }), ...metadata,
         };
       return { id: preview.id, asset, discard: mode === 'token' ? [imagePath, thumbnailPath] : [thumbnailPath] };
     } catch (error) {

@@ -78,7 +78,7 @@ export function useAssetManagerEffects({
         containerRef.current?.querySelector<HTMLInputElement>('.atlas-asset-manager-search input')?.select();
         return;
       }
-      if ((e.metaKey || e.ctrlKey) && e.key >= '1' && e.key <= '4') {
+      if ((e.metaKey || e.ctrlKey) && /^[1-9]$/.test(e.key)) {
         const idx = parseInt(e.key) - 1;
         if (idx < tabs.length) { changeTab(tabs[idx]!); e.preventDefault(); }
       }

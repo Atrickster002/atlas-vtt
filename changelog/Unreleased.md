@@ -1,5 +1,7 @@
 ## New
 
+- Campaigns on the dashboard: make and search them, play one to note the scenes it uses, and see the player characters who stood on its last scene
+- Player characters: right-click a character on the map or in the asset manager to make it one; they have a tab of their own in the asset manager, beside the other characters
 - Dice formulas take the notation Foundry, Roll20 and Dice Roller share: advantage as 2d20kh1, keep and drop, rerolls (r1, ro<2, rr1), x explosions, success counts (cs>=5), d%, Fate dice (dF), labels like 2d6[fire], and * / with brackets. Dropped and rerolled dice show struck through
 
 ## Improved

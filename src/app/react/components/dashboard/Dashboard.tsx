@@ -2,6 +2,8 @@ import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { App } from 'obsidian';
 import { FolderOpen, Plus } from 'lucide-react';
 import type { CampaignStorage } from '../../../campaigns/CampaignFiles';
+import { CampaignPlay } from '../../../campaigns/campaignPlay';
+import { useCampaignPlay } from '../../../campaigns/useCampaignPlay';
 import { useCampaigns } from '../../../campaigns/useCampaigns';
 import { Button } from '../../../packages/components/primitives/button';
 import { t } from '../../../i18n';
@@ -10,6 +12,7 @@ import { CampaignsSection } from './CampaignsSection';
 import { ContinueCard } from './ContinueCard';
 import { useWorldMaps } from './libraryPictures';
 import { RecentScenesPanel } from './RecentScenesPanel';
+import { useCampaignParties } from './useCampaignParties';
 import { useRecentScenes } from './useRecentScenes';
 
 export interface DashboardProps {
@@ -26,8 +29,11 @@ export function Dashboard({ app, campaignStorage, onOpenScene, onCreateMap, onOp
   const { scenes, isLoading } = useRecentScenes(app);
   const { service, campaigns } = useCampaigns(campaignStorage);
   const worldMaps = useWorldMaps(app);
+  const play = CampaignPlay.forApp(app);
+  const playingId = useCampaignPlay(play);
   const [openId, setOpenId] = useState<string | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
+  const parties = useCampaignParties(app, campaigns, rootRef);
   const openCampaign = openId === null ? undefined : campaigns.find((campaign) => campaign.id === openId);
 
   // A campaign deleted elsewhere takes its page with it.
@@ -54,7 +60,16 @@ export function Dashboard({ app, campaignStorage, onOpenScene, onCreateMap, onOp
     <div ref={rootRef} className="atlas-dashboard">
       <div className="dashboard-container">
         {service && openCampaign ? (
-          <CampaignPage campaign={openCampaign} service={service} worldMaps={worldMaps} onBack={() => setOpenId(null)} />
+          <CampaignPage
+            campaign={openCampaign}
+            service={service}
+            worldMaps={worldMaps}
+            isPlaying={openCampaign.id === playingId}
+            onPlay={() => play.play(openCampaign.id)}
+            onStop={() => play.stop()}
+            party={parties.get(openCampaign.id) ?? []}
+            onBack={() => setOpenId(null)}
+          />
         ) : (
           <main className="dashboard-stage">
             <div className="dashboard-hero">
@@ -68,7 +83,15 @@ export function Dashboard({ app, campaignStorage, onOpenScene, onCreateMap, onOp
               <div className="dashboard-actions">
                 <ContinueCard scene={scenes[0] ?? null} onOpenScene={onOpenScene} onCreateMap={onCreateMap} />
                 {service && (
-                  <CampaignsSection service={service} campaigns={campaigns} worldMaps={worldMaps} onOpenCampaign={setOpenId} />
+                  <CampaignsSection
+                    app={app}
+                    service={service}
+                    campaigns={campaigns}
+                    worldMaps={worldMaps}
+                    playingId={playingId}
+                    parties={parties}
+                    onOpenCampaign={setOpenId}
+                  />
                 )}
                 <div className="action-grid">
                   {actionTiles.map(({ key, icon: Icon, title, desc, onClick }) => (
