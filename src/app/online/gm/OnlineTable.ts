@@ -107,6 +107,9 @@ export class OnlineTable {
       randomId: () => randomHex(12),
       scaleImage: scaleInWindow,
       changed: () => events.changed(),
+      logShown: (shown, path) => this.log.imageShown(shown, path),
+      loggedFile: (hash) => this.log.artFile(hash),
+      readImage: (path) => this.readImage(path),
     });
     this.watch = new TabWatch<SceneBinding>({
       leaves: () => app.workspace.getLeavesOfType(ATLAS_VIEW_TYPE),
@@ -120,7 +123,7 @@ export class OnlineTable {
         isLive: (binding) => this.watch.isLive(binding),
         randomId: () => randomHex(12),
         logRoll: (roll) => this.log.rolled(roll),
-        logArt: (hash) => this.log.speakerArt(hash),
+        logArt: (hash) => this.log.artFile(hash),
         rollRequest: (from, answer) => this.log.requestOf(from, answer),
         nameOf: (player) => ownership.nameOf(player),
       }, tab, presented),

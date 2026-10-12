@@ -25,7 +25,7 @@ function isCoarse(doc: Document): boolean {
  * changes here before the log says so. Mounted, it counts as open (`state.setOpen`).
  */
 export function TableLogPanel(props: TableLogPanelProps): ReactElement {
-  const { state, actions, self, moderator, canSend, offlineText, rollFace, speakers, speakerPortrait, variant, onClose } = props;
+  const { state, actions, self, moderator, canSend, offlineText, rollFace, speakers, speakerPortrait, imageSrc, openImage, variant, onClose } = props;
   const { entries, refusal, people } = useSyncExternalStore(state.subscribe, state.snapshot);
   const root = useRef<HTMLElement>(null);
   const field = useRef<HTMLTextAreaElement>(null);
@@ -149,7 +149,7 @@ export function TableLogPanel(props: TableLogPanelProps): ReactElement {
     <TooltipProvider delayDuration={300}>
       <section ref={root} className={`atlas-vtt-plugin atlas-online-log atlas-online-log--${variant}`} aria-labelledby={floating ? titleId : undefined} onKeyDown={onKeyDown}>
         {floating && <LogHeader titleId={titleId} pinned={pinned} asking={clearing} onClear={clear} onAsk={setClearing} onPin={setPinned} onClose={close} />}
-        <LogList entries={entries} ui={{ ...ui, editing }} api={api} scroll={scroll} rollFace={rollFace} speakerPortrait={speakerPortrait} people={people} onTabStop={act.tabStop} />
+        <LogList entries={entries} ui={{ ...ui, editing }} api={api} scroll={scroll} rollFace={rollFace} speakerPortrait={speakerPortrait} people={people} imageSrc={imageSrc} openImage={openImage} onTabStop={act.tabStop} />
         <Composer
           field={field} state={state} self={self} people={people} speakers={speakers} canSend={canSend} offlineText={offlineText ?? OFFLINE_TEXT}
           refusal={refusal} lastOwn={lastOwn} lastWhisper={lastWhisperAudience(entries, self)} escapeRef={composerEscape}

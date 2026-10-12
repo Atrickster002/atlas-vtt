@@ -1,5 +1,6 @@
 import type { ChatStyle, LogSpeaker, RollMode, TablePerson } from './chat.ts';
 import type { SharedRoll } from './dice.ts';
+import type { LootCard, ShownImageRef } from './logShown.ts';
 import { SHOWN, UNSEEN, UNSHOWN } from './relay.ts';
 
 /** The reactions an entry of the log takes, in the order they are offered: the first three at once, the rest behind "more". */
@@ -91,7 +92,20 @@ export interface PresenceEntry extends EntryBase {
   readonly kind: 'joined' | 'left';
 }
 
-export type LogEntry = ChatEntry | RollEntry | SecretEntry | PresenceEntry;
+/** An image the GM showed every player ("Display on player view"), kept in the log to look at again. */
+export interface ImageEntry extends EntryBase, ShownImageRef {
+  readonly kind: 'image';
+  readonly reactions?: readonly LogReaction[];
+}
+
+/** An item the GM handed out from the loot roller. */
+export interface LootEntry extends EntryBase {
+  readonly kind: 'loot';
+  readonly item: LootCard;
+  readonly reactions?: readonly LogReaction[];
+}
+
+export type LogEntry = ChatEntry | RollEntry | SecretEntry | PresenceEntry | ImageEntry | LootEntry;
 
 /**
  * Why the GM did not take a player's chat message, edit, deletion or reaction: too fast, no text,

@@ -1,4 +1,4 @@
-import type { LogSpeaker, RollEntry, TablePerson } from '../protocol/index.ts';
+import type { ImageEntry, LogSpeaker, RollEntry, TablePerson } from '../protocol/index.ts';
 import { ArrowDown, MessagesSquare } from 'lucide-react';
 import { useEffect, useState, type FocusEvent, type KeyboardEvent, type ReactElement } from 'react';
 import { audienceNames } from './audience.ts';
@@ -10,6 +10,7 @@ import { dayLabel, relativeTime, sameDay } from './logTime.ts';
 import type { Portrait, RollFace, RowApi } from './panelTypes.ts';
 import { RollRow } from './RollRow.tsx';
 import { SecretRow } from './SecretRow.tsx';
+import { ImageRow, LootRow } from './ShownRows.tsx';
 import type { LogScroll } from './useLogScroll.ts';
 import type { LogUi } from './useLogUi.ts';
 
@@ -33,10 +34,12 @@ export interface LogListProps {
   readonly rollFace: ((entry: RollEntry) => RollFace | null) | undefined;
   readonly speakerPortrait: ((speaker: LogSpeaker) => Portrait | null) | undefined;
   readonly people: readonly TablePerson[];
+  readonly imageSrc: ((entry: ImageEntry) => string | null) | undefined;
+  readonly openImage: ((entry: ImageEntry) => void) | undefined;
   readonly onTabStop: (id: string) => void;
 }
 
-const hasTools = (entry: ShownEntry): boolean => entry.kind === 'chat' || entry.kind === 'roll';
+const hasTools = (entry: ShownEntry): boolean => entry.kind === 'chat' || entry.kind === 'roll' || entry.kind === 'image' || entry.kind === 'loot';
 
 /** The way down, over the list's lower edge: what arrived below, or just the way where nothing did. */
 function JumpPill({ scroll }: { readonly scroll: LogScroll }): ReactElement {
@@ -54,7 +57,7 @@ function JumpPill({ scroll }: { readonly scroll: LogScroll }): ReactElement {
  * rolls, private rolls the viewer is not shown, lines about who came and left, and a line between
  * two days. The Tab key reaches one row; the arrow keys move between rows.
  */
-export function LogList({ entries, ui, api, scroll, rollFace, speakerPortrait, people, onTabStop }: LogListProps): ReactElement {
+export function LogList({ entries, ui, api, scroll, rollFace, speakerPortrait, people, imageSrc, openImage, onTabStop }: LogListProps): ReactElement {
   const now = useNow();
   const portraitOf = (speaker: LogSpeaker | undefined): Portrait | null => (speaker === undefined ? null : speakerPortrait?.(speaker) ?? null);
   const rows = entries.filter(hasTools);
@@ -101,6 +104,8 @@ export function LogList({ entries, ui, api, scroll, rollFace, speakerPortrait, p
                 )}
                 {entry.kind === 'roll' && <RollRow entry={entry} face={rollFace?.(entry) ?? null} portrait={portraitOf(entry.speaker)} time={time} api={api} {...flags} />}
                 {entry.kind === 'secret' && <SecretRow entry={entry} self={api.self} time={time} />}
+                {entry.kind === 'image' && <ImageRow entry={entry} src={imageSrc?.(entry) ?? null} onOpen={openImage === undefined ? undefined : () => openImage(entry)} time={time} api={api} {...flags} />}
+                {entry.kind === 'loot' && <LootRow entry={entry} time={time} api={api} {...flags} />}
                 {(entry.kind === 'joined' || entry.kind === 'left') && (
                   <div className="atlas-online-log__presence">
                     {entry.kind === 'joined' ? `${shownName(entry.who, entry.name, api.self)} joined the table` : `${shownName(entry.who, entry.name, api.self)} left the table`}

@@ -16,6 +16,7 @@ export * from './live.ts';
 export * from './chat.ts';
 export * from './log.ts';
 export * from './logParse.ts';
+export * from './logShown.ts';
 export * from './mapLayers.ts';
 export * from './marks.ts';
 export * from './moves.ts';

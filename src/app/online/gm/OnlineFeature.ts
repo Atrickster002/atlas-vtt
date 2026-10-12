@@ -12,6 +12,8 @@ import { ImageTakeover } from './image/imageTakeover.ts';
 import { atlasImageDisplay, localPlayerWindowOpen, readShownFile } from './image/atlasImageHost.ts';
 import { LogMounts } from './log/LogMounts.ts';
 import { TableChat } from './tableChat.ts';
+import { lootCardOf } from './log/lootCard.ts';
+import { PlayerLootDisplay } from '../../services/PlayerLootDisplay';
 import { copyText } from './dock/dockDom.ts';
 import { onlineApi } from './dock/panelModel.ts';
 import type { OnlineCommandId } from './onlineCommands.ts';
@@ -119,10 +121,20 @@ export class OnlineFeature extends Component {
     const images = new ImageTakeover<TFile>(() => atlasImageDisplay(this.app), {
       share: () => this.online.table?.image ?? null,
       readFile: (file) => readShownFile(this.app, file),
+      pathOf: (file) => file.path,
       localWindowOpen: () => localPlayerWindowOpen(this.app),
       notice: (text) => showNotice(text),
     });
     this.register(() => images.dispose());
+    // Loot handed out from the roller goes into the table's log while a table runs.
+    const loot = PlayerLootDisplay.get();
+    loot.setOutlet((draw) => {
+      const item = this.online.table === null ? null : lootCardOf(draw);
+      if (item === null) return false;
+      this.online.table?.log.lootHanded(item);
+      return true;
+    });
+    this.register(() => loot.setOutlet(null));
     const docks = new DockMounts(this.app.workspace, {
       api: onlineApi(this.online, () => images.hide()),
       account: this.account,

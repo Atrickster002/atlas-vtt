@@ -1,8 +1,8 @@
-import { GM_AUTHOR, isLogReaction, isPlayerLogType, isRecord, MAX_LOG_ENTRIES, parseLogEntry, parsePlayerLog, quoting, type ChatRefusal, type LogEntry, type LogReactionEmoji, type PlayerInfo, type PlayerLogMessage, type RollRequestAnswer, type TablePerson } from '../../protocol/index.ts';
+import { GM_AUTHOR, isLogReaction, isPlayerLogType, isRecord, MAX_LOG_ENTRIES, parseLogEntry, parsePlayerLog, quoting, type ChatRefusal, type LogEntry, type LogReactionEmoji, type LootCard, type PlayerInfo, type PlayerLogMessage, type ShownImageRef, type RollRequestAnswer, type TablePerson } from '../../protocol/index.ts';
 import { MoveRate } from '../moveCheck.ts';
 import { chatFields, keepsRolls, rollButton } from './logChat.ts';
-import { CHAT_BURST, CHATS_PER_SECOND, GM_NAME, LOG_SNAPSHOT_BYTES, REACT_BURST, REACTS_PER_SECOND, REFUSAL_BURST, REFUSALS_PER_SECOND, type ChatDraft, type LoggedRoll, type RollRequest, type SpokenAs, type TableLogPorts } from './logTypes.ts';
-import { entriesWithin, readSavedLog, seesWhole, sharedEntry, speakerArtIn, viewOf, type GmLogEntry, type SavedLog } from './logEntries.ts';
+import { CHAT_BURST, CHATS_PER_SECOND, GM_NAME, LOG_SNAPSHOT_BYTES, REACT_BURST, REACTS_PER_SECOND, REFUSAL_BURST, REFUSALS_PER_SECOND, rollEntry, type ChatDraft, type LoggedRoll, type RollRequest, type SpokenAs, type TableLogPorts } from './logTypes.ts';
+import { entriesWithin, imageFileIn, readSavedLog, seesWhole, sharedEntry, speakerArtIn, takesReactions, viewOf, type GmLogEntry, type SavedLog } from './logEntries.ts';
 import { publishEntry, retractEntry, sendLog } from './logFanout.ts';
 import { LEAVE_GRACE_MS, LogPresence } from './LogPresence.ts';
 import { withReaction } from './logReactions.ts';
@@ -67,9 +67,19 @@ export class TableLog {
     return () => this.listeners.delete(listener);
   }
 
-  /** The vault path of a speaker's artwork the log shows, by hash: what its viewers may be sent. */
-  speakerArt(hash: string): string | undefined {
-    return speakerArtIn(this.list, hash);
+  /** The vault path of artwork the log shows, by hash (a speaker's, an image the GM showed): what players may be sent. */
+  artFile(hash: string): string | undefined {
+    return speakerArtIn(this.list, hash) ?? imageFileIn(this.list, hash);
+  }
+
+  /** The GM showed every player an image, from the file at `path` (kept on the GM's side only). */
+  imageShown(shown: ShownImageRef, path: string | null): void {
+    void this.add({ ...this.stamp(GM_AUTHOR, GM_NAME), kind: 'image', ...shown, ...(path !== null && { imageFile: path }) });
+  }
+
+  /** The GM handed out an item from the loot roller. */
+  lootHanded(item: LootCard): void {
+    void this.add({ ...this.stamp(GM_AUTHOR, GM_NAME), kind: 'loot', item });
   }
 
   /** The relay's welcome: exactly these players are connected. */
@@ -89,16 +99,7 @@ export class TableLog {
   rolled(roll: LoggedRoll): boolean {
     const name = this.nameOf(roll.who);
     if (name === null) return false;
-    return this.add({
-      ...this.stamp(roll.who, name), kind: 'roll', roll: roll.roll, token: roll.token,
-      ...(!roll.shared && { hidden: true as const }),
-      ...(roll.face !== undefined && { face: roll.face }),
-      ...(roll.mode !== undefined && roll.to !== undefined && { mode: roll.mode, to: roll.to }),
-      ...(roll.flavor !== undefined && { flavor: roll.flavor }),
-      ...(roll.speaker !== undefined && { speaker: roll.speaker.speaker }),
-      ...(roll.speaker !== undefined && roll.speaker.art !== null && { speakerArt: roll.speaker.art }),
-      ...(roll.request !== undefined && { request: roll.request }),
-    });
+    return this.add(rollEntry(this.stamp(roll.who, name), roll));
   }
 
   /** The roll button `index` of a message `viewer` sees whole, or null where there is none. */
@@ -120,7 +121,7 @@ export class TableLog {
   /** The GM deletes a chat message, their own or a player's, of those the GM sees. */
   remove(id: string): void {
     const entry = this.visible(id, GM_AUTHOR);
-    if (entry?.kind === 'chat') this.drop(entry);
+    if (entry?.kind === 'chat' || entry?.kind === 'image' || entry?.kind === 'loot') this.drop(entry);
   }
 
   /** The GM gives or takes back a reaction. */
@@ -222,7 +223,7 @@ export class TableLog {
 
   private setReaction(who: string, id: string, emoji: LogReactionEmoji, on: boolean): boolean {
     const entry = this.visible(id, who);
-    if (entry === undefined || (entry.kind !== 'chat' && entry.kind !== 'roll') || !isLogReaction(emoji)) return false;
+    if (entry === undefined || !takesReactions(entry) || !isLogReaction(emoji)) return false;
     const reactions = withReaction(entry.reactions ?? [], emoji, who, on);
     if (reactions === null) return true;
     const { reactions: _before, ...rest } = entry;
