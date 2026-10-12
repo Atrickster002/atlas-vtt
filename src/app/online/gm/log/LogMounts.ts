@@ -3,7 +3,7 @@ import { GM_AUTHOR, type ChatRefusal, type LogSpeaker, type RollEntry } from '..
 import type { WorkspaceLeaf } from 'obsidian';
 import { sceneStoreOf } from '../atlasView.ts';
 import type { OnlineTable } from '../OnlineTable.ts';
-import { faceOf, seesWhole, viewOf } from './logEntries.ts';
+import { faceOf, seesWhole, viewOf, type GmLogEntry } from './logEntries.ts';
 import { gmSpeakerList } from './gmSpeakers.ts';
 import { TableLogMount } from './TableLogMount.ts';
 
@@ -81,6 +81,10 @@ export class LogMounts {
       actions: gmActions(table, (reason) => state.receive({ t: 'chat-refused', reason })),
       speakers: (scene) => this.speakers(scene),
       speakerPortrait: (speaker) => this.speakerPortrait(table, speaker),
+      imageSrc: (entry) => {
+        const path = (entry as GmLogEntry).imageFile;
+        return path === undefined ? null : this.deps.imageSrc(path);
+      },
       canSend: () => table.status === 'online',
       rollFace: (entry) => this.rollFace(entry),
       opened: () => this.deps.opened(leaf),
@@ -120,7 +124,7 @@ export class LogMounts {
 
   /** A speaker's portrait on the GM's screen: the artwork the log names by its hash, from the vault. */
   private speakerPortrait(table: OnlineTable, speaker: LogSpeaker): Portrait | null {
-    const path = speaker.art === null ? undefined : table.log.speakerArt(speaker.art.hash);
+    const path = speaker.art === null ? undefined : table.log.artFile(speaker.art.hash);
     return path === undefined ? null : { src: this.deps.imageSrc(path), showRing: speaker.ring !== null, ...(speaker.ring !== null && { ringColor: speaker.ring }) };
   }
 

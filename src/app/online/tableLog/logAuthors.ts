@@ -28,7 +28,7 @@ export interface ShownReaction {
 
 /** The reactions of an entry, in the order they were first given; none for a line about who came or left. */
 export function reactionsFor(entry: LogEntry, self: string | null): readonly ShownReaction[] {
-  if (entry.kind !== 'chat' && entry.kind !== 'roll') return [];
+  if (entry.kind !== 'chat' && entry.kind !== 'roll' && entry.kind !== 'image' && entry.kind !== 'loot') return [];
   return (entry.reactions ?? [])
     .filter((reaction) => reaction.by.length > 0)
     .map((reaction) => ({ emoji: reaction.emoji, count: reaction.by.length, mine: self !== null && reaction.by.includes(self) }));

@@ -48,6 +48,22 @@ export function audienceOf(entry: GmLogEntry): readonly string[] | null {
   return [...new Set([entry.who, ...entry.to])];
 }
 
+/** The line an answer quotes of an entry. */
+function quotedText(entry: GmLogEntry): string {
+  switch (entry.kind) {
+    case 'chat':
+      return replyPreview(entry.text);
+    case 'roll':
+      return replyPreview(`${entry.roll.formula} = ${entry.roll.total}`);
+    case 'loot':
+      return replyPreview(entry.item.name);
+    case 'image':
+      return 'An image';
+    default:
+      return '';
+  }
+}
+
 /**
  * What an answer shows of the entry it answers: its text or result only where everyone the answer
  * reaches (`readers`, null for everyone) was shown it whole; a blind roll answered to its roller
@@ -55,7 +71,7 @@ export function audienceOf(entry: GmLogEntry): readonly string[] | null {
  */
 export function replyTo(entry: GmLogEntry, readers: readonly string[] | null = null): LogReply {
   const shown = readers === null ? audienceOf(entry) === null && entry.hidden !== true : readers.every((reader) => seesWhole(entry, reader));
-  const preview = !shown ? '' : entry.kind === 'chat' ? replyPreview(entry.text) : entry.kind === 'roll' ? replyPreview(`${entry.roll.formula} = ${entry.roll.total}`) : '';
+  const preview = !shown ? '' : quotedText(entry);
   return { id: entry.id, who: entry.who, name: entry.name, preview };
 }
 

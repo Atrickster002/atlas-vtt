@@ -164,7 +164,7 @@ describe('speakers', () => {
     const entry = last(log);
     expect(entry).toMatchObject({ speaker: GOBLIN.speaker, speakerArt: 'art/goblin.png', to: [ANA] });
     expect(JSON.stringify(entriesTo(to(ANA)))).not.toContain('goblin.png');
-    expect(log.speakerArt(ART.hash)).toBe('art/goblin.png');
+    expect(log.artFile(ART.hash)).toBe('art/goblin.png');
     expect(entriesTo(to(TOM))).toEqual([]);
   });
 

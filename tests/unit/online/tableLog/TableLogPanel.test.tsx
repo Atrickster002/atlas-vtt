@@ -49,6 +49,23 @@ describe('the composer', () => {
     expect(actions.roll).toHaveBeenCalledWith({ formula: '1d20+2', mode: 'public', flavor: 'Spot' });
   });
 
+  it('takes Escape back step by step: a reply, then the whisper, and only then closes the panel', () => {
+    const state = new LogState(() => ME);
+    state.setPeople(PEOPLE);
+    const message: ChatEntry = { id: id(1), at: 1, who: KARA, name: 'Kara', kind: 'chat', text: 'psst', to: [ME] };
+    state.replace([message]);
+    state.setWhisperTo([KARA]);
+    const onClose = vi.fn();
+    const actions = { say: vi.fn(), roll: vi.fn(), edit: vi.fn(), remove: vi.fn(), react: vi.fn(), clear: vi.fn() };
+    render(<TableLogPanel state={state} actions={actions} self={ME} moderator={false} canSend speakers={SPEAKERS} variant="floating" onClose={onClose} />);
+    const field = screen.getByRole('combobox', { name: 'Message' });
+    press(field, 'Escape');
+    expect(state.choices().whisperTo).toBeNull();
+    expect(onClose).not.toHaveBeenCalled();
+    press(field, 'Escape');
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
   it('offers the commands for a slash, which the arrow keys and Tab complete, and Escape closes first', () => {
     const { field, onClose } = setup();
     typeIn(field, '/');
@@ -112,6 +129,23 @@ describe('the composer', () => {
     expect(screen.queryByRole('region', { name: 'Chat help' })).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Commands and dice' }));
     expect(screen.getByRole('region', { name: 'Chat help' })).toBeTruthy();
+  });
+});
+
+describe('what the GM showed or handed out', () => {
+  it('shows an image by the host\'s source, opens it, and a handed-out item as its loot card', () => {
+    const state = new LogState(() => ME);
+    const image = { id: id(7), at: 1, who: 'gm', name: 'GM', kind: 'image' as const, image: { hash: 'f'.repeat(64), size: 1, mime: 'image/png' }, width: 4, height: 3 };
+    const loot = { id: id(8), at: 2, who: 'gm', name: 'GM', kind: 'loot' as const, item: { name: 'Rope of Climbing', rarity: 'Uncommon', price: '20 gp', description: 'Moves on command.', properties: [{ label: 'Length', value: '60 ft' }] } };
+    state.replace([image, loot]);
+    const opened = vi.fn();
+    const actions = { say: vi.fn(), roll: vi.fn(), edit: vi.fn(), remove: vi.fn(), react: vi.fn(), clear: vi.fn() };
+    render(<TableLogPanel state={state} actions={actions} self={ME} moderator={false} canSend speakers={SPEAKERS} variant="embedded" onClose={vi.fn()} imageSrc={() => 'blob:shown'} openImage={opened} />);
+    expect(document.querySelector('.atlas-online-log__shown-image')?.getAttribute('src')).toBe('blob:shown');
+    fireEvent.click(screen.getByRole('button', { name: 'Open the image' }));
+    expect(opened).toHaveBeenCalledWith(image);
+    expect(document.querySelector('.atlas-loot-card__name')?.textContent).toBe('Rope of Climbing');
+    expect(document.querySelector('.atlas-online-log__loot')?.getAttribute('data-rarity')).toBe('uncommon');
   });
 });
 

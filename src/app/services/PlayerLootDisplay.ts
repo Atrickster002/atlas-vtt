@@ -10,6 +10,9 @@ import { showNotice } from '../ui/notice';
 
 type Listener = (shownIds: ReadonlySet<string>) => void;
 
+/** Another place players are handed loot; true where it took the item. */
+export type LootOutlet = (draw: LootDraw) => boolean;
+
 /** The mounted handout in the player window. */
 interface Mounted {
   win: Window;
@@ -32,6 +35,9 @@ export class PlayerLootDisplay {
   }
 
   private items: LootDraw[] = [];
+  /** Items handed out through the outlet, while no player window shows them. */
+  private handed = new Set<string>();
+  private outlet: LootOutlet | null = null;
   private mounted: Mounted | null = null;
   private readonly listeners = new Set<Listener>();
 
@@ -39,7 +45,15 @@ export class PlayerLootDisplay {
 
   /** Ids of the items players currently see. */
   shownIds(): ReadonlySet<string> {
-    return new Set(this.items.map((item) => item.id));
+    return new Set([...this.items.map((item) => item.id), ...this.handed]);
+  }
+
+  /** Hands every item out through `outlet` too, besides the player window; null takes it away. */
+  setOutlet(outlet: LootOutlet | null): void {
+    this.outlet = outlet;
+    if (outlet !== null || this.handed.size === 0) return;
+    this.handed = new Set();
+    this.notify();
   }
 
   subscribe(listener: Listener): () => void {
@@ -49,13 +63,17 @@ export class PlayerLootDisplay {
 
   /** Hands an item to the players, or takes it back when they already see it. */
   toggle(draw: LootDraw): void {
-    if (this.items.some((item) => item.id === draw.id)) {
+    if (this.shownIds().has(draw.id)) {
+      this.handed.delete(draw.id);
       this.setItems(this.items.filter((item) => item.id !== draw.id));
       return;
     }
+    const handed = this.outlet?.(draw) === true;
+    if (handed) this.handed.add(draw.id);
     const win = PlayerWindowService.getInstance()?.getWindow();
     if (!win) {
-      showNotice(t('loot.openPlayerView'));
+      if (handed) this.notify();
+      else showNotice(t('loot.openPlayerView'));
       return;
     }
     // Rebuilt in a new player window, or when the page dropped it.
@@ -72,6 +90,7 @@ export class PlayerLootDisplay {
   dispose(): void {
     this.unmount();
     this.items = [];
+    this.handed = new Set();
     this.notify();
   }
 

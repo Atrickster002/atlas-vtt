@@ -1,6 +1,6 @@
 import { GM_AUTHOR, type RollEntry } from '../../protocol/index.ts';
 import { mountLogSurface, type LogActions, type LogState, type LogSurfaceMount, type Portrait, type RollFace, type SpeakerOption } from '../../tableLog/index.ts';
-import type { LogSpeaker } from '../../protocol/index.ts';
+import type { ImageEntry, LogSpeaker } from '../../protocol/index.ts';
 import type { SceneStore } from '../atlasView.ts';
 import { detached } from '../dock/dockDom.ts';
 import { openThroughAtlas, takeOverDiceLog } from './diceLogTakeover.ts';
@@ -18,6 +18,8 @@ export interface TableLogMountDeps {
   /** Whom the GM may speak as, by the scene's state. */
   speakers(state: ReturnType<SceneStore['getState']>): readonly SpeakerOption[];
   speakerPortrait(speaker: LogSpeaker): Portrait | null;
+  /** An image the GM showed, from the vault. */
+  imageSrc(entry: ImageEntry): string | null;
   /** The log opened over the place of the view's other surfaces, which make way. */
   opened(): void;
 }
@@ -107,6 +109,7 @@ export class TableLogMount {
       rollFace: (entry) => this.deps.rollFace(entry),
       speakers: this.deps.speakers(this.store.getState()),
       speakerPortrait: (speaker) => this.deps.speakerPortrait(speaker),
+      imageSrc: (entry) => this.deps.imageSrc(entry),
       open: this.open,
       // Through Atlas's own switch, as a press of Enter opens it.
       onOpen: () => void (openThroughAtlas(this.store) || this.setOpen(true)),

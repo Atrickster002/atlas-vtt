@@ -1,6 +1,6 @@
 import type { GmMessage, RollMode, RollRequestRef, SharedRoll } from '../../protocol/index.ts';
 import type { ChatDraft, SpokenAs } from './logChat.ts';
-import type { RollFace } from './logEntries.ts';
+import type { GmLogEntry, RollFace } from './logEntries.ts';
 
 export type { ChatDraft, SpokenAs };
 
@@ -56,3 +56,17 @@ export interface LoggedRoll {
 }
 
 export type { RollRequest } from './logChat.ts';
+
+/** A roll as the log keeps it, with what only the GM's log has (`hidden`, `face`, `speakerArt`). */
+export function rollEntry(stamp: Pick<GmLogEntry, 'id' | 'at' | 'who' | 'name'>, roll: LoggedRoll): GmLogEntry {
+  return {
+    ...stamp, kind: 'roll', roll: roll.roll, token: roll.token,
+    ...(!roll.shared && { hidden: true as const }),
+    ...(roll.face !== undefined && { face: roll.face }),
+    ...(roll.mode !== undefined && roll.to !== undefined && { mode: roll.mode, to: roll.to }),
+    ...(roll.flavor !== undefined && { flavor: roll.flavor }),
+    ...(roll.speaker !== undefined && { speaker: roll.speaker.speaker }),
+    ...(roll.speaker !== undefined && roll.speaker.art !== null && { speakerArt: roll.speaker.art }),
+    ...(roll.request !== undefined && { request: roll.request }),
+  };
+}

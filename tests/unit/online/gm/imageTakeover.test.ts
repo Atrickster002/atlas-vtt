@@ -72,6 +72,7 @@ function setup(): { atlas: AtlasDisplay; table: { share: FakeShare | null }; not
   const ports: ImageTakeoverPorts<string> = {
     share: () => table.share,
     readFile: (file) => Promise.resolve(files.get(file) ?? null),
+    pathOf: (file) => `images/${file}.png`,
     localWindowOpen: () => atlas.windowOpen,
     notice: (text) => void notices.push(text),
   };

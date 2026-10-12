@@ -23,8 +23,9 @@ export function rollFaceOf(source: DiceRollResult['source'], tokens: Readonly<Re
  * An entry as the GM keeps it: what players are sent, and beside it what only the GM's log has.
  * `hidden`: players never get the entry (a GM's roll they are not shown). `face`: the roll's token.
  * `speakerArt`: the vault path of the speaking token's artwork, which its viewers may be sent.
+ * `imageFile`: the vault path of an image the GM showed, which players may be sent while it is logged.
  */
-export type GmLogEntry = LogEntry & { readonly hidden?: true; readonly face?: RollFace; readonly speakerArt?: string };
+export type GmLogEntry = LogEntry & { readonly hidden?: true; readonly face?: RollFace; readonly speakerArt?: string; readonly imageFile?: string };
 
 /** The token the GM's log names for an entry, when it holds one. */
 export function faceOf(entry: LogEntry): RollFace | undefined {
@@ -33,7 +34,7 @@ export function faceOf(entry: LogEntry): RollFace | undefined {
 
 /** An entry as players are sent it: without what only the GM's log has. */
 export function sharedEntry(entry: GmLogEntry): LogEntry {
-  const { hidden: _hidden, face: _face, speakerArt: _art, ...shared } = entry;
+  const { hidden: _hidden, face: _face, speakerArt: _art, imageFile: _file, ...shared } = entry;
   return shared;
 }
 
@@ -106,12 +107,14 @@ function readLogEntries(saved: unknown): GmLogEntry[] {
     const entry = parseLogEntry(value);
     if (entry === null || !isRecord(value)) continue;
     const face = entry.kind === 'roll' ? readFace(value.face) : undefined;
-    const speakerArt = typeof value.speakerArt === 'string' && value.speakerArt !== '' && value.speakerArt.length <= MAX_FACE_TEXT ? value.speakerArt : undefined;
+    const speakerArt = vaultPath(value.speakerArt);
+    const imageFile = entry.kind === 'image' ? vaultPath(value.imageFile) : undefined;
     entries.push({
       ...entry,
       ...(value.hidden === true && { hidden: true as const }),
       ...(face !== undefined && { face }),
       ...(speakerArt !== undefined && { speakerArt }),
+      ...(imageFile !== undefined && { imageFile }),
     });
   }
   return entries;
@@ -120,4 +123,19 @@ function readLogEntries(saved: unknown): GmLogEntry[] {
 /** The vault path of a speaker's artwork the entries show, by its hash. */
 export function speakerArtIn(entries: readonly GmLogEntry[], hash: string): string | undefined {
   return entries.find((entry) => entry.speakerArt !== undefined && 'speaker' in entry && entry.speaker?.art?.hash === hash)?.speakerArt;
+}
+
+/** The vault path of an image the GM showed that the entries hold, by its hash. */
+export function imageFileIn(entries: readonly GmLogEntry[], hash: string): string | undefined {
+  return entries.find((entry) => entry.kind === 'image' && entry.image.hash === hash && entry.imageFile !== undefined)?.imageFile;
+}
+
+/** A vault path as kept with an entry, or undefined. */
+function vaultPath(value: unknown): string | undefined {
+  return typeof value === 'string' && value !== '' && value.length <= MAX_FACE_TEXT ? value : undefined;
+}
+
+/** Whether an entry takes reactions: what was said, rolled, shown or handed out. */
+export function takesReactions(entry: LogEntry): entry is Extract<LogEntry, { readonly kind: 'chat' | 'roll' | 'image' | 'loot' }> {
+  return entry.kind === 'chat' || entry.kind === 'roll' || entry.kind === 'image' || entry.kind === 'loot';
 }

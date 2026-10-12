@@ -1,6 +1,7 @@
 import { GM_AUTHOR, inlineMarks, isAuthor, MAX_FLAVOR, parseAudience, parsePeople, parseSpeaker, shownLine, type ChatStyle, type LogSpeaker } from './chat.ts';
 import { parseSharedRoll, type SharedRoll } from './dice.ts';
 import { chatText, isLogId, isLogReaction, isTime, LOG_REACTIONS, LOG_REFUSALS, MAX_LOG_ENTRIES, MAX_REPLY_PREVIEW, type ChatRefusal, type LogEntry, type LogMessage, type LogReaction, type LogReply, type PlayerChat, type PlayerLogMessage, type RollRequestRef } from './log.ts';
+import { parseLootCard, parseShownImageRef } from './logShown.ts';
 import { MAX_PLAYERS, playerName, UNSEEN, UNSHOWN } from './relay.ts';
 import { isRecord } from './shape.ts';
 import { TOKEN_ID_PATTERN } from './tokens.ts';
@@ -117,6 +118,16 @@ export function parseLogEntry(value: unknown): LogEntry | null {
   const reactions = parseReactions(value.reactions);
   if (reactions === null) return null;
   if (value.kind === 'roll') return parseRollEntry(value, base, reactions);
+  // What the GM showed or handed out is the GM's alone to log.
+  if ((value.kind === 'image' || value.kind === 'loot') && value.who !== GM_AUTHOR) return null;
+  if (value.kind === 'image') {
+    const shown = parseShownImageRef(value);
+    return shown === null ? null : { ...base, kind: 'image', ...shown, ...(reactions !== undefined && { reactions }) };
+  }
+  if (value.kind === 'loot') {
+    const item = parseLootCard(value.item);
+    return item === null ? null : { ...base, kind: 'loot', item, ...(reactions !== undefined && { reactions }) };
+  }
   return value.kind === 'chat' ? parseChatEntry(value, base, reactions) : null;
 }
 
