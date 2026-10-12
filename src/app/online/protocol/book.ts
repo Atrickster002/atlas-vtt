@@ -1,28 +1,26 @@
 import { isSide, parseAsset, type AssetRef } from './asset.ts';
+import { MAX_BOOK_PINS, MAX_BOOK_QUESTS, parseBookPin, parseBookQuest, type BookPin, type BookQuest } from './bookMap.ts';
 import { DEFAULT_BOOK_SLOTS, parseBookSlots, parseEquipped, parseSlotMessage, settledEquipped, type BookSlots, type Equipped, type SlotMessage } from './bookSlots.ts';
 import { bookLine, bookText } from './bookText.ts';
 import { isRecord } from './shape.ts';
 import { MAX_TOKEN_VALUE } from './tokenUI.ts';
 
+export * from './bookMap.ts';
+
 /** What a player's book holds at most. */
 export const MAX_BOOK_ITEMS = 200;
 export const MAX_BOOK_NOTES = 60;
-export const MAX_BOOK_PINS = 120;
 export const MAX_PURSE_ROWS = 6;
 export const MAX_SHEET_RESOURCES = 6;
 /** The longest texts of a book, in characters. A note's body is as long as one player frame carries. */
 export const MAX_BOOK_TITLE = 80;
 export const MAX_NOTE_BODY = 2000;
-export const MAX_PIN_BODY = 600;
 export const MAX_ITEM_TEXT = 4000;
 export const MAX_ITEM_PROPERTIES = 16;
 export const MAX_ITEM_VALUE = 200;
 export const MAX_COIN_NAME = 24;
 /** An item's, note's or pin's id: 96 random bits in hex, made by whoever made the thing. */
 export const BOOK_ID_PATTERN = /^[0-9a-f]{24}$/;
-/** What a pin on the world map marks. */
-export const PIN_KINDS = ['note', 'treasure', 'danger', 'place', 'person'] as const;
-export type PinKind = (typeof PIN_KINDS)[number];
 /** The ladder an item's rarity is coloured by; null for a rarity outside it. */
 export const ITEM_TONES = ['common', 'uncommon', 'rare', 'epic', 'legendary'] as const;
 export type ItemTone = (typeof ITEM_TONES)[number];
@@ -62,26 +60,17 @@ export interface BookItem {
   readonly at: number;
 }
 
-/** A note as its player writes it; shown as text only. */
+/** A note as its player writes it; shown as text only. A note written on a quest names it, and is not among the free notes. */
 export interface BookNoteDraft {
   readonly id: string;
   readonly title: string;
   readonly body: string;
+  readonly quest?: string;
 }
 
 /** A note as the GM keeps it: `at` is the GM's clock when it was last written. */
 export interface BookNote extends BookNoteDraft {
   readonly at: number;
-}
-
-/** A player's own pin on the world map: `x` and `y` are shares of the image's width and height. */
-export interface BookPin {
-  readonly id: string;
-  readonly x: number;
-  readonly y: number;
-  readonly kind: PinKind;
-  readonly title: string;
-  readonly body: string;
 }
 
 /** One kind of coin and how many of it the character carries. */
@@ -104,6 +93,8 @@ export interface PlayerBook {
   readonly items: readonly BookItem[];
   readonly notes: readonly BookNote[];
   readonly pins: readonly BookPin[];
+  /** The quests the GM gave the character, in the GM's order; a GM that gives none sends none. */
+  readonly quests: readonly BookQuest[];
   readonly purse: readonly PurseRow[];
   /** The player's slots, and which item lies in which; a GM that knows no slots sends neither (the defaults, nothing equipped). */
   readonly slots: BookSlots;
@@ -134,7 +125,6 @@ export const isPlayerBookType = (t: unknown): t is PlayerBookMessage['t'] => PLA
 const isId = (value: unknown): value is string => typeof value === 'string' && BOOK_ID_PATTERN.test(value);
 const isValue = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value) && Math.abs(value) <= MAX_TOKEN_VALUE;
 const isTime = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value) && value >= 0;
-const isShare = (value: unknown): value is number => typeof value === 'number' && value >= 0 && value <= 1;
 
 function parseList<T>(value: unknown, max: number, parse: (entry: unknown) => T | null): T[] | null {
   if (!Array.isArray(value) || value.length > max) return null;
@@ -203,19 +193,13 @@ export function parseBookNoteDraft(value: unknown): BookNoteDraft | null {
   if (!isRecord(value) || !isId(value.id)) return null;
   const title = bookLine(value.title, MAX_BOOK_TITLE, true);
   const body = bookText(value.body, MAX_NOTE_BODY);
-  return title === null || body === null ? null : { id: value.id, title, body };
+  if (title === null || body === null || (value.quest !== undefined && value.quest !== null && !isId(value.quest))) return null;
+  return isId(value.quest) ? { id: value.id, title, body, quest: value.quest } : { id: value.id, title, body };
 }
 
 function parseBookNote(value: unknown): BookNote | null {
   const draft = parseBookNoteDraft(value);
   return draft === null || !isRecord(value) || !isTime(value.at) ? null : { ...draft, at: value.at };
-}
-
-export function parseBookPin(value: unknown): BookPin | null {
-  if (!isRecord(value) || !isId(value.id) || !isShare(value.x) || !isShare(value.y) || !(PIN_KINDS as readonly unknown[]).includes(value.kind)) return null;
-  const title = bookLine(value.title, MAX_BOOK_TITLE, true);
-  const body = bookText(value.body, MAX_PIN_BODY);
-  return title === null || body === null ? null : { id: value.id, x: value.x, y: value.y, kind: value.kind as PinKind, title, body };
 }
 
 function parsePurseRow(value: unknown): PurseRow | null {
@@ -242,11 +226,12 @@ export function parsePlayerBook(value: unknown): PlayerBook | null {
   const items = distinct(parseList(value.items, MAX_BOOK_ITEMS, parseBookItem));
   const notes = distinct(parseList(value.notes, MAX_BOOK_NOTES, parseBookNote));
   const pins = distinct(parseList(value.pins, MAX_BOOK_PINS, parseBookPin));
+  const quests = value.quests === undefined ? [] : distinct(parseList(value.quests, MAX_BOOK_QUESTS, parseBookQuest));
   const purse = parsePurse(value.purse);
   const slots = value.slots === undefined ? DEFAULT_BOOK_SLOTS : parseBookSlots(value.slots);
   const equipped = value.equipped === undefined ? [] : parseEquipped(value.equipped);
-  if (character === undefined || worldMap === undefined || items === null || notes === null || pins === null || purse === null || slots === null || equipped === null) return null;
-  return { character, worldMap, items, notes, pins, purse, slots, equipped: settledEquipped(equipped, slots, items) };
+  if (character === undefined || worldMap === undefined || items === null || notes === null || pins === null || quests === null || purse === null || slots === null || equipped === null) return null;
+  return { character, worldMap, items, notes, pins, quests, purse, slots, equipped: settledEquipped(equipped, slots, items) };
 }
 
 /** A book message as the page reads it, or null for anything malformed. */

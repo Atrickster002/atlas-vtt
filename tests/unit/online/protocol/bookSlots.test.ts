@@ -47,7 +47,7 @@ describe('a book\'s slots', () => {
   it('read what a book sends as it is kept: an item equipped into a hidden slot is back in the bag', () => {
     const item = { id: ROPE, name: 'Rope', type: null, rarity: null, tone: null, price: null, description: null, properties: [], at: 1 };
     const book = { character: null, worldMap: null, items: [item], notes: [], pins: [], purse: [], slots: SLOTS, equipped: [{ slot: 'ammunition', item: ROPE }] };
-    expect(parseGmMessage({ t: 'book', book })).toEqual({ t: 'book', book: { ...book, equipped: [] } });
+    expect(parseGmMessage({ t: 'book', book })).toEqual({ t: 'book', book: { ...book, quests: [], equipped: [] } });
   });
 });
 
