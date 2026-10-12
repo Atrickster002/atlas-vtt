@@ -15,6 +15,8 @@ const BOOK: PlayerBook = {
   notes: [{ id: ID, title: 'Lead', body: 'Ask the miller.', at: 5 }],
   pins: [{ id: ID, x: 0.5, y: 1, kind: 'danger', title: 'Bog', body: '' }],
   purse: [{ name: 'gold', amount: 12 }],
+  slots: { hidden: ['ammunition'], own: [{ id: ID, name: 'Saddlebag' }] },
+  equipped: [{ slot: ID, item: ID }],
 };
 
 describe('book messages to a player', () => {
@@ -25,8 +27,15 @@ describe('book messages to a player', () => {
   });
 
   it('read a book without character, map or entries', () => {
-    const empty = { character: null, worldMap: null, items: [], notes: [], pins: [], purse: [] };
+    const empty = { character: null, worldMap: null, items: [], notes: [], pins: [], purse: [], slots: { hidden: [], own: [] }, equipped: [] };
     expect(parseGmMessage({ t: 'book', book: empty })).toEqual({ t: 'book', book: empty });
+  });
+
+  it('read a book of a GM that knows no slots as the default slots with nothing equipped', () => {
+    const older: Record<string, unknown> = { ...BOOK };
+    delete older.slots;
+    delete older.equipped;
+    expect(parseGmMessage({ t: 'book', book: older })).toEqual({ t: 'book', book: { ...BOOK, slots: { hidden: [], own: [] }, equipped: [] } });
   });
 
   it('refuse malformed books', () => {
@@ -42,6 +51,9 @@ describe('book messages to a player', () => {
       { ...BOOK, pins: [{ ...BOOK.pins[0], kind: 'quest' }] },
       { ...BOOK, purse: [{ name: 'gold', amount: -1 }] },
       { ...BOOK, notes: Array.from({ length: MAX_BOOK_NOTES + 1 }, () => BOOK.notes[0]) },
+      { ...BOOK, slots: { hidden: ['tail'], own: [] } },
+      { ...BOOK, slots: null },
+      { ...BOOK, equipped: [{ slot: 'head', item: 'rope' }] },
     ];
     for (const book of broken) expect(parseGmMessage({ t: 'book', book }), JSON.stringify(book).slice(0, 120)).toBeNull();
   });

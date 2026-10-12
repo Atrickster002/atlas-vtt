@@ -1,5 +1,6 @@
 export * from './asset.ts';
 export * from './book.ts';
+export * from './bookSlots.ts';
 export * from './bookText.ts';
 export * from './build.ts';
 export * from './claims.ts';

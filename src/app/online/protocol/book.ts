@@ -1,4 +1,5 @@
 import { isSide, parseAsset, type AssetRef } from './asset.ts';
+import { DEFAULT_BOOK_SLOTS, parseBookSlots, parseEquipped, parseSlotMessage, settledEquipped, type BookSlots, type Equipped, type SlotMessage } from './bookSlots.ts';
 import { bookLine, bookText } from './bookText.ts';
 import { isRecord } from './shape.ts';
 import { MAX_TOKEN_VALUE } from './tokenUI.ts';
@@ -104,6 +105,9 @@ export interface PlayerBook {
   readonly notes: readonly BookNote[];
   readonly pins: readonly BookPin[];
   readonly purse: readonly PurseRow[];
+  /** The player's slots, and which item lies in which; a GM that knows no slots sends neither (the defaults, nothing equipped). */
+  readonly slots: BookSlots;
+  readonly equipped: readonly Equipped[];
 }
 
 /** Sent to one player: their book whole, the character alone once only it changed, or an item just handed over. */
@@ -118,10 +122,11 @@ export type PlayerBookMessage =
   | { readonly t: 'book-note-delete'; readonly id: string }
   | { readonly t: 'book-pin'; readonly pin: BookPin }
   | { readonly t: 'book-pin-delete'; readonly id: string }
-  | { readonly t: 'book-purse'; readonly purse: readonly PurseRow[] };
+  | { readonly t: 'book-purse'; readonly purse: readonly PurseRow[] }
+  | SlotMessage;
 
 const GM_TYPES: readonly unknown[] = ['book', 'book-sheet', 'book-item'];
-const PLAYER_TYPES: readonly unknown[] = ['book-note', 'book-note-delete', 'book-pin', 'book-pin-delete', 'book-purse'];
+const PLAYER_TYPES: readonly unknown[] = ['book-note', 'book-note-delete', 'book-pin', 'book-pin-delete', 'book-purse', 'book-equip', 'book-slots'];
 
 export const isBookType = (t: unknown): t is BookMessage['t'] => GM_TYPES.includes(t);
 export const isPlayerBookType = (t: unknown): t is PlayerBookMessage['t'] => PLAYER_TYPES.includes(t);
@@ -238,8 +243,10 @@ export function parsePlayerBook(value: unknown): PlayerBook | null {
   const notes = distinct(parseList(value.notes, MAX_BOOK_NOTES, parseBookNote));
   const pins = distinct(parseList(value.pins, MAX_BOOK_PINS, parseBookPin));
   const purse = parsePurse(value.purse);
-  if (character === undefined || worldMap === undefined || items === null || notes === null || pins === null || purse === null) return null;
-  return { character, worldMap, items, notes, pins, purse };
+  const slots = value.slots === undefined ? DEFAULT_BOOK_SLOTS : parseBookSlots(value.slots);
+  const equipped = value.equipped === undefined ? [] : parseEquipped(value.equipped);
+  if (character === undefined || worldMap === undefined || items === null || notes === null || pins === null || purse === null || slots === null || equipped === null) return null;
+  return { character, worldMap, items, notes, pins, purse, slots, equipped: settledEquipped(equipped, slots, items) };
 }
 
 /** A book message as the page reads it, or null for anything malformed. */
@@ -274,6 +281,9 @@ export function parsePlayerBookMessage(value: Record<string, unknown>): PlayerBo
       const purse = parsePurse(value.purse);
       return purse === null ? null : { t: 'book-purse', purse };
     }
+    case 'book-equip':
+    case 'book-slots':
+      return parseSlotMessage(value);
     default:
       return null;
   }

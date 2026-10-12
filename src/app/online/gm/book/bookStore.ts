@@ -1,6 +1,6 @@
 import {
-  isRecord, MAX_BOOK_ITEMS, MAX_BOOK_NOTES, MAX_BOOK_PINS, parseBookItem, parseBookNoteDraft, parseBookPin, parsePurse,
-  type BookItem, type BookNote, type BookPin, type PlayerBookMessage, type PurseRow,
+  DEFAULT_BOOK_SLOTS, isRecord, MAX_BOOK_ITEMS, MAX_BOOK_NOTES, MAX_BOOK_PINS, mayEquip, parseBookItem, parseBookNoteDraft, parseBookPin, parseBookSlots, parseEquipped, parsePurse, settledEquipped, withEquipped,
+  type BookItem, type BookNote, type BookPin, type BookSlots, type Equipped, type PlayerBookMessage, type PurseRow,
 } from '../../protocol/index.ts';
 
 /** What the GM keeps of one character's book; its sheet and the world map are read from the scene each time. */
@@ -9,6 +9,9 @@ export interface StoredBook {
   readonly notes: readonly BookNote[];
   readonly pins: readonly BookPin[];
   readonly purse: readonly PurseRow[];
+  /** The player's slots and what lies in them: only items of this book, only in slots it shows. */
+  readonly slots: BookSlots;
+  readonly equipped: readonly Equipped[];
 }
 
 /**
@@ -20,7 +23,7 @@ export type BookData = Readonly<Record<string, Readonly<Record<string, StoredBoo
 /** The collection of a scene that lies in none. */
 export const NO_COLLECTION = '';
 
-export const EMPTY_BOOK: StoredBook = { items: [], notes: [], pins: [], purse: [] };
+export const EMPTY_BOOK: StoredBook = { items: [], notes: [], pins: [], purse: [], slots: DEFAULT_BOOK_SLOTS, equipped: [] };
 
 /** The longest collection id or character key read back. */
 const MAX_KEY = 1000;
@@ -40,7 +43,9 @@ const without = <T extends Entry>(list: readonly T[], id: string): readonly T[] 
 /**
  * A book after what its player wrote, as the protocol's parser cleaned it: a note or pin is put in
  * place of the one of its id or added, a deletion takes one away (none is no error), the purse is
- * replaced whole. A note is stamped with `now`, the GM's clock. Null when the book takes no more.
+ * replaced whole. A note is stamped with `now`, the GM's clock. An item goes into a slot only where
+ * the book holds it and shows the slot; slots are replaced whole, and an item whose slot went is back
+ * in the bag. Null when the book takes no more, or not this.
  */
 export function applyBookMessage(book: StoredBook, message: PlayerBookMessage, now: number): StoredBook | null {
   switch (message.t) {
@@ -58,16 +63,21 @@ export function applyBookMessage(book: StoredBook, message: PlayerBookMessage, n
       return { ...book, pins: without(book.pins, message.id) };
     case 'book-purse':
       return { ...book, purse: message.purse };
+    case 'book-equip':
+      return mayEquip(book, message.item, message.slot) ? { ...book, equipped: withEquipped(book.equipped, message.item, message.slot) } : null;
+    case 'book-slots':
+      return { ...book, slots: message.slots, equipped: settledEquipped(book.equipped, message.slots, book.items) };
   }
 }
 
 /** A book with an item handed over: the newest last, the oldest dropped beyond `MAX_BOOK_ITEMS`. */
 export function withItem(book: StoredBook, item: BookItem): StoredBook {
-  return { ...book, items: [...without(book.items, item.id), item].slice(-MAX_BOOK_ITEMS) };
+  const items = [...without(book.items, item.id), item].slice(-MAX_BOOK_ITEMS);
+  return { ...book, items, equipped: settledEquipped(book.equipped, book.slots, items) };
 }
 
 export function isEmptyBook(book: StoredBook): boolean {
-  return book.items.length + book.notes.length + book.pins.length + book.purse.length === 0;
+  return book.items.length + book.notes.length + book.pins.length + book.purse.length + book.slots.hidden.length + book.slots.own.length === 0;
 }
 
 /** The entries of a stored list that are well-formed, each id once, the last `max` of them. */
@@ -88,17 +98,22 @@ function readNote(value: unknown): BookNote | null {
 
 function readBook(value: unknown): StoredBook | null {
   if (!isRecord(value)) return null;
+  const items = readList(value.items, MAX_BOOK_ITEMS, parseBookItem);
+  const slots = parseBookSlots(value.slots) ?? DEFAULT_BOOK_SLOTS;
   return {
-    items: readList(value.items, MAX_BOOK_ITEMS, parseBookItem),
+    items,
     notes: readList(value.notes, MAX_BOOK_NOTES, readNote),
     pins: readList(value.pins, MAX_BOOK_PINS, parseBookPin),
     purse: parsePurse(value.purse) ?? [],
+    slots,
+    equipped: settledEquipped(parseEquipped(value.equipped) ?? [], slots, items),
   };
 }
 
 /**
  * The books read from the companion's data, each part through the protocol's own parsers: an entry
- * that is malformed is dropped and the rest of its book kept, a purse that is malformed is empty.
+ * that is malformed is dropped and the rest of its book kept, a purse that is malformed is empty,
+ * slots that are malformed are the defaults, and what was equipped malformed lies in the bag.
  */
 export function readBooks(data: unknown): BookData {
   const collections: [string, Record<string, StoredBook>][] = [];

@@ -216,8 +216,8 @@ export class BookShare implements LootRecipientSource {
     this.owed.delete(player);
     if (!this.isOnline(player)) return;
     const character = this.characters.of(player);
-    const { items, notes, pins, purse } = character === null ? EMPTY_BOOK : this.shelf.of(character.collection, character.key);
-    const book: PlayerBook = { character: character?.sheet ?? null, worldMap: this.worldMap?.map ?? null, items, notes, pins, purse };
+    const { items, notes, pins, purse, slots, equipped } = character === null ? EMPTY_BOOK : this.shelf.of(character.collection, character.key);
+    const book: PlayerBook = { character: character?.sheet ?? null, worldMap: this.worldMap?.map ?? null, items, notes, pins, purse, slots, equipped };
     this.sent.set(player, sentOf(character, this.worldMap));
     this.bookAt.set(player, this.ports.now());
     this.ports.send({ t: 'book', book }, player);
