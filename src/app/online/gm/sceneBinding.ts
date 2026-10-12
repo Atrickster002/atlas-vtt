@@ -1,6 +1,5 @@
 import { scaleInWindow } from './assetVariants.ts';
 import type { MeasureRules } from '../marks/index.ts';
-import type { GmMessage } from '../protocol/index.ts';
 import { type App } from 'obsidian';
 import type { GridGeometry } from '../../grid/gridDistance';
 import { resolveMeasurementSettings } from '../../grid/measurementFormat';
@@ -10,7 +9,8 @@ import { mapLayerSourceOf } from './atlasMapLayers.ts';
 import { asTokenSource, call, drawnTokenPlaces, tokenRulesOf, type SceneStore } from './atlasView.ts';
 import { companionTimers } from './companionTimers.ts';
 import { GmMarks } from './gmMarks.ts';
-import type { LoggedRoll } from './log/TableLog.ts';
+import type { GmMessage, RollRequestAnswer } from '../protocol/index.ts';
+import type { LoggedRoll, RollRequest } from './log/TableLog.ts';
 import type { SeatSource } from './playerClaims.ts';
 import type { PresentedTab } from './presentedScene.ts';
 import { PresentedStore } from './presentedStore.ts';
@@ -40,6 +40,10 @@ export interface SceneBindingPorts {
   logRoll(roll: LoggedRoll): void;
   /** The name a player goes by at the table, or null when it is not known. */
   nameOf(player: string): string | null;
+  /** The vault path of a speaker's artwork the table's log shows, by hash. */
+  logArt(hash: string): string | undefined;
+  /** The roll button of the table's log a player's roll answers, as they may roll it. */
+  rollRequest(from: string, answer: RollRequestAnswer): RollRequest | null;
 }
 
 /** Claims and releases are taken only while the presented scene is shown: a held list cannot show them. */
@@ -108,6 +112,8 @@ export function bindScene(ports: SceneBindingPorts, tab: AtlasTab, presented: Pr
     seats: heldSeats(ports.seats, () => store.held),
     randomId: () => ports.randomId(),
     logRoll: (roll) => live() && ports.logRoll(roll),
+    logArt: (hash) => ports.logArt(hash),
+    rollRequest: (from, answer) => (shown() ? ports.rollRequest(from, answer) : null),
     now: () => timers.now(),
     setTimer: (run, ms) => timers.setTimer(() => live() && run(), ms),
     clearTimer: (timer) => timers.clearTimer(timer),

@@ -27,7 +27,7 @@ interface Place {
 
 const AT_END: Place = { pinned: true, far: false, pending: 0 };
 
-const isNews = (entry: ShownEntry): boolean => entry.kind === 'chat' || entry.kind === 'roll';
+const isNews = (entry: ShownEntry): boolean => entry.kind === 'chat' || entry.kind === 'roll' || entry.kind === 'secret';
 
 /**
  * Where the list stands: it follows its end while the viewer is within `PIN_DISTANCE` of it (new

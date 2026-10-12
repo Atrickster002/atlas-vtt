@@ -38,6 +38,6 @@ export function realDice(DiceTool: DiceToolClass, rules: DiceRules, random: () =
   bus.on('dice-rolled', (result: DiceRollResult) => rolled.push(result));
   return {
     rolled, errors,
-    dice: { viewId, rollDice: (formula, source, origin) => tool.rollDice(formula, source, origin), on: (event, listener) => bus.on(event, listener), off: (event, listener) => bus.off(event, listener) },
+    dice: { viewId, rollDice: (formula, source, origin) => tool.rollDice(formula, source, origin), rules: () => tool.getDiceRules(), on: (event, listener) => bus.on(event, listener), off: (event, listener) => bus.off(event, listener) },
   };
 }

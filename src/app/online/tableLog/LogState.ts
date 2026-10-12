@@ -1,4 +1,4 @@
-import { MAX_LOG_ENTRIES, quoting, type ChatRefusal, type LogEntry, type LogMessage } from '../protocol/index.ts';
+import { MAX_LOG_ENTRIES, quoting, type ChatRefusal, type LogEntry, type LogMessage, type RollMode, type TablePerson } from '../protocol/index.ts';
 
 /** An entry as a panel shows it; `hidden`: only this viewer has it (a GM's roll the players are not shown). */
 export type ShownEntry = LogEntry & { readonly hidden?: true };
@@ -9,9 +9,21 @@ export interface LogView {
   readonly unread: number;
   /** The last refusal of something this viewer sent; `n` counts them, so the same reason twice is seen twice. */
   readonly refusal: { readonly reason: ChatRefusal; readonly n: number } | null;
+  /** Who is at the table, for whispers. */
+  readonly people: readonly TablePerson[];
 }
 
-const EMPTY: LogView = { entries: [], unread: 0, refusal: null };
+/** What the viewer chose in the composer: kept here while the panel is closed. */
+export interface ComposerChoices {
+  readonly rollMode: RollMode;
+  /** The key of the speaker chosen (`SpeakerOption.key`); null for the first option, the viewer as themselves. */
+  readonly speaker: string | null;
+  /** Who every message goes to until it is cleared; null for everyone. */
+  readonly whisperTo: readonly string[] | null;
+}
+
+const EMPTY: LogView = { entries: [], unread: 0, refusal: null, people: [] };
+const FIRST_CHOICES: ComposerChoices = { rollMode: 'public', speaker: null, whisperTo: null };
 
 /** The entries with every answer to `id` quoting `text`, or nothing once it was deleted (null); the same list where none answers it. */
 function requoted(entries: readonly ShownEntry[], id: string, text: string | null): readonly ShownEntry[] {
@@ -28,10 +40,12 @@ function newest(entries: readonly ShownEntry[]): readonly ShownEntry[] {
  * The table's log as one viewer holds it: the entries in the order they arrived, how many of them
  * came unread, and the last refusal. A panel reads it through `subscribe` and `snapshot`
  * (`useSyncExternalStore`); the player's page feeds it the GM's messages (`receive`), the GM's side
- * its own entries (`replace`).
+ * its own entries (`replace`) and who is at the table (`setPeople`). The composer's choices are read
+ * the same way (`choices`).
  */
 export class LogState {
   private view: LogView = EMPTY;
+  private chosen: ComposerChoices = FIRST_CHOICES;
   private typed = '';
   private open = false;
   /** Whether a whole log was taken before: the first one is what was there, not news. */
@@ -65,6 +79,26 @@ export class LogState {
   /** The log as it is; the same object while nothing changed. */
   readonly snapshot = (): LogView => this.view;
 
+  /** What the viewer chose in the composer; the same object while nothing changed. */
+  readonly choices = (): ComposerChoices => this.chosen;
+
+  setRollMode(rollMode: RollMode): void {
+    this.choose({ rollMode });
+  }
+
+  setSpeaker(speaker: string | null): void {
+    this.choose({ speaker });
+  }
+
+  setWhisperTo(whisperTo: readonly string[] | null): void {
+    this.choose({ whisperTo: whisperTo === null || whisperTo.length === 0 ? null : whisperTo });
+  }
+
+  /** Sets who is at the table. */
+  setPeople(people: readonly TablePerson[]): void {
+    this.set({ people });
+  }
+
   /** Takes a message of the GM about the log. */
   receive(message: LogMessage): void {
     switch (message.t) {
@@ -76,6 +110,8 @@ export class LogState {
         return this.remove(message.id);
       case 'chat-refused':
         return this.set({ refusal: { reason: message.reason, n: (this.view.refusal?.n ?? 0) + 1 } });
+      case 'people':
+        return this.setPeople(message.people);
     }
   }
 
@@ -135,15 +171,27 @@ export class LogState {
     if (id !== undefined) this.unread.delete(id);
   }
 
-  /** Whether an entry that arrives now is unread: a message or roll of someone else, with the panel closed. */
+  /** Whether an entry that arrives now is unread: a message or roll (a private one too) of someone else, with the panel closed. */
   private counts(entry: ShownEntry): boolean {
-    return !this.open && (entry.kind === 'chat' || entry.kind === 'roll') && entry.who !== this.self();
+    return !this.open && (entry.kind === 'chat' || entry.kind === 'roll' || entry.kind === 'secret') && entry.who !== this.self();
   }
 
-  private set(change: Partial<Pick<LogView, 'entries' | 'refusal'>>): void {
+  private set(change: Partial<Pick<LogView, 'entries' | 'refusal' | 'people'>>): void {
     const next: LogView = { ...this.view, ...change, unread: this.unread.size };
-    if (next.entries === this.view.entries && next.refusal === this.view.refusal && next.unread === this.view.unread) return;
+    const { entries, refusal, unread, people } = this.view;
+    if (next.entries === entries && next.refusal === refusal && next.unread === unread && next.people === people) return;
     this.view = next;
+    this.notify();
+  }
+
+  private choose(change: Partial<ComposerChoices>): void {
+    const keys = Object.keys(change) as (keyof ComposerChoices)[];
+    if (keys.every((key) => change[key] === this.chosen[key])) return;
+    this.chosen = { ...this.chosen, ...change };
+    this.notify();
+  }
+
+  private notify(): void {
     for (const listener of [...this.listeners]) listener();
   }
 }

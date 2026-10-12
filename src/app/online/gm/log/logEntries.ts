@@ -1,4 +1,4 @@
-import { isRecord, MAX_LOG_ENTRIES, MAX_PLAYERS, parseLogEntry, PLAYER_ID_PATTERN, type LogEntry } from '../../protocol/index.ts';
+import { GM_AUTHOR, isRecord, MAX_LOG_ENTRIES, MAX_PLAYERS, parseLogEntry, PLAYER_ID_PATTERN, type LogEntry } from '../../protocol/index.ts';
 import type { TokenEntity } from '../../../types';
 import type { DiceRollResult } from '../../../types/diceTypes';
 
@@ -22,8 +22,9 @@ export function rollFaceOf(source: DiceRollResult['source'], tokens: Readonly<Re
 /**
  * An entry as the GM keeps it: what players are sent, and beside it what only the GM's log has.
  * `hidden`: players never get the entry (a GM's roll they are not shown). `face`: the roll's token.
+ * `speakerArt`: the vault path of the speaking token's artwork, which its viewers may be sent.
  */
-export type GmLogEntry = LogEntry & { readonly hidden?: true; readonly face?: RollFace };
+export type GmLogEntry = LogEntry & { readonly hidden?: true; readonly face?: RollFace; readonly speakerArt?: string };
 
 /** The token the GM's log names for an entry, when it holds one. */
 export function faceOf(entry: LogEntry): RollFace | undefined {
@@ -32,8 +33,35 @@ export function faceOf(entry: LogEntry): RollFace | undefined {
 
 /** An entry as players are sent it: without what only the GM's log has. */
 export function sharedEntry(entry: GmLogEntry): LogEntry {
-  const { hidden: _hidden, face: _face, ...shared } = entry;
+  const { hidden: _hidden, face: _face, speakerArt: _art, ...shared } = entry;
   return shared;
+}
+
+/** Whether an entry goes to everyone alike: no whisper, no private roll, nothing only the GM has. */
+export function isOpen(entry: GmLogEntry): boolean {
+  return entry.hidden !== true && !('to' in entry && entry.to !== undefined);
+}
+
+/** Who sees an entry whole: its author and its audience; everyone where it has none. */
+export function seesWhole(entry: LogEntry, viewer: string): boolean {
+  if (entry.kind !== 'chat' && entry.kind !== 'roll') return true;
+  if (entry.to === undefined) return true;
+  // A blind roll's author learns only that they rolled.
+  const author = entry.kind === 'chat' || entry.mode !== 'blind' ? entry.who === viewer : false;
+  return author || entry.to.includes(viewer);
+}
+
+/**
+ * An entry as one viewer is sent it (`'gm'` or a player's id): whole, a line that a roll was made
+ * in private, or nothing (a whisper to others, a GM's roll players are not shown).
+ */
+export function viewOf(entry: GmLogEntry, viewer: string): LogEntry | null {
+  if (entry.hidden === true) return viewer === GM_AUTHOR ? sharedEntry(entry) : null;
+  if (seesWhole(entry, viewer)) return sharedEntry(entry);
+  if (entry.kind !== 'roll' || entry.mode === undefined) return null;
+  // Who spoke is no part of the line: a hidden NPC would be named by it.
+  const { id, at, who, name, mode } = entry;
+  return { id, at, who, name, kind: 'secret', mode };
 }
 
 const encoder = new TextEncoder();
@@ -78,7 +106,18 @@ function readLogEntries(saved: unknown): GmLogEntry[] {
     const entry = parseLogEntry(value);
     if (entry === null || !isRecord(value)) continue;
     const face = entry.kind === 'roll' ? readFace(value.face) : undefined;
-    entries.push({ ...entry, ...(value.hidden === true && { hidden: true as const }), ...(face !== undefined && { face }) });
+    const speakerArt = typeof value.speakerArt === 'string' && value.speakerArt !== '' && value.speakerArt.length <= MAX_FACE_TEXT ? value.speakerArt : undefined;
+    entries.push({
+      ...entry,
+      ...(value.hidden === true && { hidden: true as const }),
+      ...(face !== undefined && { face }),
+      ...(speakerArt !== undefined && { speakerArt }),
+    });
   }
   return entries;
+}
+
+/** The vault path of a speaker's artwork the entries show, by its hash. */
+export function speakerArtIn(entries: readonly GmLogEntry[], hash: string): string | undefined {
+  return entries.find((entry) => entry.speakerArt !== undefined && 'speaker' in entry && entry.speaker?.art?.hash === hash)?.speakerArt;
 }

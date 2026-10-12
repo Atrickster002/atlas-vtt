@@ -7,6 +7,7 @@ import { companionTimers, every } from './companionTimers.ts';
 import type { CreatedTable } from './createdTable.ts';
 import { ImageShare } from './image/ImageShare.ts';
 import { PAUSED_TEXT, TableGate, type GateSettings } from './joinGate.ts';
+import { gmRoll, type GmRollDraft, type GmRollRefusal } from './log/gmRolls.ts';
 import { TableLog } from './log/TableLog.ts';
 import type { Ownership } from './ownership.ts';
 import { presentedScene, presentedSceneSource } from './presentedScene.ts';
@@ -97,6 +98,8 @@ export class OnlineTable {
       setTimer: (run, ms) => timers.setTimer(run, ms),
       clearTimer: (timer) => timers.clearTimer(timer),
       changed: () => events.log(),
+      speaker: (who, key) => this.bound()?.share.dice.speaker(who, key) ?? Promise.resolve(null),
+      rollInline: (formula) => this.bound()?.share.dice.quietRoll(formula) ?? null,
     }, savedLog);
     this.image = new ImageShare({
       send: (body, to) => this.connection.send(body, to),
@@ -117,6 +120,8 @@ export class OnlineTable {
         isLive: (binding) => this.watch.isLive(binding),
         randomId: () => randomHex(12),
         logRoll: (roll) => this.log.rolled(roll),
+        logArt: (hash) => this.log.speakerArt(hash),
+        rollRequest: (from, answer) => this.log.requestOf(from, answer),
         nameOf: (player) => ownership.nameOf(player),
       }, tab, presented),
       lost: (reason) => {
@@ -182,6 +187,12 @@ export class OnlineTable {
   /** How the table's connection went, for feedback's diagnostics. */
   connectionStats(): ConnectionStats {
     return this.connection.stats();
+  }
+
+  /** A GM's roll from the log (its composer, a roll button, another plugin), on the shared scene's dice. */
+  rollFromLog(draft: GmRollDraft): Promise<GmRollRefusal | null> {
+    const binding = this.bound();
+    return gmRoll(draft, this.log, binding?.share.dice ?? null, binding?.store ?? null);
   }
 
   /** Removes a player: their key stops working, their browser leaves the table and their tokens are nobody's. */

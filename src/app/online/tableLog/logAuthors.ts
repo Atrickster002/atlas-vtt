@@ -1,15 +1,20 @@
-import { GM_AUTHOR, PLAYER_COLOURS, playerColourVariable, playerTone, type LogEntry, type LogReactionEmoji } from '../protocol/index.ts';
+import { GM_AUTHOR, PLAYER_COLOURS, playerColourVariable, playerTone, type LogEntry, type LogReactionEmoji, type LogSpeaker } from '../protocol/index.ts';
+import { sameAudience } from './audience.ts';
 
 /** Rows of one author this close together read as one message block. */
 const GROUP_WINDOW_MS = 7 * 60_000;
 
+const sameSpeaker = (a: LogSpeaker | undefined, b: LogSpeaker | undefined): boolean => a?.name === b?.name && a?.token === b?.token;
+
 /**
  * Whether a row continues the one above it: the same author's chat message within seven minutes,
- * and no reply. Such a row drops its avatar and byline.
+ * said the same way (style and speaker) to the same people, and no reply. Such a row drops its
+ * avatar and byline.
  */
 export function continuesPrevious(prev: LogEntry | undefined, cur: LogEntry): boolean {
   if (prev === undefined || prev.kind !== 'chat' || cur.kind !== 'chat') return false;
   if (prev.who !== cur.who || cur.reply !== undefined) return false;
+  if (prev.style !== cur.style || !sameSpeaker(prev.speaker, cur.speaker) || !sameAudience(prev.to, cur.to)) return false;
   return Math.abs(cur.at - prev.at) < GROUP_WINDOW_MS;
 }
 

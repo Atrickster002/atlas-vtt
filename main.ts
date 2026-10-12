@@ -42,7 +42,8 @@ import { registerColorSwatchIcons } from './src/app/plugin/colorSwatchIcons';
 import { HeaderAutocompleteSuggest } from './src/app/plugin/HeaderAutocompleteSuggest';
 import { registerAtlasLinks } from './src/app/links/registerAtlasLinks';
 import { registerCommands } from './src/app/plugin/registerCommands';
-import { registerOnlinePlay } from './src/app/plugin/onlinePlay';
+import { registerOnlinePlay, type OnlinePlay } from './src/app/plugin/onlinePlay';
+import type { TableChat } from './src/app/online/gm/tableChat';
 import { registerPlayerWindowReloadCleanup } from './src/app/plugin/playerWindowReload';
 import { registerReturnToAtlasOnClose } from './src/app/plugin/returnToAtlasOnClose';
 import { runStartupMigration } from './src/app/plugin/startupMigration';
@@ -75,6 +76,13 @@ export default class AtlasVTTPlugin extends Plugin {
   get presentedScene(): PresentedSceneSource {
     return presentedSceneOf(this.app);
   }
+
+  /** The online table's log for other plugins (post, roll, prompt for rolls, hear entries); null while online play is switched off. */
+  get tableChat(): TableChat | null {
+    return this.onlinePlay?.chat() ?? null;
+  }
+
+  private onlinePlay: OnlinePlay | null = null;
 
   async onload(): Promise<void> {
     // Record errors from the very start so startup problems can be reported too.
@@ -124,6 +132,7 @@ export default class AtlasVTTPlugin extends Plugin {
     this.imageDisplayService = new ImageDisplayService(this.app);
 
     const onlinePlay = registerOnlinePlay(this, this.settingsService);
+    this.onlinePlay = onlinePlay;
     this.addSettingTab(new AtlasSettingTab(this.app, this, () => [
       navigationSettingsSection(this.settingsService),
       diceSettingsSection(this.settingsService),

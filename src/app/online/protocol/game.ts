@@ -5,7 +5,8 @@ import { parseImageMessage, type ImageMessage } from './image.ts';
 import { parseInitiative, type SharedInitiative } from './initiative.ts';
 import { parseLightingScene, parseSight, type SharedLightingScene, type SharedSight } from './lighting.ts';
 import { parseLive, type LiveMessage } from './live.ts';
-import { isPlayerLogType, parseLogMessage, parsePlayerLog, type LogMessage, type PlayerLogMessage } from './log.ts';
+import type { LogMessage, PlayerLogMessage } from './log.ts';
+import { isPlayerLogType, parseLogMessage, parsePlayerLog } from './logParse.ts';
 import { parsePlayerClaim, type PlayerClaim } from './claims.ts';
 import { parsePlayerRoll, parseRoll, parseRollRefused, type PlayerRoll, type RollMessage, type RollRefused } from './dice.ts';
 import { parseAnnotations, parseDoors, parseGrid, parseSensed, type SensedMark, type SharedAnnotations, type SharedDoor, type SharedGrid } from './mapLayers.ts';
@@ -217,6 +218,7 @@ export function parseGmMessage(value: unknown): GmMessage | null {
     case 'log-entry':
     case 'log-remove':
     case 'chat-refused':
+    case 'people':
       return parseLogMessage(value);
     case 'shown-image':
       return parseImageMessage(value);
