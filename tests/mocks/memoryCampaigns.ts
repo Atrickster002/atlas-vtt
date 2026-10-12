@@ -15,6 +15,10 @@ export function memoryCampaigns(initial: readonly StoredCampaign[] = []): Campai
     create: (entry) => set([...entries, entry]),
     update: (id, change) => set(entries.map((entry) => (entry.id === id ? change(entry) : entry))),
     remove: (id) => set(entries.filter((entry) => entry.id !== id)),
+    pathOf: (id) => {
+      const entry = entries.find((stored) => stored.id === id);
+      return entry === undefined ? null : `atlas-vtt/campaigns/${String(entry.name)}/campaign.json`;
+    },
     onChange: (listener) => {
       listeners.add(listener);
       return () => { listeners.delete(listener); };

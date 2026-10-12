@@ -44,6 +44,8 @@ import { registerAtlasLinks } from './src/app/links/registerAtlasLinks';
 import { registerCommands } from './src/app/plugin/registerCommands';
 import { CampaignFiles } from './src/app/campaigns/CampaignFiles';
 import { PlayedRules } from './src/app/campaigns/playedRules';
+import { QuestIndex } from './src/app/campaigns/quests/QuestIndex';
+import { followCampaignRenames } from './src/app/campaigns/quests/followCampaignRenames';
 import { recordCampaignPlay } from './src/app/campaigns/recordCampaignPlay';
 import { registerPartySync } from './src/app/plugin/partySync';
 import { registerOnlinePlay, type OnlinePlay } from './src/app/plugin/onlinePlay';
@@ -107,6 +109,8 @@ export default class AtlasVTTPlugin extends Plugin {
     const campaignFiles = CampaignFiles.open(this.app);
     // Every map plays by the system of the campaign this device plays, where it has one.
     PlayedRules.open(this.app, campaignFiles);
+    // Quests are notes of the vault, read from Obsidian's metadata cache; a campaign renamed here is named anew in them.
+    this.register(followCampaignRenames(this.app, campaignFiles, QuestIndex.open(this.app)));
     const campaignsRead = storageReady.catch(() => undefined).then(() => campaignFiles.load());
     void campaignsRead.catch((error: unknown) => console.error('[Atlas] Reading the campaigns failed:', error));
     // The campaign this device plays records the scenes its map views open.
@@ -203,6 +207,7 @@ export default class AtlasVTTPlugin extends Plugin {
     SystemPresetFiles.release(this.app);
     PlayedRules.release(this.app);
     CampaignFiles.release(this.app);
+    QuestIndex.release(this.app);
     this.widgetSyncService?.destroy();
     this.widgetSyncService = undefined;
 

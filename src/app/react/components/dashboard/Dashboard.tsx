@@ -63,6 +63,7 @@ export function Dashboard({ app, campaignStorage, onOpenScene, onCreateMap, onOp
           <CampaignPage
             app={app}
             campaign={openCampaign}
+            campaigns={campaigns}
             service={service}
             worldMaps={worldMaps}
             isPlaying={openCampaign.id === playingId}

@@ -1,5 +1,6 @@
 @use '../../../../../styles/tokens' as *;
 @use '../../../../../styles/mixins' as *;
+@use 'campaign-controls' as *;
 
 // Campaigns on the dashboard and a campaign's own page. Rows, panels and
 // thumbnails come from dashboard.scss.
@@ -7,17 +8,6 @@
 /// The party's faces in a dashboard row and on a campaign's page.
 $campaign-row-face: 32px;
 $campaign-page-face: 44px;
-
-/// A ghost control at Obsidian's control height: no fill until hovered.
-@mixin campaign-ghost-control {
-  @include atlas-ghost-button;
-  @include atlas-focus-ring;
-  flex-shrink: 0;
-  height: var(--input-height);
-  padding: 0 $spacing-s;
-  gap: $spacing-xs;
-  border-radius: $radius-m;
-}
 
 .campaign-field-error {
   font-size: $font-ui-smaller;

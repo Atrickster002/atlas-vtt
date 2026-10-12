@@ -311,6 +311,15 @@ export function stringifyYaml(value: unknown): string {
   return stringifyYamlImpl(value);
 }
 
+/** As Obsidian's: where a note's frontmatter lies, and where its text starts. */
+export function getFrontMatterInfo(content: string): { exists: boolean; frontmatter: string; from: number; to: number; contentStart: number } {
+  const match = /^---\r?\n(?:([\s\S]*?)\r?\n)?---[ \t]*(?:\r?\n|$)/.exec(content);
+  if (!match) return { exists: false, frontmatter: '', from: 0, to: 0, contentStart: 0 };
+  const from = content.indexOf('\n') + 1;
+  const frontmatter = match[1] ?? '';
+  return { exists: true, frontmatter, from, to: from + frontmatter.length, contentStart: match[0].length };
+}
+
 export class Modal {
   app: unknown;
   contentEl: HTMLElement;

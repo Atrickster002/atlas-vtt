@@ -83,7 +83,7 @@ describe('CampaignFiles', () => {
     service.update('c1', { description: 'Hex crawl', nextSession: '2026-10-19' });
     await campaigns.flush();
     expect(files.has(`${FOLDER}/Witherwild/campaign.json`)).toBe(false);
-    expect(JSON.parse(files.get(`${FOLDER}/The Witherwild/campaign.json`)!)).toEqual({ format: 1, id: 'c1', name: 'The Witherwild', createdAt: 1, party: ['kept'], description: 'Hex crawl', nextSession: '2026-10-19' });
+    expect(JSON.parse(files.get(`${FOLDER}/The Witherwild/campaign.json`)!)).toEqual({ format: 1, id: 'c1', name: 'The Witherwild', formerNames: ['Witherwild'], createdAt: 1, party: ['kept'], description: 'Hex crawl', nextSession: '2026-10-19' });
     service.update('c1', { description: undefined, nextSession: '' });
     await campaigns.flush();
     expect(JSON.parse(files.get(`${FOLDER}/The Witherwild/campaign.json`)!)).not.toHaveProperty('description');

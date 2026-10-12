@@ -11,12 +11,15 @@ import { CampaignSystemSetting } from './CampaignSystemSetting';
 import { campaignActivity, PlayingMark } from './CampaignRow';
 import type { WorldMapChoice } from './libraryPictures';
 import { PartyFaces } from './PartyFaces';
+import { CampaignQuests } from './quests/CampaignQuests';
 import type { PartyFace } from './useCampaignParties';
 import { WorldMapPicker } from './WorldMapPicker';
 
 interface CampaignPageProps {
   app: App;
   campaign: Campaign;
+  /** Every campaign of the vault: a quest note is matched against all of them. */
+  campaigns: readonly Campaign[];
   service: CampaignService;
   worldMaps: WorldMapChoice[];
   /** Whether this device plays the campaign. */
@@ -28,8 +31,8 @@ interface CampaignPageProps {
   onBack: () => void;
 }
 
-/** One campaign: its name, description, next session, world map and game system, edited where they stand; played from here. */
-export function CampaignPage({ app, campaign, service, worldMaps, isPlaying, onPlay, onStop, party, onBack }: CampaignPageProps): React.JSX.Element {
+/** One campaign: its name, description, quests, next session, world map and game system, edited where they stand; played from here. */
+export function CampaignPage({ app, campaign, campaigns, service, worldMaps, isPlaying, onPlay, onStop, party, onBack }: CampaignPageProps): React.JSX.Element {
   const locked = campaign.readOnly === true;
   const nextSessionId = useId();
   const worldMapId = useId();
@@ -80,6 +83,7 @@ export function CampaignPage({ app, campaign, service, worldMaps, isPlaying, onP
       <div className="campaign-page__columns">
         <div className="campaign-page__main">
           <CampaignDescriptionField campaign={campaign} service={service} disabled={locked} />
+          <CampaignQuests app={app} campaign={campaign} campaigns={campaigns} service={service} disabled={locked} />
         </div>
 
         <aside className="campaign-page__side">

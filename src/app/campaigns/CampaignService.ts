@@ -2,8 +2,9 @@ import { t } from '../i18n';
 import type { CampaignStorage } from './CampaignFiles';
 import type { Campaign, CampaignChanges, StoredCampaign } from './campaignTypes';
 import { withScenePlayed } from './campaignUsage';
-import { campaignName, isSessionDay, MAX_CAMPAIGN_DESCRIPTION, parseCampaign } from './campaignValidation';
+import { campaignName, formerCampaignNames, isSessionDay, MAX_CAMPAIGN_DESCRIPTION, parseCampaign } from './campaignValidation';
 import { isAssetId } from './campaignValues';
+import { campaignFolderOf } from './campaignPaths';
 import { readCampaignSystem, withSystemChanges } from './campaignSystem';
 
 /** The most recently played first, then the newest. */
@@ -41,9 +42,19 @@ export class CampaignService {
     return parseCampaign(stored) as Campaign;
   }
 
+  /**
+   * Renames the campaign. The name it bore is remembered among its former names, in the same write,
+   * so quest notes that still name it by that name stay its own.
+   */
   rename(id: string, name: string): void {
     this.assertName(name, id);
-    this.modify(id, (stored) => ({ ...stored, name: name.trim() }));
+    const next = name.trim();
+    this.modify(id, (stored) => {
+      const before = campaignName(stored.name);
+      if (before === null || before === next) return { ...stored, name: next };
+      const formerNames: readonly unknown[] = Array.isArray(stored.formerNames) ? stored.formerNames : [];
+      return { ...stored, name: next, formerNames: formerCampaignNames([...formerNames, before], next) };
+    });
   }
 
   /**
@@ -82,6 +93,12 @@ export class CampaignService {
   /** Deletes the campaign and everything it keeps; the assets it used stay where they are. */
   delete(id: string): void {
     if (this.get(id)?.readOnly !== true) this.storage.remove(id);
+  }
+
+  /** The campaign's folder, where what it keeps lies; null for a campaign without a file. */
+  folderOf(id: string): string | null {
+    const path = this.storage.pathOf(id);
+    return path === null ? null : campaignFolderOf(path);
   }
 
   /** Calls `listener` whenever a campaign changes, here or on another device. */

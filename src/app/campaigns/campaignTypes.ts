@@ -9,6 +9,8 @@ import type { CampaignSystem } from './campaignSystem';
 export interface Campaign {
   readonly id: string;
   readonly name: string;
+  /** The names it bore before, the latest last: a quest note naming one of them is still its own. */
+  readonly formerNames?: readonly string[];
   readonly description?: string;
   /** When it was made, and last played (milliseconds since the epoch). */
   readonly createdAt: number;
