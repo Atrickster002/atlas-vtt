@@ -2,8 +2,16 @@
 import { describe, expect, it } from 'vitest';
 import { CursorTap, type CursorCanvas, type CursorEvent, type CursorViewport } from '../../../../src/app/online/marks/CursorTap.ts';
 
-/** Lets the work queued after an event run, as the browser does once the event has run to its end. */
-const settled = (): Promise<void> => Promise.resolve();
+/** The tasks the tap put off until after the event under way, as the browser runs them later. */
+let tasks: (() => void)[] = [];
+
+/** Runs the tasks queued after the events so far, as the browser does once each event has run to its end. */
+async function settled(): Promise<void> {
+  await Promise.resolve();
+  const due = tasks;
+  tasks = [];
+  due.forEach((task) => task());
+}
 
 interface Tapped {
   readonly tap: CursorTap;
@@ -32,7 +40,8 @@ function tapped(zoom = 1): Tapped {
     addEventListener: (type: string, listener: (event: CursorEvent) => void) => void (type === 'mouseleave' ? plain.set(type, listener as () => void) : pointer.set(type, listener)),
     removeEventListener: (type: string) => void (pointer.delete(type), plain.delete(type)),
   };
-  const tap = new CursorTap(viewport, canvas, () => now);
+  tasks = [];
+  const tap = new CursorTap(viewport, canvas, () => now, (run) => void tasks.push(run));
   tap.subscribe(() => void (changes += 1));
   const event = (x: number, pointerType = 'mouse'): CursorEvent => ({ offsetX: x, offsetY: 0, pointerType });
   return {
@@ -64,6 +73,22 @@ describe('CursorTap', () => {
     await settled();
     expect(tap.take(64)).toEqual({ pts: [60, 0, 70, 0], span: 33 });
     expect(tap.movedAt()).toBe(1033);
+  });
+
+  it('pairs the pointer and the camera of one drag step, though the camera moves before the canvas hears the pointer', async () => {
+    const { tap, move, pan } = tapped();
+    move(100, 1000);
+    await settled();
+    tap.take(64);
+    // As in a browser: PIXI's listener on the document moves the camera (and says so) before the canvas hears the move.
+    for (let step = 1; step <= 5; step += 1) {
+      pan(30, 1000 + 16 * step);
+      await Promise.resolve();
+      move(100 + 30 * step, 1000 + 16 * step);
+      await settled();
+    }
+    expect(tap.at()).toEqual([100, 0]);
+    expect(tap.take(64).pts).toEqual([]);
   });
 
   it('works the place out once per event, from the pointer and the camera as the event left them', async () => {
