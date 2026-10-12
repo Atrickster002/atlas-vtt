@@ -20,8 +20,8 @@ export const DEFAULT_SLOT_NAMES: Readonly<Record<DefaultSlot, string>> = {
   hands: 'Hands',
   belt: 'Belt',
   feet: 'Feet',
-  'ring-1': 'Ring',
-  'ring-2': 'Ring',
+  'ring-1': 'Ring I',
+  'ring-2': 'Ring II',
 };
 
 /** How many slots of their own a player may add, and the longest name of one, in characters. */

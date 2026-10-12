@@ -12,7 +12,7 @@ const SLOTS: BookSlots = { hidden: ['ammunition', 'ring-2'], own: [{ id: BAG, na
 
 describe('a book\'s slots', () => {
   it('show the defaults in body order without the hidden ones, then the player\'s own', () => {
-    expect(shownSlots({ hidden: [], own: [] }).map(({ name }) => name)).toEqual(['Main hand', 'Off hand', 'Ammunition', 'Armour', 'Head', 'Neck', 'Cloak', 'Body', 'Hands', 'Belt', 'Feet', 'Ring', 'Ring']);
+    expect(shownSlots({ hidden: [], own: [] }).map(({ name }) => name)).toEqual(['Main hand', 'Off hand', 'Ammunition', 'Armour', 'Head', 'Neck', 'Cloak', 'Body', 'Hands', 'Belt', 'Feet', 'Ring I', 'Ring II']);
     const shown = shownSlots(SLOTS);
     expect(shown.map(({ id: slot }) => slot)).toEqual([...DEFAULT_SLOTS.filter((slot) => slot !== 'ammunition' && slot !== 'ring-2'), BAG]);
     expect(shown.at(-1)).toEqual({ id: BAG, name: 'Saddlebag', own: true });
