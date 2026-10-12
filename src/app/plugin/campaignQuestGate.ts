@@ -1,31 +1,42 @@
-import type { App } from 'obsidian';
+import type { App, EventRef, TAbstractFile } from 'obsidian';
 import { CampaignFiles, type CampaignStorage } from '../campaigns/CampaignFiles';
 import { CampaignPlay } from '../campaigns/campaignPlay';
 import { CampaignService } from '../campaigns/CampaignService';
 import { onPlayedCampaignChange } from '../campaigns/playedCampaign';
 import { QuestIds } from '../campaigns/quests/questIds';
 import { QuestIndex } from '../campaigns/quests/QuestIndex';
-import { readQuestBody } from '../campaigns/quests/questText';
-import type { Quest } from '../campaigns/quests/questTypes';
 import type { BookQuest } from '../online/protocol/index.ts';
-import { bookQuestOf, bookQuestOrder } from '../online/gm/book/bookQuests.ts';
+import { bookQuestOrder } from '../online/gm/book/bookQuests.ts';
 import type { QuestGate } from '../online/gm/book/questGate.ts';
-
-/** A quest as it was last handed on: kept while its note's reading (the same object) and its id stay. */
-interface HandedQuest {
-  readonly quest: Quest;
-  readonly id: string;
-  readonly book: BookQuest | null;
-}
+import { isImagePath } from './questImages';
+import { QuestHandouts } from './questHandouts';
 
 const sameList = (a: readonly BookQuest[], b: readonly BookQuest[]): boolean => a.length === b.length && a.every((quest, n) => quest === b[n]);
+
+/** Calls `listener` whenever a vault image is written, made, moved or deleted; returns what stops it. */
+function onImageChange(app: App, listener: () => void): () => void {
+  const heard = (file: TAbstractFile, oldPath?: string): void => {
+    if (isImagePath(file.path) || (oldPath !== undefined && isImagePath(oldPath))) listener();
+  };
+  const refs: EventRef[] = [
+    app.vault.on('modify', (file) => heard(file)),
+    app.vault.on('create', (file) => heard(file)),
+    app.vault.on('delete', (file) => heard(file)),
+    app.vault.on('rename', (file, oldPath) => heard(file, oldPath)),
+  ];
+  return () => {
+    for (const ref of refs) app.vault.offref(ref);
+  };
+}
 
 /**
  * The quests players read are the quest notes of the campaign this device plays: none while it
  * plays none. They may be others whenever another campaign (or none) is played, a campaign changes,
- * or a quest note is written, added, moved or deleted. A note is given its id the first time it is
- * handed on, should it have none. Only notes that changed are read again, and the answer is the
- * same array while no quest changed, so books compare it by identity.
+ * a quest note is written, added, moved or deleted, or an image a quest's text embeds changes. A
+ * note is given its id the first time it is handed on, should it have none. Only notes that changed
+ * are read again (`QuestHandouts`), and the answer is the same array while no quest changed, so
+ * books compare it by identity. The assets of the quests last answered (whole texts, images) are
+ * served by hash; nothing else is.
  */
 export function campaignQuestGate(
   app: App,
@@ -34,18 +45,8 @@ export function campaignQuestGate(
   index: () => QuestIndex | undefined = () => QuestIndex.forApp(app),
 ): QuestGate {
   const ids = new QuestIds(app);
-  const handed = new Map<string, HandedQuest>();
+  const handouts = new QuestHandouts(app);
   let last: readonly BookQuest[] = [];
-
-  const bookOf = async (quest: Quest, id: string | undefined): Promise<BookQuest | null> => {
-    if (id === undefined) return null;
-    const known = handed.get(quest.path);
-    if (known !== undefined && known.quest === quest && known.id === id) return known.book;
-    const body = await readQuestBody(app, quest.path).catch(() => null);
-    const book = body === null ? null : bookQuestOf(quest, id, body);
-    handed.set(quest.path, { quest, id, book });
-    return book;
-  };
 
   const read = async (): Promise<readonly BookQuest[]> => {
     const campaigns = storage();
@@ -53,12 +54,17 @@ export function campaignQuestGate(
     const playing = play().playing();
     const list = campaigns === undefined ? [] : new CampaignService(campaigns).list();
     const campaign = playing === null ? undefined : list.find((entry) => entry.id === playing);
-    if (campaign === undefined || quests === undefined) return [];
+    if (campaign === undefined || quests === undefined) {
+      handouts.retain(new Set());
+      return [];
+    }
     const shown = bookQuestOrder(quests.of(campaign, list));
     const idOf = await ids.idsOf(quests.all(), shown);
-    const books = await Promise.all(shown.map((quest) => bookOf(quest, idOf.get(quest.path))));
-    const paths = new Set(shown.map((quest) => quest.path));
-    for (const path of [...handed.keys()]) if (!paths.has(path)) handed.delete(path);
+    const books = await Promise.all(shown.map(async (quest) => {
+      const id = idOf.get(quest.path);
+      return id === undefined ? null : handouts.of(quest, id);
+    }));
+    handouts.retain(new Set(shown.map((quest) => quest.path)));
     // Each id once: a book with an id twice would not be read.
     const kept = new Map<string, BookQuest>();
     for (const book of books) if (book !== null && !kept.has(book.id)) kept.set(book.id, book);
@@ -71,8 +77,15 @@ export function campaignQuestGate(
       if (!sameList(next, last)) last = next;
       return last;
     },
+    asset: (hash) => handouts.asset(hash),
     onChange: (listener) => {
-      const stops = [onPlayedCampaignChange(app, listener, play, storage), index()?.onChange(listener) ?? ((): void => undefined)];
+      const stops = [
+        onPlayedCampaignChange(app, listener, play, storage),
+        index()?.onChange(listener) ?? ((): void => undefined),
+        onImageChange(app, () => {
+          if (handouts.embedsImages()) listener();
+        }),
+      ];
       return () => {
         for (const stop of stops) stop();
       };

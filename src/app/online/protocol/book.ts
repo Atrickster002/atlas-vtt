@@ -8,6 +8,7 @@ import { MAX_TOKEN_VALUE } from './tokenUI.ts';
 
 export * from './bookCharacter.ts';
 export * from './bookMap.ts';
+export * from './questText.ts';
 
 /** What a player's book holds at most. */
 export const MAX_BOOK_ITEMS = 200;

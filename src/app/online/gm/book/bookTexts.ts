@@ -25,3 +25,20 @@ export function clippedText(value: string | null | undefined, max: number): stri
   const text = clipped(value, max, bookText);
   return text === null || text === '' ? null : text;
 }
+
+/**
+ * The opening of a book's text (`bookText`, already cleaned) of at most `max` characters: the whole
+ * text where it is short enough, else cut at the last line break, or the last space, in its second
+ * half, so no word is cut in two; a text without either is cut where the limit is.
+ */
+export function openingOf(text: string, max: number): string {
+  const start = head(text, max);
+  const characters = [...start];
+  if (characters.length <= max && start.length === text.length) return text;
+  const cut = characters.slice(0, max).join('');
+  const half = cut.length / 2;
+  const line = cut.lastIndexOf('\n');
+  const space = cut.search(/\s\S*$/);
+  const end = line >= half ? line : space >= half ? space : cut.length;
+  return bookText(cut.slice(0, end), max) ?? '';
+}

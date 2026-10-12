@@ -1,4 +1,6 @@
+import { parseTextAsset, type AssetRef } from './asset.ts';
 import { bookLine, bookText } from './bookText.ts';
+import { MAX_QUEST_IMAGES, parseQuestImage, type QuestImage } from './questText.ts';
 import { isRecord } from './shape.ts';
 import { MAX_TOKEN_VALUE } from './tokenUI.ts';
 
@@ -6,7 +8,7 @@ import { MAX_TOKEN_VALUE } from './tokenUI.ts';
 export const MAX_BOOK_PINS = 120;
 export const MAX_BOOK_QUESTS = 60;
 export const MAX_QUEST_REWARDS = 8;
-/** The longest texts of a pin and a quest, in characters: as long as a note's. */
+/** The longest texts of a pin and of a quest's opening, in characters: as long as a note's. A quest's whole text comes as an asset. */
 export const MAX_PIN_BODY = 2000;
 export const MAX_QUEST_BODY = 2000;
 /** The longest title of a pin, a quest or a reward. */
@@ -47,7 +49,12 @@ export interface BookQuest {
   readonly kind: QuestKind;
   readonly state: QuestState;
   readonly title: string;
+  /** The opening of its Markdown text, cut at a line or a word; the whole text where that is short enough. */
   readonly body: string;
+  /** The whole text, fetched by hash (`TEXT_MIME_TYPE`, read with `readQuestText`), where `body` is only its opening. */
+  readonly text?: AssetRef;
+  /** The images its text embeds (`questEmbeds`), each fetched by hash; none where it embeds none. */
+  readonly images?: readonly QuestImage[];
   readonly place: MapPlace | null;
   /** Experience it brings; 0 for none named. */
   readonly xp: number;
@@ -92,15 +99,30 @@ function parseRewards(value: unknown): string[] | null {
   return rewards;
 }
 
-/** A quest, cleaned; what it does not name (place, experience, rewards) is none. */
+/** A quest's images; undefined for none named, null for a list that is malformed or too long. */
+function parseImages(value: unknown): QuestImage[] | null | undefined {
+  if (value === undefined) return undefined;
+  if (!Array.isArray(value) || value.length > MAX_QUEST_IMAGES) return null;
+  const images: QuestImage[] = [];
+  for (const entry of value) {
+    const image = parseQuestImage(entry);
+    if (image === null) return null;
+    images.push(image);
+  }
+  return images;
+}
+
+/** A quest, cleaned; what it does not name (place, experience, rewards, whole text, images) is none. */
 export function parseBookQuest(value: unknown): BookQuest | null {
   if (!isRecord(value) || typeof value.id !== 'string' || !ID.test(value.id) || !oneOf(QUEST_KINDS, value.kind) || !oneOf(QUEST_STATES, value.state)) return null;
   const title = bookLine(value.title, MAX_MAP_TITLE);
   const body = bookText(value.body ?? '', MAX_QUEST_BODY);
+  const text = value.text === undefined ? undefined : parseTextAsset(value.text);
+  const images = parseImages(value.images);
   const place = parsePlace(value.place);
   const xp = value.xp ?? 0;
   const rewards = parseRewards(value.rewards);
-  if (title === null || body === null || place === undefined || rewards === null) return null;
+  if (title === null || body === null || text === null || images === null || place === undefined || rewards === null) return null;
   if (typeof xp !== 'number' || !Number.isInteger(xp) || xp < 0 || xp > MAX_TOKEN_VALUE) return null;
-  return { id: value.id, kind: value.kind, state: value.state, title, body, place, xp, rewards };
+  return { id: value.id, kind: value.kind, state: value.state, title, body, ...(text !== undefined && { text }), ...(images !== undefined && images.length > 0 && { images }), place, xp, rewards };
 }

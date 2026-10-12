@@ -20,13 +20,15 @@ export interface PictureAssets {
   map(player: string): { readonly hash: string; readonly bytes: Uint8Array; readonly mime: string } | null;
   /** The explored memory by hash, while it is the one players were sent. */
   explored(hash: string, player: string): Uint8Array | undefined;
-  /** The vault path of artwork the picture shows (a token's or an initiative portrait's), by hash. */
+  /** The vault path of artwork the picture shows (a token's or an initiative portrait's, an image of a quest's text), by hash. */
   artPath(hash: string, player: string): string | undefined;
+  /** A text the picture names by hash (a quest's whole text), as its bytes. */
+  text?(hash: string, player: string): Uint8Array | undefined;
 }
 
 /**
- * Answers players' asset requests: only for the map, the explored memory or artwork of their current
- * picture, from the chunk they ask for on, and an image larger than a longest side they ask for as a
+ * Answers players' asset requests: only for the map, the explored memory, artwork or a text of their
+ * current picture, from the chunk they ask for on, and an image larger than a longest side they ask for as a
  * scaled copy (`AssetVariants`) announced by an `asset-variant` message. Anything else is refused.
  */
 export class AssetAnswers {
@@ -44,9 +46,10 @@ export class AssetAnswers {
     const isMap = map?.hash === hash;
     const explored = isMap ? undefined : this.picture.explored(hash, from);
     const art = isMap || explored !== undefined ? undefined : this.picture.artPath(hash, from);
-    if (!isMap && explored === undefined && art === undefined) return this.refuse(hash, from);
+    const bytes = explored ?? (isMap || art !== undefined ? undefined : this.picture.text?.(hash, from));
+    if (!isMap && bytes === undefined && art === undefined) return this.refuse(hash, from);
     if (!this.served.take(from, maxSide === undefined ? hash : `${hash}@${maxSide}`, first, this.ports.now())) return;
-    if (explored !== undefined) return this.serve(hash, explored, from, first);
+    if (bytes !== undefined) return this.serve(hash, bytes, from, first);
     if (isMap) return void this.serveImage(hash, map.bytes, map.mime, from, first, maxSide);
     if (art !== undefined) void this.serveArt(hash, art, from, first, maxSide);
   }

@@ -7,6 +7,7 @@ import type { ScaleImage } from '../assetVariants.ts';
 import { every, type Timers } from '../companionTimers.ts';
 import { MoveRate } from '../moveCheck.ts';
 import { AskedAnswer } from './askedAnswer.ts';
+import { bookAssetOf, bookPicture } from './bookAssets.ts';
 import type { KnownPlayer } from '../ownership.ts';
 import type { VaultImage } from '../TokenShare.ts';
 import { bookItemOf } from './bookItem.ts';
@@ -15,6 +16,7 @@ import type { BookShelf } from './BookShelf.ts';
 import { sheetOf } from './bookSheet.ts';
 import { applyBookMessage, EMPTY_BOOK, withItem } from './bookStore.ts';
 import { Characters, type PlayedCharacter } from './characters.ts';
+import type { QuestAsset } from './questGate.ts';
 import { checkResourceEdit, type ResourceEdit } from './resourceEdit.ts';
 import type { ResourceAnswer } from './resourceWrites.ts';
 import { NO_QUESTS, sentOf, type SentBook } from './sentBook.ts';
@@ -38,6 +40,8 @@ export interface BookSharePorts extends Timers {
   worldMap(): Promise<string | null>;
   /** The quests of the campaign being played, as players read them: the same for every character. */
   quests(): Promise<readonly BookQuest[]>;
+  /** What a quest's whole text or image is served from, by hash, while the quests last answered name it. */
+  questAsset(hash: string): QuestAsset | undefined;
   /** Writes a checked edit of a player's own resource into Atlas, and answers what the resource holds then (null when it was not taken), at once or later. */
   editResource(edit: ResourceEdit, answer: ResourceAnswer): void;
   /** Scales an image for a player who asks for a longest side; without it players get originals only. */
@@ -64,11 +68,11 @@ const UNNAMED = 'Unnamed character';
  * shared scene, items, notes, pins and purse are kept on the shelf, the world map of the campaign
  * being played goes to everyone at the table, and its quests (the GM's quest notes, which no player
  * writes; their notes on one name it by its id) to every player with a character. It is the table's,
- * not a scene's, so it hears players while no scene is shared. What a player writes is taken as the protocol's parser cleaned it, only for a
- * player with a character and within their rate; a write that is refused is answered with the
- * whole book. A player changes their own character's resources through Atlas (`editResource`),
- * and the sheet that follows tells them what was taken. A player is served their own character's
- * artwork and the world map by hash, and nobody another character's.
+ * not a scene's, so it hears players while no scene is shared. What a player writes is taken as
+ * the protocol's parser cleaned it, only for a player with a character and within their rate; a
+ * refused write is answered with the whole book. A player changes their own character's resources
+ * through Atlas (`editResource`), and the sheet that follows tells them what was taken. A player is
+ * served by hash what their book names (`bookAssetOf`), and nobody another character's artwork.
  */
 export class BookShare implements LootRecipientSource {
   private readonly ports: BookSharePorts;
@@ -99,11 +103,8 @@ export class BookShare implements LootRecipientSource {
     this.art = new ArtRefs((path) => ports.readImage(path), () => this.update());
     this.maps = new WorldMaps({ stat: (path) => ports.stat(path), readImage: (path) => ports.readImage(path), source: () => ports.worldMap(), read: () => this.update() });
     this.questList = new AskedAnswer(() => ports.quests(), NO_QUESTS, () => this.update());
-    this.answers = new AssetAnswers({ send: (body, to) => ports.send(body, to), now: () => ports.now(), readImage: (path) => ports.readImage(path), scaleImage: ports.scaleImage }, {
-      map: () => null,
-      explored: () => undefined,
-      artPath: (hash, player) => this.assetPath(hash, player),
-    });
+    const picture = bookPicture((hash, player) => this.assetOf(hash, player));
+    this.answers = new AssetAnswers({ send: (body, to) => ports.send(body, to), now: () => ports.now(), readImage: (path) => ports.readImage(path), scaleImage: ports.scaleImage }, picture);
   }
 
   start(): void {
@@ -171,7 +172,7 @@ export class BookShare implements LootRecipientSource {
     if (!isRecord(body)) return false;
     if (body.t === 'asset-request') {
       const request = parsePlayerMessage(body);
-      if (request?.t !== 'asset-request' || this.assetPath(request.hash, from) === undefined) return false;
+      if (request?.t !== 'asset-request' || this.assetOf(request.hash, from) === undefined) return false;
       this.answers.answer(from, request);
       return true;
     }
@@ -277,12 +278,11 @@ export class BookShare implements LootRecipientSource {
     return true;
   }
 
-  /** The vault path of an asset only this player's book names, by hash: the world map, or their own character's artwork. */
-  private assetPath(hash: string, player: string): string | undefined {
+  /** What an asset only this player's book names is served from, by hash (`bookAssetOf`). */
+  private assetOf(hash: string, player: string): QuestAsset | undefined {
     if (!this.isOnline(player)) return undefined;
-    if (this.worldMap?.map.image.hash === hash) return this.worldMap.path;
-    const character = this.characters.of(player);
-    return character?.sheet.art?.hash === hash ? character.key : undefined;
+    const named = { worldMap: this.worldMap, character: this.characters.of(player), quests: this.sent.get(player)?.quests ?? NO_QUESTS };
+    return bookAssetOf(hash, named, (asked) => this.ports.questAsset(asked));
   }
 
   private isOnline(player: string): boolean {

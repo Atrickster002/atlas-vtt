@@ -7,7 +7,7 @@ import type { LootDraw } from '../../../../src/app/loot/lootRoller';
 import { bookItemOf } from '../../../../src/app/online/gm/book/bookItem.ts';
 import { BookShelf } from '../../../../src/app/online/gm/book/BookShelf.ts';
 import { applyBookMessage, EMPTY_BOOK, readBooks, withItem, type StoredBook } from '../../../../src/app/online/gm/book/bookStore.ts';
-import { clippedLine, clippedText } from '../../../../src/app/online/gm/book/bookTexts.ts';
+import { clippedLine, clippedText, openingOf } from '../../../../src/app/online/gm/book/bookTexts.ts';
 
 const id = (count: number): string => count.toString(16).padStart(24, '0');
 const note = (count: number, body = 'Body'): PlayerBookMessage => ({ t: 'book-note', note: { id: id(count), title: `Note ${count}`, body } });
@@ -141,5 +141,13 @@ describe('a rolled item as a book holds it', () => {
     // Cut after the second line break, which a text does not end with.
     expect(clippedText('a\r\nb\u2028c   ', 4)).toBe('a\nb');
     expect(clippedText('\n\n', 10)).toBeNull();
+  });
+
+  it('cuts the opening of a text at its last line break, else its last space, in the second half; a text without either where the limit is', () => {
+    expect(openingOf('Short.', 20)).toBe('Short.');
+    expect(openingOf('First line here.\nSecond line goes on.', 30)).toBe('First line here.');
+    expect(openingOf('One two three four five six', 15)).toBe('One two three');
+    expect(openingOf('Tiny\nsupercalifragilistic', 15)).toBe('Tiny\nsupercalif');
+    expect([...openingOf(`${'🐸'.repeat(30)} ${'𝔄'.repeat(30)}`, 40)]).toHaveLength(30);
   });
 });

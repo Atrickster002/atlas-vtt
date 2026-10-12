@@ -9,7 +9,7 @@ import type { BookScene } from './bookScene.ts';
 import { BookShare } from './BookShare.ts';
 import { writeCharacterValue } from './characterValues.ts';
 import type { ResourceWrites } from './resourceWrites.ts';
-import { gatedQuests, onQuestsChange } from './questGate.ts';
+import { gatedQuestAsset, gatedQuests, onQuestsChange } from './questGate.ts';
 import { gatedWorldMap, onWorldMapChange } from './worldMapGate.ts';
 import type { BookShelf } from './BookShelf.ts';
 
@@ -61,6 +61,7 @@ export function tableBook(ports: TableBookPorts): TableBook {
     },
     worldMap: () => gatedWorldMap(),
     quests: () => gatedQuests(),
+    questAsset: (hash) => gatedQuestAsset(hash),
     editResource: (edit, answer) => {
       if (edit.kind === 'character') return answer(writeCharacterValue(app, edit));
       const writes = ports.tokenWrites();

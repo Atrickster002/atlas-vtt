@@ -10,6 +10,8 @@ export const MAX_ASSET_BYTES = 64 * 1024 * 1024;
 
 /** Image types a map or a token's artwork may have. */
 export const IMAGE_MIME_TYPES: readonly string[] = ['image/png', 'image/jpeg', 'image/webp', 'image/gif', 'image/avif'];
+/** The type of a text players are sent by hash (a quest's whole text): Markdown in UTF-8. */
+export const TEXT_MIME_TYPE = 'text/markdown';
 
 /** An asset the client fetches by hash. */
 export interface AssetRef {
@@ -21,11 +23,16 @@ export interface AssetRef {
 export const isHash = (value: unknown): value is string => typeof value === 'string' && HASH_PATTERN.test(value);
 export const isCount = (value: unknown, max: number): value is number => typeof value === 'number' && Number.isInteger(value) && value >= 0 && value <= max;
 
-/** An asset reference, or null for anything malformed or of a type players are not sent. */
-export function parseAsset(value: unknown): AssetRef | null {
+function parseRef(value: unknown, mimes: readonly string[]): AssetRef | null {
   if (!isRecord(value) || !isHash(value.hash) || !isCount(value.size, MAX_ASSET_BYTES)) return null;
-  return typeof value.mime === 'string' && IMAGE_MIME_TYPES.includes(value.mime) ? { hash: value.hash, size: value.size, mime: value.mime } : null;
+  return typeof value.mime === 'string' && mimes.includes(value.mime) ? { hash: value.hash, size: value.size, mime: value.mime } : null;
 }
+
+/** An image's reference, or null for anything malformed or of a type players are not sent. */
+export const parseAsset = (value: unknown): AssetRef | null => parseRef(value, IMAGE_MIME_TYPES);
+
+/** A text's reference (`TEXT_MIME_TYPE`), or null for anything malformed or of another type. */
+export const parseTextAsset = (value: unknown): AssetRef | null => parseRef(value, [TEXT_MIME_TYPE]);
 
 /** The sides a player may ask an image to be scaled down to. */
 export const MIN_MAX_SIDE = 256;

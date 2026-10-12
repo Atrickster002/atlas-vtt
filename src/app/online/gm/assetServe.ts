@@ -1,4 +1,5 @@
-import { ASSET_CHUNK_BYTES, MAX_PARTS, type GmMessage } from '../protocol/index.ts';
+import { headerOf } from '../../imageProcessing/imageDimensions';
+import { ASSET_CHUNK_BYTES, IMAGE_MIME_TYPES, MAX_PARTS, type GmMessage } from '../protocol/index.ts';
 
 /** Bytes in base64, in slices small enough for `String.fromCharCode`. */
 export function toBase64(bytes: Uint8Array): string {
@@ -47,6 +48,16 @@ const MIME_TYPES: Readonly<Record<string, string>> = { png: 'image/png', jpg: 'i
 /** The image type a vault path names by its extension, or null for a type players cannot be sent. */
 export function imageMimeType(path: string): string | null {
   return MIME_TYPES[path.split('.').pop()?.toLowerCase() ?? ''] ?? null;
+}
+
+const ascii = (bytes: Uint8Array, from: number, to: number): string => String.fromCharCode(...bytes.subarray(from, to));
+
+/** The image type an image's bytes say it has, or null for bytes of a type players cannot be sent (or no image). */
+export function imageMimeOfBytes(bytes: Uint8Array): string | null {
+  if (ascii(bytes, 4, 8) === 'ftyp' && ['avif', 'avis'].includes(ascii(bytes, 8, 12))) return 'image/avif';
+  const format = headerOf(new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength))?.format;
+  const mime = format === undefined ? null : `image/${format}`;
+  return mime !== null && IMAGE_MIME_TYPES.includes(mime) ? mime : null;
 }
 
 /** How long a player's request for the asset it is being sent is ignored. */
