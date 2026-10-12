@@ -132,6 +132,28 @@ describe('the composer', () => {
   });
 });
 
+describe('a layer over the floating panel', () => {
+  it('takes Escape and presses for itself: the panel stays open under an image opened from it', () => {
+    const state = new LogState(() => ME);
+    const onClose = vi.fn();
+    const actions = { say: vi.fn(), roll: vi.fn(), edit: vi.fn(), remove: vi.fn(), react: vi.fn(), clear: vi.fn() };
+    render(<TableLogPanel state={state} actions={actions} self={ME} moderator={false} canSend speakers={SPEAKERS} variant="floating" onClose={onClose} />);
+    const layer = document.body.appendChild(document.createElement('div'));
+    layer.setAttribute('role', 'dialog');
+    layer.setAttribute('aria-modal', 'true');
+    // jsdom has no PointerEvent: a mouse event of the type carries the button.
+    const press = (target: Element): boolean => target.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, button: 0 }));
+    fireEvent.keyDown(window, { key: 'Escape' });
+    press(layer);
+    expect(onClose).not.toHaveBeenCalled();
+    layer.remove();
+    press(document.body);
+    expect(onClose).toHaveBeenCalledTimes(1);
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(onClose).toHaveBeenCalledTimes(2);
+  });
+});
+
 describe('what the GM showed or handed out', () => {
   it('shows an image by the host\'s source, opens it, and a handed-out item as its loot card', () => {
     const state = new LogState(() => ME);
