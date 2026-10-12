@@ -7,13 +7,13 @@ interface ClaimFields {
   readonly id: string;
 }
 
-/** A player claims a player token of the shared scene for themselves, or gives one of theirs back. */
-export type PlayerClaim = ({ readonly t: 'claim' } | { readonly t: 'release' }) & ClaimFields;
+/** A player claims a player token of the shared scene for themselves. Only the GM gives a token back. */
+export type PlayerClaim = { readonly t: 'claim' } & ClaimFields;
 
-/** A claim or release as the GM reads it, or null for anything malformed. */
+/** A claim as the GM reads it, or null for anything malformed. */
 export function parsePlayerClaim(value: Record<string, unknown>): PlayerClaim | null {
   const { t, scene, id } = value;
-  if (t !== 'claim' && t !== 'release') return null;
+  if (t !== 'claim') return null;
   const valid = typeof scene === 'string' && scene.length > 0 && scene.length <= MAX_SCENE_ID && typeof id === 'string' && TOKEN_ID_PATTERN.test(id);
   return valid ? { t, scene, id } : null;
 }

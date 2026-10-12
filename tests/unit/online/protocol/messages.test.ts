@@ -242,9 +242,9 @@ describe('moves', () => {
 describe('claims', () => {
   const id = '0'.repeat(24);
 
-  it('read a player\'s claim or release of a token players know, and nothing else', () => {
-    expect(parsePlayerMessage({ t: 'claim', scene: 's', id })).toEqual({ t: 'claim', scene: 's', id });
-    expect(parsePlayerMessage({ t: 'release', scene: 's', id, extra: 1 })).toEqual({ t: 'release', scene: 's', id });
+  it('read a player\'s claim of a token players know, and nothing else: no release, which is the GM\'s', () => {
+    expect(parsePlayerMessage({ t: 'claim', scene: 's', id, extra: 1 })).toEqual({ t: 'claim', scene: 's', id });
+    expect(parsePlayerMessage({ t: 'release', scene: 's', id })).toBeNull();
     for (const bad of [{ id: 'gm-token' }, { id: undefined }, { scene: '' }, { scene: 'x'.repeat(65) }, { scene: 3 }]) {
       expect(parsePlayerMessage({ t: 'claim', scene: 's', id, ...bad }), JSON.stringify(bad)).toBeNull();
     }

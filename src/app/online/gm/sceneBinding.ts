@@ -49,7 +49,7 @@ export interface SceneBindingPorts {
   rollRequest(from: string, answer: RollRequestAnswer): RollRequest | null;
 }
 
-/** Claims and releases are taken only while the presented scene is shown: a held list cannot show them. */
+/** Claims are taken only while the presented scene is shown: a held list cannot show them. */
 function heldSeats(seats: SeatSource, held: () => boolean): SeatSource {
   return {
     onlinePlayers: () => seats.onlinePlayers(),
@@ -57,7 +57,6 @@ function heldSeats(seats: SeatSource, held: () => boolean): SeatSource {
     isPlayerToken: (mapPath, tokenId, token) => seats.isPlayerToken(mapPath, tokenId, token),
     claimOf: (mapPath, tokenId, token) => seats.claimOf(mapPath, tokenId, token),
     claim: (tokenId, playerId) => !held() && seats.claim(tokenId, playerId),
-    release: (tokenId, playerId) => !held() && seats.release(tokenId, playerId),
   };
 }
 

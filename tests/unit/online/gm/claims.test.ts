@@ -75,14 +75,16 @@ describe('claims of player tokens', () => {
     expect(owners.tokensOf(ANA)).toEqual([]);
   });
 
-  it('let only its owner give a token back, which opens it to everyone again', async () => {
+  it('let no player give a token back, its owner neither: the GM does, which opens it to everyone again', async () => {
     const { share, owners, send } = await table();
     const hero = listed(share, 'hero')?.id;
     await send(ANA, 'claim', hero);
     await send(BEN, 'release', hero);
-    expect(owners.ownerOf('hero')).toBe(ANA);
     await send(ANA, 'release', hero);
-    expect(owners.ownerOf('hero')).toBeUndefined();
+    expect(owners.ownerOf('hero')).toBe(ANA);
+    expect(mineTo(share, ANA)).toEqual([hero]);
+    owners.give(['hero'], null);
+    await share.advance(TOKEN_INTERVAL_MS);
     expect(listed(share, 'hero')?.claim).toBe('open');
     expect(mineTo(share, ANA)).toEqual([]);
     await send(BEN, 'claim', hero);

@@ -174,14 +174,6 @@ export class Ownership {
     return true;
   }
 
-  /** A player gives back a token of theirs; false for anyone else's. */
-  release(tokenId: string, playerId: string): boolean {
-    if (this.owners.get(tokenId) !== playerId) return false;
-    this.owners.delete(tokenId);
-    this.changed(true);
-    return true;
-  }
-
   /** The player tokens of a scene and the tokens players were given there, each with its owner, in the scene's order. */
   seats(mapPath: string, tokens: Readonly<Record<string, TokenEntity>>): SeatInfo[] {
     const players = new Map(this.list().map((player) => [player.id, player]));
