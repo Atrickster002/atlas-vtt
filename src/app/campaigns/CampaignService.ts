@@ -4,6 +4,7 @@ import type { Campaign, CampaignChanges, StoredCampaign } from './campaignTypes'
 import { withScenePlayed } from './campaignUsage';
 import { campaignName, isSessionDay, MAX_CAMPAIGN_DESCRIPTION, parseCampaign } from './campaignValidation';
 import { isAssetId } from './campaignValues';
+import { readCampaignSystem, withSystemChanges } from './campaignSystem';
 
 /** The most recently played first, then the newest. */
 const byRecency = (a: Campaign, b: Campaign): number => (b.lastPlayed ?? 0) - (a.lastPlayed ?? 0) || b.createdAt - a.createdAt || a.name.localeCompare(b.name);
@@ -45,16 +46,24 @@ export class CampaignService {
     this.modify(id, (stored) => ({ ...stored, name: name.trim() }));
   }
 
-  /** Sets the campaign's settings; a field given as undefined is removed. */
+  /**
+   * Sets the campaign's settings; a field given as undefined is removed. `system` is changed field
+   * by field, and must leave a system Atlas can read (`readCampaignSystem`).
+   */
   update(id: string, changes: CampaignChanges): void {
     if (changes.description !== undefined && changes.description.length > MAX_CAMPAIGN_DESCRIPTION) throw new Error('The description is too long.');
     if (changes.nextSession !== undefined && changes.nextSession !== '' && !isSessionDay(changes.nextSession)) throw new Error(`Not a day: ${changes.nextSession}`);
+    const { system, ...rest } = changes;
+    const before = this.storage.entries().find((entry) => entry.id === id);
+    if (system !== undefined && readCampaignSystem(withSystemChanges(before?.system, system)) === undefined) throw new Error('Not a game system.');
     this.modify(id, (stored) => {
       const next: StoredCampaign = { ...stored };
-      for (const [key, value] of Object.entries(changes)) {
+      for (const [key, value] of Object.entries(rest)) {
         if (value === undefined || value === '') delete next[key];
         else next[key] = value;
       }
+      if (system !== undefined) next.system = withSystemChanges(stored.system, system);
+      else if ('system' in changes) delete next.system;
       return next;
     });
   }
