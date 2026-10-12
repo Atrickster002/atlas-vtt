@@ -31,7 +31,7 @@ function table(owners: Readonly<Record<string, string>>): Table {
     characters,
     read: (tokens, unseen = [], collection = 'Cairn') => {
       const scene: BookScene = {
-        mapPath: 'map', collection, worldMap: null, resources: [], tokens: Object.fromEntries(tokens.map((entry) => [entry.id, entry])),
+        mapPath: 'map', collection, resources: [], tokens: Object.fromEntries(tokens.map((entry) => [entry.id, entry])),
         shown: (ids) => new Map(tokens.filter((entry) => ids.includes(entry.id) && !unseen.includes(entry.id)).map((entry): [string, ShownRollToken] => [entry.id, { name: entry.id, imagePath: entry.imagePath, showRing: true, ringColor: undefined }])),
       };
       characters.update(scene, {
@@ -130,13 +130,13 @@ describe('which character a player plays', () => {
 });
 
 describe('the scene as the books read it', () => {
-  const lookup = { getCollectionForMap: (path: string): string | null => (path.includes('collections/Cairn/') ? 'Cairn' : null), getCollectionSettings: () => ({ conditions: [], worldMap: 'maps/world.png' }) };
+  const lookup = { getCollectionForMap: (path: string): string | null => (path.includes('collections/Cairn/') ? 'Cairn' : null), getCollectionSettings: () => ({ conditions: [] }) };
   const source = fakeTokenSource(() => sceneState(), () => undefined, () => 70);
 
-  it('names the scene\'s collection and its world map, none for a scene outside every collection', () => {
-    expect(bookSceneOf(sceneState({ mapPath: 'atlas-vtt/collections/Cairn/scenes/a.atlasmap' }), source, null, lookup)).toMatchObject({ collection: 'Cairn', worldMap: 'maps/world.png', resources: [] });
-    expect(bookSceneOf(sceneState({ mapPath: 'Scenes/Loose.atlasmap' }), source, null, lookup)).toMatchObject({ collection: '', worldMap: null });
-    expect(bookSceneOf(sceneState({ mapPath: 'Scenes/Loose.atlasmap' }), source, null, null)).toMatchObject({ collection: '', worldMap: null });
+  it('names the scene\'s collection, none for a scene outside every collection', () => {
+    expect(bookSceneOf(sceneState({ mapPath: 'atlas-vtt/collections/Cairn/scenes/a.atlasmap' }), source, null, lookup)).toMatchObject({ collection: 'Cairn', resources: [] });
+    expect(bookSceneOf(sceneState({ mapPath: 'Scenes/Loose.atlasmap' }), source, null, lookup)).toMatchObject({ collection: '' });
+    expect(bookSceneOf(sceneState({ mapPath: 'Scenes/Loose.atlasmap' }), source, null, null)).toMatchObject({ collection: '' });
   });
 
   it('is none while the scene loads, has no renderer, or lies in a collection Atlas does not know yet', () => {

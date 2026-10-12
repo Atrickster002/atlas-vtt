@@ -6,16 +6,11 @@ import type { PlayerTokenSource, SceneState } from '../atlasView.ts';
 import type { TokenRules } from '../tokenUI.ts';
 import { NO_COLLECTION } from './bookStore.ts';
 
-/** The longest vault path of a world map that is read. */
-const MAX_PATH = 1000;
-
 /** The shared scene as the players' books read it. */
 export interface BookScene {
   readonly mapPath: string;
   /** The collection the scene belongs to; `NO_COLLECTION` for a scene outside every collection. */
   readonly collection: string;
-  /** The vault path of the collection's world map, or null while it names none. */
-  readonly worldMap: string | null;
   readonly tokens: Readonly<Record<string, TokenEntity>>;
   /** The collection's resource definitions; none while they cannot be read, and then no resource is on a sheet. */
   readonly resources: readonly ResourceDefinition[];
@@ -34,11 +29,6 @@ function collectionOf(collections: CollectionLookup | null, mapPath: string): st
   return COLLECTION_FOLDER.test(mapPath) ? null : NO_COLLECTION;
 }
 
-function worldMapOf(collections: CollectionLookup | null, collection: string): string | null {
-  const path: unknown = collection === NO_COLLECTION ? undefined : collections?.getCollectionSettings(collection).worldMap;
-  return typeof path === 'string' && path !== '' && path.length <= MAX_PATH ? path : null;
-}
-
 /**
  * The scene of a shared tab for the books: its store's state, its renderer as the players' token
  * source, the definitions its tokens are drawn by and where its collection is looked up. Null while
@@ -53,7 +43,6 @@ export function bookSceneOf(state: SceneState, source: PlayerTokenSource | null,
   return {
     mapPath,
     collection,
-    worldMap: worldMapOf(collections, collection),
     tokens: state.objects.tokens,
     resources: rules?.resources ?? [],
     shown: (tokenIds) => (tokenIds.length === 0 ? new Map() : source.playerRollTokens(mapPath, tokenIds)),

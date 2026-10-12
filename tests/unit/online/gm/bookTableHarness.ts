@@ -86,9 +86,22 @@ export function cave(changes: { readonly brannoch?: Partial<TokenEntity>; readon
   return sceneState({ mapPath: MAP, background: 'maps/cave.png', objects: { ...sceneState().objects, tokens } });
 }
 
-/** The vault of the tests: the cave's map, the two heroes' artwork and the collection's world map. */
+/** The vault of the tests: the cave's map, the two heroes' artwork and the campaign's world map. */
 export function vaultFiles(): Map<string, Uint8Array> {
   return new Map([['maps/cave.png', png(700, 700)], [BRANNOCH_ART, png(4, 4)], [MIRA_ART, png(6, 6)], [WORLD_MAP, png(1200, 800)]]);
+}
+
+/** The image the world map of the campaign being played names; null while none is played or it names none. */
+let named: string | null = WORLD_MAP;
+const worldMapListeners = new Set<() => void>();
+
+/**
+ * The campaign being played names another world map, or none (another campaign is played, the
+ * GM stops playing, or edits the campaign's world map), and Atlas says so.
+ */
+export function nameWorldMap(path: string | null): void {
+  named = path;
+  for (const listener of [...worldMapListeners]) listener();
 }
 
 export interface OpenTable {
@@ -102,15 +115,22 @@ export interface OpenTable {
 
 /**
  * A table that came back with the cave presented, welcomed with these players: Ana plays Brannoch
- * and Ben plays Mira unless `owners` says otherwise. The collection `Cairn` names the world map.
+ * and Ben plays Mira unless `owners` says otherwise. The campaign being played names the world map.
  */
 export async function openTable(shelf: BookShelf, players: readonly PlayerInfo[], owners: Readonly<Record<string, string>> = { [BRANNOCH]: ANA, [MIRA]: BEN }): Promise<OpenTable> {
   workspace.files = vaultFiles();
-  // As Atlas answers, in short: an image under a maps folder is the collection's artwork, anything else in the vault is not.
-  setWorldMapGate((_collection, path) => Promise.resolve(path.includes('maps/')));
+  named = WORLD_MAP;
+  setWorldMapGate({
+    // As Atlas answers, in short: an image under a maps folder is the artwork of the map the campaign names, anything else in the vault is not.
+    worldMap: () => Promise.resolve(named?.includes('maps/') === true ? named : null),
+    onChange: (listener) => {
+      worldMapListeners.add(listener);
+      return () => void worldMapListeners.delete(listener);
+    },
+  });
   workspace.assets = {
     getCollectionForMap: (path: string) => (path.includes('collections/Cairn/') ? 'Cairn' : null),
-    getCollectionSettings: () => ({ conditions: [], worldMap: WORLD_MAP }),
+    getCollectionSettings: () => ({ conditions: [] }),
   };
   const tab = atlasTab(cave());
   tab.view.renderer = {

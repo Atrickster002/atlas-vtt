@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { App } from 'obsidian';
 import { CollectionSettingsModal } from '../../src/app/react/components/CollectionSettingsModal';
 import { WorldMapField } from '../../src/app/react/components/collection-settings/WorldMapField';
-import { collectionWorldMap, worldMapCandidates } from '../../src/app/services/worldMap';
+import { worldMapCandidates } from '../../src/app/services/worldMap';
 import { AtlasUIContext } from '../../src/app/react/root/AtlasUIContext';
 import { AssetService, type Asset } from '../../src/app/services/AssetService';
 import { SettingsService } from '../../src/app/services/SettingsService';
@@ -63,22 +63,6 @@ describe('the images a world map can be chosen from', () => {
       { name: 'Cave', sourcePath: CAVE_ART },
     ]);
     expect(candidates[0]!.previewUrl).toBe(`app://vault/${REGION_THUMB}`);
-  });
-
-  it('is shown to players only while it lies in Atlas\'s folders and is artwork of the collection', async () => {
-    const PRIVATE = 'Private/Passport.png';
-    const app = createInMemoryApp({ files: { [REGION]: 'IMG', [PRIVATE]: 'IMG', 'atlas-vtt/assets/other.webp': 'IMG' } }).app;
-    // A bundle may bring a map that names any file of the vault as its artwork.
-    const assets = [...ASSETS.slice(0, 1), { id: 'm2', type: 'map', name: 'Trap', collection: 'dungeon', tags: [], mapFilePath: PRIVATE }] as unknown as Asset[];
-    const named = (worldMap: string | undefined): Promise<string | null> => {
-      vi.spyOn(AssetService, 'getInstance').mockReturnValue({ getCollectionSettings: () => ({ conditions: [], worldMap }), getAssets: async () => assets } as unknown as AssetService);
-      return collectionWorldMap(app, 'dungeon');
-    };
-    expect(await named(REGION)).toBe(REGION);
-    expect(await named(PRIVATE)).toBeNull();
-    expect(await named('atlas-vtt/assets/../../Private/Passport.png')).toBeNull();
-    expect(await named('atlas-vtt/assets/other.webp')).toBeNull();
-    expect(await named(undefined)).toBeNull();
   });
 });
 

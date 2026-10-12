@@ -5,8 +5,8 @@ import { sha256Hex } from '../../../../src/app/online/gm/assetServe.ts';
 import { BookShelf } from '../../../../src/app/online/gm/book/BookShelf.ts';
 import { BOOK_BURST, REFUSAL_BOOK_MS } from '../../../../src/app/online/gm/book/BookShare.ts';
 import { EMPTY_BOOK, withItem } from '../../../../src/app/online/gm/book/bookStore.ts';
-import { FakeSocket, png, trigger, workspace } from './fakeTable.ts';
-import { ANA, BEN, BRANNOCH_ART, CAL, cave, delivered, MIRA_ART, ofType, openTable, vaultFiles, WORLD_MAP, type Delivered } from './bookTableHarness.ts';
+import { FakeSocket, png, workspace } from './fakeTable.ts';
+import { ANA, BEN, BRANNOCH_ART, CAL, cave, delivered, MIRA_ART, nameWorldMap, ofType, openTable, vaultFiles, WORLD_MAP, type Delivered } from './bookTableHarness.ts';
 import { advanceSettled as advance } from './settled.ts';
 
 vi.mock('obsidian', () => ({ Notice: class {}, normalizePath: (path: string) => path, requestUrl: () => Promise.resolve({ status: 201, json: null }), PluginSettingTab: class {}, Setting: class {} }));
@@ -151,35 +151,54 @@ describe('what a player\'s book lets them ask for and write', () => {
     online.stop();
   });
 
-  it('sends everyone the collection\'s world map anew when the collection names another, and none for a file players cannot be sent', async () => {
+  it('sends everyone the world map anew when the campaign played names another, and none for a file players cannot be sent', async () => {
     const { online, socket } = await openTable(new BookShelf(), PLAYERS);
     const maps = (messages: readonly Delivered[]): unknown[] => ofType(messages, 'book').map(({ to, body }) => [to, (body.book as { worldMap: { width: number } | null }).worldMap?.width ?? null]);
-    const name = (worldMap: string | undefined): void => {
-      workspace.assets = { getCollectionForMap: () => 'Cairn', getCollectionSettings: () => ({ conditions: [], worldMap }) };
-      trigger('atlas-vtt:collection-settings-changed', 'Cairn');
-    };
 
     workspace.files.set('maps/other world.png', png(640, 480));
     let since = delivered(socket).length;
-    name('maps/other world.png');
+    nameWorldMap('maps/other world.png');
     await advance(100);
     expect(maps(delivered(socket).slice(since))).toEqual([[ANA, 640], [BEN, 640]]);
 
-    // An image that is no artwork of the collection is no map, whatever the settings name: a bundle may have written them.
+    // An image that is no artwork of the map the campaign names is no map, whatever its file says: a sync tool or a hand edit may have written it.
     workspace.files.set('Private/Passport.png', png(30, 40));
-    for (const unsendable of ['maps/missing.png', 'maps/world.svg', 'Private/Passport.png', undefined]) {
+    for (const unsendable of ['maps/missing.png', 'maps/world.svg', 'Private/Passport.png', null]) {
       workspace.files.set('maps/world.svg', png(10, 10));
-      name('maps/other world.png');
+      nameWorldMap('maps/other world.png');
       await advance(100);
       since = delivered(socket).length;
-      name(unsendable);
+      nameWorldMap(unsendable);
       await advance(100);
       expect(maps(delivered(socket).slice(since))).toEqual([[ANA, null], [BEN, null]]);
     }
     // A file that is no image at all is no map either.
     workspace.files.set('maps/broken.png', new Uint8Array([1, 2, 3]));
     since = delivered(socket).length;
-    name('maps/broken.png');
+    nameWorldMap('maps/broken.png');
+    await advance(100);
+    expect(maps(delivered(socket).slice(since))).toEqual([]);
+    online.stop();
+  });
+
+  it('sends no world map while no campaign is played, and the campaign\'s once one is, also while the scene is loading', async () => {
+    const { online, socket, tab } = await openTable(new BookShelf(), PLAYERS);
+    const maps = (messages: readonly Delivered[]): unknown[] => ofType(messages, 'book').map(({ to, body }) => [to, (body.book as { worldMap: { width: number } | null }).worldMap?.width ?? null]);
+
+    let since = delivered(socket).length;
+    nameWorldMap(null);
+    await advance(100);
+    expect(maps(delivered(socket).slice(since))).toEqual([[ANA, null], [BEN, null]]);
+
+    tab.store.set({ ...cave(), isMapLoading: true });
+    await advance(1_000);
+    since = delivered(socket).length;
+    nameWorldMap(WORLD_MAP);
+    await advance(100);
+    expect(maps(delivered(socket).slice(since))).toEqual([[ANA, 1200], [BEN, 1200]]);
+    // The same image named again is not read or sent again.
+    since = delivered(socket).length;
+    nameWorldMap(WORLD_MAP);
     await advance(100);
     expect(maps(delivered(socket).slice(since))).toEqual([]);
     online.stop();

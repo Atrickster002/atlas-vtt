@@ -7,7 +7,7 @@ import type { Ownership } from '../ownership.ts';
 import type { VaultImage } from '../TokenShare.ts';
 import type { BookScene } from './bookScene.ts';
 import { BookShare } from './BookShare.ts';
-import { mayShowWorldMap } from './worldMapGate.ts';
+import { gatedWorldMap, onWorldMapChange } from './worldMapGate.ts';
 import type { BookShelf } from './BookShelf.ts';
 
 export interface TableBookPorts {
@@ -31,7 +31,7 @@ export interface TableBook {
 
 /**
  * The books of a running table in Obsidian: read from the vault and the table's ownership, told at
- * once when tokens change hands or a collection's settings change (its world map), and named to the
+ * once when tokens change hands or the world map may be another, and named to the
  * loot roller as the people an item can be handed to for as long as the table runs.
  */
 export function tableBook(ports: TableBookPorts): TableBook {
@@ -52,7 +52,7 @@ export function tableBook(ports: TableBookPorts): TableBook {
       const file = app.vault.getFileByPath(normalizePath(path));
       return file === null ? null : { mtime: file.stat.mtime, size: file.stat.size };
     },
-    mayShowWorldMap: (collection, path) => mayShowWorldMap(collection, path),
+    worldMap: () => gatedWorldMap(),
     scaleImage: scaleInWindow,
   }, ports.shelf);
   let stops: (() => void)[] = [];
@@ -60,8 +60,7 @@ export function tableBook(ports: TableBookPorts): TableBook {
     share,
     start: () => {
       if (stops.length > 0) return;
-      const settings = app.workspace.on('atlas-vtt:collection-settings-changed', () => share.settingsChanged());
-      stops = [ownership.onChange(() => share.update()), () => app.workspace.offref(settings), () => setLootRecipientSource(null), () => share.stop()];
+      stops = [ownership.onChange(() => share.update()), onWorldMapChange(() => share.worldMapChanged()), () => setLootRecipientSource(null), () => share.stop()];
       share.start();
       setLootRecipientSource(share);
     },

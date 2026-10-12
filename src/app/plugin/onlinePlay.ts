@@ -6,9 +6,9 @@ import { OnlineFeature } from '../online/gm/OnlineFeature.ts';
 import type { TableChat } from '../online/gm/tableChat.ts';
 import { onlineDataFile } from '../online/gm/onlineData.ts';
 import type { SettingsService } from '../services/SettingsService';
-import { collectionWorldMap } from '../services/worldMap';
 import type { AtlasSettingSection } from '../settings/settingSections';
 import { showNotice } from '../ui/notice';
+import { campaignWorldMapGate } from './campaignWorldMapGate';
 
 /** Online play as the plugin holds it. */
 export interface OnlinePlay {
@@ -35,7 +35,7 @@ export function registerOnlinePlay(plugin: Plugin, settings: SettingsService): O
     }
     if (on === (feature !== null)) return;
     if (feature !== null) plugin.removeChild(feature);
-    setWorldMapGate(on ? async (collectionId, path) => (await collectionWorldMap(plugin.app, collectionId)) === path : null);
+    setWorldMapGate(on ? campaignWorldMapGate(plugin.app) : null);
     feature = on ? plugin.addChild(new OnlineFeature(plugin, onlineDataFile(plugin.app))) : null;
   };
   // Registered once: a command asks whichever feature is loaded, and is not offered while none is.

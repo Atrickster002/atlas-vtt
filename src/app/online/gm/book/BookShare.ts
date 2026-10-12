@@ -30,8 +30,8 @@ export interface BookSharePorts extends Timers {
   readImage(path: string): Promise<VaultImage | null>;
   /** The file at a vault path as it is now, or null when there is none. */
   stat(path: string): FileStat | null;
-  /** Whether the image at a vault path may be shown to players as a collection's world map. */
-  mayShowWorldMap(collection: string, path: string): Promise<boolean>;
+  /** The vault path of the image players may be shown as the world map now, or null for none. */
+  worldMap(): Promise<string | null>;
   /** Scales an image for a player who asks for a longest side; without it players get originals only. */
   scaleImage?: ScaleImage | undefined;
 }
@@ -60,8 +60,8 @@ interface SentBook {
 /**
  * The players' books: each connected player's own pages besides the table, sent to that player
  * alone and never to all. A book is its character's (`Characters`): the sheet is read from the
- * shared scene, items, notes, pins and purse are kept on the shelf, and the collection's world map
- * goes to everyone at the table. It is the table's, not a scene's, so it hears players while no
+ * shared scene, items, notes, pins and purse are kept on the shelf, and the world map of the
+ * campaign being played goes to everyone at the table. It is the table's, not a scene's, so it hears players while no
  * scene is shared. What a player writes is taken as the protocol's parser cleaned it, only for a
  * player with a character and within their rate; a write that is refused is answered with the
  * whole book. A player is served their own character's artwork and the world map by hash, and
@@ -75,7 +75,7 @@ export class BookShare implements LootRecipientSource {
   private readonly maps: WorldMaps;
   private readonly answers: AssetAnswers;
   private readonly rate = new MoveRate(BOOK_BURST, BOOK_WRITES_PER_SECOND);
-  /** The world map of the collection last shown. */
+  /** The world map as it was last known. */
   private worldMap: WorldMapFile | null = null;
   private mapPath: string | null = null;
   /** What each connected player was last sent. */
@@ -91,7 +91,7 @@ export class BookShare implements LootRecipientSource {
     this.ports = ports;
     this.shelf = shelf;
     this.art = new ArtRefs((path) => ports.readImage(path), () => this.update());
-    this.maps = new WorldMaps({ stat: (path) => ports.stat(path), readImage: (path) => ports.readImage(path), mayShow: (collection, path) => ports.mayShowWorldMap(collection, path), read: () => this.update() });
+    this.maps = new WorldMaps({ stat: (path) => ports.stat(path), readImage: (path) => ports.readImage(path), source: () => ports.worldMap(), read: () => this.update() });
     this.answers = new AssetAnswers({ send: (body, to) => ports.send(body, to), now: () => ports.now(), readImage: (path) => ports.readImage(path), scaleImage: ports.scaleImage }, {
       map: () => null,
       explored: () => undefined,
@@ -111,23 +111,21 @@ export class BookShare implements LootRecipientSource {
     this.owed.clear();
   }
 
-  /** A collection's settings changed: the world map is read anew, since another image may be it now or this one no longer. */
-  settingsChanged(): void {
+  /** The world map may be another now (the campaign played, its world map or that map's artwork changed): it is asked for anew. */
+  worldMapChanged(): void {
     this.maps.forget();
     this.update();
   }
 
   /** Reads the scene again and sends each connected player what changed for them: the whole book, or the sheet alone. */
   update(): void {
+    const map = this.maps.get();
+    // Being looked up or read: the books go out once it is known, with it.
+    if (map === undefined) return;
+    this.worldMap = map;
     const scene = this.ports.scene();
     const players = this.ports.players();
-    if (scene !== null) {
-      const map = this.maps.get(scene.worldMap, scene.collection);
-      // Being read: the books go out once it is known, with it.
-      if (map === undefined) return;
-      this.worldMap = map;
-      this.read(scene, new Set(players.map((player) => player.id)));
-    }
+    if (scene !== null) this.read(scene, new Set(players.map((player) => player.id)));
     const online = new Set(players.filter((player) => player.online).map((player) => player.id));
     for (const player of [...this.sent.keys()]) if (!online.has(player)) this.sent.delete(player);
     for (const player of online) this.sync(player);
