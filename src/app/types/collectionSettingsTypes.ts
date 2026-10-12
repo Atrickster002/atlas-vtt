@@ -107,6 +107,4 @@ export interface CollectionSettings {
   lootBases?: string[];
   /** Named after plain-number item prices, e.g. "gold" or "thorns". */
   lootCurrency?: string | undefined;
-  /** Vault path of the image that is the campaign's world map; unset for none. */
-  worldMap?: string | undefined;
 }

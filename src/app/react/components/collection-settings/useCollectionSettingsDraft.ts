@@ -59,9 +59,6 @@ export interface CollectionSettingsDraft {
   setLootBases: (lootBases: string[]) => void;
   lootCurrency: string;
   setLootCurrency: (lootCurrency: string) => void;
-  /** Vault path of the image that is the campaign's world map; undefined for none. */
-  worldMap: string | undefined;
-  setWorldMap: (worldMap: string | undefined) => void;
   applyPreset: (preset: SystemPreset) => void;
   /** Leaves the collection without a game system, as if it had never been set up. */
   clearSystem: () => void;
@@ -94,7 +91,6 @@ export function useCollectionSettingsDraft(
   const [systemPresetId, setSystemPresetId] = useState<string | undefined>(undefined);
   const [lootBases, setLootBases] = useState<string[]>([]);
   const [lootCurrency, setLootCurrency] = useState('');
-  const [worldMap, setWorldMap] = useState<string | undefined>(undefined);
   const [customCreatureFilters, setCustomCreatureFilters] = useState<CreatureFilterDefinition[]>([]);
   const [hiddenCreatureFilters, setHiddenCreatureFilters] = useState<string[]>([]);
 
@@ -117,7 +113,6 @@ export function useCollectionSettingsDraft(
     setSystemPresetId(settings.systemPresetId);
     setLootBases(settings.lootBases ?? []);
     setLootCurrency(settings.lootCurrency ?? '');
-    setWorldMap(settings.worldMap);
     setCustomCreatureFilters(parseCreatureFilters(settings.customCreatureFilters));
     setHiddenCreatureFilters(parseHiddenCreatureFilters(settings.hiddenCreatureFilters));
   }, [isOpen, collectionId, assetService]);
@@ -169,7 +164,6 @@ export function useCollectionSettingsDraft(
       systemPresetId,
       lootBases,
       lootCurrency: lootCurrency.trim() || undefined,
-      worldMap,
     };
   };
 
@@ -188,7 +182,6 @@ export function useCollectionSettingsDraft(
     systemPresetId, setSystemPresetId,
     lootBases, setLootBases,
     lootCurrency, setLootCurrency,
-    worldMap, setWorldMap,
     applyPreset, clearSystem, toSettings,
   };
 }

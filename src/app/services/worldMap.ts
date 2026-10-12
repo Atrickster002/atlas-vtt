@@ -2,17 +2,8 @@ import type { App } from 'obsidian';
 import type { CampaignService } from '../campaigns/CampaignService';
 import { collectionFolderPath, GLOBAL_ASSETS_DIR } from './assetPaths';
 import { AssetService, type Asset } from './AssetService';
-import { coverCandidates, type CoverCandidate } from './collectionBundle/collectionCover';
+import { coverCandidates } from './collectionBundle/collectionCover';
 import { sceneThumbnailPath } from './collectionBundle/collectionReferences';
-
-/**
- * The artwork of a collection's maps and scenes that can be its world map, each image once.
- * A scene without artwork offers none: its thumbnail is a small picture Atlas makes anew.
- */
-export async function worldMapCandidates(app: App, assets: readonly Asset[]): Promise<CoverCandidate[]> {
-  const thumbnails = new Set(assets.flatMap((asset) => (asset.type === 'scene' && asset.data?.mapPath ? [sceneThumbnailPath(asset.data.mapPath)] : [])));
-  return (await coverCandidates(app, assets)).filter((candidate) => !thumbnails.has(candidate.sourcePath));
-}
 
 /**
  * The artwork of a map or scene that can be a world map: the map's image, or the background a
