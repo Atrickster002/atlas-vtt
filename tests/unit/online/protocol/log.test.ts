@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
-import { chatText, MAX_CHAT_LINES, MAX_CHAT_TEXT, MAX_LOG_ENTRIES, MAX_REPLY_PREVIEW, parseGmMessage, parseLogEntry, parsePlayerMessage, quoting, replyPreview, type ChatEntry, type LogEntry, type SharedRoll } from '../../../../src/app/online/protocol/index.ts';
+import { chatText, inlineMarks, MAX_CHAT_LINES, MAX_CHAT_TEXT, MAX_LOG_ENTRIES, MAX_REPLY_PREVIEW, parseGmMessage, parseLogEntry, parseLogMessage, parsePlayerLog, parsePlayerMessage, quoting, replyPreview, rolledFormulas, type ChatEntry, type LogEntry, type SharedRoll } from '../../../../src/app/online/protocol/index.ts';
 
 const ID = '0123456789abcdef01234567';
 const OTHER = 'fedcba9876543210fedcba98';
@@ -154,5 +154,58 @@ describe('what a player sends to the log', () => {
       { t: 'chat-delete' }, { t: 'chat-delete', id: 5 },
       { t: 'react', id: ID, emoji: '🍆', on: true }, { t: 'react', id: ID, emoji: '👍' }, { t: 'react', id: ID, emoji: '👍', on: 'yes' }, { t: 'react', id: 'x', emoji: '👍', on: true },
     ]) expect(parsePlayerMessage(body), JSON.stringify(body)).toBeNull();
+  });
+});
+
+describe('the table chat\'s fields', () => {
+  const ID = '0'.repeat(24);
+  const MIRA = 'a'.repeat(20);
+  const base = { id: ID, at: 1, who: 'gm', name: 'GM' };
+  const ROLLED = { id: 'r1', timestamp: 1, formula: '1d20', modifiers: 0, total: 7, rolls: [{ die: 'd20', value: 7, max: 20 }] };
+  const SPEAKER = { name: 'Goblin', token: null, art: { hash: 'f'.repeat(64), size: 3, mime: 'image/png' }, ring: '#ff0000' };
+
+  it('reads whispers, speakers, styles and the rolls a text rolled', () => {
+    const entry = { ...base, kind: 'chat', text: 'Hit [[1d20]] then [[/br 1d20+2]]{Perception}', style: 'ic', speaker: SPEAKER, to: [MIRA], inline: [ROLLED] };
+    expect(parseLogEntry(entry)).toEqual(entry);
+    expect(parseLogEntry({ ...entry, inline: [] })).toBeNull();
+    expect(parseLogEntry({ ...entry, inline: [ROLLED, ROLLED] })).toBeNull();
+    expect(parseLogEntry({ ...entry, to: [] })).toBeNull();
+    expect(parseLogEntry({ ...entry, to: [MIRA, MIRA] })).toBeNull();
+    expect(parseLogEntry({ ...entry, style: 'shout' })).toBeNull();
+    expect(parseLogEntry({ ...entry, speaker: { ...SPEAKER, name: '‮' } })).toBeNull();
+    expect(parseLogEntry({ ...entry, speaker: { ...SPEAKER, ring: 'red' } })).toBeNull();
+  });
+
+  it('reads private rolls whole or as the line that one was made', () => {
+    const roll = { ...base, kind: 'roll', roll: ROLLED, token: null, mode: 'blind', to: ['gm'], flavor: 'Perception', request: { id: ID, label: 'Perception' } };
+    expect(parseLogEntry(roll)).toEqual(roll);
+    expect(parseLogEntry({ ...roll, to: undefined })).toBeNull();
+    expect(parseLogEntry({ ...roll, mode: 'public' })).toBeNull();
+    const secret = { ...base, kind: 'secret', mode: 'gm' };
+    expect(parseLogEntry(secret)).toEqual(secret);
+    expect(parseLogEntry({ ...secret, mode: 'loud' })).toBeNull();
+  });
+
+  it('reads who is at the table', () => {
+    expect(parseLogMessage({ t: 'people', people: [{ id: MIRA, name: ' Mira ' }] })).toEqual({ t: 'people', people: [{ id: MIRA, name: 'Mira' }] });
+    expect(parseLogMessage({ t: 'people', people: [{ id: 'gm', name: 'GM' }] })).toBeNull();
+  });
+
+  it('reads what a player says: a whisper, a style and a token of theirs', () => {
+    expect(parsePlayerLog({ t: 'chat', text: 'hi', to: ['gm'], style: 'emote', speaker: ID })).toEqual({ t: 'chat', text: 'hi', to: ['gm'], style: 'emote', speaker: ID });
+    expect(parsePlayerLog({ t: 'chat', text: 'hi', speaker: 'gm-token' })).toBeNull();
+    expect(parsePlayerLog({ t: 'chat', text: 'hi', to: 'gm' })).toBeNull();
+  });
+});
+
+describe('rolls written into a text', () => {
+  it('are found in order, rolled or as buttons with a mode and a label', () => {
+    expect(inlineMarks('a [[1d20+5]] b [[/gmr 2d6]]{Damage} [[/BR d20]]')?.map(({ formula, mode, label }) => [formula, mode, label]))
+      .toEqual([['1d20+5', null, null], ['2d6', 'gm', 'Damage'], ['d20', 'blind', null]]);
+    expect(inlineMarks('no rolls [ [1d6] ]')).toEqual([]);
+    expect(inlineMarks('[[/shout 1d6]]')).toBeNull();
+    expect(inlineMarks('[[1d4]]'.repeat(6))).toBeNull();
+    expect(rolledFormulas('[[1d4]] [[/r 1d6]] [[2d8]]')).toEqual(['1d4', '2d8']);
+    expect(inlineMarks('hit for [[1d8+3[piercing]]] and [[/r 2d6[fire] + 1]]{Burn}')?.map(({ formula, label }) => [formula, label])).toEqual([['1d8+3[piercing]', null], ['2d6[fire] + 1', 'Burn']]);
   });
 });

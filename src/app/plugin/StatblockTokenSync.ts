@@ -11,8 +11,8 @@ import { runInBackground } from '../utils/backgroundTask';
 import { statblockTokenAppearance } from './statblockTokenAppearance';
 
 interface StatblockTokenLinks extends Pick<TokenStatblockLinkService,
-  'readStatblockImage' | 'getTokenLinkedToStatblock' | 'getStatblockLinkedToToken' |
-  'arePathsEquivalent' | 'linkTokenToStatblock' | 'unlinkToken' | 'readStatblockRecord'> {
+  'readStatblockImage' | 'findAssetByAnyPath' | 'getStatblockLinkedToToken' |
+  'linkTokenToStatblock' | 'readStatblockRecord'> {
   on(event: 'link-changed', listener: (change: LinkChangeEvent) => void): void;
   off(event: 'link-changed', listener: (change: LinkChangeEvent) => void): void;
 }
@@ -55,37 +55,7 @@ export class StatblockTokenSync {
     if (isCharacter) {
       const statblockPath = file.path;
 
-      // Read through the link service so this listener and the writer agree
-      // on which frontmatter key holds the statblock's image.
-      const newTokenImage = this.tokenStatblockLinkService.readStatblockImage(file);
-      if (newTokenImage) {
-        // Get the current token linked to this statblock
-        const currentTokenImage = await this.tokenStatblockLinkService.getTokenLinkedToStatblock(statblockPath);
-
-        // If the token-image has changed, update the link
-        if (!currentTokenImage || !this.tokenStatblockLinkService.arePathsEquivalent(currentTokenImage, newTokenImage)) {
-          // Use the centralized service to link the new token to the statblock
-          // This will automatically handle unlinking the old token and updating all instances
-          await this.tokenStatblockLinkService.linkTokenToStatblock(
-            newTokenImage,
-            statblockPath,
-            {
-              showConfirmation: false, // No confirmation needed for metadata-driven updates
-              updateStatblockAvatar: false // We're responding to a statblock change, don't update it again
-            }
-          );
-        }
-      } else {
-        // If token-image was removed, check if we need to unlink
-        const currentTokenImage = await this.tokenStatblockLinkService.getTokenLinkedToStatblock(statblockPath);
-        if (currentTokenImage) {
-          // Unlink the token from this statblock
-          await this.tokenStatblockLinkService.unlinkToken(
-            currentTokenImage,
-            { updateStatblockAvatar: false } // We're responding to a statblock change, don't update it again
-          );
-        }
-      }
+      await this.linkTokenNamedByImage(file);
 
       // Update tokens on the current map that are linked to this statblock with new data
       const vitals = readStatblockVitals(metadata.frontmatter);
@@ -105,13 +75,25 @@ export class StatblockTokenSync {
           updates.difficulty = vitals.difficulty;
         }
 
-        if (newTokenImage && token.imagePath !== newTokenImage) {
-          updates.imagePath = newTokenImage;
-        }
-
         this.store.getState().updateToken(tokenId, updates);
       }
     }
+  }
+
+  /**
+   * A note whose picture names a token that links no statblock links that
+   * token too. The picture alone never unlinks a token, takes one from another
+   * statblock or changes the art of placed tokens: a statblock is shared by
+   * many tokens, and its picture is only one of them.
+   */
+  private async linkTokenNamedByImage(file: TFile): Promise<void> {
+    // Read through the link service so this listener and the writer agree
+    // on which frontmatter key holds the statblock's image.
+    const image = this.tokenStatblockLinkService.readStatblockImage(file);
+    if (!image) return;
+    const asset = await this.tokenStatblockLinkService.findAssetByAnyPath(image);
+    if (!asset || asset.statblockPath) return;
+    await this.tokenStatblockLinkService.linkTokenToStatblock(asset.imagePath, file.path, { updateStatblockAvatar: false });
   }
 
   private readonly handleLinkChange = (event: LinkChangeEvent): void => {

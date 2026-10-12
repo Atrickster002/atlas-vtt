@@ -1,4 +1,4 @@
-import { MAX_ASSET_BYTES, parsePlayerMessage, type AssetRef, type GmMessage, type SharedScene } from '../protocol/index.ts';
+import { MAX_ASSET_BYTES, parsePlayerMessage, type AssetRef, type GmMessage, type RollRequestAnswer, type SharedScene } from '../protocol/index.ts';
 import { imageDimensions } from '../../imageProcessing/imageDimensions';
 import type { RollSceneLookup } from '../../services/playerRollSource';
 import type { DiceSource } from './atlasDice.ts';
@@ -10,22 +10,20 @@ import type { ScaleImage } from './assetVariants.ts';
 import { MineShare } from './mineShare.ts';
 import { InputShare } from './InputShare.ts';
 import { LiveShare } from './LiveShare.ts';
-import { rollFaceOf } from './log/logEntries.ts';
-import type { LoggedRoll } from './log/TableLog.ts';
+import type { LoggedRoll, RollRequest } from './log/TableLog.ts';
+import { SceneDice } from './SceneDice.ts';
 import { MapLayerShare } from './MapLayerShare.ts';
 import type { MapLayerSource } from './atlasMapLayers.ts';
 import { MarkShare, type MarkSharePorts } from './MarkShare.ts';
 import { sceneWalls, type MapSize } from './moveCheck.ts';
 import { PlayerClaims, type SeatSource } from './playerClaims.ts';
 import { PlayerMoves } from './playerMoves.ts';
-import { PlayerRolls } from './PlayerRolls.ts';
-import { RollShare } from './RollShare.ts';
 import { RulesShare, type RulesSharePorts } from './RulesShare.ts';
 import { TOKEN_POLL_MS, TokenShare, type TokenSharePorts } from './TokenShare.ts';
 
 export { imageMimeType, isLit, LIGHTING_REFUSAL, REPEAT_REQUEST_MS };
 
-export interface SceneSharePorts extends TokenSharePorts, RulesSharePorts, Pick<MarkSharePorts, 'gmMarks' | 'showPlayerMarks'> {
+export interface SceneSharePorts extends TokenSharePorts, RulesSharePorts, Pick<MarkSharePorts, 'gmMarks' | 'showPlayerMarks' | 'showPlayerCursors' | 'nameOf'> {
   notice(text: string): void;
   /** Sends a live message (where dragged tokens are now) ahead of other frames, the latest of a key winning; without it drags reach players through the token list only. */
   sendLive?(body: GmMessage, key: string): void;
@@ -45,6 +43,10 @@ export interface SceneSharePorts extends TokenSharePorts, RulesSharePorts, Pick<
   scaleImage?: ScaleImage;
   /** Takes a roll of the shared tab into the table's log. */
   logRoll?(roll: LoggedRoll): void;
+  /** The vault path of a speaker's artwork the log shows, by hash. */
+  logArt?(hash: string): string | undefined;
+  /** The roll button of the log a player's roll answers, as they may roll it. */
+  rollRequest?(from: string, answer: RollRequestAnswer): RollRequest | null;
 }
 
 /**
@@ -72,8 +74,6 @@ export class SceneShare {
   private readonly rules: RulesShare;
   private readonly moves: PlayerMoves;
   private readonly claims: PlayerClaims | null;
-  private readonly rollShare: RollShare;
-  private readonly rolls: PlayerRolls;
   private readonly marks: MarkShare;
   private unsubscribe: (() => void) | null = null;
   private poll: number | undefined;
@@ -95,7 +95,8 @@ export class SceneShare {
       tokenAlias: (id) => this.tokens.alias(id),
     });
     this.layers = new MapLayerShare(store, { ...ports, mapLayers: () => ports.mapLayers?.() ?? null });
-    this.rules = new RulesShare(store, ports);
+    const cursorsShown = (): boolean => ports.atlasSettings().showCursors;
+    this.rules = new RulesShare(store, { ...ports, cursorsShown });
     this.moves = new PlayerMoves(store, {
       ...ports,
       context: () => ({
@@ -106,7 +107,7 @@ export class SceneShare {
         walls: sceneWalls(store.getState().objects.walls, this.scene?.lit === true, this.mapSize),
       }),
     });
-    this.marks = new MarkShare(ports, () => this.mapSize);
+    this.marks = new MarkShare({ ...ports, cursorsShown }, () => this.mapSize);
     this.assets = new AssetAnswers({ send: (body, to) => ports.send(body, to), now: () => ports.now(), readImage: (path) => ports.readImage(path), scaleImage: ports.scaleImage }, {
       map: () => {
         const map = this.scene?.map ?? null;
@@ -121,34 +122,21 @@ export class SceneShare {
       listedToken: (alias) => this.tokens.listedToken(alias),
       tokens: store.getState().objects.tokens,
     }), () => ports.now());
-    this.rollShare = new RollShare({
-      send: (body, to) => ports.send(body, to),
-      showGmRolls: () => ports.atlasSettings().showDiceRolls,
-      scene: () => ({ shownToken: (origin) => this.shownToken(origin.mapPath, origin.tokenId) }),
-      alias: (id) => this.tokens.alias(id),
-      logged: (roll, source) => ports.logRoll?.({ ...roll, ...rollFaceOf(source, store.getState().objects.tokens) }),
-    });
-    this.rolls = new PlayerRolls({
-      context: () => ({
-        scene: this.tokens.listedScene,
-        mapPath: store.getState().mapPath,
-        listedToken: (alias) => this.tokens.listedToken(alias),
-        ownerOf: (tokenId) => seats?.ownerOf(tokenId),
-        tokens: store.getState().objects.tokens,
-      }),
-      dice: () => ports.dice?.() ?? null,
-      rollAs: (who, run) => this.rollShare.rollAs(who, run),
-      send: (body, to) => ports.send(body, to),
-      now: () => ports.now(),
+    this.dice = new SceneDice(store, ports, {
+      tokens: this.tokens,
+      shownToken: (mapPath, tokenId) => this.shownToken(mapPath, tokenId),
     });
   }
+
+  /** The shared scene's rolls and speakers in the log. */
+  readonly dice: SceneDice;
 
   start(): void {
     this.unsubscribe = this.store.subscribe((state) => void this.update(state));
     void this.update(this.store.getState());
     this.schedulePoll();
     this.moves.start();
-    this.rollShare.start(this.ports.dice?.() ?? null);
+    this.dice.start();
   }
 
   stop(): void {
@@ -161,7 +149,7 @@ export class SceneShare {
     this.inputs.stop();
     this.layers.stop();
     this.moves.stop();
-    this.rollShare.stop();
+    this.dice.stop();
     this.marks.stop();
   }
 
@@ -199,7 +187,7 @@ export class SceneShare {
 
   /**
    * A player's message: a drag, drop or cancelled drag of their own token (`PlayerMoves`), a claim or release of a player
-   * token (`PlayerClaims`; the owners' change sends the new list), a roll (`PlayerRolls`), a resync (a whole list), or an asset request, answered only
+   * token (`PlayerClaims`; the owners' change sends the new list), a roll (`PlayerRolls`), a laser, measurement or cursor (`MarkShare`), a resync (a whole list), or an asset request, answered only
    * for the map, the explored memory or a token's artwork of the current picture, from the chunk the player asks for on.
    */
   receive(from: string, body: unknown): void {
@@ -209,8 +197,8 @@ export class SceneShare {
     if (message.t === 'drag') return this.moves.drag(from, message);
     if (message.t === 'drag-cancel') return this.moves.dragCancel(from, message);
     if (message.t === 'claim' || message.t === 'release') return void this.claims?.receive(from, message);
-    if (message.t === 'roll') return this.rolls.receive(from, message);
-    if (message.t === 'laser' || message.t === 'measure') return this.marks.receive(from, message);
+    if (message.t === 'roll') return this.dice.receive(from, message);
+    if (message.t === 'laser' || message.t === 'measure' || message.t === 'cursor') return this.marks.receive(from, message);
     if (message.t === 'resync') return message.of === 'tokens' ? this.tokens.resync(from, message.scene) : this.inputs.resync(from, message.scene, message.of);
     if (message.t === 'asset-request') this.assets.answer(from, message);
   }
@@ -224,7 +212,7 @@ export class SceneShare {
 
   /** The vault path of artwork the players' current picture shows, by hash: a token's or an initiative portrait's. */
   private artPath(hash: string): string | undefined {
-    return this.tokens.artPath(hash) ?? this.layers.artPath(hash);
+    return this.tokens.artPath(hash) ?? this.layers.artPath(hash) ?? this.ports.logArt?.(hash);
   }
 
   /** Looks again every `TOKEN_POLL_MS`: Atlas's dynamic lighting and the map's measurement may change without a store change. */

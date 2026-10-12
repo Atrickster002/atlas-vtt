@@ -1,3 +1,7 @@
+## New
+
+- Dice formulas take the notation Foundry, Roll20 and Dice Roller share: advantage as 2d20kh1, keep and drop, rerolls (r1, ro<2, rr1), x explosions, success counts (cs>=5), d%, Fate dice (dF), labels like 2d6[fire], and * / with brackets. Dropped and rerolled dice show struck through
+
 ## Improved
 
 - The Spectral Engine, which detects a map's grid, shows the grid being found: it is etched into the map along the map's own lines, sharpens as the search grows sure of it, and settles as its glow fades
@@ -11,6 +15,8 @@
 - The camera glides between the areas of a measurement instead of jumping
 - Alignment marks and the grid preview use the theme's accent colour, and marks keep their size at every zoom
 - Atlas' messages at the edge of the window take the look of its panels in your theme, where they were Obsidian's dark box
+- Several tokens can share one statblock, for colour variants of a creature or NPCs of one kind: linking another token keeps the first, and the DM screen shows them as one statblock
+- A statblock keeps its own picture: linking a token sets it only where the statblock has none, and a token copied to another collection keeps its statblock
 
 ## Fixed
 

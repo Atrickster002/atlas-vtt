@@ -56,6 +56,8 @@ export interface AtlasSettings {
     /** Show the DM's dice rolls to players as toasts in the player window. */
     showDiceRolls: boolean;
     showCommandPalette: boolean;
+    /** Online play: everyone at the table sees everyone else's cursor on the shared map. */
+    showCursors: boolean;
   };
 }
 
@@ -85,7 +87,8 @@ export const DEFAULT_SETTINGS: AtlasSettings = {
     showWidgets: true,
     showInitiative: true,
     showDiceRolls: false,
-    showCommandPalette: false // Hide command palette
+    showCommandPalette: false, // Hide command palette
+    showCursors: false,
   },
 };
 

@@ -39,6 +39,13 @@ describe('the rules players measure by', () => {
     expect(rules?.measurement).toMatchObject({ mode: 'metric', unitType: 'meters', unitDistance: 1.5 });
   });
 
+  it('say that everyone shows their cursor only while the GM lets them', () => {
+    expect(sharedRules(GRID, DAGGERHEART, null)).not.toHaveProperty('cursors');
+    const rules = sharedRules(GRID, DAGGERHEART, null, true);
+    expect(rules?.cursors).toBe(true);
+    expect(parseGmMessage(JSON.parse(JSON.stringify({ t: 'rules', scene: 's1', ...rules })))).toEqual({ t: 'rules', scene: 's1', ...rules });
+  });
+
   it('are none for a scene without a usable grid', () => {
     expect(sharedRules(null, DAGGERHEART, null)).toBeNull();
     expect(sharedRules({ ...GRID, size: 0 }, DAGGERHEART, null)).toBeNull();

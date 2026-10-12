@@ -9,15 +9,18 @@ export interface RulesSharePorts {
   measurement?(): MeasurementSettings | null;
   /** The GM's accent colour as `#rrggbb`, or null while it cannot be read. */
   accent?(): string | null;
+  /** Whether the GM lets everyone see each other's cursor: only then do players send theirs. */
+  cursorsShown?(): boolean;
 }
 
 const finiteOr = (value: number | undefined, fallback: number): number => (typeof value === 'number' && Number.isFinite(value) ? value : fallback);
 
 /**
  * What a player's measure and laser tools work by, from the scene's grid, the GM's measurement (else
- * the grid's own, as Atlas's ruler falls back to) and accent; null for a grid players cannot use.
+ * the grid's own, as Atlas's ruler falls back to), accent and whether everyone's cursor shows; null for
+ * a grid players cannot use.
  */
-export function sharedRules(grid: SceneState['grid'], measurement: MeasurementSettings | null, accent: string | null): SharedRules | null {
+export function sharedRules(grid: SceneState['grid'], measurement: MeasurementSettings | null, accent: string | null, cursors = false): SharedRules | null {
   if (grid === null || !Number.isFinite(grid.size) || !(grid.size > 0) || grid.size > MAX_COORDINATE) return null;
   const offsetX = finiteOr(grid.offsetX, 0);
   const offsetY = finiteOr(grid.offsetY, 0);
@@ -28,6 +31,7 @@ export function sharedRules(grid: SceneState['grid'], measurement: MeasurementSe
     snap: grid.snapToGrid ?? true,
     measurement: { mode, unitType, unitDistance, ruleDistance, diagonalRule, rangeBands: rangeBands.map(({ name, maxSquares }) => ({ name, maxSquares })), coneAngle },
     accent,
+    ...(cursors && { cursors }),
   };
 }
 
@@ -57,7 +61,7 @@ export class RulesShare {
   update(): void {
     if (this.scene === null) return;
     const state = this.store.getState();
-    const rules = sharedRules(state.grid, this.ports.measurement?.() ?? null, this.ports.accent?.() ?? null);
+    const rules = sharedRules(state.grid, this.ports.measurement?.() ?? null, this.ports.accent?.() ?? null, this.ports.cursorsShown?.() === true);
     if (rules === null) return;
     const body: GmMessage = { t: 'rules', scene: this.scene, ...rules };
     const text = JSON.stringify(body);

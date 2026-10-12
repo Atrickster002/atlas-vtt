@@ -1,6 +1,5 @@
 import { scaleInWindow } from './assetVariants.ts';
 import type { MeasureRules } from '../marks/index.ts';
-import type { GmMessage } from '../protocol/index.ts';
 import { type App } from 'obsidian';
 import type { GridGeometry } from '../../grid/gridDistance';
 import { resolveMeasurementSettings } from '../../grid/measurementFormat';
@@ -11,7 +10,8 @@ import { asTokenSource, call, drawnTokenPlaces, tokenRulesOf, type SceneStore } 
 import { bookSceneOf, type BookScene } from './book/bookScene.ts';
 import { companionTimers } from './companionTimers.ts';
 import { GmMarks } from './gmMarks.ts';
-import type { LoggedRoll } from './log/TableLog.ts';
+import type { GmMessage, RollRequestAnswer } from '../protocol/index.ts';
+import type { LoggedRoll, RollRequest } from './log/TableLog.ts';
 import type { SeatSource } from './playerClaims.ts';
 import type { PresentedTab } from './presentedScene.ts';
 import { PresentedStore } from './presentedStore.ts';
@@ -41,6 +41,12 @@ export interface SceneBindingPorts {
   randomId(): string;
   /** Takes a roll of the shared tab into the table's log. */
   logRoll(roll: LoggedRoll): void;
+  /** The name a player goes by at the table, or null when it is not known. */
+  nameOf(player: string): string | null;
+  /** The vault path of a speaker's artwork the table's log shows, by hash. */
+  logArt(hash: string): string | undefined;
+  /** The roll button of the table's log a player's roll answers, as they may roll it. */
+  rollRequest(from: string, answer: RollRequestAnswer): RollRequest | null;
 }
 
 /** Claims and releases are taken only while the presented scene is shown: a held list cannot show them. */
@@ -81,13 +87,19 @@ export function bindScene(ports: SceneBindingPorts, tab: AtlasTab, presented: Pr
     return grid === null || grid === undefined ? null : { grid, measurement: measurement() ?? resolveMeasurementSettings(undefined, tab.store.getState().grid) } satisfies MeasureRules;
   });
   // Players' marks leave the GM's canvas as the hold begins: it is about to show another scene.
-  const store = new PresentedStore(tab.store, presented, () => void (live() && marks.showPlayers({ lasers: [], measures: [] })));
+  const store = new PresentedStore(tab.store, presented, () => {
+    if (!live()) return;
+    marks.showPlayers({ lasers: [], measures: [] });
+    marks.showPlayerCursors([]);
+  });
   const share = new SceneShare(store, {
     tokenSource: () => asTokenSource(shownRenderer()),
     lightingSource: () => lightingSourceOf(shownRenderer()),
     measurement,
     gmMarks: () => (shown() ? marks.source() : null),
     showPlayerMarks: (marksShown) => shown() && marks.showPlayers(marksShown),
+    showPlayerCursors: (cursors) => shown() && marks.showPlayerCursors(cursors),
+    nameOf: (player) => ports.nameOf(player),
     accent: lastWhileShown(shown, () => accentColour(leaf.view.containerEl.ownerDocument)),
     atlasSettings: () => atlasPlayerSettings(ports.app),
     dice: () => (shown() ? diceSourceOf(leaf) : null),
@@ -103,6 +115,8 @@ export function bindScene(ports: SceneBindingPorts, tab: AtlasTab, presented: Pr
     seats: heldSeats(ports.seats, () => store.held),
     randomId: () => ports.randomId(),
     logRoll: (roll) => live() && ports.logRoll(roll),
+    logArt: (hash) => ports.logArt(hash),
+    rollRequest: (from, answer) => (shown() ? ports.rollRequest(from, answer) : null),
     now: () => timers.now(),
     setTimer: (run, ms) => timers.setTimer(() => live() && run(), ms),
     clearTimer: (timer) => timers.clearTimer(timer),

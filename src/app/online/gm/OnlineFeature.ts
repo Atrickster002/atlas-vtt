@@ -13,6 +13,9 @@ import { DockMounts } from './dock/DockMounts.ts';
 import { ImageTakeover } from './image/imageTakeover.ts';
 import { atlasImageDisplay, localPlayerWindowOpen, readShownFile } from './image/atlasImageHost.ts';
 import { LogMounts } from './log/LogMounts.ts';
+import { TableChat } from './tableChat.ts';
+import { lootCardOf } from './log/lootCard.ts';
+import { PlayerLootDisplay } from '../../services/PlayerLootDisplay';
 import { copyText } from './dock/dockDom.ts';
 import { onlineApi } from './dock/panelModel.ts';
 import type { OnlineCommandId } from './onlineCommands.ts';
@@ -50,6 +53,8 @@ export class OnlineFeature extends Component {
   private books = new BookShelf();
   private docks: DockMounts | null = null;
   private logs: LogMounts | null = null;
+  /** The table's log for other plugins (`TableChat`). */
+  readonly chat = new TableChat(() => (this.ready ? this.online.table : null));
   /** False before loading and after unloading: commands are offered and data is taken in only while true. */
   private live = false;
   /** True once this device's data was read: before that there is nothing to show in the settings, or to save. */
@@ -121,10 +126,20 @@ export class OnlineFeature extends Component {
     const images = new ImageTakeover<TFile>(() => atlasImageDisplay(this.app), {
       share: () => this.online.table?.image ?? null,
       readFile: (file) => readShownFile(this.app, file),
+      pathOf: (file) => file.path,
       localWindowOpen: () => localPlayerWindowOpen(this.app),
       notice: (text) => showNotice(text),
     });
     this.register(() => images.dispose());
+    // Loot handed out from the roller goes into the table's log while a table runs.
+    const loot = PlayerLootDisplay.get();
+    loot.setOutlet((draw) => {
+      const item = this.online.table === null ? null : lootCardOf(draw);
+      if (item === null) return false;
+      this.online.table?.log.lootHanded(item);
+      return true;
+    });
+    this.register(() => loot.setOutlet(null));
     const docks = new DockMounts(this.app.workspace, {
       api: onlineApi(this.online, () => images.hide()),
       account: this.account,
@@ -141,7 +156,8 @@ export class OnlineFeature extends Component {
       opened: (leaf) => docks.dockOf(leaf)?.makeWay(),
     });
     this.logs = logs;
-    this.register(this.online.onChange(() => (logs.sync(), logs.refresh(), images.sync())));
+    this.register(this.online.onChange(() => (logs.sync(), logs.refresh(), images.sync(), this.chat.sync())));
+    this.register(() => this.chat.dispose());
     this.register(this.online.logs.onChange(() => logs.logChanged()));
     // Which tab players see changes without a word (Atlas presents another, the tab closes), and so does Atlas's image display: looked at as often as the table looks.
     this.register(every(companionTimers(), SYNC_MS, () => (logs.sync(), images.sync())));

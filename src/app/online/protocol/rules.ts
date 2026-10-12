@@ -24,12 +24,14 @@ export interface SharedMeasurement {
 /**
  * What a player's own tools work by in the shared scene: its grid, whether measurements snap to cell
  * centres, how distances are labelled, and the GM's accent colour (`#rrggbb`, null when it cannot be read).
+ * `cursors` is set while the GM lets everyone see each other's cursor: only then does a player send theirs.
  */
 export interface SharedRules {
   readonly grid: SnapGrid;
   readonly snap: boolean;
   readonly measurement: SharedMeasurement;
   readonly accent: string | null;
+  readonly cursors?: true;
 }
 
 export type RulesMessage = { readonly t: 'rules'; readonly scene: string } & SharedRules;
@@ -65,10 +67,11 @@ export function parseMeasurement(value: unknown): SharedMeasurement | null {
 
 /** A `rules` message as the client reads it, or null for anything malformed. */
 export function parseRules(value: Record<string, unknown>): RulesMessage | null {
-  const { scene, snap, accent } = value;
+  const { scene, snap, accent, cursors } = value;
   const grid = parseSnapGrid(value.grid);
   const measurement = parseMeasurement(value.measurement);
   if (typeof scene !== 'string' || scene.length > MAX_SCENE_ID || typeof snap !== 'boolean' || grid === null || grid === undefined || measurement === null) return null;
   if (accent !== null && (typeof accent !== 'string' || !ACCENT.test(accent))) return null;
-  return { t: 'rules', scene, grid, snap, measurement, accent };
+  if (cursors !== undefined && cursors !== true) return null;
+  return { t: 'rules', scene, grid, snap, measurement, accent, ...(cursors === true && { cursors }) };
 }

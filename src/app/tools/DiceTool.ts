@@ -23,7 +23,8 @@ export interface DiceRollInputs {
 export class DiceTool {
   public state: DiceToolState;
   private eventBus: EventEmitter;
-  private readonly getDiceRules: () => DiceRules;
+  /** The rules this tool rolls by: its map's collection's. */
+  readonly getDiceRules: () => DiceRules;
 
   constructor(eventBus: EventEmitter, getDiceRules: () => DiceRules, private readonly inputs: DiceRollInputs) {
     this.eventBus = eventBus;
@@ -82,7 +83,7 @@ export class DiceTool {
       this.inputs.onFormulaError(parsed);
       return null;
     }
-    const { rolls, modifiers, total } = rollFormula(parsed, this.inputs.random, rules);
+    const { rolls, modifiers, total, linear } = rollFormula(parsed, this.inputs.random, rules);
 
     return {
       id: this.inputs.rollId(),
@@ -91,6 +92,7 @@ export class DiceTool {
       rolls,
       modifiers,
       total,
+      ...(!linear && { linear: false as const }),
       crit: getDiceCrit(rolls, rules),
       player: this.inputs.roller()
     };
@@ -125,8 +127,8 @@ export class DiceTool {
   }
 }
 
-/** `+3` with `1d20` gives `1d20+3`; a bare number counts as a bonus. */
+/** `+3` with `1d20` gives `1d20+3`; a bare number counts as a bonus. Spaces in labels stay. */
 function withDefaultRoll(modifier: string, defaultRoll: string): string {
-  const bonus = modifier.replace(/\s+/g, '');
+  const bonus = modifier.replace(/\s+(?![^[]*\])/g, '');
   return bonus === '' || /^[+-]/.test(bonus) ? `${defaultRoll}${bonus}` : `${defaultRoll}+${bonus}`;
 }

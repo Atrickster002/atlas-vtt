@@ -44,7 +44,7 @@ describe('statblock token import', () => {
     const { app, assets } = setup();
     await assets.initialize();
     const service = TokenStatblockLinkService.getInstance(app);
-    expect(await service.getTokenLinkedToStatblock(note)).toBeNull();
+    expect(await service.getTokensLinkedToStatblock(note)).toEqual([]);
   });
 
   it('reads a `token` property as the artwork where `image` names none', () => {
@@ -231,7 +231,7 @@ describe('bulk importing recognized statblock notes', () => {
     const link = TokenStatblockLinkService.getInstance(app);
     const created = await link.createTokenFromStatblockImage(note);
     expect(created).toMatch(/^atlas-vtt\/assets\/.*\.webp$/);
-    expect(await link.getTokenLinkedToStatblock(note)).toBe(created);
+    expect(await link.getTokensLinkedToStatblock(note)).toEqual([created]);
     expect(await link.createTokenFromStatblockImage(note)).toBeNull();
     expect(await assets.getTokenAssets()).toHaveLength(1);
     expect(files.get(note)).toBe('Original note');

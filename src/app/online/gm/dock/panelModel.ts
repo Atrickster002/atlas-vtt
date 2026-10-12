@@ -1,3 +1,4 @@
+import { playerTone } from '../../protocol/index.ts';
 import type { WorkspaceLeaf } from 'obsidian';
 import type { AccountView } from '../account/accountView.ts';
 import type { GateActions, GateView } from '../joinGate.ts';
@@ -221,12 +222,9 @@ export function menuModel(snapshot: OnlineSnapshot, scene: SceneFacts, account: 
   return { kind: 'waiting', link: snapshot.link, status: statusOf(snapshot), isShared: scene.isShared, gate: gateRowsOf(snapshot.gate), qr, imageShown: snapshot.imageShown === true, closing: closingOf(snapshot) };
 }
 
-/** The number of player colours (`atlas-online-colour-0` to `-7`). */
-export const PLAYER_COLOURS = 8;
-
 export interface GroupPlayer extends OnlinePlayer {
   readonly initial: string;
-  /** The player's colour, 0 to `PLAYER_COLOURS - 1`, the same every time. */
+  /** The player's colour, an index into `PLAYER_COLOURS` (`atlas-online-colour-N`), the same every time. */
   readonly colour: number;
 }
 
@@ -249,11 +247,9 @@ export interface PlayerGroup {
   readonly tokens: readonly TokenRow[];
 }
 
-/** A colour from the player's id: a sum over its characters, so it never changes. */
+/** The player's colour in the panel: the one everyone at the table sees them in (`playerTone`). */
 export function playerColour(id: string): number {
-  let sum = 0;
-  for (const char of id) sum = (sum * 31 + char.charCodeAt(0)) % 9973;
-  return sum % PLAYER_COLOURS;
+  return playerTone(id);
 }
 
 const groupPlayer = (player: OnlinePlayer): GroupPlayer => ({ ...player, initial: (player.name.trim()[0] ?? '?').toUpperCase(), colour: playerColour(player.id) });

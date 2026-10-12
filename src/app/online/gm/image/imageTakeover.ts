@@ -24,6 +24,8 @@ export interface ImageTakeoverPorts<File> {
   share(): Pick<ImageShare, 'show' | 'dismiss' | 'isShown'> | null;
   /** The file as players can be sent it, or null when it is no image they can be sent. */
   readFile(file: File): Promise<VaultImage | null>;
+  /** The file's vault path, which the table's log keeps on the GM's side. */
+  pathOf(file: File): string;
   /** Whether Atlas's own player window is open: only then is Atlas asked to show the image there. */
   localWindowOpen(): boolean;
   notice(text: string): void;
@@ -58,7 +60,7 @@ export function takeOverImageDisplay<File>(service: unknown, ports: ImageTakeove
   const kept = new Map(TAKEN.filter((name) => Object.hasOwn(display, name)).map((name) => [name, own[name]] as const));
   const showOnline = async (share: Pick<ImageShare, 'show'>, file: File): Promise<void> => {
     // A file that cannot be read or hashed is one that cannot be shown: the menu's click never throws.
-    const result = await share.show(() => ports.readFile(file)).catch(() => 'unreadable' as const);
+    const result = await share.show(() => ports.readFile(file), ports.pathOf(file)).catch(() => 'unreadable' as const);
     if (result === 'replaced') return;
     ports.notice(result === 'shown' ? SHOWN_TEXT : REFUSALS[result]);
   };

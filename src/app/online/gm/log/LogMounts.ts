@@ -1,10 +1,10 @@
-import { LogState, type LogActions, type RollFace } from '../../tableLog/index.ts';
-import { GM_AUTHOR, type RollEntry } from '../../protocol/index.ts';
+import { LogState, type LogActions, type Portrait, type RollFace } from '../../tableLog/index.ts';
+import { GM_AUTHOR, type ChatRefusal, type LogSpeaker, type RollEntry } from '../../protocol/index.ts';
 import type { WorkspaceLeaf } from 'obsidian';
 import { sceneStoreOf } from '../atlasView.ts';
 import type { OnlineTable } from '../OnlineTable.ts';
-import { faceOf } from './logEntries.ts';
-import type { TableLog } from './TableLog.ts';
+import { faceOf, seesWhole, viewOf, type GmLogEntry } from './logEntries.ts';
+import { gmSpeakerList } from './gmSpeakers.ts';
 import { TableLogMount } from './TableLogMount.ts';
 
 /** What the mounts read of the GM's side of online play. */
@@ -22,11 +22,20 @@ function containerOf(leaf: WorkspaceLeaf): HTMLElement | null {
   return typeof view === 'object' && view !== null && 'containerEl' in view && view.containerEl !== null && typeof view.containerEl === 'object' ? (view.containerEl as HTMLElement) : null;
 }
 
-/** The GM's actions on a table's log, as the panel calls them. */
-function gmActions(log: TableLog): LogActions {
+/**
+ * The GM's actions on a table's log, as the panel calls them; what is not taken is told above the
+ * GM's field (`refused`), as players are told. A roll that cannot be made now (no shared map) is
+ * told as a roll that does not work.
+ */
+function gmActions(table: OnlineTable, refused: (reason: ChatRefusal) => void): LogActions {
+  const { log } = table;
+  const told = (refusal: ChatRefusal | 'unavailable' | null): void => {
+    if (refusal !== null) refused(refusal === 'unavailable' ? 'roll' : refusal);
+  };
   return {
-    say: (text, reply) => void log.say(text, reply),
-    edit: (id, text) => void log.edit(id, text),
+    say: (draft) => void log.say(draft).then(told),
+    roll: (draft) => void table.rollFromLog(draft).then(told),
+    edit: (id, text) => told(log.edit(id, text)),
     remove: (id) => log.remove(id),
     react: (id, emoji, on) => log.react(id, emoji, on),
     clear: () => log.clear(),
@@ -43,9 +52,11 @@ export class LogMounts {
   private table: OnlineTable | null = null;
   private state: LogState | null = null;
   private mount: { readonly leaf: WorkspaceLeaf; readonly view: object; readonly on: TableLogMount } | null = null;
+  private readonly speakers: ReturnType<typeof gmSpeakerList>;
 
   constructor(deps: LogMountsDeps) {
     this.deps = deps;
+    this.speakers = gmSpeakerList((path) => deps.imageSrc(path));
   }
 
   /** Follows the running table and its shared tab: called when either may have changed. */
@@ -64,9 +75,16 @@ export class LogMounts {
     // A view moved into another window keeps its object; its mount listens in the old window.
     if (this.mount !== null && this.mount.view === leaf.view && this.mount.on.win === container.win) return this.mount.on.place();
     this.unmount();
+    const state = this.state;
     const on = new TableLogMount(container, store, {
-      state: this.state,
-      actions: gmActions(table.log),
+      state,
+      actions: gmActions(table, (reason) => state.receive({ t: 'chat-refused', reason })),
+      speakers: (scene) => this.speakers(scene),
+      speakerPortrait: (speaker) => this.speakerPortrait(table, speaker),
+      imageSrc: (entry) => {
+        const path = (entry as GmLogEntry).imageFile;
+        return path === undefined ? null : this.deps.imageSrc(path);
+      },
       canSend: () => table.status === 'online',
       rollFace: (entry) => this.rollFace(entry),
       opened: () => this.deps.opened(leaf),
@@ -79,9 +97,13 @@ export class LogMounts {
     this.mount?.on.update();
   }
 
-  /** The table's log changed: the panel's state takes its entries. */
+  /** The table's log changed: the panel's state takes its entries, as the GM sees them, and who is at the table. */
   logChanged(): void {
-    if (this.table !== null) this.state?.replace(this.table.log.entries());
+    const table = this.table;
+    if (table === null || this.state === null) return;
+    // What only the GM's log has (a roll's token, the GM's unseen rolls) stays on entries the GM sees whole.
+    this.state.replace(table.log.entries().flatMap((entry) => (entry.hidden === true || seesWhole(entry, GM_AUTHOR) ? [entry] : viewOf(entry, GM_AUTHOR) ?? [])));
+    this.state.setPeople(table.log.people());
   }
 
   /** Closes the log on a view: its control opened over the log's place. */
@@ -98,6 +120,12 @@ export class LogMounts {
   private unmount(): void {
     this.mount?.on.dispose();
     this.mount = null;
+  }
+
+  /** A speaker's portrait on the GM's screen: the artwork the log names by its hash, from the vault. */
+  private speakerPortrait(table: OnlineTable, speaker: LogSpeaker): Portrait | null {
+    const path = speaker.art === null ? undefined : table.log.artFile(speaker.art.hash);
+    return path === undefined ? null : { src: this.deps.imageSrc(path), showRing: speaker.ring !== null, ...(speaker.ring !== null && { ringColor: speaker.ring }) };
   }
 
   private rollFace(entry: RollEntry): RollFace | null {

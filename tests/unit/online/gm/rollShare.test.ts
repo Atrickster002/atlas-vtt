@@ -1,5 +1,6 @@
 // @vitest-environment node
 import { EventEmitter } from 'node:events';
+import { DEFAULT_DICE_RULES } from '../../../../src/app/gameSystems/diceRules';
 import type { GmMessage } from '../../../../src/app/online/protocol/index.ts';
 import type { DiceRollOrigin } from '../../../../src/app/types/diceRollOrigin';
 import type { DiceRollResult } from '../../../../src/app/types/diceTypes';
@@ -26,7 +27,7 @@ async function table(showDiceRolls: boolean): Promise<ShareHarness & { readonly 
   const state = sceneState({ objects: { ...sceneState().objects, tokens: Object.fromEntries(TOKENS.map((entry) => [entry.id, entry])) } });
   const share = shareHarness(state, ART);
   const bus = new EventEmitter();
-  const dice: DiceSource = { viewId: VIEW, rollDice: () => null, on: (event, listener) => bus.on(event, listener), off: (event, listener) => bus.off(event, listener) };
+  const dice: DiceSource = { viewId: VIEW, rollDice: () => null, rules: () => DEFAULT_DICE_RULES, on: (event, listener) => bus.on(event, listener), off: (event, listener) => bus.off(event, listener) };
   share.dice = dice;
   share.settings = { ...share.settings, showDiceRolls };
   share.share.start();

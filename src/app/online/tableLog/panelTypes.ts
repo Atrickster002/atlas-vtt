@@ -1,9 +1,28 @@
-import type { LogReactionEmoji, RollEntry } from '../protocol/index.ts';
+import type { ChatStyle, ImageEntry, LogReactionEmoji, LogSpeaker, RollEntry, RollMode, RollRequestAnswer } from '../protocol/index.ts';
 import type { LogState } from './LogState.ts';
+
+/** A message as the viewer says it; `speaker` is the key of one of the panel's `speakers` (absent: as oneself). */
+export interface ChatDraft {
+  readonly text: string;
+  readonly reply?: string;
+  readonly style?: ChatStyle;
+  readonly speaker?: string;
+  readonly to?: readonly string[];
+}
+
+/** A roll as the viewer asks for it: from the composer or a roll button of the log (`request`); `speaker` as in `ChatDraft`. */
+export interface RollDraft {
+  readonly formula: string;
+  readonly mode: RollMode;
+  readonly flavor?: string;
+  readonly speaker?: string;
+  readonly request?: RollRequestAnswer;
+}
 
 /** What a viewer does to the log; the host sends it on. The panel changes nothing itself: it follows `LogState`. */
 export interface LogActions {
-  say(text: string, reply?: string): void;
+  say(draft: ChatDraft): void;
+  roll(draft: RollDraft): void;
   edit(id: string, text: string): void;
   remove(id: string): void;
   react(id: string, emoji: LogReactionEmoji, on: boolean): void;
@@ -11,10 +30,25 @@ export interface LogActions {
   clear?(): void;
 }
 
+/** A token's art as the panel shows it, with the ring the map draws. */
+export interface Portrait {
+  readonly src: string;
+  readonly showRing?: boolean;
+  readonly ringColor?: string;
+}
+
 /** The token a roll names, as this viewer may know it: its name (null where the viewer is told none) and its portrait. */
 export interface RollFace {
   readonly name: string | null;
-  readonly portrait: { readonly src: string; readonly showRing?: boolean; readonly ringColor?: string } | null;
+  readonly portrait: Portrait | null;
+}
+
+/** Someone the viewer may speak as: themselves (`self`, the first of the list) or one of their tokens. */
+export interface SpeakerOption {
+  readonly key: string;
+  readonly name: string;
+  readonly kind: 'self' | 'token';
+  readonly portrait: Portrait | null;
 }
 
 export interface TableLogPanelProps {
@@ -28,6 +62,14 @@ export interface TableLogPanelProps {
   readonly offlineText?: string;
   /** The token a roll names, as this viewer may know it; null when unknown (then only the roller's name shows). */
   readonly rollFace?: (entry: RollEntry) => RollFace | null;
+  /** Who the viewer may speak and roll as; the first is the viewer as themselves. */
+  readonly speakers: readonly SpeakerOption[];
+  /** A speaking token's portrait; null while unknown or loading (the host draws the panel again once it is there). */
+  readonly speakerPortrait?: (speaker: LogSpeaker) => Portrait | null;
+  /** An image the GM showed, as this viewer can show it; null while it is not there yet (the host draws the panel anew once it is). */
+  readonly imageSrc?: (entry: ImageEntry) => string | null;
+  /** Opens an image the GM showed large. */
+  readonly openImage?: (entry: ImageEntry) => void;
   /** 'floating': the fixed panel at the left edge with header, pin and close; 'embedded': fills its container (a phone's sheet, which has its own title and close). */
   readonly variant: 'floating' | 'embedded';
   readonly onClose: () => void;
@@ -37,8 +79,12 @@ export interface TableLogPanelProps {
 export interface RowApi {
   readonly self: string | null;
   readonly moderator: boolean;
+  /** Whether a roll button of the log can be pressed now. */
+  readonly canSend: boolean;
   readonly react: (id: string, emoji: LogReactionEmoji, on: boolean) => void;
   readonly reply: (id: string) => void;
+  /** Rolls a roll button of the log, as the speaker the viewer chose. */
+  readonly roll: (draft: Omit<RollDraft, 'speaker'>) => void;
   /** Opens a message of the viewer's own for editing in its place. */
   readonly edit: (id: string) => void;
   readonly saveEdit: (id: string, text: string) => void;

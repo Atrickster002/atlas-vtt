@@ -6,11 +6,12 @@ import { parseImageMessage, type ImageMessage } from './image.ts';
 import { parseInitiative, type SharedInitiative } from './initiative.ts';
 import { parseLightingScene, parseSight, type SharedLightingScene, type SharedSight } from './lighting.ts';
 import { parseLive, type LiveMessage } from './live.ts';
-import { isPlayerLogType, parseLogMessage, parsePlayerLog, type LogMessage, type PlayerLogMessage } from './log.ts';
+import type { LogMessage, PlayerLogMessage } from './log.ts';
+import { isPlayerLogType, parseLogMessage, parsePlayerLog } from './logParse.ts';
 import { parsePlayerClaim, type PlayerClaim } from './claims.ts';
 import { parsePlayerRoll, parseRoll, parseRollRefused, type PlayerRoll, type RollMessage, type RollRefused } from './dice.ts';
 import { parseAnnotations, parseDoors, parseGrid, parseSensed, type SensedMark, type SharedAnnotations, type SharedDoor, type SharedGrid } from './mapLayers.ts';
-import { parseMarks, parsePlayerMark, type MarksMessage, type PlayerLaser, type PlayerMeasure } from './marks.ts';
+import { parseMarks, parsePlayerMark, type MarksMessage, type PlayerCursor, type PlayerLaser, type PlayerMeasure } from './marks.ts';
 import { isRecord } from './shape.ts';
 import { MAX_SCENE_ID, parseDragCancel, parseMoveRefused, parsePlayerMove, parseSnapGrid, type MoveRefused, type PlayerDrag, type PlayerDragCancel, type PlayerMove, type SnapGrid } from './moves.ts';
 import { parseRules, type RulesMessage } from './rules.ts';
@@ -103,7 +104,7 @@ export interface PlayerAssetRequest {
   readonly maxSide?: number;
 }
 
-export type PlayerMessage = PlayerAssetRequest | PlayerResync | PlayerMove | PlayerDrag | PlayerDragCancel | PlayerClaim | PlayerRoll | PlayerLaser | PlayerMeasure | PlayerLogMessage | PlayerBookMessage;
+export type PlayerMessage = PlayerAssetRequest | PlayerResync | PlayerMove | PlayerDrag | PlayerDragCancel | PlayerClaim | PlayerRoll | PlayerLaser | PlayerMeasure | PlayerCursor | PlayerLogMessage | PlayerBookMessage;
 
 const MAX_CHUNKS = Math.ceil(MAX_ASSET_BYTES / ASSET_CHUNK_BYTES);
 const BASE64 = /^[A-Za-z0-9+/]*={0,2}$/;
@@ -220,6 +221,7 @@ export function parseGmMessage(value: unknown): GmMessage | null {
     case 'log-entry':
     case 'log-remove':
     case 'chat-refused':
+    case 'people':
       return parseLogMessage(value);
     case 'shown-image':
       return parseImageMessage(value);
@@ -236,7 +238,7 @@ export function parsePlayerMessage(value: unknown): PlayerMessage | null {
   if (value.t === 'drag-cancel') return parseDragCancel(value);
   if (value.t === 'claim' || value.t === 'release') return parsePlayerClaim(value);
   if (value.t === 'roll') return parsePlayerRoll(value);
-  if (value.t === 'laser' || value.t === 'measure') return parsePlayerMark(value);
+  if (value.t === 'laser' || value.t === 'measure' || value.t === 'cursor') return parsePlayerMark(value);
   if (isPlayerLogType(value.t)) return parsePlayerLog(value);
   if (isPlayerBookType(value.t)) return parsePlayerBookMessage(value);
   if (value.t === 'resync') return isSceneId(value.scene) && isDeltaOf(value.of) ? { t: 'resync', scene: value.scene, of: value.of } : null;

@@ -1,40 +1,64 @@
+import { isRollMode, MAX_FLAVOR, MAX_INLINE_ROLLS, shownLine, type RollMode } from './chat.ts';
+import { LOG_ID_PATTERN } from './log.ts';
 import { MAX_SCENE_ID } from './moves.ts';
 import { PLAYER_ID_PATTERN } from './relay.ts';
 import { isRecord } from './shape.ts';
 import { TOKEN_ID_PATTERN } from './tokens.ts';
 
 /** The longest formula a player may send: Atlas's dice parser takes no longer one. */
-export const MAX_FORMULA = 64;
+export const MAX_FORMULA = 100;
 /** The longest formula a shared roll names: Atlas may complete a bonus with the default roll. */
-export const MAX_ROLL_FORMULA = 128;
-/** The most dice a shared roll holds: Atlas's 100 dice, each with up to 10 dice rolled for its explosions. */
-export const MAX_ROLLED_DICE = 1100;
+export const MAX_ROLL_FORMULA = 160;
+/** The most dice a shared roll holds: Atlas's 100 dice, each rolled again and exploding up to 10 times. */
+export const MAX_ROLLED_DICE = 2200;
 /** The most faces a die has in Atlas's dice grammar. */
 export const MAX_FACES = 1000;
 /** The longest ability name a shared roll carries. */
 export const MAX_ABILITY_NAME = 200;
 const MAX_ROLL_ID = 64;
-/** Larger than any sum Atlas's grammar can make: 1100 dice of 1000 faces, ten constants of four digits. */
-const MAX_TOTAL = 10_000_000;
+/** The largest total Atlas's grammar lets a formula make. */
+const MAX_TOTAL = 1_000_000_000;
+/** The longest label a die's term carries. */
+const MAX_DIE_LABEL = 24;
+
+/** The roll button a roll answers: the log entry that offers it and which of its rolls. */
+export interface RollRequestAnswer {
+  readonly id: string;
+  readonly index: number;
+}
 
 /**
  * A player rolls: `formula` as Atlas's dice tray writes it, for the token `token` (by the id players
- * know it by: their selected own token, or their only one), or for nobody (null).
+ * know it by: their selected own token, or their only one), or for nobody (null); in a roll mode
+ * (public where absent), with a flavor, answering a roll button of the log (`request`).
  */
 export interface PlayerRoll {
   readonly t: 'roll';
   readonly scene: string;
   readonly formula: string;
   readonly token: string | null;
+  readonly mode?: RollMode;
+  readonly flavor?: string;
+  readonly request?: RollRequestAnswer;
 }
 
-/** One die of a roll as Atlas rolled it. */
+/**
+ * One die of a roll as Atlas rolled it: a Fate die is `dF` with `min` −1 and `max` 1. A die rolled
+ * again (`rerolled`, the next die took its place) or left out by keep or drop (`dropped`) counts for
+ * nothing; a counted one is a `success` or a `failure`; `label` is its term's.
+ */
 export interface SharedDie {
   readonly die: string;
   readonly value: number;
   readonly max: number;
+  readonly min?: -1;
   readonly negative?: true;
   readonly exploded?: true;
+  readonly rerolled?: true;
+  readonly dropped?: true;
+  readonly success?: true;
+  readonly failure?: true;
+  readonly label?: string;
 }
 
 /** A roll as players see it: Atlas's result without who rolled it, its source reduced to what players may know. */
@@ -47,6 +71,8 @@ export interface SharedRoll {
   readonly total: number;
   readonly crit?: 'high' | 'low' | null;
   readonly source?: { readonly type: 'toolbar' | 'statblock'; readonly abilityName?: string };
+  /** The formula is no plain sum (it multiplies, divides or counts): `modifiers` is 0 then. */
+  readonly linear?: false;
 }
 
 /**
@@ -73,20 +99,41 @@ const REFUSALS: readonly string[] = ['formula', 'rate', 'scene', 'unavailable'];
 const isInteger = (value: unknown, min: number, max: number): value is number => Number.isInteger(value) && (value as number) >= min && (value as number) <= max;
 const isText = (value: unknown, max: number): value is string => typeof value === 'string' && value.length <= max;
 
+function parseRequestAnswer(value: unknown): RollRequestAnswer | null {
+  if (!isRecord(value) || typeof value.id !== 'string' || !LOG_ID_PATTERN.test(value.id) || !isInteger(value.index, 0, MAX_INLINE_ROLLS - 1)) return null;
+  return { id: value.id, index: value.index };
+}
+
 /** A player's roll as the GM reads it, or null for anything malformed. */
 export function parsePlayerRoll(value: Record<string, unknown>): PlayerRoll | null {
-  const { scene, formula, token } = value;
+  const { scene, formula, token, mode, flavor } = value;
   if (!isText(scene, MAX_SCENE_ID) || scene === '' || !isText(formula, MAX_FORMULA)) return null;
   if (token !== null && (typeof token !== 'string' || !TOKEN_ID_PATTERN.test(token))) return null;
-  return { t: 'roll', scene, formula, token };
+  if (mode !== undefined && !isRollMode(mode)) return null;
+  const shownFlavor = flavor === undefined ? undefined : shownLine(flavor, MAX_FLAVOR);
+  const request = value.request === undefined ? undefined : parseRequestAnswer(value.request);
+  if (shownFlavor === null || request === null) return null;
+  return {
+    t: 'roll', scene, formula, token,
+    ...(mode !== undefined && mode !== 'public' && { mode }),
+    ...(shownFlavor !== undefined && { flavor: shownFlavor }),
+    ...(request !== undefined && { request }),
+  };
 }
+
+const FLAGS = ['negative', 'exploded', 'rerolled', 'dropped', 'success', 'failure'] as const;
+const DIE_LABEL = /^[\p{L}\p{N}' -]{1,24}$/u;
 
 function parseDie(value: unknown): SharedDie | null {
   if (!isRecord(value)) return null;
-  const { die, value: rolled, max, negative, exploded } = value;
-  if (!isInteger(max, 1, MAX_FACES) || die !== `d${max}` || !isInteger(rolled, 1, max)) return null;
-  if ((negative !== undefined && negative !== true) || (exploded !== undefined && exploded !== true)) return null;
-  return { die, value: rolled, max, ...(negative === true && { negative }), ...(exploded === true && { exploded }) };
+  const { die, value: rolled, max, min, label } = value;
+  const fate = die === 'dF';
+  if (typeof die !== 'string' || !isInteger(max, 1, MAX_FACES) || !isInteger(rolled, -1, max)) return null;
+  if (fate ? max !== 1 || min !== -1 : die !== `d${max}` || min !== undefined || rolled < 1) return null;
+  if (FLAGS.some((flag) => value[flag] !== undefined && value[flag] !== true)) return null;
+  if (label !== undefined && (typeof label !== 'string' || label.length > MAX_DIE_LABEL || !DIE_LABEL.test(label))) return null;
+  const flags = Object.fromEntries(FLAGS.filter((flag) => value[flag] === true).map((flag) => [flag, true]));
+  return { die, value: rolled, max, ...(fate && { min: -1 as const }), ...flags, ...(label !== undefined && { label }) };
 }
 
 function parseSource(value: unknown): SharedRoll['source'] | null {
@@ -107,9 +154,10 @@ export function parseSharedRoll(value: unknown): SharedRoll | null {
   if (!Array.isArray(value.rolls) || value.rolls.length > MAX_ROLLED_DICE) return null;
   const rolls = value.rolls.map(parseDie);
   const source = parseSource(value.source);
-  if (rolls.some((die) => die === null) || source === null) return null;
+  if (rolls.some((die) => die === null) || source === null || (value.linear !== undefined && value.linear !== false)) return null;
   return {
     id, timestamp, formula, rolls: rolls as SharedDie[], modifiers, total,
+    ...(value.linear === false && { linear: false as const }),
     ...(crit !== undefined && { crit }),
     ...(source !== undefined && { source }),
   };

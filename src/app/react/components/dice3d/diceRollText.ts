@@ -1,5 +1,5 @@
 import type { DiceScene } from '../../../dice3d/diceScene';
-import { diceSum } from '../../../tools/diceLabels';
+import { diceList, diceSum } from '../../../tools/diceLabels';
 import type { DiceRollResult } from '../../../types/diceTypes';
 
 /**
@@ -20,27 +20,32 @@ function modifierSuffix(modifier: number): string {
  * The line under the total. A die stood in for another (a d2 on a d6) explains
  * itself, since a 6 on the stage next to a total of 2 looks like an error. More
  * than six dice are summed rather than listed: the chain would wrap, the panel
- * holds one line, and the pips lie on the stage anyway.
+ * holds one line, and the pips lie on the stage anyway. A formula that is no
+ * plain sum (`2d6*2`, `8d10cs>=8`) lists its dice instead of adding them up.
  */
 export function rollBreakdown(result: DiceRollResult, scene: DiceScene): string | null {
+  const thrown = result.rolls.filter((roll) => !roll.rerolled).length;
+  if (result.linear === false) return thrown > 6 ? `${thrown} dice` : diceList(result.rolls);
+
   const suffix = modifierSuffix(result.modifiers);
-  const values = result.rolls.map((roll) => roll.value);
   const diceTotal = result.total - result.modifiers;
+  const plain = result.rolls.every((roll) => !roll.rerolled && !roll.dropped);
 
   if (scene.plan[0]?.role === 'tens') {
     return `Tens ${(scene.faces[0]! % 10) * 10}, units ${scene.faces[1]! % 10}${suffix}`;
   }
-  if (values.length > 6) return `${values.length} dice, ${diceTotal}${suffix}`;
-  if (scene.plan.some((die) => die.fold !== undefined)) {
-    return `${scene.faces.join(' + ')} on the d${scene.plan[0]!.sides} counts ${values.join(' + ')}${suffix}`;
+  if (thrown > 6) return `${thrown} dice, ${diceTotal}${suffix}`;
+  if (plain && scene.plan.some((die) => die.fold !== undefined)) {
+    return `${scene.faces.join(' + ')} on the d${scene.plan[0]!.sides} counts ${result.rolls.map((roll) => roll.value).join(' + ')}${suffix}`;
   }
-  return values.length > 1 || suffix !== '' ? `${diceSum(result.rolls)}${suffix}` : null;
+  return result.rolls.length > 1 || suffix !== '' ? `${diceSum(result.rolls)}${suffix}` : null;
 }
 
 /** Whether a breakdown line will show, known before landing so the panel never grows. */
 export function hasBreakdown(result: DiceRollResult, scene: DiceScene): boolean {
   return scene.plan[0]?.role === 'tens'
     || scene.plan.some((die) => die.fold !== undefined)
-    || scene.plan.length > 1
-    || result.modifiers !== 0;
+    || result.rolls.length > 1
+    || result.modifiers !== 0
+    || result.linear === false;
 }

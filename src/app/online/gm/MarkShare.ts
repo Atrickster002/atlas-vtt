@@ -1,16 +1,19 @@
-import { GM_MARKS, MARKS_INTERVAL_MS, MAX_LASER_SPAN_MS, MAX_MARK_LASER_NUMBERS, type GmMessage, type LaserState, type MarksMessage, type MeasureState, type PlayerLaser, type PlayerMeasure } from '../protocol/index.ts';
+import { CURSOR_KEEPALIVE_MS, GM_MARKS, MARKS_INTERVAL_MS, MAX_LASER_SPAN_MS, MAX_MARK_LASER_NUMBERS, type GmMessage, type LaserState, type MarksMessage, type MeasureState, type PlayerCursor, type PlayerLaser, type PlayerMeasure } from '../protocol/index.ts';
 import type { SceneSource } from '../../host/sceneSource';
 import type { Measurements } from '../../pixi/MeasureRenderer';
+import { CursorShare, type CursorSharePorts } from './CursorShare.ts';
 import { GmMeasures, type PlayersView } from './gmMeasures.ts';
 import { checkLaser, checkMeasure, markRate } from './markCheck.ts';
 import type { MapSize, MoveRate } from './moveCheck.ts';
-import { Pacer, type LaserSource, type PacerClock } from '../marks/index.ts';
+import { Pacer, type CursorSource, type LaserSource, type PacerClock } from '../marks/index.ts';
 
 /** The GM's own marks on the shared tab: its renderer's measurements, its laser, and what players see of the tokens. */
 export interface GmMarkSource extends PlayersView {
   /** The renderer's measurement records; null in an Atlas build without them, whose measurements players then do not see. */
   readonly measurements: SceneSource<Measurements> | null;
   readonly laser: LaserSource;
+  /** The GM's own cursor over the map; without it players see none of the GM's. */
+  readonly cursor?: CursorSource;
   /** The GM's laser colour and size (Atlas's settings). */
   laserLook(): { readonly color: string; readonly size: number };
   /** Calls `listener` whenever what the players see of the tokens may have changed; returns the function that stops it. */
@@ -20,7 +23,7 @@ export interface GmMarkSource extends PlayersView {
 /** Players' marks, for the GM to see over the map. */
 export type PlayerMarks = Pick<MarksMessage, 'lasers' | 'measures'>;
 
-export interface MarkSharePorts extends PacerClock {
+export interface MarkSharePorts extends PacerClock, Partial<Pick<CursorSharePorts, 'nameOf' | 'showPlayerCursors'>> {
   send(body: GmMessage, to?: string): void;
   /** The GM's measurements and laser on the shared tab, the same object while its renderer is the same; null while it has none, and without it players see none of the GM's marks. */
   gmMarks?(): GmMarkSource | null;
@@ -31,11 +34,13 @@ export interface MarkSharePorts extends PacerClock {
    * laser's `pts` are those new since the call before, so only the laser that just arrived has any.
    */
   showPlayerMarks?(marks: PlayerMarks): void;
+  /** Whether the GM lets everyone see each other's cursor; without it nobody's cursor is taken or sent. */
+  cursorsShown?(): boolean;
 }
 
 /** A player's laser that sent nothing for this long is gone (the client sends while it shows, at least twice a second). */
 export const LASER_SILENCE_MS = 1000;
-const isEmpty = (marks: MarksMessage): boolean => marks.lasers.length === 0 && marks.measures.length === 0;
+const isEmpty = (marks: MarksMessage): boolean => marks.lasers.length === 0 && marks.measures.length === 0 && (marks.cursors?.length ?? 0) === 0;
 
 /** Obsidian's default accent, for when the theme's cannot be read. */
 const DEFAULT_ACCENT = '#8a5cf5';
@@ -74,8 +79,8 @@ const spansAdded = (covered: number | null, span: number | undefined): number | 
 /**
  * Everyone's marks in the shared scene, sent to all as one `marks` message at most every
  * `MARKS_INTERVAL_MS`, only when something changed: the GM's measurements players may see
- * (`GmMeasures`), the GM's laser, and each player's checked laser and measurements. Each client
- * leaves out its own. The GM's own overlay does not wait for that pace: it is shown a player's marks
+ * (`GmMeasures`), the GM's laser, each player's checked laser and measurements, and, while the GM lets
+ * everyone see them, everyone's cursors (`CursorShare`). Each client leaves out its own. The GM's own overlay does not wait for that pace: it is shown a player's marks
  * as they arrive.
  */
 export class MarkShare {
@@ -87,16 +92,26 @@ export class MarkShare {
   private readonly measures = new Map<string, PlayerMeasureState>();
   private readonly laserRate: MoveRate = markRate();
   private readonly measureRate: MoveRate = markRate();
+  private readonly cursors: CursorShare;
   private scene: string | null = null;
   private source: GmMarkSource | null = null;
   private stopSource: (() => void) | null = null;
   private last: { readonly body: MarksMessage; readonly text: string } | null = null;
+  /** When marks last went out. */
+  private sentAt = Number.NEGATIVE_INFINITY;
 
   /** `map` is the shared map's size, which marks must stay near; null when it is unknown. */
   constructor(ports: MarkSharePorts, map: () => MapSize | null) {
     this.ports = ports;
     this.map = map;
     this.pacer = new Pacer(ports, MARKS_INTERVAL_MS, () => this.send());
+    this.cursors = new CursorShare({
+      now: () => ports.now(),
+      shown: () => ports.cursorsShown?.() === true,
+      nameOf: (player) => ports.nameOf?.(player) ?? null,
+      pointing: (who) => this.pointing(who),
+      ...(ports.showPlayerCursors !== undefined && { showPlayerCursors: (cursors) => ports.showPlayerCursors?.(cursors) }),
+    });
   }
 
   /** The shared scene; another one starts without marks. */
@@ -106,17 +121,20 @@ export class MarkShare {
     this.lasers.clear();
     this.measures.clear();
     this.gm.reset();
+    this.cursors.reset();
     this.pacer.cancel();
     this.last = null;
     this.ports.showPlayerMarks?.({ lasers: [], measures: [] });
     this.update();
   }
 
-  /** A player's laser or measurements: checked, then kept until they change, go silent or the player leaves. */
-  receive(from: string, message: PlayerLaser | PlayerMeasure): void {
+  /** A player's laser, measurements or cursor: checked, then kept until they change, go silent or the player leaves. */
+  receive(from: string, message: PlayerLaser | PlayerMeasure | PlayerCursor): void {
     const now = this.ports.now();
     const context = { scene: this.scene, map: this.map() };
-    if (message.t === 'laser') {
+    if (message.t === 'cursor') {
+      if (!this.cursors.receive(from, message, context)) return;
+    } else if (message.t === 'laser') {
       const state = this.laserRate.take(from, now) ? checkLaser(message, context) : null;
       if (state === null) return;
       const waiting = this.lasers.get(from)?.waiting ?? { pts: [], span: 0 };
@@ -138,7 +156,8 @@ export class MarkShare {
   playerLeft(player: string): void {
     const hadLaser = this.lasers.delete(player);
     const hadMeasures = this.measures.delete(player);
-    if (!hadLaser && !hadMeasures) return;
+    const hadCursor = this.cursors.playerLeft(player);
+    if (!hadLaser && !hadMeasures && !hadCursor) return;
     this.show();
     this.pacer.request();
   }
@@ -159,6 +178,7 @@ export class MarkShare {
       }
     }
     if (silent) this.show();
+    this.cursors.update();
     if (this.scene !== null) this.pacer.request();
   }
 
@@ -187,7 +207,7 @@ export class MarkShare {
       this.pacer.request();
     });
     const request = (): void => this.pacer.request();
-    const stops = [measurements?.subscribe(measured) ?? (() => undefined), source.laser.subscribe(request), source.onPlayersViewChange?.(request) ?? (() => undefined)];
+    const stops = [measurements?.subscribe(measured) ?? (() => undefined), source.laser.subscribe(request), source.cursor?.subscribe(request) ?? (() => undefined), source.onPlayersViewChange?.(request) ?? (() => undefined)];
     this.stopSource = () => stops.forEach((stop) => stop());
     measured();
   }
@@ -210,17 +230,29 @@ export class MarkShare {
     for (const laser of this.lasers.values()) laser.waiting = null;
     const playerMeasures = [...this.measures].map(([who, { state, covered }]) => measureEntry(who, state, covered ?? null));
     for (const held of this.measures.values()) held.covered = undefined;
+    const cursors = this.cursors.take(this.source?.cursor ?? null);
     const body: MarksMessage = {
       t: 'marks',
       scene: this.scene,
       lasers: [...this.gmLaser(), ...playerLasers.filter((laser) => laser.at !== null || laser.on || laser.pts.length > 0)],
       measures: [...this.gmMeasures(), ...playerMeasures],
+      ...(cursors !== undefined && { cursors }),
     };
     const text = JSON.stringify(body);
+    const now = this.ports.now();
+    // Cursors that show go out now and then while nothing changes, so a page can tell a GM that went silent.
+    const keepAlive = (body.cursors?.length ?? 0) > 0 && now - this.sentAt >= CURSOR_KEEPALIVE_MS;
     // Nothing to tell before anyone made a mark: players start without any.
-    if (text === this.last?.text || (this.last === null && isEmpty(body))) return;
+    if ((text === this.last?.text && !keepAlive) || (this.last === null && isEmpty(body))) return;
     this.last = { body, text };
+    this.sentAt = now;
     this.ports.send(body);
+  }
+
+  /** Whether someone's laser shows its pointer now. */
+  private pointing(who: string): boolean {
+    if (who === GM_MARKS) return this.source !== null && this.source.laser.state().at !== null;
+    return (this.lasers.get(who)?.state.at ?? null) !== null;
   }
 
   private gmLaser(): MarksMessage['lasers'] {
