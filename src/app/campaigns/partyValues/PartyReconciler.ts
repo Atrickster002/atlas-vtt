@@ -17,7 +17,7 @@ const seenOf = (state: PartyStoreState): Seen => ({ tokens: state.objects.tokens
 
 /**
  * Keeps a view store's player-character tokens and its `partyValues` one: while a campaign is
- * followed (`follow`), a value the GM changes on a character's token goes to the party and to
+ * followed (`setContext`), a value the GM changes on a character's token goes to the party and to
  * the character's other tokens, values that reached the party from elsewhere reach the tokens,
  * and a token placed or a scene loaded takes the party's values (adopting what the party lacks).
  * An undo or redo puts the store back value by value, and the tokens then take the party's

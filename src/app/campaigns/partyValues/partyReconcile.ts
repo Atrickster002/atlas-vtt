@@ -170,7 +170,9 @@ function changedValues(before: PartyValues, after: PartyValues, campaignId: stri
  */
 export function followWrite(before: PartyScene, after: PartyScene, context: PartyContext): PartyWrite {
   const writes = new PassWrites(after, context);
-  const index = indexOf(after.partyValues, context.campaignId);
+  // Read only when a value moves: a drag frame reads none.
+  let known: Map<string, CharacterValues> | null = null;
+  const index = (): Map<string, CharacterValues> => (known ??= indexOf(after.partyValues, context.campaignId));
   const toTake = changedValues(before.partyValues, after.partyValues, context.campaignId);
   const fresh = new Set<string>();
   const taking = (characterId: string): Set<string> => {
@@ -187,14 +189,14 @@ export function followWrite(before: PartyScene, after: PartyScene, context: Part
       const characterId = context.characterOf(token);
       if (characterId === null) continue;
       if (!previous || context.characterOf(previous) !== characterId) {
-        adopt(writes, index, characterId, token);
+        adopt(writes, index(), characterId, token);
         fresh.add(id);
         continue;
       }
       for (const key of editedKeys(previous, token)) {
         const value = tokenPartyValue(token, key)!;
-        let values = index.get(characterId);
-        if (!values) index.set(characterId, (values = new Map<string, PartyValue>()));
+        let values = index().get(characterId);
+        if (!values) index().set(characterId, (values = new Map<string, PartyValue>()));
         values.set(key, value);
         writes.setValue(characterId, key, value);
         taking(characterId).add(key);
@@ -204,7 +206,7 @@ export function followWrite(before: PartyScene, after: PartyScene, context: Part
   if (toTake.size === 0 && fresh.size === 0) return writes.result();
 
   for (const [id, characterId] of characterTokens(after.tokens, context)) {
-    const values = index.get(characterId);
+    const values = index().get(characterId);
     if (!values) continue;
     const keys = fresh.has(id) ? [...values.keys()] : [...(toTake.get(characterId) ?? [])];
     writes.take(id, keys.flatMap((key): [string, PartyValue][] => (values.has(key) ? [[key, values.get(key)!]] : [])));

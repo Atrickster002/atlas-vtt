@@ -16,6 +16,7 @@ import { WidgetSyncService } from './WidgetSyncService';
 import { SoundEffectService } from './SoundEffectService';
 import { DiceToastObserver } from './DiceToastObserver';
 import type { ViewAtlasStore } from '../storeFactory';
+import { PartySync } from '../campaigns/partyValues/PartySync';
 import { pictureView } from '../pixi/mapImage/levelOfDetail';
 
 /** How long a snapshot waits for the map image's detail before it renders what is drawn. */
@@ -93,6 +94,9 @@ export class ServiceManager {
       const widgetSync = this.widgetSyncService;
       this.eventBus.on('map-unloading', () => widgetSync.leaveScene(this.viewId));
     }
+
+    // The played campaign's player characters show one set of values in every view
+    PartySync.forApp(app)?.registerStore(this.viewId, store);
     
   }
   
@@ -239,6 +243,7 @@ export class ServiceManager {
     if (this.widgetSyncService) {
       this.widgetSyncService.unregisterStore(this.viewId);
     }
+    PartySync.forApp(this.app)?.unregisterStore(this.viewId);
     
     // Writes a pending thumbnail, so it must run while the renderer still shows the scene
     this.sceneThumbnails.destroy();

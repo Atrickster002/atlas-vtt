@@ -80,6 +80,19 @@ export class RecordFiles<Stored extends StoredRecord> {
     this.enqueue(() => this.writeNew(record.id));
   }
 
+  /**
+   * Writes a new record at `path`, a record file the layout names after nothing (one that lives in
+   * another record's folder). Should a file already stand there once it is written (another
+   * device's, delivered meanwhile), `change` is applied to what it holds instead.
+   */
+  createAt(path: string, record: Stored, change: (stored: Stored) => Stored): void {
+    if (!this.layout.isRecordPath(path)) throw new Error(`Not a ${this.layout.kind} file: ${path}`);
+    this.bump(path);
+    this.files.set(path, { text: this.layout.text(record), record });
+    this.changed();
+    this.enqueue(() => this.writeAt(path, change));
+  }
+
   /** Changes the record; on disk the change is applied to what the file holds then. */
   update(id: string, change: (stored: Stored) => Stored): void {
     const path = this.pathOf(id);
@@ -148,6 +161,15 @@ export class RecordFiles<Stored extends StoredRecord> {
     }
     await this.ensureFolder(parentOf(path));
     await vault.create(path, entry.text);
+  }
+
+  private async writeAt(path: string, change: (stored: Stored) => Stored): Promise<void> {
+    const entry = this.files.get(path);
+    const id = entry?.record?.id;
+    if (!entry || id === undefined) return;
+    if (this.app.vault.getFileByPath(path)) return this.writeChange(id, change);
+    await this.ensureFolder(parentOf(path));
+    await this.app.vault.create(path, entry.text);
   }
 
   private async ensureFolder(folder: string): Promise<void> {

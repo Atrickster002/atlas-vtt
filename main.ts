@@ -45,6 +45,7 @@ import { registerCommands } from './src/app/plugin/registerCommands';
 import { CampaignFiles } from './src/app/campaigns/CampaignFiles';
 import { PlayedRules } from './src/app/campaigns/playedRules';
 import { recordCampaignPlay } from './src/app/campaigns/recordCampaignPlay';
+import { registerPartySync } from './src/app/plugin/partySync';
 import { registerOnlinePlay, type OnlinePlay } from './src/app/plugin/onlinePlay';
 import type { TableChat } from './src/app/online/gm/tableChat';
 import { registerPlayerWindowReloadCleanup } from './src/app/plugin/playerWindowReload';
@@ -110,6 +111,8 @@ export default class AtlasVTTPlugin extends Plugin {
     void campaignsRead.catch((error: unknown) => console.error('[Atlas] Reading the campaigns failed:', error));
     // The campaign this device plays records the scenes its map views open.
     this.register(recordCampaignPlay(this.app, campaignFiles, campaignsRead));
+    // And keeps one set of values for each of its player characters, shared by every map view.
+    registerPartySync(this, campaignFiles, campaignsRead);
     // Settings carried over even when the data file migration failed, so they are not lost to the defaults.
     const settingsReady = storageReady.catch(() => undefined).then(async () => {
       await presetFiles.load();
