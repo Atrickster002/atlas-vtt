@@ -179,6 +179,22 @@ function parseWorldMap(value: unknown): BookWorldMap | null | undefined {
   return image === null ? undefined : { image, width: value.width, height: value.height };
 }
 
+/**
+ * A book's quests: the GM's text, which the player only reads, so a quest the page cannot read (of a
+ * newer GM, say) is left out and the rest of the book still shown; an id twice keeps the first.
+ * None for a GM that gives none; null for a list that is no list or longer than a book holds.
+ */
+function parseQuests(value: unknown): BookQuest[] | null {
+  if (value === undefined) return [];
+  if (!Array.isArray(value) || value.length > MAX_BOOK_QUESTS) return null;
+  const quests = new Map<string, BookQuest>();
+  for (const entry of value) {
+    const quest = parseBookQuest(entry);
+    if (quest !== null && !quests.has(quest.id)) quests.set(quest.id, quest);
+  }
+  return [...quests.values()];
+}
+
 export function parsePlayerBook(value: unknown): PlayerBook | null {
   if (!isRecord(value)) return null;
   const character = parseBookCharacter(value.character);
@@ -186,7 +202,7 @@ export function parsePlayerBook(value: unknown): PlayerBook | null {
   const items = distinct(parseList(value.items, MAX_BOOK_ITEMS, parseBookItem));
   const notes = distinct(parseList(value.notes, MAX_BOOK_NOTES, parseBookNote));
   const pins = distinct(parseList(value.pins, MAX_BOOK_PINS, parseBookPin));
-  const quests = value.quests === undefined ? [] : distinct(parseList(value.quests, MAX_BOOK_QUESTS, parseBookQuest));
+  const quests = parseQuests(value.quests);
   const purse = parsePurse(value.purse);
   const slots = value.slots === undefined ? DEFAULT_BOOK_SLOTS : parseBookSlots(value.slots);
   const equipped = value.equipped === undefined ? [] : parseEquipped(value.equipped);

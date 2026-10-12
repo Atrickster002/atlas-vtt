@@ -66,7 +66,7 @@ describe('book messages to a player', () => {
     expect(isQuestDone({ state: 'failed' })).toBe(true);
   });
 
-  it('refuse malformed quests', () => {
+  it('leave out a malformed quest and show the rest of the book', () => {
     const broken: unknown[] = [
       { ...QUEST, kind: 'urgent' },
       { ...QUEST, state: 'heard' },
@@ -77,8 +77,10 @@ describe('book messages to a player', () => {
       { ...QUEST, rewards: Array.from({ length: MAX_QUEST_REWARDS + 1 }, () => 'Gold') },
       { ...QUEST, rewards: [''] },
     ];
-    for (const quest of broken) expect(parseGmMessage({ t: 'book', book: { ...BOOK, quests: [quest] } }), JSON.stringify(quest)).toBeNull();
-    expect(parseGmMessage({ t: 'book', book: { ...BOOK, quests: [QUEST, QUEST] } })).toBeNull();
+    const other = { ...QUEST, id: '0'.repeat(24), title: 'The goat of Lankshorn' };
+    for (const quest of broken) expect(parseGmMessage({ t: 'book', book: { ...BOOK, quests: [quest, other] } }), JSON.stringify(quest)).toEqual({ t: 'book', book: { ...BOOK, quests: [other] } });
+    expect(parseGmMessage({ t: 'book', book: { ...BOOK, quests: [QUEST, { ...QUEST, title: 'Again' }] } })).toEqual({ t: 'book', book: BOOK });
+    expect(parseGmMessage({ t: 'book', book: { ...BOOK, quests: QUEST } })).toBeNull();
     expect(parseGmMessage({ t: 'book', book: { ...BOOK, quests: Array.from({ length: MAX_BOOK_QUESTS + 1 }, (_, n) => ({ ...QUEST, id: n.toString(16).padStart(24, '0') })) } })).toBeNull();
   });
 
