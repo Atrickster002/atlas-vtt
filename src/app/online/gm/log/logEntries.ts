@@ -59,8 +59,9 @@ export function viewOf(entry: GmLogEntry, viewer: string): LogEntry | null {
   if (entry.hidden === true) return viewer === GM_AUTHOR ? sharedEntry(entry) : null;
   if (seesWhole(entry, viewer)) return sharedEntry(entry);
   if (entry.kind !== 'roll' || entry.mode === undefined) return null;
-  const { id, at, who, name, mode, speaker } = entry;
-  return { id, at, who, name, kind: 'secret', mode, ...(speaker !== undefined && { speaker }) };
+  // Who spoke is no part of the line: a hidden NPC would be named by it.
+  const { id, at, who, name, mode } = entry;
+  return { id, at, who, name, kind: 'secret', mode };
 }
 
 const encoder = new TextEncoder();
@@ -114,4 +115,9 @@ function readLogEntries(saved: unknown): GmLogEntry[] {
     });
   }
   return entries;
+}
+
+/** The vault path of a speaker's artwork the entries show, by its hash. */
+export function speakerArtIn(entries: readonly GmLogEntry[], hash: string): string | undefined {
+  return entries.find((entry) => entry.speakerArt !== undefined && 'speaker' in entry && entry.speaker?.art?.hash === hash)?.speakerArt;
 }

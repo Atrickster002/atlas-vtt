@@ -100,6 +100,8 @@ describe('whispers', () => {
     expect(parse('/gm hi', { self: 'gm' })).toEqual({ kind: 'error', message: 'You are the GM.' });
     expect(parse('/players ready?', { self: 'gm' })).toEqual({ kind: 'say', draft: { text: 'ready?', to: [ME, KARA, MIRA, THORN] } });
     expect(parse('/players hi', { people: [{ id: ME, name: 'Ash' }] })).toEqual({ kind: 'error', message: 'No players are at the table.' });
+    expect(parse('/players hi', { people: [{ id: KARA, name: 'Kara', away: true }, { id: MIRA, name: 'Mira' }] })).toEqual({ kind: 'say', draft: { text: 'hi', to: [MIRA] } });
+    expect(parse('/reply hi', { people: [{ id: KARA, name: 'Kara', away: true }], lastWhisper: [KARA] })).toEqual({ kind: 'error', message: 'Everyone in that whisper has left the table.' });
   });
 
   it('answer the last whisper the viewer was sent with /reply', () => {

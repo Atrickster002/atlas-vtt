@@ -1,27 +1,13 @@
-import { GM_AUTHOR, inlineMarks, isLogReaction, isPlayerLogType, isRecord, MAX_LOG_ENTRIES, parseLogEntry, parsePlayerLog, quoting, type ChatRefusal, type LogEntry, type LogReactionEmoji, type PlayerInfo, type PlayerLogMessage, type RollRequestAnswer, type TablePerson } from '../../protocol/index.ts';
+import { GM_AUTHOR, isLogReaction, isPlayerLogType, isRecord, MAX_LOG_ENTRIES, parseLogEntry, parsePlayerLog, quoting, type ChatRefusal, type LogEntry, type LogReactionEmoji, type PlayerInfo, type PlayerLogMessage, type RollRequestAnswer, type TablePerson } from '../../protocol/index.ts';
 import { MoveRate } from '../moveCheck.ts';
-import { chatFields, keepsRolls } from './logChat.ts';
-import type { ChatDraft, LoggedRoll, RollRequest, SpokenAs, TableLogPorts } from './logTypes.ts';
-import { entriesWithin, readSavedLog, seesWhole, sharedEntry, viewOf, type GmLogEntry, type SavedLog } from './logEntries.ts';
+import { chatFields, keepsRolls, rollButton } from './logChat.ts';
+import { CHAT_BURST, CHATS_PER_SECOND, GM_NAME, LOG_SNAPSHOT_BYTES, REACT_BURST, REACTS_PER_SECOND, REFUSAL_BURST, REFUSALS_PER_SECOND, type ChatDraft, type LoggedRoll, type RollRequest, type SpokenAs, type TableLogPorts } from './logTypes.ts';
+import { entriesWithin, readSavedLog, seesWhole, sharedEntry, speakerArtIn, viewOf, type GmLogEntry, type SavedLog } from './logEntries.ts';
 import { publishEntry, retractEntry, sendLog } from './logFanout.ts';
 import { LEAVE_GRACE_MS, LogPresence } from './LogPresence.ts';
 import { withReaction } from './logReactions.ts';
 
-/** Messages and edits a player may send: a burst of `CHAT_BURST`, then one every two seconds. */
-export const CHAT_BURST = 5;
-export const CHATS_PER_SECOND = 0.5;
-/** Reactions and deletions a player may send: a burst of `REACT_BURST`, then `REACTS_PER_SECOND`. */
-export const REACT_BURST = 10;
-export const REACTS_PER_SECOND = 2;
-/** Refusals a player is told: a burst of `REFUSAL_BURST`, then one a second. A player far over their rate is not answered every time. */
-export const REFUSAL_BURST = 2;
-export const REFUSALS_PER_SECOND = 1;
-/** What a joining player is sent of the log, and what is kept with the table: the newest entries that fit. */
-export const LOG_SNAPSHOT_BYTES = 150 * 1024;
-/** The GM's name in the log; a client shows its own word for it. */
-export const GM_NAME = 'GM';
-
-export { LEAVE_GRACE_MS };
+export { CHAT_BURST, CHATS_PER_SECOND, GM_NAME, LEAVE_GRACE_MS, LOG_SNAPSHOT_BYTES, REACT_BURST, REACTS_PER_SECOND, REFUSAL_BURST, REFUSALS_PER_SECOND };
 export type { ChatDraft, LoggedRoll, RollRequest, SpokenAs, TableLogPorts };
 
 /**
@@ -83,10 +69,7 @@ export class TableLog {
 
   /** The vault path of a speaker's artwork the log shows, by hash: what its viewers may be sent. */
   speakerArt(hash: string): string | undefined {
-    for (const entry of this.list) {
-      if (entry.speakerArt !== undefined && 'speaker' in entry && entry.speaker?.art?.hash === hash) return entry.speakerArt;
-    }
-    return undefined;
+    return speakerArtIn(this.list, hash);
   }
 
   /** The relay's welcome: exactly these players are connected. */
@@ -102,11 +85,11 @@ export class TableLog {
     this.presence.left(id);
   }
 
-  /** A roll made at the table. */
-  rolled(roll: LoggedRoll): void {
+  /** A roll made at the table; false where the log could not take it. */
+  rolled(roll: LoggedRoll): boolean {
     const name = this.nameOf(roll.who);
-    if (name === null) return;
-    void this.add({
+    if (name === null) return false;
+    return this.add({
       ...this.stamp(roll.who, name), kind: 'roll', roll: roll.roll, token: roll.token,
       ...(!roll.shared && { hidden: true as const }),
       ...(roll.face !== undefined && { face: roll.face }),
@@ -121,10 +104,7 @@ export class TableLog {
   /** The roll button `index` of a message `viewer` sees whole, or null where there is none. */
   requestOf(viewer: string, answer: RollRequestAnswer): RollRequest | null {
     const entry = this.visible(answer.id, viewer);
-    if (entry?.kind !== 'chat') return null;
-    const mark = inlineMarks(entry.text)?.[answer.index];
-    if (mark === undefined || mark.mode === null) return null;
-    return { formula: mark.formula, mode: mark.mode, label: mark.label ?? mark.formula };
+    return entry?.kind === 'chat' ? rollButton(entry, answer.index) : null;
   }
 
   /** The GM says something; the refusal when it is not said. Said at once unless it waits for a speaker's artwork, or after a message that does. */
@@ -213,13 +193,20 @@ export class TableLog {
     const fields = chatFields(draft, spoken, {
       who,
       known: (id) => id === GM_AUTHOR || (this.presence.players.has(id) && this.nameOf(id) !== null),
-      answered: (id) => this.visible(id, who),
+      // A roll only the GM has is no entry an answer quotes: the answer would be seen by others.
+      answered: (id) => {
+        const entry = this.visible(id, who);
+        return entry?.hidden === true ? undefined : entry;
+      },
       rollInline: (formula) => this.ports.rollInline?.(formula) ?? null,
     });
     const name = this.nameOf(who);
     if (typeof fields === 'string') return fields;
     if (name === null || this.disposed) return 'text';
-    return this.add({ ...this.stamp(who, name), kind: 'chat', ...fields }) ? null : 'text';
+    // The GM whispering to themselves writes a note only the GM's log has.
+    const note = who === GM_AUTHOR && draft.to?.length === 1 && draft.to[0] === GM_AUTHOR;
+    const { to: _to, ...open } = fields;
+    return this.add(note ? { ...this.stamp(who, name), kind: 'chat', ...open, hidden: true } : { ...this.stamp(who, name), kind: 'chat', ...fields }) ? null : 'text';
   }
 
   private changeText(who: string, id: string, text: string): ChatRefusal | null {

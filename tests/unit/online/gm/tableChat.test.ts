@@ -35,7 +35,7 @@ function table(options: { speaker?: (who: string, key: string) => Promise<Spoken
     setTimer: () => 1,
     clearTimer: () => undefined,
     changed: () => undefined,
-    speaker: options.speaker ?? (async (who, key) => (who === 'gm' && key === 'goblin' ? GOBLIN : who === MIRA && key === 'cccccccccccccccccccccccc' ? KARA : null)),
+    speaker: options.speaker ?? ((who, key) => Promise.resolve(who === 'gm' && key === 'goblin' ? GOBLIN : who === MIRA && key === 'cccccccccccccccccccccccc' ? KARA : null)),
     rollInline: options.rollInline ?? ((formula) => (formula === 'nope' ? null : roll(11, formula))),
   });
   log.welcome([{ id: MIRA, name: 'Mira' }, { id: TOM, name: 'Tom' }, { id: ANA, name: 'Ana' }]);
@@ -216,7 +216,43 @@ describe('roll buttons', () => {
     expect(log.requestOf(TOM, { id: entry.id, index: 3 })).toBeNull();
     void log.say({ text: 'Just you: [[/r 1d6]]', to: [ANA] });
     expect(log.requestOf(TOM, { id: last(log).id, index: 0 })).toBeNull();
-    expect(log.requestOf(ANA, { id: last(log).id, index: 0 })).toEqual({ formula: '1d6', mode: 'public', label: '1d6' });
+    expect(log.requestOf(ANA, { id: last(log).id, index: 0 })).toEqual({ formula: '1d6', mode: 'public', label: '1d6', to: ['gm', ANA] });
+  });
+});
+
+describe('what the review found', () => {
+  it('an answer to a blind roll names it and quotes nothing; one to a roll only the GM has quotes nothing', () => {
+    const { log, to } = table();
+    log.rolled({ who: MIRA, roll: roll(17), token: null, shared: true, mode: 'blind', to: rollAudience('blind', MIRA) });
+    void log.say({ text: 'nice', reply: last(log).id });
+    expect(entriesTo(to(MIRA)).at(-1)).toMatchObject({ text: 'nice', reply: { preview: '' } });
+    log.rolled({ who: 'gm', roll: roll(3), token: null, shared: false });
+    void log.say({ text: 'oops', reply: last(log).id });
+    expect(last(log)).not.toHaveProperty('reply');
+    expect(JSON.stringify(entriesTo(to(TOM)))).not.toContain('= 3');
+  });
+
+  it('a line that a private roll was made names no speaker', () => {
+    const { log } = table();
+    log.rolled({ who: 'gm', roll: roll(12), token: null, shared: true, mode: 'gm', to: rollAudience('gm', 'gm'), speaker: GOBLIN });
+    expect(viewOf(last(log), TOM)).toEqual({ id: last(log).id, at: last(log).at, who: 'gm', name: 'GM', kind: 'secret', mode: 'gm' });
+  });
+
+  it('the GM\'s whisper to themselves is a note only the GM\'s log has', async () => {
+    const { log, sent } = table();
+    await expect(log.say({ text: 'the lich is behind the door', to: ['gm'] })).resolves.toBeNull();
+    expect(last(log)).toMatchObject({ hidden: true, text: 'the lich is behind the door' });
+    expect(last(log)).not.toHaveProperty('to');
+    expect(sent).toEqual([]);
+  });
+
+  it('a roll button in a whisper is rolled among the whisper\'s people, never in the open', () => {
+    const { log } = table();
+    void log.say({ text: 'Search: [[/r 1d20]]{Secret door}', to: [ANA] });
+    expect(log.requestOf(ANA, { id: last(log).id, index: 0 })).toEqual({ formula: '1d20', mode: 'public', label: 'Secret door', to: ['gm', ANA] });
+    expect(rollAudience('gm', ANA, ['gm', ANA])).toEqual(['gm']);
+    expect(rollAudience('gm', ANA, ['gm', ANA, TOM])).toEqual(['gm', TOM]);
+    expect(rollAudience('gm', 'gm', ['gm', ANA])).toEqual([ANA]);
   });
 });
 

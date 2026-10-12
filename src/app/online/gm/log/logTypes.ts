@@ -4,6 +4,20 @@ import type { RollFace } from './logEntries.ts';
 
 export type { ChatDraft, SpokenAs };
 
+/** Messages and edits a player may send: a burst of `CHAT_BURST`, then one every two seconds. */
+export const CHAT_BURST = 5;
+export const CHATS_PER_SECOND = 0.5;
+/** Reactions and deletions a player may send: a burst of `REACT_BURST`, then `REACTS_PER_SECOND`. */
+export const REACT_BURST = 10;
+export const REACTS_PER_SECOND = 2;
+/** Refusals a player is told: a burst of `REFUSAL_BURST`, then one a second. A player far over their rate is not answered every time. */
+export const REFUSAL_BURST = 2;
+export const REFUSALS_PER_SECOND = 1;
+/** What a joining player is sent of the log, and what is kept with the table: the newest entries that fit. */
+export const LOG_SNAPSHOT_BYTES = 150 * 1024;
+/** The GM's name in the log; a client shows its own word for it. */
+export const GM_NAME = 'GM';
+
 export interface TableLogPorts {
   send(body: GmMessage, to?: string): void;
   /** The wall clock (milliseconds), which entries are stamped with. */
@@ -41,9 +55,4 @@ export interface LoggedRoll {
   readonly request?: RollRequestRef;
 }
 
-/** A roll button of the log as its presser may roll it: its formula, the mode its author set, and its label. */
-export interface RollRequest {
-  readonly formula: string;
-  readonly mode: RollMode;
-  readonly label: string;
-}
+export type { RollRequest } from './logChat.ts';

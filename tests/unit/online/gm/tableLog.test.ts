@@ -197,7 +197,7 @@ describe('players\' messages', () => {
 
   it('give and take back reactions, once each, in the order they are offered', () => {
     const { log } = seated();
-    log.say({ text: 'Roll for initiative' });
+    void log.say({ text: 'Roll for initiative' });
     const { id } = last(log);
     log.receive(MIRA, { t: 'react', id, emoji: '😂', on: true });
     log.receive(TOM, { t: 'react', id, emoji: '👍', on: true });
@@ -212,7 +212,7 @@ describe('players\' messages', () => {
 
   it('refuse reactions past the rate and on a line of who came', () => {
     const { log, sent } = seated();
-    log.say({ text: 'hi' });
+    void log.say({ text: 'hi' });
     const { id } = last(log);
     sent.length = 0;
     for (let index = 0; index < REACT_BURST + 1; index += 1) log.receive(MIRA, { t: 'react', id, emoji: '👍', on: index % 2 === 0 });
@@ -237,7 +237,7 @@ describe('what a player can cost the table', () => {
     log.receive(MIRA, { t: 'chat', text: 'root' });
     const { id } = last(log);
     for (let index = 0; index < 60; index += 1) {
-      log.say({ text: `answer ${index}`, reply: id });
+      void log.say({ text: `answer ${index}`, reply: id });
       advance(10);
     }
     sent.length = 0;
@@ -262,7 +262,7 @@ describe('what a player can cost the table', () => {
 
   it('is nothing for taking back a reaction nobody gave', () => {
     const { log, sent, changes } = seated();
-    log.say({ text: 'hi' });
+    void log.say({ text: 'hi' });
     const { id } = last(log);
     sent.length = 0;
     const before = changes();
@@ -273,7 +273,7 @@ describe('what a player can cost the table', () => {
 
   it('never makes an entry a client would not read: a reaction names no more than a table seats', () => {
     const { log } = harness();
-    log.say({ text: 'popular' });
+    void log.say({ text: 'popular' });
     const { id } = last(log);
     // One person with the link, joining anew under another id each time.
     for (let index = 0; index < 40; index += 1) {
@@ -305,7 +305,7 @@ describe('the GM', () => {
 
   it('clears the log for everyone', () => {
     const { log, sent } = harness();
-    log.say({ text: 'one' });
+    void log.say({ text: 'one' });
     sent.length = 0;
     log.clear();
     expect(log.entries()).toEqual([]);
@@ -348,7 +348,7 @@ describe('rolls only the GM has', () => {
     const { log, sent, advance } = harness();
     log.joined({ id: MIRA, name: 'Mira' });
     for (let index = 0; index < MAX_LOG_ENTRIES - 1; index += 1) {
-      log.say({ text: `message ${index}` });
+      void log.say({ text: `message ${index}` });
       advance(10);
     }
     const first = log.entries()[0] as GmLogEntry;
@@ -382,7 +382,7 @@ describe('what a joiner is sent and what is kept', () => {
   it('is the newest shared entries, each as a client reads it', () => {
     const { log, sent } = harness();
     log.joined({ id: MIRA, name: 'Mira' });
-    log.say({ text: 'hello' });
+    void log.say({ text: 'hello' });
     log.rolled({ who: 'gm', roll: ROLL, token: null, shared: true, face: { name: 'Lich', image: 'art/lich.webp' } });
     sent.length = 0;
     log.resend(MIRA);
@@ -397,7 +397,7 @@ describe('what a joiner is sent and what is kept', () => {
   it('holds at most the newest entries the log keeps', () => {
     const { log, advance } = harness();
     for (let index = 0; index < MAX_LOG_ENTRIES + 5; index += 1) {
-      log.say({ text: `message ${index}` });
+      void log.say({ text: `message ${index}` });
       advance(10_000);
     }
     expect(log.entries()).toHaveLength(MAX_LOG_ENTRIES);
@@ -416,7 +416,7 @@ describe('what a joiner is sent and what is kept', () => {
 
   it('comes back from saved data with what only the GM has, and without what cannot be read', () => {
     const first = harness();
-    first.log.say({ text: 'kept' });
+    void first.log.say({ text: 'kept' });
     first.log.rolled({ who: 'gm', roll: ROLL, token: null, shared: false, face: { name: 'Lich', image: null } });
     const saved = JSON.parse(JSON.stringify(first.log.saved())) as { entries: unknown[]; present: unknown[] };
     const { log } = harness({ ...saved, entries: [...saved.entries, { id: 'bad' }, null, { ...(saved.entries[0] as object), text: '<b>'.repeat(400) }] });

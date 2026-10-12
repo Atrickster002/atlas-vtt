@@ -9,9 +9,22 @@ import { rollFaceOf } from './log/logEntries.ts';
 import { MoveRate } from './moveCheck.ts';
 import type { RollNotes } from './RollShare.ts';
 
-/** Who is shown a private roll whole besides its roller: the GM (`gm`, and `blind`, where the roller is not), or nobody else (`self`). */
-export function rollAudience(mode: Exclude<RollMode, 'public'>, who: string): readonly string[] {
-  return mode === 'self' ? [who] : ['gm'];
+/**
+ * Who is shown a private roll whole besides its roller: the GM (`gm`, and `blind`, where the roller
+ * is not), or nobody else (`self`). A `gm` roll answering a button in a whisper is shown to the
+ * whisper's people too (`whisper`).
+ */
+export function rollAudience(mode: Exclude<RollMode, 'public'>, who: string, whisper?: readonly string[]): readonly string[] {
+  if (mode === 'self') return [who];
+  if (mode === 'blind' || whisper === undefined) return ['gm'];
+  const to = new Set(whisper.filter((id) => id !== who));
+  if (who !== 'gm') to.add('gm');
+  return to.size === 0 ? ['gm'] : [...to];
+}
+
+/** The mode a roll button is rolled in: as its author set it, but never in the open from a whisper. */
+export function buttonMode(request: RollRequest): RollMode {
+  return request.to !== undefined && request.mode === 'public' ? 'gm' : request.mode;
 }
 
 /** Rolls a player may make: a burst of `ROLL_BURST`, then `ROLLS_PER_SECOND`. */
@@ -96,7 +109,7 @@ export class PlayerRolls {
     const asked = sent.request;
     const request = asked === undefined ? undefined : this.ports.request(from, asked);
     if (request === null) return this.refuse('formula', from);
-    const message: PlayerRoll = request === undefined ? sent : { ...sent, formula: request.formula, mode: request.mode };
+    const message: PlayerRoll = request === undefined ? sent : { ...sent, formula: request.formula, mode: buttonMode(request) };
     const context = this.ports.context();
     const verdict = checkRoll(from, message, context);
     if (!verdict.ok) return this.refuse(verdict.reason, from);
@@ -107,7 +120,7 @@ export class PlayerRolls {
       ? { flavor: request.label, request: { id: asked.id, label: request.label } }
       : sent.flavor === undefined ? {} : { flavor: sent.flavor };
     const mode = message.mode ?? 'public';
-    if (mode !== 'public') return this.rollPrivately(from, message.formula, mode, tokenId, source, context, notes);
+    if (mode !== 'public') return this.rollPrivately(from, message.formula, mode, tokenId, source, context, notes, request?.to);
     const dice = this.ports.dice();
     if (dice === null || context.mapPath === null) return this.refuse('unavailable', from);
     const origin = tokenId === null ? undefined : { viewId: dice.viewId, mapPath: context.mapPath, tokenId };
@@ -119,11 +132,11 @@ export class PlayerRolls {
   }
 
   /** A private roll: into the log for its audience, and thrown on the roller's page unless it is blind. */
-  private rollPrivately(from: string, formula: string, mode: Exclude<RollMode, 'public'>, tokenId: string | null, source: NonNullable<DiceRollResult['source']>, context: RollContext, notes: RollNotes): void {
+  private rollPrivately(from: string, formula: string, mode: Exclude<RollMode, 'public'>, tokenId: string | null, source: NonNullable<DiceRollResult['source']>, context: RollContext, notes: RollNotes, whisper?: readonly string[]): void {
     const roll = this.ports.quietRoll(formula);
     if (roll === null) return this.refuse('formula', from);
     const token = tokenId === null ? null : this.ports.alias(tokenId);
-    this.ports.logged({ who: from, roll, token, shared: true, mode, to: rollAudience(mode, from), ...notes, ...rollFaceOf(source, context.tokens) });
+    this.ports.logged({ who: from, roll, token, shared: true, mode, to: rollAudience(mode, from, whisper), ...notes, ...rollFaceOf(source, context.tokens) });
     if (mode !== 'blind') this.ports.send({ t: 'roll', who: from, result: roll, token }, from);
   }
 

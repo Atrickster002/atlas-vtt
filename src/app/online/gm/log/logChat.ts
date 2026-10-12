@@ -1,6 +1,6 @@
-import { chatText, GM_AUTHOR, inlineMarks, replyPreview, rolledFormulas, type ChatRefusal, type ChatStyle, type LogReply, type LogSpeaker, type SharedRoll } from '../../protocol/index.ts';
+import { chatText, GM_AUTHOR, inlineMarks, replyPreview, rolledFormulas, type ChatRefusal, type ChatStyle, type LogReply, type LogSpeaker, type RollMode, type SharedRoll } from '../../protocol/index.ts';
 import { rollableFormula } from '../PlayerRolls.ts';
-import type { GmLogEntry } from './logEntries.ts';
+import { seesWhole, type GmLogEntry } from './logEntries.ts';
 
 /** A message as its author wrote it: answering `reply`, in a style, as a token (`speaker`: its key for the author), whispered to `to`. */
 export interface ChatDraft {
@@ -8,6 +8,17 @@ export interface ChatDraft {
   readonly reply?: string;
   readonly style?: ChatStyle;
   readonly speaker?: string;
+  readonly to?: readonly string[];
+}
+
+/**
+ * A roll button of the log as its presser may roll it: its formula, the mode its author set, and
+ * its label; `to`: the people of the whisper it stands in, who alone are shown its roll.
+ */
+export interface RollRequest {
+  readonly formula: string;
+  readonly mode: RollMode;
+  readonly label: string;
   readonly to?: readonly string[];
 }
 
@@ -37,9 +48,14 @@ export function audienceOf(entry: GmLogEntry): readonly string[] | null {
   return [...new Set([entry.who, ...entry.to])];
 }
 
-/** What an answer shows of the entry it answers. */
-export function replyTo(entry: GmLogEntry): LogReply {
-  const preview = entry.kind === 'chat' ? replyPreview(entry.text) : entry.kind === 'roll' ? replyPreview(`${entry.roll.formula} = ${entry.roll.total}`) : '';
+/**
+ * What an answer shows of the entry it answers: its text or result only where everyone the answer
+ * reaches (`readers`, null for everyone) was shown it whole; a blind roll answered to its roller
+ * names the roll and quotes nothing.
+ */
+export function replyTo(entry: GmLogEntry, readers: readonly string[] | null = null): LogReply {
+  const shown = readers === null ? audienceOf(entry) === null && entry.hidden !== true : readers.every((reader) => seesWhole(entry, reader));
+  const preview = !shown ? '' : entry.kind === 'chat' ? replyPreview(entry.text) : entry.kind === 'roll' ? replyPreview(`${entry.roll.formula} = ${entry.roll.total}`) : '';
   return { id: entry.id, who: entry.who, name: entry.name, preview };
 }
 
@@ -53,6 +69,8 @@ function audience(draft: ChatDraft, answered: GmLogEntry | undefined, context: C
   const inherited = answered === undefined ? null : audienceOf(answered);
   const asked = inherited ?? draft.to;
   if (asked === undefined) return undefined;
+  // The GM's note to themselves: the log keeps it as the GM's alone.
+  if (inherited === null && context.who === GM_AUTHOR && asked.length === 1 && asked[0] === GM_AUTHOR) return [GM_AUTHOR];
   if (inherited === null && !asked.every((id) => context.known(id))) return null;
   const to = new Set(asked.filter((id) => id !== context.who));
   if (context.who !== GM_AUTHOR) to.add(GM_AUTHOR);
@@ -92,7 +110,7 @@ export function chatFields(draft: ChatDraft, spoken: SpokenAs | null, context: C
   const style = draft.style === 'emote' || (draft.style === 'ic' && spoken !== null) ? draft.style : undefined;
   return {
     text,
-    ...(answered !== undefined && { reply: replyTo(answered) }),
+    ...(answered !== undefined && { reply: replyTo(answered, to === undefined ? null : [context.who, ...to]) }),
     ...(style !== undefined && { style }),
     ...(spoken !== null && { speaker: spoken.speaker }),
     ...(spoken !== null && spoken.art !== null && { speakerArt: spoken.art }),
@@ -107,4 +125,12 @@ export function keepsRolls(before: string, after: string): boolean {
   const now = rolledFormulas(after);
   if (rolled === null || now === null || rolled.length !== now.length || rolled.some((formula, i) => formula !== now[i])) return false;
   return (inlineMarks(after) ?? []).every((mark) => rollableFormula(mark.formula));
+}
+
+/** The roll button `index` of a message as its presser may roll it, or null where there is none there. */
+export function rollButton(entry: Extract<GmLogEntry, { kind: 'chat' }>, index: number): RollRequest | null {
+  const mark = inlineMarks(entry.text)?.[index];
+  if (mark === undefined || mark.mode === null) return null;
+  const to = audienceOf(entry);
+  return { formula: mark.formula, mode: mark.mode, label: mark.label ?? mark.formula, ...(to !== null && { to }) };
 }

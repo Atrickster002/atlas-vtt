@@ -108,11 +108,11 @@ function command(info: CommandInfo, spelling: string, rest: string, context: Com
     case 'gm':
       return context.self === GM_AUTHOR ? error('You are the GM.') : whispered([GM_AUTHOR], rest, context);
     case 'players': {
-      const players = context.people.map((person) => person.id).filter((id) => id !== context.self);
+      const players = context.people.filter((person) => person.away !== true).map((person) => person.id).filter((id) => id !== context.self);
       return players.length === 0 ? error('No players are at the table.') : whispered(players, rest, context);
     }
     case 'reply':
-      return context.lastWhisper === null ? error('Nobody has whispered to you yet.') : whispered(context.lastWhisper, rest, context);
+      return context.lastWhisper === null ? error('Nobody has whispered to you yet.') : replyAudience(context.lastWhisper, rest, context);
     case 'ic': {
       const speaker = tokenKey(context);
       if (speaker === undefined) return error('Choose a token to speak as first.');
@@ -150,4 +150,11 @@ export function parseComposerInput(text: string, context: CommandContext): Compo
 /** The speaker a key names among the options, else the first: the viewer as themselves. */
 export function chosenSpeaker(speakers: readonly SpeakerOption[], key: string | null): SpeakerOption | null {
   return speakers.find((option) => option.key === key) ?? speakers[0] ?? null;
+}
+
+/** `/reply` to the people of the newest whisper who are still at the table. */
+function replyAudience(last: readonly string[], rest: string, context: CommandContext): ComposerIntent {
+  const gone = new Set(context.people.filter((person) => person.away === true).map((person) => person.id));
+  const here = last.filter((id) => !gone.has(id));
+  return here.length === 0 ? error('Everyone in that whisper has left the table.') : whispered(here, rest, context);
 }

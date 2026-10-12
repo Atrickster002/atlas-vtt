@@ -1,5 +1,5 @@
-import type { RollMode, RollRequestAnswer } from '../../protocol/index.ts';
-import { rollableFormula, rollAudience } from '../PlayerRolls.ts';
+import { MAX_FLAVOR, shownLine, type RollMode, type RollRequestAnswer } from '../../protocol/index.ts';
+import { buttonMode, rollableFormula, rollAudience } from '../PlayerRolls.ts';
 import type { RollNotes } from '../RollShare.ts';
 import type { SceneDice } from '../SceneDice.ts';
 import { tokenLabel, type SceneStore } from '../atlasView.ts';
@@ -27,12 +27,13 @@ export async function gmRoll(draft: GmRollDraft, log: TableLog, dice: SceneDice 
   const request = draft.request === undefined ? undefined : log.requestOf('gm', draft.request);
   if (request === null) return 'roll';
   const formula = request?.formula ?? draft.formula;
-  const mode = request?.mode ?? draft.mode;
+  const mode = request === undefined ? draft.mode : buttonMode(request);
   if (!rollableFormula(formula)) return 'roll';
   if (dice === null || store === null) return 'unavailable';
   const spoken = draft.speaker === undefined ? null : await dice.speaker('gm', draft.speaker);
   if (draft.speaker !== undefined && spoken === null) return 'speaker';
-  const flavor = request?.label ?? draft.flavor;
+  // A flavor that would not show as written (another plugin's) is cleaned, so the roll keeps its line in the log.
+  const flavor = request?.label ?? (draft.flavor === undefined ? undefined : shownLine(draft.flavor, MAX_FLAVOR) ?? undefined);
   const notes: RollNotes = {
     ...(flavor !== undefined && { flavor }),
     ...(spoken !== null && { speaker: spoken }),
@@ -41,8 +42,7 @@ export async function gmRoll(draft: GmRollDraft, log: TableLog, dice: SceneDice 
   if (mode !== 'public') {
     const roll = dice.quietRoll(formula);
     if (roll === null) return 'roll';
-    log.rolled({ who: 'gm', roll, token: null, shared: true, mode, to: rollAudience(mode, 'gm'), ...notes });
-    return null;
+    return log.rolled({ who: 'gm', roll, token: null, shared: true, mode, to: rollAudience(mode, 'gm', request?.to), ...notes }) ? null : 'roll';
   }
   const state = store.getState();
   const tokenId = draft.speaker;

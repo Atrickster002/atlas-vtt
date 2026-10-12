@@ -34,8 +34,8 @@ describe('the pieces of a text', () => {
   });
 
   it('leave a mark without its roll as it was written, and a text with marks it cannot read whole', () => {
-    expect(textSegments('[[1d6]] and [[1d8]]', [shared(3)])).toEqual([
-      { kind: 'rolled', mark: expect.objectContaining({ formula: '1d6' }), roll: shared(3) },
+    expect(textSegments('[[1d6]] and [[1d8]]', [shared(3)])).toMatchObject([
+      { kind: 'rolled', mark: { formula: '1d6' }, roll: shared(3) },
       { kind: 'text', text: ' and ' },
       { kind: 'text', text: '[[1d8]]' },
     ]);
