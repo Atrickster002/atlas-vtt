@@ -1,12 +1,14 @@
+import { isRollMode, MAX_FLAVOR, MAX_INLINE_ROLLS, shownLine, type RollMode } from './chat.ts';
+import { LOG_ID_PATTERN } from './log.ts';
 import { MAX_SCENE_ID } from './moves.ts';
 import { PLAYER_ID_PATTERN } from './relay.ts';
 import { isRecord } from './shape.ts';
 import { TOKEN_ID_PATTERN } from './tokens.ts';
 
 /** The longest formula a player may send: Atlas's dice parser takes no longer one. */
-export const MAX_FORMULA = 64;
+export const MAX_FORMULA = 100;
 /** The longest formula a shared roll names: Atlas may complete a bonus with the default roll. */
-export const MAX_ROLL_FORMULA = 128;
+export const MAX_ROLL_FORMULA = 160;
 /** The most dice a shared roll holds: Atlas's 100 dice, each with up to 10 dice rolled for its explosions. */
 export const MAX_ROLLED_DICE = 1100;
 /** The most faces a die has in Atlas's dice grammar. */
@@ -17,15 +19,25 @@ const MAX_ROLL_ID = 64;
 /** Larger than any sum Atlas's grammar can make: 1100 dice of 1000 faces, ten constants of four digits. */
 const MAX_TOTAL = 10_000_000;
 
+/** The roll button a roll answers: the log entry that offers it and which of its rolls. */
+export interface RollRequestAnswer {
+  readonly id: string;
+  readonly index: number;
+}
+
 /**
  * A player rolls: `formula` as Atlas's dice tray writes it, for the token `token` (by the id players
- * know it by: their selected own token, or their only one), or for nobody (null).
+ * know it by: their selected own token, or their only one), or for nobody (null); in a roll mode
+ * (public where absent), with a flavor, answering a roll button of the log (`request`).
  */
 export interface PlayerRoll {
   readonly t: 'roll';
   readonly scene: string;
   readonly formula: string;
   readonly token: string | null;
+  readonly mode?: RollMode;
+  readonly flavor?: string;
+  readonly request?: RollRequestAnswer;
 }
 
 /** One die of a roll as Atlas rolled it. */
@@ -73,12 +85,26 @@ const REFUSALS: readonly string[] = ['formula', 'rate', 'scene', 'unavailable'];
 const isInteger = (value: unknown, min: number, max: number): value is number => Number.isInteger(value) && (value as number) >= min && (value as number) <= max;
 const isText = (value: unknown, max: number): value is string => typeof value === 'string' && value.length <= max;
 
+function parseRequestAnswer(value: unknown): RollRequestAnswer | null {
+  if (!isRecord(value) || typeof value.id !== 'string' || !LOG_ID_PATTERN.test(value.id) || !isInteger(value.index, 0, MAX_INLINE_ROLLS - 1)) return null;
+  return { id: value.id, index: value.index };
+}
+
 /** A player's roll as the GM reads it, or null for anything malformed. */
 export function parsePlayerRoll(value: Record<string, unknown>): PlayerRoll | null {
-  const { scene, formula, token } = value;
+  const { scene, formula, token, mode, flavor } = value;
   if (!isText(scene, MAX_SCENE_ID) || scene === '' || !isText(formula, MAX_FORMULA)) return null;
   if (token !== null && (typeof token !== 'string' || !TOKEN_ID_PATTERN.test(token))) return null;
-  return { t: 'roll', scene, formula, token };
+  if (mode !== undefined && !isRollMode(mode)) return null;
+  const shownFlavor = flavor === undefined ? undefined : shownLine(flavor, MAX_FLAVOR);
+  const request = value.request === undefined ? undefined : parseRequestAnswer(value.request);
+  if (shownFlavor === null || request === null) return null;
+  return {
+    t: 'roll', scene, formula, token,
+    ...(mode !== undefined && mode !== 'public' && { mode }),
+    ...(shownFlavor !== undefined && { flavor: shownFlavor }),
+    ...(request !== undefined && { request }),
+  };
 }
 
 function parseDie(value: unknown): SharedDie | null {

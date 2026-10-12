@@ -5,6 +5,9 @@ import type { DiceRollResult } from '../../types/diceTypes';
 import type { DiceSource } from './atlasDice.ts';
 import type { LoggedRoll } from './log/TableLog.ts';
 
+/** What a roll carries into the log beside its result: a flavor, the token it is said by, the roll button it answers. */
+export type RollNotes = Pick<LoggedRoll, 'flavor' | 'speaker' | 'request'>;
+
 export interface RollSharePorts {
   send(body: GmMessage, to?: string): void;
   /** Whether players see the GM's own rolls: the player view's "show dice rolls" setting. */
@@ -37,8 +40,9 @@ export function sharedRoll(result: DiceRollResult): SharedRoll {
 export class RollShare {
   private readonly ports: RollSharePorts;
   private dice: DiceSource | null = null;
-  /** The player whose roll is being made, while it is. */
+  /** The player whose roll is being made, while it is, and what it carries. */
   private roller: string | null = null;
+  private notes: RollNotes = {};
 
   constructor(ports: RollSharePorts) {
     this.ports = ports;
@@ -56,21 +60,24 @@ export class RollShare {
     this.dice = null;
   }
 
-  /** Runs `run`, during which a roll announced is `who`'s. */
-  rollAs(who: string, run: () => void): void {
-    const previous = this.roller;
+  /** Runs `run`, during which a roll announced is `who`'s and carries `notes` into the log. */
+  rollAs(who: string, run: () => void, notes: RollNotes = {}): void {
+    const previous = { roller: this.roller, notes: this.notes };
     this.roller = who;
+    this.notes = notes;
     try {
       run();
     } finally {
-      this.roller = previous;
+      this.roller = previous.roller;
+      this.notes = previous.notes;
     }
   }
 
   private readonly rolled = (result: DiceRollResult, origin?: DiceRollOrigin): void => {
     const who = this.roller ?? 'gm';
+    const notes = this.notes;
     // A GM's roll the players are not shown is in the GM's own log only.
-    if (who === 'gm' && !this.ports.showGmRolls()) return void this.ports.logged?.({ who, roll: sharedRoll(result), token: null, shared: false }, result.source);
+    if (who === 'gm' && !this.ports.showGmRolls()) return void this.ports.logged?.({ who, roll: sharedRoll(result), token: null, shared: false, ...notes }, result.source);
     const dice = this.dice;
     const scene = this.ports.scene();
     // Only an origin in this tab can name a token the shared scene shows.
@@ -79,6 +86,6 @@ export class RollShare {
     const token = prepared.sourcePresentation && local !== undefined ? this.ports.alias(local.tokenId) : null;
     const roll = sharedRoll(prepared.result);
     this.ports.send({ t: 'roll', who, result: roll, token });
-    this.ports.logged?.({ who, roll, token, shared: true }, result.source);
+    this.ports.logged?.({ who, roll, token, shared: true, ...notes }, result.source);
   };
 }

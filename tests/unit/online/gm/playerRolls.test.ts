@@ -113,6 +113,38 @@ describe('players\' rolls', () => {
   });
 });
 
+describe('players\' private rolls and roll buttons', () => {
+  it('a private roll is rolled quietly by the map\'s rules, logged for its audience and thrown only on the roller\'s page', async () => {
+    const gm = await table({ defaultRoll: '1d20', crit: 'natural' }, () => 0.5);
+    gm.share.receive(ANA, { t: 'roll', scene: gm.scene, formula: '1d20 + 1', token: gm.alias(1), mode: 'gm', flavor: 'Insight' });
+    expect(gm.rolled).toEqual([]);
+    expect(gm.logged).toHaveLength(1);
+    const [logged] = gm.logged;
+    expect(logged).toMatchObject({ who: ANA, mode: 'gm', to: ['gm'], flavor: 'Insight', token: gm.alias(1), face: { name: 'Hero' } });
+    expect(logged?.roll.rolls.map((die) => die.max)).toEqual([20]);
+    expect(rollsSent(gm.sent).map((body) => body.result.id)).toEqual([logged?.roll.id]);
+    expect(gm.sent.filter(({ body }) => body.t === 'roll').map(({ to }) => to)).toEqual([ANA]);
+  });
+
+  it('a blind roll is thrown on nobody\'s page', async () => {
+    const gm = await table({ defaultRoll: '1d20', crit: 'natural' }, () => 0.5);
+    gm.share.receive(ANA, { t: 'roll', scene: gm.scene, formula: '1d20', token: null, mode: 'blind' });
+    expect(gm.logged).toMatchObject([{ who: ANA, mode: 'blind', to: ['gm'] }]);
+    expect(rollsSent(gm.sent)).toEqual([]);
+  });
+
+  it('a roll button is rolled as written, with its label, whatever the player sent', async () => {
+    const gm = await table({ defaultRoll: '1d20', crit: 'natural' }, () => 0.5);
+    const id = '0'.repeat(24);
+    gm.requests = (from, answer) => (from === ANA && answer.index === 0 ? { formula: '1d4', mode: 'public', label: 'Luck' } : null);
+    gm.share.receive(ANA, { t: 'roll', scene: gm.scene, formula: '1d100', token: null, request: { id, index: 0 } });
+    expect(gm.rolled.map((roll) => roll.formula)).toEqual(['1d4']);
+    expect(gm.logged).toMatchObject([{ who: ANA, flavor: 'Luck', request: { id, label: 'Luck' } }]);
+    gm.share.receive(ANA, { t: 'roll', scene: gm.scene, formula: '1d100', token: null, request: { id, index: 1 } });
+    expect(refusals(gm.sent)).toEqual([{ reason: 'formula', to: ANA }]);
+  });
+});
+
 describe('rollable formulas', () => {
   it('are those the tray writes, with dice', () => {
     expect(['1d20', '2d6 + 1d20 + 3', '1d6 - 2', '4d6!', 'd8'].every(rollableFormula)).toBe(true);

@@ -21,7 +21,7 @@ function state(self: string | null = ME): LogState {
 describe('the log a viewer holds', () => {
   it('starts empty and keeps entries in the order of the GM\'s clock, those of one moment as they arrive', () => {
     const log = state();
-    expect(log.snapshot()).toEqual({ entries: [], unread: 0, refusal: null });
+    expect(log.snapshot()).toEqual({ entries: [], unread: 0, refusal: null, people: [] });
     log.receive({ t: 'log-entry', entry: chat(2, MIRA) });
     log.receive({ t: 'log-entry', entry: chat(3, 'gm') });
     log.receive({ t: 'log-entry', entry: { ...chat(4, MIRA), at: 3000 } });
@@ -256,6 +256,79 @@ describe('refusals', () => {
     const { entries } = log.snapshot();
     log.receive({ t: 'chat-refused', reason: 'text' });
     expect(log.snapshot().entries).toBe(entries);
+    expect(log.snapshot().unread).toBe(1);
+  });
+});
+
+describe('who is at the table', () => {
+  const people = [{ id: MIRA, name: 'Mira' }];
+
+  it('comes with the GM\'s message, and from the GM\'s side directly', () => {
+    const log = state();
+    let heard = 0;
+    log.subscribe(() => { heard += 1; });
+    const entries = log.snapshot().entries;
+    log.receive({ t: 'people', people });
+    expect(log.snapshot().people).toBe(people);
+    expect(log.snapshot().entries).toBe(entries);
+    log.setPeople([]);
+    expect(log.snapshot().people).toEqual([]);
+    expect(heard).toBe(2);
+  });
+
+  it('tells nobody when the same list is set again', () => {
+    const log = state();
+    log.setPeople(people);
+    const before = log.snapshot();
+    log.setPeople(people);
+    expect(log.snapshot()).toBe(before);
+  });
+});
+
+describe('what the viewer chose in the composer', () => {
+  it('starts public, as oneself, to everyone', () => {
+    expect(state().choices()).toEqual({ rollMode: 'public', speaker: null, whisperTo: null });
+  });
+
+  it('is kept while the panel is closed, and tells its listeners of each change', () => {
+    const log = state();
+    let heard = 0;
+    log.subscribe(() => { heard += 1; });
+    log.setRollMode('blind');
+    log.setSpeaker('token-1');
+    log.setWhisperTo([MIRA, 'gm']);
+    log.setOpen(false);
+    expect(log.choices()).toEqual({ rollMode: 'blind', speaker: 'token-1', whisperTo: [MIRA, 'gm'] });
+    expect(heard).toBe(3);
+    const before = log.choices();
+    log.setRollMode('blind');
+    expect(log.choices()).toBe(before);
+    expect(heard).toBe(3);
+  });
+
+  it('takes an empty audience for none', () => {
+    const log = state();
+    log.setWhisperTo([MIRA]);
+    log.setWhisperTo([]);
+    expect(log.choices().whisperTo).toBeNull();
+  });
+
+  it('leaves the log\'s snapshot as it was', () => {
+    const log = state();
+    const before = log.snapshot();
+    log.setRollMode('gm');
+    expect(log.snapshot()).toBe(before);
+  });
+});
+
+describe('private rolls', () => {
+  const secret = (n: number, who: string): LogEntry => ({ id: id(n), at: n * 1000, who, name: 'Mira', kind: 'secret', mode: 'gm' });
+
+  it('count as unread like rolls, unless they are the viewer\'s own', () => {
+    const log = state();
+    log.replace([]);
+    log.receive({ t: 'log-entry', entry: secret(1, MIRA) });
+    log.receive({ t: 'log-entry', entry: secret(2, ME) });
     expect(log.snapshot().unread).toBe(1);
   });
 });

@@ -2,6 +2,7 @@ import { requireApiVersion, type Plugin } from 'obsidian';
 import { SECRET_STORAGE_VERSION } from '../online/gm/account/tokenStore.ts';
 import { ONLINE_COMMANDS } from '../online/gm/onlineCommands.ts';
 import { OnlineFeature } from '../online/gm/OnlineFeature.ts';
+import type { TableChat } from '../online/gm/tableChat.ts';
 import { onlineDataFile } from '../online/gm/onlineData.ts';
 import type { SettingsService } from '../services/SettingsService';
 import type { AtlasSettingSection } from '../settings/settingSections';
@@ -11,6 +12,8 @@ import { showNotice } from '../ui/notice';
 export interface OnlinePlay {
   /** Its sections of Atlas's settings; none while it is switched off. */
   settingsSections(): AtlasSettingSection[];
+  /** The table's log for other plugins; null while online play is switched off. */
+  chat(): TableChat | null;
 }
 
 /**
@@ -38,5 +41,5 @@ export function registerOnlinePlay(plugin: Plugin, settings: SettingsService): O
   }
   plugin.register(settings.onChange(sync));
   sync();
-  return { settingsSections: () => feature?.settingsSections() ?? [] };
+  return { settingsSections: () => feature?.settingsSections() ?? [], chat: () => feature?.chat ?? null };
 }

@@ -23,7 +23,8 @@ export interface DiceRollInputs {
 export class DiceTool {
   public state: DiceToolState;
   private eventBus: EventEmitter;
-  private readonly getDiceRules: () => DiceRules;
+  /** The rules this tool rolls by: its map's collection's. */
+  readonly getDiceRules: () => DiceRules;
 
   constructor(eventBus: EventEmitter, getDiceRules: () => DiceRules, private readonly inputs: DiceRollInputs) {
     this.eventBus = eventBus;

@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type KeyboardEvent, type ReactElement } from 'react';
 import { TooltipProvider } from '../../packages/components/primitives/tooltip';
+import { audienceNames, audienceOf, lastWhisperAudience } from './audience.ts';
+import { chosenSpeaker } from './chatCommands.ts';
 import { Composer } from './Composer.tsx';
 import { shownName } from './logAuthors.ts';
 import { LogHeader } from './LogHeader.tsx';
 import { LogList } from './LogList.tsx';
-import type { RowApi, TableLogPanelProps } from './panelTypes.ts';
+import type { ChatDraft, RowApi, TableLogPanelProps } from './panelTypes.ts';
 import { useLogScroll } from './useLogScroll.ts';
 import { useLogUi } from './useLogUi.ts';
 import { usePanelDismissal } from './usePanelDismissal.ts';
@@ -22,10 +24,12 @@ function isCoarse(doc: Document): boolean {
  * under it. It shows what `state` holds and sends what the viewer does through `actions`; nothing
  * changes here before the log says so. Mounted, it counts as open (`state.setOpen`).
  */
-export function TableLogPanel({ state, actions, self, moderator, canSend, offlineText, rollFace, variant, onClose }: TableLogPanelProps): ReactElement {
-  const { entries, refusal } = useSyncExternalStore(state.subscribe, state.snapshot);
+export function TableLogPanel(props: TableLogPanelProps): ReactElement {
+  const { state, actions, self, moderator, canSend, offlineText, rollFace, speakers, speakerPortrait, variant, onClose } = props;
+  const { entries, refusal, people } = useSyncExternalStore(state.subscribe, state.snapshot);
   const root = useRef<HTMLElement>(null);
   const field = useRef<HTMLTextAreaElement>(null);
+  const composerEscape = useRef<(() => boolean) | null>(null);
   const titleId = useId();
   const [ui, act] = useLogUi();
   const [pinned, setPinned] = useState(false);
@@ -33,9 +37,9 @@ export function TableLogPanel({ state, actions, self, moderator, canSend, offlin
   const scroll = useLogScroll(entries, self);
   const floating = variant === 'floating';
 
-  const latest = useRef({ actions, onClose });
+  const latest = useRef({ actions, onClose, speakers });
   useEffect(() => {
-    latest.current = { actions, onClose };
+    latest.current = { actions, onClose, speakers };
   });
 
   useEffect(() => {
@@ -53,6 +57,7 @@ export function TableLogPanel({ state, actions, self, moderator, canSend, offlin
   const replied = ui.replyTo === null ? undefined : entries.find((entry) => entry.id === ui.replyTo && (entry.kind === 'chat' || entry.kind === 'roll'));
   const editing = entries.some((entry) => entry.id === ui.editing && entry.kind === 'chat' && entry.who === self) ? ui.editing : null;
   const lastOwn = entries.findLast((entry) => entry.kind === 'chat' && entry.who === self)?.id ?? null;
+  const replyAudience = replied === undefined ? null : audienceOf(replied, self);
 
   const { center } = scroll;
   const api = useMemo<RowApi>(() => {
@@ -60,7 +65,12 @@ export function TableLogPanel({ state, actions, self, moderator, canSend, offlin
     return {
       self,
       moderator,
+      canSend,
       react: (id, emoji, on) => latest.current.actions.react(id, emoji, on),
+      roll: (draft) => {
+        const speaker = chosenSpeaker(latest.current.speakers, state.choices().speaker);
+        latest.current.actions.roll(speaker?.kind === 'token' ? { ...draft, speaker: speaker.key } : draft);
+      },
       reply: (id) => {
         act.reply(id);
         toField();
@@ -85,7 +95,7 @@ export function TableLogPanel({ state, actions, self, moderator, canSend, offlin
         if (center(id)) act.highlight(id);
       },
     };
-  }, [self, moderator, act, center]);
+  }, [self, moderator, canSend, state, act, center]);
 
   const editLast = useCallback((): boolean => {
     if (lastOwn === null) return false;
@@ -95,6 +105,7 @@ export function TableLogPanel({ state, actions, self, moderator, canSend, offlin
 
   /** What Escape undoes, innermost first; false where the panel has no use for the key. */
   const escape = useCallback((): boolean => {
+    if (composerEscape.current?.() === true) return true;
     if (editing !== null) api.cancelEdit();
     else if (ui.asking !== null || clearing) {
       act.ask(null);
@@ -122,8 +133,8 @@ export function TableLogPanel({ state, actions, self, moderator, canSend, offlin
     if (!event.ctrlKey && !event.metaKey) event.stopPropagation();
   };
 
-  const say = useCallback((text: string, reply?: string): void => {
-    latest.current.actions.say(text, reply);
+  const say = useCallback((draft: ChatDraft): void => {
+    latest.current.actions.say(draft);
     act.reply(null);
     act.tap(null);
   }, [act]);
@@ -137,11 +148,16 @@ export function TableLogPanel({ state, actions, self, moderator, canSend, offlin
     <TooltipProvider delayDuration={300}>
       <section ref={root} className={`atlas-vtt-plugin atlas-online-log atlas-online-log--${variant}`} aria-labelledby={floating ? titleId : undefined} onKeyDown={onKeyDown}>
         {floating && <LogHeader titleId={titleId} pinned={pinned} asking={clearing} onClear={clear} onAsk={setClearing} onPin={setPinned} onClose={close} />}
-        <LogList entries={entries} ui={{ ...ui, editing }} api={api} scroll={scroll} rollFace={rollFace} onTabStop={act.tabStop} />
+        <LogList entries={entries} ui={{ ...ui, editing }} api={api} scroll={scroll} rollFace={rollFace} speakerPortrait={speakerPortrait} people={people} onTabStop={act.tabStop} />
         <Composer
-          field={field} drafts={state} canSend={canSend} offlineText={offlineText ?? OFFLINE_TEXT} refusal={refusal} lastOwn={lastOwn}
-          reply={replied === undefined ? null : { id: replied.id, label: replied.who === self ? 'Replying to yourself' : `Replying to ${shownName(replied.who, replied.name, self)}` }}
-          onClearReply={() => act.reply(null)} onSay={say} onEditLast={editLast}
+          field={field} state={state} self={self} people={people} speakers={speakers} canSend={canSend} offlineText={offlineText ?? OFFLINE_TEXT}
+          refusal={refusal} lastOwn={lastOwn} lastWhisper={lastWhisperAudience(entries, self)} escapeRef={composerEscape}
+          reply={replied === undefined ? null : {
+            id: replied.id,
+            label: replied.who === self ? 'Replying to yourself' : `Replying to ${shownName(replied.who, replied.name, self)}`,
+            whisper: replyAudience === null || replyAudience.length === 0 ? null : `Whispering to ${audienceNames(replyAudience, people, self)}`,
+          }}
+          onClearReply={() => act.reply(null)} onSay={say} onRoll={(draft) => latest.current.actions.roll(draft)} onEditLast={editLast}
         />
       </section>
     </TooltipProvider>

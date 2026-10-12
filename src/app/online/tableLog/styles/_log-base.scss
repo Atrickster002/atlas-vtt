@@ -7,6 +7,8 @@ $log-edge: 12px;
 $log-disc: 32px;
 $log-roll-disc: 44px;
 $log-quote-disc: 16px;
+// A speaker's face on the composer's chip and in its menu.
+$log-chip-face: 24px;
 // A touch target, where fingers are the pointer (`html[data-pointer="coarse"]`, set by the player's page).
 $log-target: 44px;
 $log-coarse: 'html[data-pointer="coarse"]';

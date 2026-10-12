@@ -9,7 +9,9 @@
 @use 'log-chips';
 @use 'log-tools';
 @use 'log-roll';
+@use 'log-speech';
 @use 'log-composer';
+@use 'log-composer-tools';
 
 // For screen readers only; also used by the unread tab, outside the panel.
 .atlas-online-log__sr {

@@ -1,5 +1,6 @@
 import { GM_AUTHOR, type RollEntry } from '../../protocol/index.ts';
-import { mountLogSurface, type LogActions, type LogState, type LogSurfaceMount, type RollFace } from '../../tableLog/index.ts';
+import { mountLogSurface, type LogActions, type LogState, type LogSurfaceMount, type Portrait, type RollFace, type SpeakerOption } from '../../tableLog/index.ts';
+import type { LogSpeaker } from '../../protocol/index.ts';
 import type { SceneStore } from '../atlasView.ts';
 import { detached } from '../dock/dockDom.ts';
 import { openThroughAtlas, takeOverDiceLog } from './diceLogTakeover.ts';
@@ -14,6 +15,9 @@ export interface TableLogMountDeps {
   /** Whether the table is online: what the GM types reaches the players. */
   canSend(): boolean;
   rollFace(entry: RollEntry): RollFace | null;
+  /** Whom the GM may speak as, by the scene's state. */
+  speakers(state: ReturnType<SceneStore['getState']>): readonly SpeakerOption[];
+  speakerPortrait(speaker: LogSpeaker): Portrait | null;
   /** The log opened over the place of the view's other surfaces, which make way. */
   opened(): void;
 }
@@ -30,6 +34,7 @@ export class TableLogMount {
   private readonly host: HTMLElement;
   private readonly surface: LogSurfaceMount;
   private readonly stopTakeover: () => void;
+  private readonly stopSpeakers: () => void;
   private open = false;
 
   constructor(container: HTMLElement, store: SceneStore, deps: TableLogMountDeps) {
@@ -41,6 +46,14 @@ export class TableLogMount {
     this.surface = mountLogSurface(this.host);
     this.place();
     this.stopTakeover = takeOverDiceLog(store, () => this.setOpen(!this.open));
+    // The speaker menu follows the scene's tokens and selection while the log is open.
+    let speakers = deps.speakers(store.getState());
+    this.stopSpeakers = store.subscribe((state) => {
+      const next = deps.speakers(state);
+      if (next === speakers) return;
+      speakers = next;
+      if (this.open) this.draw();
+    });
     this.draw();
   }
 
@@ -68,6 +81,7 @@ export class TableLogMount {
 
   dispose(): void {
     this.stopTakeover();
+    this.stopSpeakers();
     this.deps.state.setOpen(false);
     this.surface.unmount();
     this.host.remove();
@@ -91,6 +105,8 @@ export class TableLogMount {
       canSend: this.deps.canSend(),
       offlineText: OFFLINE_TEXT,
       rollFace: (entry) => this.deps.rollFace(entry),
+      speakers: this.deps.speakers(this.store.getState()),
+      speakerPortrait: (speaker) => this.deps.speakerPortrait(speaker),
       open: this.open,
       // Through Atlas's own switch, as a press of Enter opens it.
       onOpen: () => void (openThroughAtlas(this.store) || this.setOpen(true)),

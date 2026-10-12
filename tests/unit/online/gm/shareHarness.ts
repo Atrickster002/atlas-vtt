@@ -1,4 +1,5 @@
-import { DeltaReader, parseGmMessage, type DeltaOf, type GmMessage } from '../../../../src/app/online/protocol/index.ts';
+import { DeltaReader, parseGmMessage, type DeltaOf, type GmMessage, type RollRequestAnswer } from '../../../../src/app/online/protocol/index.ts';
+import type { LoggedRoll, RollRequest } from '../../../../src/app/online/gm/log/TableLog.ts';
 import { produce } from 'immer';
 import type { TokenEntity } from '../../../../src/app/types';
 import type { TokenPerception } from '../../../../src/app/vision/tokenPerception';
@@ -51,6 +52,10 @@ export interface ShareHarness {
   layers: MapLayerSource | null;
   /** The map's resource and condition definitions, or null while they cannot be read (the default). */
   rules: TokenRules | null;
+  /** The rolls taken into the table's log. */
+  readonly logged: LoggedRoll[];
+  /** The roll buttons of the table's log, as a player may roll them; none by default. */
+  requests: (from: string, answer: RollRequestAnswer) => RollRequest | null;
   set(next: SceneState): Promise<void>;
   /** Moves the clock on, running the timers that fall due, and lets reads settle. */
   advance(ms: number): Promise<void>;
@@ -89,7 +94,11 @@ export function shareHarness(initial: SceneState, images: ReadonlyMap<string, Ui
     dice: null,
     layers: null,
     rules: null,
+    logged: [],
+    requests: () => null,
     share: new SceneShare(store, {
+      logRoll: (roll) => harness.logged.push(roll),
+      rollRequest: (from, answer) => harness.requests(from, answer),
       mapLayers: () => harness.layers,
       lightingSource: () => harness.lighting,
       atlasSettings: () => harness.settings,

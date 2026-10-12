@@ -187,3 +187,54 @@
     }
   }
 }
+
+.atlas-online-log {
+  // A private roll keeps its card, framed in dashes as a whisper is.
+  .atlas-online-log__roll--private {
+    border-style: dashed;
+    border-color: color-mix(in oklch, var(--interactive-accent) 45%, transparent);
+  }
+
+  .atlas-online-log__roll-flavor {
+    // The theme's heading face carries no small capitals: a description reads as written.
+    text-transform: none;
+    letter-spacing: normal;
+  }
+
+  // "for Dex save": leads to the roll button the roll answers.
+  .atlas-online-log__roll-request {
+    @include log-button;
+    display: inline-flex;
+    align-items: center;
+    align-self: flex-start;
+    gap: $spacing-xs;
+    max-width: 100%;
+    border-radius: $radius-s;
+    color: var(--text-muted);
+    font-size: 11px;
+    line-height: var(--line-height-tight);
+    transition: color $transition-fast $transition-ease;
+    @include log-button-states;
+
+    @media (hover: hover) {
+      &:hover {
+        color: var(--text-normal);
+      }
+    }
+
+    svg {
+      flex: none;
+      width: $icon-xs;
+      height: $icon-xs;
+    }
+
+    #{$log-coarse} & {
+      @include log-wide-target;
+    }
+  }
+
+  .atlas-online-log__roll-request-text {
+    min-width: 0;
+    @include atlas-truncate;
+  }
+}

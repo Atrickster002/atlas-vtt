@@ -16,9 +16,19 @@ describe('player rolls', () => {
     expect(parsePlayerMessage({ t: 'roll', scene: 's1', formula: '1d20', token: null })).toEqual({ t: 'roll', scene: 's1', formula: '1d20', token: null });
   });
 
+  it('carry a roll mode, a flavor and the roll button they answer; public is the absence of a mode', () => {
+    const request = { id: '0'.repeat(24), index: 2 };
+    expect(parsePlayerMessage({ t: 'roll', scene: 's1', formula: '1d20', token: null, mode: 'blind', flavor: '  Stealth ', request }))
+      .toEqual({ t: 'roll', scene: 's1', formula: '1d20', token: null, mode: 'blind', flavor: 'Stealth', request });
+    expect(parsePlayerMessage({ t: 'roll', scene: 's1', formula: '1d20', token: null, mode: 'public' })).toEqual({ t: 'roll', scene: 's1', formula: '1d20', token: null });
+  });
+
   it('refuse long formulas, odd tokens and a missing scene', () => {
     for (const body of [
-      { t: 'roll', scene: 's1', formula: `1d6${'+1'.repeat(40)}`, token: null },
+      { t: 'roll', scene: 's1', formula: `1d6${'+1'.repeat(50)}`, token: null },
+      { t: 'roll', scene: 's1', formula: '1d6', token: null, mode: 'loud' },
+      { t: 'roll', scene: 's1', formula: '1d6', token: null, request: { id: 'x', index: 0 } },
+      { t: 'roll', scene: 's1', formula: '1d6', token: null, flavor: '\u202e' },
       { t: 'roll', scene: 's1', formula: 7, token: null },
       { t: 'roll', scene: 's1', formula: '1d6', token: 'gm-hero-id' },
       { t: 'roll', scene: 's1', formula: '1d6' },

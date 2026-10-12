@@ -1,7 +1,6 @@
-import { parseSharedRoll, type SharedRoll } from './dice.ts';
-import { MAX_PLAYERS, PLAYER_ID_PATTERN, playerName, SHOWN, UNSEEN, UNSHOWN } from './relay.ts';
-import { isRecord } from './shape.ts';
-import { TOKEN_ID_PATTERN } from './tokens.ts';
+import type { ChatStyle, LogSpeaker, RollMode, TablePerson } from './chat.ts';
+import type { SharedRoll } from './dice.ts';
+import { SHOWN, UNSEEN, UNSHOWN } from './relay.ts';
 
 /** The reactions an entry of the log takes, in the order they are offered: the first three at once, the rest behind "more". */
 export const LOG_REACTIONS = ['👍', '❤️', '😂', '😮', '😢', '👎'] as const;
@@ -16,8 +15,6 @@ export const MAX_LOG_ENTRIES = 200;
 export const MAX_REPLY_PREVIEW = 120;
 /** An entry's id: made by the GM, 96 random bits in hex. */
 export const LOG_ID_PATTERN = /^[0-9a-f]{24}$/;
-/** Who a log entry is by: the GM. */
-export const GM_AUTHOR = 'gm';
 
 /** One reaction on an entry and who gave it (`'gm'` or relay ids), in the order they did. */
 export interface LogReaction {
@@ -43,21 +40,50 @@ interface EntryBase {
   readonly name: string;
 }
 
-/** A chat message: text shown as text only, `edited` (the GM's clock) once it was changed. */
+/**
+ * A chat message: text shown as text only, `edited` (the GM's clock) once it was changed. Said in
+ * character or as an emote (`style`) by a token (`speaker`); whispered to `to` (the author sees it
+ * too, nobody else is sent it); `inline`: the rolls its text rolled when it was said, in order.
+ */
 export interface ChatEntry extends EntryBase {
   readonly kind: 'chat';
   readonly text: string;
   readonly reply?: LogReply;
   readonly edited?: number;
   readonly reactions?: readonly LogReaction[];
+  readonly style?: ChatStyle;
+  readonly speaker?: LogSpeaker;
+  readonly to?: readonly string[];
+  readonly inline?: readonly SharedRoll[];
 }
 
-/** A roll, naming its token (by the id players know it by) when the players see it. */
+/** The roll button of an entry a roll answers, and its label. */
+export interface RollRequestRef {
+  readonly id: string;
+  readonly label: string;
+}
+
+/**
+ * A roll, naming its token (by the id players know it by) when the players see it. A private roll
+ * (`mode`) is sent as this only to `to`; everyone else gets a `secret` entry in its place.
+ */
 export interface RollEntry extends EntryBase {
   readonly kind: 'roll';
   readonly roll: SharedRoll;
   readonly token: string | null;
   readonly reactions?: readonly LogReaction[];
+  readonly mode?: Exclude<RollMode, 'public'>;
+  readonly to?: readonly string[];
+  readonly flavor?: string;
+  readonly speaker?: LogSpeaker;
+  readonly request?: RollRequestRef;
+}
+
+/** That a private roll was made, for those not shown it (in a blind roll, the roller too). */
+export interface SecretEntry extends EntryBase {
+  readonly kind: 'secret';
+  readonly mode: Exclude<RollMode, 'public'>;
+  readonly speaker?: LogSpeaker;
 }
 
 /** A player came to the table or left it. */
@@ -65,10 +91,14 @@ export interface PresenceEntry extends EntryBase {
   readonly kind: 'joined' | 'left';
 }
 
-export type LogEntry = ChatEntry | RollEntry | PresenceEntry;
+export type LogEntry = ChatEntry | RollEntry | SecretEntry | PresenceEntry;
 
-/** Why the GM did not take a player's chat message, edit, deletion or reaction. */
-export type ChatRefusal = 'rate' | 'text' | 'gone';
+/**
+ * Why the GM did not take a player's chat message, edit, deletion or reaction: too fast, no text,
+ * gone, a whisper to someone unknown, a token not theirs to speak as, or a roll in the text that
+ * does not roll (or an edit that changes one).
+ */
+export type ChatRefusal = 'rate' | 'text' | 'gone' | 'whisper' | 'speaker' | 'roll';
 
 /**
  * The table's log as the GM tells it: all of it (`log`, to a player who joined and after the GM cleared
@@ -80,24 +110,35 @@ export type LogMessage =
   | { readonly t: 'log'; readonly entries: readonly LogEntry[] }
   | { readonly t: 'log-entry'; readonly entry: LogEntry }
   | { readonly t: 'log-remove'; readonly id: string }
-  | { readonly t: 'chat-refused'; readonly reason: ChatRefusal };
+  | { readonly t: 'chat-refused'; readonly reason: ChatRefusal }
+  /** Who is at the table, for whispers. */
+  | { readonly t: 'people'; readonly people: readonly TablePerson[] };
+
+/** A message a player says: answering `reply`, in a style, as one of their tokens (`speaker`, by the id players know it by), whispered to `to`. */
+export interface PlayerChat {
+  readonly t: 'chat';
+  readonly text: string;
+  readonly reply?: string;
+  readonly style?: ChatStyle;
+  readonly speaker?: string;
+  readonly to?: readonly string[];
+}
 
 /**
- * What a player sends to the log: a message (answering the entry `reply`), a new text for or the
- * deletion of a message of their own, and a reaction given (`on`) or taken back.
+ * What a player sends to the log: a message, a new text for or the deletion of a message of their
+ * own, and a reaction given (`on`) or taken back.
  */
 export type PlayerLogMessage =
-  | { readonly t: 'chat'; readonly text: string; readonly reply?: string }
+  | PlayerChat
   | { readonly t: 'chat-edit'; readonly id: string; readonly text: string }
   | { readonly t: 'chat-delete'; readonly id: string }
   | { readonly t: 'react'; readonly id: string; readonly emoji: LogReactionEmoji; readonly on: boolean };
 
-const REFUSALS: readonly string[] = ['rate', 'text', 'gone'];
+export const LOG_REFUSALS: readonly string[] = ['rate', 'text', 'gone', 'whisper', 'speaker', 'roll'];
 const LINE_BREAK = /\r\n|[\n\r\u2028\u2029]/;
 
-const isLogId = (value: unknown): value is string => typeof value === 'string' && LOG_ID_PATTERN.test(value);
-const isAuthor = (value: unknown): value is string => value === GM_AUTHOR || (typeof value === 'string' && PLAYER_ID_PATTERN.test(value));
-const isTime = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value) && value >= 0;
+export const isLogId = (value: unknown): value is string => typeof value === 'string' && LOG_ID_PATTERN.test(value);
+export const isTime = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value) && value >= 0;
 
 /** Whether an emoji is one of the log's reactions. */
 export function isLogReaction(value: unknown): value is LogReactionEmoji {
@@ -134,102 +175,4 @@ export function replyPreview(text: string): string {
   const line = text.replace(/\s+/g, ' ').trim();
   const characters = [...line];
   return characters.length <= MAX_REPLY_PREVIEW ? line : `${characters.slice(0, MAX_REPLY_PREVIEW - 1).join('')}…`;
-}
-
-function parseReactions(value: unknown): readonly LogReaction[] | null | undefined {
-  if (value === undefined) return undefined;
-  if (!Array.isArray(value) || value.length > LOG_REACTIONS.length) return null;
-  const seen = new Set<string>();
-  const reactions: LogReaction[] = [];
-  for (const item of value) {
-    if (!isRecord(item) || !isLogReaction(item.emoji) || seen.has(item.emoji)) return null;
-    const { by } = item;
-    if (!Array.isArray(by) || by.length === 0 || by.length > MAX_PLAYERS + 1 || !by.every(isAuthor) || new Set(by).size !== by.length) return null;
-    seen.add(item.emoji);
-    reactions.push({ emoji: item.emoji, by });
-  }
-  return reactions.length === 0 ? undefined : reactions;
-}
-
-function parseReply(value: unknown): LogReply | null | undefined {
-  if (value === undefined) return undefined;
-  if (!isRecord(value) || !isLogId(value.id) || !isAuthor(value.who)) return null;
-  const name = playerName(value.name);
-  if (name === null || typeof value.preview !== 'string' || [...value.preview].length > MAX_REPLY_PREVIEW) return null;
-  if (value.gone !== undefined && value.gone !== true) return null;
-  const preview = value.preview.replace(UNSHOWN, ' ').replace(UNSEEN, '');
-  return { id: value.id, who: value.who, name, preview, ...(value.gone === true && { gone: true as const }) };
-}
-
-/** A log entry as the client reads it, or null for anything malformed: nothing else reaches the panel. */
-export function parseLogEntry(value: unknown): LogEntry | null {
-  if (!isRecord(value) || !isLogId(value.id) || !isTime(value.at) || !isAuthor(value.who)) return null;
-  const name = playerName(value.name);
-  if (name === null) return null;
-  const base = { id: value.id, at: value.at, who: value.who, name };
-  if (value.kind === 'joined' || value.kind === 'left') return value.who === GM_AUTHOR ? null : { ...base, kind: value.kind };
-  const reactions = parseReactions(value.reactions);
-  if (reactions === null) return null;
-  if (value.kind === 'roll') {
-    const roll = parseSharedRoll(value.roll);
-    if (roll === null || (value.token !== null && (typeof value.token !== 'string' || !TOKEN_ID_PATTERN.test(value.token)))) return null;
-    return { ...base, kind: 'roll', roll, token: value.token, ...(reactions !== undefined && { reactions }) };
-  }
-  if (value.kind !== 'chat') return null;
-  const text = chatText(value.text);
-  const reply = parseReply(value.reply);
-  if (text === null || text !== value.text || reply === null) return null;
-  if (value.edited !== undefined && !isTime(value.edited)) return null;
-  return {
-    ...base, kind: 'chat', text,
-    ...(reply !== undefined && { reply }),
-    ...(value.edited !== undefined && { edited: value.edited }),
-    ...(reactions !== undefined && { reactions }),
-  };
-}
-
-/** A message about the log as the client reads it, or null for anything malformed. */
-export function parseLogMessage(value: Record<string, unknown>): LogMessage | null {
-  switch (value.t) {
-    case 'log': {
-      if (!Array.isArray(value.entries) || value.entries.length > MAX_LOG_ENTRIES) return null;
-      // An entry this client cannot read (a newer GM's, a character its tables do not know) is left out: the rest of the log still shows.
-      return { t: 'log', entries: value.entries.map(parseLogEntry).filter((entry) => entry !== null) };
-    }
-    case 'log-entry': {
-      const entry = parseLogEntry(value.entry);
-      return entry === null ? null : { t: 'log-entry', entry };
-    }
-    case 'log-remove':
-      return isLogId(value.id) ? { t: 'log-remove', id: value.id } : null;
-    case 'chat-refused':
-      return typeof value.reason === 'string' && REFUSALS.includes(value.reason) ? { t: 'chat-refused', reason: value.reason as ChatRefusal } : null;
-    default:
-      return null;
-  }
-}
-
-/** Whether a player message's type is one of the log's. */
-export function isPlayerLogType(t: unknown): t is PlayerLogMessage['t'] {
-  return t === 'chat' || t === 'chat-edit' || t === 'chat-delete' || t === 'react';
-}
-
-/**
- * What a player sent to the log as the GM reads it, or null for anything malformed. A text is taken
- * as cleaned (`chatText`): the GM never shows or sends on what a player typed as it came.
- */
-export function parsePlayerLog(value: Record<string, unknown>): PlayerLogMessage | null {
-  if (value.t === 'chat') {
-    const text = chatText(value.text);
-    if (text === null || (value.reply !== undefined && !isLogId(value.reply))) return null;
-    return value.reply === undefined ? { t: 'chat', text } : { t: 'chat', text, reply: value.reply };
-  }
-  if (!isLogId(value.id)) return null;
-  if (value.t === 'chat-delete') return { t: 'chat-delete', id: value.id };
-  if (value.t === 'chat-edit') {
-    const text = chatText(value.text);
-    return text === null ? null : { t: 'chat-edit', id: value.id, text };
-  }
-  if (value.t === 'react') return isLogReaction(value.emoji) && typeof value.on === 'boolean' ? { t: 'react', id: value.id, emoji: value.emoji, on: value.on } : null;
-  return null;
 }
