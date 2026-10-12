@@ -1,7 +1,7 @@
 import { cellNumberStyleOfGrid } from '../../../../src/app/grid/cellNumbering';
 import { parseGridColor } from '../../../../src/app/grid/gridContrastColor';
 import { heldForSight } from '../../../../src/app/lighting/sightOnDrop';
-import type { CollectionLookup } from '../../../../src/app/resources/collectionResources';
+import type { CollectionLookup } from '../../../../src/app/gameSystems/mapRules';
 import { tokenPerception } from '../../../../src/app/vision/tokenPerception';
 import type { MapBounds } from '../../../../src/app/vision/visibility';
 import type { LightingSource } from '../../../../src/app/online/gm/atlasLighting.ts';

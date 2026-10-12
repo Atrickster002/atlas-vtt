@@ -15,6 +15,7 @@ import { cannotRender, PlayerFrameMirror, type PlayerFrameSource } from './Playe
 import { framedCamera } from './playerFrame';
 import type { Screen } from '../types/playerFrame';
 import type { PresentedScene } from './presentedScene';
+import { onMapRulesChange } from './mapRules';
 import { showNotice } from '../ui/notice';
 
 /** Scopes the rules in `player-window.scss` to the popout document. */
@@ -353,15 +354,15 @@ export class PlayerWindowService {
       this.sceneOverlays.forEach((overlay) => overlay.mount(content));
       this.settingsUnsubscribe?.();
       // Player view settings decide which layers players see
-      // So do the collection's settings: which resources they see
-      const collectionChanged = this.app.workspace.on('atlas-vtt:collection-settings-changed', () => {
+      // So do the rules the scene plays by: which resources they see
+      const stopRules = onMapRulesChange(this.app, 'any', () => {
         this.mirror?.markStale();
         this.sceneOverlays.forEach((overlay) => overlay.refresh?.());
       });
       const unsubscribeSettings = this.settingsService.onChange(() => this.mirror?.markStale());
       this.settingsUnsubscribe = () => {
         unsubscribeSettings();
-        this.app.workspace.offref(collectionChanged);
+        stopRules();
       };
 
       // Create freeze indicator

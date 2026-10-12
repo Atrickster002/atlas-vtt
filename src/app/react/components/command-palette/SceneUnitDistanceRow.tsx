@@ -3,7 +3,8 @@ import { SettingRow } from './SettingRows';
 import type { AtlasView } from '../../../atlas-view';
 import { sceneUnitDistance, unitLabelFor } from '../../../grid/measurementFormat';
 import { typedDistance } from '../../../grid/unitDistance';
-import { AssetService } from '../../../services/AssetService';
+import { rulesForMap } from '../../../gameSystems/mapRules';
+import { rulesLookup } from '../../../services/mapRules';
 import { mapMeasurementSettings } from '../../../services/mapMeasurementSettings';
 
 /**
@@ -20,12 +21,12 @@ export function SceneUnitDistanceRow({ view }: { view: AtlasView | null }): Reac
   const state = store?.getState();
   if (!view || !store || !state?.grid) return null;
 
-  const assets = AssetService.getInstance(view.app);
-  const measurement = mapMeasurementSettings(assets, state);
+  const rules = rulesLookup(view.app);
+  const measurement = mapMeasurementSettings(rules, state);
   // Range bands name distances; there is no distance per cell to change.
   if (measurement.mode === 'abstract') return null;
   const unit = unitLabelFor(measurement.unitType);
-  const inCollection = !!state.mapPath && assets.getCollectionForMap(state.mapPath) !== null;
+  const inCollection = rulesForMap(rules, state.mapPath).source.kind === 'collection';
   const followed = `${measurement.ruleDistance}${unit ? ` ${unit}` : ''}`;
   const shown = stored === undefined ? '' : String(stored);
 

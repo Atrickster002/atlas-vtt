@@ -1,4 +1,4 @@
-import { COLLECTION_FOLDER, type CollectionLookup } from '../../../resources/collectionResources';
+import { COLLECTION_FOLDER, type CollectionLookup } from '../../../gameSystems/mapRules';
 import type { ResourceDefinition } from '../../../resources/resourceTypes';
 import type { ShownRollToken } from '../../../services/playerRollSource';
 import type { TokenEntity } from '../../../types';

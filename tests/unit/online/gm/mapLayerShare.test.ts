@@ -1,6 +1,6 @@
 // @vitest-environment node
 import type { GmMessage, SharedInitiative } from '../../../../src/app/online/protocol/index.ts';
-import type { CollectionLookup } from '../../../../src/app/resources/collectionResources';
+import type { CollectionLookup } from '../../../../src/app/gameSystems/mapRules';
 import type { DrawingStroke, TokenEntity } from '../../../../src/app/types';
 import type { CollectionSettings } from '../../../../src/app/types/collectionSettingsTypes';
 import type { InitiativeEntry } from '../../../../src/app/types/initiativeTypes';

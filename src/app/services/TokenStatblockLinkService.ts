@@ -6,6 +6,7 @@ import { resolveLinkedCreature } from '../creatures/linkedCreature';
 import { isBestiaryResolved } from './FantasyStatblocksService';
 import { boundedFields } from '../creatures/statblockValues';
 import { mapResources } from '../resources/collectionResources';
+import { rulesLookup } from './mapRules';
 import { tokenFromFile, tokenToFile } from '../resources/resourceFileFormat';
 import type { ResourceDefinition } from '../resources/resourceTypes';
 import { startingResources } from '../resources/statblockResourceValues';
@@ -343,8 +344,8 @@ export class TokenStatblockLinkService extends EventEmitter {
 
     for (const mapFile of mapFiles) {
       try {
-        // Only a link reads the collection's resources; an unlink clears whatever the token holds.
-        const definitions = statblockData ? mapResources(this.assetService, mapFile.path) : [];
+        // Only a link reads the map's resources; an unlink clears whatever the token holds.
+        const definitions = statblockData ? mapResources(rulesLookup(this.app, this.assetService), mapFile.path) : [];
         if (rewriteMap(await this.app.vault.read(mapFile), definitions) === null) continue;
         await this.app.vault.process(mapFile, (latest) => rewriteMap(latest, definitions) ?? latest);
       } catch (error) {

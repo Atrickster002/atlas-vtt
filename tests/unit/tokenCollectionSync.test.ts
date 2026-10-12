@@ -119,13 +119,12 @@ describe('TokenCollectionSync', () => {
     f.sync.destroy();
   });
 
-  it('reports initialization failure without refreshing rules', async () => {
+  // The vault check reports the failure (`registerVaultSync`); the tokens keep the rules they have.
+  it('refreshes no rules when initialization fails', async () => {
     const f = setup();
-    const error = new Error('index failed');
-    const log = vi.spyOn(console, 'error').mockImplementation(() => {});
-    f.rejectReady(error);
+    f.rejectReady(new Error('index failed'));
     await Promise.resolve();
-    expect(log).toHaveBeenCalledWith('[TokenRenderer] Failed to initialize AssetService:', error);
+    await Promise.resolve();
     expect(f.refreshRules).not.toHaveBeenCalled();
     f.sync.destroy();
   });
