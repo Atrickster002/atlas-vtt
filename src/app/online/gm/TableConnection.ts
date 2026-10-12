@@ -1,6 +1,7 @@
 import {
   ALL_PLAYERS, FINAL_CLOSE_CODES, KEEPALIVE_PONG, PROTOCOL_VERSION, parseRelayFrame, type ConnectionStats, type GmMessage, type PlayerInfo,
 } from '../protocol/index.ts';
+import { randomHex } from '../../utils/randomHex';
 import { messageParts } from './assetServe.ts';
 import { companionTimers, type Timers } from './companionTimers.ts';
 import type { GateFrame } from './joinGate.ts';
@@ -47,9 +48,7 @@ function cryptoFraction(): number {
 }
 
 /** A random id for the parts of one large message. */
-function partId(): string {
-  return [...crypto.getRandomValues(new Uint8Array(12))].map((byte) => byte.toString(16).padStart(2, '0')).join('');
-}
+const partId = (): string => randomHex(12);
 
 /** The socket address of a table on a server origin (`https://…` becomes `wss://…`). */
 export function socketUrl(origin: string, code: string): string {

@@ -1,4 +1,5 @@
 import type { App } from 'obsidian';
+import { isPathTaken } from '../../plugin/vaultFolders';
 import type { CollectionSettings } from '../../types/collectionSettingsTypes';
 import { planPresets, presetFingerprint, type PackedPreset, type PlannedPreset, type VaultPreset } from '../systemPresets/bundlePresets';
 import { freePresetPath, presetText, readPresetText } from '../systemPresets/presetFiles';
@@ -60,14 +61,6 @@ async function vaultPresets(app: App): Promise<Map<string, VaultPreset>> {
   return presets;
 }
 
-/** Whether a file other than one the plan gave out has this path, in any letter case. */
-function pathTaken(app: App, path: string): boolean {
-  if (app.vault.getAbstractFileByPath(path)) return true;
-  const lower = path.toLowerCase();
-  const siblings = app.vault.getFolderByPath(path.slice(0, path.lastIndexOf('/')))?.children ?? [];
-  return siblings.some((child) => child.path.toLowerCase() === lower);
-}
-
 /**
  * Reads the bundle's presets and decides, by preset id, what becomes of each (`planPresets`). A
  * copy is named after the collection ("Homebrew (Fen)"), new files go to the presets folder.
@@ -86,7 +79,7 @@ export async function planPresetImport(
   const claimedNames = new Set([...vault.values()].map((preset) => preset.name.toLowerCase()));
   return planPresets(bundle, vault, record?.presets, {
     place: (name) => {
-      const path = freePresetPath(name, (candidate) => claimedPaths.has(candidate.toLowerCase()) || pathTaken(app, candidate));
+      const path = freePresetPath(name, (candidate) => claimedPaths.has(candidate.toLowerCase()) || isPathTaken(app, candidate));
       claimedPaths.add(path.toLowerCase());
       return path;
     },
@@ -106,7 +99,7 @@ export async function presetsChangedSinceReview(app: App, planned: readonly Plan
   if (planned.length === 0) return false;
   const vault = await vaultPresets(app);
   return planned.some((preset) => (preset.mine === null
-    ? pathTaken(app, preset.target)
+    ? isPathTaken(app, preset.target)
     : vault.get(preset.localId)?.fingerprint !== preset.mine));
 }
 

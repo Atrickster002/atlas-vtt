@@ -1,6 +1,7 @@
 import type { ConnectionStats } from '../protocol/index.ts';
 import { normalizePath, type App, type WorkspaceLeaf } from 'obsidian';
 import { showNotice } from '../../ui/notice';
+import { randomHex } from '../../utils/randomHex';
 import { scaleInWindow } from './assetVariants.ts';
 import { ATLAS_VIEW_TYPE, type SceneStore } from './atlasView.ts';
 import type { BookShelf } from './book/BookShelf.ts';
@@ -19,10 +20,6 @@ import { TabWatch, type LostReason } from './sharedTab.ts';
 import { TableConnection, type TableStatus } from './TableConnection.ts';
 import { closingText, tableEndOf, tableEndText, type TableEnd } from './tableEnd.ts';
 import type { VaultImage } from './TokenShare.ts';
-
-function randomHex(bytes: number): string {
-  return [...crypto.getRandomValues(new Uint8Array(bytes))].map((byte) => byte.toString(16).padStart(2, '0')).join('');
-}
 
 /** How often the presented tab is looked for, and the shared one checked. */
 const WATCH_MS = 1_000;
