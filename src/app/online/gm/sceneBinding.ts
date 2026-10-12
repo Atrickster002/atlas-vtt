@@ -38,6 +38,8 @@ export interface SceneBindingPorts {
   randomId(): string;
   /** Takes a roll of the shared tab into the table's log. */
   logRoll(roll: LoggedRoll): void;
+  /** The name a player goes by at the table, or null when it is not known. */
+  nameOf(player: string): string | null;
 }
 
 /** Claims and releases are taken only while the presented scene is shown: a held list cannot show them. */
@@ -78,13 +80,19 @@ export function bindScene(ports: SceneBindingPorts, tab: AtlasTab, presented: Pr
     return grid === null || grid === undefined ? null : { grid, measurement: measurement() ?? resolveMeasurementSettings(undefined, tab.store.getState().grid) } satisfies MeasureRules;
   });
   // Players' marks leave the GM's canvas as the hold begins: it is about to show another scene.
-  const store = new PresentedStore(tab.store, presented, () => void (live() && marks.showPlayers({ lasers: [], measures: [] })));
+  const store = new PresentedStore(tab.store, presented, () => {
+    if (!live()) return;
+    marks.showPlayers({ lasers: [], measures: [] });
+    marks.showPlayerCursors([]);
+  });
   const share = new SceneShare(store, {
     tokenSource: () => asTokenSource(shownRenderer()),
     lightingSource: () => lightingSourceOf(shownRenderer()),
     measurement,
     gmMarks: () => (shown() ? marks.source() : null),
     showPlayerMarks: (marksShown) => shown() && marks.showPlayers(marksShown),
+    showPlayerCursors: (cursors) => shown() && marks.showPlayerCursors(cursors),
+    nameOf: (player) => ports.nameOf(player),
     accent: lastWhileShown(shown, () => accentColour(leaf.view.containerEl.ownerDocument)),
     atlasSettings: () => atlasPlayerSettings(ports.app),
     dice: () => (shown() ? diceSourceOf(leaf) : null),

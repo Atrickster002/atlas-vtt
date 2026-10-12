@@ -201,6 +201,11 @@ export class Ownership {
     return [...this.online];
   }
 
+  /** The name a known player goes by, or null for anyone else. */
+  nameOf(playerId: string): string | null {
+    return this.players.get(playerId) ?? null;
+  }
+
   /** Every known player: those online first, then by name. */
   list(): KnownPlayer[] {
     return [...this.players]

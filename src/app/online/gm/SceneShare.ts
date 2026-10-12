@@ -25,7 +25,7 @@ import { TOKEN_POLL_MS, TokenShare, type TokenSharePorts } from './TokenShare.ts
 
 export { imageMimeType, isLit, LIGHTING_REFUSAL, REPEAT_REQUEST_MS };
 
-export interface SceneSharePorts extends TokenSharePorts, RulesSharePorts, Pick<MarkSharePorts, 'gmMarks' | 'showPlayerMarks'> {
+export interface SceneSharePorts extends TokenSharePorts, RulesSharePorts, Pick<MarkSharePorts, 'gmMarks' | 'showPlayerMarks' | 'showPlayerCursors' | 'nameOf'> {
   notice(text: string): void;
   /** Sends a live message (where dragged tokens are now) ahead of other frames, the latest of a key winning; without it drags reach players through the token list only. */
   sendLive?(body: GmMessage, key: string): void;
@@ -95,7 +95,8 @@ export class SceneShare {
       tokenAlias: (id) => this.tokens.alias(id),
     });
     this.layers = new MapLayerShare(store, { ...ports, mapLayers: () => ports.mapLayers?.() ?? null });
-    this.rules = new RulesShare(store, ports);
+    const cursorsShown = (): boolean => ports.atlasSettings().showCursors;
+    this.rules = new RulesShare(store, { ...ports, cursorsShown });
     this.moves = new PlayerMoves(store, {
       ...ports,
       context: () => ({
@@ -106,7 +107,7 @@ export class SceneShare {
         walls: sceneWalls(store.getState().objects.walls, this.scene?.lit === true, this.mapSize),
       }),
     });
-    this.marks = new MarkShare(ports, () => this.mapSize);
+    this.marks = new MarkShare({ ...ports, cursorsShown }, () => this.mapSize);
     this.assets = new AssetAnswers({ send: (body, to) => ports.send(body, to), now: () => ports.now(), readImage: (path) => ports.readImage(path), scaleImage: ports.scaleImage }, {
       map: () => {
         const map = this.scene?.map ?? null;
@@ -199,7 +200,7 @@ export class SceneShare {
 
   /**
    * A player's message: a drag, drop or cancelled drag of their own token (`PlayerMoves`), a claim or release of a player
-   * token (`PlayerClaims`; the owners' change sends the new list), a roll (`PlayerRolls`), a resync (a whole list), or an asset request, answered only
+   * token (`PlayerClaims`; the owners' change sends the new list), a roll (`PlayerRolls`), a laser, measurement or cursor (`MarkShare`), a resync (a whole list), or an asset request, answered only
    * for the map, the explored memory or a token's artwork of the current picture, from the chunk the player asks for on.
    */
   receive(from: string, body: unknown): void {
@@ -210,7 +211,7 @@ export class SceneShare {
     if (message.t === 'drag-cancel') return this.moves.dragCancel(from, message);
     if (message.t === 'claim' || message.t === 'release') return void this.claims?.receive(from, message);
     if (message.t === 'roll') return this.rolls.receive(from, message);
-    if (message.t === 'laser' || message.t === 'measure') return this.marks.receive(from, message);
+    if (message.t === 'laser' || message.t === 'measure' || message.t === 'cursor') return this.marks.receive(from, message);
     if (message.t === 'resync') return message.of === 'tokens' ? this.tokens.resync(from, message.scene) : this.inputs.resync(from, message.scene, message.of);
     if (message.t === 'asset-request') this.assets.answer(from, message);
   }

@@ -9,7 +9,7 @@ import { isPlayerLogType, parseLogMessage, parsePlayerLog, type LogMessage, type
 import { parsePlayerClaim, type PlayerClaim } from './claims.ts';
 import { parsePlayerRoll, parseRoll, parseRollRefused, type PlayerRoll, type RollMessage, type RollRefused } from './dice.ts';
 import { parseAnnotations, parseDoors, parseGrid, parseSensed, type SensedMark, type SharedAnnotations, type SharedDoor, type SharedGrid } from './mapLayers.ts';
-import { parseMarks, parsePlayerMark, type MarksMessage, type PlayerLaser, type PlayerMeasure } from './marks.ts';
+import { parseMarks, parsePlayerMark, type MarksMessage, type PlayerCursor, type PlayerLaser, type PlayerMeasure } from './marks.ts';
 import { isRecord } from './shape.ts';
 import { MAX_SCENE_ID, parseDragCancel, parseMoveRefused, parsePlayerMove, parseSnapGrid, type MoveRefused, type PlayerDrag, type PlayerDragCancel, type PlayerMove, type SnapGrid } from './moves.ts';
 import { parseRules, type RulesMessage } from './rules.ts';
@@ -100,7 +100,7 @@ export interface PlayerAssetRequest {
   readonly maxSide?: number;
 }
 
-export type PlayerMessage = PlayerAssetRequest | PlayerResync | PlayerMove | PlayerDrag | PlayerDragCancel | PlayerClaim | PlayerRoll | PlayerLaser | PlayerMeasure | PlayerLogMessage;
+export type PlayerMessage = PlayerAssetRequest | PlayerResync | PlayerMove | PlayerDrag | PlayerDragCancel | PlayerClaim | PlayerRoll | PlayerLaser | PlayerMeasure | PlayerCursor | PlayerLogMessage;
 
 const MAX_CHUNKS = Math.ceil(MAX_ASSET_BYTES / ASSET_CHUNK_BYTES);
 const BASE64 = /^[A-Za-z0-9+/]*={0,2}$/;
@@ -232,7 +232,7 @@ export function parsePlayerMessage(value: unknown): PlayerMessage | null {
   if (value.t === 'drag-cancel') return parseDragCancel(value);
   if (value.t === 'claim' || value.t === 'release') return parsePlayerClaim(value);
   if (value.t === 'roll') return parsePlayerRoll(value);
-  if (value.t === 'laser' || value.t === 'measure') return parsePlayerMark(value);
+  if (value.t === 'laser' || value.t === 'measure' || value.t === 'cursor') return parsePlayerMark(value);
   if (isPlayerLogType(value.t)) return parsePlayerLog(value);
   if (value.t === 'resync') return isSceneId(value.scene) && isDeltaOf(value.of) ? { t: 'resync', scene: value.scene, of: value.of } : null;
   return value.t === 'asset-request' ? parseAssetRequest(value) : null;

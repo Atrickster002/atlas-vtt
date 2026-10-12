@@ -1,5 +1,5 @@
-import type { LaserSource, Press, TrailBatch } from '../../../../src/app/online/marks/index.ts';
-import type { GmMessage, LaserState, MarksMessage } from '../../../../src/app/online/protocol/index.ts';
+import type { CursorSource, LaserSource, Press, TrailBatch } from '../../../../src/app/online/marks/index.ts';
+import type { GmMessage, LaserState, MarkPoint, MarksMessage, SharedCursor } from '../../../../src/app/online/protocol/index.ts';
 import type { Measurements } from '../../../../src/app/pixi/MeasureRenderer';
 import type { TokenFootprint } from '../../../../src/app/vision/measureOrigin';
 import { MarkShare, type GmMarkSource, type PlayerMarks } from '../../../../src/app/online/gm/MarkShare.ts';
@@ -47,6 +47,44 @@ export class FakeLaser implements LaserSource {
   }
 }
 
+/** The GM's cursor, moved by a test. */
+export class FakeCursor implements CursorSource {
+  place: MarkPoint | null = null;
+  moved: number | null = null;
+  pts: number[] = [];
+  span: number | undefined;
+  private readonly listeners = new Set<() => void>();
+
+  at(): MarkPoint | null {
+    return this.place;
+  }
+
+  movedAt(): number | null {
+    return this.place === null ? null : this.moved;
+  }
+
+  take(max: number): TrailBatch {
+    const pts = this.pts.slice(-max);
+    const { span } = this;
+    this.pts = [];
+    this.span = undefined;
+    return span === undefined ? { pts } : { pts, span };
+  }
+
+  subscribe(listener: () => void): () => void {
+    this.listeners.add(listener);
+    return () => this.listeners.delete(listener);
+  }
+
+  /** Moves the pointer to a world point at `now`; null takes it off the map. */
+  moveTo(place: MarkPoint | null, now: number): void {
+    this.place = place;
+    this.moved = now;
+    if (place !== null) this.pts.push(...place);
+    for (const listener of this.listeners) listener();
+  }
+}
+
 export interface MarkHarness {
   readonly share: MarkShare;
   /** Every `marks` message sent, with whom it went to. */
@@ -55,6 +93,11 @@ export interface MarkHarness {
   shown: PlayerMarks | null;
   readonly shows: PlayerMarks[];
   readonly laser: FakeLaser;
+  readonly cursor: FakeCursor;
+  /** Whether the GM lets everyone see each other's cursor. */
+  cursorsOn: boolean;
+  /** Every list of players' cursors the GM's overlay was told to draw, in order. */
+  readonly cursorShows: (readonly SharedCursor[])[];
   /** Sets the GM's measurements as the measure renderer would, and lets the share read them. */
   measure(next: Measurements): Promise<void>;
   footprints: readonly TokenFootprint[];
@@ -73,6 +116,8 @@ export function markHarness(map: MapSize | null = { width: 2000, height: 2000 })
   let records: Measurements = { live: null, kept: [] };
   const listeners = new Set<(next: Measurements, previous: Measurements) => void>();
   const laser = new FakeLaser();
+  const cursor = new FakeCursor();
+  const names: Record<string, string> = { ['a'.repeat(20)]: 'Ana', ['b'.repeat(20)]: 'Ben' };
   const source: GmMarkSource = {
     measurements: {
       get: () => records,
@@ -82,6 +127,7 @@ export function markHarness(map: MapSize | null = { width: 2000, height: 2000 })
       },
     },
     laser,
+    cursor,
     laserLook: () => ({ color: '#ff0059', size: 16 }),
     footprints: () => harness.footprints,
     seen: () => harness.seen,
@@ -91,6 +137,9 @@ export function markHarness(map: MapSize | null = { width: 2000, height: 2000 })
     shown: null,
     shows: [],
     laser,
+    cursor,
+    cursorsOn: false,
+    cursorShows: [],
     footprints: [],
     seen: () => true,
     onSend: null,
@@ -106,6 +155,9 @@ export function markHarness(map: MapSize | null = { width: 2000, height: 2000 })
         harness.shown = marks;
         harness.shows.push(marks);
       },
+      cursorsShown: () => harness.cursorsOn,
+      nameOf: (player) => names[player] ?? null,
+      showPlayerCursors: (cursors) => void harness.cursorShows.push(cursors),
       now: () => now,
       setTimer: (run, ms) => {
         ids += 1;

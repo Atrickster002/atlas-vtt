@@ -33,9 +33,9 @@ describe('the shared scene', () => {
     table.share.start();
     const lit = state({ lighting: { enabled: true, ambient: 0 } });
     await table.set(lit);
-    table.settings = { dynamicLighting: false, showNames: true, showDiceRolls: false, showInitiative: true, showWidgets: true };
+    table.settings = { dynamicLighting: false, showNames: true, showDiceRolls: false, showInitiative: true, showWidgets: true, showCursors: false };
     await table.set(state({ lighting: { enabled: true, ambient: 0.5 } }));
-    table.settings = { dynamicLighting: null, showNames: true, showDiceRolls: false, showInitiative: true, showWidgets: true };
+    table.settings = { dynamicLighting: null, showNames: true, showDiceRolls: false, showInitiative: true, showWidgets: true, showCursors: false };
     table.lighting = null;
     await table.set(lit);
     table.lighting = GENERIC_SOURCE;

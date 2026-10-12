@@ -1,4 +1,4 @@
-import { MAX_COORDINATE, type LaserState, type MarkPoint, type MeasureState, type PlayerLaser, type PlayerMeasure, type SharedMeasure } from '../protocol/index.ts';
+import { MAX_COORDINATE, type CursorState, type LaserState, type MarkPoint, type MeasureState, type PlayerCursor, type PlayerLaser, type PlayerMeasure, type SharedMeasure } from '../protocol/index.ts';
 import { LASER_COLOR_SWATCHES, resolveLaserPointerSettings } from '../../tools/laserPointerSettings';
 import { MoveRate, type MapSize } from './moveCheck.ts';
 
@@ -66,4 +66,19 @@ export function checkMeasure(message: PlayerMeasure, context: MarkContext): Meas
   const live = message.live !== null && measureNearMap(message.live, context.map) ? message.live : null;
   const kept = message.kept.filter((measure) => measureNearMap(measure, context.map));
   return { color, live, kept, ...(live !== null && message.span !== undefined && { span: message.span }) };
+}
+
+/**
+ * A player's cursor as the GM takes it, or null when it is refused: another scene. A pointer and
+ * places off the map are left out.
+ */
+export function checkCursor(message: PlayerCursor, context: MarkContext): CursorState | null {
+  if (context.scene === null || message.scene !== context.scene) return null;
+  const at = message.at !== null && nearMap(message.at, context.map) ? message.at : null;
+  const pts: number[] = [];
+  for (let index = 0; index + 1 < message.pts.length; index += 2) {
+    const point: MarkPoint = [message.pts[index] ?? Number.NaN, message.pts[index + 1] ?? Number.NaN];
+    if (nearMap(point, context.map)) pts.push(...point);
+  }
+  return { at, pts, ...(message.span !== undefined && { span: message.span }) };
 }

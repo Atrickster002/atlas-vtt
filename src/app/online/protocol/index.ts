@@ -1,6 +1,7 @@
 export * from './asset.ts';
 export * from './build.ts';
 export * from './claims.ts';
+export * from './colours.ts';
 export * from './delta.ts';
 export * from './deltaReader.ts';
 export * from './diagnostics.ts';
