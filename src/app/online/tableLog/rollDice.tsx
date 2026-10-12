@@ -9,12 +9,21 @@ export interface DieView {
   readonly modifiers: readonly string[];
 }
 
-/** How one die of a roll is shown: `d20: 20` on the high side, `d20: 1` on the low. */
+/**
+ * How one die of a roll is shown: its label, marked on the high or low side, as a success or a
+ * failure, or struck through where it counts for nothing (dropped, or rolled again).
+ */
 export function dieView(rolls: readonly SharedDie[], index: number): DieView {
   const die = rolls[index]!;
   const modifiers: string[] = [];
-  if (die.value === die.max) modifiers.push('max');
-  if (die.value === 1) modifiers.push('min');
+  if (die.dropped === true) modifiers.push('dropped');
+  else if (die.rerolled === true) modifiers.push('rerolled');
+  else {
+    if (die.value === die.max) modifiers.push('max');
+    if (die.value === (die.min ?? 1)) modifiers.push('min');
+    if (die.success === true) modifiers.push('success');
+    if (die.failure === true) modifiers.push('failure');
+  }
   return { text: dieLabel(rolls, index), modifiers };
 }
 

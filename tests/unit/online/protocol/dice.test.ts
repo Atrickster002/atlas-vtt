@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
-import { MAX_ROLLED_DICE, parseGmMessage, parsePlayerMessage, type SharedRoll } from '../../../../src/app/online/protocol/index.ts';
+import { MAX_ROLLED_DICE, parseGmMessage, parsePlayerMessage, parseSharedRoll, type SharedRoll } from '../../../../src/app/online/protocol/index.ts';
 
 const ALIAS = 'a1'.repeat(12);
 const PLAYER = 'abcdefghijklmnopqrst';
@@ -68,5 +68,31 @@ describe('shared rolls', () => {
     for (const result of bad) expect(parseGmMessage({ t: 'roll', who: 'gm', result, token: null }), JSON.stringify(result).slice(0, 120)).toBeNull();
     expect(parseGmMessage({ t: 'roll', who: 'someone', result: ROLL, token: null })).toBeNull();
     expect(parseGmMessage({ t: 'roll-refused', reason: 'because' })).toBeNull();
+  });
+});
+
+describe('shared dice of the full notation', () => {
+  const roll = (rolls: unknown[], extra: Record<string, unknown> = {}): unknown => ({ id: 'r', timestamp: 1, formula: '4d6kh3', modifiers: 0, total: 3, rolls, ...extra });
+
+  it('carry Fate dice, dropped, rerolled and counted dice, labels and a formula that is no plain sum', () => {
+    const rolls = [
+      { die: 'dF', value: -1, max: 1, min: -1 },
+      { die: 'd6', value: 1, max: 6, rerolled: true },
+      { die: 'd6', value: 5, max: 6, success: true, label: 'fire' },
+      { die: 'd6', value: 2, max: 6, dropped: true, failure: true },
+    ];
+    expect(parseSharedRoll(roll(rolls, { linear: false }))).toEqual(roll(rolls, { linear: false }));
+  });
+
+  it('refuse a Fate die off its faces, a die below 1, an odd label or flag', () => {
+    for (const die of [
+      { die: 'dF', value: 2, max: 1, min: -1 },
+      { die: 'dF', value: 0, max: 6, min: -1 },
+      { die: 'd6', value: 0, max: 6 },
+      { die: 'd6', value: 3, max: 6, min: -1 },
+      { die: 'd6', value: 3, max: 6, label: '<b>' },
+      { die: 'd6', value: 3, max: 6, dropped: 'yes' },
+    ]) expect(parseSharedRoll(roll([die])), JSON.stringify(die)).toBeNull();
+    expect(parseSharedRoll(roll([], { linear: true }))).toBeNull();
   });
 });

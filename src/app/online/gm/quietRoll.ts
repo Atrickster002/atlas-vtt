@@ -18,6 +18,6 @@ function cryptoRandom(): number {
 export function quietRoll(formula: string, rules: DiceRules, id: string, now: number, random: () => number = cryptoRandom): SharedRoll | null {
   const parsed = parseFormula(formula);
   if (!parsed.ok || !parsed.terms.some((term) => term.kind === 'dice')) return null;
-  const { rolls, modifiers, total } = rollFormula(parsed, random, rules);
-  return sharedRoll({ id, timestamp: now, formula, rolls, modifiers, total, crit: getDiceCrit(rolls, rules) });
+  const { rolls, modifiers, total, linear } = rollFormula(parsed, random, rules);
+  return sharedRoll({ id, timestamp: now, formula, rolls, modifiers, total, crit: getDiceCrit(rolls, rules), ...(!linear && { linear: false as const }) });
 }

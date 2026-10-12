@@ -173,6 +173,25 @@
     color: var(--color-red);
   }
 
+  .atlas-online-log__die--success {
+    box-shadow: inset 0 0 0 1px var(--color-green);
+    color: var(--color-green);
+  }
+
+  .atlas-online-log__die--failure {
+    box-shadow: inset 0 0 0 1px var(--color-red);
+    color: var(--color-red);
+  }
+
+  // Counted for nothing: dropped by keep or drop, or rolled again.
+  .atlas-online-log__die--dropped,
+  .atlas-online-log__die--rerolled {
+    background: transparent;
+    box-shadow: inset 0 0 0 1px var(--background-modifier-border);
+    color: var(--text-faint);
+    text-decoration: line-through;
+  }
+
   .atlas-online-log__roll-hidden {
     display: inline-flex;
     align-items: center;
