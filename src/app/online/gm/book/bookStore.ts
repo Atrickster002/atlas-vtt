@@ -1,6 +1,6 @@
 import {
-  DEFAULT_BOOK_SLOTS, isRecord, MAX_BOOK_ITEMS, MAX_BOOK_NOTES, MAX_BOOK_PINS, mayEquip, parseBookItem, parseBookNoteDraft, parseBookPin, parseBookSlots, parseEquipped, parsePurse, settledEquipped, withEquipped,
-  type BookItem, type BookNote, type BookPin, type BookSlots, type Equipped, type PlayerBookMessage, type PurseRow,
+  DEFAULT_BOOK_SLOTS, isRecord, MAX_BOOK_ITEMS, MAX_BOOK_NOTES, MAX_BOOK_PINS, MAX_BOOK_QUESTS, mayEquip, parseBookItem, parseBookNoteDraft, parseBookPin, parseBookQuest, parseBookSlots, parseEquipped, parsePurse, settledEquipped, withEquipped,
+  type BookItem, type BookNote, type BookPin, type BookQuest, type BookSlots, type Equipped, type PlayerBookMessage, type PurseRow,
 } from '../../protocol/index.ts';
 
 /** What the GM keeps of one character's book; its sheet and the world map are read from the scene each time. */
@@ -8,6 +8,8 @@ export interface StoredBook {
   readonly items: readonly BookItem[];
   readonly notes: readonly BookNote[];
   readonly pins: readonly BookPin[];
+  /** The quests the GM gave the character; only the GM writes them, a player never. */
+  readonly quests: readonly BookQuest[];
   readonly purse: readonly PurseRow[];
   /** The player's slots and what lies in them: only items of this book, only in slots it shows. */
   readonly slots: BookSlots;
@@ -23,7 +25,7 @@ export type BookData = Readonly<Record<string, Readonly<Record<string, StoredBoo
 /** The collection of a scene that lies in none. */
 export const NO_COLLECTION = '';
 
-export const EMPTY_BOOK: StoredBook = { items: [], notes: [], pins: [], purse: [], slots: DEFAULT_BOOK_SLOTS, equipped: [] };
+export const EMPTY_BOOK: StoredBook = { items: [], notes: [], pins: [], quests: [], purse: [], slots: DEFAULT_BOOK_SLOTS, equipped: [] };
 
 /** The longest collection id or character key read back. */
 const MAX_KEY = 1000;
@@ -40,16 +42,23 @@ function put<T extends Entry>(list: readonly T[], entry: T, max: number): readon
 
 const without = <T extends Entry>(list: readonly T[], id: string): readonly T[] => list.filter((entry) => entry.id !== id);
 
+/** A note may name a quest of its book, or the one it named already (the GM may have taken that quest back since). */
+function mayNameQuest(book: StoredBook, note: { readonly id: string; readonly quest?: string }): boolean {
+  if (note.quest === undefined) return true;
+  return book.quests.some((quest) => quest.id === note.quest) || book.notes.some((held) => held.id === note.id && held.quest === note.quest);
+}
+
 /**
  * A book after what its player wrote, as the protocol's parser cleaned it: a note or pin is put in
- * place of the one of its id or added, a deletion takes one away (none is no error), the purse is
- * replaced whole. A note is stamped with `now`, the GM's clock. An item goes into a slot only where
+ * place of the one of its id or added (a note on a quest only on a quest of this book), a deletion
+ * takes one away (none is no error), the purse is replaced whole. A note is stamped with `now`, the GM's clock. An item goes into a slot only where
  * the book holds it and shows the slot; slots are replaced whole, and an item whose slot went is back
  * in the bag. Null when the book takes no more, or not this.
  */
 export function applyBookMessage(book: StoredBook, message: PlayerBookMessage, now: number): StoredBook | null {
   switch (message.t) {
     case 'book-note': {
+      if (!mayNameQuest(book, message.note)) return null;
       const notes = put(book.notes, { ...message.note, at: now }, MAX_BOOK_NOTES);
       return notes === null ? null : { ...book, notes };
     }
@@ -76,8 +85,17 @@ export function withItem(book: StoredBook, item: BookItem): StoredBook {
   return { ...book, items, equipped: settledEquipped(book.equipped, book.slots, items) };
 }
 
+/** A book with a quest given or changed by the GM: in place of the one of its id, else last; null once the book holds no more. */
+export function withQuest(book: StoredBook, quest: BookQuest): StoredBook | null {
+  const quests = put(book.quests, quest, MAX_BOOK_QUESTS);
+  return quests === null ? null : { ...book, quests };
+}
+
+/** A book without a quest; the player's notes on it stay theirs. */
+export const withoutQuest = (book: StoredBook, id: string): StoredBook => ({ ...book, quests: without(book.quests, id) });
+
 export function isEmptyBook(book: StoredBook): boolean {
-  return book.items.length + book.notes.length + book.pins.length + book.purse.length + book.slots.hidden.length + book.slots.own.length === 0;
+  return book.items.length + book.notes.length + book.pins.length + book.quests.length + book.purse.length + book.slots.hidden.length + book.slots.own.length === 0;
 }
 
 /** The entries of a stored list that are well-formed, each id once, the last `max` of them. */
@@ -103,7 +121,9 @@ function readBook(value: unknown): StoredBook | null {
   return {
     items,
     notes: readList(value.notes, MAX_BOOK_NOTES, readNote),
+    // Pins of the kinds an older Atlas offered are read as the kinds that took their place, so every pin is kept.
     pins: readList(value.pins, MAX_BOOK_PINS, parseBookPin),
+    quests: readList(value.quests, MAX_BOOK_QUESTS, parseBookQuest),
     purse: parsePurse(value.purse) ?? [],
     slots,
     equipped: settledEquipped(parseEquipped(value.equipped) ?? [], slots, items),

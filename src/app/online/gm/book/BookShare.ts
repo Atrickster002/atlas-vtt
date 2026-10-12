@@ -60,7 +60,7 @@ interface SentBook {
 /**
  * The players' books: each connected player's own pages besides the table, sent to that player
  * alone and never to all. A book is its character's (`Characters`): the sheet is read from the
- * shared scene, items, notes, pins and purse are kept on the shelf, and the world map of the
+ * shared scene, items, notes, pins, quests and purse are kept on the shelf, and the world map of the
  * campaign being played goes to everyone at the table. It is the table's, not a scene's, so it hears players while no
  * scene is shared. What a player writes is taken as the protocol's parser cleaned it, only for a
  * player with a character and within their rate; a write that is refused is answered with the
@@ -214,8 +214,8 @@ export class BookShare implements LootRecipientSource {
     this.owed.delete(player);
     if (!this.isOnline(player)) return;
     const character = this.characters.of(player);
-    const { items, notes, pins, purse, slots, equipped } = character === null ? EMPTY_BOOK : this.shelf.of(character.collection, character.key);
-    const book: PlayerBook = { character: character?.sheet ?? null, worldMap: this.worldMap?.map ?? null, items, notes, pins, purse, slots, equipped };
+    const { items, notes, pins, quests, purse, slots, equipped } = character === null ? EMPTY_BOOK : this.shelf.of(character.collection, character.key);
+    const book: PlayerBook = { character: character?.sheet ?? null, worldMap: this.worldMap?.map ?? null, items, notes, pins, quests, purse, slots, equipped };
     this.sent.set(player, sentOf(character, this.worldMap));
     this.bookAt.set(player, this.ports.now());
     this.ports.send({ t: 'book', book }, player);
