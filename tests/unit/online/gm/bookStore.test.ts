@@ -17,7 +17,7 @@ const item = (count: number): BookItem => ({ id: id(count), name: `Item ${count}
 /** A book after these messages, each written at its place in the list; a refused one fails the test. */
 function written(messages: readonly PlayerBookMessage[], from: StoredBook = EMPTY_BOOK): StoredBook {
   return messages.reduce((book, message, at) => {
-    const next = applyBookMessage(book, message, 1000 + at);
+    const next = applyBookMessage(book, message, 1000 + at, new Set());
     if (next === null) throw new Error(`refused: ${message.t}`);
     return next;
   }, from);
@@ -28,7 +28,7 @@ describe('a book as the GM keeps it', () => {
     const book = written([note(1), note(2), note(3)]);
     expect(book.notes.map((kept) => [kept.id, kept.at])).toEqual([[id(1), 1000], [id(2), 1001], [id(3), 1002]]);
 
-    const changed = applyBookMessage(book, note(2, 'Rewritten'), 5000);
+    const changed = applyBookMessage(book, note(2, 'Rewritten'), 5000, new Set());
     expect(changed?.notes.map((kept) => [kept.id, kept.body, kept.at])).toEqual([[id(1), 'Body', 1000], [id(2), 'Rewritten', 5000], [id(3), 'Body', 1002]]);
 
     const deleted = written([{ t: 'book-note-delete', id: id(1) }, { t: 'book-note-delete', id: id(9) }], changed ?? book);
@@ -40,14 +40,14 @@ describe('a book as the GM keeps it', () => {
   it('takes no more notes or pins than a book holds, and still takes a change of one it has', () => {
     const full = written(Array.from({ length: MAX_BOOK_NOTES }, (_, count) => note(count)));
     expect(full.notes).toHaveLength(MAX_BOOK_NOTES);
-    expect(applyBookMessage(full, note(MAX_BOOK_NOTES), 1)).toBeNull();
-    expect(applyBookMessage(full, note(3, 'Changed'), 1)?.notes).toHaveLength(MAX_BOOK_NOTES);
+    expect(applyBookMessage(full, note(MAX_BOOK_NOTES), 1, new Set())).toBeNull();
+    expect(applyBookMessage(full, note(3, 'Changed'), 1, new Set())?.notes).toHaveLength(MAX_BOOK_NOTES);
 
     const pinned = written(Array.from({ length: MAX_BOOK_PINS }, (_, count): PlayerBookMessage => ({ t: 'book-pin', pin: pin(count) })));
-    expect(applyBookMessage(pinned, { t: 'book-pin', pin: pin(MAX_BOOK_PINS) }, 1)).toBeNull();
-    const moved = applyBookMessage(pinned, { t: 'book-pin', pin: { ...pin(7), x: 1 } }, 1);
+    expect(applyBookMessage(pinned, { t: 'book-pin', pin: pin(MAX_BOOK_PINS) }, 1, new Set())).toBeNull();
+    const moved = applyBookMessage(pinned, { t: 'book-pin', pin: { ...pin(7), x: 1 } }, 1, new Set());
     expect(moved?.pins[7]).toMatchObject({ id: id(7), x: 1 });
-    expect(applyBookMessage(pinned, { t: 'book-pin-delete', id: id(0) }, 1)?.pins).toHaveLength(MAX_BOOK_PINS - 1);
+    expect(applyBookMessage(pinned, { t: 'book-pin-delete', id: id(0) }, 1, new Set())?.pins).toHaveLength(MAX_BOOK_PINS - 1);
   });
 
   it('replaces the purse whole and leaves the rest alone', () => {

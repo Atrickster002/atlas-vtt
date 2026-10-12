@@ -1,4 +1,4 @@
-import { isPlayerBookType, isRecord, parsePlayerBookMessage, parsePlayerMessage, type BookResourceMessage, type GmMessage, type PlayerBook } from '../../protocol/index.ts';
+import { isPlayerBookType, isRecord, parsePlayerBookMessage, parsePlayerMessage, type BookQuest, type BookResourceMessage, type GmMessage, type PlayerBook } from '../../protocol/index.ts';
 import type { LootRecipient, LootRecipientSource } from '../../../loot/lootRecipients';
 import type { LootDraw } from '../../../loot/lootRoller';
 import { ArtRefs } from '../artRefs.ts';
@@ -6,6 +6,7 @@ import { AssetAnswers } from '../assetAnswers.ts';
 import type { ScaleImage } from '../assetVariants.ts';
 import { every, type Timers } from '../companionTimers.ts';
 import { MoveRate } from '../moveCheck.ts';
+import { AskedAnswer } from './askedAnswer.ts';
 import type { KnownPlayer } from '../ownership.ts';
 import type { VaultImage } from '../TokenShare.ts';
 import { bookItemOf } from './bookItem.ts';
@@ -16,6 +17,7 @@ import { applyBookMessage, EMPTY_BOOK, withItem } from './bookStore.ts';
 import { Characters, type PlayedCharacter } from './characters.ts';
 import { checkResourceEdit, type ResourceEdit } from './resourceEdit.ts';
 import type { ResourceAnswer } from './resourceWrites.ts';
+import { NO_QUESTS, sentOf, type SentBook } from './sentBook.ts';
 import { WorldMaps, type FileStat, type WorldMapFile } from './worldMap.ts';
 
 export interface BookSharePorts extends Timers {
@@ -34,6 +36,8 @@ export interface BookSharePorts extends Timers {
   stat(path: string): FileStat | null;
   /** The vault path of the image players may be shown as the world map now, or null for none. */
   worldMap(): Promise<string | null>;
+  /** The quests of the campaign being played, as players read them: the same for every character. */
+  quests(): Promise<readonly BookQuest[]>;
   /** Writes a checked edit of a player's own resource into Atlas, and answers what the resource holds then (null when it was not taken), at once or later. */
   editResource(edit: ResourceEdit, answer: ResourceAnswer): void;
   /** Scales an image for a player who asks for a longest side; without it players get originals only. */
@@ -54,19 +58,13 @@ export const REFUSAL_BOOK_MS = 5_000;
 /** What a character without a name is called where the GM picks who gets an item. */
 const UNNAMED = 'Unnamed character';
 
-interface SentBook {
-  /** The character the book is of, by collection and key; empty for none. */
-  readonly book: string;
-  readonly map: string;
-  readonly sheet: string;
-}
-
 /**
  * The players' books: each connected player's own pages besides the table, sent to that player
  * alone and never to all. A book is its character's (`Characters`): the sheet is read from the
- * shared scene, items, notes, pins, quests and purse are kept on the shelf, and the world map of the
- * campaign being played goes to everyone at the table. It is the table's, not a scene's, so it hears players while no
- * scene is shared. What a player writes is taken as the protocol's parser cleaned it, only for a
+ * shared scene, items, notes, pins and purse are kept on the shelf, the world map of the campaign
+ * being played goes to everyone at the table, and its quests (the GM's quest notes, which no player
+ * writes; their notes on one name it by its id) to every player with a character. It is the table's,
+ * not a scene's, so it hears players while no scene is shared. What a player writes is taken as the protocol's parser cleaned it, only for a
  * player with a character and within their rate; a write that is refused is answered with the
  * whole book. A player changes their own character's resources through Atlas (`editResource`),
  * and the sheet that follows tells them what was taken. A player is served their own character's
@@ -78,10 +76,13 @@ export class BookShare implements LootRecipientSource {
   private readonly characters = new Characters();
   private readonly art: ArtRefs;
   private readonly maps: WorldMaps;
+  private readonly questList: AskedAnswer<readonly BookQuest[]>;
   private readonly answers: AssetAnswers;
   private readonly rate = new MoveRate(BOOK_BURST, BOOK_WRITES_PER_SECOND);
   /** The world map as it was last known. */
   private worldMap: WorldMapFile | null = null;
+  /** The quests as they were last known. */
+  private quests: readonly BookQuest[] = NO_QUESTS;
   private mapPath: string | null = null;
   /** What each connected player was last sent. */
   private readonly sent = new Map<string, SentBook>();
@@ -97,6 +98,7 @@ export class BookShare implements LootRecipientSource {
     this.shelf = shelf;
     this.art = new ArtRefs((path) => ports.readImage(path), () => this.update());
     this.maps = new WorldMaps({ stat: (path) => ports.stat(path), readImage: (path) => ports.readImage(path), source: () => ports.worldMap(), read: () => this.update() });
+    this.questList = new AskedAnswer(() => ports.quests(), NO_QUESTS, () => this.update());
     this.answers = new AssetAnswers({ send: (body, to) => ports.send(body, to), now: () => ports.now(), readImage: (path) => ports.readImage(path), scaleImage: ports.scaleImage }, {
       map: () => null,
       explored: () => undefined,
@@ -122,12 +124,20 @@ export class BookShare implements LootRecipientSource {
     this.update();
   }
 
+  /** The quests may be others now (the campaign played, a quest note written, added or gone): they are asked for anew. */
+  questsChanged(): void {
+    this.questList.forget();
+    this.update();
+  }
+
   /** Reads the scene again and sends each connected player what changed for them: the whole book, or the sheet alone. */
   update(): void {
     const map = this.maps.get();
-    // Being looked up or read: the books go out once it is known, with it.
-    if (map === undefined) return;
+    const quests = this.questList.get();
+    // Being looked up or read: the books go out once both are known, with them.
+    if (map === undefined || quests === undefined) return;
     this.worldMap = map;
+    this.quests = quests;
     const scene = this.ports.scene();
     const players = this.ports.players();
     if (scene !== null) this.read(scene, new Set(players.map((player) => player.id)));
@@ -205,9 +215,9 @@ export class BookShare implements LootRecipientSource {
 
   private sync(player: string): void {
     const character = this.characters.of(player);
-    const now = sentOf(character, this.worldMap);
+    const now = sentOf(character, this.worldMap, this.quests);
     const last = this.sent.get(player);
-    if (last === undefined || last.book !== now.book || last.map !== now.map) return this.sendBook(player);
+    if (last === undefined || last.book !== now.book || last.map !== now.map || last.quests !== now.quests) return this.sendBook(player);
     if (last.sheet === now.sheet) return;
     this.sent.set(player, now);
     this.ports.send({ t: 'book-sheet', character: character?.sheet ?? null }, player);
@@ -219,9 +229,10 @@ export class BookShare implements LootRecipientSource {
     this.owed.delete(player);
     if (!this.isOnline(player)) return;
     const character = this.characters.of(player);
-    const { items, notes, pins, quests, purse, slots, equipped } = character === null ? EMPTY_BOOK : this.shelf.of(character.collection, character.key);
-    const book: PlayerBook = { character: character?.sheet ?? null, worldMap: this.worldMap?.map ?? null, items, notes, pins, quests, purse, slots, equipped };
-    this.sent.set(player, sentOf(character, this.worldMap));
+    const { items, notes, pins, purse, slots, equipped } = character === null ? EMPTY_BOOK : this.shelf.of(character.collection, character.key);
+    const sent = sentOf(character, this.worldMap, this.quests);
+    const book: PlayerBook = { character: character?.sheet ?? null, worldMap: this.worldMap?.map ?? null, items, notes, pins, quests: sent.quests, purse, slots, equipped };
+    this.sent.set(player, sent);
     this.bookAt.set(player, this.ports.now());
     this.ports.send({ t: 'book', book }, player);
   }
@@ -244,7 +255,8 @@ export class BookShare implements LootRecipientSource {
     const message = parsePlayerBookMessage(body);
     if (character === null || message === null || !this.isOnline(from)) return false;
     if (message.t === 'book-resource') return this.editResource(from, character, message);
-    const written = applyBookMessage(this.shelf.of(character.collection, character.key), message, this.ports.clock());
+    const quests = new Set(this.quests.map((quest) => quest.id));
+    const written = applyBookMessage(this.shelf.of(character.collection, character.key), message, this.ports.clock(), quests);
     if (written === null) return false;
     this.shelf.keep(character.collection, character.key, written);
     return true;
@@ -284,12 +296,4 @@ export class BookShare implements LootRecipientSource {
     this.told = recipients;
     for (const listener of [...this.listeners]) listener();
   }
-}
-
-function sentOf(character: PlayedCharacter | null, worldMap: WorldMapFile | null): SentBook {
-  return {
-    book: character === null ? '' : `${character.collection}\n${character.key}`,
-    map: worldMap === null ? '' : JSON.stringify(worldMap.map),
-    sheet: JSON.stringify(character?.sheet ?? null),
-  };
 }

@@ -2,6 +2,7 @@ import { IMAGE_MIME_TYPES, isSide, MAX_ASSET_BYTES, type BookWorldMap } from '..
 import { imageDimensions } from '../../../imageProcessing/imageDimensions';
 import { sha256Hex } from '../assetServe.ts';
 import type { VaultImage } from '../TokenShare.ts';
+import { AskedAnswer } from './askedAnswer.ts';
 
 /** A vault file as it is now: when it was last written and how large it is. */
 export interface FileStat {
@@ -34,20 +35,19 @@ export interface WorldMapFile {
  */
 export class WorldMaps {
   private readonly ports: WorldMapPorts;
-  /** The path of the map as last asked for, `asking` until the answer came, null when it is to be asked. */
-  private path: { readonly value: string | null } | 'asking' | null = null;
-  /** Counts the questions, so that the answer to one asked before `forget` is dropped. */
-  private asked = 0;
+  /** The path of the map, as Atlas last answered which image it is. */
+  private readonly path: AskedAnswer<string | null>;
   /** The file last asked for, by path, time and size, with what it is; `reading` until that is known. */
   private last: { readonly key: string; readonly file: WorldMapFile | null | 'reading' } | null = null;
 
   constructor(ports: WorldMapPorts) {
     this.ports = ports;
+    this.path = new AskedAnswer(() => ports.source(), null, () => ports.read());
   }
 
   /** The world map: null for none, undefined while it is being looked up or read (`read` hears when it has been). */
   get(): WorldMapFile | null | undefined {
-    const path = this.currentPath();
+    const path = this.path.get();
     if (path === undefined) return undefined;
     const stat = path === null ? null : this.ports.stat(path);
     if (path === null || stat === null || stat.size > MAX_ASSET_BYTES) return null;
@@ -64,21 +64,7 @@ export class WorldMaps {
 
   /** Asks again which image is the map: the campaign, its world map or that map's artwork may be another now. A file already read is not read again. */
   forget(): void {
-    this.asked += 1;
-    this.path = null;
-  }
-
-  private currentPath(): string | null | undefined {
-    if (this.path === 'asking') return undefined;
-    if (this.path !== null) return this.path.value;
-    const asked = ++this.asked;
-    this.path = 'asking';
-    void this.ports.source().catch(() => null).then((value) => {
-      if (asked !== this.asked) return;
-      this.path = { value };
-      this.ports.read();
-    });
-    return undefined;
+    this.path.forget();
   }
 
   private async load(path: string): Promise<WorldMapFile | null> {

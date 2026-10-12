@@ -29,7 +29,7 @@ const BAG = 'b'.repeat(24);
 
 function written(messages: readonly PlayerBookMessage[], from: StoredBook): StoredBook {
   return messages.reduce((book, message) => {
-    const next = applyBookMessage(book, message, 1);
+    const next = applyBookMessage(book, message, 1, new Set());
     if (next === null) throw new Error(`refused: ${message.t}`);
     return next;
   }, from);
@@ -49,10 +49,10 @@ describe('a book\'s slots as the GM keeps them', () => {
   });
 
   it('refuses an item the book does not hold and a slot it does not show', () => {
-    expect(applyBookMessage(held, { t: 'book-equip', item: id(9), slot: 'head' }, 1)).toBeNull();
-    expect(applyBookMessage(held, { t: 'book-equip', item: id(1), slot: BAG }, 1)).toBeNull();
+    expect(applyBookMessage(held, { t: 'book-equip', item: id(9), slot: 'head' }, 1, new Set())).toBeNull();
+    expect(applyBookMessage(held, { t: 'book-equip', item: id(1), slot: BAG }, 1, new Set())).toBeNull();
     const hidden = written([{ t: 'book-slots', slots: { hidden: ['head'], own: [] } }], held);
-    expect(applyBookMessage(hidden, { t: 'book-equip', item: id(1), slot: 'head' }, 1)).toBeNull();
+    expect(applyBookMessage(hidden, { t: 'book-equip', item: id(1), slot: 'head' }, 1, new Set())).toBeNull();
   });
 
   it('sends an item back to the bag when its slot is hidden or removed, and keeps a book whose only change is its slots', () => {

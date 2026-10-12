@@ -9,6 +9,7 @@ import type { BookScene } from './bookScene.ts';
 import { BookShare } from './BookShare.ts';
 import { writeCharacterValue } from './characterValues.ts';
 import type { ResourceWrites } from './resourceWrites.ts';
+import { gatedQuests, onQuestsChange } from './questGate.ts';
 import { gatedWorldMap, onWorldMapChange } from './worldMapGate.ts';
 import type { BookShelf } from './BookShelf.ts';
 
@@ -35,7 +36,7 @@ export interface TableBook {
 
 /**
  * The books of a running table in Obsidian: read from the vault and the table's ownership, told at
- * once when tokens change hands or the world map may be another, and named to the
+ * once when tokens change hands or the world map or the quests may be others, and named to the
  * loot roller as the people an item can be handed to for as long as the table runs. A player's edit
  * of a resource goes to their token in the shared scene, else to the values the played campaign
  * keeps of their character.
@@ -59,6 +60,7 @@ export function tableBook(ports: TableBookPorts): TableBook {
       return file === null ? null : { mtime: file.stat.mtime, size: file.stat.size };
     },
     worldMap: () => gatedWorldMap(),
+    quests: () => gatedQuests(),
     editResource: (edit, answer) => {
       if (edit.kind === 'character') return answer(writeCharacterValue(app, edit));
       const writes = ports.tokenWrites();
@@ -72,7 +74,13 @@ export function tableBook(ports: TableBookPorts): TableBook {
     share,
     start: () => {
       if (stops.length > 0) return;
-      stops = [ownership.onChange(() => share.update()), onWorldMapChange(() => share.worldMapChanged()), () => setLootRecipientSource(null), () => share.stop()];
+      stops = [
+        ownership.onChange(() => share.update()),
+        onWorldMapChange(() => share.worldMapChanged()),
+        onQuestsChange(() => share.questsChanged()),
+        () => setLootRecipientSource(null),
+        () => share.stop(),
+      ];
       share.start();
       setLootRecipientSource(share);
     },
