@@ -1,21 +1,23 @@
 import type { Campaign } from '../campaignTypes';
 import type { Quest } from './questTypes';
 
-/** What a quest note is matched against: a campaign's id, its name and the names it bore before. */
-export type QuestCampaign = Pick<Campaign, 'id' | 'name' | 'formerNames'>;
+/** What a quest note is matched against: a campaign's id, and its name for a note typed by hand. */
+export type QuestCampaign = Pick<Campaign, 'id' | 'name'>;
 
-const sameName = (a: string, b: string): boolean => a.toLowerCase() === b.toLowerCase();
+/** The one campaign that bears `name` (in any case); undefined when none or several do. */
+export function campaignNamed<T extends QuestCampaign>(name: string, campaigns: readonly T[]): T | undefined {
+  const key = name.toLowerCase();
+  const named = campaigns.filter((campaign) => campaign.name.toLowerCase() === key);
+  return named.length === 1 ? named[0] : undefined;
+}
 
 /**
  * The campaign a quest note belongs to, among `campaigns`: the one it names by id, else the one
- * that bears the name it names (in any case), else the one that bore that name before, so a quest
- * stays its campaign's while a rename has not reached its note yet. Undefined for none.
+ * campaign that bears the name it names, until Atlas writes that campaign's id into the note
+ * (`nameQuestCampaigns`). Undefined for none.
  */
 export function campaignOfQuest<T extends QuestCampaign>(quest: Pick<Quest, 'campaign'>, campaigns: readonly T[]): T | undefined {
-  const named = quest.campaign;
-  return campaigns.find((campaign) => campaign.id === named)
-    ?? campaigns.find((campaign) => sameName(campaign.name, named))
-    ?? campaigns.find((campaign) => campaign.formerNames?.some((former) => sameName(former, named)) === true);
+  return campaigns.find((campaign) => campaign.id === quest.campaign) ?? campaignNamed(quest.campaign, campaigns);
 }
 
 /** The quests of `quests` that belong to `campaign`, `campaigns` being every campaign of the vault. */
@@ -23,7 +25,8 @@ export function questsOfCampaign(quests: readonly Quest[], campaign: QuestCampai
   return quests.filter((quest) => campaignOfQuest(quest, campaigns)?.id === campaign.id);
 }
 
-/** Whether a quest note names its campaign by a name the campaign no longer bears, and so is to be written anew. */
-export function namesFormerName(quest: Pick<Quest, 'campaign'>, campaign: QuestCampaign): boolean {
-  return quest.campaign !== campaign.id && !sameName(quest.campaign, campaign.name);
+/** The id to write into a quest note that names its campaign by name, or null when it names one by id, or a name that is no single campaign's. */
+export function campaignIdToWrite(quest: Pick<Quest, 'campaign'>, campaigns: readonly QuestCampaign[]): string | null {
+  if (campaigns.some((campaign) => campaign.id === quest.campaign)) return null;
+  return campaignNamed(quest.campaign, campaigns)?.id ?? null;
 }

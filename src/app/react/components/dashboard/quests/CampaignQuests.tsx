@@ -51,7 +51,7 @@ export function CampaignQuests({ app, campaign, campaigns, service, disabled }: 
     setIsCreating(false);
     if (folder === null) return;
     runInBackground(
-      createQuestNote(app, folder, campaign.name, title, kind).then((file) => app.workspace.getLeaf('tab').openFile(file)),
+      createQuestNote(app, folder, campaign.id, title, kind).then((file) => app.workspace.getLeaf('tab').openFile(file)),
       `Creating the quest ${title}`,
       t('quest.createFailed'),
     );

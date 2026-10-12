@@ -7,8 +7,6 @@ import { isAssetId, isTime } from './campaignValues';
 /** The longest name and description a campaign takes, in characters. */
 export const MAX_CAMPAIGN_NAME = 120;
 export const MAX_CAMPAIGN_DESCRIPTION = 4000;
-/** The most former names a campaign remembers; older ones are forgotten. */
-export const MAX_FORMER_NAMES = 16;
 const DAY = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
 
 const textWithin = (value: unknown, max: number): string | undefined => (typeof value === 'string' && value.length <= max ? value : undefined);
@@ -18,20 +16,6 @@ export function campaignName(value: unknown): string | null {
   if (typeof value !== 'string') return null;
   const name = value.trim();
   return name !== '' && [...name].length <= MAX_CAMPAIGN_NAME ? name : null;
-}
-
-/** The names a campaign bore before `name`, as its file lists them: each once, none that is `name`, the latest last. */
-export function formerCampaignNames(value: unknown, name: string): string[] {
-  const list: readonly unknown[] = Array.isArray(value) ? value.slice(-MAX_FORMER_NAMES * 2) : [];
-  const seen = new Set([name.toLowerCase()]);
-  const names: string[] = [];
-  for (const entry of [...list].reverse()) {
-    const former = campaignName(entry);
-    if (former === null || seen.has(former.toLowerCase())) continue;
-    seen.add(former.toLowerCase());
-    names.unshift(former);
-  }
-  return names.slice(-MAX_FORMER_NAMES);
 }
 
 /**
@@ -45,11 +29,9 @@ export function parseCampaign(stored: StoredCampaign): Campaign | null {
   const nextSession = typeof stored.nextSession === 'string' && DAY.test(stored.nextSession) ? stored.nextSession : undefined;
   const used = readUsage(stored.used);
   const system = readCampaignSystem(stored.system);
-  const formerNames = formerCampaignNames(stored.formerNames, name);
   return {
     id: stored.id,
     name,
-    ...(formerNames.length > 0 && { formerNames }),
     createdAt: isTime(stored.createdAt) ? stored.createdAt : 0,
     ...(description !== undefined && description !== '' && { description }),
     ...(isTime(stored.lastPlayed) && { lastPlayed: stored.lastPlayed }),

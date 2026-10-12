@@ -84,14 +84,15 @@ describe('the quest index', () => {
     expect(titlesOf(index, WITHERWILD)).toEqual(['Other']);
   });
 
-  it('keeps a quest naming a name its campaign bore before, unless another campaign bears that name now', () => {
+  it('reads a name only while it is the name of exactly one campaign', () => {
     const { app } = questVault({ 'Q/Crown.md': crown, 'Q/Moor.md': note('atlas-type: quest\ncampaign: The Moor') });
     const index = open(app);
-    const renamed = { id: 'c-1', name: 'Rise of the Blood Olms', formerNames: ['The Moor', 'Blood Olms'] };
-    expect(index.of(renamed, [renamed]).map((quest) => quest.title)).toEqual(['Crown', 'Moor']);
+    const olms = { id: 'c-1', name: 'Rise of the Blood Olms' };
+    expect(index.of(olms, [olms]).map((quest) => quest.title)).toEqual([]);
     const moor = { id: 'c-3', name: 'the moor' };
-    expect(index.of(renamed, [renamed, moor]).map((quest) => quest.title)).toEqual(['Crown']);
-    expect(index.of(moor, [renamed, moor]).map((quest) => quest.title)).toEqual(['Moor']);
+    expect(index.of(moor, [olms, moor]).map((quest) => quest.title)).toEqual(['Moor']);
+    const twin = { id: 'c-4', name: 'The Moor' };
+    expect(index.of(moor, [olms, moor, twin])).toEqual([]);
   });
 
   it('follows frontmatter edits, notes made by hand or by sync, renames, folder moves and deletions', async () => {
@@ -163,8 +164,8 @@ describe('the quest index', () => {
     expect(index.get('Quests/Crown.md')).not.toHaveProperty('place');
 
     const folder = 'atlas-vtt/campaigns/Blood Olms';
-    await createQuestNote(vault.app, folder, 'Blood Olms', 'The sexton: a liar?', 'side');
-    const second = await createQuestNote(vault.app, folder, 'Blood Olms', 'The sexton: a liar?', 'main');
+    await createQuestNote(vault.app, folder, 'c-1', 'The sexton: a liar?', 'side');
+    const second = await createQuestNote(vault.app, folder, 'c-1', 'The sexton: a liar?', 'main');
     expect(second.path).toBe(`${folder}/quests/The sexton- a liar- 2.md`);
     const made = index.of(OLMS, CAMPAIGNS).filter((quest) => quest.path.startsWith(folder));
     expect(made.map((quest) => [quest.title, quest.kind, quest.status])).toEqual([['The sexton- a liar- 2', 'main', 'open'], ['The sexton- a liar-', 'side', 'open']]);

@@ -95,7 +95,7 @@ describe('the quests of a campaign\'s page', () => {
     fireEvent.keyDown(field, { key: 'Enter' });
     const path = 'atlas-vtt/campaigns/Blood Olms/quests/Olm eggs.md';
     await waitFor(() => expect(opened).toEqual([path]));
-    expect(vault.files.get(path)).toMatch(/atlas-type: quest\ncampaign: Blood Olms\nkind: side\nstatus: open\natlas-id: [0-9a-f]{24}\n/);
+    expect(vault.files.get(path)).toMatch(/atlas-type: quest\ncampaign: c-1\nkind: side\nstatus: open\natlas-id: [0-9a-f]{24}\n/);
     await screen.findByText('Olm eggs');
   });
 

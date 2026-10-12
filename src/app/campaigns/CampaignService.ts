@@ -2,7 +2,7 @@ import { t } from '../i18n';
 import type { CampaignStorage } from './CampaignFiles';
 import type { Campaign, CampaignChanges, StoredCampaign } from './campaignTypes';
 import { withScenePlayed } from './campaignUsage';
-import { campaignName, formerCampaignNames, isSessionDay, MAX_CAMPAIGN_DESCRIPTION, parseCampaign } from './campaignValidation';
+import { campaignName, isSessionDay, MAX_CAMPAIGN_DESCRIPTION, parseCampaign } from './campaignValidation';
 import { isAssetId } from './campaignValues';
 import { campaignFolderOf } from './campaignPaths';
 import { readCampaignSystem, withSystemChanges } from './campaignSystem';
@@ -42,19 +42,9 @@ export class CampaignService {
     return parseCampaign(stored) as Campaign;
   }
 
-  /**
-   * Renames the campaign. The name it bore is remembered among its former names, in the same write,
-   * so quest notes that still name it by that name stay its own.
-   */
   rename(id: string, name: string): void {
     this.assertName(name, id);
-    const next = name.trim();
-    this.modify(id, (stored) => {
-      const before = campaignName(stored.name);
-      if (before === null || before === next) return { ...stored, name: next };
-      const formerNames: readonly unknown[] = Array.isArray(stored.formerNames) ? stored.formerNames : [];
-      return { ...stored, name: next, formerNames: formerCampaignNames([...formerNames, before], next) };
-    });
+    this.modify(id, (stored) => ({ ...stored, name: name.trim() }));
   }
 
   /**

@@ -2,10 +2,6 @@ import type { App } from 'obsidian';
 import { RecordFiles } from '../services/recordFiles/RecordFiles';
 import { CAMPAIGN_LAYOUT } from './campaignPaths';
 import type { StoredCampaign } from './campaignTypes';
-import { campaignName } from './campaignValidation';
-
-/** Hears that this device renamed a campaign, from the name it bore to the one it bears now. */
-export type CampaignRenameListener = (id: string, from: string, to: string) => void;
 
 /** Where campaigns are kept: their files in the vault (`CampaignFiles`), or memory in tests. */
 export interface CampaignStorage {
@@ -48,36 +44,7 @@ export class CampaignFiles extends RecordFiles<StoredCampaign> implements Campai
     CampaignFiles.instances.delete(app);
   }
 
-  private readonly renameListeners = new Set<CampaignRenameListener>();
-
   private constructor(app: App) {
     super(app, CAMPAIGN_LAYOUT);
-  }
-
-  /** Tells the rename listeners of an edit that renamed the campaign; only this device's edits pass here. */
-  override update(id: string, change: (stored: StoredCampaign) => StoredCampaign): void {
-    const before = this.nameOf(id);
-    super.update(id, change);
-    const after = this.nameOf(id);
-    if (before === null || after === null || before === after) return;
-    for (const listener of [...this.renameListeners]) listener(id, before, after);
-  }
-
-  /**
-   * Calls `listener` whenever this device renames a campaign, at once, before its folder takes the
-   * new name; another device's rename arrives as its file and is not told. Returns what stops it.
-   */
-  onRename(listener: CampaignRenameListener): () => void {
-    this.renameListeners.add(listener);
-    return () => { this.renameListeners.delete(listener); };
-  }
-
-  override destroy(): void {
-    this.renameListeners.clear();
-    super.destroy();
-  }
-
-  private nameOf(id: string): string | null {
-    return campaignName(this.entries().find((entry) => entry.id === id)?.name);
   }
 }

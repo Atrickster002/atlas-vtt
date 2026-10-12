@@ -32,7 +32,7 @@ export function isQuestFrontmatter(frontmatter: unknown): frontmatter is Frontma
 }
 
 /** The campaign a note names: its text trimmed, a link read as what it links to; null for none. */
-function campaignOf(value: unknown): string | null {
+export function campaignOf(value: unknown): string | null {
   if (typeof value !== 'string') return null;
   const text = value.trim();
   const named = (LINK.exec(text)?.[1] ?? text).trim();

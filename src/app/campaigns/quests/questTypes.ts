@@ -7,7 +7,7 @@
 /** The frontmatter properties of a quest note, as the GM sees them in Obsidian. */
 export const QUEST_PROPERTY = {
   type: 'atlas-type',
-  /** The campaign's name (Atlas writes it anew when the campaign is renamed); its id is read too. */
+  /** The campaign's id. A name typed by hand is read too, and Atlas writes the id in its place. */
   campaign: 'campaign',
   kind: 'kind',
   status: 'status',
@@ -40,7 +40,7 @@ export interface Quest {
   readonly path: string;
   /** The note's name. */
   readonly title: string;
-  /** The campaign as the note names it, trimmed. */
+  /** The campaign as the note names it, trimmed: its id, or a name typed by hand. */
   readonly campaign: string;
   /** The quest's stable id, once Atlas gave it one. */
   readonly id?: string;

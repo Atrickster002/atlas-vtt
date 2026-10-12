@@ -2,7 +2,7 @@ import { TFile, type App } from 'obsidian';
 import { ensureFolder, isPathTaken } from '../../plugin/vaultFolders';
 import { freeNamedPath, nameStem } from '../../services/recordFiles/recordNames';
 import { randomHex } from '../../utils/randomHex';
-import { QUEST_ID } from './questProperties';
+import { campaignOf, QUEST_ID } from './questProperties';
 import { QUEST_PROPERTY, QUEST_TYPE, type QuestKind, type QuestPlace, type QuestStatus } from './questTypes';
 
 /** The folder of a campaign's quests Atlas creates, inside the campaign's own folder. */
@@ -25,16 +25,16 @@ async function changeFrontmatter(app: App, path: string, change: (frontmatter: F
 }
 
 /**
- * Creates a quest note of the campaign in `folder`/quests, named after `title`, with its
- * properties set (an id among them), and returns it.
+ * Creates a quest note of the campaign `campaignId` in `folder`/quests, named after `title`, with
+ * its properties set (an id among them), and returns it.
  */
-export async function createQuestNote(app: App, folder: string, campaignName: string, title: string, kind: QuestKind): Promise<TFile> {
+export async function createQuestNote(app: App, folder: string, campaignId: string, title: string, kind: QuestKind): Promise<TFile> {
   const questsFolder = await ensureFolder(app, `${folder}/${QUESTS_FOLDER}`);
   const path = freeNamedPath(questsFolder.path, nameStem(title, FALLBACK_TITLE), '.md', (candidate) => isPathTaken(app, candidate));
   const file = await app.vault.create(path, '');
   await app.fileManager.processFrontMatter(file, (frontmatter: Frontmatter) => {
     frontmatter[QUEST_PROPERTY.type] = QUEST_TYPE;
-    frontmatter[QUEST_PROPERTY.campaign] = campaignName;
+    frontmatter[QUEST_PROPERTY.campaign] = campaignId;
     frontmatter[QUEST_PROPERTY.kind] = kind;
     frontmatter[QUEST_PROPERTY.status] = 'open';
     frontmatter[QUEST_PROPERTY.id] = newQuestId();
@@ -70,15 +70,14 @@ export async function writeQuestId(app: App, path: string, id: string, replace =
 }
 
 /**
- * Names the campaign `name` in each of the quest notes, all at once. The notes are held as files,
- * not paths, so a note whose folder is renamed meanwhile (the campaign's own) is still written.
+ * Writes the campaign's id into a quest note that names it by `name`, and gives the note an id of
+ * its own should it hold none, in one write. A note that names another campaign by now is left alone.
  */
-export async function nameCampaignIn(app: App, notes: readonly TFile[], name: string): Promise<void> {
-  await Promise.all(notes.map(async (note) => {
-    try {
-      await app.fileManager.processFrontMatter(note, (frontmatter: Frontmatter) => { frontmatter[QUEST_PROPERTY.campaign] = name; });
-    } catch (error) {
-      console.error(`[Atlas] Could not name the renamed campaign in ${note.path}:`, error);
-    }
-  }));
+export function nameCampaignById(app: App, path: string, name: string, campaignId: string): Promise<boolean> {
+  return changeFrontmatter(app, path, (frontmatter) => {
+    if (campaignOf(frontmatter[QUEST_PROPERTY.campaign]) !== name) return;
+    frontmatter[QUEST_PROPERTY.campaign] = campaignId;
+    const id = frontmatter[QUEST_PROPERTY.id];
+    if (typeof id !== 'string' || !QUEST_ID.test(id)) frontmatter[QUEST_PROPERTY.id] = newQuestId();
+  });
 }
