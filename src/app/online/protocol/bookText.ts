@@ -1,6 +1,9 @@
 import type { PlayerBookMessage } from './book.ts';
 import { MAX_PLAYER_FRAME, PROTOCOL_VERSION, SHOWN, UNSEEN, UNSHOWN } from './relay.ts';
 
+/** The longest line of a book in characters: a title, a name, a label. */
+export const MAX_BOOK_TITLE = 80;
+
 const LINE_BREAK = /\r\n|[\n\r\u2028\u2029]/;
 
 /**

@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
 import {
-  bookLine, bookText, fitsPlayerFrame, isQuestDone, MAX_BOOK_NOTES, MAX_BOOK_QUESTS, MAX_NOTE_BODY, MAX_QUEST_REWARDS, parseGmMessage, parsePlayerMessage, type BookItem, type BookQuest, type PlayerBook,
+  bookLine, bookText, fitsPlayerFrame, isQuestDone, MAX_BOOK_NOTES, MAX_RESOURCE_KEY, MAX_TOKEN_VALUE, MAX_BOOK_QUESTS, MAX_NOTE_BODY, MAX_QUEST_REWARDS, parseGmMessage, parsePlayerMessage, type BookItem, type BookQuest, type PlayerBook,
 } from '../../../../src/app/online/protocol/index.ts';
 
 const HASH = 'a'.repeat(64);
@@ -11,7 +11,7 @@ const ITEM: BookItem = { id: ID, name: 'Rope', type: 'Gear', rarity: 'Common', t
 const QUEST_ID = 'fedcba9876543210fedcba98';
 const QUEST: BookQuest = { id: QUEST_ID, kind: 'main', state: 'active', title: 'The crown under the root', body: 'The Horned King wants it back.', place: { x: 0.25, y: 0.5 }, xp: 1200, rewards: ['Favour of the King'] };
 const BOOK: PlayerBook = {
-  character: { name: 'Ana', art: ART, ring: '#ffffff', resources: [{ name: 'HP', colour: '#aa0000', direction: 'drains', current: 3, max: 8 }] },
+  character: { name: 'Ana', art: ART, ring: '#ffffff', resources: [{ key: 'hp', name: 'HP', colour: '#aa0000', direction: 'drains', current: 3, max: 8, editable: true }] },
   worldMap: { image: ART, width: 4000, height: 3000 },
   items: [ITEM],
   notes: [{ id: ID, title: 'Lead', body: 'Ask the miller.', at: 5 }],
@@ -45,6 +45,18 @@ describe('book messages to a player', () => {
     const older: Record<string, unknown> = { ...BOOK, pins: [{ ...BOOK.pins[0], kind: 'place' }] };
     delete older.quests;
     expect(parseGmMessage({ t: 'book', book: older })).toEqual({ t: 'book', book: { ...BOOK, pins: [{ ...BOOK.pins[0], kind: 'dungeon' }], quests: [] } });
+  });
+
+  it('read the resources of an older GM\'s sheet, which names no key and no edits, as ones the player cannot change, and never a fixed or unnamed one as changeable', () => {
+    const resource = { name: 'HP', colour: '#aa0000', direction: 'drains', current: 3, max: 8 };
+    const read = (resources: unknown[]): unknown => parseGmMessage({ t: 'book-sheet', character: { ...BOOK.character, resources } });
+    expect(read([resource])).toMatchObject({ character: { resources: [{ ...resource, key: null, editable: false }] } });
+    expect(read([{ ...resource, key: null, editable: true }])).toMatchObject({ character: { resources: [{ key: null, editable: false }] } });
+    expect(read([{ ...resource, direction: 'static', key: 'ac', editable: true }])).toMatchObject({ character: { resources: [{ key: 'ac', editable: false }] } });
+    expect(read([{ ...resource, key: 'k'.repeat(MAX_RESOURCE_KEY), editable: true }])).toMatchObject({ character: { resources: [{ editable: true }] } });
+    for (const broken of [{ key: '' }, { key: 'k'.repeat(MAX_RESOURCE_KEY + 1) }, { key: 'h\u0000p' }, { key: 7 }, { key: 'hp', editable: 'yes' }]) {
+      expect(read([{ ...resource, ...broken }]), JSON.stringify(broken)).toBeNull();
+    }
   });
 
   it('read a quest that names no place, experience or rewards as one without them', () => {
@@ -102,6 +114,16 @@ describe('what a player writes into their book', () => {
     expect(parsePlayerMessage({ t: 'book-note', note: { id: ID, title: '', body: '', quest: null } })).toEqual({ t: 'book-note', note: { id: ID, title: '', body: '' } });
     expect(parsePlayerMessage({ t: 'book-pin', pin: { ...BOOK.pins[0], kind: 'place' } })).toEqual({ t: 'book-pin', pin: { ...BOOK.pins[0], kind: 'dungeon' } });
     expect(parsePlayerMessage({ t: 'book-purse', purse: BOOK.purse })).toEqual({ t: 'book-purse', purse: BOOK.purse });
+    expect(parsePlayerMessage({ t: 'book-resource', key: 'hp', current: 5, extra: true })).toEqual({ t: 'book-resource', key: 'hp', current: 5 });
+    expect(parsePlayerMessage({ t: 'book-resource', key: 'hp', current: -MAX_TOKEN_VALUE })).toEqual({ t: 'book-resource', key: 'hp', current: -MAX_TOKEN_VALUE });
+  });
+
+  it('refuses an edit of a resource that names no key, or no finite value within the limits', () => {
+    for (const broken of [{ key: '', current: 1 }, { key: 'k'.repeat(MAX_RESOURCE_KEY + 1), current: 1 }, { key: 'hp', current: Number.NaN }, { key: 'hp', current: Number.POSITIVE_INFINITY }, { key: 'hp', current: MAX_TOKEN_VALUE + 1 }, { key: 'hp', current: '5' }, { current: 5 }]) {
+      expect(parsePlayerMessage({ t: 'book-resource', ...broken }), JSON.stringify(broken)).toBeNull();
+    }
+    expect(parseGmMessage({ t: 'book-resource', key: 'hp', current: 1 })).toBeNull();
+    expect(fitsPlayerFrame({ t: 'book-resource', key: 'k'.repeat(MAX_RESOURCE_KEY), current: -MAX_TOKEN_VALUE })).toBe(true);
   });
 
   it('refuses what is malformed or too long, and never takes a GM kind from a player', () => {

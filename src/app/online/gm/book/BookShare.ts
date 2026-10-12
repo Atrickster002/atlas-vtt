@@ -1,4 +1,4 @@
-import { isPlayerBookType, isRecord, parsePlayerBookMessage, parsePlayerMessage, type GmMessage, type PlayerBook } from '../../protocol/index.ts';
+import { isPlayerBookType, isRecord, parsePlayerBookMessage, parsePlayerMessage, type BookResourceMessage, type GmMessage, type PlayerBook } from '../../protocol/index.ts';
 import type { LootRecipient, LootRecipientSource } from '../../../loot/lootRecipients';
 import type { LootDraw } from '../../../loot/lootRoller';
 import { ArtRefs } from '../artRefs.ts';
@@ -14,6 +14,8 @@ import type { BookShelf } from './BookShelf.ts';
 import { sheetOf } from './bookSheet.ts';
 import { applyBookMessage, EMPTY_BOOK, withItem } from './bookStore.ts';
 import { Characters, type PlayedCharacter } from './characters.ts';
+import { checkResourceEdit, type ResourceEdit } from './resourceEdit.ts';
+import type { ResourceAnswer } from './resourceWrites.ts';
 import { WorldMaps, type FileStat, type WorldMapFile } from './worldMap.ts';
 
 export interface BookSharePorts extends Timers {
@@ -32,6 +34,8 @@ export interface BookSharePorts extends Timers {
   stat(path: string): FileStat | null;
   /** The vault path of the image players may be shown as the world map now, or null for none. */
   worldMap(): Promise<string | null>;
+  /** Writes a checked edit of a player's own resource into Atlas, and answers what the resource holds then (null when it was not taken), at once or later. */
+  editResource(edit: ResourceEdit, answer: ResourceAnswer): void;
   /** Scales an image for a player who asks for a longest side; without it players get originals only. */
   scaleImage?: ScaleImage | undefined;
 }
@@ -64,8 +68,9 @@ interface SentBook {
  * campaign being played goes to everyone at the table. It is the table's, not a scene's, so it hears players while no
  * scene is shared. What a player writes is taken as the protocol's parser cleaned it, only for a
  * player with a character and within their rate; a write that is refused is answered with the
- * whole book. A player is served their own character's artwork and the world map by hash, and
- * nobody another character's.
+ * whole book. A player changes their own character's resources through Atlas (`editResource`),
+ * and the sheet that follows tells them what was taken. A player is served their own character's
+ * artwork and the world map by hash, and nobody another character's.
  */
 export class BookShare implements LootRecipientSource {
   private readonly ports: BookSharePorts;
@@ -238,9 +243,25 @@ export class BookShare implements LootRecipientSource {
     const character = this.characters.of(from);
     const message = parsePlayerBookMessage(body);
     if (character === null || message === null || !this.isOnline(from)) return false;
+    if (message.t === 'book-resource') return this.editResource(from, character, message);
     const written = applyBookMessage(this.shelf.of(character.collection, character.key), message, this.ports.clock());
     if (written === null) return false;
     this.shelf.keep(character.collection, character.key, written);
+    return true;
+  }
+
+  /** Hands a checked edit of the player's own resource to Atlas; they are sent their sheet with what it holds then, or their whole book when it was not taken. */
+  private editResource(from: string, character: PlayedCharacter, message: BookResourceMessage): boolean {
+    const edit = checkResourceEdit(from, character, this.ports.scene(), (tokenId) => this.ports.ownerOf(tokenId), message);
+    if (edit === null) return false;
+    this.ports.editResource(edit, (taken) => {
+      if (taken === null) return this.owe(from);
+      // The sheet goes out even when the value did not change: it answers what the page showed at once.
+      if (this.characters.of(from)?.tokenId === character.tokenId) this.characters.setValue(from, edit.key, taken);
+      const last = this.sent.get(from);
+      if (last !== undefined) this.sent.set(from, { ...last, sheet: '' });
+      this.update();
+    });
     return true;
   }
 

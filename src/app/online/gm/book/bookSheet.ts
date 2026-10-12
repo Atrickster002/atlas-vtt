@@ -1,4 +1,4 @@
-import { MAX_BOOK_TITLE, MAX_SHEET_RESOURCES, MAX_TOKEN_VALUE, parseBookCharacter, type AssetRef, type BookCharacter, type SheetResource } from '../../protocol/index.ts';
+import { isResourceKey, MAX_BOOK_TITLE, MAX_SHEET_RESOURCES, MAX_TOKEN_VALUE, parseBookCharacter, type AssetRef, type BookCharacter, type SheetResource } from '../../protocol/index.ts';
 import type { ResourceDefinition, ResourceHolder } from '../../../resources/resourceTypes';
 import { visibleResources } from '../../../resources/visibleResources';
 import type { ShownRollToken } from '../../../services/playerRollSource';
@@ -12,14 +12,16 @@ const isValue = (value: number): boolean => Number.isFinite(value) && Math.abs(v
 /**
  * The resources on a character's sheet: those players may see (`visibleResources` for the viewer
  * `player`), bars and wheels alike, by name. A resource the GM hides from players is hidden from
- * its own player too, and nothing of it is read.
+ * its own player too, and nothing of it is read. Each names its key, and the player may change
+ * every one but a fixed value (`static`), which the statblock gives.
  */
 function sheetResources(token: ResourceHolder, definitions: readonly ResourceDefinition[]): SheetResource[] {
   return visibleResources(token, definitions, 'player').flatMap(({ definition, value }): SheetResource[] => {
     const name = clippedLine(definition.name, MAX_BOOK_TITLE);
     const colour = hexColour(definition.color);
     if (name === null || colour === null || !DIRECTIONS.includes(definition.direction) || !isValue(value.current) || !isValue(value.max)) return [];
-    return [{ name, colour, direction: definition.direction, current: value.current, max: value.max }];
+    const key = isResourceKey(definition.key) ? definition.key : null;
+    return [{ key, name, colour, direction: definition.direction, current: value.current, max: value.max, editable: key !== null && definition.direction !== 'static' }];
   }).slice(0, MAX_SHEET_RESOURCES);
 }
 

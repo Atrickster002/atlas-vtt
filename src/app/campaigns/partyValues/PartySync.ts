@@ -1,9 +1,8 @@
 import type { App } from 'obsidian';
-import { isPlayerCharacter, libraryTokenOf } from '../../characters/playerCharacters';
+import { isPlayerCharacter, libraryTokenOf, type PlacedTokenSource } from '../../characters/playerCharacters';
 import type { TokenAsset } from '../../services/AssetService';
 import type { ViewAtlasStore } from '../../storeFactory';
 import { runUntracked } from '../../stores/history';
-import type { TokenEntity } from '../../types';
 import { campaignFolderOf } from '../campaignPaths';
 import type { CampaignPlay } from '../campaignPlay';
 import type { CampaignStorage } from '../CampaignFiles';
@@ -117,6 +116,18 @@ export class PartySync {
   value(campaignId: string, characterId: string, key: string): PartyValue | undefined {
     const values = campaignId === this.campaignId ? this.values : this.fileValues(campaignId);
     return values[partyKey(campaignId, characterId, key)];
+  }
+
+  /** The library token id of the player character a token was placed from, remembered until the library changes; null for a token of no player character. */
+  characterOf(token: PlacedTokenSource): string | null {
+    const key = `${token.assetId ?? ''}\u0000${token.imagePath}`;
+    let id = this.characterIds.get(key);
+    if (id === undefined) {
+      const record = libraryTokenOf(token, this.deps.tokens());
+      id = record && isPlayerCharacter(record) ? record.id : null;
+      this.characterIds.set(key, id);
+    }
+    return id;
   }
 
   /**
@@ -264,17 +275,5 @@ export class PartySync {
 
   private context(campaignId: string): PartyContext {
     return { campaignId, characterOf: (token) => this.characterOf(token) };
-  }
-
-  /** The library token id of the player character a token was placed from, remembered until the library changes. */
-  private characterOf(token: TokenEntity): string | null {
-    const key = `${token.assetId ?? ''}\u0000${token.imagePath}`;
-    let id = this.characterIds.get(key);
-    if (id === undefined) {
-      const record = libraryTokenOf(token, this.deps.tokens());
-      id = record && isPlayerCharacter(record) ? record.id : null;
-      this.characterIds.set(key, id);
-    }
-    return id;
   }
 }

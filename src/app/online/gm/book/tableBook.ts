@@ -7,6 +7,8 @@ import type { Ownership } from '../ownership.ts';
 import type { VaultImage } from '../TokenShare.ts';
 import type { BookScene } from './bookScene.ts';
 import { BookShare } from './BookShare.ts';
+import { writeCharacterValue } from './characterValues.ts';
+import type { ResourceWrites } from './resourceWrites.ts';
 import { gatedWorldMap, onWorldMapChange } from './worldMapGate.ts';
 import type { BookShelf } from './BookShelf.ts';
 
@@ -20,6 +22,8 @@ export interface TableBookPorts {
   scene(): BookScene | null;
   readImage(path: string): Promise<VaultImage | null>;
   randomId(): string;
+  /** Where players' edits of their tokens in the shared scene are written; null while no scene is shared. */
+  tokenWrites(): ResourceWrites | null;
 }
 
 /** A running table's books, and what they hang on while it runs. */
@@ -32,7 +36,9 @@ export interface TableBook {
 /**
  * The books of a running table in Obsidian: read from the vault and the table's ownership, told at
  * once when tokens change hands or the world map may be another, and named to the
- * loot roller as the people an item can be handed to for as long as the table runs.
+ * loot roller as the people an item can be handed to for as long as the table runs. A player's edit
+ * of a resource goes to their token in the shared scene, else to the values the played campaign
+ * keeps of their character.
  */
 export function tableBook(ports: TableBookPorts): TableBook {
   const { app, ownership } = ports;
@@ -53,6 +59,12 @@ export function tableBook(ports: TableBookPorts): TableBook {
       return file === null ? null : { mtime: file.stat.mtime, size: file.stat.size };
     },
     worldMap: () => gatedWorldMap(),
+    editResource: (edit, answer) => {
+      if (edit.kind === 'character') return answer(writeCharacterValue(app, edit));
+      const writes = ports.tokenWrites();
+      if (writes === null) answer(null);
+      else writes.write(edit, answer);
+    },
     scaleImage: scaleInWindow,
   }, ports.shelf);
   let stops: (() => void)[] = [];

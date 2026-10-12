@@ -120,6 +120,7 @@ export class OnlineTable {
       send: (body, to) => this.connection.send(body, to),
       scene: () => this.bound()?.book() ?? null,
       readImage: (path) => this.readImage(path),
+      tokenWrites: () => this.bound()?.resources ?? null,
     });
     this.watch = new TabWatch<SceneBinding>({
       leaves: () => app.workspace.getLeavesOfType(ATLAS_VIEW_TYPE),

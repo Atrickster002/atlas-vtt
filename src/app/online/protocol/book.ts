@@ -1,19 +1,19 @@
 import { isSide, parseAsset, type AssetRef } from './asset.ts';
+import { parseBookCharacter, parseBookResourceMessage, type BookCharacter, type BookResourceMessage } from './bookCharacter.ts';
 import { MAX_BOOK_PINS, MAX_BOOK_QUESTS, parseBookPin, parseBookQuest, type BookPin, type BookQuest } from './bookMap.ts';
 import { DEFAULT_BOOK_SLOTS, parseBookSlots, parseEquipped, parseSlotMessage, settledEquipped, type BookSlots, type Equipped, type SlotMessage } from './bookSlots.ts';
-import { bookLine, bookText } from './bookText.ts';
+import { bookLine, bookText, MAX_BOOK_TITLE } from './bookText.ts';
 import { isRecord } from './shape.ts';
 import { MAX_TOKEN_VALUE } from './tokenUI.ts';
 
+export * from './bookCharacter.ts';
 export * from './bookMap.ts';
 
 /** What a player's book holds at most. */
 export const MAX_BOOK_ITEMS = 200;
 export const MAX_BOOK_NOTES = 60;
 export const MAX_PURSE_ROWS = 6;
-export const MAX_SHEET_RESOURCES = 6;
 /** The longest texts of a book, in characters. A note's body is as long as one player frame carries. */
-export const MAX_BOOK_TITLE = 80;
 export const MAX_NOTE_BODY = 2000;
 export const MAX_ITEM_TEXT = 4000;
 export const MAX_ITEM_PROPERTIES = 16;
@@ -24,28 +24,6 @@ export const BOOK_ID_PATTERN = /^[0-9a-f]{24}$/;
 /** The ladder an item's rarity is coloured by; null for a rarity outside it. */
 export const ITEM_TONES = ['common', 'uncommon', 'rare', 'epic', 'legendary'] as const;
 export type ItemTone = (typeof ITEM_TONES)[number];
-
-const HEX_COLOUR = /^#[0-9a-f]{6}$/;
-const DIRECTIONS: readonly unknown[] = ['drains', 'fills', 'static'];
-
-/** A resource of the player's own character, by name: what its bar shows, as a number too. */
-export interface SheetResource {
-  readonly name: string;
-  readonly colour: string;
-  readonly direction: 'drains' | 'fills' | 'static';
-  readonly current: number;
-  readonly max: number;
-}
-
-/** The character a player plays: the token the GM linked to them, as little as a sheet needs. */
-export interface BookCharacter {
-  readonly name: string;
-  /** The token's artwork, asked for by hash like the map. */
-  readonly art: AssetRef | null;
-  /** The colour of the token's ring; null for artwork shown unframed. */
-  readonly ring: string | null;
-  readonly resources: readonly SheetResource[];
-}
 
 /** An item the GM handed to the character, as text only. `at` is the GM's clock when it was given. */
 export interface BookItem {
@@ -114,16 +92,16 @@ export type PlayerBookMessage =
   | { readonly t: 'book-pin'; readonly pin: BookPin }
   | { readonly t: 'book-pin-delete'; readonly id: string }
   | { readonly t: 'book-purse'; readonly purse: readonly PurseRow[] }
+  | BookResourceMessage
   | SlotMessage;
 
 const GM_TYPES: readonly unknown[] = ['book', 'book-sheet', 'book-item'];
-const PLAYER_TYPES: readonly unknown[] = ['book-note', 'book-note-delete', 'book-pin', 'book-pin-delete', 'book-purse', 'book-equip', 'book-slots'];
+const PLAYER_TYPES: readonly unknown[] = ['book-note', 'book-note-delete', 'book-pin', 'book-pin-delete', 'book-purse', 'book-resource', 'book-equip', 'book-slots'];
 
 export const isBookType = (t: unknown): t is BookMessage['t'] => GM_TYPES.includes(t);
 export const isPlayerBookType = (t: unknown): t is PlayerBookMessage['t'] => PLAYER_TYPES.includes(t);
 
 const isId = (value: unknown): value is string => typeof value === 'string' && BOOK_ID_PATTERN.test(value);
-const isValue = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value) && Math.abs(value) <= MAX_TOKEN_VALUE;
 const isTime = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value) && value >= 0;
 
 function parseList<T>(value: unknown, max: number, parse: (entry: unknown) => T | null): T[] | null {
@@ -140,25 +118,6 @@ function parseList<T>(value: unknown, max: number, parse: (entry: unknown) => T 
 /** Entries with ids, each id once. */
 function distinct<T extends { readonly id: string }>(entries: T[] | null): T[] | null {
   return entries !== null && new Set(entries.map((entry) => entry.id)).size === entries.length ? entries : null;
-}
-
-function parseResource(value: unknown): SheetResource | null {
-  if (!isRecord(value) || typeof value.colour !== 'string' || !HEX_COLOUR.test(value.colour) || !DIRECTIONS.includes(value.direction)) return null;
-  const name = bookLine(value.name, MAX_BOOK_TITLE);
-  if (name === null || !isValue(value.current) || !isValue(value.max) || !(value.max > 0)) return null;
-  return { name, colour: value.colour, direction: value.direction as SheetResource['direction'], current: value.current, max: value.max };
-}
-
-/** A character, null for none, or undefined when it is malformed. */
-export function parseBookCharacter(value: unknown): BookCharacter | null | undefined {
-  if (value === null) return null;
-  if (!isRecord(value)) return undefined;
-  const name = bookLine(value.name, MAX_BOOK_TITLE, true);
-  const art = value.art === null ? null : parseAsset(value.art);
-  const resources = parseList(value.resources, MAX_SHEET_RESOURCES, parseResource);
-  const ringOk = value.ring === null || (typeof value.ring === 'string' && HEX_COLOUR.test(value.ring));
-  if (name === null || resources === null || !ringOk || (art === null && value.art !== null)) return undefined;
-  return { name, art, ring: value.ring as string | null, resources };
 }
 
 /** A line that may be missing: null when it is, undefined when it is malformed. */
@@ -266,6 +225,8 @@ export function parsePlayerBookMessage(value: Record<string, unknown>): PlayerBo
       const purse = parsePurse(value.purse);
       return purse === null ? null : { t: 'book-purse', purse };
     }
+    case 'book-resource':
+      return parseBookResourceMessage(value);
     case 'book-equip':
     case 'book-slots':
       return parseSlotMessage(value);

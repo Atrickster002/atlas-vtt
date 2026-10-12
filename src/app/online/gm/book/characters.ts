@@ -1,4 +1,5 @@
 import type { BookCharacter } from '../../protocol/index.ts';
+import type { PlacedTokenSource } from '../../../characters/playerCharacters';
 import type { ShownRollToken } from '../../../services/playerRollSource';
 import type { TokenEntity } from '../../../types';
 import type { BookScene } from './bookScene.ts';
@@ -10,6 +11,8 @@ export interface PlayedCharacter {
   readonly key: string;
   /** The token the character was read from. */
   readonly tokenId: string;
+  /** What names the library token that token was placed from: the character, while its token is in no shown scene. */
+  readonly placed: PlacedTokenSource;
   /** The sheet as last read from the scene. */
   readonly sheet: BookCharacter;
 }
@@ -22,6 +25,8 @@ export interface CharacterInputs {
   /** The sheet of a token the players' frame shows, or null when none can be made of it. */
   sheet(shown: ShownRollToken, token: TokenEntity): BookCharacter | null;
 }
+
+const placedOf = (token: TokenEntity): PlacedTokenSource => (token.assetId === undefined ? { imagePath: token.imagePath } : { assetId: token.assetId, imagePath: token.imagePath });
 
 const bookOf = (character: Pick<PlayedCharacter, 'collection' | 'key'>): string => `${character.collection}\n${character.key}`;
 
@@ -39,6 +44,14 @@ export class Characters {
 
   of(player: string): PlayedCharacter | null {
     return this.played.get(player) ?? null;
+  }
+
+  /** The sheet of a player's character with a resource's value as it was written, for a character whose token no shown scene holds to be read from. */
+  setValue(player: string, key: string, current: number): void {
+    const character = this.played.get(player);
+    if (character === undefined) return;
+    const resources = character.sheet.resources.map((resource) => (resource.key === key ? { ...resource, current } : resource));
+    this.played.set(player, { ...character, sheet: { ...character.sheet, resources } });
   }
 
   /** Reads the shared scene: who plays which character now. */
@@ -68,7 +81,7 @@ export class Characters {
       if (sheet === null) continue;
       if (before !== undefined) holders.delete(bookOf(before));
       holders.set(bookOf(character), owner);
-      this.played.set(owner, { ...character, tokenId, sheet });
+      this.played.set(owner, { ...character, tokenId, placed: placedOf(token), sheet });
       settled.add(owner);
     }
   }

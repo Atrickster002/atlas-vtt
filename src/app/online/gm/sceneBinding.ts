@@ -8,6 +8,7 @@ import { accentColour, atlasPlayerSettings, lightingSourceOf, measurementOf } fr
 import { mapLayerSourceOf, rulesLookupOf } from './atlasMapLayers.ts';
 import { asTokenSource, call, drawnTokenPlaces, tokenRulesOf, type SceneStore } from './atlasView.ts';
 import { bookSceneOf, type BookScene } from './book/bookScene.ts';
+import { ResourceWrites } from './book/resourceWrites.ts';
 import { companionTimers } from './companionTimers.ts';
 import { GmMarks } from './gmMarks.ts';
 import type { GmMessage, RollRequestAnswer } from '../protocol/index.ts';
@@ -27,6 +28,8 @@ export interface SceneBinding extends TabBinding {
   readonly store: SceneStore;
   /** The scene as the players' books read it; null while it is not shown, loads or cannot be read. */
   book(): BookScene | null;
+  /** Players' edits of their characters' resources on this scene. */
+  readonly resources: ResourceWrites;
 }
 
 export interface SceneBindingPorts {
@@ -120,16 +123,28 @@ export function bindScene(ports: SceneBindingPorts, tab: AtlasTab, presented: Pr
     setTimer: (run, ms) => timers.setTimer(() => live() && run(), ms),
     clearTimer: (timer) => timers.clearTimer(timer),
   });
+  const resources = new ResourceWrites(store, {
+    definitions: () => tokenRulesOf(shownRenderer())?.resources ?? [],
+    ownerOf: (tokenId) => ports.seats.ownerOf(tokenId),
+    now: () => timers.now(),
+    setTimer: (run, ms) => timers.setTimer(() => live() && run(), ms),
+    clearTimer: (timer) => timers.clearTimer(timer),
+  });
   const binding: SceneBinding = {
     share,
     store,
+    resources,
     book: () => (shown() ? bookSceneOf(store.getState(), asTokenSource(renderer), tokenRulesOf(renderer), rulesLookupOf(leaf.view)) : null),
     get showing() {
       return !store.held;
     },
     present: (next) => store.present(next),
-    start: () => share.start(),
+    start: () => {
+      share.start();
+      resources.start();
+    },
     stop: () => {
+      resources.stop();
       share.stop();
       store.dispose();
       marks.dispose();

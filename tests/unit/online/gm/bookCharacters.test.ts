@@ -164,7 +164,7 @@ describe('a character\'s sheet', () => {
     ], () => art);
     expect(sheet).toEqual({
       name: 'Sir Brannoch', art, ring: null,
-      resources: [{ name: 'Hit Points', colour: '#cc3333', direction: 'drains', current: 3, max: 9 }, { name: 'Armour', colour: '#0000ff', direction: 'static', current: 14, max: 14 }],
+      resources: [{ key: 'hp', name: 'Hit Points', colour: '#cc3333', direction: 'drains', current: 3, max: 9, editable: true }, { key: 'ac', name: 'Armour', colour: '#0000ff', direction: 'static', current: 14, max: 14, editable: false }],
     });
   });
 
