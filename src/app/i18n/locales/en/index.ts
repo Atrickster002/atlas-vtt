@@ -14,6 +14,7 @@ import { counter } from './counter';
 import { cover } from './cover';
 import { creator } from './creator';
 import { csm } from './csm';
+import { campaign } from './campaign';
 import { dashboard } from './dashboard';
 import { dice } from './dice';
 import { exportDialog } from './exportDialog';
@@ -98,6 +99,7 @@ export const en = {
   ...cover,
   ...creator,
   ...csm,
+  ...campaign,
   ...dashboard,
   ...dice,
   ...exportDialog,
