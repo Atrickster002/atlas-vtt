@@ -6,12 +6,16 @@ import { rarityTone } from '../../loot/lootRarity';
 import { LootItemContent } from '../../react/components/loot/LootItemContent';
 import { AuthorDisc } from './AuthorDisc.tsx';
 import { reactionsFor, shownName } from './logAuthors.ts';
+import type { ThreadStat } from './logThreads.ts';
 import type { RowApi, RowFlags } from './panelTypes.ts';
 import { ReactionChips } from './ReactionChips.tsx';
 import { RowShell } from './RowShell.tsx';
+import { ThreadPill } from './ThreadPill.tsx';
 
 interface ShownRowProps extends Omit<RowFlags, 'editing'> {
   readonly time: string;
+  /** Its thread's pill, where it has answers and the whole log shows. */
+  readonly thread: ThreadStat | null;
   readonly api: RowApi;
 }
 
@@ -34,7 +38,7 @@ export interface ImageRowProps extends ShownRowProps {
 }
 
 /** An image the GM showed every player, kept here to look at again; its place is held at its own shape while it loads. */
-export const ImageRow = memo(function ImageRow({ entry, src, onOpen, time, api, ...flags }: ImageRowProps): ReactElement {
+export const ImageRow = memo(function ImageRow({ entry, src, onOpen, time, thread, api, ...flags }: ImageRowProps): ReactElement {
   const reactions = reactionsFor(entry, api.self);
   const picture = src === null
     ? <span className="atlas-online-log__shown-placeholder"><ImageIcon /></span>
@@ -49,6 +53,7 @@ export const ImageRow = memo(function ImageRow({ entry, src, onOpen, time, api, 
             {onOpen === undefined || src === null ? picture : <button type="button" className="atlas-online-log__shown-open" aria-label="Open the image" onClick={onOpen}>{picture}</button>}
           </div>
           <ReactionChips id={entry.id} reactions={reactions} api={api} />
+          <ThreadPill stat={thread} onOpen={() => api.openThread(entry.id)} />
         </div>
       </div>
     </RowShell>
@@ -60,7 +65,7 @@ export interface LootRowProps extends ShownRowProps {
 }
 
 /** An item the GM handed out, as the players' loot window shows it, as text only. */
-export const LootRow = memo(function LootRow({ entry, time, api, ...flags }: LootRowProps): ReactElement {
+export const LootRow = memo(function LootRow({ entry, time, thread, api, ...flags }: LootRowProps): ReactElement {
   const reactions = reactionsFor(entry, api.self);
   // The loot card reads a draw: the item's text, and neither its note nor the base it came from.
   const draw: LootDraw = { ...entry.item, id: entry.id, source: [], notePath: '', properties: [...entry.item.properties] };
@@ -74,6 +79,7 @@ export const LootRow = memo(function LootRow({ entry, time, api, ...flags }: Loo
             <LootItemContent draw={draw} />
           </div>
           <ReactionChips id={entry.id} reactions={reactions} api={api} />
+          <ThreadPill stat={thread} onOpen={() => api.openThread(entry.id)} />
         </div>
       </div>
     </RowShell>

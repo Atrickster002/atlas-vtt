@@ -11,6 +11,7 @@
 @use 'log-roll';
 @use 'log-speech';
 @use 'log-shown';
+@use 'log-thread';
 @use 'log-composer';
 @use 'log-composer-tools';
 
@@ -31,15 +32,14 @@
   }
 }
 
+// The tools fade in where they stand: nothing about a row rises or grows.
 @keyframes atlas-online-log-tools-in {
   from {
     opacity: 0;
-    transform: translateY(calc(-50% + 3px));
   }
 
   to {
     opacity: 1;
-    transform: translateY(-50%);
   }
 }
 

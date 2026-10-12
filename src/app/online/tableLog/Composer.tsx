@@ -28,8 +28,12 @@ export interface ComposerProps {
   readonly canSend: boolean;
   readonly offlineText: string;
   readonly refusal: LogView['refusal'];
-  /** The entry the next message answers, how the strip names it, and whom the GM whispers the answer to (null: everyone). */
-  readonly reply: { readonly id: string; readonly label: string; readonly whisper: string | null } | null;
+  /**
+   * The entry the next message answers, how the strip names it, and whom the GM whispers the answer
+   * to (null: everyone). `thread`: it is the root of the thread shown, answered without a strip
+   * unless the answer is whispered.
+   */
+  readonly reply: { readonly id: string; readonly label: string; readonly whisper: string | null; readonly thread?: true } | null;
   /** The viewer's newest chat message in the log: tells whether what was sent last has arrived. */
   readonly lastOwn: string | null;
   /** Who `/reply` whispers to. */
@@ -145,16 +149,18 @@ export function Composer(props: ComposerProps): ReactElement {
   const line = warning ?? (canSend ? null : offlineText);
   const listOpen = suggestions.open && canSend;
   const whisperLabel = whisperTo === null ? null : audienceNames(whisperTo, people, self);
-  const placeholder = whisperLabel !== null ? `Whisper to ${whisperLabel}` : speaker?.kind === 'token' ? `Speak as ${speaker.name}` : 'Message the table';
+  const placeholder = whisperLabel !== null ? `Whisper to ${whisperLabel}` : speaker?.kind === 'token' ? `Speak as ${speaker.name}` : reply?.thread === true ? 'Reply in thread' : 'Message the table';
   return (
     <div className="atlas-online-log__composer">
       {help && <HelpCard onClose={() => { setHelp(false); toField(); }} />}
       {line !== null && <div className={classes('atlas-online-log__notice', warning !== null && 'atlas-online-log__notice--refused')} role="status">{line}</div>}
       <div className={classes('atlas-online-log__composer-box', !canSend && 'is-disabled')}>
         {listOpen && <SuggestionList id={listId} list={suggestions} onComplete={complete} />}
-        {reply !== null && <ComposerStrip text={reply.label} whisper={reply.whisper} clearLabel="Cancel reply" onClear={onClearReply} />}
+        {reply !== null && (reply.thread !== true || reply.whisper !== null) && (
+          <ComposerStrip text={reply.label} whisper={reply.whisper} clear={reply.thread === true ? undefined : { label: 'Cancel reply', onClear: onClearReply }} />
+        )}
         {whisperLabel !== null && (reply === null || reply.whisper === null) && (
-          <ComposerStrip text={`To ${whisperLabel}`} locked clearLabel="Stop whispering" onClear={() => { state.setWhisperTo(null); toField(); }} />
+          <ComposerStrip text={`To ${whisperLabel}`} locked clear={{ label: 'Stop whispering', onClear: () => { state.setWhisperTo(null); toField(); } }} />
         )}
         <div className="atlas-online-log__field">
           {speakers.length > 1 && speaker !== null && (

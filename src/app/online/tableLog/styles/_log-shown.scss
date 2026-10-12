@@ -2,6 +2,7 @@
 // loot window shows it.
 @use '../../../../../styles/tokens' as *;
 @use '../../../../../styles/mixins' as *;
+@use 'log-base' as *;
 
 .atlas-online-log {
   .atlas-online-log__shown {
@@ -16,14 +17,13 @@
   }
 
   .atlas-online-log__shown-open {
+    @include log-button;
     display: flex;
     width: 100%;
     height: 100%;
-    padding: 0;
-    border: none;
-    background: none;
-    box-shadow: none;
     cursor: zoom-in;
+    // Obsidian's buttons take a fill and a shadow on hover and on a tap.
+    @include log-button-states;
   }
 
   .atlas-online-log__shown-image {

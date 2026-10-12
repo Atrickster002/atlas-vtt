@@ -1,6 +1,6 @@
 // A row's tools: a pill on the row's top edge with reactions, Reply, Edit and Delete, which turns
-// into the question Delete asks. It exists only while its row is active, so it arrives with an
-// animation and leaves at once.
+// into the question Delete asks. It exists only while its row is active, so it fades in where it
+// stands and leaves at once.
 @use '../../../../../styles/tokens' as *;
 @use '../../../../../styles/mixins' as *;
 @use 'log-base' as *;
@@ -17,13 +17,15 @@ $tools-ease: cubic-bezier(0.2, 0, 0, 1);
 
   // Sticky inside the row: while the row's top is scrolled out of the list, the pill rides down
   // with the list's edge (half its height below it) and stops at the row's end, so it is never
-  // clipped and never sits on the next row.
+  // clipped and never sits on the next row. It climbs over the row's top padding to sit on its edge
+  // and gives that space back below itself, so the row keeps its size and its content its place.
   .atlas-online-log__tools-anchor {
     position: sticky;
     top: calc(var(--atlas-online-log-tool) / 2 + #{$tools-pad} + #{$border-width-m} + 2px);
     z-index: 2;
     height: 0;
     margin-top: calc(-1 * var(--atlas-online-log-row-top));
+    margin-bottom: var(--atlas-online-log-row-top);
   }
 
   .atlas-online-log__tools {
@@ -127,7 +129,7 @@ $tools-ease: cubic-bezier(0.2, 0, 0, 1);
     @include atlas-panel-inset-radius($tools-pad);
     color: var(--text-muted);
     white-space: nowrap;
-    transition: background-color 120ms ease, color 120ms ease, opacity 120ms ease-out, transform $transition-press $transition-ease-out;
+    transition: background-color 120ms ease, color 120ms ease, opacity 120ms ease-out;
     @include log-button-states;
 
     svg {
@@ -142,15 +144,10 @@ $tools-ease: cubic-bezier(0.2, 0, 0, 1);
         color: var(--text-normal);
       }
 
-      // The glyph grows, not the button.
-      &:hover .atlas-online-log__emoji {
-        transform: scale(1.18);
-      }
     }
 
     &:active {
       background: var(--background-modifier-active-hover);
-      transform: scale(0.96);
     }
 
     &.is-open,
@@ -161,7 +158,6 @@ $tools-ease: cubic-bezier(0.2, 0, 0, 1);
 
     .atlas-online-log__emoji {
       font-size: 16px;
-      transition: transform $transition-press $tools-ease;
     }
   }
 

@@ -11,8 +11,22 @@
     padding: 0;
 
     &.is-active,
+    &.is-opener:active,
+    &.is-selected,
     &.is-highlighted {
       background: transparent;
+    }
+
+    // The card takes the row's highlight: a tint under its own fill (a critical's is a gradient).
+    &.is-active .atlas-online-log__roll {
+      background-color: var(--background-modifier-hover);
+      transition-duration: $transition-fast;
+    }
+
+    &.is-opener:active:not(:has(button:active)) .atlas-online-log__roll,
+    &.is-selected .atlas-online-log__roll {
+      background-color: var(--background-modifier-active-hover);
+      transition-duration: 0ms;
     }
 
     &.is-highlighted .atlas-online-log__roll {

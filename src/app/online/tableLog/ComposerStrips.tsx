@@ -7,12 +7,12 @@ export interface StripProps {
   /** A second line: whom a reply is whispered to. */
   readonly whisper?: string | null;
   readonly locked?: boolean;
-  readonly clearLabel: string;
-  readonly onClear: () => void;
+  /** Clears what the strip says; a strip without it only tells. */
+  readonly clear?: { readonly label: string; readonly onClear: () => void } | undefined;
 }
 
 /** A strip on top of the message field: what the next message answers, or whom every message is whispered to. */
-export function ComposerStrip({ text, whisper, locked, clearLabel, onClear }: StripProps): ReactElement {
+export function ComposerStrip({ text, whisper, locked, clear }: StripProps): ReactElement {
   return (
     <div className={locked === true ? 'atlas-online-log__strip atlas-online-log__strip--whisper' : 'atlas-online-log__strip'}>
       {locked === true && <Lock className="atlas-online-log__strip-icon" />}
@@ -25,9 +25,11 @@ export function ComposerStrip({ text, whisper, locked, clearLabel, onClear }: St
           </span>
         )}
       </span>
-      <LabelTooltip label={clearLabel}>
-        <button type="button" className="atlas-online-log__strip-clear" onClick={onClear}><X /></button>
-      </LabelTooltip>
+      {clear !== undefined && (
+        <LabelTooltip label={clear.label}>
+          <button type="button" className="atlas-online-log__strip-clear" onClick={clear.onClear}><X /></button>
+        </LabelTooltip>
+      )}
     </div>
   );
 }

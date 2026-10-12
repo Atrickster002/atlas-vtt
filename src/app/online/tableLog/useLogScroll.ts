@@ -32,13 +32,15 @@ const isNews = (entry: ShownEntry): boolean => entry.kind === 'chat' || entry.ki
 /**
  * Where the list stands: it follows its end while the viewer is within `PIN_DISTANCE` of it (new
  * rows, a row that grows, a list that shrinks under a growing message field), and counts what
- * arrives below otherwise. What the viewer sends or rolls always scrolls down.
+ * arrives below otherwise. What the viewer sends or rolls always scrolls down, and so does a
+ * change of what the list shows (`showing`: null for the whole log, a thread's root).
  */
-export function useLogScroll(entries: readonly ShownEntry[], self: string | null): LogScroll {
+export function useLogScroll(entries: readonly ShownEntry[], self: string | null, showing: string | null = null): LogScroll {
   const listRef = useRef<HTMLDivElement>(null);
   const rowsRef = useRef<HTMLDivElement>(null);
   const pinned = useRef(true);
   const known = useRef<ReadonlySet<string> | null>(null);
+  const shownView = useRef(showing);
   const [place, setPlace] = useState(AT_END);
 
   const toEnd = useCallback((): void => {
@@ -56,11 +58,15 @@ export function useLogScroll(entries: readonly ShownEntry[], self: string | null
     const before = known.current;
     known.current = new Set(entries.map((entry) => entry.id));
     if (before === null) return toEnd();
+    if (shownView.current !== showing) {
+      shownView.current = showing;
+      return jump();
+    }
     const added = entries.filter((entry) => !before.has(entry.id));
     if (pinned.current || added.some((entry) => isNews(entry) && entry.who === self)) return jump();
     const news = added.filter(isNews).length;
     if (news > 0) setPlace((now) => ({ ...now, pending: now.pending + news }));
-  }, [entries, self, jump, toEnd]);
+  }, [entries, self, showing, jump, toEnd]);
 
   useEffect(() => {
     const list = listRef.current;
