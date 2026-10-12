@@ -5,7 +5,7 @@ import type { DiceRollResult } from '../../../types/diceTypes';
 import { TokenPortrait } from '../../../packages/components/shared/TokenPortrait';
 import type { RollSourcePresentation, UseDiceAvatar } from './diceSourcePresentation';
 import { DICE_TOAST_KNOT_SYMBOL_ID } from './diceToastOrnament';
-import { dieLabel } from '../../../tools/diceLabels';
+import { dieLabel, dieStates } from '../../../tools/diceLabels';
 import { t } from '../../../i18n';
 
 export type ToastPhase = 'entering' | 'visible' | 'exiting';
@@ -96,11 +96,7 @@ export function DiceToast({ result, presentation, phase, onDismiss, useAvatar }:
             {result.rolls.map((roll, i) => (
               <span
                 key={i}
-                className={cn(
-                  'atlas-dice-toast__die-badge',
-                  roll.value === roll.max && 'atlas-dice-toast__die-badge--max',
-                  roll.value === 1 && 'atlas-dice-toast__die-badge--min',
-                )}
+                className={cn('atlas-dice-toast__die-badge', dieStates(roll).map((state) => `atlas-dice-toast__die-badge--${state}`))}
               >
                 {dieLabel(result.rolls, i)}
               </span>

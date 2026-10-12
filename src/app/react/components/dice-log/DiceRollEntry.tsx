@@ -5,7 +5,7 @@ import type { DiceRollResult } from '../../../types/diceTypes';
 import { TokenPortrait } from '../../../packages/components/shared/TokenPortrait';
 import { useDiceAvatar } from '../dice/useDiceAvatar';
 import { LabelTooltip } from '../../../packages/components/primitives/tooltip';
-import { dieLabel } from '../../../tools/diceLabels';
+import { dieLabel, dieStates } from '../../../tools/diceLabels';
 import { t } from '../../../i18n';
 
 interface DiceRollEntryProps {
@@ -113,11 +113,7 @@ export function DiceRollEntry({ result, isNew, onRepeat }: DiceRollEntryProps): 
             {result.rolls.map((roll, i) => (
               <span
                 key={i}
-                className={cn(
-                  'dice-log-entry__badge',
-                  roll.value === roll.max && 'dice-log-entry__badge--max',
-                  roll.value === 1 && 'dice-log-entry__badge--min',
-                )}
+                className={cn('dice-log-entry__badge', dieStates(roll).map((state) => `dice-log-entry__badge--${state}`))}
               >
                 {dieLabel(result.rolls, i)}
               </span>
