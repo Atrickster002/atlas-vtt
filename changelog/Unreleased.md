@@ -40,9 +40,8 @@
 
 ## Fixed
 
-- PDF random-table import recognizes encounter matrices with one roll-range column per terrain, creating a separate named table for each terrain and preserving its chances
 - A Weight column at the start of a random table supplies its weights instead of being read as dice results
-- A failed random-table import stays open for retry and reuses notes already created, while imported notes keep safe file names even with long Unicode titles
+- If saving a pasted random table fails, the dialog stays open for retry and reuses notes already created. Table notes keep safe file names even with long Unicode titles
 
 - Rolling initiative adds each creature's modifier from its linked statblock, read from a field you pick in the collection's settings, or from an ability score such as DEX (D&D 5e reads Initiative, else DEX). With a contribution by anacletoTM
 - Auto detect finds the grid of a small map picture, with cells of about ten pixels, where it took four cells for one
@@ -63,5 +62,6 @@
 ## Important changes
 
 - A scene with several levels is saved in a newer format, which older versions of Atlas cannot open; versions up to 0.6.0 would even open it empty and save over it. Scenes with one level are saved as before
+- New table accepts pasted text only for now; the file-import tab is hidden
 - The arrow keys no longer nudge a grid while it is being aligned
 - The first fog stroke after all fog was deleted shows while you draw it, where it appeared only once let go

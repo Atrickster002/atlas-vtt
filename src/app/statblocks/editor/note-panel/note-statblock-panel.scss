@@ -16,8 +16,36 @@
     @include atlas-sb-note-row('.markdown-source-view', '.markdown-reading-view');
   }
 
+  // Too narrow for two columns: the statblock stands above the note in one scroll, as if it were
+  // the note's first part. The content scrolls; the panel, the editor and the reader take their
+  // full heights and scroll nothing themselves (CodeMirror follows a scrolling ancestor).
   &.atlas-sb-note--stacked > .view-content {
     @include atlas-sb-note-row-stacked('.markdown-source-view', '.markdown-reading-view');
+    overflow-y: auto;
+
+    > .markdown-source-view,
+    > .markdown-reading-view {
+      flex: 0 0 auto;
+      height: auto;
+    }
+
+    > .markdown-source-view .cm-editor,
+    > .markdown-source-view .cm-scroller,
+    > .markdown-reading-view .markdown-preview-view {
+      height: auto;
+      overflow: visible;
+    }
+
+    > .atlas-sb-note-panel {
+      flex: 0 0 auto;
+      max-height: none;
+      border-block-end: 0;
+
+      .atlas-sb-note-panel__scroll {
+        overflow: visible;
+        scrollbar-gutter: auto;
+      }
+    }
   }
 
   // The note's own `atlas-statblock` fence would draw the card a second time:

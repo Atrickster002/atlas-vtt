@@ -167,6 +167,8 @@ describe('New table', () => {
 
     fireEvent.click(within(await screen.findByRole('complementary')).getByRole('button', { name: 'New table' }));
     const dialog = screen.getByRole('dialog', { name: 'New table' });
+    expect(within(dialog).queryByRole('radio', { name: 'Import file' })).toBeNull();
+    expect(dialog.querySelector('input[type="file"]')).toBeNull();
     const save = within(dialog).getByRole('button', { name: 'Save and roll' }) as HTMLButtonElement;
     expect(save.disabled).toBe(true);
     fireEvent.change(within(dialog).getByRole('textbox', { name: 'Table to paste' }), { target: { value: PDF } });
@@ -203,19 +205,14 @@ describe('New table', () => {
     await waitFor(() => expect(AssetService.getInstance(app).getCollectionSettings(collectionId).randomTables?.[0]?.kind).toBe('items'));
   });
 
-  it('imports the checked file tables as notes without rolling them', async () => {
-    const { app, store, collectionId } = await mount([]);
+  it('offers only pasted text when the collection has no tables', async () => {
+    await mount([]);
     fireEvent.click(await screen.findByRole('button', { name: 'New table' }));
-    fireEvent.click(screen.getByRole('radio', { name: 'Import file' }));
-    const text = '## Weather\n| d4 | Result |\n| --- | --- |\n| 1-4 | Rain |\n\n## Treasure\n| d6 | Result |\n| --- | --- |\n| 1-6 | Coin |';
-    fireEvent.change(screen.getByLabelText('Choose a table file'), { target: { files: [{ name: 'Tables.md', size: text.length, arrayBuffer: async () => new TextEncoder().encode(text).buffer }] } });
-    fireEvent.click(await screen.findByRole('checkbox', { name: 'Import Treasure' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Import 1 table' }));
-    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'New table' })).toBeNull());
-    expect(app.vault.getFileByPath(`atlas-vtt/collections/${collectionId}/tables/Treasure.md`)).toBeTruthy();
-    expect(app.vault.getFileByPath(`atlas-vtt/collections/${collectionId}/tables/Weather.md`)).toBeNull();
-    expect(AssetService.getInstance(app).getCollectionSettings(collectionId).randomTables).toHaveLength(1);
-    expect(store.getState().lootRoller.lastRoll).toBeUndefined();
+    const dialog = screen.getByRole('dialog', { name: 'New table' });
+    expect(within(dialog).getByRole('textbox', { name: 'Table to paste' })).toBeTruthy();
+    expect(within(dialog).queryByRole('radiogroup', { name: 'Table source' })).toBeNull();
+    expect(within(dialog).queryByRole('radio', { name: 'Import file' })).toBeNull();
+    expect(dialog.querySelector('input[type="file"]')).toBeNull();
   });
 
   it('keeps the destination collection from when the importer was opened', async () => {
@@ -223,12 +220,11 @@ describe('New table', () => {
     const assets = AssetService.getInstance(app);
     const other = await act(async () => assets.createCollection('Other'));
     fireEvent.click(await screen.findByRole('button', { name: 'New table' }));
-    fireEvent.click(screen.getByRole('radio', { name: 'Import file' }));
     act(() => store.setState({ mapPath: `atlas-vtt/collections/${other.id}/scenes/Other.atlasmap` }));
     const text = '## Weather\n| d4 | Result |\n| --- | --- |\n| 1-4 | Rain |';
-    fireEvent.change(screen.getByLabelText('Choose a table file'), { target: { files: [{ name: 'Tables.md', size: text.length, arrayBuffer: async () => new TextEncoder().encode(text).buffer }] } });
-    fireEvent.click(await screen.findByRole('checkbox', { name: 'Import Weather' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Import 1 table' }));
+    fireEvent.change(screen.getByRole('textbox', { name: 'Table to paste' }), { target: { value: text } });
+    fireEvent.change(screen.getByRole('textbox', { name: 'Name' }), { target: { value: 'Weather' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save and roll' }));
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'New table' })).toBeNull());
     expect(assets.getCollectionSettings(collectionId).randomTables).toHaveLength(1);
     expect(assets.getCollectionSettings(other.id).randomTables ?? []).toEqual([]);
