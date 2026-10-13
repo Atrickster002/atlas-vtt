@@ -15,9 +15,13 @@ import { showCamera, type ViewCamera } from './pixi/viewCamera';
 import { requestRender } from './pixi/RenderScheduler';
 import { prefersReducedMotion } from './utils/motion';
 import type { ViewAtlasStore } from './storeFactory';
+import { levelBackground } from './levels/levelEdits';
+import { viewedLevelId, type LevelView } from './levels/sceneLevels';
 
 export interface DisplayedMap {
   mapData: MapFile;
+  /** The level shown (`MapLoader.load`); null for a scene without levels. */
+  level: string | null;
 }
 
 /** The part of the renderer a map load shows its map through. */
@@ -28,6 +32,23 @@ type MapRenderer = Pick<
 
 /** The store background each map image shows, as the load or the store's change that showed it named it. */
 const shownBackground = new WeakMap<MapImage, string | null>();
+/** The background each map image has finished loading: what it shows on screen. */
+const loadedBackground = new WeakMap<MapImage, string | null>();
+
+/** Loads `background` into `mapImage` and notes it shown once loaded, unless another was asked for meanwhile. */
+async function showBackground(mapImage: MapImage, background: string | null, load: () => Promise<void>): Promise<void> {
+  shownBackground.set(mapImage, background);
+  await load();
+  if (shownBackground.get(mapImage) === background) loadedBackground.set(mapImage, background);
+}
+
+/**
+ * Whether `mapImage` shows the background of the level the view's state shows: after a switch of
+ * level it does once that level's image has loaded. Players' frames wait for it.
+ */
+function showsViewedLevel(mapImage: MapImage | null, state: Parameters<typeof levelBackground>[0] & LevelView): boolean {
+  return !mapImage || loadedBackground.get(mapImage) === levelBackground(state, viewedLevelId(state));
+}
 
 /** The view's map image, made and handed to the renderer on the first load; null without a viewport. */
 function viewMapImage(app: App, renderer: MapRenderer): MapImage | null {
@@ -65,13 +86,12 @@ async function loadAndDisplay(
   camera: ViewCamera | null = null,
   isSuperseded: () => boolean = () => false,
 ): Promise<DisplayedMap | null> {
-  const { mapData, image } = await MapLoader.load(app, filePath);
+  const { mapData, image, level } = await MapLoader.load(app, filePath, camera?.level);
   if (isSuperseded()) return null;
 
   const mapImage = viewMapImage(app, renderer);
   if (mapImage) {
-    shownBackground.set(mapImage, mapData.background ?? null);
-    await mapImage.load(image, readMapStretch(mapData.grid?.mapStretch));
+    await showBackground(mapImage, levelBackground(mapData, level), () => mapImage.load(image, readMapStretch(mapData.grid?.mapStretch)));
     if (isSuperseded()) return null;
   }
 
@@ -122,21 +142,21 @@ async function loadAndDisplay(
     };
   }
 
-  return { mapData };
+  return { mapData, level };
 }
 
 /**
- * Shows the store's background whenever it changes outside a load (undo or redo of a background
- * change, a missing image removed): the image loads into the same map image. Returns the unsubscribe.
+ * Shows the background of the level the view shows whenever it changes outside a load (another
+ * level shown, undo or redo of a background change, a missing image removed): the image loads into
+ * the same map image. Returns the unsubscribe.
  */
 function followBackground(app: App, store: ViewAtlasStore, mapImage: MapImage): () => void {
-  return store.subscribe((state) => state.background, (background) => {
+  return store.subscribe((state) => levelBackground(state, viewedLevelId(state)), (background) => {
     const state = store.getState();
     // A load sets the background itself and shows the image of its file.
     if (!state.mapLoaded || state.isMapLoading) return;
     if (shownBackground.get(mapImage) === background) return;
-    shownBackground.set(mapImage, background);
-    void mapImage.load(mapImageSourceFor(app, background, state.grid?.size));
+    void showBackground(mapImage, background, () => mapImage.load(mapImageSourceFor(app, background, state.grid?.size)));
   });
 }
 
@@ -158,4 +178,4 @@ function followStretch(store: ViewAtlasStore, mapImage: MapImage, onFollowed: ()
 /**
  * Handles loading map resources and initialising renderer state.
  */
-export const MapController = { loadAndDisplay, followBackground, followStretch };
+export const MapController = { loadAndDisplay, followBackground, followStretch, showsViewedLevel };
