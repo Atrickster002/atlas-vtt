@@ -89,19 +89,24 @@ $dashboard-press-scale: 0.985;
   }
 }
 
+/// A map's picture in a card is drawn this much larger than its well, so the printed margin or
+/// frame many maps have stays out of sight at the card's edges.
+$dashboard-art-overscan: 1.04;
+
 /// The slow zoom of the art (`$art`, inside the card this is included in) while the card is
-/// hovered. Written from the card down: the stylesheet nests under the plugin's root class, so no
-/// `&` may follow another selector.
-@mixin dashboard-art-zoom($art) {
+/// hovered, from `$rest` (the overscan, or 1 where the whole picture must show). Written from the
+/// card down: the stylesheet nests under the plugin's root class, so no `&` may follow another selector.
+@mixin dashboard-art-zoom($art, $rest: $dashboard-art-overscan) {
   #{$art} > img,
   #{$art} > .atlas-map-art > img {
+    transform: scale($rest);
     transition: transform $dashboard-art-zoom $transition-ease-out, opacity $transition-normal $transition-ease-out;
   }
 
   @media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
     &:hover:not(:disabled) #{$art} > img,
     &:hover:not(:disabled) #{$art} > .atlas-map-art > img {
-      transform: scale(1.04);
+      transform: scale($rest * 1.04);
     }
   }
 }

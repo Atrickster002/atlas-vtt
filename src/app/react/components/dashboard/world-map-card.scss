@@ -57,7 +57,8 @@ $world-map-inset: $spacing-s;
 
 .world-map-card__open {
   @include dashboard-button-reset;
-  @include dashboard-art-zoom('.world-map-card__art');
+  // The whole world map shows: no overscan.
+  @include dashboard-art-zoom('.world-map-card__art', 1);
   position: relative;
   display: block;
   border-start-start-radius: var(--atlas-panel-inner-radius);

@@ -93,8 +93,22 @@ describe('the dashboard', () => {
         const grid = box(query('.campaign-grid'));
         expect(hero.width).toBeCloseTo(grid.width, 0);
         expect(query('.continue-hero__title').textContent).toBe('Blue Mouth Caves');
-        // Its map is the scene's own picture, faded out towards the text.
-        expect(getComputedStyle(query('.continue-hero__art')).maskImage).toContain('linear-gradient');
+        // Its map is the scene's own picture, faded out towards the text from inside the picture:
+        // no box edge where the fade begins, and the picture reaches the card's border on every side.
+        const heroBox = query('.continue-hero');
+        const inner = { left: box(heroBox).left + heroBox.clientLeft, right: box(heroBox).left + heroBox.clientLeft + heroBox.clientWidth };
+        const artBox = box(query('.continue-hero__art'));
+        const picture = box(query('.continue-hero__art .atlas-map-art__sharp'));
+        const mask = getComputedStyle(query('.continue-hero__art')).maskImage;
+        if (size.width > 1000) {
+          expect(artBox.left).toBeCloseTo(inner.left, 0);
+          expect(mask).toMatch(/^linear-gradient\(to right, rgba\(0, 0, 0, 0\) 0%, rgba\(0, 0, 0, 0\) 28%/);
+        }
+        expect(artBox.right).toBeCloseTo(inner.right, 0);
+        expect(picture.right).toBeGreaterThanOrEqual(inner.right);
+        expect(picture.left).toBeLessThanOrEqual(artBox.left);
+        // The card clips the picture to its own corners.
+        expect(getComputedStyle(heroBox).overflow).toBe('hidden');
 
         // Campaign cards: one height in a row, their art 16:9, the world map's picture where there is one.
         const cards = queryAll('.campaign-grid .campaign-card:not(.campaign-card--new)');
