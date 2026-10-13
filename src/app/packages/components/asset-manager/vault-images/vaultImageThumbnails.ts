@@ -1,13 +1,13 @@
 import type { App, TFile } from 'obsidian';
 import { renderThumbnail } from '../../../../imageProcessing/imageProcessing';
 
-/** Twice the 48px row portrait, for sharp thumbnails on high-density screens. */
-const THUMBNAIL = { size: 96, quality: 0.8 };
+/** Sharp in a card of the grid on high-density screens; cards are about 130 to 200px wide. */
+const THUMBNAIL = { size: 384, quality: 0.8 };
 
 /**
  * Small thumbnails of vault images, made in the image workers on demand. A
  * vault image may be a map of hundreds of megapixels, which an `<img>` would
- * decode whole for a 48px row. `dispose` stops what is still being made and
+ * decode whole for one card. `dispose` stops what is still being made and
  * gives every thumbnail back.
  */
 export class VaultImageThumbnails {

@@ -1,20 +1,43 @@
 @use '../../../../../../styles/tokens' as *;
 
-// The vault images pane shares the statblock pane's layout; only its thumbnails differ.
+// The vault's images as asset cards (`_asset-cards.scss`), in rows a virtual list places.
 .atlas-vault-images {
-  // The thumbnail's placeholder lies over the frame.
-  &__frame {
+  &__grid {
     position: relative;
-    overflow: hidden;
+    flex-shrink: 0;
+    column-gap: $spacing-m;
   }
-  &__thumbnail {
+  &__row {
+    position: absolute;
+    top: 0;
+    left: 0;
     width: 100%;
-    height: 100%;
+    display: grid;
+    gap: $spacing-m;
+  }
+  // The whole image shows: it is chosen by what it holds, not cropped to the well.
+  &__card .atlas-asset-card-thumb > .atlas-vault-images__thumbnail {
     object-fit: contain;
   }
-  &__pending {
-    width: 100%;
-    height: 100%;
-    border-radius: $radius-m;
+  &__card:focus-within .atlas-asset-card-checkbox {
+    opacity: 1;
+  }
+  &__card[data-queued] {
+    cursor: default;
+    .atlas-asset-card-thumb > img { opacity: 0.5; }
+  }
+  &__added {
+    position: absolute;
+    right: $spacing-s;
+    bottom: $spacing-s;
+    // A pill like the encounter card's overflow badge: its height is fixed, its text sets the width.
+    display: flex;
+    align-items: center;
+    height: 22px;
+    padding: 0 $spacing-s;
+    border-radius: $radius-full;
+    background: var(--background-primary);
+    color: var(--text-muted);
+    font-size: $font-ui-smaller;
   }
 }
