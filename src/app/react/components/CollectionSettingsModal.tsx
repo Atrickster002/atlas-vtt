@@ -2,7 +2,7 @@
  * CollectionSettingsModal
  *
  * Vertical-tabbed modal for configuring per-collection settings:
- *   Game System | Dice | Grid & Measurement | Vision | Default Widgets | Conditions | Resources | Statblocks | Creature Filters | Loot
+ *   Game System | Dice | Grid & Measurement | Vision | Default Widgets | Conditions | Resources | Statblocks | Creature Filters | Random tables
  *
  * Opens after collection creation and via a gear button in the sidebar.
  */
@@ -19,7 +19,7 @@ import { useCollectionSettingsDraft } from './collection-settings/useCollectionS
 import { useExperimentalFeature } from '../hooks/useExperimentalFeature';
 import { DefaultWidgetsTab } from './collection-settings/DefaultWidgetsTab';
 import { resourceFieldSuggestions } from '../../resources/resourceFieldSuggestions';
-import { LootTab } from './collection-settings/LootTab';
+import { RandomTablesTab } from './collection-settings/RandomTablesTab';
 import { viewOfRules, type RulesView } from '../../gameSystems/rulesView';
 import { CreatureFiltersTab } from './collection-settings/CreatureFiltersTab';
 import { useCollectionCreatures } from './collection-settings/useCollectionCreatures';
@@ -175,12 +175,18 @@ export function CollectionSettingsModal({
         );
       case 'loot':
         return app && (
-          <LootTab
+          <RandomTablesTab
             app={app}
             lootBases={draft.lootBases}
             onBasesChange={draft.setLootBases}
+            randomTables={draft.randomTables}
+            onRandomTablesChange={draft.setRandomTables}
             currency={draft.lootCurrency}
             onCurrencyChange={draft.setLootCurrency}
+            itemRarities={draft.itemRarities}
+            onItemRaritiesChange={draft.setItemRarities}
+            systemPresetId={draft.systemPresetId}
+            presets={systemPresets.presets}
           />
         );
       default:

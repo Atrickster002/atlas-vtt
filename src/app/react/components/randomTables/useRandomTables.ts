@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { App } from 'obsidian';
 import type { LootBase } from '../../../loot/LootBaseReader';
-import { TableNoteReader, type CollectionTable } from '../../../randomTables/TableNoteReader';
+import type { CollectionTable } from '../../../randomTables/TableNoteReader';
+import { useNoteTables } from './useNoteTables';
 import type { TableResolver } from '../../../randomTables/resultCells';
 import { readRandomTables } from '../../../randomTables/tableSettings';
 import { AssetService } from '../../../services/AssetService';
@@ -80,26 +81,15 @@ export function useRandomTables(app: App, collectionId: string | null): RandomTa
   const library = useLootBases(app, loot.bases);
   const sources = useTableSources(app, collectionId);
   const rarities = useCollectionRarities(app, collectionId);
-  const [tables, setTables] = useState<readonly CollectionTable[]>([]);
-  const [reader, setReader] = useState<TableNoteReader | null>(null);
-
-  useEffect(() => {
-    const next = new TableNoteReader(app, setTables);
-    setReader(next);
-    return () => next.stop();
-  }, [app]);
-
-  useEffect(() => {
-    reader?.setSources(sources);
-  }, [reader, sources]);
+  const { tables, reader, loaded } = useNoteTables(app, sources);
 
   return useMemo(() => ({
     items: { bases: library.bases, tables: tables.filter((table) => table.source.kind === 'items') },
     text: tables.filter((table) => table.source.kind === 'text'),
     currency: loot.currency,
-    loaded: library.loaded && reader !== null && tables.length === sources.length && tables.every((table) => table.status !== 'loading'),
+    loaded: library.loaded && loaded,
     basesAvailable: library.basesAvailable,
     resolver: reader?.resolver ?? { resolve: () => Promise.resolve(null) },
     rarities,
-  }), [library, tables, loot.currency, reader, sources.length, rarities]);
+  }), [library, tables, loot.currency, reader, loaded, rarities]);
 }

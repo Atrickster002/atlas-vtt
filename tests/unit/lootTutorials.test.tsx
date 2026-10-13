@@ -1,5 +1,5 @@
 import React from 'react';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { App } from 'obsidian';
 import { SettingsService } from '../../src/app/services/SettingsService';
@@ -8,13 +8,14 @@ import { Tutorial } from '../../src/app/onboarding/Tutorial';
 import { lootRollerSteps } from '../../src/app/onboarding/lootTutorials';
 import { LootRollerTutorials } from '../../src/app/react/components/loot/LootRollerTutorials';
 import { LootEmptyState } from '../../src/app/react/components/loot/LootEmptyState';
-import { LootTab } from '../../src/app/react/components/collection-settings/LootTab';
+import { RandomTablesTab } from '../../src/app/react/components/collection-settings/RandomTablesTab';
 
 afterEach(cleanup);
 
 function appWithSettings(): { app: App; settings: SettingsService } {
   const app = new App();
   app.vault = { adapter: { exists: async () => true, write: async () => undefined }, getFiles: () => [], on: () => ({}), offref: () => undefined };
+  app.metadataCache = { on: () => ({}), offref: () => undefined };
   return { app, settings: new SettingsService(app) };
 }
 
@@ -83,17 +84,20 @@ describe('the empty Random tables window', () => {
   });
 });
 
-describe('the Loot tab of the collection settings', () => {
+describe('the Random tables tab of the collection settings', () => {
   it('tours loot on its first visit and ends by adding the first base', () => {
     const { app, settings } = appWithSettings();
     render(
       <AtlasUIContext.Provider value={{ app, view: null, pixiApp: null, renderer: null }}>
-        <LootTab app={app} lootBases={[]} onBasesChange={vi.fn()} currency="" onCurrencyChange={vi.fn()} />
+        <RandomTablesTab
+          app={app} lootBases={[]} onBasesChange={vi.fn()} randomTables={[]} onRandomTablesChange={vi.fn()} currency="" onCurrencyChange={vi.fn()}
+          itemRarities={undefined} onItemRaritiesChange={vi.fn()} systemPresetId={undefined} presets={[]}
+        />
       </AtlasUIContext.Provider>,
     );
     expect(screen.getByText('Loot lives in your notes')).toBeTruthy();
     for (let step = 0; step < 3; step++) fireEvent.click(screen.getByRole('button', { name: 'Next' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Add a base' }));
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Add a base' }));
 
     expect(settings.shouldShowTutorial('lootSettings')).toBe(false);
     expect(screen.getByPlaceholderText('Search bases...')).toBeTruthy();

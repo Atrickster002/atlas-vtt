@@ -9,6 +9,7 @@ import { RandomTables } from '../../src/app/react/components/randomTables/Random
 import { AssetService } from '../../src/app/services/AssetService';
 import type { CollectionSettings } from '../../src/app/types/collectionSettingsTypes';
 import { DASHBOARD_THEME } from './dashboardTheme';
+import { AURIFEX_NOTE } from '../fixtures/tableNotes';
 
 /** Obsidian's theme colours the cards and chips read, beside the dashboard's variables. */
 export const TABLES_THEME = `${DASHBOARD_THEME}
@@ -51,6 +52,7 @@ export const TABLE_FILES: Record<string, string> = {
 | 4-5 | [[Cairn/Items.base#Weapons]] |
 | 6 | [[Cairn/Items.base#Armor]] |
 `,
+  'Cairn/Backgrounds/Aurifex.md': AURIFEX_NOTE,
   'Cairn/NPC traits.md': '## Traits\n\n| d20 | Trait |\n| --- | --- |\n' + Array.from({ length: 20 }, (_, i) => `| ${i + 1} | Trait ${i + 1} |`).join('\n') + '\n',
 };
 
