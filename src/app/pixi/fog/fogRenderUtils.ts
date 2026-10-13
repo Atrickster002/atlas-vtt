@@ -10,7 +10,12 @@ import { Q_SCALE } from '../../types/shapeTypes';
 
 export const FOG_COLOR = 'rgba(0, 0, 0, 1)';
 
-/** Render a brush stroke as interpolated filled circles. */
+/**
+ * Render a brush stroke as one stroked path with round caps and joins: the area
+ * within the brush radius of the polyline, the shape `fogOperationShape` commits.
+ * Stamping a disc per step instead left a lattice of half-covered pixels inside
+ * dense strokes, since Canvas anti-aliases every overlapping contour edge.
+ */
 export function renderBrush(
   ctx: CanvasRenderingContext2D,
   op: FogBrushStroke,
@@ -22,36 +27,22 @@ export function renderBrush(
   const { points, brushRadius } = op;
   if (points.length === 0 || Math.round(brushRadius * Q_SCALE) === 0) return;
 
-  const r = brushRadius * scale;
+  const first = points[0]!;
+  const fx = (first.x + offsetX - bounds.x) * scale;
+  const fy = (first.y + offsetY - bounds.y) * scale;
   ctx.beginPath();
-
-  if (points.length === 1) {
-    const p = points[0]!;
-    const cx = (p.x + offsetX - bounds.x) * scale;
-    const cy = (p.y + offsetY - bounds.y) * scale;
-    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  // Canvas strokes no cap on a path of zero length, so a dab is its disc.
+  if (points.every((p) => p.x === first.x && p.y === first.y)) {
+    ctx.arc(fx, fy, brushRadius * scale, 0, Math.PI * 2);
     ctx.fill();
     return;
   }
-
-  for (let i = 0; i < points.length - 1; i++) {
-    const p0 = points[i]!;
-    const p1 = points[i + 1]!;
-    const dx = p1.x - p0.x;
-    const dy = p1.y - p0.y;
-    const dist = Math.sqrt(dx * dx + dy * dy);
-    const steps = Math.max(1, Math.ceil(dist / (brushRadius * 0.4)));
-
-    for (let s = 0; s <= steps; s++) {
-      const t = s / steps;
-      const cx = (p0.x + dx * t + offsetX - bounds.x) * scale;
-      const cy = (p0.y + dy * t + offsetY - bounds.y) * scale;
-      ctx.moveTo(cx + r, cy);
-      ctx.arc(cx, cy, r, 0, Math.PI * 2);
-    }
-  }
-
-  ctx.fill();
+  ctx.moveTo(fx, fy);
+  for (const p of points) ctx.lineTo((p.x + offsetX - bounds.x) * scale, (p.y + offsetY - bounds.y) * scale);
+  ctx.lineWidth = 2 * brushRadius * scale;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.stroke();
 }
 
 /** Render a filled lasso polygon. */
@@ -114,6 +105,7 @@ export function renderOperation(
   try {
     ctx.globalCompositeOperation = op.isErasing ? 'destination-out' : 'source-over';
     ctx.fillStyle = FOG_COLOR;
+    ctx.strokeStyle = FOG_COLOR;
     switch (op.type) {
       case 'brush':
         renderBrush(ctx, op, bounds, scale, offsetX, offsetY);
