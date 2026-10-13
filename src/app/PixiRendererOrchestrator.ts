@@ -58,7 +58,10 @@ import type { MapImageChange } from './pixi/mapImage/mapImageView';
 import type { TileView } from './pixi/mapImage/levelOfDetail';
 import { frameView } from './services/playerFrameDemand';
 import { MapController } from './MapController';
-import { NO_STRETCH, readMapStretch, sameStretch, type MapStretch } from './grid/mapStretch';
+import { NO_STRETCH, sameStretch, type MapStretch } from './grid/mapStretch';
+import { levelImageOnItsOwn, viewedImagePlacement } from './levels/levelAlignment';
+import { viewedLevelId } from './levels/sceneLevels';
+import { levelObjects } from './levels/levelObjects';
 import { fitZoomRange } from './pixi/fitMapRect';
 import { viewCentreInClient, worldToClient, type ClientPoint } from './pixi/utils/worldToClient';
 
@@ -102,6 +105,8 @@ export class PixiRendererOrchestrator { // Renamed class
   private stopFollowingMapImage: (() => void) | null = null;
   /** The stretch of the map the zoom range was last fitted to. */
   private zoomFittedStretch: MapStretch = NO_STRETCH;
+  /** The alignment panel fits the viewed level's image to the grid (`setLevelImageAlignment`). */
+  private alignsLevelImage = false;
   private obsApp: App;
   private eventBus: EventEmitter;
   private activeHoverLinkAnchorEl: HTMLElement | null = null;
@@ -626,7 +631,7 @@ export class PixiRendererOrchestrator { // Renamed class
   private isPreviewingStretch(): boolean {
     const state = this.store.getState();
     if (!this.mapImage || !state.mapLoaded || state.isMapLoading) return false;
-    return !sameStretch(this.mapImage.mapStretch, readMapStretch(state.grid?.mapStretch));
+    return !sameStretch(this.mapImage.mapStretch, viewedImagePlacement(state));
   }
 
   /** The map has the size the scene gives it: what covers the map follows. */
@@ -679,12 +684,27 @@ export class PixiRendererOrchestrator { // Renamed class
     this.resnapTokensToGrid();
   }
 
+  /**
+   * While the alignment panel fits a level's image to the grid, the image is drawn on its own, from
+   * its corner (`levelImageOnItsOwn`), and what is measured or found on it is in that frame.
+   */
+  public setLevelImageAlignment(on: boolean): void {
+    this.alignsLevelImage = on;
+    this.mapImage?.setStretch(this.alignmentStretch());
+  }
+
+  /** How the map is drawn when no preview is shown: the viewed level's placement, or its image on its own while it is being fitted. */
+  private alignmentStretch(): MapStretch {
+    const state = this.store.getState();
+    return this.alignsLevelImage ? levelImageOnItsOwn(state, viewedLevelId(state)) : viewedImagePlacement(state);
+  }
+
   /** Cancel grid alignment: restore original grid values and the map's stretch from the store. */
   public cancelGridAlignment(): void {
     if (!this.gridSystem) return;
 
     const grid = this.store.getState().grid;
-    this.mapImage?.setStretch(readMapStretch(grid?.mapStretch));
+    this.mapImage?.setStretch(this.alignmentStretch());
     this.gridSystem.updateOptions({
       type: grid?.type ?? 'square',
       size: grid?.size || 50,
@@ -1120,8 +1140,8 @@ export class PixiRendererOrchestrator { // Renamed class
     
     if (!snapToGrid) return;
     
-    // Handle position snapping
-    const tokens = state.objects?.tokens || {};
+    // Handle position snapping, of the tokens on the level the alignment was made on
+    const tokens = levelObjects(state)?.tokens || {};
     const tokenUpdates: Array<{id: string, x: number, y: number}> = [];
     
     for (const [id, token] of Object.entries(tokens)) {

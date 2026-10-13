@@ -6,6 +6,9 @@ import { createViewAtlasStore, type ViewAtlasStore } from '../../../src/app/stor
 import { MapService } from '../../../src/app/services/MapService';
 import type { RendererService } from '../../../src/app/services/RendererService';
 import type { MapImageSource } from '../../../src/app/pixi/mapImage/mapImageTypes';
+import { movedWithMap } from '../../../src/app/grid/mapStretch';
+import { levelImagePlacement } from '../../../src/app/levels/levelAlignment';
+import { levelObjects } from '../../../src/app/levels/levelObjects';
 
 vi.mock('obsidian', async (importOriginal) => ({ ...(await importOriginal<typeof import('obsidian')>()), Notice: vi.fn() }));
 
@@ -148,5 +151,94 @@ describe('moving tokens to another level', () => {
     harness.store.getState().setViewedLevel('upper');
 
     expect(temporal.getState().pastStates).toHaveLength(0);
+  });
+});
+
+describe('the alignment of a level', () => {
+  const objects = {
+    tokens: {
+      guard: { id: 'guard', kind: 'token', x: 100, y: 100, imagePath: 'tokens/guard.png' },
+      mage: { id: 'mage', kind: 'token', x: 100, y: 100, imagePath: 'tokens/mage.png', level: 'upper' },
+    },
+    fog: {}, pins: {}, texts: {}, drawings: {}, lights: {},
+    walls: {
+      tower: { id: 'tower', kind: 'wall', type: 'solid', p1: { x: 0, y: 0 }, p2: { x: 50, y: 0 }, levels: 'all' },
+      stairs: { id: 'stairs', kind: 'wall', type: 'solid', p1: { x: 0, y: 0 }, p2: { x: 50, y: 0 }, levels: ['upper'] },
+    },
+  };
+  const SIZE = { width: 1000, height: 800 };
+  const ALIGNMENT = { offset: { x: 35, y: 0 }, scale: 1.5, stretch: { x: 1, y: 1 } };
+
+  async function loaded(): Promise<Harness> {
+    const harness = setup(JSON.stringify({ version: 5, state: sceneState({ version: 5, levels: LEVELS, objects }) }));
+    await harness.service.loadMap(harness.rendererService, SCENE);
+    return harness;
+  }
+
+  it('never moves another level\'s image or objects, and is one undo step', async () => {
+    const harness = await loaded();
+    const before = harness.store.getState();
+    const groundPlacement = levelImagePlacement(before, 'ground');
+    const move = movedWithMap(SIZE, levelImagePlacement(before, 'upper'), levelImagePlacement({ ...before, levelAlignments: { upper: ALIGNMENT } }, 'upper'));
+
+    before.alignLevel('upper', ALIGNMENT, move);
+
+    const after = harness.store.getState();
+    expect(levelImagePlacement(after, 'upper')).toEqual({ x: 1.5, y: 1.5, offset: { x: 35, y: 0 } });
+    expect(levelImagePlacement(after, 'ground')).toEqual(groundPlacement);
+    expect(after.objects.tokens.guard).toBe(before.objects.tokens.guard);
+    expect(after.objects.walls.tower).toBe(before.objects.walls.tower);
+    expect(after.objects.tokens.mage).toMatchObject({ x: 185, y: 150 });
+    expect(after.objects.walls.stairs?.p2).toEqual({ x: 110, y: 0 });
+
+    (harness.store as unknown as { temporal: { getState(): { undo(): void } } }).temporal.getState().undo();
+    expect(harness.store.getState().levelAlignments).toBeUndefined();
+    expect(harness.store.getState().objects.tokens.mage).toMatchObject({ x: 100, y: 100 });
+  });
+
+  it('of the first level moves only what stands on it when the scene has levels', async () => {
+    const harness = await loaded();
+    const before = harness.store.getState();
+
+    before.alignGrid({ ...before.grid!, mapStretch: { x: 1.2, y: 1 } }, movedWithMap(SIZE, { x: 1, y: 1 }, { x: 1.2, y: 1 }));
+
+    const after = harness.store.getState();
+    expect(after.objects.tokens.guard).toMatchObject({ x: 120, y: 100 });
+    expect(after.objects.tokens.mage).toBe(before.objects.tokens.mage);
+    expect(after.objects.walls.tower).toBe(before.objects.walls.tower);
+    expect(after.objects.walls.stairs).toBe(before.objects.walls.stairs);
+  });
+
+  it('is saved in its level in the file and read back beside the levels', async () => {
+    const harness = await loaded();
+    harness.store.getState().alignLevel('upper', ALIGNMENT);
+    await save(harness.store);
+
+    const savedLevels = savedFile(harness).state.levels as Array<{ id: string; alignment?: unknown }>;
+    expect(savedLevels.map((entry) => entry.alignment)).toEqual([undefined, ALIGNMENT]);
+
+    const reopened = setup(harness.files.get(SCENE)!);
+    await reopened.service.loadMap(reopened.rendererService, SCENE, { centerX: 0, centerY: 0, scale: 1, level: 'upper' });
+    expect(reopened.store.getState().levelAlignments).toEqual({ upper: ALIGNMENT });
+    expect(reopened.store.getState().levels?.every((entry) => entry.alignment === undefined)).toBe(true);
+    expect(reopened.images.at(-1)).toMatchObject({ kind: 'file', file: { path: 'maps/upper.png' } });
+  });
+});
+
+describe('a scene file naming a level it does not have', () => {
+  it('shows what stands on that level on the first level', async () => {
+    const objects = {
+      tokens: { lost: { id: 'lost', kind: 'token', x: 1, y: 1, imagePath: 'tokens/lost.png', level: 'cellar' } },
+      fog: {}, pins: {}, texts: {}, drawings: {}, lights: {},
+      walls: { lostWall: { id: 'lostWall', kind: 'wall', type: 'solid', p1: { x: 0, y: 0 }, p2: { x: 5, y: 0 }, levels: ['cellar'] } },
+    };
+    const harness = setup(JSON.stringify({ version: 5, state: sceneState({ version: 5, levels: LEVELS, objects }) }));
+    await harness.service.loadMap(harness.rendererService, SCENE);
+    const state = harness.store.getState();
+
+    expect(Object.keys(levelObjects(state).tokens)).toEqual(['lost']);
+    expect(Object.keys(levelObjects(state).walls)).toEqual(['lostWall']);
+    expect(Object.keys(levelObjects({ ...state, viewedLevel: 'upper' }).tokens)).toEqual([]);
+    expect(Object.keys(levelObjects({ ...state, viewedLevel: 'upper' }).walls)).toEqual([]);
   });
 });

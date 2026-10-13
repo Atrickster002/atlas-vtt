@@ -5,6 +5,7 @@
 - A campaign you play keeps one set of numbers for each player character: hit points and the other values changed on one scene show on every scene of the campaign, and travel with its folder to your other devices
 - Dice formulas take the notation Foundry, Roll20 and Dice Roller share: advantage as 2d20kh1, keep and drop, rerolls (r1, ro<2, rr1), x explosions, success counts (cs>=5), d%, Fate dice (dF), labels like 2d6[fire], and * / with brackets. Dropped and rerolled dice show struck through
 - Scenes with several levels: add floors in the command palette's Scene levels page, each on a map image of its own, then name, stack, reorder or delete them. A switcher at the map's left edge (and Page Up and Page Down) shows one floor at a time, with its own tokens, walls, lights, fog and explored areas
+- A scene keeps one grid for all its floors: align the grid on a floor above the first, and that floor's map is scaled and moved onto the grid instead, taking only its own tokens, walls and lights along
 - Move tokens to another floor from their right-click menu, and show a floor to players with the eye beside it in the switcher: players keep their picture while you look at another floor
 
 ## Improved
