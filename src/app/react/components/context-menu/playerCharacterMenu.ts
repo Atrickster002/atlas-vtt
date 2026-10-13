@@ -1,7 +1,10 @@
 import type { App } from 'obsidian';
+import type { StoreApi } from 'zustand';
+import type { ViewAtlasState } from '../../../storeFactory';
 import type { ContextMenuEntry } from './AtlasContextMenu';
 import { AssetService } from '../../../services/AssetService';
 import { isPlayerCharacter, libraryTokenOf, type PlacedTokenSource } from '../../../characters/playerCharacters';
+import { playerVisionChanges } from '../../../characters/playerVision';
 import { runInBackground } from '../../../utils/backgroundTask';
 import { t } from '../../../i18n';
 
@@ -28,14 +31,27 @@ export function playerCharacterEntry(isOn: boolean, onToggle: (on: boolean) => v
   };
 }
 
-/** The entry for a token on the map, for the library token it was placed from; null when no library token is known for it. */
-export function placedPlayerCharacterEntry(app: App, token: PlacedTokenSource): ContextMenuEntry | null {
+/**
+ * The entry for a token on the map, for the library token it was placed from; null when no library
+ * token is known for it. Making it a player character also switches on the vision of its tokens on
+ * this map (`playerVision`), one undo step; the library change is none.
+ */
+export function placedPlayerCharacterEntry(app: App, token: PlacedTokenSource, store: StoreApi<ViewAtlasState>): ContextMenuEntry | null {
   const assets = AssetService.getInstance(app);
-  const asset = libraryTokenOf(token, assets.loadedTokenAssets());
+  const library = assets.loadedTokenAssets();
+  const asset = libraryTokenOf(token, library);
   if (!asset) return null;
-  return playerCharacterEntry(isPlayerCharacter(asset), (on) => runInBackground(
-    setPlayerCharacters(app, assets, [asset.id], on),
-    `Marking token ${asset.id} as a player character`,
-    t('token.playerCharacterFailed'),
-  ));
+  return playerCharacterEntry(isPlayerCharacter(asset), (on) => {
+    if (on) {
+      const { objects, updateTokens } = store.getState();
+      const placed = Object.values(objects.tokens).filter((entry) => libraryTokenOf(entry, library)?.id === asset.id);
+      const changes = playerVisionChanges(objects.tokens, placed.map((entry) => entry.id));
+      if (changes.length > 0) updateTokens(changes);
+    }
+    runInBackground(
+      setPlayerCharacters(app, assets, [asset.id], on),
+      `Marking token ${asset.id} as a player character`,
+      t('token.playerCharacterFailed'),
+    );
+  });
 }

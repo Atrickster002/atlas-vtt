@@ -8,6 +8,7 @@ import { StatblockSheet } from '../../../../src/app/statblocks/render/StatblockS
 import { TemplateLibrary } from '../../../../src/app/statblocks/library/TemplateLibrary';
 import { createInMemoryApp } from '../../../mocks/inMemoryVault';
 import { NOTE_PATH, renderPane, type PaneHarness } from './paneKit';
+import { stubLayout } from '../../../mocks/jsdomLayout';
 
 const store = vi.hoisted(() => ({ tokens: [] as Array<Record<string, unknown>> }));
 vi.mock('../../../../src/app/services/AssetService', async (importOriginal) => {
@@ -18,6 +19,7 @@ vi.mock('../../../../src/app/services/AssetService', async (importOriginal) => {
     getAssets: async () => store.tokens,
     getTokenAssets: async () => store.tokens,
     findTokenAssetByImagePath: (path: string) => store.tokens.find((token) => token.imagePath === path) ?? null,
+    loadedTokenAssets: () => store.tokens,
     onReconciled: () => () => undefined,
     getDefaultCollectionId: () => 'campaign',
     getCollectionSettings: () => ({ conditions: [] }),
@@ -40,12 +42,11 @@ const links = vi.hoisted(() => ({
 vi.mock('../../../../src/app/services/TokenStatblockLinkService', () => ({ TokenStatblockLinkService: { getInstance: () => links } }));
 const ring = vi.hoisted(() => ({ setTokenRing: vi.fn(async () => undefined) }));
 vi.mock('../../../../src/app/services/tokenRingSync', () => ring);
-const chooser = vi.hoisted(() => ({ choose: null as ((file: TFile) => void) | null }));
-vi.mock('../../../../src/app/statblocks/editor/token-socket/VaultImageModal', () => ({
-  isVaultImage: (file: TFile) => /\.(png|webp)$/.test(file.path),
-  VaultImageModal: class {
-    constructor(_app: unknown, choose: (file: TFile) => void) { chooser.choose = choose; }
-    open(): void {}
+// The image workers have no Node build: vault images show without a thumbnail.
+vi.mock('../../../../src/app/packages/components/asset-manager/vault-images/vaultImageThumbnails', () => ({
+  VaultImageThumbnails: class {
+    load(): Promise<null> { return Promise.resolve(null); }
+    dispose(): void {}
   },
 }));
 
@@ -71,7 +72,6 @@ beforeEach(() => {
     token('rat', 'Giant Rat', 'Art/rat.webp'),
   ];
   for (const fn of [links.linkTokenToStatblock, links.unlinkToken, links.createTokenFromStatblockImage, ring.setTokenRing]) fn.mockClear();
-  chooser.choose = null;
 });
 
 async function pane(frontmatter: Record<string, unknown> = WARDEN): Promise<PaneHarness> {
@@ -101,7 +101,8 @@ describe('the token socket', () => {
     expect(document.activeElement).toBe(within(dialog).getByRole('textbox', { name: 'Search tokens' }));
   });
 
-  it('shows an empty socket that asks for art where the note names none', async () => {
+  it('shows an empty socket that asks for art where the note names none and no token is linked', async () => {
+    store.tokens = store.tokens.filter((entry) => entry.id !== 'warden');
     await pane({ ...WARDEN, image: undefined });
     expect(socket().classList.contains('atlas-sb-token-socket--empty')).toBe(true);
     expect(socket().textContent).toBe('Add token art');
@@ -123,7 +124,8 @@ describe('the token socket', () => {
     const dialog = await open();
     await act(async () => { fireEvent.click(within(dialog).getByRole('button', { name: 'Bog Hag' })); });
     await settle();
-    expect(links.linkTokenToStatblock).toHaveBeenCalledWith(HAG_ART, NOTE_PATH, { updateStatblockAvatar: true });
+    // Beside the token linked already; the panel shows the link, so the service shows no notice of it.
+    expect(links.linkTokenToStatblock).toHaveBeenCalledWith(HAG_ART, NOTE_PATH, { updateStatblockAvatar: true, notice: false });
     expect(screen.queryByRole('dialog', { name: 'Token art' })).toBeNull();
     expect(document.activeElement).toBe(socket());
   });
@@ -178,13 +180,22 @@ describe('the token socket', () => {
     expect(links.unlinkToken).toHaveBeenCalledWith(WARDEN_ART, { updateStatblockAvatar: true });
   });
 
-  it('writes a vault image chosen without a token as the note\'s art, one write of the note', async () => {
-    const { writer } = await pane();
+  it('holds the search and the Ring switch in one row, above the tabs', async () => {
+    await pane();
     const dialog = await open();
-    await act(async () => { fireEvent.click(within(dialog).getByRole('button', { name: /Choose image/ })); });
-    expect(screen.queryByRole('dialog', { name: 'Token art' })).toBeNull();
-    await act(async () => { chooser.choose?.(new TFile('Art/plain.png')); });
-    expect(writer.writes.at(-1)).toEqual({ path: NOTE_PATH, patches: [{ op: 'set', path: ['image'], base: WARDEN_ART, next: 'Art/plain.png' }] });
+    const row = dialog.querySelector('.atlas-sb-token-panel__controls')!;
+    expect(within(row as HTMLElement).getByRole('textbox', { name: 'Search tokens' })).not.toBeNull();
+    expect(within(row as HTMLElement).getByRole('switch', { name: 'Ring' })).not.toBeNull();
+    expect(within(dialog).getAllByRole('radio').map((tab) => tab.textContent)).toEqual(['Tokens', 'Vault images']);
+  });
+
+  it('shows the linked token\'s art where the note\'s picture is a file the vault no longer holds', async () => {
+    await pane({ ...WARDEN, image: 'Art/gone.webp' });
+    expect(socket().classList.contains('atlas-sb-token-socket--empty')).toBe(false);
+    expect(socket().querySelector('img')?.getAttribute('src')).toContain(WARDEN_ART);
+    const dialog = await open();
+    // Its ring is the token's, which the switch sets.
+    expect(within(dialog).getByRole('switch', { name: 'Ring' }).getAttribute('aria-disabled')).not.toBe('true');
   });
 
   it('switches the ring of the token whose art the statblock shows', async () => {
@@ -221,6 +232,25 @@ describe('the token socket', () => {
     render(<StatblockSheet template={GENERIC_CREATURE.template} name="Generic" fields={WARDEN} variant="full" app={app} sourcePath={NOTE_PATH} />);
     expect(document.querySelector('.atlas-sb-token-socket')).toBeNull();
     expect(document.querySelector('.atlas-sb-token-image')).not.toBeNull();
+  });
+});
+
+describe('the Vault images tab', () => {
+  // jsdom has no layout: the virtual grid gets a box to show its first rows in.
+  stubLayout({ width: 800, height: 600 });
+
+  it('writes a vault image chosen in the Vault images tab as the note\'s art, one write of the note, and closes', async () => {
+    const { writer } = await pane();
+    const dialog = await open();
+    expect(within(dialog).queryByRole('button', { name: /Choose image/ })).toBeNull();
+    await act(async () => { fireEvent.click(within(dialog).getByRole('radio', { name: 'Vault images' })); });
+    expect(within(dialog).getByRole('textbox', { name: 'Search vault images' })).not.toBeNull();
+    const plain = await within(dialog).findByRole('button', { name: 'plain' });
+    expect(within(dialog).getByRole('button', { name: 'warden' }).getAttribute('aria-pressed')).toBe('true');
+    await act(async () => { fireEvent.click(plain); });
+    await settle();
+    expect(writer.writes.at(-1)).toEqual({ path: NOTE_PATH, patches: [{ op: 'set', path: ['image'], base: WARDEN_ART, next: 'Art/plain.png' }] });
+    expect(screen.queryByRole('dialog', { name: 'Token art' })).toBeNull();
   });
 });
 

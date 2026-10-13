@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { fsLayoutToTemplate } from '../../../../src/app/statblocks/fs/fsLayoutToTemplate';
-import { trackScripts, withTrackBlocks } from '../../../../src/app/statblocks/fs/fsTrackReplacement';
+import { trackScripts, withTrackBlocks, withTracksInPlace } from '../../../../src/app/statblocks/fs/fsTrackReplacement';
 import type { StatblockTemplate, TemplateBlock } from '../../../../src/app/statblocks/model/templateTypes';
 import { flattenReadingOrder } from '../../../../src/app/statblocks/model/treeQueries';
+import { BEAST_LAYOUT } from '../fs/fixtures/syntheticLayouts';
 import { MARSH_LAYOUT } from './fsImportKit';
 
 const imported = (): StatblockTemplate => fsLayoutToTemplate(MARSH_LAYOUT, { id: 'marsh-layout-abc123' }).template;
@@ -43,5 +44,26 @@ describe('withTrackBlocks', () => {
     const replaced = withTrackBlocks(template);
     expect(withTrackBlocks(replaced)).toBe(replaced);
     expect(withTrackBlocks(template, ['not-a-block'])).toBe(template);
+  });
+});
+
+describe('withTracksInPlace', () => {
+  it('replaces the scripts Track blocks can stand in for and names only the scripts still kept', () => {
+    const converted = fsLayoutToTemplate(BEAST_LAYOUT, { id: 'synthetic-beast-abc123' });
+    const { template, report } = withTracksInPlace(converted);
+
+    expect(types(flattenReadingOrder(template.layout.blocks)).filter((type) => type === 'track')).toEqual(['track', 'track']);
+    expect(trackScripts(template)).toEqual([]);
+    expect(report.scripts).toEqual(converted.report.scripts.filter((script) => script.suggestion !== 'track'));
+    const kept = flattenReadingOrder(template.layout.blocks).flatMap((block) => (block.type === 'script' ? [block.id] : []));
+    expect(report.scripts.map((script) => script.blockId).sort()).toEqual(kept.sort());
+    expect(report.scripts.length).toBeGreaterThan(0);
+  });
+
+  it('leaves an import without tracks as it is', () => {
+    const converted = fsLayoutToTemplate(MARSH_LAYOUT, { id: 'marsh-layout-abc123' });
+    const once = withTracksInPlace(converted);
+    expect(withTracksInPlace(once)).toEqual(once);
+    expect(withTracksInPlace(once).template).toBe(once.template);
   });
 });

@@ -1,4 +1,4 @@
-import React, { useId, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Check } from 'lucide-react';
 import { TokenPortrait } from '../../../packages/components/shared/TokenPortrait';
 import { Skeleton, SkeletonGroup } from '../../../packages/components/primitives/Skeleton';
@@ -15,7 +15,9 @@ export interface TokenChoiceGridProps {
   /** While a link is being made, nothing else can be chosen. */
   busy: boolean;
   onChoose: (token: CardToken) => void;
-  /** The search field, focused when the panel opens. */
+  /** The panel's search: the tokens whose name holds it are shown. */
+  query: string;
+  /** The search field, where Up from the first row goes. */
   searchRef: React.RefObject<HTMLInputElement | null>;
 }
 
@@ -44,15 +46,15 @@ function columnsOf(buttons: readonly HTMLElement[]): number {
 
 /**
  * The collection's tokens to link, searched by name: one tab stop, the arrow
- * keys move between tokens (Up from the first row, back to the search), and
- * Enter or a click links the one in focus. Cards are the asset manager's art:
+ * keys move between tokens (Up from the first row, back to the search; Down
+ * from the search reaches the tab stop), and Enter or a click links the one
+ * in focus. Cards are the asset manager's art:
  * the thumbnail, or a placeholder while it is made.
  */
-export function TokenChoiceGrid({ tokens, linkedIds, loaded, busy, onChoose, searchRef }: TokenChoiceGridProps): React.JSX.Element {
-  const [query, setQuery] = useState('');
+export function TokenChoiceGrid({ tokens, linkedIds, loaded, busy, onChoose, query, searchRef }: TokenChoiceGridProps): React.JSX.Element {
   const [active, setActive] = useState(0);
   const gridRef = useRef<HTMLDivElement>(null);
-  const labelId = useId();
+  useEffect(() => { setActive(0); }, [query]);
   const shown = useMemo(() => {
     const wanted = query.trim().toLowerCase();
     return wanted ? tokens.filter((token) => token.name.toLowerCase().includes(wanted)) : tokens;
@@ -81,87 +83,52 @@ export function TokenChoiceGrid({ tokens, linkedIds, loaded, busy, onChoose, sea
     }
   };
 
-  const onSearchKeyDown = (event: React.KeyboardEvent<HTMLInputElement>): void => {
-    // Escape empties a search first; once empty, it closes the panel.
-    if (event.key === 'Escape' && query !== '') {
-      event.preventDefault();
-      event.stopPropagation();
-      setQuery('');
-      return;
-    }
-    if (event.key !== 'ArrowDown' || shown.length === 0) return;
-    event.preventDefault();
-    focusAt(focusable);
-  };
-
-  const content = ((): React.ReactNode => {
-    if (!loaded) {
-      return (
-        <SkeletonGroup className="atlas-sb-token-grid" label="Loading tokens">
-          {Array.from({ length: PLACEHOLDERS }, (_, index) => (
-            <span key={index} className="atlas-sb-token-choice atlas-sb-token-choice--placeholder">
-              <Skeleton shape="circle" className="atlas-sb-token-choice__art" />
-              <Skeleton shape="text" width="70%" />
-            </span>
-          ))}
-        </SkeletonGroup>
-      );
-    }
-    if (tokens.length === 0) return <p className="atlas-sb-token-panel__empty">No tokens in this collection yet.</p>;
-    if (shown.length === 0) return <p className="atlas-sb-token-panel__empty">No token matches “{query.trim()}”.</p>;
+  if (!loaded) {
     return (
-      <div ref={gridRef} className="atlas-sb-token-grid" role="group" aria-labelledby={labelId} onKeyDown={onGridKeyDown}>
-        {shown.map((token, index) => {
-          const linked = linkedIds.has(token.id);
-          return (
-            <button
-              key={token.id}
-              type="button"
-              className="atlas-sb-token-choice"
-              tabIndex={index === focusable ? 0 : -1}
-              // Never `disabled` while a link is made: a disabled button drops the focus out of the panel.
-              aria-disabled={linked || busy || undefined}
-              data-linked={linked || undefined}
-              onFocus={() => setActive(index)}
-              onClick={() => { if (!linked) onChoose(token); }}
-            >
-              <span className="atlas-sb-token-choice__art">
-                <TokenPortrait
-                  src={token.thumbnailUrl || token.imageUrl}
-                  alt=""
-                  showRing={token.showRing !== false}
-                  reveal
-                  pending={token.thumbnailPending}
-                />
-                {linked && <Check className="atlas-sb-token-choice__tick" aria-hidden="true" />}
-              </span>
-              <span className="atlas-sb-token-choice__name">{token.name}</span>
-              {details.get(token.id) && <span className="atlas-sb-token-choice__detail">{details.get(token.id)}</span>}
-              {linked && <span className="atlas-sb-token-panel__hidden">, linked</span>}
-            </button>
-          );
-        })}
-      </div>
+      <SkeletonGroup className="atlas-sb-token-grid" label="Loading tokens">
+        {Array.from({ length: PLACEHOLDERS }, (_, index) => (
+          <span key={index} className="atlas-sb-token-choice atlas-sb-token-choice--placeholder">
+            <Skeleton shape="circle" className="atlas-sb-token-choice__art" />
+            <Skeleton shape="text" width="70%" />
+          </span>
+        ))}
+      </SkeletonGroup>
     );
-  })();
-
+  }
+  if (tokens.length === 0) return <p className="atlas-sb-token-panel__empty">No tokens in this collection yet.</p>;
+  if (shown.length === 0) return <p className="atlas-sb-token-panel__empty">No token matches “{query.trim()}”.</p>;
   return (
-    <section className="atlas-sb-token-panel__section" aria-labelledby={labelId}>
-      <h4 id={labelId} className="atlas-sb-token-panel__label">Link a token</h4>
-      <input
-        ref={searchRef}
-        type="text"
-        className="atlas-sb-token-panel__search"
-        placeholder="Search tokens"
-        aria-label="Search tokens"
-        value={query}
-        onChange={(event) => {
-          setQuery(event.target.value);
-          setActive(0);
-        }}
-        onKeyDown={onSearchKeyDown}
-      />
-      {content}
-    </section>
+    <div ref={gridRef} className="atlas-sb-token-grid" role="group" aria-label="Tokens" onKeyDown={onGridKeyDown}>
+      {shown.map((token, index) => {
+        const linked = linkedIds.has(token.id);
+        return (
+          <button
+            key={token.id}
+            type="button"
+            className="atlas-sb-token-choice"
+            tabIndex={index === focusable ? 0 : -1}
+            // Never `disabled` while a link is made: a disabled button drops the focus out of the panel.
+            aria-disabled={linked || busy || undefined}
+            data-linked={linked || undefined}
+            onFocus={() => setActive(index)}
+            onClick={() => { if (!linked) onChoose(token); }}
+          >
+            <span className="atlas-sb-token-choice__art">
+              <TokenPortrait
+                src={token.thumbnailUrl || token.imageUrl}
+                alt=""
+                showRing={token.showRing !== false}
+                reveal
+                pending={token.thumbnailPending}
+              />
+              {linked && <Check className="atlas-sb-token-choice__tick" aria-hidden="true" />}
+            </span>
+            <span className="atlas-sb-token-choice__name">{token.name}</span>
+            {details.get(token.id) && <span className="atlas-sb-token-choice__detail">{details.get(token.id)}</span>}
+            {linked && <span className="atlas-sb-token-panel__hidden">, linked</span>}
+          </button>
+        );
+      })}
+    </div>
   );
 }

@@ -4,7 +4,7 @@
  * A layout is imported once: its template is found again by the layout's id,
  * then by its name (`importedFrom`), so the 300 notes of one layout share one
  * template. The conversion is `fsLayoutToTemplate`, which never runs the
- * layout's JavaScript.
+ * layout's JavaScript; scripts that drew tracks of boxes become Track blocks.
  */
 
 import type { App } from 'obsidian';
@@ -18,6 +18,7 @@ import type { TemplateId } from '../model/templateTypes';
 import { libraryLoaded } from '../resolve/readStatblock';
 import { fsLayoutToTemplate, isFsLayout } from './fsLayoutToTemplate';
 import type { FsImportReport, FsLayout, FsLayoutResolver } from './fsLayoutTypes';
+import { withTracksInPlace } from './fsTrackReplacement';
 
 /** What names a layout: FS's id, and its name, which a layout file keeps when FS gives it a new id. */
 export interface LayoutIdentity {
@@ -86,7 +87,7 @@ async function importOnce(app: App, layout: FsLayout, identity: LayoutIdentity, 
   const found = findImportedTemplate(library.list(), identity);
   if (found?.path) return { id: found.template.id, name: found.name, path: found.path, report: null };
   const name = identity.name.trim() || FALLBACK_NAME;
-  const { template, report } = fsLayoutToTemplate(layout, { id: newTemplateId(name), resolveLayout });
+  const { template, report } = withTracksInPlace(fsLayoutToTemplate(layout, { id: newTemplateId(name), resolveLayout }));
   const created = await createTemplateFile(app, name, template);
   return { id: created.id, name: library.get(created.id)?.name ?? name, path: created.path, report };
 }

@@ -24,7 +24,7 @@
 - Alignment marks and the grid preview use the theme's accent colour, and marks keep their size at every zoom
 - Atlas' messages at the edge of the window take the look of its panels in your theme, where they were Obsidian's dark box
 - Several tokens can share one statblock, for colour variants of a creature or NPCs of one kind: linking another token keeps the first, and the DM screen shows them as one statblock
-- A statblock keeps its own picture: linking a token sets it only where the statblock has none, and a token copied to another collection keeps its statblock
+- A statblock keeps its own picture: linking a token sets it only where the statblock has none or its picture's file is gone, and a token copied to another collection keeps its statblock
 - The creature filter Layout is now called Template. Type `template:` in the search; `layout:` still works
 - The token creator finds statblock notes without the Fantasy Statblocks plugin too. Its image source is now called Statblock notes
 
@@ -37,6 +37,7 @@
 - Measured distances show one decimal place, so a 1.5 m cell reads 1.5 m instead of 2 m
 - The fog brush paints and reveals an even stroke while you drag it, where a slow stroke showed a pattern of half-covered dots until it was let go
 - Saving an encounter from the asset manager or scene browser asks for its name in front of it, where the dialog opened behind it
+- Linking a token that was linked to another statblock shows one message saying it moved, where it showed that it was unlinked and then linked
 - Cmd+A (Ctrl+A) in a text field of the asset manager, such as the rename field, selects its text instead of every asset
 - Creating maps, tokens and scenes offers only the tags of the chosen collection, no longer tags deleted from it or kept by other collections
 - A fixed value such as an armour class shows on its token when it is 0, and follows its statblock down to 0

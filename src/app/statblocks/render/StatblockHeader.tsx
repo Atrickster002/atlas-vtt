@@ -7,6 +7,7 @@ import { ImageView } from './blocks/ImageView';
 import { StatView } from './blocks/StatView';
 import { TextView } from './blocks/TextView';
 import { TitleView } from './blocks/TitleView';
+import { TrackView } from './blocks/TrackView';
 import { useSheet } from './sheetContext';
 import { DisplayText } from './values/ValueText';
 import { ValueSlot } from './valueSlot';
@@ -34,6 +35,7 @@ function partContent(drawn: DrawnPart): React.ReactNode {
     case 'image': return <ImageView block={block} display={display} />;
     case 'text': return <TextView block={block} display={display} />;
     case 'stat': return part.id === 'type' ? <TypeView {...drawn} /> : <StatView block={block} display={display} />;
+    case 'track': return <TrackView block={block} display={display} />;
     default: return null;
   }
 }

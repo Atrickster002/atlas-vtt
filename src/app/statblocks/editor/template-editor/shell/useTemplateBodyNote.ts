@@ -85,7 +85,14 @@ export function useHostedNote(
       view.containerEl.addClass(...VIEW_CLASSES);
       parent.appendChild(view.containerEl);
       // Obsidian saves a note a moment after typing pauses; a statblock made meanwhile reads the editor.
-      stopReading = noteOpenBody(app, file, () => view.getViewData());
+      const { editor } = view;
+      stopReading = noteOpenBody(app, file, {
+        read: () => view.getViewData(),
+        replace: (text) => {
+          const last = editor.lastLine();
+          editor.replaceRange(text, { line: 0, ch: 0 }, { line: last, ch: editor.getLine(last).length });
+        },
+      });
       if (focus.current) {
         focus.current = false;
         view.editor.focus();

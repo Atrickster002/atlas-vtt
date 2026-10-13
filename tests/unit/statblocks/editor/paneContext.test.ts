@@ -27,6 +27,7 @@ describe('the collection context', () => {
       getCollections: async () => [{ id: 'a', name: 'A' }, { id: 'b', name: 'B' }],
       getAssets: async () => tokens,
       getDefaultCollectionId: () => 'b',
+      loadedTokenAssets: () => [],
     };
     vi.doMock('../../../../src/app/services/AssetService', () => ({ AssetService: { getInstance: () => assets } }));
     vi.resetModules();

@@ -10,11 +10,6 @@
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax($choice-min, 1fr));
     gap: $spacing-s;
-    max-height: $grid-max-height;
-    padding: 2px;
-    margin: -2px;
-    overflow-y: auto;
-    @include atlas-scrollbar;
   }
 
   .atlas-sb-token-choice {

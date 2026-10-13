@@ -3,6 +3,8 @@ import { SIDE_LABELS, otherSide, sideOf } from '../../initiative/sides';
 import type { TokenUpdates } from '../../types/viewState';
 import type { TokenEntity } from '../../types';
 import type { InitiativeEntry } from '../../types/initiativeTypes';
+import type { InitiativeSide } from '../../types/initiativeRulesTypes';
+import { playerVision } from '../../characters/playerVision';
 import { t } from '../../i18n';
 
 interface CardMenuActions {
@@ -13,6 +15,12 @@ interface CardMenuActions {
   updateToken: (changes: TokenUpdates) => void;
   setSitsOut: (sitsOut: boolean) => void;
   remove: () => void;
+}
+
+/** Moves a token to `side`; one moved to the players' side sees by default (`playerVision`), and nothing switches vision off. */
+function sideChanges(token: TokenEntity | undefined, side: InitiativeSide): TokenUpdates {
+  const vision = side === 'players' ? playerVision(token?.vision) : undefined;
+  return vision ? { side, vision } : { side };
 }
 
 /**
@@ -35,7 +43,7 @@ export function initiativeCardMenu(
     item(t('initiative.toBack'), 'arrow-down-to-line', actions.moveToBack),
     ...(mode.bySides
       ? [
-        item(`Move to ${SIDE_LABELS[other]}`, 'arrow-left-right', () => actions.updateToken({ side: other })),
+        item(`Move to ${SIDE_LABELS[other]}`, 'arrow-left-right', () => actions.updateToken(sideChanges(token, other))),
         ...(mode.fightRuns
           ? [item(entry.sitsOut ? 'Act This Round' : 'Sit Out This Round', entry.sitsOut ? 'play' : 'pause', () => actions.setSitsOut(!entry.sitsOut))]
           : []),

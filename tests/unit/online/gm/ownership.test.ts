@@ -92,12 +92,12 @@ describe('player tokens', () => {
     expect(again.isPlayerToken(MAP, 'blind', blind)).toBe(true);
   });
 
-  it('are open to claim until a player has them, and making a token the GM\'s takes it back', () => {
+  it('are player tokens to players whether or not the GM gave them to anyone, and making a token the GM\'s takes it back', () => {
     const { owners } = ownership();
     owners.joined({ id: ANA, name: 'Ana' });
-    expect(owners.claimOf(MAP, 'seeing', seeing)).toBe('open');
+    expect(owners.claimOf(MAP, 'seeing', seeing)).toBe('taken');
     expect(owners.claimOf(MAP, 'blind', blind)).toBeNull();
-    expect(owners.claim('seeing', ANA)).toBe(true);
+    owners.give(['seeing'], ANA);
     expect(owners.claimOf(MAP, 'seeing', seeing)).toBe('taken');
     owners.give(['blind'], ANA);
     expect(owners.claimOf(MAP, 'blind', blind)).toBe('taken');
@@ -106,13 +106,12 @@ describe('player tokens', () => {
     expect([owners.ownerOf('seeing'), owners.claimOf(MAP, 'seeing', seeing)]).toEqual([undefined, null]);
   });
 
-  it('are claimed once, by a player it knows, and given back only by the GM', () => {
+  it('are given by the GM to a player it knows, and given back only by the GM', () => {
     const { owners } = ownership();
     owners.joined({ id: ANA, name: 'Ana' });
-    owners.joined({ id: BEN, name: 'Ben' });
-    expect(owners.claim('seeing', 'c'.repeat(20))).toBe(false);
-    expect(owners.claim('seeing', ANA)).toBe(true);
-    expect(owners.claim('seeing', BEN)).toBe(false);
+    owners.give(['seeing'], 'c'.repeat(20));
+    expect(owners.ownerOf('seeing')).toBeUndefined();
+    owners.give(['seeing'], ANA);
     expect(owners.ownerOf('seeing')).toBe(ANA);
     owners.give(['seeing'], null);
     expect(owners.ownerOf('seeing')).toBeUndefined();

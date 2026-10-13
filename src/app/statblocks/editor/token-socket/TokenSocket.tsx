@@ -11,7 +11,7 @@ import { valueText } from '../../values/valueText';
 import { usePaneEdit } from '../statblock-pane/paneEditContext';
 import { TokenLinkPanel } from './TokenLinkPanel';
 import { TokenSocketFace } from './TokenSocketFace';
-import { artSrc, artToken } from './tokenSocketActions';
+import { shownArt } from './tokenSocketActions';
 import { useSocketPlacement } from './useSocketPlacement';
 import './token-socket.scss';
 
@@ -85,11 +85,11 @@ export function TokenSocket({ block, art }: TokenSocketProps): React.JSX.Element
   }, [open, socket, close, pane.app]);
 
   if (!field || !pane.writable) return <>{art}</>;
-  const src = artSrc(pane, field);
+  const { src, token } = shownArt(pane, field);
   const named = valueText(pane.read(field).value) !== '';
-  const ring = artToken(pane, field)?.showRing !== false;
+  // A portrait is the card's own drawing, which shows a linked token's art too where the note's cannot be shown.
   const shown = block.shape === 'token' && src
-    ? <TokenPortrait className="atlas-sb-token-image" src={src} alt="" showRing={ring} />
+    ? <TokenPortrait className="atlas-sb-token-image" src={src} alt="" showRing={token?.showRing !== false} />
     : art;
 
   return (

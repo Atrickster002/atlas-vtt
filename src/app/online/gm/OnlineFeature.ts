@@ -253,7 +253,7 @@ export class OnlineFeature extends Component {
     if (checking) return true;
     const count = this.online.markSelected(player);
     if (count === 0) showNotice('Select tokens on the map first.');
-    else showNotice(player ? `${tokensText(count)} can now be claimed by players.` : `${tokensText(count)} now belong to the GM.`);
+    else showNotice(player ? `Player tokens: ${tokensText(count)}. Assign each to a player in the online panel.` : `${tokensText(count)} now belong to the GM.`);
     return true;
   }
 

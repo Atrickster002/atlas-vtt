@@ -113,6 +113,12 @@ export class FakeSession implements EditorSession {
     this.patch({ dirty: this.snapshot.unsaved, saveState: 'saved' });
   }
 
+  /** As the session: only a template without a file holds its text in the draft. */
+  setDraftBody(text: string): void {
+    if (this.snapshot.readOnly || this.snapshot.path !== null) return;
+    this.patch({ draftBody: text, dirty: true });
+  }
+
   resolveConflict(choice: 'keep-mine' | 'use-other' | 'save-copy' | 'recreate'): Promise<void> {
     this.resolutions.push(choice);
     return Promise.resolve();

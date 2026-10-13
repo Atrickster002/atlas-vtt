@@ -1,6 +1,6 @@
 import { type App, type WorkspaceLeaf } from 'obsidian';
 import { showNotice } from '../../ui/notice';
-import { activeAtlasLeaf, sceneStoreOf, selectedTokenIds, tokenLabel, type SceneStore } from './atlasView.ts';
+import { activeAtlasLeaf, activeStore, sceneStoreOf, selectedTokenIds, tokenLabel, workScene, type WorkScene } from './atlasView.ts';
 import { obsidianHttp } from './account/obsidianHttp.ts';
 import { BookShelf } from './book/BookShelf.ts';
 import { createTable } from './createTable.ts';
@@ -8,6 +8,7 @@ import { newGate } from './joinGate.ts';
 import { LogKeeper, type LogStore } from './log/logStore.ts';
 import { OnlineTable } from './OnlineTable.ts';
 import type { KnownPlayer, Ownership } from './ownership.ts';
+import { seeAsPlayers } from './playerTokenVision.ts';
 import { presentOnPlayerView, presentedSceneSource, showPresentedElsewhere, type ShownElsewhere } from './presentedScene.ts';
 import type { SavedTable } from './savedTable.ts';
 import { RELAY_ORIGIN } from './servers.ts';
@@ -19,7 +20,7 @@ export interface PlayerTokenRow {
   readonly tokenId: string;
   /** What the GM calls the token. */
   readonly label: string;
-  /** The player who has it, or null while it is open to claim. */
+  /** The player the GM gave it to, or null while the GM gave it to nobody. */
   readonly owner: KnownPlayer | null;
 }
 
@@ -35,25 +36,9 @@ export interface HostAccount {
 
 const NO_ACCOUNT: HostAccount = { token: () => null, signedOutByServer: () => undefined, refresh: () => Promise.resolve() };
 
-/** An Atlas tab's store and the map path its player tokens are kept by. */
-interface WorkScene {
-  readonly store: SceneStore;
-  readonly mapPath: string;
-}
-
-function activeStore(app: App): SceneStore | null {
-  const leaf = activeAtlasLeaf(app);
-  return leaf === null ? null : sceneStoreOf(leaf);
-}
-
 function refused(text: string): null {
   showNotice(text);
   return null;
-}
-
-function workScene(store: SceneStore | null): WorkScene | null {
-  const mapPath = store?.getState().mapPath ?? null;
-  return store === null || mapPath === null ? null : { store, mapPath };
 }
 
 /**
@@ -207,21 +192,29 @@ export class OnlineControl {
 
   /** Makes tokens of the shared scene player tokens, or the GM's own (which takes them back from their players). */
   markPlayerTokens(tokenIds: readonly string[], player: boolean): void {
-    const scene = this.sharedScene();
-    if (scene !== null && tokenIds.length > 0) this.ownership.markPlayerTokens(scene.mapPath, tokenIds, player);
+    this.mark(this.sharedScene(), tokenIds, player);
   }
 
   /** Makes the tokens selected on the active Atlas tab player tokens, or the GM's own; the number of tokens changed. */
   markSelected(player: boolean): number {
     const scene = this.activeScene();
     const selected = scene === null ? [] : selectedTokenIds(scene.store.getState());
-    if (scene !== null && selected.length > 0) this.ownership.markPlayerTokens(scene.mapPath, selected, player);
+    this.mark(scene, selected, player);
     return selected.length;
   }
 
-  /** Gives tokens to a player, or takes them back from whoever has them (null). */
+  /** Gives tokens to a player, or takes them back from whoever has them (null). A token nobody had sees from then on (`seeAsPlayers`). */
   give(tokenIds: readonly string[], playerId: string | null): void {
+    const scene = this.sharedScene();
+    if (scene !== null && playerId !== null && this.ownership.nameOf(playerId) !== null) seeAsPlayers(scene.store, tokenIds, (id) => this.ownership.ownerOf(id) === undefined);
     this.ownership.give(tokenIds, playerId);
+  }
+
+  /** A token that becomes a player token sees from then on (`seeAsPlayers`). */
+  private mark(scene: WorkScene | null, tokenIds: readonly string[], player: boolean): void {
+    if (scene === null || tokenIds.length === 0) return;
+    if (player) seeAsPlayers(scene.store, tokenIds, (id, token) => !this.ownership.isPlayerToken(scene.mapPath, id, token));
+    this.ownership.markPlayerTokens(scene.mapPath, tokenIds, player);
   }
 
   private sharedScene(): WorkScene | null {

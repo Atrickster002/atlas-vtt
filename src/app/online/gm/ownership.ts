@@ -2,7 +2,7 @@ import { PLAYER_ID_PATTERN, playerName, type Claim, type PlayerInfo } from '../p
 import { sideOf } from '../../initiative/sides';
 import type { TokenEntity } from '../../types';
 
-/** Who plays at the table, which tokens are theirs, and which tokens players may claim, as saved in the companion's data. */
+/** Who plays at the table, which tokens are theirs, and which tokens are player tokens, as saved in the companion's data. */
 export interface OwnershipData {
   /** Every player who joined the table, by id. */
   readonly players: Readonly<Record<string, { readonly name: string }>>;
@@ -57,9 +57,9 @@ export const isPlayerSide = (token: TokenEntity): boolean => sideOf(token) === '
 
 /**
  * The table's players, token owners and player tokens. A token has at most one owner: the player the
- * GM gave it to or who claimed it. Players may claim only player tokens nobody has; which tokens are
- * player tokens the GM decides per scene, and the rest follow the players' side. Everything but who
- * is online is saved through `save` whenever it changes; player tokens outlive a table.
+ * GM gave it to; players take none themselves. Which tokens are player tokens the GM decides per
+ * scene, and the rest follow the players' side. Everything but who is online is saved through `save`
+ * whenever it changes; player tokens outlive a table.
  */
 export class Ownership {
   private readonly players = new Map<string, string>();
@@ -160,18 +160,12 @@ export class Ownership {
     this.changed(true);
   }
 
-  /** What players may know of a token: open to claim, taken, or the GM's. */
+  /**
+   * What players may know of a token: `taken` for a player token or one a player was given, null for
+   * the GM's own. Never `open`: older pages offered such a token to claim, and only the GM gives tokens.
+   */
   claimOf(mapPath: string, tokenId: string, token: TokenEntity): Claim {
-    if (this.owners.has(tokenId)) return 'taken';
-    return this.isPlayerToken(mapPath, tokenId, token) ? 'open' : null;
-  }
-
-  /** A player claims a token for themselves: only a known player, and only a token nobody has. The caller checks it is a player token. */
-  claim(tokenId: string, playerId: string): boolean {
-    if (!this.players.has(playerId) || this.owners.has(tokenId) || tokenId.length > MAX_TOKEN_ID) return false;
-    this.owners.set(tokenId, playerId);
-    this.changed(true);
-    return true;
+    return this.owners.has(tokenId) || this.isPlayerToken(mapPath, tokenId, token) ? 'taken' : null;
   }
 
   /** The player tokens of a scene and the tokens players were given there, each with its owner, in the scene's order. */

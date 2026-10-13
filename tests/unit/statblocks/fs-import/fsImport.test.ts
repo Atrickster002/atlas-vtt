@@ -24,7 +24,7 @@ const read = (path: string): StatblockTemplate => JSON.parse(vault.files.get(pat
 const templateFiles = (): string[] => [...vault.files.keys()].filter((path) => path.startsWith(`${TEMPLATE_FOLDER}/`)).sort();
 
 describe('importFsLayout', () => {
-  it('makes a template of a layout of the plugin, named after it, with its includes and its scripts kept', async () => {
+  it('makes a template of a layout of the plugin, named after it, with its includes, and Track blocks for the tracks its script drew', async () => {
     withFsPlugin(vault.app);
     const imported = await importFsLayout(vault.app, MARSH_LAYOUT);
 
@@ -35,8 +35,11 @@ describe('importFsLayout', () => {
     expect(template.importedFrom).toMatchObject({ layoutId: 'marsh-layout', layoutName: 'Marsh layout' });
     // The footer the layout includes came through the plugin.
     expect(template.fields.map((field) => field.key)).toEqual(expect.arrayContaining(['name', 'speed', 'source']));
-    expect(imported.report?.scripts).toEqual([expect.objectContaining({ suggestion: 'track' })]);
-    expect(flattenReadingOrder(template.layout.blocks).filter((block) => block.type === 'script')).toHaveLength(1);
+    // The script that drew Hit points and Stress as boxes became Track blocks; nothing is kept for Fantasy Statblocks.
+    expect(imported.report?.scripts).toEqual([]);
+    const blocks = flattenReadingOrder(template.layout.blocks);
+    expect(blocks.filter((block) => block.type === 'script')).toEqual([]);
+    expect(blocks.flatMap((block) => (block.type === 'track' ? [block.field] : []))).toEqual(['hp', 'stress']);
   });
 
   it('imports a layout once: found again by its id, then by its name', async () => {

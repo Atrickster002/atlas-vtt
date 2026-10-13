@@ -188,7 +188,7 @@ export function TemplateGallery({ app, doc, roles, systemTemplateIds, onUse, onC
           </div>
         </div>
         <div className="atlas-te-gallery__footer">
-          {candidates.length > 0 && <UseForField roles={candidates} value={roleOf(pick)} onChange={setUseFor} />}
+          {candidates.length > 0 && <UseForField roles={candidates} value={roleOf(pick)} onChange={setUseFor} layer={layer} />}
           <Button type="button" variant="outline" size="sm" onClick={onClose}>Cancel</Button>
           {moving && (
             <Button type="button" variant="outline" size="sm" disabled={busy} onClick={move}>{moveLabel(statblockCount(moving.statblocks))}…</Button>

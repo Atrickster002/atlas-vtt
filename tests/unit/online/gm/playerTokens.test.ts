@@ -39,82 +39,58 @@ async function table(showNames = false): Promise<{ readonly share: ShareHarness;
   };
 }
 
-describe('claims of player tokens', () => {
-  it('offer the player tokens players see, by name even without nameplates, and never a hidden one', async () => {
+describe('player tokens', () => {
+  it('are named to players even without nameplates, never offered to claim, and never a hidden one', async () => {
     const { share } = await table();
     const tokens = tokenLists(share.sent).at(-1)?.tokens ?? [];
-    expect(tokens.map(({ name, claim }) => [name, claim])).toEqual([['hero', 'open'], [null, null]]);
+    expect(tokens.map(({ name, claim }) => [name, claim])).toEqual([['hero', 'taken'], [null, null]]);
     expect(JSON.stringify(share.sent)).not.toContain('spy');
   });
 
-  it('give a token to the first of two players who claim it, and refuse the second', async () => {
+  it('are given by the GM alone: a claim an older page sends changes nothing and is answered with nothing', async () => {
     const { share, owners, send } = await table();
     const hero = listed(share, 'hero')?.id;
-    share.share.receive(ANA, { t: 'claim', scene: tokenLists(share.sent).at(-1)?.scene, id: hero });
+    const before = share.sent.length;
+    await send(ANA, 'claim', hero);
+    await send(BEN, 'claim', listed(share, 'ogre')?.id);
+    expect(owners.tokensOf(ANA)).toEqual([]);
+    expect(owners.tokensOf(BEN)).toEqual([]);
+    expect(share.sent.slice(before)).toEqual([]);
+    owners.give(['hero'], ANA);
+    await share.advance(TOKEN_INTERVAL_MS);
+    expect(mineTo(share, ANA)).toEqual([hero]);
     await send(BEN, 'claim', hero);
     expect(owners.ownerOf('hero')).toBe(ANA);
-    expect(mineTo(share, ANA)).toEqual([hero]);
-    expect(mineTo(share, BEN) ?? []).toEqual([]);
-    expect(listed(share, 'hero')?.claim).toBe('taken');
   });
 
-  it('refuse a token that is no player token, a hidden one, one of another scene and one players never saw', async () => {
+  it('let no player give a token back, its owner neither: the GM does', async () => {
     const { share, owners, send } = await table();
-    const ogre = listed(share, 'ogre')?.id;
-    await send(ANA, 'claim', ogre);
-    expect(owners.ownerOf('ogre')).toBeUndefined();
     const hero = listed(share, 'hero')?.id;
-    await share.set(withTokens(TOKENS.map((entry) => (entry.id === 'hero' ? { ...entry, isHidden: true } : entry))));
-    share.share.receive(ANA, { t: 'claim', scene: tokenLists(share.sent).at(-1)?.scene, id: hero });
-    expect(owners.ownerOf('hero')).toBeUndefined();
-    await share.set(withTokens());
+    owners.give(['hero'], ANA);
     await share.advance(TOKEN_INTERVAL_MS);
-    share.share.receive(ANA, { t: 'claim', scene: 'another-scene', id: hero });
-    await send(ANA, 'claim', '0'.repeat(24));
-    await send(ANA, 'claim', 'hero');
-    expect(owners.tokensOf(ANA)).toEqual([]);
-  });
-
-  it('let no player give a token back, its owner neither: the GM does, which opens it to everyone again', async () => {
-    const { share, owners, send } = await table();
-    const hero = listed(share, 'hero')?.id;
-    await send(ANA, 'claim', hero);
     await send(BEN, 'release', hero);
     await send(ANA, 'release', hero);
     expect(owners.ownerOf('hero')).toBe(ANA);
     expect(mineTo(share, ANA)).toEqual([hero]);
     owners.give(['hero'], null);
     await share.advance(TOKEN_INTERVAL_MS);
-    expect(listed(share, 'hero')?.claim).toBe('open');
+    expect(listed(share, 'hero')?.claim).toBe('taken');
     expect(mineTo(share, ANA)).toEqual([]);
-    await send(BEN, 'claim', hero);
-    expect(owners.ownerOf('hero')).toBe(BEN);
   });
 
-  it('follow the GM: a token made the GM\'s is taken back and loses its name, one made a player token is offered', async () => {
-    const { share, owners, send } = await table();
-    await send(ANA, 'claim', listed(share, 'hero')?.id);
+  it('follow the GM: a token made the GM\'s is taken back and loses its name, one made a player token is named', async () => {
+    const { share, owners } = await table();
+    owners.give(['hero'], ANA);
     owners.markPlayerTokens(MAP, ['hero'], false);
     owners.markPlayerTokens(MAP, ['ogre'], true);
     await share.advance(TOKEN_INTERVAL_MS);
     const tokens = tokenLists(share.sent).at(-1)?.tokens ?? [];
-    expect(tokens.map(({ name, claim }) => [name, claim])).toEqual([[null, null], ['ogre', 'open']]);
+    expect(tokens.map(({ name, claim }) => [name, claim])).toEqual([[null, null], ['ogre', 'taken']]);
     expect(mineTo(share, ANA)).toEqual([]);
   });
 
   it('keep the other tokens\' names to Atlas\'s nameplate setting', async () => {
     const { share } = await table(true);
     expect(tokenLists(share.sent).at(-1)?.tokens.map(({ name }) => name)).toEqual(['hero', 'ogre']);
-  });
-
-  it('are limited per player', async () => {
-    const { share, owners } = await table();
-    const ogre = listed(share, 'ogre')?.id;
-    const scene = tokenLists(share.sent).at(-1)?.scene;
-    for (let count = 0; count < 20; count += 1) share.share.receive(ANA, { t: 'claim', scene, id: ogre });
-    owners.markPlayerTokens(MAP, ['ogre'], true);
-    await share.advance(TOKEN_INTERVAL_MS);
-    share.share.receive(ANA, { t: 'claim', scene, id: ogre });
-    expect(owners.ownerOf('ogre')).toBeUndefined();
   });
 });
