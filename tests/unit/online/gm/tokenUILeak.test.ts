@@ -6,7 +6,7 @@ import { shapeOf } from '../../../../src/app/resources/visibleResources';
 import type { TokenEntity } from '../../../../src/app/types';
 import type { ConditionDefinition } from '../../../../src/app/types/collectionSettingsTypes';
 import { describe, expect, it } from 'vitest';
-import type { SeatSource } from '../../../../src/app/online/gm/playerClaims.ts';
+import type { SeatSource } from '../../../../src/app/online/gm/seatSource.ts';
 import { TOKEN_INTERVAL_MS, TOKEN_POLL_MS } from '../../../../src/app/online/gm/TokenShare.ts';
 import { sceneState, shareHarness, token, tokenLists, type Sent } from './shareHarness.ts';
 
@@ -69,11 +69,11 @@ describe('what players are sent of the tokens\' bars, conditions and names', () 
       const rules = generateRules(random);
       const roles: readonly Role[] = ['free', 'hidden', 'unseen'];
       const generated = Array.from({ length: 2 + Math.floor(random() * 16) }, (_, index) => ({
-        id: `tok_${trial}_${index}`, role: roles[Math.floor(random() * 3)] ?? 'free', name: `Name ${trial}x${index}q`, claim: random() < 0.3 ? 'open' as const : null,
+        id: `tok_${trial}_${index}`, role: roles[Math.floor(random() * 3)] ?? 'free', name: `Name ${trial}x${index}q`, claim: random() < 0.3 ? 'taken' as const : null,
       }));
       const seats: SeatSource = {
         claimOf: (_map, id) => generated.find((entry) => entry.id === id)?.claim ?? null,
-        isPlayerToken: () => false, claim: () => false, release: () => false, onlinePlayers: () => [], ownerOf: () => undefined,
+        onlinePlayers: () => [], ownerOf: () => undefined,
       };
       let secretCount = 0;
       const scene = (): ReturnType<typeof sceneState> => {

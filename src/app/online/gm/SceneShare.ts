@@ -16,7 +16,7 @@ import { MapLayerShare } from './MapLayerShare.ts';
 import type { MapLayerSource } from './atlasMapLayers.ts';
 import { MarkShare, type MarkSharePorts } from './MarkShare.ts';
 import { sceneWalls, type MapSize } from './moveCheck.ts';
-import { PlayerClaims, type SeatSource } from './playerClaims.ts';
+import type { SeatSource } from './seatSource.ts';
 import { PlayerMoves } from './playerMoves.ts';
 import { RulesShare, type RulesSharePorts } from './RulesShare.ts';
 import { TOKEN_POLL_MS, TokenShare, type TokenSharePorts } from './TokenShare.ts';
@@ -29,7 +29,7 @@ export interface SceneSharePorts extends TokenSharePorts, RulesSharePorts, Pick<
   sendLive?(body: GmMessage, key: string): void;
   /** Where the GM's canvas draws these tokens now (the GM's own drag runs ahead of the store there). */
   drawnPlaces?(tokenIds: readonly string[]): ReadonlyMap<string, { readonly x: number; readonly y: number }>;
-  /** Who plays, owns which token and may claim which; without it no player is told which tokens are theirs or may claim any. */
+  /** Who plays and owns which token; without it no player is told which tokens are theirs. */
   seats?: SeatSource | undefined;
   /** Where the GM's lighting reads its rules and measurement, or null while it cannot be read. */
   lightingSource(): LightingSource | null;
@@ -76,7 +76,6 @@ export class SceneShare {
   readonly layers: MapLayerShare;
   private readonly rules: RulesShare;
   private readonly moves: PlayerMoves;
-  private readonly claims: PlayerClaims | null;
   private readonly marks: MarkShare;
   private unsubscribe: (() => void) | null = null;
   private poll: number | undefined;
@@ -119,12 +118,6 @@ export class SceneShare {
       explored: (hash) => this.inputs.exploredBytes(hash),
       artPath: (hash) => this.artPath(hash),
     });
-    this.claims = seats === undefined ? null : new PlayerClaims(seats, () => ({
-      scene: this.tokens.listedScene,
-      mapPath: store.getState().mapPath,
-      listedToken: (alias) => this.tokens.listedToken(alias),
-      tokens: store.getState().objects.tokens,
-    }), () => ports.now());
     this.dice = new SceneDice(store, ports, {
       tokens: this.tokens,
       shownToken: (mapPath, tokenId) => this.shownToken(mapPath, tokenId),
@@ -168,7 +161,7 @@ export class SceneShare {
     this.marks.resend(to);
   }
 
-  /** Who owns which token, which tokens are player tokens, or who is connected changed: players hear the claims and which tokens are theirs now. */
+  /** Who owns which token, which tokens are player tokens, or who is connected changed: players hear which tokens are player tokens and which are theirs now. */
   ownersChanged(): void {
     this.tokens.update();
     this.mine?.update();
@@ -189,9 +182,10 @@ export class SceneShare {
   }
 
   /**
-   * A player's message: a drag, drop or cancelled drag of their own token (`PlayerMoves`), a claim of a player
-   * token (`PlayerClaims`; the owners' change sends the new list), a roll (`PlayerRolls`), a laser, measurement or cursor (`MarkShare`), a resync (a whole list), or an asset request, answered only
-   * for the map, the explored memory or a token's artwork of the current picture, from the chunk the player asks for on.
+   * A player's message: a drag, drop or cancelled drag of their own token (`PlayerMoves`), a roll (`PlayerRolls`), a laser,
+   * measurement or cursor (`MarkShare`), a resync (a whole list), or an asset request, answered only for the map, the explored
+   * memory or a token's artwork of the current picture, from the chunk the player asks for on. Players take no token: only
+   * the GM gives one, and a claim an older page sends reads as nothing (`parsePlayerMessage`).
    */
   receive(from: string, body: unknown): void {
     const message = parsePlayerMessage(body);
@@ -199,7 +193,6 @@ export class SceneShare {
     if (message.t === 'move') return this.moves.receive(from, message);
     if (message.t === 'drag') return this.moves.drag(from, message);
     if (message.t === 'drag-cancel') return this.moves.dragCancel(from, message);
-    if (message.t === 'claim') return void this.claims?.receive(from, message);
     if (message.t === 'roll') return this.dice.receive(from, message);
     if (message.t === 'laser' || message.t === 'measure' || message.t === 'cursor') return this.marks.receive(from, message);
     if (message.t === 'resync') return message.of === 'tokens' ? this.tokens.resync(from, message.scene) : this.inputs.resync(from, message.scene, message.of);

@@ -13,7 +13,7 @@ import { companionTimers } from './companionTimers.ts';
 import { GmMarks } from './gmMarks.ts';
 import type { GmMessage, RollRequestAnswer } from '../protocol/index.ts';
 import type { LoggedRoll, RollRequest } from './log/TableLog.ts';
-import type { SeatSource } from './playerClaims.ts';
+import type { SeatSource } from './seatSource.ts';
 import type { PresentedTab } from './presentedScene.ts';
 import { PresentedStore } from './presentedStore.ts';
 import { SceneShare } from './SceneShare.ts';
@@ -54,17 +54,6 @@ export interface SceneBindingPorts {
   foundPin(mapPath: string, pinId: string): string | null;
 }
 
-/** Claims are taken only while the presented scene is shown: a held list cannot show them. */
-function heldSeats(seats: SeatSource, held: () => boolean): SeatSource {
-  return {
-    onlinePlayers: () => seats.onlinePlayers(),
-    ownerOf: (tokenId) => seats.ownerOf(tokenId),
-    isPlayerToken: (mapPath, tokenId, token) => seats.isPlayerToken(mapPath, tokenId, token),
-    claimOf: (mapPath, tokenId, token) => seats.claimOf(mapPath, tokenId, token),
-    claim: (tokenId, playerId) => !held() && seats.claim(tokenId, playerId),
-  };
-}
-
 /** The last value a read gave while `shown`, given again while not: what players were last sent stays as it was. */
 function lastWhileShown<T>(shown: () => boolean, read: () => T | null): () => T | null {
   let last: T | null = null;
@@ -75,7 +64,7 @@ function lastWhileShown<T>(shown: () => boolean, read: () => T | null): () => T 
  * What shares a view showing the scene Atlas presents: its scene and the GM's marks, reading only that
  * view's store and renderer, and only while they are still the same objects. While the GM works on
  * another scene tab of the view (`PresentedStore` holds), nothing of the view's renderer is read, the
- * GM's marks and rolls are not taken from it, and players' moves, claims and rolls are refused, since
+ * GM's marks and rolls are not taken from it, and players' moves and rolls are refused, since
  * Atlas has the presented scene loaded nowhere; players keep the picture they had.
  */
 export function bindScene(ports: SceneBindingPorts, tab: AtlasTab, presented: PresentedTab): SceneBinding {
@@ -116,7 +105,7 @@ export function bindScene(ports: SceneBindingPorts, tab: AtlasTab, presented: Pr
     sendLive: (body, key) => live() && ports.sendLive(body, key),
     drawnPlaces: (tokenIds) => drawnTokenPlaces(shownRenderer(), tokenIds),
     notice: (text) => live() && showNotice(text),
-    seats: heldSeats(ports.seats, () => store.held),
+    seats: ports.seats,
     randomId: () => ports.randomId(),
     logRoll: (roll) => live() && ports.logRoll(roll),
     logArt: (hash) => ports.logArt(hash),
