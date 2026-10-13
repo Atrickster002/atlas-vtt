@@ -42,7 +42,7 @@ function keyList(keys: readonly string[]): string {
 
 /** Why a note with several fences is left as it is. */
 export function severalFencesReason(count: number): string {
-  return `It holds ${count} statblock code blocks; only a note with one is moved.`;
+  return `It holds ${count} statblocks; only a note with one is moved.`;
 }
 
 /** The patches that make the note's frontmatter the fence's statblock; each applies only where the note holds nothing else there. */
@@ -62,9 +62,9 @@ function conversionPatches(statblock: FieldValue | undefined, conversion: FenceC
 export function convertFenceText(text: string, conversion: FenceConversion): FenceConversionResult {
   const fences = findStatblockFences(text);
   const [fence] = fences;
-  if (!fence) return { problem: 'It no longer holds a statblock code block.' };
+  if (!fence) return { problem: 'Its statblock is no longer in the note.' };
   if (fences.length > 1) return { problem: severalFencesReason(fences.length) };
-  if (text.slice(fence.from, fence.to) !== conversion.fence) return { problem: 'Its statblock code block changed meanwhile.' };
+  if (text.slice(fence.from, fence.to) !== conversion.fence) return { problem: 'Its statblock changed while it was being moved.' };
 
   const without = text.slice(0, fence.from) + text.slice(fence.to);
   const problem = frontmatterProblem(without);
@@ -73,7 +73,7 @@ export function convertFenceText(text: string, conversion: FenceConversion): Fen
   const result = applyFrontmatterPatches(without, conversionPatches(model?.statblock, conversion));
   if (result.conflicts.length > 0) {
     const keys = result.conflicts.flatMap((patch) => (patch.op === 'set' ? [String(patch.path[0])] : []));
-    return { problem: `Its properties already hold other values for ${keyList(keys)}.` };
+    return { problem: `The note already holds other values for ${keyList(keys)}.` };
   }
   return { text: result.text, applied: result.applied };
 }
