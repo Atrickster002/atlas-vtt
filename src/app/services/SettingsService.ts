@@ -19,7 +19,7 @@ import {
   type TutorialId,
   TUTORIAL_IDS,
 } from './atlasSettings';
-import { loadInputMode, loadLightingQuality, saveInputMode, saveLightingQuality } from './deviceSettings';
+import { loadAnimateMaps, loadInputMode, loadLightingQuality, saveAnimateMaps, saveInputMode, saveLightingQuality } from './deviceSettings';
 import type { LightingQualityLevel } from '../lighting/lightingQuality';
 
 export { TUTORIAL_IDS } from './atlasSettings';
@@ -31,8 +31,8 @@ export type PluginDataStore = Pick<Plugin, 'loadData' | 'saveData'>;
 type SettingsListener = (settings: AtlasSettings) => void;
 
 /**
- * The GM's Atlas preferences, kept in the plugin's data (`data.json`), except the input mode
- * and the lighting quality, which belong to the device (`deviceSettings.ts`). Without a data store (tests, a view
+ * The GM's Atlas preferences, kept in the plugin's data (`data.json`), except the input mode,
+ * the lighting quality and whether maps animate, which belong to the device (`deviceSettings.ts`). Without a data store (tests, a view
  * without the plugin) the settings live in memory only.
  */
 export class SettingsService {
@@ -221,6 +221,18 @@ export class SettingsService {
   setLightingQuality(level: LightingQualityLevel): void {
     if (this.getLightingQuality() === level) return;
     saveLightingQuality(this.app, level);
+    this.notify();
+  }
+
+  /** Whether animated maps play on this device as chosen, or null when never chosen (`animateMapsOn` decides then). */
+  getAnimateMaps(): boolean | null {
+    return loadAnimateMaps(this.app);
+  }
+
+  /** Animating maps is this device's choice: it goes to local storage, not into the synced settings. */
+  setAnimateMaps(on: boolean): void {
+    if (this.getAnimateMaps() === on) return;
+    saveAnimateMaps(this.app, on);
     this.notify();
   }
 
