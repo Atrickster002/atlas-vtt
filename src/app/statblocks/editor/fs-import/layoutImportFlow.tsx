@@ -6,7 +6,8 @@
  */
 
 import React from 'react';
-import { Notice, type App } from 'obsidian';
+import { type App } from 'obsidian';
+import { showNotice } from '../../../ui/notice';
 import { identityOf, importFsLayout, readLayoutText, type FsLayoutImport, type LayoutIdentity } from '../../fs/fsImport';
 import { statblockCount, statblocksUsingLayout, withoutNote } from '../../fs/fsLayoutStatblocks';
 import { firstBlockId } from '../gallery/gallerySources';
@@ -66,7 +67,7 @@ export async function showImportOutcome(
 export async function importLayoutFile(app: App, text: string, doc: Document): Promise<void> {
   const read = readLayoutText(text);
   if ('problem' in read) {
-    new Notice(read.problem);
+    showNotice(read.problem);
     return;
   }
   const imported = await importFsLayout(app, read.layout);

@@ -136,7 +136,8 @@ describe('when advantage changes a roll', () => {
   });
 
   it('refuses advantage that takes a roll past a limit before any die is rolled', () => {
-    const atLimit = '+1+1+1+1+1+1+1+1+1';
+    // The set's die and 19 numbers: 20 terms, the most a formula may have.
+    const atLimit = '+1'.repeat(19);
     const die = set({ advantage: { kind: 'die', sides: 6 } });
     const given = inputs();
     expect(rollDiceFormula(atLimit, die, given, undefined, 'advantage')).toBeNull();

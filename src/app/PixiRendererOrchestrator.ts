@@ -45,8 +45,8 @@ import { AudioRenderer } from './pixi/audio/AudioRenderer';
 import { SoundRegistry } from './audio/SoundRegistry';
 import { AudioBufferCache } from './audio/AudioBufferCache';
 import { SpatialAudioEngine } from './audio/SpatialAudioEngine';
-import { AssetService } from './services/AssetService';
 import { mapMeasurementSettings } from './services/mapMeasurementSettings';
+import { rulesLookup } from './services/mapRules';
 import { findAtlasLeafByViewId } from './utils/atlasLeafLookup';
 import { requestRender } from './pixi/RenderScheduler';
 import { MAP_LAYER_Z } from './pixi/mapLayerOrder';
@@ -58,6 +58,9 @@ import type { MapImageChange } from './pixi/mapImage/mapImageView';
 import type { TileView } from './pixi/mapImage/levelOfDetail';
 import { frameView } from './services/playerFrameDemand';
 import { MapController } from './MapController';
+import { NO_STRETCH, readMapStretch, sameStretch, type MapStretch } from './grid/mapStretch';
+import { fitZoomRange } from './pixi/fitMapRect';
+import { viewCentreInClient, worldToClient, type ClientPoint } from './pixi/utils/worldToClient';
 
 export class PixiRendererOrchestrator { // Renamed class
   private _isDestroyed: boolean = false;
@@ -97,6 +100,8 @@ export class PixiRendererOrchestrator { // Renamed class
   /** The view's map image, owned here once the first load hands it over. */
   private mapImage: MapImage | null = null;
   private stopFollowingMapImage: (() => void) | null = null;
+  /** The stretch of the map the zoom range was last fitted to. */
+  private zoomFittedStretch: MapStretch = NO_STRETCH;
   private obsApp: App;
   private eventBus: EventEmitter;
   private activeHoverLinkAnchorEl: HTMLElement | null = null;
@@ -225,11 +230,12 @@ export class PixiRendererOrchestrator { // Renamed class
             const updates: Partial<GridOptions> = {};
             let needsOptionsUpdate = false;
             
-            // Handle visibility separately as it uses setEnabled
+            // A grid that is hidden goes at once. One that is shown is shown below, with whatever else
+            // changed: switched on first it stood for a moment as it was before (a new scene's grid of
+            // 70 px squares flashed over the hexes just found for it).
             const visible = typeof grid.visible === 'boolean' ? grid.visible : true;
-            if (visible !== currentOptions.enabled) {
-              this.gridSystem.setEnabled(visible);
-            }
+            const shown = visible && !currentOptions.enabled;
+            if (!visible && currentOptions.enabled) this.gridSystem.setEnabled(false);
             
             // Collect all other updates
             if (grid.type !== undefined && grid.type !== currentOptions.type) {
@@ -272,8 +278,9 @@ export class PixiRendererOrchestrator { // Renamed class
             }
             
             // Apply all updates at once
+            if (shown && !needsOptionsUpdate) this.gridSystem.setEnabled(true);
             if (needsOptionsUpdate) {
-              this.gridSystem.updateOptions(updates);
+              this.gridSystem.updateOptions(shown ? { ...updates, enabled: true } : updates);
               
               // Re-snap all tokens to the new grid if grid type, size, or offset changed
               if (updates.type || updates.size || updates.offsetX !== undefined || updates.offsetY !== undefined) {
@@ -303,17 +310,15 @@ export class PixiRendererOrchestrator { // Renamed class
         if (!vp) return;
         const detail = e.detail;
         if (detail && typeof detail.callback === 'function') {
-          let clientX, clientY;
+          const canvas = this.pixiAppManager.getCanvasElement();
+          let at: ClientPoint;
           if (typeof detail.worldX === 'number' && typeof detail.worldY === 'number') {
-            const screenPos = vp.toScreen(detail.worldX, detail.worldY);
-            clientX = screenPos.x;
-            clientY = screenPos.y;
+            at = worldToClient(vp, canvas, detail.worldX, detail.worldY);
           } else {
             console.warn('[PixiRendererOrchestrator] get-viewport-position event had no worldX/Y.');
-            clientX = vp.screenWidth / 2;
-            clientY = vp.screenHeight / 2;
+            at = viewCentreInClient(vp, canvas);
           }
-          detail.callback(clientX, clientY);
+          detail.callback(at.x, at.y);
         }
       };
       window.addEventListener('get-viewport-position', this.getViewportPositionHandler);
@@ -584,9 +589,11 @@ export class PixiRendererOrchestrator { // Renamed class
     this.gridSystem?.setMapImage(mapImage);
     const stopChanges = mapImage.onChange((change) => this.mapImageChanged(change));
     const stopBackground = MapController.followBackground(this.obsApp, this.store, mapImage);
+    const stopStretch = MapController.followStretch(this.store, mapImage, () => this.mapSizeSettled());
     this.stopFollowingMapImage = (): void => {
       stopChanges();
       stopBackground();
+      stopStretch();
     };
     this.mapImageChanged('image');
   }
@@ -609,8 +616,34 @@ export class PixiRendererOrchestrator { // Renamed class
   private mapImageChanged(change: MapImageChange): void {
     // The lighting follows a new albedo by itself, without building its scene anew.
     if (this._isDestroyed || change !== 'image') return;
+    // An alignment's preview draws the map another way than the scene has it: only the zoom range
+    // follows it, and the fog, the lighting and the explored memory keep the scene's size until the
+    // alignment is applied.
+    if (this.isPreviewingStretch()) this.fitZoomRangeToStretch();
+    else this.mapSizeSettled();
+  }
+
+  private isPreviewingStretch(): boolean {
+    const state = this.store.getState();
+    if (!this.mapImage || !state.mapLoaded || state.isMapLoading) return false;
+    return !sameStretch(this.mapImage.mapStretch, readMapStretch(state.grid?.mapStretch));
+  }
+
+  /** The map has the size the scene gives it: what covers the map follows. */
+  private mapSizeSettled(): void {
+    if (this._isDestroyed) return;
+    this.fitZoomRangeToStretch();
     this.lighting?.renderer.refreshBounds();
     this.eventBus.emit('map-image-updated', this.getMapRect() ?? undefined);
+  }
+
+  /** A map drawn with another stretch has another size than the one the load fitted the zoom range to. */
+  private fitZoomRangeToStretch(): void {
+    const stretch = this.mapImage?.mapStretch ?? NO_STRETCH;
+    if (sameStretch(stretch, this.zoomFittedStretch)) return;
+    this.zoomFittedStretch = stretch;
+    const rect = this.getMapRect();
+    if (this.viewport && rect) fitZoomRange(this.viewport, rect);
   }
 
   private releaseMapImage(): void {
@@ -634,7 +667,7 @@ export class PixiRendererOrchestrator { // Renamed class
     this.gridSystem.updateOptions(options);
   }
 
-  /** Apply final grid alignment: update grid, resize + resnap all tokens. */
+  /** Apply final grid alignment: update grid, resize + resnap all tokens. The map's stretch follows the store's grid. */
   public applyGridAlignment(size: number, offsetX: number, offsetY: number, type?: GridType): void {
     if (!this.gridSystem) return;
 
@@ -646,11 +679,12 @@ export class PixiRendererOrchestrator { // Renamed class
     this.resnapTokensToGrid();
   }
 
-  /** Cancel grid alignment: restore original grid values from the store. */
+  /** Cancel grid alignment: restore original grid values and the map's stretch from the store. */
   public cancelGridAlignment(): void {
     if (!this.gridSystem) return;
 
     const grid = this.store.getState().grid;
+    this.mapImage?.setStretch(readMapStretch(grid?.mapStretch));
     this.gridSystem.updateOptions({
       type: grid?.type ?? 'square',
       size: grid?.size || 50,
@@ -922,8 +956,8 @@ export class PixiRendererOrchestrator { // Renamed class
   private wireMeasureRendererProvider(): void {
     const measure = this.measureRenderer;
     if (!measure) return;
-    const assetService = AssetService.getInstance(this.obsApp);
-    measure.measurementSettingsProvider = () => mapMeasurementSettings(assetService, this.store.getState());
+    const rules = rulesLookup(this.obsApp);
+    measure.measurementSettingsProvider = () => mapMeasurementSettings(rules, this.store.getState());
     const grid = this.gridSystem;
     if (grid) measure.playersView = measurePlayersView({ store: this.store, grid, tokens: () => this.tokenRenderer, lighting: () => this.lighting?.playerSight() });
     this.stopMeasuresFollowingPlayers?.();
@@ -940,17 +974,14 @@ export class PixiRendererOrchestrator { // Renamed class
       this.audioRenderer.setSelectedAudio(hitId);
       // Open config panel
       if (this.viewport) {
-        const screenPos = this.viewport.toScreen(worldX, worldY);
-        const canvasRect = this.pixiAppManager.getCanvasElement()?.getBoundingClientRect();
-        const sx = (canvasRect?.left ?? 0) + screenPos.x;
-        const sy = (canvasRect?.top ?? 0) + screenPos.y;
+        const at = worldToClient(this.viewport, this.pixiAppManager.getCanvasElement(), worldX, worldY);
         openAudioConfigPanel(
           hitId,
           this.store,
           this.soundRegistry,
           (soundId) => this.previewSound(soundId),
-          sx,
-          sy,
+          at.x,
+          at.y,
         );
       }
       return true;
@@ -978,17 +1009,14 @@ export class PixiRendererOrchestrator { // Renamed class
 
     // Open config panel for the new source
     if (this.viewport) {
-      const screenPos = this.viewport.toScreen(worldX, worldY);
-      const canvasRect = this.pixiAppManager.getCanvasElement()?.getBoundingClientRect();
-      const sx = (canvasRect?.left ?? 0) + screenPos.x;
-      const sy = (canvasRect?.top ?? 0) + screenPos.y;
+      const at = worldToClient(this.viewport, this.pixiAppManager.getCanvasElement(), worldX, worldY);
       openAudioConfigPanel(
         newId,
         this.store,
         this.soundRegistry,
         (soundId) => this.previewSound(soundId),
-        sx,
-        sy,
+        at.x,
+        at.y,
       );
     }
 

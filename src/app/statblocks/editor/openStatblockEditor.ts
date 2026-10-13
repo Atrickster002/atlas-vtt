@@ -4,7 +4,8 @@
  * Every way in is behind the `statblockEditor` experimental switch.
  */
 
-import { Notice, TFile, type App, type WorkspaceLeaf } from 'obsidian';
+import { TFile, type App, type WorkspaceLeaf } from 'obsidian';
+import { showNotice } from '../../ui/notice';
 import { experimentalFeatureOn } from '../../experimental/experimentalFeatures';
 import { NoteStatblockPanels } from './note-panel/noteStatblockPanels';
 
@@ -69,7 +70,7 @@ export async function openStatblockEditor(app: App, options: OpenStatblockEditor
   if (!experimentalFeatureOn(app, 'statblockEditor')) return;
   const file = app.vault.getAbstractFileByPath(options.notePath);
   if (!(file instanceof TFile)) {
-    new Notice(`Couldn't find ${options.notePath}.`);
+    showNotice(`Couldn't find ${options.notePath}.`);
     return;
   }
   const leaf = noteLeafFor(app, file.path, options.from);

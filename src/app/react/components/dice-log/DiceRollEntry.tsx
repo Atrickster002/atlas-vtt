@@ -5,7 +5,7 @@ import type { DiceRollResult } from '../../../types/diceTypes';
 import { TokenPortrait } from '../../../packages/components/shared/TokenPortrait';
 import { useDiceAvatar } from '../dice/useDiceAvatar';
 import { LabelTooltip } from '../../../packages/components/primitives/tooltip';
-import { dieLabel, droppedAny, rollLine } from '../../../tools/diceLabels';
+import { dieLabel, dieStates, droppedAny, rollLine } from '../../../tools/diceLabels';
 import { AdvantageTag, listsDice, RolledDiceLine } from '../dice/RolledDiceLine';
 import { t } from '../../../i18n';
 
@@ -120,10 +120,9 @@ export function DiceRollEntry({ result, isNew, onRepeat }: DiceRollEntryProps): 
                 key={i}
                 className={cn(
                   'dice-log-entry__badge',
-                  roll.value === roll.max && 'dice-log-entry__badge--max',
-                  roll.value === 1 && 'dice-log-entry__badge--min',
+                  dieStates(roll).map((state) => `dice-log-entry__badge--${state}`),
                   roll.colour && 'atlas-die-badge--coloured',
-                  dropping && (roll.dropped ? 'atlas-die-badge--dropped' : 'atlas-die-badge--kept'),
+                  dropping && !roll.dropped && !roll.rerolled && 'atlas-die-badge--kept',
                 )}
                 style={roll.colour ? { '--atlas-die-colour': roll.colour } as React.CSSProperties : undefined}
               >

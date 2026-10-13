@@ -1,10 +1,11 @@
-import { App, FileSystemAdapter, Menu, TFile, Notice, type EventRef } from 'obsidian';
+import { App, FileSystemAdapter, Menu, TFile, type EventRef } from 'obsidian';
 import { openContextMenuGlobal, type ContextMenuEntry } from '../react/root/ContextMenuContext';
 import { PlayerWindowService } from './PlayerWindowService';
 import { playImageEnter, playImageExit } from './imageDisplayMotion';
 import { ImageOverlayControls } from './imageOverlayControls';
 import './image-display.scss';
 import { t } from '../i18n';
+import { showNotice } from '../ui/notice';
 
 /** An image overlay in the player window. */
 interface ImageDisplay {
@@ -202,10 +203,10 @@ export class ImageDisplayService {
     try {
       const blob = await this.renderImageAsPng(imgElement.src);
       await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
-      new Notice(t('image.copied'));
+      showNotice(t('image.copied'));
     } catch (error) {
       console.error('Failed to copy image:', error);
-      new Notice(t('image.copyFailed'));
+      showNotice(t('image.copyFailed'));
     }
   }
 
@@ -252,7 +253,7 @@ export class ImageDisplayService {
     const playerWindowService = PlayerWindowService.getInstance();
     
     if (!playerWindowService || !playerWindowService.isWindowOpen()) {
-      new Notice(t('image.windowClosed'));
+      showNotice(t('image.windowClosed'));
       return;
     }
 
@@ -265,7 +266,7 @@ export class ImageDisplayService {
       // Get the player window
       const playerWindow = playerWindowService.getWindow();
       if (!playerWindow) {
-        new Notice(t('image.windowUnavailable'));
+        showNotice(t('image.windowUnavailable'));
         return;
       }
 
@@ -274,7 +275,7 @@ export class ImageDisplayService {
       
     } catch (error) {
       console.error('[ImageDisplayService] Error displaying image:', error);
-      new Notice(t('image.displayFailed'));
+      showNotice(t('image.displayFailed'));
     }
   }
 
@@ -309,7 +310,7 @@ export class ImageDisplayService {
   public closeImageDisplay(): void {
     const display = this.detachImageDisplay();
     if (!display) return;
-    new Notice(t('image.closed'));
+    showNotice(t('image.closed'));
     void this.leave(display);
   }
   

@@ -31,7 +31,7 @@ describe('a roll made with advantage, on its card', () => {
     const el = card(advantaged);
     fireEvent.click(screen.getByText('Details'));
     const badges = [...el.querySelectorAll('.atlas-dice-toast__die-badge')];
-    expect(badges.map((badge) => [badge.textContent, badge.classList.contains('atlas-die-badge--dropped')])).toEqual([['d20: 4', true], ['d20: 17', false]]);
+    expect(badges.map((badge) => [badge.textContent, badge.classList.contains('atlas-dice-toast__die-badge--dropped')])).toEqual([['d20: (4)', true], ['d20: 17', false]]);
     expect(badges[1]?.classList.contains('atlas-die-badge--kept')).toBe(true);
   });
 

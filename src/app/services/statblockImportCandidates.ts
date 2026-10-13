@@ -9,6 +9,7 @@ import { statblockSourceOf } from '../statblocks/notes/statblockSource';
 import { readStatblock } from '../statblocks/resolve/readStatblock';
 import { STATBLOCK_IMAGE_KEYS, type StatblockImageKey } from './statblockImageKeys';
 import { t } from '../i18n';
+import { isVaultImage } from '../utils/vaultImage';
 
 export type StatblockImportStatus = 'ready' | 'imported' | 'missing-image' | 'remote-image' | 'conflict';
 export interface StatblockImportCandidate {
@@ -55,7 +56,7 @@ export function localImage(app: App, reference: string, sourcePath: string): TFi
   const path = reference.replace(/^!?\[\[|\]\]$/g, '').split('|')[0]?.split('#')[0]?.trim();
   if (!path) return null;
   const resolved = app.metadataCache.getFirstLinkpathDest(path, sourcePath) ?? app.vault.getAbstractFileByPath(normalizePath(path));
-  return resolved instanceof TFile && /^(png|jpe?g|webp|gif|bmp|svg|avif)$/i.test(resolved.extension) ? resolved : null;
+  return resolved instanceof TFile && isVaultImage(resolved) ? resolved : null;
 }
 
 /**
@@ -105,9 +106,8 @@ export async function statblockImportCandidate(app: App, file: TFile, lookup: St
   const statblock = await readStatblock(app, path, lookup.bestiary);
   const name = (statblock && statblockDisplayName(statblock.fields, statblock.meanings)) || file.basename;
   const row = { path, name, layoutName: statblock?.lookName ?? t('sbImport.unspecified') };
-  const linked = lookup.tokens.get(path) ?? [];
-  if (linked.length > 1) return { ...row, status: 'conflict', detail: t('sbCandidate.conflict') };
-  const existing = linked[0];
+  // A note any token links already has its token; it may have several.
+  const existing = lookup.tokens.get(path)?.[0];
   if (existing) return { ...row, status: 'imported', detail: t('sbCandidate.imported'), imagePath: existing.imagePath, showRing: existing.showRing !== false };
   if (!statblock) return { ...row, status: 'conflict', detail: t('sbCandidate.unresolved') };
   const { fields, meanings } = statblock;

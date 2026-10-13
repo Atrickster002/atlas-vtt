@@ -1,9 +1,10 @@
-import { Notice, type App, type TFile } from 'obsidian';
+import { type App, type TFile } from 'obsidian';
 import { t } from '../../i18n';
 import { describeError } from '../../utils/errors';
 import { decodeImage, imageMimeType } from '../decodedImage';
 import { TileDecoderClient, TileOpenError, type OpenedMap } from './TileDecoderClient';
 import type { TileRef } from './pyramid';
+import { showNotice } from '../../ui/notice';
 
 /**
  * Per app: the map tile worker every view opens its map images through, and
@@ -72,7 +73,7 @@ export class MapImageService {
     console.error(`[Atlas] The map image ${file.path} cannot be shown:`, error);
     if (this.reported.has(file.path)) return;
     this.reported.add(file.path);
-    new Notice(t('map.imageUnshown', { file: file.path, reason: reasonOf(error) }), 0);
+    showNotice(t('map.imageUnshown', { file: file.path, reason: reasonOf(error) }), 0);
   }
 }
 

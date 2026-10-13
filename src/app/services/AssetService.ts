@@ -1,7 +1,7 @@
 import { parseResourceDefinitions } from '../resources/resourceDefinitions';
 import { wasTokenRegistrationSaved } from './assetRegistrationRecovery';
 import { SettingsService } from './SettingsService';
-import { App, Notice, TFile, TFolder } from 'obsidian';
+import { App, TFile, TFolder } from 'obsidian';
 import { ensureAdapterFolder } from '../plugin/vaultFolders';
 import type { TokenStateSnapshot } from '../types';
 import type { CellCoord, EncounterFormation } from '../encounters/encounterFormation';
@@ -29,6 +29,7 @@ import { LEGACY_INDEX_FILE, LIBRARY_FILE, recordFilePath } from './library/libra
 import { isPayloadUnread, serializeRecord } from './library/recordFile';
 import { libraryClock, parseLibraryState } from './library/libraryState';
 import { trashSceneSnapshots } from '../snapshots/sceneSnapshotFolders';
+import { showNotice } from '../ui/notice';
 
 export interface BaseAsset {
   id: string;
@@ -51,6 +52,8 @@ export interface TokenAsset extends BaseAsset {
   /** Small preview written by AssetThumbnailService; regenerated when missing. */
   thumbnailPath?: string;
   statblockPath?: string; // Optional link to statblock note
+  /** Set (only ever to true) on the tokens that are the players' characters; see `characters/playerCharacters.ts`. */
+  playerCharacter?: true;
 }
 
 export interface MapAsset extends BaseAsset {
@@ -442,10 +445,10 @@ export class AssetService {
     try {
       copyPath = await preserveUnreadableMetadata(this.app.vault.adapter, stored.path);
     } catch (error) {
-      new Notice(t('index.unreadable', { path: stored.path }), 0);
+      showNotice(t('index.unreadable', { path: stored.path }), 0);
       throw error;
     }
-    new Notice(t('index.rebuilding', { path: copyPath }), 0);
+    showNotice(t('index.rebuilding', { path: copyPath }), 0);
     this.metadata = await this.createDefaultMetadata();
   }
 
@@ -1401,6 +1404,32 @@ export class AssetService {
 
   async getTokenAssets(): Promise<TokenAsset[]> {
     return this.getAssets(undefined, 'token');
+  }
+
+  /** Every library token, read from the index in memory; none before it was loaded. For menus that open at once. */
+  loadedTokenAssets(): TokenAsset[] {
+    const assets = this.metadata ? Object.values(this.metadata.assets) : [];
+    return assets.filter((asset): asset is TokenAsset => asset.type === 'token');
+  }
+
+  /**
+   * Makes library tokens the players' characters, or no longer, in one save. An edit like any
+   * other: written to each token's record file and stamped; the flag is stored only as true.
+   * Tokens that already are what is asked, and ids that name no token, are left alone.
+   */
+  async setPlayerCharacters(ids: readonly string[], on: boolean): Promise<void> {
+    await this.ensureLoaded();
+    const assets = this.metadata!.assets;
+    const modifiedAt = Date.now();
+    let changed = false;
+    for (const id of ids) {
+      const asset = assets[id];
+      if (asset?.type !== 'token' || (asset.playerCharacter === true) === on) continue;
+      const { playerCharacter: _was, ...rest } = asset;
+      assets[id] = on ? { ...rest, playerCharacter: true, modifiedAt } : { ...rest, modifiedAt };
+      changed = true;
+    }
+    if (changed) await this.saveMetadata();
   }
 
   async deleteTokenAsset(id: string): Promise<void> {

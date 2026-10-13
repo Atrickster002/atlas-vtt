@@ -45,7 +45,7 @@ export async function createStatblockNote(app: App, note: NewStatblockNote): Pro
   const file = await app.vault.create(path, statblockNoteText({ ...note, name: shownName(note.name, path), body }));
   const linked = note.tokenImagePath === undefined
     ? false
-    : await TokenStatblockLinkService.getInstance(app).linkTokenToStatblock(note.tokenImagePath, file.path, { showConfirmation: false });
+    : await TokenStatblockLinkService.getInstance(app).linkTokenToStatblock(note.tokenImagePath, file.path);
   return { file, linked };
 }
 

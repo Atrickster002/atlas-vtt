@@ -41,10 +41,10 @@ describe('Create statblock in a context menu', () => {
     const entry = createStatblockMenuEntry([MONSTER, NPC], vi.fn());
     if (entry.type !== 'submenu' || typeof entry.children === 'function') throw new Error('expected a submenu');
     expect(entry.children).toEqual([
-      expect.objectContaining({ type: 'item', label: 'Monster', hint: 'Marsh creature' }),
+      expect.objectContaining({ type: 'item', label: 'Monster', detail: 'Marsh creature' }),
       expect.objectContaining({ type: 'item', label: 'NPC' }),
     ]);
-    expect(entry.children[1]).not.toHaveProperty('hint');
+    expect(entry.children[1]).not.toHaveProperty('detail');
   });
 });
 

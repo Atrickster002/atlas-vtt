@@ -72,6 +72,11 @@ export function withFinalKeys(resources: readonly ResourceDefinition[]): Resourc
   });
 }
 
+/** Resources as they are stored: names and fields trimmed, and resources added in a dialog keyed by their name. */
+export function savedResources(resources: readonly ResourceDefinition[]): ResourceDefinition[] {
+  return withFinalKeys(resources.map((resource) => ({ ...resource, name: resource.name.trim(), field: resource.field.trim() })));
+}
+
 /** A stored or imported definition, or null when a required part is missing or invalid. */
 export function parseResourceDefinition(raw: unknown): ResourceDefinition | null {
   if (!raw || typeof raw !== 'object') return null;

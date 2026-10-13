@@ -35,7 +35,8 @@ export interface DiceRollInputs {
 export class DiceTool {
   public state: DiceToolState;
   private eventBus: EventEmitter;
-  private readonly getDiceRules: () => DiceRules | RollingDice;
+  /** The dice this tool rolls a bare bonus with: its map's dice set. */
+  readonly getDiceRules: () => DiceRules | RollingDice;
 
   /** `getDiceRules` gives the dice a bare bonus rolls with: the collection's dice set. */
   constructor(eventBus: EventEmitter, getDiceRules: () => DiceRules | RollingDice, private readonly inputs: DiceRollInputs) {
@@ -157,7 +158,7 @@ export function rollDiceFormula(
     inputs.onFormulaError(helped);
     return null;
   }
-  const { rolls, modifiers, total } = helped
+  const { rolls, modifiers, total, linear } = helped
     ? rollFormula(helped.formula, inputs.random, helped.explodeRules, helped.looks)
     : rollFormula(complete.parsed, inputs.random, rolling, looks);
 
@@ -168,6 +169,7 @@ export function rollDiceFormula(
     rolls,
     modifiers,
     total,
+    ...(!linear && { linear: false as const }),
     crit: getDiceCrit(rolls, rolling),
     player: inputs.roller(),
     ...(shown && { diceSet: shown }),

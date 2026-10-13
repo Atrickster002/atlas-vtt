@@ -1,7 +1,8 @@
 import React, { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { motion } from 'framer-motion';
-import { Notice, type App } from 'obsidian';
+import { type App } from 'obsidian';
+import { showNotice } from '../../../ui/notice';
 import { handledByAnotherControl } from '../../../keyboard/tooltipEscape';
 import { Button } from '../../../packages/components/primitives/button';
 import { CloseButton } from '../../../packages/components/primitives/CloseButton';
@@ -127,7 +128,7 @@ export function TemplateGallery({ app, doc, roles, systemTemplateIds, onUse, onC
       })
       .catch((error: unknown) => {
         console.error('[Atlas] Creating a template from the gallery failed:', error);
-        new Notice("Couldn't create the template.");
+        showNotice("Couldn't create the template.");
         setBusy(false);
       });
   };

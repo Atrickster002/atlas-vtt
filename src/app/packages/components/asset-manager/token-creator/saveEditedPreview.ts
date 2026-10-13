@@ -1,4 +1,4 @@
-import { Notice, type App } from 'obsidian';
+import { type App } from 'obsidian';
 import type { AssetService } from '../../../../services/AssetService';
 import type { AssetThumbnailService } from '../../../../services/AssetThumbnailService';
 import { writeAssetImage } from '../../../../services/assetImageFiles';
@@ -10,6 +10,7 @@ import { prepareSaveImage, type SaveImageContext } from './prepareSaveImages';
 import { overwriteStoredImage, storedImageFile } from './storedTokenImage';
 import type { EditTokenInput, TokenPreview } from './types';
 import { t } from '../../../../i18n';
+import { showNotice } from '../../../../ui/notice';
 
 export interface EditedPreviewSave extends SaveImageContext {
   app: App;
@@ -46,7 +47,7 @@ export async function saveEditedPreview(save: EditedPreviewSave): Promise<number
       prepared = await prepareSaveImage(source, preview, save);
     } catch (error) {
       console.error(`[TokenCreator] Failed to optimize ${preview.name}:`, error);
-      new Notice(t(`creator.${mode}.optimizeFailed`, { name: preview.name }));
+      showNotice(t(`creator.${mode}.optimizeFailed`, { name: preview.name }));
       return 0;
     }
     const data = await prepared.image.arrayBuffer();

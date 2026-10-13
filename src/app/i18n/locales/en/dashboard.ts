@@ -15,6 +15,7 @@ export const dashboard = {
   'dashboard.assets': 'Asset Manager',
   'dashboard.assetsDesc': 'Your scenes & assets',
   'dashboard.tagline': 'Gather your party and venture forth.',
+  'dashboard.begin': 'Begin',
   'dashboard.continue': 'Continue your adventure',
   'dashboard.firstScene': 'Create your first scene',
   'dashboard.firstSceneMeta': 'Choose a map and start your campaign',

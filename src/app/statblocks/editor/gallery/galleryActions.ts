@@ -6,7 +6,8 @@
  * given to a role. A Fantasy Statblocks layout is imported, which writes it.
  */
 
-import { Notice, type App } from 'obsidian';
+import { type App } from 'obsidian';
+import { showNotice } from '../../../ui/notice';
 import { AssetService } from '../../../services/AssetService';
 import { systemPresetsOf } from '../../../services/mapCollectionRules';
 import { identityOf, importFsLayout, type FsLayoutImport, type LayoutIdentity } from '../../fs/fsImport';
@@ -115,7 +116,7 @@ export async function openPick(app: App, pick: GalleryPick, collectionId: string
 export async function saveStatblockAsTemplate(app: App, notePath: string, values: FrontmatterRecord, collectionId: string | null): Promise<void> {
   const shaped = statblockTemplate(values);
   if (!shaped) {
-    new Notice('This statblock has no values to build a template from.');
+    showNotice('This statblock has no values to build a template from.');
     return;
   }
   const { name } = draftOf(app, { kind: 'statblock', path: notePath, template: shaped });

@@ -20,6 +20,7 @@ import { useUvttImport } from '../hooks/useUvttImport';
 import { tagGroupOfTab } from '../utils/assetTags';
 import { newStatblockOption } from '../../../../statblocks/editor/create/entryPoints';
 import { openTemplateEditor } from '../../../../statblocks/editor/openTemplateEditor';
+import { isCharacterTab } from '../utils/tabKinds';
 
 export interface ModalLayerProps {
   isOpen: boolean;
@@ -85,10 +86,11 @@ export function ModalLayer({
           <TokenCreator
             isOpen={crud.isTokenCreatorOpen}
             selectedCollection={selectedCollection}
+            playerCharacters={activeTab === 'party'}
             onClose={() => {
               crud.setIsTokenCreatorOpen(false);
               crud.setEditingToken(null);
-              if (activeTab === 'tokens') void reloadAfterCreator();
+              if (isCharacterTab(activeTab)) void reloadAfterCreator();
             }}
             editToken={crud.editingToken ? {
               id: crud.editingToken.id,

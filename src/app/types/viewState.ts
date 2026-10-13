@@ -8,6 +8,7 @@ import type { InitiativeState } from './initiativeTypes';
 import type { DiceRollResult } from './diceTypes';
 import type { CameraState, GridState } from './gridTypes';
 import type { ViewUIState } from './viewUIState';
+import type { PartyValues } from './partyTypes';
 
 /** Data read from a map view, independent of the store and persistence services. */
 export interface ViewState extends ViewUIState {
@@ -69,6 +70,12 @@ export interface ViewState extends ViewUIState {
    * worked (`ExploredMemory` puts the memory back when it changes). Never saved.
    */
   exploredEdits: number;
+  /**
+   * The values of the played campaign's player characters, one per character and resource
+   * (`campaigns/partyValues/partyKeys.ts`). Mirrored from the campaign's file, undo-tracked value by
+   * value, never saved with the scene: a character's tokens show them (`PartyReconciler`).
+   */
+  partyValues: PartyValues;
 
   // Audio dirty flag (non-persisted)
   _audioDirty: boolean;

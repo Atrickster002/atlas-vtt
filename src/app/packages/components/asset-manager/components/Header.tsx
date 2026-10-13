@@ -15,6 +15,7 @@ import { useHeaderCompaction } from '../hooks/useHeaderCompaction';
 import { SortControls } from './SortControls';
 import { TabSwitcher } from './TabSwitcher';
 import { TokenIcon } from '../../../../react/components/TokenIcon';
+import { tabHasFolders } from '../utils/tabKinds';
 import { t } from '../../../../i18n';
 
 export interface HeaderProps {
@@ -143,7 +144,7 @@ export function Header({
           <div className="atlas-am-toolbar-divider" />
 
           <LabelTooltip label={t('am.header.newFolder')}>
-            <Button variant="ghost" size="icon" className="atlas-am-icon-btn" onClick={onCreateFolder}>
+            <Button variant="ghost" size="icon" className="atlas-am-icon-btn" onClick={onCreateFolder} disabled={!tabHasFolders(activeTab)}>
               <FolderPlus />
             </Button>
           </LabelTooltip>

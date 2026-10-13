@@ -5,21 +5,22 @@ import type { RolledDie } from './diceFormula';
 
 export type DiceCrit = 'high' | 'low' | null;
 
-type CritDie = Pick<RolledDie, 'value' | 'max' | 'negative' | 'exploded' | 'dropped' | 'advantage'>;
+type CritDie = Pick<RolledDie, 'value' | 'max' | 'negative' | 'exploded' | 'rerolled' | 'dropped' | 'advantage'>;
 
 /**
  * The default dice of a roll, in the set's order: for each of its groups the
  * first dice of that group's size not taken yet, as many as it rolls. A roll
  * with fewer of them, such as a d8 under a d20 set, has none (null). Dice
  * rolled for an explosion are no default dice: the die that exploded is; nor
- * are dropped dice (only the kept count) or a die advantage added.
+ * are dice that were rolled again or dropped (only the kept count, so the die
+ * kept of `2d20kh1` is the default die of a d20 set) or a die advantage added.
  */
 export function defaultDiceOf<T extends CritDie>(rolls: readonly T[], rules: RollingDice): T[] | null {
   const taken = new Set<number>();
   const found: T[] = [];
   for (const group of rules.dice) {
     for (let n = 0; n < group.count; n++) {
-      const index = rolls.findIndex((die, i) => !taken.has(i) && !die.negative && !die.exploded && !die.dropped && !die.advantage && die.max === group.sides);
+      const index = rolls.findIndex((die, i) => !taken.has(i) && !die.negative && !die.exploded && !die.rerolled && !die.dropped && !die.advantage && die.max === group.sides);
       if (index < 0) return null;
       taken.add(index);
       found.push(rolls[index]!);

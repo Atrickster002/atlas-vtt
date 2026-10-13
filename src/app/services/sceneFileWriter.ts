@@ -1,9 +1,10 @@
-import { Notice, TFile, type App } from 'obsidian';
+import { TFile, type App } from 'obsidian';
 import { debounce, type DebouncedFunction } from '../../utils/debounce';
 import { ensureFolder } from '../plugin/vaultFolders';
 import { getDataFilePath } from '../utils/dataFileMigration';
 import { sceneNameOf } from '../utils/sceneName';
 import { settledWithin } from '../utils/settledWithin';
+import { showNotice } from '../ui/notice';
 
 /** How long a flush waits for a file write before it reports the save as stuck. */
 export const STALLED_SAVE_MS = 5000;
@@ -66,7 +67,7 @@ export class SceneFileWriter<V> {
       // The stuck writes are let go, so later saves of these scenes are not queued behind them.
       for (const path of this.pendingWrites.keys()) {
         console.error(`[AtlasStorage] Saving ${path} did not finish`);
-        new Notice(`Atlas VTT could not finish saving ${sceneNameOf(path)}. Its latest changes may be missing from its file.`, 0);
+        showNotice(`Atlas VTT could not finish saving ${sceneNameOf(path)}. Its latest changes may be missing from its file.`, 0);
       }
       this.pendingWrites.clear();
     }

@@ -16,6 +16,10 @@ describe('visibleResources', () => {
     expect(visibleResources(token, definitions, 'player').map((r) => r.definition.key)).toEqual(['hp']);
   });
 
+  it('shows the player whose character the token is every value it holds', () => {
+    expect(visibleResources(token, definitions, 'owner').map((r) => r.definition.key)).toEqual(['hp', 'str']);
+  });
+
   it('hides values without a usable maximum', () => {
     expect(visibleResources({ resources: { hp: { current: 0, max: 0 } } }, definitions, 'dm')).toEqual([]);
   });

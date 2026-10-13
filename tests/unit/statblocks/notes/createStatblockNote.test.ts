@@ -89,7 +89,7 @@ describe('createStatblockNote', () => {
 
     expect(linked).toBe(true);
     expect(harness.files.get(file.path)).toContain('image: art/warden.webp');
-    expect(service.linkTokenToStatblock).toHaveBeenCalledWith('art/warden.webp', 'Bestiary/Warden.md', { showConfirmation: false });
+    expect(service.linkTokenToStatblock).toHaveBeenCalledWith('art/warden.webp', 'Bestiary/Warden.md');
   });
 
   it('starts the note with the text of the note beside its template\'s file', async () => {

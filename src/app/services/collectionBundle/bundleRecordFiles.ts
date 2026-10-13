@@ -1,4 +1,5 @@
 import type { App } from 'obsidian';
+import { isPathTaken } from '../../plugin/vaultFolders';
 import { planRecords, recordFingerprint, type PackedRecord, type PlannedRecord, type VaultRecord } from '../vaultRecords/bundleRecords';
 import { freeRecordPath, readRecordText, recordText, type RecordFolderSpec, type StoredRecord } from '../vaultRecords/recordFolder';
 import type { RecordFolderFiles } from '../vaultRecords/RecordFolderFiles';
@@ -89,14 +90,6 @@ async function vaultRecords(app: App, kind: BundledRecordKind): Promise<Map<stri
   return records;
 }
 
-/** Whether a file other than one the plan gave out has this path, in any letter case. */
-function pathTaken(app: App, path: string): boolean {
-  if (app.vault.getAbstractFileByPath(path)) return true;
-  const lower = path.toLowerCase();
-  const siblings = app.vault.getFolderByPath(path.slice(0, path.lastIndexOf('/')))?.children ?? [];
-  return siblings.some((child) => child.path.toLowerCase() === lower);
-}
-
 /**
  * The `n`th name for a copy of `name`, marked with the collection ("Sun and Moon (Fen)", "Sun and Moon (Fen) 2"):
  * within `max` characters, the record's own name cut short to make room. Where the collection's
@@ -132,7 +125,7 @@ export async function planRecordImport(
   const nameTaken = (name: string): boolean => claimedNames.has(name.toLowerCase()) || (kind.nameReserved?.(name) ?? false);
   return planRecords(bundle, vault, installed, {
     place: (name) => {
-      const path = freeRecordPath(kind.spec, name, (candidate) => claimedPaths.has(candidate.toLowerCase()) || pathTaken(app, candidate));
+      const path = freeRecordPath(kind.spec, name, (candidate) => claimedPaths.has(candidate.toLowerCase()) || isPathTaken(app, candidate));
       claimedPaths.add(path.toLowerCase());
       return path;
     },
@@ -152,7 +145,7 @@ export async function recordsChangedSinceReview(app: App, kind: BundledRecordKin
   if (planned.length === 0) return false;
   const vault = await vaultRecords(app, kind);
   return planned.some((record) => (record.mine === null
-    ? pathTaken(app, record.target)
+    ? isPathTaken(app, record.target)
     : vault.get(record.localId)?.fingerprint !== record.mine));
 }
 

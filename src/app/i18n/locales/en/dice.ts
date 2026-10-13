@@ -1,12 +1,14 @@
 import type { Message } from '../../types';
 
 export const dice = {
-  'dice.formulaError.syntax': 'Use dice and numbers separated by + or −, such as 2d6+3 or 2d20kh1. Dice must have 2–1,000 faces and numbers at most 4 digits.',
-  'dice.formulaError.length': 'A dice formula can have at most 64 characters.',
-  'dice.formulaError.terms': 'A dice formula can have at most 10 terms.',
+  'dice.formulaError.syntax': 'Use dice and numbers joined by +, −, * or /, such as 2d6+3 or 4d6kh3. Dice must have 2–1,000 faces and numbers at most 4 digits.',
+  'dice.formulaError.length': 'A dice formula can have at most 100 characters.',
+  'dice.formulaError.terms': 'A dice formula can have at most 20 terms.',
   'dice.formulaError.dice': 'A dice formula can roll at most 100 dice before explosions.',
   'dice.formulaError.faces': 'Dice must have between 2 and 1,000 faces.',
-  'dice.formulaError.keep': 'Keep at least one die and no more than are rolled, such as 2d20kh1 or 4d6kl3.',
+  'dice.formulaError.depth': 'A dice formula can nest parentheses at most 8 deep.',
+  'dice.formulaError.modifier': 'A modifier does not fit its dice. Keep or drop at least one die and no more than the term rolls, and leave a face that does not explode or roll again. Fate dice neither explode nor roll again.',
+  'dice.formulaError.total': 'A dice formula can come to at most 1,000,000,000 either way.',
   'dice.advantage': 'Advantage',
   'dice.disadvantage': 'Disadvantage',
   'dice.normal': 'Normal',

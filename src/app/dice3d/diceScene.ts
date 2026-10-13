@@ -69,7 +69,7 @@ function isBody(sides: number): sides is DieSides {
   return (DIE_BODIES as number[]).includes(sides);
 }
 
-type SceneDie = Pick<RolledDie, 'max' | 'value' | 'negative' | 'exploded' | 'colour' | 'dropped' | 'advantage' | 'sharedUnits'>;
+type SceneDie = Pick<RolledDie, 'max' | 'min' | 'value' | 'negative' | 'exploded' | 'rerolled' | 'colour' | 'dropped' | 'advantage' | 'sharedUnits'>;
 
 /**
  * A percentile roll as d10s, tens and units for each d100. A d100 that shares
@@ -111,9 +111,14 @@ function percentileScene(rolls: readonly SceneDie[]): DiceScene | null {
  *
  * A mimicked die lands on the highest face of its band (a d2's 2 shows the
  * d6's 6), so the face always reads back as the value everyone sees.
+ *
+ * A die that was rolled again is not thrown: the die that took its place
+ * stands for it. A Fate die
+ * has no body: its faces read −1, 0 and +1.
  */
-export function sceneFromRolls(rolls: readonly SceneDie[]): DiceScene | null {
-  if (rolls.length === 0) return null;
+export function sceneFromRolls(rolled: readonly SceneDie[]): DiceScene | null {
+  const rolls = rolled.filter((roll) => !roll.rerolled);
+  if (rolls.length === 0 || rolls.some((roll) => roll.min !== undefined)) return null;
   if (rolls.some((roll) => roll.max === 100)) return percentileScene(rolls);
 
   const plan: DiePlan[] = [];

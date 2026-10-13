@@ -9,6 +9,7 @@ import type { AtlasView } from '../../../atlas-view';
 import type { GridType } from '../../../grid/GridSystem';
 import { DEFAULT_CELL_NUMBER_OPACITY, isCellNumberFormat, type CellNumberFormat } from '../../../grid/cellNumbering';
 import { debounce } from '../../../../utils/debounce';
+import { useDetectGridOnNewScenes } from '../../hooks/useDetectGridOnNewScenes';
 import { t } from '../../../i18n';
 
 /** `undefined` leaves the colour to the grid, which picks black or white from the map's brightness. */
@@ -78,6 +79,7 @@ export function GridSettingsPanel({
   debouncedLineWidthUpdate,
 }: GridSettingsPanelProps): React.ReactElement {
   const colourLabelId = React.useId();
+  const newScenes = useDetectGridOnNewScenes(view?.app);
   const currentGrid = view?.atlasStore?.getState()?.grid;
   const currentType: string = currentGrid?.type ?? 'square';
   const currentColor: string | undefined = currentGrid?.color;
@@ -234,6 +236,14 @@ export function GridSettingsPanel({
           })}
         </div>
       </div>
+
+      {/* For every scene made from now on, where the rows above are this scene's. */}
+      <SettingToggleRow
+        label={t('grid.detectOnNewScenes')}
+        hint={t('grid.detectOnNewScenesHint')}
+        value={newScenes.detects}
+        onToggle={newScenes.toggle}
+      />
       </div>
     </div>
   );

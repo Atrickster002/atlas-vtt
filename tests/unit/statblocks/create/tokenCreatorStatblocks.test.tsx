@@ -122,6 +122,6 @@ describe('the token creator\'s Statblocks row (M6)', () => {
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: /Create.*↵/ })); });
     await waitFor(() => expect(harness.files.has('Wolf.md')).toBe(true));
     expect(harness.files.get('Wolf.md')).toContain('atlas-template: builtin:generic-npc');
-    expect(link).toHaveBeenCalledWith('atlas-vtt/assets/wolf.webp', 'Wolf.md', { showConfirmation: false });
+    expect(link).toHaveBeenCalledWith('atlas-vtt/assets/wolf.webp', 'Wolf.md');
   });
 });

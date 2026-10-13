@@ -124,10 +124,6 @@ const TokenPickerContent: React.FC<TokenPickerModalProps> = ({
       const success = await tokenStatblockService.linkTokenToStatblock(
         tokenImagePath,
         statblockFile.path,
-        { 
-          showConfirmation: true,
-          updateStatblockAvatar: true 
-        }
       );
       
       if (success) {

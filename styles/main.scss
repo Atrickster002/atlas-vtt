@@ -11,7 +11,11 @@
 @use '../src/app/onboarding/onboarding';
 @use '../src/app/changelog/changelog';
 @use '../src/app/support/issue-report';
+@use '../src/app/online/gm/styles/dock';
+@use '../src/app/online/marks/styles/marks';
+@use '../src/app/online/tableLog/styles/table-log';
 @use './native-tooltips';
+@use './notices';
 
 // Registered so `atlas-scrollbar-while-scrolling` can fade the thumb. At-rules
 // must stay at the root: inside the scope block below they would be invalid.
@@ -103,7 +107,11 @@
   @import '../src/app/react/components/dm-screen.scss';
   @import '../src/app/react/components/linked-note-panel.scss';
   @import '../src/app/react/components/player-dashboard.scss';
-  @import '../src/app/react/components/dashboard.scss';
+  @import '../src/app/react/components/dashboard/dashboard.scss';
+  @import '../src/app/react/components/dashboard/campaigns.scss';
+  @import '../src/app/react/components/dashboard/world-map-picker.scss';
+  @import '../src/app/react/components/dashboard/quests/quests.scss';
+  @import '../src/app/react/components/dashboard/quests/quest-place.scss';
   @import '../src/app/react/components/dice-log/dice-roll-log.scss';
   @import '../src/app/react/components/dice/rolled-dice.scss';
   @import '../src/app/react/components/loot/loot-roller.scss';

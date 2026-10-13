@@ -79,7 +79,7 @@ export function toMenuEntries(actions: readonly SurfaceAction[]): ContextMenuEnt
         label: action.label,
         onClick: action.run,
         ...(slots && { leading: React.createElement(MenuIcon, { name: action.icon ?? '' }) }),
-        ...(action.hint && { hint: action.hint }),
+        ...(action.hint && { detail: action.hint }),
         ...(action.disabled !== undefined && { disabled: action.disabled }),
         ...(action.destructive && { destructive: true }),
         ...(action.checked !== undefined && { checked: action.checked }),

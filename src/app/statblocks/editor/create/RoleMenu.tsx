@@ -22,7 +22,7 @@ function templateHint(choice: RoleChoice): string | null {
 export function roleMenuEntries(choices: readonly RoleChoice[], onChoose: (roleId: string) => void): ContextMenuEntry[] {
   return choices.map((choice): ContextMenuEntry => {
     const hint = templateHint(choice);
-    return { type: 'item', label: choice.name, ...(hint ? { hint } : {}), onClick: () => onChoose(choice.roleId) };
+    return { type: 'item', label: choice.name, ...(hint ? { detail: hint } : {}), onClick: () => onChoose(choice.roleId) };
   });
 }
 

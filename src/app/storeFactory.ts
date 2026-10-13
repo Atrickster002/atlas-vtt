@@ -31,6 +31,8 @@ import { withoutCollectionWidgets } from './utils/collectionWidgets';
 import { withWidgetOff } from './utils/widgetActivation';
 import type { TimerState } from './utils/timerWidget';
 import { createMapObjectsActions, type MapObjectsSlice } from './stores/mapObjectsSlice';
+import type { MapMove } from './grid/mapStretch';
+import { objectsMovedWithMap } from './grid/mapStretchObjects';
 import { computeNextInstanceNumber } from './stores/tokenInstanceNumbers';
 import { placeTokens, raiseTokens, type TokenPlace } from './stores/tokenStacking';
 import type { DiceRollResult } from './types/diceTypes';
@@ -51,6 +53,11 @@ export interface ViewAtlasState extends ViewState {
   setMapLoading: (loading: boolean, progress?: number, message?: string) => void;
   setBackground: (bg: string | null) => void;
   setGrid: (grid: GridState) => void;
+  /**
+   * Sets an aligned grid. Where the alignment draws the map another way (`GridState.mapStretch`),
+   * `move` takes what stands on the map along (`objectsMovedWithMap`), in the same write.
+   */
+  alignGrid: (grid: GridState, move?: MapMove) => void;
   setGridUnits: (units: { unitType: 'feet' | 'yards' | 'meters' | 'units'; unitDistance: number }) => void;
   setGridVisible: (visible: boolean) => void;
   setSnapToGrid: (snap: boolean) => void;
@@ -103,7 +110,8 @@ export interface ViewAtlasState extends ViewState {
   // Note Pin actions
   /** With `hex`, the note is linked to the hex containing (x, y) rather than pinned to the point. */
   addNotePin: (x: number, y: number, notePath: string, icon?: string, options?: { hex?: boolean }) => string;
-  updateNotePin: (id: string, updates: Partial<Omit<NotePin, 'id' | 'kind'>>) => void;
+  /** A field given as undefined is removed. */
+  updateNotePin: (id: string, updates: { [K in keyof Omit<NotePin, 'id' | 'kind'>]?: NotePin[K] | undefined }) => void;
   moveNotePin: (id: string, x: number, y: number) => void;
   deleteNotePin: (id: string) => void;
 
@@ -264,10 +272,11 @@ export const DEFAULT_TOKEN_SETTINGS: Readonly<ViewAtlasState['tokenSettings']> =
   tokenRingSize: 1,
 };
 
-const createInitialState = (): Pick<ViewAtlasState, 'schema' | 'version' | 'mapPath' | 'background' | 'grid' | 'objects' | 'camera' | 'persistenceEnabled' | 'widgetSettings' | 'widgetValues' | 'dmNotePath' | 'tokenSettings' | 'initiative' | 'diceLog' | 'pinnedNotePreviews' | 'lootRoller' | 'lighting' | 'exploredMask' | 'exploredEdits'> => ({
+const createInitialState = (): Pick<ViewAtlasState, 'schema' | 'version' | 'mapPath' | 'background' | 'grid' | 'objects' | 'camera' | 'persistenceEnabled' | 'widgetSettings' | 'widgetValues' | 'dmNotePath' | 'tokenSettings' | 'initiative' | 'diceLog' | 'pinnedNotePreviews' | 'lootRoller' | 'lighting' | 'exploredMask' | 'exploredEdits' | 'partyValues'> => ({
   lighting: { ...DEFAULT_SCENE_LIGHTING },
   exploredMask: null,
   exploredEdits: 0,
+  partyValues: {},
   schema: ATLAS_SCHEMA,
   version: ATLAS_VERSION,
   mapPath: null,
@@ -493,6 +502,14 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
           setGrid: (grid) => set((draft) => {
             draft.grid = grid;
           }),
+
+          alignGrid: (grid, move) => {
+            const objects = move ? objectsMovedWithMap(get().objects, move) : null;
+            set((draft) => {
+              draft.grid = grid;
+              if (objects) draft.objects = objects;
+            });
+          },
           
           // Set grid units
           setGridUnits: (units) => set((draft) => {
@@ -898,7 +915,11 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
             const pin = draft.objects.pins[id];
             if (pin) {
               const kindChanged = updates.icon !== undefined && updates.icon !== pin.icon;
-              Object.assign(pin, updates);
+              // A field given as undefined is removed, so a switch turned off leaves nothing behind
+              for (const [key, value] of Object.entries(updates)) {
+                if (value === undefined) Reflect.deleteProperty(pin, key);
+                else Reflect.set(pin, key, value);
+              }
               // A pin keeps its label for life; only moving it to another sequence re-labels it
               if (kindChanged) {
                 delete pin.label;
@@ -1438,6 +1459,8 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
               exploredMask: readExploredMask(saved.exploredMask),
               // Counted per session: a file never brings one.
               exploredEdits: current.exploredEdits,
+              // The campaign's, never the scene's.
+              partyValues: current.partyValues,
             };
           },
 

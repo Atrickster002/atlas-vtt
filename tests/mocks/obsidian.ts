@@ -200,7 +200,7 @@ export class TFolder extends TAbstractFile {
 
 export class Notice {
   // Keep a signature close to Obsidian's constructor.
-  constructor(_message: string, _timeout?: number) {}
+  constructor(_message: string | DocumentFragment, _timeout?: number) {}
   hide(): void {}
 }
 
@@ -309,6 +309,15 @@ export function parseYaml(source: string): unknown {
 
 export function stringifyYaml(value: unknown): string {
   return stringifyYamlImpl(value);
+}
+
+/** As Obsidian's: where a note's frontmatter lies, and where its text starts. */
+export function getFrontMatterInfo(content: string): { exists: boolean; frontmatter: string; from: number; to: number; contentStart: number } {
+  const match = /^---\r?\n(?:([\s\S]*?)\r?\n)?---[ \t]*(?:\r?\n|$)/.exec(content);
+  if (!match) return { exists: false, frontmatter: '', from: 0, to: 0, contentStart: 0 };
+  const from = content.indexOf('\n') + 1;
+  const frontmatter = match[1] ?? '';
+  return { exists: true, frontmatter, from, to: from + frontmatter.length, contentStart: match[0].length };
 }
 
 export class Modal {
@@ -561,6 +570,7 @@ export class Setting {
   setName(name: string): this { this.nameEl.textContent = name; return this; }
   setDesc(desc: string): this { this.descEl.textContent = desc; return this; }
   setClass(cls: string): this { this.settingEl.classList.add(cls); return this; }
+  clear(): this { this.controlEl.replaceChildren(); return this; }
 
   private create<T extends HTMLElement>(tag: string): T {
     const el = this.settingEl.ownerDocument.createElement(tag) as T;

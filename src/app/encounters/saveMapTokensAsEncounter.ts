@@ -1,4 +1,4 @@
-import { App as ObsidianApp, Notice } from 'obsidian';
+import { App as ObsidianApp } from 'obsidian';
 import type { StoreApi } from 'zustand';
 import type { ViewAtlasState } from '../storeFactory';
 import type { TokenEntity, TokenStateSnapshot } from '../types';
@@ -8,6 +8,7 @@ import { AssetService } from '../services/AssetService';
 import { captureFormation, formationGridFromOptions } from './encounterFormation';
 import { saveEncounter, type EncounterTokenDraft } from './encounterSaveService';
 import { t } from '../i18n';
+import { showNotice } from '../ui/notice';
 
 /** Token nearest the group's centroid becomes the anchor, so the encounter spawns centred on the viewport. */
 function orderByCentroidDistance(tokens: TokenEntity[]): TokenEntity[] {
@@ -38,7 +39,7 @@ export async function saveMapTokensAsEncounter(
     .filter((t): t is TokenEntity => !!t && typeof t.imagePath === 'string' && t.imagePath.length > 0);
 
   if (tokens.length === 0) {
-    new Notice(t('encounter.noImage'));
+    showNotice(t('encounter.noImage'));
     return;
   }
 

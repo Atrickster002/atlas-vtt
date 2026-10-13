@@ -1,7 +1,8 @@
 import type { TokenEntity } from '../../types';
 import type { WallSegment } from '../../types/wallTypes';
 import type { FogCoverage } from '../../fog/fogCoverage';
-import { doorMiddle, doorsInSight } from '../../vision/doorSight';
+import { doorMiddle, doorsInSight, mapShownAt } from '../../vision/doorSight';
+import type { Point } from '../../types/visionTypes';
 import { wallList } from '../../vision/wallList';
 import type { PerceptionOptions } from '../../vision/perception';
 import { tokenPerception, type PerceptionMemo, type TokenPerception } from '../../vision/tokenPerception';
@@ -77,4 +78,19 @@ export function playerDoorSight(
     if (seen.has(wall.id) && fog.covers(doorMiddle(wall))) seen.delete(wall.id);
   }
   return seen;
+}
+
+/**
+ * Which of `points` the players' picture of a lit scene shows now (`mapShownAt`, the door badges'
+ * rule): none where committed fog covers them, none at all while the fog cannot be read (`null`)
+ * or the lighting is off.
+ */
+export function playerPointSight(
+  lighting: Pick<SceneLightingView, 'isEnabled' | 'currentSight' | 'ambientLight' | 'lightReaches'>,
+  points: readonly Point[],
+  fog?: FogCoverage | null,
+): boolean[] {
+  if (!lighting.isEnabled() || fog === null) return points.map(() => false);
+  const shows = mapShownAt(lighting.currentSight(), lighting.ambientLight(), lighting.lightReaches());
+  return points.map((point) => !(fog?.covers(point) ?? false) && shows(point));
 }

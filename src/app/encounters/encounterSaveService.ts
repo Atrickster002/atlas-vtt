@@ -1,10 +1,11 @@
-import { TFile, Modal, App as ObsidianApp, Notice, base64ToArrayBuffer } from 'obsidian';
+import { TFile, Modal, App as ObsidianApp, base64ToArrayBuffer } from 'obsidian';
 import type { AssetService, EncounterAsset } from '../services/AssetService';
 import { generateEncounterThumbnail } from './encounterThumbnail';
 import type { EncounterFormation } from './encounterFormation';
 import './encounter-save-modal.scss';
 import { runInBackground } from '../utils/backgroundTask';
 import { getLocale, t } from '../i18n';
+import { showNotice } from '../ui/notice';
 
 /** One token as it will be stored inside an encounter. */
 export type EncounterTokenDraft = EncounterAsset['tokens'][number];
@@ -86,7 +87,7 @@ export async function saveEncounter(
   formation?: EncounterFormation,
 ): Promise<EncounterAsset | null> {
   if (tokens.length === 0) {
-    new Notice(t('encounter.noTokens'));
+    showNotice(t('encounter.noTokens'));
     return null;
   }
 
@@ -105,11 +106,11 @@ export async function saveEncounter(
       thumbnailUrl,
       data: { description: t('encounter.description', { count: tokens.length }) },
     });
-    new Notice(t('encounter.saved', { name: encounterName }));
+    showNotice(t('encounter.saved', { name: encounterName }));
     return encounter;
   } catch (error) {
     console.error('[encounterSaveService] Error saving encounter:', error);
-    new Notice(t('encounter.saveFailed'));
+    showNotice(t('encounter.saveFailed'));
     return null;
   }
 }

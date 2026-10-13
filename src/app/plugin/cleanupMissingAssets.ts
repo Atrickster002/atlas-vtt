@@ -1,15 +1,16 @@
-import { App, Notice } from 'obsidian';
+import { App } from 'obsidian';
 import type { AtlasView } from '../atlas-view';
 import { AssetValidationService } from '../services/AssetValidationService';
 import { runHistoryTransaction } from '../stores/history';
 import { ChoiceModal } from './ChoiceModal';
 import { formatList, t } from '../i18n';
+import { showNotice } from '../ui/notice';
 
 /** Finds tokens and backgrounds whose image is gone and offers to drop them from the map. */
 export async function cleanupMissingAssets(app: App, view: AtlasView): Promise<void> {
   const store = view.getStore();
   if (!store) {
-    new Notice(t('cleanup.noMapData'));
+    showNotice(t('cleanup.noMapData'));
     return;
   }
 
@@ -24,7 +25,7 @@ export async function cleanupMissingAssets(app: App, view: AtlasView): Promise<v
   const removable = missingTokenIds.length + missingBackgrounds;
 
   if (removable === 0) {
-    new Notice(t('cleanup.nothingMissing'));
+    showNotice(t('cleanup.nothingMissing'));
     return;
   }
 
@@ -46,6 +47,6 @@ export async function cleanupMissingAssets(app: App, view: AtlasView): Promise<v
     if (missingBackgrounds > 0) actions.setBackground(null);
   });
 
-  new Notice(t('cleanup.done', { count: removable }));
+  showNotice(t('cleanup.done', { count: removable }));
   await view.saveMap();
 }

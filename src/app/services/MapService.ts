@@ -1,11 +1,11 @@
-import { App, Notice, TFile } from 'obsidian';
+import { App, TFile } from 'obsidian';
 import { MapController } from '../MapController';
 import { EventEmitter } from 'events';
 import { RendererService } from './RendererService';
 import type { ViewAtlasStore } from '../storeFactory';
 import type { MapFile } from './MapPersistence';
 import { getHistoryStore } from '../stores/history';
-import { autoDetectGridOnFirstLoad } from './gridAutoDetect';
+import { detectGridOfNewScene } from './firstGridDetection';
 import { describeError } from '../utils/errors';
 import { sceneNameOf } from '../utils/sceneName';
 import { settledWithin } from '../utils/settledWithin';
@@ -13,6 +13,7 @@ import { LatestRequestQueue } from './latestRequestQueue';
 import { fillStoreFromMapFile } from './mapFileFallback';
 import { t } from '../i18n';
 import type { ViewCamera } from '../pixi/viewCamera';
+import { showNotice } from '../ui/notice';
 
 /** How long a scene may take to load before the load is given up. */
 export const STALLED_LOAD_MS = 30_000;
@@ -24,6 +25,8 @@ export class MapService {
   private currentMapData: MapFile | null = null;
   private eventBus: EventEmitter;
   private readonly loads = new LatestRequestQueue();
+  /** Ends the grid detection of a new scene that is shown and not yet done with. */
+  private endGridDetection: (() => void) | null = null;
 
   constructor(private app: App, eventBus: EventEmitter, private store: ViewAtlasStore) {
     this.eventBus = eventBus;
@@ -63,6 +66,10 @@ export class MapService {
     isSuperseded: () => boolean,
   ): Promise<MapFile | null> {
     try {
+      // A detection still running on the scene being left ends with it.
+      this.endGridDetection?.();
+      this.endGridDetection = null;
+
       // Services save what belongs to the map being left while its state is still loaded
       if (this.store.getState().mapLoaded) this.eventBus.emit('map-unloading');
 
@@ -163,14 +170,8 @@ export class MapService {
         throw new Error('[MapService] Failed to load map data from MapController');
       }
       
-      if (this.store.getState().grid?.autoDetect) {
-        storeState.setMapLoading(true, 85, t('map.detectingGrid'));
-        // Let the overlay paint before the CPU-bound detection blocks the thread.
-        await new Promise(resolve => window.setTimeout(resolve, 30));
-        if (isSuperseded()) return null;
-        await autoDetectGridOnFirstLoad(this.store, mapImage, () => !isSuperseded());
-        if (isSuperseded()) return null;
-      }
+      // A new scene's grid is looked for once its map is shown (`revealMap`), not behind the loading screen.
+      const detectsGrid = this.store.getState().grid?.autoDetect === true;
 
       // Legacy mapData is now mostly for the renderer
       // The state is managed by the persist middleware      
@@ -202,6 +203,10 @@ export class MapService {
 
         // Resume history tracking now that map load is complete
         getHistoryStore(this.store)?.getState().resume();
+
+        if (detectsGrid && renderer) {
+          this.endGridDetection = detectGridOfNewScene({ app: this.app, store: this.store, renderer, isCurrent: () => !isSuperseded(), refitCamera: camera === null });
+        }
       };
       const hideLoadingScreen = (): void => {
         if (imageReady) void imageReady.then(revealMap);
@@ -224,7 +229,7 @@ export class MapService {
   private recoverFromFailedLoad(rendererService: RendererService, filePath: string, error: unknown): void {
     // Without this the view only shows an empty canvas
     const reason = describeError(error).replace(/^\[\w+\]\s*/, '');
-    new Notice(t('map.openFailed', { name: sceneNameOf(filePath), reason }), 0);
+    showNotice(t('map.openFailed', { name: sceneNameOf(filePath), reason }), 0);
 
     // A load that failed before it switched the store leaves the previous map open and saved as before
     const mapStillLoaded = this.store.getState().mapLoaded;
@@ -265,6 +270,8 @@ export class MapService {
   /** Stops waiting and running loads; the map image belongs to the renderer, which releases it. */
   public destroy(): void {
     this.loads.cancel();
+    this.endGridDetection?.();
+    this.endGridDetection = null;
   }
 
   /** `loadMap` for a file of the vault. */

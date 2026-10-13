@@ -7,10 +7,11 @@ import { useAtlasStore } from '../../ViewStoreContext';
 import { slottedResources } from '../../../resources/resourceSlots';
 import { shapeOf } from '../../../resources/visibleResources';
 import { useMapResources } from '../../../resources/useMapResources';
-import { AssetService } from '../../../services/AssetService';
+import { mapRules, updateMapRules } from '../../../services/mapRules';
 import { runInBackground } from '../../../utils/backgroundTask';
 import { openPlayerWindow } from '../../../services/PlayerWindowPresenter';
 import { SettingsService, type AtlasSettings } from '../../../services/SettingsService';
+import { useExperimentalFeature } from '../../hooks/useExperimentalFeature';
 import { SettingRow, SettingToggleRow } from './SettingRows';
 import { t } from '../../../i18n';
 
@@ -22,6 +23,7 @@ const DEFAULT_LOCAL_PLAYER_VIEW_SETTINGS = {
   showInitiative: true,
   showDiceRolls: false,
   showCommandPalette: false,
+  showCursors: false,
 };
 
 type LocalPlayerViewSettings = AtlasSettings['localPlayerView'];
@@ -33,26 +35,30 @@ const UI_TOGGLES: ReadonlyArray<{ key: LocalPlayerViewToggleKey; label: string }
   { key: 'showDiceRolls', label: t('lpv.showDiceRolls') },
 ];
 
+/** What only an online table has: shown while online play is switched on. */
+const ONLINE_TOGGLES: ReadonlyArray<{ key: LocalPlayerViewToggleKey; label: string }> = [
+  { key: 'showCursors', label: t('lpv.showCursors') },
+];
+
 const TOKEN_TOGGLES: ReadonlyArray<{ key: LocalPlayerViewToggleKey; label: string }> = [
   { key: 'showTokenNameplates', label: t('tokens.showNameplates') },
 ];
 
 /**
- * One switch per bar of the open scene's collection: whether players see it. Wheels show on
+ * One switch per bar of the rules the open scene plays by: whether players see it. Wheels show on
  * hover and selection only, which the player window has not, so they have no switch.
  */
 function PlayerBarToggles({ app }: { app: App }): React.ReactElement | null {
   const resources = useMapResources();
   const mapPath = useAtlasStore((state) => state.mapPath);
-  const assets = AssetService.getInstance(app);
-  const collectionId = mapPath ? assets.getCollectionForMap(mapPath) : null;
-  if (!collectionId) return null;
+  const { source } = mapRules(app, mapPath);
+  if (source.kind === 'none') return null;
 
   const toggle = (key: string): void => {
     const next = resources.map((resource) => (
       resource.key === key ? { ...resource, visibleToPlayers: !resource.visibleToPlayers } : resource
     ));
-    runInBackground(assets.updateCollectionSettings(collectionId, { resources: next }), 'Saving what players see');
+    runInBackground(updateMapRules(app, source, { resources: next }), 'Saving what players see');
   };
 
   return (
@@ -72,6 +78,7 @@ function PlayerBarToggles({ app }: { app: App }): React.ReactElement | null {
 export function LocalPlayerViewSettingsPanel(): React.ReactElement {
   const { app, view } = useAtlasUI();
   const settingsService: SettingsService | undefined = view?.serviceManager?.getSettingsService();
+  const onlinePlay = useExperimentalFeature('onlinePlay', settingsService);
   const [localSettings, setLocalSettings] = useState<LocalPlayerViewSettings>(
     () => settingsService?.getLocalPlayerViewSettings() || DEFAULT_LOCAL_PLAYER_VIEW_SETTINGS,
   );
@@ -105,6 +112,7 @@ export function LocalPlayerViewSettingsPanel(): React.ReactElement {
       <div className="atlas-command-palette-panel-column">
         <h3 className="atlas-command-palette-panel-heading">{t('lpv.interface')}</h3>
         {UI_TOGGLES.map(renderToggle)}
+        {onlinePlay && ONLINE_TOGGLES.map(renderToggle)}
       </div>
 
       <div className="atlas-command-palette-panel-column">

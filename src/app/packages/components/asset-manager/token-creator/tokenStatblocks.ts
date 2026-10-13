@@ -5,7 +5,8 @@
  * names them.
  */
 
-import { Notice, type App } from 'obsidian';
+import { type App } from 'obsidian';
+import { showNotice } from '../../../../ui/notice';
 import { chosenRole, roleTemplateId } from '../../../../statblocks/editor/create/collectionRoles';
 import { createStatblockNote } from '../../../../statblocks/notes/createStatblockNote';
 import { roleFolder } from '../../../../statblocks/roles/collectionStatblockRoles';
@@ -68,6 +69,6 @@ export async function createTokenStatblocks(
     }
   }
   const message = tokenStatblocksMessage(result);
-  if (message) new Notice(message);
+  if (message) showNotice(message);
   return result;
 }

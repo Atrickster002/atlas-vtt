@@ -123,7 +123,7 @@ describe('the token socket', () => {
     const dialog = await open();
     await act(async () => { fireEvent.click(within(dialog).getByRole('button', { name: 'Bog Hag' })); });
     await settle();
-    expect(links.linkTokenToStatblock).toHaveBeenCalledWith(HAG_ART, NOTE_PATH, { showConfirmation: false, updateStatblockAvatar: true });
+    expect(links.linkTokenToStatblock).toHaveBeenCalledWith(HAG_ART, NOTE_PATH, { updateStatblockAvatar: true });
     expect(screen.queryByRole('dialog', { name: 'Token art' })).toBeNull();
     expect(document.activeElement).toBe(socket());
   });

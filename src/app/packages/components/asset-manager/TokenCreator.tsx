@@ -1,6 +1,7 @@
 import { AssetRegistrationUncertainError } from '../../../services/assetRegistrationRecovery';
 import { AssetService } from '../../../services/AssetService';
 import { StatblockImportContent } from './statblock-import/StatblockImportContent';
+import { VaultImageContent } from './vault-images/VaultImageContent';
 import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { ImageIcon, Upload } from 'lucide-react';
@@ -20,7 +21,7 @@ import { useStatblockRow } from './token-creator/useStatblockRow';
 import type { SavedToken } from './token-creator/tokenStatblocks';
 import { useFrameProgress } from '../primitives/useFrameProgress';
 import { uvttFilesAmong, type ImportMaps } from './hooks/useUvttImport';
-import type { CreatorMode, EditTokenInput } from './token-creator/types';
+import type { CreatorMode, CreatorSource, EditTokenInput, PreviewImage } from './token-creator/types';
 import { t } from '../../../i18n';
 
 interface TokenCreatorProps {
@@ -29,7 +30,9 @@ interface TokenCreatorProps {
   mode?: CreatorMode;
   selectedCollection?: string;
   editToken?: EditTokenInput | null;
-  initialSource?: 'images' | 'statblocks';
+  initialSource?: CreatorSource;
+  /** New tokens are player characters: the creator was opened from the Player characters tab. */
+  playerCharacters?: boolean;
   /** Given to the map creator: takes the Universal VTT files among the added files, which become scenes at once. */
   onImportMaps?: ImportMaps;
 }
@@ -38,15 +41,18 @@ function hasFiles(e: React.DragEvent): boolean {
   return Array.from(e.dataTransfer.types).includes('Files');
 }
 
-export function TokenCreator({ isOpen, onClose, mode = 'token', selectedCollection = AssetService.defaultCollectionId(), editToken, initialSource = 'images', onImportMaps }: TokenCreatorProps): React.JSX.Element | null {
+export function TokenCreator({ isOpen, onClose, mode = 'token', selectedCollection = AssetService.defaultCollectionId(), editToken, initialSource = 'images', onImportMaps, playerCharacters = false }: TokenCreatorProps): React.JSX.Element | null {
   const { app } = useAtlasUI();
   const { assetService, collections } = useAssetCatalog(app, isOpen);
   const previews = useTokenPreviews(mode);
-  const [source, setSource] = useState(initialSource);
+  const [source, setSource] = useState<CreatorSource>(initialSource);
   const [importController, setImportController] = useState(() => new AbortController());
   const [importRunning, setImportRunning] = useState(false);
   useEffect(() => () => importController.abort(), [importController]);
   const usingStatblocks = mode === 'token' && !editToken && source === 'statblocks';
+  const usingVault = !editToken && source === 'vault';
+  // A source with a pane of its own shows it in place of the previews until its images are added.
+  const choosingImages = usingStatblocks || usingVault;
 
   const [collection, setCollection] = useState(selectedCollection);
   const { tags: availableTags, createTag, isCreatingTag } = useAssetTags(assetService, isOpen, collection, mode === 'map' ? 'maps' : 'tokens');
@@ -54,6 +60,7 @@ export function TokenCreator({ isOpen, onClose, mode = 'token', selectedCollecti
   const selectedPreviews = previews.previews.filter(p => p.isSelected);
   const selectedTags = selectedPreviews[0]?.tags?.filter(tag => selectedPreviews.every(p => p.tags?.includes(tag))) ?? [];
   const queuedPaths = useMemo(() => previews.previews.flatMap(p => p.statblockPath ? [p.statblockPath] : []), [previews.previews]);
+  const queuedVaultPaths = useMemo(() => previews.previews.flatMap(p => p.vaultPath ? [p.vaultPath] : []), [previews.previews]);
   const [saveError, setSaveError] = useState('');
   const [saveBlocked, setSaveBlocked] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -113,7 +120,7 @@ export function TokenCreator({ isOpen, onClose, mode = 'token', selectedCollecti
   const canSubmit = previews.previews.length > 0 && !isSubmitting && !saveBlocked && !isCreatingTag && assetService !== null;
 
   const handleSubmit = useCallback(async (): Promise<void> => {
-    if (usingStatblocks || !canSubmit || !assetService || !app) return;
+    if (choosingImages || !canSubmit || !assetService || !app) return;
     const total = previews.previews.length;
     setIsSubmitting(true);
     setSaveError('');
@@ -129,6 +136,7 @@ export function TokenCreator({ isOpen, onClose, mode = 'token', selectedCollecti
         onSaved: previews.removeMany,
         signal: importController.signal,
         editToken: editToken ?? null,
+        playerCharacters,
         waitForOptimized: previews.waitForOptimized,
         onProgress: reportSaveProgress,
         onTokensSaved: (tokens) => savedTokens.push(...tokens),
@@ -145,7 +153,7 @@ export function TokenCreator({ isOpen, onClose, mode = 'token', selectedCollecti
       setIsSubmitting(false);
       clearSaveProgress();
     }
-  }, [usingStatblocks, app, assetService, canSubmit, collection, editToken, mode, onClose, previews, importController, reportSaveProgress, clearSaveProgress, statblockRow]);
+  }, [choosingImages, app, assetService, canSubmit, collection, editToken, mode, playerCharacters, onClose, previews, importController, reportSaveProgress, clearSaveProgress, statblockRow]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -185,8 +193,11 @@ export function TokenCreator({ isOpen, onClose, mode = 'token', selectedCollecti
     e.preventDefault();
     dragDepthRef.current = 0;
     setIsDragging(false);
-    if (!usingStatblocks) handleFiles(Array.from(e.dataTransfer.files));
+    if (!choosingImages) handleFiles(Array.from(e.dataTransfer.files));
   };
+
+  const addChosen = (images: PreviewImage[]): void => { previews.addImages(images); setSource('images'); };
+  const closeChooser = (): void => { importController.abort(); setImportController(new AbortController()); setSource('images'); };
 
   if (!isOpen) return null;
 
@@ -211,7 +222,7 @@ export function TokenCreator({ isOpen, onClose, mode = 'token', selectedCollecti
       >
         <TokenCreatorRail
           source={source}
-          onSourceChange={next => { if (next === 'statblocks') setImportController(new AbortController()); setSource(next); }}
+          onSourceChange={next => { if (next !== 'images') setImportController(new AbortController()); setSource(next); }}
           sourceDisabled={importRunning || isSubmitting}
           mode={mode}
           isEditing={Boolean(editToken)}
@@ -233,13 +244,15 @@ export function TokenCreator({ isOpen, onClose, mode = 'token', selectedCollecti
         <header className="atlas-token-creator__header">
           <h2>
             <span id={titleId}>{title}</span>
-            {!usingStatblocks && count > 0 && <span className="atlas-token-creator__subtitle">{t(`creator.${mode}.count`, { count })}</span>}
+            {!choosingImages && count > 0 && <span className="atlas-token-creator__subtitle">{t(`creator.${mode}.count`, { count })}</span>}
           </h2>
           <CloseButton onClick={() => { if (!isSubmitting) onClose(); }} />
         </header>
 
         {usingStatblocks ? (
-          <StatblockImportContent app={app} queuedPaths={queuedPaths} onAdd={images => { previews.addImages(images); setSource('images'); }} onClose={() => { importController.abort(); setImportController(new AbortController()); setSource('images'); }} controller={importController} onRunningChange={setImportRunning} />
+          <StatblockImportContent app={app} queuedPaths={queuedPaths} onAdd={addChosen} onClose={closeChooser} controller={importController} onRunningChange={setImportRunning} />
+        ) : usingVault ? (
+          <VaultImageContent app={app} mode={mode} queuedPaths={queuedVaultPaths} onAdd={addChosen} onClose={closeChooser} controller={importController} onRunningChange={setImportRunning} />
         ) : <div ref={setPreviewPane} className={cn('atlas-token-creator__previews', count === 0 && 'atlas-empty')} inert={isSubmitting}>
           {count === 0 ? (
             <div className="atlas-token-creator__empty">
@@ -259,7 +272,7 @@ export function TokenCreator({ isOpen, onClose, mode = 'token', selectedCollecti
           )}
         </div>}
 
-        {!usingStatblocks && (
+        {!choosingImages && (
           <TokenCreatorFooter
             mode={mode}
             isEditing={Boolean(editToken)}

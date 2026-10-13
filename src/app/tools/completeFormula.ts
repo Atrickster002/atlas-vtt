@@ -17,9 +17,9 @@ export interface CompleteFormula {
   written: boolean;
 }
 
-/** `+3` with `1d20` gives `1d20+3`; a bare number counts as a bonus. */
+/** `+3` with `1d20` gives `1d20+3`; a bare number counts as a bonus. Spaces in labels stay. */
 function withDefaultRoll(modifier: string, defaultRoll: string): string {
-  const bonus = modifier.replace(/\s+/g, '');
+  const bonus = modifier.replace(/\s+(?![^[]*\])/g, '');
   return bonus === '' || /^[+-]/.test(bonus) ? `${defaultRoll}${bonus}` : `${defaultRoll}+${bonus}`;
 }
 

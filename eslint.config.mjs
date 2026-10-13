@@ -63,6 +63,11 @@ const PARSE_YAML_USES = [
   { selector: "CallExpression[callee.name='require'][arguments.0.value='yaml']", message: PARSE_YAML_MESSAGE },
 ];
 const NOTE_YAML_PARSER = "src/app/services/noteYaml.ts";
+// Atlas' messages are Obsidian's notices in Atlas' look, which only the helper gives them.
+const NATIVE_NOTICE = [
+  { selector: "NewExpression[callee.name='Notice']", message: "Show a message with showNotice (src/app/ui/notice.ts), which gives it Atlas' look." },
+];
+const ATLAS_NOTICE = "src/app/ui/notice.ts";
 
 // The two files that may ask `visionOn`: no source without vision on, whatever a policy says,
 // and the selection's check of every token.
@@ -83,7 +88,7 @@ export default defineConfig([
         "ts-nocheck": true,
         "ts-expect-error": true,
       }],
-      "no-restricted-syntax": ["error", ...NO_NATIVE_TITLE, ...PARSE_YAML_USES],
+      "no-restricted-syntax": ["error", ...NATIVE_NOTICE, ...NO_NATIVE_TITLE, ...PARSE_YAML_USES],
     },
   },
   // Which tokens give sight and which a picture always shows is decided in one place,
@@ -93,19 +98,25 @@ export default defineConfig([
     files: ["src/app/vision/**/*.{ts,tsx}", "src/app/pixi/lighting/**/*.{ts,tsx}"],
     ignores: ["src/app/vision/tokenSightPolicy.ts", ...VISION_ON_ASKERS, "**/__tests__/**"],
     rules: {
-      "no-restricted-syntax": ["error", ...NO_NATIVE_TITLE, ...PARSE_YAML_USES, ...VISION_FIELD_READS, ...VISION_ON_USES],
+      "no-restricted-syntax": ["error", ...NATIVE_NOTICE, ...NO_NATIVE_TITLE, ...PARSE_YAML_USES, ...VISION_FIELD_READS, ...VISION_ON_USES],
     },
   },
   {
     files: VISION_ON_ASKERS,
     rules: {
-      "no-restricted-syntax": ["error", ...NO_NATIVE_TITLE, ...PARSE_YAML_USES, ...VISION_FIELD_READS],
+      "no-restricted-syntax": ["error", ...NATIVE_NOTICE, ...NO_NATIVE_TITLE, ...PARSE_YAML_USES, ...VISION_FIELD_READS],
     },
   },
   {
     files: [NOTE_YAML_PARSER],
     rules: {
-      "no-restricted-syntax": ["error", ...NO_NATIVE_TITLE],
+      "no-restricted-syntax": ["error", ...NATIVE_NOTICE, ...NO_NATIVE_TITLE],
+    },
+  },
+  {
+    files: [ATLAS_NOTICE],
+    rules: {
+      "no-restricted-syntax": ["error", ...NO_NATIVE_TITLE, ...PARSE_YAML_USES],
     },
   },
   // Statblocks: only the drag-and-drop wrapper may import dnd-kit, and the pure

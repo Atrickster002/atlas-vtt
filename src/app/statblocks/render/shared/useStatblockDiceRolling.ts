@@ -43,7 +43,7 @@ const SIDE_ICONS = { advantage: 'chevrons-up', disadvantage: 'chevrons-down' } a
 function menuEntries(choices: readonly RollChoice[]): ContextMenuEntry[] {
   return choices.map((choice): ContextMenuEntry => {
     const hint = keyHint(choice);
-    return { type: 'item', label: choice.label, icon: choice.side ? SIDE_ICONS[choice.side] : 'dices', onClick: choice.roll, ...(hint && { hint }) };
+    return { type: 'item', label: choice.label, icon: choice.side ? SIDE_ICONS[choice.side] : 'dices', onClick: choice.roll, ...(hint && { detail: hint }) };
   });
 }
 

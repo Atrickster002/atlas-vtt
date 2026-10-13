@@ -1,5 +1,5 @@
 import { EditorView } from '@codemirror/view';
-import { resolveSubpath, type App, type TFile } from 'obsidian';
+import { resolveSubpath, type App, type CachedMetadata, type HeadingCache, type TFile } from 'obsidian';
 
 /** Heading lines of the editor, in source mode and live preview. */
 const EDITOR_HEADING_SELECTOR = '.cm-line.HyperMD-header';
@@ -14,9 +14,31 @@ const RENDERED_HEADING_SELECTOR = '[data-heading]';
  */
 export function headingLine(app: App, file: TFile, heading: string): number | null {
   const cache = app.metadataCache.getFileCache(file);
-  if (!cache) return null;
-  const exact = cache.headings?.find((cached) => cached.heading === heading);
-  return exact?.position.start.line ?? resolveSubpath(cache, `#${heading}`)?.start.line ?? null;
+  return cache ? headingIndex(cache, heading)?.position.start.line ?? null : null;
+}
+
+/** The cached heading a pin's `heading` names: exactly as the cache stores it, else as `resolveSubpath` reads a link. */
+function headingIndex(cache: CachedMetadata, heading: string): HeadingCache | undefined {
+  const headings = cache.headings ?? [];
+  const exact = headings.find((cached) => cached.heading === heading);
+  const line = exact?.position.start.line ?? resolveSubpath(cache, `#${heading}`)?.start.line;
+  return headings.find((cached) => cached.position.start.line === line);
+}
+
+/** A heading's section as offsets into its note: from the end of the heading's line to the next heading of its level or higher (null: the note's end). */
+export interface HeadingSection {
+  readonly heading: string;
+  readonly start: number;
+  readonly end: number | null;
+}
+
+/** The section `heading` opens in a note, as Obsidian resolves a link to it; null when the note lacks it. */
+export function headingSection(cache: CachedMetadata, heading: string): HeadingSection | null {
+  const found = headingIndex(cache, heading);
+  if (found === undefined) return null;
+  const headings = cache.headings ?? [];
+  const next = headings.slice(headings.indexOf(found) + 1).find((cached) => cached.level <= found.level);
+  return { heading: found.heading, start: found.position.end.offset, end: next?.position.start.offset ?? null };
 }
 
 /**

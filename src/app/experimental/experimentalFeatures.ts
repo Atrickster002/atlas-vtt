@@ -17,6 +17,11 @@ export const EXPERIMENTAL_FEATURES = [
     label: 'Statblock editor',
     hint: 'Statblock roles and templates: a collection\'s Statblocks settings, and editing statblocks in Atlas. While off, statblocks show as before.',
   },
+  {
+    id: 'onlinePlay',
+    label: 'Online play',
+    hint: 'Host a table that players join from their browsers: the online control at the bottom left of a map, and the account settings. While off, Atlas connects to nothing.',
+  },
 ] as const;
 
 export type ExperimentalFeatureId = (typeof EXPERIMENTAL_FEATURES)[number]['id'];

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { AnimatePresence } from 'framer-motion';
-import { Notice, type App } from 'obsidian';
+import { type App } from 'obsidian';
+import { showNotice } from '../../../ui/notice';
 import { Button } from '../../../packages/components/primitives/button';
 import { LabelTooltip } from '../../../packages/components/primitives/tooltip';
 import { findLayout } from '../../../services/FantasyStatblocksService';
@@ -46,7 +47,7 @@ export function LayoutAdoptionList({ app, collectionId }: { app: App; collection
       .then((result) => setAdopting({ group, imported: result }))
       .catch((error: unknown) => {
         console.error('[Atlas] Importing a Fantasy Statblocks layout failed:', error);
-        new Notice("Couldn't import the layout.");
+        showNotice("Couldn't import the layout.");
       })
       .finally(() => setBusy(null));
   };

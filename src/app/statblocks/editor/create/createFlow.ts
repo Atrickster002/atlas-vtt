@@ -7,7 +7,8 @@
  * `statblockEditor` switch, like every entry point.
  */
 
-import { Notice, type App } from 'obsidian';
+import { type App } from 'obsidian';
+import { showNotice } from '../../../ui/notice';
 import { experimentalFeatureOn } from '../../../experimental/experimentalFeatures';
 import { AssetService } from '../../../services/AssetService';
 import { createStatblockNote, type NewStatblockNote } from '../../notes/createStatblockNote';
@@ -75,7 +76,7 @@ export async function createStatblock(app: App, creation: StatblockCreation): Pr
     if (linked) creation.onLinked?.(notePath);
   } catch (error) {
     console.error('[Atlas] Creating a statblock failed:', error);
-    new Notice("Couldn't create the statblock.");
+    showNotice("Couldn't create the statblock.");
     return null;
   }
   await openStatblockEditor(app, { notePath, collectionId, from: creation.from, focusFirstEmpty: true });
@@ -138,7 +139,7 @@ export async function startStatblockCreation(app: App, request: StatblockCreatio
     return file.path;
   } catch (error) {
     console.error('[Atlas] Creating a statblock failed:', error);
-    new Notice("Couldn't create the statblock.");
+    showNotice("Couldn't create the statblock.");
     return null;
   }
 }

@@ -23,6 +23,7 @@ import { registerHostedDialogRelease } from './src/app/statblocks/editor/hostedD
 import { editInStatblockPane } from './src/app/statblocks/editor/create/entryPoints';
 import { registerStatblockFileMenu } from './src/app/statblocks/editor/create/statblockCommands';
 import { disposeImageProcessing } from './src/app/imageProcessing/imageProcessing';
+import { disposeSpectralEngine } from './src/app/pixi/spectralEngine/spectralEngineService';
 import { registerLootQueryView } from './src/app/loot/lootQueryView';
 import { GlobalAssetManagerService } from './src/app/services/GlobalAssetManagerService';
 import { releaseOverlayBodyClass } from './src/app/packages/components/asset-manager/hooks/useOverlayBodyClass';
@@ -54,6 +55,14 @@ import { registerColorSwatchIcons } from './src/app/plugin/colorSwatchIcons';
 import { HeaderAutocompleteSuggest } from './src/app/plugin/HeaderAutocompleteSuggest';
 import { registerAtlasLinks } from './src/app/links/registerAtlasLinks';
 import { registerCommands } from './src/app/plugin/registerCommands';
+import { CampaignFiles } from './src/app/campaigns/CampaignFiles';
+import { PlayedRules } from './src/app/campaigns/playedRules';
+import { QuestIndex } from './src/app/campaigns/quests/QuestIndex';
+import { nameQuestCampaigns } from './src/app/campaigns/quests/nameQuestCampaigns';
+import { recordCampaignPlay } from './src/app/campaigns/recordCampaignPlay';
+import { registerPartySync } from './src/app/plugin/partySync';
+import { registerOnlinePlay, type OnlinePlay } from './src/app/plugin/onlinePlay';
+import type { TableChat } from './src/app/online/gm/tableChat';
 import { registerPlayerWindowReloadCleanup } from './src/app/plugin/playerWindowReload';
 import { registerReturnToAtlasOnClose } from './src/app/plugin/returnToAtlasOnClose';
 import { runStartupMigration } from './src/app/plugin/startupMigration';
@@ -88,6 +97,13 @@ export default class AtlasVTTPlugin extends Plugin {
     return presentedSceneOf(this.app);
   }
 
+  /** The online table's log for other plugins (post, roll, prompt for rolls, hear entries); null while online play is switched off. */
+  get tableChat(): TableChat | null {
+    return this.onlinePlay?.chat() ?? null;
+  }
+
+  private onlinePlay: OnlinePlay | null = null;
+
   async onload(): Promise<void> {
     // Record errors from the very start so startup problems can be reported too.
     const errorLog = new AtlasErrorLog();
@@ -103,6 +119,18 @@ export default class AtlasVTTPlugin extends Plugin {
     });
     // The user's game system presets are vault files; reading them needs no migration.
     const presetFiles = SystemPresetFiles.open(this.app);
+    // So are campaigns: their folders are read once the storage is ready.
+    const campaignFiles = CampaignFiles.open(this.app);
+    // Every map plays by the system of the campaign this device plays, where it has one.
+    PlayedRules.open(this.app, campaignFiles);
+    // Quests are notes of the vault, read from Obsidian's metadata cache; a campaign typed by name is written as its id.
+    this.register(nameQuestCampaigns(this.app, campaignFiles, QuestIndex.open(this.app)));
+    const campaignsRead = storageReady.catch(() => undefined).then(() => campaignFiles.load());
+    void campaignsRead.catch((error: unknown) => console.error('[Atlas] Reading the campaigns failed:', error));
+    // The campaign this device plays records the scenes its map views open.
+    this.register(recordCampaignPlay(this.app, campaignFiles, campaignsRead));
+    // And keeps one set of values for each of its player characters, shared by every map view.
+    registerPartySync(this, campaignFiles, campaignsRead);
     // The vault's dice sets are vault files too; collections and templates pick from them.
     void DiceSetFiles.open(this.app).load().catch((error: unknown) => console.error('[Atlas] Reading the dice sets failed:', error));
     // Settings carried over even when the data file migration failed, so they are not lost to the defaults.
@@ -146,6 +174,8 @@ export default class AtlasVTTPlugin extends Plugin {
     this.globalAssetManager = new GlobalAssetManagerService(this.app);
     this.imageDisplayService = new ImageDisplayService(this.app);
 
+    const onlinePlay = registerOnlinePlay(this, this.settingsService);
+    this.onlinePlay = onlinePlay;
     this.addSettingTab(new AtlasSettingTab(this.app, this, () => [
       navigationSettingsSection(this.settingsService),
       diceSettingsSection(this.settingsService),
@@ -154,6 +184,7 @@ export default class AtlasVTTPlugin extends Plugin {
       hotkeySettingsSection(this.settingsService),
       onboardingSettingsSection(this.settingsService),
       changelogSettingsSection(this.settingsService, changelogService, this.manifest.version),
+      ...onlinePlay.settingsSections(),
       supportSettingsSection(issueReporter),
     ]));
     this.registerEditorSuggest(new HeaderAutocompleteSuggest(this.app));
@@ -200,6 +231,9 @@ export default class AtlasVTTPlugin extends Plugin {
     this.changelogService?.destroy();
     void this.settingsService?.saveSettingsNow();
     SystemPresetFiles.release(this.app);
+    PlayedRules.release(this.app);
+    CampaignFiles.release(this.app);
+    QuestIndex.release(this.app);
     DiceSetFiles.release(this.app);
     this.widgetSyncService?.destroy();
     this.widgetSyncService = undefined;
@@ -216,6 +250,7 @@ export default class AtlasVTTPlugin extends Plugin {
     TileDecoderClient.release(this.app);
     MapImageService.release(this.app);
     disposeImageProcessing();
+    disposeSpectralEngine();
   }
 
   /** The statblock beside every native statblock note, in every window, while the statblock editor is switched on. */

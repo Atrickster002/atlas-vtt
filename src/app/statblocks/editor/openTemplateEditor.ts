@@ -6,7 +6,8 @@
  * experimental switch.
  */
 
-import { Notice, type App, type WorkspaceLeaf } from 'obsidian';
+import { type App, type WorkspaceLeaf } from 'obsidian';
+import { showNotice } from '../../ui/notice';
 import { experimentalFeatureOn } from '../../experimental/experimentalFeatures';
 import { TemplateLibrary } from '../library/TemplateLibrary';
 import { TemplateSession, type RoleOnSave } from '../library/TemplateSession';
@@ -58,7 +59,7 @@ export async function openTemplateEditor(app: App, options: OpenTemplateEditorOp
   const unsaved = options.unsaved === true;
   const path = isBuiltInTemplateId(id) || unsaved ? null : options.path ?? TemplateLibrary.forApp(app).get(id)?.path ?? null;
   if (!isBuiltInTemplateId(id) && !unsaved && !path) {
-    new Notice("Couldn't find that template.");
+    showNotice("Couldn't find that template.");
     return null;
   }
   const leaf = options.leaf ?? editorLeafFor(app, id, path) ?? app.workspace.getLeaf('tab');

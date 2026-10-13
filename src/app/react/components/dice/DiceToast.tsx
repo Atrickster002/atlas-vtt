@@ -5,7 +5,7 @@ import type { DiceRollResult } from '../../../types/diceTypes';
 import { TokenPortrait } from '../../../packages/components/shared/TokenPortrait';
 import type { RollSourcePresentation, UseDiceAvatar } from './diceSourcePresentation';
 import { DICE_TOAST_KNOT_SYMBOL_ID } from './diceToastOrnament';
-import { dieLabel, droppedAny, rollLine } from '../../../tools/diceLabels';
+import { dieLabel, dieStates, droppedAny, rollLine } from '../../../tools/diceLabels';
 import { AdvantageTag, listsDice, RolledDiceLine } from './RolledDiceLine';
 import { t } from '../../../i18n';
 
@@ -103,10 +103,9 @@ export function DiceToast({ result, presentation, phase, onDismiss, useAvatar }:
                 key={i}
                 className={cn(
                   'atlas-dice-toast__die-badge',
-                  roll.value === roll.max && 'atlas-dice-toast__die-badge--max',
-                  roll.value === 1 && 'atlas-dice-toast__die-badge--min',
+                  dieStates(roll).map((state) => `atlas-dice-toast__die-badge--${state}`),
                   roll.colour && 'atlas-die-badge--coloured',
-                  dropping && (roll.dropped ? 'atlas-die-badge--dropped' : 'atlas-die-badge--kept'),
+                  dropping && !roll.dropped && !roll.rerolled && 'atlas-die-badge--kept',
                 )}
                 style={roll.colour ? { '--atlas-die-colour': roll.colour } as React.CSSProperties : undefined}
               >

@@ -1,7 +1,7 @@
 import { EventEmitter } from 'events';
 import type { NotePin } from '../types';
 import type { ViewAtlasState } from '../storeFactory';
-import { App, Notice, type WorkspaceLeaf } from 'obsidian';
+import { App, type WorkspaceLeaf } from 'obsidian';
 import type { StoreApi } from 'zustand';
 import { runInBackground } from '../utils/backgroundTask';
 import { resolvePinIcon } from '../types/pinIcons';
@@ -14,6 +14,7 @@ import { nearestHexCenter, type HexLayout } from '../grid/hexGeometry';
 import { hexLinkAt } from '../grid/hexLinks';
 import { linkedSceneFile, mayLinkFromScene } from '../services/sceneLinks';
 import { t } from '../i18n';
+import { showNotice } from '../ui/notice';
 
 interface NotePinDropdownResult {
   accepted: boolean;
@@ -285,7 +286,7 @@ export class NotePinTool {
       const leaf = this.obsidianApp.workspace.getLeavesOfType('atlas-vtt')[0] ?? this.obsidianApp.workspace.getLeaf(true);
       this.openMapInLeaf(leaf, scene.path);
     } else if (!mayLinkFromScene(mapPath, pin.notePath)) {
-      new Notice(t('pin.crossCollection'));
+      showNotice(t('pin.crossCollection'));
     } else {
       // Open the linked note normally - openLinkText handles headers automatically
       runInBackground(this.obsidianApp.workspace.openLinkText(pin.notePath, '', true), `Opening ${pin.notePath}`, 'Could not open the linked note');

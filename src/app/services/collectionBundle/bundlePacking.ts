@@ -8,6 +8,7 @@ import { PRESET_RECORDS } from './bundlePresetFiles';
 import { flushRecordEdits, packedRecord, type BundledRecordKind } from './bundleRecordFiles';
 import type { InstalledRecord, InstalledTemplate } from './installRecord';
 import { comparedBytes } from './recordPayload';
+import { thumbnailAsNamedWebp, type NamedWebp } from './webpNamedFiles';
 
 const RECORD_KINDS: ReadonlyArray<{ kind: BundledRecordKind; key: 'presets' | 'diceSets' }> = [
   { kind: PRESET_RECORDS, key: 'presets' },
@@ -25,10 +26,13 @@ export interface PackedById {
  * Packs the files of one export in their order: what each file's bytes in the bundle are, and
  * what the export packed by id. Templates travel without code (§6.5) and with the note beside
  * them; a template file that holds no template stays behind, and its note with it. A preset or
- * dice set file that holds none stays behind too.
+ * dice set file that holds none stays behind too. A thumbnail stored in another format than its
+ * WebP name travels as the WebP it is named (`webpNamedFiles.ts`).
  */
 export class BundlePacker {
   readonly byId: PackedById = { templates: {}, presets: {}, diceSets: {} };
+  /** WebPs made for mislabelled thumbnails, which a release or fork stores over the vault's copies. */
+  readonly namedWebps: NamedWebp[] = [];
   /** Templates packed so far, whose notes may follow. */
   private readonly templates = new Set<string>();
 
@@ -54,6 +58,11 @@ export class BundlePacker {
     const content = await readVaultBinary(this.app, file.vaultPath);
     if (!content) return null;
     if (file.role === TEMPLATE_ROLE) return this.template(file.vaultPath, content);
+    const webp = file.role === 'thumbnail' ? await thumbnailAsNamedWebp(file.vaultPath, content) : null;
+    if (webp) {
+      this.namedWebps.push({ path: file.vaultPath, data: webp });
+      return webp;
+    }
     const record = RECORD_KINDS.find(({ kind }) => kind.role === file.role);
     if (record) {
       const installed = await packedRecord(record.kind, content);

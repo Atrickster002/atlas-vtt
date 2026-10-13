@@ -10,6 +10,7 @@ import { useCollectionTransfer, type CollectionTransferActions } from './useColl
 import { t } from '../../../../i18n';
 import { folderIdOf, tabFolderPath } from '../utils/assetFolders';
 import { folderMoveProblem, moveAssetsIntoFolder } from '../utils/assetFolderMove';
+import { tabHasFolders } from '../utils/tabKinds';
 
 /** Background and name carried over when a scene is created from a map asset. */
 export interface CreateScenePrefill {
@@ -190,7 +191,8 @@ export function useAssetCrud(
   const handleDrop = (targetFolderId: string | null): void => {
     if (!draggedItems) return;
     if (draggedItems.type === 'asset') {
-      void moveAssetsToFolder(draggedItems.ids, targetFolderId);
+      // The party is shown flat: a card let go on its background stays in the folder it lies in.
+      if (tabHasFolders(activeTab)) void moveAssetsToFolder(draggedItems.ids, targetFolderId);
     } else {
       setFolders((prev) =>
         prev.map((f) =>

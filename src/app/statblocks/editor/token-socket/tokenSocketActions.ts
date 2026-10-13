@@ -64,7 +64,6 @@ export async function setArt(pane: PaneEditController, field: TemplateField, pat
 export async function linkToken(pane: PaneEditController, field: TemplateField, token: CardToken): Promise<boolean> {
   if (!token.imagePath) return false;
   const linked = await TokenStatblockLinkService.getInstance(pane.app).linkTokenToStatblock(token.imagePath, pane.notePath, {
-    showConfirmation: false,
     updateStatblockAvatar: true,
   });
   if (linked && field.key !== LINK_IMAGE_KEY) await setArt(pane, field, token.imagePath);

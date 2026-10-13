@@ -85,7 +85,7 @@ describe('creating a statblock for a token', () => {
       collectionId: 'marsh', roleId: 'monster', name: 'Marsh Warden', tokenImagePath: 'art/warden.webp', from: 'map', onLinked,
     });
 
-    expect(link).toHaveBeenCalledWith('art/warden.webp', 'Bestiary/Marsh Warden.md', { showConfirmation: false });
+    expect(link).toHaveBeenCalledWith('art/warden.webp', 'Bestiary/Marsh Warden.md');
     expect(onLinked).toHaveBeenCalledWith('Bestiary/Marsh Warden.md');
     expect(openStatblockEditor).toHaveBeenCalledWith(app(), { notePath: 'Bestiary/Marsh Warden.md', collectionId: 'marsh', from: 'map', focusFirstEmpty: true });
   });

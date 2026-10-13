@@ -1,4 +1,5 @@
-import { Notice, type App } from 'obsidian';
+import { type App } from 'obsidian';
+import { showNotice } from '../../../ui/notice';
 import { copyTemplate } from '../../library/templateActions';
 import type { TemplateId } from '../../model/templateTypes';
 import type { FieldRecord } from '../../values/fieldValues';
@@ -18,13 +19,13 @@ export async function duplicateTemplate(
     const copy = await copyTemplate(app, templateId);
     const outcome = await writer.write(notePath, [templateKeyPatch(record, copy.id)]);
     if (outcome.problem || outcome.conflicts.length) {
-      new Notice('The copy is there, but this statblock could not switch to it.');
+      showNotice('The copy is there, but this statblock could not switch to it.');
       return null;
     }
     return copy;
   } catch (error) {
     console.error('[Atlas] Duplicating a template failed:', error);
-    new Notice("Couldn't duplicate the template.");
+    showNotice("Couldn't duplicate the template.");
     return null;
   }
 }

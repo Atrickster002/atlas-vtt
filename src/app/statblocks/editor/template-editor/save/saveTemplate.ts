@@ -8,7 +8,8 @@
  * template made from the gallery for a role starts that role's statblocks.
  */
 
-import { Notice, type App } from 'obsidian';
+import { type App } from 'obsidian';
+import { showNotice } from '../../../../ui/notice';
 import { copiedFrom, createTemplateFile } from '../../../library/templateActions';
 import { readTemplateBody } from '../../../library/templateBodyNotes';
 import { TemplateLibrary } from '../../../library/TemplateLibrary';
@@ -43,7 +44,7 @@ function bodyOfNew(app: App, snapshot: SessionSnapshot): Promise<string> {
 /** The note on the built-in names the new template instead (compare-and-swap: a note changed meanwhile keeps its own). */
 async function switchNote(app: App, path: string, from: TemplateId, to: TemplateId, name: string): Promise<void> {
   const outcome = await NoteFieldWriter.forApp(app).write(path, [{ op: 'set', path: [TEMPLATE_KEY], base: from, next: to }]);
-  if (outcome.problem === null && outcome.conflicts.length === 0 && outcome.applied.length > 0) new Notice(`${noteName(path)} uses ${name} now.`);
+  if (outcome.problem === null && outcome.conflicts.length === 0 && outcome.applied.length > 0) showNotice(`${noteName(path)} uses ${name} now.`);
 }
 
 async function saveAsNew(app: App, session: TemplateSession, name: string, fromNote: string | null): Promise<SaveOutcome> {

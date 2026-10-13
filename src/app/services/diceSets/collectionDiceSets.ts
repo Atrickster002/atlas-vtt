@@ -3,7 +3,8 @@ import { BUILT_IN_DICE_SETS } from '../../gameSystems/builtInDiceSets';
 import { collectionDiceSet, defaultDiceSet } from '../../gameSystems/diceSetResolution';
 import type { DiceSet } from '../../types/diceSetTypes';
 import { AssetService } from '../AssetService';
-import { mapCollectionSettings, systemPresetsOf } from '../mapCollectionRules';
+import { systemPresetsOf } from '../mapCollectionRules';
+import { mapRules } from '../mapRules';
 import { DiceSetFiles } from './DiceSetFiles';
 import { DiceSetService } from './DiceSetService';
 
@@ -18,9 +19,13 @@ export function diceSetsOf(app: App): readonly DiceSet[] {
   return diceSetServiceOf(app)?.list() ?? BUILT_IN_DICE_SETS;
 }
 
-/** The dice set of the collection that holds the map; the d20 for a map outside every collection. */
+/**
+ * The dice set the map plays by: that of the rules `mapRules` gives it (the played campaign's
+ * system, else the collection's), resolved as a collection's (`collectionDiceSet`); the d20 for a
+ * map without rules.
+ */
 export function mapDiceSet(app: App, mapPath: string | null | undefined): DiceSet {
-  const settings = mapCollectionSettings(app, mapPath);
+  const { settings } = mapRules(app, mapPath);
   return settings ? collectionDiceSet(settings, systemPresetsOf(app), diceSetsOf(app)) : defaultDiceSet();
 }
 

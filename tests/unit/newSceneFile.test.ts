@@ -63,6 +63,13 @@ describe('the file of a new scene', () => {
       .toMatchObject({ unitType: 'meters', unitDistance: 1.5, measurementType: 'units' });
   });
 
+  it('has no grid at a table that plays without one: nothing shows, nothing snaps and nothing is looked for', () => {
+    const { grid } = newSceneFile({ conditions: [] }, 'atlas-vtt/assets/keep.webp', false).state;
+
+    expect(grid).toMatchObject({ enabled: true, visible: false, snapToGrid: false, size: 70 });
+    expect(grid).not.toHaveProperty('autoDetect');
+  });
+
   it('loads as an empty scene', () => {
     const loaded = migrateMapFile(parseSceneFile(JSON.stringify(newSceneFile({ conditions: [] }, 'atlas-vtt/assets/keep.webp'))).state);
 

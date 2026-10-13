@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { AnimatePresence } from 'framer-motion';
-import { Notice, type App } from 'obsidian';
+import { type App } from 'obsidian';
+import { showNotice } from '../../ui/notice';
 import { Plus } from 'lucide-react';
 import { Button } from '../../packages/components/primitives/button';
 import { ActionsMenuButton } from '../../packages/components/shared/ActionsMenuButton';
@@ -58,7 +59,7 @@ export function TemplateList(props: TemplateListProps): React.JSX.Element {
   const duplicate = (entry: LibraryTemplate): void => {
     copyTemplate(app, entry.template.id).catch((error: unknown) => {
       console.error('[Atlas] Copying a template failed:', error);
-      new Notice("Couldn't copy the template.");
+      showNotice("Couldn't copy the template.");
     });
   };
 
@@ -82,7 +83,7 @@ export function TemplateList(props: TemplateListProps): React.JSX.Element {
       setDeleting(null);
     } catch (error) {
       console.error('[Atlas] Deleting a template failed:', error);
-      new Notice("Couldn't delete the template.");
+      showNotice("Couldn't delete the template.");
     }
   };
 

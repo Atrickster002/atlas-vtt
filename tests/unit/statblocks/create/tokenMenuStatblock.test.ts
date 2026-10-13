@@ -49,6 +49,8 @@ function setup(statblockPath?: string, editorOn = true): { app: App; store: Retu
     getDefaultCollectionId: () => 'default',
     getCollectionSettings: () => ({ conditions: [] }),
     getCollectionForMap: (path: string) => (path === MAP ? 'marsh' : null),
+    // The token was placed from no library token, so it can be no player character.
+    loadedTokenAssets: () => [],
   } as unknown as AssetService);
 
   const store = createViewAtlasStore(app, `statblock-menu-${Math.random()}`);

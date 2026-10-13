@@ -7,7 +7,8 @@
  * fence's layout or a role's. The note then opens with its statblock beside it.
  */
 
-import { Menu, Notice, type App, type TFile } from 'obsidian';
+import { Menu, type App, type TFile } from 'obsidian';
+import { showNotice } from '../../../ui/notice';
 import { isFantasyStatblocksAvailable } from '../../../services/FantasyStatblocksService';
 import { runInBackground } from '../../../utils/backgroundTask';
 import { findImportedTemplate, identityOf, importFsLayout } from '../../fs/fsImport';
@@ -111,7 +112,7 @@ export function adoptionChoices(app: App, notePath: string, record: FrontmatterR
     const outcome = await NoteFieldWriter.forApp(app).write(notePath, [templateKeyPatch(record, templateId)]);
     const problem = outcome.conflicts.length ? 'the note\'s template changed meanwhile.' : outcome.problem;
     if (problem) {
-      new Notice(`Couldn't change the statblock: ${problem}`);
+      showNotice(`Couldn't change the statblock: ${problem}`);
       return;
     }
     await openStatblockEditor(app, { notePath, collectionId, from: 'command' });
@@ -170,7 +171,7 @@ export async function offerFsAdoption(app: App, file: TFile, place: MenuPlace): 
 export async function offerFenceCopy(app: App, file: TFile, place: MenuPlace): Promise<void> {
   const fence = (await statblockSourceOf(app, file))?.kind === 'fs-fence' ? await fenceValues(app, file.path) : null;
   if (!fence) {
-    new Notice('This note holds no statblock block to copy.');
+    showNotice('This note holds no statblock block to copy.');
     return;
   }
   const [{ collectionId }] = await Promise.all([resolveCollectionContext(app, file.path, null), libraryLoaded(TemplateLibrary.forApp(app))]);

@@ -28,20 +28,25 @@ function chunksOf(rolls: readonly RolledDie[]): Chunk[] {
       return;
     }
     const signed = roll.negative ? `−${value}` : value;
-    chunks.push({ text: roll.name ? `${roll.name}${KEEP}${signed}` : signed, dropped: roll.dropped === true });
+    chunks.push({ text: roll.name ? `${roll.name}${KEEP}${signed}` : signed, dropped: roll.dropped === true || roll.rerolled === true });
   });
   return chunks;
 }
 
-/** Whether a roll's line lists its dice: it dropped some, or advantage changed it. */
-export function listsDice(result: Pick<DiceRollResult, 'rolls' | 'advantage'>): boolean {
+/**
+ * Whether a roll's line lists its dice: it dropped some, or advantage changed
+ * it. A formula that is no plain sum (`2d6kh1*2`) shows its formula instead,
+ * since its dice and modifier do not add up to its total.
+ */
+export function listsDice(result: Pick<DiceRollResult, 'rolls' | 'advantage' | 'linear'>): boolean {
+  if (result.linear === false) return false;
   return result.advantage !== undefined || result.rolls.some((roll) => roll.dropped);
 }
 
 /**
  * A roll that kept some of its dice, or that advantage changed, as its dice:
- * each by its name and number, the kept in bold and the dropped struck
- * through, then the modifier: `17 · 4 + 5`.
+ * each by its name and number, the kept in bold and the dropped (or rolled
+ * again) struck through, then the modifier: `17 · 4 + 5`.
  */
 export function RolledDiceLine({ result, className }: { result: Pick<DiceRollResult, 'rolls' | 'modifiers' | 'diceSet'>; className?: string }): React.ReactElement {
   const chunks = chunksOf(result.rolls);

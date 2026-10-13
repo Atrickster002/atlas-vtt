@@ -29,7 +29,7 @@ import { InteractionController } from './token-renderer/InteractionController';
 import { DragRuler } from './token-renderer/DragRuler';
 import { DragRulerView } from './token-renderer/DragRulerView';
 import { SyncService } from './token-renderer/SyncService';
-import { TokenGlide } from './token-renderer/TokenGlide';
+import { TokenGlide, placedAtOnce } from './token-renderer/TokenGlide';
 import { PLAYER_SIGHT_POLICY } from '../vision/tokenSightPolicy';
 import { createSceneSource } from '../plugin/host/sceneSource';
 import { updateInstanceBadge } from './token-renderer/InstanceBadge';
@@ -822,11 +822,11 @@ export class TokenRenderer {
           if (!this.syncService.isTokenAnimating(token.id)) {
             // Cancel any ongoing animation for this token to ensure store position takes precedence
             this.syncService.cancelAnimation(token.id);
-            // A token the pointer holds is placed by its drag; a load shows the scene as it is
             const { heldTokens, isMapLoading } = this.store.getState();
             // A dropped token is already gliding from the pointer, where it showed, to this place
-            const glides = this.glide.headsTo(token.id, token.x, token.y) || this.mayGlide(token, prevToken);
-            if (heldTokens[token.id] || isMapLoading || !glides) {
+            const mayGlide = this.glide.headsTo(token.id, token.x, token.y) || this.mayGlide(token, prevToken);
+            const pointerDrags = this.interactionController.isDraggingTokens();
+            if (placedAtOnce({ held: !!heldTokens[token.id], pointerDrags, loading: isMapLoading, mayGlide })) {
               this.glide.jump(token.id, token.x, token.y);
             } else {
               this.glide.to(token.id, token.x, token.y);

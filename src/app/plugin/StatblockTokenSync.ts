@@ -6,15 +6,14 @@ import type { ResourceDefsProvider } from '../resources/resourceTypes';
 import { fillMissingResources, type StatblockFields } from '../resources/statblockResourceSync';
 import { runUntracked } from '../stores/history';
 import type { TokenStatblockLinkService, LinkChangeEvent } from '../services/TokenStatblockLinkService';
-import { followStatblockImage } from '../services/followStatblockImage';
 import { buildStatblockLinkUpdates } from '../pixi/token-renderer/statblockFrontmatter';
 import { applyLinkChange, syncLinkedTokens } from '../pixi/token-renderer/statblockTokenSync';
 import { runInBackground } from '../utils/backgroundTask';
 import { statblockTokenAppearance } from './statblockTokenAppearance';
 
 interface StatblockTokenLinks extends Pick<TokenStatblockLinkService,
-  'readStatblockImage' | 'getTokenLinkedToStatblock' | 'getStatblockLinkedToToken' | 'findAssetByAnyPath' |
-  'arePathsEquivalent' | 'linkTokenToStatblock' | 'unlinkToken' | 'readStatblockRecord'> {
+  'readStatblockImage' | 'findAssetByAnyPath' | 'getStatblockLinkedToToken' |
+  'linkTokenToStatblock' | 'readStatblockRecord'> {
   on(event: 'link-changed', listener: (change: LinkChangeEvent) => void): void;
   off(event: 'link-changed', listener: (change: LinkChangeEvent) => void): void;
 }
@@ -58,19 +57,31 @@ export class StatblockTokenSync {
     if (!isCharacter) return;
 
     const statblockPath = file.path;
-    // The link moves only to a token asset the note's image names; any other image leaves it.
-    const linkedImage = await followStatblockImage(
-      this.tokenStatblockLinkService,
-      statblockPath,
-      this.tokenStatblockLinkService.readStatblockImage(file),
-    );
+    await this.linkTokenNamedByImage(file);
 
     // Linked tokens follow the statblock as the resolver reads it (renamed keys, meanings),
-    // untracked: a statblock edit must not become an undo step of this map.
+    // untracked: a statblock edit must not become an undo step of this map. Their art stays:
+    // a statblock is shared by many tokens, and its picture is only one of them.
     const statblock = await this.tokenStatblockLinkService.readStatblockRecord(statblockPath);
     if (statblock && !this.destroyed) {
-      syncLinkedTokens(this.store, statblockPath, statblock, this.resourceDefsProvider(), linkedImage);
+      syncLinkedTokens(this.store, statblockPath, statblock, this.resourceDefsProvider(), null);
     }
+  }
+
+  /**
+   * A note whose picture names a token that links no statblock links that
+   * token too. The picture alone never unlinks a token, takes one from another
+   * statblock or changes the art of placed tokens: a statblock is shared by
+   * many tokens, and its picture is only one of them.
+   */
+  private async linkTokenNamedByImage(file: TFile): Promise<void> {
+    // Read through the link service so this listener and the writer agree
+    // on which frontmatter key holds the statblock's image.
+    const image = this.tokenStatblockLinkService.readStatblockImage(file);
+    if (!image) return;
+    const asset = await this.tokenStatblockLinkService.findAssetByAnyPath(image);
+    if (!asset || asset.statblockPath) return;
+    await this.tokenStatblockLinkService.linkTokenToStatblock(asset.imagePath, file.path, { updateStatblockAvatar: false, fromNote: true });
   }
 
   // A link reads its statblock first, so the changes are applied one after another, in order.

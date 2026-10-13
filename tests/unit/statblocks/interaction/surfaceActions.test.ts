@@ -19,7 +19,7 @@ describe('menu descriptors (spec §5.1)', () => {
 
   it('draws as Atlas menu entries: keys as hints, destructive rows marked, separators as rules', () => {
     const entries = toMenuEntries([item('delete', { hint: 'Del', destructive: true }), SEPARATOR, item('copy')]);
-    expect(entries[0]).toMatchObject({ type: 'item', label: 'delete', hint: 'Del', destructive: true });
+    expect(entries[0]).toMatchObject({ type: 'item', label: 'delete', detail: 'Del', destructive: true });
     expect(entries[1]?.type).toBe('custom');
     expect(entries[2]).toMatchObject({ type: 'item', label: 'copy' });
   });

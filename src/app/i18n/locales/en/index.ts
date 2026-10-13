@@ -14,6 +14,8 @@ import { counter } from './counter';
 import { cover } from './cover';
 import { creator } from './creator';
 import { csm } from './csm';
+import { campaign } from './campaign';
+import { quest } from './quest';
 import { dashboard } from './dashboard';
 import { dice } from './dice';
 import { diceLab } from './diceLab';
@@ -41,6 +43,7 @@ import { transfer } from './transfer';
 import { view } from './view';
 import { widgets } from './widgets';
 import { sbImport } from './sbImport';
+import { vaultImages } from './vaultImages';
 import { filters } from './filters';
 import { search } from './search';
 import { sort } from './sort';
@@ -99,6 +102,8 @@ export const en = {
   ...cover,
   ...creator,
   ...csm,
+  ...campaign,
+  ...quest,
   ...dashboard,
   ...dice,
   ...diceLab,
@@ -126,6 +131,7 @@ export const en = {
   ...view,
   ...widgets,
   ...sbImport,
+  ...vaultImages,
   ...filters,
   ...search,
   ...sort,

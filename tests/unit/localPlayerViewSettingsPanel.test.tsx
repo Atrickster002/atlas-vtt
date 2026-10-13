@@ -9,8 +9,8 @@ import { AMMO, HP, STRESS } from '../mocks/resourceFixtures';
 const context = vi.hoisted(() => ({ settings: null as any, resources: [] as unknown[], collection: 'Own' as string | null, updateCollectionSettings: vi.fn(async () => undefined) }));
 vi.mock('../../src/app/resources/useMapResources', () => ({ useMapResources: () => context.resources }));
 vi.mock('../../src/app/react/ViewStoreContext', () => ({ useAtlasStore: (selector: (state: { mapPath: string }) => unknown) => selector({ mapPath: 'atlas-vtt/collections/Own/scenes/Cave.atlasmap' }) }));
-vi.mock('../../src/app/services/AssetService', () => ({ AssetService: { getInstance: () => ({ getCollectionForMap: () => context.collection, updateCollectionSettings: context.updateCollectionSettings }) } }));
-vi.mock('../../src/app/react/root/AtlasUIContext', () => ({ useAtlasUI: () => ({ app: {}, view: { serviceManager: { getSettingsService: () => context.settings } } }) }));
+vi.mock('../../src/app/services/AssetService', () => ({ AssetService: { getInstance: () => ({ getCollectionForMap: () => context.collection, getCollectionSettings: () => ({ conditions: [] }), updateCollectionSettings: context.updateCollectionSettings }) } }));
+vi.mock('../../src/app/react/root/AtlasUIContext', async (original) => ({ ...(await original<object>()), useAtlasUI: () => ({ app: {}, view: { serviceManager: { getSettingsService: () => context.settings } } }) }));
 vi.mock('../../src/app/services/PlayerWindowPresenter', () => ({ presentActiveTab: vi.fn(), openPlayerWindow: vi.fn() }));
 afterEach(() => { cleanup(); vi.useRealTimers(); context.resources = []; context.collection = 'Own'; context.updateCollectionSettings.mockClear(); });
 
@@ -34,6 +34,20 @@ it('updates every supported setting and follows settings changed elsewhere', () 
   // Players see the grid as the GM sets it on the map
   expect(screen.queryByRole('switch', { name: 'Show grid' })).toBeNull();
   expect(screen.getByText('Note previews are not shared with the player window.')).toBeTruthy();
+});
+
+it('offers the cursor switch only while online play is switched on', () => {
+  context.settings = new SettingsService({} as never);
+  const settings = context.settings as SettingsService;
+  const { unmount } = render(<LocalPlayerViewSettingsPanel />);
+  expect(screen.queryByRole('switch', { name: 'Show everyone\'s cursors' })).toBeNull();
+  unmount();
+  settings.setExperimental('onlinePlay', true);
+  render(<LocalPlayerViewSettingsPanel />);
+  const toggle = screen.getByRole('switch', { name: 'Show everyone\'s cursors' });
+  expect(toggle.getAttribute('aria-checked')).toBe('false');
+  fireEvent.click(toggle);
+  expect(settings.getLocalPlayerViewSettings().showCursors).toBe(true);
 });
 
 it('offers the bar switches the player view always had, for the bars of the open scene\'s collection', () => {

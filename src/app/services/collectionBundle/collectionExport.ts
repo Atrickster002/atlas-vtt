@@ -16,6 +16,7 @@ import { withLinkedFiles } from './noteLinks';
 import { remapPaths } from './pathRemap';
 import { originNames, recordRelease } from './releaseRecord';
 import { systemPresetsOf } from '../mapCollectionRules';
+import { storeNamedWebps } from './webpNamedFiles';
 import { vaultFileSize } from '../../utils/hiddenVaultFiles';
 import { t } from '../../i18n';
 
@@ -216,7 +217,12 @@ export async function exportCollectionBundle(
   });
   return {
     blob,
-    commit: () => (choice.kind === 'share' ? Promise.resolve() : recordRelease(app, assets, preview.collection, manifest, cover, packer.byId)),
+    commit: async (): Promise<void> => {
+      // A shared copy leaves the vault as its install record knows it.
+      if (choice.kind === 'share') return;
+      await storeNamedWebps(app, packer.namedWebps);
+      await recordRelease(app, assets, preview.collection, manifest, cover, packer.byId);
+    },
     fileName: bundleFileName(collection.name, collection.version),
     collectionName: collection.name,
     version: collection.version,
