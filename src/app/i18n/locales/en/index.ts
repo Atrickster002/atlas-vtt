@@ -42,6 +42,7 @@ import { transfer } from './transfer';
 import { view } from './view';
 import { widgets } from './widgets';
 import { sbImport } from './sbImport';
+import { vaultImages } from './vaultImages';
 import { filters } from './filters';
 import { search } from './search';
 import { sort } from './sort';
@@ -128,6 +129,7 @@ export const en = {
   ...view,
   ...widgets,
   ...sbImport,
+  ...vaultImages,
   ...filters,
   ...search,
   ...sort,
