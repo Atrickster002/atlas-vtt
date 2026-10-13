@@ -79,3 +79,18 @@ it('Escape dismisses the layout menu before closing the importer over an active 
   expect(onClose).not.toHaveBeenCalled();
   await waitFor(() => expect(screen.queryByRole('menu')).toBeNull());
 });
+
+it('makes maps of vault images through the same preview cards as uploads', async () => {
+  const { app } = createInMemoryApp({ files: { 'Maps/Cave.jpg': 'map', 'atlas-vtt/assets/cave.webp': 'own' } });
+  app.workspace = { trigger: vi.fn() };
+  const { container } = render(<AtlasUIContext.Provider value={{ app, view: null, pixiApp: null, renderer: null }}><TokenCreator isOpen mode="map" onClose={vi.fn()} /></AtlasUIContext.Provider>);
+  expect(screen.queryByRole('button', { name: 'Fantasy Statblocks' })).toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: 'From vault' }));
+  expect(screen.queryByRole('checkbox', { name: 'Select cave' })).toBeNull();
+  fireEvent.click(screen.getByRole('checkbox', { name: 'Select Cave' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Add 1 to import' }));
+  await screen.findByDisplayValue('Cave');
+  expect(container.querySelectorAll('.atlas-token-card')).toHaveLength(1);
+  fireEvent.click(screen.getByRole('button', { name: 'From vault' }));
+  expect((screen.getByRole('checkbox', { name: 'Select Cave' }) as HTMLInputElement).disabled).toBe(true);
+});

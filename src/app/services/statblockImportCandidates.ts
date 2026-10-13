@@ -6,6 +6,7 @@ import type { TokenAsset } from './AssetService';
 import { tokenSizeFromCreatureSize } from '../pixi/token-renderer/tokenSizing';
 import { STATBLOCK_IMAGE_KEYS, type StatblockImageKey } from './statblockImageKeys';
 import { t } from '../i18n';
+import { isVaultImage } from '../utils/vaultImage';
 
 export type StatblockImportStatus = 'ready' | 'imported' | 'missing-image' | 'remote-image' | 'conflict';
 export interface StatblockImportCandidate {
@@ -52,7 +53,7 @@ export function localImage(app: App, reference: string, sourcePath: string): TFi
   const path = reference.replace(/^!?\[\[|\]\]$/g, '').split('|')[0]?.split('#')[0]?.trim();
   if (!path) return null;
   const resolved = app.metadataCache.getFirstLinkpathDest(path, sourcePath) ?? app.vault.getAbstractFileByPath(normalizePath(path));
-  return resolved instanceof TFile && /^(png|jpe?g|webp|gif|bmp|svg|avif)$/i.test(resolved.extension) ? resolved : null;
+  return resolved instanceof TFile && isVaultImage(resolved) ? resolved : null;
 }
 
 export function requireResolvedBestiary(): FantasyStatblocksCreature[] {

@@ -1,0 +1,20 @@
+@use '../../../../../../styles/tokens' as *;
+
+// The vault images pane shares the statblock pane's layout; only its thumbnails differ.
+.atlas-vault-images {
+  // The thumbnail's placeholder lies over the frame.
+  &__frame {
+    position: relative;
+    overflow: hidden;
+  }
+  &__thumbnail {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+  }
+  &__pending {
+    width: 100%;
+    height: 100%;
+    border-radius: $radius-m;
+  }
+}
