@@ -198,19 +198,6 @@ describe('the alignment of a level', () => {
     expect(harness.store.getState().objects.tokens.mage).toMatchObject({ x: 100, y: 100 });
   });
 
-  it('of the first level moves only what stands on it when the scene has levels', async () => {
-    const harness = await loaded();
-    const before = harness.store.getState();
-
-    before.alignGrid({ ...before.grid!, mapStretch: { x: 1.2, y: 1 } }, movedWithMap(SIZE, { x: 1, y: 1 }, { x: 1.2, y: 1 }));
-
-    const after = harness.store.getState();
-    expect(after.objects.tokens.guard).toMatchObject({ x: 120, y: 100 });
-    expect(after.objects.tokens.mage).toBe(before.objects.tokens.mage);
-    expect(after.objects.walls.tower).toBe(before.objects.walls.tower);
-    expect(after.objects.walls.stairs).toBe(before.objects.walls.stairs);
-  });
-
   it('is saved in its level in the file and read back beside the levels', async () => {
     const harness = await loaded();
     harness.store.getState().alignLevel('upper', ALIGNMENT);
@@ -310,5 +297,86 @@ describe('a grid that changes type', () => {
     expect(vi.mocked(Notice)).toHaveBeenCalledTimes(1);
     expect(String(vi.mocked(Notice).mock.calls[0]?.[0])).toContain('Upper floor');
     stop();
+  });
+});
+
+describe('the frame: the first level and every level without an alignment of its own', () => {
+  const IMAGE = { width: 1000, height: 800 };
+  const THREE = [...LEVELS, { id: 'roof', name: 'Roof', elevation: { bottom: 20, top: 30 }, background: 'maps/ground.png' }];
+  type Temporal = { temporal: { getState(): { undo(): void } } };
+  const point = (x: number, y: number): { x: number; y: number } => ({ x, y });
+  const tokenAt = (id: string, x: number, y: number, level?: string): Record<string, unknown> => ({ id, kind: 'token', x, y, imagePath: `tokens/${id}.png`, ...(level ? { level } : {}) });
+  const wallAt = (id: string, levels?: unknown): Record<string, unknown> => ({ id, kind: 'wall', type: 'solid', p1: point(40, 60), p2: point(400, 90), ...(levels ? { levels } : {}) });
+
+  function objectsOf(withLevels: boolean): Record<string, unknown> {
+    const on = (level: string): string | undefined => (withLevels ? level : undefined);
+    return {
+      tokens: { guard: tokenAt('guard', 100, 100, on('ground')), mage: tokenAt('mage', 300, 220, on('upper')), crow: tokenAt('crow', 640, 410, on('roof')) },
+      fog: {}, pins: {}, texts: {}, drawings: {}, lights: {},
+      walls: { tower: wallAt('tower', withLevels ? 'all' : undefined), bridge: wallAt('bridge', withLevels ? ['ground', 'upper'] : undefined) },
+    };
+  }
+
+  async function open(state: Record<string, unknown>, version: number): Promise<Harness> {
+    const harness = setup(JSON.stringify({ version, state: sceneState({ version, ...state }) }));
+    await harness.service.loadMap(harness.rendererService, SCENE);
+    return harness;
+  }
+
+  const places = (harness: Harness): Record<string, unknown> => {
+    const { tokens, walls } = harness.store.getState().objects;
+    return { ...Object.fromEntries(Object.entries(tokens).map(([id, token]) => [id, [token.x, token.y]])), ...Object.fromEntries(Object.entries(walls).map(([id, wall]) => [id, [wall.p1, wall.p2]])) };
+  };
+
+  it.each([
+    ['a stretch', { x: 1.2, y: 1 }, {}],
+    ['a turn', { x: 1, y: 1, rotation: 2 }, {}],
+    ['a stretch and another grid', { x: 1, y: 1.1 }, { size: 64, offsetX: 30, offsetY: 12 }],
+  ])('with three floors none of them fitted, an alignment with %s moves everything as in a scene with one level', async (_label, stretch, grid) => {
+    const single = await open({ objects: objectsOf(false) }, 4);
+    const floors = await open({ levels: THREE, objects: objectsOf(true) }, 5);
+    for (const harness of [single, floors]) {
+      const state = harness.store.getState();
+      state.alignGrid({ ...state.grid!, ...grid, mapStretch: stretch }, movedWithMap(IMAGE, { x: 1, y: 1 }, stretch));
+    }
+
+    expect(places(floors)).toEqual(places(single));
+    const after = floors.store.getState();
+    for (const id of ['ground', 'upper', 'roof']) expect(levelImagePlacement(after, id)).toEqual(stretch);
+  });
+
+  it('moves what stands on a frame level, shared ones too, with the frame\'s map, and carries a fitted level\'s own along the grid; one undo restores all', async () => {
+    const fitted = { offset: { x: 61, y: 47 }, scale: 1.4, stretch: { x: 1, y: 1 } };
+    const levels = THREE.map((entry) => (entry.id === 'upper' ? { ...entry, alignment: fitted } : entry));
+    const objects = objectsOf(true);
+    (objects.walls as Record<string, unknown>).stairs = wallAt('stairs', ['upper']);
+    const harness = await open({ levels, objects }, 5);
+    const before = harness.store.getState();
+    const stretch = { x: 1.2, y: 1 };
+    const move = movedWithMap(IMAGE, { x: 1, y: 1 }, stretch);
+    const upperBefore = levelImagePlacement(before, 'upper');
+
+    before.alignGrid({ ...before.grid!, size: 64, offsetX: 30, offsetY: 12, mapStretch: stretch }, move);
+
+    const after = harness.store.getState();
+    // The frame: the ground floor, the roof, the wall of all levels and the wall shared with the fitted floor
+    expect(after.objects.tokens.guard).toMatchObject(move(point(100, 100)));
+    expect(after.objects.tokens.crow).toMatchObject(move(point(640, 410)));
+    expect(after.objects.walls.tower?.p1).toEqual(move(point(40, 60)));
+    expect(after.objects.walls.bridge?.p2).toEqual(move(point(400, 90)));
+    // The fitted floor's own stay on the same points of its art
+    const upperAfter = levelImagePlacement(after, 'upper');
+    for (const [now, was] of [[after.objects.tokens.mage!, point(300, 220)], [after.objects.walls.stairs!.p1, point(40, 60)]] as const) {
+      const art = worldToImage(was, IMAGE, upperBefore);
+      const artNow = worldToImage(now, IMAGE, upperAfter);
+      expect(artNow.x).toBeCloseTo(art.x, 4);
+      expect(artNow.y).toBeCloseTo(art.y, 4);
+    }
+
+    (harness.store as unknown as Temporal).temporal.getState().undo();
+    const undone = harness.store.getState();
+    expect(undone.grid).toEqual(before.grid);
+    expect(undone.levelAlignments).toEqual(before.levelAlignments);
+    expect(undone.objects).toEqual(before.objects);
   });
 });

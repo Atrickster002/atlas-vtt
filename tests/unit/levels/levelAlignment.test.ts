@@ -10,10 +10,10 @@ const LEVELS = [level('ground'), level('upper'), level('roof')];
 const GRID: GridState = { enabled: true, visible: true, size: 70, offsetX: 5, offsetY: 5, opacity: 0.5, mapStretch: { x: 1.1, y: 1 } };
 
 describe('where a level\'s image is drawn', () => {
-  it('draws the first level as the scene\'s grid alignment says, and any other as it is until it is fitted', () => {
+  it('draws every level without an alignment of its own as the scene\'s grid alignment says, like the first', () => {
     const scene = { levels: LEVELS, grid: GRID };
     expect(levelImagePlacement(scene, 'ground')).toEqual({ x: 1.1, y: 1 });
-    expect(levelImagePlacement(scene, 'upper')).toBe(NO_STRETCH);
+    expect(levelImagePlacement(scene, 'upper')).toEqual({ x: 1.1, y: 1 });
     expect(levelImagePlacement({ grid: GRID }, null)).toEqual({ x: 1.1, y: 1 });
     expect(alignsSceneGrid(scene, 'ground')).toBe(true);
     expect(alignsSceneGrid(scene, 'upper')).toBe(false);
@@ -22,7 +22,7 @@ describe('where a level\'s image is drawn', () => {
   it('draws a level with an alignment of its own by it, its scale folded into the stretch', () => {
     const scene = { levels: LEVELS, grid: GRID, levelAlignments: { upper: { offset: { x: 12, y: 0 }, scale: 2, stretch: { x: 1, y: 1.2 } } } };
     expect(levelImagePlacement(scene, 'upper')).toEqual({ x: 2, y: 2.4, offset: { x: 12, y: 0 } });
-    expect(levelImagePlacement(scene, 'roof')).toBe(NO_STRETCH);
+    expect(levelImagePlacement(scene, 'roof')).toEqual({ x: 1.1, y: 1 });
     expect(levelImagePlacement(scene, 'ground')).toEqual({ x: 1.1, y: 1 });
   });
 

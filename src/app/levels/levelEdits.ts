@@ -3,7 +3,6 @@ import type { ViewState } from '../types/viewState';
 import { levelsWithBackground } from './levelFile';
 import { objectsAfterLevelEdit, type MembershipEdit } from './levelMembershipEdits';
 import { firstLevelId } from './sceneLevels';
-import { NO_STRETCH, readMapStretch, sameStretch } from '../grid/mapStretch';
 import type { LevelAlignments } from './levelAlignment';
 
 /** What an edit of the levels reads and writes of a scene. */
@@ -30,22 +29,12 @@ function masksByLevel(scene: LevelScene): Record<string, string | null> {
   return { ...scene.exploredMasks, ...(first && { [first]: scene.exploredMask }) };
 }
 
-/**
- * The alignments of `levels` once `first` is their first level. A level without an alignment of its
- * own is drawn by the scene's grid alignment while it is first and as it is otherwise
- * (`levelImagePlacement`), so one that becomes or stops being first takes the look it had as its own.
- */
+/** The alignments of the levels that remain; a level's look does not depend on its place in the order (`levelImagePlacement`). */
 function keptAlignments(scene: LevelScene, levels: readonly SceneLevel[]): LevelAlignments | undefined {
-  const gridStretch = readMapStretch(scene.grid?.mapStretch);
-  const before = firstLevelId(scene.levels);
-  const after = levels[0]?.id ?? null;
   const kept: LevelAlignments = {};
   for (const level of levels) {
     const own = scene.levelAlignments?.[level.id];
     if (own) kept[level.id] = own;
-    else if ((level.id === before) !== (level.id === after) && !sameStretch(gridStretch, NO_STRETCH)) {
-      kept[level.id] = { offset: { x: 0, y: 0 }, scale: 1, stretch: level.id === before ? gridStretch : NO_STRETCH };
-    }
   }
   return Object.keys(kept).length > 0 ? kept : undefined;
 }

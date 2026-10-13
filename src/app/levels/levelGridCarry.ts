@@ -5,7 +5,7 @@ import type { LevelAlignment } from '../types/sceneLevelTypes';
 import type { ViewState } from '../types/viewState';
 import { gridPeriod } from './levelAlignmentFit';
 import type { LevelAlignments } from './levelAlignment';
-import { movesWithLevel, type SceneLevels } from './sceneLevels';
+import { hasLevels, movesWithLevel, onLevel, type SceneLevels } from './sceneLevels';
 
 /** What a change of the scene's grid reads of the scene. */
 export interface GridCarryScene {
@@ -49,10 +49,12 @@ function carriedAlignment(alignment: LevelAlignment, move: (point: Point) => Poi
 /**
  * The scene's levels once its grid becomes `next`. Every level fitted to the grid (one with an
  * alignment of its own) stays on its art: its image and the objects on that level alone take the
- * move the grid's change implies, so its cells stay on the same pixels of its image. A level drawn
- * by the scene's own stretch, or as it is, lies in the first level's frame and stays there. A
- * change of the grid's type cannot be carried over: those levels keep their alignment and are
- * named in `refit`. Null where nothing is to be carried.
+ * move the grid's change implies, so its cells stay on the same pixels of its image; an object on
+ * several fitted levels and no frame level takes that move without a level's shift. Frame levels
+ * (drawn by the scene's own stretch, like the first) and every object on one, shared ones too, stay
+ * in the frame: the grid alignment moves them with the frame's map (`movesWithFrame`). A change of
+ * the grid's type cannot be carried over: those levels keep their alignment and are named in
+ * `refit`. Null where nothing is to be carried.
  */
 export function levelsCarriedWithGrid(scene: GridCarryScene, next: GridState | null): CarriedLevels | null {
   const { grid: before, levelAlignments } = scene;
@@ -66,6 +68,16 @@ export function levelsCarriedWithGrid(scene: GridCarryScene, next: GridState | n
   const move = latticeMove(before, next);
   const alignments: LevelAlignments = { ...levelAlignments };
   let { objects } = scene;
+  // What stands on several fitted levels and no frame level takes the lattice's move itself
+  const levels = scene.levels;
+  if (hasLevels(levels)) {
+    const onFitted = (object: object): number => fitted.filter((id) => onLevel(object, id, levels)).length;
+    const onFrame = (object: object): boolean => levels.some((level) => !levelAlignments[level.id] && onLevel(object, level.id, levels));
+    objects = objectsMovedWithMap(objects, (point) => {
+      const moved = move(point);
+      return { x: round(moved.x, 1e6), y: round(moved.y, 1e6) };
+    }, (object) => !onFrame(object) && onFitted(object) > 1);
+  }
   for (const id of fitted) {
     const { alignment, shift } = carriedAlignment(levelAlignments[id]!, move, ratio, next);
     alignments[id] = alignment;

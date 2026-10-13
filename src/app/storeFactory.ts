@@ -44,10 +44,10 @@ import { movedPathOf, rewriteMapReferences } from './services/renamedPaths';
 import { conditionValue, removeCondition, setConditionValue } from './utils/conditionValues';
 import { HydrationTracker } from './stores/hydrationTracker';
 import { isolateListeners } from './stores/isolatedListeners';
-import { firstLevelId, movesWithLevel, placedOnViewedLevel, placedOnViewedLevels } from './levels/sceneLevels';
+import { placedOnViewedLevel, placedOnViewedLevels } from './levels/sceneLevels';
 import { createSceneLevelsActions, writeExploredMask, type SceneLevelsSlice } from './stores/sceneLevelsSlice';
 import { levelsForFile, readExploredMasks, readSceneLevels } from './levels/levelFile';
-import { levelAlignmentsOf, withoutAlignments } from './levels/levelAlignment';
+import { levelAlignmentsOf, movesWithFrame, withoutAlignments } from './levels/levelAlignment';
 import { levelsCarriedWithGrid, type CarriedLevels, type GridCarryScene } from './levels/levelGridCarry';
 
 // Individual store state interface (same as AtlasState but isolated)
@@ -529,10 +529,10 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
           },
 
           alignGrid: (grid, move) => {
-            // The grid is the scene's, its image the first level's: what stands on it alone moves with that image,
-            // and every level fitted to the grid follows the grid to stay on its art
+            // What stands on the frame's levels moves with the frame's map, and every level fitted to the
+            // grid follows the grid to stay on its art
             const state = get();
-            const objects = move ? objectsMovedWithMap(state.objects, move, movesWithLevel(state, firstLevelId(state.levels))) : state.objects;
+            const objects = move ? objectsMovedWithMap(state.objects, move, movesWithFrame(state)) : state.objects;
             const carried = carriedLevels({ ...state, objects }, grid);
             set((draft) => {
               draft.grid = grid;
