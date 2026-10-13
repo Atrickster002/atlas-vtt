@@ -36,7 +36,7 @@ async function showScene(size = 1400): Promise<Harness> {
   const manager = {
     init: vi.fn(),
     getViewport: () => viewport,
-    getApp: () => ({ renderer: { resolution: 1 } }),
+    getApp: () => ({ renderer: { resolution: 1 }, canvas: document.createElement('canvas') }),
     destroy: vi.fn(),
   };
   const events = new EventEmitter();
