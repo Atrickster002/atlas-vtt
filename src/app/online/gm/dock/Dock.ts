@@ -12,7 +12,7 @@ import { FeedbackDraft } from './feedbackForm.ts';
 import { gateRowActions } from './gateRows.ts';
 import { InviteQr } from './inviteQr.ts';
 import { KNOCK_ROOM, KnockStack } from './knockStack.ts';
-import { ControlMorph, type Size } from './morph.ts';
+import { DockSurface } from './dockSurface.ts';
 import { PANEL_WIDTH, panelView, renderPanel, type PanelActions } from './OnlinePanel.ts';
 import { badgeOf, isRunning, menuModel, tooltipOf, type OnlineSnapshot, type SceneFacts } from './panelModel.ts';
 
@@ -21,8 +21,8 @@ export type { DockDeps } from './dockDeps.ts';
 let nextSurface = 0;
 
 /**
- * The GM's control on one Atlas map view: one element that is the button at the bottom left and grows
- * into the menu or panel. It keeps its two nodes in Atlas's bottom row while the view lives.
+ * The GM's control on one Atlas map view: the button at the bottom left, and the menu or panel it opens
+ * above itself. It keeps its two nodes in Atlas's bottom row while the view lives.
  */
 export class Dock {
   readonly root: HTMLElement;
@@ -37,7 +37,7 @@ export class Dock {
   private readonly knocks: KnockStack;
   /** The invite link as a QR code, on a card beside the control. */
   private readonly qr: InviteQr;
-  private readonly motion: ControlMorph;
+  private readonly surface: DockSurface;
   private readonly surfaceId = `atlas-online-surface-${++nextSurface}`;
   private state: DockState = CLOSED;
   private table: TableFacts;
@@ -64,7 +64,7 @@ export class Dock {
     this.tooltip = new DockTooltip(this.button.pin, this.button.button);
     this.knocks = new KnockStack(this.root, container, this.button.button);
     this.qr = new InviteQr(this.root, container, () => this.update());
-    this.motion = new ControlMorph({ root: this.root, content, collapsed: this.button.collapsedParts, closedSize: () => this.closedSize(), maxHeight: () => this.maxHeight() });
+    this.surface = new DockSurface({ root: this.root, maxHeight: (bottom) => this.maxHeight(bottom), moved: () => (this.knocks.reflow(), this.qr.fit()) });
     this.table = tableFactsOf(deps.api.snapshot());
     this.view = viewFactsOf(store.getState());
     this.listen();
@@ -98,7 +98,7 @@ export class Dock {
     this.tooltip.dispose();
     this.knocks.dispose();
     this.qr.dispose();
-    this.motion.dispose();
+    this.surface.dispose();
     this.root.remove();
     this.spacer.remove();
   }
@@ -130,8 +130,8 @@ export class Dock {
     const mutations = new MutationObserver(() => this.mount());
     mutations.observe(this.container, { childList: true, subtree: true });
     this.cleanups.push(() => mutations.disconnect());
-    // The view's size bounds the open control's; refitted on the next frame, outside the observer's callback.
-    const resizes = new ResizeObserver(() => this.win.requestAnimationFrame(() => (this.motion.fit(), this.qr.fit())));
+    // The view's size bounds the open surface's; refitted on the next frame, outside the observer's callback.
+    const resizes = new ResizeObserver(() => this.win.requestAnimationFrame(() => (this.surface.fit(), this.qr.fit())));
     resizes.observe(this.container);
     this.cleanups.push(() => resizes.disconnect());
   }
@@ -151,7 +151,7 @@ export class Dock {
     const target = event.target !== null && 'nodeType' in event.target ? (event.target as Node) : null;
     const onNothing = target === null || target === this.container.doc.body;
     const inThisView = (target !== null && this.container.contains(target)) || (onNothing && this.container.closest('.workspace-leaf')?.hasClass('mod-active') === true);
-    const inSurface = target !== null && (this.motion.current?.contains(target) ?? false);
+    const inSurface = target !== null && (this.surface.current?.contains(target) ?? false);
     const key = { inThisView, inSurface, handledElsewhere: handledByAnotherControl(event), composing: event.isComposing };
     // The QR card goes first; the surface it hangs from stays.
     if (this.qr.isOpen ? !escapeClosesQr(key) : !escapeCloses(this.state.surface, key)) return;
@@ -206,7 +206,7 @@ export class Dock {
     if (!changedKind) return;
     this.layer = layer;
     this.layerKind = surface;
-    this.motion.open(layer, width);
+    this.surface.open(layer, width);
   }
 
   /** A content layer for `surface`, named as the dialog the button controls; the layer it replaces gives up the name. */
@@ -235,7 +235,7 @@ export class Dock {
     this.layer = null;
     this.layerKind = 'closed';
     this.shownKey = '';
-    this.motion.close();
+    this.surface.close();
   }
 
   private sceneFacts(snapshot: OnlineSnapshot): SceneFacts {
@@ -282,14 +282,10 @@ export class Dock {
     };
   }
 
-  /** The button's size: the pin keeps its inside while the control is open. */
-  private closedSize(): Size {
-    const border = this.root.offsetWidth - this.root.clientWidth;
-    return { width: this.button.pin.offsetWidth + border, height: this.button.pin.offsetHeight + border };
-  }
-
-  private maxHeight(): number {
+  /** The surface's tallest height: from its bottom edge up to a gap below the scene tabs, with room for a newcomer's card. */
+  private maxHeight(surfaceBottom: number): number {
     const row = rowOf(this.container);
-    return row === null ? Infinity : roomAbove(this.container, row, BAR_GAP) - KNOCK_ROOM;
+    if (row === null) return Infinity;
+    return roomAbove(this.container, row, BAR_GAP) - (row.getBoundingClientRect().bottom - surfaceBottom) - KNOCK_ROOM;
   }
 }

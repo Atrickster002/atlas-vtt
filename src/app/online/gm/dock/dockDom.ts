@@ -62,6 +62,16 @@ export function roomAbove(container: HTMLElement, row: HTMLElement, gap: number)
   return Math.max(0, rowBottom - top - gap);
 }
 
+/**
+ * How far above the control's top edge `el` ends (the open surface, or the QR card level with it).
+ * Read from its CSS `bottom`, which counts from the bottom of the control's padding box, so the
+ * opening motion's transform does not count.
+ */
+export function surfaceRise(root: HTMLElement, el: HTMLElement): number {
+  const borderTop = parseFloat(root.win.getComputedStyle(root).borderTopWidth) || 0;
+  return (parseFloat(root.win.getComputedStyle(el).bottom) || 0) - root.clientHeight - borderTop;
+}
+
 /** Copies text from the window `el` lives in: another window's clipboard refuses while a popout has focus. */
 export async function copyText(el: HTMLElement, text: string): Promise<boolean> {
   try {
