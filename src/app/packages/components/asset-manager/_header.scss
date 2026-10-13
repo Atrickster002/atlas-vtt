@@ -5,14 +5,15 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // Asset Manager – Header toolbar
 // ═══════════════════════════════════════════════════════════════════════════
-// One row: [navigation + selection] [asset type] [search · sort · create].
+// One row: [navigation + selection] [asset type] [search · create].
 // The asset type is centred in the room between the two groups, so it keeps
 // an equal gap to each; as room runs short the search narrows first.
 // No column is narrower than its controls, so they can not slide over each
 // other: columns that are too wide leave the toolbar, which `useHeaderCompaction`
 // measures. It then sets `data-compact` step by step until they fit: first the
-// tabs fold into a menu, then the search into a button, then the sort into a
-// menu, and at last the groups wrap onto rows. No width is written down here.
+// tabs fold into a menu, then the search into a button, then the selection
+// shows only its count, and at last the groups wrap onto rows. No width is
+// written down here.
 
 .atlas-asset-manager-header {
   position: relative;
@@ -127,6 +128,6 @@
   }
 }
 
-.atlas-am-toolbar[data-compact~='sort'] .atlas-selection-label {
+.atlas-am-toolbar[data-compact~='selection'] .atlas-selection-label {
   display: none;
 }

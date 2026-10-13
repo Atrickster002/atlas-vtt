@@ -31,14 +31,20 @@
   min-width: 0;
 }
 
-// ── Breadcrumb ──────────────────────────────────────────────────────────────
+// ── Location: breadcrumb and sort ───────────────────────────────────────────
 
 // Its own row above the panes, so it stays put while they slide. The buttons'
-// inline padding lines their labels up with the content's edge.
-.atlas-asset-manager-breadcrumb {
-  @include atlas-flex-row($gap: 2px);
+// inline padding lines their labels up with the content's edges.
+.atlas-asset-manager-location {
+  @include atlas-flex-row($gap: $spacing-s);
   flex-shrink: 0;
   padding: $spacing-s;
+}
+
+.atlas-asset-manager-breadcrumb {
+  @include atlas-flex-row($gap: 2px);
+  flex: 1;
+  min-width: 0;
   overflow: hidden;
 
   .atlas-breadcrumb-separator {
@@ -79,6 +85,49 @@
     &.atlas-current {
       color: var(--text-normal);
       pointer-events: none;
+    }
+  }
+}
+
+// The field's labels share one cell, so the button is as wide as the longest
+// and does not move the order button as it cycles; right-aligned, the current
+// label stands next to the order button.
+.atlas-am-sort {
+  @include atlas-flex-row($gap: $spacing-xs);
+  flex-shrink: 0;
+}
+
+.atlas-am-sort-field {
+  &.btn {
+    height: $control-height;
+    padding: 0 $spacing-s;
+    border-radius: $radius-m;
+    font-size: $font-ui-small;
+    font-weight: $font-weight-normal;
+    color: var(--text-muted);
+    transition: transform $transition-press $transition-ease-out;
+  }
+
+  &:hover {
+    color: var(--text-normal);
+  }
+
+  &:active {
+    transform: scale(0.97);
+  }
+
+  .atlas-am-sort-stack {
+    display: grid;
+
+    > span {
+      grid-area: 1 / 1;
+      text-align: right;
+      white-space: nowrap;
+      visibility: hidden;
+
+      &.atlas-current {
+        visibility: visible;
+      }
     }
   }
 }
