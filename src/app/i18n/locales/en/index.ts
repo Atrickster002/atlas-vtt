@@ -33,6 +33,7 @@ import { palette } from './palette';
 import { picker } from './picker';
 import { settings } from './settings';
 import { snapshots } from './snapshots';
+import { levels } from './levels';
 import { statblock } from './statblock';
 import { switcher } from './switcher';
 import { tabs } from './tabs';
@@ -119,6 +120,7 @@ export const en = {
   ...picker,
   ...settings,
   ...snapshots,
+  ...levels,
   ...statblock,
   ...switcher,
   ...tabs,

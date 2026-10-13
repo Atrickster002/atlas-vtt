@@ -25,6 +25,7 @@ import {
   Palette,
   UserCheck,
   History,
+  Layers,
 } from 'lucide-react';
 import { CoinIcon } from './CoinIcon';
 
@@ -50,6 +51,7 @@ import { LocalPlayerViewSettingsPanel } from './command-palette/LocalPlayerViewS
 import { DiceSettingsPanel } from './command-palette/DiceSettingsPanel';
 import { ExperimentalFeaturesPanel } from './command-palette/ExperimentalFeaturesPanel';
 import { SceneSnapshotsPanel } from './command-palette/SceneSnapshotsPanel';
+import { SceneLevelsPanel } from './command-palette/SceneLevelsPanel';
 import { placePalette, type PalettePosition } from './command-palette/palettePlacement';
 import { customizeToolbarCommand } from './command-palette/customizeToolbarCommand';
 import { isSettingsPanelId, type CommandOption, type SettingsPanelId } from './command-palette/types';
@@ -82,6 +84,7 @@ const paletteVariants = {
 
 const SETTINGS_PANEL_META: Record<SettingsPanelId, { title: string; icon: React.ReactNode }> = {
   'scene-snapshots': { title: t('palette.panel.snapshots'), icon: <History /> },
+  'scene-levels': { title: t('palette.panel.levels'), icon: <Layers /> },
   'grid-settings': { title: t('palette.panel.grid'), icon: <Grid /> },
   'token-settings': { title: t('palette.panel.tokens'), icon: <Users /> },
   'widget-settings': { title: t('palette.panel.widgets'), icon: <Palette /> },
@@ -259,6 +262,15 @@ export function CommandPalette({ isOpen, onClose, toolbarRef, onCustomizeToolbar
       icon: <History />,
       label: t('palette.sceneSnapshots'),
       keywords: ["save", "restore", "reset", "encounter", "state"],
+      section: "tools",
+      hasSubmenu: true,
+      submenu: [],
+    },
+    {
+      id: "scene-levels",
+      icon: <Layers />,
+      label: t('palette.sceneLevels'),
+      keywords: ["floors", "storeys", "stories", "upstairs", "basement", "elevation"],
       section: "tools",
       hasSubmenu: true,
       submenu: [],
@@ -799,6 +811,8 @@ export function CommandPalette({ isOpen, onClose, toolbarRef, onCustomizeToolbar
     switch (panel) {
       case 'scene-snapshots':
         return <SceneSnapshotsPanel onRestore={onClose} />;
+      case 'scene-levels':
+        return <SceneLevelsPanel />;
       case 'grid-settings':
         return (
           <GridSettingsPanel
