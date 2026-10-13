@@ -53,3 +53,4 @@
 ## Important changes
 
 - The arrow keys no longer nudge a grid while it is being aligned
+- The first fog stroke after all fog was deleted shows while you draw it, where it appeared only once let go
