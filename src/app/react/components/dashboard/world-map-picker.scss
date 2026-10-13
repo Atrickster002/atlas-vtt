@@ -1,8 +1,8 @@
 @use '../../../../../styles/tokens' as *;
 @use '../../../../../styles/mixins' as *;
 
-// The world map picker of a campaign's page (WorldMapPicker.tsx): a select whose options carry
-// a thumbnail, searched by name.
+// The world map picker of a campaign's page (WorldMapPicker.tsx): a list whose options carry a
+// thumbnail, searched by name, opening below the trigger the world map card gives it.
 
 $picker-thumb-inset: 3px;
 
@@ -36,44 +36,11 @@ $picker-thumb-inset: 3px;
   }
 }
 
-.world-map-picker__trigger {
-  @include atlas-select-trigger;
-  @include atlas-focus-ring;
-  flex: 1;
-  min-width: 0;
-  padding: $picker-thumb-inset;
-  padding-inline-end: $spacing-s;
-  justify-content: flex-start;
-  font-weight: $font-weight-normal;
-
-  &:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
-}
-
-.world-map-picker__value {
-  @include atlas-truncate;
-  flex: 1;
-  min-width: 0;
-
-  &.is-empty {
-    color: var(--text-muted);
-  }
-}
-
-.world-map-picker__chevron {
-  flex-shrink: 0;
-  width: $icon-s;
-  height: $icon-s;
-  color: var(--text-faint);
-}
-
 .world-map-picker__popover {
   @include atlas-select-popover;
   @include atlas-flex-col($spacing-xs);
   left: auto;
-  width: 320px;
+  width: min(320px, 100cqi);
   max-height: 360px;
   padding: $spacing-xs;
   transform-origin: top right;

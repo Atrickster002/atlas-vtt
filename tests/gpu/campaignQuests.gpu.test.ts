@@ -15,7 +15,9 @@ import { DASHBOARD_THEME } from './dashboardTheme';
 const WORLD_MAP = 'atlas-vtt/assets/The Wide World.webp';
 // The campaign's page reaches services that load Node's events module.
 vi.mock('events', async () => import('eventemitter3'));
-vi.mock('../../src/app/services/worldMap', () => ({ campaignWorldMap: () => Promise.resolve('atlas-vtt/assets/The Wide World.webp') }));
+vi.mock('../../src/app/services/worldMap', () => ({ campaignWorldMap: () => Promise.resolve('atlas-vtt/assets/The Wide World.webp'), worldMapArtwork: () => Promise.resolve(null) }));
+// The page's own pictures of the map come from its tile pyramid; the quests read the artwork itself.
+vi.mock('../../src/app/react/components/dashboard/mapPicture', () => ({ mapPictureUrl: () => Promise.resolve(null), releaseMapPictures: () => undefined }));
 
 import { Dashboard } from '../../src/app/react/components/dashboard/Dashboard';
 
@@ -83,8 +85,8 @@ async function mount(theme: 'light' | 'dark'): Promise<void> {
     React.createElement('div', { className: 'workspace-leaf-content atlas-dashboard-view atlas-vtt-plugin' },
       React.createElement(Dashboard, { app, campaignStorage: storage, onOpenScene: vi.fn(), onCreateMap: vi.fn(), onOpenAssetManager: vi.fn() })),
   );
-  await expect.poll(() => document.querySelector('.campaigns-panel .dashboard-row')).not.toBeNull();
-  fireEvent.click(query('.campaigns-panel .dashboard-row'));
+  await expect.poll(() => document.querySelector('.campaign-card')).not.toBeNull();
+  fireEvent.click(query('.campaign-card'));
   await expect.poll(() => document.querySelectorAll('.campaign-quest').length).toBe(4);
 }
 

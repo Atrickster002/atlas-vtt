@@ -1,6 +1,7 @@
 import { TFile, type App } from 'obsidian';
 import { useEffect, useState } from 'react';
 import { AssetService } from '../../../services/AssetService';
+import { worldMapArtwork } from '../../../services/worldMap';
 import { mapThumbnailPath } from '../../../utils/dataFileMigration';
 
 /** A scene's thumbnail as a vault resource URL, or null when it has none yet. */
@@ -37,16 +38,25 @@ async function readWorldMaps(app: App): Promise<WorldMapChoice[]> {
   return choices.sort((a, b) => a.name.localeCompare(b.name));
 }
 
+/** The maps and scenes a campaign may take as its world map; `isLoading` until they were first read. */
+export interface WorldMapChoices {
+  choices: WorldMapChoice[];
+  isLoading: boolean;
+}
+
 /** Every map and scene of the library, by name; read again when assets or thumbnails change. */
-export function useWorldMaps(app: App): WorldMapChoice[] {
-  const [choices, setChoices] = useState<WorldMapChoice[]>([]);
+export function useWorldMaps(app: App): WorldMapChoices {
+  const [read, setRead] = useState<WorldMapChoices>({ choices: [], isLoading: true });
 
   useEffect(() => {
     let current = true;
     const load = (): void => {
       readWorldMaps(app)
-        .then((next) => { if (current) setChoices(next); })
-        .catch((error: unknown) => console.error('[Dashboard] Reading the maps failed:', error));
+        .then((choices) => { if (current) setRead({ choices, isLoading: false }); })
+        .catch((error: unknown) => {
+          console.error('[Dashboard] Reading the maps failed:', error);
+          if (current) setRead((before) => ({ ...before, isLoading: false }));
+        });
     };
     load();
     const refs = [app.workspace.on('atlas-vtt:refresh-assets', load), app.workspace.on('atlas-vtt:scene-thumbnail-updated', load)];
@@ -56,5 +66,26 @@ export function useWorldMaps(app: App): WorldMapChoice[] {
     };
   }, [app]);
 
-  return choices;
+  return read;
+}
+
+/** The map image a scene shows (its background), by the scene's asset id; null for none, undefined while it is read. */
+export function useSceneArtwork(app: App, sceneId: string | null): string | null | undefined {
+  const [read, setRead] = useState<{ sceneId: string; path: string | null } | null>(null);
+
+  useEffect(() => {
+    if (sceneId === null) return undefined;
+    let current = true;
+    AssetService.getInstance(app).getAssetById(sceneId)
+      .then((asset) => (asset ? worldMapArtwork(app, asset) : null))
+      .then((path) => { if (current) setRead({ sceneId, path }); })
+      .catch((error: unknown) => {
+        console.error('[Dashboard] Reading the scene\'s map failed:', error);
+        if (current) setRead({ sceneId, path: null });
+      });
+    return () => { current = false; };
+  }, [app, sceneId]);
+
+  if (sceneId === null) return null;
+  return read?.sceneId === sceneId ? read.path : undefined;
 }

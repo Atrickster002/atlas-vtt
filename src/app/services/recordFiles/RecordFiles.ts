@@ -29,6 +29,7 @@ export class RecordFiles<Stored extends StoredRecord> {
   private cache: Stored[] | null = null;
   private writes: Promise<void> = Promise.resolve();
   private loading: Promise<void> | null = null;
+  private loaded = false;
 
   protected constructor(protected readonly app: App, private readonly layout: RecordLayout<Stored>) {
     const { vault } = app;
@@ -42,7 +43,15 @@ export class RecordFiles<Stored extends StoredRecord> {
 
   /** Reads the records' folder once, through the adapter, which does not wait for the vault's index. */
   load(): Promise<void> {
-    return (this.loading ??= this.readFolder(this.layout.root));
+    return (this.loading ??= this.readFolder(this.layout.root).finally(() => {
+      this.loaded = true;
+      this.changed();
+    }));
+  }
+
+  /** Whether the records' folder was read once (`load`), so the entries are what the vault holds. */
+  isLoaded(): boolean {
+    return this.loaded;
   }
 
   /** The stored records, the first file per id by path; the same array while nothing changed. */

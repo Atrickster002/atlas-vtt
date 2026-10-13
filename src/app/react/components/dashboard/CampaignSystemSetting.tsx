@@ -1,46 +1,35 @@
-import React, { useState } from 'react';
+import React, { useId, useState } from 'react';
 import type { App } from 'obsidian';
 import { AnimatePresence } from 'framer-motion';
 import { Settings2 } from 'lucide-react';
-import { campaignRules, type CampaignSystem } from '../../../campaigns/campaignSystem';
 import type { Campaign } from '../../../campaigns/campaignTypes';
 import type { CampaignService } from '../../../campaigns/CampaignService';
-import { viewOfRules } from '../../../gameSystems/rulesView';
-import { findActivePreset, sameSystemRules } from '../../../gameSystems/systemRules';
-import type { SystemPreset } from '../../../types/systemPresetTypes';
 import { t } from '../../../i18n';
 import { useSystemPresets } from '../../hooks/useSystemPresets';
+import { campaignSystemName } from './campaignSystemName';
 import { CampaignRulesDialog } from './CampaignRulesDialog';
 
 interface CampaignSystemSettingProps {
   app: App;
   campaign: Campaign;
   service: CampaignService;
-  labelledBy: string;
   disabled: boolean;
 }
 
-/** What the row says of a system: its preset's name, or Custom, and whether it was edited since. */
-function systemName(system: CampaignSystem, presets: readonly SystemPreset[]): { name: string; edited: boolean } {
-  const { systemRules } = viewOfRules(campaignRules(system, presets), presets);
-  const active = findActivePreset(presets, system.systemPresetId, systemRules);
-  return active
-    ? { name: active.name, edited: !sameSystemRules(active.rules, systemRules) }
-    : { name: t('csm.system.custom'), edited: false };
-}
-
-/** The campaign's game system on its page: its name, and the button that opens its settings. */
-export function CampaignSystemSetting({ app, campaign, service, labelledBy, disabled }: CampaignSystemSettingProps): React.JSX.Element {
+/** The campaign's game system on its page: its name, on the button that opens its settings. */
+export function CampaignSystemSetting({ app, campaign, service, disabled }: CampaignSystemSettingProps): React.JSX.Element {
+  const headingId = useId();
   const { presets } = useSystemPresets(app);
   const [isOpen, setIsOpen] = useState(false);
-  const shown = campaign.system ? systemName(campaign.system, presets) : null;
+  const shown = campaign.system ? campaignSystemName(campaign.system, presets) : null;
 
   return (
-    <div className="campaign-system">
+    <section className="campaign-system" aria-labelledby={headingId}>
+      <h2 id={headingId} className="panel-heading">{t('campaign.gameSystem')}</h2>
       <button
         type="button"
         className="campaign-system__trigger"
-        aria-labelledby={labelledBy}
+        aria-labelledby={headingId}
         aria-haspopup="dialog"
         disabled={disabled}
         onClick={() => setIsOpen(true)}
@@ -49,11 +38,9 @@ export function CampaignSystemSetting({ app, campaign, service, labelledBy, disa
         {shown?.edited && <span className="atlas-csm-tag atlas-csm-tag--accent">{t('csm.system.edited')}</span>}
         <Settings2 aria-hidden="true" className="campaign-system__icon" />
       </button>
-      {/* Room for a clear button, so the control ends where the others do. */}
-      <span className="campaign-clear-slot" />
       <AnimatePresence>
         {isOpen && <CampaignRulesDialog app={app} campaign={campaign} service={service} onClose={() => setIsOpen(false)} />}
       </AnimatePresence>
-    </div>
+    </section>
   );
 }
