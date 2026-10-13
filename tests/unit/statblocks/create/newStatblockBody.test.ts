@@ -87,7 +87,7 @@ describe('a new statblock starts with the text of its template\'s note', () => {
   it('as an open editor of the note holds it, before Obsidian has saved what was typed', async () => {
     await libraryLoaded(TemplateLibrary.forApp(app()));
     const note = app().vault.getFileByPath(templateBodyPath(MARSH_PATH))!;
-    const stop = noteOpenBody(app(), note, () => `${BODY}Typed a moment ago.\n`);
+    const stop = noteOpenBody(app(), note, { read: () => `${BODY}Typed a moment ago.\n`, replace: () => undefined });
     const path = await createStatblock(app(), { collectionId: 'marsh', roleId: 'monster', name: 'Heron', from: 'map' });
     stop();
     expect(bodyOf(path!)).toBe(`${BODY}Typed a moment ago.\n`);

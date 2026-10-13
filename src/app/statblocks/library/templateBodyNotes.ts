@@ -12,14 +12,19 @@ import { runInBackground } from '../../utils/backgroundTask';
 import { isTemplatePath } from './templateFiles';
 import { templateBodyPath } from './templatePaths';
 
-/** What an open editor of a body note holds now, which its file may not have yet (Obsidian saves after a pause). */
-type OpenBodyText = () => string;
+/** A body note open in an editor of the template editor. */
+export interface OpenBodyText {
+  /** What the editor holds now, which its file may not have yet (Obsidian saves after a pause). */
+  read: () => string;
+  /** Puts `text` in the editor in place of all it holds, as one edit its undo takes back. */
+  replace: (text: string) => void;
+}
 
 const openBodies = new WeakMap<App, Map<TFile, OpenBodyText>>();
 
 /**
  * Notes that `file` is open in an editor of the template editor; until the
- * returned function is called, reading the body reads that editor.
+ * returned function is called, reading and replacing the body go through that editor.
  */
 export function noteOpenBody(app: App, file: TFile, text: OpenBodyText): () => void {
   let open = openBodies.get(app);
@@ -39,13 +44,33 @@ export function templateBodyFile(app: App, templatePath: string): TFile | null {
   return app.vault.getFileByPath(templateBodyPath(templatePath));
 }
 
+/** The editor `file` is open in, by the path it has now: Obsidian renames a file in place. */
+function openBodyOf(app: App, file: TFile): OpenBodyText | undefined {
+  return [...openBodies.get(app) ?? []].find(([held]) => held.path === file.path)?.[1];
+}
+
 /** The text new statblocks of the template at `templatePath` start with; empty for a template without a file or a note. */
 export async function readTemplateBody(app: App, templatePath: string | null): Promise<string> {
   const file = templatePath === null ? null : templateBodyFile(app, templatePath);
   if (!file) return '';
-  // By the path the file has now: Obsidian renames a file in place.
-  const open = [...openBodies.get(app) ?? []].find(([held]) => held.path === file.path)?.[1];
-  return open ? open() : app.vault.cachedRead(file);
+  const open = openBodyOf(app, file);
+  return open ? open.read() : app.vault.cachedRead(file);
+}
+
+/**
+ * Puts `text` in the note of the template at `templatePath` in place of all
+ * it holds: through its editor where the template editor shows it (one edit
+ * the editor's undo takes back), else in the file, made where it has none.
+ */
+export async function replaceTemplateBody(app: App, templatePath: string, text: string): Promise<void> {
+  const file = templateBodyFile(app, templatePath);
+  if (!file) {
+    await app.vault.create(templateBodyPath(templatePath), text);
+    return;
+  }
+  const open = openBodyOf(app, file);
+  if (open) open.replace(text);
+  else await app.vault.process(file, () => text);
 }
 
 /** The template's note, made empty where it has none yet, for the user to write in. */

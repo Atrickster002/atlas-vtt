@@ -20,13 +20,15 @@ export function canSave(snapshot: SessionSnapshot): boolean {
 
 /** Save covers the card; the note on the left is a note of its own. */
 export const SAVE_HINT = 'Saves the statblock on the right. The text on the left saves as you type.';
+/** A template without a file has no note yet: Save writes the text on the left into it. */
+export const DRAFT_SAVE_HINT = 'Saves the statblock on the right and the text on the left.';
 
 /**
  * The template editor's header capsule (§2.3): the template's name, Save and
  * ⋯. One line as tall as the note view's, so the card starts at the same
  * height; the name truncates. Save is shown disabled, never `disabled`: a
  * disabled button shows no tooltip, and its tooltip says why typing in the
- * note leaves it so.
+ * note leaves it so (a template without a file saves its text with it).
  */
 export function TemplateCapsule({ snapshot, onSave, menu }: TemplateCapsuleProps): React.JSX.Element {
   return (
@@ -36,7 +38,7 @@ export function TemplateCapsule({ snapshot, onSave, menu }: TemplateCapsuleProps
         <span className="atlas-te-name">{snapshot.name}</span>
       </span>
       <span className="atlas-sb-pane-header__end atlas-te-capsule__end">
-        <LabelTooltip label={SAVE_HINT} describe multiline>
+        <LabelTooltip label={snapshot.path === null ? DRAFT_SAVE_HINT : SAVE_HINT} describe multiline>
           <Button
             type="button"
             variant="default"

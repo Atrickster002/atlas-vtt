@@ -29,6 +29,7 @@ import { handleShellKey } from './shell/shellKeys';
 import { TemplateFooterLine } from './shell/TemplateFooterLine';
 import { TemplateCapsule, canSave } from './shell/TemplateCapsule';
 import { TemplateNoteRow } from './shell/TemplateNoteRow';
+import { chooseNoteToStartFrom } from './shell/startFromNote';
 import { TemplateStateBars } from './shell/TemplateStateBars';
 import { usePanelRoom } from './shell/usePanelRoom';
 import { useCollectionFieldKeys } from './useCollectionFieldKeys';
@@ -92,6 +93,8 @@ export function TemplateEditor(props: TemplateEditorProps): React.JSX.Element {
   const collectionKeys = useCollectionFieldKeys(app, collectionId);
   const library = useTemplateLibrary(app ?? null);
   const room = usePanelRoom(app, rowRef, previewRef);
+  // A template just made, with no tile to select, opens with the cursor in its text.
+  const [focusText] = useState(() => snapshot.unsaved && !props.initialSelection?.length);
   const state = useEditorState({ session, snapshot, collectionKeys, stageRef, layer, initialSelection: props.initialSelection });
   const openSave = (): void => {
     // A component exists only with a name: one still waiting for it goes before the template is saved.
@@ -173,6 +176,7 @@ export function TemplateEditor(props: TemplateEditorProps): React.JSX.Element {
                 snapshot={snapshot}
                 onSave={openSave}
                 menu={{
+                  startFromNote: app && !snapshot.readOnly ? () => chooseNoteToStartFrom(app, session) : undefined,
                   diceRolls: () => setDiceRolls(true),
                   json: { open: json, toggle: () => (json ? closeJson() : setJson(true)) },
                   deleteTemplate: app && snapshot.path !== null && !snapshot.readOnly ? () => setDeleting(templateUsage(app, snapshot.id)) : undefined,
@@ -183,6 +187,7 @@ export function TemplateEditor(props: TemplateEditorProps): React.JSX.Element {
               />
             )}
             noteCover={json ? <TemplateJsonEditor onDone={closeJson} /> : undefined}
+            focusText={focusText}
             stateBars={<TemplateStateBars session={session} snapshot={snapshot} />}
             card={(
               <Canvas
