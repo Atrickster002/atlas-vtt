@@ -11,6 +11,7 @@
 - A value can stand in a box, its label small over a large number, like hit points or thresholds in a printed stat block. Boxed values side by side join into one strip: set a value's Label to Boxed in the template editor
 - The loot roller is now Random tables: roll on the tables in your notes as well as on your loot bases, with their dice, ranges and weights, and tables whose rows roll other tables or a base's views. Dice written in backticks are rolled with the result
 - Each collection names its item rarities and their colours in its Random tables settings, where tables are also taken from any note and set to give text or items
+- New table: paste a table from a PDF, a web page or a spreadsheet, see how it rolls and what is wrong with it, and save it as a note of the collection
 
 ## Improved
 

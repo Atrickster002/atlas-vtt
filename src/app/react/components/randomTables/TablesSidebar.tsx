@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { AlertTriangle, Search } from 'lucide-react';
+import { AlertTriangle, Plus, Search } from 'lucide-react';
+import { Button } from '../../../packages/components/primitives/button';
 import { LabelTooltip } from '../../../packages/components/primitives/tooltip';
 import { lootBaseItemCount, needsBases, type LootBase } from '../../../loot/LootBaseReader';
 import type { CollectionTable } from '../../../randomTables/TableNoteReader';
@@ -55,13 +56,15 @@ interface TablesSidebarProps {
   /** Base views switched off. */
   disabledViews: ReadonlySet<string>;
   onDisabledViewsChange: (disabled: string[]) => void;
+  /** Opens New table, which writes a table pasted from elsewhere as a note. */
+  onNewTable: () => void;
 }
 
 /**
  * The collection's tables to pick one to roll on, grouped by what they give: Items (the loot
  * bases, the selected one with its views to tick, then the Items tables of notes) and Text.
  */
-export function TablesSidebar({ library, selectedId, onSelect, disabledViews, onDisabledViewsChange }: TablesSidebarProps): React.ReactElement {
+export function TablesSidebar({ library, selectedId, onSelect, disabledViews, onDisabledViewsChange, onNewTable }: TablesSidebarProps): React.ReactElement {
   const [search, setSearch] = useState('');
   const bases = library.items.bases.filter((base) => matchesSearch(base.name, search)
     || base.views.some((view) => matchesSearch(view.name, search)));
@@ -82,16 +85,23 @@ export function TablesSidebar({ library, selectedId, onSelect, disabledViews, on
 
   return (
     <div className="atlas-tables-sidebar">
-      <label className="atlas-tables-search">
-        <Search />
-        <input
-          type="search"
-          value={search}
-          placeholder={t('tables.search')}
-          aria-label={t('tables.search')}
-          onChange={(event) => setSearch(event.target.value)}
-        />
-      </label>
+      <div className="atlas-tables-sidebar__head">
+        <label className="atlas-tables-search">
+          <Search />
+          <input
+            type="search"
+            value={search}
+            placeholder={t('tables.search')}
+            aria-label={t('tables.search')}
+            onChange={(event) => setSearch(event.target.value)}
+          />
+        </label>
+        <LabelTooltip label={t('tables.newTable')}>
+          <Button variant="ghost" size="icon" className="atlas-tables-sidebar__new" onClick={onNewTable}>
+            <Plus />
+          </Button>
+        </LabelTooltip>
+      </div>
 
       {(bases.length > 0 || itemTables.length > 0) && (
         <section className="atlas-tables-group" aria-label={t('tables.group.items')}>

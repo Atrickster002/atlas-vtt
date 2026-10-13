@@ -31,7 +31,11 @@ import { TableSummary } from './TableSummary';
 import { TablesSkeleton } from './TablesSkeleton';
 import { useSourceRoll } from './useSourceRoll';
 import { openLink, openNote } from './openNote';
-import { setTableNoRepeats } from './tableSettingsWrite';
+import { addTableSource, setTableNoRepeats } from './tableSettingsWrite';
+import { PasteTableDialog, type PastedTableNote } from './PasteTableDialog';
+import { writeTableNote } from '../../../randomTables/tableNoteWrite';
+import { tableSourceId } from '../../../randomTables/tableLookup';
+import { tablesFolder } from '../../../randomTables/tablePaths';
 import { runInBackground } from '../../../utils/backgroundTask';
 import { showNotice } from '../../../ui/notice';
 import { t } from '../../../i18n';
@@ -67,6 +71,9 @@ function RandomTablesPanel(): React.ReactElement {
   const windowVariants = useDialogWindowVariants();
   const [freshRollId, setFreshRollId] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [pasting, setPasting] = useState(false);
+  /** A table just written from a paste, rolled once it has been read. */
+  const [pendingRoll, setPendingRoll] = useState<string | null>(null);
 
   const { position, panelRef, startDrag, isDragging } = useDraggablePosition(state.position ?? topRight, {
     margin: MARGIN,
@@ -91,6 +98,24 @@ function RandomTablesPanel(): React.ReactElement {
       setFreshRollId(made.id);
       LootHistoryStore.forApp(app).add(collectionId, made);
     }), 'Rolling a random table', t('tables.rollFailed'));
+  };
+
+  // A pasted table rolls as soon as its note has been read and it is the one selected.
+  useEffect(() => {
+    if (!pendingRoll || source?.id !== pendingRoll || !sourceRoll.canRoll) return;
+    setPendingRoll(null);
+    roll();
+  });
+
+  const savePasted = (note: PastedTableNote): void => {
+    if (!collectionId) return;
+    setPasting(false);
+    runInBackground(writeTableNote(app, collectionId, note.name, note.table, note.kind).then(async (written) => {
+      await addTableSource(app, collectionId, written);
+      const id = tableSourceId(written);
+      update({ selected: id, pane: 'results' });
+      setPendingRoll(id);
+    }), 'Saving a pasted table', t('tables.paste.saveFailed'));
   };
 
   const shownIds = usePlayerLootIds();
@@ -130,7 +155,12 @@ function RandomTablesPanel(): React.ReactElement {
       {collectionId && !ready ? (
         <TablesSkeleton />
       ) : !collectionId || !hasSources || basesOff ? (
-        <LootEmptyState inCollection={collectionId !== null} basesOff={basesOff && hasSources} onUseNote={() => setSettingsOpen(true)} />
+        <LootEmptyState
+          inCollection={collectionId !== null}
+          basesOff={basesOff && hasSources}
+          onNewTable={() => setPasting(true)}
+          onUseNote={() => setSettingsOpen(true)}
+        />
       ) : (
         <div className="atlas-loot-roller__body">
           <LootRollerTutorials hasRarities={sourceRoll.rarityCounts.size > 0} rolled={freshRollId !== null} />
@@ -141,6 +171,7 @@ function RandomTablesPanel(): React.ReactElement {
               onSelect={(selected) => update({ selected })}
               disabledViews={disabledViews}
               onDisabledViewsChange={(views) => update({ disabledViews: views })}
+              onNewTable={() => setPasting(true)}
             />
           </aside>
           <div className="atlas-loot-roller__main">
@@ -188,6 +219,9 @@ function RandomTablesPanel(): React.ReactElement {
       )}
 
       <AnimatePresence>
+        {pasting && collectionId && (
+          <PasteTableDialog key="paste" folder={tablesFolder(collectionId)} onSave={savePasted} onClose={() => setPasting(false)} />
+        )}
         {settingsOpen && collectionId && (
           <CollectionSettingsModal
             isOpen

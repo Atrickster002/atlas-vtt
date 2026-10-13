@@ -25,10 +25,26 @@ interface Mounted {
   collectionId: string;
 }
 
+type Handler = (...args: unknown[]) => void;
+
+/** Workspace events that reach their listeners, as Obsidian's do: settings saved reach the window. */
+function liveWorkspaceEvents(app: App): void {
+  const handlers = new Map<string, Set<Handler>>();
+  Object.assign(app.workspace, {
+    on: (name: string, handler: Handler) => {
+      handlers.set(name, (handlers.get(name) ?? new Set()).add(handler));
+      return { name, handler };
+    },
+    offref: (ref: { name: string; handler: Handler }) => handlers.get(ref.name)?.delete(ref.handler),
+    trigger: (name: string, ...args: unknown[]) => handlers.get(name)?.forEach((handler) => handler(...args)),
+  });
+}
+
 async function mount(randomTables: RandomTableSource[], lootBases: string[] = []): Promise<Mounted> {
   const { app } = createInMemoryApp({
     files: { 'Adventures/Brew.md': BREW_NOTE, 'Gear.md': GEAR_NOTE, 'Loot/Items.base': 'views:\n  - type: table\n    name: Weapons\n' },
   });
+  liveWorkspaceEvents(app);
   const assets = AssetService.getInstance(app);
   await assets.initialize();
   const collectionId = assets.getDefaultCollectionId();
@@ -138,5 +154,52 @@ describe('the Random tables window', () => {
     const roll = await screen.findByRole('button', { name: 'Roll Gone' });
     expect((roll as HTMLButtonElement).disabled).toBe(true);
     expect(document.querySelector('.atlas-tables-chip--problem')?.textContent).toBe('The note is gone');
+  });
+});
+
+describe('New table', () => {
+  const PDF = 'd6 Encounter\n1 Two giant rats fighting over a dead centipede\n2 A brewery cat, Mustard\n3 Ale seeps through the ceiling; the smell draws a swarm of rats\n4 A ghostly whisper\n5 A loose flagstone hides a fall into a cis-\ntern with `2d6` gp\n7 Nothing but warm air';
+
+  it('shows the pasted table read only with its problems, writes it as a note under a free name and rolls it once', async () => {
+    const { app, store, collectionId } = await mount([RUMOURS]);
+    await app.vault.createFolder(`atlas-vtt/collections/${collectionId}/tables`);
+    await app.vault.create(`atlas-vtt/collections/${collectionId}/tables/Cellar.md`, 'taken');
+
+    fireEvent.click(within(await screen.findByRole('complementary')).getByRole('button', { name: 'New table' }));
+    const dialog = screen.getByRole('dialog', { name: 'New table' });
+    const save = within(dialog).getByRole('button', { name: 'Save and roll' }) as HTMLButtonElement;
+    expect(save.disabled).toBe(true);
+    fireEvent.change(within(dialog).getByRole('textbox', { name: 'Table to paste' }), { target: { value: PDF } });
+    fireEvent.change(within(dialog).getByRole('textbox', { name: 'Name' }), { target: { value: 'Cellar' } });
+
+    const chips = [...dialog.querySelectorAll('.atlas-tables-chip')].map((chip) => chip.textContent);
+    expect(chips).toEqual(['Rolls d6', '1 row the die never rolls', '1 gap']);
+    expect(within(dialog).getByText('A loose flagstone hides a fall into a cistern with', { exact: false })).toBeTruthy();
+    expect(within(dialog).getByText('2d6 is rolled with the result')).toBeTruthy();
+    // Nothing in the preview can be edited.
+    expect(dialog.querySelector('.atlas-paste-table__preview input, .atlas-paste-table__preview textarea, .atlas-paste-table__preview [contenteditable]')).toBeNull();
+
+    vi.spyOn(Math, 'random').mockReturnValue(0.1);
+    fireEvent.click(save);
+    const path = `atlas-vtt/collections/${collectionId}/tables/Cellar 2.md`;
+    await waitFor(() => expect(app.vault.getFileByPath(path)).toBeTruthy());
+    expect(await app.vault.read(app.vault.getFileByPath(path)!)).toMatch(/^## Cellar\n\n\| d6 \| Encounter \|\n\| --- \| --- \|\n\| 1 \| Two giant rats/);
+    await waitFor(() => expect(AssetService.getInstance(app).getCollectionSettings(collectionId).randomTables).toContainEqual(
+      { path, table: 'Cellar', index: 0, kind: 'text' },
+    ));
+    await waitFor(() => expect(store.getState().lootRoller.lastRoll?.results?.[0]?.text).toBe('Two giant rats fighting over a dead centipede'));
+    expect(store.getState().lootRoller.selected).toBe(`${path}#0`);
+  });
+
+  it('writes the tables folder where the collection has none yet', async () => {
+    const { app, collectionId } = await mount([]);
+    fireEvent.click(await screen.findByRole('button', { name: 'New table' }));
+    const dialog = screen.getByRole('dialog', { name: 'New table' });
+    fireEvent.change(within(dialog).getByRole('textbox', { name: 'Table to paste' }), { target: { value: 'Weight\tItem\tPrice\n3\tRope\t1 sp\n1\tLantern\t5 gp' } });
+    fireEvent.change(within(dialog).getByRole('textbox', { name: 'Name' }), { target: { value: 'Gear' } });
+    expect(within(dialog).getByRole('radio', { name: 'Items' }).getAttribute('aria-checked')).toBe('true');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Save and roll' }));
+    await waitFor(() => expect(app.vault.getFileByPath(`atlas-vtt/collections/${collectionId}/tables/Gear.md`)).toBeTruthy());
+    await waitFor(() => expect(AssetService.getInstance(app).getCollectionSettings(collectionId).randomTables?.[0]?.kind).toBe('items'));
   });
 });

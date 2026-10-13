@@ -90,6 +90,14 @@ function diceFormula(text: string): ParsedFormula | null {
   return parsed.ok && parsed.terms.some((term) => term.kind === 'dice') ? parsed : null;
 }
 
+/** The dice in backticks a cell rolls with its result, as written (`` `2d6` `` → "2d6"). */
+export function inlineDice(cell: string): string[] {
+  return [...cell.matchAll(TOKEN)].flatMap((match) => {
+    const formula = match[1]?.trim().replace(DICE_PREFIX, '');
+    return formula !== undefined && !LINK_ONLY.test(formula) && diceFormula(formula) ? [formula] : [];
+  });
+}
+
 function linkTarget(inner: string): string {
   return inner.split('|')[0]!.trim();
 }
