@@ -40,7 +40,7 @@
     @include atlas-panel-radius($radius-2xl);
     display: flex;
     flex-direction: column;
-    max-height: min(560px, var(--atlas-keep-in-view-max-height, 560px));
+    max-height: min(880px, var(--atlas-keep-in-view-max-height, 880px));
     overflow: hidden;
     color: var(--text-normal);
     font-size: $font-ui-small;
@@ -90,10 +90,11 @@
   }
 
   // One well for either tab, of a fixed height: switching tabs or searching never resizes the panel.
-  // It scrolls on its own, with room for the choices' focus rings.
+  // Where the window is too short for it, it gives up rows. It scrolls on its own, with room for the choices' focus rings.
   .atlas-sb-token-panel__choices {
-    flex-shrink: 0;
+    flex-shrink: 1;
     height: $grid-max-height;
+    min-height: $grid-min-height;
     padding: 2px;
     margin: -2px;
     overflow-y: auto;
