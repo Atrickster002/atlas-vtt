@@ -1,4 +1,5 @@
 import { Container, Rectangle, type Texture } from 'pixi.js';
+import type { TFile } from 'obsidian';
 import { destroyTree } from '../utils/destroyTree';
 import { MapAlbedo } from './mapAlbedo';
 import { MapImageLayer, viewportCamera, type CameraSource } from './MapImageLayer';
@@ -11,6 +12,8 @@ import { isMapClosed } from './tileErrors';
 import { ResidentOverviews } from './residentOverviews';
 import { TileTextureCache } from './tileTextureCache';
 import { imageToWorld, NO_STRETCH, sameStretch, turnedBox, type MapStretch } from '../../grid/mapStretch';
+import { MapVideoSlot } from './video/MapVideoSlot';
+import type { MapVideoMode } from './video/mapVideoPlayback';
 
 /**
  * The one owner of a view's map image (decisions 1, 12 and 13 of the tiled map images plan): it
@@ -29,6 +32,8 @@ interface Opened {
   tiles: MapTiles | null;
   width: number;
   height: number;
+  /** The video of an animated map whose poster opened, which plays over the tiles. */
+  video: TFile | null;
 }
 
 interface Shown extends Opened {
@@ -53,12 +58,16 @@ export class MapImage {
   private stretch: MapStretch = NO_STRETCH;
   /** Holds the tile layer inside `layer`, turned level about the image's centre; `layer` stretches it. */
   private readonly turned = new Container({ label: 'map-image-turned' });
+  /** An animated map's video, above the tiles inside `turned`, so it is stretched and turned like them. */
+  private readonly video: MapVideoSlot;
   private readonly stopRestarts: () => void;
 
   constructor(private readonly deps: MapImageDeps) {
     this.layer = new Container({ label: 'map-image', eventMode: 'none', interactiveChildren: false });
     this.layer.boundsArea = new Rectangle(0, 0, 0, 0);
     this.layer.addChild(this.turned);
+    this.video = new MapVideoSlot(deps.video, deps.requestRender);
+    this.turned.addChild(this.video.container);
     this.cache = new TileTextureCache({ ticker: deps.ticker, renderer: deps.renderer, requestRender: deps.requestRender });
     this.resident = new ResidentOverviews(this.cache);
     const camera = viewportCamera(deps.viewport, deps.renderer ?? { resolution: 1 });
@@ -114,12 +123,23 @@ export class MapImage {
     this.emit('image');
   }
 
+  /** Whether an animated map's video plays, holds its frame, or gives way to its poster (`mapVideoMode`). */
+  setVideoMode(mode: MapVideoMode): void {
+    if (!this.destroyed) this.video.setMode(mode);
+  }
+
+  /** Hides an animated map's video for one render of a picture of the scene, which shows its poster; returns what shows it again. */
+  hideVideoFor(): () => void {
+    return this.destroyed ? noop : this.video.hideFor();
+  }
+
   /** Takes the image off, as when its scene could not be opened; `worldRect` is null until the next load. */
   clear(): void {
     if (this.destroyed) return;
     this.generation++;
     const previous = this.shown;
     this.shown = null;
+    this.video.clear();
     this.retire(previous);
     this.layer.boundsArea = new Rectangle(0, 0, 0, 0);
     this.albedo.reset();
@@ -189,6 +209,7 @@ export class MapImage {
     this.resident.clear();
     this.regions.clear();
     this.albedo.reset();
+    this.video.destroy();
     this.cache.destroy();
     destroyTree(this.layer);
     this.listeners.clear();
@@ -206,6 +227,7 @@ export class MapImage {
     this.loaded = { source, generation };
     if (stretch) this.stretch = stretch;
     this.show(next, replace);
+    this.video.show(next.video, { width: next.width, height: next.height });
   }
 
   /**
@@ -220,17 +242,19 @@ export class MapImage {
   }
 
   private async open(source: MapImageSource): Promise<Opened> {
-    if (source.kind === 'none') return { tiles: null, width: source.width, height: source.height };
-    if (source.kind === 'file') {
+    if (source.kind === 'none') return { tiles: null, width: source.width, height: source.height, video: null };
+    if (source.kind === 'file' || source.kind === 'video') {
       try {
+        // A video's pyramid is built from its poster (`MapImageService.open`).
         const opened = await this.deps.service.open(source.file);
-        return { tiles: decoderTiles(this.deps.service, opened), width: opened.pyramid.width, height: opened.pyramid.height };
+        const { width, height } = opened.pyramid;
+        return { tiles: decoderTiles(this.deps.service, opened), width, height, video: source.kind === 'video' ? source.file : null };
       } catch (error) {
         this.deps.service.reportUnshown(source.file, error);
       }
     }
     const tiles = placeholderTiles();
-    return { tiles, width: tiles.source.pyramid.width, height: tiles.source.pyramid.height };
+    return { tiles, width: tiles.source.pyramid.width, height: tiles.source.pyramid.height, video: null };
   }
 
   private show(next: Opened, replace: boolean): void {
@@ -256,7 +280,8 @@ export class MapImage {
         ...(this.deps.drawAtOnce && { drawAtOnce: this.deps.drawAtOnce }),
         onTileError: onceLogged(),
       });
-      this.turned.addChild(layer.container);
+      // Beneath the video, which an animated map draws over its tiles.
+      this.turned.addChildAt(layer.container, this.turned.getChildIndex(this.video.container));
     }
     this.shown = { ...next, layer };
     if (samePyramid) {

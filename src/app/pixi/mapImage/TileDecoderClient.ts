@@ -101,9 +101,9 @@ export class TileDecoderClient {
     return { ...reply.opened, handle };
   }
 
-  /** Builds a map's pyramid into the cache without opening it; true once it is complete. */
-  async prebuild(source: BytesSource, identity: FileIdentity | null): Promise<boolean> {
-    const reply = await this.openLike('prebuild', source, identity);
+  /** Builds a map's pyramid into the cache without opening it; true once it is complete. `decode` as for `open`. */
+  async prebuild(source: BytesSource, identity: FileIdentity | null, decode?: MainThreadDecode): Promise<boolean> {
+    const reply = await this.openLike('prebuild', source, identity, decode);
     if (reply.type !== 'prebuilt') throw new Error(`Unexpected reply to prebuild: ${reply.type}`);
     return reply.complete;
   }
