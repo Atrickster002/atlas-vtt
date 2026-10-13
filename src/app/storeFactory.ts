@@ -110,7 +110,8 @@ export interface ViewAtlasState extends ViewState {
   // Note Pin actions
   /** With `hex`, the note is linked to the hex containing (x, y) rather than pinned to the point. */
   addNotePin: (x: number, y: number, notePath: string, icon?: string, options?: { hex?: boolean }) => string;
-  updateNotePin: (id: string, updates: Partial<Omit<NotePin, 'id' | 'kind'>>) => void;
+  /** A field given as undefined is removed. */
+  updateNotePin: (id: string, updates: { [K in keyof Omit<NotePin, 'id' | 'kind'>]?: NotePin[K] | undefined }) => void;
   moveNotePin: (id: string, x: number, y: number) => void;
   deleteNotePin: (id: string) => void;
 
@@ -914,7 +915,11 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
             const pin = draft.objects.pins[id];
             if (pin) {
               const kindChanged = updates.icon !== undefined && updates.icon !== pin.icon;
-              Object.assign(pin, updates);
+              // A field given as undefined is removed, so a switch turned off leaves nothing behind
+              for (const [key, value] of Object.entries(updates)) {
+                if (value === undefined) Reflect.deleteProperty(pin, key);
+                else Reflect.set(pin, key, value);
+              }
               // A pin keeps its label for life; only moving it to another sequence re-labels it
               if (kindChanged) {
                 delete pin.label;

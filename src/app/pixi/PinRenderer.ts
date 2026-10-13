@@ -16,6 +16,8 @@ import { canvasBadgeColors, isDarkTheme } from './utils/canvasBadgeColors';
 import { dispatchPinAction } from './utils/pinActions';
 import { hexLayoutOfGrid, isShownAsHex, pinDisplayPoint } from '../grid/hexLinks';
 import { MAP_LAYER_Z } from './mapLayerOrder';
+import { createReadableMark } from './pinReadableMark';
+import { readablePinEntry } from './pinReadableMenu';
 import { t } from '../i18n';
 
 /** True when anything other than the position changed, which means the pin's graphics must be rebuilt. */
@@ -387,6 +389,7 @@ export class PinRenderer {
         container.addChild(iconSprite);
       }
     }
+    if (pin.readable === true) container.addChild(createReadableMark(badgeRadius, colors));
 
     return container;
   }
@@ -397,6 +400,7 @@ export class PinRenderer {
       [
         { type: 'item', label: t('pinMenu.open'), icon: 'file-text', onClick: () => dispatchPinAction('open', pin) },
         { type: 'item', label: t('pinMenu.edit'), icon: 'edit', onClick: () => dispatchPinAction('edit', pin) },
+        ...[readablePinEntry(this.store, pin)].filter((entry) => entry !== null),
         { type: 'item', label: t('common.duplicate'), icon: 'files', onClick: () => this.store.getState().duplicateMapObjects([pin.id]) },
         { type: 'item', label: t('common.delete'), icon: 'trash', destructive: true, onClick: () => this.store.getState().deleteMapObject('pin', pin.id) },
       ],
