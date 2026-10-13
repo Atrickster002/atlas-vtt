@@ -43,6 +43,8 @@ import { t } from '../../../i18n';
 const MARGIN = 12;
 /** Small enough for a laptop map view, big enough for the source list and one column of cards. */
 const MIN_SIZE = { width: 620, height: 420 };
+/** Keep the file importer available in code while New table offers only pasted text. */
+const FILE_TABLE_IMPORT_ENABLED = false;
 
 /** First placement: the top right of the map, below the scene tabs. */
 const topRight = (area: PanelArea, panel: PanelArea): PanelPosition => ({ x: area.width - panel.width - MARGIN, y: 64 });
@@ -231,7 +233,7 @@ function RandomTablesPanel(): React.ReactElement {
 
       <AnimatePresence>
         {importCollection && (
-          <PasteTableDialog key="paste" folder={tablesFolder(importCollection)} onSave={savePasted} onImport={saveFileTables} onClose={() => setImportCollection(null)} />
+          <PasteTableDialog key="paste" folder={tablesFolder(importCollection)} onSave={savePasted} {...(FILE_TABLE_IMPORT_ENABLED ? { onImport: saveFileTables } : {})} onClose={() => setImportCollection(null)} />
         )}
         {settingsOpen && collectionId && (
           <CollectionSettingsModal
