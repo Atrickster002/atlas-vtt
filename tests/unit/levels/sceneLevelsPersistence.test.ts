@@ -119,3 +119,34 @@ describe('a scene with several levels on disk', () => {
     expect(harness.store.getState().exploredMasks).toBeUndefined();
   });
 });
+
+describe('moving tokens to another level', () => {
+  it('moves the selection in one undo step and leaves the view where it is', async () => {
+    const harness = setup(JSON.stringify({ version: 5, state: sceneState({ version: 5, levels: LEVELS }) }));
+    await harness.service.loadMap(harness.rendererService, SCENE);
+    const state = harness.store.getState();
+    const rogue = state.addToken({ x: 5, y: 5, imagePath: 'tokens/rogue.png' });
+    state.setSelection([rogue]);
+    const temporal = (harness.store as unknown as { temporal: { getState(): { pastStates: unknown[]; undo(): void } } }).temporal;
+    const steps = temporal.getState().pastStates.length;
+
+    harness.store.getState().moveTokensToLevel([rogue], 'upper');
+
+    expect(harness.store.getState().objects.tokens[rogue]?.level).toBe('upper');
+    expect(harness.store.getState().viewedLevel).toBe('ground');
+    expect(harness.store.getState().selectedIds).toEqual([]);
+    expect(temporal.getState().pastStates).toHaveLength(steps + 1);
+    temporal.getState().undo();
+    expect(harness.store.getState().objects.tokens[rogue]?.level).toBe('ground');
+  });
+
+  it('is no undo step to show another level', async () => {
+    const harness = setup(JSON.stringify({ version: 5, state: sceneState({ version: 5, levels: LEVELS }) }));
+    await harness.service.loadMap(harness.rendererService, SCENE);
+    const temporal = (harness.store as unknown as { temporal: { getState(): { pastStates: unknown[] } } }).temporal;
+
+    harness.store.getState().setViewedLevel('upper');
+
+    expect(temporal.getState().pastStates).toHaveLength(0);
+  });
+});

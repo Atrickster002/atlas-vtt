@@ -35,6 +35,7 @@ import { copyDragSelection } from './dragCopy';
 import type { DragRuler } from './DragRuler';
 import { runInBackground } from '../../utils/backgroundTask';
 import { tokenSizeSubmenu } from '../../react/components/context-menu/tokenSizeMenu';
+import { tokenLevelSubmenu } from '../../react/components/context-menu/tokenLevelMenu';
 import { tokenLightingEntries } from '../../react/components/context-menu/tokenLightingMenu';
 import { mapLightPresets } from '../../services/mapCollectionRules';
 import { conditionsSubmenu } from '../../react/components/context-menu/conditionsMenu';
@@ -564,6 +565,10 @@ export class InteractionController implements ITokenInteractionController {
       const center = resizedTokenCenter(current, current.size || 1, size, grid);
       updateToken(token.id, { size, x: center.x, y: center.y });
     }));
+
+    // Move to another level of the scene, the selection in one undo step
+    const levelMenu = tokenLevelSubmenu(this.store, this.contextMenuTargets(token.id));
+    if (levelMenu) entries.push(levelMenu);
 
     // Hide/Show the selection in one undo step; the clicked token decides which way
     const currentToken = levelObjects(this.store.getState()).tokens[token.id];
