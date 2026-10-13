@@ -5,7 +5,9 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // Asset Manager – Header toolbar
 // ═══════════════════════════════════════════════════════════════════════════
-// One row: [navigation + selection] [asset type] [search · sort · folder · create].
+// One row: [navigation + selection] [asset type] [search · sort · create].
+// The side columns share the room equally, keeping the asset type centred; as
+// it runs short the search narrows first, then the asset type moves off centre.
 // No column is narrower than its controls, so they can not slide over each
 // other: columns that are too wide leave the toolbar, which `useHeaderCompaction`
 // measures. It then sets `data-compact` step by step until they fit: first the
@@ -24,7 +26,7 @@
 
 .atlas-am-toolbar {
   display: grid;
-  grid-template-columns: minmax(max-content, 1fr) max-content minmax(max-content, 1fr);
+  grid-template-columns: minmax(max-content, 1fr) max-content minmax(min-content, 1fr);
   align-items: center;
   gap: $spacing-m;
 

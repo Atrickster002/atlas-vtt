@@ -1,7 +1,7 @@
 ## New
 
 - Campaigns on the dashboard: make and search them, play one to note the scenes it uses, and see the player characters who stood on its last scene
-- Player characters: right-click a character on the map or in the asset manager to make it one; they have a tab of their own in the asset manager, beside the other characters
+- Player characters: right-click a character on the map or in the asset manager to make it one; they have a tab of their own in the asset manager, Players, beside the other characters
 - A campaign you play keeps one set of numbers for each player character: hit points and the other values changed on one scene show on every scene of the campaign, and travel with its folder to your other devices
 - Make tokens and maps from images already in your vault: the token and map creators have a From vault tab, and your files stay where they are
 - Dice formulas take the notation Foundry, Roll20 and Dice Roller share: advantage as 2d20kh1, keep and drop, rerolls (r1, ro<2, rr1), x explosions, success counts (cs>=5), d%, Fate dice (dF), labels like 2d6[fire], and * / with brackets. Dropped and rerolled dice show struck through
@@ -20,6 +20,7 @@
 
 ## Improved
 
+- The asset manager shows all its tabs side by side in a normal window: New folder has moved into the + menu, the refresh button is gone (Refresh stays in the right-click menu), and the search narrows before the tabs fold into a menu
 - The dashboard carries Atlas' icon and name in Atlas' own lettering, with the sword standing behind the page
 - The initiative card's edit dialog takes a modifier of your own for a combatant, which counts instead of its statblock's until you clear it
 - The Spectral Engine, which detects a map's grid, shows the grid being found: it is etched into the map along the map's own lines, sharpens as the search grows sure of it, and settles as its glow fades

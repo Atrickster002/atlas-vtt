@@ -1,6 +1,6 @@
 import React, { useRef } from 'react';
 import {
-  X, Plus, ChevronLeft, ChevronRight, FolderPlus, RefreshCw, PanelLeft,
+  X, Plus, ChevronLeft, ChevronRight, FolderPlus, PanelLeft,
   Map as MapIcon, FolderOpen,
 } from 'lucide-react';
 import { Button } from '../../primitives/button';
@@ -31,7 +31,6 @@ export interface HeaderProps {
   onCreateMap?: () => void;
   onCreateCollection?: () => void;
   onCreateFolder: () => void;
-  onRefresh: () => void;
   sidebarToggleLabel: string;
   onToggleSidebar: () => void;
   sel: Pick<
@@ -44,7 +43,7 @@ export interface HeaderProps {
 
 /**
  * One-row toolbar: navigation and selection on the left, asset type in the
- * centre, search / sort / folder / create on the right. When its controls do
+ * centre, search / sort / create on the right. When its controls do
  * not fit, the tabs, the search and the sort fold into menus and buttons
  * (`useHeaderCompaction`), so they never overlap.
  */
@@ -60,7 +59,6 @@ export function Header({
   onCreateMap,
   onCreateCollection,
   onCreateFolder,
-  onRefresh,
   sidebarToggleLabel,
   onToggleSidebar,
   sel,
@@ -141,19 +139,6 @@ export function Header({
             setSortOrder={sel.setSortOrder}
           />
 
-          <div className="atlas-am-toolbar-divider" />
-
-          <LabelTooltip label={t('am.header.newFolder')}>
-            <Button variant="ghost" size="icon" className="atlas-am-icon-btn" onClick={onCreateFolder} disabled={!tabHasFolders(activeTab)}>
-              <FolderPlus />
-            </Button>
-          </LabelTooltip>
-          <LabelTooltip label={t('am.menu.refresh')}>
-            <Button variant="ghost" size="icon" className="atlas-am-icon-btn" onClick={onRefresh}>
-              <RefreshCw />
-            </Button>
-          </LabelTooltip>
-
           <HeaderMenu
             label={t('am.header.create')}
             triggerClassName="atlas-asset-manager-create-btn"
@@ -163,6 +148,7 @@ export function Header({
             items={[
               { key: 'token', label: t('am.header.createToken'), icon: <TokenIcon />, onSelect: onCreateTokens },
               { key: 'map', label: t('am.header.addMap'), icon: <MapIcon />, onSelect: onCreateMap },
+              { key: 'folder', label: t('am.header.newFolder'), icon: <FolderPlus />, disabled: !tabHasFolders(activeTab), onSelect: onCreateFolder },
               { key: 'collection', label: t('am.header.createCollection'), icon: <FolderOpen />, separated: true, onSelect: onCreateCollection },
             ]}
           />
