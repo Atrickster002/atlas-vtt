@@ -13,6 +13,18 @@ export interface PdfLine {
   spans: PdfSpan[];
 }
 
+/** Preserve cell gaps while joining adjacent glyph/word fragments. */
+export function groupPdfSpans(line: PdfLine): PdfSpan[][] {
+  const groups: PdfSpan[][] = [];
+  for (const span of line.spans) {
+    const last = groups.at(-1);
+    const previous = last?.at(-1);
+    if (previous && span.x - previous.x - previous.width < line.height * 1.4) last!.push(span);
+    else groups.push([span]);
+  }
+  return groups;
+}
+
 /** Sort by geometry, not the PDF's drawing order. Keep columns and cell gaps separate. */
 export function pdfLines(spans: readonly PdfSpan[]): PdfLine[] {
   const sorted = spans.filter((span) => span.text.trim() !== '').toSorted((a, b) => a.y - b.y || a.x - b.x);

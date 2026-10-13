@@ -35,6 +35,7 @@
 
 ## Fixed
 
+- PDF random-table import recognizes encounter matrices with one roll-range column per terrain, creating a separate named table for each terrain and preserving its chances
 - A Weight column at the start of a random table supplies its weights instead of being read as dice results
 - A failed random-table import stays open for retry and reuses notes already created, while imported notes keep safe file names even with long Unicode titles
 

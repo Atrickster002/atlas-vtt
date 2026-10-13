@@ -1,11 +1,11 @@
 import { dieOfHeader, readRollCell } from '../dieRanges';
 import { headingName } from '../markdownTables';
-import { tablesOfNote } from '../noteTables';
-import { tableNoteText } from '../tableMarkdown';
 import type { PastedTable } from '../pastedTable';
 import { TABLE_LIMITS } from '../tableModel';
-import { IMPORT_LIMITS, hasUnreadableText, validateImportTable, type ImportCandidate, type TableDiscovery } from './importModel';
-import { pdfLines, spanText, type PdfLine, type PdfSpan } from './pdfLayout';
+import { IMPORT_LIMITS, hasUnreadableText, type ImportCandidate, type TableDiscovery } from './importModel';
+import { groupPdfSpans, pdfLines, spanText, type PdfLine, type PdfSpan } from './pdfLayout';
+import { readPdfMatrix } from './pdfMatrixTables';
+import { appendPdfCell, isCompletePdfTable, pdfTableCaption } from './pdfTableCells';
 
 interface Header {
   start: number;
@@ -28,13 +28,7 @@ function numberedLine(text: string): [string, string] | null {
 
 /** Header word fragments are joined only across small gaps; a second die starts another table. */
 function headersOf(line: PdfLine): Header[] {
-  const groups: PdfSpan[][] = [];
-  for (const span of line.spans) {
-    const last = groups.at(-1);
-    const previous = last?.at(-1);
-    if (previous && span.x - previous.x - previous.width < line.height * 1.4) last!.push(span);
-    else groups.push([span]);
-  }
+  const groups = groupPdfSpans(line);
   const starts = groups.flatMap((group, index) => {
     const text = spanText(group);
     const first = text.split(/\s/, 1)[0] ?? '';
@@ -81,24 +75,6 @@ function cellsOf(spans: readonly PdfSpan[], header: Header, height: number): str
   return columns.map(spanText);
 }
 
-function titleAbove(lines: readonly PdfLine[], index: number, header: Header): string {
-  const previous = lines[index - 1];
-  const current = lines[index]!;
-  if (!previous || current.y - previous.y > current.height * 3.5) return '';
-  const spans = inLane(previous, header);
-  const text = spanText(spans);
-  if (spans.some((span) => span.x + span.width > header.end)) return '';
-  const headingStyle = spans.some((span) => span.height > current.height * 1.05) || (/[A-Z]/.test(text) && text === text.toUpperCase());
-  if (!headingStyle || text.length > IMPORT_LIMITS.nameCharacters || /[.!?;]$/.test(text) || readRollCell(text) !== null) return '';
-  return headingName(text);
-}
-
-function appendCell(previous: string, next: string): string {
-  if (!next) return previous;
-  const brokenWord = /\p{L}-$/u.test(previous) && /^\p{Ll}/u.test(next);
-  return brokenWord ? previous.slice(0, -1) + next : previous ? `${previous} ${next}` : next;
-}
-
 function tableBelow(lines: readonly PdfLine[], index: number, header: Header): PastedTable | null {
   const rows: string[][] = [];
   let lastY = lines[index]!.y;
@@ -117,17 +93,15 @@ function tableBelow(lines: readonly PdfLine[], index: number, header: Header): P
     } else {
       if (cells[0] !== '' || rows.length === 0) break;
       const previous = rows.at(-1)!;
-      for (let column = 1; column < cells.length; column++) previous[column] = appendCell(previous[column]!, cells[column]!);
+      for (let column = 1; column < cells.length; column++) previous[column] = appendPdfCell(previous[column]!, cells[column]!);
     }
     lastY = line.y;
     rowHeight = line.height;
   }
   if (rows.length < 2 || rows.some((row) => row.slice(1).every((cell) => cell === ''))) return null;
   const table = { headers: header.headers, rows, numbered: true };
-  try { validateImportTable(table); } catch { return null; }
-  const model = tablesOfNote(tableNoteText('Table', table), 'Table').tables[0];
   // Partial/multi-page ranges, overlaps and unreadable cells cannot be offered as complete tables.
-  return model?.die && model.problems.length === 0 ? table : null;
+  return isCompletePdfTable(table) ? table : null;
 }
 
 /** Complete dice tables on a single page. Unclear geometry and partial tables are skipped, never guessed. */
@@ -137,6 +111,13 @@ export function discoverPdfTables(spans: readonly PdfSpan[], page: number): Tabl
   const tables: ImportCandidate[] = [];
   let skipped = false;
   for (let index = 0; index < lines.length; index++) {
+    const matrix = readPdfMatrix(lines, index, page);
+    if (matrix) {
+      tables.push(...matrix.tables);
+      if (matrix.warnings.length > 0) skipped = true;
+      index = matrix.endLine;
+      continue;
+    }
     for (const header of headersOf(lines[index]!)) {
       if (new Set(header.headers.slice(1).map((text) => text.toLowerCase())).size !== header.headers.length - 1) {
         skipped = true;
@@ -144,7 +125,7 @@ export function discoverPdfTables(spans: readonly PdfSpan[], page: number): Tabl
       }
       const table = tableBelow(lines, index, header);
       if (!table) { skipped = true; continue; }
-      tables.push({ name: titleAbove(lines, index, header), table, page });
+      tables.push({ name: headingName(pdfTableCaption(lines, index, header.start, header.end)), table, page });
     }
   }
   return { tables, warnings: skipped ? ['skippedTables'] : [] };
