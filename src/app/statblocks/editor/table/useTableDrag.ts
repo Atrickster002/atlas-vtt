@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { HEADER_ROW } from '../../model/tableGrid';
 import { TABLE_COL_ATTRIBUTE, TABLE_ROW_ATTRIBUTE } from '../../render/blocks/TableView';
 import type { TableCommand } from './tableCommands';
-import { TableDrag, type DropLine, type TableAxis } from './TableDrag';
+import { TableDrag, type DragBox, type DropLine, type TableAxis } from './TableDrag';
 import type { TableRoom } from './tableHost';
 
 export interface TableDragState {
@@ -14,10 +14,17 @@ export interface TableDragState {
   start: (axis: TableAxis, index: number, handle: HTMLElement, event: PointerEvent) => void;
 }
 
+/** A row's or column's box, with the band's table it stands in as its lane. */
+function dragBox(element: Element): DragBox {
+  const box = element.getBoundingClientRect();
+  return { box, lane: element.closest('table')?.getBoundingClientRect() ?? box };
+}
+
 /**
  * Dragging a Table's rows and columns by their handles (`TableDrag`): the
- * rows are measured by their `tr`, the columns by their first row's cells,
- * and a drop moves the row or column as the menu's Move does.
+ * rows are measured by their `tr` in the first band, the columns by their
+ * first row's cells in every band, and a drop moves the row or column as the
+ * menu's Move does.
  */
 export function useTableDrag(frameRef: React.RefObject<HTMLDivElement | null>, room: TableRoom, header: boolean, run: (command: TableCommand) => void): TableDragState {
   const [drop, setDrop] = useState<DropLine | null>(null);
@@ -37,8 +44,8 @@ export function useTableDrag(frameRef: React.RefObject<HTMLDivElement | null>, r
       from: index,
       frame,
       boxes: () => (axis === 'row'
-        ? [...frame.querySelectorAll(`tbody > tr > [${TABLE_COL_ATTRIBUTE}="0"]`)].map((cell) => (cell.parentElement ?? cell).getBoundingClientRect())
-        : [...frame.querySelectorAll(`[${TABLE_ROW_ATTRIBUTE}="${header ? HEADER_ROW : 0}"]`)].map((cell) => cell.getBoundingClientRect())),
+        ? [...frame.querySelectorAll(`tbody > tr > [${TABLE_COL_ATTRIBUTE}="0"]`)].map((cell) => dragBox(cell.parentElement ?? cell))
+        : [...frame.querySelectorAll(`[${TABLE_ROW_ATTRIBUTE}="${header ? HEADER_ROW : 0}"]`)].map(dragBox)),
       onStart: () => setDragging(true),
       onLine: setDrop,
       onDrop: (to) => {

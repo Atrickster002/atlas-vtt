@@ -3,7 +3,7 @@ import { pasteCells, renameColumn, setCell } from '../../model/tableEdits';
 import { HEADER_ROW, type CellAt, type TableGrid } from '../../model/tableGrid';
 import type { ScoresBlock } from '../../model/templateTypes';
 import { TableLines, type TableLook } from '../../render/blocks/ScoresView';
-import { TABLE_COL_ATTRIBUTE, TABLE_ROW_ATTRIBUTE, TableView, unnamedColumn, type TableDecor } from '../../render/blocks/TableView';
+import { TABLE_COL_ATTRIBUTE, TABLE_ROW_ATTRIBUTE, TableView, unnamedColumn, type BandEdges, type TableDecor } from '../../render/blocks/TableView';
 import type { ShownTable } from '../../render/values/shownTable';
 import { useSurfaceMenu } from '../interaction/SurfaceMenuProvider';
 import { focusStaysIn } from '../statblock-pane/focusWithin';
@@ -91,15 +91,20 @@ function cellLabel(grid: TableGrid, name: string, at: CellAt): string {
   return grid.rows.length > 1 ? `${column}, row ${at.row + 1}` : column;
 }
 
-/** A selected row's or column's cell: washed, with the ring along the selection's outer edges, as Obsidian's. */
-function selectionClasses(selected: TableSelection | null, at: CellAt, grid: TableGrid, header: boolean): string[] {
+/**
+ * A selected row's or column's cell: washed, with the ring along the selection's outer edges, as Obsidian's.
+ * A row that wraps into bands is ringed in each band, from its first cell there to its last (`edges`).
+ */
+function selectionClasses(selected: TableSelection | null, at: CellAt, grid: TableGrid, header: boolean, edges?: BandEdges): string[] {
   if (!selected) return [];
   const top = header ? HEADER_ROW : 0;
   const lastRow = grid.rows.length - 1;
   const lastCol = grid.columns.length - 1;
   if (selected.axis === 'row') {
     if (at.row !== selected.index) return [];
-    return ['is-selected', 'is-top', 'is-bottom', ...(at.col === 0 ? ['is-start'] : []), ...(at.col === lastCol ? ['is-end'] : [])];
+    const start = edges ? edges.first : at.col === 0;
+    const end = edges ? edges.last : at.col === lastCol;
+    return ['is-selected', 'is-top', 'is-bottom', ...(start ? ['is-start'] : []), ...(end ? ['is-end'] : [])];
   }
   if (at.col !== selected.index) return [];
   return ['is-selected', 'is-start', 'is-end', ...(at.row === top ? ['is-top'] : []), ...(at.row === lastRow ? ['is-bottom'] : [])];
@@ -194,7 +199,8 @@ function LiveTable({ block, shown, look, host }: EditableTableProps & { host: Ta
         />
       );
     },
-    cellClass: (at) => [sameCell(at, active) && 'is-typing', ...selectionClasses(selected, at, grid, shown.header)].filter(Boolean).join(' ') || undefined,
+    cellClass: (at, edges) => [sameCell(at, active) && 'is-typing', ...selectionClasses(selected, at, grid, shown.header, edges)].filter(Boolean).join(' ') || undefined,
+    holdBands: active !== null,
     rowHandle: look === 'grid' && room.rows ? (row) => <TableHandle axis="row" index={row} selected={isSelected('row', row)} onPress={press} /> : undefined,
     columnHandle: look === 'grid' && (room.columns || room.align || room.rows)
       ? (col) => <TableHandle axis="column" index={col} selected={isSelected('column', col)} onPress={press} />

@@ -5,13 +5,12 @@ import type { TableAlign } from '../../model/templateTypes';
 import { SheetContext, useSheet } from '../sheetContext';
 import { InlineText } from '../shared/InlineText';
 import { ProblemMarker } from '../values/ProblemMarker';
-import { hasText, type ShownText } from '../values/shownText';
+import { hasText, NO_TEXT, type ShownText } from '../values/shownText';
 import type { ShownTable } from '../values/shownTable';
+import { TABLE_COL_ATTRIBUTE, TABLE_ROW_ATTRIBUTE } from './tableAttributes';
+import { useTableBands } from './useTableBands';
 
-/** A cell's row in the table (-1: the header row); with `TABLE_COL_ATTRIBUTE`, how an editor finds the cell clicked. */
-export const TABLE_ROW_ATTRIBUTE = 'data-table-row';
-/** A cell's column in the table. */
-export const TABLE_COL_ATTRIBUTE = 'data-table-col';
+export { TABLE_COL_ATTRIBUTE, TABLE_ROW_ATTRIBUTE };
 
 /** What a column without a name is called while a statblock or template is edited. */
 export function unnamedColumn(col: number): string {
@@ -22,16 +21,24 @@ export function unnamedColumn(col: number): string {
 export interface TableDecor {
   /** What stands in a cell: `content` itself, or the editor's input over it. */
   cell?: ((at: CellAt, content: React.ReactNode) => React.ReactNode) | undefined;
-  /** A cell's own class names (selection, the cell being typed). */
-  cellClass?: ((at: CellAt) => string | undefined) | undefined;
+  /** A cell's own class names (selection, the cell being typed); `edges` says whether it starts or ends its band's row. */
+  cellClass?: ((at: CellAt, edges?: BandEdges) => string | undefined) | undefined;
   /** Drawn in each row's first cell, out of the flow: the row's handle. */
   rowHandle?: ((row: number) => React.ReactNode) | undefined;
   /** Drawn in each first-row cell, out of the flow: the column's handle. */
   columnHandle?: ((col: number) => React.ReactNode) | undefined;
   /** Drawn after the table in its frame: the add buttons, a drag's drop line. */
   after?: React.ReactNode;
+  /** A cell is typed: the bands stay as they are, so it keeps its place (`useTableBands`). */
+  holdBands?: boolean | undefined;
   /** The frame around the table: its ref, keys and pointer handlers. */
   frame?: React.HTMLAttributes<HTMLDivElement> & { ref?: React.Ref<HTMLDivElement> } & Record<`data-${string}`, string | undefined>;
+}
+
+/** Where a cell stands in its band's row: a row that wraps into bands starts and ends in each of them. */
+export interface BandEdges {
+  first: boolean;
+  last: boolean;
 }
 
 const ALIGNS: Readonly<Record<TableAlign, React.CSSProperties['textAlign']>> = { start: 'start', center: 'center', end: 'end' };
@@ -58,8 +65,8 @@ export function ColumnName({ name, col }: { name: string; col: number }): React.
   return state.mode === 'editing' ? <span className="atlas-sb-sheet-table__unnamed">{unnamedColumn(col)}</span> : '\u200b';
 }
 
-function cellProps(at: CellAt, decor: TableDecor | undefined, align: TableAlign | null, base: string): React.TdHTMLAttributes<HTMLTableCellElement> {
-  const extra = decor?.cellClass?.(at);
+function cellProps(at: CellAt, edges: BandEdges, decor: TableDecor | undefined, align: TableAlign | null, base: string): React.TdHTMLAttributes<HTMLTableCellElement> {
+  const extra = decor?.cellClass?.(at, edges);
   return {
     className: extra ? `${base} ${extra}` : base,
     style: alignStyle(align),
@@ -68,14 +75,15 @@ function cellProps(at: CellAt, decor: TableDecor | undefined, align: TableAlign 
   } as React.TdHTMLAttributes<HTMLTableCellElement>;
 }
 
-/**
- * A Table as Obsidian draws a Markdown table (its `--table-*` theme
- * variables): the header row of column names over the rows, then the
- * worked-out rows, muted, after a corner column for their labels. The frame
- * around it has room for an editor's handles and add buttons on every side,
- * held out of the card's flow, so the editing card is laid out as the card is.
- */
-export function TableView({ shown, decor }: { shown: ShownTable; decor?: TableDecor | undefined }): React.JSX.Element {
+interface BandProps {
+  shown: ShownTable;
+  decor: TableDecor | undefined;
+  /** The columns this band holds, by their place in the table. */
+  cols: readonly number[];
+}
+
+/** One band of a Table: its columns' names over its share of every row, then of the worked-out rows. */
+function TableBand({ shown, decor, cols }: BandProps): React.JSX.Element {
   const { grid, cells, derived } = shown;
   const labelled = derived.some((row) => row.label.trim());
   const corner = labelled ? <td className="atlas-sb-sheet-table__corner" aria-hidden="true" /> : null;
@@ -87,56 +95,74 @@ export function TableView({ shown, decor }: { shown: ShownTable; decor?: TableDe
       {at.row === first && decor?.columnHandle?.(at.col)}
     </>
   );
+  const edges = (index: number): BandEdges => ({ first: index === 0, last: index === cols.length - 1 });
+
+  return (
+    <table className="atlas-sb-sheet-table__grid">
+      {shown.header && (
+        <thead>
+          <tr>
+            {corner}
+            {cols.map((col, index) => {
+              const at = { row: HEADER_ROW, col };
+              return (
+                <th key={col} scope="col" {...cellProps(at, edges(index), decor, grid.columns[col]?.align ?? null, 'atlas-sb-sheet-table__name')}>
+                  {content(at, <ColumnName name={grid.columns[col]?.name ?? ''} col={col} />)}
+                  {handles(at)}
+                </th>
+              );
+            })}
+          </tr>
+        </thead>
+      )}
+      <tbody>
+        {cells.map((row, r) => (
+          <tr key={r}>
+            {corner}
+            {cols.map((col, index) => {
+              const at = { row: r, col };
+              return (
+                <td key={col} {...cellProps(at, edges(index), decor, grid.columns[col]?.align ?? null, 'atlas-sb-sheet-table__cell')}>
+                  {content(at, <CellText shown={row[col] ?? NO_TEXT} />)}
+                  {handles(at)}
+                </td>
+              );
+            })}
+          </tr>
+        ))}
+        {derived.map((row, index) => (
+          <tr key={`derived-${index}`} className="atlas-sb-sheet-table__derived">
+            {labelled && <th scope="row" className="atlas-sb-sheet-table__derived-label">{row.label}</th>}
+            {cols.map((col) => (
+              <td key={col} className="atlas-sb-sheet-table__worked" style={alignStyle(grid.columns[col]?.align ?? null)}>
+                <CellText shown={row.cells[col] ?? NO_TEXT} />
+              </td>
+            ))}
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+/**
+ * A Table as Obsidian draws a Markdown table (its `--table-*` theme
+ * variables): the header row of column names over the rows, then the
+ * worked-out rows, muted, after a corner column for their labels. One too
+ * wide for its card wraps into bands, as Fantasy Statblocks wraps its tables
+ * (`useTableBands`), and never scrolls. The frame around it has room for an
+ * editor's handles and add buttons on every side, held out of the card's
+ * flow, so the editing card is laid out as the card is.
+ */
+export function TableView({ shown, decor }: { shown: ShownTable; decor?: TableDecor | undefined }): React.JSX.Element {
+  const { bands, squeezed, roomRef } = useTableBands(shown.grid.columns.length, decor?.holdBands ?? false);
   const { ref, className, ...frame } = decor?.frame ?? {};
 
   return (
-    <div className="atlas-sb-sheet-table">
-      <div className="atlas-sb-sheet-table__scroll">
+    <div ref={roomRef} className="atlas-sb-sheet-table" data-squeezed={squeezed || undefined}>
+      <div className="atlas-sb-sheet-table__room">
         <div ref={ref} className={className ? `atlas-sb-sheet-table__frame ${className}` : 'atlas-sb-sheet-table__frame'} {...frame}>
-          <table className="atlas-sb-sheet-table__grid">
-            {shown.header && (
-              <thead>
-                <tr>
-                  {corner}
-                  {grid.columns.map((column, col) => {
-                    const at = { row: HEADER_ROW, col };
-                    return (
-                      <th key={col} scope="col" {...cellProps(at, decor, column.align, 'atlas-sb-sheet-table__name')}>
-                        {content(at, <ColumnName name={column.name} col={col} />)}
-                        {handles(at)}
-                      </th>
-                    );
-                  })}
-                </tr>
-              </thead>
-            )}
-            <tbody>
-              {cells.map((row, r) => (
-                <tr key={r}>
-                  {corner}
-                  {row.map((cell, col) => {
-                    const at = { row: r, col };
-                    return (
-                      <td key={col} {...cellProps(at, decor, grid.columns[col]?.align ?? null, 'atlas-sb-sheet-table__cell')}>
-                        {content(at, <CellText shown={cell} />)}
-                        {handles(at)}
-                      </td>
-                    );
-                  })}
-                </tr>
-              ))}
-              {derived.map((row, index) => (
-                <tr key={`derived-${index}`} className="atlas-sb-sheet-table__derived">
-                  {labelled && <th scope="row" className="atlas-sb-sheet-table__derived-label">{row.label}</th>}
-                  {row.cells.map((cell, col) => (
-                    <td key={col} className="atlas-sb-sheet-table__worked" style={alignStyle(grid.columns[col]?.align ?? null)}>
-                      <CellText shown={cell} />
-                    </td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          {bands.map((cols, index) => <TableBand key={index} shown={shown} decor={decor} cols={cols} />)}
           {decor?.after}
         </div>
       </div>

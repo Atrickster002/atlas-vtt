@@ -68,7 +68,7 @@ export function TableAddButtons({ rows, columns, onAddRow, onAddColumn }: AddBut
 /** Where a dragged row or column lands: a line between two, in the accent colour. */
 export function TableDropLine({ line }: { line: DropLine }): React.JSX.Element {
   const style: React.CSSProperties = line.axis === 'row'
-    ? { width: line.length, transform: `translateY(${line.offset}px)` }
-    : { height: line.length, transform: `translateX(${line.offset}px)` };
+    ? { width: line.length, transform: `translate(${line.cross}px, ${line.offset}px)` }
+    : { height: line.length, transform: `translate(${line.offset}px, ${line.cross}px)` };
   return <div className={`atlas-sb-sheet-table__drop atlas-sb-sheet-table__drop--${line.axis}`} style={style} aria-hidden="true" />;
 }

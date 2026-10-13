@@ -50,7 +50,7 @@ export interface SelectionToolbarProps {
 /** The tile's box, with the room a Table keeps around it for its handles and add buttons, which the toolbar must not cover. */
 function tileBox(frame: HTMLElement): { left: number; top: number; right: number; bottom: number } {
   const { left, top, right, bottom } = frame.getBoundingClientRect();
-  const room = frame.querySelector('.atlas-sb-sheet-table__scroll')?.getBoundingClientRect();
+  const room = frame.querySelector('.atlas-sb-sheet-table__room')?.getBoundingClientRect();
   return room ? { left, right, top: Math.min(top, room.top), bottom: Math.max(bottom, room.bottom) } : { left, top, right, bottom };
 }
 

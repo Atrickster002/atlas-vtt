@@ -1,7 +1,9 @@
 /**
  * One drag of a Table's row or column by its handle, as Obsidian's table
  * editor drags them: the handle follows the pointer along the table, a line
- * shows where the row or column lands, and letting go moves it. Our own press
+ * shows where the row or column lands, and letting go moves it. A table that
+ * wraps into bands holds its columns in several lanes, one per band: the
+ * pointer picks the lane, then the place in it. Our own press
  * handling (threshold, pointer capture, Escape, the window's blur,
  * `pointercancel`), all on the handle's own document and window, so a popout
  * works the same; `finish` takes every listener and style away again.
@@ -19,8 +21,16 @@ export interface DropLine {
   axis: TableAxis;
   /** Its distance from the frame's top (a row) or left edge (a column). */
   offset: number;
-  /** How long it is: the table's width (a row) or height (a column). */
+  /** Where it begins across: its band's left edge (a row) or top (a column). */
+  cross: number;
+  /** How long it is: its band's width (a row) or height (a column). */
   length: number;
+}
+
+/** A row's or column's box, and the box of the band's table it stands in. */
+export interface DragBox {
+  box: DOMRect;
+  lane: DOMRect;
 }
 
 export interface TableDragHost {
@@ -30,7 +40,7 @@ export interface TableDragHost {
   /** The table frame the boxes and the line are measured against. */
   frame: HTMLElement;
   /** The boxes of the rows or columns, in order. */
-  boxes: () => DOMRect[];
+  boxes: () => DragBox[];
   /** The press became a drag. */
   onStart: () => void;
   /** Where the line stands, or null where letting go moves nothing. */
@@ -41,9 +51,28 @@ export interface TableDragHost {
   onCancel: (started: boolean) => void;
 }
 
+/** A row or column along the drag's axis, and its lane across it, in the frame's coordinates. */
 interface Span {
   start: number;
   end: number;
+  laneStart: number;
+  laneEnd: number;
+}
+
+/** The spans of the lane the point across the drag lies in, or of the nearest lane. */
+function laneAt(spans: readonly Span[], cross: number): Span[] {
+  let nearest: Span | undefined;
+  let distance = Infinity;
+  for (const span of spans) {
+    const away = Math.max(span.laneStart - cross, 0, cross - span.laneEnd);
+    if (away < distance) {
+      distance = away;
+      nearest = span;
+    }
+  }
+  if (!nearest) return [];
+  const { laneStart } = nearest;
+  return spans.filter((span) => span.laneStart === laneStart);
 }
 
 export class TableDrag {
@@ -52,7 +81,6 @@ export class TableDrag {
   private spans: Span[] = [];
   private target: number | null = null;
   private origin: number;
-  private length = 0;
   private readonly doc: Document;
   private readonly win: Window;
   private readonly pointerId: number;
@@ -80,6 +108,10 @@ export class TableDrag {
     return this.host.axis === 'row' ? event.clientY : event.clientX;
   }
 
+  private across(event: { clientX: number; clientY: number }): number {
+    return this.host.axis === 'row' ? event.clientX : event.clientY;
+  }
+
   private readonly onMove = (event: PointerEvent): void => {
     if (event.pointerId !== this.pointerId) return;
     if (!this.active) {
@@ -87,7 +119,7 @@ export class TableDrag {
       this.activate();
     }
     event.preventDefault();
-    this.update(this.along(event));
+    this.update(event);
   };
 
   private readonly onUp = (event: PointerEvent): void => {
@@ -107,9 +139,10 @@ export class TableDrag {
     const frame = this.host.frame.getBoundingClientRect();
     const row = this.host.axis === 'row';
     const base = row ? frame.top : frame.left;
-    this.spans = this.host.boxes().map((box) => (row ? { start: box.top - base, end: box.bottom - base } : { start: box.left - base, end: box.right - base }));
-    const table = this.host.frame.querySelector('table')?.getBoundingClientRect() ?? frame;
-    this.length = row ? table.width : table.height;
+    const crossBase = row ? frame.left : frame.top;
+    this.spans = this.host.boxes().map(({ box, lane }) => (row
+      ? { start: box.top - base, end: box.bottom - base, laneStart: lane.left - crossBase, laneEnd: lane.right - crossBase }
+      : { start: box.left - base, end: box.right - base, laneStart: lane.top - crossBase, laneEnd: lane.bottom - crossBase }));
     this.origin -= base;
     this.active = true;
     try {
@@ -120,22 +153,29 @@ export class TableDrag {
     this.host.onStart();
   }
 
-  private update(client: number): void {
+  private update(event: { clientX: number; clientY: number }): void {
     const frame = this.host.frame.getBoundingClientRect();
-    const at = client - (this.host.axis === 'row' ? frame.top : frame.left);
-    const first = this.spans[0];
-    const last = this.spans.at(-1);
-    if (!first || !last) return;
-    // The handle follows the pointer, held within the table.
+    const row = this.host.axis === 'row';
+    const at = this.along(event) - (row ? frame.top : frame.left);
+    const across = this.across(event) - (row ? frame.left : frame.top);
     const held = this.spans[this.host.from];
-    const shift = held ? Math.min(Math.max(at - this.origin, first.start - held.start), last.end - held.end) : 0;
+    // The handle follows the pointer, held within its own band.
+    const own = held ? this.spans.filter((span) => span.laneStart === held.laneStart) : [];
+    const ownFirst = own[0];
+    const ownLast = own.at(-1);
+    const shift = held && ownFirst && ownLast ? Math.min(Math.max(at - this.origin, ownFirst.start - held.start), ownLast.end - held.end) : 0;
     this.handle.style.setProperty(DRAG_SHIFT, `${shift}px`);
+    const lane = laneAt(this.spans, across);
+    const first = lane[0];
+    const last = lane.at(-1);
+    if (!first || !last) return;
     const point = Math.min(Math.max(at, first.start), last.end - 0.5);
-    const index = this.spans.findIndex((span) => point >= span.start && point < span.end);
+    const hit = lane.find((span) => point >= span.start && point < span.end);
+    const index = hit ? this.spans.indexOf(hit) : -1;
     this.target = index < 0 || index === this.host.from ? null : index;
     const span = this.target === null ? undefined : this.spans[this.target];
     this.host.onLine(span && this.target !== null
-      ? { axis: this.host.axis, offset: this.target < this.host.from ? span.start : span.end, length: this.length }
+      ? { axis: this.host.axis, offset: this.target < this.host.from ? span.start : span.end, cross: span.laneStart, length: span.laneEnd - span.laneStart }
       : null);
   }
 

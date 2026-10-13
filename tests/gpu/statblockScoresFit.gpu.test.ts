@@ -30,9 +30,10 @@ const TEMPLATE: StatblockTemplate = {
 
 /**
  * A table with many long column names in a narrow card (a Fantasy Statblocks
- * layout's preview in the gallery), as Obsidian's table widget holds one
- * wider than its note: every name stays in its own cell, and the table
- * scrolls inside its column rather than running past the card.
+ * layout's preview in the gallery): it wraps into bands one under another, as
+ * Fantasy Statblocks wraps its tables, and never runs past the card or
+ * scrolls. Every name stays in its own cell, every column shows once and in
+ * order, and a card that grows takes the table back into one band.
  */
 describe('a table with long column names in a narrow card', () => {
   const style = document.createElement('style');
@@ -48,11 +49,20 @@ describe('a table with long column names in a narrow card', () => {
     style.remove();
   });
 
-  it('keeps each name in its cell and scrolls within the card', () => {
-    render(React.createElement('div', { className: 'atlas-vtt-plugin', style: { width: 240 } },
+  function renderAt(width: number): HTMLElement {
+    const { container } = render(React.createElement('div', { className: 'atlas-vtt-plugin', style: { width } },
       React.createElement(StatblockSheet, { template: TEMPLATE, name: 'Nine slots', fields: { stats: SLOTS.map(() => 10) }, variant: 'feed' })));
+    return container.firstElementChild as HTMLElement;
+  }
+
+  it('wraps into bands within the card, each name in its cell', () => {
+    renderAt(240);
+    const tables = [...document.querySelectorAll<HTMLElement>('table.atlas-sb-sheet-table__grid')];
+    expect(tables.length, 'the table wraps').toBeGreaterThan(1);
+    const block = document.querySelector('[data-block-id="scores00"]')!.getBoundingClientRect();
+    for (const table of tables) expect(table.getBoundingClientRect().width).toBeLessThanOrEqual(block.width + 0.5);
     const names = [...document.querySelectorAll<HTMLElement>('thead th')];
-    expect(names).toHaveLength(SLOTS.length);
+    expect(names.map((name) => name.textContent)).toEqual(SLOTS);
     for (const name of names) {
       const cell = name.getBoundingClientRect();
       const range = document.createRange();
@@ -61,11 +71,23 @@ describe('a table with long column names in a narrow card', () => {
       expect(text.left, `${name.textContent} starts in its cell`).toBeGreaterThanOrEqual(cell.left - 0.5);
       expect(text.right, `${name.textContent} ends in its cell`).toBeLessThanOrEqual(cell.right + 0.5);
     }
-    const scroller = document.querySelector<HTMLElement>('.atlas-sb-sheet-table__scroll')!;
-    const block = scroller.closest('[data-block-id]')!.getBoundingClientRect();
-    expect(scroller.scrollWidth).toBeGreaterThan(scroller.clientWidth);
-    // The scroller reaches past its block only by the room it keeps for the editors' handles.
-    expect(scroller.getBoundingClientRect().width).toBeLessThanOrEqual(block.width + 32 + 0.5);
+    const room = document.querySelector<HTMLElement>('.atlas-sb-sheet-table__room')!;
+    expect(room.scrollWidth, 'nothing to scroll').toBeLessThanOrEqual(room.clientWidth);
+  });
+
+  it('keeps a table of short names in one band in the same card', () => {
+    const short: StatblockTemplate = { ...TEMPLATE, fields: [{ key: 'stats', label: 'Abilities', type: 'scores', slots: ['Str', 'Dex', 'Con', 'Int', 'Wis', 'Cha'] }] };
+    render(React.createElement('div', { className: 'atlas-vtt-plugin', style: { width: 367 } },
+      React.createElement(StatblockSheet, { template: short, name: 'Six slots', fields: { stats: [10, 12, 14, 8, 13, 9] }, variant: 'feed' })));
+    expect(document.querySelectorAll('table.atlas-sb-sheet-table__grid')).toHaveLength(1);
+  });
+
+  it('stands in one band where the card has room, and goes back to one when it grows', async () => {
+    const card = renderAt(240);
+    expect(document.querySelectorAll('table.atlas-sb-sheet-table__grid').length).toBeGreaterThan(1);
+    card.style.width = '1000px';
+    await vi.waitFor(() => expect(document.querySelectorAll('table.atlas-sb-sheet-table__grid')).toHaveLength(1));
+    expect([...document.querySelectorAll('thead th')].map((name) => name.textContent)).toEqual(SLOTS);
   });
 });
 
