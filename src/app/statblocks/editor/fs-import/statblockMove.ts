@@ -35,7 +35,7 @@ function creatureProblem(params: Readonly<Record<string, unknown>>): string | nu
   const named = params.creature ?? params.monster;
   if (typeof named !== 'string') return null;
   const api = getFantasyStatblocksApi();
-  if (!api) return `It builds on the creature ${named}; turn on Fantasy Statblocks to move it.`;
+  if (!api) return `It is based on the creature ${named}; turn on Fantasy Statblocks to move it.`;
   if (!isBestiaryResolved(api)) return 'Fantasy Statblocks is still reading its bestiary; try again in a moment.';
   return bestiaryCreatureByName(api, named) ? null : `Fantasy Statblocks has no creature named ${named}.`;
 }
@@ -52,9 +52,9 @@ export async function moveFenceNote(app: App, path: string, templateId: Template
   const text = await app.vault.read(file);
   const fences = findStatblockFences(text);
   const [fence] = fences;
-  if (!fence) return 'It no longer holds a statblock code block.';
+  if (!fence) return 'Its statblock is no longer in the note.';
   if (fences.length > 1) return severalFencesReason(fences.length);
-  if (!fence.params) return 'Its statblock code block can\'t be read.';
+  if (!fence.params) return 'Its statblock can\'t be read.';
   const problem = creatureProblem(fence.params);
   if (problem) return problem;
 
