@@ -44,13 +44,25 @@ export const useOptionalContextMenu = (): ContextMenuController | null => useCon
  * Every mounted provider registers here. The newest one serves callers outside
  * React, so a provider that unmounts never disables the ones still on screen.
  */
-const controllers: ContextMenuController[] = [];
+interface RegisteredController extends ContextMenuController {
+  /** The document the provider opens its menus in, once it is rendered. */
+  doc: () => Document | null;
+}
+
+const controllers: RegisteredController[] = [];
+
+export interface GlobalContextMenuOptions extends ContextMenuOptions {
+  /** Opens the menu in this document (a popout's), served by the newest provider rendered there. */
+  doc?: Document | undefined;
+}
 
 export function openContextMenuGlobal(
   entries: ContextMenuEntry[],
   position: { x: number; y: number },
+  options?: GlobalContextMenuOptions,
 ): void {
-  controllers[controllers.length - 1]?.open(entries, position);
+  const inDoc = options?.doc === undefined ? controllers : controllers.filter((controller) => controller.doc() === options.doc);
+  inDoc[inDoc.length - 1]?.open(entries, position, options);
 }
 
 export function closeContextMenuGlobal(): void {
@@ -89,6 +101,8 @@ export const ContextMenuProvider: React.FC<ContextMenuProviderProps> = ({ childr
   // The body of the document the provider renders in: a map in a popout opens its menus there.
   const [body, setBody] = useState<HTMLElement | null>(null);
   const anchor = useCallback((node: HTMLSpanElement | null): void => setBody(node?.ownerDocument.body ?? null), []);
+  const bodyRef = useRef<HTMLElement | null>(null);
+  bodyRef.current = body;
 
   // The open menu's `onClose`, called once whether it closes or another menu takes its place.
   const closing = useRef<(() => void) | undefined>(undefined);
@@ -111,7 +125,7 @@ export const ContextMenuProvider: React.FC<ContextMenuProviderProps> = ({ childr
 
   useEffect(() => {
     if (local) return undefined;
-    const controller: ContextMenuController = { open, close };
+    const controller: RegisteredController = { open, close, doc: () => bodyRef.current?.ownerDocument ?? null };
     controllers.push(controller);
     return () => {
       controllers.splice(controllers.indexOf(controller), 1);

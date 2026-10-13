@@ -1,5 +1,6 @@
 import { renderClosingRow, type ClosingRowActions } from './closingRow.ts';
-import { inviteRow, surfaceHeader, textButton, type MenuEntry } from './controls.ts';
+import { inviteRow, surfaceHeader, textButton } from './controls.ts';
+import type { MenuEntry } from './dockMenu.ts';
 import { renderFeedback, type FeedbackActions, type FeedbackView } from './feedbackForm.ts';
 import { gateEntries, gateRowsOf, renderCodeRow, renderPausedRow, type GateRowActions, type GateRows } from './gateRows.ts';
 import { renderImageRow, type ImageRowActions } from './imageRow.ts';

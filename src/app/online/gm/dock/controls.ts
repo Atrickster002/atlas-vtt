@@ -1,4 +1,5 @@
-import { Menu, setIcon } from 'obsidian';
+import { setIcon } from 'obsidian';
+import { openMenuBelow, type MenuEntry } from './dockMenu.ts';
 import type { Tone } from './panelModel.ts';
 
 /** How long a control says that it copied. */
@@ -85,20 +86,6 @@ export function inviteRow(parent: HTMLElement, copy: () => Promise<boolean>, qr:
   return row;
 }
 
-/** An entry of the header's "…" menu. */
-export interface MenuEntry {
-  readonly title: string;
-  readonly icon: string;
-  readonly run: () => void;
-  readonly warning?: boolean;
-  /** A separator goes above it. */
-  readonly apart?: boolean;
-  /** A switch: ticked while on. */
-  readonly checked?: boolean;
-  /** Stays in its place, switched off. */
-  readonly disabled?: boolean;
-}
-
 /** The surface's header: its title, the status as a dot (in words only while it needs attention), "…" and, where given, Close. */
 export function surfaceHeader(layer: HTMLElement, title: string, status: { readonly text: string; readonly tone: Tone }, statusInWords: string | null, entries: readonly MenuEntry[], close: (() => void) | null): HTMLElement {
   const header = layer.createDiv({ cls: 'atlas-online-header' });
@@ -108,29 +95,11 @@ export function surfaceHeader(layer: HTMLElement, title: string, status: { reado
   line.createSpan({ cls: statusInWords === null ? 'atlas-online-sr-only' : 'atlas-online-status__text', text: statusInWords ?? status.text });
   const more = header.createEl('button', { cls: 'atlas-online-icon-button atlas-online-header__more', attr: { type: 'button', 'aria-label': 'More', 'aria-haspopup': 'menu', 'data-focus-key': 'more' } });
   setIcon(more, 'more-horizontal');
-  more.addEventListener('click', () => {
-    const menu = new Menu();
-    for (const entry of entries) {
-      if (entry.apart === true) menu.addSeparator();
-      menu.addItem((item) => {
-        item.setTitle(entry.title).setIcon(entry.icon).setWarning(entry.warning === true).setDisabled(entry.disabled === true).onClick(entry.run);
-        if (entry.checked !== undefined) item.setChecked(entry.checked);
-      });
-    }
-    showBelow(menu, more);
-  });
+  more.addEventListener('click', () => openMenuBelow(entries, more));
   if (close !== null) {
     const button = header.createEl('button', { cls: 'atlas-online-close', attr: { type: 'button', 'aria-label': 'Close', 'data-focus-key': 'close' } });
     setIcon(button, 'x');
     button.addEventListener('click', close);
   }
   return header;
-}
-
-/** Opens an Obsidian menu below `anchor`, in the window `anchor` lives in; `anchor` stays shown while it is open. */
-export function showBelow(menu: Menu, anchor: HTMLElement): void {
-  anchor.addClass('is-open');
-  menu.onHide(() => anchor.removeClass('is-open'));
-  const rect = anchor.getBoundingClientRect();
-  menu.showAtPosition({ x: rect.left, y: rect.bottom + 4 }, anchor.doc);
 }

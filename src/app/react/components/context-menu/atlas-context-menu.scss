@@ -24,6 +24,12 @@ $ctx-inset: $spacing-xs;
   @include atlas-scrollbar;
 }
 
+.atlas-ctx-separator {
+  height: $border-width-s;
+  margin: $spacing-xs 0;
+  background: var(--background-modifier-border);
+}
+
 .atlas-ctx-menu--dropdown {
   min-width: var(--radix-dropdown-menu-trigger-width);
 }

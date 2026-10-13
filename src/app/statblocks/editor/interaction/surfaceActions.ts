@@ -6,7 +6,7 @@
  */
 
 import React from 'react';
-import { MenuIcon, type ContextMenuEntry } from '../../../react/components/context-menu/AtlasContextMenu';
+import { MENU_SEPARATOR, MenuIcon, type ContextMenuEntry } from '../../../react/components/context-menu/AtlasContextMenu';
 
 /** At most this many rows in one menu; a submenu counts on its own (J11). */
 export const MAX_MENU_ROWS = 12;
@@ -31,10 +31,6 @@ export type SurfaceAction =
 export type SurfaceItem = Extract<SurfaceAction, { kind: 'item' }>;
 
 export const SEPARATOR: SurfaceAction = { kind: 'separator' };
-
-function separatorRow(): React.ReactNode {
-  return React.createElement('div', { className: 'atlas-ctx-separator', role: 'separator' });
-}
 
 /**
  * Drops separators that would stand first, last or twice in a row, and empty
@@ -72,7 +68,7 @@ export function toMenuEntries(actions: readonly SurfaceAction[]): ContextMenuEnt
   const slots = tidied.some((action) => action.kind === 'submenu' || (action.kind === 'item' && action.icon));
   return tidied.map((action): ContextMenuEntry => {
     switch (action.kind) {
-      case 'separator': return { type: 'custom', render: separatorRow };
+      case 'separator': return MENU_SEPARATOR;
       case 'submenu': return { type: 'submenu', label: action.label, ...(action.icon && { icon: action.icon }), children: toMenuEntries(action.children) };
       case 'item': return {
         type: 'item',

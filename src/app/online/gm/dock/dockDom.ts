@@ -45,13 +45,13 @@ export function place(row: HTMLElement, control: HTMLElement, spacer: HTMLElemen
   return true;
 }
 
-/** Whether `node` lies inside `root`, or in one of Obsidian's menus (which the control opens in the body). */
+/** Whether `node` lies inside `root`, or in one of Atlas' menus (which the control opens in the body). */
 export function isInsideControl(root: HTMLElement, node: EventTarget | null): boolean {
   if (node === null || !('nodeType' in node)) return false;
   const element = node as Node;
   if (root.contains(element)) return true;
   const el = element.nodeType === 1 ? (element as Element) : element.parentElement;
-  return (el?.closest('.menu') ?? null) !== null;
+  return (el?.closest('.atlas-ctx-menu') ?? null) !== null;
 }
 
 /** The room from the row's bottom up to the scene tabs, a gap below them: the open control's tallest height. */

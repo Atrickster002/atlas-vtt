@@ -149,12 +149,6 @@ $chrome-offset: 4px;
       transition: none;
     }
   }
-
-  .atlas-ctx-separator {
-    height: $border-width-s;
-    margin: $spacing-xs 0;
-    background: var(--background-modifier-border);
-  }
 }
 
 // ── An ability drag: its copy, the drop line, the list's bounds ────────────

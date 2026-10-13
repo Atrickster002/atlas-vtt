@@ -48,6 +48,12 @@ export interface MenuStepper {
   canDecrement: boolean;
 }
 
+/** A line between two groups of rows. */
+export const MENU_SEPARATOR: ContextMenuEntry = {
+  type: 'custom',
+  render: () => <div className="atlas-ctx-separator" role="separator" />,
+};
+
 type ContextMenuItemEntry = Extract<ContextMenuEntry, { type: 'item' }>;
 type ContextMenuSubmenuEntry = Extract<ContextMenuEntry, { type: 'submenu' }>;
 
