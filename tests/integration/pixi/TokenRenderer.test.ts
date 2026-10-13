@@ -1227,6 +1227,27 @@ describe('TokenRenderer Integration Tests', () => {
       expect(tokenRenderer.playersSeeOnCanvas()?.('goblin')).toBe(false);
     });
 
+    it('draws the token UI as the players see it while the canvas shows their view: session view or the peek', async () => {
+      let peeking = false;
+      tokenRenderer.setPlayerSightProvider(() => undefined, () => peeking);
+      store.getState().addToken(token({ id: 'goblin', kind: 'character' }));
+      await waitForTokens('goblin');
+      const drawsForPlayers = (): boolean =>
+        (tokenRenderer as unknown as { uiManager: { getTokenUIs(): Record<string, { playersView: boolean }> } }).uiManager.getTokenUIs().goblin!.playersView;
+      expect(drawsForPlayers()).toBe(false);
+      store.getState().setGMView(false);
+      expect(drawsForPlayers()).toBe(true);
+      store.getState().setGMView(true);
+      expect(drawsForPlayers()).toBe(false);
+      peeking = true;
+      tokenRenderer.refreshPlayerSight();
+      expect(drawsForPlayers()).toBe(true);
+      // A token placed meanwhile is drawn the same way
+      store.getState().addToken(token({ id: 'orc', kind: 'character', x: 300 }));
+      await waitForTokens('orc');
+      expect((tokenRenderer as unknown as { uiManager: { getTokenUIs(): Record<string, { playersView: boolean }> } }).uiManager.getTokenUIs().orc!.playersView).toBe(true);
+    });
+
     it('tells its listeners after every pass over the players\' sight and every change of the tokens', async () => {
       const listener = vi.fn();
       const stop = tokenRenderer.onPlayersViewChange(listener);

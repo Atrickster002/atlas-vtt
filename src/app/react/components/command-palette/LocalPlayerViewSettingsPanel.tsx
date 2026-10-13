@@ -5,7 +5,6 @@ import { Button } from '../../../packages/components/primitives/button';
 import { useAtlasUI } from '../../root/AtlasUIContext';
 import { useAtlasStore } from '../../ViewStoreContext';
 import { slottedResources } from '../../../resources/resourceSlots';
-import { shapeOf } from '../../../resources/visibleResources';
 import { useMapResources } from '../../../resources/useMapResources';
 import { mapRules, updateMapRules } from '../../../services/mapRules';
 import { runInBackground } from '../../../utils/backgroundTask';
@@ -13,6 +12,7 @@ import { openPlayerWindow } from '../../../services/PlayerWindowPresenter';
 import { SettingsService, type AtlasSettings } from '../../../services/SettingsService';
 import { useExperimentalFeature } from '../../hooks/useExperimentalFeature';
 import { SettingRow, SettingToggleRow } from './SettingRows';
+import { resourceToggleLabel } from './resourceToggleLabel';
 import { t } from '../../../i18n';
 
 const DEFAULT_LOCAL_PLAYER_VIEW_SETTINGS = {
@@ -45,10 +45,10 @@ const TOKEN_TOGGLES: ReadonlyArray<{ key: LocalPlayerViewToggleKey; label: strin
 ];
 
 /**
- * One switch per bar of the rules the open scene plays by: whether players see it. Wheels show on
- * hover and selection only, which the player window has not, so they have no switch.
+ * One switch per resource of the rules the open scene plays by, bars and wheels alike: whether
+ * players see it. The player window shows the wheels they see at rest, as it cannot hover or select.
  */
-function PlayerBarToggles({ app }: { app: App }): React.ReactElement | null {
+function PlayerResourceToggles({ app }: { app: App }): React.ReactElement | null {
   const resources = useMapResources();
   const mapPath = useAtlasStore((state) => state.mapPath);
   const { source } = mapRules(app, mapPath);
@@ -63,10 +63,10 @@ function PlayerBarToggles({ app }: { app: App }): React.ReactElement | null {
 
   return (
     <>
-      {slottedResources(resources).filter(({ slot }) => shapeOf(slot) === 'bar').map(({ definition: resource }) => (
+      {slottedResources(resources).map(({ definition: resource, slot }) => (
         <SettingToggleRow
           key={resource.key}
-          label={`Show ${resource.name} bars`}
+          label={resourceToggleLabel(resource, slot)}
           value={resource.visibleToPlayers}
           onToggle={() => toggle(resource.key)}
         />
@@ -117,7 +117,7 @@ export function LocalPlayerViewSettingsPanel(): React.ReactElement {
 
       <div className="atlas-command-palette-panel-column">
         <h3 className="atlas-command-palette-panel-heading">{t('lpv.tokens')}</h3>
-        <PlayerBarToggles app={app} />
+        <PlayerResourceToggles app={app} />
         {TOKEN_TOGGLES.map(renderToggle)}
         <SettingRow label={t('lpv.notePreviews')} hint={t('lpv.notePreviewsHint')}>{null}</SettingRow>
 

@@ -28,6 +28,7 @@
 - The note picker of a pin and the right-click menus of pins and drawings open beside them, with Obsidian's left sidebar open too
 - A fixed value such as an armour class shows on its token when it is 0, and follows its statblock down to 0
 - A ring colour picked from a token's right-click menu colours every selected token, in one undo step
+- Resource wheels that players may see now show in the player window and in session view, and every resource, wheels too, has its switch in the player view settings
 
 ## Important changes
 
