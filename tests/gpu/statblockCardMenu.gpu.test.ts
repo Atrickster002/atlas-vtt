@@ -34,9 +34,6 @@ vi.mock('../../src/app/services/AssetService', async (importOriginal) => {
 });
 
 const WARDEN = { statblock: true, 'atlas-template': 'builtin:generic-creature', name: 'Marsh Warden', hp: 14 };
-const INSET = 4;
-/** The card's border as the stylesheet sets it; at a pixel ratio of 1 the browser draws it 1 px, so places may differ by half a pixel. */
-const BORDER = 1.5;
 const ROUNDING = 0.6;
 
 const apps: App[] = [];
@@ -58,25 +55,23 @@ async function pane(): Promise<PaneHarness> {
 
 const opacityOf = (element: Element): number => Number(getComputedStyle(element).opacity);
 
-/** The statblock's ⋯ in its card's corner (§7.2). */
-describe('the statblock\'s options in its card\'s corner', () => {
+/** The statblock's ⋯ (§7.2), under its card. */
+describe('the statblock\'s options under its card', () => {
   useEditorStyles();
 
-  it('stands concentric in the card\'s top-right corner, clear of the token art, and shows only while the pointer is over the card', async () => {
+  it('stands under the card at its right edge, leaves the token art as far from the card\'s right as from its top, and shows only while the pointer is over the panel', async () => {
     const harness = await pane();
     const card = harness.result.container.querySelector<HTMLElement>('.atlas-sb-pane-card')!;
-    const menu = card.querySelector<HTMLElement>('.atlas-sb-card-menu')!;
+    expect(card.querySelector('.atlas-sb-card-menu')).toBeNull();
+    const menu = harness.result.container.querySelector<HTMLElement>('.atlas-sb-card-menu')!;
     const button = menu.querySelector<HTMLElement>('button')!;
-    const surface = card.querySelector<HTMLElement>('.atlas-statblock')!;
-    const sheet = surface.getBoundingClientRect();
+    const sheet = card.querySelector<HTMLElement>('.atlas-statblock')!.getBoundingClientRect();
     const box = button.getBoundingClientRect();
-    expect(Math.abs(sheet.right - box.right - (BORDER + INSET))).toBeLessThanOrEqual(ROUNDING);
-    expect(Math.abs(box.top - sheet.top - (BORDER + INSET))).toBeLessThanOrEqual(ROUNDING);
-    // Concentric with the card's corner: the card's inner radius less the inset.
-    const outer = Number.parseFloat(getComputedStyle(surface).borderTopRightRadius);
-    expect(Math.abs(Number.parseFloat(getComputedStyle(button).borderTopRightRadius) - (outer - BORDER - INSET))).toBeLessThanOrEqual(ROUNDING);
+    expect(box.top).toBeGreaterThanOrEqual(sheet.bottom);
+    expect(Math.abs(sheet.right - box.right)).toBeLessThanOrEqual(ROUNDING);
+
     const socket = card.querySelector('.atlas-sb-token-socket, .atlas-sb-token-image')!.getBoundingClientRect();
-    expect(box.left - socket.right).toBeGreaterThanOrEqual(INSET - 0.5);
+    expect(Math.abs((sheet.right - socket.right) - (socket.top - sheet.top))).toBeLessThanOrEqual(ROUNDING);
 
     expect(opacityOf(menu)).toBe(0);
     await act(async () => {
@@ -84,6 +79,6 @@ describe('the statblock\'s options in its card\'s corner', () => {
       await frames(12);
     });
     expect(opacityOf(menu)).toBe(1);
-    await page.screenshot({ element: card, path: '__screenshots__/card-menu/corner.png' });
+    await page.screenshot({ element: harness.result.container.querySelector<HTMLElement>('.atlas-sb-pane')!, path: '__screenshots__/card-menu/under-card.png' });
   });
 });

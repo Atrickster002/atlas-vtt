@@ -36,7 +36,7 @@ export interface PaneCanvasProps {
   /** Says something in the pane's live region. */
   announce: (text: string) => void;
   /** The card's ⋯, in its top-right corner. */
-  cornerMenu?: React.ReactNode;
+  cardMenu?: React.ReactNode;
   /** Shown under the card, with the card's editing at hand: the tray. */
   children?: React.ReactNode;
 }
@@ -105,8 +105,8 @@ export function PaneCanvas(props: PaneCanvasProps): React.JSX.Element {
         sourcePath={notePath}
         folded={editor.controller.foldedSet}
         reveal={editor.controller.editing?.blockId ?? null}
-        around={props.cornerMenu ? (sheet) => <>{sheet}{props.cornerMenu}</> : undefined}
       />
+      {props.cardMenu}
       {writable && <FoldedChips folded={folded} onUnfold={(blockId) => setUnfolded(blockId, true)} />}
       {props.children}
     </PaneEditContext.Provider>

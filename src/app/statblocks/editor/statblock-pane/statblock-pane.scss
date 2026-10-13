@@ -95,6 +95,13 @@ $header-control-radius: atlas-panel-inset-radius-value($spacing-s, calc(var(--in
     }
   }
 
+  // The ⋯ under the card ends where the card does.
+  .atlas-sb-pane-card[data-columns='1'] + .atlas-sb-card-menu {
+    width: 100%;
+    max-width: $statblock-feed-max-width;
+    margin-inline: auto;
+  }
+
   // A line about the statblock above its card, in the body's gap: one step down the radius scale.
   .atlas-sb-pane-bar {
     @include atlas-flex-row($spacing-s);
@@ -148,19 +155,18 @@ $header-control-radius: atlas-panel-inset-radius-value($spacing-s, calc(var(--in
   }
 }
 
-// The statblock's ⋯ in its card's corner (`StatblockCardMenu`): concentric with the card's corner, shown
-// while the pointer is over the card, focus is in it or its menu is open; always on touch screens.
-.atlas-vtt-plugin .atlas-sb-pane-card:is(:hover, :focus-within) .atlas-sb-card-menu,
+// The statblock's ⋯ (`StatblockCardMenu`): under the card, at its right edge, so the card's corner is
+// the token art's. Shown while the pointer is over the panel, focus is in it or its menu is open;
+// always on touch screens. Its row keeps its height while hidden, so nothing below moves.
+.atlas-vtt-plugin .atlas-sb-pane:is(:hover, :focus-within) .atlas-sb-card-menu,
 .atlas-vtt-plugin .atlas-sb-card-menu:has([data-state='open']) {
   opacity: 1;
   pointer-events: auto;
 }
 
 .atlas-vtt-plugin .atlas-sb-card-menu {
-  position: absolute;
-  top: calc(#{$border-width-m} + #{$spacing-xs});
-  right: calc(#{$border-width-m} + #{$spacing-xs});
-  z-index: 1;
+  display: flex;
+  justify-content: flex-end;
   opacity: 0;
   pointer-events: none;
   transition: opacity $transition-fast $transition-ease;
@@ -176,11 +182,10 @@ $header-control-radius: atlas-panel-inset-radius-value($spacing-s, calc(var(--in
 
   .atlas-sb-card-menu__button.btn {
     @include atlas-corner-shape;
-    width: var(--atlas-sb-card-menu-size);
-    height: var(--atlas-sb-card-menu-size);
+    width: $input-height-s;
+    height: $input-height-s;
     padding: 0;
     border-radius: $radius-m;
-    border-top-right-radius: calc(#{$radius-xl} - #{$border-width-m} - #{$spacing-xs});
     color: var(--text-muted);
 
     &:hover,

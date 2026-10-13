@@ -85,15 +85,3 @@ body.atlas-sb-panel-resizing * {
   }
 }
 
-// The card's top-right corner holds the note view's ⋯ (`StatblockCardMenu`): the header keeps
-// that room free, in the template editor too, so both draw the card alike.
-// The button stands $spacing-xs inside the border; the room is what it reaches past the card's padding, plus a gap.
-.atlas-vtt-plugin .atlas-sb-pane-card {
-  position: relative;
-  --atlas-sb-card-menu-size: 28px;
-  --atlas-sb-card-menu-room: calc(#{$spacing-xs} + var(--atlas-sb-card-menu-size) + #{$spacing-xs} - #{$spacing-l});
-
-  .atlas-sb-header {
-    padding-inline-end: var(--atlas-sb-card-menu-room);
-  }
-}

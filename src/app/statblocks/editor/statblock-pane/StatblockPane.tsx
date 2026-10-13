@@ -114,7 +114,7 @@ export function StatblockPane(props: StatblockPaneProps): React.JSX.Element {
           onExit={onExit}
           onWriteProblem={setWriteProblem}
           announce={setSaid}
-          cornerMenu={<StatblockCardMenu entries={menu} />}
+          cardMenu={<StatblockCardMenu entries={menu} />}
         >
           {writable && (
             <MorePropertiesTray

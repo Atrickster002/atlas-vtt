@@ -4,10 +4,9 @@ import type { ContextMenuEntry } from '../../../react/components/context-menu/At
 import { alignedEntries } from '../interaction/surfaceActions';
 
 /**
- * The statblock's ⋯ in its card's top-right corner (§7.2), shown while the
- * pointer is over the card, focus is in it or its menu is open. The card's
- * first block keeps the corner free (statblock-pane.scss), so it covers
- * nothing; the template editor's card keeps the same room.
+ * The statblock's ⋯ (§7.2), under the card at its right edge, so the card's
+ * corner stays the token art's. Shown while the pointer is over the panel,
+ * focus is in it or its menu is open.
  */
 export function StatblockCardMenu({ entries }: { entries: ContextMenuEntry[] }): React.JSX.Element | null {
   if (entries.length === 0) return null;

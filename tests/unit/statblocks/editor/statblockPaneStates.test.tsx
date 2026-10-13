@@ -88,12 +88,13 @@ describe('the statblock pane\'s edge states', () => {
     expect(editableBlocks(harness.result.container)).toBe(0);
   });
 
-  it('puts its options in the card\'s corner, with no bar above the card: Edit, Change and Duplicate template, Show Properties', async () => {
+  it('puts its options under the card, with no bar above it: Edit, Change and Duplicate template, Show Properties', async () => {
     const editTemplate = vi.fn();
     const { result, actions } = await pane({ frontmatter: NATIVE, actions: { showProperties: vi.fn(), changeCollection: vi.fn(), editTemplate } });
     expect(result.container.querySelector('.atlas-sb-pane-header')).toBeNull();
     const button = screen.getByRole('button', { name: 'Statblock options' });
-    expect(button.closest('.atlas-sb-pane-card')).not.toBeNull();
+    expect(button.closest('.atlas-sb-pane-card')).toBeNull();
+    expect(button.closest('.atlas-sb-card-menu')?.previousElementSibling?.classList.contains('atlas-sb-pane-card')).toBe(true);
     fireEvent.keyDown(button, { key: 'Enter' });
     const rows = await screen.findAllByRole('menuitem');
     expect(rows.map((row) => row.textContent)).toEqual(['Edit template', 'Change template…', 'Duplicate template', 'Show Properties']);
