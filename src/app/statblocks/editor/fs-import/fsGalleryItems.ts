@@ -9,6 +9,7 @@ import { allLayouts } from '../../../services/FantasyStatblocksService';
 import { pluginLayoutResolver } from '../../fs/fsImport';
 import { fsLayoutToTemplate } from '../../fs/fsLayoutToTemplate';
 import type { FsLayout } from '../../fs/fsLayoutTypes';
+import { withTracksInPlace } from '../../fs/fsTrackReplacement';
 import type { GridItem } from '../gallery/TemplateGrid';
 
 /** A card of the source, with the layout it imports. */
@@ -30,7 +31,7 @@ export function fsLayoutItems(app: App): FsLayoutItem[] {
   return (allLayouts(app) ?? []).map((layout, index): FsLayoutItem => ({
     id: `fs:${layout.id || index}`,
     name: layout.name,
-    look: { kind: 'template', template: fsLayoutToTemplate(layout, { id: PREVIEW_ID, resolveLayout }).template },
+    look: { kind: 'template', template: withTracksInPlace(fsLayoutToTemplate(layout, { id: PREVIEW_ID, resolveLayout })).template },
     layout,
   }));
 }
