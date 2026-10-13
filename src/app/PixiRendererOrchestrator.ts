@@ -59,7 +59,7 @@ import type { MapImageChange } from './pixi/mapImage/mapImageView';
 import type { TileView } from './pixi/mapImage/levelOfDetail';
 import { frameView } from './services/playerFrameDemand';
 import { MapController } from './MapController';
-import { NO_STRETCH, readMapStretch, sameStretch, type MapStretch } from './grid/mapStretch';
+import { NO_STRETCH, sameStretch, type MapStretch } from './grid/mapStretch';
 import { levelImageOnItsOwn, viewedImagePlacement } from './levels/levelAlignment';
 import { viewedLevelId } from './levels/sceneLevels';
 import { levelObjects } from './levels/levelObjects';
