@@ -15,9 +15,9 @@ export interface ThreadStat {
 /** The most faces a thread's pill shows. */
 export const PILL_FACES = 3;
 
-/** Whether an entry has a row a thread can be opened from: a chat message, a roll, an image or a loot card. */
+/** Whether an entry has a row a thread can be opened from: a chat message, a roll, an image, a loot card or a found note. */
 export function isThreadable(entry: ShownEntry): boolean {
-  return entry.kind === 'chat' || entry.kind === 'roll' || entry.kind === 'image' || entry.kind === 'loot';
+  return entry.kind === 'chat' || entry.kind === 'roll' || entry.kind === 'image' || entry.kind === 'loot' || entry.kind === 'found';
 }
 
 const parentId = (entry: ShownEntry): string | undefined => (entry.kind === 'chat' && entry.reply?.gone !== true ? entry.reply?.id : undefined);

@@ -1,5 +1,5 @@
 import type { ConnectionStats } from '../protocol/index.ts';
-import { normalizePath, type App, type WorkspaceLeaf } from 'obsidian';
+import type { App, WorkspaceLeaf } from 'obsidian';
 import { showNotice } from '../../ui/notice';
 import { randomHex } from '../../utils/randomHex';
 import { scaleInWindow } from './assetVariants.ts';
@@ -15,35 +15,17 @@ import { TableLog } from './log/TableLog.ts';
 import type { Ownership } from './ownership.ts';
 import { presentedScene, presentedSceneSource } from './presentedScene.ts';
 import { bindScene, type SceneBinding } from './sceneBinding.ts';
-import { imageMimeType } from './SceneShare.ts';
-import { TabWatch, type LostReason } from './sharedTab.ts';
+import { TabWatch } from './sharedTab.ts';
 import { TableConnection, type TableStatus } from './TableConnection.ts';
 import { closingText, tableEndOf, tableEndText, type TableEnd } from './tableEnd.ts';
-import type { VaultImage } from './TokenShare.ts';
+import { readVaultImage } from './vaultImage.ts';
+import { LOST_NOTICES, type OnlineTableEvents } from './tableEvents.ts';
+
+export type { OnlineTableEvents };
+import { FoundShare } from './pins/FoundShare.ts';
 
 /** How often the presented tab is looked for, and the shared one checked. */
 const WATCH_MS = 1_000;
-
-/** What a table tells its owner: each change of its status, the shared map file, and its end. */
-export interface OnlineTableEvents {
-  status(status: TableStatus): void;
-  /** Players see this map file now. */
-  mapPath(path: string): void;
-  /** The table ended: stopped (by the GM, or closed for a reload), or closed by the relay for good, for the reason given. */
-  ended(end: 'stopped' | TableEnd): void;
-  /** The gates' settings changed: they are kept with the table. */
-  gate(settings: GateSettings): void;
-  /** What the panels show of the gates changed: who waits, a pause. */
-  changed(): void;
-  /** The table's log changed: its panel draws anew and the log is kept with the table. */
-  log(): void;
-}
-
-const LOST_NOTICES: Readonly<Record<LostReason, string | null>> = {
-  closed: 'The shared map was closed. Players wait until it is open again.',
-  gone: null,
-  unpresented: 'Atlas presents no map. Players online wait until you show a map on the player view.',
-};
 
 /**
  * One running table: the socket, the join link, and the scene Atlas presents to its player view (the eye
@@ -72,6 +54,8 @@ export class OnlineTable {
   readonly image: ImageShare;
   /** The players' books: each one's own pages besides the table, kept on this device's shelf. */
   private readonly books: TableBook;
+  /** The readable pins players find, and the notes they found. */
+  private readonly found: FoundShare;
   /** The join link players open. */
   readonly link: string;
   private readonly stopOwnership: () => void;
@@ -110,13 +94,17 @@ export class OnlineTable {
       changed: () => events.changed(),
       logShown: (shown, path) => this.log.imageShown(shown, path),
       loggedFile: (hash) => this.log.artFile(hash),
-      readImage: (path) => this.readImage(path),
+      readImage: (path) => readVaultImage(app, path),
+    });
+    this.found = new FoundShare(this.log, {
+      app, send: (body, to) => this.connection.send(body, to), now: () => timers.now(), nameOf: (player) => ownership.nameOf(player),
+      readImage: (path) => readVaultImage(app, path), scaleImage: scaleInWindow, layers: () => this.bound()?.share.layers ?? null,
     });
     this.books = tableBook({
       app, shelf, ownership, randomId: () => randomHex(12),
       send: (body, to) => this.connection.send(body, to),
       scene: () => this.bound()?.book() ?? null,
-      readImage: (path) => this.readImage(path),
+      readImage: (path) => readVaultImage(app, path),
       tokenWrites: () => this.bound()?.resources ?? null,
     });
     this.watch = new TabWatch<SceneBinding>({
@@ -127,12 +115,13 @@ export class OnlineTable {
         seats: ownership,
         send: (body, to) => this.connection.send(body, to),
         sendLive: (body, key) => this.connection.sendLive(body, key),
-        readImage: (path) => this.readImage(path),
+        readImage: (path) => readVaultImage(app, path),
         isLive: (binding) => this.watch.isLive(binding),
         randomId: () => randomHex(12),
         logRoll: (roll) => this.log.rolled(roll),
         logArt: (hash) => this.log.artFile(hash),
         rollRequest: (from, answer) => this.log.requestOf(from, answer),
+        foundPin: (map, pin) => this.found.entryOf(map, pin),
         nameOf: (player) => ownership.nameOf(player),
       }, tab, presented),
       lost: (reason) => {
@@ -161,11 +150,12 @@ export class OnlineTable {
         this.bound()?.share.playerLeft(player);
         this.image.playerLeft(player);
         this.books.share.playerLeft(player);
+        this.found.playerLeft(player);
         ownership.left(player);
         this.log.left(player);
       },
       // The log, the shown image and the books are the table's, so they hear players while no scene is shared too.
-      message: (from, body) => void (this.log.receive(from, body) || this.image.receive(from, body) || this.books.share.receive(from, body) || this.bound()?.share.receive(from, body)),
+      message: (from, body) => void (this.log.receive(from, body) || this.image.receive(from, body) || this.found.receive(from, body) || this.books.share.receive(from, body) || this.bound()?.share.receive(from, body)),
       access: (closesAt) => this.setClosing(closesAt),
     }, this.gate);
     this.stopOwnership = ownership.onChange(() => this.bound()?.share.ownersChanged());
@@ -216,6 +206,7 @@ export class OnlineTable {
   start(): void {
     this.connection.start();
     this.books.start();
+    this.found.start();
     this.watch.check();
     this.stopWatchTimer = every(companionTimers(), WATCH_MS, () => this.watch.check());
     // Atlas presenting another scene is followed at once; the timer catches everything else
@@ -272,6 +263,7 @@ export class OnlineTable {
   }
 
   private stopWatch(): void {
+    this.found.stop();
     this.stopWatchTimer();
     this.stopFollowingPresented();
     this.watch.stop();
@@ -296,12 +288,5 @@ export class OnlineTable {
   /** Players see no scene while the shared tab is gone, so nothing of what they saw lingers or moves. */
   private withdraw(): void {
     this.connection.send({ t: 'scene', scene: null });
-  }
-
-  private async readImage(path: string): Promise<VaultImage | null> {
-    const mime = imageMimeType(path);
-    const file = this.app.vault.getFileByPath(normalizePath(path));
-    if (mime === null || file === null) return null;
-    return { bytes: new Uint8Array(await this.app.vault.readBinary(file)), mime };
   }
 }

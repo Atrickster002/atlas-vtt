@@ -1,5 +1,5 @@
 // What the GM showed or handed out: an image to look at again, and a loot card as the players'
-// loot window shows it.
+// loot window shows it; and a note players found, its title and first words, which opens to read.
 @use '../../../../../styles/tokens' as *;
 @use '../../../../../styles/mixins' as *;
 @use 'log-base' as *;
@@ -49,5 +49,55 @@
 
   .atlas-online-log__loot {
     margin-top: $spacing-xs;
+  }
+
+  .atlas-online-log__found {
+    display: flex;
+    flex-direction: column;
+    gap: $spacing-xs;
+    width: 100%;
+    margin-top: $spacing-xs;
+    padding: $spacing-s;
+    border-radius: $radius-l;
+    background: var(--background-secondary);
+    text-align: start;
+    white-space: normal;
+  }
+
+  .atlas-online-log__found--open {
+    @include log-button;
+    padding: $spacing-s;
+    @include log-button-states(var(--background-secondary));
+
+    &:hover {
+      background: var(--background-modifier-hover);
+    }
+  }
+
+  .atlas-online-log__found-title {
+    font-weight: var(--font-semibold);
+    color: var(--text-normal);
+  }
+
+  .atlas-online-log__found-excerpt {
+    display: -webkit-box;
+    overflow: hidden;
+    color: var(--text-muted);
+    font-size: var(--font-ui-small);
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+  }
+
+  .atlas-online-log__found-read {
+    display: inline-flex;
+    align-items: center;
+    gap: $spacing-xs;
+    color: var(--text-accent);
+    font-size: var(--font-ui-small);
+
+    svg {
+      width: 14px;
+      height: 14px;
+    }
   }
 }

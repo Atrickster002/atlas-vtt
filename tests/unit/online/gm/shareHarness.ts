@@ -56,6 +56,8 @@ export interface ShareHarness {
   readonly logged: LoggedRoll[];
   /** The roll buttons of the table's log, as a player may roll them; none by default. */
   requests: (from: string, answer: RollRequestAnswer) => RollRequest | null;
+  /** The log entry of whoever found a readable pin; nobody by default. */
+  foundPin: (mapPath: string, pinId: string) => string | null;
   set(next: SceneState): Promise<void>;
   /** Moves the clock on, running the timers that fall due, and lets reads settle. */
   advance(ms: number): Promise<void>;
@@ -96,9 +98,11 @@ export function shareHarness(initial: SceneState, images: ReadonlyMap<string, Ui
     rules: null,
     logged: [],
     requests: () => null,
+    foundPin: () => null,
     share: new SceneShare(store, {
       logRoll: (roll) => harness.logged.push(roll),
       rollRequest: (from, answer) => harness.requests(from, answer),
+      foundPin: (mapPath, pinId) => harness.foundPin(mapPath, pinId),
       mapLayers: () => harness.layers,
       lightingSource: () => harness.lighting,
       atlasSettings: () => harness.settings,

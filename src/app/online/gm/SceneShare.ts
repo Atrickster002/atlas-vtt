@@ -47,6 +47,8 @@ export interface SceneSharePorts extends TokenSharePorts, RulesSharePorts, Pick<
   logArt?(hash: string): string | undefined;
   /** The roll button of the log a player's roll answers, as they may roll it. */
   rollRequest?(from: string, answer: RollRequestAnswer): RollRequest | null;
+  /** The log entry that tells who found a readable pin of a map, or null while nobody has. */
+  foundPin?(mapPath: string, pinId: string): string | null;
 }
 
 /**
@@ -70,7 +72,8 @@ export class SceneShare {
   private readonly live: LiveShare | null;
   private readonly mine: MineShare | null;
   private readonly inputs: InputShare;
-  private readonly layers: MapLayerShare;
+  /** What players see of the map beside its tokens, the readable pins among it. */
+  readonly layers: MapLayerShare;
   private readonly rules: RulesShare;
   private readonly moves: PlayerMoves;
   private readonly claims: PlayerClaims | null;

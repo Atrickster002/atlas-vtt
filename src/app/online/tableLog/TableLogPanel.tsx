@@ -30,7 +30,7 @@ function isCoarse(doc: Document): boolean {
  * field answering the root unless an answer is picked.
  */
 export function TableLogPanel(props: TableLogPanelProps): ReactElement {
-  const { state, actions, self, moderator, canSend, offlineText, rollFace, speakers, speakerPortrait, imageSrc, openImage, variant, onClose } = props;
+  const { state, actions, self, moderator, canSend, offlineText, rollFace, speakers, speakerPortrait, imageSrc, openImage, openFound, variant, onClose } = props;
   const { entries, refusal, people } = useSyncExternalStore(state.subscribe, state.snapshot);
   const root = useRef<HTMLElement>(null);
   const view = useRef<HTMLDivElement>(null);
@@ -187,7 +187,7 @@ export function TableLogPanel(props: TableLogPanelProps): ReactElement {
           {thread.root !== null && <ThreadBar replies={thread.shown.length - 1} unseen={thread.unseen} onBack={closeThread} />}
           <LogList
             entries={thread.shown} stats={thread.stats} selected={picked} ui={{ ...ui, editing }} api={api} scroll={scroll}
-            rollFace={rollFace} speakerPortrait={speakerPortrait} people={people} imageSrc={imageSrc} openImage={openImage} onTabStop={act.tabStop}
+            rollFace={rollFace} speakerPortrait={speakerPortrait} people={people} imageSrc={imageSrc} openImage={openImage} openFound={openFound} onTabStop={act.tabStop}
           />
         </div>
         <Composer

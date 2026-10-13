@@ -1,3 +1,4 @@
+import { runInBackground } from '../../utils/backgroundTask';
 import { Component, type App, type Plugin, type TFile } from 'obsidian';
 import { showNotice } from '../../ui/notice';
 import type { AtlasSettingSection } from '../../settings/settingSections';
@@ -154,6 +155,7 @@ export class OnlineFeature extends Component {
       table: () => this.online.table,
       imageSrc: (path) => this.app.vault.adapter.getResourcePath(path),
       opened: (leaf) => docks.dockOf(leaf)?.makeWay(),
+      openNote: (link, sourcePath) => runInBackground(this.app.workspace.openLinkText(link, sourcePath, true), `Opening ${link}`, 'Could not open the found note'),
     });
     this.logs = logs;
     this.register(this.online.onChange(() => (logs.sync(), logs.refresh(), images.sync(), this.chat.sync())));

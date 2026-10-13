@@ -7,6 +7,8 @@ export const MAX_DOOR_BADGES = 2_000;
 export const MAX_DRAWINGS = 2_000;
 export const MAX_TEXTS = 500;
 export const MAX_DRAWING_POINTS = 200_000;
+/** Readable pins one message may carry. */
+export const MAX_SHARED_PINS = 500;
 /** The longest text on the map, and its font's name. */
 export const MAX_TEXT_LENGTH = 2_000;
 export const MAX_FONT_NAME = 100;
@@ -74,6 +76,26 @@ export interface SharedText {
   readonly italic: boolean;
   readonly rotation: number;
   readonly scale: number;
+}
+
+/**
+ * A pin the GM made readable, where the players see the map now: its place, its icon (the key Atlas
+ * names it by), and the log entry that tells who found it (null until someone did). `id` is an alias,
+ * never the pin's id in the GM's scene, and nothing of its note comes with it.
+ */
+export interface SharedPin {
+  readonly id: string;
+  readonly x: number;
+  readonly y: number;
+  readonly icon: string;
+  readonly found: string | null;
+}
+
+/** A player opens a readable pin they see in scene `scene`: the first time, that finds it. */
+export interface PlayerPinFound {
+  readonly t: 'pin-found';
+  readonly scene: string;
+  readonly pin: string;
 }
 
 export interface SharedAnnotations {
@@ -173,4 +195,25 @@ export function parseAnnotations(value: Record<string, unknown>): SharedAnnotati
     texts.push(text);
   }
   return { drawings, texts };
+}
+
+/** A pin's id as players know it, and a log entry's id: 96 random bits in hex. */
+const ALIAS_PATTERN = /^[0-9a-f]{24}$/;
+const isAlias = (value: unknown): value is string => typeof value === 'string' && ALIAS_PATTERN.test(value);
+
+/** The pins of a `pins` message, or null when any is malformed or there are too many. */
+export function parsePins(value: unknown): SharedPin[] | null {
+  if (!Array.isArray(value) || value.length > MAX_SHARED_PINS) return null;
+  const pins: SharedPin[] = [];
+  for (const pin of value) {
+    if (!isRecord(pin) || !isAlias(pin.id) || !isPlace(pin.x) || !isPlace(pin.y) || typeof pin.icon !== 'string' || !ICON_PATTERN.test(pin.icon)) return null;
+    if (pin.found !== null && !isAlias(pin.found)) return null;
+    pins.push({ id: pin.id, x: pin.x, y: pin.y, icon: pin.icon, found: pin.found });
+  }
+  return pins;
+}
+
+/** A player's `pin-found` message, or null for anything malformed. */
+export function parsePinFound(value: Record<string, unknown>, isScene: (scene: unknown) => scene is string): PlayerPinFound | null {
+  return isScene(value.scene) && isAlias(value.pin) ? { t: 'pin-found', scene: value.scene, pin: value.pin } : null;
 }

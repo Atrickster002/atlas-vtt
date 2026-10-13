@@ -5,7 +5,7 @@ import { shownName } from './logAuthors.ts';
 import type { ShownEntry } from './LogState.ts';
 import { isThreadable } from './logThreads.ts';
 
-/** The entry of `id` where the viewer holds it and can answer it: a chat message, a roll, an image or a loot card. */
+/** The entry of `id` where the viewer holds it and can answer it: a chat message, a roll, an image, a loot card or a found note. */
 export function answerable(entries: readonly ShownEntry[], id: string | null): ShownEntry | undefined {
   return id === null ? undefined : entries.find((entry) => entry.id === id && isThreadable(entry));
 }
