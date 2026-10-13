@@ -308,6 +308,21 @@ $toast-reveal-delay: 300ms;
   }
 }
 
+// A die a dice set coloured: its colour as a dot before its name, in the card and the log alike.
+.atlas-die-badge--coloured {
+  gap: $spacing-xs;
+
+  &::before {
+    content: '';
+    flex: none;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--atlas-die-colour);
+    box-shadow: 0 0 0 1px color-mix(in oklch, var(--mono-100) 20%, transparent);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .atlas-dice-toast,
   .atlas-dice-toast__avatar,

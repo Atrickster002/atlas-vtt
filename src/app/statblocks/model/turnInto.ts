@@ -1,7 +1,6 @@
 import {
-  bindsFieldType, blockSpec, canContain, createBlock, isAuthorableBlockType, PRIMITIVE_IDS, PRIMITIVES, type AuthorableBlockType, type PrimitiveId,
+  bindsFieldType, canContain, createBlock, isAuthorableBlockType, type AuthorableBlockType,
 } from './blockCatalogue';
-import { coreSlotOf } from './coreSlots';
 import { fieldByKey } from './fieldKeys';
 import { done, parentTypeOf, refuse, spliced, withChildren, type TreeEdit } from './treeEdit';
 import { boundField, findBlock } from './treeQueries';
@@ -81,31 +80,12 @@ function turnedLeaf(block: TemplateBlock, type: AuthorableBlockType, fields: rea
 }
 
 /**
- * The type a block becomes as `primitive`: the primitive's kind that can show
- * the block's field (a Value of a text property becomes a Heading from that
- * property), else the kind a new one gets.
- */
-export function typeForPrimitive(block: TemplateBlock, primitive: PrimitiveId, fields: readonly TemplateField[]): AuthorableBlockType {
-  const spec = PRIMITIVES[primitive];
-  const field = boundField(block);
-  const fieldType = field ? fieldByKey(fields, field)?.type : undefined;
-  const fitting = fieldType ? spec.kinds.find((kind) => bindsFieldType(kind, fieldType)) : undefined;
-  return fitting ?? spec.inserts;
-}
-
-/** The primitives a block may turn into: every other one of its sort, a container into another container. */
-export function turnIntoPrimitives(type: BlockType): PrimitiveId[] {
-  const own = blockSpec(type).primitive;
-  const container = isContainerType(type);
-  return PRIMITIVE_IDS.filter((id) => id !== own && isContainerType(PRIMITIVES[id].inserts) === container);
-}
-
-/**
  * Changes a block's type, keeping its id, its place and its field where the
  * new type binds that field's type (`fields` are the template's). Sections,
- * Rows and Tabs turn into each other with their children, where the new type
- * takes them; other blocks into any authorable block but those, keeping the
- * label, heading, pattern and display the new type shares.
+ * Rows and Tabs turn into each other with their children (a Section and Tabs
+ * with their heading), where the new type takes them; other blocks into any
+ * authorable block but those, keeping the label, heading, pattern and display
+ * the new type shares.
  */
 export function turnInto(
   layout: TemplateLayout, id: string, type: AuthorableBlockType, fields: readonly TemplateField[],
@@ -114,14 +94,17 @@ export function turnInto(
   if (!found) return refuse(layout, 'block-not-found');
   const { block } = found;
   if (block.type === type) return done(layout, id);
-  if (coreSlotOf(layout, id)) return refuse(layout, 'core-slot');
   if (!isAuthorableBlockType(type) || isContainerBlock(block) !== isContainerType(type)) return refuse(layout, 'cannot-turn-into');
   const parentType = parentTypeOf(layout, found.parentId);
   if (parentType === null || !canContain(parentType, type)) return refuse(layout, 'not-allowed-here');
   let turned: TemplateBlock;
   if (isContainerBlock(block)) {
     if (block.blocks.some((child) => !canContain(type, child.type))) return refuse(layout, 'not-allowed-here');
-    turned = { id, type: type as ContainerType, blocks: block.blocks, ...commonProps(block) };
+    const base = { id, blocks: block.blocks, ...commonProps(block) };
+    // A Section and a Tabs block both stand under a heading, which the other keeps.
+    const heading = block.type === 'row' ? undefined : block.heading;
+    const container = type as ContainerType;
+    turned = container === 'row' ? { ...base, type: container } : { ...base, type: container, ...(heading !== undefined && { heading }) };
   } else {
     turned = turnedLeaf(block, type, fields);
   }

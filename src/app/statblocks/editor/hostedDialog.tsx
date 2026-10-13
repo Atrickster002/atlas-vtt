@@ -1,6 +1,7 @@
 /**
  * Dialogs of the statblock editor that belong to no React tree of their own
- * (the template gallery from a command, the layout import report): each is a
+ * (the template gallery from a command, the layout import report, the
+ * question a template editor closed with unsaved changes asks): each is a
  * React root on its document's body that leaves with its exit motion. A
  * window that closes takes its dialogs with it and Atlas unloading takes them
  * all (`registerHostedDialogRelease`), so none stays on screen or keeps its

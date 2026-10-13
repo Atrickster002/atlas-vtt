@@ -1,5 +1,5 @@
 // Lists edited in place (§7.6): chips for a list field. An ability of a list
-// is typed in its own line (`EntryInlineEditor`, _pane-inputs.scss); its menu
+// is typed in its own place (`EntryInlineEditor`, _pane-entry-editor.scss); its menu
 // and drag handle stand in the card's gutter (interaction/, spec §3).
 
 @use '../../../../../styles/tokens' as *;

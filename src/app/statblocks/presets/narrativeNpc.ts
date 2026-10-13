@@ -3,9 +3,9 @@
 /** A character for story-first games in Atlas' own form: who they are, what drives and troubles them, and who they know. */
 
 import type { BuiltInTemplate } from '../model/templateTypes';
-import { builtIn, headerRow, nameField, portraitField, runInStat } from './presetParts';
+import { builtIn, hiddenParts, nameField, portraitField, runInStat } from './presetParts';
 
-export const NARRATIVE_NPC: BuiltInTemplate = builtIn('builtin:narrative-npc', 'Narrative NPC', 1, {
+export const NARRATIVE_NPC: BuiltInTemplate = builtIn('builtin:narrative-npc', 'Narrative NPC', 2, {
   fields: [
     nameField(),
     portraitField(),
@@ -16,14 +16,12 @@ export const NARRATIVE_NPC: BuiltInTemplate = builtIn('builtin:narrative-npc', '
     { key: 'relationships', label: 'Relationships', type: 'entries', prompt: 'Add a relationship' },
     { key: 'notes', label: 'Notes', type: 'markdown' },
   ],
+  // Story-first: no level or hit points, and Appearance and Notes say what a description would.
+  ...hiddenParts('level', 'hp', 'description'),
   layout: {
     maxColumns: 2,
     columnWidth: 22,
     blocks: [
-      headerRow({ row: 'nnhead00', section: 'nnname00', image: 'nnimage0' }, [
-        { id: 'nntitle0', type: 'title', field: 'name', level: 1 },
-        { id: 'nnline00', type: 'line', fields: ['concept'], pattern: '{concept}' },
-      ]),
       runInStat('nndrive0', 'drive'),
       runInStat('nntroubl', 'trouble'),
       runInStat('nnappear', 'appearance'),

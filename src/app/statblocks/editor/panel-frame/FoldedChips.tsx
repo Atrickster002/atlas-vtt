@@ -5,22 +5,21 @@ import type { FoldedBlock } from '../../render/foldRule';
 import './folded-chips.scss';
 
 export interface FoldedChipsProps {
-  /** The card's folded sections, in reading order (`foldedBlocks`). */
+  /** The card's folded blocks, in reading order (`foldedBlocks`). */
   folded: readonly FoldedBlock[];
   /** A chip was chosen: the section unfolds in its place. */
   onUnfold: (blockId: string) => void;
-  /** Last in the row: "Add a section…". */
-  children?: React.ReactNode;
 }
 
 /**
- * The row under the card (spec §8.2): one chip per section this statblock
- * has nothing in ("+ Spells", "+ Reactions"), so the card shows what the hover
- * card and the DM screen show, and every section is one click away. Both
- * surfaces draw it, so the template editor's card stays the note view's.
+ * The row under the note view's card (spec §8.2): one chip per section, or
+ * value its template folds while empty, that this statblock has nothing in
+ * ("+ Spells", "+ Reactions", "+ Damage Resistances"), so the card shows what
+ * the hover card and the DM screen show, and every section is one click away.
+ * The template editor folds nothing: it shows every block to edit it.
  */
-export function FoldedChips({ folded, onUnfold, children }: FoldedChipsProps): React.JSX.Element | null {
-  if (folded.length === 0 && !children) return null;
+export function FoldedChips({ folded, onUnfold }: FoldedChipsProps): React.JSX.Element | null {
+  if (folded.length === 0) return null;
   return (
     <div className="atlas-sb-folded" role="group" aria-label="Sections this statblock has nothing in">
       {folded.map((block) => (
@@ -37,7 +36,6 @@ export function FoldedChips({ folded, onUnfold, children }: FoldedChipsProps): R
           {block.heading}
         </Button>
       ))}
-      {children}
     </div>
   );
 }

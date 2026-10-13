@@ -1,23 +1,22 @@
 import type { App } from 'obsidian';
-import { comparedBytes } from './recordPayload';
 import type { Asset, AssetService, CollectionMetadata } from '../AssetService';
 import { collectionFolderPath } from '../assetPaths';
-import { BUNDLE_MANIFEST, PRESET_ROLE, TEMPLATE_ROLE, bundleFormatFor, zipPathFor, type BundleFile, type CollectionBundleManifest } from './bundleFormat';
-import { flushPresetEdits, packedPresetRecord, withSystemPresetFile } from './bundlePresetFiles';
-import { rewriteContent, toBuffer } from './bundleContent';
+import { BUNDLE_MANIFEST, bundleFormatFor, zipPathFor, type BundleFile, type CollectionBundleManifest } from './bundleFormat';
+import { withDiceSetFiles } from './bundleDiceSetFiles';
+import { BundlePacker } from './bundlePacking';
+import { withSystemPresetFile } from './bundlePresetFiles';
 import { selectContent } from './bundleContents';
 import { exportedSettings, folderBelow } from './bundleSettings';
 import { reportFileStep, type BundleProgressListener } from './bundleProgress';
 import { coverCandidates, coverFileFor, currentCover, type CoverCandidate, type CoverChoice, type CurrentCover } from './collectionCover';
 import { CollectionReferenceCollector, withStatblockTemplates, type MissingReference } from './collectionReferences';
 import { sha256 } from '../../utils/hashing';
-import { readInstallRecord, type InstalledPreset, type InstalledTemplate } from './installRecord';
+import { readInstallRecord } from './installRecord';
 import { withLinkedFiles } from './noteLinks';
 import { remapPaths } from './pathRemap';
 import { originNames, recordRelease } from './releaseRecord';
-import { flushTemplateEdits, packTemplateFile } from '../../statblocks/bundles/bundleTemplates';
 import { systemPresetsOf } from '../mapCollectionRules';
-import { readVaultBinary, vaultFileSize } from '../../utils/hiddenVaultFiles';
+import { vaultFileSize } from '../../utils/hiddenVaultFiles';
 import { t } from '../../i18n';
 
 /**
@@ -93,7 +92,8 @@ export async function prepareCollectionExport(app: App, assets: AssetService, co
   if (!collection) throw new Error(`Collection ${collectionId} not found`);
   const collectionAssets = (await assets.getAssets(collectionId)).filter((asset) => EXPORTED_TYPES.has(asset.type));
   const { files: referenced, missing } = await new CollectionReferenceCollector(app, assets).collect(collectionAssets, collection.settings.lootBases);
-  const files = withSystemPresetFile(app, await withStatblockTemplates(app, withLinkedFiles(app, referenced), collection.settings), collection.settings);
+  const withTemplates = await withStatblockTemplates(app, withLinkedFiles(app, referenced), collection.settings);
+  const files = await withDiceSetFiles(app, withSystemPresetFile(app, withTemplates, collection.settings), collection.settings);
   const fileSizes = new Map<string, number>();
   for (const file of files) fileSizes.set(file.vaultPath, await vaultFileSize(app, file.vaultPath));
   const publisher = await publisherOf(app, assets, collection);
@@ -180,23 +180,11 @@ export async function exportCollectionBundle(
   const { default: JSZip } = await import('jszip');
   const zip = new JSZip();
   const files: BundleFile[] = [];
-  const templates: Record<string, InstalledTemplate> = {};
-  const presets: Record<string, InstalledPreset> = {};
-  if (selected.files.some((file) => file.role === TEMPLATE_ROLE)) await flushTemplateEdits(app);
-  if (selected.files.some((file) => file.role === PRESET_ROLE)) await flushPresetEdits(app);
+  const packer = await BundlePacker.open(app, selected.files, origin.names);
   for (const [index, file] of selected.files.entries()) {
     reportFileStep(onProgress, 'bundle.step.adding', index, selected.files.length, 0, 0.6);
-    const content = await readVaultBinary(app, file.vaultPath);
-    if (!content) continue;
-    // Templates travel without code (§6.5); a file that is no template stays behind.
-    const template = file.role === TEMPLATE_ROLE ? await packTemplateFile(file.vaultPath, content) : null;
-    if (file.role === TEMPLATE_ROLE && !template) continue;
-    if (template) templates[template.installed.localId] = template.installed;
-    // A preset file that holds no preset stays behind.
-    const preset = file.role === PRESET_ROLE ? await packedPresetRecord(content) : null;
-    if (file.role === PRESET_ROLE && !preset) continue;
-    if (preset) presets[preset.localId] = preset;
-    const data = template ? toBuffer(template.text) : rewriteContent(file, comparedBytes(file.vaultPath, content), origin.names);
+    const data = await packer.pack(file);
+    if (!data) continue;
     const bundlePath = named(file.vaultPath);
     files.push({
       ...file,
@@ -228,7 +216,7 @@ export async function exportCollectionBundle(
   });
   return {
     blob,
-    commit: () => (choice.kind === 'share' ? Promise.resolve() : recordRelease(app, assets, preview.collection, manifest, cover, templates, presets)),
+    commit: () => (choice.kind === 'share' ? Promise.resolve() : recordRelease(app, assets, preview.collection, manifest, cover, packer.byId)),
     fileName: bundleFileName(collection.name, collection.version),
     collectionName: collection.name,
     version: collection.version,

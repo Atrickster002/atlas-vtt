@@ -129,8 +129,30 @@ export class FsReportTally {
   }
 }
 
+/** The lookup tables the layout's callbacks write out (`fsLookupCallbacks.ts`), by name. */
+export class FsLookupTables {
+  private readonly tables = new Map<string, Record<string, string>>();
+
+  /** The name the rows are kept under: that of a table with the same rows, else `wanted` ("Proficiency Bonus" → `proficiency_bonus`), made unique. */
+  add(wanted: string, rows: Record<string, string>): string {
+    const same = JSON.stringify(rows);
+    for (const [name, table] of this.tables) if (JSON.stringify(table) === same) return name;
+    const base = wanted.trim().toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '_').replace(/^_+|_+$/g, '') || 'table';
+    let name = base;
+    for (let n = 2; this.tables.has(name); n += 1) name = `${base}_${n}`;
+    this.tables.set(name, rows);
+    return name;
+  }
+
+  /** Every table, or nothing where no callback wrote one. */
+  all(): Record<string, Record<string, string>> | undefined {
+    return this.tables.size > 0 ? Object.fromEntries(this.tables) : undefined;
+  }
+}
+
 export interface ImportContext {
   readonly fields: FsFieldRegistry;
+  readonly lookups: FsLookupTables;
   readonly tally: FsReportTally;
   readonly nextId: BlockIdSource;
   readonly resolveLayout: FsLayoutResolver | undefined;

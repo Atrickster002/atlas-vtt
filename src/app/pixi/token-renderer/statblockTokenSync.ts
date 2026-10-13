@@ -5,7 +5,7 @@
  * change of their art's link (`applyLinkChange`).
  */
 
-import { difficultyLabel, scalarText } from '../../creatures/statblockRating';
+import { difficultyLabel, statblockDisplayName } from '../../creatures/statblockRating';
 import type { ResourceDefinition } from '../../resources/resourceTypes';
 import type { LinkChangeEvent } from '../../services/TokenStatblockLinkService';
 import { syncedResources, type StatblockFields } from '../../resources/statblockResourceSync';
@@ -31,7 +31,7 @@ export function statblockTokenChanges(
   image: string | null,
 ): TokenChanges {
   const meanings = statblock.meanings ?? NO_MEANINGS;
-  const name = scalarText(statblock.fields.name);
+  const name = statblockDisplayName(statblock.fields, meanings);
   const difficulty = difficultyLabel(statblock.fields, meanings);
   const entries: TokenChanges = [];
   for (const [id, token] of Object.entries(tokens)) {

@@ -1,9 +1,10 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
-import { findBlock, flattenReadingOrder } from '../../model/treeQueries';
+import { shownHeaderParts, templateBlock } from '../../model/templateHeader';
+import { flattenReadingOrder } from '../../model/treeQueries';
 import type { StatblockTemplate } from '../../model/templateTypes';
 import type { LabelEditing } from './ChromeLayer';
 import { commitLabel } from './labelCommit';
-import { labelTargetOf } from './labelTargets';
+import { labelTargetIn, labelTargetOf, metricLabelParts, type LabelPart } from './labelTargets';
 import type { BlockSelection } from './selection';
 import { applyEdit, readOnlyMessage } from './sessionEdit';
 import type { EditorSession, SessionSnapshot } from './sessionTypes';
@@ -22,23 +23,39 @@ interface OpenLabel {
   id: string;
   kind: LabelEditing['kind'];
   text: string;
+  part?: LabelPart | undefined;
+}
+
+/** One label to open: a block, and which of a Metric's or a Table's labels. */
+interface LabelStop {
+  id: string;
+  part?: LabelPart | undefined;
 }
 
 export interface LabelEditingState {
   /** The label being edited, for the canvas; null while none is. */
   editing: LabelEditing | null;
-  editLabel: (id: string) => void;
+  /** Opens a block's label; `part` picks one of a Metric's (its heading, or a number's name). */
+  editLabel: (id: string, part?: LabelPart) => void;
+  /** Commits `text` as that label, as Enter in it does: one step, and a block's first label names its property. */
+  commitLabelText: (id: string, text: string, part: LabelPart | undefined) => void;
 }
 
-/** The next block after `id` in reading order (or before it) that has a label and is drawn. */
-function labelledNeighbour(template: StatblockTemplate, id: string, step: 1 | -1, drawn: (id: string) => boolean): string | null {
-  const order = flattenReadingOrder(template.layout.blocks);
-  const from = order.findIndex((block) => block.id === id);
-  for (let index = from + step; index >= 0 && index < order.length; index += step) {
-    const block = order[index];
-    if (block && drawn(block.id) && labelTargetOf(block, template.fields)) return block.id;
-  }
-  return null;
+/** Every label of the drawn blocks in reading order, the header's parts first, a Metric's heading and numbers each one. */
+function labelStops(template: StatblockTemplate, drawn: (id: string) => boolean): LabelStop[] {
+  const header = shownHeaderParts(template).filter((part) => drawn(part.block.id)).map((part): LabelStop => ({ id: part.block.id }));
+  return [...header, ...flattenReadingOrder(template.layout.blocks).flatMap((block): LabelStop[] => {
+    if (!drawn(block.id)) return [];
+    if (block.type === 'metric') return metricLabelParts(block).map((part) => ({ id: block.id, part }));
+    return labelTargetOf(block, template.fields) ? [{ id: block.id }] : [];
+  })];
+}
+
+/** The label after the one open (or before it) in reading order. */
+function labelledNeighbour(template: StatblockTemplate, open: LabelStop, step: 1 | -1, drawn: (id: string) => boolean): LabelStop | null {
+  const stops = labelStops(template, drawn);
+  const from = stops.findIndex((stop) => stop.id === open.id && stop.part === open.part);
+  return from < 0 ? null : stops[from + step] ?? null;
 }
 
 /** What the live region says when a first label bound its block. */
@@ -61,16 +78,15 @@ export function useLabelEditing(input: LabelEditingInput): LabelEditingState {
   const latest = useRef(input);
   latest.current = input;
 
-  const openAt = useCallback((id: string, template: StatblockTemplate): boolean => {
-    const block = findBlock(template.layout.blocks, id)?.block;
-    const target = block ? labelTargetOf(block, template.fields) : null;
+  const openAt = useCallback((id: string, template: StatblockTemplate, part?: LabelPart): boolean => {
+    const target = labelTargetIn(template, id, part);
     if (!target) return false;
     latest.current.select([id], false);
-    setOpen({ id, kind: target.kind, text: target.text });
+    setOpen({ id, kind: target.kind, text: target.text, part: target.part });
     return true;
   }, []);
 
-  const editLabel = useCallback((id: string): void => {
+  const editLabel = useCallback((id: string, part?: LabelPart): void => {
     // The session's own snapshot: a block inserted a moment ago is in it before the editor renders again.
     const { session, announce } = latest.current;
     const snapshot = session.getSnapshot();
@@ -79,13 +95,13 @@ export function useLabelEditing(input: LabelEditingInput): LabelEditingState {
       announce(locked);
       return;
     }
-    openAt(id, snapshot.template);
+    openAt(id, snapshot.template, part);
   }, [openAt]);
 
-  const commit = useCallback((id: string, text: string): void => {
+  const commit = useCallback((id: string, text: string, part: LabelPart | undefined): void => {
     const { session, collectionKeys, announce } = latest.current;
     const bound = applyEdit(session, (template) => {
-      const result = commitLabel(template, id, text, collectionKeys.keys());
+      const result = commitLabel(template, id, text, collectionKeys.keys(), part);
       return { template: result.template, result: result.bound ?? null };
     });
     if (bound) announce(boundMessage(bound, collectionKeys));
@@ -96,29 +112,30 @@ export function useLabelEditing(input: LabelEditingInput): LabelEditingState {
     if (refocus) latest.current.select([id], true);
   }, []);
 
-  const exists = open !== null && findBlock(input.snapshot.template.layout.blocks, open.id) !== null;
+  const exists = open !== null && templateBlock(input.snapshot.template, open.id) !== null;
 
   const editing = useMemo((): LabelEditing | null => {
     if (!open || !exists) return null;
-    const { id } = open;
+    const { id, part } = open;
     return {
       blockId: id,
       kind: open.kind,
       text: open.text,
+      part,
       onCommit: (text, refocus) => {
-        commit(id, text);
+        commit(id, text, part);
         close(id, refocus);
       },
       onCancel: () => close(id),
       onStep: (text, step) => {
-        commit(id, text);
+        commit(id, text, part);
         const { session, drawn } = latest.current;
         const template = session.getSnapshot().template;
-        const next = labelledNeighbour(template, id, step, drawn);
-        if (next === null || !openAt(next, template)) close(id);
+        const next = labelledNeighbour(template, { id, part }, step, drawn);
+        if (next === null || !openAt(next.id, template, next.part)) close(id);
       },
     };
   }, [open, exists, commit, close, openAt]);
 
-  return { editing, editLabel };
+  return { editing, editLabel, commitLabelText: commit };
 }

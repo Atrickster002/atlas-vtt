@@ -67,7 +67,7 @@ describe('parseTemplate: the plan\'s templates', () => {
   it('does not share objects with its input', () => {
     const file = JSON.parse(EVERY_BLOCK_JSON);
     const template = parsed(file);
-    file.layout.blocks[13].slides[0].label = 'Changed';
+    file.layout.blocks[14].slides[0].label = 'Changed';
     file.pinnedPreview.width = 1;
     expect(template).toEqual(EVERY_BLOCK);
   });

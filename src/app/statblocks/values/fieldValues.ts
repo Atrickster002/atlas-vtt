@@ -109,21 +109,25 @@ export function slotKeyOf(field: Pick<TemplateField, 'slots' | 'slotKeys'>, inde
 }
 
 /** A list of one-key records is a pairs list (`[{ dexterity: 12 }]`), not scores in slot order. */
-function isPairsList(value: FieldValue[]): boolean {
+export function isPairsList(value: FieldValue[]): boolean {
   return value.length > 0 && value.every((item) => item !== null && typeof item === 'object' && !Array.isArray(item));
 }
 
 /**
- * A scores field's value in one slot, as written ("14", or "—" where a
- * creature has none). Scores are a list in slot order; a record of scores, or
- * a list of such records, is read by the slot's key or label.
+ * One slot of a scores value, as written ("14", or "—" where a creature has
+ * none). Scores are a list in slot order; a record of scores, or a list of
+ * such records, is read by the slot's key or label.
  */
+export function scoreIn(value: FieldValue | undefined, field: Pick<TemplateField, 'slots' | 'slotKeys'>, index: number): FieldValue | undefined {
+  if (Array.isArray(value) && !isPairsList(value)) return value[index];
+  return pairValue(value, slotKeyOf(field, index), field.slots?.[index]);
+}
+
+/** A scores field's value in one slot, read from a note's values. */
 export function scoreAt(
   record: FieldRecord,
   field: KeyedField & Pick<TemplateField, 'slots' | 'slotKeys'>,
   index: number,
 ): FieldValue | undefined {
-  const { value } = readField(record, field);
-  if (Array.isArray(value) && !isPairsList(value)) return value[index];
-  return pairValue(value, slotKeyOf(field, index), field.slots?.[index]);
+  return scoreIn(readField(record, field).value, field, index);
 }

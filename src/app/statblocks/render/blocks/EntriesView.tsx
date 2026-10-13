@@ -2,8 +2,10 @@ import React, { useContext } from 'react';
 import type { EntriesBlock, EntryShape, FieldValue } from '../../model/templateTypes';
 import { keyedEntryItems } from '../../values/entryKeys';
 import { entryExtras, entryName, entryText } from '../../values/entryValues';
+import { singular } from '../../values/entryNoun';
 import { valueText } from '../../values/valueText';
 import { EntryLine } from '../shared/EntryLine';
+import { InlineText } from '../shared/InlineText';
 import { useSheet } from '../sheetContext';
 import { SheetHeading } from '../values/SheetHeading';
 import { StandIn, ValueText } from '../values/ValueText';
@@ -12,13 +14,14 @@ import type { BlockViewProps } from './blockViewProps';
 
 /** An entry's labelled parts before its text: "Range 30 ft. Cost 2". */
 function EntryExtras({ entry, shape }: { entry: FieldValue; shape: EntryShape | undefined }): React.JSX.Element | null {
+  const { app, sourcePath } = useSheet();
   const extras = entryExtras(entry, shape);
   if (!extras.length) return null;
   return (
     <span className="atlas-sb-entry-extras">
       {extras.map((extra) => (
         <span key={extra.key} className="atlas-sb-entry-extra">
-          <span className="atlas-sb-entry-extra-label">{extra.label}</span> {valueText(extra.value)}
+          <span className="atlas-sb-entry-extra-label">{extra.label}</span> <InlineText text={valueText(extra.value)} app={app} sourcePath={sourcePath} dice />
         </span>
       ))}
     </span>
@@ -32,10 +35,15 @@ export function EntriesView({ block, display }: BlockViewProps<EntriesBlock>): R
   const shape = state.fields.get(block.field)?.entry;
   const entries = display.state === 'value' ? keyedEntryItems(state.reader(block.field)) : [];
   const intro = block.introField && display.state === 'value' ? valueText(state.reader(block.introField)) : '';
+  const label = block.addLabel?.trim() || `Add ${singular(state.fields.get(block.field)?.label ?? '').toLowerCase() || 'entry'}`;
+  const named = block.heading?.trim();
+  const heading = named || state.provisional?.label;
+  const hasHeading = Boolean(heading);
+  const add = entries.length > 0 ? editing?.addEntry?.(block, label, hasHeading) : null;
 
   return (
     <div className="atlas-sb-entries">
-      {block.heading?.trim() && <SheetHeading>{block.heading}</SheetHeading>}
+      {hasHeading && <SheetHeading action={add} placeholder={!named}>{heading}</SheetHeading>}
       {intro.trim() && (
         <div className="atlas-sb-entries-intro">
           <ValueText shown={{ text: intro, problems: [] }} />
@@ -60,6 +68,7 @@ export function EntriesView({ block, display }: BlockViewProps<EntriesBlock>): R
           return <React.Fragment key={key}>{editing?.entry ? editing.entry(block, { item, key, index, shown }, line) : line}</React.Fragment>;
         })}
       </ValueSlot>
+      {!hasHeading && add}
     </div>
   );
 }

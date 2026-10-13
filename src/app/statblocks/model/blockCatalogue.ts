@@ -12,7 +12,7 @@ export type FsBlockType =
 /** lucide-react icon names the catalogue uses. */
 export type BlockIcon =
   | 'heading' | 'text' | 'hash' | 'subtitles' | 'list' | 'table' | 'gauge' | 'image' | 'square-stack' | 'columns-3' | 'minus'
-  | 'code' | 'circle-help' | 'panel-top';
+  | 'code' | 'circle-help' | 'panel-top' | 'square-split-horizontal';
 
 /** The group of the Add panel a primitive is listed under. */
 export type PaletteGroup = 'basics' | 'lists' | 'layout' | 'media';
@@ -31,7 +31,7 @@ export const PALETTE_GROUPS: ReadonlyArray<{ id: PaletteGroup; label: string }> 
  * people; its kind is a setting, which turns the block into the other type.
  */
 export type PrimitiveId =
-  | 'heading' | 'text' | 'value' | 'line' | 'list' | 'table' | 'track' | 'picture' | 'section' | 'side-by-side' | 'tabs' | 'divider';
+  | 'heading' | 'text' | 'value' | 'metric' | 'line' | 'list' | 'table' | 'track' | 'picture' | 'section' | 'side-by-side' | 'tabs' | 'divider';
 
 type Kinds = readonly [AuthorableBlockType, ...AuthorableBlockType[]];
 
@@ -60,6 +60,7 @@ export const PRIMITIVES: Readonly<Record<PrimitiveId, PrimitiveSpec>> = {
   heading: primitive('heading', 'Heading', 'heading', 'basics', ['heading', 'title'], 'heading', 'Text'),
   text: primitive('text', 'Text', 'text', 'basics', ['text']),
   value: primitive('value', 'Value', 'hash', 'basics', ['stat']),
+  metric: primitive('metric', 'Metric', 'square-split-horizontal', 'basics', ['metric']),
   line: primitive('line', 'Line', 'subtitles', 'basics', ['line']),
   list: primitive('list', 'List', 'list', 'lists', ['tags', 'pairs', 'entries', 'spells'], 'entries', 'Each item is'),
   table: primitive('table', 'Table', 'table', 'lists', ['scores']),
@@ -111,6 +112,8 @@ export const BLOCK_CATALOGUE: Readonly<Record<BlockType, BlockSpec>> = {
   title: spec('title', 'heading', ['text'], 'heading', 'fill', 'From a property'),
   line: spec('line', 'line', SCALAR_FIELDS, 'subheading', 'fill'),
   stat: spec('stat', 'value', SCALAR_FIELDS, 'property', 'fit'),
+  // Labels over values, as Fantasy Statblocks draws a table of ability scores.
+  metric: spec('metric', 'metric', SCALAR_FIELDS, 'table', 'fill'),
   scores: spec('scores', 'table', ['scores'], 'table', 'fill'),
   tags: spec('tags', 'list', ['list'], 'property', 'fill', 'A word'),
   text: spec('text', 'text', ['markdown'], 'text', 'fill'),
@@ -206,6 +209,7 @@ export function createBlock(type: AuthorableBlockType, nextId: BlockIdSource, fi
     case 'title': return { id, type, field: fieldKey ?? 'name', level: 1 };
     case 'line': return { id, type, fields: fieldKey ? [fieldKey] : [] };
     case 'stat': return { id, type, field, look: 'run-in' };
+    case 'metric': return { id, type, fields: [field] };
     case 'scores': return { id, type, field, orientation: 'row' };
     case 'tags': return { id, type, field, look: 'comma' };
     case 'text': return { id, type, field };

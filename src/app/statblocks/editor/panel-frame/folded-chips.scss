@@ -34,7 +34,13 @@ $chip-height: 28px;
     }
   }
 
+  // Off: a quiet fill, deeper under the pointer.
   .atlas-sb-folded__chip.btn {
-    border: $border-width-s dashed var(--background-modifier-border);
+    border: $border-width-s solid transparent;
+    background: var(--background-modifier-hover);
+
+    &:hover:not(:disabled) {
+      background: var(--background-modifier-active-hover);
+    }
   }
 }

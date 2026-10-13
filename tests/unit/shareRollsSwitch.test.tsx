@@ -18,7 +18,7 @@ vi.mock('../../src/app/packages/components/primitives/tooltip', () => ({
   LabelTooltip: ({ children }: { children: React.ReactNode }): React.ReactNode => children,
 }));
 
-const diceTool = { rollDice: vi.fn(() => true) } as unknown as DiceTool;
+const diceTool = { rollDice: vi.fn(() => true), rollingDice: () => ({ dice: [{ count: 1, sides: 20 }], crit: 'natural' }) } as unknown as DiceTool;
 let settings: SettingsService;
 
 beforeEach(() => {

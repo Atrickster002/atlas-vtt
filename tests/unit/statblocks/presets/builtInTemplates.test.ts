@@ -7,6 +7,8 @@ import { parseTemplate } from '../../../../src/app/statblocks/format/parseTempla
 import { serializeTemplate } from '../../../../src/app/statblocks/format/templateFormat';
 import { allBuiltInTemplates, builtInTemplate } from '../../../../src/app/statblocks/library/builtInTemplates';
 import { bindsFieldType, canContain } from '../../../../src/app/statblocks/model/blockCatalogue';
+import { headerKey, headerParts, withHeaderFields } from '../../../../src/app/statblocks/model/templateHeader';
+import { fieldsShownBy, flattenReadingOrder } from '../../../../src/app/statblocks/model/treeQueries';
 import { isReservedKey } from '../../../../src/app/statblocks/model/reservedKeys';
 import { sampleRecord } from '../../../../src/app/statblocks/model/sampleValues';
 import { isValidTemplateId } from '../../../../src/app/statblocks/model/templateIds';
@@ -53,9 +55,19 @@ describe('the built-in templates', () => {
     expect(Object.isFrozen(BUILT_IN_TEMPLATES)).toBe(true);
   });
 
-  it('are looked up by id in the library', () => {
-    expect(allBuiltInTemplates()).toBe(BUILT_IN_TEMPLATES);
-    for (const builtIn of BUILT_IN_TEMPLATES) expect(builtInTemplate(builtIn.id)).toBe(builtIn);
+  it('are looked up by id in the library, each with a field for every part of its header and frozen', () => {
+    expect(allBuiltInTemplates().map((builtIn) => builtIn.id)).toEqual(BUILT_IN_TEMPLATES.map((builtIn) => builtIn.id));
+    for (const builtIn of BUILT_IN_TEMPLATES) {
+      const read = builtInTemplate(builtIn.id);
+      expect(read).toEqual({ ...builtIn, template: withHeaderFields(builtIn.template) });
+      expect(read && Object.isFrozen(read.template.layout.blocks)).toBe(true);
+      expect(read && withHeaderFields(read.template), builtIn.id).toBe(read?.template);
+    }
+    // A system keeps its own keys: 5E's challenge stays `cr`, Draw Steel's hit points `stamina`.
+    const fiveE = builtInTemplate('builtin:5e-2024-monster')?.template;
+    expect(fiveE && headerKey(fiveE.fields, 'level')).toBe('cr');
+    const drawSteel = builtInTemplate('builtin:draw-steel-monster')?.template;
+    expect(drawSteel && headerKey(drawSteel.fields, 'hp')).toBe('stamina');
     expect(builtInTemplate('builtin:nothing')).toBeNull();
     expect(builtInTemplate('generic-creature')).toBeNull();
     expect(builtInTemplate('constructor')).toBeNull();
@@ -141,5 +153,17 @@ describe.each(each)('%s', (_id, builtIn) => {
   it('starts with the name and the portrait', () => {
     expect(template.fields[0]).toEqual({ key: 'name', label: 'Name', type: 'text' });
     expect(keys.has('image')).toBe(true);
+  });
+
+  it('leaves the header to Atlas: defines a field for each part it shows, and lays out no block that shows only one', () => {
+    for (const part of headerParts(template)) {
+      if (!part.hidden) expect(keys.has(part.key), `${part.id} shows ${part.key}`).toBe(true);
+      const alone = flattenReadingOrder(template.layout.blocks).filter((block) => {
+        const shown = fieldsShownBy(block);
+        return shown.length === 1 && shown[0] === part.key && block.type !== 'stat';
+      });
+      expect(alone.map((block) => block.id), `${part.id} laid out again`).toEqual([]);
+    }
+    expect(flattenReadingOrder(template.layout.blocks).filter((block) => block.type === 'title' || block.type === 'image')).toEqual([]);
   });
 });

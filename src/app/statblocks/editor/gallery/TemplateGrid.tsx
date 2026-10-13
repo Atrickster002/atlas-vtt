@@ -9,6 +9,8 @@ export interface GridItem {
   id: string;
   name: string;
   look: CardLook;
+  /** A muted line under the name ("12 statblocks to move"). */
+  detail?: string | undefined;
 }
 
 export function templateItem(entry: LibraryTemplate): GridItem {
@@ -66,6 +68,7 @@ export function TemplateGrid({ app, label, items, selected, layer, onSelect, onU
           app={app}
           name={item.name}
           look={item.look}
+          detail={item.detail}
           selected={item.id === selected}
           tabbable={item.id === tabbable}
           layer={layer}

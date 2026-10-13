@@ -2,6 +2,7 @@
 
 import { blockSpec } from '../../model/blockCatalogue';
 import { fieldByKey } from '../../model/fieldKeys';
+import { kindName } from '../../model/templateGrid';
 import { boundField } from '../../model/treeQueries';
 import type { BlockType, FieldKey, TemplateBlock, TemplateField } from '../../model/templateTypes';
 
@@ -18,8 +19,10 @@ export function blockTitle(block: TemplateBlock, fields: readonly TemplateField[
     case 'stat': case 'tags': case 'pairs': case 'track':
       return (block.label ?? '').trim() || (fieldLabel(fields, block.field) ?? '');
     case 'entries': case 'spells': return (block.heading ?? '').trim() || (fieldLabel(fields, block.field) ?? '');
+    case 'tabs': return (block.heading ?? '').trim();
     case 'text': return (block.heading ?? '').trim() || (fieldLabel(fields, block.field) ?? '');
     case 'line': return block.fields.map((key) => fieldLabel(fields, key)).filter(Boolean).join(', ');
+    case 'metric': return (block.heading ?? '').trim() || block.fields.map((key) => fieldLabel(fields, key)).filter(Boolean).join(', ');
     default: return fieldLabel(fields, boundField(block)) ?? '';
   }
 }
@@ -30,21 +33,21 @@ export function typeName(type: BlockType): string {
   return kind ? `${label} (${kind.toLowerCase()})` : label;
 }
 
-/** "Armor class", or the type's name where the block says nothing ("Divider", "Side by side"). */
+/** "Armor class", or the kind's name where the block says nothing ("Divider", "Abilities"). */
 export function blockName(block: TemplateBlock, fields: readonly TemplateField[]): string {
-  return blockTitle(block, fields) || blockSpec(block.type).label;
+  return blockTitle(block, fields) || kindName(block);
 }
 
 /** The tag a container shows: "Side by side", "Section · Defenses". */
 export function containerTag(block: TemplateBlock, fields: readonly TemplateField[]): string {
   const type = blockSpec(block.type).label;
-  const title = block.type === 'section' ? blockTitle(block, fields) : '';
+  const title = block.type === 'section' || block.type === 'tabs' ? blockTitle(block, fields) : '';
   return title ? `${type} · ${title}` : type;
 }
 
-/** "Armor class, stat", for the block's accessible name (spec §15). */
+/** "Armor class, value", for the block's accessible name (spec §15). */
 export function blockDescription(block: TemplateBlock, fields: readonly TemplateField[]): string {
-  const type = blockSpec(block.type).label;
+  const type = kindName(block);
   const title = blockTitle(block, fields);
   return title && title !== type ? `${title}, ${type.toLowerCase()}` : type;
 }

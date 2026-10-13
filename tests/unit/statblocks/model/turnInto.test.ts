@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { findBlock } from '../../../../src/app/statblocks/model/treeQueries';
-import { turnInto, typeForPrimitive } from '../../../../src/app/statblocks/model/turnInto';
+import { turnInto } from '../../../../src/app/statblocks/model/turnInto';
 import type { TemplateBlock, TemplateField, TemplateLayout } from '../../../../src/app/statblocks/model/templateTypes';
 import { deepFreeze } from './treeFixtures';
 
@@ -74,15 +74,6 @@ describe('turnInto', () => {
     const words = layoutOf({ id: 'w', type: 'tags', field: 'languages', look: 'chips', label: 'Tongues' });
     expect(turned(turnInto(words, 'w', 'spells', fields).layout, 'w')).toStrictEqual({ id: 'w', type: 'spells', field: '', heading: 'Tongues' });
     expect(turned(turnInto(words, 'w', 'pairs', fields).layout, 'w')).toStrictEqual({ id: 'w', type: 'pairs', field: '', label: 'Tongues' });
-  });
-
-  it('picks the kind of a primitive that can show the block\'s property, else the one a new block gets', () => {
-    const block = (field: string): TemplateBlock => ({ id: 's', type: 'stat', field, look: 'run-in' });
-    expect(typeForPrimitive(block('speed'), 'heading', fields)).toBe('title');
-    expect(typeForPrimitive(block('ac'), 'heading', fields)).toBe('heading');
-    expect(typeForPrimitive(block('languages'), 'list', fields)).toBe('tags');
-    expect(typeForPrimitive(block('ac'), 'list', fields)).toBe('entries');
-    expect(typeForPrimitive(block('ac'), 'track', fields)).toBe('track');
   });
 
   it('turns Sections and Rows into each other with their children', () => {

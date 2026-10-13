@@ -8,12 +8,15 @@
 
 import { useEffect, useState, useSyncExternalStore, type RefObject } from 'react';
 import { HoverStore, hoverStoreOf } from '../interaction/hoverStore';
+import { LIVE_TABLE_ATTRIBUTE } from '../table/EditableTable';
 import { gapUnder, sameGap, type CanvasGap } from './canvasGaps';
 
 /** How long the pointer rests in a gap before the `+` line shows. */
 export const GAP_DELAY_MS = 150;
 /** Elements of the chrome itself: over them the gap stays as it is. */
 const CHROME = '.atlas-te-chrome-control';
+/** A Table typed in place, with its handles and add buttons round it: over it there is no gap, its own add bars are there. */
+const LIVE_TABLE = `[${LIVE_TABLE_ATTRIBUTE}]`;
 
 const NO_STORE = new HoverStore();
 
@@ -47,7 +50,7 @@ export function useStageGap(stageRef: RefObject<HTMLElement | null>, enabled: bo
       const target = event.target as Element | null;
       if (!target?.closest || target.closest(CHROME)) return;
       const box = stage.getBoundingClientRect();
-      const found = gapUnder(stage, target, { x: event.clientX - box.left, y: event.clientY - box.top });
+      const found = target.closest(LIVE_TABLE) ? null : gapUnder(stage, target, { x: event.clientX - box.left, y: event.clientY - box.top });
       if (sameGap(found, pending)) return;
       pending = found;
       win.clearTimeout(timer);

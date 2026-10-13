@@ -1,7 +1,10 @@
-/** Reads what a template says about itself: where it came from, its licence, its lookup tables. */
+/** Reads what a template says about itself: where it came from, its licence, its header, its lookup tables. */
 
-import type { StatblockTemplate, TemplateLicence, TemplateSource } from '../model/templateTypes';
-import { DERIVED_FROM_KEYS, IMPORTED_FROM_KEYS, SOURCE_KEYS } from './formatKeys';
+import { HEADER_PARTS } from '../model/templateHeader';
+import {
+  HEADER_PART_IDS, type HeaderPartId, type StatblockTemplate, type TemplateHeader, type TemplateLicence, type TemplateSource,
+} from '../model/templateTypes';
+import { DERIVED_FROM_KEYS, HEADER_KEYS, IMPORTED_FROM_KEYS, SOURCE_KEYS } from './formatKeys';
 import { describeValue, isRecord } from './jsonValues';
 import { ObjectReader } from './objectReader';
 import { JSON_OBJECT, asJsonRecord, asKey, asNonNegativeInteger, asOneOf, asString, asText } from './valueReads';
@@ -45,6 +48,16 @@ export function readSource(raw: unknown, problems: string[]): TemplateSource | u
     modification,
     ...r.opt('trademarkNotice', asString, 'text'),
   });
+}
+
+/** The header parts a template may hide: never its name or token art. */
+const HIDEABLE_PARTS: readonly HeaderPartId[] = HEADER_PART_IDS.filter((id) => HEADER_PARTS[id].hideable);
+
+/** What a template says about its header; undefined where it says nothing. */
+export function readHeader(raw: unknown, problems: string[]): TemplateHeader | undefined {
+  if (!isRecord(raw)) return undefined;
+  const r = new ObjectReader(raw, 'The template’s header', problems, HEADER_KEYS);
+  return r.finish({ ...r.optList('hidden', asOneOf(HIDEABLE_PARTS), 'header parts a template may hide (level, type, hp, description)') });
 }
 
 export function readImportedFrom(raw: unknown, problems: string[]): ImportedFrom | undefined {

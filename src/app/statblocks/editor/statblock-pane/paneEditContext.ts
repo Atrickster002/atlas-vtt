@@ -1,21 +1,19 @@
 import { createContext, useContext } from 'react';
 import type { App } from 'obsidian';
+import type { CellAt } from '../../model/tableGrid';
 import type { FieldKey, FieldValue, TemplateField } from '../../model/templateTypes';
 import type { NotePatch } from '../../notes/patchTypes';
-import type { LibraryTemplate } from '../../model/resolvedTypes';
-import type { StatblockTemplate } from '../../model/templateTypes';
 import type { FoldedBlock } from '../../render/foldRule';
-import type { SectionChoice } from './sectionChoices';
-import type { PanelSessions } from './usePanelSessions';
 import type { SheetState } from '../../render/sheetState';
 import type { FieldRead, FieldRecord } from '../../values/fieldValues';
 import type { EditableSpots } from './editableSpots';
-import type { PanelHistory } from './panelHistory';
 
-/** The value being edited: a field in one block, and for entries the one ability being typed. */
+/** The value being edited: a field in one block, for entries the one ability being typed, for a Table the one cell. */
 export interface EditTarget {
   blockId: string;
   field: FieldKey;
+  /** Table: the cell typed; its first when unset, its last for `last` (Shift+Tab from the value after it). */
+  cell?: CellAt | 'last' | undefined;
   /** Entries: the ability edited, counted as the card draws them; the first when unset. */
   entry?: number | undefined;
   /** Entries: a new ability starts right after `entry` ("Add action below"), or first in an empty list. */
@@ -60,11 +58,17 @@ export interface PaneEditController {
   conflicts: ReadonlyMap<FieldKey, FieldConflict>;
   /** What `field` holds now, through its former keys. */
   read: (field: TemplateField) => FieldRead;
+  /**
+   * What `field` holds once the pane's own last write of it has landed: the value it wrote while the
+   * note still holds what that write started from, else what the note holds. A Table's next cell
+   * builds on the cell just committed before the note has taken it.
+   */
+  readFresh: (field: TemplateField) => FieldRead;
   start: (target: EditTarget) => void;
   /** Leaves editing; `refocus` returns focus to the value's block. */
   stop: (refocus: boolean) => void;
-  /** Leaves editing if `blockId` is still the block being edited (focus left it). */
-  leave: (blockId: string) => void;
+  /** Leaves editing if `blockId` (and for a Table `cell`) is still what is being edited (focus left it). */
+  leave: (blockId: string, cell?: CellAt) => void;
   /** Tab and Shift+Tab: the next or previous value in the template's field order, else out of the card. */
   move: (from: FieldKey, step: 1 | -1) => void;
   /**
@@ -85,27 +89,12 @@ export interface PaneEditController {
   moveEntry: (field: TemplateField, from: number, to: number) => void;
   /** The open list editor of `key` takes the moves of its list; returns the function that lets go. */
   registerMover: (key: FieldKey, mover: ListMover) => () => void;
-  /** Which history took each of the panel's actions: the note's or a template's (§8.5). */
-  history: PanelHistory;
   /** Sections folded into chips under the card (§8.2), in reading order. */
   folded: readonly FoldedBlock[];
   /** Their ids, as the card takes them. */
   foldedSet: ReadonlySet<string>;
   /** Unfolds a section in place, sticky for the panel's life on this note; false folds it again (after Clear). */
   setUnfolded: (blockId: string, unfolded: boolean) => void;
-  /** The note's template, and as the library holds it (null while it can't change: missing, newer, loading). */
-  template: StatblockTemplate | null;
-  entry: LibraryTemplate | null;
-  /** The template sessions the panel holds for its structural changes (§8.5). */
-  sessions: PanelSessions;
-  /** "Add a section…" is open, adding after a block or (null) in the section's place; null while closed. */
-  addingSection: { after: string | null } | null;
-  openAddSection: (place: { after: string | null } | null) => void;
-  /** Adds or unfolds a section (§8.3). */
-  addSection: (choice: SectionChoice, after: string | null) => Promise<void>;
-  /** The toast under the panel: what the last change did, with Undo. */
-  toast: string | null;
-  showToast: (text: string | null) => void;
 }
 
 export const PaneEditContext = createContext<PaneEditController | null>(null);

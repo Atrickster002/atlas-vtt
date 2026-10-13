@@ -7,7 +7,7 @@ import { FakeSession, template } from '../unit/statblocks/template-editor/editor
 import { gripOf, pointer, pointIn, type Point } from './dragHarness';
 import { frame, frames, mount, useEditorStyles, wait } from './sidePanesHarness';
 
-// Dice links and the header's file actions reach the map view and the token link service, whose
+// Dice links reach the map view and the token link service, whose
 // Node `events` has no browser build; nothing here rolls dice or writes files.
 vi.mock('../../src/app/services/statblockDiceLinks', () => ({
   attachDiceRolling: () => () => undefined,
@@ -15,32 +15,29 @@ vi.mock('../../src/app/services/statblockDiceLinks', () => ({
   linkDiceIn: () => undefined,
   splitDiceSegments: (text: string) => [{ text, dice: false }],
 }));
-vi.mock('../../src/app/statblocks/render/shared/useStatblockDiceRolling', () => ({ useStatblockDiceRolling: () => undefined }));
-vi.mock('../../src/app/statblocks/editor/template-editor/templateEditorActions', () => ({
-  duplicateTemplate: async () => null,
-  newStatblockFromTemplate: async () => undefined,
-}));
+vi.mock('../../src/app/statblocks/render/shared/useStatblockDiceRolling', () => ({ useStatblockDiceRolling: () => [undefined, null] }));
 
-const SECTIONS = 15;
-const STATS = 9;
+const LONE_TILES = 30;
+const ROWS = 40;
+const TILES_IN_ROW = 3;
+const TILES = LONE_TILES + ROWS * TILES_IN_ROW;
 /** One frame at 60 Hz. */
 const FRAME_MS = 1000 / 60;
 
-/** 150 blocks: fifteen sections of nine stats, in two columns. */
+/** 150 tiles under the name: thirty of their own and forty rows of three, taking turns down the card. */
 function bigTemplate(): ReturnType<typeof template> {
-  const fields: TemplateField[] = [];
-  const blocks: TemplateBlock[] = Array.from({ length: SECTIONS }, (_, section) => ({
-    id: `section${section}`,
-    type: 'section',
-    heading: `Section ${section + 1}`,
-    blocks: Array.from({ length: STATS }, (__, stat): TemplateBlock => {
-      const key = `f${section}_${stat}`;
-      fields.push({ key, label: `Field ${section + 1}.${stat + 1}`, type: 'number' });
-      return { id: `stat${section}_${stat}`, type: 'stat', field: key, look: 'run-in' };
-    }),
-  }));
-  const made = template(blocks, fields);
-  return { ...made, layout: { ...made.layout, maxColumns: 2 } };
+  const fields: TemplateField[] = [{ key: 'name', label: 'Name', type: 'text' }];
+  const tile = (index: number): TemplateBlock => {
+    fields.push({ key: `f${index}`, label: `Field ${index + 1}`, type: 'number' });
+    return { id: `tile${index}`, type: 'stat', field: `f${index}`, look: 'run-in' };
+  };
+  const blocks: TemplateBlock[] = [{ id: 'title001', type: 'title', field: 'name', level: 1 }];
+  for (let row = 0; row < ROWS; row++) {
+    const first = LONE_TILES + row * TILES_IN_ROW;
+    blocks.push({ id: `row${row}`, type: 'row', blocks: Array.from({ length: TILES_IN_ROW }, (_, place) => tile(first + place)) });
+    if (row < LONE_TILES) blocks.push(tile(row));
+  }
+  return template(blocks, fields);
 }
 
 async function taskSeconds(): Promise<number> {
@@ -54,7 +51,7 @@ const percentile = (values: readonly number[], share: number): number => {
 };
 
 /**
- * Frame time with 150 blocks during a drag (§13.1 S4, §14.2): the pointer
+ * Frame time with 150 tiles during a drag (§13.1 S4, §14.2): the pointer
  * crosses the card once a frame, so targets, lines and slides change all the
  * time. The main thread's work per frame (CDP's task time) stays under one
  * frame, and frames come at the display's rate.
@@ -63,15 +60,15 @@ describe('dragging on a large template', () => {
   useEditorStyles();
   afterEach(() => cleanup());
 
-  it('keeps every frame of a drag under 16 ms with 150 blocks', async () => {
+  it('keeps every frame of a drag under 16 ms with 150 tiles', async () => {
     const session = new FakeSession(bigTemplate());
     mount(session, 1280);
     await frames(3);
-    expect(document.querySelectorAll('.atlas-te-stage [data-block-id]')).toHaveLength(SECTIONS * (STATS + 1));
+    expect(document.querySelectorAll('.atlas-te-stage [data-block-id^="tile"]')).toHaveLength(TILES);
     await cdp().send('Performance.enable');
 
-    // A block drags by its gutter handle only (§7.1).
-    const from = pointIn(await gripOf(frame('stat0_2')));
+    // A tile drags by its gutter handle only (§7.1).
+    const from = pointIn(await gripOf(frame('tile2')));
     const stage = document.querySelector('.atlas-te-stage')!.getBoundingClientRect();
     const scroller = document.querySelector('.atlas-sb-note-panel__scroll')!.getBoundingClientRect();
     pointer(window, 'pointerdown', from);
@@ -83,7 +80,7 @@ describe('dragging on a large template', () => {
     const lines = new Set<string>();
     const before = await taskSeconds();
     for (let step = 0; step < moves; step++) {
-      // Across both columns and down the visible card, back and forth.
+      // Across the card and down its visible part, back and forth.
       const at: Point = {
         x: stage.left + ((step * 37) % Math.max(1, stage.width - 20)) + 10,
         y: scroller.top + 60 + ((step * 23) % Math.max(1, scroller.height - 120)),
@@ -99,7 +96,7 @@ describe('dragging on a large template', () => {
 
     const intervals = stamps.slice(1).map((stamp, index) => stamp - (stamps[index] ?? stamp));
     const perFrame = busy / moves;
-    console.info(`150 blocks: ${perFrame.toFixed(2)} ms of main-thread work per frame; frame interval median ${percentile(intervals, 0.5).toFixed(1)} ms, p95 ${percentile(intervals, 0.95).toFixed(1)} ms`);
+    console.info(`${TILES} tiles: ${perFrame.toFixed(2)} ms of main-thread work per frame; frame interval median ${percentile(intervals, 0.5).toFixed(1)} ms, p95 ${percentile(intervals, 0.95).toFixed(1)} ms`);
     expect(lines.size, 'the drop line moved through many places').toBeGreaterThan(20);
     expect(perFrame).toBeLessThan(FRAME_MS);
     expect(percentile(intervals, 0.5)).toBeLessThan(FRAME_MS + 2);

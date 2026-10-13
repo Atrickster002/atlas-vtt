@@ -18,8 +18,8 @@ export interface GutterHandleProps {
   glyphOf: (target: HoverTarget) => HandleGlyph | null;
   /** Its accessible name and tooltip: "Drag to move · Click for options", "Options for Spells". */
   labelOf: (target: HoverTarget) => string;
-  /** A click: the target's menu, hanging from the handle. */
-  onMenu: (target: HoverTarget, handle: HTMLElement) => void;
+  /** A click: the target's menu, hanging from the handle; unset where targets have no menu (a statblock's abilities, only dragged). */
+  onMenu?: ((target: HoverTarget, handle: HTMLElement) => void) | undefined;
   /** A press on a ⋮⋮ handle, which may become a drag; the handle stays as it is until the press ends. */
   onPress?: ((target: HoverTarget, event: React.PointerEvent<HTMLButtonElement>) => void) | undefined;
 }
@@ -110,10 +110,10 @@ export function GutterHandle({ store, layer, glyphOf, labelOf, onMenu, onPress }
           store.scheduleClear(layer.win);
         }}
         onPointerDown={press}
-        onClick={(event) => onMenu(target, event.currentTarget)}
+        onClick={(event) => onMenu?.(target, event.currentTarget)}
         onContextMenu={(event) => {
           event.preventDefault();
-          onMenu(target, event.currentTarget);
+          onMenu?.(target, event.currentTarget);
         }}
       >
         <Icon aria-hidden="true" />

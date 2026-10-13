@@ -53,14 +53,16 @@ describe('the statblock pane\'s edge states', () => {
     ]);
   });
 
-  it('keeps values editable with a template of a newer Atlas, and locks the template', async () => {
+  it('keeps values editable with a template of a newer Atlas, and offers no Edit template', async () => {
     vi.spyOn(TemplateLibrary.prototype, 'get').mockReturnValue({
       template: GENERIC_CREATURE.template, name: 'Marsh creature', status: 'newer', builtIn: false, path: 'Templates/Marsh creature.atlastemplate',
     });
-    const { result } = await pane({ frontmatter: { ...NATIVE, 'atlas-template': 'marsh-creature-k7m2qa' } });
+    const { result } = await pane({ frontmatter: { ...NATIVE, 'atlas-template': 'marsh-creature-k7m2qa' }, actions: { showProperties: vi.fn(), changeCollection: vi.fn(), editTemplate: vi.fn() } });
     expect(screen.getByText('Update Atlas to edit this template')).toBeTruthy();
-    expect(result.container.querySelector('.atlas-sb-pane-template__lock')).not.toBeNull();
     expect(editableBlocks(result.container)).toBeGreaterThan(0);
+    fireEvent.keyDown(screen.getByRole('button', { name: 'Statblock options' }), { key: 'Enter' });
+    expect(await screen.findByRole('menuitem', { name: 'Change template…' })).toBeTruthy();
+    expect(screen.queryByRole('menuitem', { name: 'Edit template' })).toBeNull();
   });
 
   it('says so when the note no longer names an Atlas template, and offers nothing to edit', async () => {
@@ -81,18 +83,23 @@ describe('the statblock pane\'s edge states', () => {
     files.getAbstractFileByPath = () => null;
     act(() => harness.source.remove(NOTE_PATH));
     expect(screen.getByText(/Note deleted/)).toBeTruthy();
-    expect(harness.result.container.querySelector('[data-block-id="gctitle0"]')?.textContent).toBe('Marsh Warden');
+    expect(harness.result.container.querySelector('[data-block-id="header-name"]')?.textContent).toBe('Marsh Warden');
     expect(editableBlocks(harness.result.container)).toBe(0);
   });
 
-  it('offers Show Properties and Hide statblock in its menu', async () => {
-    const hide = vi.fn();
-    const { actions } = await pane({ frontmatter: NATIVE, actions: { showProperties: vi.fn(), changeCollection: vi.fn(), hide } });
-    fireEvent.keyDown(screen.getByRole('button', { name: 'More statblock actions' }), { key: 'Enter' });
+  it('puts its options in the card\'s corner, with no bar above the card: Edit, Change and Duplicate template, Show Properties', async () => {
+    const editTemplate = vi.fn();
+    const { result, actions } = await pane({ frontmatter: NATIVE, actions: { showProperties: vi.fn(), changeCollection: vi.fn(), editTemplate } });
+    expect(result.container.querySelector('.atlas-sb-pane-header')).toBeNull();
+    const button = screen.getByRole('button', { name: 'Statblock options' });
+    expect(button.closest('.atlas-sb-pane-card')).not.toBeNull();
+    fireEvent.keyDown(button, { key: 'Enter' });
+    const rows = await screen.findAllByRole('menuitem');
+    expect(rows.map((row) => row.textContent)).toEqual(['Edit template', 'Change template…', 'Duplicate template', 'Show Properties']);
+    await act(async () => { fireEvent.click(screen.getByRole('menuitem', { name: 'Edit template' })); });
+    expect(editTemplate).toHaveBeenCalledWith('builtin:generic-creature', expect.anything(), NOTE_PATH);
+    fireEvent.keyDown(button, { key: 'Enter' });
     await act(async () => { fireEvent.click(await screen.findByRole('menuitem', { name: 'Show Properties' })); });
     expect(actions.showProperties).toHaveBeenCalled();
-    fireEvent.keyDown(screen.getByRole('button', { name: 'More statblock actions' }), { key: 'Enter' });
-    await act(async () => { fireEvent.click(await screen.findByRole('menuitem', { name: 'Hide statblock' })); });
-    expect(hide).toHaveBeenCalled();
   });
 });

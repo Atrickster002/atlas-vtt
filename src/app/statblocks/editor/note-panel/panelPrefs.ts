@@ -1,6 +1,6 @@
 /**
  * How the statblock beside a note is shown on this device: the width the
- * user chose by dragging its edge, if any, and whether it is hidden. Stored
+ * user chose by dragging its edge, if any. Stored
  * with `app.saveLocalStorage` (per vault and device, never synced), since what
  * fits depends on the screen. Without a chosen width each view works out its
  * own default from the room it has (`defaultPanelWidth`).
@@ -22,7 +22,6 @@ const STORAGE_KEY = 'atlas-vtt-statblock-panel';
 export interface PanelPrefs {
   /** The width the user dragged the panel to; null while each view takes its default. */
   width: number | null;
-  hidden: boolean;
 }
 
 /** The room a view gives the note and its statblock. */
@@ -65,13 +64,12 @@ export function panelWidth(prefs: Pick<PanelPrefs, 'width'>, room: NoteRoom): nu
 export function loadPanelPrefs(app: App): PanelPrefs {
   const stored: unknown = app.loadLocalStorage(STORAGE_KEY);
   const record = stored !== null && typeof stored === 'object' ? stored as Record<string, unknown> : {};
-  const { chosenWidth, hidden } = record;
+  const { chosenWidth } = record;
   return {
     width: typeof chosenWidth === 'number' && Number.isFinite(chosenWidth) ? Math.max(MIN_PANEL_WIDTH, Math.round(chosenWidth)) : null,
-    hidden: hidden === true,
   };
 }
 
 export function savePanelPrefs(app: App, prefs: PanelPrefs): void {
-  app.saveLocalStorage(STORAGE_KEY, { chosenWidth: prefs.width, hidden: prefs.hidden });
+  app.saveLocalStorage(STORAGE_KEY, { chosenWidth: prefs.width });
 }

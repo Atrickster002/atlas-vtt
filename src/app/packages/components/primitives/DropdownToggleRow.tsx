@@ -1,5 +1,5 @@
 import React, { FC, useId } from "react"
-import { cn } from "src/utils/cn"
+import { cn } from "../../../../utils/cn"
 import { ToggleSwitch } from "./Toggle"
 import { LabelTooltip } from "./tooltip"
 

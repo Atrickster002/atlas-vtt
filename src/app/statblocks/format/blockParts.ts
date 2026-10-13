@@ -22,7 +22,7 @@ import { isRecord } from './jsonValues';
 import { ObjectReader } from './objectReader';
 import { asOneOf, asString, choices } from './valueReads';
 
-export const WHEN_EMPTY = ['hide', 'fallback'] as const satisfies readonly NonNullable<BlockBase['whenEmpty']>[];
+export const WHEN_EMPTY = ['hide', 'fallback', 'fold'] as const satisfies readonly NonNullable<BlockBase['whenEmpty']>[];
 export const SIZES = ['fit', 'fill'] as const satisfies readonly NonNullable<BlockBase['size']>[];
 export const DISPLAYS = ['plain', 'signed'] as const satisfies readonly NonNullable<StatBlock['display']>[];
 export const COLLAPSIBLE = ['open', 'closed'] as const satisfies readonly NonNullable<SectionBlock['collapsible']>[];

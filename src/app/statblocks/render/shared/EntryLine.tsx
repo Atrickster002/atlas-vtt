@@ -3,6 +3,7 @@ import type { App } from 'obsidian';
 import { cn } from '../../../../utils/cn';
 import { EditableField } from './EditableField';
 import { hitPointsAttribute, namesHitPoints } from './hitPoints';
+import { InlineText } from './InlineText';
 import { StatblockMarkdown } from './StatblockMarkdown';
 import type { StatblockEditPath } from './statblockEditContext';
 
@@ -13,7 +14,7 @@ export interface EntryLineProps {
   sourcePath?: string | undefined;
   markdown?: boolean | undefined;
   /**
-   * `run-in`: "Claws." in front of the text, as the native card writes entries;
+   * `run-in`: "Claws" in front of the text, as written, as the native card writes entries;
    * `heading`: the name on a line of its own; unset: the name as Fantasy Statblocks writes it.
    */
   nameStyle?: 'run-in' | 'heading' | undefined;
@@ -24,14 +25,6 @@ export interface EntryLineProps {
   /** The entry's identity in its list (`values/entryKeys.ts`) and its place there: what an editor's handles and drags address. */
   itemKey?: string | undefined;
   itemIndex?: number | undefined;
-}
-
-const ENDS_IN_PUNCTUATION = /[.!?:;]$/;
-
-/** "Claws" as a run-in name: "Claws.", left alone where it already ends in punctuation. */
-function runInName(name: string): string {
-  const trimmed = name.trim();
-  return ENDS_IN_PUNCTUATION.test(trimmed) ? trimmed : `${trimmed}.`;
 }
 
 /**
@@ -63,7 +56,7 @@ export function EntryLine({
       {name && (
         <span className="atlas-sb-trait-name">
           <EditableField path={editPaths?.name ?? []} value={name} editable={editable} label="trait name">
-            {nameStyle === 'run-in' ? runInName(name) : name}
+            <InlineText text={nameStyle === 'run-in' ? name.trim() : name} app={app} sourcePath={sourcePath} markdown={markdown} dice={false} />
           </EditableField>
         </span>
       )}

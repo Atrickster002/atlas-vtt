@@ -69,6 +69,7 @@ const KNOWN_BLOCKS: TemplateBlock[] = [
   },
   { id: 'b4track0', type: 'track', field: 'stress', label: 'Stress', resource: 'stress', look: 'boxes', counts: 'up' },
   { id: 'b5spell0', type: 'spells', field: 'spells', heading: 'Spells' },
+  { id: 'b8metr00', type: 'metric', heading: 'Thresholds', fields: ['armor', 'stress'], size: 'fill' },
   {
     id: 'b6scrip0', type: 'script', summary: 'Rolls the vigor dice', fs: { type: 'javascript', code: 'return el;' },
     fsExtras: { conditioned: true },

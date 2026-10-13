@@ -7,7 +7,9 @@ import { resourceFieldSuggestions } from '../../../resources/resourceFieldSugges
 import type { StatblockTemplate, TemplateId } from '../../../statblocks/model/templateTypes';
 import { collectionStatblockRoles } from '../../../statblocks/roles/collectionStatblockRoles';
 import { StatblocksTab } from '../../../statblocks/settings/StatblocksTab';
-import type { DiceRules } from '../../../types/diceRulesTypes';
+import type { DiceSet } from '../../../types/diceSetTypes';
+import { diceRulesOfSet } from '../../../gameSystems/diceSets';
+import type { DiceSets } from '../../hooks/useDiceSets';
 import type { InitiativeRules } from '../../../types/initiativeRulesTypes';
 import type { SenseDefinition } from '../../../types/senseTypes';
 import type { SystemPreset } from '../../../types/systemPresetTypes';
@@ -27,7 +29,8 @@ import { VisionTab } from './VisionTab';
 
 /** The rules the dialog reads from its draft, with what the collection's game system gives. */
 export interface DraftRules {
-  dice: DiceRules;
+  /** The set a bare bonus rolls with: the picked one, else the stored rules or the system's. */
+  diceSet: DiceSet;
   initiative: InitiativeRules;
   systemInitiative: InitiativeRules;
   senses: readonly SenseDefinition[];
@@ -40,6 +43,7 @@ interface SettingsTabContentProps {
   collectionId: string;
   draft: CollectionSettingsDraft;
   systemPresets: ReturnType<typeof useSystemPresets>;
+  diceSets: DiceSets;
   rules: DraftRules;
   features: FeatureSwitches;
   creatures: CollectionCreatures;
@@ -57,7 +61,7 @@ function isSameAsTyped(typed: InitiativeRules, system: InitiativeRules): boolean
 
 /** The open tab of the collection settings dialog, editing the dialog's draft. */
 export function SettingsTabContent({
-  tab, app, collectionId, draft, systemPresets, rules, features, creatures, roleTemplates, canSave, onDeletePreset, onEditTemplate,
+  tab, app, collectionId, draft, systemPresets, diceSets, rules, features, creatures, roleTemplates, canSave, onDeletePreset, onEditTemplate,
 }: SettingsTabContentProps): React.ReactElement | null {
   const { presets, service } = systemPresets;
   const { gridDefaults, conditions } = draft;
@@ -73,7 +77,8 @@ export function SettingsTabContent({
             gridDefaults,
             conditions,
             defaultWidgets: draft.defaultWidgets,
-            dice: rules.dice,
+            // A preset names its dice set; only dice no set rolls are written out as rules.
+            ...(draft.diceSetId ? { diceSetId: draft.diceSetId } : { dice: diceRulesOfSet(rules.diceSet) }),
             initiative: rules.initiative,
             resources: savedResources(draft.resources),
             ...(draft.defaultTokenVision && { defaultTokenVision: draft.defaultTokenVision }),
@@ -88,7 +93,7 @@ export function SettingsTabContent({
         />
       );
     case 'dice':
-      return <DiceTab dice={rules.dice} onChange={draft.setDice} />;
+      return <DiceTab diceSet={rules.diceSet} diceSets={diceSets} onPick={draft.pickDiceSet} />;
     case 'grid':
       return (
         <GridMeasurementTab

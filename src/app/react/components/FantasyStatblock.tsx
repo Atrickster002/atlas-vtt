@@ -1,5 +1,5 @@
 import React, { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { TFile, type App } from 'obsidian';
+import type { App } from 'obsidian';
 import {
   getFantasyStatblocksApi,
   layoutForCreature,
@@ -137,7 +137,7 @@ export function FantasyStatblock({
   );
 
   // Click-to-roll dice, applied to whatever the renderer produced.
-  const diceRef = useStatblockDiceRolling({
+  const [diceRef, rollMenu] = useStatblockDiceRolling({
     app,
     notePath,
     tokens,
@@ -197,6 +197,7 @@ export function FantasyStatblock({
           <StatblockTokenResources monster={monster} layout={layout} tokens={tokens} {...tokenActions} />
         ) : undefined}
       />
+      {rollMenu}
     </div>
   );
 }

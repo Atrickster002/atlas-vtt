@@ -26,6 +26,8 @@ export type ContextMenuEntry =
     stepper?: MenuStepper;
     /** Muted text at the row's end, e.g. the template a statblock role starts from. */
     hint?: string;
+    /** What choosing the row does, in a sentence or two: a tooltip beside the row while it is pointed at or focused. */
+    description?: string;
   }
   | {
     type: 'submenu';
@@ -201,18 +203,21 @@ export function renderEntries(
           else onClose();
         };
         const disabled = entry.disabled !== undefined ? { disabled: entry.disabled } : {};
-        if (entry.checked !== undefined) {
-          return (
-            <DropdownMenu.CheckboxItem key={`check-${idx}`} className={className} checked={entry.checked} {...disabled} onSelect={onSelect} onKeyDown={stepperKeys(entry.stepper)}>
+        const row = entry.checked !== undefined
+          ? (
+            <DropdownMenu.CheckboxItem className={className} checked={entry.checked} {...disabled} onSelect={onSelect} onKeyDown={stepperKeys(entry.stepper)}>
               <ItemContent entry={entry} />
             </DropdownMenu.CheckboxItem>
+          )
+          : (
+            <DropdownMenu.Item className={className} {...disabled} onSelect={onSelect} onKeyDown={stepperKeys(entry.stepper)}>
+              <ItemContent entry={entry} />
+            </DropdownMenu.Item>
           );
-        }
-        return (
-          <DropdownMenu.Item key={`item-${idx}`} className={className} {...disabled} onSelect={onSelect} onKeyDown={stepperKeys(entry.stepper)}>
-            <ItemContent entry={entry} />
-          </DropdownMenu.Item>
-        );
+        const key = `${entry.checked !== undefined ? 'check' : 'item'}-${idx}`;
+        return entry.description
+          ? <LabelTooltip key={key} label={entry.description} side="right" describe multiline>{row}</LabelTooltip>
+          : <React.Fragment key={key}>{row}</React.Fragment>;
       }
     }
   });

@@ -1,8 +1,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import type { App } from 'obsidian';
+import { TemplateLibrary } from '../../../../src/app/statblocks/library/TemplateLibrary';
 import { TokenStatblockLinkService } from '../../../../src/app/services/TokenStatblockLinkService';
 import { createStatblockNote, noteFileName, shownName, statblockNoteText } from '../../../../src/app/statblocks/notes/createStatblockNote';
+import { templateBodyPath } from '../../../../src/app/statblocks/library/templatePaths';
 import { statblockSourceFromText } from '../../../../src/app/statblocks/notes/statblockSource';
-import { noteHarness } from './noteHarness';
+import { MARSH_ID, MARSH_PATH, marshText } from '../library/templateTexts';
+import { noteHarness, type NoteHarness } from './noteHarness';
 
 // The link service is tested on its own; its imports reach the canvas renderer.
 vi.mock('../../../../src/app/services/TokenStatblockLinkService', () => ({ TokenStatblockLinkService: { getInstance: vi.fn() } }));
@@ -15,7 +19,17 @@ function linkService(): { linkTokenToStatblock: ReturnType<typeof vi.fn> } {
   return service;
 }
 
-afterEach(() => { vi.restoreAllMocks(); });
+const harnesses: NoteHarness[] = [];
+function vault(files: Record<string, string>): NoteHarness {
+  const harness = noteHarness(files);
+  harnesses.push(harness);
+  return harness;
+}
+
+afterEach(() => {
+  for (const harness of harnesses.splice(0)) TemplateLibrary.release(harness.app as unknown as App);
+  vi.restoreAllMocks();
+});
 
 describe('statblockNoteText', () => {
   it('marks a native statblock with its template, name and token art, and leaves the body empty', () => {
@@ -23,6 +37,12 @@ describe('statblockNoteText', () => {
 
     expect(text).toBe('---\nstatblock: true\natlas-template: builtin:generic-creature\nname: Marsh Warden\nimage: art/warden.webp\n---\n');
     expect(statblockSourceFromText(text)).toEqual({ kind: 'atlas', templateId: TEMPLATE });
+  });
+
+  it('writes the body below the frontmatter, as given', () => {
+    const text = statblockNoteText({ name: 'Wolf', templateId: TEMPLATE, body: '## Tactics\n\nCircles.\n' });
+
+    expect(text).toBe('---\nstatblock: true\natlas-template: builtin:generic-creature\nname: Wolf\n---\n## Tactics\n\nCircles.\n');
   });
 
   it('quotes a name YAML would read as something else', () => {
@@ -43,7 +63,7 @@ describe('noteFileName', () => {
 describe('createStatblockNote', () => {
   it('creates the note in the role folder, numbering a taken name in any letter case', async () => {
     linkService();
-    const harness = noteHarness({ 'Bestiary/Goblin.md': 'taken', 'Bestiary/goblin 2.md': 'taken' });
+    const harness = vault({ 'Bestiary/Goblin.md': 'taken', 'Bestiary/goblin 2.md': 'taken' });
 
     const { file, linked } = await createStatblockNote(harness.app, { name: 'Goblin', templateId: TEMPLATE, folder: 'Bestiary' });
 
@@ -54,7 +74,7 @@ describe('createStatblockNote', () => {
 
   it('creates a missing role folder, and uses Obsidian\'s folder for new notes without one', async () => {
     linkService();
-    const harness = noteHarness({});
+    const harness = vault({});
 
     expect((await createStatblockNote(harness.app, { name: 'Wolf', templateId: TEMPLATE, folder: 'World/Beasts' })).file.path).toBe('World/Beasts/Wolf.md');
     expect((await createStatblockNote(harness.app, { name: 'Bear', templateId: TEMPLATE })).file.path).toBe('Bear.md');
@@ -63,7 +83,7 @@ describe('createStatblockNote', () => {
 
   it('writes the token\'s art and links the token to the new note', async () => {
     const service = linkService();
-    const harness = noteHarness({});
+    const harness = vault({});
 
     const { file, linked } = await createStatblockNote(harness.app, { name: 'Warden', templateId: TEMPLATE, folder: 'Bestiary', tokenImagePath: 'art/warden.webp' });
 
@@ -72,9 +92,29 @@ describe('createStatblockNote', () => {
     expect(service.linkTokenToStatblock).toHaveBeenCalledWith('art/warden.webp', 'Bestiary/Warden.md', { showConfirmation: false });
   });
 
+  it('starts the note with the text of the note beside its template\'s file', async () => {
+    linkService();
+    const harness = vault({ [MARSH_PATH]: marshText(), [templateBodyPath(MARSH_PATH)]: '## Lair\n\nWhere it sleeps.\n' });
+
+    const { file } = await createStatblockNote(harness.app, { name: 'Bog Hag', templateId: MARSH_ID, folder: 'Bestiary' });
+
+    const text = harness.files.get(file.path)!;
+    expect(text.endsWith('---\n## Lair\n\nWhere it sleeps.\n')).toBe(true);
+    expect(statblockSourceFromText(text)).toEqual({ kind: 'atlas', templateId: MARSH_ID });
+  });
+
+  it('starts the note empty below its frontmatter where the template has no note', async () => {
+    linkService();
+    const harness = vault({ [MARSH_PATH]: marshText() });
+
+    const { file } = await createStatblockNote(harness.app, { name: 'Bog Hag', templateId: MARSH_ID });
+
+    expect(harness.files.get(file.path)!.endsWith('---\n')).toBe(true);
+  });
+
   it('names an unnamed statblock after its file, so note and card agree', async () => {
     linkService();
-    const harness = noteHarness({ 'New statblock.md': '' });
+    const harness = vault({ 'New statblock.md': '' });
 
     const { file } = await createStatblockNote(harness.app, { name: 'New statblock', templateId: TEMPLATE });
 

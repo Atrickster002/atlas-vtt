@@ -1,7 +1,7 @@
 @use '../../../../styles/tokens' as *;
 
-// Numbers in the native card: Scores as a row or as a table of groups, and
-// Tracks as boxes or a gauge.
+// Numbers in the native card: a Table of one row drawn as lines (the 5E 2024
+// look; the grid is `_sheet-table.scss`), and Tracks as boxes or a gauge.
 
 $track-box: 12px;
 $track-boxes-per-line: 12;
@@ -30,32 +30,8 @@ $track-boxes-per-line: 12;
     color: var(--text-muted);
   }
 
-  // Row: equal cells, labels over scores, each column's values in a row below.
-  .atlas-sb-scores--row {
-    display: grid;
-    grid-template-columns: repeat(var(--atlas-sb-score-slots, 6), minmax(0, 1fr));
-    gap: 2px $spacing-xs;
-    text-align: center;
-
-    &.atlas-sb-scores--labelled {
-      grid-template-columns: auto repeat(var(--atlas-sb-score-slots, 6), minmax(0, 1fr));
-
-      > .atlas-sb-score-column-label {
-        text-align: start;
-      }
-    }
-
-    // Many slots with long names ("Communication") in a narrow card: names still wrap between words, and a word wider
-    // than its cell is cut short instead of running into the next one.
-    > .atlas-sb-score-label {
-      min-width: 0;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-  }
-
-  // Table: up to `perLine` groups side by side, fewer where the width does
-  // not hold them; each group is "label · score · columns" per slot. The
+  // Lines: up to `perLine` groups side by side, fewer where the width does
+  // not hold them; each group is "name · value · worked-out values" per column. The
   // minimum is the group's own content width, so three groups of a 5E table
   // still sit side by side in a pane's column and do not wrap two and one.
   .atlas-sb-scores--table {

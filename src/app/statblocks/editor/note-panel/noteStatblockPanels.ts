@@ -51,7 +51,6 @@ export class NoteStatblockPanels implements PanelPrefsSource {
       setWidth: (width, done) => this.setWidth(width, done),
       cancelResize: () => this.cancelResize(),
       resetWidth: () => this.store({ ...this.prefs, width: null }),
-      setHidden: (hidden) => this.setHidden(hidden),
     };
   }
 
@@ -116,23 +115,13 @@ export class NoteStatblockPanels implements PanelPrefsSource {
     return view instanceof MarkdownView ? this.panels.get(view) ?? null : null;
   }
 
-  /** An entry point opened the note in `leaf`: its statblock shows (also when hidden) and takes the request. */
+  /** An entry point opened the note in `leaf`: its statblock takes the request. */
   reveal(leaf: WorkspaceLeaf, request: PanelRequest): void {
-    if (this.prefs.hidden) this.setHidden(false);
     const { view } = leaf;
     if (!(view instanceof MarkdownView)) return;
     const panel = this.evaluate(view);
     if (panel) panel.request(request);
     else if (view.file) this.waiting.set(view.file.path, { request, at: Date.now() });
-  }
-
-  get hidden(): boolean {
-    return this.prefs.hidden;
-  }
-
-  setHidden(hidden: boolean): void {
-    if (hidden === this.prefs.hidden) return;
-    this.store({ ...this.prefs, hidden });
   }
 
   panelPrefs(): PanelPrefs {
@@ -211,20 +200,10 @@ export class NoteStatblockPanels implements PanelPrefsSource {
   }
 }
 
-/** Starts the app's manager, with the command that hides or shows the statblock; Atlas unloading releases it. */
+/** Starts the app's manager; Atlas unloading releases it. */
 export function registerNoteStatblockPanels(plugin: Plugin, deps: NoteStatblockPanelsDeps): NoteStatblockPanels {
   const panels = new NoteStatblockPanels(plugin.app, deps);
   panels.start();
   plugin.register(() => panels.release());
-  plugin.addCommand({
-    id: 'toggle-statblock-beside-note',
-    name: 'Toggle statblock beside note',
-    checkCallback: (checking) => {
-      const leaf = plugin.app.workspace.getActiveViewOfType(MarkdownView)?.leaf;
-      if (!leaf || !panels.panelOf(leaf)) return false;
-      if (!checking) panels.setHidden(!panels.hidden);
-      return true;
-    },
-  });
   return panels;
 }

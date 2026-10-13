@@ -6,6 +6,7 @@ import type { TemplateField } from '../../model/templateTypes';
 import type { FieldRead } from '../../values/fieldValues';
 import { valueText } from '../../values/valueText';
 import { usePaneEdit, type PaneEditController } from './paneEditContext';
+import type { ValueInputProps } from './TextValueInput';
 import { addItemPatches, listItems, removeItemPatches } from './valuePatches';
 
 export interface ChipsEditorProps {
@@ -14,6 +15,8 @@ export interface ChipsEditorProps {
   read: FieldRead;
   write: PaneEditController['write'];
   autoFocus: boolean;
+  /** What the input shows while the list is empty; the field's prompt or label by default. */
+  placeholder?: string | undefined;
   /** Keys the chips do not use themselves: Tab, and Escape once nothing is typed. */
   onLeave?: ((key: 'Tab' | 'Shift+Tab' | 'Escape') => void) | undefined;
 }
@@ -23,7 +26,7 @@ export interface ChipsEditorProps {
  * field removes the last chip, each chip's × removes it. Every change is
  * written at once, an item at a time, never the whole list.
  */
-export function ChipsEditor({ field, read, write, autoFocus, onLeave }: ChipsEditorProps): React.JSX.Element {
+export function ChipsEditor({ field, read, write, autoFocus, placeholder, onLeave }: ChipsEditorProps): React.JSX.Element {
   const inputRef = useRef<HTMLInputElement>(null);
   const [typed, setTyped] = useState('');
   // Read synchronously, so a chip added by Enter or Tab is not added again as the editor goes.
@@ -88,7 +91,7 @@ export function ChipsEditor({ field, read, write, autoFocus, onLeave }: ChipsEdi
         type="text"
         className="atlas-sb-pane-input atlas-sb-pane-chips__input"
         value={typed}
-        placeholder={items.length ? '' : field.prompt?.trim() || field.label}
+        placeholder={items.length ? '' : placeholder ?? (field.prompt?.trim() || field.label)}
         aria-label={`Add to ${field.label}`}
         onChange={(event) => type(event.target.value)}
         onKeyDown={onKeyDown}
@@ -99,7 +102,7 @@ export function ChipsEditor({ field, read, write, autoFocus, onLeave }: ChipsEdi
 }
 
 /** A list field of the card as chips; Tab and Escape move on as every value input does. */
-export function ListValueInput({ field, autoFocus }: { field: TemplateField; autoFocus: boolean }): React.JSX.Element {
+export function ListValueInput({ field, autoFocus, placeholder }: ValueInputProps): React.JSX.Element {
   const pane = usePaneEdit();
   return (
     <ChipsEditor
@@ -107,6 +110,7 @@ export function ListValueInput({ field, autoFocus }: { field: TemplateField; aut
       read={pane.read(field)}
       write={pane.write}
       autoFocus={autoFocus}
+      placeholder={placeholder}
       onLeave={(key) => {
         if (key === 'Escape') pane.stop(true);
         else pane.move(field.key, key === 'Tab' ? 1 : -1);

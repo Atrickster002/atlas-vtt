@@ -14,15 +14,14 @@ import { collectionFolderPath } from '../assetPaths';
  * (`storeLegacyResources`), which is no edit of the GM's. Nor is what players see. Roles equal
  * to those the settings read from their preset (`presets`, the generic pair without one) are
  * left out too: a bundle writes out a user preset's roles (`withPresetRoles`), which the
- * collection it was made from reads unset. The record of the collection's copies of built-in
- * templates is bookkeeping, never an edit, and left out as well.
+ * collection it was made from reads unset.
  */
 export function comparableSettings(
   settings: CollectionSettings | undefined,
   presets: readonly SystemPreset[] = BUILT_IN_SYSTEM_PRESETS,
 ): Partial<CollectionSettings> | undefined {
   if (!settings) return settings;
-  const { resources, statblockRoles, templateCopies: _copies, ...rest } = settings;
+  const { resources, statblockRoles, ...rest } = settings;
   const ownResources = resources !== undefined
     && !sameResourceDefinitions(resources, legacyCollectionResources(rest, BUILT_IN_SYSTEM_PRESETS));
   // An empty list is none: the collection reads its preset's
@@ -102,21 +101,35 @@ export interface ImportedPlaces {
   templateIds: TemplateIdMap;
   /** Bundle preset id → id here, where the vault's own preset differed and the bundle's came in as a copy. */
   presetIds?: ReadonlyMap<string, string> | undefined;
+  /** Bundle dice set id → id here, where the vault's own set differed and the bundle's came in as a copy. */
+  diceSetIds?: ReadonlyMap<string, string> | undefined;
 }
 
 /** Settings whose game system is the preset's id in this vault. */
-export function withPresetId<T extends { systemPresetId?: string | undefined }>(settings: T, ids: ReadonlyMap<string, string> | undefined): T {
+function withPresetId<T extends { systemPresetId?: string | undefined }>(settings: T, ids: ReadonlyMap<string, string> | undefined): T {
   const id = settings.systemPresetId && ids?.get(settings.systemPresetId);
   return id ? { ...settings, systemPresetId: id } : settings;
 }
 
+/** Settings whose dice set is the set's id in this vault. */
+function withDiceSetId<T extends { diceSetId?: string | undefined }>(settings: T, ids: ReadonlyMap<string, string> | undefined): T {
+  const id = settings.diceSetId && ids?.get(settings.diceSetId);
+  return id ? { ...settings, diceSetId: id } : settings;
+}
+
+/** Settings whose game system and dice set are the ids the preset and the set have in this vault. */
+export function withRecordIds<T extends { systemPresetId?: string | undefined; diceSetId?: string | undefined }>(settings: T, places: Pick<ImportedPlaces, 'presetIds' | 'diceSetIds'>): T {
+  return withDiceSetId(withPresetId(settings, places.presetIds), places.diceSetIds);
+}
+
 /**
  * The bundle's settings as the import stores them: its loot bases at the paths they get in this
- * vault, its roles starting from the templates' ids here, its game system the preset's id here,
- * its role folders in the collection's folder here (a folder outside the collection is left out).
+ * vault, its roles starting from the templates' ids here, its game system and dice set the ids
+ * the preset and the set have here, its role folders in the collection's folder here (a folder
+ * outside the collection is left out).
  */
 export function importedSettings(collection: CollectionMetadata, places: ImportedPlaces): CollectionSettings {
-  const withPaths = withPresetId(withLootBases(collection.settings, (path) => places.paths.get(path) ?? path), places.presetIds);
+  const withPaths = withRecordIds(withLootBases(collection.settings, (path) => places.paths.get(path) ?? path), places);
   const from = collectionFolderPath(collection.id);
   const to = collectionFolderPath(places.collectionId);
   return withRoleFolders(withRoleTemplates(withPaths, places.templateIds), (folder) => folderBelow(folder, from, to));

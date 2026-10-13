@@ -4,7 +4,7 @@
  * a template's meanings count, as on closed maps.
  */
 
-import { difficultyLabel, scalarText } from '../../creatures/statblockRating';
+import { difficultyLabel, statblockDisplayName } from '../../creatures/statblockRating';
 import type { ResourceDefinition, ResourceHolder } from '../../resources/resourceTypes';
 import type { StatblockFields } from '../../resources/statblockResourceSync';
 import { startingResources } from '../../resources/statblockResourceValues';
@@ -42,7 +42,7 @@ export function buildStatblockLinkUpdates(
   const meanings = statblock.meanings ?? NO_MEANINGS;
   const updates: StatblockLinkUpdates = { resources: { ...held, ...startingResources(fields, definitions, meanings) } };
 
-  const name = scalarText(fields.name) ?? currentName;
+  const name = statblockDisplayName(fields, meanings) ?? currentName;
   if (name !== undefined) {
     updates.name = name;
   }

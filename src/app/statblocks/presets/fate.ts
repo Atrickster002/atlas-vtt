@@ -8,33 +8,31 @@
 
 import type { BuiltInTemplate } from '../model/templateTypes';
 import { FATE_SOURCE } from './attributions';
-import { builtIn, headerRow, nameField, portraitField } from './presetParts';
+import { builtIn, centredColumns, descriptionField, hiddenParts, nameField, portraitField } from './presetParts';
 
-export const FATE_NPC: BuiltInTemplate = builtIn('builtin:fate-npc', 'Fate NPC', 1, {
+export const FATE_NPC: BuiltInTemplate = builtIn('builtin:fate-npc', 'Fate NPC', 4, {
   source: FATE_SOURCE,
   fields: [
     nameField(),
     portraitField(),
-    { key: 'description', label: 'Description', type: 'markdown' },
+    descriptionField(),
     { key: 'aspects', label: 'Aspects', type: 'markdown' },
     { key: 'temporaryAspects', label: 'Temporary Aspects', type: 'markdown' },
-    { key: 'stress', label: 'Stress', type: 'scores', slots: ['Physical', 'Mental'] },
+    { key: 'stress', label: 'Stress', type: 'scores', slots: ['Physical', 'Mental'], addRows: false, addColumns: false, align: centredColumns(2) },
     { key: 'consequences', label: 'Consequences', type: 'entries' },
     { key: 'skills', label: 'Skills', type: 'entries' },
     { key: 'stunts', label: 'Stunts', type: 'entries' },
     { key: 'items', label: 'Items', type: 'entries' },
     { key: 'extras', label: 'Extras', type: 'entries' },
   ],
+  // Fate rates no one by level or type, and counts stress, not hit points.
+  ...hiddenParts('level', 'type', 'hp'),
   layout: {
     maxColumns: 2,
     columnWidth: 22,
     blocks: [
-      headerRow({ row: 'fahead00', section: 'faname00', image: 'faimage0' }, [
-        { id: 'fatitle0', type: 'title', field: 'name', level: 1 },
-        { id: 'fadesc00', type: 'text', field: 'description' },
-        { id: 'faaspect', type: 'text', field: 'aspects', heading: 'Aspects' },
-        { id: 'fatempor', type: 'text', field: 'temporaryAspects', heading: 'Temporary Aspects' },
-      ]),
+      { id: 'faaspect', type: 'text', field: 'aspects', heading: 'Aspects' },
+      { id: 'fatempor', type: 'text', field: 'temporaryAspects', heading: 'Temporary Aspects' },
       { id: 'fadivid0', type: 'divider' },
       {
         id: 'fastress', type: 'section', heading: 'Stress', blocks: [

@@ -32,7 +32,6 @@ const WARDEN = {
   'atlas-template': 'builtin:generic-creature',
   name: 'Marsh Warden',
   hp: 14,
-  lair: 'Sunken causeway',
   actions: [BITE, LASH],
 };
 
@@ -71,10 +70,10 @@ class NoteText {
   }
 }
 
-async function pane(): Promise<{ harness: PaneHarness; note: NoteText }> {
-  const harness = await renderPane({ frontmatter: WARDEN });
+async function pane(frontmatter: Record<string, unknown> = WARDEN): Promise<{ harness: PaneHarness; note: NoteText }> {
+  const harness = await renderPane({ frontmatter });
   apps.push(harness.app);
-  return { harness, note: new NoteText(harness, WARDEN) };
+  return { harness, note: new NoteText(harness, frontmatter) };
 }
 
 /** Opens the actions on their first entry; returns its focused name input. */
@@ -94,7 +93,7 @@ describe('one ability typed at a time (spec §6.3)', () => {
   it('opens only the clicked ability; the rest of the list stays drawn as the card draws it', async () => {
     const { harness } = await pane();
     openFirstAction(harness);
-    expect(lines(harness)).toEqual(['editing', 'Lash.It lashes.']);
+    expect(lines(harness)).toEqual(['editing', 'LashIt lashes.']);
     expect(harness.result.container.querySelectorAll('textarea')).toHaveLength(0);
   });
 
@@ -195,22 +194,23 @@ describe('commits based on the value typing started from', () => {
   });
 
   it('reports a tray value that changed in the note meanwhile, and keeps mine on request', async () => {
-    const { harness, note } = await pane();
+    // Cairn has no levels, so its template hides the level: the tray is where it is typed.
+    const { harness, note } = await pane({ statblock: true, 'atlas-template': 'builtin:cairn-creature', name: 'Marsh Warden', level: 3 });
     fireEvent.click(screen.getByRole('button', { name: /^More properties/ }));
-    const lair = screen.getByRole('textbox', { name: 'lair' });
-    fireEvent.change(lair, { target: { value: 'Mine' } });
-    note.external([{ op: 'set', path: ['lair'], base: 'Sunken causeway', next: 'Theirs' }]);
-    await act(async () => { fireEvent.blur(lair); });
+    const level = screen.getByRole('textbox', { name: 'Level' });
+    fireEvent.change(level, { target: { value: '4' } });
+    note.external([{ op: 'set', path: ['level'], base: 3, next: 5 }]);
+    await act(async () => { fireEvent.blur(level); });
 
-    expect(harness.writer.patches()).toEqual([{ op: 'set', path: ['lair'], base: 'Sunken causeway', next: 'Mine' }]);
-    expect(note.values().lair).toBe('Theirs');
-    const chip = screen.getByRole('group', { name: 'lair conflict' });
-    expect(chip.textContent).toContain('Changed in the note: Sunken causeway → Theirs');
+    expect(harness.writer.patches()).toEqual([{ op: 'set', path: ['level'], base: 3, next: 4 }]);
+    expect(note.values().level).toBe(5);
+    const chip = screen.getByRole('group', { name: /conflict$/ });
+    expect(chip.textContent).toContain('Changed in the note: 3 → 5');
 
     const keep = within(chip).getByRole('button', { name: 'Keep mine' });
     keep.focus();
     await act(async () => { fireEvent.click(keep); });
-    expect(note.values().lair).toBe('Mine');
-    expect(document.activeElement).toBe(screen.getByRole('textbox', { name: 'lair' }));
+    expect(note.values().level).toBe(4);
+    expect(document.activeElement).toBe(screen.getByRole('textbox', { name: 'Level' }));
   });
 });

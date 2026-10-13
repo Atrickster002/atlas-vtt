@@ -1,5 +1,6 @@
 import { TFile, normalizePath, type App } from 'obsidian';
 import { getFantasyStatblocksApi, type FantasyStatblocksCreature } from './FantasyStatblocksService';
+import { statblockDisplayName } from '../creatures/statblockRating';
 import { boundedList } from '../creatures/statblockValues';
 import type { TokenAsset } from './AssetService';
 import type { BestiaryLookup } from '../creatures/linkedCreature';
@@ -102,8 +103,7 @@ export async function statblockImportCandidate(app: App, file: TFile, lookup: St
   const path = normalizePath(file.path);
   if (!lookup.creatures.has(path) && !(await statblockSourceOf(app, file))) return null;
   const statblock = await readStatblock(app, path, lookup.bestiary);
-  const named = statblock?.fields.name;
-  const name = typeof named === 'string' && named.trim() ? named : file.basename;
+  const name = (statblock && statblockDisplayName(statblock.fields, statblock.meanings)) || file.basename;
   const row = { path, name, layoutName: statblock?.lookName ?? t('sbImport.unspecified') };
   const linked = lookup.tokens.get(path) ?? [];
   if (linked.length > 1) return { ...row, status: 'conflict', detail: t('sbCandidate.conflict') };

@@ -16,7 +16,7 @@ vi.mock('../../src/app/services/statblockDiceLinks', () => ({
   linkDiceIn: () => undefined,
   splitDiceSegments: (text: string) => [{ text, dice: false }],
 }));
-vi.mock('../../src/app/statblocks/render/shared/useStatblockDiceRolling', () => ({ useStatblockDiceRolling: () => undefined }));
+vi.mock('../../src/app/statblocks/render/shared/useStatblockDiceRolling', () => ({ useStatblockDiceRolling: () => [undefined, null] }));
 vi.mock('../../src/app/services/TokenStatblockLinkService', () => ({ TokenStatblockLinkService: { getInstance: () => ({}) } }));
 vi.mock('../../src/app/services/AssetService', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../src/app/services/AssetService')>();

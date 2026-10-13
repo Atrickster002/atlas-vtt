@@ -38,6 +38,16 @@ export function folderOf(path: string): string {
   return slash < 0 ? '' : path.slice(0, slash);
 }
 
+/**
+ * The note beside a template file that holds the text new statblocks of the
+ * template start with: `<folder>/<name>.md`.
+ */
+export function templateBodyPath(templatePath: string): string {
+  const suffix = `.${TEMPLATE_EXTENSION}`;
+  const stem = templatePath.endsWith(suffix) ? templatePath.slice(0, -suffix.length) : templatePath;
+  return `${stem}.md`;
+}
+
 /** `<folder>/<name>.atlastemplate`. */
 export function templatePathIn(folder: string, name: string): string {
   return normalizePath(folder ? `${folder}/${name}.${TEMPLATE_EXTENSION}` : `${name}.${TEMPLATE_EXTENSION}`);
@@ -55,10 +65,15 @@ export function templatePathTaken(app: App, path: string, except: string | null 
   return siblings.some((child) => child.path.toLowerCase() === lower);
 }
 
-/** `<name>.atlastemplate` in the folder, else `<name> 2`, `<name> 3`, … while that is taken. */
+/** Whether the template file or the note beside it is taken: a new template never takes over a note it did not write. */
+export function templateNameTakenAt(app: App, path: string): boolean {
+  return templatePathTaken(app, path) || templatePathTaken(app, templateBodyPath(path));
+}
+
+/** `<name>.atlastemplate` in the folder, else `<name> 2`, `<name> 3`, … while that or its note is taken. */
 export function freeTemplatePath(app: App, folder: string, name: string): string {
   const stem = templateFileName(name);
   let path = templatePathIn(folder, stem);
-  for (let n = 2; templatePathTaken(app, path); n++) path = templatePathIn(folder, `${stem} ${n}`);
+  for (let n = 2; templateNameTakenAt(app, path); n++) path = templatePathIn(folder, `${stem} ${n}`);
   return path;
 }

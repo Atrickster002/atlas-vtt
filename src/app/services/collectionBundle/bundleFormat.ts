@@ -6,11 +6,11 @@ import { STATBLOCK_IMAGE_KEYS, type StatblockImageKey } from '../statblockImageK
 import { t } from '../../i18n';
 
 /** Bumped when the zip layout or manifest shape changes: the newest format this version reads and writes. */
-export const BUNDLE_FORMAT = 8;
-/** What a bundle with statblock templates and no user preset says, so Atlas versions that stop at format 7 still import it. */
-const FORMAT_WITHOUT_PRESETS = 7;
-/** What a bundle without statblock templates says, so Atlas versions that stop at format 6 still import it. */
-const FORMAT_WITHOUT_TEMPLATES = 6;
+export const BUNDLE_FORMAT = 9;
+/** What a bundle with a user preset and none of format 9's files says, so Atlas versions that stop at format 8 still import it. */
+const FORMAT_WITH_PRESETS = 8;
+/** What a bundle without any of those says, so Atlas versions that stop at format 6 still import it. */
+const FORMAT_WITHOUT_PRESETS = 6;
 /** Oldest format this version still imports. */
 const OLDEST_BUNDLE_FORMAT = 2;
 export const BUNDLE_MANIFEST = 'manifest.json';
@@ -22,14 +22,19 @@ export const BUNDLE_FILES_DIR = 'files';
  * `linked-note` is a note a scene's pins or characters open, or one such a note links to, however far along;
  * `note-attachment` is an image or PDF one of those notes shows (format 5); `cover` is the collection's cover image (format 4).
  * `loot-base` is a `.base` file the collection's settings pick as a loot source and `loot-item` a file the base
- * holds (format 6). `statblock-template` is a statblock template the collection's roles or its notes name
- * (format 7): it is placed by its template id in the library folder, never at its path.
- * `system-preset` is the user game system preset the collection's settings name (format 8): it is
+ * holds (format 6). `system-preset` is the user game system preset the collection's settings name (format 8): it is
  * matched by its preset id and placed in the presets folder, never at its path.
+ * Format 9 brings `statblock-template` (a statblock template the collection's roles or its notes
+ * name: placed by its template id in the library folder), `statblock-template-body` (the note
+ * beside a carried template that new statblocks of it start with, placed beside the template
+ * wherever the template goes) and `dice-set` (a dice set the collection, its preset or a carried
+ * template rolls with: matched by its set id and placed in the dice sets folder). Development
+ * builds wrote templates as format 7, which this version still reads.
  */
 const BUNDLE_FILE_ROLES = [
   'asset-file', 'thumbnail', 'scene-map', 'scene-thumbnail', 'scene-snapshot', 'scene-snapshot-thumbnail', 'background', 'token-image', 'statblock-note', 'statblock-image',
   'linked-note', 'note-attachment', 'cover', 'loot-base', 'loot-item', 'statblock-template', 'system-preset',
+  'statblock-template-body', 'dice-set',
 ] as const;
 export type BundleFileRole = typeof BUNDLE_FILE_ROLES[number];
 
@@ -39,16 +44,25 @@ export const NOTE_FILE_ROLES: ReadonlySet<BundleFileRole> = new Set<BundleFileRo
 /** Statblock templates, which are matched by their template id and not by their path. */
 export const TEMPLATE_ROLE = 'statblock-template' satisfies BundleFileRole;
 
+/** The note beside a carried template, which goes wherever its template goes (`linkedFrom` names the template). */
+export const TEMPLATE_BODY_ROLE = 'statblock-template-body' satisfies BundleFileRole;
+
 /** A user game system preset, which is matched by its preset id and not by its path. */
 export const PRESET_ROLE = 'system-preset' satisfies BundleFileRole;
 
-/** Files an import matches by the id inside them, never as files at a path. */
-export const ID_MATCHED_ROLES: ReadonlySet<BundleFileRole> = new Set<BundleFileRole>([TEMPLATE_ROLE, PRESET_ROLE]);
+/** A dice set of the vault's library, which is matched by its set id and not by its path. */
+export const DICE_SET_ROLE = 'dice-set' satisfies BundleFileRole;
 
-/** The format a manifest says: 8 only when the bundle packs a user preset, 7 when it packs a statblock template. */
+/** Files an import places by the id inside them or the file they go with, never as files at a path. */
+export const ID_MATCHED_ROLES: ReadonlySet<BundleFileRole> = new Set<BundleFileRole>([TEMPLATE_ROLE, TEMPLATE_BODY_ROLE, PRESET_ROLE, DICE_SET_ROLE]);
+
+/** Roles Atlas versions that stop at format 8 do not know. */
+const FORMAT_9_ROLES: ReadonlySet<BundleFileRole> = new Set<BundleFileRole>([TEMPLATE_ROLE, TEMPLATE_BODY_ROLE, DICE_SET_ROLE]);
+
+/** The format a manifest says: 9 when the bundle packs a template or a dice set, 8 when a user preset, 6 otherwise. */
 export function bundleFormatFor(files: readonly BundleFile[]): number {
-  if (files.some((file) => file.role === PRESET_ROLE)) return BUNDLE_FORMAT;
-  return files.some((file) => file.role === TEMPLATE_ROLE) ? FORMAT_WITHOUT_PRESETS : FORMAT_WITHOUT_TEMPLATES;
+  if (files.some((file) => FORMAT_9_ROLES.has(file.role))) return BUNDLE_FORMAT;
+  return files.some((file) => file.role === PRESET_ROLE) ? FORMAT_WITH_PRESETS : FORMAT_WITHOUT_PRESETS;
 }
 
 /** Statblock notes and their artwork: files an importing vault may already have, and then reuses in place. */

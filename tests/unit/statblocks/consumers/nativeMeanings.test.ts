@@ -3,7 +3,10 @@ import { TFile } from 'obsidian';
 import { BUILT_IN_SENSES } from '../../../../src/app/gameSystems/senses';
 import { creatureSenses } from '../../../../src/app/creatures/creatureSenses';
 import { sensesTextOf } from '../../../../src/app/creatures/sensesText';
-import { difficultyLabel, statblockRating } from '../../../../src/app/creatures/statblockRating';
+import { difficultyLabel, statblockDisplayName, statblockRating } from '../../../../src/app/creatures/statblockRating';
+import { statblockEntry } from '../../../../src/app/packages/components/asset-manager/statblock-link/statblockEntries';
+import { statblockTokenChanges } from '../../../../src/app/pixi/token-renderer/statblockTokenSync';
+import { buildStatblockLinkUpdates } from '../../../../src/app/pixi/token-renderer/statblockFrontmatter';
 import { tokenSizeFromStatblock } from '../../../../src/app/pixi/token-renderer/tokenSizing';
 import { statblockImportCandidate, statblockLookup } from '../../../../src/app/services/statblockImportCandidates';
 import { TemplateLibrary } from '../../../../src/app/statblocks/library/TemplateLibrary';
@@ -45,6 +48,25 @@ describe('size and rating: the template\'s fields first', () => {
     expect(difficultyLabel({ threat: '', tier: 2 }, { rating: 'threat' })).toBe('T2');
     expect(difficultyLabel({ difficulty: 14 }, {})).toBe('14');
     expect(statblockRating({ hit_dice: '3+1*' }, { rating: 'hit_dice' }, ['cr'])).toEqual({ key: 'hit_dice', value: '3+1*' });
+  });
+});
+
+describe('display name: the template\'s display name first, `name` as the identity', () => {
+  const fields = { name: 'Aranea (Cairn)', title: 'Aranea' };
+  const meanings = { 'display-name': 'title' } as const;
+
+  it('names a statblock by the field the template means as its display name, else by `name`', () => {
+    expect(statblockDisplayName(fields, meanings)).toBe('Aranea');
+    expect(statblockDisplayName({ name: 'Aranea (Cairn)', title: ' ' }, meanings)).toBe('Aranea (Cairn)');
+    expect(statblockDisplayName(fields, {})).toBe('Aranea (Cairn)');
+    expect(statblockDisplayName({}, meanings)).toBeNull();
+  });
+
+  it('lists it, names its linked tokens and a token that links it by that name', () => {
+    expect(statblockEntry('Bestiary/Aranea.md', fields, meanings, 'Aranea').name).toBe('Aranea');
+    const token = { id: 't1', kind: 'character', x: 0, y: 0, imagePath: 'art/aranea.webp', name: 'Aranea (Cairn)', statblockPath: 'Bestiary/Aranea.md' } as const;
+    expect(statblockTokenChanges({ t1: token }, 'Bestiary/Aranea.md', { fields, meanings }, [], null)).toEqual([{ id: 't1', changes: { name: 'Aranea' } }]);
+    expect(buildStatblockLinkUpdates({ fields, meanings }, 'Spider', [], undefined).name).toBe('Aranea');
   });
 });
 

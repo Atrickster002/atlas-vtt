@@ -36,7 +36,8 @@ describe('LinkedStatblock: native statblocks (§6.1)', () => {
     const { container } = renderLinked(current, { path: WARDEN });
     const card = await sheet(container);
     expect(card.dataset.template).toBe('marsh-creature');
-    expect(card.textContent).toContain('Marsh Warden');
+    // The template can be drawn a moment before the note's values reach it.
+    await waitFor(() => expect(card.textContent).toContain('Marsh Warden'));
     expect(card.textContent).toContain('Large plant');
     expect(barOf(container)).toBeNull();
     expect(captionOf(container)).toBeNull();

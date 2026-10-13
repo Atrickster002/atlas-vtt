@@ -9,16 +9,16 @@ import { useCallback, useRef, useState, type RefObject } from 'react';
 import { findBlock } from '../../model/treeQueries';
 import type { StatblockTemplate } from '../../model/templateTypes';
 import { useAnnouncer } from './announcer';
-import { insertCatalogueBlock, type InsertPlace } from './blockActions';
+import { insertCatalogueBlock, type InsertOutcome, type InsertPlace } from './blockActions';
 import { boxIn, type CanvasGap } from './canvasGaps';
 import { blockFrame } from './editorChrome';
 import type { Box } from './gapGeometry';
 import type { InsertItem } from './insertItems';
 import { existingSelection, NO_SELECTION, primaryOf, type BlockSelection } from './selection';
-import type { EditOutcome } from './sessionEdit';
 import type { EditorSession, SessionSnapshot } from './sessionTypes';
 import type { CollectionFieldKeys } from './useCollectionFieldKeys';
 import { useLabelEditing, type LabelEditingState } from './useLabelEditing';
+import { useBlockNaming, type NamePrompt } from './naming/useBlockNaming';
 
 export interface InsertMenuState {
   /** Counts the openings: each is a fresh menu, even while the last one is still fading out. */
@@ -44,7 +44,9 @@ export interface EditorState extends LabelEditingState {
   selection: BlockSelection;
   focusRequest: { id: string | null; count: number };
   select: (selection: BlockSelection, focus?: boolean) => void;
-  settle: (outcome: EditOutcome & { inserted?: string }, focusPrimary?: boolean) => void;
+  settle: (outcome: InsertOutcome, focusPrimary?: boolean) => void;
+  /** The tile just placed asking for its name, while it does. */
+  naming: NamePrompt | null;
   drawn: (id: string) => boolean;
   said: string;
   announce: (text: string | undefined) => void;
@@ -76,7 +78,7 @@ export function useEditorState(input: EditorStateInput): EditorState {
   const [toast, setToast] = useState<{ text: string; after: StatblockTemplate } | null>(null);
   const [hinted, setHinted] = useState(true);
   const openings = useRef(0);
-  const selection = existingSelection(snapshot.template.layout, rawSelection);
+  const selection = existingSelection(snapshot.template, rawSelection);
   const latest = useRef({ selection, snapshot, insertMenu });
   latest.current = { selection, snapshot, insertMenu };
 
@@ -92,21 +94,31 @@ export function useEditorState(input: EditorStateInput): EditorState {
 
   const labels = useLabelEditing({ session, snapshot, collectionKeys: input.collectionKeys, select, announce, drawn });
 
+  const { naming, askName } = useBlockNaming({ session, template: snapshot.template, commit: labels.commitLabelText, select });
+
   /**
-   * Takes an edit's outcome. An insert selects the new block and shows its
-   * toolbar; it never opens the label (spec §6.1), so Delete right after an
-   * insert deletes the block instead of erasing a label being typed.
+   * Takes an edit's outcome. An insert selects the new block; one placed from
+   * the kinds asks for its name in a popover under it, which keeps focus and
+   * without a name takes the tile away again, and any other shows its
+   * toolbar. The label itself never opens (spec §6.1).
    */
-  const settle = useCallback((outcome: EditOutcome & { inserted?: string }, focusPrimary = false): void => {
-    if (outcome.select !== undefined) select(outcome.select);
+  const settle = useCallback((outcome: InsertOutcome, focusPrimary = false): void => {
+    // Where the editor stood before a tile placed to be named: letting it go gives that back (the insert menu's opener too).
+    const doc = stageRef.current?.doc;
+    const active = doc?.activeElement;
+    const focus = latest.current.insertMenu?.returnFocus ?? (active?.instanceOf(HTMLElement) && active !== doc?.body ? active : null);
+    const before = { selection: latest.current.selection, focus };
+    if (outcome.select !== undefined) select(outcome.select, outcome.toName === undefined);
     else if (focusPrimary) select(latest.current.selection);
+    if (outcome.toName !== undefined) askName(outcome.toName, outcome.placement, before);
+    else outcome.placement?.keep();
     announce(outcome.announce);
     if (outcome.deleted) setToast({ text: deletedText(outcome.deleted), after: session.getSnapshot().template });
     if (outcome.inserted) {
       setWashId(outcome.inserted);
       setHinted(false);
     }
-  }, [select, announce, session]);
+  }, [select, announce, session, askName, stageRef]);
 
   /** Where a floating part hangs below a box of the stage, in the layer's coordinates. */
   const toLayer = useCallback((box: Box): Box => {
@@ -154,6 +166,7 @@ export function useEditorState(input: EditorStateInput): EditorState {
 
   return {
     ...labels,
+    naming,
     selection, focusRequest, select, settle, drawn, said, announce,
     insertMenu, openInsert, openInsertAtGap, closeInsert, insert,
     washId, clearWash: () => setWashId(null),

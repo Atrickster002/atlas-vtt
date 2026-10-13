@@ -10,7 +10,7 @@ import type { FieldRecord } from '../../values/fieldValues';
 import { blockName } from '../template-editor/blockNames';
 import { blockFrame } from '../template-editor/editorChrome';
 import type { BlockSelection } from '../template-editor/selection';
-import type { EditOutcome } from '../template-editor/sessionEdit';
+import type { InsertOutcome } from '../template-editor/blockActions';
 import type { EditorSession } from '../template-editor/sessionTypes';
 import { cancelledText, DRAG_INSTRUCTIONS, pickedUpText, targetText } from './announcements';
 import { CanvasDrag } from './canvasDrag';
@@ -19,7 +19,7 @@ import { DRAGGING_ATTRIBUTE, POINTER_ACTIVATION, SILENT_ANNOUNCEMENTS } from './
 import { sourceName, sourceOf, subjectOf, type DragSource } from './dragSources';
 import { applyDrop } from './dropEdits';
 import type { DropView } from './dropView';
-import { DragPreview } from './DragPreview';
+import { cardTileWidth, DragPreview } from './DragPreview';
 import { DropIndicator } from './DropIndicator';
 import { ViewKeyboardSensor, type KeyboardStepper, type ViewKeyboardOptions } from './keyboardSensor';
 import './dnd.scss';
@@ -41,7 +41,7 @@ export interface TemplateDragAndDropProps {
   record: FieldRecord;
   app?: App | undefined;
   sourcePath?: string | undefined;
-  settle: (outcome: EditOutcome & { inserted?: string }) => void;
+  settle: (outcome: InsertOutcome) => void;
   select: (selection: BlockSelection, focus?: boolean) => void;
   announce: (text: string | undefined) => void;
   children: React.ReactNode;
@@ -69,8 +69,8 @@ const hangOffPointer: Modifier = ({ activatorEvent, activeNodeRect, transform })
 const MODIFIERS = [hangOffPointer];
 
 /**
- * Drag and drop in the template editor (§4.7, §7.6): blocks of the canvas,
- * palette tiles and fields, by pointer or (Space) keyboard. dnd-kit runs the
+ * Drag and drop in the template editor (§4.7, §7.6): tiles of the card and
+ * kinds from the dock, by pointer or (Space) keyboard. dnd-kit runs the
  * sensors and the copy under the pointer; `CanvasDrag` the targets, lines and
  * slides; a drop is one undo step and focus stays on the block that moved.
  * The copy lives in the view's own document's body, so `contain: strict` on
@@ -90,6 +90,7 @@ export function TemplateDragAndDrop(props: TemplateDragAndDropProps): React.JSX.
   const [view, setView] = useState<DropView | null>(null);
   const [landed, setLanded] = useState<{ id: string; count: number } | null>(null);
   const [host, setHost] = useState<HTMLElement | null>(null);
+  const [tileWidth, setTileWidth] = useState<number | null>(null);
 
   const onDragStart = useCallback(({ active, activatorEvent }: DragStartEvent): void => {
     const { session, readOnly, announce } = latest.current;
@@ -117,6 +118,7 @@ export function TemplateDragAndDrop(props: TemplateDragAndDropProps): React.JSX.
     rootRef.current?.setAttribute(DRAGGING_ATTRIBUTE, '');
     setStage(stage);
     setHost(stage.doc.body);
+    setTileWidth(picked.kind === 'item' ? cardTileWidth(stage) : null);
     setSource(picked);
     announce(pickedUpText(name, keyboard));
   }, [rootRef, stageRef]);
@@ -133,8 +135,9 @@ export function TemplateDragAndDrop(props: TemplateDragAndDropProps): React.JSX.
     const { session } = current;
     const target = current.drag.finish();
     if (dropped && target && target.kind !== 'refused') {
-      const outcome = applyDrop(session, current.source, target);
+      // The drag changed nothing until here: its gesture ends first, so a tile placed to be named holds a gesture of its own.
       session.endGesture();
+      const outcome = applyDrop(session, current.source, target);
       settle(outcome);
       // Found when the copy settles: by then the card has drawn the block in its new place.
       landing.current = { id: outcome.landed ?? outcome.inserted ?? null, fade: outcome.inserted !== undefined };
@@ -171,8 +174,10 @@ export function TemplateDragAndDrop(props: TemplateDragAndDropProps): React.JSX.
   }, [stageRef]);
 
   const preview = useMemo(() => (source ? (
-    <DragPreview source={source} template={props.session.getSnapshot().template} record={props.record} app={props.app} sourcePath={props.sourcePath} />
-  ) : null), [source, props.session, props.record, props.app, props.sourcePath]);
+    <DragPreview
+      source={source} template={props.session.getSnapshot().template} record={props.record} app={props.app} sourcePath={props.sourcePath} tileWidth={tileWidth}
+    />
+  ) : null), [source, props.session, props.record, props.app, props.sourcePath, tileWidth]);
 
   const clearLanded = useCallback(() => setLanded(null), []);
 

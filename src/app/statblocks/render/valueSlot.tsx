@@ -1,5 +1,7 @@
 import React, { createContext, useContext } from 'react';
-import type { FieldValue, TemplateBlock } from '../model/templateTypes';
+import type { EntriesBlock, FieldKey, FieldValue, ScoresBlock, TemplateBlock } from '../model/templateTypes';
+import type { TableLook } from './blocks/ScoresView';
+import type { ShownTable } from './values/shownTable';
 import { useSheet } from './sheetContext';
 import { blockMisfits } from './values/blockMisfits';
 import { MisfitChip } from './values/MisfitChip';
@@ -11,14 +13,32 @@ import { MisfitChip } from './values/MisfitChip';
  * own typographic spot, so the card around it does not move.
  */
 export interface ValueEditing {
-  /** What shows where `block`'s values show: `values` themselves, or the pane's input in their place or beside them. */
-  slot(block: TemplateBlock, values: React.ReactNode): React.ReactNode;
+  /**
+   * What shows where `block`'s values show: `values` themselves, or the pane's input in their place or beside
+   * them. `field`: the slot holds that one of the block's values alone (a number of a Metric).
+   */
+  slot(block: TemplateBlock, values: React.ReactNode, field?: FieldKey): React.ReactNode;
   /**
    * What shows where one ability of a list shows: `line` itself, or the
    * pane's editor of that one ability in its place (§6.3), so the rest of the
    * list stays drawn while one is typed.
    */
   entry?(block: TemplateBlock, entry: EntrySlotInfo, line: React.ReactNode): React.ReactNode;
+  /**
+   * What stands where a Table is drawn (`look`): the surface's table, its cells typed in place, its rows and
+   * columns changed as Obsidian changes a Markdown table's. Unset: the table as the card draws it.
+   */
+  table?(block: ScoresBlock, shown: ShownTable, look: TableLook): React.ReactNode;
+  /**
+   * What starts a new ability at the end of a list that holds some ("Add ability"): a plus at the end of
+   * the list's heading (`iconOnly`), or for a list without heading a line under it.
+   */
+  addEntry?(block: EntriesBlock, label: string, iconOnly: boolean): React.ReactNode;
+  /**
+   * A tile not named yet is drawn as it will be once named (`provisionalSheet`): the template editor's tiles while
+   * their name is asked for. Unset (a statblock's pane): such a block shows only its prompt, and no value of it is edited.
+   */
+  drawsUnnamed?: boolean;
 }
 
 /** One ability as its list draws it: the stored item, its identity, its place in the stored list and among those drawn. */
@@ -33,6 +53,8 @@ export const ValueEditingContext = createContext<ValueEditing | null>(null);
 
 interface ValueSlotProps {
   block: TemplateBlock;
+  /** The one value of the block the slot holds, where each of its values is edited on its own. */
+  field?: FieldKey | undefined;
   children: React.ReactNode;
 }
 
@@ -41,15 +63,15 @@ interface ValueSlotProps {
  * chip saying so (§8.8). The runtime card has no editing context: the values
  * render exactly as they are.
  */
-export function ValueSlot({ block, children }: ValueSlotProps): React.ReactNode {
+export function ValueSlot({ block, field, children }: ValueSlotProps): React.ReactNode {
   const editing = useContext(ValueEditingContext);
   const { state } = useSheet();
-  const misfits = blockMisfits(block, state);
+  const misfits = blockMisfits(block, state).filter((misfit) => field === undefined || misfit.key === field);
   const values = misfits.length === 0 ? children : (
     <>
       {children}
       {misfits.map((misfit) => <MisfitChip key={misfit.key} misfit={misfit} />)}
     </>
   );
-  return editing ? editing.slot(block, values) : values;
+  return editing ? editing.slot(block, values, field) : values;
 }

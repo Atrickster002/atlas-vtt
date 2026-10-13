@@ -6,10 +6,9 @@ import { STANDING_LIST } from '../../../keyboard/tooltipEscape';
 import { useAnchoredPopoverVariants } from '../../../packages/components/primitives/dialogMotion';
 import { useKeepInView } from '../../../packages/components/primitives/useKeepInView';
 import { cn } from '../../../../utils/cn';
-import { sampleRecord } from '../../model/sampleValues';
-import { StatblockSheet } from '../../render/StatblockSheet';
 import type { Box } from './gapGeometry';
-import { bestMatch, findItems, groupItems, insertItems, itemKey, previewTemplate, type InsertItem } from './insertItems';
+import { bestMatch, findItems, insertItems, itemKey, type InsertItem } from './insertItems';
+import { ItemPreview } from './ItemPreview';
 import type { ChromeStyle } from './LabelEditor';
 
 export interface InsertMenuProps {
@@ -24,50 +23,34 @@ export interface InsertMenuProps {
 
 const ALL_ITEMS = insertItems();
 
-/** One row's preview: the item drawn by the real renderer with neutral samples. */
-function Preview({ item, app }: { item: InsertItem; app: App | undefined }): React.JSX.Element {
-  const template = useMemo(() => previewTemplate(item), [item]);
-  const record = useMemo(() => sampleRecord(template), [template]);
-  return (
-    <div className="atlas-te-insert__preview" aria-hidden="true">
-      <StatblockSheet template={template} name={item.label} fields={record} variant="feed" mode="editing" app={app} />
-    </div>
-  );
-}
-
 interface InsertListProps {
   id: string;
-  groups: ReturnType<typeof groupItems>;
+  items: readonly InsertItem[];
   current: InsertItem | undefined;
   onHover: (item: InsertItem) => void;
   onChoose: (item: InsertItem) => void;
 }
 
-/** The items under their group labels; the highlighted row has the context menu's hover look. */
-function InsertList({ id, groups, current, onHover, onChoose }: InsertListProps): React.JSX.Element {
+/** The kinds; the highlighted row has the context menu's hover look. */
+function InsertList({ id, items, current, onHover, onChoose }: InsertListProps): React.JSX.Element {
   return (
-    <div id={id} className="atlas-te-insert__list" role="listbox" aria-label="Blocks" {...STANDING_LIST}>
-      {groups.length === 0 && <div className="atlas-te-insert__empty">No block matches</div>}
-      {groups.map((group) => (
-        <div key={group.id} role="group" aria-label={group.label} className="atlas-te-insert__group">
-          <div className="atlas-te-insert__group-label" aria-hidden="true">{group.label}</div>
-          {group.items.map((item) => (
-            <div
-              key={itemKey(item)}
-              id={`${id}-${itemKey(item)}`}
-              data-item={itemKey(item)}
-              role="option"
-              aria-selected={item === current}
-              data-highlighted={item === current ? '' : undefined}
-              className="atlas-ctx-item atlas-te-insert__item"
-              onPointerMove={() => onHover(item)}
-              // The search keeps focus, so the keys go on working after a click.
-              onPointerDown={(event) => event.preventDefault()}
-              onClick={() => onChoose(item)}
-            >
-              {item.label}
-            </div>
-          ))}
+    <div id={id} className="atlas-te-insert__list" role="listbox" aria-label="Kinds" {...STANDING_LIST}>
+      {items.length === 0 && <div className="atlas-te-insert__empty">Nothing matches</div>}
+      {items.map((item) => (
+        <div
+          key={itemKey(item)}
+          id={`${id}-${itemKey(item)}`}
+          data-item={itemKey(item)}
+          role="option"
+          aria-selected={item === current}
+          data-highlighted={item === current ? '' : undefined}
+          className="atlas-ctx-item atlas-te-insert__item"
+          onPointerMove={() => onHover(item)}
+          // The search keeps focus, so the keys go on working after a click.
+          onPointerDown={(event) => event.preventDefault()}
+          onClick={() => onChoose(item)}
+        >
+          {item.label}
         </div>
       ))}
     </div>
@@ -75,9 +58,9 @@ function InsertList({ id, groups, current, onHover, onChoose }: InsertListProps)
 }
 
 /**
- * The insert menu (§7.6), opened by `/` or the `+` line: "Find a block",
- * then the primitives by group, with a preview of the row under the pointer
- * or the keys. Enter inserts, Escape closes.
+ * The insert menu (§7.6), opened by `/` or the `+` line: the six kinds,
+ * filtered by what is typed, with a preview of the row under the pointer or
+ * the keys. Enter inserts, Escape closes.
  */
 export function InsertMenu({ layer, anchor, app, onInsert, onClose }: InsertMenuProps): React.JSX.Element {
   const [query, setQuery] = useState('');
@@ -88,9 +71,7 @@ export function InsertMenu({ layer, anchor, app, onInsert, onClose }: InsertMenu
   const listId = useId();
   const variants = useAnchoredPopoverVariants();
   const keepInView = useKeepInView(ref, true, above ? 'top' : 'bottom', `${anchor.left},${anchor.top}`);
-  const found = useMemo(() => findItems(ALL_ITEMS, query), [query]);
-  const groups = useMemo(() => groupItems(found), [found]);
-  const ordered = useMemo(() => groups.flatMap((group) => group.items), [groups]);
+  const ordered = useMemo(() => findItems(ALL_ITEMS, query), [query]);
   const current = ordered[Math.min(active, ordered.length - 1)];
 
   useEffect(() => { inputRef.current?.focus({ preventScroll: true }); }, []);
@@ -142,7 +123,7 @@ export function InsertMenu({ layer, anchor, app, onInsert, onClose }: InsertMenu
       data-above={above || undefined}
       style={style}
       role="dialog"
-      aria-label="Add a block"
+      aria-label="Add"
     >
       <motion.div className="atlas-te-insert__panel" variants={variants} initial="hidden" animate="visible" exit="exit">
         <div className="atlas-te-insert__menu">
@@ -150,8 +131,8 @@ export function InsertMenu({ layer, anchor, app, onInsert, onClose }: InsertMenu
             ref={inputRef}
             type="text"
             className="atlas-te-insert__search"
-            placeholder="Find a block"
-            aria-label="Find a block"
+            placeholder="Add"
+            aria-label="Find a kind"
             role="combobox"
             aria-expanded="true"
             aria-controls={listId}
@@ -164,13 +145,13 @@ export function InsertMenu({ layer, anchor, app, onInsert, onClose }: InsertMenu
           />
           <InsertList
             id={listId}
-            groups={groups}
+            items={ordered}
             current={current}
             onHover={(item) => setActive(ordered.indexOf(item))}
             onChoose={onInsert}
           />
         </div>
-        {current && <Preview item={current} app={app} />}
+        {current && <div className="atlas-te-insert__preview" aria-hidden="true"><ItemPreview item={current} app={app} /></div>}
       </motion.div>
     </div>,
     layer,

@@ -3,26 +3,23 @@
 import { useEffect, useState } from 'react';
 import type { App } from 'obsidian';
 import { AssetService } from '../../../services/AssetService';
-import type { CollectionChoice, CollectionContext } from '../collectionContext';
 
 /**
  * The collection the editor works for (§7.1): the one it was opened for,
- * else the default collection. The header's chip switches it where there is
- * more than one.
+ * else the default collection; the editor offers no way to change it. Until
+ * the collections are read it is the one asked for.
  */
-export function useEditorCollection(app: App | undefined, requested: string | null): CollectionContext | null {
-  const [collections, setCollections] = useState<readonly CollectionChoice[] | null>(null);
+export function useEditorCollection(app: App | undefined, requested: string | null): string | null {
+  const [known, setKnown] = useState<readonly string[] | null>(null);
   useEffect(() => {
     if (!app) return undefined;
     let current = true;
     AssetService.getInstance(app).getCollections().then(
-      (list) => { if (current) setCollections(list.map(({ id, name }) => ({ id, name }))); },
+      (list) => { if (current) setKnown(list.map(({ id }) => id)); },
       (error: unknown) => console.error('[Atlas] Reading the collections failed:', error),
     );
     return () => { current = false; };
   }, [app]);
-  if (!app || !collections) return null;
-  const known = requested !== null && collections.some((collection) => collection.id === requested);
-  const collectionId = known ? requested : AssetService.getInstance(app).getDefaultCollectionId();
-  return { collectionId, collections, linking: [], switchable: collections.length > 1 };
+  if (!app || !known) return requested;
+  return requested !== null && known.includes(requested) ? requested : AssetService.getInstance(app).getDefaultCollectionId();
 }

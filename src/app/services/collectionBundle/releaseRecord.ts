@@ -4,7 +4,7 @@ import { systemPresetsOf } from '../mapCollectionRules';
 import { ID_MATCHED_ROLES, type CollectionBundleManifest } from './bundleFormat';
 import { storeCover, type CoverFile } from './collectionCover';
 import { assetFingerprint, fieldFingerprint } from './fingerprints';
-import { COLLECTION_FIELDS, deleteInstallRecord, movedInstallRecord, readInstallRecord, writeInstallRecord, type InstallRecord, type InstalledPreset, type InstalledTemplate } from './installRecord';
+import { COLLECTION_FIELDS, deleteInstallRecord, movedInstallRecord, readInstallRecord, writeInstallRecord, type InstallRecord, type InstalledById } from './installRecord';
 
 /** How a shared copy names the collection, its folder and the files and records it carries. */
 export interface OriginNames {
@@ -43,6 +43,11 @@ export async function originNames(app: App, collection: CollectionMetadata, pack
   return { collectionId, name, names };
 }
 
+/** The lists of `byId` that hold an entry: a record names no kind its bundle did not carry. */
+function withEntries(byId: InstalledById): InstalledById {
+  return Object.fromEntries(Object.entries(byId).filter(([, entries]) => entries !== undefined && Object.keys(entries).length > 0));
+}
+
 /**
  * The publisher's vault holds what it exported, so every fingerprint is both
  * source and installed state; collection fields are installed as the vault has them,
@@ -51,7 +56,7 @@ export async function originNames(app: App, collection: CollectionMetadata, pack
  * import only ever removes files inside the collection's own folder. Templates are
  * recorded by id (`templates`, keyed by their id): installed as the vault holds them,
  * code included, and with the packed version, without code, as their source. A user preset
- * is recorded by its id (`presets`).
+ * and the dice sets are recorded by their ids (`presets`, `diceSets`).
  */
 export async function recordRelease(
   app: App,
@@ -59,8 +64,7 @@ export async function recordRelease(
   exportedFrom: CollectionMetadata,
   manifest: CollectionBundleManifest,
   cover: CoverFile | null,
-  templates: Readonly<Record<string, InstalledTemplate>>,
-  installedPresets: Readonly<Record<string, InstalledPreset>> = {},
+  byId: InstalledById = {},
 ): Promise<void> {
   const { collection } = manifest;
   let collectionId = exportedFrom.id;
@@ -87,8 +91,7 @@ export async function recordRelease(
     files: {},
     assets: {},
     fields: {},
-    ...(Object.keys(templates).length > 0 && { templates: { ...templates } }),
-    ...(Object.keys(installedPresets).length > 0 && { presets: { ...installedPresets } }),
+    ...withEntries(byId),
   };
   for (const file of manifest.files) {
     if (file.sha256 && !ID_MATCHED_ROLES.has(file.role)) record.files[file.vaultPath] = { target: file.vaultPath, source: file.sha256, installed: file.sha256 };

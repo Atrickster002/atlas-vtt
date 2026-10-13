@@ -1,3 +1,4 @@
+import { D20_DICE_SET_ID } from '../builtInDiceSets';
 import type { SystemPreset } from '../../types/systemPresetTypes';
 import { PATHFINDER_2E_LIGHTS } from '../lightPresets/pathfinder2e';
 import { HP_RESOURCE } from '../../resources/resourceDefinitions';
@@ -24,6 +25,7 @@ export const PATHFINDER_2E: SystemPreset = {
       abstractRangeBands: [],
     },
     dice: { defaultRoll: '1d20', crit: 'natural' },
+    diceSetId: D20_DICE_SET_ID,
     conditions: conditionsOf('pathfinder2e', [
       { name: 'Blinded', color: '#475569', icon: 'blindfold', effect: 'blinded' },
       { name: 'Clumsy', color: '#ca8a04', icon: 'falling', valued: true },

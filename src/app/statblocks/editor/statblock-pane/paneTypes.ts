@@ -1,9 +1,5 @@
 import type { App } from 'obsidian';
 import type { PaneServices } from '../paneServices';
-import type { HistoryResult } from './panelHistory';
-
-/** Undoes or redoes the newest of the panel's own actions, in the history that took it (§8.5). */
-export type PanelHistoryRouter = (kind: 'undo' | 'redo') => HistoryResult;
 
 /** What the pane's note is, as far as editing goes. */
 export type PaneNoteKind =
@@ -25,18 +21,15 @@ export interface StatblockPaneActions {
   /** Shows the note's Properties in this view again (D7). */
   showProperties: () => void;
   changeCollection: (collectionId: string) => void;
-  /** Hides the statblock beside its note (on this device, for every note). */
-  hide?: (() => void) | undefined;
-  /** Opens the template editor in this note's leaf, showing the note's statblock (§8.4). */
-  editTemplate?: ((templateId: string, collectionId: string | null, notePath: string) => void) | undefined;
-  linkToToken?: ((notePath: string, collectionId: string) => void) | undefined;
-  /** Opens the template editor in this note's leaf with a block selected ("Edit in template"). */
-  openTemplateAt?: ((target: TemplateBlockTarget) => void) | undefined;
-  /** The panel's Mod+Z asks this first; null takes it back. Unset where the host routes no keys. */
-  registerHistory?: ((router: PanelHistoryRouter | null) => void) | undefined;
+  /** Opens the template editor in this note's leaf (§8.4); `path` for a template just made, which the library may not have read yet. */
+  editTemplate?: ((templateId: string, collectionId: string | null, notePath: string, options?: EditTemplateOptions) => void) | undefined;
 }
 
-/** A block of a template, to open the template editor on, previewing the note it was added from. */
+export interface EditTemplateOptions {
+  path?: string | undefined;
+}
+
+/** A template to open the template editor on, from the note it was opened from. */
 export interface TemplateBlockTarget {
   templateId: string;
   /** The template's file, which the library may not have read yet (a copy made a moment ago); null for a built-in. */

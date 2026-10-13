@@ -1,6 +1,7 @@
 /**
  * Creating, copying and deleting templates (§4.3, §8.7). New templates are
- * files of their own in the library folder, under ids that never change.
+ * files of their own in the library folder, under ids that never change; the
+ * note beside each (its body) is made, copied and trashed with it.
  * Deleting looks at what uses the template first and can move it all to
  * another one; without a replacement the notes keep naming the deleted
  * template and render with the auto template.
@@ -14,7 +15,7 @@ import type { StatblockRole } from '../model/roleTypes';
 import { isBuiltInTemplateId, type StatblockTemplate, type TemplateId } from '../model/templateTypes';
 import { switchTemplates } from '../notes/templateSwitch';
 import { builtInTemplate } from './builtInTemplates';
-import { flushTemplateSession } from './sessionRegistry';
+import { copyTemplateBody, trashTemplateBody, writeNewTemplateBody } from './templateBodyNotes';
 import { TemplateLibrary } from './TemplateLibrary';
 import { copyName } from './templatePaths';
 import { templateUsage } from './templateUsage';
@@ -22,35 +23,45 @@ import { newTemplateFile } from './templateWriter';
 
 export { TEMPLATE_FOLDER } from './templatePaths';
 
-/** A new template file in the library folder, named after `name` (the next free name when taken), under a new id. */
-export function createTemplateFile(app: App, name: string, template: StatblockTemplate): Promise<{ id: TemplateId; path: string }> {
-  return newTemplateFile(app, TemplateLibrary.forApp(app), name, template);
-}
-
 /**
- * A copy of a template as it is now (an open session's draft included), as a
- * template of its own. It records where it came from, with a built-in's
- * revision, and keeps the source's licence and attribution. The source stays.
+ * A new template file in the library folder, named after `name` (the next
+ * free name when taken), under a new id, with `body` in the note beside it.
  */
-export function copyTemplate(app: App, id: TemplateId, name?: string): Promise<{ id: TemplateId; path: string }> {
-  const library = TemplateLibrary.forApp(app);
-  const source = library.current(id);
-  if (!source) return Promise.reject(new Error(`There is no template with the id ${id}.`));
+export async function createTemplateFile(app: App, name: string, template: StatblockTemplate, body = ''): Promise<{ id: TemplateId; path: string }> {
+  const made = await newTemplateFile(app, TemplateLibrary.forApp(app), name, template);
+  await writeNewTemplateBody(app, made.path, body);
+  return made;
+}
+
+/** What a copy of the template `id` records it came from: the template, with a built-in's revision. */
+export function copiedFrom(id: TemplateId): NonNullable<StatblockTemplate['derivedFrom']> {
   const revision = builtInTemplate(id)?.revision;
-  const derivedFrom = revision === undefined ? { templateId: id } : { templateId: id, revision };
-  return newTemplateFile(app, library, name?.trim() || copyName(source.name), { ...source.template, derivedFrom });
+  return revision === undefined ? { templateId: id } : { templateId: id, revision };
 }
 
 /**
- * Deletes a template's file into the trash. Pending edits are written first;
- * with a `replacement`, every statblock that names the template switches to
+ * A copy of a template as it is saved, as a template of its own, with a copy
+ * of its note. It records where it came from (`copiedFrom`) and keeps the
+ * source's licence and attribution. The source stays.
+ */
+export async function copyTemplate(app: App, id: TemplateId, name?: string): Promise<{ id: TemplateId; path: string }> {
+  const library = TemplateLibrary.forApp(app);
+  const source = library.get(id);
+  if (!source) throw new Error(`There is no template with the id ${id}.`);
+  const made = await newTemplateFile(app, library, name?.trim() || copyName(source.name), { ...source.template, derivedFrom: copiedFrom(id) });
+  await copyTemplateBody(app, source.path, made.path);
+  return made;
+}
+
+/**
+ * Deletes a template's file and its note into the trash; edits not saved are not written.
+ * With a `replacement`, every statblock that names the template switches to
  * it (one batch, notes changed meanwhile keep theirs) and every role that
  * starts from it, a collection's own or a saved system's, starts from the
  * replacement. Without one, notes and roles are left as they are.
  */
 export async function deleteTemplate(app: App, id: TemplateId, replacement: TemplateId | null): Promise<void> {
   if (isBuiltInTemplateId(id)) throw new Error('Built-in templates can\'t be deleted.');
-  await flushTemplateSession(app, id);
   if (replacement !== null && replacement !== id) {
     const usage = templateUsage(app, id);
     await switchTemplates(app, usage.notes.map((path) => ({ path, from: id })), replacement);
@@ -58,7 +69,9 @@ export async function deleteTemplate(app: App, id: TemplateId, replacement: Temp
   }
   const path = TemplateLibrary.forApp(app).get(id)?.path;
   const file = path ? app.vault.getFileByPath(path) : null;
-  if (file) await app.fileManager.trashFile(file);
+  if (!path || !file) return;
+  await trashTemplateBody(app, path);
+  await app.fileManager.trashFile(file);
 }
 
 function rolesWith(roles: readonly StatblockRole[] | undefined, from: TemplateId, to: TemplateId): StatblockRole[] | null {

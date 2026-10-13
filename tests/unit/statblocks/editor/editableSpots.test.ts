@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { FIVE_E_2014_MONSTER } from '../../../../src/app/statblocks/presets/fiveE2014';
 import { GENERIC_CREATURE } from '../../../../src/app/statblocks/presets/generic';
 import { EVERY_BLOCK } from '../../../fixtures/statblockTemplateFixtures';
 import { sheetState } from '../../../../src/app/statblocks/render/sheetState';
@@ -15,13 +16,20 @@ describe('editableSpots', () => {
     expect([...byBlock.values()].flat().some((field) => field.key === 'image')).toBe(false);
   });
 
-  it('edits each field in the block that shows it, a line\'s fields together', () => {
+  it('edits each field in the block that shows it, the header\'s parts first, a line\'s fields together', () => {
     const { byBlock } = spotsOf({});
-    expect(byBlock.get('gcline00')?.map((field) => field.key)).toEqual(['size', 'type']);
-    expect(byBlock.get('gchp0000')?.map((field) => field.key)).toEqual(['hp']);
+    expect([...byBlock.keys()].slice(0, 5)).toEqual(['header-name', 'header-level', 'header-type', 'header-hp', 'header-description']);
+    expect(byBlock.get('header-hp')?.map((field) => field.key)).toEqual(['hp']);
     expect(byBlock.get('gcaction')?.map((field) => field.key)).toEqual(['actions']);
     // Containers hold no values of their own.
-    expect(byBlock.has('gchead00')).toBe(false);
+    expect(byBlock.has('gcstrip0')).toBe(false);
+    const fiveE = FIVE_E_2014_MONSTER.template;
+    expect(spotsOf({}, fiveE).byBlock.get('e4line00')?.map((field) => field.key)).toEqual(['size', 'subtype', 'alignment']);
+    expect(spotsOf({}, fiveE).byBlock.get('header-hp')?.map((field) => field.key)).toEqual(['hp', 'hit_dice']);
+  });
+
+  it('offers nothing in a part of the header the template hides', () => {
+    expect(spotsOf({}, FIVE_E_2014_MONSTER.template).byBlock.has('header-description')).toBe(false);
   });
 
   it('offers nothing in a block the card hides', () => {

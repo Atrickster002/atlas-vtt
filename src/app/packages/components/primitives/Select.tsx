@@ -1,6 +1,8 @@
-import React, { useEffect, useId, useRef, useState } from 'react';
+import React, { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { Check, ChevronDown } from 'lucide-react';
 import { cn } from '../../../../utils/cn';
+import { LIST_FITS, fitList, type ListFit } from './popoverFit';
+import { viewFrame } from './useKeepInView';
 
 export interface SelectOption<T extends string> {
   value: T;
@@ -19,14 +21,29 @@ interface SelectProps<T extends string> {
 }
 
 const STEP: Record<string, number> = { ArrowDown: 1, ArrowUp: -1 };
+/** Room between the trigger and its list (`atlas-select-popover`). */
+const LIST_GAP = 4;
 
 /** Single-choice select with Atlas styling instead of the native popup; arrow keys move, Enter picks, Escape closes. */
 export function Select<T extends string>({ value, options, onChange, labelledBy, disabled = false }: SelectProps<T>): React.JSX.Element {
   const [isOpen, setIsOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
   const listId = useId();
+  const [fit, setFit] = useState<ListFit>(LIST_FITS);
   const selected = options.find(option => option.value === value);
+
+  // Placed before paint: above the trigger or shortened where the view's edge would cut the list.
+  useLayoutEffect(() => {
+    const trigger = triggerRef.current;
+    const list = listRef.current;
+    if (!isOpen || !trigger || !list) {
+      setFit(LIST_FITS);
+      return;
+    }
+    setFit(fitList(trigger.getBoundingClientRect(), list.offsetHeight, viewFrame(trigger), LIST_GAP));
+  }, [isOpen, options.length]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -82,7 +99,9 @@ export function Select<T extends string>({ value, options, onChange, labelledBy,
       <span className="atlas-select-value">{selected?.label}</span>
       <ChevronDown aria-hidden="true" className={cn('atlas-select-chevron', isOpen && 'atlas-rotated')} />
     </button>
-    {isOpen && <div id={listId} role="listbox" aria-labelledby={labelledBy} className="atlas-select-content" onKeyDown={onListKeyDown}>
+    {isOpen && <div ref={listRef} id={listId} role="listbox" aria-labelledby={labelledBy} onKeyDown={onListKeyDown}
+      className={cn('atlas-select-content', fit.up && 'atlas-select-content--up')}
+      style={fit.maxHeight === null ? undefined : { maxHeight: fit.maxHeight }}>
       {options.map(option => <button key={option.value} type="button" role="option" aria-selected={option.value === value}
         className={cn('atlas-select-option', option.value === value && 'atlas-selected')} onClick={() => pick(option.value)}>
         <span className="atlas-select-option-text">{option.label}</span>

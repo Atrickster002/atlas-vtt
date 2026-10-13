@@ -1,48 +1,48 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import type { App } from 'obsidian';
 import { useTemplateLibrary } from '../../library/useTemplateLibrary';
 import { deleteTemplate } from '../../library/templateActions';
-import { noteName } from '../../../utils/pathUtils';
+import { templateUsage, type TemplateUsage } from '../../library/templateUsage';
+import type { FieldRecord } from '../../values/fieldValues';
 import { TemplateDragAndDrop } from '../dnd/DndProvider';
-import { foldedBlocks } from '../../render/foldRule';
-import { FoldedChips } from '../panel-frame/FoldedChips';
+import { selectableBlocks } from '../../model/templateGrid';
+import { toggleHeaderPartHidden } from './blockActions';
+import { HiddenValueChips } from './shell/HiddenValueChips';
 import { BlankCard } from './BlankCard';
-import { insertNamedStat } from './blockActions';
 import { Canvas } from './Canvas';
 import { DeleteTemplateDialog } from './DeleteTemplateDialog';
-import { dockMenuEntries } from './dock/dockPanels';
-import { EditorFloats } from './dock/EditorFloats';
-import { useFloatingPanels } from './dock/useFloatingPanels';
-import { TemplateEditorContext, type TemplateEditorContextValue } from './editorContext';
+import { TemplateDiceDialog } from './dice/TemplateDiceDialog';
+import { setTemplateDiceSet } from './dice/templateDiceEdit';
+import { EditorDock } from './dock/EditorDock';
+import { TemplateEditorContext, type TableTypingRequest, type TemplateEditorContextValue } from './editorContext';
+import { tableParts } from '../../model/tableColumns';
+import type { LabelPart } from './labelTargets';
 import { EditorOverlays } from './EditorOverlays';
-import { primaryOf, type BlockSelection } from './selection';
+import { insertItems } from './insertItems';
+import { optionsKindOf } from './options/optionsKind';
+import { TemplateJsonEditor } from './json/TemplateJsonEditor';
+import { nameTakenIn, type SaveRequest } from './save/saveChoice';
+import { SaveTemplateDialog } from './save/SaveTemplateDialog';
+import type { BlockSelection } from './selection';
 import type { EditorSession } from './sessionTypes';
 import { handleShellKey } from './shell/shellKeys';
-import type { ShowWith, ShowWithMode } from './shell/showWith';
 import { TemplateFooterLine } from './shell/TemplateFooterLine';
-import { TemplateCapsule } from './shell/TemplateCapsule';
+import { TemplateCapsule, canSave } from './shell/TemplateCapsule';
 import { TemplateNoteRow } from './shell/TemplateNoteRow';
 import { TemplateStateBars } from './shell/TemplateStateBars';
 import { usePanelRoom } from './shell/usePanelRoom';
-import { useShowAs } from './shell/useShowAs';
-import { useShowWith } from './shell/useShowWith';
 import { useCollectionFieldKeys } from './useCollectionFieldKeys';
 import { useEditorCollection } from './useEditorCollection';
 import { useSessionSnapshot } from './useEditorSession';
 import { useEditorState } from './useEditorState';
-import { usePreviewRecord } from './usePreviewRecord';
+import { removePart } from './tileParts';
 import { useTemplateKeyboard, type KeyboardTarget, type KeyHandler } from './useTemplateKeyboard';
-import { useTemplateUsage } from './useTemplateUsage';
-import { duplicateTemplate, newStatblockFromTemplate, type TemplateTarget } from './templateEditorActions';
 import './template-editor.scss';
 
 /** What the editor asks of the view that hosts it. */
 export interface TemplateEditorHost {
-  /** Opens a template: in this tab or in a new one. */
-  openTemplate: (target: TemplateTarget, where: 'here' | 'tab') => void;
-  openNote: (path: string) => void;
-  /** Back to the note this leaf showed before "Edit template" (§8.4). */
-  backToNote?: (() => void) | undefined;
+  /** Saves as the save dialog asked; resolves with why it could not, or null once saved. */
+  save: (request: SaveRequest) => Promise<string | null>;
   /** The template was deleted from here. */
   close: () => void;
 }
@@ -51,28 +51,27 @@ export interface TemplateEditorProps {
   app?: App | undefined;
   session: EditorSession;
   host: TemplateEditorHost;
-  /** The statblock the editor shows its template with ("Edit template" from a statblock, or chosen). */
-  previewPath: string | null;
-  /** Sample or Empty as chosen; null while nothing was chosen. */
-  previewMode?: ShowWithMode | null | undefined;
-  onShowWithChange: (choice: ShowWith) => void;
+  /** The collection the editor was opened for; the default collection where it names none. */
   collectionId: string | null;
-  onCollectionChange: (collectionId: string) => void;
   initialSelection?: BlockSelection | undefined;
-  /** The note this leaf showed before "Edit template" (§8.4); null when it opened on its own. */
-  fromNote?: string | null | undefined;
   /** The view's key scope asks this handler first (§7.7). */
   registerKeys?: ((handler: KeyHandler | null) => void) | undefined;
 }
 
 /** Shares copied blocks where no app does (a test without Obsidian). */
 const LOCAL_CLIPS = {};
+/** The card holds no values: every block shows the prompt a new statblock shows. */
+const EMPTY_RECORD: FieldRecord = {};
 
 /**
- * The template editor (§2): the note view with its statblock, the note on the
+ * The template editor (§2): the note view with its statblock, the template's
+ * note (the text new statblocks start with, in Obsidian's own editor) on the
  * left and the card on the right at the width the user's notes give it, with
- * the dock and the floating panels over the note column. Everything it
- * changes goes through the session, one undo step per action.
+ * the dock of the six kinds over the note column. The card is the grid
+ * (`templateGrid`), drawn empty and unfolded: its tiles are selected, renamed
+ * in place, configured through the toolbar under them and dragged by their
+ * handle. Every change edits the session's draft, one undo step per action;
+ * nothing of the card is written until Save. The note saves as it is typed.
  */
 export function TemplateEditor(props: TemplateEditorProps): React.JSX.Element {
   const { app, session, host, registerKeys } = props;
@@ -81,35 +80,35 @@ export function TemplateEditor(props: TemplateEditorProps): React.JSX.Element {
   const rowRef = useRef<HTMLDivElement>(null);
   const previewRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
-  const [root, setRoot] = useState<HTMLDivElement | null>(null);
   const [layer, setLayer] = useState<HTMLDivElement | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [deleting, setDeleting] = useState(false);
-  const [copying, setCopying] = useState(false);
-  const collection = useEditorCollection(app, props.collectionId);
-  const collectionId = collection?.collectionId ?? props.collectionId;
+  const [deleting, setDeleting] = useState<TemplateUsage | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [diceRolls, setDiceRolls] = useState(false);
+  const [json, setJson] = useState(false);
+  // The selected tile's Options popover, and the input it opens on.
+  const [options, setOptions] = useState<{ focusKey?: string | undefined } | null>(null);
+  const collectionId = useEditorCollection(app, props.collectionId);
   const collectionKeys = useCollectionFieldKeys(app, collectionId);
-  const usage = useTemplateUsage(app, snapshot.id);
-  const shown = useShowWith(app, usage.notes, props.previewPath, props.previewMode ?? null);
-  const preview = usePreviewRecord(app, snapshot.template, shown.showWith);
   const library = useTemplateLibrary(app ?? null);
   const room = usePanelRoom(app, rowRef, previewRef);
-  const showAs = useShowAs(rootRef);
-  const floats = useFloatingPanels(app, room.editorWidth, room.noteColumn);
   const state = useEditorState({ session, snapshot, collectionKeys, stageRef, layer, initialSelection: props.initialSelection });
-  // Sections unfolded here stay open while the editor lives; the rest fold as in the note view (§8.2, J6).
-  const [unfolded, setUnfolded] = useState<ReadonlySet<string>>(() => new Set());
-  const folded = useMemo(() => foldedBlocks(snapshot.template, preview.record, unfolded), [snapshot.template, preview.record, unfolded]);
-  const foldedKey = folded.map((block) => block.blockId).join(' ');
-  const foldedSet = useMemo(() => new Set(foldedKey ? foldedKey.split(' ') : []), [foldedKey]);
-  const unfold = (blockId: string): void => {
-    setUnfolded((now) => new Set([...now, blockId]));
-    state.select([blockId], true);
+  const openSave = (): void => {
+    // A component exists only with a name: one still waiting for it goes before the template is saved.
+    state.naming?.onCancel(false);
+    if (canSave(session.getSnapshot())) setSaving(true);
+  };
+
+  // A Table has no label of its own: Enter (or Rename) types its first cell instead.
+  const [tableTyping, setTableTyping] = useState<TableTypingRequest | null>(null);
+  const editLabel = (id: string, part?: LabelPart): void => {
+    if (tableParts(session.getSnapshot().template, id)) setTableTyping((now) => ({ blockId: id, count: (now?.count ?? 0) + 1 }));
+    else state.editLabel(id, part);
   };
 
   const target: KeyboardTarget = {
     rootRef, session, selection: state.selection, drawn: state.drawn, select: state.select, settle: state.settle,
-    editLabel: state.editLabel, openInsert: () => state.openInsert(), openMenu: () => setMenuOpen(true), clipOwner: app ?? LOCAL_CLIPS,
+    editLabel, openInsert: () => state.openInsert(), openMenu: () => setMenuOpen(true), openSave, clipOwner: app ?? LOCAL_CLIPS,
   };
   const onKey = useTemplateKeyboard(target);
   useEffect(() => {
@@ -117,36 +116,37 @@ export function TemplateEditor(props: TemplateEditorProps): React.JSX.Element {
     return () => registerKeys?.(null);
   }, [registerKeys, onKey]);
 
+  // A tile placed asks for its name alone: Options open for another tile close.
+  const naming = state.naming?.blockId ?? null;
+  useEffect(() => {
+    if (naming !== null) setOptions(null);
+  }, [naming]);
+
+  // Only a tile that has Options opens them: a part of the header has none.
+  const openOptions = (focusKey?: string): void => {
+    const [only] = state.selection;
+    if (state.selection.length === 1 && only && optionsKindOf(session.getSnapshot().template, only)) setOptions({ focusKey });
+  };
   const context: TemplateEditorContextValue = {
     app, session, snapshot, selection: state.selection, select: state.select,
-    insert: (item) => {
-      state.insert(item);
-      floats.inserted();
-    },
-    insertNamedStat: (name) => {
-      state.settle(insertNamedStat(session, name, { after: primaryOf(state.selection) }));
-      floats.inserted();
-    },
-    editLabel: state.editLabel, announce: state.announce, collectionId, collectionKeys, openSettings: floats.openSettings,
+    insert: (item) => state.insert(item),
+    editLabel, announce: state.announce, collectionId, collectionKeys, openOptions, tableTyping,
   };
-  const newStatblock = app ? (): void => { void newStatblockFromTemplate(app, snapshot.id, collectionId); } : undefined;
-  const makeCopy = app && !copying ? (): void => {
-    setCopying(true);
-    void duplicateTemplate(app, snapshot.id).then((made) => {
-      setCopying(false);
-      if (made) host.openTemplate(made, 'tab');
-    });
-  } : undefined;
-  const fromNote = props.fromNote ?? null;
+  // Focus goes back to the card: the selected tile, else the first thing on it.
+  const closeJson = (): void => {
+    setJson(false);
+    state.select(state.selection.length > 0 ? state.selection : selectableBlocks(snapshot.template).slice(0, 1));
+  };
 
   return (
     <TemplateEditorContext.Provider value={context}>
       <div
-        ref={(element) => { rootRef.current = element; setRoot(element); }}
+        ref={rootRef}
         className="atlas-te"
         data-width={room.editorWidth}
+        style={{ '--atlas-te-panel-width': `${room.width}px` } as React.CSSProperties}
         onKeyDown={(event) => {
-          if (!handleShellKey(event.nativeEvent, floats) && !onKey(event.nativeEvent)) return;
+          if (!handleShellKey(event.nativeEvent, () => openOptions()) && !onKey(event.nativeEvent)) return;
           event.preventDefault();
           event.stopPropagation();
         }}
@@ -156,9 +156,9 @@ export function TemplateEditor(props: TemplateEditorProps): React.JSX.Element {
           stageRef={stageRef}
           session={session}
           readOnly={snapshot.readOnly}
-          record={preview.record}
+          record={EMPTY_RECORD}
           app={app}
-          sourcePath={preview.sourcePath}
+          sourcePath={undefined}
           settle={state.settle}
           select={state.select}
           announce={state.announce}
@@ -167,82 +167,61 @@ export function TemplateEditor(props: TemplateEditorProps): React.JSX.Element {
             ref={rowRef}
             app={app}
             room={room}
-            showWith={shown.showWith}
             previewRef={previewRef}
-            openNote={host.openNote}
             capsule={(
               <TemplateCapsule
-                session={session}
                 snapshot={snapshot}
-                notes={shown.notes}
-                collection={collection}
-                onCollectionChange={props.onCollectionChange}
-                showWith={shown.showWith}
-                onShowWith={props.onShowWithChange}
-                openNote={host.openNote}
+                onSave={openSave}
                 menu={{
-                  showAs: showAs.choice,
-                  showAsChoices: showAs.choices,
-                  onShowAs: showAs.setChoice,
-                  newStatblock,
-                  makeCopy,
-                  backToNote: fromNote && host.backToNote ? { name: noteName(fromNote), go: host.backToNote } : undefined,
-                  deleteTemplate: snapshot.path !== null && app ? () => setDeleting(true) : undefined,
-                  dock: room.editorWidth === 'stacked' ? dockMenuEntries(floats.openDock) : undefined,
+                  diceRolls: () => setDiceRolls(true),
+                  json: { open: json, toggle: () => (json ? closeJson() : setJson(true)) },
+                  deleteTemplate: app && snapshot.path !== null && !snapshot.readOnly ? () => setDeleting(templateUsage(app, snapshot.id)) : undefined,
+                  add: room.editorWidth === 'stacked' && !snapshot.readOnly
+                    ? insertItems().map((item) => ({ label: `Add ${item.label.toLowerCase()}`, icon: 'plus', onClick: () => context.insert(item) }))
+                    : undefined,
                 }}
               />
             )}
-            stateBars={(
-              <TemplateStateBars session={session} snapshot={snapshot} />
-            )}
+            noteCover={json ? <TemplateJsonEditor onDone={closeJson} /> : undefined}
+            stateBars={<TemplateStateBars session={session} snapshot={snapshot} />}
             card={(
               <Canvas
                 stageRef={stageRef}
                 app={app}
                 template={snapshot.template}
                 templateName={snapshot.name}
-                record={preview.record}
-                sourcePath={preview.sourcePath}
+                record={EMPTY_RECORD}
                 selection={state.selection}
                 editable={!snapshot.readOnly}
                 label={state.editing}
                 washId={state.washId}
                 onWashed={state.clearWash}
                 onSelect={(selection) => state.select(selection, false)}
-                onEditLabel={state.editLabel}
+                onEditLabel={editLabel}
                 onInsertAt={state.openInsertAtGap}
+                onRemovePart={(id, index) => state.settle(removePart(session, id, index), true)}
                 focusRequest={state.focusRequest}
                 empty={(
                   <BlankCard onInsert={snapshot.readOnly ? undefined : (item) => context.insert(item)} />
                 )}
-                shownWidth={showAs.width}
-                folded={foldedSet}
               />
             )}
             footer={(
               <>
-                <FoldedChips folded={folded} onUnfold={unfold} />
-                <TemplateFooterLine
-                app={app}
-                snapshot={snapshot}
-                collectionId={collectionId}
-                fromNote={fromNote}
-                showAsLine={showAs.line}
-                onBackToNote={() => showAs.setChoice('note')}
-                />
+                <HiddenValueChips template={snapshot.template} editable={!snapshot.readOnly} onShow={(id) => state.settle(toggleHeaderPartHidden(session, id), true)} />
+                <TemplateFooterLine snapshot={snapshot} />
               </>
             )}
           />
-          <EditorFloats
-            root={root}
-            stage={stageRef.current}
-            session={session}
-            snapshot={snapshot}
-            selection={state.selection}
-            floats={floats}
-            width={room.editorWidth}
-            noteColumn={room.noteColumn}
-          />
+          {room.editorWidth !== 'stacked' && (
+            <EditorDock
+              onAdd={snapshot.readOnly ? undefined : context.insert}
+              canUndo={snapshot.canUndo || state.naming !== null}
+              canRedo={snapshot.canRedo}
+              onUndo={() => (state.naming ? state.naming.onCancel(true) : session.undo())}
+              onRedo={() => session.redo()}
+            />
+          )}
           <div ref={setLayer} className="atlas-te-layer" />
           <EditorOverlays
             app={app}
@@ -253,22 +232,44 @@ export function TemplateEditor(props: TemplateEditorProps): React.JSX.Element {
             target={target}
             menuOpen={menuOpen}
             onMenuOpenChange={setMenuOpen}
-            onSettings={floats.openSettings}
+            options={options}
+            onOptions={openOptions}
+            onOptionsClose={() => setOptions(null)}
           />
         </TemplateDragAndDrop>
+        {saving && rootRef.current && (
+          <SaveTemplateDialog
+            anchor={rootRef.current}
+            subject={snapshot}
+            taken={nameTakenIn(library?.templates ?? [], snapshot.id, app)}
+            onSave={host.save}
+            onClose={() => setSaving(false)}
+          />
+        )}
+        {diceRolls && rootRef.current && (
+          <TemplateDiceDialog
+            app={app}
+            anchor={rootRef.current}
+            diceSetId={snapshot.template.diceSetId ?? null}
+            collectionId={collectionId}
+            readOnly={snapshot.readOnly}
+            onPick={(id) => { setTemplateDiceSet(session, id); }}
+            onClose={() => setDiceRolls(false)}
+          />
+        )}
         {deleting && rootRef.current && app && (
           <DeleteTemplateDialog
             anchor={rootRef.current}
             name={snapshot.name}
             templateId={snapshot.id}
-            usage={usage}
+            usage={deleting}
             templates={library?.templates ?? []}
             onDelete={async (replacement) => {
               await deleteTemplate(app, snapshot.id, replacement);
-              setDeleting(false);
+              setDeleting(null);
               host.close();
             }}
-            onClose={() => setDeleting(false)}
+            onClose={() => setDeleting(null)}
           />
         )}
       </div>

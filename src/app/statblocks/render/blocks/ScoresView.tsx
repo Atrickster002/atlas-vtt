@@ -1,117 +1,96 @@
-import React from 'react';
-import type { ScoreColumn, ScoresBlock } from '../../model/templateTypes';
+import React, { useContext } from 'react';
+import type { ScoresBlock } from '../../model/templateTypes';
 import { valueMisfit } from '../../values/valueFit';
 import { valueText } from '../../values/valueText';
 import { useSheet } from '../sheetContext';
-import { ProblemMarker } from '../values/ProblemMarker';
-import { scoreGroups, scoreSlots, type ScoreSlot } from '../values/scoreSlots';
-import type { ShownText } from '../values/shownText';
+import { columnGroups, shownTable, type ShownTable } from '../values/shownTable';
+import { NO_TEXT } from '../values/shownText';
 import { StandIn, ValueText } from '../values/ValueText';
-import { ValueSlot } from '../valueSlot';
+import { ValueEditingContext, ValueSlot } from '../valueSlot';
 import type { BlockViewProps } from './blockViewProps';
+import { CellText, ColumnName, TABLE_COL_ATTRIBUTE, TABLE_ROW_ATTRIBUTE, TableView, type TableDecor } from './TableView';
 
 type GridStyle = React.CSSProperties & Record<`--${string}`, number>;
 
-/** A number in a score grid; scores and modifiers are not dice to roll. */
-function Cell({ shown, className }: { shown: ShownText; className: string }): React.JSX.Element {
-  return (
-    <span className={className}>
-      {shown.text}
-      {shown.problems.length > 0 && <ProblemMarker problems={shown.problems} />}
-    </span>
-  );
+/** How a Table is drawn: a grid, or a table of one row as one line per column (the 5E 2024 look). */
+export type TableLook = 'grid' | 'lines';
+
+/** The look a Table takes: its lines only while it holds one row. */
+export function tableLook(block: ScoresBlock, shown: ShownTable): TableLook {
+  return block.orientation === 'table' && shown.grid.rows.length === 1 ? 'lines' : 'grid';
 }
 
-/** Labels over scores, each column's values in a row below ("18" over "+4"). */
-function ScoresRow({ slots, columns }: { slots: readonly ScoreSlot[]; columns: readonly ScoreColumn[] }): React.JSX.Element {
-  const labelled = columns.some((column) => column.label?.trim());
-  const style: GridStyle = { '--atlas-sb-score-slots': slots.length };
-  return (
-    <div className={`atlas-sb-scores atlas-sb-scores--row${labelled ? ' atlas-sb-scores--labelled' : ''}`} style={style}>
-      {labelled && <span className="atlas-sb-score-corner" />}
-      {slots.map((slot, index) => <span key={`label-${index}`} className="atlas-sb-score-label">{slot.label}</span>)}
-      {labelled && <span className="atlas-sb-score-corner" />}
-      {slots.map((slot, index) => <Cell key={`score-${index}`} shown={slot.score} className="atlas-sb-score" />)}
-      {columns.map((column, columnIndex) => (
-        <React.Fragment key={`column-${columnIndex}`}>
-          {labelled && <span className="atlas-sb-score-column-label">{column.label ?? ''}</span>}
-          {slots.map((slot, index) => (
-            <Cell key={index} shown={slot.columns[columnIndex] ?? { text: '', problems: [] }} className="atlas-sb-score-column" />
-          ))}
-        </React.Fragment>
-      ))}
-    </div>
-  );
+interface LinesProps {
+  shown: ShownTable;
+  decor?: TableDecor | undefined;
+  /** The columns this group holds, by their place in the table. */
+  cols: readonly number[];
 }
 
-/** One group of the table: a header of column labels, then "Str 21 +5 +5" per slot. */
-function ScoreGroup({ slots, columns }: { slots: readonly ScoreSlot[]; columns: readonly ScoreColumn[] }): React.JSX.Element {
-  const labelled = columns.some((column) => column.label?.trim());
+/** One group of a table of one row: per column its name, its value and its worked-out values ("Str 21 +5 +5"). */
+function LineGroup({ shown, decor, cols }: LinesProps): React.JSX.Element {
+  const labelled = shown.derived.some((row) => row.label.trim());
   return (
     <table className="atlas-sb-score-group">
       {labelled && (
         <thead>
           <tr>
             <td className="atlas-sb-score-corner" colSpan={2} />
-            {columns.map((column, index) => <th key={index} scope="col" className="atlas-sb-score-column-label">{column.label ?? ''}</th>)}
+            {shown.derived.map((row, index) => <th key={index} scope="col" className="atlas-sb-score-column-label">{row.label}</th>)}
           </tr>
         </thead>
       )}
       <tbody>
-        {slots.map((slot, index) => (
-          <tr key={`${slot.label}-${index}`}>
-            <th scope="row" className="atlas-sb-score-label">{slot.label}</th>
-            <td><Cell shown={slot.score} className="atlas-sb-score" /></td>
-            {slot.columns.map((shown, columnIndex) => (
-              <td key={columnIndex}><Cell shown={shown} className="atlas-sb-score-column" /></td>
-            ))}
-          </tr>
-        ))}
+        {cols.map((col) => {
+          const at = { row: 0, col };
+          const cell = <CellText shown={shown.cells[0]?.[col] ?? NO_TEXT} />;
+          const extra = decor?.cellClass?.(at);
+          const attributes = { [TABLE_ROW_ATTRIBUTE]: 0, [TABLE_COL_ATTRIBUTE]: col };
+          return (
+            <tr key={col}>
+              <th scope="row" className="atlas-sb-score-label"><ColumnName name={shown.grid.columns[col]?.name ?? ''} col={col} /></th>
+              <td className={extra ? `atlas-sb-score ${extra}` : 'atlas-sb-score'} {...attributes}>{decor?.cell ? decor.cell(at, cell) : cell}</td>
+              {shown.derived.map((row, index) => (
+                <td key={index} className="atlas-sb-score-column"><CellText shown={row.cells[col] ?? NO_TEXT} /></td>
+              ))}
+            </tr>
+          );
+        })}
       </tbody>
     </table>
   );
 }
 
-const BLANK: ShownText = { text: '–', problems: [] };
-
-/**
- * The grid of an empty score table while a statblock is filled in: its
- * labels over blank cells, so the card keeps its shape and says what goes
- * where (STR DEX CON…); a click on it types the scores.
- */
-function blankSlots(block: ScoresBlock, labels: readonly string[]): ScoreSlot[] {
-  const columns = (block.columns ?? []).map(() => BLANK);
-  return labels.map((label) => ({ label, score: BLANK, columns }));
-}
-
-function ScoresContent({ block, display }: BlockViewProps<ScoresBlock>): React.JSX.Element {
-  const { state } = useSheet();
-  const labels = state.fields.get(block.field)?.slots ?? [];
-  if (display.state === 'prompt' && labels.length > 0) return <ScoresGrid block={block} slots={blankSlots(block, labels)} />;
-  if (display.state !== 'value') return <StandIn display={display} />;
-  // A value that holds no scores (its field's type changed) shows as it is written.
-  const field = state.fields.get(block.field);
-  const value = state.reader(block.field);
-  if (field && valueMisfit(field, value)) return <ValueText shown={{ text: valueText(value), problems: [] }} />;
-
-  const slots = scoreSlots(block, state);
-  if (!slots.length) return <></>;
-  return <ScoresGrid block={block} slots={slots} />;
-}
-
-/** The slots as a row of labelled values, or a table of up to `perLine` groups side by side. */
-function ScoresGrid({ block, slots }: { block: ScoresBlock; slots: readonly ScoreSlot[] }): React.JSX.Element {
-  const columns = block.columns ?? [];
-  if (block.orientation === 'row') return <ScoresRow slots={slots} columns={columns} />;
-  const style: GridStyle = { '--atlas-sb-score-columns': columns.length };
+/** A table of one row as up to `perLine` groups of lines side by side, one line per column. */
+export function TableLines({ shown, decor, perLine }: { shown: ShownTable; decor?: TableDecor | undefined; perLine: number | undefined }): React.JSX.Element {
+  const style: GridStyle = { '--atlas-sb-score-columns': shown.derived.length };
+  const { ref, className, ...frame } = decor?.frame ?? {};
+  const groups = columnGroups(shown.grid.columns.map((_, col) => col), perLine);
   return (
-    <div className="atlas-sb-scores atlas-sb-scores--table" style={style}>
-      {scoreGroups(slots, block.perLine).map((group, index) => <ScoreGroup key={index} slots={group} columns={columns} />)}
+    <div ref={ref} className={className ? `atlas-sb-scores atlas-sb-scores--table ${className}` : 'atlas-sb-scores atlas-sb-scores--table'} style={style} {...frame}>
+      {groups.map((cols, index) => <LineGroup key={index} shown={shown} decor={decor} cols={cols} />)}
     </div>
   );
 }
 
-/** Ability scores and the like: a row of labelled values, or a table of up to `perLine` groups side by side. */
+function ScoresContent({ block, display }: BlockViewProps<ScoresBlock>): React.JSX.Element {
+  const { state } = useSheet();
+  const editing = useContext(ValueEditingContext);
+  const shown = shownTable(block, display, state);
+  if (shown) {
+    const look = tableLook(block, shown);
+    if (editing?.table) return <>{editing.table(block, shown, look)}</>;
+    return look === 'lines' ? <TableLines shown={shown} perLine={block.perLine} /> : <TableView shown={shown} />;
+  }
+  if (display.state !== 'value') return <StandIn display={display} />;
+  // A value that holds no table (its field's type changed) shows as it is written.
+  const field = state.fields.get(block.field);
+  const value = state.reader(block.field);
+  if (field && valueMisfit(field, value)) return <ValueText shown={{ text: valueText(value), problems: [] }} />;
+  return <></>;
+}
+
+/** A Table: rows of cells under named columns, as Obsidian draws a Markdown table, or one row as lines (`TableLines`). */
 export function ScoresView(props: BlockViewProps<ScoresBlock>): React.JSX.Element {
   return <ValueSlot block={props.block}><ScoresContent {...props} /></ValueSlot>;
 }

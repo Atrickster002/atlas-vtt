@@ -6,16 +6,19 @@
  * skills and sanity loss. No system's name or text.
  */
 
+import { PERCENTILE_DICE_SET_ID } from '../../gameSystems/builtInDiceSets';
 import type { BuiltInTemplate } from '../model/templateTypes';
-import { builtIn, headerRow, nameField, portraitField, runInStat, stackedStat } from './presetParts';
+import { builtIn, centredColumns, descriptionField, hiddenParts, nameField, portraitField, runInStat, stackedStat } from './presetParts';
 
-export const PERCENTILE_CREATURE: BuiltInTemplate = builtIn('builtin:percentile-creature', 'Percentile creature', 1, {
+export const PERCENTILE_CREATURE: BuiltInTemplate = builtIn('builtin:percentile-creature', 'Percentile creature', 5, {
+  // A bonus without dice rolls with the system's dice set, whatever the collection rolls (revision 5).
+  diceSetId: PERCENTILE_DICE_SET_ID,
   fields: [
     nameField(),
     portraitField(),
     { key: 'type', label: 'Type', type: 'text', meaning: 'creature-type' },
     {
-      key: 'stats', label: 'Characteristics', type: 'scores', slots: ['STR', 'CON', 'SIZ', 'DEX', 'APP', 'INT', 'POW', 'EDU'],
+      key: 'stats', label: 'Characteristics', type: 'scores', addRows: false, addColumns: false, slots: ['STR', 'CON', 'SIZ', 'DEX', 'APP', 'INT', 'POW', 'EDU'], align: centredColumns(8),
     },
     { key: 'hp', label: 'HP', type: 'number', meaning: 'hit-points' },
     { key: 'mp', label: 'MP', type: 'number' },
@@ -30,20 +33,17 @@ export const PERCENTILE_CREATURE: BuiltInTemplate = builtIn('builtin:percentile-
     { key: 'skills', label: 'Skills', type: 'pairs' },
     { key: 'sanity_loss', label: 'Sanity Loss', type: 'text' },
     { key: 'traits', label: 'Special Abilities', type: 'entries' },
-    { key: 'description', label: 'Description', type: 'markdown' },
+    descriptionField(),
   ],
+  ...hiddenParts('level'),
   layout: {
     maxColumns: 2,
     columnWidth: 22,
     blocks: [
-      headerRow({ row: 'pchead00', section: 'pcname00', image: 'pcimage0' }, [
-        { id: 'pctitle0', type: 'title', field: 'name', level: 1 },
-        { id: 'pcline00', type: 'line', fields: ['type'], pattern: '{type}' },
-      ]),
       { id: 'pcstats0', type: 'scores', field: 'stats', orientation: 'row' },
       {
         id: 'pcstrip0', type: 'row', blocks: [
-          stackedStat('pchp0000', 'hp'), stackedStat('pcmp0000', 'mp'), stackedStat('pcmove00', 'move'), stackedStat('pcbuild0', 'build'),
+          stackedStat('pcmp0000', 'mp'), stackedStat('pcmove00', 'move'), stackedStat('pcbuild0', 'build'),
         ],
       },
       runInStat('pcdamage', 'damage_bonus'),
@@ -52,7 +52,6 @@ export const PERCENTILE_CREATURE: BuiltInTemplate = builtIn('builtin:percentile-
       { id: 'pcattack', type: 'entries', field: 'attacks', heading: 'Attacks', addLabel: 'Add attack' },
       { id: 'pcskill0', type: 'pairs', field: 'skills', label: 'Skills' },
       { id: 'pctraits', type: 'entries', field: 'traits', heading: 'Special Abilities', addLabel: 'Add ability' },
-      { id: 'pcdesc00', type: 'text', field: 'description' },
     ],
   },
   sample: { name: 'Creature name' },

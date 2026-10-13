@@ -34,7 +34,7 @@ export const DEFAULT_GRID_DEFAULTS: Readonly<CollectionGridDefaults> = {
 
 /** What a game system sets in a collection's settings. */
 export type SystemSettings = Required<Pick<CollectionSettings, 'gridDefaults' | 'conditions' | 'defaultWidgets' | 'dice' | 'resources'>>
-  & Pick<CollectionSettings, 'systemPresetId' | 'defaultTokenVision' | 'senses' | 'lightPresets' | 'initiative' | 'statblockRoles'>;
+  & Pick<CollectionSettings, 'systemPresetId' | 'diceSetId' | 'defaultTokenVision' | 'senses' | 'lightPresets' | 'initiative' | 'statblockRoles'>;
 
 /**
  * A collection without a game system: default measurement and dice, HP as its only resource
@@ -48,6 +48,7 @@ export function vanillaSystemSettings(): SystemSettings {
     conditions: [],
     defaultWidgets: barWidgets([HP_RESOURCE]),
     dice: { ...DEFAULT_DICE_RULES },
+    diceSetId: undefined,
     resources: [{ ...HP_RESOURCE }],
     systemPresetId: undefined,
     defaultTokenVision: undefined,
@@ -65,18 +66,21 @@ export function vanillaSystemSettings(): SystemSettings {
  * collection is saved. Senses are not copied: the collection reads its preset's
  * (`collectionSenses`) until the GM edits them, so a corrected built-in sense reaches it; its
  * light presets and initiative rules are read the same way (`collectionLightPresets`,
- * `collectionInitiativeRules`).
+ * `collectionInitiativeRules`). The collection takes the preset's dice set, or its dice rules
+ * where it names no set.
  */
 export function rulesOfPreset(
   preset: SystemPreset,
-): Required<Pick<SystemRules, 'gridDefaults' | 'conditions' | 'defaultWidgets' | 'dice' | 'resources'>> & Pick<SystemRules, 'defaultTokenVision'> {
+): Required<Pick<SystemRules, 'gridDefaults' | 'conditions' | 'defaultWidgets' | 'resources'>> & Pick<SystemRules, 'defaultTokenVision' | 'dice'> & { diceSetId: string | undefined } {
   const vision: TokenVisionDefaults | undefined = preset.rules.defaultTokenVision;
   return {
     gridDefaults: structuredClone(preset.rules.gridDefaults),
     conditions: structuredClone(preset.rules.conditions),
     // The bars new scenes show, which older versions of Atlas read too
     defaultWidgets: { ...barWidgets(preset.rules.resources ?? []), ...preset.rules.defaultWidgets },
-    dice: { ...(preset.rules.dice ?? DEFAULT_DICE_RULES) },
+    // A preset's set is the collection's dice; only a preset without one gives its dice rules
+    ...(!preset.rules.diceSetId && { dice: { ...(preset.rules.dice ?? DEFAULT_DICE_RULES) } }),
+    diceSetId: preset.rules.diceSetId,
     resources: structuredClone(preset.rules.resources ?? []),
     ...(hasVisionDefaults(vision) && { defaultTokenVision: structuredClone(vision) }),
   };
@@ -112,13 +116,21 @@ function enabledWidgets(defaultWidgets: Record<string, boolean> | undefined): st
 }
 
 /**
+ * Whether two rules roll the same dice: the same set where both picked one, else the same
+ * dice rules (a collection saved before sets kept its system's rules as they were).
+ */
+function sameDiceChoice(a: Pick<SystemRules, 'dice' | 'diceSetId'>, b: Pick<SystemRules, 'dice' | 'diceSetId'>): boolean {
+  return a.diceSetId && b.diceSetId ? a.diceSetId === b.diceSetId : sameDiceRules(a.dice, b.dice);
+}
+
+/**
  * Whether a collection's `rules` play as `preset` does; condition ids do not matter. Rules
  * without senses, light presets, initiative rules or statblock roles of their own read the
  * preset's, so they are the same in that. Role folders are no part of the rules.
  */
 export function sameSystemRules(preset: SystemRules, rules: SystemRules): boolean {
   return sameGridDefaults(preset.gridDefaults, rules.gridDefaults)
-    && sameDiceRules(preset.dice, rules.dice)
+    && sameDiceChoice(preset, rules)
     && sameResourceDefinitions(preset.resources, rules.resources)
     && enabledWidgets(preset.defaultWidgets) === enabledWidgets(rules.defaultWidgets)
     && sameVisionDefaults(preset.defaultTokenVision, rules.defaultTokenVision)

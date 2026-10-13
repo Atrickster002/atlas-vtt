@@ -5,12 +5,15 @@
  * without migration), and JavaScript is kept verbatim in script blocks and
  * `fsExtras`, never run. Layout-level keys the template does not model
  * (`diceParsing`, `cssProperties`, `forceColumns`) go to `importedFrom.extras`.
+ * The name, image, type, level, hit points and description go to the header
+ * Atlas draws (`fsHeader.ts`).
  */
 
 import { isRecord, jsonRecordCopy, own } from '../format/jsonValues';
 import { TEMPLATE_FORMAT, TEMPLATE_VERSION, type StatblockTemplate, type TemplateLayout } from '../model/templateTypes';
 import { convertBlocks } from './fsBlocks';
-import { FsFieldRegistry, FsReportTally, sequentialBlockIds, type ImportContext } from './fsImportState';
+import { withFsHeader } from './fsHeader';
+import { FsFieldRegistry, FsLookupTables, FsReportTally, sequentialBlockIds, type ImportContext } from './fsImportState';
 import type { FsImportOptions, FsImportResult, FsLayout } from './fsLayoutTypes';
 import { textOf } from './fsBlockParts';
 
@@ -53,6 +56,7 @@ export function fsLayoutToTemplate(layout: FsLayout, options: FsImportOptions): 
   const layoutName = textOf(record, 'name') ?? '';
   const ctx: ImportContext = {
     fields: new FsFieldRegistry(),
+    lookups: new FsLookupTables(),
     tally: new FsReportTally(),
     nextId: sequentialBlockIds(),
     resolveLayout: options.resolveLayout,
@@ -62,13 +66,15 @@ export function fsLayoutToTemplate(layout: FsLayout, options: FsImportOptions): 
   const blocks = convertBlocks(own(record, 'blocks'), ctx, { depth: 0, parent: 'root' });
   const extras = jsonRecordCopy(Object.fromEntries(Object.entries(record).filter(([key]) => !READ_KEYS.has(key))));
   const fields = ctx.fields.fields();
-  const template: StatblockTemplate = {
+  const lookups = ctx.lookups.all();
+  const template: StatblockTemplate = withFsHeader({
     format: TEMPLATE_FORMAT,
     version: TEMPLATE_VERSION,
     id: options.id,
     importedFrom: { layoutId, layoutName, ...(extras && Object.keys(extras).length > 0 ? { extras } : {}) },
     fields,
+    ...(lookups && { lookups }),
     layout: { maxColumns: maxColumnsOf(own(record, 'columns'), ctx.tally), ...columnWidthOf(own(record, 'columnWidth')), blocks },
-  };
+  });
   return { template, report: ctx.tally.report(fields.length) };
 }

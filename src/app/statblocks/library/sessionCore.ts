@@ -1,7 +1,8 @@
 /**
  * One open template, shared by every view of it in any window (§8.7): the
  * draft with its history (§7.8) and its file. Views hold `TemplateSession`
- * handles; the registry keeps one core per app and template id.
+ * handles; the registry keeps one core per app and template id. Nothing is
+ * written until a view saves.
  */
 
 import type { App } from 'obsidian';
@@ -12,34 +13,47 @@ import {
 import type { LibraryTemplate } from '../model/resolvedTypes';
 import type { StatblockTemplate, TemplateId } from '../model/templateTypes';
 import { createTemplateDraftStore, type TemplateDraftStore, type TemplateEdit } from './sessionStore';
-import { SessionFile, type ConflictChoice, type RenameResult } from './sessionFile';
-import type { ReadOnlyReason } from './sessionFileSync';
+import { SessionFile, type ConflictChoice } from './sessionFile';
+import type { ReadOnlyReason, SaveResult } from './sessionFileSync';
 import type { SessionConflict } from './templateConflict';
 import { TemplateLibrary } from './TemplateLibrary';
 
 export type SaveState = 'saved' | 'dirty' | 'saving' | 'error' | 'conflict';
 
+/** The role of a collection a template made from the gallery starts new statblocks for, once it is saved. */
+export interface RoleOnSave {
+  collectionId: string;
+  roleId: string;
+}
+
 export interface SessionSnapshot {
   id: TemplateId;
-  /** The file's basename; a built-in's own name. */
+  /** The file's basename; a built-in's own name; the name a template never saved starts with. */
   name: string;
-  /** Null for built-ins. */
+  /** Null for built-ins and templates never saved. */
   path: string | null;
+  /** A built-in: edited like any template, saved only as a new one. */
+  builtIn: boolean;
+  /** Made in the editor and never saved: its first save names it. */
+  unsaved: boolean;
+  /**
+   * For a template never saved: the text its first save writes into the note
+   * beside it (a statblock's own text, when the template was made from one);
+   * empty otherwise. Saved templates keep theirs in that note.
+   */
+  draftBody: string;
+  /** The draft differs from what the file holds (always, for a template never saved). */
+  dirty: boolean;
   /** The draft. */
   template: StatblockTemplate;
   readOnly: boolean;
   readOnlyReason: ReadOnlyReason | null;
   saveState: SaveState;
-  /** "Couldn't save: <reason>. Retrying", or why a conflict could not be resolved as asked. */
+  /** "Couldn't save: <reason>.", or why a conflict could not be resolved as asked. */
   saveProblem: string | null;
   conflict: SessionConflict | null;
   canUndo: boolean;
   canRedo: boolean;
-  /**
-   * A built-in shown editable (`copyOnWriteSession.ts`): its first change
-   * makes the collection's own copy, which the editor shows from then on.
-   */
-  copyOnWrite?: { builtInId: TemplateId; builtInName: string } | undefined;
 }
 
 function sameSnapshot(a: SessionSnapshot, b: SessionSnapshot): boolean {
@@ -53,10 +67,20 @@ export class SessionCore {
     const entry = library.get(id);
     if (!entry) return null;
     const text = entry.path === null ? '' : library.fileAt(entry.path)?.text;
-    return text === undefined ? null : new SessionCore(app, library, entry, text);
+    return text === undefined ? null : new SessionCore(app, library, entry, text, false);
+  }
+
+  /** The core of a template made in the editor that has no file yet, named `name` until its first save. */
+  static unsaved(app: App, template: StatblockTemplate, name: string, role: RoleOnSave | null, body: string): SessionCore {
+    const entry: LibraryTemplate = { template, name, status: 'ok', builtIn: false, path: null };
+    const core = new SessionCore(app, TemplateLibrary.forApp(app), entry, '', true, body);
+    core.roleOnSave = role;
+    return core;
   }
 
   readonly id: TemplateId;
+  /** For a template never saved: the role its first save gives it. */
+  roleOnSave: RoleOnSave | null = null;
 
   private readonly store: TemplateDraftStore;
   private readonly file: SessionFile;
@@ -67,13 +91,15 @@ export class SessionCore {
   private snapshot: SessionSnapshot;
   private disposed = false;
 
-  private constructor(app: App, library: TemplateLibrary, entry: LibraryTemplate, text: string) {
+  private constructor(
+    app: App, library: TemplateLibrary, entry: LibraryTemplate, text: string, unsaved: boolean, private readonly draftBody = '',
+  ) {
     this.id = entry.template.id;
     this.store = createTemplateDraftStore(entry.template);
-    this.file = new SessionFile(app, library, this.id, entry, text, this);
+    this.file = new SessionFile(app, library, this.id, entry, text, this, unsaved);
     this.snapshot = this.build();
     this.detachers.push(
-      this.store.subscribe((state, previous) => { if (state.template !== previous.template) this.draftChanged(); }),
+      this.store.subscribe((state, previous) => { if (state.template !== previous.template) this.changed(); }),
       this.history().subscribe(() => this.changed()),
       library.subscribe(() => { if (!this.disposed) this.file.libraryChanged(); }),
     );
@@ -120,7 +146,6 @@ export class SessionCore {
   beginGesture(): boolean {
     if (this.disposed || this.file.readOnly) return false;
     this.gestureStarts.push(this.draft());
-    this.file.holdWrites();
     beginHistoryTransaction(this.store);
     return true;
   }
@@ -128,7 +153,7 @@ export class SessionCore {
   endGesture(): void {
     if (this.gestureStarts.pop() === undefined) return;
     endHistoryTransaction(this.store);
-    this.gestureEnded();
+    this.changed();
   }
 
   /** Puts back what the innermost gesture changed and leaves no step for it. */
@@ -138,7 +163,7 @@ export class SessionCore {
     // Still inside the transaction: putting the start back records nothing.
     this.store.setState({ template: start });
     abandonHistoryTransaction(this.store);
-    this.gestureEnded();
+    this.changed();
   }
 
   undo(): void {
@@ -149,17 +174,14 @@ export class SessionCore {
     if (!this.disposed && !this.file.readOnly && !this.inGesture()) this.history().getState().redo();
   }
 
-  flush(): Promise<void> {
-    return this.file.flush();
+  /** Writes the draft over the template's file ("Update"). */
+  save(): Promise<SaveResult> {
+    return this.disposed ? Promise.resolve({ ok: false, problem: 'The template is closed.' }) : this.file.save();
   }
 
-  /** The last write before the session goes away; a draft in conflict is kept as a copy. */
-  flushForExit(): Promise<void> {
-    return this.file.flushForExit();
-  }
-
-  rename(name: string): Promise<RenameResult> {
-    return this.file.rename(name);
+  /** Drops the unsaved changes and their history: the draft is what the file holds again. */
+  discard(): void {
+    if (!this.disposed) this.file.discard();
   }
 
   resolveConflict(choice: ConflictChoice): Promise<void> {
@@ -171,7 +193,6 @@ export class SessionCore {
     this.disposed = true;
     for (const detach of this.detachers) detach();
     this.detachers.length = 0;
-    this.file.dispose();
     this.listeners.clear();
   }
 
@@ -179,16 +200,6 @@ export class SessionCore {
     const history = getHistoryStore(this.store);
     if (!history) throw new Error('A template draft store has no history.');
     return history;
-  }
-
-  private draftChanged(): void {
-    this.file.draftChanged();
-    this.changed();
-  }
-
-  private gestureEnded(): void {
-    if (!this.inGesture()) this.file.draftChanged();
-    this.changed();
   }
 
   private build(): SessionSnapshot {
@@ -199,6 +210,10 @@ export class SessionCore {
       id: this.id,
       name: this.file.name,
       path: this.file.path,
+      builtIn: this.file.builtIn,
+      unsaved: this.file.unsaved,
+      draftBody: this.file.unsaved ? this.draftBody : '',
+      dirty: editable && this.file.isDirty(),
       template: this.draft(),
       readOnly: !editable,
       readOnlyReason: readOnly,

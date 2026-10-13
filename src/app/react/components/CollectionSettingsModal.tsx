@@ -20,7 +20,8 @@ import { handledByAnotherControl } from '../../keyboard/tooltipEscape';
 import { useSystemPresets } from '../hooks/useSystemPresets';
 import { useCollectionSettingsDraft } from './collection-settings/useCollectionSettingsDraft';
 import { useExperimentalFeature } from '../hooks/useExperimentalFeature';
-import { collectionDiceRules, isValidDiceRules } from '../../gameSystems/diceRules';
+import { collectionDiceSet } from '../../gameSystems/diceSetResolution';
+import { useDiceSets } from '../hooks/useDiceSets';
 import { collectionInitiativeRules, isValidInitiativeRules } from '../../gameSystems/initiativeRules';
 import { sensesAreValid } from '../../gameSystems/senseEditing';
 import { collectionSenses } from '../../gameSystems/senseRules';
@@ -73,6 +74,7 @@ export function CollectionSettingsModal({
   };
   const assetService = app ? AssetService.getInstance(app) : null;
   const systemPresets = useSystemPresets(app);
+  const diceSets = useDiceSets(app);
   const windowVariants = useDialogWindowVariants();
 
   const [activeTab, setActiveTab] = useState<CollectionSettingsTab>(initialTab);
@@ -112,7 +114,7 @@ export function CollectionSettingsModal({
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onClose]);
 
-  const dice = collectionDiceRules(draft, systemPresets.presets);
+  const diceSet = collectionDiceSet(draft, systemPresets.presets, diceSets.sets);
   const systemInitiative = collectionInitiativeRules({ systemPresetId: draft.systemPresetId }, systemPresets.presets);
   // The draft as it is typed, half a roll included; only stored rules are parsed
   const initiative = draft.initiative ?? systemInitiative;
@@ -121,7 +123,6 @@ export function CollectionSettingsModal({
   const systemSenses = collectionSenses({ systemPresetId: draft.systemPresetId }, systemPresets.presets);
   const canSave = areRangeBandsValid(draft.gridDefaults.abstractRangeBands)
     && isUnitDistance(draft.gridDefaults.unitDistance)
-    && isValidDiceRules(dice)
     && isValidInitiativeRules(initiative)
     && sensesAreValid(senses)
     && draft.customCreatureFilters.every(isCompleteCreatureFilter)
@@ -209,7 +210,8 @@ export function CollectionSettingsModal({
               collectionId={collectionId}
               draft={draft}
               systemPresets={systemPresets}
-              rules={{ dice, initiative, systemInitiative, senses, systemSenses }}
+              diceSets={diceSets}
+              rules={{ diceSet, initiative, systemInitiative, senses, systemSenses }}
               features={features}
               creatures={collectionCreatures}
               roleTemplates={roleTemplates}

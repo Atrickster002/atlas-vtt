@@ -8,6 +8,7 @@ import {
   templateName,
 } from '../../../../src/app/statblocks/library/templateFiles';
 import { MARSH_CREATURE } from '../../../fixtures/statblockTemplateFixtures';
+import { withHeader } from '../../../../src/app/statblocks/model/headerDuplicates';
 import { MARSH_ID, MARSH_PATH, libraryEntry, marshText } from './templateTexts';
 
 describe('template files', () => {
@@ -22,7 +23,7 @@ describe('template files', () => {
   it('reads a file into what the library hands out, and moves it without reading it again', () => {
     const file = readTemplateFile(MARSH_PATH, marshText());
     expect(file).toMatchObject({ path: MARSH_PATH, name: 'Marsh creature', status: 'ok', problems: [] });
-    expect(file.entry).toEqual({ template: MARSH_CREATURE, name: 'Marsh creature', status: 'ok', builtIn: false, path: MARSH_PATH });
+    expect(file.entry).toEqual({ template: withHeader(MARSH_CREATURE), name: 'Marsh creature', status: 'ok', builtIn: false, path: MARSH_PATH });
 
     const moved = movedTemplateFile(file, 'Elsewhere/Bog.atlastemplate');
     expect(moved).toMatchObject({ name: 'Bog', path: 'Elsewhere/Bog.atlastemplate', text: file.text });

@@ -6,8 +6,9 @@
 import { blockVisibility, evaluateCondition } from '../expressions/conditions';
 import { patternRefs } from '../expressions/patternRefs';
 import { blockSpec } from '../model/blockCatalogue';
+import { kindName } from '../model/templateGrid';
 import { boundField, fieldsShownBy } from '../model/treeQueries';
-import { isContainerBlock, type ContainerBlock, type FieldKey, type TemplateBlock } from '../model/templateTypes';
+import { isContainerBlock, type ContainerBlock, type FieldKey, type TemplateBlock, type TemplateField } from '../model/templateTypes';
 import type { SheetState } from './sheetState';
 import { blockText, isPatternBlock } from './values/blockText';
 import { hasText, shownPattern, type ShownText } from './values/shownText';
@@ -39,14 +40,22 @@ function inPrompt(label: string): string {
   return label.split(/(\s+)/).map((word) => (word.length > 1 && word === word.toUpperCase() ? word : word.toLowerCase())).join('');
 }
 
-/** What the editing mode shows for an empty block: its field's prompt, else "Add <label>" ("Add speed"). */
+/** What the editing mode shows for an empty value: its field's prompt, else `own`, else "Add <label>" ("Add speed"), else `unnamed`. */
+export function valuePrompt(field: Pick<TemplateField, 'label' | 'prompt'> | undefined, unnamed: string, own?: string): string {
+  const prompt = field?.prompt?.trim() || own;
+  if (prompt) return prompt;
+  const label = field?.label?.trim();
+  return label ? `Add ${inPrompt(label)}` : unnamed;
+}
+
+/**
+ * What the editing mode shows for an empty block: the prompt of its field, or a list's own "Add" words; a tile not
+ * named yet takes its provisional field's ("Add value").
+ */
 function promptFor(block: TemplateBlock, sheet: SheetState): string {
   const key = boundField(block);
-  const field = key ? sheet.fields.get(key) : undefined;
-  const own = field?.prompt?.trim() || (block.type === 'entries' ? block.addLabel?.trim() : undefined);
-  if (own) return own;
-  const label = field?.label?.trim();
-  return label ? `Add ${inPrompt(label)}` : blockSpec(block.type).label;
+  const field = key ? sheet.fields.get(key) : sheet.provisional;
+  return valuePrompt(field, kindName(block), block.type === 'entries' ? block.addLabel?.trim() : undefined);
 }
 
 /** A block whose fields are empty: its fallback where it has one that says something, else a prompt or nothing. */
@@ -58,8 +67,8 @@ function emptyDisplay(block: TemplateBlock, sheet: SheetState): BlockDisplay | n
   return sheet.mode === 'editing' ? { state: 'prompt', prompt: promptFor(block, sheet) } : null;
 }
 
-/** A block that binds a field but is not bound yet (the editor's new block). */
-function isUnbound(block: TemplateBlock): boolean {
+/** A block that binds a field but is not bound yet: a tile the editor placed, until it is named. */
+export function isUnboundBlock(block: TemplateBlock): boolean {
   if (block.type === 'text') return !block.field && !block.text?.trim();
   return blockSpec(block.type).binds.length > 0 && !boundField(block);
 }
@@ -80,7 +89,7 @@ function decide(block: TemplateBlock, sheet: SheetState): BlockDisplay | null {
   if (isContainerBlock(block)) return containerShows(block, sheet) ? VALUE : null;
   if (block.type === 'script' || block.type === 'divider') return VALUE;
   if (block.type === 'heading') return block.text.trim() || sheet.mode === 'editing' ? VALUE : null;
-  if (isUnbound(block)) return sheet.mode === 'editing' ? { state: 'prompt', prompt: promptFor(block, sheet) } : null;
+  if (isUnboundBlock(block)) return sheet.mode === 'editing' ? { state: 'prompt', prompt: promptFor(block, sheet) } : null;
   if (tokenHolds(block, sheet)) return VALUE;
   if (block.type === 'text' && !block.field) return VALUE;
 

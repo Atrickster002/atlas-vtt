@@ -32,7 +32,7 @@ const chips = (block: HTMLElement): string[] => [...block.querySelectorAll('.atl
 describe('the statblock pane over a value that does not fit its field\'s type', () => {
   it('shows the value as written with one chip, and no warning dot beside it', async () => {
     const { result } = await pane('1/4');
-    const hp = blockOf(result.container, 'gchp0000');
+    const hp = blockOf(result.container, 'header-hp');
     expect(hp.querySelector('.atlas-sb-value')?.textContent).toBe('1/4');
     expect(chips(hp)).toEqual(['Not a number']);
     expect(hp.querySelector('.atlas-sb-pane-warning')).toBeNull();
@@ -40,7 +40,7 @@ describe('the statblock pane over a value that does not fit its field\'s type', 
 
   it('shows a list where a number should be with the chip, and edits it as text', async () => {
     const { result, writer } = await pane([14, 18]);
-    const hp = blockOf(result.container, 'gchp0000');
+    const hp = blockOf(result.container, 'header-hp');
     expect(chips(hp)).toEqual(['Not a number']);
 
     fireEvent.click(hp);

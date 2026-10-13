@@ -2,7 +2,7 @@ import type { App } from 'obsidian';
 import { noteTemplateId, readBundleTemplates, templateFingerprintAt, vaultTemplates, type PackedTemplate } from '../../statblocks/bundles/bundleTemplates';
 import { notesToSwitch, planTemplates, type PlannedTemplate, type ReusedNote } from '../../statblocks/bundles/bundleTemplateIds';
 import { templateName } from '../../statblocks/library/templateFiles';
-import { templatePathTaken } from '../../statblocks/library/templatePaths';
+import { templateBodyPath, templateNameTakenAt } from '../../statblocks/library/templatePaths';
 import { newTemplateId } from '../../statblocks/model/templateIds';
 import type { TemplateId } from '../../statblocks/model/templateTypes';
 import { switchTemplates } from '../../statblocks/notes/templateSwitch';
@@ -31,7 +31,8 @@ export interface TemplateReview {
 /**
  * Reads the bundle's templates and decides, by template id, what becomes of each
  * (`planTemplates`); new files go to the library folder (`templatePlacer`), a name another
- * file has taking `collectionName` in brackets.
+ * file or note has taking `collectionName` in brackets, so the note beside a template never
+ * lands on a note it did not write. The templates name the dice sets' ids here (`diceSetIds`).
  */
 export async function planTemplateImport(
   app: App,
@@ -39,11 +40,12 @@ export async function planTemplateImport(
   files: BundleFileReader,
   record: InstallRecord | null,
   collectionName: string,
+  diceSetIds: ReadonlyMap<string, string> = new Map(),
 ): Promise<TemplateImport> {
-  const bundle = await readBundleTemplates(manifest.files, (path) => files.text(path));
+  const bundle = await readBundleTemplates(manifest.files, (path) => files.text(path), diceSetIds);
   if (bundle.length === 0) return { bundle, planned: [] };
   const planned = planTemplates(bundle, await vaultTemplates(app), record?.templates, {
-    place: templatePlacer(collectionName, (path) => templatePathTaken(app, path)),
+    place: templatePlacer(collectionName, (path) => templateNameTakenAt(app, path)),
     newId: (name) => newTemplateId(name),
   });
   return { bundle, planned };
@@ -61,25 +63,32 @@ export function templateReview(planned: readonly PlannedTemplate[], reusedNotes:
 }
 
 /**
- * Whether the vault's templates changed since the review: one the decision read differs now,
- * or a file took a path a new template was to get.
+ * Whether the vault's templates changed since the review: one the decision read differs now
+ * (its note included), or a file took a path a new template or its note was to get.
  */
 export async function templatesChangedSinceReview(app: App, planned: readonly PlannedTemplate[]): Promise<boolean> {
   for (const template of planned) {
     const changed = template.mine === null
-      ? templatePathTaken(app, template.target)
+      ? templateNameTakenAt(app, template.target)
       : await templateFingerprintAt(app, template.target) !== template.mine;
     if (changed) return true;
   }
   return false;
 }
 
-/** Writes the templates the plan brings in or updates, through the import's journal; returns how many. */
-export async function writeTemplates(journal: Pick<ImportJournal, 'write'>, planned: readonly PlannedTemplate[]): Promise<number> {
+/**
+ * Writes the templates the plan brings in or updates, each with the note beside it, through
+ * the import's journal; an update whose version has no note removes the one it replaces.
+ * Returns how many templates were written.
+ */
+export async function writeTemplates(journal: Pick<ImportJournal, 'write' | 'remove'>, planned: readonly PlannedTemplate[]): Promise<number> {
   let written = 0;
   for (const template of planned) {
     if (template.text === undefined) continue;
     await journal.write(template.target, toBuffer(template.text));
+    const bodyPath = templateBodyPath(template.target);
+    if (template.body) await journal.write(bodyPath, toBuffer(template.body));
+    else if (template.outcome === 'update') await journal.remove(bodyPath);
     written += 1;
   }
   return written;

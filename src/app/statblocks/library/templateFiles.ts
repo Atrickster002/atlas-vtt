@@ -4,7 +4,7 @@
  */
 
 import { migrateTemplate } from '../format/migrateTemplate';
-import { withCoreSlots } from '../model/coreSlots';
+import { withHeader } from '../model/headerDuplicates';
 import { parseTemplate, type TemplateParseStatus } from '../format/parseTemplate';
 import type { LibraryTemplate } from '../model/resolvedTypes';
 import type { BuiltInTemplate, TemplateId } from '../model/templateTypes';
@@ -49,11 +49,11 @@ export function templateName(path: string): string {
   return dot > 0 ? file.slice(0, dot) : file;
 }
 
-/** Reads a file's text; a template of an older format, or one without its name and token art, is mended in memory, never written back here. */
+/** Reads a file's text; a template of an older format, or one without a field for a part of its header, is mended in memory, never written back here. */
 export function readTemplateFile(path: string, text: string): TemplateFile {
   const result = parseTemplate(text);
   const name = templateName(path);
-  const template = result.template ? withCoreSlots(migrateTemplate(result.template)) : null;
+  const template = result.template ? withHeader(migrateTemplate(result.template)) : null;
   const usable = result.status === 'ok' || result.status === 'newer' ? result.status : null;
   const entry: LibraryTemplate | null = template && usable ? { template, name, status: usable, builtIn: false, path } : null;
   return { path, name, status: result.status, problems: result.problems, text, entry };

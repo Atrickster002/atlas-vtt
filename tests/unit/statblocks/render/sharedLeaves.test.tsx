@@ -42,9 +42,9 @@ describe('hit point attributes', () => {
 });
 
 describe('EntryLine', () => {
-  it('runs a name in with a full stop, unless it already ends in one', () => {
+  it('runs a name in as written, adding no full stop', () => {
     const { container, rerender } = render(<EntryLine name="Claws" text="Hit: 1d6." nameStyle="run-in" />);
-    expect(container.querySelector('.atlas-sb-trait-name')?.textContent).toBe('Claws.');
+    expect(container.querySelector('.atlas-sb-trait-name')?.textContent).toBe('Claws');
     rerender(<EntryLine name="Ready?" text="Yes." nameStyle="run-in" />);
     expect(container.querySelector('.atlas-sb-trait-name')?.textContent).toBe('Ready?');
   });

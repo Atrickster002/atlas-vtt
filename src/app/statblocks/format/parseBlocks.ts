@@ -57,7 +57,7 @@ const BODY_READERS: { [T in FileBlockType]: BodyRead<T> } = {
     blocks: children(),
   }),
   row: (r, children) => ({ type: 'row', ...optionalOneOf(r, 'align', ALIGNS), blocks: children() }),
-  tabs: (_r, children) => ({ type: 'tabs', blocks: children() }),
+  tabs: (r, children) => ({ type: 'tabs', ...r.opt('heading', asString, TEXT), blocks: children() }),
   title: (r) => withField(r, (field) => ({
     type: 'title', field, level: oneOf(r, 'level', TITLE_LEVELS), ...r.opt('pattern', asString, TEXT),
   })),
@@ -79,6 +79,12 @@ const BODY_READERS: { [T in FileBlockType]: BodyRead<T> } = {
     ...optionalOneOf(r, 'display', DISPLAYS),
     ...r.opt('rollFrom', asFieldRef, KEY),
   })),
+  metric: (r) => {
+    // A Metric holds at least one number; one without any is kept as it was read.
+    const raw = r.rawValue('fields');
+    const fields = Array.isArray(raw) && raw.length > 0 ? r.requiredList('fields', asFieldRef, 'field keys') : [];
+    return fields.length === 0 ? { missing: 'fields' } : { type: 'metric', ...r.opt('heading', asString, TEXT), fields };
+  },
   scores: (r) => withField(r, (field) => ({
     type: 'scores',
     field,

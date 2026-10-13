@@ -26,6 +26,11 @@
   }
 
   @include atlas-statblock-contained-card;
+
+  // Floating over the page, the card keeps the elevated shadow its pane and feed cards leave out.
+  .atlas-statblock {
+    box-shadow: $shadow-elevated;
+  }
 }
 
 /// Passes the height limit of a flex column container down to the statblock

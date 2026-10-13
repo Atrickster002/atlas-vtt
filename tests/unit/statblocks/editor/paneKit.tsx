@@ -15,7 +15,11 @@ import { createInMemoryApp } from '../../../mocks/inMemoryVault';
 export const NOTE_PATH = 'Bestiary/Marsh Warden.md';
 
 /** A note source over values the test sets; `set` tells the pane's watcher, as an edit in the note would. */
-export class FakeSource implements PaneServices['source'] {
+// Named, since a class implements a name: an indexed type there is a parsing error.
+type PaneSource = PaneServices['source'];
+type PaneWriter = PaneServices['writer'];
+
+export class FakeSource implements PaneSource {
   private readonly snapshots = new Map<string, NoteSnapshot>();
   private readonly listeners = new Map<string, Set<(snapshot: NoteSnapshot) => void>>();
 
@@ -46,7 +50,7 @@ export class FakeSource implements PaneServices['source'] {
 }
 
 /** A writer that records every write and answers with `answer` (everything applied, by default). */
-export class FakeWriter implements PaneServices['writer'] {
+export class FakeWriter implements PaneWriter {
   readonly writes: Array<{ path: string; patches: readonly NotePatch[] }> = [];
   answer: (patches: readonly NotePatch[]) => WriteOutcome = (patches) => ({ applied: [...patches], conflicts: [], backend: 'editor', problem: null });
   readonly flush = vi.fn(async (): Promise<void> => undefined);

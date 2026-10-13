@@ -3,7 +3,10 @@
 import { isReservedKey } from '../../model/reservedKeys';
 import type { LibraryTemplate } from '../../model/resolvedTypes';
 import type { StatblockRole } from '../../model/roleTypes';
-import type { StatblockTemplate } from '../../model/templateTypes';
+import { fieldByKey } from '../../model/fieldKeys';
+import { displayNameKey, headerParts, hiddenHeaderParts } from '../../model/templateHeader';
+import { fieldsShownBy, flattenReadingOrder } from '../../model/treeQueries';
+import type { StatblockTemplate, TemplateField } from '../../model/templateTypes';
 import type { FieldRecord } from '../../values/fieldValues';
 
 export interface TemplateChoice {
@@ -45,4 +48,18 @@ export function keysOutsideTemplate(record: FieldRecord, template: StatblockTemp
 /** "Not shown with this template: speed, lair": the note's values a template would leave out. */
 export function unshownKeys(record: FieldRecord, template: StatblockTemplate): string[] {
   return keysOutsideTemplate(record, template);
+}
+
+/**
+ * The properties of the header's parts the template hides (a level or type
+ * its system has no use for), in the header's order; not one the card shows
+ * another way (a type in a line of the layout). The name is one where the
+ * header shows a display name in its place: the card edits that, not `name`.
+ */
+export function hiddenFields(template: StatblockTemplate): TemplateField[] {
+  const shown = new Set(flattenReadingOrder(template.layout.blocks).flatMap((block) => fieldsShownBy(block)));
+  const name = displayNameKey(template.fields) ? headerParts(template).filter((part) => part.id === 'name') : [];
+  return [...name, ...hiddenHeaderParts(template)]
+    .filter((part) => !shown.has(part.key))
+    .flatMap((part) => fieldByKey(template.fields, part.key) ?? []);
 }

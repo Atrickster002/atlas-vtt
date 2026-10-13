@@ -92,11 +92,16 @@
     transform: scale(0.96);
   }
 
-  // An empty socket: a dashed ring holding a plus.
+  // An empty socket: a soft disc holding a plus, deeper under the pointer.
   .atlas-sb-token-socket--empty {
     .atlas-sb-token-socket__frame {
-      border: $border-width-m dashed var(--text-faint);
-      background: var(--background-secondary);
+      border: $border-width-m solid transparent;
+      background: var(--background-modifier-hover);
+      transition: transform $transition-press $transition-ease-out, background-color $transition-fast $transition-ease;
+    }
+
+    &:hover .atlas-sb-token-socket__frame {
+      background: var(--background-modifier-active-hover);
     }
 
     &[data-shape='portrait'] > .atlas-sb-token-socket__frame {

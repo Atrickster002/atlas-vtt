@@ -1,87 +1,61 @@
-import React, { useId, useState } from 'react';
-import { X } from 'lucide-react';
-import { Select } from '../../../../packages/components/primitives/Select';
-import { ToolButton } from '../../../../packages/components/primitives/ToolButton';
-import { fieldByKey, labelToKey } from '../../../model/fieldKeys';
-import { updateField } from '../../../model/fieldOps';
-import type { EntryShape, FieldKey, StatblockTemplate, TemplateField } from '../../../model/templateTypes';
+import React, { useState } from 'react';
+import { withAbilityParts } from '../../../model/abilityParts';
+import { labelToKey } from '../../../model/fieldKeys';
+import type { EntryExtraShape, TemplateField } from '../../../model/templateTypes';
 import type { EditorSession } from '../sessionTypes';
+import { EntryPartRow } from './EntryPartRow';
 import { Setting } from './InspectorControls';
-import { useGestureText } from './useGestureText';
-
-type Extra = NonNullable<EntryShape['extras']>[number];
-type ExtraType = Extra['type'];
-
-const EXTRA_TYPES: Array<{ value: ExtraType; label: string }> = [
-  { value: 'text', label: 'Text' }, { value: 'number', label: 'Number' }, { value: 'dice', label: 'Dice' }, { value: 'list', label: 'List' },
-];
-
-/** The template with the entries field's parts changed by `edit`, read from the field as the template holds it now. */
-function withExtras(template: StatblockTemplate, key: FieldKey, edit: (extras: Extra[]) => Extra[]): StatblockTemplate {
-  const field = fieldByKey(template.fields, key);
-  if (!field) return template;
-  const extras = edit([...(field.entry?.extras ?? [])]);
-  const entry: EntryShape = { ...field.entry };
-  if (extras.length > 0) entry.extras = extras;
-  else delete entry.extras;
-  return updateField(template, field.key, { entry: Object.keys(entry).length > 0 ? entry : undefined });
-}
-
-interface PartRowProps {
-  extra: Extra;
-  index: number;
-  fieldKey: FieldKey;
-  session: EditorSession;
-  disabled: boolean;
-}
-
-function PartRow({ extra, index, fieldKey, session, disabled }: PartRowProps): React.JSX.Element {
-  const labelId = useId();
-  const typeId = useId();
-  const change = (changes: Partial<Extra>): void => session.apply((template) =>
-    withExtras(template, fieldKey, (extras) => extras.map((item, at) => (at === index ? { ...item, ...changes } : item))));
-  const label = useGestureText({ value: extra.label, session, onText: (text) => { if (text.trim()) change({ label: text }); } });
-  return (
-    <div className="atlas-te-setting__inline">
-      <span id={labelId} hidden>{`Part ${index + 1}`}</span>
-      <span id={typeId} hidden>{`Type of ${extra.label}`}</span>
-      <input {...label} type="text" className="atlas-te-input" aria-labelledby={labelId} disabled={disabled} spellCheck={false} />
-      <Select<ExtraType> value={extra.type} options={EXTRA_TYPES} onChange={(type) => change({ type })} labelledBy={typeId} disabled={disabled} />
-      <ToolButton icon={X} label="Remove" isActive={false} disabled={disabled}
-        onClick={() => session.apply((template) => withExtras(template, fieldKey, (extras) => extras.filter((_, at) => at !== index)))} />
-    </div>
-  );
-}
 
 export interface EntryPartsProps {
-  field: TemplateField;
+  /** The properties the component's lists show, one per tab; the first's parts are shown, and every edit is made to all. */
+  fields: readonly TemplateField[];
   session: EditorSession;
   readOnly: boolean;
 }
+
+/** Parts many statblocks give their abilities, offered with one click; any other is typed. */
+const PART_SUGGESTIONS: readonly string[] = ['Type', 'Range', 'Damage', 'Cost', 'Uses', 'Trigger', 'Requirement'];
+/** A suggested Type is the kind of ability, which the template names once and every ability picks. */
+const CHOICE_SUGGESTIONS: ReadonlySet<string> = new Set(['Type']);
 
 /**
  * What each entry holds before its text (§7.5: entry extras), "Range" or
  * "Cost". A new part takes its key from its first name; renaming it later
  * keeps the key, so the statblocks keep their values.
  */
-export function EntryParts({ field, session, readOnly }: EntryPartsProps): React.JSX.Element {
+export function EntryParts({ fields, session, readOnly }: EntryPartsProps): React.JSX.Element {
   const [name, setName] = useState('');
-  const extras = field.entry?.extras ?? [];
+  const keys = fields.map((field) => field.key);
+  const extras = fields[0]?.entry?.extras ?? [];
+  const edit = (change: (extras: EntryExtraShape[]) => EntryExtraShape[]): void => {
+    session.apply((template) => withAbilityParts(template, keys, change));
+  };
+  const addPart = (label: string, type: EntryExtraShape['type'] = 'text'): void => edit((current) => {
+    const own = fields.flatMap((field) => [field.entry?.nameKey ?? 'name', field.entry?.textKey ?? 'desc']);
+    return [...current, { key: labelToKey(label, [...own, ...current.map((item) => item.key)]), label, type }];
+  });
   const add = (): void => {
     const label = name.trim();
     if (!label) return;
     setName('');
-    session.apply((template) => withExtras(template, field.key, (current) => {
-      const taken = [field.entry?.nameKey ?? 'name', field.entry?.textKey ?? 'desc', ...current.map((item) => item.key)];
-      return [...current, { key: labelToKey(label, taken), label, type: 'text' }];
-    }));
+    addPart(label);
   };
+  const named = new Set(extras.map((extra) => extra.label.trim().toLowerCase()));
+  const suggestions = PART_SUGGESTIONS.filter((label) => !named.has(label.toLowerCase()));
   return (
     <Setting label="Each item also has" wide>
       {(labelId) => (
         <div className="atlas-te-setting__list">
           {extras.map((extra, index) => (
-            <PartRow key={extra.key} extra={extra} index={index} fieldKey={field.key} session={session} disabled={readOnly} />
+            <EntryPartRow
+              key={extra.key}
+              extra={extra}
+              index={index}
+              session={session}
+              disabled={readOnly}
+              onEdit={(change) => edit((current) => current.map((item, at) => (at === index ? change(item) : item)))}
+              onRemove={() => edit((current) => current.filter((_, at) => at !== index))}
+            />
           ))}
           <input
             type="text"
@@ -99,6 +73,13 @@ export function EntryParts({ field, session, readOnly }: EntryPartsProps): React
               add();
             }}
           />
+          {suggestions.length > 0 && (
+            <div className="atlas-te-setting__suggestions" role="group" aria-label="Common parts">
+              {suggestions.map((label) => (
+                <button key={label} type="button" className="atlas-te-suggestion" disabled={readOnly} onClick={() => addPart(label, CHOICE_SUGGESTIONS.has(label) ? 'choice' : 'text')}>+ {label}</button>
+              ))}
+            </div>
+          )}
         </div>
       )}
     </Setting>

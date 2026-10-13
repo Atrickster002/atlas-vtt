@@ -1,8 +1,10 @@
 /**
  * Dice notation as statblocks write it: "7d10 + 14", "2d6+2", "d20",
- * "1d4 − 1", "2d6 - 1d4". Dice may carry the exploding marks the dice tool
+ * "1d4 − 1", "2d6 - 1d4", "3d6 + -1". Dice may carry the exploding marks the dice tool
  * reads ("2d6!", "1d6!!", "1d6!i", "2d6!3"); they do not change the average.
- * Anything else (multiplication, words, "d%") is not notation.
+ * One pair of brackets around the whole is punctuation ("(2d6 + 3)", as a
+ * statblock writes dice after their average). Anything else (multiplication,
+ * words, "d%") is not notation.
  */
 
 export interface DiceTerm {
@@ -19,14 +21,16 @@ export interface DiceNotation {
 
 /**
  * One signed term: dice with an optional exploding mark, or a constant. Space
- * may stand around a sign, never inside a term ("2 d 6", "2d6 3").
+ * may stand around a sign, never inside a term ("2 d 6", "2d6 3"). "+ -1" is
+ * minus one, as the 5e SRD's data writes a negative modifier ("3d6 + -1").
  */
-const TERM = /([+-]?)\s*(?:(\d*)d(\d+)(?:!!?(?:i|\d+)?)?|(\d+))\s*/iy;
+const TERM = /(\+\s*-|[+-]?)\s*(?:(\d*)d(\d+)(?:!!?(?:i|\d+)?)?|(\d+))\s*/iy;
 const MINUS_SIGNS = /[\u2212\u2013]/g;
+const BRACKETED = /^\((.*)\)$/s;
 
 function addTerm(notation: DiceNotation, match: RegExpExecArray): boolean {
   const [, signText, countText, sidesText, constantText] = match;
-  const sign = signText === '-' ? -1 : 1;
+  const sign = signText?.endsWith('-') ? -1 : 1;
   if (constantText !== undefined) {
     const constant = Number(constantText);
     if (!Number.isSafeInteger(constant)) return false;
@@ -42,7 +46,7 @@ function addTerm(notation: DiceNotation, match: RegExpExecArray): boolean {
 
 /** The notation's terms, or null when the text is not dice notation. */
 export function parseDiceNotation(text: string): DiceNotation | null {
-  const compact = text.replace(MINUS_SIGNS, '-').trim();
+  const compact = text.replace(MINUS_SIGNS, '-').trim().replace(BRACKETED, '$1').trim();
   if (compact === '') return null;
   const notation: DiceNotation = { dice: [], modifier: 0 };
   let position = 0;

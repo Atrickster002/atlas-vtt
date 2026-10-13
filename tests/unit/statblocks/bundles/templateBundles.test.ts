@@ -104,9 +104,9 @@ beforeEach(() => { AssetService.resetInstance(); });
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
 describe('exporting a collection with statblock templates', () => {
-  it('packs the templates its roles and notes name without code, says format 7, and keeps only its own role folders', async () => {
+  it('packs the templates its roles and notes name without code, says format 9, and keeps only its own role folders', async () => {
     const { manifest, text } = await unzip(await release(await creatorVault()));
-    expect(manifest.format).toBe(7);
+    expect(manifest.format).toBe(9);
     expect(await text(MARSH_PATH)).toBe(packed());
     expect(findCode(JSON.parse((await text(MARSH_PATH))!))).toEqual([]);
     expect(manifest.collection.settings).toMatchObject({ statblockRoles: [ROLE], statblockRoleFolders: { monster: 'atlas-vtt/collections/Fen/Monsters' } });
@@ -131,8 +131,8 @@ describe('exporting a collection with statblock templates', () => {
     const blob = await release(creator);
     const { manifest } = await unzip(blob);
     expect(manifest.collection.settings).toMatchObject({ systemPresetId: 'marsh-preset', statblockRoles: [ROLE] });
-    // The preset travels with the collection, which only a format 8 reader understands.
-    expect(manifest.format).toBe(8);
+    // The preset and the role's template travel with the collection, which only a format 9 reader understands.
+    expect(manifest.format).toBe(9);
     // The publisher's vault reads the bundle's roles as its preset's and keeps the folder that stayed behind: its release is up to date
     expect((await openCollectionImport(creator.vault.app, creator.assets, blob)).review).toMatchObject({ upToDate: true, conflicts: [], counts: { kept: 0 } });
     expect(creator.vault.files.get(MARSH_PATH)).toBe(withCode());

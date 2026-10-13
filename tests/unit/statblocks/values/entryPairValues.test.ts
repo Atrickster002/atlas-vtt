@@ -1,6 +1,6 @@
 import type { EntryShape } from '../../../../src/app/statblocks/model/templateTypes';
 import {
-  entryExtras, entryItems, entryName, entryNameKey, entryText, entryTextKey,
+  entryExtras, entryItems, entryName, entryNameKey, entryText, entryTextKey, entryTextKeyOf,
 } from '../../../../src/app/statblocks/values/entryValues';
 import { normalisePairs, pairValue, parsePairText } from '../../../../src/app/statblocks/values/pairValues';
 
@@ -31,6 +31,16 @@ describe('entries', () => {
     ]);
     expect(entryName({ title: 'Thorns' }, { nameKey: 'title' })).toBe('Thorns');
     expect(entryNameKey({ nameKey: '' })).toBe('name');
+  });
+
+  it('reads `desc` where the shape\'s text key holds nothing, as Fantasy Statblocks does', () => {
+    // A layout whose traits callback is `return property.text;` draws notes that write `desc` with their `desc`
+    const entry = { name: 'Relentless (3) - Passive', desc: 'Can be spotlighted up to three times.' };
+    expect(entryText(entry, DAGGERHEART)).toBe('Can be spotlighted up to three times.');
+    expect(entryTextKeyOf(entry, DAGGERHEART)).toBe('desc');
+    expect(entryTextKeyOf({ name: 'x', text: 'Own.', desc: 'not this' }, DAGGERHEART)).toBe('text');
+    expect(entryTextKeyOf({ name: 'x' }, DAGGERHEART)).toBe('text');
+    expect(entryTextKeyOf({ name: 'x', text: ' ', desc: 'This.' }, DAGGERHEART)).toBe('desc');
   });
 
   it('reads an entry written as text as text without a name', () => {

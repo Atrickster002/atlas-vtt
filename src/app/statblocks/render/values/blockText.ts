@@ -1,4 +1,4 @@
-import type { LineBlock, StatBlock, TemplateBlock, TitleBlock } from '../../model/templateTypes';
+import type { FieldKey, LineBlock, StatBlock, TemplateBlock, TitleBlock } from '../../model/templateTypes';
 import { escapePatternText } from '../../expressions/patternParse';
 import type { SheetState } from '../sheetState';
 import { NO_TEXT, fieldPattern, hasText, problemsOf, shownField, shownPattern, type ShownText } from './shownText';
@@ -17,11 +17,16 @@ function lineText(block: LineBlock, sheet: SheetState): ShownText {
   };
 }
 
-/** A Stat without a pattern: its field, signed where it says so, then the field's unit ("30 ft."). */
-function statPattern(block: StatBlock, sheet: SheetState): string {
-  const unit = sheet.fields.get(block.field)?.unit?.trim();
-  const value = fieldPattern(block.field, block.display === 'signed');
+/** A field's value, signed where asked, then the field's unit ("30 ft."). */
+function unitPattern(key: FieldKey, signed: boolean, sheet: SheetState): string {
+  const unit = sheet.fields.get(key)?.unit?.trim();
+  const value = fieldPattern(key, signed);
   return unit ? `${value} ${escapePatternText(unit)}` : value;
+}
+
+/** One number of a Metric as it shows: its field with the field's unit. */
+export function metricNumberText(key: FieldKey, sheet: SheetState): ShownText {
+  return key ? shownPattern(unitPattern(key, false, sheet), sheet, key) : NO_TEXT;
 }
 
 /** The text a Title, Line or Stat shows for the statblock. */
@@ -34,7 +39,7 @@ export function blockText(block: PatternBlock, sheet: SheetState): ShownText {
       return block.pattern ? shownPattern(block.pattern, sheet, block.fields[0]) : lineText(block, sheet);
     case 'stat':
       if (!block.field) return NO_TEXT;
-      return shownPattern(block.pattern ?? statPattern(block, sheet), sheet, block.field);
+      return shownPattern(block.pattern ?? unitPattern(block.field, block.display === 'signed', sheet), sheet, block.field);
   }
 }
 

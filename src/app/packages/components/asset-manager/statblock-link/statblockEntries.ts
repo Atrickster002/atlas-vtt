@@ -1,4 +1,4 @@
-import { ratingText, scalarText, statblockRating, type StatblockRating } from '../../../../creatures/statblockRating';
+import { ratingText, scalarText, statblockDisplayName, statblockRating, type StatblockRating } from '../../../../creatures/statblockRating';
 import type { FantasyStatblocksCreature } from '../../../../services/FantasyStatblocksService';
 import { NO_MEANINGS, type FieldMeanings } from '../../../../statblocks/resolve/fieldMeanings';
 import { t } from '../../../../i18n';
@@ -45,7 +45,7 @@ export function noteFolder(path: string): string {
 
 /** The entry of one statblock note, named after `fallbackName` where its statblock names nothing. */
 export function statblockEntry(path: string, fields: StatblockFields, meanings: FieldMeanings, fallbackName: string): StatblockEntry {
-  return { path, name: scalarText(fields.name) ?? fallbackName, detail: describeCreature(fields, meanings) || noteFolder(path) };
+  return { path, name: statblockDisplayName(fields, meanings) ?? fallbackName, detail: describeCreature(fields, meanings) || noteFolder(path) };
 }
 
 /** Entries sorted by name. */

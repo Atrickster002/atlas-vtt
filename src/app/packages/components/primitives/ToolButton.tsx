@@ -15,6 +15,8 @@ interface ToolButtonProps {
   disabled?: boolean
   /** Set for a button that opens a menu: whether that menu is open. */
   menuExpanded?: boolean
+  /** Where the tooltip opens; above unless the bar is upright, whose buttons it would cover. */
+  tooltipSide?: "top" | "left" | "right" | "bottom"
   // Dropdown support
   showChevron?: boolean
   onChevronClick?: () => void
@@ -33,6 +35,7 @@ export const ToolButton: React.FC<ToolButtonProps> = ({
   className,
   disabled = false,
   menuExpanded,
+  tooltipSide = "top",
   // dropdown props
   showChevron = false,
   onChevronClick,
@@ -63,7 +66,7 @@ export const ToolButton: React.FC<ToolButtonProps> = ({
             </Button>
           </span>
         </TooltipTrigger>
-        <TooltipContent side="top" sideOffset={10}>
+        <TooltipContent side={tooltipSide} sideOffset={10}>
           <div>
             <div className="tooltip-inner">
               <span className="tooltip-label">{label}</span>

@@ -22,7 +22,10 @@ function mapView(shown: boolean) {
   return { view, rolls };
 }
 
-const appWith = (...views: unknown[]) => ({ workspace: { getLeavesOfType: () => views.map((view) => ({ view })) } }) as never;
+const appWith = (...views: unknown[]) => ({
+  workspace: { getLeavesOfType: () => views.map((view) => ({ view })) },
+  vault: { getFileByPath: () => null },
+}) as never;
 
 function offMap(): OffMapRolls & { shown: Array<[string, boolean]>; rolled: string[] } {
   const shown: Array<[string, boolean]> = [];

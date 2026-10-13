@@ -3,14 +3,15 @@
  * focus is inside the panel, in its chrome, or in a menu the panel opened
  * (portaled elsewhere in the document, marked with the panel's surface id),
  * so every other Obsidian hotkey keeps working. Mod+Z and Mod+Shift+Z undo
- * the newest of the panel's own actions in the history that took it: the
- * note's (through the writer) or its template's (through the router the pane
- * registers).
+ * and redo in the note's own history (through the writer): the panel changes
+ * only the note's values. Mod+B and Mod+I format the text field being typed
+ * in, as they format a note, and never reach the note's editor beside it.
  */
 
 import { Scope, type App } from 'obsidian';
 import { OWNER_ATTRIBUTE } from '../interaction/chrome';
-import type { PanelHistoryRouter } from '../statblock-pane/paneTypes';
+import type { InlineMark } from '../markdown-typing/markdownMarks';
+import { toggleMarkIn } from '../markdown-typing/markIn';
 
 export interface PanelScopeHost {
   /** The panel's element; null while hidden. */
@@ -36,18 +37,14 @@ export function ownedBy(host: HTMLElement, node: EventTarget | null): boolean {
 export class PanelScope {
   private readonly scope: Scope;
   private pushed = false;
-  private router: PanelHistoryRouter | null = null;
   private stopWatching: (() => void) | null = null;
 
   constructor(private readonly app: App, private readonly panel: PanelScopeHost) {
     this.scope = new Scope(app.scope);
     this.scope.register(['Mod'], 'z', () => this.historyKey('undo'));
     this.scope.register(['Mod', 'Shift'], 'z', () => this.historyKey('redo'));
-  }
-
-  /** The pane's router, asked before the note's own history. */
-  setRouter(router: PanelHistoryRouter | null): void {
-    this.router = router;
+    this.scope.register(['Mod'], 'b', () => this.markKey('**'));
+    this.scope.register(['Mod'], 'i', () => this.markKey('*'));
   }
 
   /** Follows focus on the panel's host: pushed on focus inside, popped once focus is neither there nor in its menus. */
@@ -78,17 +75,22 @@ export class PanelScope {
     this.app.keymap.pushScope(this.scope);
   }
 
-  /** Mod+Z and Mod+Shift+Z: a text field of the panel keeps its own undo; else the panel's newest action is undone where it was taken. */
+  /** Mod+B and Mod+I: the field focused in the panel takes the mark; nothing else does (the note's editor would bold its own text). */
+  private markKey(mark: InlineMark): false | undefined {
+    const host = this.panel.host();
+    const active = host?.doc.activeElement ?? null;
+    return host && ownedBy(host, active) && toggleMarkIn(active, mark) ? false : undefined;
+  }
+
+  /** Mod+Z and Mod+Shift+Z: a text field of the panel keeps its own undo; else the note's history takes the key. */
   private historyKey(kind: 'undo' | 'redo'): boolean {
     const host = this.panel.host();
     const active = host?.doc.activeElement;
-    if (active && host?.contains(active) && (active.instanceOf(HTMLInputElement) || active.instanceOf(HTMLTextAreaElement))) return true;
-    const routed = this.router?.(kind) ?? 'nothing';
+    const typing = active && (active.instanceOf(HTMLInputElement) || active.instanceOf(HTMLTextAreaElement) || (active.instanceOf(HTMLElement) && active.isContentEditable));
+    if (typing && host?.contains(active)) return true;
     const name = this.panel.noteName();
     const verb = kind === 'undo' ? 'Undid' : 'Redid';
-    if (routed === 'template') this.panel.say(`${verb} the template change.`);
-    else if (routed === 'elsewhere') this.panel.say(`${kind === 'undo' ? 'Undo' : 'Redo'} that in the template editor.`);
-    else this.panel.say(this.panel.noteHistory(kind) ? `${verb} in ${name}.` : `Switch ${name} to editing view to ${kind}.`);
+    this.panel.say(this.panel.noteHistory(kind) ? `${verb} in ${name}.` : `Switch ${name} to editing view to ${kind}.`);
     return false;
   }
 }

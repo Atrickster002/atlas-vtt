@@ -114,10 +114,27 @@ $chrome-offset: 4px;
     background-color: color-mix(in oklch, var(--interactive-accent) 6%, transparent);
   }
 
-  // An ability the pointer is over: a faint wash on its name, where its handle points.
-  .atlas-sb-pane .atlas-statblock [data-item-key][data-sb-hover] .atlas-sb-trait-name {
-    background-color: var(--background-modifier-hover);
+  // An ability the pointer is over: a wash on its whole line, reaching past it by a shadow. Its handle turns
+  // the same shape accent, so nothing jumps between the two. One being typed has its fields instead.
+  .atlas-sb-pane .atlas-statblock [data-item-key]:not(.atlas-sb-pane-entry-editor) {
     border-radius: $radius-s;
+    outline: $border-width-s solid transparent;
+    outline-offset: $chrome-offset;
+    transition-property: background-color, box-shadow, outline-color;
+    transition-duration: $transition-fast;
+    transition-timing-function: $transition-ease;
+
+    &[data-sb-hover] {
+      background-color: var(--background-modifier-hover);
+      box-shadow: 0 0 0 $chrome-offset var(--background-modifier-hover);
+    }
+
+    &[data-sb-menu-target] {
+      $tint: color-mix(in oklch, var(--interactive-accent) 10%, transparent);
+      background-color: $tint;
+      box-shadow: 0 0 0 $chrome-offset $tint;
+      outline-color: color-mix(in oklch, var(--interactive-accent) 50%, transparent);
+    }
   }
 
   // The ability being dragged leaves an empty place of its own height; the others slide aside into it, never over its text.
@@ -196,7 +213,7 @@ $chrome-offset: 4px;
   .atlas-list-drag-bound {
     position: absolute;
     border-radius: $radius-l;
-    outline: $border-width-s dashed var(--interactive-accent);
+    outline: $border-width-m solid color-mix(in oklch, var(--interactive-accent) 50%, transparent);
     outline-offset: $chrome-offset;
   }
 }

@@ -14,8 +14,12 @@ import type { FieldKey, TemplateBlock } from '../model/templateTypes';
 import {
   asScript, flags, full, hasCallback, headingOf, keysOf, refused, textOf, type FsRecord, type Heading, type Leaf,
 } from './fsBlockParts';
-import { callbackPattern, entryTextKey, modifierFormula, returnsItemUnchanged } from './fsCallbackPatterns';
-import type { ImportContext } from './fsImportState';
+import { callbackPattern, entryTextKey, modifierFormula, returnsItemUnchanged, type CallbackPattern } from './fsCallbackPatterns';
+import { diceCallbackKey } from './fsDiceCallbacks';
+import { lookupCallback } from './fsLookupCallbacks';
+import { cleanLabel, FsFieldRegistry, type ImportContext } from './fsImportState';
+
+const SPELLCASTING = 'Spellcasting';
 
 /** A block under a heading read from a field: a Section around it, as FS draws a section heading first. */
 function underHeadingField(block: TemplateBlock, heading: Heading, ctx: ImportContext): TemplateBlock {
@@ -56,9 +60,31 @@ const subheading: Leaf = (record, ctx, at) => {
   return full([line], fields.length === 1 ? fields[0] : undefined);
 };
 
+/** A callback that looks its value up in a table it writes out: the field and the pattern over the table it adds, else null. */
+function lookedUp(callback: string, record: FsRecord, ctx: ImportContext): CallbackPattern | null {
+  const found = lookupCallback(callback);
+  if (!found || !FsFieldRegistry.usable(found.key)) return null;
+  const table = ctx.lookups.add(cleanLabel(textOf(record, 'display')) ?? found.key, found.rows);
+  return { pattern: `{${escapePatternText(found.key)}|lookup:${table}}`, refs: [found.key] };
+}
+
+/**
+ * The field a property's dice roll from (`diceProperty`, or the field its
+ * `diceCallback` picks where the line has none: `rollFrom`), and the keys that
+ * says. A dice callback of another shape stays for export, as code.
+ */
+function rollSource(record: FsRecord, ctx: ImportContext): { rollFrom?: FieldKey; read: string[] } {
+  const named = textOf(record, 'diceProperty');
+  const callback = textOf(record, 'diceCallback')?.trim();
+  const picked = callback ? diceCallbackKey(callback) : null;
+  const rollFrom = named ?? picked ?? undefined;
+  if (rollFrom === undefined || !ctx.fields.use(rollFrom, 'dice')) return { read: [] };
+  return { rollFrom, read: [...(named !== undefined ? ['diceProperty'] : []), ...(picked === rollFrom ? ['diceCallback'] : [])] };
+}
+
 const property: Leaf = (record, ctx, at) => {
   const callback = hasCallback(record);
-  const formatted = callback === undefined ? null : callbackPattern(callback);
+  const formatted = callback === undefined ? null : callbackPattern(callback) ?? lookedUp(callback, record, ctx);
   if (callback !== undefined && (!formatted || !formatted.refs.every((ref) => ctx.fields.mention(ref)))) return asScript(record, ctx, at);
   const keys = keysOf(record);
   const key = keys[0] ?? formatted?.refs[0];
@@ -69,12 +95,11 @@ const property: Leaf = (record, ctx, at) => {
   const plain = formatted === null || signed || formatted.pattern === `{${escapePatternText(key)}}`;
   // FS hides a conditioned line by its own key alone, though its callback reads others
   const readsOthers = own(record, 'conditioned') === true && formatted?.refs.some((ref) => ref !== key) === true;
-  const rollFrom = textOf(record, 'diceProperty');
-  const rolls = rollFrom !== undefined && ctx.fields.use(rollFrom, 'dice');
+  const { rollFrom, read: rollKeys } = rollSource(record, ctx);
   const stat: TemplateBlock = {
     id: ctx.nextId(), type: 'stat', field: key, look: 'run-in', ...ownLabel(record, key, ctx),
-    ...(plain ? {} : { pattern: formatted.pattern }), ...(signed ? { display: 'signed' } : {}), ...(rolls ? { rollFrom } : {}),
-    ...flags(record, ['display', 'callback', ...(rolls ? ['diceProperty'] : [])], at),
+    ...(plain ? {} : { pattern: formatted.pattern }), ...(signed ? { display: 'signed' } : {}), ...(rollFrom ? { rollFrom } : {}),
+    ...flags(record, ['display', 'callback', ...rollKeys], at),
     ...(readsOthers ? { showWhen: { field: key, is: 'present' } } : {}),
   };
   return full([stat], key);
@@ -140,7 +165,9 @@ const spells: Leaf = (record, ctx, at) => {
   if (key === undefined) return full([]);
   const head = textOf(record, 'heading')?.trim();
   if (!ctx.fields.use(key, 'spells', { label: head })) return refused(key);
-  const block: TemplateBlock = { id: ctx.nextId(), type: 'spells', field: key, ...(head ? { heading: head } : {}), ...flags(record, ['heading', 'callback'], at) };
+  // FS names the first spell list "Spellcasting" where the block names it nothing (`heading ?? "Spellcasting"`), as the 5E built-ins head it
+  const shown = textOf(record, 'heading') === undefined ? SPELLCASTING : head;
+  const block: TemplateBlock = { id: ctx.nextId(), type: 'spells', field: key, ...(shown ? { heading: shown } : {}), ...flags(record, ['heading', 'callback'], at) };
   return full([block], key);
 };
 

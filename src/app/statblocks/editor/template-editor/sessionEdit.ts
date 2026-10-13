@@ -4,6 +4,7 @@
  * never on one read earlier.
  */
 
+import { tidyRows } from '../../model/templateGrid';
 import type { TreeEdit, TreeRefusal } from '../../model/treeEdit';
 import type { StatblockTemplate, TemplateLayout } from '../../model/templateTypes';
 import type { BlockSelection } from './selection';
@@ -21,20 +22,20 @@ export interface EditOutcome {
 
 export const NOTHING: EditOutcome = {};
 
-/** Why a template cannot be changed, in the words the editor says it; null for an editable one. */
-export function readOnlyMessage(snapshot: Pick<SessionSnapshot, 'readOnly' | 'readOnlyReason'>): string | null {
+/** Why a template cannot be changed (one from a newer Atlas), in the words the editor says it; null for an editable one. */
+export function readOnlyMessage(snapshot: Pick<SessionSnapshot, 'readOnly'>): string | null {
   if (!snapshot.readOnly) return null;
-  return snapshot.readOnlyReason === 'newer' ? 'Update Atlas to edit this template.' : 'Built-in template. Make a copy to change it.';
+  return 'Update Atlas to edit this template.';
 }
 
-/** Why the Name or the token picture stays. */
-export const CORE_SLOT_MESSAGE = 'Every statblock has a name and token art. Move them, but they stay.';
+/** Why a part of the header stays where it is. */
+export const HEADER_MESSAGE = 'The header stays as it is: rename its parts, or hide the ones your system has no use for.';
 
 /** A refused edit in plain words, where the refusal is one the user can act on. */
 export function refusalMessage(reason: TreeRefusal): string | null {
   switch (reason) {
     case 'not-allowed-here': return "That block can't go there.";
-    case 'core-slot': return CORE_SLOT_MESSAGE;
+    case 'header': return HEADER_MESSAGE;
     case 'not-siblings': return 'Select blocks that stand in the same place.';
     case 'not-adjacent': return 'Select blocks that stand next to each other.';
     case 'cannot-turn-into': return "This block can't turn into that.";
@@ -60,14 +61,35 @@ export function applyEdit<T>(
   return out.result;
 }
 
-/** Applies a tree operation to the layout; a refused one changes nothing. */
+/**
+ * Applies a pure edit of one tile that keeps it selected (a number or column
+ * added, moved or taken out): `said` where it changed the template, nothing
+ * where it changed nothing, and why where the session took no edit.
+ */
+export function editTile(
+  session: EditorSession, blockId: string, edit: (template: StatblockTemplate) => StatblockTemplate, said: EditOutcome,
+): EditOutcome {
+  const changed = applyEdit(session, (template) => {
+    const next = edit(template);
+    return { template: next, result: next !== template };
+  });
+  if (changed === null) return { announce: readOnlyMessage(session.getSnapshot()) ?? undefined };
+  return changed ? { select: [blockId], ...said } : NOTHING;
+}
+
+/**
+ * Applies a tree operation to the layout; a refused one changes nothing. The
+ * grid's rows are tidied in the same step (`tidyRows`): a row the edit left
+ * with one tile becomes that tile.
+ */
 export function applyTree(
   session: EditorSession, op: (layout: TemplateLayout, template: StatblockTemplate) => TreeEdit,
 ): TreeEdit | null {
   return applyEdit(session, (template) => {
     const edit = op(template.layout, template);
-    const changed = edit.ok && edit.layout !== template.layout;
-    return { template: changed ? { ...template, layout: edit.layout } : template, result: edit };
+    if (!edit.ok || edit.layout === template.layout) return { template, result: edit };
+    const layout = tidyRows(edit.layout);
+    return { template: { ...template, layout }, result: { ...edit, layout } };
   });
 }
 

@@ -426,9 +426,11 @@ export class TokenStatblockLinkService extends EventEmitter {
     if (wholeOnly && parsing && (!statblock || statblock.fields.extends !== undefined)) return null;
     const record = { ...statblock?.fields, ...frontmatter };
     const meanings = statblock?.meanings ?? NO_MEANINGS;
+    const displayKey = meanings['display-name'];
     const difficulty = difficultyLabel(record, meanings);
     return {
-      name: frontmatterLabel(record.name) ?? t('link.unknown'),
+      // The name the statblock goes by on its card (`statblockDisplayName`); `name` stays its identity
+      name: frontmatterLabel(displayKey === undefined ? undefined : record[displayKey]) ?? frontmatterLabel(record.name) ?? t('link.unknown'),
       ...(difficulty !== undefined && { difficulty }),
       record,
       meanings,

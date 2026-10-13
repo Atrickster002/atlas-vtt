@@ -21,8 +21,8 @@ import { describeValue, isRecord, own, parseJsonText } from './jsonValues';
 import { ObjectReader } from './objectReader';
 import { parseLayout, type BlockContext } from './parseBlocks';
 import { parseField } from './parseFields';
-import { readDerivedFrom, readImportedFrom, readLookups, readSource } from './parseTemplateMeta';
-import { JSON_OBJECT, asJsonRecord, asPositiveInteger, asString } from './valueReads';
+import { readDerivedFrom, readHeader, readImportedFrom, readLookups, readSource } from './parseTemplateMeta';
+import { JSON_OBJECT, asJsonRecord, asKey, asPositiveInteger, asString } from './valueReads';
 
 export type TemplateParseStatus = 'ok' | 'invalid' | 'newer' | 'reserved';
 
@@ -104,10 +104,12 @@ function readBody(file: Record<string, unknown>, version: number, id: string, pr
     id,
     ...r.opt('description', asString, 'text'),
     ...r.optList('suits', asString, 'role names'),
+    ...r.opt('diceSetId', asKey, 'a dice set id'),
     ...r.opt('derivedFrom', (value) => readDerivedFrom(value, problems), 'a template id with its revision'),
     ...r.opt('source', (value) => readSource(value, problems), 'a complete source'),
     ...r.opt('importedFrom', (value) => readImportedFrom(value, problems), 'a layout id and name'),
     fields,
+    ...r.opt('header', (value) => readHeader(value, problems), 'an object'),
     layout,
     ...readLookups(r),
     ...r.opt('sample', asJsonRecord, JSON_OBJECT),

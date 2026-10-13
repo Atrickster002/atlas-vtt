@@ -1,7 +1,9 @@
 /**
- * What the template gallery makes (§7.9): an editable template in the
- * library, copied from a card, built from a statblock's values or blank; and
- * where it goes next, the template editor or a role of the collection.
+ * What the template gallery makes (§7.9): an editable template, copied from a
+ * card, built from a statblock's values or blank; and where it goes next. From
+ * the command it opens in the template editor unsaved, named by its first
+ * save; in a collection's settings it is written to the library at once and
+ * given to a role. A Fantasy Statblocks layout is imported, which writes it.
  */
 
 import { Notice, type App } from 'obsidian';
@@ -9,15 +11,19 @@ import { AssetService } from '../../../services/AssetService';
 import { systemPresetsOf } from '../../../services/mapCollectionRules';
 import { identityOf, importFsLayout, type FsLayoutImport, type LayoutIdentity } from '../../fs/fsImport';
 import type { FsLayout } from '../../fs/fsLayoutTypes';
-import { copyTemplate, createTemplateFile } from '../../library/templateActions';
+import { copiedFrom, copyTemplate, createTemplateFile } from '../../library/templateActions';
+import { readTemplateBody } from '../../library/templateBodyNotes';
+import { TemplateLibrary } from '../../library/TemplateLibrary';
+import { copyName } from '../../library/templatePaths';
 import type { LibraryTemplate } from '../../model/resolvedTypes';
 import type { StatblockTemplate, TemplateId } from '../../model/templateTypes';
 import type { FrontmatterRecord } from '../../notes/statblockSource';
 import { collectionStatblockRoles, editedStatblockRoles } from '../../roles/collectionStatblockRoles';
-import { openTemplateEditor } from '../openTemplateEditor';
+import { openNewTemplate, openTemplateEditor } from '../openTemplateEditor';
+import { freeName, nameTakenIn } from '../template-editor/save/saveChoice';
 import { blankTemplate, firstBlockId } from './gallerySources';
 import { noteName } from '../../../utils/pathUtils';
-import { statblockTemplate } from './statblockNotes';
+import { noteBodyAt, statblockTemplate } from './statblockNotes';
 
 /** What the user picked in the gallery. */
 export type GalleryPick =
@@ -42,7 +48,7 @@ export async function createFromPick(app: App, pick: GalleryPick): Promise<Creat
     case 'template':
       return copyTemplate(app, pick.entry.template.id, pick.entry.name);
     case 'statblock':
-      return createTemplateFile(app, noteName(pick.path), pick.template);
+      return createTemplateFile(app, noteName(pick.path), pick.template, await noteBodyAt(app, pick.path));
     case 'fs-layout': {
       // A layout is imported once: picked again, it opens the template it gave.
       const imported = await importFsLayout(app, pick.layout);
@@ -50,6 +56,25 @@ export async function createFromPick(app: App, pick: GalleryPick): Promise<Creat
     }
     case 'blank':
       return createTemplateFile(app, BLANK_NAME, blankTemplate());
+  }
+}
+
+/** The text a template made from the pick starts its note with: the statblock's own, or the copied template's. */
+function bodyOfPick(app: App, pick: Exclude<GalleryPick, { kind: 'fs-layout' }>): Promise<string> {
+  if (pick.kind === 'statblock') return noteBodyAt(app, pick.path);
+  return pick.kind === 'template' ? readTemplateBody(app, pick.entry.path) : Promise.resolve('');
+}
+
+/** A template that is not saved yet, and the name its first save offers: one no template goes by. */
+export function draftOf(app: App, pick: Exclude<GalleryPick, { kind: 'fs-layout' }>): { template: StatblockTemplate; name: string } {
+  const taken = nameTakenIn(TemplateLibrary.forApp(app).list(), '', app);
+  switch (pick.kind) {
+    case 'template':
+      return { template: { ...pick.entry.template, derivedFrom: copiedFrom(pick.entry.template.id) }, name: freeName(copyName(pick.entry.name), taken) };
+    case 'statblock':
+      return { template: pick.template, name: freeName(noteName(pick.path), taken) };
+    case 'blank':
+      return { template: blankTemplate(), name: freeName(BLANK_NAME, taken) };
   }
 }
 
@@ -64,33 +89,35 @@ export async function assignRoleTemplate(app: App, collectionId: string, roleId:
 }
 
 /**
- * After the gallery: the role takes the template, and the template editor
- * opens on it with nothing selected, so the card shows as a note shows it
- * and no toolbar covers a line. A copy made here switches no statblock.
+ * After the gallery from the command: the template editor opens on the pick
+ * with nothing selected, unsaved; its first save names it and gives it the
+ * role. A layout is imported (written) at once, given the role, and opened.
+ * Resolves with the import, whose report the gallery shows as it closes.
  */
-export async function openCreatedTemplate(app: App, created: CreatedTemplate, collectionId: string | null, roleId: string | null): Promise<void> {
-  if (collectionId !== null && roleId !== null) await assignRoleTemplate(app, collectionId, roleId, created.id);
+export async function openPick(app: App, pick: GalleryPick, collectionId: string | null, roleId: string | null): Promise<CreatedTemplate | null> {
+  const role = collectionId !== null && roleId !== null ? { collectionId, roleId } : null;
+  if (pick.kind !== 'fs-layout') {
+    await openNewTemplate(app, { ...draftOf(app, pick), body: await bodyOfPick(app, pick), collectionId, role });
+    return null;
+  }
+  const created = await createFromPick(app, pick);
+  if (role) await assignRoleTemplate(app, role.collectionId, role.roleId, created.id);
   await openTemplateEditor(app, { templateId: created.id, path: created.path, collectionId });
+  return created;
 }
 
 /**
  * Save as a template (§6.4): a Fantasy Statblocks statblock read without the
- * plugin becomes a template of the library, shaped like its auto template,
- * and opens in the template editor previewing the statblock.
+ * plugin becomes a template, shaped like its auto template, and opens in the
+ * template editor unsaved, named after the statblock until its first save,
+ * which writes the note's body into the template's note.
  */
 export async function saveStatblockAsTemplate(app: App, notePath: string, values: FrontmatterRecord, collectionId: string | null): Promise<void> {
-  const template = statblockTemplate(values);
-  if (!template) {
+  const shaped = statblockTemplate(values);
+  if (!shaped) {
     new Notice('This statblock has no values to build a template from.');
     return;
   }
-  try {
-    const created = await createTemplateFile(app, noteName(notePath), template);
-    await openTemplateEditor(app, {
-      templateId: created.id, path: created.path, previewPath: notePath, collectionId, select: firstBlockId(template) ?? undefined,
-    });
-  } catch (error) {
-    console.error('[Atlas] Saving the statblock as a template failed:', error);
-    new Notice("Couldn't save the template.");
-  }
+  const { name } = draftOf(app, { kind: 'statblock', path: notePath, template: shaped });
+  await openNewTemplate(app, { template: shaped, name, body: await noteBodyAt(app, notePath), collectionId, select: firstBlockId(shaped) ?? undefined });
 }

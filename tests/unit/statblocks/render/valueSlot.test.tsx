@@ -63,12 +63,18 @@ describe('the value seam', () => {
     };
     const { container } = render(<ValueEditingContext.Provider value={marking}>{sheet(EVERY_BLOCK, EVERY_VALUE, 'view')}</ValueEditingContext.Provider>);
 
+    // The header's parts that show (the value has no description) and the layout's blocks.
     expect(new Set(seen)).toEqual(new Set([
-      'a2title0', 'a3line00', 'a4image0', 'a6stat00', 'a7score0', 'a8pairs0', 'a9tags00', 'b1text00', 'b2text00', 'b3entr00', 'b4track0', 'b5spell0',
+      'header-name', 'header-token', 'header-level', 'header-type', 'header-hp',
+      'a2title0', 'a3line00', 'a4image0', 'a6stat00', 'a7score0', 'a8pairs0', 'a9tags00', 'b1text00', 'b2text00', 'b3entr00', 'b4track0', 'b5spell0', 'b8metr00',
     ]));
     // The label of a stat stays outside its values.
     const vigor = container.querySelector('[data-block-id="a6stat00"]');
     expect(vigor?.querySelector('.atlas-sb-label')?.closest('[data-slot]')).toBeNull();
     expect(vigor?.querySelector('[data-slot] .atlas-sb-value')).not.toBeNull();
+    // A Metric's numbers each have a slot of their own, their names outside it.
+    const metric = container.querySelector('[data-block-id="b8metr00"]');
+    expect(metric?.querySelectorAll('[data-slot]')).toHaveLength(2);
+    for (const label of metric?.querySelectorAll('.atlas-sb-label') ?? []) expect(label.closest('[data-slot]')).toBeNull();
   });
 });

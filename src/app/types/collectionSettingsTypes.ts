@@ -91,8 +91,17 @@ export interface CollectionSettings {
   lightPresets?: readonly LightPresetDefinition[] | undefined;
   /** The game system preset the rules were last taken from or saved to; they may have been edited since. */
   systemPresetId?: string | undefined;
-  /** Default roll and critical rule. Read with `collectionDiceRules`. */
-  dice?: DiceRules;
+  /**
+   * Default roll and critical rule of a collection that picked no dice set, as versions before
+   * dice sets wrote them. Removed once the collection picks a set (`diceSetId`), which is then
+   * its dice. Read the collection's dice with `collectionDiceSet`.
+   */
+  dice?: DiceRules | undefined;
+  /**
+   * The dice set from the vault's library a bare bonus rolls with. Unset for a collection
+   * saved before sets existed: it rolls `dice`, else its game system's.
+   */
+  diceSetId?: string | undefined;
   /**
    * How the initiative tracker runs a fight, stored only once the collection has rules of its
    * own. Unset while it takes those of its preset; read with `collectionInitiativeRules`.
@@ -114,12 +123,6 @@ export interface CollectionSettings {
    * one leaves the roles inherited. Unset: Obsidian's location for new notes. Read with `roleFolder`.
    */
   statblockRoleFolders?: StatblockRoleFolders | undefined;
-  /**
-   * The collection's own copy of each built-in statblock template it changed (built-in id →
-   * copy id): changes made from a note on a built-in go there, so a collection holds at most
-   * one copy per built-in. Read with `ownCopyOf`; bookkeeping, not an edit of the GM's.
-   */
-  templateCopies?: Partial<Record<string, string>> | undefined;
   /** Vault paths of the `.base` files whose views the loot roller rolls on. */
   lootBases?: string[];
   /** Named after plain-number item prices, e.g. "gold" or "thorns". */

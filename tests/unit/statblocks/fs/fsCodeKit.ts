@@ -1,13 +1,17 @@
 /**
  * Checks the converter's promises about code: an import keeps every piece of
  * a layout's JavaScript (in script blocks, `fsExtras` or `importedFrom.extras`)
- * unless it became a pattern, an option or a formula, and its output parses.
+ * unless it became a pattern, an option, a formula, a lookup table or a
+ * Value's `rollFrom`, and its output parses.
  */
 
 import { expect } from 'vitest';
 import { parseTemplate } from '../../../../src/app/statblocks/format/parseTemplate';
 import { serializeTemplate } from '../../../../src/app/statblocks/format/templateFormat';
 import { callbackPattern, entryTextKey, modifierFormula, returnsItemUnchanged } from '../../../../src/app/statblocks/fs/fsCallbackPatterns';
+import { diceCallbackKey } from '../../../../src/app/statblocks/fs/fsDiceCallbacks';
+import { replacedIntegration } from '../../../../src/app/statblocks/fs/fsIntegrations';
+import { lookupCallback } from '../../../../src/app/statblocks/fs/fsLookupCallbacks';
 import { findCode, type CodePath } from '../../../../src/app/statblocks/model/fsCodeKeys';
 import { isLegalSubtree } from '../../../../src/app/statblocks/model/treeEdit';
 import { flattenReadingOrder } from '../../../../src/app/statblocks/model/treeQueries';
@@ -35,9 +39,15 @@ export function codeTexts(value: unknown): string[] {
   return texts.filter((text) => text.trim() !== '');
 }
 
-/** Code the converter may replace instead of keeping. */
+/**
+ * Code the converter may replace instead of keeping (a pattern, an option, a
+ * formula, a lookup table, a Value's `rollFrom`), or leave out with the button
+ * for a plugin Atlas stands in for. Where it cannot use what it read, it keeps
+ * the code, so recognising it here hides no loss.
+ */
 function recognised(code: string): boolean {
-  return callbackPattern(code) !== null || entryTextKey(code) !== null || returnsItemUnchanged(code) || modifierFormula(code) !== null;
+  return callbackPattern(code) !== null || entryTextKey(code) !== null || returnsItemUnchanged(code) || modifierFormula(code) !== null
+    || lookupCallback(code) !== null || diceCallbackKey(code) !== null || replacedIntegration({ type: 'action', callback: code }) !== null;
 }
 
 /** The layout's code that the template neither keeps nor expresses otherwise; empty when nothing was lost. */

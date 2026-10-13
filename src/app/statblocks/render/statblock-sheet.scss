@@ -2,8 +2,11 @@
 @use 'sheet-text';
 @use 'sheet-lists';
 @use 'sheet-numbers';
+@use 'sheet-table';
+@use 'sheet-metric';
 @use 'sheet-media';
 @use 'sheet-tabs';
+@use 'sheet-header';
 
 // The native statblock card (`StatblockSheet`). It shares the card, the
 // heading classes and the companion theme's hooks with the Fantasy Statblocks
@@ -84,7 +87,9 @@
     min-width: 0;
   }
 
+  // A value too long for the row wraps on a line of its own instead of running past the card
   > .atlas-sb-item--fit {
-    flex: 0 0 auto;
+    flex: 0 1 auto;
+    min-width: 0;
   }
 }

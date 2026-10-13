@@ -6,6 +6,7 @@ import { Button } from '../../packages/components/primitives/button';
 import { ActionsMenuButton } from '../../packages/components/shared/ActionsMenuButton';
 import type { ContextMenuEntry } from '../../react/components/context-menu/AtlasContextMenu';
 import { DeleteTemplateDialog } from '../editor/template-editor/DeleteTemplateDialog';
+import { createFromPick } from '../editor/gallery/galleryActions';
 import { TemplateGallery } from '../editor/gallery/TemplateGallery';
 import type { TemplateLibrarySnapshot } from '../library/TemplateLibrary';
 import { copyTemplate, deleteTemplate } from '../library/templateActions';
@@ -114,7 +115,11 @@ export function TemplateList(props: TemplateListProps): React.JSX.Element {
             doc={root.doc}
             roles={roles}
             systemTemplateIds={systemTemplateIds}
-            onCreated={(created, roleId) => { if (roleId !== null) onUseForRole(roleId, created.id); }}
+            onUse={async (pick, roleId) => {
+              const created = await createFromPick(app, pick);
+              if (roleId !== null) onUseForRole(roleId, created.id);
+              return created;
+            }}
             onClose={() => setGalleryOpen(false)}
           />
         )}

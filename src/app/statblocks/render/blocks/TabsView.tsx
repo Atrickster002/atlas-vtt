@@ -5,6 +5,7 @@ import { blockDisplay } from '../blockDisplay';
 import { useSheet } from '../sheetContext';
 import { TabPanelContext, useOpenTab } from '../tabs/openTabs';
 import { TabPanel, TabStrip } from '../tabs/TabStrip';
+import { SheetHeading } from '../values/SheetHeading';
 import type { BlockViewProps } from './blockViewProps';
 import { sectionHeading } from './SectionView';
 
@@ -14,9 +15,11 @@ interface TabsViewProps extends BlockViewProps<TabsBlock> {
 }
 
 /**
- * Sections shown one at a time, each Section's heading its tab. Only the
- * Sections that show (in the editing mode every one) get a tab; the block
- * itself hides where none does (`blockDisplay`).
+ * Sections shown one at a time, each Section's heading its tab, under the
+ * block's own heading where it has one (an Abilities component split into
+ * tabs keeps its name there). Only the Sections that show (in the editing
+ * mode every one) get a tab; the block itself hides where none does
+ * (`blockDisplay`).
  */
 export function TabsView({ block, renderBlock }: TabsViewProps): React.JSX.Element {
   const { state } = useSheet();
@@ -30,6 +33,7 @@ export function TabsView({ block, renderBlock }: TabsViewProps): React.JSX.Eleme
 
   return (
     <div className="atlas-sb-tabs">
+      {block.heading?.trim() && <SheetHeading>{block.heading}</SheetHeading>}
       <TabStrip idBase={idBase} tabs={strip} selected={open} onSelect={choose} />
       {tabs.map((tab) => (
         <TabPanel key={tab.id} idBase={idBase} tab={tab.id} open={tab.id === open}>

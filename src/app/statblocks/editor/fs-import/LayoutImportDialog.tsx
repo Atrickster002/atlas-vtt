@@ -7,7 +7,8 @@ import { CloseButton } from '../../../packages/components/primitives/CloseButton
 import { dialogOverlayMotion, useDialogWindowVariants } from '../../../packages/components/primitives/dialogMotion';
 import { useDialogEscape } from '../../../packages/components/primitives/useDialogEscape';
 import type { FsLayoutImport, LayoutIdentity } from '../../fs/fsImport';
-import { adoptLabel } from './importReportText';
+import { statblockCount, type LayoutStatblocks } from '../../fs/fsLayoutStatblocks';
+import { keptScripts } from './layoutImportActions';
 import { AdoptionSection, ImportSummary } from './LayoutImportParts';
 import { useLayoutAdoption } from './useLayoutAdoption';
 import './layout-import-dialog.scss';
@@ -19,25 +20,25 @@ export interface LayoutImportDialogProps {
   layout: LayoutIdentity;
   /** The layout's template, with the report of an import made just now. */
   imported: FsLayoutImport;
-  /** The statblocks the layout draws, which the batch adopts. */
-  notes: readonly string[];
+  /** The statblocks the layout draws, which the batch moves to Atlas. */
+  statblocks: LayoutStatblocks;
   /** Opens the template in the template editor; without it there is no Open template. */
   onOpenTemplate?: (() => void) | undefined;
   onClose: () => void;
 }
 
 /**
- * The import report (§6.2) and the adoption batch (§6.4) in one dialog: what
- * the import made, Track blocks for scripts that drew tracks, and "Use
- * <template> for the 214 notes using layout <X>" with the notes listed first,
- * progress and Cancel. Without a report (the layout was imported before) it
- * is the batch alone.
+ * The import report (§6.2) and the batch that moves the layout's statblocks
+ * to Atlas (§6.4) in one dialog: what the import made, Track blocks for
+ * scripts that drew tracks, and "Move 214 statblocks to Atlas" with the
+ * statblocks listed first, progress, Cancel and a summary. Without a report
+ * (the layout was imported before) it is the batch alone.
  */
-export function LayoutImportDialog({ app, doc, layout, imported, notes, onOpenTemplate, onClose }: LayoutImportDialogProps): React.JSX.Element {
+export function LayoutImportDialog({ app, doc, layout, imported, statblocks, onOpenTemplate, onClose }: LayoutImportDialogProps): React.JSX.Element {
   const windowVariants = useDialogWindowVariants();
   const titleId = useId();
   const windowRef = useRef<HTMLDivElement>(null);
-  const { phase, adopt, cancel } = useLayoutAdoption(app, notes, imported.id);
+  const { phase, adopt, cancel } = useLayoutAdoption(app, statblocks, imported.id);
   const running = phase.kind === 'running';
   // Closing while notes are switched stops at the next note.
   const close = (): void => {
@@ -71,8 +72,13 @@ export function LayoutImportDialog({ app, doc, layout, imported, notes, onOpenTe
           {imported.report
             ? <ImportSummary app={app} templateId={imported.id} report={imported.report} />
             : <p className="atlas-te-dialog__text">Imported before as {imported.name}.</p>}
-          {notes.length > 0 && (
-            <AdoptionSection notes={notes} label={adoptLabel(imported.name, notes.length, layout.name)} phase={phase} onAdopt={adopt} />
+          {statblockCount(statblocks) > 0 && (
+            <AdoptionSection
+              statblocks={statblocks}
+              phase={phase}
+              scripts={phase.kind === 'finished' ? keptScripts(app, imported.id) : []}
+              onAdopt={adopt}
+            />
           )}
         </div>
         <div className="atlas-te-dialog__footer">

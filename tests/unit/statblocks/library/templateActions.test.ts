@@ -100,12 +100,12 @@ describe('createTemplateFile and copyTemplate', () => {
     expect(builtInTemplate(source.id)).toBe(source);
   });
 
-  it('copies a vault template as it is being edited, under the name given, and keeps the source file', async () => {
+  it('copies a vault template as it is saved, never an editor\'s unsaved draft, under the name given, and keeps the source file', async () => {
     const session = TemplateSession.open(vault.app, MARSH_ID)!;
     session.apply((template) => ({ ...template, description: 'Unsaved' }));
     const copy = await copyTemplate(vault.app, MARSH_ID, 'Fen creature');
     session.release();
-    expect(read(copy.path)).toMatchObject({ id: copy.id, description: 'Unsaved', derivedFrom: { templateId: MARSH_ID } });
+    expect(read(copy.path)).toMatchObject({ id: copy.id, description: MARSH_CREATURE.description, derivedFrom: { templateId: MARSH_ID } });
     expect(read(copy.path).derivedFrom).not.toHaveProperty('revision');
     expect(vault.files.has(MARSH_PATH)).toBe(true);
     await expect(copyTemplate(vault.app, 'unknown-abc123')).rejects.toThrow();
@@ -128,7 +128,7 @@ describe('deleteTemplate', () => {
     expect(vault.app.fileManager.trashFile).toHaveBeenCalledTimes(1);
   });
 
-  it('writes pending edits first and, without a replacement, leaves notes and roles as they are', async () => {
+  it('writes no unsaved edits and, without a replacement, leaves notes and roles as they are', async () => {
     const session = TemplateSession.open(vault.app, MARSH_ID)!;
     session.apply((template) => ({ ...template, description: 'Last edit' }));
     const trash = vi.mocked(vault.app.fileManager.trashFile);
@@ -136,7 +136,7 @@ describe('deleteTemplate', () => {
     trash.mockImplementationOnce(async () => { trashed.push(vault.files.get(MARSH_PATH)!); vault.deleteExternally(MARSH_PATH); });
     await deleteTemplate(vault.app, MARSH_ID, null);
     session.release();
-    expect(JSON.parse(trashed[0]!)).toMatchObject({ description: 'Last edit' });
+    expect(JSON.parse(trashed[0]!)).toMatchObject({ description: MARSH_CREATURE.description });
     expect(vault.files.get('Bestiary/Bog.md')).toBe(note(MARSH_ID));
     expect(updateCollectionSettings).not.toHaveBeenCalled();
   });

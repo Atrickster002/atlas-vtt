@@ -1,7 +1,7 @@
-// The selected block's toolbar (spec §4.2): a 36 px capsule of five controls,
-// below the block; its buttons sit $spacing-xs inside the border, so their
-// outer corners run concentric with the capsule's ends. It takes the pointer
-// over its whole capsule while its block is selected.
+// The selected tile's toolbar (spec §4.2): a 36 px capsule under the tile,
+// its kind's name, then its controls; its buttons sit $spacing-xs inside the
+// border, so their outer corners run concentric with the capsule's ends. It
+// takes the pointer over its whole capsule while its tile is selected.
 
 @use '../../../../../../styles/tokens' as *;
 @use '../../../../../../styles/mixins' as *;
@@ -10,7 +10,6 @@ $toolbar-height: 36px;
 $toolbar-inset: $spacing-xs;
 $toolbar-button: calc(#{$toolbar-height} - 2 * #{$border-width-m} - 2 * #{$toolbar-inset});
 $chip-max: 88px;
-$dot: 6px;
 
 .atlas-vtt-plugin {
   .atlas-te-toolbar {
@@ -35,8 +34,7 @@ $dot: 6px;
       pointer-events: none;
     }
 
-    .atlas-tool-button button.btn,
-    .atlas-te-toolbar__type.btn {
+    .atlas-tool-button button.btn {
       @include atlas-corner-shape;
       height: $toolbar-button;
       border: none;
@@ -45,7 +43,7 @@ $dot: 6px;
       box-shadow: none;
       color: var(--text-muted);
 
-      &:hover:not([aria-disabled='true']) {
+      &:hover:not(:disabled) {
         background: var(--background-modifier-hover);
         color: var(--text-normal);
       }
@@ -68,12 +66,19 @@ $dot: 6px;
     }
   }
 
-  // The block's plain name, with its glyph: it opens Turn into.
-  .atlas-te-toolbar__type.btn {
+  // The tile's kind, with its glyph: a name, no control.
+  .atlas-te-toolbar__type {
     @include atlas-flex-row($spacing-xs);
     max-width: $chip-max;
     padding: 0 $spacing-s;
+    color: var(--text-muted);
     font-size: $font-ui-smaller;
+
+    svg {
+      flex: none;
+      width: $icon-s;
+      height: $icon-s;
+    }
   }
 
   .atlas-te-toolbar__type-name {
@@ -82,22 +87,9 @@ $dot: 6px;
     white-space: nowrap;
   }
 
-  .atlas-te-toolbar__settings,
+  .atlas-te-toolbar :is([data-value-kind], [data-options]),
   .atlas-te-toolbar__more {
     position: relative;
     display: flex;
-  }
-
-  // A setting beyond the basics is in use.
-  .atlas-te-toolbar__settings[data-in-use]::after {
-    content: '';
-    position: absolute;
-    top: 2px;
-    right: 2px;
-    width: $dot;
-    height: $dot;
-    border-radius: $radius-full;
-    background: var(--interactive-accent);
-    pointer-events: none;
   }
 }

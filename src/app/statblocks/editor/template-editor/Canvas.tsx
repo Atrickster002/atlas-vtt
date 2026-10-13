@@ -10,10 +10,13 @@ import { ChromeLayer, SHEET_SELECTOR, type LabelEditing } from './ChromeLayer';
 import { blockFrame, editorChrome, frameAt } from './editorChrome';
 import { EDITOR_VALUE_EDITING } from './editorValueSlot';
 import type { Box } from './gapGeometry';
+import { selectableFor } from '../../model/templateGrid';
 import { primaryOf, withSibling, type BlockSelection } from './selection';
 import { tabAt, withoutClosedTab } from './tabClicks';
+import { labelPartAt, type LabelPart } from './labelTargets';
+import { LIVE_TABLE_ATTRIBUTE } from '../table/EditableTable';
 
-/** Marks the elements whose focus the block keys act on (the canvas; the outline may carry it too). */
+/** Marks the elements whose focus the block keys act on: the canvas. */
 export const BLOCK_KEYS_SELECTOR = '[data-te-blocks]';
 
 export interface CanvasProps {
@@ -22,7 +25,7 @@ export interface CanvasProps {
   app?: App | undefined;
   template: StatblockTemplate;
   templateName: string;
-  /** Sample values, or the values of the statblock previewed with. */
+  /** The values the card shows: none in the editor, so every block shows its prompt. */
   record: FieldRecord;
   sourcePath?: string | undefined;
   selection: BlockSelection;
@@ -31,16 +34,14 @@ export interface CanvasProps {
   washId: string | null;
   onWashed: () => void;
   onSelect: (selection: BlockSelection) => void;
-  onEditLabel: (id: string) => void;
+  onEditLabel: (id: string, part?: LabelPart) => void;
   onInsertAt: (gap: CanvasGap, anchor: Box) => void;
+  /** Takes a number out of a Metric (its × on the card). */
+  onRemovePart?: ((id: string, index: number) => void) | undefined;
   /** Focus moves to this block (the canvas itself for null) whenever the request's count changes. */
   focusRequest: { id: string | null; count: number };
-  /** Shown instead of the card while the template has no block (Blank's ghost card). */
+  /** Shown under the header while the template lays out no block (Blank's ghost rows). */
   empty?: React.ReactNode;
-  /** The card at another surface's width (Show as a hover card, the DM screen); unset, the panel's. */
-  shownWidth?: number | undefined;
-  /** Empty headed sections folded into chips under the card, as the note view folds them (§8.2, J6). */
-  folded?: ReadonlySet<string> | undefined;
 }
 
 /** A block just inserted fades in and rises 4 px (§7.6); only its opacity where motion is reduced. */
@@ -54,7 +55,7 @@ function playEntrance(frame: HTMLElement): void {
 
 /**
  * The template editor's canvas (§7.4): the runtime card in the editing mode,
- * with values read-only. A click selects the innermost block, Shift+click
+ * empty and with nothing folded. A click selects the innermost block, Shift+click
  * adds a sibling, a double click edits its label; its gutter handle (or
  * Space) moves it, a right-click opens its menu; links, dice and folds in
  * the card do nothing here. A tab opens on a click, and the tabs that hold
@@ -66,7 +67,7 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
   const isEmpty = template.layout.blocks.length === 0 && props.empty !== undefined;
   const primary = primaryOf(selection);
   // Only a block's handle drags it (§7.1); Space on a focused block picks it up for the arrow keys.
-  const drag = useCanvasKeyDrag(stageRef, props.editable && !isEmpty);
+  const drag = useCanvasKeyDrag(stageRef, props.editable);
 
   const focusTarget = (): HTMLElement | null => {
     const stage = stageRef.current;
@@ -100,39 +101,50 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
       if (kept !== selection) onSelect(kept);
       return;
     }
+    // A Table types the cell clicked and answers its own buttons: its tile is selected, focus staying in the table.
+    if (sheet?.contains(target) && target.closest?.(`[${LIVE_TABLE_ATTRIBUTE}]`)) {
+      const hit = frameAt(target, sheet)?.getAttribute('data-block-id');
+      const tile = hit ? selectableFor(template, hit) : null;
+      if (tile && !(selection.length === 1 && selection[0] === tile)) onSelect([tile]);
+      return;
+    }
     // A Spells block's tabs open too, and the click selects the block.
     if (sheet?.contains(target) && !target.closest?.('[role="tab"]')) {
       event.preventDefault();
       event.stopPropagation();
     }
     if (isEmpty && !sheet?.contains(target)) return;
-    const frame = sheet ? frameAt(target, sheet) : null;
-    const id = frame?.getAttribute('data-block-id') ?? null;
+    const clicked = sheet ? frameAt(target, sheet)?.getAttribute('data-block-id') : null;
+    // A click selects the tile around what it hit (`selectableFor`): never a row, never inside a compound tile.
+    const id = clicked ? selectableFor(template, clicked) : null;
     if (!id) {
       onSelect([]);
       stageRef.current?.focus({ preventScroll: true });
       return;
     }
     onSelect(event.shiftKey ? withSibling(template.layout, selection, id) : [id]);
-    frame?.focus({ preventScroll: true });
+    (sheet ? blockFrame(sheet, id) : null)?.focus({ preventScroll: true });
   };
 
   const onDoubleClickCapture = (event: React.MouseEvent<HTMLDivElement>): void => {
     const sheet = sheetOf();
     const frame = sheet ? frameAt(event.target, sheet) : null;
-    // A tab's label is its Section's heading.
-    const id = (sheet ? tabAt(event.target as Element, sheet)?.sectionId : null) ?? frame?.getAttribute('data-block-id');
-    if (!id || event.shiftKey) return;
+    // A tab's label is its Section's heading; anything else is renamed as the tile around it, never inside a compound tile.
+    const hit = frame?.getAttribute('data-block-id');
+    const id = (sheet ? tabAt(event.target as Element, sheet)?.sectionId : null) ?? (hit ? selectableFor(template, hit) : null);
+    // A double click in a Table selects a word of the cell being typed.
+    if (!id || event.shiftKey || (event.target as Partial<Element>).closest?.(`[${LIVE_TABLE_ATTRIBUTE}]`)) return;
     event.preventDefault();
-    props.onEditLabel(id);
+    // A Metric names each number where it is clicked; elsewhere in a Metric's box, its group.
+    props.onEditLabel(id, frame && hit === id ? labelPartAt(event.target, frame) : undefined);
   };
 
-  // Tab never stops on a link or fold inside the card: focus coming in lands on the selected block.
+  // Tab never stops on a link or fold inside the card: focus coming in lands on the selected block. A Table's cell typed keeps it.
   const onFocus = (event: React.FocusEvent<HTMLDivElement>): void => {
     const sheet = sheetOf();
     const target = event.target;
     const from = event.relatedTarget;
-    if (!sheet?.contains(target) || target.hasAttribute('data-block-id')) return;
+    if (!sheet?.contains(target) || target.hasAttribute('data-block-id') || target.closest(`[${LIVE_TABLE_ATTRIBUTE}]`)) return;
     if (from && stageRef.current?.contains(from)) return;
     focusTarget()?.focus({ preventScroll: true });
   };
@@ -143,7 +155,7 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
       className="atlas-te-stage"
       data-te-blocks=""
       data-te-region="canvas"
-      tabIndex={primary || isEmpty ? -1 : 0}
+      tabIndex={primary ? -1 : 0}
       role="group"
       aria-label="Template canvas"
       onClickCapture={onClickCapture}
@@ -151,17 +163,19 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
       onFocus={onFocus}
       onKeyDown={drag.onKeyDown}
     >
-      {isEmpty ? props.empty : sheet}
+      {sheet}
+      {isEmpty && props.empty}
       <ChromeLayer
         stageRef={stageRef}
         template={template}
         selection={selection}
-        editable={props.editable && !isEmpty}
+        editable={props.editable}
         label={props.label}
         washId={washId}
         onWashed={props.onWashed}
         onSelect={(id) => onSelect([id])}
         onInsertAt={props.onInsertAt}
+        onRemovePart={props.onRemovePart}
       />
     </div>
   );
@@ -176,8 +190,6 @@ export function Canvas(props: CanvasProps): React.JSX.Element {
       record={props.record}
       app={props.app}
       sourcePath={props.sourcePath}
-      shownWidth={props.shownWidth}
-      folded={props.folded}
       reveal={primary}
       around={stage}
     />

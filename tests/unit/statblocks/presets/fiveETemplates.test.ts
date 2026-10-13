@@ -6,6 +6,7 @@ import { isExpressionError } from '../../../../src/app/statblocks/expressions/er
 import { experienceTable, proficiencyTable } from '../../../../src/app/statblocks/presets/fiveEChallenge';
 import { FIVE_E_2014_MONSTER } from '../../../../src/app/statblocks/presets/fiveE2014';
 import { FIVE_E_2024_MONSTER } from '../../../../src/app/statblocks/presets/fiveE2024';
+import { flattenReadingOrder } from '../../../../src/app/statblocks/model/treeQueries';
 import type { StatblockTemplate } from '../../../../src/app/statblocks/model/templateTypes';
 import { FIVE_E_2024 } from '../../../fixtures/statblockTemplateFixtures';
 
@@ -30,18 +31,9 @@ function proficiencyOf(rating: string): string {
   return '+9';
 }
 
-function withoutLookupsAndSource(template: StatblockTemplate): Omit<StatblockTemplate, 'lookups' | 'source' | 'sample'> {
-  const { lookups: _lookups, source: _source, sample: _sample, ...rest } = template;
-  return JSON.parse(JSON.stringify(rest)) as Omit<StatblockTemplate, 'lookups' | 'source' | 'sample'>;
-}
-
-/** The template as revision 1 had it: revision 2 added the hidden Spells block and its property, nothing else. */
-function revisionOne(template: StatblockTemplate): StatblockTemplate {
-  return {
-    ...template,
-    fields: template.fields.filter((field) => field.key !== 'spells'),
-    layout: { ...template.layout, blocks: template.layout.blocks.filter((block) => block.type !== 'spells') },
-  };
+/** The ids of every block a template lays out. */
+function blockIds(template: StatblockTemplate): string[] {
+  return flattenReadingOrder(template.layout.blocks).map((block) => block.id);
 }
 
 function challengeLine(template: StatblockTemplate, cr: string | number): string {
@@ -73,26 +65,28 @@ describe('the 5E challenge tables', () => {
 });
 
 describe('the 5E (2024 rules) template', () => {
-  it('is §5.8 of the plan: the plan fixture with its block ids, its tables written out and its source', () => {
-    expect(withoutLookupsAndSource(revisionOne(FIVE_E_2024_MONSTER.template))).toEqual(withoutLookupsAndSource(FIVE_E_2024));
-    expect(FIVE_E_2024_MONSTER.template.lookups).toEqual({ xp: experienceTable(), pb: proficiencyTable() });
+  it('grew from §5.8 of the plan: its keys, and its block ids but the ones the header now draws, with its tables written out', () => {
+    const { template } = FIVE_E_2024_MONSTER;
+    expect(template.fields.map((field) => field.key)).toEqual(expect.arrayContaining(FIVE_E_2024.fields.map((field) => field.key)));
+    const planned = new Set(blockIds(FIVE_E_2024));
+    expect(blockIds(template).filter((id) => !planned.has(id) && id !== 'b5spell0')).toEqual([]);
+    expect(template.lookups).toEqual({ xp: experienceTable(), pb: proficiencyTable() });
   });
 
-  it('writes the challenge with experience and proficiency bonus', () => {
-    expect(challengeLine(FIVE_E_2024_MONSTER.template, 10)).toBe('10 (XP 5,900; PB +4)');
-    expect(challengeLine(FIVE_E_2024_MONSTER.template, '1/4')).toBe('1/4 (XP 50; PB +2)');
-    expect(challengeLine(FIVE_E_2024_MONSTER.template, 'unrated')).toBe('unrated');
+  it('writes the challenge in the header and its experience and proficiency bonus below', () => {
+    expect(challengeLine(FIVE_E_2024_MONSTER.template, 10)).toBe('5,900; PB +4');
+    expect(challengeLine(FIVE_E_2024_MONSTER.template, '1/4')).toBe('50; PB +2');
   });
 });
 
-describe('the 5E templates\' revision 2', () => {
+describe('the 5E templates since revision 2', () => {
   it.each([
     [FIVE_E_2014_MONSTER, 'e4spell0', 'traits'],
     [FIVE_E_2024_MONSTER, 'b5spell0', 'actions'],
   ] as const)('%s adds a Spellcasting block that hides while empty, after its %s', (builtIn, id, after) => {
     const blocks = builtIn.template.layout.blocks;
     const index = blocks.findIndex((block) => block.id === id);
-    expect(builtIn.revision).toBe(2);
+    expect(builtIn.revision).toBeGreaterThanOrEqual(2);
     expect(blocks[index]).toEqual({ id, type: 'spells', field: 'spells', heading: 'Spellcasting' });
     expect(blocks[index - 1]).toMatchObject({ type: 'entries', field: after });
     expect(builtIn.template.fields.at(-1)).toEqual({ key: 'spells', label: 'Spells', type: 'spells' });
@@ -106,8 +100,8 @@ describe('the 5E (2014 rules) template', () => {
     expect(keys2014).toEqual(keys2024.filter((key) => key !== 'initiative' && key !== 'gear'));
   });
 
-  it('writes the challenge with experience only', () => {
-    expect(challengeLine(FIVE_E_2014_MONSTER.template, 10)).toBe('10 (5,900 XP)');
+  it('writes the challenge in the header and its experience below', () => {
+    expect(challengeLine(FIVE_E_2014_MONSTER.template, 10)).toBe('5,900');
     expect(FIVE_E_2014_MONSTER.template.lookups).toEqual({ xp: experienceTable() });
   });
 });

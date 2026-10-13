@@ -112,7 +112,7 @@ $empty-height: 28px;
     }
   }
 
-  // An empty Section or Row: dashed accent outline, 6 % wash, "Drop blocks here"
+  // An empty Section or Row: a soft accent ring, 6 % wash, "Drop blocks here"
   // at its end, clear of a heading at its start.
   .atlas-te-drop-into {
     position: absolute;
@@ -126,7 +126,7 @@ $empty-height: 28px;
     width: var(--atlas-te-w);
     height: var(--atlas-te-h);
     min-height: $empty-height;
-    border: $border-width-m dashed var(--interactive-accent);
+    border: $border-width-m solid color-mix(in oklch, var(--interactive-accent) 60%, transparent);
     border-radius: $radius-l;
     background: color-mix(in oklch, var(--interactive-accent) 6%, transparent);
     color: var(--text-accent);
@@ -170,11 +170,21 @@ $empty-height: 28px;
     padding: $spacing-xs;
   }
 
-  // A palette tile or a field row: itself, lifted.
-  .atlas-te-drag-overlay .atlas-te-drag-face {
-    width: 100%;
-    height: 100%;
-    box-shadow: $shadow-elevated;
+  // A kind dragged from the dock: the tile it places, lifted like a block, at
+  // the width of a tile of the card. The overlay has the dock button's box, so
+  // the copy hangs from its corner instead of filling it.
+  .atlas-te-drag-overlay .atlas-te-drag-face--item .atlas-statblock.atlas-te-drag-sheet {
+    box-sizing: border-box;
+    inset: calc(-1 * (#{$spacing-xs} + #{$border-width-m})) auto auto;
+    width: calc(var(--atlas-te-tile-width, 260px) + 2 * (#{$spacing-xs} + #{$border-width-m}));
+  }
+
+  // The insert menu's preview: the tile alone, without the card's frame.
+  .atlas-te-insert__preview .atlas-te-item-preview .atlas-statblock {
+    padding: 0;
+    border: none;
+    background: transparent;
+    box-shadow: none;
   }
 }
 

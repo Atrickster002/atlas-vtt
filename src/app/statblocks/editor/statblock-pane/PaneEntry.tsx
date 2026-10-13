@@ -1,6 +1,7 @@
 import React from 'react';
-import type { TemplateBlock } from '../../model/templateTypes';
+import type { EntriesBlock, TemplateBlock } from '../../model/templateTypes';
 import { deepEqual } from '../../notes/listIdentity';
+import { AddEntryRow } from '../../render/shared/AddEntryRow';
 import type { EntrySlotInfo } from '../../render/valueSlot';
 import { keyedEntryItems } from '../../values/entryKeys';
 import { EntryInlineEditor } from './EntryInlineEditor';
@@ -45,4 +46,18 @@ function PaneEntry({ block, info, line }: { block: TemplateBlock; info: EntrySlo
 /** The pane's `ValueEditing.entry`. */
 export function renderPaneEntry(block: TemplateBlock, info: EntrySlotInfo, line: React.ReactNode): React.ReactNode {
   return <PaneEntry block={block} info={info} line={line} />;
+}
+
+/** "Add ability" on a list: a new ability at its end, typed where it will stand. Nothing while the note can't be written. */
+function PaneAddEntry({ block, label, iconOnly }: { block: EntriesBlock; label: string; iconOnly: boolean }): React.JSX.Element {
+  const pane = usePaneEdit();
+  const field = pane.spots.byBlock.get(block.id)?.find((each) => each.type === 'entries');
+  const adding = pane.editing?.blockId === block.id && pane.editing.add === true;
+  const onAdd = field && pane.writable && !adding ? (): void => pane.start({ blockId: block.id, field: field.key, add: true }) : undefined;
+  return <AddEntryRow label={label} onAdd={onAdd} iconOnly={iconOnly} />;
+}
+
+/** The pane's `ValueEditing.addEntry`. */
+export function renderPaneAddEntry(block: EntriesBlock, label: string, iconOnly: boolean): React.ReactNode {
+  return <PaneAddEntry block={block} label={label} iconOnly={iconOnly} />;
 }

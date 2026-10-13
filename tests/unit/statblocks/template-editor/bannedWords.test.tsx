@@ -2,7 +2,7 @@ import { act, cleanup, fireEvent, screen } from '@testing-library/react';
 import { MotionGlobalConfig } from 'framer-motion';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { FakeSession, sampleTemplate } from './editorKit';
-import { mountEditor, openDock, settingsPanel } from './sidePanesKit';
+import { mountEditor, tileOptions } from './sidePanesKit';
 
 beforeAll(() => {
   MotionGlobalConfig.skipAnimations = true;
@@ -31,27 +31,19 @@ function said(element: Element): string {
 }
 
 describe('the template editor\'s default layer (J10)', () => {
-  it('says none of the words of the data model: card chrome, toolbar, block menu, Settings basics and the dock\'s panels', () => {
+  it('says none of the words of the data model: card chrome, toolbar, tile menu, Options and the dock', () => {
     const { frame } = mountEditor(new FakeSession(sampleTemplate()), { menus: true });
     fireEvent.click(frame('stat-ac1'));
     const toolbar = document.querySelector('.atlas-te-toolbar')!;
     expect(bannedIn(said(toolbar))).toEqual([]);
 
-    // The block menu, without what Advanced holds (a submenu that opens on its own).
     act(() => { fireEvent.contextMenu(frame('stat-hp1')); });
     const menu = screen.getByRole('menu');
     expect(bannedIn(said(menu))).toEqual([]);
     fireEvent.keyDown(menu, { key: 'Escape' });
 
-    const basics = settingsPanel().querySelector('[aria-label="Basics"]')!;
-    expect(bannedIn(said(basics))).toEqual([]);
-    const headers = [...settingsPanel().querySelectorAll('.atlas-te-group__header')].map((header) => header.textContent ?? '').join(' ');
-    expect(bannedIn(headers)).toEqual([]);
-
-    for (const panel of ['Add', 'Structure', 'Properties', 'Template']) {
-      const shown = openDock(panel);
-      expect(bannedIn(said(shown)), panel).toEqual([]);
-    }
+    fireEvent.click(frame('stat-ac1'));
+    expect(bannedIn(said(tileOptions()))).toEqual([]);
     expect(bannedIn(said(document.querySelector('.atlas-te-capsule')!))).toEqual([]);
     expect(bannedIn(said(document.querySelector('.atlas-te-dock')!))).toEqual([]);
   });

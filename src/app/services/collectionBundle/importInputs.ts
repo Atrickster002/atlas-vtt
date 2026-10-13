@@ -6,7 +6,7 @@ import { sceneOfSnapshot } from './bundleSnapshots';
 import { linkedFilePath } from '../sceneLinks';
 import type { OpenedBundle } from './bundleReader';
 import { hashHere, mayRewrite, rewriteContent } from './bundleContent';
-import { importedSettings, withPresetId } from './bundleSettings';
+import { importedSettings, withRecordIds } from './bundleSettings';
 import { assetFingerprint, fieldFingerprint } from './fingerprints';
 import { sha256 } from '../../utils/hashing';
 import { COLLECTION_FIELDS, type InstallRecord, type InstalledItem } from './installRecord';
@@ -15,7 +15,8 @@ import { planImportPaths, remapPaths } from './pathRemap';
 import { isHiddenVaultPath, listHiddenFiles, readVaultBinary } from '../../utils/hiddenVaultFiles';
 import { systemPresetsOf } from '../mapCollectionRules';
 import { templateIdMap, withRoleTemplates, type PlannedTemplate, type TemplateIdMap } from '../../statblocks/bundles/bundleTemplateIds';
-import { presetIdMap, presetsAfterImport, type PlannedPreset } from '../systemPresets/bundlePresets';
+import { presetsAfterImport } from '../systemPresets/bundlePresets';
+import { recordIdMap, type PlannedRecord } from '../vaultRecords/bundleRecords';
 
 /** Where the bundle's files and records go in this vault. */
 export interface ImportTargets {
@@ -39,9 +40,19 @@ export interface ImportTargets {
   /** Bundle template id → id here, for the bundle's own notes and roles. */
   templateIds: TemplateIdMap;
   /** The bundle's user presets, placed by preset id (never in `paths`). */
-  presets: readonly PlannedPreset[];
+  presets: readonly PlannedRecord[];
   /** Bundle preset id → id here, for the collection's settings. */
   presetIds: ReadonlyMap<string, string>;
+  /** The bundle's dice sets, placed by set id (never in `paths`). */
+  diceSets: readonly PlannedRecord[];
+  /** Bundle dice set id → id here, for the collection's settings (its preset and templates were read with it). */
+  diceSetIds: ReadonlyMap<string, string>;
+}
+
+/** The library records a bundle carries by id, as planned against the vault. */
+export interface PlannedRecords {
+  presets: readonly PlannedRecord[];
+  diceSets: readonly PlannedRecord[];
 }
 
 export interface SkippedAsset {
@@ -129,7 +140,7 @@ export async function planTargets(
   collectionId: string,
   record: InstallRecord | null,
   templates: readonly PlannedTemplate[] = [],
-  presets: readonly PlannedPreset[] = [],
+  { presets, diceSets }: PlannedRecords = { presets: [], diceSets: [] },
 ): Promise<ImportTargets> {
   const hiddenFiles = await listHiddenFiles(app, `${COLLECTIONS_DIR}/${collectionId}`);
   const exists = (path: string): boolean => app.vault.getAbstractFileByPath(normalizePath(path)) instanceof TFile || hiddenFiles.has(path);
@@ -199,7 +210,7 @@ export async function planTargets(
     if (source !== target) rewrites.set(source, target);
   }
   const targets: ImportTargets = {
-    collectionId, paths, assetIds, rewrites, shared, skipped: [], templates, templateIds: templateIdMap(templates), presets, presetIds: presetIdMap(presets),
+    collectionId, paths, assetIds, rewrites, shared, skipped: [], templates, templateIds: templateIdMap(templates), presets, presetIds: recordIdMap(presets), diceSets, diceSetIds: recordIdMap(diceSets),
     targetOf: (bundlePath) => paths.get(bundlePath) ?? record?.files[bundlePath]?.target,
     localIdOf: (bundleId) => assetIds.get(bundleId) ?? record?.assets[bundleId]?.localId ?? bundleId,
   };
@@ -240,7 +251,7 @@ export async function gatherImportInputs(
   const moved = new Set<string>();
 
   for (const file of manifest.files) {
-    // Templates and presets are compared by their id (`planTemplates`, `planPresets`), not as files.
+    // Templates (with their notes), presets and dice sets are compared by their id (`planTemplates`, `planRecords`), not as files.
     if (ID_MATCHED_ROLES.has(file.role) || targets.shared.has(file.vaultPath) || onlyUsedBySkipped(file)) continue;
     const target = targets.paths.get(file.vaultPath)!;
     const previousPath = record?.files[file.vaultPath] ? undefined : movedFrom.get(target);
@@ -288,8 +299,8 @@ export async function gatherImportInputs(
   const presets = systemPresetsOf(app);
   // The bundle's settings are read with the presets as the import leaves them, the vault's with those it has.
   const presetsAfter = presetsAfterImport(presets, targets.presets);
-  // Like a note, the settings' roles follow a template that comes in as a copy, and their system a preset that does.
-  const theirsHereCollection = { ...manifest.collection, settings: withPresetId(withRoleTemplates(manifest.collection.settings, targets.templateIds), targets.presetIds) };
+  // Like a note, the settings' roles follow a template that comes in as a copy, and their system and dice a preset and a set that do.
+  const theirsHereCollection = { ...manifest.collection, settings: withRecordIds(withRoleTemplates(manifest.collection.settings, targets.templateIds), targets) };
   for (const field of COLLECTION_FIELDS) {
     const theirs = await fieldFingerprint(theirsHereCollection, field, presetsAfter);
     items.push({

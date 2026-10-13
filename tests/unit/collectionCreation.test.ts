@@ -42,3 +42,19 @@ it('gives a new collection the roles of its preset to read, and the generic role
   expect(without).toHaveProperty('statblockRoles', undefined);
   expect(collectionStatblockRoles(without!, BUILT_IN_SYSTEM_PRESETS)).toBe(GENERIC_STATBLOCK_ROLES);
 });
+
+it('gives a new collection its preset\'s dice set alone, with no dice rules beside it for older versions', async () => {
+  const updateCollectionSettings = vi.fn(async () => undefined);
+  vi.spyOn(AssetService, 'getInstance').mockReturnValue({
+    createCollection: async (name: string) => ({ id: name, name }),
+    updateCollectionSettings,
+  } as unknown as AssetService);
+  vi.spyOn(collectionSystemSync, 'syncCollectionSystem').mockResolvedValue(undefined);
+  const cairn = BUILT_IN_SYSTEM_PRESETS.find((preset) => preset.name === 'Cairn')!;
+
+  await createCollectionWithSystem({} as never, 'Woods', cairn, BUILT_IN_SYSTEM_PRESETS);
+
+  const [, settings] = updateCollectionSettings.mock.calls[0] as unknown as [string, CollectionSettings];
+  expect(settings.diceSetId).toBe('builtin:d20-roll-under');
+  expect(settings).not.toHaveProperty('dice');
+});

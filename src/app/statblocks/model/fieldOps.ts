@@ -135,7 +135,7 @@ function renamedBlock(block: TemplateBlock, from: FieldKey, to: FieldKey): Templ
   const set = (name: string, value: unknown, before: unknown): void => { if (value !== before) next[name] = value; };
   const asText = (pattern: string | undefined): string | undefined => (pattern === undefined ? undefined : renamePatternRefs(pattern, from, to));
   if ('field' in block && typeof block.field === 'string') set('field', rekey(block.field, from, to), block.field);
-  if (block.type === 'line') {
+  if (block.type === 'line' || block.type === 'metric') {
     const fields = block.fields.map((key) => rekey(key, from, to));
     if (fields.some((key, index) => key !== block.fields[index])) next.fields = fields;
   }

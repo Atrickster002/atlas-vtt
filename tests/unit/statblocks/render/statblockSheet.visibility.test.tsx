@@ -36,6 +36,22 @@ describe('StatblockSheet: showing and hiding', () => {
     expect(blockEl(container, 'header00')).not.toBeNull();
   });
 
+  it('draws no rule that hidden blocks leave under another rule or at the end', () => {
+    const template = templateOf(FIELDS, [
+      { id: 'title000', type: 'title', field: 'name', level: 1 },
+      { id: 'rule0000', type: 'divider' },
+      { id: 'speed000', type: 'stat', field: 'speed', look: 'run-in' },
+      { id: 'rule0001', type: 'divider' },
+      { id: 'armor000', type: 'stat', field: 'ac', look: 'stacked' },
+      { id: 'rule0002', type: 'divider' },
+      { id: 'kind0000', type: 'stat', field: 'kind', look: 'run-in' },
+    ]);
+    const { container } = renderSheet(template, { name: 'Wisp', ac: 3 });
+    expect(blockEl(container, 'rule0000')).not.toBeNull();
+    expect(blockEl(container, 'rule0001')).toBeNull();
+    expect(blockEl(container, 'rule0002')).toBeNull();
+  });
+
   it('writes a number with its unit', () => {
     const { container } = renderSheet(TEMPLATE, { name: 'Wisp', ac: 3 });
     expect(valueOf(container, 'armor000')).toBe('3 pts');

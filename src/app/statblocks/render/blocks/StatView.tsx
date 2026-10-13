@@ -34,7 +34,7 @@ export function StatView({ block, display }: BlockViewProps<StatBlock>): React.J
   const value = <DisplayText display={display} />;
 
   return (
-    <LabelledLine label={label} look={block.look} className="atlas-sb-stat" hitPoints={hitPoints}>
+    <LabelledLine label={label} look={block.look} className="atlas-sb-stat" hitPoints={hitPoints} placeholder={state.provisional !== undefined}>
       <ValueSlot block={block}>{dice ? <span {...diceLinkProps(dice)}>{value}</span> : value}</ValueSlot>
     </LabelledLine>
   );

@@ -95,6 +95,16 @@ describe('StatblockSheet: tabs', () => {
     expect(container.querySelector('.atlas-sb-empty-tab')).toBeNull();
   });
 
+  it('draws the block\'s own heading above the strip, and none where it is blank', () => {
+    const headed = renderSheet(templateOf(FIELDS, [{ ...TABS, heading: 'Spellbook' }]), { actions: BITE });
+    const heading = blockEl(headed.container, 'tabs0001')?.querySelector('.atlas-sb-section-heading');
+    expect(heading?.textContent).toBe('Spellbook');
+    expect(heading?.nextElementSibling?.getAttribute('role')).toBe('tablist');
+    headed.unmount();
+    const blank = renderSheet(templateOf(FIELDS, [{ ...TABS, heading: '  ' }]), { actions: BITE });
+    expect(blockEl(blank.container, 'tabs0001')?.querySelector('.atlas-sb-section-heading')).toBeNull();
+  });
+
   it('shows every tab while editing, an unnamed one as "Tab n"', () => {
     const { container } = renderSheet(TEMPLATE, {}, { mode: 'editing' });
     expect(tabNames(container)).toEqual(['Actions', 'Reactions', 'Tab 3']);

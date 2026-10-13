@@ -69,10 +69,11 @@ describe('chips', () => {
 });
 
 describe('valuePlaceholder', () => {
-  it('asks for scores by their slots, in the order they are typed', () => {
+  it('asks for a value by its prompt, else its label; a table is typed cell by cell and asks for nothing whole', () => {
     const stats: TemplateField = { key: 'stats', label: 'Abilities', type: 'scores', slots: ['STR', 'DEX', 'CON'] };
-    expect(valuePlaceholder(stats)).toBe('STR DEX CON');
+    expect(valuePlaceholder(stats)).toBe('Abilities');
     expect(valueForText(stats, '19 8 16')).toEqual([19, 8, 16]);
+    expect(valueForText(stats, '19\t8\t16')).toEqual([19, 8, 16]);
     expect(valuePlaceholder({ ...stats, prompt: 'Six scores' })).toBe('Six scores');
     expect(valuePlaceholder(hp)).toBe('Hit Points');
   });

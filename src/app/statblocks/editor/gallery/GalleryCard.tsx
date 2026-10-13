@@ -7,7 +7,7 @@ import type { FieldRecord } from '../../values/fieldValues';
 import { AttributionButton } from './AttributionPopover';
 import { sourceLine } from './gallerySources';
 
-/** The four dashed rows a blank template starts with (§7.9). */
+/** The four placeholder rows a blank template starts with (§7.9). */
 const GHOST_ROWS = ['Name', 'Line', 'Stats', 'Actions'];
 
 /** What a card shows: a template drawn by the real renderer, or the blank template's ghost. */
@@ -32,6 +32,8 @@ export interface GalleryCardProps {
   app: App;
   name: string;
   look: CardLook;
+  /** A muted line under the name, in place of a source line. */
+  detail?: string | undefined;
   selected: boolean;
   /** One card of the group takes Tab; the arrows move between them. */
   tabbable: boolean;
@@ -50,7 +52,7 @@ export interface GalleryCardProps {
  * anywhere on the card chooses it.
  */
 export const GalleryCard = forwardRef<HTMLButtonElement, GalleryCardProps>((props, ref) => {
-  const { app, name, look, selected, tabbable, layer, onSelect, onUse, onKeyDown } = props;
+  const { app, name, look, detail, selected, tabbable, layer, onSelect, onUse, onKeyDown } = props;
   const source = look.kind === 'template' ? look.template.source : undefined;
   const line = look.kind === 'template' ? sourceLine(look.template) : null;
 
@@ -77,7 +79,12 @@ export const GalleryCard = forwardRef<HTMLButtonElement, GalleryCardProps>((prop
         >
           {name}
         </button>
-        {source && line && (
+        {detail !== undefined && (
+          <div className="atlas-te-gallery-card__source">
+            <span className="atlas-te-gallery-card__source-text">{detail}</span>
+          </div>
+        )}
+        {detail === undefined && source && line && (
           <div className="atlas-te-gallery-card__source">
             <span className="atlas-te-gallery-card__source-text">{line}</span>
             <AttributionButton source={source} name={name} layer={layer} />

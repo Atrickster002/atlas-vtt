@@ -11,8 +11,13 @@ import { useTemplateLibrary } from '../../library/useTemplateLibrary';
 import type { StatblockRole } from '../../model/roleTypes';
 import type { TemplateId } from '../../model/templateTypes';
 import { fsLayoutItems, offersFsLayouts } from '../fs-import/fsGalleryItems';
-import { showImportOutcome } from '../fs-import/layoutImportFlow';
-import { createFromPick, type CreatedTemplate, type GalleryPick } from './galleryActions';
+import { showImportOutcome, showLayoutImportDialog } from '../fs-import/layoutImportFlow';
+import { moveLabel } from '../fs-import/importReportText';
+import { useLayoutsToMove } from '../fs-import/useLayoutsToMove';
+import { statblockCount } from '../../fs/fsLayoutStatblocks';
+import { runInBackground } from '../../../utils/backgroundTask';
+import { plural } from '../../../utils/plural';
+import type { CreatedTemplate, GalleryPick } from './galleryActions';
 import { GallerySourceNav } from './GallerySourceNav';
 import { UseForField } from './UseForField';
 import {
@@ -31,8 +36,12 @@ export interface TemplateGalleryProps {
   roles: readonly StatblockRole[];
   /** The templates the collection's game system starts its roles from ("This system"). */
   systemTemplateIds: readonly TemplateId[];
-  /** The template is written: open it, or give it to the role. The gallery closes once this settles. */
-  onCreated: (created: CreatedTemplate, roleId: string | null) => void | Promise<void>;
+  /**
+   * Use template: makes the pick (opens it unsaved, or writes it and gives it
+   * to the role). The gallery closes once this settles, showing the report of
+   * a layout it imported.
+   */
+  onUse: (pick: GalleryPick, roleId: string | null) => Promise<CreatedTemplate | null>;
   onClose: () => void;
 }
 
@@ -41,10 +50,10 @@ type Chosen = Partial<Record<GallerySourceId, string>>;
 /**
  * "New template" (§7.9): an Atlas dialog with the sources on the left and the
  * templates of the chosen one as cards. Use template (or a double click)
- * makes an editable copy in the library; "Use for" gives it to a role of the
- * collection that has no template of its own.
+ * makes an editable copy; "Use for" gives it to a role of the collection that
+ * has no template of its own.
  */
-export function TemplateGallery({ app, doc, roles, systemTemplateIds, onCreated, onClose }: TemplateGalleryProps): React.JSX.Element {
+export function TemplateGallery({ app, doc, roles, systemTemplateIds, onUse, onClose }: TemplateGalleryProps): React.JSX.Element {
   const library = useTemplateLibrary(app);
   const sources = useMemo(() => gallerySources(systemTemplateIds, offersFsLayouts(app)), [app, systemTemplateIds]);
   const [source, setSource] = useState<GallerySourceId>(() => firstSource(sources));
@@ -59,12 +68,19 @@ export function TemplateGallery({ app, doc, roles, systemTemplateIds, onCreated,
 
   const builtIns = useMemo(() => (library?.templates ?? []).filter((entry) => entry.builtIn), [library]);
   const fsItems = useMemo(() => (source === 'fantasy-statblocks' ? fsLayoutItems(app) : []), [app, source]);
+  const fsLayouts = useMemo(() => fsItems.map((item) => item.layout), [fsItems]);
+  const toMove = useLayoutsToMove(app, fsLayouts, library?.templates ?? null);
   const items = useMemo(() => {
     if (source === 'blank') return [BLANK_ITEM];
-    if (source === 'fantasy-statblocks') return fsItems;
+    if (source === 'fantasy-statblocks') {
+      return fsItems.map((item) => {
+        const waiting = toMove.get(item.layout.id);
+        return waiting ? { ...item, detail: `${plural(statblockCount(waiting.statblocks), 'statblock')} to move` } : item;
+      });
+    }
     const lookup = (id: TemplateId): ReturnType<TemplateLibrary['get']> => TemplateLibrary.forApp(app).get(id);
     return sourceTemplates(source, builtIns, systemTemplateIds, lookup).map(templateItem);
-  }, [app, source, builtIns, systemTemplateIds, fsItems]);
+  }, [app, source, builtIns, systemTemplateIds, fsItems, toMove]);
   const notes = useMemo(() => (source === 'statblock' ? statblockNoteChoices(app) : []), [app, source]);
   const selected = chosen[source] ?? items[0]?.id ?? null;
 
@@ -100,12 +116,14 @@ export function TemplateGallery({ app, doc, roles, systemTemplateIds, onCreated,
     const target = id === undefined ? pick : pickOf(id);
     if (!target || busy) return;
     setBusy(true);
-    createFromPick(app, target)
-      .then(async (created) => {
-        await onCreated(created, roleOf(target));
+    onUse(target, roleOf(target))
+      .then((created) => {
         onClose();
         // The import's report, and the batch for the statblocks its layout draws (§6.2).
-        if (created.fsImport) showImportOutcome(app, doc, created.fsImport.layout, created.fsImport.imported);
+        if (created?.fsImport) {
+          const { layout, imported } = created.fsImport;
+          runInBackground(showImportOutcome(app, doc, layout, imported), `Showing the import of ${layout.name}`);
+        }
       })
       .catch((error: unknown) => {
         console.error('[Atlas] Creating a template from the gallery failed:', error);
@@ -115,6 +133,14 @@ export function TemplateGallery({ app, doc, roles, systemTemplateIds, onCreated,
   };
 
   const choose = (id: string): void => setChosen((was) => ({ ...was, [source]: id }));
+
+  /** A layout imported before, whose statblocks are not all moved yet: the batch again, in place of the gallery. */
+  const moving = pick?.kind === 'fs-layout' ? toMove.get(pick.layout.id) : undefined;
+  const move = (): void => {
+    if (!moving) return;
+    onClose();
+    showLayoutImportDialog({ app, doc, ...moving });
+  };
 
   return createPortal(
     <motion.div
@@ -163,6 +189,9 @@ export function TemplateGallery({ app, doc, roles, systemTemplateIds, onCreated,
         <div className="atlas-te-gallery__footer">
           {candidates.length > 0 && <UseForField roles={candidates} value={roleOf(pick)} onChange={setUseFor} />}
           <Button type="button" variant="outline" size="sm" onClick={onClose}>Cancel</Button>
+          {moving && (
+            <Button type="button" variant="outline" size="sm" disabled={busy} onClick={move}>{moveLabel(statblockCount(moving.statblocks))}…</Button>
+          )}
           <Button type="button" variant="default" size="sm" disabled={!pick || busy} onClick={() => use()}>
             {busy ? 'Creating…' : 'Use template'}
           </Button>

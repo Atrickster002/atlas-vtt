@@ -133,8 +133,9 @@ $frame-height: 250px;
     align-items: center;
     height: 48px;
     padding: 0 $spacing-l;
-    border: $border-width-m dashed var(--background-modifier-border);
+    border: $border-width-m solid transparent;
     border-radius: $radius-l;
+    background: var(--background-modifier-hover);
     color: var(--text-faint);
     font-size: $font-ui-medium;
   }

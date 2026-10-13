@@ -1,60 +1,20 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// The template editor's inspector (§7.4, §7.10)
+// The template editor's settings: a tile's Options
 // ═══════════════════════════════════════════════════════════════════════════
 // A group is one grid: labels in the first column, controls in the second,
 // with the same 12 px for its padding and every gap. Only transform and
-// opacity animate. Imported by Inspector.tsx, so the rules take the
-// `.atlas-vtt-plugin` scope themselves.
+// opacity animate. Imported by the components that draw groups, so the rules
+// take the `.atlas-vtt-plugin` scope themselves.
 
 @use '../../../../../../styles/tokens' as *;
 @use '../../../../../../styles/mixins' as *;
 @use 'controls';
 @use 'picker';
-@use 'pattern';
-@use 'cards';
 
 $group-space: $spacing-m;
 $label-column: 80px;
 
 .atlas-vtt-plugin {
-  .atlas-te-insp {
-    position: relative;
-  }
-
-  .atlas-te-insp__content {
-    display: flex;
-    flex-direction: column;
-    align-items: stretch;
-    min-width: 0;
-  }
-
-  .atlas-te-insp__header {
-    @include atlas-flex-row($group-space);
-    min-height: var(--input-height);
-    padding: $group-space;
-  }
-
-  .atlas-te-insp__glyph {
-    flex-shrink: 0;
-    width: $icon-s;
-    height: $icon-s;
-    color: var(--text-muted);
-  }
-
-  .atlas-te-insp__name {
-    @include atlas-truncate;
-    min-width: 0;
-    color: var(--text-normal);
-    font-size: $font-ui-small;
-    font-weight: $font-weight-semibold;
-  }
-
-  .atlas-te-insp__type {
-    flex-shrink: 0;
-    color: var(--text-muted);
-    font-size: $font-ui-smaller;
-  }
-
   .atlas-te-insp__locked {
     margin: 0;
     padding: $group-space;
@@ -76,68 +36,5 @@ $label-column: 80px;
 
   .atlas-te-span {
     grid-column: 1 / -1;
-  }
-
-  .atlas-te-group__header {
-    @include atlas-flex-row($spacing-s);
-    justify-content: space-between;
-    min-height: $button-height-s;
-    padding: 0;
-    border: none;
-    background: transparent;
-    box-shadow: none;
-    color: var(--text-normal);
-    font-size: $font-ui-small;
-    font-weight: $font-weight-semibold;
-    text-align: start;
-    cursor: pointer;
-
-    &:hover {
-      background: transparent;
-      color: var(--text-normal);
-    }
-
-    &:focus-visible {
-      outline: 2px solid var(--interactive-accent);
-      outline-offset: 2px;
-      box-shadow: none;
-    }
-  }
-
-  // What a folded group holds, in plain words, between its title and its chevron (§10.3).
-  .atlas-te-group__summary {
-    @include atlas-truncate;
-    flex: 1 1 auto;
-    min-width: 0;
-    color: var(--text-muted);
-    font-weight: $font-weight-normal;
-    font-size: $font-ui-smaller;
-    text-align: end;
-  }
-
-  // "More options": the folded groups' caption, under the Basics.
-  .atlas-te-insp__more {
-    margin: 0;
-    padding: $group-space $group-space 0;
-    border-top: $border-width-s solid var(--divider-color);
-    color: var(--text-muted);
-    font-size: $font-ui-smaller;
-    font-weight: $font-weight-semibold;
-  }
-
-  .atlas-te-insp__more + .atlas-te-group {
-    border-top: none;
-  }
-
-  .atlas-te-group__chevron {
-    flex-shrink: 0;
-    width: $icon-xs;
-    height: $icon-xs;
-    color: var(--text-muted);
-    transition: transform $transition-fast $transition-ease-out;
-  }
-
-  .atlas-te-group__header[aria-expanded='true'] .atlas-te-group__chevron {
-    transform: rotate(90deg);
   }
 }

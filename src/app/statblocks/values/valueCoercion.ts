@@ -69,17 +69,21 @@ function coerceChoice(text: string, input: string, constraints: CoercionConstrai
 
 /**
  * A table's values in slot order: numbers where they read as numbers, text as
- * typed. Values are parted at commas, semicolons and line breaks, and numbers
- * also at spaces ("14 12 13"), so a text value may hold spaces ("1 per day, d8").
+ * typed. Values are parted at commas, semicolons, tabs and line breaks (a row
+ * copied from a spreadsheet), and numbers also at spaces ("14 12 13"), so a
+ * text value may hold spaces ("1 per day, d8").
  */
-function coerceScores(text: string): CoercionResult {
-  const values = text.split(/[,;\n]/).flatMap((part): FieldValue[] => {
+export function scoreValues(text: string): FieldValue[] {
+  return text.split(/[,;\t\r\n]/).flatMap((part): FieldValue[] => {
     const words = part.trim().split(/\s+/).filter((word) => word !== '');
     const numbers = words.map(parseNumberText);
     if (numbers.every((value) => value !== null)) return numbers.filter((value): value is number => value !== null);
     return [part.trim()];
   });
-  return kept(values);
+}
+
+function coerceScores(text: string): CoercionResult {
+  return kept(scoreValues(text));
 }
 
 function coercePairs(text: string, input: string): CoercionResult {

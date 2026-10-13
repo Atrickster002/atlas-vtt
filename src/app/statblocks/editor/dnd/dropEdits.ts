@@ -1,27 +1,25 @@
 /**
  * What a drop does to the template (§7.6): one session gesture, so one undo
  * step, worked out on the template the session holds at that moment. A move
- * keeps the block's id; a palette item or a field inserts as a click on the
- * palette does.
+ * keeps the block's id; a kind from the dock inserts as a click on it does.
  */
 
-import { fieldByKey } from '../../model/fieldKeys';
 import { blockIdSource } from '../../model/templateIds';
 import { placeBeside, putSideBySide } from '../../model/treeGrouping';
 import { moveBlock } from '../../model/treeOps';
 import type { TreeTarget } from '../../model/treeEdit';
 import { collectBlockIds, findBlock } from '../../model/treeQueries';
 import type { TemplateLayout } from '../../model/templateTypes';
-import { insertCatalogueBlock, insertParts, type InsertPlace } from '../template-editor/blockActions';
+import { insertCatalogueBlock, type InsertOutcome } from '../template-editor/blockActions';
 import { movedMessage } from '../template-editor/blockMoves';
-import { applyTree, outcomeOf, type EditOutcome } from '../template-editor/sessionEdit';
+import { applyTree, outcomeOf } from '../template-editor/sessionEdit';
 import type { EditorSession } from '../template-editor/sessionTypes';
-import { fieldBlock, type DragSource } from './dragSources';
+import type { DragSource } from './dragSources';
 import { besideMessage } from './announcements';
 import type { DropTarget } from './dropTargets';
 
-/** What a drop leaves: the editor's outcome, and the block that landed (washed in the accent). */
-export type DropOutcome = EditOutcome & { inserted?: string; landed?: string };
+/** What a drop leaves: the editor's outcome, and the block that landed (washed in the accent); a new one may ask for its name. */
+export type DropOutcome = InsertOutcome & { landed?: string };
 
 type Placed = Exclude<DropTarget, { kind: 'refused' | 'beside' }>;
 type Beside = Extract<DropTarget, { kind: 'beside' }>;
@@ -49,20 +47,9 @@ function moveOnto(session: EditorSession, id: string, target: Placed): DropOutco
   return outcomeOf(edit, snapshot, (done) => ({ select: [id], landed: id, announce: movedMessage(done.layout, id, snapshot.template.fields) }));
 }
 
-function insertOnto(session: EditorSession, source: Exclude<DragSource, { kind: 'block' }>, target: Placed): DropOutcome {
+function insertOnto(session: EditorSession, source: Extract<DragSource, { kind: 'item' }>, target: Placed): DropOutcome {
   const to = treeTargetOf(session.getSnapshot().template.layout, target, null);
-  if (!to) return {};
-  const place: InsertPlace = { at: to };
-  let outcome: DropOutcome;
-  if (source.kind === 'item') {
-    outcome = insertCatalogueBlock(session, source.item.type, place);
-  } else {
-    const field = fieldByKey(session.getSnapshot().template.fields, source.key);
-    if (!field) return {};
-    const { inserted, ...rest } = insertParts(session, place, (_template, nextId) => ({ blocks: [fieldBlock(field, nextId)], fields: [] }));
-    outcome = inserted ? { ...rest, landed: inserted } : rest;
-  }
-  return outcome;
+  return to ? insertCatalogueBlock(session, source.item.type, { at: to }) : {};
 }
 
 /** Moves the block beside the target and sets the two side by side. */
@@ -73,7 +60,7 @@ function moveBeside(session: EditorSession, id: string, target: Beside): DropOut
 }
 
 /** Puts a new block in right beside the target, then sets the two side by side; both in the drop's one gesture. */
-function insertBeside(session: EditorSession, source: Exclude<DragSource, { kind: 'block' }>, target: Beside): DropOutcome {
+function insertBeside(session: EditorSession, source: Extract<DragSource, { kind: 'item' }>, target: Beside): DropOutcome {
   const found = findBlock(session.getSnapshot().template.layout.blocks, target.targetId);
   if (!found) return {};
   const index = found.index + (target.side === 'end' ? 1 : 0);

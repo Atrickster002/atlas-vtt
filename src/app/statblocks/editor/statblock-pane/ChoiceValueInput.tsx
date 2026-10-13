@@ -10,7 +10,7 @@ import { useFieldDraft } from './useFieldDraft';
  * takes the highlighted option, and an open field also takes what was typed.
  * Escape closes the list first, then leaves the field.
  */
-export function ChoiceValueInput({ field, autoFocus }: ValueInputProps): React.JSX.Element {
+export function ChoiceValueInput({ field, autoFocus, placeholder }: ValueInputProps): React.JSX.Element {
   const inputRef = useRef<HTMLInputElement>(null);
   const { draft, setDraft, commit, onKey, focusProps, pane } = useFieldDraft(field, inputRef, autoFocus);
   // What was typed since the list opened: until then it shows every option, not only the one picked.
@@ -35,7 +35,7 @@ export function ChoiceValueInput({ field, autoFocus }: ValueInputProps): React.J
         type="text"
         className="atlas-sb-pane-input"
         value={draft}
-        placeholder={field.prompt?.trim() || field.label}
+        placeholder={placeholder ?? (field.prompt?.trim() || field.label)}
         aria-label={field.label}
         {...list.inputProps}
         onChange={(event) => {

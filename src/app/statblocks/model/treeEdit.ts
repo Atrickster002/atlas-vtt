@@ -21,7 +21,7 @@ export type TreeRefusal =
   | 'not-adjacent'        // blocks to group do not stand next to each other
   | 'cannot-turn-into'    // a container into a leaf, a leaf into a container, or into a script or unknown block
   | 'wrong-type'          // an update for another block type
-  | 'core-slot';          // the Name or the token picture, which every statblock keeps (`coreSlots`)
+  | 'header';             // a part of the header, which stays where Atlas draws it (`templateHeader`)
 
 /**
  * What every tree operation returns. A refusal returns the very layout it was

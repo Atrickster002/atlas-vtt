@@ -57,3 +57,51 @@ describe('foldedBlocks', () => {
     expect(blockDisplay(spells, sheetState({ template: FIVE_E, record: { name: 'Aboleth' }, mode: 'view' }))).toBeNull();
   });
 });
+
+/** Blocks that say they fold while empty (`whenEmpty: 'fold'`, Fantasy Statblocks' `conditioned`): any kind, named by its label. */
+describe('blocks that fold while empty', () => {
+  const FOLDING: StatblockTemplate = {
+    ...FIVE_E,
+    fields: [
+      { key: 'name', label: 'Name', type: 'text' },
+      { key: 'fage_stats', label: 'Fantasy AGE Stats', type: 'scores', slots: ['Accuracy', 'Fighting'] },
+      { key: 'resist', label: 'Damage Resistances', type: 'text' },
+      { key: 'difficulty', label: 'Difficulty', type: 'number' },
+      { key: 'speed', label: 'Speed', type: 'text' },
+      { key: 'ac', label: 'Armor Class', type: 'number' },
+      { key: 'actions', label: 'Actions', type: 'entries' },
+    ],
+    layout: { maxColumns: 1, blocks: [
+      { id: 'fage0000', type: 'scores', field: 'fage_stats', orientation: 'row', whenEmpty: 'fold' },
+      { id: 'resist00', type: 'stat', field: 'resist', look: 'run-in', whenEmpty: 'fold' },
+      { id: 'diffc000', type: 'stat', field: 'difficulty', label: 'Difficulty:', look: 'run-in', whenEmpty: 'fold' },
+      { id: 'group000', type: 'section', whenEmpty: 'fold', blocks: [{ id: 'speed000', type: 'stat', field: 'speed', look: 'run-in', whenEmpty: 'fold' }] },
+      { id: 'lore0000', type: 'heading', text: 'Lore', level: 'section', whenEmpty: 'fold' },
+      { id: 'acplain0', type: 'stat', field: 'ac', look: 'run-in' },
+      { id: 'actions0', type: 'entries', field: 'actions', heading: 'Actions', whenEmpty: 'fold' },
+    ] },
+  };
+  const fage = findBlock(FOLDING.layout.blocks, 'fage0000')!.block;
+
+  it('folds a table, a value and a list of any kind while empty, each named by its own label, else its field\'s', () => {
+    expect(foldedBlocks(FOLDING, {})).toEqual([
+      { blockId: 'fage0000', heading: 'Fantasy AGE Stats' },
+      { blockId: 'resist00', heading: 'Damage Resistances' },
+      { blockId: 'diffc000', heading: 'Difficulty' },
+      { blockId: 'speed000', heading: 'Speed' },
+    ]);
+  });
+
+  it('never folds one with a value, a container without a heading, a block that holds none, a block that does not say so, or the main list', () => {
+    expect(headings(FOLDING, { fage_stats: [[12, 3]], speed: '30 ft.' })).toEqual(['Damage Resistances', 'Difficulty']);
+    expect(headings(FOLDING, {}, new Set(['fage0000']))).not.toContain('Fantasy AGE Stats');
+  });
+
+  it('is not drawn where the statblock is read, shows its prompt in the template editor, and leaves the card where it folds', () => {
+    expect(blockDisplay(fage, sheetState({ template: FOLDING, record: {}, mode: 'view' }))).toBeNull();
+    expect(blockDisplay(fage, sheetState({ template: FOLDING, record: {}, mode: 'editing' }))).toEqual({ state: 'prompt', prompt: 'Add fantasy AGE stats' });
+    const folded = foldedIds(foldedBlocks(FOLDING, {}));
+    expect(blockDisplay(fage, sheetState({ template: FOLDING, record: {}, mode: 'editing', folded }))).toBeNull();
+    expect(blockDisplay(fage, sheetState({ template: FOLDING, record: { fage_stats: [[12, 3]] }, mode: 'view' }))).not.toBeNull();
+  });
+});

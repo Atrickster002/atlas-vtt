@@ -7,15 +7,18 @@
  * render without migration.
  */
 
+import { D20_DICE_SET_ID } from '../../gameSystems/builtInDiceSets';
 import type { BuiltInTemplate } from '../model/templateTypes';
 import { SRD_5_2_1_SOURCE } from './attributions';
 import { experienceTable, proficiencyTable } from './fiveEChallenge';
-import { builtIn, headerRow, nameField, portraitField, runInStat, sizeField } from './presetParts';
+import { builtIn, hiddenParts, nameField, portraitField, runInStat, sizeField } from './presetParts';
 
 const MODIFIER = 'floor((value - 10) / 2)';
 const DEXTERITY_MODIFIER = 'floor((stats.1 - 10) / 2)';
 
-export const FIVE_E_2024_MONSTER: BuiltInTemplate = builtIn('builtin:5e-2024-monster', '5E (2024 rules)', 2, {
+export const FIVE_E_2024_MONSTER: BuiltInTemplate = builtIn('builtin:5e-2024-monster', '5E (2024 rules)', 5, {
+  // A bonus without dice rolls with the system's dice set, whatever the collection rolls (revision 5).
+  diceSetId: D20_DICE_SET_ID,
   source: SRD_5_2_1_SOURCE,
   fields: [
     nameField(),
@@ -30,7 +33,7 @@ export const FIVE_E_2024_MONSTER: BuiltInTemplate = builtIn('builtin:5e-2024-mon
     { key: 'hit_dice', label: 'Hit Dice', type: 'dice' },
     { key: 'speed', label: 'Speed', type: 'text' },
     {
-      key: 'stats', label: 'Abilities', type: 'scores', slots: ['Str', 'Dex', 'Con', 'Int', 'Wis', 'Cha'],
+      key: 'stats', label: 'Abilities', type: 'scores', addRows: false, addColumns: false, slots: ['Str', 'Dex', 'Con', 'Int', 'Wis', 'Cha'],
       slotKeys: ['strength', 'dexterity', 'constitution', 'intelligence', 'wisdom', 'charisma'],
     },
     { key: 'saves', label: 'Saving Throws', type: 'pairs' },
@@ -51,17 +54,13 @@ export const FIVE_E_2024_MONSTER: BuiltInTemplate = builtIn('builtin:5e-2024-mon
     { key: 'legendary_actions', label: 'Legendary Actions', type: 'entries' },
     { key: 'spells', label: 'Spells', type: 'spells' },
   ],
+  // A stat block of these rules has no description; the challenge rating is the level, its XP and PB a line below.
+  ...hiddenParts('description'),
   layout: {
     maxColumns: 2,
     columnWidth: 22,
     blocks: [
-      headerRow({ row: 'b5row000', section: 'b5sec000', image: 'b5image0' }, [
-        { id: 'b5title0', type: 'title', field: 'name', level: 1 },
-        {
-          id: 'b5line00', type: 'line', fields: ['size', 'type', 'subtype', 'alignment'],
-          pattern: '{size} {type}[ ({subtype})][, {alignment}]',
-        },
-      ]),
+      { id: 'b5line00', type: 'line', fields: ['size', 'subtype', 'alignment'], pattern: '{size}[ ({subtype})][, {alignment}]' },
       { id: 'b5divid0', type: 'divider' },
       {
         id: 'b5row001', type: 'row', align: 'start', blocks: [
@@ -72,7 +71,6 @@ export const FIVE_E_2024_MONSTER: BuiltInTemplate = builtIn('builtin:5e-2024-mon
           },
         ],
       },
-      { id: 'b5hp0000', type: 'stat', field: 'hp', look: 'run-in', pattern: '{hp}[ ({hit_dice})]', rollFrom: 'hit_dice' },
       runInStat('b5speed0', 'speed'),
       {
         id: 'b5stats0', type: 'scores', field: 'stats', orientation: 'table', perLine: 3, columns: [
@@ -90,7 +88,7 @@ export const FIVE_E_2024_MONSTER: BuiltInTemplate = builtIn('builtin:5e-2024-mon
       runInStat('b5gear00', 'gear'),
       runInStat('b5sense0', 'senses'),
       { id: 'b5lang00', type: 'stat', field: 'languages', look: 'run-in', whenEmpty: 'fallback', fallback: 'None' },
-      { id: 'b5cr0000', type: 'stat', field: 'cr', look: 'run-in', pattern: '{cr}[ (XP {cr|lookup:xp}; PB {cr|lookup:pb})]' },
+      { id: 'b5cr0000', type: 'stat', field: 'cr', label: 'XP', look: 'run-in', pattern: '{cr|lookup:xp}[; PB {cr|lookup:pb}]' },
       { id: 'b5trait0', type: 'entries', field: 'traits', heading: 'Traits' },
       { id: 'b5actio0', type: 'entries', field: 'actions', heading: 'Actions', addLabel: 'Add action' },
       // Hidden while empty: a statblock gains spells without its template changing (revision 2).

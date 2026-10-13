@@ -15,7 +15,7 @@
  */
 
 import type { App, MarkdownView, TAbstractFile, TFile } from 'obsidian';
-import { applyWrites, type PatchBuilder, type WriteRequest, type WriteResult } from './applyWrites';
+import { applyWrites, type NoteRewrite, type PatchBuilder, type WriteRequest, type WriteResult } from './applyWrites';
 import { writeToEditor } from './editorWrite';
 import { editingViewOf, loadedMarkdownViews } from './openEditors';
 import { OwnEchoes } from './ownEchoes';
@@ -88,6 +88,15 @@ export class NoteFieldWriter {
    */
   patchNow(path: string, build: PatchBuilder): Promise<WriteOutcome> {
     return this.enqueue(path, { build }, true);
+  }
+
+  /**
+   * Rewrites the whole note at once, against its text as the write finds it (in an open editor:
+   * one undo step). For a change beyond the properties, such as a statblock code block moved into
+   * them; the rewrite says what it could not do instead of throwing.
+   */
+  rewriteNow(path: string, rewrite: NoteRewrite): Promise<WriteOutcome> {
+    return this.enqueue(path, { rewrite }, true);
   }
 
   /** Writes the note's pending changes and saves the editors written to; all notes without a path. */

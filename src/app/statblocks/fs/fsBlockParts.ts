@@ -66,7 +66,8 @@ export function flags(record: FsRecord, read: readonly string[], at: Place): Bas
   const base: Base = {};
   const type = textOf(record, 'type') ?? '';
   const fallback = textOf(record, 'fallback');
-  if (own(record, 'conditioned') === true) base.whenEmpty = 'hide';
+  // FS draws no conditioned block while it is empty; where a statblock is filled in, it waits as a chip
+  if (own(record, 'conditioned') === true) base.whenEmpty = 'fold';
   else if (SHOWS_FALLBACK.has(type)) base.whenEmpty = 'fallback';
   if (base.whenEmpty === 'fallback' || fallback !== undefined) base.fallback = escapePatternText(fallback ?? '-');
   const cls = textOf(record, 'cls')?.trim();

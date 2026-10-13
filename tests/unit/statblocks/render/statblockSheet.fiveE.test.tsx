@@ -109,7 +109,7 @@ describe('StatblockSheet: 5E 2024', () => {
     const { container } = renderSheet(FIVE_E_2024, MOUND);
     const action = blockEl(container, 'b5actio0')!;
     expect(action.querySelector('.atlas-sb-section-heading')?.textContent).toBe('Actions');
-    expect(action.querySelector('.atlas-sb-trait--run-in .atlas-sb-trait-name')?.textContent).toBe('Slam.');
+    expect(action.querySelector('.atlas-sb-trait--run-in .atlas-sb-trait-name')?.textContent).toBe('Slam');
     expect(action.querySelectorAll('.atlas-dice-link').length).toBeGreaterThan(0);
   });
 });
@@ -118,9 +118,9 @@ describe('StatblockSheet: §5.4 Marsh creature', () => {
   it('writes ability scores as a row with a modifier row under them', () => {
     const { container } = renderSheet(MARSH_CREATURE, { name: 'Bog Hag', stats: [12, 14, 10, 13, 11, 9] });
     const scores = blockEl(container, 's0j3m5oq')!;
-    expect([...scores.querySelectorAll('.atlas-sb-score-label')].map((cell) => cell.textContent)).toEqual(['STR', 'DEX', 'CON', 'INT', 'WIS', 'CHA']);
-    expect([...scores.querySelectorAll('.atlas-sb-score')].map((cell) => cell.textContent)).toEqual(['12', '14', '10', '13', '11', '9']);
-    expect([...scores.querySelectorAll('.atlas-sb-score-column')].map((cell) => cell.textContent)).toEqual(['+1', '+2', '+0', '+1', '+0', '-1']);
+    expect([...scores.querySelectorAll('thead th')].map((cell) => cell.textContent)).toEqual(['STR', 'DEX', 'CON', 'INT', 'WIS', 'CHA']);
+    expect([...scores.querySelectorAll('td.atlas-sb-sheet-table__cell')].map((cell) => cell.textContent)).toEqual(['12', '14', '10', '13', '11', '9']);
+    expect([...scores.querySelectorAll('td.atlas-sb-sheet-table__worked')].map((cell) => cell.textContent)).toEqual(['+1', '+2', '+0', '+1', '+0', '-1']);
   });
 
   it('shows a fallback for an empty list and a rating with its XP', () => {

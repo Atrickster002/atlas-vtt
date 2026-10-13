@@ -1,12 +1,11 @@
 import React, { useLayoutEffect, useRef, useState } from 'react';
-import { ChevronDown, X } from 'lucide-react';
+import { ChevronDown } from 'lucide-react';
 import { handledByAnotherControl } from '../../../keyboard/tooltipEscape';
-import { LabelTooltip } from '../../../packages/components/primitives/tooltip';
-import { cn } from '../../../../utils/cn';
 import type { FieldValue } from '../../model/templateTypes';
 import { choiceText, newPick, optionsLeft, readChoice, type ChoicePick, type ChoiceRead } from '../../values/choicePicks';
 import { formatNumber, parseNumberText } from '../../values/numberText';
 import { choiceOptions, useOptionList } from './ChoiceOptionList';
+import { ChipRemove, UnreadChip } from './PaneChips';
 import { usePaneEdit } from './paneEditContext';
 import type { ValueInputProps } from './TextValueInput';
 import { fieldPatches } from './valuePatches';
@@ -69,7 +68,7 @@ function PickNumber({ pick, label, focusOnMount, onNumber, onDone }: PickNumberP
  * is written, flagged, until it is removed. A field that takes one option
  * swaps the pick and keeps its number.
  */
-export function ChoicePicksInput({ field, autoFocus }: ValueInputProps): React.JSX.Element {
+export function ChoicePicksInput({ field, autoFocus, placeholder }: ValueInputProps): React.JSX.Element {
   const pane = usePaneEdit();
   const inputRef = useRef<HTMLInputElement>(null);
   const [typed, setTyped] = useState('');
@@ -148,24 +147,11 @@ export function ChoicePicksInput({ field, autoFocus }: ValueInputProps): React.J
               {pick.unit && <span className="atlas-sb-pane-pick__unit">{pick.unit}</span>}
             </>
           )}
-          <LabelTooltip label={`Remove ${pick.option}`}>
-            <button type="button" className="atlas-sb-pane-chip__remove" onClick={() => removePick(index)}>
-              <X aria-hidden="true" />
-            </button>
-          </LabelTooltip>
+          <ChipRemove label={`Remove ${pick.option}`} onRemove={() => removePick(index)} />
         </span>
       ))}
       {read.unread.map((part, index) => (
-        <span key={`unread-${part}-${index}`} className={cn('atlas-sb-pane-chip', 'atlas-sb-pane-pick--unread')}>
-          <LabelTooltip label="Not one of the options. It stays as written until you remove it.">
-            <span className="atlas-sb-pane-chip__text" tabIndex={0}>{part}</span>
-          </LabelTooltip>
-          <LabelTooltip label={`Remove ${part}`}>
-            <button type="button" className="atlas-sb-pane-chip__remove" onClick={() => removeUnread(index)}>
-              <X aria-hidden="true" />
-            </button>
-          </LabelTooltip>
-        </span>
+        <UnreadChip key={`unread-${part}-${index}`} part={part} onRemove={() => removeUnread(index)} />
       ))}
       <span className="atlas-sb-pane-pick__add">
         <input
@@ -173,7 +159,7 @@ export function ChoicePicksInput({ field, autoFocus }: ValueInputProps): React.J
           type="text"
           className="atlas-sb-pane-input atlas-sb-pane-chips__input"
           value={typed}
-          placeholder={empty ? field.prompt?.trim() || field.label : ''}
+          placeholder={empty ? placeholder ?? (field.prompt?.trim() || field.label) : ''}
           aria-label={field.several ? `Add to ${field.label}` : field.label}
           {...list.inputProps}
           onChange={(event) => {

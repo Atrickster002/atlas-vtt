@@ -10,6 +10,7 @@ $chrome-offset: 4px;
 $gap-hit: 12px;
 $plus-size: 20px;
 $tag-height: 18px;
+$part-remove-size: 16px;
 
 .atlas-vtt-plugin {
   .atlas-te-stage {
@@ -160,6 +161,36 @@ $tag-height: 18px;
     background: color-mix(in oklch, var(--interactive-accent) 18%, transparent);
   }
 
+  // The × of a Metric's number or a Table's column: a small disc centred on its top right corner, where a Metric's rule to the next number starts.
+  .atlas-te-chrome button.atlas-te-part-remove {
+    position: absolute;
+    left: calc(var(--atlas-te-x) - #{$part-remove-size * 0.5});
+    top: calc(var(--atlas-te-y) - #{$part-remove-size * 0.5});
+    display: grid;
+    place-items: center;
+    width: $part-remove-size;
+    height: $part-remove-size;
+    padding: 0;
+    border: $border-width-s solid var(--background-modifier-border);
+    border-radius: $radius-full;
+    // A disc: Obsidian's superellipse would square it.
+    corner-shape: round;
+    background: var(--background-primary);
+    box-shadow: none;
+    color: var(--text-muted);
+    cursor: pointer;
+
+    svg {
+      width: 10px;
+      height: 10px;
+    }
+
+    &:hover {
+      border-color: var(--text-error);
+      color: var(--text-error);
+    }
+  }
+
   // Exactly over the label's text, in its font; it grows with what is typed.
   .atlas-te-stage input.atlas-te-label-input {
     position: absolute;
@@ -187,12 +218,13 @@ $tag-height: 18px;
     line-height: var(--atlas-te-label-height);
   }
 
-  // ── Blank template: a ghost card ────────────────────────────────────────
+  // ── Blank template: a ghost card under the header ──────────────────────
   .atlas-te-blank {
     @include atlas-flex-col($spacing-s);
     align-items: stretch;
+    margin-top: $spacing-s;
     padding: $spacing-l;
-    border: $border-width-m dashed var(--background-modifier-border);
+    border: $border-width-m solid transparent;
     border-radius: $radius-xl;
   }
 
@@ -202,9 +234,9 @@ $tag-height: 18px;
     justify-content: flex-start;
     height: var(--input-height);
     padding: 0 $spacing-s;
-    border: $border-width-s dashed var(--background-modifier-border);
+    border: $border-width-s solid transparent;
     border-radius: $radius-l;
-    background: transparent;
+    background: var(--background-modifier-hover);
     box-shadow: none;
     color: var(--text-faint);
     font-size: $font-ui-small;
@@ -217,8 +249,12 @@ $tag-height: 18px;
 
     &:hover:not(:disabled),
     &:focus-visible {
-      border-color: var(--interactive-accent);
+      background: var(--background-modifier-active-hover);
       color: var(--text-accent);
+    }
+
+    &:focus-visible {
+      box-shadow: 0 0 0 2px var(--background-modifier-border-focus);
     }
   }
 }

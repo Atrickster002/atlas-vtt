@@ -38,7 +38,7 @@ describe('addTab', () => {
 });
 
 describe('splitIntoTabs', () => {
-  it('makes the list the first tab, headed with its heading, beside an empty "Tab 2", in the list\'s place', () => {
+  it('makes the list the first tab, "Tab 1", beside an empty "Tab 2", in the list\'s place, the Tabs block keeping its heading', () => {
     const layout = layoutOf(
       { id: 'divider1', type: 'divider' },
       { id: 'spells01', type: 'spells', field: 'spells', heading: 'Spellcasting', className: 'magic' },
@@ -46,17 +46,24 @@ describe('splitIntoTabs', () => {
     const edit = splitIntoTabs(layout, 'spells01', idsFrom('first001', 'second01', 'tabs0001'));
     expect(edit).toMatchObject({ ok: true, focus: 'tabs0001' });
     expect(edit.layout.blocks[1]).toStrictEqual({
-      id: 'tabs0001', type: 'tabs', blocks: [
-        { id: 'first001', type: 'section', heading: 'Spellcasting', blocks: [{ id: 'spells01', type: 'spells', field: 'spells', className: 'magic' }] },
+      id: 'tabs0001', type: 'tabs', heading: 'Spellcasting', blocks: [
+        { id: 'first001', type: 'section', heading: 'Tab 1', blocks: [{ id: 'spells01', type: 'spells', field: 'spells', className: 'magic' }] },
         { id: 'second01', type: 'section', heading: 'Tab 2', blocks: [] },
       ],
     });
   });
 
-  it('heads the first tab "Tab 1" where the list has no heading, and keeps a label', () => {
-    const layout = layoutOf({ id: 'tags0001', type: 'tags', field: 'traits', label: 'Traits', look: 'chips' });
+  it('gives the Tabs block no heading where the list has none, and keeps a label on the list', () => {
+    const layout = layoutOf(
+      { id: 'tags0001', type: 'tags', field: 'traits', label: 'Traits', look: 'chips' },
+      { id: 'entries1', type: 'entries', field: 'actions', heading: '  ' },
+    );
     const edit = splitIntoTabs(layout, 'tags0001', idsFrom('first001', 'second01', 'tabs0001'));
     expect(findBlock(edit.layout.blocks, 'first001')?.block).toMatchObject({ heading: 'Tab 1', blocks: [{ label: 'Traits' }] });
+    expect(findBlock(edit.layout.blocks, 'tabs0001')?.block).not.toHaveProperty('heading');
+    const blank = splitIntoTabs(layout, 'entries1', idsFrom('first001', 'second01', 'tabs0001'));
+    expect(findBlock(blank.layout.blocks, 'tabs0001')?.block).not.toHaveProperty('heading');
+    expect(findBlock(blank.layout.blocks, 'entries1')?.block).not.toHaveProperty('heading');
   });
 
   it('refuses what is no list, and a list in a Side by side, where Tabs may not stand', () => {
@@ -88,6 +95,14 @@ describe('tabs in the tree', () => {
     expect(turnInto(layout, 'tab00001', 'tabs', fields)).toMatchObject({ ok: false, reason: 'not-allowed-here' });
     expect(turnInto(layout, 'tab00001', 'row', fields)).toMatchObject({ ok: false, reason: 'not-allowed-here' });
     expect(turnInto(layout, 'stat0001', 'tabs', fields)).toMatchObject({ ok: false, reason: 'cannot-turn-into' });
+  });
+
+  it('keep their heading as a Section and back, and lose it as a Side by side', () => {
+    const layout = layoutOf({ ...TABS, heading: 'Spellbook' } as TemplateBlock);
+    const section = turnInto(layout, 'tabs0001', 'section', fields);
+    expect(section.layout.blocks[0]).toMatchObject({ type: 'section', heading: 'Spellbook' });
+    expect(turnInto(section.layout, 'tabs0001', 'tabs', fields).layout.blocks[0]).toMatchObject({ type: 'tabs', heading: 'Spellbook' });
+    expect(turnInto(layout, 'tabs0001', 'row', fields).layout.blocks[0]).not.toHaveProperty('heading');
   });
 
   it('name the tabs that hold a block, outermost first', () => {

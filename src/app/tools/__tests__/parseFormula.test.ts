@@ -21,4 +21,28 @@ describe('parseFormula', () => {
   ])('rejects cap violation %j', (formula, code) => {
     expect(parseFormula(formula)).toEqual({ ok: false, code });
   });
+
+  it.each([
+    ['2d20kh1', { count: 2, faces: 20, keep: { count: 1, highest: true } }],
+    ['2d20kh', { count: 2, faces: 20, keep: { count: 1, highest: true } }],
+    ['4d6kl3', { count: 4, faces: 6, keep: { count: 3, highest: false } }],
+    ['3D6KH2', { count: 3, faces: 6, keep: { count: 2, highest: true } }],
+    ['2d6!kh1', { count: 2, faces: 6, explosions: 1, keep: { count: 1, highest: true } }],
+  ])('reads keep notation %j', (formula, term) => {
+    const parsed = parseFormula(formula);
+    expect(parsed.ok && parsed.terms[0]).toMatchObject({ kind: 'dice', ...term });
+  });
+
+  it.each(['2d20k1', '2d20kx1', '2d20kh1kh1', 'kh1', '2d20 kh1', '2d20kh1000'])('rejects malformed keep notation %j', (formula) => {
+    expect(parseFormula(formula)).toEqual({ ok: false, code: 'syntax' });
+  });
+
+  it.each(['2d20kh3', '2d20kh0', '0d20kl1'])('rejects keeping none or more dice than are rolled %j', (formula) => {
+    expect(parseFormula(formula)).toEqual({ ok: false, code: 'keep' });
+  });
+
+  it('counts kept and dropped dice against the dice limit', () => {
+    expect(parseFormula('100d6kh1').ok).toBe(true);
+    expect(parseFormula('101d6kh1')).toEqual({ ok: false, code: 'dice' });
+  });
 });

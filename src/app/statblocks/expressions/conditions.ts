@@ -74,6 +74,8 @@ export function evaluateCondition(condition: Condition, reader: ValueReader): bo
  * it shows is empty, it hides, unless it has `whenEmpty: 'fallback'` and a
  * fallback pattern, which the caller renders instead (and hides if that is
  * empty too). A block that shows no fields (a heading, a divider) shows.
+ * `whenEmpty: 'fold'` hides like 'hide'; where a statblock is filled in, the
+ * card folds such a block into a chip first (`render/foldRule.ts`).
  */
 export function blockVisibility(
   block: Pick<BlockBase, 'showWhen' | 'whenEmpty' | 'fallback'>,

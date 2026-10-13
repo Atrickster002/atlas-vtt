@@ -11,70 +11,91 @@ const LINE: DropLine = { orientation: 'horizontal', x: 0, y: 0, length: 10 };
 const box = (top: number, bottom: number): { left: number; top: number; right: number; bottom: number } => ({ left: 0, top, right: 100, bottom });
 
 describe('applyDrop', () => {
-  it('moves a block into another container as one undo step, keeping its id and selecting it', () => {
+  it('moves a tile into a row as one undo step, keeping its id and selecting it', () => {
     const session = new FakeSession(sampleTemplate());
-    const outcome = applyDrop(session, { kind: 'block', id: 'divider1' }, { kind: 'between', parentId: 'section1', index: 1, line: LINE });
-    expect(shape(session.template.layout.blocks)).toBe('title001 section1(stat-ac1 divider1 stat-hp1) row00001(stat-sp1 stat-cr1)');
+    const outcome = applyDrop(session, { kind: 'block', id: 'divider1' }, { kind: 'between', parentId: 'row00001', index: 1, line: LINE });
+    expect(shape(session.template.layout.blocks)).toBe('title001 stat-ac1 stat-hp1 row00001(stat-sp1 divider1 stat-cr1)');
     expect(session.steps).toBe(1);
-    expect(outcome).toMatchObject({ select: ['divider1'], landed: 'divider1', announce: 'Moved Divider to section Defenses, position 2 of 3.' });
+    expect(outcome).toMatchObject({ select: ['divider1'], landed: 'divider1' });
     session.undo();
-    expect(shape(session.template.layout.blocks)).toBe('title001 section1(stat-ac1 stat-hp1) row00001(stat-sp1 stat-cr1) divider1');
+    expect(shape(session.template.layout.blocks)).toBe(shape(sampleTemplate().layout.blocks));
   });
 
-  it('sets a block beside another in a new Side by side, on the side dropped, as one undo step', () => {
+  it('takes a tile out of a row of two into a row of its own, the other tile left on its own row', () => {
     const session = new FakeSession(sampleTemplate());
-    const beside = (side: 'start' | 'end') => ({ kind: 'beside' as const, targetId: 'title001', side, line: { ...LINE, orientation: 'vertical' as const } });
-    const outcome = applyDrop(session, { kind: 'block', id: 'divider1' }, beside('end'));
-    const row = session.template.layout.blocks[0];
-    expect(row).toMatchObject({ type: 'row', blocks: [{ id: 'title001' }, { id: 'divider1' }] });
-    expect(shape(session.template.layout.blocks.slice(1))).toBe('section1(stat-ac1 stat-hp1) row00001(stat-sp1 stat-cr1)');
+    applyDrop(session, { kind: 'block', id: 'stat-cr1' }, { kind: 'between', parentId: null, index: 1, line: LINE });
+    expect(shape(session.template.layout.blocks)).toBe('title001 stat-cr1 stat-ac1 stat-hp1 stat-sp1 divider1');
     expect(session.steps).toBe(1);
-    expect(outcome).toMatchObject({ select: ['divider1'], landed: 'divider1', announce: 'Put Divider beside Name, side by side.' });
+  });
+
+  it('sets a tile beside another in a new row, on the side dropped, as one undo step', () => {
+    const session = new FakeSession(sampleTemplate());
+    const beside = (side: 'start' | 'end') => ({ kind: 'beside' as const, targetId: 'stat-ac1', side, line: { ...LINE, orientation: 'vertical' as const } });
+    const outcome = applyDrop(session, { kind: 'block', id: 'divider1' }, beside('end'));
+    expect(session.template.layout.blocks[1]).toMatchObject({ type: 'row', blocks: [{ id: 'stat-ac1' }, { id: 'divider1' }] });
+    expect(session.steps).toBe(1);
+    expect(outcome).toMatchObject({ select: ['divider1'], landed: 'divider1', announce: 'Put Divider beside Armor class, side by side.' });
     session.undo();
-    expect(shape(session.template.layout.blocks)).toBe('title001 section1(stat-ac1 stat-hp1) row00001(stat-sp1 stat-cr1) divider1');
-    applyDrop(session, { kind: 'item', item: insertItemFor('stat') }, beside('start'));
-    expect(session.template.layout.blocks[0]).toMatchObject({ type: 'row', blocks: [{ type: 'stat' }, { id: 'title001' }] });
+    const placed = applyDrop(session, { kind: 'item', item: insertItemFor('stat') }, beside('start'));
+    expect(session.template.layout.blocks[1]).toMatchObject({ type: 'row', blocks: [{ type: 'stat' }, { id: 'stat-ac1' }] });
+    placed.placement?.keep();
     expect(session.steps).toBe(2);
   });
 
-  it('counts a later place in the same list once the block has left it', () => {
+  it('has a kind dropped from the dock ask for its name, between rows and beside a tile, and never a tile moved or a divider', () => {
     const session = new FakeSession(sampleTemplate());
-    applyDrop(session, { kind: 'block', id: 'title001' }, { kind: 'between', parentId: null, index: 3, line: LINE });
-    expect(shape(session.template.layout.blocks)).toBe('section1(stat-ac1 stat-hp1) row00001(stat-sp1 stat-cr1) title001 divider1');
-    expect(treeTargetOf(sampleTemplate().layout, { kind: 'between', parentId: null, index: 3, line: LINE }, 'title001')).toEqual({ parentId: null, index: 2 });
+    const between = { kind: 'between' as const, parentId: null, index: 1, line: LINE };
+    const value = applyDrop(session, { kind: 'item', item: insertItemFor('stat') }, between);
+    expect(value.toName).toBe(value.inserted);
+    value.placement?.keep();
+    const beside = { kind: 'beside' as const, targetId: 'stat-ac1', side: 'end' as const, line: { ...LINE, orientation: 'vertical' as const } };
+    const table = applyDrop(session, { kind: 'item', item: insertItemFor('scores') }, beside);
+    expect(table.toName).toBe(table.landed);
+    table.placement?.keep();
+    const divider = applyDrop(session, { kind: 'item', item: insertItemFor('divider') }, between);
+    expect(divider.toName).toBeUndefined();
+    expect(divider.placement).toBeUndefined();
+    expect(applyDrop(session, { kind: 'block', id: 'stat-hp1' }, between).toName).toBeUndefined();
   });
 
-  it('inserts a palette block where it is dropped and opens its label, as a click would', () => {
+  it('counts a later place in the same list once the tile has left it', () => {
+    const session = new FakeSession(sampleTemplate());
+    applyDrop(session, { kind: 'block', id: 'stat-ac1' }, { kind: 'between', parentId: null, index: 4, line: LINE });
+    expect(shape(session.template.layout.blocks)).toBe('title001 stat-hp1 row00001(stat-sp1 stat-cr1) stat-ac1 divider1');
+    expect(treeTargetOf(sampleTemplate().layout, { kind: 'between', parentId: null, index: 4, line: LINE }, 'stat-ac1')).toEqual({ parentId: null, index: 3 });
+  });
+
+  it('inserts a kind from the dock where it is dropped, a step only once it is kept', () => {
     const session = new FakeSession(sampleTemplate());
     const outcome = applyDrop(session, { kind: 'item', item: insertItemFor('stat') }, { kind: 'into', parentId: null, outline: box(0, 1) });
     expect(session.template.layout.blocks[0]).toMatchObject({ type: 'stat', field: '' });
     expect(outcome.inserted).toBe(session.template.layout.blocks[0]?.id);
+    expect(session.steps).toBe(0);
+    outcome.placement?.keep();
     expect(session.steps).toBe(1);
   });
 
-  it('gives a dropped field the natural block for its type, bound to it', () => {
-    const session = new FakeSession(sampleTemplate());
-    const outcome = applyDrop(session, { kind: 'field', key: 'cr' }, { kind: 'between', parentId: 'section1', index: 2, line: LINE });
-    const section = session.template.layout.blocks[1];
-    expect(section && 'blocks' in section ? section.blocks[2] : null).toMatchObject({ type: 'stat', field: 'cr' });
-    expect(outcome.inserted).toBeUndefined();
-    expect(outcome.landed).toBeDefined();
-    expect(session.template.fields).toHaveLength(5);
+  it('takes a dropped kind away again without a step when it is let go', () => {
+    const before = sampleTemplate();
+    const session = new FakeSession(before);
+    const outcome = applyDrop(session, { kind: 'item', item: insertItemFor('scores') }, { kind: 'between', parentId: null, index: 1, line: LINE });
+    outcome.placement?.drop();
+    expect(session.template).toBe(before);
+    expect(session.steps).toBe(0);
   });
 
-  it('changes nothing in a built-in, and says why', () => {
-    const session = new FakeSession(sampleTemplate(), { readOnly: true, readOnlyReason: 'built-in' });
-    const outcome = applyDrop(session, { kind: 'block', id: 'divider1' }, { kind: 'between', parentId: null, index: 0, line: LINE });
-    expect(outcome.announce).toBe('Built-in template. Make a copy to change it.');
+  it('changes nothing in a template of a newer Atlas, and says why', () => {
+    const session = new FakeSession(sampleTemplate(), { readOnly: true, readOnlyReason: 'newer' });
+    const outcome = applyDrop(session, { kind: 'block', id: 'divider1' }, { kind: 'between', parentId: null, index: 1, line: LINE });
+    expect(outcome.announce).toBe('Update Atlas to edit this template.');
     expect(session.steps).toBe(0);
   });
 
   it('knows what each source puts in', () => {
     const template = sampleTemplate();
     expect(subjectOf(template, { kind: 'block', id: 'row00001' })).toEqual({ types: ['row'], movingId: 'row00001' });
-    expect(subjectOf(template, { kind: 'item', item: insertItemFor('row') })).toEqual({ types: ['row'], movingId: null });
-    expect(subjectOf(template, { kind: 'field', key: 'hp' })).toEqual({ types: ['stat'], movingId: null });
-    expect(subjectOf(template, { kind: 'field', key: 'missing' })).toBeNull();
+    expect(subjectOf(template, { kind: 'item', item: insertItemFor('entries') })).toEqual({ types: ['entries'], movingId: null });
+    expect(subjectOf(template, { kind: 'block', id: 'missing' })).toBeNull();
   });
 });
 
@@ -102,8 +123,8 @@ describe('drag announcements', () => {
   const { layout, fields } = sampleTemplate();
 
   it('says where the block would go', () => {
-    expect(targetText(layout, fields, { kind: 'between', parentId: 'section1', index: 1, line: LINE }, 'divider1')).toBe('Section Defenses, position 2 of 3.');
-    expect(targetText(layout, fields, { kind: 'between', parentId: null, index: 3, line: LINE }, 'title001')).toBe('The top level, position 3 of 4.');
+    expect(targetText(layout, fields, { kind: 'between', parentId: 'row00001', index: 1, line: LINE }, 'divider1')).toBe('In a row, place 2 of 3.');
+    expect(targetText(layout, fields, { kind: 'between', parentId: null, index: 3, line: LINE }, 'stat-ac1')).toBe('A row of its own, row 3 of 5.');
     expect(targetText(layout, fields, { kind: 'refused' }, null)).toBe("Can't go here.");
   });
 

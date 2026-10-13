@@ -49,6 +49,8 @@ export function siblingShifts(entries: readonly ListEntry[], from: number, gap: 
   const shifts = new Map<string, Shift>();
   let landingStart: number;
   let room: number;
+  /** The gap the line stands in: between the landing place and the block before it. */
+  let open: number;
   if (gap > from) {
     const next = entries[from + 1];
     const last = entries[gap - 1];
@@ -59,6 +61,7 @@ export function siblingShifts(entries: readonly ListEntry[], from: number, gap: 
       if (entry) shifts.set(entry.id, along(-room, flow));
     }
     landingStart = endOf(last.box, flow) - size;
+    open = room - size;
   } else {
     const previous = entries[from - 1];
     const first = entries[gap];
@@ -69,6 +72,10 @@ export function siblingShifts(entries: readonly ListEntry[], from: number, gap: 
       if (entry) shifts.set(entry.id, along(room, flow));
     }
     landingStart = startOf(first.box, flow);
+    // Blocks of one list need not stand equally far apart (a divider keeps more room than two values do):
+    // the gap is the one before the landing place, never the one the block had where it came from.
+    const before = entries[gap - 1];
+    open = before ? landingStart - endOf(before.box, flow) : room - size;
   }
   const offset = landingStart - startOf(moving.box, flow);
   shifts.set(moving.id, along(offset, flow));
@@ -76,7 +83,7 @@ export function siblingShifts(entries: readonly ListEntry[], from: number, gap: 
   const landing = flow === 'stack'
     ? { ...box, top: box.top + offset, bottom: box.bottom + offset }
     : { ...box, left: box.left + offset, right: box.right + offset };
-  const lead = landingStart - Math.max((room - size) / 2, LINE_OFFSET / 2);
+  const lead = landingStart - Math.max(open / 2, LINE_OFFSET / 2);
   const line: DropLine = flow === 'stack'
     ? { orientation: 'horizontal', x: landing.left, y: lead, length: landing.right - landing.left }
     : { orientation: 'vertical', x: lead, y: landing.top, length: landing.bottom - landing.top };

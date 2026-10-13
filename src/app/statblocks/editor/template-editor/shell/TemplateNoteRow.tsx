@@ -3,24 +3,23 @@ import type { App } from 'obsidian';
 import { cn } from '../../../../../utils/cn';
 import { PanelFrame } from '../../panel-frame/PanelFrame';
 import { PanelHost } from '../../panel-frame/PanelHost';
-import { NoteBodyPreview } from './NoteBodyPreview';
-import type { ShowWith } from './showWith';
+import { TemplateBodyColumn } from './TemplateBodyColumn';
 import type { PanelRoom } from './usePanelRoom';
 import './shell.scss';
 
 export interface TemplateNoteRowProps {
   app: App | undefined;
   room: PanelRoom;
-  showWith: ShowWith;
-  /** The rendered note's text element, whose readable line the panel's width follows. */
+  /** The note column's text box, whose readable line the panel's width follows. */
   previewRef: React.RefObject<HTMLDivElement | null>;
-  openNote: (path: string) => void;
   /** The header capsule. */
   capsule: React.ReactNode;
   stateBars: React.ReactNode;
   /** The card: the canvas. */
   card: React.ReactNode;
   footer: React.ReactNode;
+  /** Stands over the note column while set. */
+  noteCover?: React.ReactNode;
 }
 
 /**
@@ -33,7 +32,7 @@ export const TemplateNoteRow = forwardRef<HTMLDivElement, TemplateNoteRowProps>(
   const { app, room } = props;
   return (
     <div ref={ref} className={cn('atlas-te-row', room.stacked && 'atlas-sb-note--stacked')}>
-      <NoteBodyPreview app={app} showWith={props.showWith} previewRef={props.previewRef} onOpenNote={props.openNote} />
+      <TemplateBodyColumn app={app} previewRef={props.previewRef} cover={props.noteCover} />
       <PanelHost
         width={room.width}
         stacked={room.stacked}

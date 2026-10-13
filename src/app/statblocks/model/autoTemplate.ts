@@ -4,7 +4,7 @@ import { isReservedKey } from './reservedKeys';
 import type { BlockIdSource } from './templateIds';
 import {
   TEMPLATE_FORMAT, TEMPLATE_VERSION,
-  type FieldKey, type StatblockTemplate, type TemplateBlock, type TemplateField,
+  type FieldKey, type FieldMeaning, type HeaderPartId, type StatblockTemplate, type TemplateBlock, type TemplateField,
 } from './templateTypes';
 
 export const AUTO_TEMPLATE_ID = 'auto';
@@ -96,21 +96,34 @@ function sequentialIds(): BlockIdSource {
   return () => `auto${(next++).toString(36).padStart(4, '0')}`;
 }
 
-function header(fields: TemplateField[], nextId: BlockIdSource): TemplateBlock[] {
-  const title = fields.some((field) => field.key === 'name') ? createBlock('title', nextId, 'name') : null;
-  const image = fields.some((field) => field.key === 'image') ? createBlock('image', nextId, 'image') : null;
-  if (title && image) return [{ ...createBlock('row', nextId), blocks: [title, image] }];
-  return title ? [title] : image ? [image] : [];
-}
-
 function isShownText(record: Readonly<Record<string, unknown>>, key: FieldKey, ignored: ReadonlySet<string>): boolean {
   const value = record[key];
   return !ignored.has(key) && typeof value === 'string' && value.trim() !== '';
 }
 
+/** The header's parts besides the name and the art, each with the keys a record keeps it under, first found first. */
+const HEADER_VALUES: ReadonlyArray<{ part: HeaderPartId; keys: readonly FieldKey[]; meaning: FieldMeaning }> = [
+  { part: 'level', keys: ['level', 'cr'], meaning: 'rating' },
+  { part: 'type', keys: ['type'], meaning: 'creature-type' },
+  { part: 'hp', keys: ['hp'], meaning: 'hit-points' },
+  { part: 'description', keys: ['description'], meaning: 'description' },
+];
+
+/** A header part's field: the first of its keys the record holds a value of, carrying the part's meaning. */
+function headerField(record: Readonly<Record<string, unknown>>, keys: readonly FieldKey[], meaning: FieldMeaning, ignored: ReadonlySet<string>): TemplateField | null {
+  for (const key of keys) {
+    const value = record[key];
+    const shown = ignored.has(key) || isEmpty(value) ? null : shapeOf(value);
+    if (shown && !Array.isArray(value) && shown.type !== 'pairs') return { ...fieldFor(key, value, shown), meaning };
+  }
+  return null;
+}
+
 /**
- * A template for a record no template describes (§6.7): a Title from `name`,
- * the Image, then one block per other field by the shape of its value, in the
+ * A template for a record no template describes (§6.7): the header shows the
+ * `name`, the `image`, the level (`level`, else `cr`), the `type`, the `hp`
+ * and the `description` the record holds, and hides the parts it holds none
+ * of; then one block per other field by the shape of its value, in the
  * record's order. Reserved keys, `ignored` keys, empty values and shapes no
  * block shows (true/false, nested records) are left out. It is never shaped
  * like a game system.
@@ -120,9 +133,16 @@ export function autoTemplate(record: Readonly<Record<string, unknown>>, ignored:
   const fields: TemplateField[] = [];
   if (isShownText(record, 'name', ignored)) fields.push({ key: 'name', label: labelFromKey('name'), type: 'text' });
   if (isShownText(record, 'image', ignored)) fields.push({ key: 'image', label: labelFromKey('image'), type: 'image' });
-  const blocks = header(fields, nextId);
+  const hidden: HeaderPartId[] = [];
+  for (const { part, keys, meaning } of HEADER_VALUES) {
+    const field = headerField(record, keys, meaning, ignored);
+    if (field) fields.push(field);
+    else hidden.push(part);
+  }
+  const inHeader = new Set(fields.map((field) => field.key));
+  const blocks: TemplateBlock[] = [];
   for (const [key, value] of Object.entries(record)) {
-    if (key === 'name' || key === 'image' || isReservedKey(key) || ignored.has(key) || isEmpty(value)) continue;
+    if (inHeader.has(key) || key === 'name' || key === 'image' || isReservedKey(key) || ignored.has(key) || isEmpty(value)) continue;
     const shown = shapeOf(value);
     if (!shown) continue;
     const field = fieldFor(key, value, shown);
@@ -134,6 +154,7 @@ export function autoTemplate(record: Readonly<Record<string, unknown>>, ignored:
     version: TEMPLATE_VERSION,
     id: AUTO_TEMPLATE_ID,
     fields,
+    ...(hidden.length > 0 && { header: { hidden } }),
     layout: { maxColumns: 2, blocks },
   };
 }

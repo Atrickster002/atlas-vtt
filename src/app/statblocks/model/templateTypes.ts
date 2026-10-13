@@ -21,8 +21,16 @@ export interface StatblockTemplate {
   description?: string;
   /** Role names it suits; a hint for pickers, never a restriction. */
   suits?: string[];
+  /**
+   * The dice set from the vault's library its statblocks roll a bare bonus with ("+6").
+   * Unset, or a set the library lacks: the collection's dice (`statblockDiceSet`).
+   */
+  diceSetId?: string;
   /** What a statblock of this template holds, in form order (Tab order in the statblock pane). */
   fields: TemplateField[];
+  /** The header's parts this template keeps off the card (`templateHeader.ts`). Absent: every part shows. */
+  header?: TemplateHeader;
+  /** What the template lays out below the header. */
   layout: TemplateLayout;
   /** Tables patterns read with `{cr|lookup:xp}`. */
   lookups?: Record<string, Record<string, string>>;
@@ -44,7 +52,7 @@ export type FieldType =
   | 'dice'      // "7d10 + 14": validated, rollable, average shown
   | 'choice'    // one of `options` (or any, if `open`)
   | 'list'      // string list
-  | 'scores'    // number array, one value per slot
+  | 'scores'    // a Table: rows of cells under named columns (one row: a flat list)
   | 'entries'   // list of { name, desc, ...extras }
   | 'pairs'     // { dex: 5 } or [{ dex: 5 }]
   | 'image'     // vault path
@@ -54,13 +62,32 @@ export const FIELD_TYPES: readonly FieldType[] = [
   'text', 'markdown', 'number', 'rating', 'dice', 'choice', 'list', 'scores', 'entries', 'pairs', 'image', 'spells',
 ];
 
-/** What Atlas uses a field for when its key is not the conventional one. */
+/**
+ * What Atlas uses a field for when its key is not the conventional one. `display-name`: the name the header shows
+ * where the statblock has one ("Aranea"), while `name` stays the statblock's identity ("Aranea (Cairn)").
+ */
 export type FieldMeaning =
-  | 'hit-points' | 'armor' | 'rating' | 'size' | 'creature-type' | 'senses' | 'initiative' | 'traits';
+  | 'hit-points' | 'armor' | 'rating' | 'size' | 'creature-type' | 'senses' | 'initiative' | 'traits' | 'description'
+  | 'display-name';
 
 export const FIELD_MEANINGS: readonly FieldMeaning[] = [
-  'hit-points', 'armor', 'rating', 'size', 'creature-type', 'senses', 'initiative', 'traits',
+  'hit-points', 'armor', 'rating', 'size', 'creature-type', 'senses', 'initiative', 'traits', 'description', 'display-name',
 ];
+
+/**
+ * The parts of the header every statblock has, in the order Atlas draws them
+ * (`templateHeader.ts`): the name, the token art, the level, the type, the
+ * hit points and the description.
+ */
+export type HeaderPartId = 'name' | 'token' | 'level' | 'type' | 'hp' | 'description';
+
+export const HEADER_PART_IDS: readonly HeaderPartId[] = ['name', 'token', 'level', 'type', 'hp', 'description'];
+
+/** What a template says about its header; a part's name on the card is its field's label. */
+export interface TemplateHeader {
+  /** Parts kept off the card, in `HEADER_PART_IDS` order; never the name or the token art. */
+  hidden?: HeaderPartId[];
+}
 
 export interface TemplateField {
   key: FieldKey;
@@ -78,15 +105,33 @@ export interface TemplateField {
   several?: boolean;
   /** choice: each pick carries a number, written after it with `unit` ("darkvision 60 ft."). */
   numbered?: boolean;
-  /** scores: one label per slot, in stored order. */
+  /** scores: one name per column (the header row), in stored order. */
   slots?: string[];
-  /** scores: the key of each slot where a Scores column reads a pairs field ("strength"). Default: the labels in lower case. */
+  /** scores: each column's key, where a value written by name (`{ strength: 18 }`) or a worked-out row's pairs field reads it. Default: the names in lower case. */
   slotKeys?: string[];
+  /** scores: `false` draws no header row; the names still name the columns for screen readers. */
+  header?: false;
+  /** scores: the rows every statblock starts with, each its cells in column order. Unset: one empty row. */
+  rows?: TableCell[][];
+  /** scores: each column's alignment, in column order; unset or null is `start`. */
+  align?: (TableAlign | null)[];
+  /** scores: `false` keeps every statblock to the rows it starts with. Unset: statblocks add, remove, move and sort rows. */
+  addRows?: false;
+  /** scores: `false` keeps the template's columns. Unset: statblocks add, remove, move and rename columns. */
+  addColumns?: false;
   /** entries: the keys inside an entry. */
   entry?: EntryShape;
   /** Prompt for an empty value in the statblock pane ("Add speed"). */
   prompt?: string;
 }
+
+/** One cell of a Table: a number, text, or nothing. */
+export type TableCell = string | number | null;
+
+/** Where a Table column's cells stand, as Obsidian aligns a Markdown table's columns. */
+export type TableAlign = 'start' | 'center' | 'end';
+
+export const TABLE_ALIGNS: readonly TableAlign[] = ['start', 'center', 'end'];
 
 export interface EntryShape {
   /** Default 'name'. */
@@ -94,8 +139,24 @@ export interface EntryShape {
   /** Default 'desc' (FS); FS's Daggerheart notes use 'text'. */
   textKey?: string;
   /** Short labelled parts shown before the text ("Range", "Cost"). */
-  extras?: Array<{ key: string; label: string; type: 'text' | 'number' | 'list' | 'dice' }>;
+  extras?: EntryExtraShape[];
 }
+
+/**
+ * One part every entry of a list has besides its name and text. A `choice`
+ * part is one of the template's `options` ("Main action", "Reaction",
+ * "Passive"), picked per entry; with `several`, any of them at once, written
+ * as one line in the order of `options`.
+ */
+export interface EntryExtraShape {
+  key: string;
+  label: string;
+  type: EntryExtraType;
+  options?: string[];
+  several?: boolean;
+}
+
+export type EntryExtraType = 'text' | 'number' | 'list' | 'dice' | 'choice';
 
 export interface TemplateLayout {
   /** Most columns at full width. Default 2. */
@@ -114,8 +175,11 @@ export interface BlockBase {
   /** 8 base36, unique in the template; selection, undo, chrome and FS block ids follow it. */
   id: string;
   showWhen?: Condition;
-  /** Unset: hidden while every field it shows is empty. */
-  whenEmpty?: 'hide' | 'fallback';
+  /**
+   * While every field it shows is empty. Unset or 'hide': hidden. 'fallback': its `fallback` shows. 'fold': hidden
+   * where a statblock is read, and folded into a chip under the card where it is filled in (FS's `conditioned`).
+   */
+  whenEmpty?: 'hide' | 'fallback' | 'fold';
   /** A pattern, so it may derive a value from other fields; never stored in the note. */
   fallback?: string;
   /** Exposed as `data-cls` for themes; FS `cls`. */
@@ -128,22 +192,34 @@ export interface BlockBase {
 
 export interface SectionBlock extends BlockBase { type: 'section'; heading?: string; headingField?: FieldKey; collapsible?: 'open' | 'closed'; blocks: TemplateBlock[] }
 export interface RowBlock extends BlockBase { type: 'row'; align?: 'start' | 'center' | 'spread'; blocks: TemplateBlock[] }
-/** Sections shown one at a time; each Section's heading is its tab's label. Holds Sections only. */
-export interface TabsBlock extends BlockBase { type: 'tabs'; blocks: TemplateBlock[] }
+/** Sections shown one at a time; each Section's heading is its tab's label, `heading` stands above the strip. Holds Sections only. */
+export interface TabsBlock extends BlockBase { type: 'tabs'; heading?: string; blocks: TemplateBlock[] }
 export interface TitleBlock extends BlockBase { type: 'title'; field: FieldKey; level: 1 | 2 | 3; pattern?: string }
 export interface LineBlock extends BlockBase { type: 'line'; fields: FieldKey[]; pattern?: string; separator?: string }
 export interface StatBlock extends BlockBase { type: 'stat'; field: FieldKey; label?: string; look: 'run-in' | 'stacked'; pattern?: string; display?: 'plain' | 'signed'; rollFrom?: FieldKey }
-/** An extra column of a Scores block: per slot, the slot's entry in a pairs field (by `slotKeys`), else the formula over the slot's score (`value`). */
+/**
+ * A stat block's key numbers in one box: each a field of its own, its label the number's name over a large
+ * value, a rule between two ("Major 8 | Severe 15"). `heading` names the group above them where it holds two or
+ * more. A number not named yet is `''` until its label is committed, as a new Value's field is.
+ */
+export interface MetricBlock extends BlockBase { type: 'metric'; heading?: string; fields: FieldKey[] }
+/**
+ * A worked-out row of a Table (`columns` in the file): per column, the column's entry in a pairs field (by its
+ * key), else the formula over the column's value in the table's one row (`value`), as a modifier under an ability
+ * score. Drawn only while the table holds one row, where each column has one value.
+ */
 export interface ScoreColumn { label?: string; field?: FieldKey; formula?: string; display?: 'plain' | 'signed' }
+/** A Table: the rows and columns its property holds (`TemplateField.rows`, `slots`), drawn as Obsidian draws a Markdown table. */
 export interface ScoresBlock extends BlockBase {
   type: 'scores';
   field: FieldKey;
-  /** 'row': labels over values. 'table': one line per slot, its score and its columns. */
+  /** 'row': a grid, the header row over the rows. 'table': a table of one row, one line per column (the 5E 2024 look). */
   orientation: 'row' | 'table';
-  /** table: slots side by side per line; fewer where the width does not hold them. */
+  /** table: lines side by side; fewer where the width does not hold them. */
   perLine?: number;
-  /** How the slot values themselves show. */
+  /** How the numbers in the cells show: 3 or +3. */
   display?: 'plain' | 'signed';
+  /** Its worked-out rows. */
   columns?: ScoreColumn[];
 }
 /** A list of words: run in after its label with commas, as chips, or one per line with bullets or numbers. */
@@ -163,7 +239,7 @@ export interface ScriptBlock extends BlockBase { type: 'script'; summary: string
 export interface OpaqueBlock extends BlockBase { type: 'opaque'; raw: Record<string, unknown> }
 
 export type TemplateBlock =
-  | SectionBlock | RowBlock | TabsBlock | TitleBlock | LineBlock | StatBlock | ScoresBlock | TagsBlock | TextBlock
+  | SectionBlock | RowBlock | TabsBlock | TitleBlock | LineBlock | StatBlock | MetricBlock | ScoresBlock | TagsBlock | TextBlock
   | EntriesBlock | PairsBlock | TrackBlock | ImageBlock | SpellsBlock | HeadingBlock | DividerBlock | ScriptBlock | OpaqueBlock;
 
 export type BlockType = TemplateBlock['type'];

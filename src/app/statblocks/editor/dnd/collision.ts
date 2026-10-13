@@ -77,6 +77,7 @@ export function measureScene(stage: HTMLElement, layout: TemplateLayout): DropSc
     if (!id || frame.getClientRects().length === 0 || frame.closest('[inert]')) continue;
     boxes.set(id, boxOf(frame, origin, slidBy(frame, stage)));
   }
-  const card = sheet?.querySelector('.atlas-sb-columns') ?? stage.firstElementChild;
+  // The header counts as the card: a drop over it lands in the first row.
+  const card = sheet?.querySelector('.atlas-statblock-body') ?? stage.firstElementChild;
   return { layout, boxes, card: card ? boxOf(card, origin, { x: 0, y: 0 }) : null };
 }

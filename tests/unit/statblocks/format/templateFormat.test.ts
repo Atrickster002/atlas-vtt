@@ -108,4 +108,18 @@ describe('serialize ∘ parse', () => {
   it('keeps every value of the plan\'s files', () => {
     expect(JSON.parse(serializeTemplate(templateOf(MARSH_CREATURE_JSON)))).toEqual(JSON.parse(MARSH_CREATURE_JSON));
   });
+
+  it('reads back a block that folds while empty and a field meant as the display name', () => {
+    const template = produce(MARSH_CREATURE, (draft) => {
+      draft.fields.push({ key: 'title', label: 'Title', type: 'text', meaning: 'display-name' });
+      draft.fields.push({ key: 'fage_stats', label: 'Fantasy AGE', type: 'scores', slots: ['Accuracy', 'Fighting'] });
+      draft.layout.blocks.push({ id: 'fage0000', type: 'scores', field: 'fage_stats', orientation: 'row', whenEmpty: 'fold' });
+    });
+    const text = serializeTemplate(template);
+    expect(JSON.parse(text)).toMatchObject({ layout: { blocks: expect.arrayContaining([expect.objectContaining({ id: 'fage0000', whenEmpty: 'fold' })]) } });
+    const parsed = parseTemplate(text);
+    expect(parsed.problems).toEqual([]);
+    expect(parsed.template).toEqual(template);
+    expect(serializeTemplate(templateOf(text))).toBe(text);
+  });
 });

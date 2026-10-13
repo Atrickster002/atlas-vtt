@@ -2,7 +2,7 @@
  * What a session makes of the library's view of its file (§8.7): its own
  * write coming back, a rename, someone else's change, or the file gone. A
  * clean session takes another's change in; a session with unsaved edits
- * stops saving and asks which version to keep.
+ * asks which version to keep before it saves.
  */
 
 import type { App } from 'obsidian';
@@ -47,7 +47,7 @@ export function observeDisk(app: App, library: TemplateLibrary, id: TemplateId, 
   return app.vault.getFileByPath(path) ? { kind: 'unread', path } : { kind: 'gone' };
 }
 
-/** The status line of a session whose write failed. */
+/** What a save that failed says. */
 export function saveProblemText(problem: string): string {
-  return `Couldn't save: ${problem.replace(/[.\s]+$/, '')}. Retrying`;
+  return `Couldn't save: ${problem.replace(/[.\s]+$/, '')}.`;
 }

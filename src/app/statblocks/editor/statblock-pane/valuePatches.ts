@@ -19,15 +19,12 @@ export function valueForText(field: TemplateField, text: string): FieldValue | u
   return result.ok ? result.value : result.raw;
 }
 
-/** Why typed text does not fit its field's type ("“1/4” isn't a number."); null where it fits. */
-/** What an empty value's input asks for: the field's prompt, else for scores their slots in order (numbers with spaces between, text with commas), else its label. */
+/** What an empty value's input asks for: the field's prompt, else its label. */
 export function valuePlaceholder(field: TemplateField): string {
-  const prompt = field.prompt?.trim();
-  if (prompt) return prompt;
-  if (field.type === 'scores' && field.slots?.length) return field.slots.join(' ');
-  return field.label;
+  return field.prompt?.trim() || field.label;
 }
 
+/** Why typed text does not fit its field's type ("“1/4” isn't a number."); null where it fits. */
 export function valueProblem(field: TemplateField, value: FieldValue | undefined): string | null {
   return typeof value === 'string' ? textProblem(field, value) : null;
 }

@@ -57,6 +57,6 @@ export function fakeApp(rolls: Roll[] = []): never {
       ],
     },
     metadataCache: { getFirstLinkpathDest: (path: string) => ({ path }) },
-    vault: { getResourcePath: (file: { path: string }) => `app://local/${file.path}` },
+    vault: { getResourcePath: (file: { path: string }) => `app://local/${file.path}`, getFileByPath: () => null },
   } as never;
 }

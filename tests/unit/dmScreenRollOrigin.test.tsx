@@ -28,7 +28,10 @@ const app = {
     on: vi.fn(), offref: vi.fn(),
     getLeavesOfType: () => [{ view: { viewId: 'view-1', serviceManager: { getToolController: () => ({ getDiceTool: () => diceTool }) } } }],
   },
-  vault: { getAbstractFileByPath: (path: string) => (path === WOLF ? new TFile(WOLF) : null) },
+  vault: {
+    getAbstractFileByPath: (path: string) => (path === WOLF ? new TFile(WOLF) : null),
+    getFileByPath: (path: string) => (path === WOLF ? new TFile(WOLF) : null),
+  },
   metadataCache: { getFileCache: () => null, on: vi.fn(() => ({})), offref: vi.fn() },
   plugins: { plugins: { 'obsidian-5e-statblocks': { manager: {
     getAllLayouts: () => [],

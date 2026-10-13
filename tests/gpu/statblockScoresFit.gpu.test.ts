@@ -16,7 +16,7 @@ vi.mock('../../src/app/services/statblockDiceLinks', () => ({
   linkDiceIn: () => undefined,
   splitDiceSegments: (text: string) => [{ text, dice: false }],
 }));
-vi.mock('../../src/app/statblocks/render/shared/useStatblockDiceRolling', () => ({ useStatblockDiceRolling: () => undefined }));
+vi.mock('../../src/app/statblocks/render/shared/useStatblockDiceRolling', () => ({ useStatblockDiceRolling: () => [undefined, null] }));
 
 const THEME = `body { margin: 0; font: 13px/1.5 -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; --font-ui-smaller: 12px; --font-ui-small: 13px; }`;
 const SLOTS = ['Accuracy', 'Communication', 'Constitution', 'Dexterity', 'Fighting', 'Intelligence', 'Perception', 'Strength', 'Willpower'];
@@ -28,19 +28,13 @@ const TEMPLATE: StatblockTemplate = {
   layout: { maxColumns: 1, blocks: [{ id: 'scores00', type: 'scores', field: 'stats', orientation: 'row' }] },
 };
 
-/** How wide a label's text is drawn, clipped or not. */
-function textWidth(element: Element): number {
-  const range = document.createRange();
-  range.selectNodeContents(element);
-  return range.getBoundingClientRect().width;
-}
-
 /**
- * A row of scores with many long slot names in a narrow card (a Fantasy
- * Statblocks layout's preview in the gallery): no name runs into its
- * neighbour's cell.
+ * A table with many long column names in a narrow card (a Fantasy Statblocks
+ * layout's preview in the gallery), as Obsidian's table widget holds one
+ * wider than its note: every name stays in its own cell, and the table
+ * scrolls inside its column rather than running past the card.
  */
-describe('a row of scores with long slot names', () => {
+describe('a table with long column names in a narrow card', () => {
   const style = document.createElement('style');
   style.textContent = THEME + css;
 
@@ -54,16 +48,24 @@ describe('a row of scores with long slot names', () => {
     style.remove();
   });
 
-  it('cuts a name short where it is wider than its cell', () => {
+  it('keeps each name in its cell and scrolls within the card', () => {
     render(React.createElement('div', { className: 'atlas-vtt-plugin', style: { width: 240 } },
       React.createElement(StatblockSheet, { template: TEMPLATE, name: 'Nine slots', fields: { stats: SLOTS.map(() => 10) }, variant: 'feed' })));
-    const labels = [...document.querySelectorAll<HTMLElement>('.atlas-sb-score-label')];
-    expect(labels).toHaveLength(SLOTS.length);
-    expect(labels.some((label) => textWidth(label) > label.getBoundingClientRect().width), 'some names are wider than their cells').toBe(true);
-    for (const label of labels) {
-      if (textWidth(label) <= label.getBoundingClientRect().width + 0.5) continue;
-      expect(getComputedStyle(label).overflowX, `${label.textContent} is clipped to its cell`).toBe('hidden');
+    const names = [...document.querySelectorAll<HTMLElement>('thead th')];
+    expect(names).toHaveLength(SLOTS.length);
+    for (const name of names) {
+      const cell = name.getBoundingClientRect();
+      const range = document.createRange();
+      range.selectNodeContents(name);
+      const text = range.getBoundingClientRect();
+      expect(text.left, `${name.textContent} starts in its cell`).toBeGreaterThanOrEqual(cell.left - 0.5);
+      expect(text.right, `${name.textContent} ends in its cell`).toBeLessThanOrEqual(cell.right + 0.5);
     }
+    const scroller = document.querySelector<HTMLElement>('.atlas-sb-sheet-table__scroll')!;
+    const block = scroller.closest('[data-block-id]')!.getBoundingClientRect();
+    expect(scroller.scrollWidth).toBeGreaterThan(scroller.clientWidth);
+    // The scroller reaches past its block only by the room it keeps for the editors' handles.
+    expect(scroller.getBoundingClientRect().width).toBeLessThanOrEqual(block.width + 32 + 0.5);
   });
 });
 

@@ -2,14 +2,14 @@
  * The places a drag starts (spec §7.1): a block's gutter handle (the only
  * pointer source on the card: pressing a block's body selects it, edits its
  * label or selects text, never drags), a focused block picked up with Space,
- * a palette tile and a property row. Each is a dnd-kit draggable; outside
+ * and a kind of the dock. Each is a dnd-kit draggable; outside
  * `TemplateDragAndDrop` they do nothing, so the parts still render in a test
  * without it.
  */
 
 import { useMemo, useState, type KeyboardEvent, type PointerEvent } from 'react';
 import { useDraggable, type DraggableSyntheticListeners } from '@dnd-kit/core';
-import type { TemplateField } from '../../model/templateTypes';
+import { isHeaderBlockId } from '../../model/templateHeader';
 import { blockFrame, frameAt } from '../template-editor/editorChrome';
 import { itemKey, type InsertItem } from '../template-editor/insertItems';
 import type { DragData } from './dragSources';
@@ -39,7 +39,8 @@ export function useCanvasKeyDrag(stageRef: { readonly current: HTMLElement | nul
       if (!sheet || typeof target.hasAttribute !== 'function' || !target.hasAttribute('data-block-id')) return;
       const frame = frameAt(target, sheet);
       const id = frame?.getAttribute('data-block-id');
-      if (!frame || !id) return;
+      // The header's parts never move (`templateHeader`).
+      if (!frame || !id || isHeaderBlockId(id)) return;
       data.source = { kind: 'block', id };
       setNodeRef(frame);
       setActivatorNodeRef(frame);
@@ -72,16 +73,9 @@ export interface PointerDragProps {
   onPointerDown?: Handler<PointerEvent> | undefined;
 }
 
-/** A palette tile dragged onto the canvas inserts its block there; the keyboard inserts with Enter as before. */
-export function usePaletteDrag(item: InsertItem, disabled: boolean): PointerDragProps {
+/** A kind of the dock dragged onto the canvas inserts its block there; a click inserts it after the selection. */
+export function useKindDrag(item: InsertItem, disabled: boolean): PointerDragProps {
   const data = useMemo<DragData>(() => ({ source: { kind: 'item', item } }), [item]);
   const { listeners, setNodeRef } = useDraggable({ id: `atlas-te-item:${itemKey(item)}`, data, disabled });
-  return { ref: setNodeRef, onPointerDown: listener(listeners, 'onPointerDown') };
-}
-
-/** A field dragged onto the canvas gets the natural block for its type, bound to it. */
-export function useFieldDrag(field: TemplateField, disabled: boolean): PointerDragProps {
-  const data = useMemo<DragData>(() => ({ source: { kind: 'field', key: field.key } }), [field.key]);
-  const { listeners, setNodeRef } = useDraggable({ id: `atlas-te-field:${field.key}`, data, disabled });
   return { ref: setNodeRef, onPointerDown: listener(listeners, 'onPointerDown') };
 }

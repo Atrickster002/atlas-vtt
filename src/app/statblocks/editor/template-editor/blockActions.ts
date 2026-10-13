@@ -6,19 +6,18 @@
 import { removedMessage } from '../statblock-pane/announcements';
 import { createBlock, type AuthorableBlockType } from '../../model/blockCatalogue';
 import { addField } from '../../model/fieldOps';
-import { fieldKeysOf, labelToKey } from '../../model/fieldKeys';
+import { fieldKeysOf } from '../../model/fieldKeys';
 import { blockIdSource, type BlockIdSource } from '../../model/templateIds';
-import { coreSlotBlocks, deleteBlock } from '../../model/coreSlots';
-import { duplicateBlock, insertBlock } from '../../model/treeOps';
-import { putSideBySide, unwrap, wrapInSection } from '../../model/treeGrouping';
-import { childrenOf, type TreeRefusal, type TreeTarget } from '../../model/treeEdit';
+import { headerPartOf, isHeaderBlockId, setHeaderPartHidden } from '../../model/templateHeader';
+import { duplicateBlock, insertBlock, removeBlock } from '../../model/treeOps';
+import type { TreeRefusal, TreeTarget } from '../../model/treeEdit';
 import { collectBlockIds, findBlock } from '../../model/treeQueries';
-import { turnInto } from '../../model/turnInto';
 import type { StatblockTemplate, TemplateBlock, TemplateField, TemplateLayout } from '../../model/templateTypes';
 import { pastedBlocks, type BlockClip } from './blockClipboard';
-import { insertTarget } from './blockMoves';
-import { blockName, typeName } from './blockNames';
-import { focusAfterDelete, inSiblingOrder, primaryOf, type BlockSelection } from './selection';
+import { gridInsertTarget } from '../../model/templateGrid';
+import { blockName } from './blockNames';
+import { labelTargetIn } from './labelTargets';
+import { focusAfterDelete, inSiblingOrder, type BlockSelection } from './selection';
 import { applyEdit, applyTree, chainTree, outcomeOf, readOnlyMessage, refusalMessage, type EditOutcome } from './sessionEdit';
 import type { EditorSession } from './sessionTypes';
 
@@ -29,6 +28,21 @@ export interface InsertParts {
 }
 
 type InsertResult = { inserted: string } | { refused: TreeRefusal | null };
+
+/**
+ * A tile placed to be named. It stands in a gesture of its own until it is named (`keep`: placing and naming it are
+ * one step) or let go (`drop`: the template is as it was before, and no step is left). Each answers once.
+ */
+export interface Placement {
+  keep: () => void;
+  drop: () => void;
+}
+
+/**
+ * What an insert leaves: the block put in, and the new block that asks for its name (`toName`, which a paste never
+ * does) with the placement whoever asks for the name settles.
+ */
+export type InsertOutcome = EditOutcome & { inserted?: string; toName?: string; placement?: Placement };
 
 /** Where an insert goes: after a block (or at the end), or at a gap the `+` line named. */
 export type InsertPlace = { after: string | null } | { at: TreeTarget };
@@ -48,12 +62,12 @@ function withFields(template: StatblockTemplate, fields: readonly TemplateField[
  */
 export function insertParts(
   session: EditorSession, place: InsertPlace, make: (template: StatblockTemplate, nextId: BlockIdSource) => InsertParts, name?: string,
-): EditOutcome & { inserted?: string } {
+): InsertOutcome {
   const result = applyEdit(session, (template): { template: StatblockTemplate; result: InsertResult } => {
     const parts = make(template, idSource(template));
     const first = parts.blocks[0];
     if (!first) return { template, result: { refused: null } };
-    const target = 'at' in place ? place.at : insertTarget(template.layout, place.after, first.type);
+    const target = 'at' in place ? place.at : gridInsertTarget(template.layout, place.after);
     const edit = chainTree(template.layout, parts.blocks.map((block, offset) => (layout: TemplateLayout) =>
       insertBlock(layout, block, { parentId: target.parentId, index: target.index + offset })));
     if (!edit.ok) return { template, result: { refused: edit.reason } };
@@ -73,31 +87,41 @@ const DEFAULT_FIELDS: Partial<Record<AuthorableBlockType, TemplateField>> = {
   image: { key: 'image', label: 'Image', type: 'image' },
 };
 
-/** A block from the catalogue, unbound until its label is committed (a Title and an Image come bound). */
-export function insertCatalogueBlock(session: EditorSession, type: AuthorableBlockType, place: InsertPlace): EditOutcome & { inserted?: string } {
-  return insertParts(session, place, (template, nextId) => {
+function placementIn(session: EditorSession): Placement {
+  let open = true;
+  const settle = (end: () => void) => (): void => {
+    if (!open) return;
+    open = false;
+    end();
+  };
+  return { keep: settle(() => session.endGesture()), drop: settle(() => session.abandonGesture()) };
+}
+
+/**
+ * A block from the catalogue, unbound until its label is committed (a Title and an Image come bound). One that takes
+ * its first label as the name of its property asks for it at once (`toName`): it exists only once named, so it is
+ * placed in a gesture its `placement` ends. Any other is one step.
+ */
+export function insertCatalogueBlock(session: EditorSession, type: AuthorableBlockType, place: InsertPlace): InsertOutcome {
+  session.beginGesture();
+  const outcome = insertParts(session, place, (template, nextId) => {
     const field = DEFAULT_FIELDS[type];
     return { blocks: [createBlock(type, nextId)], fields: field && !fieldKeysOf(template.fields).has(field.key) ? [field] : [] };
   });
-}
-
-/** A Value showing a new property named `name` (the Add panel when nothing matched what was typed). */
-export function insertNamedStat(session: EditorSession, name: string, place: InsertPlace): EditOutcome & { inserted?: string } {
-  const label = name.trim();
-  if (!label) return {};
-  return insertParts(session, place, (template, nextId) => {
-    const key = labelToKey(label, fieldKeysOf(template.fields));
-    return { blocks: [createBlock('stat', nextId, key)], fields: [{ key, label, type: 'text' }] };
-  }, label);
+  const id = outcome.inserted;
+  if (id && labelTargetIn(session.getSnapshot().template, id)?.kind === 'new-field') return { ...outcome, toName: id, placement: placementIn(session) };
+  session.endGesture();
+  return outcome;
 }
 
 /** Pastes copied blocks after the selection, with new ids and the fields the template lacks. */
-export function pasteClip(session: EditorSession, clip: BlockClip, after: string | null): EditOutcome & { inserted?: string } {
+export function pasteClip(session: EditorSession, clip: BlockClip, after: string | null): InsertOutcome {
   return insertParts(session, { after }, (template, nextId) => pastedBlocks(clip, template, nextId));
 }
 
-/** Mod+D: a copy of each selected block right after it; the copies are selected. */
+/** Mod+D: a copy of each selected block right after it; the copies are selected. The header's parts are never copied. */
 export function duplicateSelection(session: EditorSession, selection: BlockSelection): EditOutcome {
+  if (selection.some(isHeaderBlockId)) return { announce: refusalMessage('header') ?? undefined };
   const copies: string[] = [];
   const edit = applyTree(session, (layout) => {
     const nextId = blockIdSource(collectBlockIds(layout.blocks));
@@ -113,20 +137,19 @@ export function duplicateSelection(session: EditorSession, selection: BlockSelec
   return outcomeOf(edit, snapshot, () => ({ select: [...copies], announce: copies.length > 1 ? `Duplicated ${copies.length} blocks.` : 'Duplicated.' }));
 }
 
-/** Delete: the selection goes but its Name and token art, focus moves to the next sibling, else the parent. */
+/** Delete: the selected tiles go (never a part of the header), focus moves to the next one, else the one before. */
 export function deleteSelection(session: EditorSession, selection: BlockSelection): EditOutcome {
   const before = session.getSnapshot().template;
-  const cores = coreSlotBlocks(before.layout);
-  const doomed = selection.filter((id) => !cores.has(id));
-  if (doomed.length === 0) return { announce: refusalMessage('core-slot') ?? undefined };
+  const doomed = selection.filter((id) => !isHeaderBlockId(id));
+  if (doomed.length === 0) return { announce: refusalMessage('header') ?? undefined };
   const names = inSiblingOrder(before.layout, doomed)
     .map((id) => findBlock(before.layout.blocks, id)?.block)
     .filter((block): block is TemplateBlock => block !== undefined)
     .map((block) => blockName(block, before.fields));
   const after: { focus: string | null } = { focus: null };
-  const edit = applyTree(session, (layout) => {
-    after.focus = focusAfterDelete(layout, doomed);
-    return chainTree(layout, doomed.map((id) => (current: TemplateLayout) => deleteBlock(current, id)));
+  const edit = applyTree(session, (layout, template) => {
+    after.focus = focusAfterDelete(template, doomed);
+    return chainTree(layout, doomed.map((id) => (current: TemplateLayout) => removeBlock(current, id)));
   });
   return outcomeOf(edit, session.getSnapshot(), () => {
     const what = names.length === 1 ? names[0] ?? 'the block' : `${names.length} blocks`;
@@ -134,35 +157,19 @@ export function deleteSelection(session: EditorSession, selection: BlockSelectio
   });
 }
 
-/** Mod+G: the selected siblings into a new Section. */
-export function groupSelection(session: EditorSession, selection: BlockSelection): EditOutcome {
-  const edit = applyTree(session, (layout) => wrapInSection(layout, selection, blockIdSource(collectBlockIds(layout.blocks))));
-  return outcomeOf(edit, session.getSnapshot(), (done) => ({ select: done.focus ? [done.focus] : undefined, announce: 'Grouped into a section.' }));
-}
-
-/** Mod+Alt+R: the selected siblings into a Row; a lone block with the one after it. */
-export function putSelectionSideBySide(session: EditorSession, selection: BlockSelection): EditOutcome {
-  const edit = applyTree(session, (layout) => {
-    const only = selection.length === 1 ? findBlock(layout.blocks, selection[0] ?? '') : null;
-    const next = only ? childrenOf(layout, only.parentId)?.[only.index + 1] : undefined;
-    const ids = only && next ? [only.block.id, next.id] : selection;
-    return putSideBySide(layout, ids, blockIdSource(collectBlockIds(layout.blocks)));
+/** Hide or show a part of the header: off the card and kept in the template, or back on the card and selected. */
+export function toggleHeaderPartHidden(session: EditorSession, blockId: string): EditOutcome {
+  const part = headerPartOf(session.getSnapshot().template, blockId);
+  if (!part) return {};
+  if (!part.hideable) return { announce: `Every statblock shows its ${part.label.toLowerCase()}.` };
+  const hide = !part.hidden;
+  const changed = applyEdit(session, (template) => {
+    const next = setHeaderPartHidden(template, part.id, hide);
+    return { template: next, result: next !== template };
   });
-  return outcomeOf(edit, session.getSnapshot(), (done) => ({ select: done.focus ? [done.focus] : undefined, announce: 'Put side by side.' }));
-}
-
-/** Mod+Shift+G: a Section or Row gives way to its children. */
-export function ungroupSelection(session: EditorSession, selection: BlockSelection): EditOutcome {
-  const primary = primaryOf(selection);
-  if (primary === null) return {};
-  const edit = applyTree(session, (layout) => unwrap(layout, primary));
-  return outcomeOf(edit, session.getSnapshot(), (done) => ({ select: done.focus ? [done.focus] : [], announce: 'Ungrouped.' }));
-}
-
-/** Turn into… and a primitive's kind: another type, keeping the block's place, id and what it shares with the new type. */
-export function turnSelectionInto(session: EditorSession, selection: BlockSelection, type: AuthorableBlockType): EditOutcome {
-  const primary = primaryOf(selection);
-  if (primary === null) return {};
-  const edit = applyTree(session, (layout, template) => turnInto(layout, primary, type, template.fields));
-  return outcomeOf(edit, session.getSnapshot(), () => ({ select: [primary], announce: `Turned into ${typeName(type)}.` }));
+  if (changed === null) return { announce: readOnlyMessage(session.getSnapshot()) ?? undefined };
+  return {
+    select: hide ? [] : [blockId],
+    announce: hide ? `${part.label} hidden. It stays in the template, off the card.` : `${part.label} shown on the card.`,
+  };
 }

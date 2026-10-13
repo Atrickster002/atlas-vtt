@@ -11,6 +11,15 @@ describe('parseDiceNotation', () => {
     });
     expect(parseDiceNotation('-1d6+2')).toEqual({ dice: [{ sign: -1, count: 1, sides: 6 }], modifier: 2 });
     expect(parseDiceNotation('14')).toEqual({ dice: [], modifier: 14 });
+    // The 5e SRD's data writes a negative modifier after a plus
+    expect(parseDiceNotation('9d8 + -1')).toEqual({ dice: [{ sign: 1, count: 9, sides: 8 }], modifier: -1 });
+  });
+
+  it('reads one pair of brackets around the whole as punctuation', () => {
+    expect(parseDiceNotation('(2d6 + 3)')).toEqual({ dice: [{ sign: 1, count: 2, sides: 6 }], modifier: 3 });
+    expect(parseDiceNotation(' ( d8 ) ')).toEqual({ dice: [{ sign: 1, count: 1, sides: 8 }], modifier: 0 });
+    expect(diceAverage('(7d10 + 14)')).toBe(52);
+    for (const text of ['(2d6', '2d6)', '(1d6) + (1d4)', '((2d6))', '45 (7d10 + 7)']) expect(parseDiceNotation(text), text).toBeNull();
   });
 
   it('reads the exploding marks the dice tool rolls', () => {

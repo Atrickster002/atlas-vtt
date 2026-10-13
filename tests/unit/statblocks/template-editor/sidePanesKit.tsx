@@ -8,7 +8,7 @@ import type { BlockSelection } from '../../../../src/app/statblocks/editor/templ
 import { TemplateEditor, type TemplateEditorHost } from '../../../../src/app/statblocks/editor/template-editor/TemplateEditor';
 import { FakeSession, sampleTemplate } from './editorKit';
 
-const host: TemplateEditorHost = { openTemplate: vi.fn(), openNote: vi.fn(), close: vi.fn() };
+const host: TemplateEditorHost = { save: vi.fn(async () => null), close: vi.fn() };
 
 export interface Mounted {
   session: FakeSession;
@@ -16,23 +16,19 @@ export interface Mounted {
   frame: (id: string) => HTMLElement;
 }
 
-/** The template editor with its real dock, dock panels and Settings panel; `dock` opens one of its panels. */
-export function mountEditor(session = new FakeSession(sampleTemplate()), options: { dock?: string; menus?: boolean } = {}): Mounted {
+/** The template editor with its real dock, toolbar and Options; `menus` renders the surface's menu provider, as the view does. */
+export function mountEditor(session = new FakeSession(sampleTemplate()), options: { menus?: boolean } = {}): Mounted {
   const editor = (
     <div className="atlas-vtt-plugin">
       <TemplateEditor
         session={session}
         host={host}
-        previewPath={null}
-        onShowWithChange={vi.fn()}
         collectionId={null}
-        onCollectionChange={vi.fn()}
       />
     </div>
   );
   // Menus open through the surface's own provider, as in the view (StatblockEditorRoot).
   render(<TooltipProvider>{options.menus ? <SurfaceMenuProvider ownerId="test">{editor}</SurfaceMenuProvider> : editor}</TooltipProvider>);
-  if (options.dock) openDock(options.dock);
   const frame = (id: string): HTMLElement => {
     const element = document.querySelector<HTMLElement>(`.atlas-te-stage [data-block-id="${id}"]`);
     if (!element) throw new Error(`no frame ${id}`);
@@ -41,28 +37,17 @@ export function mountEditor(session = new FakeSession(sampleTemplate()), options
   return { session, frame };
 }
 
-/** Opens a dock panel by its button's name (Add, Structure, Properties, Template); returns the panel. */
-export function openDock(name: string): HTMLElement {
-  const dock = document.querySelector<HTMLElement>('.atlas-te-dock');
-  if (!dock) throw new Error('no dock');
-  const button = [...dock.querySelectorAll<HTMLButtonElement>('button')].find((element) => element.textContent === name);
-  if (!button) throw new Error(`no dock button ${name}`);
-  if (!button.classList.contains('is-active')) act(() => button.click());
-  const panel = document.querySelector<HTMLElement>('.atlas-te-dock-panel');
-  if (!panel) throw new Error(`no dock panel ${name}`);
-  return panel;
-}
-
-/** The Settings panel's content for the selection now, opened with Shift+Enter if it is closed; the one before fades out beside it. */
-export function settingsPanel(): HTMLElement {
-  if (!document.querySelector('.atlas-te-settings')) {
+/** The selected tile's Options, opened with Shift+Enter if they are closed; the newest, where one before is still fading out. */
+export function tileOptions(): HTMLElement {
+  const shown = (): HTMLElement | undefined => [...document.querySelectorAll<HTMLElement>('.atlas-te-options:not([data-closing])')].at(-1);
+  if (!shown()) {
     const root = document.querySelector<HTMLElement>('.atlas-te');
     if (!root) throw new Error('no editor');
-    fireEvent.keyDown(root, { key: 'Enter', shiftKey: true });
+    act(() => { fireEvent.keyDown(root, { key: 'Enter', shiftKey: true }); });
   }
-  const content = [...document.querySelectorAll<HTMLElement>('.atlas-te-settings .atlas-te-insp__fade')].at(-1);
-  if (!content) throw new Error('no settings');
-  return content;
+  const options = shown();
+  if (!options) throw new Error('no options');
+  return options;
 }
 
 export interface ContextOptions {
@@ -88,7 +73,7 @@ export function renderInEditor(session: FakeSession, ui: React.ReactElement, opt
       announce: vi.fn(),
       collectionId: null,
       collectionKeys: options.collectionKeys ?? new Map(),
-      openSettings: vi.fn(),
+      openOptions: vi.fn(),
     };
     return (
       <TooltipProvider>

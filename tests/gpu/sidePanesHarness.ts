@@ -10,9 +10,9 @@ import { TemplateEditor, type TemplateEditorHost } from '../../src/app/statblock
 import type { FakeSession } from '../unit/statblocks/template-editor/editorKit';
 
 /**
- * The template editor with its real dock and floating panels, styled by the
+ * The template editor with its real dock, toolbar and Options, styled by the
  * plugin's stylesheet, between two buttons outside it ("Before", "After").
- * Test files that use it mock the dice links and the header's file actions,
+ * Test files that use it mock the dice links,
  * which reach Node's `events` (no browser build).
  */
 export const THEME = `
@@ -23,10 +23,12 @@ export const THEME = `
     --shadow-l: 0 8px 24px rgba(0,0,0,.4); --radius-s: 4px; --radius-m: 8px; --radius-l: 12px; --radius-xl: 16px; --size-2-1: 2px;
     --font-ui-smaller: 12px; --font-ui-small: 13px; --font-ui-medium: 15px; --font-ui-large: 20px; --line-height-normal: 1.5;
     --input-height: 30px; --font-monospace: monospace; --font-semibold: 600; --font-medium: 500; }
+  /* The build's Tailwind utility, which main.scss does not hold: names for screen readers take no room. */
+  .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border-width: 0; }
 `;
 const h = React.createElement;
 const noop = (): void => undefined;
-const host: TemplateEditorHost = { openTemplate: noop, openNote: noop, close: noop };
+const host: TemplateEditorHost = { save: async () => null, close: noop };
 
 /** Puts the theme and the stylesheet in the page around each test. */
 export function useEditorStyles(): void {
@@ -46,17 +48,19 @@ export function mount(session: FakeSession, width: number): HTMLElement {
       h('button', null, 'Before'),
       h('div', { className: 'atlas-statblock-editor', 'data-surface': 'template-editor', style: { height: 760, width } },
         h(TemplateEditor, {
-          session, host, previewPath: null, onShowWithChange: noop, collectionId: null, onCollectionChange: noop,
+          session, host, collectionId: null,
         })),
       h('button', null, 'After')))));
   return document.querySelector<HTMLElement>('.atlas-te')!;
 }
 
-/** Where focus is: the editor region it lies in, or the stop outside the editor. */
-export function whereFocus(): string {
+/** Where focus is: the editor region it lies in, the selected tile's toolbar or Options, or the stop outside the editor. */
+function whereFocus(): string {
   const active = document.activeElement;
   if (!active || active === document.body) return 'body';
   if (active.closest('.atlas-sb-note-panel__handle')) return 'resize';
+  if (active.closest('.atlas-te-toolbar')) return 'toolbar';
+  if (active.closest('.atlas-te-options')) return 'options';
   return active.closest('[data-te-region]')?.getAttribute('data-te-region') ?? active.textContent?.trim() ?? active.tagName;
 }
 

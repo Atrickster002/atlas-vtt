@@ -23,8 +23,8 @@ export function pickedUpText(name: string, keyboard: boolean): string {
 }
 
 /**
- * Where the drop would land: "Section Defenses, position 2 of 3.", "Into
- * section Defenses.", "Can't go here."
+ * Where the drop would land: "A row of its own, row 3 of 5.", "In a row,
+ * place 2 of 3.", "Beside Speed, on its right.", "Can't go here."
  */
 export function targetText(layout: TemplateLayout, fields: readonly TemplateField[], target: DropTarget, movingId: string | null): string {
   if (target.kind === 'refused') return "Can't go here.";
@@ -35,7 +35,10 @@ export function targetText(layout: TemplateLayout, fields: readonly TemplateFiel
   const length = childrenOf(layout, target.parentId)?.length ?? 0;
   const staying = moving !== null && moving.parentId === target.parentId;
   const position = staying && target.index > (moving?.index ?? 0) ? target.index : target.index + 1;
-  return `${capitalised(placeName(parent, fields))}, position ${position} of ${staying ? length : length + 1}.`;
+  const count = staying ? length : length + 1;
+  if (parent === null) return `A row of its own, row ${position} of ${count}.`;
+  if (parent.type === 'row') return `In a row, place ${position} of ${count}.`;
+  return `${capitalised(placeName(parent, fields))}, position ${position} of ${count}.`;
 }
 
 type Beside = Extract<DropTarget, { kind: 'beside' }>;

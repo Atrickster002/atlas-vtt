@@ -1,14 +1,16 @@
 /**
  * Where a dragged block would land (spec §7.3), from the pointer and the
- * boxes the card draws its blocks in: between blocks of a stack or a Row,
- * into an empty Section or Row, or beside a block of a stack, over the outer
- * band of its left or right edge, which sets the two side by side. Every
+ * boxes the card draws its blocks in: between rows of the grid or tiles of a
+ * row, or beside a tile, over the outer band of its left or right edge, which
+ * sets the two side by side. Nothing lands in the header or inside a Section
+ * (`templateGrid`): a drop there walks out to the nearest gap of the grid. Every
  * target is checked with the catalogue's `canContain` and never lies inside
  * the block being moved; a closed tab draws nothing, so it takes no drop.
  * Pure: the boxes are measured elsewhere.
  */
 
 import { canContain, type ParentType } from '../../model/blockCatalogue';
+import { gridAcceptsBeside, gridAcceptsList, isGridTile } from '../../model/templateGrid';
 import { childrenOf, parentTypeOf } from '../../model/treeEdit';
 import { findBlock, isWithin } from '../../model/treeQueries';
 import { isContainerBlock, type BlockType, type TemplateBlock, type TemplateLayout } from '../../model/templateTypes';
@@ -106,7 +108,8 @@ function blockAt(scene: DropScene, point: Point, movingId: string | null): Templ
       const box = scene.boxes.get(block.id);
       if (!box || !contains(dropBox(block, box), point)) continue;
       hit = block;
-      if (isContainerBlock(block)) visit(block.blocks);
+      // A tile of the grid is what a drop goes beside or around: never into what it holds.
+      if (isContainerBlock(block) && !isGridTile(scene.layout, block.id)) visit(block.blocks);
       return;
     }
   };
@@ -132,9 +135,8 @@ function candidatesIn(scene: DropScene, subject: DragSubject, block: TemplateBlo
   const box = scene.boxes.get(block.id);
   const found = findBlock(scene.layout.blocks, block.id);
   if (!box || !found) return [];
-  // Over a tab strip: Tabs take Sections only, and only the open tab's Section is drawn to drop into.
-  if (block.type === 'tabs' && !subject.types.every((type) => canContain('tabs', type))) return [{ kind: 'refused' }];
-  if (isContainerBlock(block)) {
+  // A tile of the grid that holds blocks (a Section with a heading, Abilities with tabs) takes drops beside and around it, never into it.
+  if (isContainerBlock(block) && !isGridTile(scene.layout, block.id)) {
     const inside = drawnOf(scene, block.blocks).filter((entry) => entry.block.id !== subject.movingId);
     if (inside.length === 0 && block.blocks.every((child) => child.id === subject.movingId)) {
       return [{ kind: 'into', parentId: block.id, outline: dropBox(block, box) }];
@@ -197,8 +199,14 @@ function mayStandBeside(layout: TemplateLayout, targetId: string, subject: DragS
   return [found.block.type, ...subject.types].every((type) => canContain('row', type));
 }
 
+/** Whether the target is a place of the grid (`templateGrid`): a gap between rows or tiles of a row, or beside a tile; never inside the header or a Section. */
+function inGrid(layout: TemplateLayout, target: Exclude<DropTarget, { kind: 'refused' }>): boolean {
+  if (target.kind === 'beside') return gridAcceptsBeside(layout, target.targetId);
+  return gridAcceptsList(layout, target.parentId);
+}
+
 function allowed(scene: DropScene, subject: DragSubject, target: DropTarget): boolean {
-  if (target.kind === 'refused') return false;
+  if (target.kind === 'refused' || !inGrid(scene.layout, target)) return false;
   if (target.kind === 'beside') return mayStandBeside(scene.layout, target.targetId, subject);
   return mayHold(scene.layout, target.parentId, subject);
 }

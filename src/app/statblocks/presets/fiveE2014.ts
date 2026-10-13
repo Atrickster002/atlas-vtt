@@ -7,12 +7,15 @@
  * challenge shows XP only.
  */
 
+import { D20_DICE_SET_ID } from '../../gameSystems/builtInDiceSets';
 import type { BuiltInTemplate } from '../model/templateTypes';
 import { SRD_5_1_SOURCE } from './attributions';
 import { experienceTable } from './fiveEChallenge';
-import { builtIn, headerRow, nameField, portraitField, runInStat, sizeField } from './presetParts';
+import { builtIn, centredColumns, hiddenParts, nameField, portraitField, runInStat, sizeField } from './presetParts';
 
-export const FIVE_E_2014_MONSTER: BuiltInTemplate = builtIn('builtin:5e-2014-monster', '5E (2014 rules)', 2, {
+export const FIVE_E_2014_MONSTER: BuiltInTemplate = builtIn('builtin:5e-2014-monster', '5E (2014 rules)', 6, {
+  // A bonus without dice rolls with the system's dice set, whatever the collection rolls (revision 6).
+  diceSetId: D20_DICE_SET_ID,
   source: SRD_5_1_SOURCE,
   fields: [
     nameField(),
@@ -26,7 +29,7 @@ export const FIVE_E_2014_MONSTER: BuiltInTemplate = builtIn('builtin:5e-2014-mon
     { key: 'hit_dice', label: 'Hit Dice', type: 'dice' },
     { key: 'speed', label: 'Speed', type: 'text' },
     {
-      key: 'stats', label: 'Abilities', type: 'scores', slots: ['STR', 'DEX', 'CON', 'INT', 'WIS', 'CHA'],
+      key: 'stats', label: 'Abilities', type: 'scores', addRows: false, addColumns: false, slots: ['STR', 'DEX', 'CON', 'INT', 'WIS', 'CHA'], align: centredColumns(6),
       slotKeys: ['strength', 'dexterity', 'constitution', 'intelligence', 'wisdom', 'charisma'],
     },
     { key: 'saves', label: 'Saving Throws', type: 'pairs' },
@@ -46,20 +49,15 @@ export const FIVE_E_2014_MONSTER: BuiltInTemplate = builtIn('builtin:5e-2014-mon
     { key: 'legendary_actions', label: 'Legendary Actions', type: 'entries' },
     { key: 'spells', label: 'Spells', type: 'spells' },
   ],
+  // A stat block of these rules has no description; the challenge is the level, its XP a line below.
+  ...hiddenParts('description'),
   layout: {
     maxColumns: 2,
     columnWidth: 22,
     blocks: [
-      headerRow({ row: 'e4row000', section: 'e4sec000', image: 'e4image0' }, [
-        { id: 'e4title0', type: 'title', field: 'name', level: 1 },
-        {
-          id: 'e4line00', type: 'line', fields: ['size', 'type', 'subtype', 'alignment'],
-          pattern: '{size} {type}[ ({subtype})][, {alignment}]',
-        },
-      ]),
+      { id: 'e4line00', type: 'line', fields: ['size', 'subtype', 'alignment'], pattern: '{size}[ ({subtype})][, {alignment}]' },
       { id: 'e4divid0', type: 'divider' },
       runInStat('e4ac0000', 'ac'),
-      { id: 'e4hp0000', type: 'stat', field: 'hp', look: 'run-in', pattern: '{hp}[ ({hit_dice})]', rollFrom: 'hit_dice' },
       runInStat('e4speed0', 'speed'),
       { id: 'e4divid1', type: 'divider' },
       {
@@ -75,7 +73,7 @@ export const FIVE_E_2014_MONSTER: BuiltInTemplate = builtIn('builtin:5e-2014-mon
       runInStat('e4cond00', 'condition_immunities'),
       runInStat('e4sense0', 'senses'),
       { id: 'e4lang00', type: 'stat', field: 'languages', look: 'run-in', whenEmpty: 'fallback', fallback: '—' },
-      { id: 'e4cr0000', type: 'stat', field: 'cr', look: 'run-in', pattern: '{cr}[ ({cr|lookup:xp} XP)]' },
+      { id: 'e4cr0000', type: 'stat', field: 'cr', label: 'XP', look: 'run-in', pattern: '{cr|lookup:xp}' },
       { id: 'e4divid3', type: 'divider' },
       { id: 'e4trait0', type: 'entries', field: 'traits' },
       // Hidden while empty: a statblock gains spells without its template changing (revision 2).

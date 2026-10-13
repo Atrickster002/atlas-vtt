@@ -3,7 +3,7 @@ import { Menu, TFile, type App } from 'obsidian';
 import {
   adoptionChoices, mayHoldStatblockFence, offerFenceCopy, offerFsAdoption, type MenuPlace,
 } from '../../../../src/app/statblocks/editor/create/fsStatblockActions';
-import { copyFenceIntoStatblock } from '../../../../src/app/statblocks/editor/statblock-pane/fenceCopy';
+import { copyFenceIntoStatblock, fenceValues } from '../../../../src/app/statblocks/editor/statblock-pane/fenceCopy';
 import { saveStatblockAsTemplate } from '../../../../src/app/statblocks/editor/gallery/galleryActions';
 import { showImportOutcome } from '../../../../src/app/statblocks/editor/fs-import/layoutImportFlow';
 import { openStatblockEditor } from '../../../../src/app/statblocks/editor/openStatblockEditor';
@@ -38,7 +38,10 @@ vi.mock('../../../../src/app/services/AssetService', async (importOriginal) => {
   return { ...actual, AssetService: { getInstance: () => assets } };
 });
 vi.mock('../../../../src/app/statblocks/editor/openStatblockEditor', () => ({ openStatblockEditor: vi.fn(async () => undefined) }));
-vi.mock('../../../../src/app/statblocks/editor/statblock-pane/fenceCopy', () => ({ copyFenceIntoStatblock: vi.fn(async () => null) }));
+vi.mock('../../../../src/app/statblocks/editor/statblock-pane/fenceCopy', () => ({
+  copyFenceIntoStatblock: vi.fn(async () => null),
+  fenceValues: vi.fn(async () => ({ name: 'Fen hag', values: {}, layout: null })),
+}));
 vi.mock('../../../../src/app/statblocks/editor/gallery/galleryActions', () => ({ saveStatblockAsTemplate: vi.fn(async () => undefined) }));
 vi.mock('../../../../src/app/statblocks/editor/fs-import/layoutImportFlow', () => ({ showImportOutcome: vi.fn() }));
 
@@ -76,6 +79,7 @@ afterEach(() => {
   vi.restoreAllMocks();
   vi.mocked(openStatblockEditor).mockClear();
   vi.mocked(copyFenceIntoStatblock).mockClear();
+  vi.mocked(fenceValues).mockClear();
   vi.mocked(saveStatblockAsTemplate).mockClear();
   vi.mocked(showImportOutcome).mockClear();
   fs.on = true;
@@ -140,13 +144,30 @@ describe('Copy into a new statblock (§6.4)', () => {
     expect(mayHoldStatblockFence(app, new TFile(GOBLIN))).toBe(false);
   });
 
-  it('copies the fence with the collection\'s only role at once', async () => {
+  it('copies the fence with the collection\'s only role at once, without the plugin', async () => {
+    fs.on = false;
     await offerFenceCopy(app, new TFile(FENCE), PLACE);
     expect(Menu.shown).toBeNull();
     await vi.waitFor(() => expect(copyFenceIntoStatblock).toHaveBeenCalledWith(app, FENCE, 'campaign', 'monster'));
   });
 
+  it('offers the template of the fence\'s layout first, which shows what the fence showed', async () => {
+    vi.mocked(fenceValues).mockResolvedValueOnce({ name: 'Fen hag', values: {}, layout: 'Marsh layout' });
+    await offerFenceCopy(app, new TFile(FENCE), PLACE);
+    expect(titles()).toEqual(['Marsh layout (Imports its layout)', 'Monster (Creature)']);
+    Menu.shown!.items[0]!.handler!(new MouseEvent('click'));
+    await vi.waitFor(() => expect(showImportOutcome).toHaveBeenCalled());
+    const imported = TemplateLibrary.forApp(app).list().find((entry) => entry.template.importedFrom?.layoutName === 'Marsh layout')!;
+    expect(copyFenceIntoStatblock).toHaveBeenCalledWith(app, FENCE, 'campaign', 'monster', imported.template.id);
+  });
+
+  it('offers the plugin\'s default layout for a fence that names none', async () => {
+    await offerFenceCopy(app, new TFile(FENCE), PLACE);
+    expect(titles()).toEqual(['Plain layout (Imports its layout)', 'Monster (Creature)']);
+  });
+
   it('lets the user choose among several roles', async () => {
+    fs.on = false;
     roles.list = [...roles.list, { id: 'npc', name: 'NPC', templateId: 'builtin:generic-npc' }];
     await offerFenceCopy(app, new TFile(FENCE), PLACE);
     expect(titles()).toEqual(['Monster (Creature)', 'NPC']);
@@ -155,6 +176,7 @@ describe('Copy into a new statblock (§6.4)', () => {
   });
 
   it('copies nothing from a note whose code block is no statblock', async () => {
+    vi.mocked(fenceValues).mockResolvedValueOnce(null);
     await offerFenceCopy(app, new TFile(CODE), PLACE);
     expect(Menu.shown).toBeNull();
     expect(copyFenceIntoStatblock).not.toHaveBeenCalled();

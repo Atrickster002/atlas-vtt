@@ -2,7 +2,7 @@
 // `.view-content` and the template editor's `.atlas-te-row` take it alike, so
 // the panel beside the note gets the same room in both.
 
-// The note's columns (an editor and a reader, or the template editor's rendered note) and the panel stand side by side.
+// The note's columns (an editor and a reader, or the template editor's note column) and the panel stand side by side.
 @mixin atlas-sb-note-row($notes...) {
   display: flex;
   flex-direction: row;

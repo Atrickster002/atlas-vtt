@@ -1,53 +1,54 @@
 import { describe, expect, it } from 'vitest';
 import { keyCommand, scopeOf, type KeyPress } from '../../../../src/app/statblocks/editor/template-editor/keyCommands';
 import {
-  existingSelection, firstChildOf, focusAfterDelete, inSiblingOrder, parentOf, stepInReadingOrder, withSibling,
+  existingSelection, focusAfterDelete, inSiblingOrder, stepInReadingOrder, withSibling,
 } from '../../../../src/app/statblocks/editor/template-editor/selection';
 import { gapAt } from '../../../../src/app/statblocks/editor/template-editor/gapGeometry';
 import { shortcutText } from '../../../../src/app/statblocks/editor/template-editor/shortcutText';
 import { sampleTemplate } from './editorKit';
 
-const { layout } = sampleTemplate();
+const sample = sampleTemplate();
+const { layout } = sample;
 const all = (): boolean => true;
+const HEADER = ['header-name', 'header-token', 'header-level', 'header-type', 'header-hp', 'header-description'];
 
 describe('selection', () => {
-  it('walks blocks in reading order, each before its children', () => {
+  it('walks the header\'s parts, then the tiles row by row; never a row of its own', () => {
     const order: string[] = [];
-    for (let id = stepInReadingOrder(layout, null, 1, all); id; id = stepInReadingOrder(layout, id, 1, all)) order.push(id);
-    expect(order).toEqual(['title001', 'section1', 'stat-ac1', 'stat-hp1', 'row00001', 'stat-sp1', 'stat-cr1', 'divider1']);
-    expect(stepInReadingOrder(layout, null, -1, all)).toBe('divider1');
-    expect(stepInReadingOrder(layout, 'title001', -1, all)).toBeNull();
+    for (let id = stepInReadingOrder(sample, null, 1, all); id; id = stepInReadingOrder(sample, id, 1, all)) order.push(id);
+    expect(order).toEqual([...HEADER, 'title001', 'stat-ac1', 'stat-hp1', 'stat-sp1', 'stat-cr1', 'divider1']);
+    expect(stepInReadingOrder(sample, null, -1, all)).toBe('divider1');
+    expect(stepInReadingOrder(sample, 'header-name', -1, all)).toBeNull();
   });
 
-  it('skips blocks the canvas does not draw', () => {
-    expect(stepInReadingOrder(layout, 'section1', 1, (id) => id !== 'stat-ac1')).toBe('stat-hp1');
-  });
-
-  it('finds the parent and the first child', () => {
-    expect(parentOf(layout, 'stat-hp1')).toBe('section1');
-    expect(parentOf(layout, 'section1')).toBeNull();
-    expect(firstChildOf(layout, 'row00001', all)).toBe('stat-sp1');
-    expect(firstChildOf(layout, 'stat-sp1', all)).toBeNull();
+  it('skips tiles and parts the canvas does not draw', () => {
+    expect(stepInReadingOrder(sample, 'title001', 1, (id) => id !== 'stat-ac1')).toBe('stat-hp1');
+    expect(stepInReadingOrder(sample, 'header-hp', -1, (id) => id !== 'header-type')).toBe('header-level');
   });
 
   it('adds siblings with Shift+click and starts over for a block of another parent', () => {
     expect(withSibling(layout, ['stat-ac1'], 'stat-hp1')).toEqual(['stat-ac1', 'stat-hp1']);
     expect(withSibling(layout, ['stat-ac1', 'stat-hp1'], 'stat-ac1')).toEqual(['stat-hp1']);
     expect(withSibling(layout, ['stat-ac1'], 'stat-sp1')).toEqual(['stat-sp1']);
+    // A part of the header is picked on its own.
+    expect(withSibling(layout, ['stat-ac1'], 'header-hp')).toEqual(['header-hp']);
+    expect(withSibling(layout, ['header-hp'], 'stat-ac1')).toEqual(['stat-ac1']);
     expect(inSiblingOrder(layout, ['stat-hp1', 'stat-ac1'])).toEqual(['stat-ac1', 'stat-hp1']);
   });
 
-  it('moves focus after a delete to the next sibling, else the parent, else the one before', () => {
-    expect(focusAfterDelete(layout, ['stat-ac1'])).toBe('stat-hp1');
-    expect(focusAfterDelete(layout, ['stat-hp1'])).toBe('section1');
-    expect(focusAfterDelete(layout, ['divider1'])).toBe('row00001');
-    expect(focusAfterDelete(layout, ['section1', 'title001'])).toBe('row00001');
+  it('moves focus after a delete to the next tile in reading order, else the one before', () => {
+    expect(focusAfterDelete(sample, ['stat-ac1'])).toBe('stat-hp1');
+    expect(focusAfterDelete(sample, ['stat-hp1'])).toBe('stat-sp1');
+    expect(focusAfterDelete(sample, ['divider1'])).toBe('stat-cr1');
+    expect(focusAfterDelete(sample, ['stat-sp1', 'stat-cr1'])).toBe('divider1');
   });
 
   it('forgets ids an undo took away, keeping the same array while all are there', () => {
     const selection = ['stat-ac1'];
-    expect(existingSelection(layout, selection)).toBe(selection);
-    expect(existingSelection(layout, ['gone0000', 'stat-ac1'])).toEqual(['stat-ac1']);
+    expect(existingSelection(sample, selection)).toBe(selection);
+    expect(existingSelection(sample, ['gone0000', 'stat-ac1'])).toEqual(['stat-ac1']);
+    expect(existingSelection(sample, ['header-level'])).toEqual(['header-level']);
+    expect(existingSelection({ ...sample, header: { hidden: ['level'] } }, ['header-level'])).toEqual([]);
   });
 });
 
@@ -59,8 +60,9 @@ describe('keyCommand', () => {
   it('maps the template editor column of the keyboard table (§7.7)', () => {
     expect(keyCommand(press('ArrowUp'), true)).toBe('select-previous');
     expect(keyCommand(press('ArrowDown', { altKey: true }), true)).toBe('move-down');
-    expect(keyCommand(press('ArrowRight', { altKey: true }), true)).toBe('move-in');
-    expect(keyCommand(press('ArrowLeft', { altKey: true }), true)).toBe('move-out');
+    expect(keyCommand(press('ArrowLeft'), true)).toBe('select-previous');
+    expect(keyCommand(press('ArrowRight', { altKey: true }), true)).toBe('move-down');
+    expect(keyCommand(press('ArrowLeft', { altKey: true }), true)).toBe('move-up');
     expect(keyCommand(press('Enter'), true)).toBe('edit-label');
     expect(keyCommand(press('/'), true)).toBe('insert');
     expect(keyCommand(press('Delete'), true)).toBe('delete');
@@ -75,16 +77,15 @@ describe('keyCommand', () => {
     expect(keyCommand(press('d', { metaKey: true }), true)).toBe('duplicate');
     expect(keyCommand(press('d', { ctrlKey: true }), true)).toBeNull();
     expect(keyCommand(press('d', { ctrlKey: true }), false)).toBe('duplicate');
-    expect(keyCommand(press('g', { metaKey: true }), true)).toBe('group');
-    expect(keyCommand(press('G', { metaKey: true, shiftKey: true }), true)).toBe('ungroup');
+    expect(keyCommand(press('g', { metaKey: true }), true)).toBeNull();
     expect(keyCommand(press('z', { metaKey: true }), true)).toBe('undo');
     expect(keyCommand(press('Z', { metaKey: true, shiftKey: true }), true)).toBe('redo');
     expect(keyCommand(press('c', { ctrlKey: true }), false)).toBe('copy');
     expect(keyCommand(press('v', { ctrlKey: true }), false)).toBe('paste');
   });
 
-  it('reads letters typed with Alt by their key code ("®" is Alt+R on macOS)', () => {
-    expect(keyCommand(press('®', { metaKey: true, altKey: true, code: 'KeyR' }), true)).toBe('side-by-side');
+  it('reads letters by their key code, which Alt does not change ("∂" is Alt+D on macOS)', () => {
+    expect(keyCommand(press('∂', { metaKey: true, code: 'KeyD' }), true)).toBe('duplicate');
   });
 
   it('takes "/" typed with Shift, as some layouts need', () => {

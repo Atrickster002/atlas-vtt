@@ -1,7 +1,7 @@
 /**
  * What an ability drag shows (spec §7.2): a copy of the ability on an
  * elevated surface, held inside its list; the drop line across the list; the
- * list's bounds, dashed, one per column it runs through; and the abilities
+ * list's bounds, outlined, one per column it runs through; and the abilities
  * between the two places sliding aside. The copy, line and bounds live in a
  * fixed layer in the document's own body (`contain: strict` on Obsidian's
  * leaves would pin them otherwise); the slides are transforms on the

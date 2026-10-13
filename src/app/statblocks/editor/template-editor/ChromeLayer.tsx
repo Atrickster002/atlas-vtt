@@ -11,14 +11,16 @@ import { boxIn, type CanvasGap } from './canvasGaps';
 import { blockFrame } from './editorChrome';
 import type { Box } from './gapGeometry';
 import { LabelEditor, type ChromeStyle, type LabelEditorProps } from './LabelEditor';
+import { PartRemoveButtons } from './PartRemoveButtons';
 import { primaryOf, type BlockSelection } from './selection';
+import { tilePartsOf } from './tileParts';
 import { useHoveredBlock, useStageGap } from './useStagePointer';
 
 /** The card inside the stage: chrome looks up blocks only there, never in its own layer. */
 export const SHEET_SELECTOR = '.atlas-statblock';
 const WASH_MS = 600;
 
-export interface LabelEditing extends Pick<LabelEditorProps, 'kind' | 'text' | 'onCommit' | 'onCancel' | 'onStep'> {
+export interface LabelEditing extends Pick<LabelEditorProps, 'kind' | 'part' | 'text' | 'onCommit' | 'onCancel' | 'onStep'> {
   blockId: string;
 }
 
@@ -34,6 +36,8 @@ export interface ChromeLayerProps {
   onWashed: () => void;
   onSelect: (id: string) => void;
   onInsertAt: (gap: CanvasGap, anchor: Box) => void;
+  /** Takes the number at `index` out of the Metric `id`; unset while the template takes no edits. */
+  onRemovePart?: ((id: string, index: number) => void) | undefined;
 }
 
 /** A box of the stage as the custom properties chrome is placed by (`--atlas-te-x`, `-y`, `-w`, `-h`). */
@@ -80,7 +84,7 @@ function sameBoxes(a: ReadonlyMap<string, Box>, b: ReadonlyMap<string, Box>): bo
  * takes the pointer only on its own controls.
  */
 export function ChromeLayer(props: ChromeLayerProps): React.JSX.Element {
-  const { stageRef, template, selection, editable, label, washId, onWashed, onSelect, onInsertAt } = props;
+  const { stageRef, template, selection, editable, label, washId, onWashed, onSelect, onInsertAt, onRemovePart } = props;
   const hovered = useHoveredBlock(stageRef);
   const gap = useStageGap(stageRef, editable && label === null);
   const reduced = useReducedMotion() === true;
@@ -114,6 +118,7 @@ export function ChromeLayer(props: ChromeLayerProps): React.JSX.Element {
 
   const stage = stageRef.current;
   const wash = washId ? boxes.get(washId) : undefined;
+  const withParts = [...new Set([primaryOf(selection), hovered])].filter((id): id is string => id !== null && tilePartsOf(template, id) !== null);
 
   return (
     <div className="atlas-te-chrome">
@@ -166,12 +171,16 @@ export function ChromeLayer(props: ChromeLayerProps): React.JSX.Element {
           />
         </div>
       )}
+      {stage && editable && onRemovePart && label === null && (
+        <PartRemoveButtons stage={stage} template={template} blockIds={withParts} revision={resized} onRemove={onRemovePart} />
+      )}
       {label && stage && labelFrame && (
         <LabelEditor
-          key={label.blockId}
+          key={`${label.blockId}:${label.part ?? ''}`}
           stage={stage}
           frame={labelFrame}
           kind={label.kind}
+          part={label.part}
           text={label.text}
           onCommit={label.onCommit}
           onCancel={label.onCancel}

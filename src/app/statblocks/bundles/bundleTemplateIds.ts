@@ -7,6 +7,8 @@
  * - One the vault holds as the last import left it is updated in place, silently.
  * - One the vault changed (diverged) is never overwritten: the bundle's version comes in as a
  *   copy with a new id, and the bundle's own notes and roles are pointed at the copy.
+ *
+ * A template and the note beside it are one: they are compared, updated and copied together.
  */
 
 import type { InstalledTemplate } from '../../services/collectionBundle/installRecord';
@@ -45,6 +47,8 @@ export interface PlannedTemplate {
   theirs: string;
   /** The file's text, for the templates the import writes. */
   text?: string | undefined;
+  /** The note beside it, for the templates the import writes; null where the bundle's has none. */
+  body?: string | null | undefined;
 }
 
 export interface TemplatePlanRules {
@@ -92,14 +96,14 @@ export function planTemplates(
     if (!local) {
       const localId = entry?.localId ?? template.id;
       usedIds.add(localId);
-      return { ...base, localId, target: rules.place(template.name), outcome: 'new', mine: null, text: textUnder(template, localId) };
+      return { ...base, localId, target: rules.place(template.name), outcome: 'new', mine: null, text: textUnder(template, localId), body: template.body };
     }
     const found = { ...base, localId: local.id, target: local.path, mine: local.fingerprint };
     if (local.fingerprint === template.fingerprint) return { ...found, outcome: 'reuse' };
     if (record?.source === template.fingerprint) return { ...found, outcome: 'keep' };
-    if (record?.installed === local.fingerprint) return { ...found, outcome: 'update', text: textUnder(template, local.id) };
+    if (record?.installed === local.fingerprint) return { ...found, outcome: 'update', text: textUnder(template, local.id), body: template.body };
     const copyId = freshId(template.name);
-    return { ...base, localId: copyId, target: rules.place(template.name), outcome: 'copy', mine: null, text: textUnder(template, copyId) };
+    return { ...base, localId: copyId, target: rules.place(template.name), outcome: 'copy', mine: null, text: textUnder(template, copyId), body: template.body };
   });
 }
 
@@ -143,22 +147,13 @@ export function rewriteNoteTemplate(text: string, ids: TemplateIdMap): string {
 
 interface TemplateSettings {
   statblockRoles?: readonly StatblockRole[] | undefined;
-  templateCopies?: Partial<Record<string, string>> | undefined;
 }
 
-/** The collection's copies of built-ins, by their ids in this vault. */
-function remappedCopies(copies: TemplateSettings['templateCopies'], ids: TemplateIdMap): TemplateSettings['templateCopies'] {
-  if (!copies || !Object.values(copies).some((id) => id !== undefined && ids.has(id))) return copies;
-  return Object.fromEntries(Object.entries(copies).map(([builtIn, id]) => [builtIn, id === undefined ? id : ids.get(id) ?? id]));
-}
-
-/** Settings whose roles start from, and whose copies of built-ins are, the templates' ids in this vault. */
+/** Settings whose roles start from the templates' ids in this vault. */
 export function withRoleTemplates<T extends TemplateSettings>(settings: T, ids: TemplateIdMap): T {
   const roles = settings.statblockRoles;
-  const copies = remappedCopies(settings.templateCopies, ids);
-  const next = copies === settings.templateCopies ? settings : { ...settings, templateCopies: copies };
-  if (!roles?.some((role) => ids.has(role.templateId))) return next;
-  return { ...next, statblockRoles: roles.map((role) => ({ ...role, templateId: ids.get(role.templateId) ?? role.templateId })) };
+  if (!roles?.some((role) => ids.has(role.templateId))) return settings;
+  return { ...settings, statblockRoles: roles.map((role) => ({ ...role, templateId: ids.get(role.templateId) ?? role.templateId })) };
 }
 
 /** A note the import keeps as the vault has it, which names a template whose bundle version arrives as a copy. */

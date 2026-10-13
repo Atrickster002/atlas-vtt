@@ -5,6 +5,11 @@ import { boundField } from '../model/treeQueries';
 import type { TemplateBlock } from '../model/templateTypes';
 import { useBlockChrome } from './blockChrome';
 import type { BlockDisplay } from './blockDisplay';
+import { shownMetricNumbers } from './blocks/MetricView';
+import { useSheet } from './sheetContext';
+import type { SheetState } from './sheetState';
+
+type FrameStyle = React.CSSProperties & Record<`--${string}`, number>;
 
 function lookOf(block: TemplateBlock): string | undefined {
   switch (block.type) {
@@ -20,6 +25,11 @@ function readsAsLine(block: TemplateBlock): boolean {
   return (block.type === 'stat' && block.look === 'run-in')
     || block.type === 'pairs'
     || (block.type === 'tags' && block.look === 'comma');
+}
+
+/** What the stylesheet needs of a block's content: how many numbers a Metric shows, which its share of a Row grows with. */
+function frameStyle(block: TemplateBlock, sheet: SheetState): FrameStyle | undefined {
+  return block.type === 'metric' ? { '--atlas-sb-metric-numbers': Math.max(1, shownMetricNumbers(block, sheet).length) } : undefined;
 }
 
 interface BlockFrameProps {
@@ -39,6 +49,7 @@ interface BlockFrameProps {
  */
 export function BlockFrame({ block, display, children }: BlockFrameProps): React.JSX.Element {
   const chrome = useBlockChrome();
+  const { state } = useSheet();
   const decoration = chrome?.decorate(block, display) ?? null;
 
   return (
@@ -56,6 +67,7 @@ export function BlockFrame({ block, display, children }: BlockFrameProps): React
       data-block-id={block.id}
       data-look={lookOf(block)}
       data-state={display.state === 'value' ? undefined : display.state}
+      style={frameStyle(block, state)}
       tabIndex={decoration?.tabIndex}
       role={decoration?.role}
       {...decoration?.attributes}

@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { App } from 'obsidian';
 import { AssetService } from '../../../../src/app/services/AssetService';
-import { copyFenceIntoStatblock, fenceValues, withPlainLinks } from '../../../../src/app/statblocks/editor/statblock-pane/fenceCopy';
+import { copyFenceIntoStatblock, fenceValues } from '../../../../src/app/statblocks/editor/statblock-pane/fenceCopy';
+import { withPlainLinks } from '../../../../src/app/statblocks/fs/fenceStatblock';
 import { openStatblockEditor } from '../../../../src/app/statblocks/editor/openStatblockEditor';
 import { TemplateLibrary } from '../../../../src/app/statblocks/library/TemplateLibrary';
 import { NoteFieldWriter } from '../../../../src/app/statblocks/notes/NoteFieldWriter';
@@ -50,6 +51,13 @@ describe('Copy into a new statblock (§6.4)', () => {
     expect(openStatblockEditor).toHaveBeenCalledWith(app(), { notePath: path, collectionId: 'marsh', from: 'note', focusFirstEmpty: true });
   });
 
+  it('starts from the template given, the template of the fence\'s layout', async () => {
+    withStatblockEditor(app());
+    const path = await copyFenceIntoStatblock(app(), FENCE_NOTE, 'marsh', 'monster', 'marsh-layout-abc123');
+    expect(harness.files.get(path!)).toMatch(/^---\nstatblock: true\natlas-template: marsh-layout-abc123\nname: Fen hag\n/);
+    expect(path).toBe('Bestiary/Atlas/Fen hag.md');
+  });
+
   it('makes nothing while the switch is off', async () => {
     expect(await copyFenceIntoStatblock(app(), FENCE_NOTE, 'marsh', 'monster')).toBeNull();
     expect([...harness.files.keys()]).toEqual([FENCE_NOTE]);
@@ -68,7 +76,17 @@ describe('fenceValues', () => {
     expect(await fenceValues(app(), FENCE_NOTE)).toEqual({
       name: 'Goblin',
       values: { hp: 12, ac: 15, senses: 'See [[Senses/Darkvision|darkvision]]' },
+      layout: null,
     });
+  });
+
+  it('names the layout of the fence, else of the creature', async () => {
+    expect((await fenceValues(app(), FENCE_NOTE))?.layout).toBe('Marsh layout');
+    harness.files.set(FENCE_NOTE, '```statblock\ncreature: Goblin\n```\n');
+    Object.assign(window, {
+      FantasyStatblocks: { hasCreature: () => true, getCreatureFromBestiary: () => ({ name: 'Goblin', layout: 'Basic 5e Layout' }) },
+    });
+    expect((await fenceValues(app(), FENCE_NOTE))?.layout).toBe('Basic 5e Layout');
   });
 
   it('is null for a note without a fence', async () => {

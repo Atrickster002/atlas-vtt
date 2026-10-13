@@ -2,9 +2,10 @@ import React, { useCallback, useLayoutEffect, useMemo, useRef, useState } from '
 import type { App } from 'obsidian';
 import { AtlasUIContext, type AtlasUIContextValue } from '../../../react/root/AtlasUIContext';
 import { DiceRollDisplay, type DiceRollSubscription } from '../../../react/components/dice/DiceRollDisplay';
-import { diceRulesOfCollection } from '../../../services/mapDiceRules';
+import { diceSetOfCollection } from '../../../services/diceSets/collectionDiceSets';
 import type { OffMapRolls } from '../../../services/statblockRolls';
-import { rollDiceFormula } from '../../../tools/DiceTool';
+import { rollingRules } from '../../../gameSystems/diceSets';
+import { rollDiceFormula, rollingWith } from '../../../tools/DiceTool';
 import type { DiceRollResult } from '../../../types/diceTypes';
 import { OffMapRollsContext } from '../../render/shared/offMapRolls';
 import { offlineDiceInputs } from '../../../services/offlineDiceInputs';
@@ -24,7 +25,7 @@ export interface PaneDiceRollsProps {
 
 /**
  * The rolls of the statblock beside its note that no map on screen shows
- * (`statblockRolls.ts`): rolled by the collection's dice rules while no map is
+ * (`statblockRolls.ts`): rolled by the collection's dice set (or the template's) while no map is
  * open, and thrown at the top of the pane by the dice display maps use, so a
  * click on a die is always seen. A map on screen shows its own rolls. The
  * display mounts with the first roll: dice stages hold graphics memory, and
@@ -42,10 +43,12 @@ export function PaneDiceRolls({ app, collectionId, children }: PaneDiceRollsProp
   });
 
   const offMap = useMemo((): OffMapRolls => ({
-    roll: (formula, source) => {
-      const result = rollDiceFormula(formula, diceRulesOfCollection(app, collection.current), offlineDiceInputs());
+    roll: (formula, source, options) => {
+      const { rules, shown } = rollingWith(diceSetOfCollection(app, collection.current), options?.set);
+      const result = rollDiceFormula(formula, rules, offlineDiceInputs(), shown, options?.advantage);
       return result && { ...result, source };
     },
+    rollingDice: (set) => rollingRules(rollingWith(diceSetOfCollection(app, collection.current), set).rules),
     show: (result, muted) => {
       if (listeners.current.size === 0) {
         waiting.current.push({ result, muted });

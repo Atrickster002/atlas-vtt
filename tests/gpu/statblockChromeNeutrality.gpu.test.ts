@@ -21,7 +21,7 @@ vi.mock('../../src/app/services/statblockDiceLinks', () => ({
   linkDiceIn: () => undefined,
   splitDiceSegments: (text: string) => [{ text, dice: false }],
 }));
-vi.mock('../../src/app/statblocks/render/shared/useStatblockDiceRolling', () => ({ useStatblockDiceRolling: () => undefined }));
+vi.mock('../../src/app/statblocks/render/shared/useStatblockDiceRolling', () => ({ useStatblockDiceRolling: () => [undefined, null] }));
 
 /**
  * Chrome never touches layout (§7.6, spike S6, §17 A3): every block of every
@@ -60,11 +60,11 @@ function Pair({ builtIn, width, selection }: { builtIn: BuiltInTemplate; width: 
   const record = sampleRecord(builtIn.template);
   return h('div', { className: 'atlas-vtt-plugin' },
     h('div', { className: 'runtime', style: { width } },
-      h(PanelCard, { template: builtIn.template, name: builtIn.name, record, app: undefined, sourcePath: undefined, valueEditing: EDITOR_VALUE_EDITING, shownWidth: width })),
-    h('div', { className: 'editor', style: { width: width + 200 } },
+      h(PanelCard, { template: builtIn.template, name: builtIn.name, record, app: undefined, sourcePath: undefined, valueEditing: EDITOR_VALUE_EDITING })),
+    h('div', { className: 'editor', style: { width } },
       h(Canvas, {
         stageRef, template: builtIn.template, templateName: builtIn.name, record, selection, editable: true, label: null,
-        washId: null, onWashed: noop, onSelect: noop, onEditLabel: noop, onInsertAt: noop, focusRequest: { id: null, count: 0 }, shownWidth: width,
+        washId: null, onWashed: noop, onSelect: noop, onEditLabel: noop, onInsertAt: noop, focusRequest: { id: null, count: 0 },
       })));
 }
 

@@ -9,11 +9,21 @@
   // A block with values to edit. The wash reaches past the block by a shadow, never a margin.
   .atlas-sb-sheet .atlas-sb-item.atlas-sb-pane-value {
     cursor: text;
+
     border-radius: $radius-s;
 
-    &:hover {
+    // A Metric keeps its own box's corners, and the wash fills that box and reaches no further.
+    &[data-block='metric'] {
+      border-radius: $radius-l;
+    }
+
+    // A list that holds abilities washes the one pointed at (interaction.scss); a Table, as Obsidian's, washes nothing.
+    &:hover:not(:has([data-item-key], [data-table-live])) {
       background-color: var(--background-modifier-hover);
-      box-shadow: 0 0 0 $spacing-xs var(--background-modifier-hover);
+
+      &:not([data-block='metric']) {
+        box-shadow: 0 0 0 $spacing-xs var(--background-modifier-hover);
+      }
     }
 
     &:focus-visible {
@@ -42,8 +52,10 @@
     field-sizing: content;
     vertical-align: baseline;
 
+    // An empty value's prompt, as `.atlas-sb-prompt` draws it at rest.
     &::placeholder {
       color: var(--text-faint);
+      font-style: normal;
       font-weight: $font-weight-normal;
       opacity: 1;
     }
@@ -60,38 +72,97 @@
     }
   }
 
+  // Typed where the value stands: centred in a Metric's column.
+  .atlas-sb-metric .atlas-sb-pane-input {
+    text-align: center;
+  }
+
   textarea.atlas-sb-pane-input {
     display: block;
     width: 100%;
     resize: none;
   }
 
-  .atlas-sb-pane-editor {
+  // A block's values. At rest the slot takes no box. While they are edited they stay mounted under the
+  // inputs, hidden, in the same grid cell: the inputs never take less room than the value or prompt they
+  // stand in for, and take more only when what is typed needs it. The hidden values keep the line's baseline.
+  .atlas-sb-pane-slot,
+  .atlas-sb-pane-slot__rest {
     display: contents;
   }
 
-  // The ring of what is being typed: a value's block, or the one ability of a list (§6.3).
-  .atlas-sb-sheet .atlas-sb-item.atlas-sb-pane-editing:not(.atlas-sb-pane-editing--list),
-  .atlas-sb-sheet .atlas-sb-pane-entry-editor {
-    border-radius: $radius-s;
-    outline: 2px solid var(--interactive-accent);
-    outline-offset: $spacing-xs;
-  }
+  .atlas-sb-pane-slot--editing {
+    display: inline-grid;
+    align-items: baseline;
+    max-width: 100%;
+    vertical-align: baseline;
 
-  // An ability's text, typed in the card's own line after its name.
-  .atlas-sb-pane-entry__text {
-    white-space: pre-wrap;
-    outline: none;
-    cursor: text;
+    > * {
+      grid-area: 1 / 1;
+      min-width: 0;
+    }
 
-    &:empty::before {
-      content: attr(data-placeholder);
-      color: var(--text-faint);
+    // Laid out as the values are at rest: each one a box of its own line height, side by side.
+    > .atlas-sb-pane-slot__rest {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      visibility: hidden;
+      pointer-events: none;
+    }
+
+    // Values that are blocks (paragraphs, a table, a list) span the block, as they do at rest; the input stands at their top.
+    &.atlas-sb-pane-slot--blocks {
+      display: grid;
+      align-items: start;
+
+      > .atlas-sb-pane-slot__rest {
+        display: block;
+      }
     }
   }
 
-  .atlas-sb-trait-name > input.atlas-sb-pane-entry__name {
-    font: inherit;
+  // The sheet spaces a spells block's parts as siblings (`> * + *`, _sheet-lists.scss); the slot's wrappers
+  // take no box at rest, so the spacing reaches through them to the values.
+  .atlas-sb-sheet .atlas-sb-spells-block {
+    > * + .atlas-sb-pane-slot:not(.atlas-sb-pane-slot--editing) > .atlas-sb-pane-slot__rest > :first-child,
+    .atlas-sb-pane-slot__rest > * + * {
+      margin-top: $spacing-s;
+    }
+  }
+
+  // The inputs take the value's own type (the editor is an `.atlas-sb-value`, as the values are).
+  .atlas-sb-pane-editor {
+    display: block;
+  }
+
+  // The value's own text is the field's least width: no floor of the input's own widens a short value,
+  // nor an empty list's, whose prompt it shows.
+  .atlas-sb-pane-editor > .atlas-sb-pane-field > input.atlas-sb-pane-input,
+  .atlas-sb-pane-editor > textarea.atlas-sb-pane-input,
+  .atlas-sb-pane-editor .atlas-sb-pane-chips > input.atlas-sb-pane-chips__input:only-child,
+  .atlas-sb-pane-editor .atlas-sb-pane-chips > .atlas-sb-pane-pick__add:only-child > input.atlas-sb-pane-chips__input {
+    min-width: 0;
+  }
+
+  // A lone field spans its slot, so all of the value's place takes the pointer.
+  .atlas-sb-pane-editor > .atlas-sb-pane-field:only-child {
+    display: flex;
+
+    > .atlas-sb-pane-input {
+      flex: 1 1 auto;
+    }
+  }
+
+  // The ring of what is being typed: a value's block (§6.3). An ability's fields and a Table's cell have their own.
+  .atlas-sb-sheet .atlas-sb-item.atlas-sb-pane-editing:not(.atlas-sb-pane-editing--list, .atlas-sb-pane-editing--table) {
+    border-radius: $radius-s;
+    outline: 2px solid var(--interactive-accent);
+    outline-offset: $spacing-xs;
+
+    &[data-block='metric'] {
+      border-radius: $radius-l;
+    }
   }
 
   .atlas-sb-pane-field {
@@ -187,6 +258,21 @@
     height: $icon-xs;
     color: var(--text-faint);
     pointer-events: none;
+  }
+
+  // A lone dropdown hangs its mark past its end, so the value keeps its width. Where another value may
+  // follow at once (a stat over its label, values side by side) there is no room for it: the list that
+  // opens under the input is the mark there.
+  .atlas-sb-pane-editor > .atlas-sb-pane-choice:only-child > .atlas-sb-pane-choice__chevron,
+  .atlas-sb-pane-editor > .atlas-sb-pane-choice:only-child > .atlas-sb-pane-pick__add > .atlas-sb-pane-choice__chevron {
+    position: absolute;
+    top: 50%;
+    inset-inline-start: calc(100% + #{$spacing-xs});
+    translate: 0 -50%;
+  }
+
+  :is(.atlas-sb-labelled--stacked, .atlas-sb-row, .atlas-sb-metric) .atlas-sb-pane-editor > .atlas-sb-pane-choice:only-child .atlas-sb-pane-choice__chevron {
+    display: none;
   }
 
   // Rows of the context-menu look, without the select's `!important` resets: they are no buttons.

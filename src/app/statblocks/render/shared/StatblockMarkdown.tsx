@@ -1,9 +1,11 @@
 import React, { useEffect, useMemo, useRef } from 'react';
-import { Component, Keymap, MarkdownRenderer, type App } from 'obsidian';
-import { diceLinkProps, linkDiceIn, splitDiceSegments } from '../../../services/statblockDiceLinks';
+import { Component, MarkdownRenderer, type App } from 'obsidian';
+import { linkDiceIn } from '../../../services/statblockDiceLinks';
 import { decodeStatblockLinks, statblockLinksAsText } from '../../../services/statblockLinks';
 import { runInBackground } from '../../../utils/backgroundTask';
+import { DiceText } from './DiceText';
 import { inlineMarkdown } from './inlineMarkdown';
+import { followLinksIn } from './linkEvents';
 import { boundedText } from '../../../creatures/statblockValues';
 
 interface MarkdownTextProps {
@@ -13,28 +15,9 @@ interface MarkdownTextProps {
   sourcePath?: string | undefined;
   /** Render markdown; when false the text is shown as it reads, links as the words they show */
   markdown?: boolean | undefined;
+  /** Dice notation rolls on a click; off for text that names rather than describes (an ability's name). */
+  dice?: boolean | undefined;
   className?: string | undefined;
-}
-
-/** Obsidian follows the links of its own rendered notes (reading view, Live Preview, embeds). */
-const OBSIDIAN_LINK_ROOTS = '.markdown-preview-view, .cm-content';
-
-/** Text with dice notation rendered as clickable spans. */
-function DiceText({ text }: { text: string }): React.JSX.Element {
-  const segments = useMemo(() => splitDiceSegments(text), [text]);
-  return (
-    <>
-      {segments.map((segment, index) =>
-        segment.dice ? (
-          <span key={index} {...diceLinkProps(segment.text)}>
-            {segment.text}
-          </span>
-        ) : (
-          <React.Fragment key={index}>{segment.text}</React.Fragment>
-        ),
-      )}
-    </>
-  );
 }
 
 /**
@@ -46,6 +29,7 @@ export function StatblockMarkdown({
   app,
   sourcePath = '',
   markdown = true,
+  dice = true,
   className,
 }: MarkdownTextProps): React.JSX.Element {
   const ref = useRef<HTMLSpanElement>(null);
@@ -70,34 +54,20 @@ export function StatblockMarkdown({
 
     // Safe to rewrite: this subtree is Obsidian's markdown output, which this
     // effect rebuilds from scratch on every run. React never owns these nodes.
-    linkDiceIn(el);
-
-    // Elsewhere nothing follows them. A new tab keeps the map open; Obsidian's modifiers pick another pane.
-    const openLink = (event: MouseEvent): void => {
-      if (event.button !== (event.type === 'auxclick' ? 1 : 0)) return;
-      const link = (event.target as Element | null)?.closest?.('a.internal-link');
-      if (!link || link.closest(OBSIDIAN_LINK_ROOTS)) return;
-      const target = link.getAttribute('data-href') ?? link.getAttribute('href');
-      if (!target) return;
-      event.preventDefault();
-      const pane = Keymap.isModEvent(event) || 'tab';
-      runInBackground(app.workspace.openLinkText(target, sourcePath, pane), `Opening ${target}`, 'Could not open the linked note');
-    };
-    el.addEventListener('click', openLink);
-    el.addEventListener('auxclick', openLink);
+    if (dice) linkDiceIn(el);
+    const stopLinks = followLinksIn(el, app, sourcePath);
 
     return () => {
-      el.removeEventListener('click', openLink);
-      el.removeEventListener('auxclick', openLink);
+      stopLinks();
       component.unload();
       el.replaceChildren();
     };
-  }, [text, app, sourcePath, markdown]);
+  }, [text, app, sourcePath, markdown, dice]);
 
   if (shownAsRead) {
     return (
       <span className={className}>
-        <DiceText text={asRead} />
+        {dice ? <DiceText text={asRead} /> : asRead}
       </span>
     );
   }

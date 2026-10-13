@@ -138,7 +138,7 @@ export const FIVE_E_2024_JSON = `{
     { "key": "hp", "label": "HP", "type": "number", "meaning": "hit-points" },
     { "key": "hit_dice", "label": "Hit Dice", "type": "dice" },
     { "key": "speed", "label": "Speed", "type": "text" },
-    { "key": "stats", "label": "Abilities", "type": "scores", "slots": ["Str", "Dex", "Con", "Int", "Wis", "Cha"],
+    { "key": "stats", "label": "Abilities", "type": "scores", "addRows": false, "addColumns": false, "slots": ["Str", "Dex", "Con", "Int", "Wis", "Cha"],
       "slotKeys": ["strength", "dexterity", "constitution", "intelligence", "wisdom", "charisma"] },
     { "key": "saves", "label": "Saving Throws", "type": "pairs" },
     { "key": "skillsaves", "label": "Skills", "type": "pairs" },
@@ -213,7 +213,7 @@ export const FIVE_E_2024: StatblockTemplate = {
     { key: 'hit_dice', label: 'Hit Dice', type: 'dice' },
     { key: 'speed', label: 'Speed', type: 'text' },
     {
-      key: 'stats', label: 'Abilities', type: 'scores', slots: ['Str', 'Dex', 'Con', 'Int', 'Wis', 'Cha'],
+      key: 'stats', label: 'Abilities', type: 'scores', addRows: false, addColumns: false, slots: ['Str', 'Dex', 'Con', 'Int', 'Wis', 'Cha'],
       slotKeys: ['strength', 'dexterity', 'constitution', 'intelligence', 'wisdom', 'charisma'],
     },
     { key: 'saves', label: 'Saving Throws', type: 'pairs' },

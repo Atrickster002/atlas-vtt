@@ -16,16 +16,23 @@ export class FakeSession implements EditorSession {
   private gestureDepth = 0;
   /** Calls of `apply` that changed the template. */
   steps = 0;
-  readonly renames: string[] = [];
   readonly resolutions: string[] = [];
-  flushes = 0;
-  renameProblem: string | null = null;
+  /** The draft as it was last saved: a change made since makes the snapshot dirty. */
+  private saved: StatblockTemplate;
 
-  constructor(template: StatblockTemplate, options: Partial<Pick<SessionSnapshot, 'readOnly' | 'readOnlyReason' | 'name' | 'path' | 'saveState' | 'saveProblem' | 'conflict'>> = {}) {
+  constructor(
+    template: StatblockTemplate,
+    options: Partial<Pick<SessionSnapshot, 'readOnly' | 'readOnlyReason' | 'name' | 'path' | 'builtIn' | 'unsaved' | 'draftBody' | 'saveState' | 'saveProblem' | 'conflict'>> = {},
+  ) {
+    this.saved = template;
     this.snapshot = {
       id: template.id,
       name: options.name ?? 'Test template',
       path: options.path === undefined ? 'atlas-vtt/statblock-templates/Test template.atlastemplate' : options.path,
+      builtIn: options.builtIn ?? false,
+      unsaved: options.unsaved ?? false,
+      draftBody: options.draftBody ?? '',
+      dirty: options.unsaved ?? false,
       template,
       readOnly: options.readOnly ?? false,
       readOnlyReason: options.readOnlyReason ?? null,
@@ -100,17 +107,10 @@ export class FakeSession implements EditorSession {
     this.set(next);
   }
 
-  flush(): Promise<void> {
-    this.flushes += 1;
-    return Promise.resolve();
-  }
-
-  rename(name: string): Promise<{ ok: true } | { ok: false; problem: string }> {
-    this.renames.push(name);
-    if (this.renameProblem) return Promise.resolve({ ok: false, problem: this.renameProblem });
-    this.snapshot = { ...this.snapshot, name };
-    this.emit();
-    return Promise.resolve({ ok: true });
+  /** What the file holds now is the draft, as after an Update. */
+  markSaved(): void {
+    this.saved = this.snapshot.template;
+    this.patch({ dirty: this.snapshot.unsaved, saveState: 'saved' });
   }
 
   resolveConflict(choice: 'keep-mine' | 'use-other' | 'save-copy' | 'recreate'): Promise<void> {
@@ -125,7 +125,8 @@ export class FakeSession implements EditorSession {
   }
 
   private set(template: StatblockTemplate): void {
-    this.snapshot = { ...this.snapshot, template, canUndo: this.past.length > 0, canRedo: this.future.length > 0 };
+    const dirty = this.snapshot.unsaved || template !== this.saved;
+    this.snapshot = { ...this.snapshot, template, dirty, canUndo: this.past.length > 0, canRedo: this.future.length > 0 };
     this.emit();
   }
 
@@ -138,17 +139,13 @@ export function template(blocks: TemplateBlock[], fields: TemplateField[] = [], 
   return { format: TEMPLATE_FORMAT, version: TEMPLATE_VERSION, id, fields, layout: { maxColumns: 1, blocks } };
 }
 
-/** A small template: a title, a section "Defenses" with two stats, a row of two stacked stats, a divider. */
+/** A small template as the grid has it: the name, two values of their own, a row of two stacked values, a divider. */
 export function sampleTemplate(): StatblockTemplate {
   return template(
     [
       { id: 'title001', type: 'title', field: 'name', level: 1 },
-      {
-        id: 'section1', type: 'section', heading: 'Defenses', blocks: [
-          { id: 'stat-ac1', type: 'stat', field: 'ac', look: 'run-in' },
-          { id: 'stat-hp1', type: 'stat', field: 'hp', look: 'run-in' },
-        ],
-      },
+      { id: 'stat-ac1', type: 'stat', field: 'ac', look: 'run-in' },
+      { id: 'stat-hp1', type: 'stat', field: 'hp', look: 'run-in' },
       {
         id: 'row00001', type: 'row', blocks: [
           { id: 'stat-sp1', type: 'stat', field: 'speed', look: 'stacked' },
@@ -171,3 +168,6 @@ export function sampleTemplate(): StatblockTemplate {
 export function shape(blocks: readonly TemplateBlock[]): string {
   return blocks.map((block) => ('blocks' in block ? `${block.id}(${shape(block.blocks)})` : block.id)).join(' ');
 }
+
+/** Whether the capsule's Save has something to save: it is shown disabled (`aria-disabled`), never `disabled`, so its tooltip shows. */
+export const offered = (button: HTMLButtonElement): boolean => button.getAttribute('aria-disabled') !== 'true';

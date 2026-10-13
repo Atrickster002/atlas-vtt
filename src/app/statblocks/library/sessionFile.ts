@@ -1,16 +1,16 @@
 /**
  * What a session does to its file on request (§8.7): resolving a conflict
  * (keep mine, use the other version, save mine as a copy, recreate a deleted
- * file), renaming, and the last write before it goes away.
+ * file) and dropping the unsaved changes.
  */
 
 import { readTemplateFile, templateName } from './templateFiles';
-import { copyName, folderOf, templateNameProblem, templatePathIn, templatePathTaken } from './templatePaths';
-import { newTemplateFile, problemOf, writeNewTemplateFile } from './templateWriter';
+import { copyTemplateBody } from './templateBodyNotes';
+import { copyName, folderOf } from './templatePaths';
+import { newTemplateFile, writeNewTemplateFile } from './templateWriter';
 import { SessionFileSync } from './sessionFileSync';
 
 export type ConflictChoice = 'keep-mine' | 'use-other' | 'save-copy' | 'recreate';
-export type RenameResult = { ok: true } | { ok: false; problem: string };
 
 export class SessionFile extends SessionFileSync {
   async resolveConflict(choice: ConflictChoice): Promise<void> {
@@ -30,36 +30,15 @@ export class SessionFile extends SessionFileSync {
   }
 
   /**
-   * Writes what is pending before the session goes away. A draft in conflict
-   * has nowhere to go, so it is kept as a copy beside the template.
+   * Back to what the file holds: the draft and its history are dropped. A
+   * template never saved has nothing to go back to; its draft stops counting
+   * as unsaved (it was just saved as a template of its own).
    */
-  async flushForExit(): Promise<void> {
-    if (this.conflict && this.isDirty() && !this.readOnly) await this.saveCopy();
-    else await this.flush();
-  }
-
-  /** Renames the file: the name is its basename. Pending edits are written first. */
-  async rename(name: string): Promise<RenameResult> {
-    if (this.readOnly === 'built-in' || this.path === null) return { ok: false, problem: 'Built-in templates can\'t be renamed.' };
-    const problem = templateNameProblem(name);
-    if (problem) return { ok: false, problem };
-    await this.flush();
-    if (this.conflict) return { ok: false, problem: 'Choose which version to keep first.' };
-    const path = this.path;
-    const file = this.app.vault.getFileByPath(path);
-    if (!file) return { ok: false, problem: 'The template\'s file is gone.' };
-    const target = templatePathIn(folderOf(path), name.trim());
-    if (target === path) return { ok: true };
-    if (templatePathTaken(this.app, target, path)) return { ok: false, problem: `There is already a template named “${name.trim()}” here.` };
-    try {
-      await this.ownWork(() => this.app.fileManager.renameFile(file, target));
-      this.movedTo(target);
-      return { ok: true };
-    } catch (error) {
-      return { ok: false, problem: `Couldn't rename: ${problemOf(error)}` };
-    } finally {
-      this.afterOwnWork();
-    }
+  discard(): void {
+    if (this.unsaved) this.saved = this.host.draft();
+    else if (this.conflict) this.useOther();
+    else if (this.saved) this.host.reset(this.saved);
+    this.host.changed();
   }
 
   private useOther(): void {
@@ -74,17 +53,20 @@ export class SessionFile extends SessionFileSync {
     }
   }
 
-  /** Writes the draft over the other version; Obsidian's file recovery keeps that one. */
+  /**
+   * Keeps the draft and takes the other version as what the file holds, so the
+   * next save writes the draft over it; Obsidian's file recovery keeps that one.
+   */
   private async keepMine(): Promise<void> {
     const file = this.path === null ? null : this.app.vault.getFileByPath(this.path);
-    if (!file) {
+    if (!file || this.path === null) {
       this.enterConflict('deleted', null, false);
       return;
     }
+    const path = this.path;
     this.baseText = await this.ownWork(() => this.app.vault.read(file));
-    this.saved = null;
+    this.saved = readTemplateFile(path, this.baseText).entry?.template ?? null;
     this.leaveConflict();
-    await this.flush();
   }
 
   /** Writes the draft to a file again, where the deleted one was or beside it when that place is taken. */
@@ -100,8 +82,10 @@ export class SessionFile extends SessionFileSync {
     this.leaveConflict();
   }
 
+  /** The draft as a template of its own beside the file, with a copy of the file's note. */
   private async saveCopy(): Promise<void> {
     const folder = this.path === null ? undefined : folderOf(this.path);
-    await this.ownWork(() => newTemplateFile(this.app, this.library, copyName(this.name), this.host.draft(), folder));
+    const made = await this.ownWork(() => newTemplateFile(this.app, this.library, copyName(this.name), this.host.draft(), folder));
+    await copyTemplateBody(this.app, this.path, made.path);
   }
 }

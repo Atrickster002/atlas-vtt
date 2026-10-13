@@ -8,9 +8,6 @@ import type { FieldRecord } from '../../values/fieldValues';
 import '../statblock-pane/statblock-pane.scss';
 import './panel-frame.scss';
 
-/** CSS variables set inline. */
-type CardStyle = React.CSSProperties & Record<`--${string}`, string>;
-
 export interface PanelFrameProps {
   /** The capsule above the card: the note's template, or the template being edited. */
   header: React.ReactNode;
@@ -84,8 +81,6 @@ const FramedSheet = memo(function FramedSheet({ chrome, valueEditing, template, 
 export interface PanelCardProps extends Omit<FramedSheetProps, 'chrome' | 'valueEditing'> {
   chrome?: BlockChrome | null | undefined;
   valueEditing?: ValueEditing | null | undefined;
-  /** Draws the card at another surface's width (a hover card, the DM screen), centred; unset, the panel's. */
-  shownWidth?: number | undefined;
   /** Puts something around the sheet inside the card: the template editor's stage. */
   around?: ((sheet: React.ReactNode) => React.ReactNode) | undefined;
 }
@@ -95,17 +90,10 @@ export interface PanelCardProps extends Omit<FramedSheetProps, 'chrome' | 'value
  * the runtime card in the editing mode. A one-column template keeps the DM
  * screen's widest feed (statblock-pane.scss).
  */
-export const PanelCard = forwardRef<HTMLDivElement, PanelCardProps>(({ chrome = null, valueEditing = null, shownWidth, around, ...sheet }, ref) => {
+export const PanelCard = forwardRef<HTMLDivElement, PanelCardProps>(({ chrome = null, valueEditing = null, around, ...sheet }, ref) => {
   const drawn = <FramedSheet chrome={chrome} valueEditing={valueEditing} {...sheet} />;
-  const style: CardStyle | undefined = shownWidth ? { '--atlas-sb-card-width': `${shownWidth}px` } : undefined;
   return (
-    <div
-      ref={ref}
-      className="atlas-sb-pane-card"
-      data-columns={sheet.template.layout.maxColumns}
-      data-shown-as={shownWidth ? '' : undefined}
-      style={style}
-    >
+    <div ref={ref} className="atlas-sb-pane-card" data-columns={sheet.template.layout.maxColumns}>
       {around ? around(drawn) : drawn}
     </div>
   );

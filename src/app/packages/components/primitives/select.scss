@@ -45,6 +45,13 @@
   overflow-y: auto;
 }
 
+// Above the trigger, where the view leaves no room below (`fitList`).
+.atlas-select-content--up {
+  top: auto;
+  bottom: calc(100% + #{$spacing-xs});
+  transform-origin: bottom left;
+}
+
 .atlas-select-option {
   @include atlas-select-option;
 }

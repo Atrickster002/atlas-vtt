@@ -12,8 +12,14 @@ import { readFrontmatterDoc, type FrontmatterModel } from './yamlDocument';
 /** Patches made from the frontmatter as the write finds it (the patcher's own reading); null where it cannot be read. */
 export type PatchBuilder = (frontmatter: FrontmatterModel | null) => readonly NotePatch[];
 
-/** Patches given up front, or built against the text the write lands in. */
-export type WriteRequest = { patches: readonly NotePatch[] } | { build: PatchBuilder };
+/**
+ * A change of the whole note made against the text the write lands in (a statblock code block
+ * moved into the properties): the new text with the patches it applied, or why it cannot be made.
+ */
+export type NoteRewrite = (text: string) => { text: string; applied: readonly NotePatch[] } | { problem: string };
+
+/** Patches given up front, built against the text the write lands in, or a rewrite of that text. */
+export type WriteRequest = { patches: readonly NotePatch[] } | { build: PatchBuilder } | { rewrite: NoteRewrite };
 
 export interface WriteResult {
   applied: readonly NotePatch[];
@@ -28,6 +34,12 @@ export function applyWrites(text: string, requests: readonly WriteRequest[]): { 
   const results = requests.map((request): WriteResult => {
     const problem = frontmatterProblem(current);
     if (problem) return { applied: [], conflicts: 'patches' in request ? request.patches : [], problem: problem.message };
+    if ('rewrite' in request) {
+      const rewritten = rewriteOf(request.rewrite, current);
+      if ('problem' in rewritten) return { applied: [], conflicts: [], problem: rewritten.problem };
+      current = rewritten.text;
+      return { applied: rewritten.applied, conflicts: [], problem: null };
+    }
     const built = patchesOf(request, current);
     if ('problem' in built) return { applied: [], conflicts: [], problem: built.problem };
     const result = applyFrontmatterPatches(current, built.patches);
@@ -37,7 +49,15 @@ export function applyWrites(text: string, requests: readonly WriteRequest[]): { 
   return { text: current, results };
 }
 
-function patchesOf(request: WriteRequest, text: string): { patches: readonly NotePatch[] } | { problem: string } {
+function rewriteOf(rewrite: NoteRewrite, text: string): ReturnType<NoteRewrite> {
+  try {
+    return rewrite(text);
+  } catch (error) {
+    return { problem: error instanceof Error ? error.message : 'The change could not be prepared.' };
+  }
+}
+
+function patchesOf(request: Exclude<WriteRequest, { rewrite: NoteRewrite }>, text: string): { patches: readonly NotePatch[] } | { problem: string } {
   if ('patches' in request) return request;
   try {
     return { patches: request.build(frontmatterModel(text)) };

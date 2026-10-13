@@ -1,6 +1,6 @@
 import type { AssetService, CollectionMetadata } from '../AssetService';
 import { installedTemplates, type ReusedNote } from '../../statblocks/bundles/bundleTemplateIds';
-import { installedPresets } from '../systemPresets/bundlePresets';
+import { installedRecords } from '../vaultRecords/bundleRecords';
 import type { SystemPreset } from '../../types/systemPresetTypes';
 import type { OpenedBundle } from './bundleReader';
 import { importedSettings, settingsFromBundle } from './bundleSettings';
@@ -70,8 +70,8 @@ export async function mergedCollection(assets: AssetService, { bundle, existing,
  * overwrites it silently, and re-importing this bundle does not ask again.
  * Unchanged items keep their earlier record, including its exact bytes, and
  * collection fields record the value actually applied (a name the user chose
- * because the bundle's was taken counts as theirs). Templates and presets are
- * recorded by their bundle id with their id here.
+ * because the bundle's was taken counts as theirs). Templates, presets and dice
+ * sets are recorded by their bundle id with their id here.
  */
 export async function nextInstallRecord(
   { bundle: { manifest }, record, targets, plan }: ImportContext,
@@ -83,7 +83,8 @@ export async function nextInstallRecord(
     uid: collection.uid, collectionId: targets.collectionId, sourceCollectionId: manifest.collection.id, sourceName: manifest.collection.name,
     version: manifest.collection.version, releasedAt: manifest.exportedAt, installedAt: Date.now(), files: {}, assets: {}, fields: {},
     ...(targets.templates.length > 0 && { templates: installedTemplates(targets.templates, record?.templates) }),
-    ...(targets.presets.length > 0 && { presets: await installedPresets(targets.presets, record?.presets) }),
+    ...(targets.presets.length > 0 && { presets: await installedRecords(targets.presets, record?.presets) }),
+    ...(targets.diceSets.length > 0 && { diceSets: await installedRecords(targets.diceSets, record?.diceSets) }),
   };
   // Files the import only reads (the user's own notes) keep their record, so a later import still recognises them.
   for (const path of targets.shared) {

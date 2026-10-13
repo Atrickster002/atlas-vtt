@@ -1,18 +1,15 @@
 import React, { useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Ellipsis, Plus, Settings2, Trash2 } from 'lucide-react';
-import { Button } from '../../../../packages/components/primitives/button';
+import { BetweenVerticalEnd, Ellipsis, EyeOff, Pencil, Plus, Settings2, Trash2, type LucideIcon } from 'lucide-react';
 import { ToolButton } from '../../../../packages/components/primitives/ToolButton';
-import { LabelTooltip } from '../../../../packages/components/primitives/tooltip';
 import { useKeepInView } from '../../../../packages/components/primitives/useKeepInView';
 import { observeResize } from '../../../../utils/observeResize';
 import { cn } from '../../../../../utils/cn';
-import { blockSpec } from '../../../model/blockCatalogue';
 import type { FieldType, TemplateBlock } from '../../../model/templateTypes';
 import { CHROME_ATTRIBUTE } from '../../interaction/chrome';
 import { PANEL_SCROLL_SELECTOR } from '../../panel-frame/panelSelectors';
 import { blockFrame } from '../editorChrome';
-import { FIELD_TYPE_LABELS, blockGlyph, fieldTypeGlyph } from '../editorGlyphs';
+import { blockGlyph, fieldTypeGlyph } from '../editorGlyphs';
 import type { ChromeStyle } from '../LabelEditor';
 import { shortcutText } from '../shortcutText';
 import { HIDDEN_TOOLBAR, placeBelow, type ToolbarPlacement } from './toolbarBelow';
@@ -29,16 +26,20 @@ export interface SelectionToolbarProps {
   editable: boolean;
   /** Whatever changes the block's place: re-measured when it changes. */
   revision: unknown;
-  /** Whether any of the block's further settings is in use: a dot on Settings. */
-  settingsInUse: boolean;
-  /** Set for the Name or the token picture, which every statblock keeps: what the chip calls it. It neither turns into another block nor goes. */
-  coreLabel: string | null;
-  onTurnInto: (chip: HTMLElement) => void;
-  /** Set where the block's property may hold another kind of value: the kind in use, and the menu that changes it. */
-  valueKind?: { type: FieldType; onOpen: (button: HTMLElement) => void } | undefined;
-  onSettings?: (() => void) | undefined;
+  /** What the chip calls the tile: its kind ("Value", "Abilities"), or a part of the header by its name ("Challenge"). */
+  chipLabel: string;
+  /** A part of the header: it is only renamed and, where `hideable`, hidden; it never moves or goes. */
+  headerPart?: { hideable: boolean; onRename: () => void } | undefined;
+  /** Set on a Value tile: the kind it holds, and the menu that changes it. */
+  valueKind?: { label: string; type: FieldType; onOpen: (button: HTMLElement) => void } | undefined;
+  /** Set on a Metric or Table tile: adds a number or a column at its end (`label`), while it takes one (else `full` says why not). */
+  addPart?: { label: string; canAdd: boolean; full: string; onAdd: () => void } | undefined;
+  /** Set where the tile has Options. */
+  onOptions?: ((button: HTMLElement) => void) | undefined;
   onAddBelow: () => void;
   onDelete: () => void;
+  /** Hides a part of the header; the chips under the card show it again. */
+  onToggleHidden: () => void;
   onMore: (button: HTMLElement) => void;
   /** The block's menu is open: the toolbar keeps out of its way until it closes. */
   menuOpen: boolean;
@@ -46,38 +47,46 @@ export interface SelectionToolbarProps {
   onMenuBelow: (point: { x: number; y: number }) => void;
 }
 
+/** The tile's box, with the room a Table keeps around it for its handles and add buttons, which the toolbar must not cover. */
+function tileBox(frame: HTMLElement): { left: number; top: number; right: number; bottom: number } {
+  const { left, top, right, bottom } = frame.getBoundingClientRect();
+  const room = frame.querySelector('.atlas-sb-sheet-table__scroll')?.getBoundingClientRect();
+  return room ? { left, right, top: Math.min(top, room.top), bottom: Math.max(bottom, room.bottom) } : { left, top, right, bottom };
+}
+
 function measure(stage: HTMLElement, layer: HTMLElement, blockId: string, toolbar: HTMLElement | null): ToolbarPlacement {
   const frame = blockFrame(stage, blockId);
   const view = stage.closest(PANEL_SCROLL_SELECTOR) ?? stage;
   if (!frame || !toolbar) return HIDDEN_TOOLBAR;
-  return placeBelow(frame.getBoundingClientRect(), view.getBoundingClientRect(), layer.getBoundingClientRect(), {
+  return placeBelow(tileBox(frame), view.getBoundingClientRect(), layer.getBoundingClientRect(), {
     width: toolbar.offsetWidth,
     height: toolbar.offsetHeight,
   });
 }
 
-/** Kind of value: the glyph of the kind the property holds; it opens the kinds to choose from. */
-function ValueKindButton({ type, onOpen }: { type: FieldType; onOpen: (button: HTMLElement) => void }): React.JSX.Element {
+/** A toolbar button that hands its own element to `onPress`, so what it opens hangs from it. */
+function AnchoredButton({ icon, label, shortcut, onPress, attribute }: {
+  icon: LucideIcon; label: string; shortcut?: string | undefined; onPress: (button: HTMLElement) => void; attribute: string;
+}): React.JSX.Element {
   const ref = useRef<HTMLSpanElement>(null);
   return (
-    <span ref={ref} className="atlas-te-toolbar__kind">
-      <ToolButton icon={fieldTypeGlyph(type)} label={`Kind of value: ${FIELD_TYPE_LABELS[type]}`} isActive={false}
-        onClick={() => { if (ref.current) onOpen(ref.current); }} />
+    <span ref={ref} {...{ [attribute]: '' }}>
+      <ToolButton icon={icon} label={label} {...(shortcut !== undefined && { shortcut })} isActive={false} onClick={() => { if (ref.current) onPress(ref.current); }} />
     </span>
   );
 }
 
 /**
- * The selected block's toolbar (spec §4.2): five controls, below the
- * block (above it only without room), in a layer over the editor, kept in
- * view, and a sixth, Kind of value, on blocks whose property may hold another
- * kind (choices among them). The type chip turns the block into another, Settings opens its
- * settings (a dot while any further setting is in use), then Add below,
- * Delete and More, which opens the block's menu. It stays shown and takes the
- * pointer over its whole capsule for as long as its block is selected, since
- * the way to it leads over the block below; it hands a right-click to the
- * block under it, hides while the block's menu is open, and never takes focus
- * from the block, so the block's keys keep working.
+ * The selected tile's toolbar (spec §4.2): below the tile (above it only
+ * without room), in a layer over the editor, kept in view. The chip names the
+ * tile's kind; then Kind of value on a Value, Options where the tile has any,
+ * Add number on a Metric, Add column on a Table, Add below, Delete and More,
+ * which opens the tile's menu; a part of the header has Rename, Hide from card
+ * where it may hide, and More. It stays shown and takes the pointer over its
+ * whole capsule for as long as its tile is selected, since the way to it
+ * leads over the tile below; it hands a right-click to the tile under it,
+ * hides while the tile's menu is open, and never takes focus from the tile,
+ * so the tile's keys keep working.
  */
 export function SelectionToolbar(props: SelectionToolbarProps): React.JSX.Element {
   const { layer, stage, block, revision, editable } = props;
@@ -105,11 +114,9 @@ export function SelectionToolbar(props: SelectionToolbarProps): React.JSX.Elemen
     '--atlas-te-toolbar-x': `${placement.left}px`,
     '--atlas-te-toolbar-y': `${placement.top}px`,
   };
-  const core = props.coreLabel !== null;
-  const type = props.coreLabel ?? blockSpec(block.type).label;
   const Glyph = blockGlyph(block.type);
-  const chipLabel = props.count > 1 ? `${props.count} blocks` : type;
-  const turnable = editable && props.count === 1 && !core;
+  const chipLabel = props.count > 1 ? `${props.count} blocks` : props.chipLabel;
+  const single = props.count === 1;
 
   return createPortal(
     <div
@@ -121,35 +128,40 @@ export function SelectionToolbar(props: SelectionToolbarProps): React.JSX.Elemen
       {...{ [CHROME_ATTRIBUTE]: '' }}
       data-hidden={placement.hidden || props.menuOpen || undefined}
       data-above={placement.above || undefined}
-      // Focus stays on the block: its keys (Delete, arrows, Shift+F10) go on working after a click here.
+      // Focus stays on the tile: its keys (Delete, arrows, Shift+F10) go on working after a click here.
       onMouseDown={(event) => event.preventDefault()}
       onContextMenu={(event) => {
         event.preventDefault();
         props.onMenuBelow({ x: event.clientX, y: event.clientY });
       }}
     >
-      <LabelTooltip label={turnable ? `${type} · Turn into…` : chipLabel}>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="atlas-te-toolbar__type"
-          aria-disabled={!turnable || undefined}
-          onClick={(event) => { if (turnable) props.onTurnInto(event.currentTarget); }}
-        >
-          <Glyph aria-hidden="true" />
-          <span className="atlas-te-toolbar__type-name">{chipLabel}</span>
-        </Button>
-      </LabelTooltip>
-      {props.valueKind && <ValueKindButton {...props.valueKind} />}
-      {props.onSettings && (
-        <span className="atlas-te-toolbar__settings" data-in-use={props.settingsInUse || undefined}>
-          <ToolButton icon={Settings2} label="Settings" shortcut={shortcutText(['Shift'], '⏎')} isActive={false} onClick={props.onSettings} />
-        </span>
+      <span className="atlas-te-toolbar__type" aria-hidden="true">
+        <Glyph />
+        <span className="atlas-te-toolbar__type-name">{chipLabel}</span>
+      </span>
+      {single && props.valueKind && (
+        <AnchoredButton icon={fieldTypeGlyph(props.valueKind.type)} label={`Kind of value: ${props.valueKind.label}`} attribute="data-value-kind"
+          onPress={props.valueKind.onOpen} />
       )}
-      <ToolButton icon={Plus} label="Add below" shortcut="/" isActive={false} disabled={!editable} onClick={props.onAddBelow} />
-      {core
-        ? <ToolButton icon={Trash2} label="Every statblock keeps this" isActive={false} disabled onClick={props.onDelete} />
-        : <ToolButton icon={Trash2} label="Delete" shortcut="Del" isActive={false} disabled={!editable} onClick={props.onDelete} />}
+      {single && props.onOptions && (
+        <AnchoredButton icon={Settings2} label="Options" shortcut={shortcutText(['Shift'], '⏎')} attribute="data-options" onPress={props.onOptions} />
+      )}
+      {single && props.addPart && (
+        <ToolButton icon={BetweenVerticalEnd} label={props.addPart.label} isActive={false} disabled={!editable || !props.addPart.canAdd}
+          {...(!props.addPart.canAdd && { subtitle: props.addPart.full })}
+          onClick={props.addPart.onAdd} />
+      )}
+      {props.headerPart ? (
+        <>
+          <ToolButton icon={Pencil} label="Rename" shortcut="⏎" isActive={false} disabled={!editable} onClick={props.headerPart.onRename} />
+          {props.headerPart.hideable && <ToolButton icon={EyeOff} label="Hide from card" isActive={false} disabled={!editable} onClick={props.onToggleHidden} />}
+        </>
+      ) : (
+        <>
+          <ToolButton icon={Plus} label="Add below" shortcut="/" isActive={false} disabled={!editable} onClick={props.onAddBelow} />
+          <ToolButton icon={Trash2} label="Delete" shortcut="Del" isActive={false} disabled={!editable} onClick={props.onDelete} />
+        </>
+      )}
       <span ref={more} className="atlas-te-toolbar__more">
         <ToolButton icon={Ellipsis} label="More" shortcut={shortcutText(['Shift'], 'F10')} isActive={false} onClick={() => { if (more.current) props.onMore(more.current); }} />
       </span>

@@ -28,12 +28,12 @@ const MATH_FUNCTIONS: ReadonlySet<string> = new Set(['floor', 'ceil', 'round', '
 const ARITHMETIC: ReadonlySet<string> = new Set(['+', '-', '*', '/']);
 const FORMULA_KEY = /^[\p{L}_][\p{L}\p{N}_]*$/u;
 
-function isName(node: JsNode | undefined, name: string): boolean {
+export function isName(node: JsNode | null | undefined, name: string): boolean {
   return node?.kind === 'name' && node.name === name;
 }
 
 /** `monster.key`, `monster?.key` or `monster["key"]`: the key it reads. */
-function fieldOf(node: JsNode | undefined, base = MONSTER): FieldKey | null {
+export function fieldOf(node: JsNode | null | undefined, base = MONSTER): FieldKey | null {
   return node?.kind === 'member' && isName(node.object, base) ? node.key : null;
 }
 
@@ -155,7 +155,7 @@ function pushed(statement: JsStatement | undefined, list: string, separator: str
     const items = args?.length ? joined(args, separator) : null;
     return items ? [{ text: separator }, ...items] : null;
   }
-  if (statement?.kind !== 'if' || statement.then.length !== 1) return null;
+  if (statement?.kind !== 'if' || statement.then.length !== 1 || statement.otherwise) return null;
   const key = presenceOf(statement.test);
   const inner = key === null ? null : pushed(statement.then[0], list, separator);
   // The part shows only while the field it tests holds something

@@ -30,6 +30,8 @@ export interface SystemRules {
   defaultWidgets?: Record<string, boolean>;
   /** Default roll and critical rule. Unset means `DEFAULT_DICE_RULES`. */
   dice?: DiceRules;
+  /** The dice set the system rolls a bare bonus with; a preset without one keeps its rules in `dice`. */
+  diceSetId?: string;
   /** How the initiative tracker runs a fight. Unset means `DEFAULT_INITIATIVE_RULES`: a d20 each, highest first. */
   initiative?: InitiativeRules;
   /** Token resources the system defines, copied on apply like conditions. */

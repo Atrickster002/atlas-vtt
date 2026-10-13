@@ -79,15 +79,15 @@ async function readLinked(app: App, note: LinkedNote): Promise<LinkedStatblockRe
   return { kind: 'none', fence: source?.kind === 'fs-fence' };
 }
 
-/** Calls `onChange` when the library's entry for `templateId` changes (an open session's draft too), or its first load ends. */
+/** Calls `onChange` when the library's entry for `templateId` changes (a save of the template too), or its first load ends. */
 function useTemplateChanges(app: App, templateId: TemplateId | null, onChange: () => void): void {
   useEffect(() => {
     if (templateId === null) return undefined;
     const library = TemplateLibrary.forApp(app);
-    let entry = library.current(templateId);
+    let entry = library.get(templateId);
     let loading = library.isLoading();
     return library.subscribe(() => {
-      const nextEntry = library.current(templateId);
+      const nextEntry = library.get(templateId);
       const nextLoading = library.isLoading();
       if (nextEntry === entry && nextLoading === loading) return;
       entry = nextEntry;

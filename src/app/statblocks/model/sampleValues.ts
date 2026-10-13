@@ -1,6 +1,7 @@
 import { pickText } from '../values/choicePicks';
 import { sampleEntryTexts, sampleNumber, samplePairs, sampleText } from './sampleHints';
-import type { FieldKey, FieldValue, StatblockTemplate, TemplateField } from './templateTypes';
+import { gridIsEmpty, templateGrid } from './tableGrid';
+import type { EntryExtraShape, FieldKey, FieldValue, StatblockTemplate, TemplateField } from './templateTypes';
 
 /**
  * Samples (§6.2): believable for what each field is for (`sampleHints.ts`),
@@ -19,24 +20,42 @@ const SAMPLE_SPELLS: FieldValue = [
 ];
 const SAMPLE_GROUPS: FieldValue = [{ 'First group': 'one, two' }, { 'Second group': 'three' }];
 
-function extraSample(type: 'text' | 'number' | 'list' | 'dice', label: string): FieldValue {
+function extraSample(extra: EntryExtraShape): FieldValue {
+  const { type, label } = extra;
   switch (type) {
     case 'number': return /cost|action/i.test(label) ? 1 : 10;
     case 'dice': return SAMPLE_DICE;
     case 'list': return [...SAMPLE_ITEMS];
     case 'text': return /range/i.test(label) ? 'Close' : /kind|type/i.test(label) ? 'Action' : 'Example';
+    case 'choice': return extra.options?.find((option) => option.trim()) ?? 'Example';
   }
 }
 
-function sampleEntries(field: TemplateField): FieldValue {
+/** What the samples hold: everything, or no numbers (the template editor, where numbers come from statblocks). */
+export interface SampleOptions {
+  numbers?: boolean;
+}
+
+/** Field types whose values are numbers, left empty where samples hold none. */
+const NUMBER_TYPES: ReadonlySet<TemplateField['type']> = new Set(['number', 'rating', 'scores']);
+
+function sampleEntries(field: TemplateField, numbers: boolean): FieldValue {
   const nameKey = field.entry?.nameKey ?? 'name';
   const textKey = field.entry?.textKey ?? 'desc';
+  const extras = (field.entry?.extras ?? []).filter((extra) => numbers || extra.type !== 'number');
   return sampleEntryTexts(field).map(([name, text]) => {
     const entry: Record<string, FieldValue> = { [nameKey]: name };
-    for (const extra of field.entry?.extras ?? []) entry[extra.key] = extraSample(extra.type, extra.label);
+    for (const extra of extras) entry[extra.key] = extraSample(extra);
     entry[textKey] = text;
     return entry;
   });
+}
+
+/** A table's sample: its starting table where it gives one, else for a row of numbers (ability scores) a row of them. */
+function sampleTable(field: TemplateField): FieldValue {
+  const start = templateGrid(field);
+  if (start.rows.length > 1 || !gridIsEmpty(start)) return null;
+  return (field.slots ?? []).map((_, index) => [14, 12, 13, 10, 11, 8][index % 6] ?? 10);
 }
 
 function sampleDice(field: TemplateField): string {
@@ -64,7 +83,7 @@ function sampleMarkdown(field: TemplateField): string {
 }
 
 /** The value the template editor previews a field with while no statblock is picked. */
-export function sampleValueFor(field: TemplateField): FieldValue {
+export function sampleValueFor(field: TemplateField, numbers = true): FieldValue {
   switch (field.type) {
     case 'number': return sampleNumber(field);
     case 'rating': return SAMPLE_RATING;
@@ -73,8 +92,8 @@ export function sampleValueFor(field: TemplateField): FieldValue {
     case 'markdown': return sampleMarkdown(field);
     case 'choice': return sampleChoice(field);
     case 'list': return [...SAMPLE_ITEMS];
-    case 'scores': return (field.slots ?? []).map((_, index) => [14, 12, 13, 10, 11, 8][index % 6] ?? 10);
-    case 'entries': return sampleEntries(field);
+    case 'scores': return sampleTable(field);
+    case 'entries': return sampleEntries(field, numbers);
     case 'pairs': return samplePairs(field);
     // The renderer shows a neutral silhouette for a missing image.
     case 'image': return null;
@@ -82,9 +101,14 @@ export function sampleValueFor(field: TemplateField): FieldValue {
   }
 }
 
-/** A sample for every field, overlaid with the template's own `sample`. */
-export function sampleRecord(template: StatblockTemplate): Record<FieldKey, FieldValue> {
+/** A sample for every field, overlaid with the template's own `sample`; without `numbers`, number fields stay empty, the template's samples too. */
+export function sampleRecord(template: StatblockTemplate, { numbers = true }: SampleOptions = {}): Record<FieldKey, FieldValue> {
   const record: Record<FieldKey, FieldValue> = {};
-  for (const field of template.fields) record[field.key] = sampleValueFor(field);
-  return { ...record, ...template.sample };
+  const numberKeys = new Set(template.fields.filter((field) => NUMBER_TYPES.has(field.type)).map((field) => field.key));
+  for (const field of template.fields) {
+    if (!numbers && numberKeys.has(field.key)) continue;
+    record[field.key] = sampleValueFor(field, numbers);
+  }
+  const own = Object.entries(template.sample ?? {}).filter(([key]) => numbers || !numberKeys.has(key));
+  return { ...record, ...Object.fromEntries(own) };
 }

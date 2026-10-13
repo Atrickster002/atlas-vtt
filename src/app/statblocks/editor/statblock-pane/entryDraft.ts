@@ -57,6 +57,30 @@ export function usePartDraft(current: string, item: FieldValue): {
   };
 }
 
+/**
+ * The extras typed in an ability, by key: only those changed since it
+ * opened, so a part nobody touched follows the note and is never written.
+ * Read synchronously, as the commit on a key or on unmount must.
+ */
+export function useExtraDrafts(): {
+  /** The parts changed, with their text. */
+  changed: () => Readonly<Record<string, string>>;
+  /** The part's text: as typed, else `current`. */
+  value: (key: string, current: string) => string;
+  change: (key: string, text: string) => void;
+} {
+  const drafts = useRef<Record<string, string>>({});
+  const [, setRevision] = useState(0);
+  return {
+    changed: () => drafts.current,
+    value: (key, current) => drafts.current[key] ?? current,
+    change: (key, text) => {
+      drafts.current = { ...drafts.current, [key]: text };
+      setRevision((revision) => revision + 1);
+    },
+  };
+}
+
 /** What a key that ends typing takes along: the part, its text and the entry typing started on. */
 export interface PendingPart extends TypedPart {
   part: EntryPart;

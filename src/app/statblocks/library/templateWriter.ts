@@ -1,9 +1,7 @@
 /**
- * Writing template files (§8.7). A session's write is a compare-and-swap: it
+ * Writing template files (§8.7). A session's save is a compare-and-swap: it
  * lands only while the file still holds what the session last loaded or
- * wrote, so nobody's change is overwritten unseen. `TemplateAutosave` writes
- * 600 ms after the last committed step, one write at a time, and retries a
- * failed one with growing pauses.
+ * wrote, so nobody's change is overwritten unseen.
  */
 
 import type { App } from 'obsidian';
@@ -13,11 +11,6 @@ import { newTemplateId } from '../model/templateIds';
 import type { StatblockTemplate, TemplateId } from '../model/templateTypes';
 import type { TemplateLibrary } from './TemplateLibrary';
 import { TEMPLATE_FOLDER, freeTemplatePath } from './templatePaths';
-
-/** How long after the last committed step a draft is written. */
-export const AUTOSAVE_DELAY_MS = 600;
-const FIRST_RETRY_MS = 1000;
-const LONGEST_RETRY_MS = 30_000;
 
 export type WriteOutcome =
   | { kind: 'written' }
@@ -91,77 +84,4 @@ export async function newTemplateFile(
   while (library.get(id)) id = newTemplateId(name);
   const { path } = await writeNewTemplateFile(app, library, folder, name, { ...template, id });
   return { id, path };
-}
-
-/** What the autosave asks the session. */
-export interface AutosaveSession {
-  /** The write to make now, or null when there is nothing to write (saved, paused, read-only). */
-  takeWrite(): PendingWrite | null;
-  /** A write starts or ends; the session's save state follows. */
-  writingChanged(): void;
-  settled(outcome: WriteOutcome, write: PendingWrite): void;
-}
-
-export class TemplateAutosave {
-  private timer: number | null = null;
-  private inFlight: Promise<WriteOutcome> | null = null;
-  private failures = 0;
-  private disposed = false;
-
-  constructor(private readonly app: App, private readonly library: TemplateLibrary, private readonly session: AutosaveSession) {}
-
-  get writing(): boolean {
-    return this.inFlight !== null;
-  }
-
-  /** Writes after `delay`; a later call moves the write later. */
-  schedule(delay = AUTOSAVE_DELAY_MS): void {
-    if (this.disposed) return;
-    this.cancel();
-    this.timer = window.setTimeout(() => {
-      this.timer = null;
-      void this.flush();
-    }, delay);
-  }
-
-  cancel(): void {
-    if (this.timer !== null) window.clearTimeout(this.timer);
-    this.timer = null;
-  }
-
-  /** Writes what is pending now, after a write under way; stops after a failure, whose retry is scheduled. */
-  async flush(): Promise<void> {
-    this.cancel();
-    for (;;) {
-      if (this.inFlight) {
-        await this.inFlight;
-        continue;
-      }
-      const write = this.disposed ? null : this.session.takeWrite();
-      if (!write) return;
-      const outcome = await this.run(write);
-      if (outcome.kind === 'failed') return;
-    }
-  }
-
-  dispose(): void {
-    this.disposed = true;
-    this.cancel();
-  }
-
-  private async run(write: PendingWrite): Promise<WriteOutcome> {
-    const running = writeTemplateText(this.app, this.library, write);
-    this.inFlight = running;
-    this.session.writingChanged();
-    const outcome = await running;
-    this.inFlight = null;
-    if (outcome.kind === 'failed') {
-      this.failures += 1;
-      this.schedule(Math.min(LONGEST_RETRY_MS, FIRST_RETRY_MS * 2 ** (this.failures - 1)));
-    } else {
-      this.failures = 0;
-    }
-    this.session.settled(outcome, write);
-    return outcome;
-  }
 }

@@ -120,7 +120,7 @@ afterEach(async () => {
 });
 
 describe('the statblock beside its note', () => {
-  it('decorates a native statblock\'s view with one panel, a row layout, hidden Properties and a header action', async () => {
+  it('decorates a native statblock\'s view with one panel, a row layout and hidden Properties, and adds no header action', async () => {
     const harness = await setup();
     const view = harness.open(WARDEN);
     await start(harness);
@@ -129,8 +129,8 @@ describe('the statblock beside its note', () => {
     expect(view.contentEl.firstElementChild?.className).toBe('markdown-source-view');
     expect(view.containerEl.classList.contains('atlas-sb-note')).toBe(true);
     expect(view.containerEl.classList.contains('atlas-sb-note--hide-properties')).toBe(true);
-    expect(action(view)?.getAttribute('aria-label')).toBe('Hide statblock');
-    await waitFor(() => expect(panelOf(view)!.querySelector('[data-block-id="gchp0000"]')).not.toBeNull());
+    expect(action(view)).toBeNull();
+    await waitFor(() => expect(panelOf(view)!.querySelector('[data-block-id="header-hp"]')).not.toBeNull());
     expect(within(panelOf(view)!).getByRole('separator', { name: 'Statblock width' })).toBeTruthy();
   });
 
@@ -165,7 +165,7 @@ describe('the statblock beside its note', () => {
     view.file = new TFile(HAG);
     await refresh(harness);
     expect(panelOf(view)).toBe(first);
-    await waitFor(() => expect(panelOf(view)!.querySelector('[data-block-id="gctitle0"]')?.textContent).toBe('Bog Hag'));
+    await waitFor(() => expect(panelOf(view)!.querySelector('[data-block-id="header-name"]')?.textContent).toBe('Bog Hag'));
 
     view.file = new TFile(PLAIN);
     await refresh(harness);
@@ -190,10 +190,10 @@ describe('the statblock beside its note', () => {
     const view = harness.open(WARDEN);
     await start(harness);
     const panel = panelOf(view)!;
-    await waitFor(() => expect(panel.querySelector('[data-block-id="gchp0000"]')).not.toBeNull());
+    await waitFor(() => expect(panel.querySelector('[data-block-id="header-hp"]')).not.toBeNull());
     fireEvent.focusIn(panel);
     expect((harness.app.keymap as unknown as { scopes: Scope[] }).scopes).toHaveLength(1);
-    fireEvent.click(panel.querySelector('[data-block-id="gchp0000"]')!);
+    fireEvent.click(panel.querySelector('[data-block-id="header-hp"]')!);
     const input = within(panel).getByRole('textbox', { name: 'Hit Points' });
     fireEvent.focus(input);
     fireEvent.change(input, { target: { value: '31' } });
@@ -224,8 +224,8 @@ describe('the statblock beside its note', () => {
     expect(harness.writer.undo).toHaveBeenCalledWith(WARDEN);
     expect(panel.querySelector('.atlas-sb-pane-live')?.textContent).toBe('Undid in Marsh Warden.');
 
-    await waitFor(() => expect(panel.querySelector('[data-block-id="gchp0000"]')).not.toBeNull());
-    fireEvent.click(panel.querySelector('[data-block-id="gchp0000"]')!);
+    await waitFor(() => expect(panel.querySelector('[data-block-id="header-hp"]')).not.toBeNull());
+    fireEvent.click(panel.querySelector('[data-block-id="header-hp"]')!);
     within(panel).getByRole('textbox', { name: 'Hit Points' }).focus();
     harness.writer.undo.mockClear();
     expect(undo.func()).toBe(true);
@@ -241,31 +241,6 @@ describe('the statblock beside its note', () => {
 
     fireEvent.focusIn(view.contentEl.firstElementChild!);
     expect(keymap.scopes).toHaveLength(0);
-  });
-
-  it('hides and shows every statblock from the header action, and remembers it on the device', async () => {
-    const harness = await setup();
-    const view = harness.open(WARDEN);
-    const other = harness.open(HAG);
-    await start(harness);
-
-    await act(async () => { action(view)!.click(); });
-    expect(panelOf(view)).toBeNull();
-    expect(panelOf(other)).toBeNull();
-    expect(action(view)?.getAttribute('aria-label')).toBe('Show statblock');
-    expect(view.containerEl.classList.contains('atlas-sb-note--hide-properties')).toBe(false);
-    expect(loadPanelPrefs(harness.app).hidden).toBe(true);
-    harness.panels.release();
-    const again = new NoteStatblockPanels(harness.app, { services: () => ({ source: harness.source, writer: harness.writer }), actions: {} });
-    harness.panels = again;
-    await act(async () => { again.start(); });
-    expect(panelOf(view)).toBeNull();
-    expect(action(view)?.getAttribute('aria-label')).toBe('Show statblock');
-
-    await act(async () => { again.reveal(view.leaf, { focusFirstEmpty: true }); });
-    expect(panelOf(view)).not.toBeNull();
-    expect(panelOf(other)).not.toBeNull();
-    expect(loadPanelPrefs(harness.app).hidden).toBe(false);
   });
 
   it('resizes from its edge, remembers the width on the device, and takes the default again on a double click', async () => {
@@ -348,12 +323,13 @@ describe('the panel\'s width', () => {
 
   it('reads what this version did not store as the defaults', () => {
     const { app } = createInMemoryApp();
-    expect(loadPanelPrefs(app)).toEqual({ width: null, hidden: false });
-    app.saveLocalStorage('atlas-vtt-statblock-panel', { chosenWidth: 'wide', hidden: 'yes' });
-    expect(loadPanelPrefs(app)).toEqual({ width: null, hidden: false });
+    expect(loadPanelPrefs(app)).toEqual({ width: null });
+    // A statblock hidden by an earlier build shows: there is nothing that hides it any more.
+    app.saveLocalStorage('atlas-vtt-statblock-panel', { chosenWidth: 'wide', hidden: true });
+    expect(loadPanelPrefs(app)).toEqual({ width: null });
     // Earlier builds stored their default as `width` whether or not anybody dragged.
-    app.saveLocalStorage('atlas-vtt-statblock-panel', { width: 440, hidden: false });
-    expect(loadPanelPrefs(app)).toEqual({ width: null, hidden: false });
+    app.saveLocalStorage('atlas-vtt-statblock-panel', { width: 440 });
+    expect(loadPanelPrefs(app)).toEqual({ width: null });
   });
 
   it('starts at half the view or what a readable line leaves, within its bounds', () => {

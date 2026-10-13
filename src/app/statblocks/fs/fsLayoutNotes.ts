@@ -1,25 +1,17 @@
 /**
  * Fantasy Statblocks statblocks and the layouts they are drawn with (§6.4):
- * which frontmatter statblocks a layout draws, read from the metadata cache,
- * and adopting them as one batch of `atlas-template` patches. `layout:`
- * stays in every note, so Fantasy Statblocks draws them as before.
+ * which frontmatter statblocks a layout draws, read from the metadata cache.
+ * Code-block statblocks join them in `fsLayoutStatblocks.ts`.
  */
 
 import type { App, TFile } from 'obsidian';
 import { allLayouts, defaultLayout, findLayout } from '../../services/FantasyStatblocksService';
-import type { TemplateId } from '../model/templateTypes';
 import { cachedFrontmatter, frontmatterSource, type FrontmatterRecord } from '../notes/statblockSource';
-import { switchTemplates, type TemplateSwitchOptions, type TemplateSwitchResult } from '../notes/templateSwitch';
 import { identityOf, type LayoutIdentity } from './fsImport';
 import type { FsLayout } from './fsLayoutTypes';
 
-/** The layouts the statblocks of a collection are drawn with, each with its notes. */
-export interface LayoutNotes {
-  layout: LayoutIdentity;
-  notes: string[];
-}
-
-const BY_PATH = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
+/** Notes in the order the lists show them: by path, numbers by value. */
+export const BY_PATH = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
 
 /** The layout a frontmatter statblock names in `layout:`; null when it names none. */
 export function layoutKeyOf(frontmatter: FrontmatterRecord | null | undefined): string | null {
@@ -61,7 +53,7 @@ export function noteFsLayout(app: App, frontmatter: FrontmatterRecord | null | u
 }
 
 /** Fantasy Statblocks' frontmatter statblocks among `paths`, or in the whole vault. */
-function frontmatterStatblocks(app: App, paths?: readonly string[]): Array<{ path: string; frontmatter: FrontmatterRecord }> {
+export function frontmatterStatblocks(app: App, paths?: readonly string[]): Array<{ path: string; frontmatter: FrontmatterRecord }> {
   const files = paths
     ? paths.map((path) => app.vault.getFileByPath(path)).filter((file): file is TFile => file !== null)
     : app.vault.getMarkdownFiles();
@@ -81,30 +73,4 @@ export function notesUsingLayout(app: App, layout: LayoutIdentity, paths?: reado
     })
     .map(({ path }) => path)
     .sort((a, b) => BY_PATH.compare(a, b));
-}
-
-/** The layouts that draw the frontmatter statblocks among `paths`, the most used first. */
-export function layoutsOfNotes(app: App, paths: readonly string[]): LayoutNotes[] {
-  const read = noteLayoutReader(app);
-  const groups: LayoutNotes[] = [];
-  for (const { path, frontmatter } of frontmatterStatblocks(app, [...new Set(paths)])) {
-    const layout = read(frontmatter);
-    if (!layout) continue;
-    const group = groups.find((candidate) => sameLayout(candidate.layout, layout));
-    if (group) group.notes.push(path);
-    else groups.push({ layout, notes: [path] });
-  }
-  for (const group of groups) group.notes.sort((a, b) => BY_PATH.compare(a, b));
-  return groups.sort((a, b) => b.notes.length - a.notes.length || BY_PATH.compare(a.layout.name, b.layout.name));
-}
-
-/**
- * Adopts statblocks of Fantasy Statblocks: `atlas-template` is written into
- * each note that still names no template, one note after the other, with
- * progress and Cancel. A note that names one meanwhile keeps it.
- */
-export function adoptStatblocks(
-  app: App, paths: readonly string[], templateId: TemplateId, options: TemplateSwitchOptions = {},
-): Promise<TemplateSwitchResult> {
-  return switchTemplates(app, paths.map((path) => ({ path, from: null })), templateId, options);
 }

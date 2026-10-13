@@ -3,9 +3,10 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testi
 import { MotionGlobalConfig } from 'framer-motion';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { TemplateGallery } from '../../../../src/app/statblocks/editor/gallery/TemplateGallery';
-import type { CreatedTemplate } from '../../../../src/app/statblocks/editor/gallery/galleryActions';
+import { createFromPick, type CreatedTemplate, type GalleryPick } from '../../../../src/app/statblocks/editor/gallery/galleryActions';
 import { TooltipProvider } from '../../../../src/app/packages/components/primitives/tooltip';
 import { TemplateLibrary } from '../../../../src/app/statblocks/library/TemplateLibrary';
+import { GENERIC_CREATURE } from '../../../../src/app/statblocks/presets/generic';
 import type { StatblockRole } from '../../../../src/app/statblocks/model/roleTypes';
 import type { StatblockTemplate } from '../../../../src/app/statblocks/model/templateTypes';
 import { closeSessionVault, sessionVault, type SessionVault } from '../library/sessionVault';
@@ -39,10 +40,17 @@ afterEach(async () => {
   vi.restoreAllMocks();
 });
 
+/** Use template as a collection's settings take it: the pick is written to the library at once. */
+async function onUse(pick: GalleryPick, roleId: string | null): Promise<CreatedTemplate> {
+  const created = await createFromPick(vault.app, pick);
+  onCreated(created, roleId);
+  return created;
+}
+
 function open(roles: readonly StatblockRole[] = [MONSTER], system: string[] = [FIVE_E]): void {
   render(
     <TooltipProvider>
-      <TemplateGallery app={vault.app} doc={document} roles={roles} systemTemplateIds={system} onCreated={onCreated} onClose={onClose} />
+      <TemplateGallery app={vault.app} doc={document} roles={roles} systemTemplateIds={system} onUse={onUse} onClose={onClose} />
     </TooltipProvider>,
   );
 }
@@ -106,7 +114,7 @@ describe('the template gallery', () => {
     expect(created.path).toBe(`${TEMPLATE_FOLDER}/Creature.atlastemplate`);
     const copy = read(created.path);
     expect(copy.id).toBe(created.id);
-    expect(copy.derivedFrom).toEqual({ templateId: 'builtin:generic-creature', revision: 1 });
+    expect(copy.derivedFrom).toEqual({ templateId: 'builtin:generic-creature', revision: GENERIC_CREATURE.revision });
     expect(TemplateLibrary.forApp(vault.app).get(created.id)?.builtIn).toBe(false);
   });
 

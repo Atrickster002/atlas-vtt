@@ -1,6 +1,6 @@
 import React, { useLayoutEffect, useRef, useState } from 'react';
 import { observeResize } from '../../../utils/observeResize';
-import { labelElement, type LabelKind } from './labelTargets';
+import { labelElement, type LabelKind, type LabelPart } from './labelTargets';
 
 /** Marks the label the input stands over, which hides while it is edited. */
 export const LABEL_EDITING_ATTRIBUTE = 'data-te-label-editing';
@@ -9,6 +9,8 @@ export interface LabelEditorProps {
   stage: HTMLElement;
   frame: HTMLElement;
   kind: LabelKind;
+  /** Which of a Metric's labels. */
+  part?: LabelPart | undefined;
   text: string;
   /** Enter (`refocus`: focus goes back to the block), or leaving the field (focus stays where it went). */
   onCommit: (text: string, refocus: boolean) => void;
@@ -65,14 +67,14 @@ function placementOf(stage: HTMLElement, label: HTMLElement): Placement {
  * accent. Enter or leaving commits, Escape reverts, Tab commits and moves on.
  * The label under it hides while it is open; nothing in the card moves.
  */
-export function LabelEditor({ stage, frame, kind, text, onCommit, onCancel, onStep }: LabelEditorProps): React.JSX.Element {
+export function LabelEditor({ stage, frame, kind, part, text, onCommit, onCancel, onStep }: LabelEditorProps): React.JSX.Element {
   const inputRef = useRef<HTMLInputElement>(null);
   const [value, setValue] = useState(text);
   const [placement, setPlacement] = useState<Placement | null>(null);
   const done = useRef(false);
 
   useLayoutEffect(() => {
-    const label = labelElement(frame, kind);
+    const label = labelElement(frame, kind, part);
     const hides = label !== frame;
     if (hides) label.setAttribute(LABEL_EDITING_ATTRIBUTE, '');
     const place = (): void => setPlacement(placementOf(stage, label));
@@ -82,7 +84,7 @@ export function LabelEditor({ stage, frame, kind, text, onCommit, onCancel, onSt
       stop();
       if (hides) label.removeAttribute(LABEL_EDITING_ATTRIBUTE);
     };
-  }, [stage, frame, kind]);
+  }, [stage, frame, kind, part]);
 
   useLayoutEffect(() => {
     const input = inputRef.current;

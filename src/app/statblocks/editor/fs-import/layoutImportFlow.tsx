@@ -8,7 +8,7 @@
 import React from 'react';
 import { Notice, type App } from 'obsidian';
 import { identityOf, importFsLayout, readLayoutText, type FsLayoutImport, type LayoutIdentity } from '../../fs/fsImport';
-import { notesUsingLayout } from '../../fs/fsLayoutNotes';
+import { statblockCount, statblocksUsingLayout, withoutNote } from '../../fs/fsLayoutStatblocks';
 import { firstBlockId } from '../gallery/gallerySources';
 import { TemplateLibrary } from '../../library/TemplateLibrary';
 import { showHostedDialog } from '../hostedDialog';
@@ -37,25 +37,27 @@ export interface ImportOutcomeOptions {
   collectionId?: string | null;
   /** Offers Open template; unset where the template is open already. */
   offerOpen?: boolean;
-  /** A note that takes the template already (the pane's own), left out of the batch. */
+  /** A note the user took over already (the pane's own, a fence just copied), left out of the batch. */
   except?: string;
 }
 
 /**
- * After an import: the report, and the batch for the statblocks the layout
- * draws. Nothing shows for a layout imported before that draws no statblock
- * still waiting for its template.
+ * After an import: the report, and the batch that moves the statblocks the
+ * layout draws to Atlas, in properties and in code blocks. Nothing shows for
+ * a layout imported before that draws no statblock still to move.
  */
-export function showImportOutcome(app: App, doc: Document, layout: LayoutIdentity, imported: FsLayoutImport, options: ImportOutcomeOptions = {}): void {
-  const notes = notesUsingLayout(app, layout).filter((path) => path !== options.except);
-  if (!imported.report && notes.length === 0) return;
+export async function showImportOutcome(
+  app: App, doc: Document, layout: LayoutIdentity, imported: FsLayoutImport, options: ImportOutcomeOptions = {},
+): Promise<void> {
+  const statblocks = withoutNote(await statblocksUsingLayout(app, layout), options.except);
+  if (!imported.report && statblockCount(statblocks) === 0) return;
   const collectionId = options.collectionId ?? null;
   showLayoutImportDialog({
     app,
     doc,
     layout,
     imported,
-    notes,
+    statblocks,
     onOpenTemplate: options.offerOpen ? () => { void openImportedTemplate(app, imported, collectionId); } : undefined,
   });
 }
@@ -69,5 +71,5 @@ export async function importLayoutFile(app: App, text: string, doc: Document): P
   }
   const imported = await importFsLayout(app, read.layout);
   await openImportedTemplate(app, imported, null);
-  showImportOutcome(app, doc, identityOf(read.layout), imported);
+  await showImportOutcome(app, doc, identityOf(read.layout), imported);
 }

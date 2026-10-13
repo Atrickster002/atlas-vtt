@@ -18,9 +18,9 @@ import { openTemplateEditor } from './src/app/statblocks/editor/openTemplateEdit
 import { TEMPLATE_EXTENSION } from './src/app/statblocks/library/templateFiles';
 import { appPaneServices } from './src/app/statblocks/editor/paneServices';
 import { registerNoteWriterFlush } from './src/app/plugin/noteWriterFlush';
+import { followTemplateBodies } from './src/app/statblocks/library/templateBodyNotes';
 import { registerHostedDialogRelease } from './src/app/statblocks/editor/hostedDialog';
 import { editInStatblockPane } from './src/app/statblocks/editor/create/entryPoints';
-import { paneTokenLinkActions } from './src/app/statblocks/editor/tokenLinkAction';
 import { registerStatblockFileMenu } from './src/app/statblocks/editor/create/statblockCommands';
 import { disposeImageProcessing } from './src/app/imageProcessing/imageProcessing';
 import { registerLootQueryView } from './src/app/loot/lootQueryView';
@@ -60,6 +60,7 @@ import { runStartupMigration } from './src/app/plugin/startupMigration';
 import { migrateLegacySnapshots } from './src/app/snapshots/legacySnapshotMigration';
 import { migrateSettingsToPluginData } from './src/app/plugin/settingsMigration';
 import { SystemPresetFiles } from './src/app/services/systemPresets/SystemPresetFiles';
+import { DiceSetFiles } from './src/app/services/diceSets/DiceSetFiles';
 import { registerStatusBarVisibility } from './src/app/plugin/statusBarVisibility';
 import { registerVaultSync } from './src/app/plugin/vaultSync';
 import { ChangelogService } from './src/app/changelog/ChangelogService';
@@ -102,6 +103,8 @@ export default class AtlasVTTPlugin extends Plugin {
     });
     // The user's game system presets are vault files; reading them needs no migration.
     const presetFiles = SystemPresetFiles.open(this.app);
+    // The vault's dice sets are vault files too; collections and templates pick from them.
+    void DiceSetFiles.open(this.app).load().catch((error: unknown) => console.error('[Atlas] Reading the dice sets failed:', error));
     // Settings carried over even when the data file migration failed, so they are not lost to the defaults.
     const settingsReady = storageReady.catch(() => undefined).then(async () => {
       await presetFiles.load();
@@ -123,6 +126,8 @@ export default class AtlasVTTPlugin extends Plugin {
     registerStatblockFence(this, (path) => { editInStatblockPane(this.app, path, { collectionId: null, from: 'note' }); });
     // Statblock edits reach their notes before a window closes or Obsidian quits.
     registerNoteWriterFlush(this);
+    // A template's note moves and goes with its template file.
+    this.register(followTemplateBodies(this.app));
     // The template gallery and the layout import report go with their window, and with Atlas.
     registerHostedDialogRelease(this);
 
@@ -195,6 +200,7 @@ export default class AtlasVTTPlugin extends Plugin {
     this.changelogService?.destroy();
     void this.settingsService?.saveSettingsNow();
     SystemPresetFiles.release(this.app);
+    DiceSetFiles.release(this.app);
     this.widgetSyncService?.destroy();
     this.widgetSyncService = undefined;
 
@@ -217,10 +223,9 @@ export default class AtlasVTTPlugin extends Plugin {
     registerNoteStatblockPanels(this, {
       services: appPaneServices,
       actions: {
-        ...paneTokenLinkActions(this.app),
-        // In the note's own leaf (§8.4): the editor shows the note, and Back returns to it.
+        // In the note's own leaf (§8.4); Obsidian's Back returns to the note.
         openTemplate: ({ templateId, path, blockId, collectionId, notePath }, leaf) => {
-          void openTemplateEditor(this.app, { templateId, path, collectionId, previewPath: notePath, select: blockId, leaf, fromNote: notePath });
+          void openTemplateEditor(this.app, { templateId, path, collectionId, select: blockId, leaf, fromNote: notePath });
         },
       },
     });

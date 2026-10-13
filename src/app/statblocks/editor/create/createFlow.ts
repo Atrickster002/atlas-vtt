@@ -28,6 +28,8 @@ export interface StatblockCreation {
   /** The entry point's collection; the default collection when null (a map outside every collection, a command). */
   collectionId: string | null;
   roleId: string;
+  /** The template to start from (the template of a fence's layout); the role's otherwise. */
+  templateId?: TemplateId | undefined;
   name: string;
   /** A folder the user picked (the file menu); the role's folder otherwise. */
   folder?: string | undefined;
@@ -64,7 +66,7 @@ export async function createStatblock(app: App, creation: StatblockCreation): Pr
   try {
     const { file, linked } = await createStatblockNote(app, {
       name: creation.name,
-      templateId: await roleTemplateId(app, role),
+      templateId: creation.templateId ?? await roleTemplateId(app, role),
       folder: creation.folder ?? roleFolder(settings, role.id),
       tokenImagePath: creation.tokenImagePath,
       values: creation.values,

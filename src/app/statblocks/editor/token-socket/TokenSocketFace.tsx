@@ -13,7 +13,7 @@ export interface TokenSocketFaceProps extends Omit<React.ButtonHTMLAttributes<HT
 
 /**
  * What the Image block looks like beside a note (§2.1): the art in its frame
- * with a link badge, or an empty dashed ring with a plus and a prompt. The
+ * with a link badge, or an empty disc with a plus and a prompt. The
  * note view's `TokenSocket` and the template editor draw this one face, so
  * the block has the same box in both.
  */

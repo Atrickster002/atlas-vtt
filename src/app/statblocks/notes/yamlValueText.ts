@@ -1,4 +1,4 @@
-import { Document, Scalar, isCollection, isMap, isScalar, isSeq, parse, visit, type Node, type ToStringOptions } from 'yaml';
+import { Document, Scalar, isCollection, isMap, isPair, isScalar, isSeq, parse, visit, type Node, type ToStringOptions } from 'yaml';
 import type { FieldValue } from '../model/templateTypes';
 
 /**
@@ -81,6 +81,7 @@ function render(
     if (kept) node.type = kept;
   }
   quoteYaml11Lookalikes(doc);
+  flowTableRows(doc);
   const options: ToStringOptions = {
     lineWidth: 0,
     minContentWidth: 0,
@@ -106,6 +107,24 @@ function keptScalarType(type: Scalar.Type, value: string): Scalar.Type | null {
   if (type === Scalar.PLAIN) return null;
   if (type === Scalar.QUOTE_SINGLE && /[\n\r]/.test(value)) return null;
   return type;
+}
+
+/**
+ * A Table's rows each on one line (`- [Rope, 1]`), and the names of a
+ * statblock's own columns (`columns: [Item, Qty]`), as `tableValues` writes
+ * them: a list of plain values inside a list, or beside a table's `rows`.
+ */
+function flowTableRows(doc: Document): void {
+  visit(doc, {
+    Seq(_key, node, path) {
+      if (!node.items.every((item) => isScalar(item))) return;
+      const parent = path[path.length - 1];
+      const owner = path[path.length - 2];
+      const inList = isSeq(parent);
+      const tableColumns = isPair(parent) && isScalar(parent.key) && parent.key.value === 'columns' && isMap(owner) && owner.has('rows');
+      if (inList || tableColumns) node.flow = true;
+    },
+  });
 }
 
 /**

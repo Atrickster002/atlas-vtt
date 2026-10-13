@@ -2,6 +2,7 @@ import { RESOURCE_COLORS } from '../../../../resources/resourceColors';
 import { draftResourceKey, isDraftResourceKey } from '../../../../resources/resourceDefinitions';
 import { slottedResources } from '../../../../resources/resourceSlots';
 import { MAX_RESOURCES, type ResourceDefinition } from '../../../../resources/resourceTypes';
+import { fanSpots } from '../fan/fanArc';
 
 /** Where a socket sits in the editor's picture of a token, in px from the token's centre. */
 export interface SocketPlace {
@@ -38,10 +39,7 @@ export const SOCKET_SIZE = { bar: BAR, wheel: { width: WHEEL_SIZE, height: WHEEL
 /** Where the `count` buttons of a socket's fan end up, relative to the point they grow from: an arc on the socket's outer side. */
 export function fanOffsets(count: number, side: SocketPlace['fanSide']): Array<{ x: number; y: number }> {
   const mirror = side === 'left' ? -1 : 1;
-  return Array.from({ length: count }, (_, index) => {
-    const angle = ((index - (count - 1) / 2) * FAN_SPREAD_DEG * Math.PI) / 180;
-    return { x: Math.cos(angle) * FAN_RADIUS * mirror, y: Math.sin(angle) * FAN_RADIUS };
-  });
+  return fanSpots(count, { radius: FAN_RADIUS, centreDeg: 0, spreadDeg: FAN_SPREAD_DEG }).map(({ x, y }) => ({ x: x * mirror, y }));
 }
 
 /** `resources` as the editor stores them: each with its socket, in socket order. */

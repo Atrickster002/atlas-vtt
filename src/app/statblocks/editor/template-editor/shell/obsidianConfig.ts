@@ -1,8 +1,8 @@
 /**
- * Obsidian's editor settings the template editor's note column follows, so it
+ * Obsidian's editor setting the template editor's note column follows, so it
  * reads as the user's notes do. `vault.getConfig` is not part of Obsidian's
  * published API: it is read defensively, and where it is missing Obsidian's
- * own defaults stand in (both on).
+ * own default stands in (on).
  */
 
 import type { App } from 'obsidian';
@@ -20,9 +20,4 @@ function configFlag(app: App | undefined, key: string): boolean {
 /** "Readable line length" in Obsidian's editor settings. */
 export function readableLineOn(app: App | undefined): boolean {
   return configFlag(app, 'readableLineLength');
-}
-
-/** "Show inline title" in Obsidian's appearance settings. */
-export function inlineTitleOn(app: App | undefined): boolean {
-  return configFlag(app, 'showInlineTitle');
 }

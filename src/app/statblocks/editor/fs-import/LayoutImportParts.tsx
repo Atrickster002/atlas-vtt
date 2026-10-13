@@ -2,13 +2,17 @@ import React, { useState } from 'react';
 import type { App } from 'obsidian';
 import { Button } from '../../../packages/components/primitives/button';
 import { noteName } from '../../../utils/pathUtils';
+import { BY_PATH } from '../../fs/fsLayoutNotes';
+import { statblockCount, type LayoutStatblocks } from '../../fs/fsLayoutStatblocks';
 import type { FsImportReport } from '../../fs/fsLayoutTypes';
 import type { TemplateId } from '../../model/templateTypes';
-import type { TemplateSwitchResult } from '../../notes/templateSwitch';
 import { plural } from '../../../utils/plural';
 import { BatchProgress, Disclosure, LeftNoteRows, NoteRow } from '../batchParts';
-import { adoptedLine, blocksLine, replaceQuestion, scriptsLine } from './importReportText';
+import {
+  blocksLine, keptScriptsLine, kindLabel, leftoversLabel, moveExplanation, moveLabel, movedLine, replaceQuestion, scriptsLine,
+} from './importReportText';
 import { replaceTrackScripts } from './layoutImportActions';
+import type { StatblockMoveResult } from './statblockMove';
 import type { AdoptionPhase } from './useLayoutAdoption';
 
 type Replacing = 'ready' | 'running' | 'done' | 'failed';
@@ -55,45 +59,56 @@ export function ImportSummary({ app, templateId, report }: { app: App; templateI
   );
 }
 
-/** The notes left as they were by a batch: those that changed meanwhile, and those Cancel kept it from. */
-function Leftovers({ result }: { result: TemplateSwitchResult }): React.JSX.Element | null {
+/** The statblocks a batch left as they were: those it could not move, with why, and those Cancel kept it from. */
+function Leftovers({ result }: { result: StatblockMoveResult }): React.JSX.Element | null {
   const left = result.skipped.length + result.notReached.length;
   if (left === 0) return null;
   return (
-    <Disclosure label={left === 1 ? 'Show the note left as it was' : `Show the ${left} notes left as they were`}>
+    <Disclosure label={leftoversLabel(left)}>
       <LeftNoteRows skipped={result.skipped} notReached={result.notReached} nameOf={noteName} />
     </Disclosure>
   );
 }
 
+/** The statblocks by path, each with how its note holds it. */
+function StatblockRows({ statblocks }: { statblocks: LayoutStatblocks }): React.JSX.Element {
+  const rows = (['frontmatter', 'fences'] as const)
+    .flatMap((kind) => statblocks[kind].map((path) => ({ path, kind })))
+    .sort((a, b) => BY_PATH.compare(a.path, b.path));
+  return <>{rows.map(({ path, kind }) => <NoteRow key={`${kind}:${path}`} name={noteName(path)} detail={kindLabel(kind)} />)}</>;
+}
+
 interface AdoptionSectionProps {
-  notes: readonly string[];
-  /** "Use Marsh creature for the 214 notes using layout Basic 5e". */
-  label: string;
+  statblocks: LayoutStatblocks;
   phase: AdoptionPhase;
+  /** What the template keeps for Fantasy Statblocks' scripts, named once the batch is done. */
+  scripts: readonly string[];
   onAdopt: () => void;
 }
 
-/** The adoption batch (§6.4): the notes it changes first, then the batch with its progress, then what it did. */
-export function AdoptionSection({ notes, label, phase, onAdopt }: AdoptionSectionProps): React.JSX.Element {
+/** The batch that moves the statblocks (§6.4): the statblocks it moves first, then the batch with its progress, then what it did. */
+export function AdoptionSection({ statblocks, phase, scripts, onAdopt }: AdoptionSectionProps): React.JSX.Element {
+  const total = statblockCount(statblocks);
+  const kept = keptScriptsLine(scripts);
   return (
     <div className="atlas-fs-import__section">
       {phase.kind === 'ready' && (
         <>
-          <Disclosure label={`Show the ${plural(notes.length, 'note')}`}>
-            {notes.map((path) => <NoteRow key={path} name={noteName(path)} />)}
+          <Disclosure label={`Show the ${plural(total, 'statblock')}`}>
+            <StatblockRows statblocks={statblocks} />
           </Disclosure>
-          <p className="atlas-te-dialog__text">Their values and their layout stay; Fantasy Statblocks draws them as before.</p>
-          <Button type="button" variant="default" size="sm" className="atlas-fs-import__adopt" onClick={onAdopt}>{label}</Button>
+          <p className="atlas-te-dialog__text">{moveExplanation(statblocks)}</p>
+          <Button type="button" variant="default" size="sm" className="atlas-fs-import__adopt" onClick={onAdopt}>{moveLabel(total)}</Button>
         </>
       )}
       {phase.kind === 'running' && (
-        <BatchProgress done={phase.done} total={phase.total} label="Switching notes" text={`Switching notes: ${phase.done} of ${phase.total}`} />
+        <BatchProgress done={phase.done} total={phase.total} label="Moving statblocks" text={`Moving statblocks: ${phase.done} of ${phase.total}`} />
       )}
       {phase.kind === 'finished' && phase.result && (
         <>
-          <p className="atlas-te-dialog__text" role="status">{adoptedLine(phase.result.switched.length, notes.length)}</p>
+          <p className="atlas-te-dialog__text" role="status">{movedLine(phase.result.moved.length, total)}</p>
           <Leftovers result={phase.result} />
+          {kept && <p className="atlas-te-dialog__text">{kept}</p>}
         </>
       )}
       {phase.kind === 'finished' && !phase.result && <p className="atlas-te-setting__problem" role="status">{phase.problem}</p>}

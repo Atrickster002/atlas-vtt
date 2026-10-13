@@ -8,6 +8,7 @@
 @use '../../../../../styles/tokens' as *;
 @use '../../../../../styles/mixins' as *;
 @use 'pane-inputs';
+@use 'pane-entry-editor';
 @use 'pane-lists';
 @use 'pane-tray';
 @use 'change-template';
@@ -94,13 +95,6 @@ $header-control-radius: atlas-panel-inset-radius-value($spacing-s, calc(var(--in
     }
   }
 
-  .atlas-sb-pane-hint-line {
-    margin: 0;
-    color: var(--text-muted);
-    font-size: $font-ui-smaller;
-    text-align: center;
-  }
-
   // A line about the statblock above its card, in the body's gap: one step down the radius scale.
   .atlas-sb-pane-bar {
     @include atlas-flex-row($spacing-s);
@@ -150,6 +144,53 @@ $header-control-radius: atlas-panel-inset-radius-value($spacing-s, calc(var(--in
       right: auto;
       width: 100%;
       max-width: none;
+    }
+  }
+}
+
+// The statblock's ⋯ in its card's corner (`StatblockCardMenu`): concentric with the card's corner, shown
+// while the pointer is over the card, focus is in it or its menu is open; always on touch screens.
+.atlas-vtt-plugin .atlas-sb-pane-card:is(:hover, :focus-within) .atlas-sb-card-menu,
+.atlas-vtt-plugin .atlas-sb-card-menu:has([data-state='open']) {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.atlas-vtt-plugin .atlas-sb-card-menu {
+  position: absolute;
+  top: calc(#{$border-width-m} + #{$spacing-xs});
+  right: calc(#{$border-width-m} + #{$spacing-xs});
+  z-index: 1;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity $transition-fast $transition-ease;
+
+  @media (hover: none) {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    transition: none;
+  }
+
+  .atlas-sb-card-menu__button.btn {
+    @include atlas-corner-shape;
+    width: var(--atlas-sb-card-menu-size);
+    height: var(--atlas-sb-card-menu-size);
+    padding: 0;
+    border-radius: $radius-m;
+    border-top-right-radius: calc(#{$radius-xl} - #{$border-width-m} - #{$spacing-xs});
+    color: var(--text-muted);
+
+    &:hover,
+    &[data-state='open'] {
+      color: var(--text-normal);
+    }
+
+    svg {
+      width: $icon-s;
+      height: $icon-s;
     }
   }
 }

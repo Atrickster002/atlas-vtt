@@ -21,7 +21,8 @@ import { BUILT_IN_ID_PREFIX, type SystemPreset } from '../types/systemPresetType
 import { WIDGET_ICON_PATHS, resolveWidgetIcon, type WidgetIcon } from '../types/widgetIcons';
 import type { AnyWidget } from '../types/widgetTypes';
 import { isValidClockSegments } from '../utils/clockWidget';
-import { CRIT_RULES, isValidDefaultRoll, parseExplodeRule } from './diceRules';
+import { CRIT_RULES, parseExplodeRule } from './diceRules';
+import { parseRollGroups } from './diceSets';
 import { parseInitiativeRules } from './initiativeRules';
 import { parseLightPresets } from './lightPresetValidation';
 import { GENERIC_SENSES } from './senses/generic';
@@ -122,7 +123,8 @@ function parseWidget(raw: unknown): AnyWidget | null {
 }
 
 function parseDiceRules(raw: unknown): DiceRules | null {
-  if (!isRecord(raw) || typeof raw.defaultRoll !== 'string' || !isValidDefaultRoll(raw.defaultRoll)) return null;
+  // One dice group, or the groups of a dice set written for older versions (`1d20+1d6`).
+  if (!isRecord(raw) || typeof raw.defaultRoll !== 'string' || !parseRollGroups(raw.defaultRoll)) return null;
   if (!isOneOf(CRIT_RULES, raw.crit)) return null;
   const explode = parseExplodeRule(raw.explode);
   return { defaultRoll: raw.defaultRoll.trim(), crit: raw.crit, ...(explode && { explode }) };
@@ -146,6 +148,7 @@ export function parseUserPreset(raw: unknown): SystemPreset | null {
     : [];
   const defaultWidgets = parseEnabledFlags(raw.rules.defaultWidgets);
   const dice = parseDiceRules(raw.rules.dice);
+  const diceSetId = isNonEmptyString(raw.rules.diceSetId) ? raw.rules.diceSetId : undefined;
   const initiative = parseInitiativeRules(raw.rules.initiative);
   // A preset saved before resources existed tracks the bars its default widgets switched on.
   const resources = Array.isArray(raw.rules.resources)
@@ -167,6 +170,7 @@ export function parseUserPreset(raw: unknown): SystemPreset | null {
       ...(widgets.length > 0 && { widgets }),
       ...(Object.keys(defaultWidgets).length > 0 && { defaultWidgets }),
       ...(dice && { dice }),
+      ...(diceSetId && { diceSetId }),
       ...(initiative && { initiative }),
       ...(resources.length > 0 && { resources }),
       ...(defaultTokenVision && { defaultTokenVision }),

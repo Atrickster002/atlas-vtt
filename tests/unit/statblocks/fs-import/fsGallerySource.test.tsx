@@ -1,15 +1,16 @@
 import React from 'react';
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MotionGlobalConfig } from 'framer-motion';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { TooltipProvider } from '../../../../src/app/packages/components/primitives/tooltip';
-import type { CreatedTemplate } from '../../../../src/app/statblocks/editor/gallery/galleryActions';
+import { createFromPick, type CreatedTemplate, type GalleryPick } from '../../../../src/app/statblocks/editor/gallery/galleryActions';
 import { gallerySources } from '../../../../src/app/statblocks/editor/gallery/gallerySources';
 import { TemplateGallery } from '../../../../src/app/statblocks/editor/gallery/TemplateGallery';
+import { importFsLayout } from '../../../../src/app/statblocks/fs/fsImport';
 import { TEMPLATE_FOLDER } from '../../../../src/app/statblocks/library/templatePaths';
 import { NoteFieldWriter } from '../../../../src/app/statblocks/notes/NoteFieldWriter';
 import { closeSessionVault, sessionVault, type SessionVault } from '../library/sessionVault';
-import { withFsPlugin, withoutFsPlugin } from './fsImportKit';
+import { MARSH_LAYOUT, withFsPlugin, withoutFsPlugin } from './fsImportKit';
 
 beforeAll(() => { MotionGlobalConfig.skipAnimations = true; });
 afterAll(() => { MotionGlobalConfig.skipAnimations = false; });
@@ -20,7 +21,10 @@ let onClose: ReturnType<typeof vi.fn<() => void>>;
 
 beforeEach(async () => {
   Element.prototype.scrollIntoView = vi.fn();
-  vault = sessionVault({ 'Bestiary/Bog.md': '---\nstatblock: true\nname: Bog\nlayout: Marsh layout\n---\n' });
+  vault = sessionVault({
+    'Bestiary/Bog.md': '---\nstatblock: true\nname: Bog\nlayout: Marsh layout\n---\n',
+    'Bestiary/Hag.md': '```statblock\nlayout: marsh-layout\nname: Hag\n```\n',
+  });
   vault.frontmatter['Bestiary/Bog.md'] = { statblock: true, name: 'Bog', layout: 'Marsh layout' };
   await vault.settled();
   onCreated = vi.fn();
@@ -35,10 +39,16 @@ afterEach(async () => {
   await closeSessionVault(vault);
 });
 
+async function onUse(pick: GalleryPick, roleId: string | null): Promise<CreatedTemplate> {
+  const created = await createFromPick(vault.app, pick);
+  onCreated(created, roleId);
+  return created;
+}
+
 function open(): void {
   render(
     <TooltipProvider>
-      <TemplateGallery app={vault.app} doc={document} roles={[]} systemTemplateIds={[]} onCreated={onCreated} onClose={onClose} />
+      <TemplateGallery app={vault.app} doc={document} roles={[]} systemTemplateIds={[]} onUse={onUse} onClose={onClose} />
     </TooltipProvider>,
   );
 }
@@ -64,7 +74,25 @@ describe('From Fantasy Statblocks (§7.9)', () => {
     const created = onCreated.mock.calls[0]![0];
     expect(created.path).toBe(`${TEMPLATE_FOLDER}/Marsh layout.atlastemplate`);
     const dialog = await screen.findByRole('dialog', { name: 'Imported Marsh layout' });
-    expect(dialog.textContent).toContain('Use Marsh layout for the note using layout Marsh layout');
+    expect(dialog.textContent).toContain('Move 2 statblocks to Atlas');
+  });
+
+  it('offers the batch again for a layout imported before while it has statblocks left to move', async () => {
+    withFsPlugin(vault.app);
+    await importFsLayout(vault.app, MARSH_LAYOUT);
+    open();
+    fireEvent.click(screen.getByRole('tab', { name: 'From Fantasy Statblocks' }));
+    await screen.findByText('2 statblocks to move');
+    fireEvent.click(screen.getByRole('radio', { name: 'Plain layout' }));
+    expect(screen.queryByRole('button', { name: /^Move \d+ statblocks? to Atlas…$/ })).toBeNull();
+
+    fireEvent.click(screen.getByRole('radio', { name: 'Marsh layout' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Move 2 statblocks to Atlas…' }));
+    expect(onClose).toHaveBeenCalled();
+    const dialog = await screen.findByRole('dialog', { name: 'Marsh layout' });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Move 2 statblocks to Atlas' }));
+    await within(dialog).findByText('Moved 2 statblocks.');
+    expect(vault.files.get('Bestiary/Hag.md')).toMatch(/^---\nstatblock: true\natlas-template: /);
   });
 
   it('opens the template imported before when its layout is used again', async () => {

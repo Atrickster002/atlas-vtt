@@ -1,5 +1,5 @@
 import type { App as ObsidianApp } from 'obsidian';
-import { difficultyLabel, scalarText } from '../../../../creatures/statblockRating';
+import { difficultyLabel, statblockDisplayName } from '../../../../creatures/statblockRating';
 import type { ResourceDefinition, ResourceValue } from '../../../../resources/resourceTypes';
 import { startingResources } from '../../../../resources/statblockResourceValues';
 import { readStatblock } from '../../../../statblocks/resolve/readStatblock';
@@ -34,7 +34,7 @@ export async function loadStatblockOverrides(
     const difficulty = difficultyLabel(fields, meanings);
     if (difficulty !== undefined) overrides.difficulty = difficulty;
 
-    const name = scalarText(fields.name);
+    const name = statblockDisplayName(fields, meanings);
     if (name !== null) overrides.name = name;
   } catch (error) {
     console.error('[statblockLoader] Failed to load statblock data:', error);

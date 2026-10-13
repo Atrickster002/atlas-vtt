@@ -1,15 +1,16 @@
 import React from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import { setIcon, type App, type MarkdownView, type WorkspaceLeaf } from 'obsidian';
+import type { App, MarkdownView, WorkspaceLeaf } from 'obsidian';
 import { noteName } from '../../../utils/pathUtils';
 import { STATBLOCK_NOTE_CLASS } from '../../notes/openEditors';
 import { observeResize } from '../../../utils/observeResize';
 import type { PaneServices } from '../paneServices';
-import type { PendingCommit, StatblockPaneActions, TemplateBlockTarget } from '../statblock-pane/paneTypes';
+import type { EditTemplateOptions, PendingCommit, StatblockPaneActions, TemplateBlockTarget } from '../statblock-pane/paneTypes';
 import { NotePanelRoot } from './NotePanelRoot';
 import { measureNoteRoom, watchNoteRoom } from './noteRoom';
 import { STACK_BELOW, panelWidth, type PanelPrefs } from './panelPrefs';
 import { PanelScope } from './panelScope';
+import { watchMarkdownTyping } from '../markdown-typing/markdownTyping';
 
 /** On the view's container while its statblock shows: the content becomes a row, the note's fence shrinks. */
 export const NOTE_PANEL_CLASS = STATBLOCK_NOTE_CLASS;
@@ -22,7 +23,7 @@ export const STACKED_CLASS = 'atlas-sb-note--stacked';
 export interface PanelContext {
   app: App;
   services: PaneServices;
-  actions: Pick<StatblockPaneActions, 'linkToToken'> & {
+  actions: {
     /**
      * Opens the template editor on the note's template, in the note's own
      * leaf (§8.4), showing the note and, from a block's menu, that block.
@@ -36,8 +37,6 @@ export interface PanelContext {
   cancelResize: () => void;
   /** Forgets the width the user chose: every view takes its default again. */
   resetWidth: () => void;
-  /** Hides or shows the statblock beside every note, on this device. */
-  setHidden: (hidden: boolean) => void;
 }
 
 /** What an entry point asks of the panel of the note it opened. */
@@ -49,15 +48,13 @@ export interface PanelRequest {
 }
 
 /**
- * The statblock beside one Markdown view's note (§7.2): a header action that
- * hides or shows it and, while shown, one element appended to the view's
- * content, where the editable card is drawn. Obsidian's editor and reader
+ * The statblock beside one Markdown view's note (§7.2): one element appended
+ * to the view's content, where the editable card is drawn. Obsidian's editor and reader
  * stay where they are; only the stylesheet lays the content out as a row.
  */
 export class NoteStatblockPanel {
   private host: HTMLElement | null = null;
   private root: Root | null = null;
-  private action: HTMLElement | null = null;
   private collectionId: string | null = null;
   private propertiesShown = false;
   private stacked = false;
@@ -80,17 +77,15 @@ export class NoteStatblockPanel {
     });
     const open = context.actions.openTemplate;
     this.paneActions = {
-      linkToToken: context.actions.linkToToken,
       ...(open && {
-        editTemplate: (templateId: string, collectionId: string | null, notePath: string) => open({ templateId, collectionId, notePath }, this.view.leaf),
-        openTemplateAt: (target: TemplateBlockTarget) => open(target, this.view.leaf),
+        editTemplate: (templateId: string, collectionId: string | null, notePath: string, options?: EditTemplateOptions) => open({
+          templateId, collectionId, notePath, ...(options?.path && { path: options.path }),
+        }, this.view.leaf),
       }),
-      registerHistory: (router) => this.keys.setRouter(router),
       showProperties: () => {
         this.propertiesShown = true;
         this.update();
       },
-      hide: () => context.setHidden(true),
       changeCollection: (collectionId) => {
         if (this.collectionId === collectionId) return;
         this.collectionId = collectionId;
@@ -103,7 +98,7 @@ export class NoteStatblockPanel {
     return this.path;
   }
 
-  /** Whether the statblock is on screen (not hidden). */
+  /** Whether the statblock is on screen. */
   get shown(): boolean {
     return this.host !== null;
   }
@@ -124,12 +119,9 @@ export class NoteStatblockPanel {
     this.render();
   }
 
-  /** Brings the panel in line with the device's choices: shown or hidden, and its width. */
+  /** Brings the panel in line with the device's choices: its width. */
   update(): void {
-    const { hidden } = this.context.prefs();
-    this.updateAction(hidden);
-    if (hidden) this.removeHost();
-    else this.ensureHost();
+    this.ensureHost();
     this.applyWidth();
     const { containerEl } = this.view;
     const shown = containerEl.hasClass(NOTE_PANEL_CLASS);
@@ -143,8 +135,6 @@ export class NoteStatblockPanel {
   /** Takes everything off the view; what is being typed is written to the note first. */
   detach(): void {
     this.removeHost();
-    this.action?.remove();
-    this.action = null;
     const shown = this.view.containerEl.hasClass(NOTE_PANEL_CLASS);
     this.view.containerEl.removeClass(NOTE_PANEL_CLASS, HIDE_PROPERTIES_CLASS, STACKED_CLASS);
     if (shown) this.announceShown();
@@ -155,15 +145,6 @@ export class NoteStatblockPanel {
     this.view.app.workspace.trigger('atlas-vtt:statblock-panel-changed');
   }
 
-  private updateAction(hidden: boolean): void {
-    if (!this.action) this.action = this.view.addAction('panel-right-close', 'Hide statblock', () => {
-      this.context.setHidden(!this.context.prefs().hidden);
-    });
-    setIcon(this.action, hidden ? 'panel-right-open' : 'panel-right-close');
-    this.action.setAttribute('aria-label', hidden ? 'Show statblock' : 'Hide statblock');
-    this.action.toggleClass('is-active', !hidden);
-  }
-
   private ensureHost(): void {
     if (this.host) return;
     const { contentEl } = this.view;
@@ -171,6 +152,7 @@ export class NoteStatblockPanel {
     this.host = host;
     this.root = createRoot(host);
     const stopKeys = this.keys.watch(host);
+    const stopTyping = watchMarkdownTyping(this.context.app, host, () => this.path);
     // Quitting closes no view, so the writer's last flush commits the text being typed (§8.5).
     const releasePending = this.context.services.writer.registerPending(() => this.pendingCommit.current?.() ?? Promise.resolve());
     const measure = (): void => {
@@ -186,6 +168,7 @@ export class NoteStatblockPanel {
     const stopWatching = watchNoteRoom(this.view, () => this.resizeWithView());
     this.teardown.push(() => {
       stopKeys();
+      stopTyping();
       releasePending();
       stopObserving();
       stopWatching();

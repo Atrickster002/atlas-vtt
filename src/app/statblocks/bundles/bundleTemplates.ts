@@ -6,14 +6,14 @@
  */
 
 import { TFile, type App } from 'obsidian';
-import { NOTE_FILE_ROLES, TEMPLATE_ROLE, type BundleFile } from '../../services/collectionBundle/bundleFormat';
+import { NOTE_FILE_ROLES, TEMPLATE_BODY_ROLE, TEMPLATE_ROLE, type BundleFile } from '../../services/collectionBundle/bundleFormat';
 import { templateFingerprint } from '../../services/collectionBundle/fingerprints';
 import type { InstalledTemplate } from '../../services/collectionBundle/installRecord';
 import { isRecord, parseJsonText } from '../format/jsonValues';
 import { migrateTemplate } from '../format/migrateTemplate';
-import { withCoreSlots } from '../model/coreSlots';
+import { withHeader } from '../model/headerDuplicates';
 import { parseTemplate } from '../format/parseTemplate';
-import { flushTemplateSessions } from '../library/sessionRegistry';
+import { readTemplateBody, templateBodyFile } from '../library/templateBodyNotes';
 import { TEMPLATE_EXTENSION, indexTemplateFiles, readTemplateFile, templateName } from '../library/templateFiles';
 import { findCode, stripCode } from '../model/fsCodeKeys';
 import type { LibraryTemplate } from '../model/resolvedTypes';
@@ -30,6 +30,9 @@ export interface PackedTemplate {
   /** The file's own text when it held no code, else the JSON without it. */
   text: string;
   json: Record<string, unknown>;
+  /** The note beside the template that new statblocks of it start with; null where it has none. */
+  body: string | null;
+  /** Of the template and its note together (`templateFingerprint`). */
   fingerprint: string;
   /** As the library would hold it, for previews of the bundle's notes. */
   entry: LibraryTemplate;
@@ -47,12 +50,36 @@ function parseJson(text: string): unknown {
   return 'value' in parsed ? parsed.value : undefined;
 }
 
+/** A body note's text as a bundle compares it: an empty note is none. */
+const bodyText = (text: string | null | undefined): string | null => (text ? text : null);
+
+/** The text of the note beside the template at `path`, as the user sees it; null where it has none. */
+export async function templateBodyAt(app: App, path: string): Promise<string | null> {
+  return bodyText(await readTemplateBody(app, path));
+}
+
+/** The dice set the template at `path` names; undefined where it names none. */
+export async function templateDiceSetIdAt(app: App, path: string): Promise<string | undefined> {
+  const file = app.vault.getAbstractFileByPath(path);
+  const json = file instanceof TFile ? parseJson(await app.vault.read(file)) : undefined;
+  return isRecord(json) && typeof json.diceSetId === 'string' && json.diceSetId !== '' ? json.diceSetId : undefined;
+}
+
+/** A carried template's text whose dice set is the set's id in this vault, where the set came in as a copy. */
+export function withTemplateDiceSet(text: string, ids: ReadonlyMap<string, string>): string {
+  if (ids.size === 0) return text;
+  const json = parseJson(text);
+  if (!isRecord(json) || typeof json.diceSetId !== 'string') return text;
+  const id = ids.get(json.diceSetId);
+  return id === undefined ? text : `${JSON.stringify({ ...json, diceSetId: id }, null, 2)}\n`;
+}
+
 /**
  * A template file's text without code: every `script` block and code-bearing key is removed
  * (§6.5). Null for text that is no template a vault may hold: not JSON, unreadable as a
  * template, or claiming a built-in's id.
  */
-export async function cleanTemplate(path: string, text: string): Promise<PackedTemplate | null> {
+export async function cleanTemplate(path: string, text: string, body: string | null = null): Promise<PackedTemplate | null> {
   const value = parseJson(text);
   if (!isRecord(value)) return null;
   const hasCode = findCode(value).length > 0;
@@ -67,53 +94,58 @@ export async function cleanTemplate(path: string, text: string): Promise<PackedT
     id: result.template.id,
     text: hasCode ? `${JSON.stringify(json, null, 2)}\n` : text,
     json,
-    fingerprint: await templateFingerprint(json),
-    entry: { template: withCoreSlots(migrateTemplate(result.template)), name, status: result.status, builtIn: false, path },
+    body: bodyText(body),
+    fingerprint: await templateFingerprint(json, bodyText(body)),
+    entry: { template: withHeader(migrateTemplate(result.template)), name, status: result.status, builtIn: false, path },
   };
 }
 
 /**
  * A vault template file as an export packs it, and what the publisher's install record keeps
- * of it: the vault's file as it is installed, the packed one as its source. Null for a file
- * that is no template.
+ * of it: the vault's file as it is installed, the packed one as its source, each with the note
+ * beside it (`body`). Null for a file that is no template.
  */
-export async function packTemplateFile(path: string, content: ArrayBuffer): Promise<{ text: string; installed: InstalledTemplate } | null> {
+export async function packTemplateFile(path: string, content: ArrayBuffer, body: string | null = null): Promise<{ text: string; installed: InstalledTemplate } | null> {
   const text = new TextDecoder().decode(content);
-  const packed = await cleanTemplate(path, text);
+  const packed = await cleanTemplate(path, text, body);
   const own = parseJson(text);
   if (!packed || !isRecord(own)) return null;
-  const installed = { localId: packed.id, target: path, source: packed.fingerprint, installed: await templateFingerprint(own) };
+  const installed = { localId: packed.id, target: path, source: packed.fingerprint, installed: await templateFingerprint(own, packed.body) };
   return { text: packed.text, installed };
 }
 
-/** The templates a bundle carries, code dropped; the first file of an id holds it, and a file that is no template is left out. */
-export async function readBundleTemplates(files: readonly BundleFile[], read: (path: string) => Promise<string | null>): Promise<PackedTemplate[]> {
+/**
+ * The templates a bundle carries, code dropped, each with the note that goes with it and naming
+ * the dice sets' ids in this vault (`diceSetIds`); the first file of an id holds it, and a file
+ * that is no template is left out.
+ */
+export async function readBundleTemplates(
+  files: readonly BundleFile[],
+  read: (path: string) => Promise<string | null>,
+  diceSetIds: ReadonlyMap<string, string> = new Map(),
+): Promise<PackedTemplate[]> {
+  const bodies = new Map<string, string>();
+  for (const file of files) {
+    const template = file.role === TEMPLATE_BODY_ROLE ? file.linkedFrom?.[0] : undefined;
+    const text = template === undefined || bodies.has(template) ? null : await read(file.vaultPath);
+    if (template !== undefined && text) bodies.set(template, text);
+  }
   const templates = new Map<TemplateId, PackedTemplate>();
   for (const file of files) {
     if (file.role !== TEMPLATE_ROLE) continue;
     const text = await read(file.vaultPath);
-    const template = text === null ? null : await cleanTemplate(file.vaultPath, text);
+    const template = text === null ? null : await cleanTemplate(file.vaultPath, withTemplateDiceSet(text, diceSetIds), bodies.get(file.vaultPath) ?? null);
     if (template && !templates.has(template.id)) templates.set(template.id, template);
   }
   return [...templates.values()];
 }
 
-/** Writes the edits open template editors hold, so the files are what the user sees; a session that cannot write leaves its file as it is. */
-export async function flushTemplateEdits(app: App): Promise<void> {
-  try {
-    await flushTemplateSessions(app);
-  } catch (error) {
-    console.error('[bundleTemplates] Could not write pending template edits:', error);
-  }
-}
-
 /**
  * The vault's templates by id, read from their files now (the library reads in the background
- * and may not have every file yet), once open template editors have written their edits.
+ * and may not have every file yet); what open template editors have not saved is not in them.
  * Where several files claim one id, the lowest path holds it, as in the library.
  */
 export async function vaultTemplates(app: App): Promise<Map<TemplateId, VaultTemplate>> {
-  await flushTemplateEdits(app);
   const files = [];
   for (const file of app.vault.getFiles()) {
     if (file.extension === TEMPLATE_EXTENSION) files.push(readTemplateFile(file.path, await app.vault.read(file)));
@@ -122,17 +154,17 @@ export async function vaultTemplates(app: App): Promise<Map<TemplateId, VaultTem
   const templates = new Map<TemplateId, VaultTemplate>();
   for (const [id, entry] of indexTemplateFiles(files).byId) {
     const json = entry.path === null ? undefined : parseJson(texts.get(entry.path) ?? '');
-    if (entry.path !== null && isRecord(json)) templates.set(id, { id, path: entry.path, fingerprint: await templateFingerprint(json) });
+    if (entry.path !== null && isRecord(json)) templates.set(id, { id, path: entry.path, fingerprint: await templateFingerprint(json, await templateBodyAt(app, entry.path)) });
   }
   return templates;
 }
 
-/** The fingerprint of the template file at `path`; null when there is none. */
+/** The fingerprint of the template file at `path` with the note beside it; null when there is none. */
 export async function templateFingerprintAt(app: App, path: string): Promise<string | null> {
   const file = app.vault.getAbstractFileByPath(path);
   if (!(file instanceof TFile)) return null;
   const json = parseJson(await app.vault.read(file));
-  return isRecord(json) ? templateFingerprint(json) : null;
+  return isRecord(json) ? templateFingerprint(json, await templateBodyAt(app, path)) : null;
 }
 
 /** The template a vault note names in its frontmatter, from the metadata cache; null for any other note. */
@@ -146,6 +178,8 @@ export function noteTemplateId(app: App, path: string): TemplateId | null {
  * A template a role names travels with the collection; one only notes name travels with those
  * notes (`linkedFrom`), so it stays behind with them. Built-ins never travel: every Atlas has
  * them. A template the vault lacks stays behind too: what names it shows the auto template.
+ * The note beside a template (`templateBodyPath`) goes with it, so new statblocks of the
+ * template start with its text in the importing vault too.
  */
 export async function withTemplateFiles(app: App, files: readonly BundleFile[], roleTemplates: readonly TemplateId[]): Promise<BundleFile[]> {
   // Notes per template; null for a template a role names.
@@ -164,7 +198,11 @@ export async function withTemplateFiles(app: App, files: readonly BundleFile[], 
     if (path === undefined || known.has(path)) return [];
     known.add(path);
     const notes = namedBy.get(id);
-    return [{ vaultPath: path, role: TEMPLATE_ROLE, ...(notes && { linkedFrom: notes }) }];
+    const body = templateBodyFile(app, path);
+    const template: BundleFile = { vaultPath: path, role: TEMPLATE_ROLE, ...(notes && { linkedFrom: notes }) };
+    if (!body || known.has(body.path)) return [template];
+    known.add(body.path);
+    return [template, { vaultPath: body.path, role: TEMPLATE_BODY_ROLE, linkedFrom: [path] }];
   });
   return [...files, ...templates];
 }

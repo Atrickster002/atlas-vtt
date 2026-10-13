@@ -3,9 +3,7 @@ import { act, cleanup, fireEvent, screen, within } from '@testing-library/react'
 import { MotionGlobalConfig } from 'framer-motion';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { fieldChoiceGroups, newFieldKey, withChosenField } from '../../../../src/app/statblocks/editor/template-editor/inspector/fieldChoices';
-import { withMeaning } from '../../../../src/app/statblocks/editor/template-editor/inspector/blockEdits';
-import { conditionFor } from '../../../../src/app/statblocks/editor/template-editor/inspector/ConditionBuilder';
-import { BasicsGroup } from '../../../../src/app/statblocks/editor/template-editor/inspector/BasicsGroup';
+import { LineFields } from '../../../../src/app/statblocks/editor/template-editor/inspector/LineFields';
 import { useTemplateEditor } from '../../../../src/app/statblocks/editor/template-editor/editorContext';
 import { findBlock } from '../../../../src/app/statblocks/model/treeQueries';
 import type { StatblockTemplate } from '../../../../src/app/statblocks/model/templateTypes';
@@ -58,25 +56,26 @@ describe('the field picker\'s choices', () => {
   });
 });
 
-function unbound(): StatblockTemplate {
+/** The sample with an empty line under the name, whose values the picker chooses. */
+function withLine(fields: string[] = []): StatblockTemplate {
   const base = sampleTemplate();
-  return { ...base, layout: { ...base.layout, blocks: [...base.layout.blocks, { id: 'stat-new', type: 'stat', field: '', look: 'run-in' }] } };
+  return { ...base, layout: { ...base.layout, blocks: [base.layout.blocks[0]!, { id: 'line0001', type: 'line', fields }, ...base.layout.blocks.slice(1)] } };
 }
 
-function mountContent(session: FakeSession, id: string): void {
+function mountLine(session: FakeSession): void {
   function Content(): React.JSX.Element | null {
     const current = useTemplateEditor().snapshot.template;
-    const block = findBlock(current.layout.blocks, id)?.block;
-    return block ? <BasicsGroup block={block} template={current} session={session} readOnly={false} parent={null} /> : null;
+    const block = findBlock(current.layout.blocks, 'line0001')?.block;
+    return block?.type === 'line' ? <LineFields block={block} template={current} session={session} readOnly={false} parent={null} /> : null;
   }
   renderInEditor(session, <Content />, { collectionKeys: USED });
 }
 
-describe('the property picker in Settings', () => {
-  it('opens its three groups and binds a block to a key the collection uses, in one step', () => {
-    const session = new FakeSession(unbound());
-    mountContent(session, 'stat-new');
-    const picker = screen.getByRole('combobox', { name: 'Shows' });
+describe('the property picker of the line under the name', () => {
+  it('opens its three groups and adds a key the collection uses, in one step', () => {
+    const session = new FakeSession(withLine());
+    mountLine(session);
+    const picker = screen.getByRole('combobox', { name: 'Values in this line Value 1' });
     fireEvent.change(picker, { target: { value: 's' } });
     const list = screen.getByRole('listbox', { name: 'Properties' });
     expect(within(list).getAllByRole('group').map((group) => group.getAttribute('aria-label'))).toEqual(['This template', 'Used in this collection', 'New property']);
@@ -84,27 +83,24 @@ describe('the property picker in Settings', () => {
     expect(within(list).getByText('Senses', { selector: '.atlas-te-choices__label' }).closest('[role="group"]')?.getAttribute('aria-label')).toBe('Used in this collection');
     fireEvent.change(picker, { target: { value: 'sen' } });
     key(picker, 'Enter');
-    expect(findBlock(session.template.layout.blocks, 'stat-new')?.block).toMatchObject({ field: 'senses' });
+    expect(findBlock(session.template.layout.blocks, 'line0001')?.block).toMatchObject({ fields: ['senses'] });
     expect(session.template.fields.at(-1)).toEqual({ key: 'senses', label: 'Senses', type: 'text' });
     expect(session.steps).toBe(1);
-    expect(screen.getByText(/In 12 statblocks/).textContent).toBe('In 12 statblocks of this collection.');
   });
 
   it('makes a new property as typed', () => {
-    const session = new FakeSession(unbound());
-    mountContent(session, 'stat-new');
-    const picker = screen.getByRole('combobox', { name: 'Shows' });
-    fireEvent.change(picker, { target: { value: 'Swim speed' } });
+    const session = new FakeSession(withLine());
+    mountLine(session);
+    fireEvent.change(screen.getByRole('combobox', { name: 'Values in this line Value 1' }), { target: { value: 'Swim speed' } });
     fireEvent.click(screen.getByText('New property “Swim speed”'));
-    expect(findBlock(session.template.layout.blocks, 'stat-new')?.block).toMatchObject({ field: 'swim_speed' });
+    expect(findBlock(session.template.layout.blocks, 'line0001')?.block).toMatchObject({ fields: ['swim_speed'] });
     expect(session.template.fields.at(-1)).toEqual({ key: 'swim_speed', label: 'Swim speed', type: 'text' });
-    expect((picker as HTMLInputElement).value).toBe('Swim speed');
   });
 
-  it('closes with Escape and shows the bound field again', () => {
-    const session = new FakeSession(sampleTemplate());
-    mountContent(session, 'stat-ac1');
-    const picker = screen.getByRole<HTMLInputElement>('combobox', { name: 'Shows' });
+  it('closes with Escape and shows the chosen property again', () => {
+    const session = new FakeSession(withLine(['ac']));
+    mountLine(session);
+    const picker = screen.getByRole<HTMLInputElement>('combobox', { name: 'Values in this line Value 1' });
     expect(picker.value).toBe('Armor class');
     key(picker, 'ArrowDown');
     expect(screen.getByRole('listbox', { name: 'Properties' })).toBeTruthy();
@@ -114,24 +110,5 @@ describe('the property picker in Settings', () => {
     expect(screen.queryByRole('listbox', { name: 'Properties' })).toBeNull();
     expect(picker.value).toBe('Armor class');
     expect(session.steps).toBe(0);
-  });
-});
-
-describe('meanings and conditions', () => {
-  it('moves a meaning to the field that takes it, one field per meaning', () => {
-    const base = template([], [
-      { key: 'hp', label: 'Hit points', type: 'number', meaning: 'hit-points' },
-      { key: 'vigor', label: 'Vigor', type: 'number' },
-    ]);
-    const moved = withMeaning(base, 'vigor', 'hit-points');
-    expect(moved.fields.map((entry) => entry.meaning)).toEqual([undefined, 'hit-points']);
-    expect(withMeaning(moved, 'vigor', undefined).fields.every((entry) => entry.meaning === undefined)).toBe(true);
-  });
-
-  it('keeps a condition\'s value where the new test still compares one', () => {
-    expect(conditionFor('hp', 'present', undefined)).toEqual({ field: 'hp', is: 'present' });
-    expect(conditionFor('hp', 'equal', { field: 'hp', is: 'not-equal', value: 'swarm' })).toEqual({ field: 'hp', is: 'equal', value: 'swarm' });
-    expect(conditionFor('hp', 'above', { field: 'hp', is: 'equal', value: '12' })).toEqual({ field: 'hp', is: 'above', value: 12 });
-    expect(conditionFor('hp', 'below', { field: 'hp', is: 'equal', value: 'swarm' })).toEqual({ field: 'hp', is: 'below', value: 0 });
   });
 });

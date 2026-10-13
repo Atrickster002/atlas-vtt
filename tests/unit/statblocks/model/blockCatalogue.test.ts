@@ -10,7 +10,7 @@ import { FIELD_TYPES, type BlockType } from '../../../../src/app/statblocks/mode
 import { idsFrom } from './treeFixtures';
 
 const ALL_TYPES: BlockType[] = [
-  'section', 'row', 'tabs', 'title', 'line', 'stat', 'scores', 'tags', 'text', 'entries', 'pairs', 'track', 'image',
+  'section', 'row', 'tabs', 'title', 'line', 'stat', 'metric', 'scores', 'tags', 'text', 'entries', 'pairs', 'track', 'image',
   'spells', 'heading', 'divider', 'script', 'opaque',
 ];
 
@@ -38,7 +38,7 @@ describe('block catalogue', () => {
 
   it('names every authorable block by the primitive it is, and its kind where the primitive has several', () => {
     expect(Object.fromEntries(AUTHORABLE_BLOCK_TYPES.map((type) => [type, blockSpec(type).label]))).toEqual({
-      section: 'Section', row: 'Side by side', tabs: 'Tabs', title: 'Heading', line: 'Line', stat: 'Value', scores: 'Table', tags: 'List',
+      section: 'Section', row: 'Side by side', tabs: 'Tabs', title: 'Heading', line: 'Line', stat: 'Value', metric: 'Metric', scores: 'Table', tags: 'List',
       text: 'Text', entries: 'List', pairs: 'List', track: 'Track', image: 'Picture', spells: 'List', heading: 'Heading', divider: 'Divider',
     });
     expect(PRIMITIVES.list.kinds.map((type) => blockSpec(type).kind)).toEqual(['A word', 'A label and a value', 'A name and text', 'A group with items']);
@@ -70,7 +70,7 @@ describe('block catalogue', () => {
 
   it('names the FS block type each block exports to', () => {
     expect(Object.fromEntries(ALL_TYPES.map((type) => [type, blockSpec(type).fsType]))).toEqual({
-      section: 'group', row: 'inline', tabs: 'group', title: 'heading', line: 'subheading', stat: 'property', scores: 'table',
+      section: 'group', row: 'inline', tabs: 'group', title: 'heading', line: 'subheading', stat: 'property', metric: 'table', scores: 'table',
       tags: 'property', text: 'text', entries: 'traits', pairs: 'saves', track: 'property', image: 'image',
       spells: 'spells', heading: 'text', divider: null, script: 'javascript', opaque: null,
     });
@@ -121,6 +121,8 @@ describe('createBlock', () => {
     ['line', undefined, { fields: [] }],
     ['stat', 'ac', { field: 'ac', look: 'run-in' }],
     ['stat', undefined, { field: '', look: 'run-in' }],
+    ['metric', 'major', { fields: ['major'] }],
+    ['metric', undefined, { fields: [''] }],
     ['scores', 'stats', { field: 'stats', orientation: 'row' }],
     ['tags', 'languages', { field: 'languages', look: 'comma' }],
     ['text', 'description', { field: 'description' }],

@@ -22,16 +22,16 @@ const isScalar = (value: FieldValue | undefined): boolean => value === undefined
 
 interface TrayValueRowProps {
   field: TemplateField;
-  onAddToTemplate?: (() => void) | undefined;
 }
 
 /**
- * A key the template does not show: its value as raw text (a list or a map
- * shows read-only), Put on the card, and Remove from note, a `delete` patch
+ * A value the template hides from the card, by the name the template gives
+ * it: its value as raw text (a list or a map shows read-only) and Remove from
+ * note, a `delete` patch
  * that the note's own undo takes back. A commit is based on the value typing
  * started from, so a change in the note meanwhile is a conflict (§8.1).
  */
-export function TrayValueRow({ field, onAddToTemplate }: TrayValueRowProps): React.JSX.Element {
+export function TrayValueRow({ field }: TrayValueRowProps): React.JSX.Element {
   const pane = usePaneEdit();
   const read = pane.read(field);
   const [draft, setDraft] = useState<string | null>(null);
@@ -57,13 +57,13 @@ export function TrayValueRow({ field, onAddToTemplate }: TrayValueRowProps): Rea
 
   return (
     <div className="atlas-sb-pane-tray__row">
-      <span className="atlas-sb-pane-tray__key">{field.key}</span>
+      <span className="atlas-sb-pane-tray__key">{field.label}</span>
       {isScalar(read.value) ? (
         <input
           type="text"
           className="atlas-sb-pane-input atlas-sb-pane-tray__value"
           value={shown}
-          aria-label={field.key}
+          aria-label={field.label}
           onChange={(event) => type(event.target.value)}
           onBlur={commit}
           onKeyDown={(event) => {
@@ -77,7 +77,6 @@ export function TrayValueRow({ field, onAddToTemplate }: TrayValueRowProps): Rea
       )}
       {conflict && <ConflictChip field={field} conflict={conflict} />}
       <span className="atlas-sb-pane-tray__actions">
-        {onAddToTemplate && <Button type="button" variant="ghost" size="sm" onClick={onAddToTemplate}>Put on the card</Button>}
         {read.value !== undefined && (
           <Button
             type="button"

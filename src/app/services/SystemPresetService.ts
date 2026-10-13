@@ -2,19 +2,11 @@ import { BUILT_IN_SYSTEM_PRESETS } from '../gameSystems/builtInPresets';
 import { parseUserPreset, parseUserPresets } from '../gameSystems/presetValidation';
 import type { SystemPreset, SystemRules } from '../types/systemPresetTypes';
 import type { StoredPreset } from './systemPresets/presetFiles';
+import type { RecordStorage } from './vaultRecords/recordFolder';
 import { t } from '../i18n';
 
 /** Where the user's presets are kept: one vault file each (`SystemPresetFiles`), or memory in tests. */
-export interface PresetStorage {
-  /** The presets as stored, unvalidated; the same array while nothing changed. */
-  entries(): readonly StoredPreset[];
-  create(entry: StoredPreset): void;
-  /** Changes the stored preset `id` with `change`, which gets the preset as stored. */
-  update(id: string, change: (stored: StoredPreset) => StoredPreset): void;
-  remove(id: string): void;
-  /** Calls `listener` after every change, also one that arrived from another device. */
-  onChange(listener: () => void): () => void;
-}
+export type PresetStorage = RecordStorage;
 
 /**
  * The game system presets of this vault: the built-in ones plus those the user
@@ -56,6 +48,7 @@ export class SystemPresetService {
       if (!rules.lightPresets) delete merged.lightPresets;
       if (!rules.initiative) delete merged.initiative;
       if (!rules.statblockRoles) delete merged.statblockRoles;
+      if (!rules.diceSetId) delete merged.diceSetId;
       return { ...stored, rules: merged };
     });
   }

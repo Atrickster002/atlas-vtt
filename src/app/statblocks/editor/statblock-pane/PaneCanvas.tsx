@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { App } from 'obsidian';
-import type { LibraryTemplate } from '../../model/resolvedTypes';
 import type { StatblockTemplate } from '../../model/templateTypes';
 import { isEmptyValue } from '../../values/emptyValue';
 import { readField, type FieldRecord } from '../../values/fieldValues';
@@ -20,15 +19,11 @@ export interface PaneCanvasProps {
   /** The pane's collection, whose tokens the token socket links. */
   collectionId: string | null;
   template: StatblockTemplate;
-  /** The note's template as the library holds it; null while it can't change (missing, newer, loading). */
-  entry: LibraryTemplate | null;
   /** The template's name: `data-template` on the card. */
   templateName: string;
   record: FieldRecord;
   writable: boolean;
   pendingCommit: PendingCommit;
-  /** Last in the row under the card, after the folded sections' chips: "Add a section…". */
-  footer?: React.ReactNode;
   /** Raised to move focus to the first empty value (a statblock just created); 0 never does. */
   focusRequest: number;
   /**
@@ -37,10 +32,11 @@ export interface PaneCanvasProps {
    */
   handledFocusRequest: React.RefObject<number>;
   onExit: (step: 1 | -1) => void;
-  onCommitted: () => void;
   onWriteProblem: (problem: string | null) => void;
   /** Says something in the pane's live region. */
   announce: (text: string) => void;
+  /** The card's ⋯, in its top-right corner. */
+  cornerMenu?: React.ReactNode;
   /** Shown under the card, with the card's editing at hand: the tray. */
   children?: React.ReactNode;
 }
@@ -51,7 +47,7 @@ export interface PaneCanvasProps {
  * seams, so the card is drawn by the same code the map and the DM screen use.
  */
 export function PaneCanvas(props: PaneCanvasProps): React.JSX.Element {
-  const { app, notePath, template, templateName, record, footer, focusRequest, handledFocusRequest, writable } = props;
+  const { app, notePath, template, templateName, record, focusRequest, handledFocusRequest, writable } = props;
   const cardRef = useRef<HTMLDivElement>(null);
   // Sections unfolded on this card stay open for its life, empty or not (§8.2): no focus decides it.
   const [unfolded, setUnfoldedIds] = useState<ReadonlySet<string>>(() => new Set());
@@ -109,8 +105,9 @@ export function PaneCanvas(props: PaneCanvasProps): React.JSX.Element {
         sourcePath={notePath}
         folded={editor.controller.foldedSet}
         reveal={editor.controller.editing?.blockId ?? null}
+        around={props.cornerMenu ? (sheet) => <>{sheet}{props.cornerMenu}</> : undefined}
       />
-      {writable && <FoldedChips folded={folded} onUnfold={(blockId) => setUnfolded(blockId, true)}>{footer}</FoldedChips>}
+      {writable && <FoldedChips folded={folded} onUnfold={(blockId) => setUnfolded(blockId, true)} />}
       {props.children}
     </PaneEditContext.Provider>
   );

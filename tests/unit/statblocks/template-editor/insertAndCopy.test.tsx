@@ -1,35 +1,22 @@
-import React from 'react';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { App } from 'obsidian';
-import { builtInLine, switchChipText } from '../../../../src/app/statblocks/editor/template-editor/shell/builtInLine';
-import { SwitchStatblocksChip } from '../../../../src/app/statblocks/editor/template-editor/shell/SwitchStatblocksChip';
-import { switchTemplates } from '../../../../src/app/statblocks/notes/templateSwitch';
-import { bestMatch, findItems, groupItems, insertItems, previewTemplate } from '../../../../src/app/statblocks/editor/template-editor/insertItems';
-import { InsertMenu } from '../../../../src/app/statblocks/editor/template-editor/InsertMenu';
+import { bestMatch, findItems, insertItems, previewTemplate } from '../../../../src/app/statblocks/editor/template-editor/insertItems';
 import { handleTemplateKey, type KeyboardTarget } from '../../../../src/app/statblocks/editor/template-editor/useTemplateKeyboard';
-import { turnIntoPrimitives } from '../../../../src/app/statblocks/model/turnInto';
 import { FakeSession, sampleTemplate } from './editorKit';
-
-vi.mock('../../../../src/app/statblocks/notes/templateSwitch', () => ({ switchTemplates: vi.fn(async () => undefined) }));
 
 afterEach(cleanup);
 
 describe('the insert menu\'s items', () => {
-  it('lists each primitive once, by group, in plain words', () => {
-    const groups = groupItems(insertItems());
-    expect(groups.map((group) => group.label)).toEqual(['Text and values', 'Lists and tables', 'Layout', 'Pictures']);
-    expect(groups.map((group) => group.items.map((item) => item.label))).toEqual([
-      ['Heading', 'Text', 'Value', 'Line'], ['List', 'Table', 'Track'], ['Section', 'Side by side', 'Tabs', 'Divider'], ['Picture'],
+  it('are the six kinds of the grid, in plain words, each saying what it makes', () => {
+    expect(insertItems().map((item) => [item.label, item.type])).toEqual([
+      ['Value', 'stat'], ['Metric', 'metric'], ['Abilities', 'entries'], ['Table', 'scores'], ['Text', 'text'], ['Divider', 'divider'],
     ]);
-    expect(insertItems().find((item) => item.label === 'List')?.type).toBe('entries');
-    expect(insertItems().find((item) => item.label === 'Heading')?.type).toBe('heading');
     for (const item of insertItems()) expect(item.example, item.label).not.toBe('');
   });
 
   it('finds items by every word typed, in their name, their line or other words', () => {
     expect(findItems(insertItems(), 'ability scores').map((item) => item.label)).toEqual(['Table']);
-    expect(findItems(insertItems(), 'abilities').map((item) => item.label)).toEqual(['List']);
+    expect(findItems(insertItems(), 'actions').map((item) => item.label)).toEqual(['Abilities']);
     expect(findItems(insertItems(), 'zzz')).toEqual([]);
   });
 
@@ -41,41 +28,13 @@ describe('the insert menu\'s items', () => {
     expect(values[bestMatch(values, 'val')]?.label).toBe('Value');
   });
 
-  it('turns blocks only into other primitives of their sort, each primitive once', () => {
-    expect(turnIntoPrimitives('row')).toEqual(['section', 'tabs']);
-    expect(turnIntoPrimitives('stat')).not.toContain('side-by-side');
-    expect(turnIntoPrimitives('stat')).toContain('track');
-    expect(turnIntoPrimitives('tags')).toEqual(['heading', 'text', 'value', 'line', 'table', 'track', 'divider', 'picture']);
-    expect(turnIntoPrimitives('title')).not.toContain('heading');
-  });
-});
-
-describe('a built-in and its copy in the footer (spec §9.1, §9.3)', () => {
-  it('says where the first change goes before it is made', () => {
-    expect(builtInLine({ builtInName: '5E (2014 rules)', copy: null, fromNote: null })).toBe('Built in. Your first change makes your own copy.');
-    expect(builtInLine({ builtInName: '5E (2014 rules)', copy: null, fromNote: 'Aboleth' })).toBe('Built in. Your first change makes your own copy for Aboleth.');
-    expect(builtInLine({ builtInName: '5E (2014 rules)', copy: { name: '5E (2014 rules) copy', usage: 3 }, fromNote: 'Aboleth' }))
-      .toBe('Built in. Your changes go to your copy of 5E (2014 rules) · 3 statblocks.');
-  });
-
-  it('switches the statblocks still on the built-in only after naming them and being asked', async () => {
-    expect(switchChipText('5E (2014 rules)', 11)).toBe('11 more on 5E (2014 rules) · Switch…');
-    render(<SwitchStatblocksChip app={{} as App} from="builtin:x" to="copy-abc123" builtInName="X" notes={['A.md', 'B.md']} />);
-    fireEvent.click(screen.getByRole('button', { name: '2 more on X · Switch…' }));
-    expect(screen.getByRole('dialog').textContent).toContain('AB');
-    fireEvent.click(screen.getByRole('button', { name: 'Not now' }));
-    expect(switchTemplates).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole('button', { name: '2 more on X · Switch…' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Switch them' }));
-    expect(switchTemplates).toHaveBeenCalledWith({}, [{ path: 'A.md', from: 'builtin:x' }, { path: 'B.md', from: 'builtin:x' }], 'copy-abc123');
-  });
 });
 
 describe('the keys from the view\'s scope', () => {
   function target(session: FakeSession, root: HTMLElement): KeyboardTarget {
     return {
       rootRef: { current: root }, session, selection: [], drawn: () => true, select: vi.fn(), settle: vi.fn(),
-      editLabel: vi.fn(), openInsert: vi.fn(), openMenu: vi.fn(), clipOwner: {},
+      editLabel: vi.fn(), openInsert: vi.fn(), openMenu: vi.fn(), openSave: vi.fn(), clipOwner: {},
     };
   }
 
@@ -91,6 +50,24 @@ describe('the keys from the view\'s scope', () => {
     const input = root.createEl('input', { type: 'text' });
     input.focus();
     expect(handleTemplateKey(target(session, root), new KeyboardEvent('keydown', { key: 'z', ctrlKey: true, shiftKey: true }), false, true)).toBe(false);
+    root.remove();
+  });
+
+  it('opens Save with Mod+S from the scope or inside the editor, from a field being typed in too, and nowhere else', () => {
+    const session = new FakeSession(sampleTemplate());
+    const root = document.body.createDiv();
+    const save = (): KeyboardEvent => new KeyboardEvent('keydown', { key: 's', code: 'KeyS', ctrlKey: true });
+    const keys = target(session, root);
+    expect(handleTemplateKey(keys, save(), false)).toBe(false);
+    expect(keys.openSave).not.toHaveBeenCalled();
+    expect(handleTemplateKey(keys, save(), false, true)).toBe(true);
+    expect(keys.openSave).toHaveBeenCalledTimes(1);
+
+    const input = root.createEl('input', { type: 'text' });
+    input.focus();
+    expect(handleTemplateKey(keys, save(), false)).toBe(true);
+    expect(keys.openSave).toHaveBeenCalledTimes(2);
+    expect(handleTemplateKey(keys, new KeyboardEvent('keydown', { key: 's', code: 'KeyS', ctrlKey: true, shiftKey: true }), false, true)).toBe(false);
     root.remove();
   });
 });

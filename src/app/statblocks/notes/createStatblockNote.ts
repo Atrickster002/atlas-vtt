@@ -1,14 +1,17 @@
 /**
  * Creating a native statblock note (§7.3): `statblock: true`, its template, its name and, for a
- * token, the token's art, with an empty body (the statblock shows beside the note); then the
- * token linked to it.
+ * token, the token's art, with the text of the template's note below (the statblock shows beside
+ * the note); then the token linked to it.
  */
 
 import { normalizePath, type App, type TFile, type TFolder } from 'obsidian';
 import { ensureFolder } from '../../plugin/vaultFolders';
 import { TokenStatblockLinkService } from '../../services/TokenStatblockLinkService';
 import { INVALID_NAME_CHARACTERS } from '../../services/assetPaths';
+import { TemplateLibrary } from '../library/TemplateLibrary';
+import { readTemplateBody } from '../library/templateBodyNotes';
 import type { FieldValue, TemplateId } from '../model/templateTypes';
+import { libraryLoaded } from '../resolve/readStatblock';
 import { applyFrontmatterPatches } from './frontmatterPatch';
 import type { NotePatch } from './patchTypes';
 import { TEMPLATE_KEY } from './statblockSource';
@@ -22,6 +25,8 @@ export interface NewStatblockNote {
   tokenImagePath?: string | undefined;
   /** Values the statblock starts with (a fence copied into a native note); the markers, `name` and a token's `image` win. */
   values?: Readonly<Record<string, FieldValue>> | undefined;
+  /** The Markdown below the frontmatter; the text in the template's note where not given. */
+  body?: string | undefined;
 }
 
 export interface CreatedStatblockNote {
@@ -36,7 +41,8 @@ const FALLBACK_NAME = 'New statblock';
 export async function createStatblockNote(app: App, note: NewStatblockNote): Promise<CreatedStatblockNote> {
   const folder = await targetFolder(app, note.folder);
   const path = freeNotePath(app, folder, noteFileName(note.name));
-  const file = await app.vault.create(path, statblockNoteText({ ...note, name: shownName(note.name, path) }));
+  const body = note.body ?? await savedTemplateBody(app, note.templateId);
+  const file = await app.vault.create(path, statblockNoteText({ ...note, name: shownName(note.name, path), body }));
   const linked = note.tokenImagePath === undefined
     ? false
     : await TokenStatblockLinkService.getInstance(app).linkTokenToStatblock(note.tokenImagePath, file.path, { showConfirmation: false });
@@ -61,8 +67,19 @@ async function targetFolder(app: App, folder: string | undefined): Promise<TFold
   return isRootPath(path) ? app.vault.getRoot() : ensureFolder(app, path);
 }
 
-/** The text of a new statblock note: its frontmatter, written by the patcher. */
-export function statblockNoteText(note: Pick<NewStatblockNote, 'name' | 'templateId' | 'tokenImagePath' | 'values'>): string {
+/**
+ * The text a template gives its new statblocks: what its note holds, as it
+ * is typed (the note saves itself); empty for a built-in or a template
+ * without a note.
+ */
+export async function savedTemplateBody(app: App, templateId: TemplateId): Promise<string> {
+  const library = TemplateLibrary.forApp(app);
+  await libraryLoaded(library);
+  return readTemplateBody(app, library.get(templateId)?.path ?? null);
+}
+
+/** The text of a new statblock note: its frontmatter, written by the patcher, then its body. */
+export function statblockNoteText(note: Pick<NewStatblockNote, 'name' | 'templateId' | 'tokenImagePath' | 'values' | 'body'>): string {
   const set = (key: string, next: FieldValue): NotePatch => ({ op: 'set', path: [key], base: undefined, next });
   const own = ['statblock', TEMPLATE_KEY, 'name', ...(note.tokenImagePath ? ['image'] : [])];
   const patches = [
@@ -74,7 +91,7 @@ export function statblockNoteText(note: Pick<NewStatblockNote, 'name' | 'templat
   ];
   const result = applyFrontmatterPatches('', patches);
   if (result.conflicts.length > 0) throw new Error('The statblock note could not be written.');
-  return result.text;
+  return result.text + (note.body ?? '');
 }
 
 /** A note name a file can carry: characters Obsidian rejects or that break links become `-`. */

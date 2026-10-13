@@ -1,5 +1,5 @@
 import { useCallback, useRef } from 'react';
-import type { StatblockTemplate } from '../../model/templateTypes';
+import type { StatblockTemplate, TemplateField } from '../../model/templateTypes';
 import { entryItemKeys } from '../../values/entryKeys';
 import { scrollerOf } from '../dnd/autoScroll';
 import { droppedIndex } from '../dnd/listDragGeometry';
@@ -7,8 +7,21 @@ import { useListDrag } from '../dnd/useListDrag';
 import { ITEM_SELECTOR } from '../interaction/useSurfaceHover';
 import type { HoverTarget } from '../interaction/hoverStore';
 import { entryList } from './entryPatches';
-import { findEntry } from './paneEntryActions';
+import { fieldByKey } from '../../model/fieldKeys';
+import { findBlock } from '../../model/treeQueries';
+import { keyedEntryItems } from '../../values/entryKeys';
+import { entryName } from '../../values/entryValues';
+import { singular } from '../../values/entryNoun';
 import type { PaneEditController } from './paneEditContext';
+
+/** The ability a handle names, with its list's field; null where the note no longer holds it. */
+function findEntry(template: StatblockTemplate, pane: PaneEditController, blockId: string, itemKey: string): { field: TemplateField; name: string } | null {
+  const block = findBlock(template.layout.blocks, blockId)?.block;
+  const field = block?.type === 'entries' ? fieldByKey(template.fields, block.field) : undefined;
+  const found = field ? keyedEntryItems(pane.read(field).value).find((entry) => entry.key === itemKey) : undefined;
+  if (!field || !found) return null;
+  return { field, name: entryName(found.item, field.entry) ?? (singular(field.label) || 'entry').toLowerCase() };
+}
 
 /** The clamp's hint is said once per session: a second pull against the list's edge is no surprise. */
 let pullHintSaid = false;
@@ -34,7 +47,7 @@ export function usePaneItemDrag({ pane, template, hint }: PaneItemDragInput): (t
   return useCallback((target: HoverTarget, handle: HTMLElement, event: PointerEvent): void => {
     const frame = target.element.closest<HTMLElement>('[data-block-id]');
     const { pane: current, template: shown } = latest.current;
-    const found = target.itemKey ? findEntry(shown, current, { blockId: target.blockId, itemKey: target.itemKey }) : null;
+    const found = target.itemKey ? findEntry(shown, current, target.blockId, target.itemKey) : null;
     if (!frame || !found || !target.itemKey) return;
     const items = (): HTMLElement[] => [...frame.querySelectorAll<HTMLElement>(ITEM_SELECTOR)];
     const keys = (): string[] => items().map((item) => item.getAttribute('data-item-key') ?? '');
@@ -51,7 +64,7 @@ export function usePaneItemDrag({ pane, template, hint }: PaneItemDragInput): (t
       onPull: () => {
         if (pullHintSaid) return;
         pullHintSaid = true;
-        const text = `Abilities stay in their list. To move ${found.name} to another list, use its menu: Move to.`;
+        const text = `${found.name} stays in its list.`;
         latest.current.hint(text);
         current.announce(text);
       },

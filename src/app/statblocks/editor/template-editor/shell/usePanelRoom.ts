@@ -4,9 +4,9 @@ import { observeResize } from '../../../../utils/observeResize';
 import { readableLineOf } from '../../note-panel/noteRoom';
 import { panelPrefsSource } from '../../note-panel/panelPrefsSource';
 import { STACK_BELOW, loadPanelPrefs, panelWidth, savePanelPrefs, type NoteRoom, type PanelPrefs } from '../../note-panel/panelPrefs';
-import { editorWidthOf, type EditorWidth } from '../dock/dockPlacement';
+import { editorWidthOf, type EditorWidth } from './editorWidth';
 
-const NO_PREFS: PanelPrefs = { width: null, hidden: false };
+const NO_PREFS: PanelPrefs = { width: null };
 
 /** The room the template editor's row gives its note and its panel, measured as a note view measures its own. */
 export interface PanelRoom {

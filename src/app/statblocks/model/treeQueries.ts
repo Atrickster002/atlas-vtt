@@ -53,10 +53,11 @@ export function isWithin(blocks: readonly TemplateBlock[], rootId: string, id: s
   return root.block.id === id || (isContainerBlock(root.block) && findBlock(root.block.blocks, id) !== null);
 }
 
-/** The field a block is bound to and edits: its `field`, or a Line's first. */
+/** The field a block is bound to and edits: its `field`, a Line's first, or a Metric's first named number. */
 export function boundField(block: TemplateBlock): FieldKey | undefined {
   switch (block.type) {
     case 'line': return block.fields[0];
+    case 'metric': return block.fields.find((key) => key !== '');
     case 'text': return block.field;
     case 'section': case 'row': case 'tabs': case 'heading': case 'divider': case 'script': case 'opaque': return undefined;
     default: return block.field;
@@ -66,7 +67,7 @@ export function boundField(block: TemplateBlock): FieldKey | undefined {
 function boundFields(block: TemplateBlock): (FieldKey | undefined)[] {
   switch (block.type) {
     case 'section': return [block.headingField];
-    case 'line': return block.fields;
+    case 'line': case 'metric': return block.fields;
     case 'stat': return [block.field, block.rollFrom];
     case 'scores': return [block.field, ...(block.columns ?? []).map((column) => column.field)];
     case 'entries': return [block.field, block.introField];

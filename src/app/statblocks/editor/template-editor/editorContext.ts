@@ -1,14 +1,15 @@
 import { createContext, useContext } from 'react';
 import type { App } from 'obsidian';
 import type { InsertItem } from './insertItems';
+import type { LabelPart } from './labelTargets';
 import type { BlockSelection } from './selection';
 import type { EditorSession, SessionSnapshot } from './sessionTypes';
 import type { CollectionFieldKeys } from './useCollectionFieldKeys';
 
 /**
- * What the template editor shares with the parts that float beside the card:
- * the dock's panels (Add, Structure, Properties, Template) and the Settings
- * panel, which read and change the same session and the same selection.
+ * What the template editor shares with the parts that float over and beside
+ * the card (the dock, the tile toolbar and its Options), which read and change
+ * the same session and the same selection.
  */
 export interface TemplateEditorContextValue {
   app: App | undefined;
@@ -19,17 +20,23 @@ export interface TemplateEditorContextValue {
   select: (selection: BlockSelection, focus?: boolean) => void;
   /** Inserts a block after the selection and selects it (§6.1: its label stays closed). */
   insert: (item: InsertItem) => void;
-  /** Inserts a Value showing a new property of this name after the selection ("Make a value called mana"). */
-  insertNamedStat: (name: string) => void;
-  /** Opens a block's label for editing in the canvas. */
-  editLabel: (id: string) => void;
+  /** Opens a block's label for editing in the canvas; `part` picks one of a Metric's. */
+  editLabel: (id: string, part?: LabelPart) => void;
   /** Says something in the view's live region. */
   announce: (text: string) => void;
   /** The collection context (§7.1): its notes' keys, its roles in questions. */
   collectionId: string | null;
   collectionKeys: CollectionFieldKeys;
-  /** Opens the Settings panel for the selection (§2.7). */
-  openSettings: () => void;
+  /** Opens the selected tile's Options, focusing the input named `focusKey` (`data-focus-key`) where given. */
+  openOptions: (focusKey?: string) => void;
+  /** The last request that a Table type its first cell. */
+  tableTyping?: TableTypingRequest | null | undefined;
+}
+
+/** A request that the Table `blockId` type its first cell: raised by Enter on its tile, which names other tiles. */
+export interface TableTypingRequest {
+  blockId: string;
+  count: number;
 }
 
 export const TemplateEditorContext = createContext<TemplateEditorContextValue | null>(null);

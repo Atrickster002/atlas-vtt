@@ -20,9 +20,9 @@ export type PaneTemplate =
  */
 export function usePaneTemplate(app: App, templateId: TemplateId | null, record: FieldRecord): PaneTemplate {
   const library = useTemplateLibrary(app);
-  // Read again whenever the library's snapshot changes, which an open template session's draft does too.
+  // Read again whenever the library's snapshot changes, which a saved template does too.
   const entry = useMemo(
-    () => (templateId === null || library === null ? null : TemplateLibrary.forApp(app).current(templateId)),
+    () => (templateId === null || library === null ? null : TemplateLibrary.forApp(app).get(templateId)),
     [app, library, templateId],
   );
   const missingTemplate = useMemo(() => (entry ? null : autoTemplate(record)), [entry, record]);

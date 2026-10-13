@@ -1,0 +1,49 @@
+// What a roll that kept some of its dice, or took advantage, shows: in the
+// result card and the dice log alike, after both, so a dropped die loses the
+// green or red of a highest or lowest face.
+
+.atlas-die-badge--kept {
+  font-weight: $font-weight-bold;
+}
+
+.atlas-die-badge--dropped {
+  background: transparent;
+  box-shadow: inset 0 0 0 $border-width-s color-mix(in oklch, var(--mono-100) $border-opacity-default, transparent);
+  color: var(--text-faint);
+  font-weight: $font-weight-normal;
+  text-decoration: line-through;
+}
+
+.atlas-rolled-dice {
+  font-family: var(--font-monospace);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+}
+
+.atlas-rolled-dice__die--kept {
+  font-weight: $font-weight-bold;
+  color: var(--text-normal);
+}
+
+.atlas-rolled-dice__die--dropped {
+  color: var(--text-faint);
+  text-decoration-thickness: 1px;
+}
+
+.atlas-rolled-dice__hidden {
+  @include atlas-visually-hidden;
+}
+
+// "Advantage" in small caps over the roll's line, in the accent; disadvantage muted.
+.atlas-roll-advantage {
+  align-self: flex-start;
+  font-size: 10px;
+  font-weight: $font-weight-semibold;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-accent);
+
+  &--disadvantage {
+    color: var(--text-muted);
+  }
+}

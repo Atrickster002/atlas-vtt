@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { autoTemplate } from '../../../../src/app/statblocks/model/autoTemplate';
+import { shownHeaderParts } from '../../../../src/app/statblocks/model/templateHeader';
 import { isLegalSubtree } from '../../../../src/app/statblocks/model/treeEdit';
 import { fieldsShownBy, flattenReadingOrder } from '../../../../src/app/statblocks/model/treeQueries';
 import { TEMPLATE_FORMAT, TEMPLATE_VERSION, type FieldValue } from '../../../../src/app/statblocks/model/templateTypes';
@@ -23,12 +24,14 @@ const marshWarden = {
 };
 
 describe('autoTemplate', () => {
-  it('builds a header and one block per field, in the record\'s order', () => {
+  it('fills the header from the record and lays out one block per other field, in the record\'s order', () => {
     const template = autoTemplate(marshWarden);
     expect(template).toMatchObject({ format: TEMPLATE_FORMAT, version: TEMPLATE_VERSION, id: 'auto', layout: { maxColumns: 2 } });
+    expect(template.header).toEqual({ hidden: ['level', 'type', 'hp'] });
     expect(template.fields).toEqual([
       { key: 'name', label: 'Name', type: 'text' },
       { key: 'image', label: 'Image', type: 'image' },
+      { key: 'description', label: 'Description', type: 'markdown', meaning: 'description' },
       { key: 'size', label: 'Size', type: 'text' },
       { key: 'ac', label: 'Armor class', type: 'number' },
       { key: 'hit_dice', label: 'Hit dice', type: 'text' },
@@ -37,23 +40,29 @@ describe('autoTemplate', () => {
       { key: 'skillsaves', label: 'Skills', type: 'pairs' },
       { key: 'languages', label: 'Languages', type: 'list' },
       { key: 'traits', label: 'Traits', type: 'entries' },
-      { key: 'description', label: 'Description', type: 'markdown' },
     ]);
     expect(template.layout.blocks).toStrictEqual([
-      { id: 'auto0002', type: 'row', blocks: [
-        { id: 'auto0000', type: 'title', field: 'name', level: 1 },
-        { id: 'auto0001', type: 'image', field: 'image', shape: 'token' },
-      ] },
-      { id: 'auto0003', type: 'stat', field: 'size', look: 'run-in' },
-      { id: 'auto0004', type: 'stat', field: 'ac', look: 'run-in' },
-      { id: 'auto0005', type: 'stat', field: 'hit_dice', look: 'run-in' },
-      { id: 'auto0006', type: 'scores', field: 'stats', orientation: 'row' },
-      { id: 'auto0007', type: 'pairs', field: 'saves' },
-      { id: 'auto0008', type: 'pairs', field: 'skillsaves' },
-      { id: 'auto0009', type: 'tags', field: 'languages', look: 'comma' },
-      { id: 'auto000a', type: 'entries', field: 'traits', heading: 'Traits' },
-      { id: 'auto000b', type: 'text', field: 'description' },
+      { id: 'auto0000', type: 'stat', field: 'size', look: 'run-in' },
+      { id: 'auto0001', type: 'stat', field: 'ac', look: 'run-in' },
+      { id: 'auto0002', type: 'stat', field: 'hit_dice', look: 'run-in' },
+      { id: 'auto0003', type: 'scores', field: 'stats', orientation: 'row' },
+      { id: 'auto0004', type: 'pairs', field: 'saves' },
+      { id: 'auto0005', type: 'pairs', field: 'skillsaves' },
+      { id: 'auto0006', type: 'tags', field: 'languages', look: 'comma' },
+      { id: 'auto0007', type: 'entries', field: 'traits', heading: 'Traits' },
     ]);
+  });
+
+  it('shows Fantasy Statblocks\' challenge as the level, under its own key', () => {
+    const template = autoTemplate({ name: 'Wolf', cr: '1/4', type: 'beast', hp: 11 });
+    expect(template.fields).toEqual([
+      { key: 'name', label: 'Name', type: 'text' },
+      { key: 'cr', label: 'Challenge rating', type: 'text', meaning: 'rating' },
+      { key: 'type', label: 'Type', type: 'text', meaning: 'creature-type' },
+      { key: 'hp', label: 'Hit points', type: 'number', meaning: 'hit-points' },
+    ]);
+    expect(template.header).toEqual({ hidden: ['description'] });
+    expect(template.layout.blocks).toEqual([]);
   });
 
   it('is the same for the same record', () => {
@@ -78,13 +87,16 @@ describe('autoTemplate', () => {
       nested: { speed: { walk: '30 ft.' } }, flag: true, mixed: [1, 'two'], speeds: { walk: '30 ft.' },
       level: 0,
     }, new Set(['secret']));
-    expect(template.fields).toEqual([{ key: 'level', label: 'Level', type: 'number' }]);
+    expect(template.fields).toEqual([{ key: 'level', label: 'Level', type: 'number', meaning: 'rating' }]);
   });
 
-  it('builds no header without a name or image, and nothing from an empty record', () => {
-    expect(autoTemplate({ hp: 7 }).layout.blocks).toEqual([{ id: 'auto0000', type: 'stat', field: 'hp', look: 'run-in' }]);
-    expect(autoTemplate({ image: 'a.png' }).layout.blocks).toEqual([{ id: 'auto0000', type: 'image', field: 'image', shape: 'token' }]);
-    expect(autoTemplate({})).toEqual({ format: TEMPLATE_FORMAT, version: TEMPLATE_VERSION, id: 'auto', fields: [], layout: { maxColumns: 2, blocks: [] } });
+  it('lays out nothing of the header, and hides every part an empty record holds nothing of', () => {
+    expect(autoTemplate({ hp: 7 }).layout.blocks).toEqual([]);
+    expect(autoTemplate({ image: 'a.png' }).layout.blocks).toEqual([]);
+    expect(autoTemplate({})).toEqual({
+      format: TEMPLATE_FORMAT, version: TEMPLATE_VERSION, id: 'auto', fields: [],
+      header: { hidden: ['level', 'type', 'hp', 'description'] }, layout: { maxColumns: 2, blocks: [] },
+    });
     expect(autoTemplate({ name: 'Wolf' }, new Set(['name'])).fields).toEqual([]);
   });
 });
@@ -117,8 +129,10 @@ describe('autoTemplate on random records', () => {
       expect(new Set(blocks.map((block) => block.id)).size, `seed ${seed}`).toBe(blocks.length);
       expect(blocks.every((block) => /^[0-9a-z]{8}$/.test(block.id))).toBe(true);
       expect(template.layout.blocks.every(isLegalSubtree)).toBe(true);
-      const shown = blocks.flatMap((block) => fieldsShownBy(block));
-      expect(shown.sort(), `seed ${seed}`).toEqual(template.fields.map((field) => field.key).sort());
+      const fieldKeys = template.fields.map((field) => field.key);
+      const header = shownHeaderParts(template).map((part) => part.key).filter((key) => fieldKeys.includes(key));
+      const body = blocks.flatMap((block) => fieldsShownBy(block));
+      expect([...header, ...body].sort(), `seed ${seed}`).toEqual(fieldKeys.sort());
       for (const field of template.fields) expect(Object.keys(record), `seed ${seed}`).toContain(field.key);
     }
   });

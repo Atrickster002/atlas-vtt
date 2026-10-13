@@ -49,6 +49,20 @@ describe('settings dropdown interactions', () => {
     await waitFor(() => expect(document.activeElement).toBe(secondTrigger));
   });
 
+  it('describes each option that has an explanation, beside its row, and leaves the others plain', async () => {
+    render(<ObsidianMenuDropdown value="natural" options={{ natural: 'Natural', none: 'None', plain: 'Plain' }}
+      descriptions={{ natural: 'The highest face is a critical success.', none: 'Rolls are never critical.' }} onChange={vi.fn()} />);
+    fireEvent.keyDown(screen.getByRole('button', { name: 'Natural' }), { key: 'Enter' });
+    const described = (name: string): string | null => {
+      const id = screen.getByRole('menuitemcheckbox', { name }).getAttribute('aria-describedby');
+      return id ? document.getElementById(id)?.textContent ?? null : null;
+    };
+    await screen.findByRole('menu');
+    expect(described('Natural')).toBe('The highest face is a critical success.');
+    expect(described('None')).toBe('Rolls are never critical.');
+    expect(screen.getByRole('menuitemcheckbox', { name: 'Plain' }).hasAttribute('aria-describedby')).toBe(false);
+  });
+
   it('keeps the menu inside its Obsidian modal so the focus trap can reach it', async () => {
     const view = render(<div className="modal"><div role="dialog"><ObsidianMenuDropdown value="Square" options={['Square', 'Hex']} onChange={vi.fn()} /></div></div>);
     fireEvent.keyDown(screen.getByRole('button', { name: 'Square' }), { key: 'Enter' });

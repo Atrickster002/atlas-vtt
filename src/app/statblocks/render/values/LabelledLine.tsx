@@ -12,16 +12,20 @@ interface LabelledLineProps {
   hitPoints?: boolean | undefined;
   /** The label's id, for a value that names itself by it (a meter). */
   labelId?: string | undefined;
+  /** The label stands in for a name not given yet (a tile just placed), in the faint text of a blank. */
+  placeholder?: boolean | undefined;
 }
 
 /**
  * A label and its values: a Stat, a Pairs or Tags line, a Track. Dice rolled
  * from the values are named after the label.
  */
-export function LabelledLine({ label, children, look = 'run-in', className, hitPoints = false, labelId }: LabelledLineProps): React.JSX.Element {
+export function LabelledLine({
+  label, children, look = 'run-in', className, hitPoints = false, labelId, placeholder = false,
+}: LabelledLineProps): React.JSX.Element {
   return (
     <div className={cn('atlas-sb-labelled', `atlas-sb-labelled--${look}`, className)} {...hitPointsAttribute(hitPoints)}>
-      {label && <span id={labelId} className="atlas-sb-label">{label}</span>}
+      {label && <span id={labelId} className={cn('atlas-sb-label', placeholder && 'atlas-sb-placeholder')}>{label}</span>}
       {children}
     </div>
   );

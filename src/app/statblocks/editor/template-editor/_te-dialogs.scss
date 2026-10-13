@@ -1,10 +1,10 @@
-// The template editor's delete dialog and its undo toast (§7.8, §7.10).
+// The template editor's dialogs (save, unsaved changes, delete) and its undo toast (§7.8, §7.10).
 
 @use '../../../../../styles/tokens' as *;
 @use '../../../../../styles/mixins' as *;
 
 .atlas-vtt-plugin {
-  // ── Delete dialog ───────────────────────────────────────────────────────
+  // ── Dialogs ─────────────────────────────────────────────────────────────
   .atlas-te-dialog {
     @include atlas-modal-window;
     width: 440px;
@@ -12,6 +12,19 @@
     &:focus {
       outline: none;
     }
+  }
+
+  // Dice rolls…: room for a set's facts on one line beside its dice.
+  .atlas-te-dialog.atlas-te-dice {
+    width: 480px;
+  }
+
+  // Dice rolls…: what the choice is for, in one muted line over the sets.
+  .atlas-te-dice__intro {
+    @include atlas-flex-row($spacing-xs);
+    margin: 0;
+    font-size: $font-ui-smaller;
+    color: var(--text-muted);
   }
 
   .atlas-te-dialog__header {
@@ -38,6 +51,18 @@
 
   .atlas-te-dialog__label {
     @include atlas-field-label;
+  }
+
+  // Save: the template's name, the line under it says what saving does or why it can't.
+  input.atlas-te-save__name {
+    @include atlas-corner-shape;
+    width: 100%;
+    height: var(--input-height);
+  }
+
+  .atlas-te-save__problem {
+    margin: 0;
+    color: var(--text-error);
   }
 
   // ── Undo toast: a capsule, its button concentric at the ends ────────────

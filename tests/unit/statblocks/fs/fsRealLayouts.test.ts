@@ -37,29 +37,28 @@ describe('the Cairn layout', () => {
   const { template, report } = fsLayoutToTemplate(CAIRN, { id: 'cairn-abc123' });
 
   it('imports block by block', () => {
+    // The image, the type, the hit points and the description stand in the header, and so does the top heading's `title`:
+    // the name the header shows, where `name` is the bestiary's key ("Aranea (Cairn)")
     expect(outline(template.layout.blocks)).toEqual([
-      'image image whenEmpty="hide"',
-      'title title level=1 fallback="Creature"',
-      'line type whenEmpty="hide"',
       'divider when type present',
       'section',
-      '  stat hp whenEmpty="hide"',
-      '  stat armor whenEmpty="hide"',
+      '  stat armor whenEmpty="fold"',
       'divider',
-      'scores stats whenEmpty="hide"',
+      'scores stats whenEmpty="fold"',
       'divider when stats present',
-      'stat attacks whenEmpty="hide" extras=markdown',
+      'stat attacks whenEmpty="fold" extras=markdown',
       'divider when attacks present',
-      'text description whenEmpty="hide" extras=markdown',
-      'entries abilities whenEmpty="hide" extras=markdown',
-      'stat critical_damage whenEmpty="hide" extras=markdown',
+      'entries abilities whenEmpty="fold" extras=markdown',
+      'stat critical_damage whenEmpty="fold" extras=markdown',
     ]);
+    expect(template.header).toEqual({ hidden: ['level'] });
     expect(fieldOutline(template.fields)).toEqual([
       'image: image "Image"', 'title: text "Title"', 'type: text "Type"', 'hp: text "HP"', 'armor: text "Armor"',
       'stats: scores "Abilities" [STR,DEX,WIL]', 'attacks: text "Attacks"', 'description: markdown "Description"',
       'abilities: entries "Abilities"', 'critical_damage: text "Critical Damage"',
     ]);
     expect(template.importedFrom).toEqual({ layoutId: 'cairn-bestiary-layout', layoutName: 'Cairn' });
+    expect(template.fields.find((field) => field.key === 'title')?.meaning).toBe('display-name');
   });
 
   it('shows every block in full and parses', () => {
@@ -78,16 +77,17 @@ describe('the Dolmenwood layout', () => {
 
   it('imports block by block', () => {
     expect(outline(template.layout.blocks)).toEqual([
-      'image image whenEmpty="hide"',
-      'title name level=1 fallback="Creature"',
-      'text groessetyp whenEmpty="hide" fallback="-" extras=markdown',
+      'text groessetyp whenEmpty="fold" fallback="-" extras=markdown',
       'divider when groessetyp present',
-      'entries statlines whenEmpty="hide" fallback="-" extras=markdown',
+      'entries statlines whenEmpty="fold" fallback="-" extras=markdown',
     ]);
     expect(fieldOutline(template.fields)).toEqual([
       'image: image "Image"', 'name: text "Name"', 'groessetyp: markdown "Groessetyp"', 'statlines: entries "Statlines"',
     ]);
     expect(template.layout).toMatchObject({ maxColumns: 1, columnWidth: 19 });
+    expect(template.header).toEqual({ hidden: ['level', 'type', 'hp', 'description'] });
+    // Its top heading shows the name: no display name of its own
+    expect(template.fields.some((field) => field.meaning === 'display-name')).toBe(false);
   });
 
   it('shows every block in full and parses', () => {

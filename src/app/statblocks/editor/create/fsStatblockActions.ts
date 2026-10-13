@@ -3,8 +3,8 @@
  * from the file menu and the command palette: "Edit with an Atlas template…"
  * gives a frontmatter statblock an Atlas template (`atlas-template` alone;
  * `layout:` and every value stay), "Copy into a new statblock" copies a
- * ```statblock fence into a new native note. The note then opens with its
- * statblock beside it.
+ * ```statblock fence into a new native note, with the template of the
+ * fence's layout or a role's. The note then opens with its statblock beside it.
  */
 
 import { Menu, Notice, type App, type TFile } from 'obsidian';
@@ -12,7 +12,6 @@ import { isFantasyStatblocksAvailable } from '../../../services/FantasyStatblock
 import { runInBackground } from '../../../utils/backgroundTask';
 import { findImportedTemplate, identityOf, importFsLayout } from '../../fs/fsImport';
 import { noteFsLayout, noteLayout } from '../../fs/fsLayoutNotes';
-import type { FsLayout } from '../../fs/fsLayoutTypes';
 import { TemplateLibrary } from '../../library/TemplateLibrary';
 import type { TemplateId } from '../../model/templateTypes';
 import { NoteFieldWriter } from '../../notes/NoteFieldWriter';
@@ -23,7 +22,7 @@ import { saveStatblockAsTemplate } from '../gallery/galleryActions';
 import { showImportOutcome } from '../fs-import/layoutImportFlow';
 import { openStatblockEditor } from '../openStatblockEditor';
 import { templateKeyPatch } from '../statblock-pane/templateKeyPatch';
-import { copyFenceIntoStatblock } from '../statblock-pane/fenceCopy';
+import { copyFenceIntoStatblock, fenceValues } from '../statblock-pane/fenceCopy';
 import { chosenRole, roleChoicesFor, roleTemplateId } from './collectionRoles';
 
 export const EDIT_WITH_TEMPLATE = 'Edit with an Atlas template…';
@@ -77,10 +76,35 @@ function roleRows(app: App, collectionId: string | null, choose: (roleId: string
 }
 
 /**
- * What "Edit with an Atlas template…" offers: the template imported from the
- * note's own layout (imported now when it never was, which then shows the
- * report and the batch for the layout's other notes), then the roles'
- * templates and, without the plugin, a template of the note's own shape.
+ * The row for the template of the layout Fantasy Statblocks draws `record`
+ * with: the template imported from it before, else the layout imported now,
+ * which then shows the report and the batch for the layout's other notes.
+ * Null where there is no such layout (no plugin, a layout it lacks).
+ */
+function layoutRow(
+  app: App, record: FrontmatterRecord, doc: Document, collectionId: string | null, except: string | undefined,
+  use: (templateId: TemplateId) => Promise<unknown>,
+): StatblockChoice | null {
+  const layout = noteLayout(app, record);
+  const imported = layout ? findImportedTemplate(TemplateLibrary.forApp(app).list(), layout) : null;
+  if (imported) return { title: imported.name, hint: 'From its layout', run: () => use(imported.template.id) };
+  const fsLayout = noteFsLayout(app, record);
+  if (!fsLayout) return null;
+  return {
+    title: fsLayout.name,
+    hint: 'Imports its layout',
+    run: async () => {
+      const made = await importFsLayout(app, fsLayout);
+      await use(made.id);
+      await showImportOutcome(app, doc, identityOf(fsLayout), made, { collectionId, offerOpen: true, ...(except !== undefined && { except }) });
+    },
+  };
+}
+
+/**
+ * What "Edit with an Atlas template…" offers: the template of the note's own
+ * layout (`layoutRow`), then the roles' templates and, without the plugin, a
+ * template of the note's own shape.
  */
 export function adoptionChoices(app: App, notePath: string, record: FrontmatterRecord, collectionId: string | null, doc: Document): StatblockChoice[] {
   const adopt = async (templateId: TemplateId): Promise<void> => {
@@ -92,17 +116,8 @@ export function adoptionChoices(app: App, notePath: string, record: FrontmatterR
     }
     await openStatblockEditor(app, { notePath, collectionId, from: 'command' });
   };
-  const importAndAdopt = async (layout: FsLayout): Promise<void> => {
-    const imported = await importFsLayout(app, layout);
-    await adopt(imported.id);
-    showImportOutcome(app, doc, identityOf(layout), imported, { collectionId, offerOpen: true, except: notePath });
-  };
-  const layout = noteLayout(app, record);
-  const imported = layout ? findImportedTemplate(TemplateLibrary.forApp(app).list(), layout) : null;
-  const fsLayout = imported ? null : noteFsLayout(app, record);
-  const choices: StatblockChoice[] = [];
-  if (imported) choices.push({ title: imported.name, hint: 'From its layout', run: () => adopt(imported.template.id) });
-  else if (fsLayout) choices.push({ title: fsLayout.name, hint: 'Imports its layout', run: () => importAndAdopt(fsLayout) });
+  const fromLayout = layoutRow(app, record, doc, collectionId, notePath, adopt);
+  const choices: StatblockChoice[] = fromLayout ? [fromLayout] : [];
   choices.push(...roleRows(app, collectionId, async (roleId) => {
     const chosen = chosenRole(app, collectionId, roleId);
     if (chosen) await adopt(await roleTemplateId(app, chosen.role));
@@ -113,9 +128,19 @@ export function adoptionChoices(app: App, notePath: string, record: FrontmatterR
   return choices;
 }
 
-/** What "Copy into a new statblock" offers: one row per role of the collection. */
-export function fenceCopyChoices(app: App, notePath: string, collectionId: string | null): StatblockChoice[] {
-  return roleRows(app, collectionId, (roleId) => copyFenceIntoStatblock(app, notePath, collectionId, roleId));
+/**
+ * What "Copy into a new statblock" offers: the template of the layout the
+ * fence is drawn with (`layout`, else the plugin's default), which shows every
+ * value the fence's statblock showed, then one row per role of the collection.
+ */
+export function fenceCopyChoices(app: App, notePath: string, layout: string | null, collectionId: string | null, doc: Document): StatblockChoice[] {
+  const [firstRole] = roleChoicesFor(app, collectionId);
+  const fromLayout = firstRole
+    ? layoutRow(app, layout ? { layout } : {}, doc, collectionId, notePath,
+      (templateId) => copyFenceIntoStatblock(app, notePath, collectionId, firstRole.roleId, templateId))
+    : null;
+  const roles = roleRows(app, collectionId, (roleId) => copyFenceIntoStatblock(app, notePath, collectionId, roleId));
+  return fromLayout ? [fromLayout, ...roles] : roles;
 }
 
 /** Runs the only choice at once; otherwise opens Obsidian's menu of them at `place`. */
@@ -143,10 +168,12 @@ export async function offerFsAdoption(app: App, file: TFile, place: MenuPlace): 
 
 /** "Copy into a new statblock" for a note's ```statblock fence. */
 export async function offerFenceCopy(app: App, file: TFile, place: MenuPlace): Promise<void> {
-  if ((await statblockSourceOf(app, file))?.kind !== 'fs-fence') {
+  const fence = (await statblockSourceOf(app, file))?.kind === 'fs-fence' ? await fenceValues(app, file.path) : null;
+  if (!fence) {
     new Notice('This note holds no statblock block to copy.');
     return;
   }
   const [{ collectionId }] = await Promise.all([resolveCollectionContext(app, file.path, null), libraryLoaded(TemplateLibrary.forApp(app))]);
-  offerChoices(fenceCopyChoices(app, file.path, collectionId), place, `Copying the statblock of ${file.path}`, "Couldn't copy the statblock.");
+  const choices = fenceCopyChoices(app, file.path, fence.layout, collectionId, place.doc);
+  offerChoices(choices, place, `Copying the statblock of ${file.path}`, "Couldn't copy the statblock.");
 }

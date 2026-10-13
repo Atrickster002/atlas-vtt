@@ -13,16 +13,21 @@ export type JsNode =
   | { kind: 'template'; parts: (string | JsNode)[] }
   | { kind: 'name'; name: string }
   | { kind: 'member'; object: JsNode; key: string }
+  /** `table[monster.cr]`: a member whose key is worked out. */
+  | { kind: 'index'; object: JsNode; key: JsNode }
   | { kind: 'call'; callee: JsNode; args: JsNode[] }
   | { kind: 'unary'; op: string; arg: JsNode }
   | { kind: 'binary'; op: string; left: JsNode; right: JsNode }
   | { kind: 'conditional'; test: JsNode; yes: JsNode; no: JsNode }
-  | { kind: 'array'; items: JsNode[] };
+  | { kind: 'array'; items: JsNode[] }
+  /** `{ cr: "1/4", xp: 50 }`: keys as written, in order. */
+  | { kind: 'object'; entries: [string, JsNode][] };
 
 export type JsStatement =
   | { kind: 'return'; value: JsNode | null }
   | { kind: 'declare'; name: string; value: JsNode }
-  | { kind: 'if'; test: JsNode; then: JsStatement[] }
+  /** `otherwise`: the `else` branch, where there is one (an `else if` is an `if` alone in it). */
+  | { kind: 'if'; test: JsNode; then: JsStatement[]; otherwise?: JsStatement[] }
   | { kind: 'expression'; value: JsNode };
 
 /** Longer callbacks do more than format a value. */
@@ -31,7 +36,7 @@ const MAX_NESTING = 48;
 const KEYWORDS: ReadonlySet<string> = new Set(['return', 'const', 'let', 'var', 'if', 'else']);
 
 const BINARY_LEVELS: readonly (readonly string[])[] = [
-  ['||'], ['&&'], ['==', '!=', '===', '!=='], ['<', '>', '<=', '>=', 'in'], ['+', '-'], ['*', '/', '%'],
+  ['??'], ['||'], ['&&'], ['==', '!=', '===', '!=='], ['<', '>', '<=', '>=', 'in'], ['+', '-'], ['*', '/', '%'],
 ];
 
 class Parser {
@@ -95,14 +100,18 @@ class Parser {
       this.expect('(');
       const test = this.expression();
       this.expect(')');
-      const then = this.takes('{') ? this.statements('}') : [this.statement()];
-      if (this.peekIs('else')) fail();
-      return { kind: 'if', test, then };
+      const then = this.branch();
+      return this.takes('else') ? { kind: 'if', test, then, otherwise: this.branch() } : { kind: 'if', test, then };
     } else {
       statement = { kind: 'expression', value: this.expression() };
     }
     this.takes(';');
     return statement;
+  }
+
+  /** An `if`'s or `else`'s branch: a block, or one statement. */
+  private branch(): JsStatement[] {
+    return this.takes('{') ? this.statements('}') : [this.statement()];
   }
 
   private peekIs(value: string): boolean {
@@ -149,7 +158,7 @@ class Parser {
     let node = start;
     for (;;) {
       if (this.takes('.') || this.takes('?.')) node = { kind: 'member', object: node, key: this.memberName() };
-      else if (this.takes('[')) node = { kind: 'member', object: node, key: this.bracketKey() };
+      else if (this.takes('[')) node = this.bracketMember(node);
       else if (this.takes('(')) node = { kind: 'call', callee: node, args: this.list(')') };
       else return node;
     }
@@ -162,12 +171,34 @@ class Parser {
     return token.value;
   }
 
-  private bracketKey(): string {
+  /** `object["key"]` is a member as `object.key` is; any other key is worked out (`index`). */
+  private bracketMember(object: JsNode): JsNode {
     const token = this.peek();
-    if (token?.kind !== 'string') fail();
-    this.at += 1;
+    const next = this.tokens[this.at + 1];
+    if (token?.kind === 'string' && next?.kind === 'punct' && next.value === ']') {
+      this.at += 2;
+      return { kind: 'member', object, key: token.value };
+    }
+    const key = this.expression();
     this.expect(']');
-    return token.value;
+    return { kind: 'index', object, key };
+  }
+
+  /** `{ key: value, "key": value, 1: value }`, the opening brace taken. */
+  private objectLiteral(): JsNode {
+    const entries: [string, JsNode][] = [];
+    while (!this.takes('}')) {
+      if (entries.length > 0) {
+        this.expect(',');
+        if (this.takes('}')) break;
+      }
+      const token = this.peek() ?? fail();
+      if (token.kind !== 'name' && token.kind !== 'string' && token.kind !== 'number') fail();
+      this.at += 1;
+      this.expect(':');
+      entries.push([String(token.value), this.expression()]);
+    }
+    return { kind: 'object', entries };
   }
 
   private list(closer: string): JsNode[] {
@@ -197,6 +228,12 @@ class Parser {
       return inner;
     }
     if (token.value === '[') return { kind: 'array', items: this.list(']') };
+    if (token.value === '{') {
+      if (++this.nesting > MAX_NESTING) fail();
+      const node = this.objectLiteral();
+      this.nesting -= 1;
+      return node;
+    }
     return fail();
   }
 }

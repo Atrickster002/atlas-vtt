@@ -157,7 +157,7 @@ export function planImportPaths(files: readonly BundleFile[], rules: ImportPathR
   const unplaced: Array<{ file: BundleFile; folder: string }> = [];
   const besideMaps: Array<{ file: BundleFile; map: string }> = [];
   for (const file of files) {
-    // Templates and presets are placed by their id (`templatePlacer`, `planPresets`), not by their path.
+    // Templates (with their notes), presets and dice sets are placed by their id (`templatePlacer`, `planRecords`), not by their path.
     if (ID_MATCHED_ROLES.has(file.role)) continue;
     const path = file.vaultPath;
     const map = sceneMapOf(file, mapPaths);

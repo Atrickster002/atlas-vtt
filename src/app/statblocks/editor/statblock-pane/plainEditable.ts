@@ -11,14 +11,20 @@ export function textOf(element: HTMLElement): string {
 
 /** Puts the caret `offset` characters in, clamped to the text. */
 export function placeCaret(element: HTMLElement, offset: number): void {
+  selectText(element, offset, offset);
+}
+
+/** Selects the characters from `start` to `end`, clamped to the text. */
+export function selectText(element: HTMLElement, start: number, end: number): void {
   const doc = element.ownerDocument;
   const selection = doc.getSelection();
   if (!selection) return;
   const node = element.firstChild ?? element;
   const length = node.textContent?.length ?? 0;
+  const clamp = (offset: number): number => Math.max(0, Math.min(offset, length));
   const range = doc.createRange();
-  range.setStart(node, Math.max(0, Math.min(offset, length)));
-  range.collapse(true);
+  range.setStart(node, clamp(start));
+  range.setEnd(node, clamp(Math.max(start, end)));
   selection.removeAllRanges();
   selection.addRange(range);
 }

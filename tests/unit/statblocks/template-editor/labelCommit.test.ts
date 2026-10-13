@@ -11,6 +11,13 @@ function blockOf(source: StatblockTemplate, id: string): TemplateBlock {
   return found.block;
 }
 
+/** The sample with a section headed Defenses, as the grid shows a compound tile. */
+const withSection = (): StatblockTemplate => {
+  const sample = sampleTemplate();
+  const section: TemplateBlock = { id: 'section1', type: 'section', heading: 'Defenses', blocks: [{ id: 'divider2', type: 'divider' }] };
+  return { ...sample, layout: { ...sample.layout, blocks: [...sample.layout.blocks, section] } };
+};
+
 const unbound = (): StatblockTemplate => template(
   [{ id: 'newstat1', type: 'stat', field: '', look: 'run-in' }, { id: 'newline1', type: 'line', fields: [] }, { id: 'newent01', type: 'entries', field: '' }],
   [{ key: 'name', label: 'Name', type: 'text' }],
@@ -18,7 +25,7 @@ const unbound = (): StatblockTemplate => template(
 
 describe('labelTargetOf', () => {
   it('offers the label of labelled blocks, headings, and a new field for unbound blocks', () => {
-    const source = sampleTemplate();
+    const source = withSection();
     expect(labelTargetOf(blockOf(source, 'stat-ac1'), source.fields)).toEqual({ kind: 'label', text: 'Armor class' });
     expect(labelTargetOf(blockOf(source, 'section1'), source.fields)).toEqual({ kind: 'heading', text: 'Defenses' });
     expect(labelTargetOf(blockOf(source, 'row00001'), source.fields)).toBeNull();
@@ -77,9 +84,22 @@ describe('commitLabel', () => {
   });
 
   it('sets and removes a heading', () => {
-    const source = sampleTemplate();
+    const source = withSection();
     expect(blockOf(commitLabel(source, 'section1', 'Guard').template, 'section1')).toMatchObject({ heading: 'Guard' });
     expect(blockOf(commitLabel(source, 'section1', '').template, 'section1')).not.toHaveProperty('heading');
+  });
+
+  it('names an Abilities component split into tabs by the Tabs block\'s heading, and removes it', () => {
+    const tabs: TemplateBlock = { id: 'tabs0001', type: 'tabs', blocks: [
+      { id: 'tab00001', type: 'section', heading: 'Cantrips', blocks: [{ id: 'spells01', type: 'entries', field: 'spells' }] },
+    ] };
+    const source = template([tabs], [{ key: 'spells', label: 'Spells', type: 'entries' }]);
+    expect(labelTargetOf(tabs, source.fields)).toEqual({ kind: 'heading', text: '' });
+    const named = commitLabel(source, 'tabs0001', ' Spellbook ').template;
+    expect(blockOf(named, 'tabs0001')).toMatchObject({ heading: 'Spellbook' });
+    expect(blockOf(named, 'tab00001')).toMatchObject({ heading: 'Cantrips' });
+    expect(labelTargetOf(blockOf(named, 'tabs0001'), named.fields)).toEqual({ kind: 'heading', text: 'Spellbook' });
+    expect(blockOf(commitLabel(named, 'tabs0001', '').template, 'tabs0001')).not.toHaveProperty('heading');
   });
 
   it('changes nothing for an empty label, the same label, or a block without one', () => {

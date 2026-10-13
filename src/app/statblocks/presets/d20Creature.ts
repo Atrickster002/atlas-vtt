@@ -7,11 +7,11 @@
  */
 
 import type { BuiltInTemplate } from '../model/templateTypes';
-import { builtIn, headerRow, nameField, portraitField, sizeField } from './presetParts';
+import { builtIn, centredColumns, nameField, portraitField, sizeField } from './presetParts';
 
 const MODIFIER = 'floor((value - 10) / 2)';
 
-export const D20_CREATURE: BuiltInTemplate = builtIn('builtin:d20-creature', 'd20 creature', 1, {
+export const D20_CREATURE: BuiltInTemplate = builtIn('builtin:d20-creature', 'd20 creature', 4, {
   fields: [
     nameField(),
     portraitField(),
@@ -25,7 +25,7 @@ export const D20_CREATURE: BuiltInTemplate = builtIn('builtin:d20-creature', 'd2
     { key: 'initiative', label: 'Initiative', type: 'number', meaning: 'initiative' },
     { key: 'speed', label: 'Speed', type: 'text' },
     {
-      key: 'stats', label: 'Abilities', type: 'scores', slots: ['STR', 'DEX', 'CON', 'INT', 'WIS', 'CHA'],
+      key: 'stats', label: 'Abilities', type: 'scores', addRows: false, addColumns: false, slots: ['STR', 'DEX', 'CON', 'INT', 'WIS', 'CHA'], align: centredColumns(6),
       slotKeys: ['strength', 'dexterity', 'constitution', 'intelligence', 'wisdom', 'charisma'],
     },
     { key: 'saves', label: 'Saves', type: 'pairs' },
@@ -43,15 +43,11 @@ export const D20_CREATURE: BuiltInTemplate = builtIn('builtin:d20-creature', 'd2
     maxColumns: 2,
     columnWidth: 22,
     blocks: [
-      headerRow({ row: 'dthead00', section: 'dtname00', image: 'dtimage0' }, [
-        { id: 'dttitle0', type: 'title', field: 'name', level: 1 },
-        { id: 'dtline00', type: 'line', fields: ['size', 'type', 'alignment'], pattern: '{size} {type}[, {alignment}]' },
-      ]),
+      { id: 'dtline00', type: 'line', fields: ['size', 'alignment'], pattern: '{size}[, {alignment}]' },
       { id: 'dtdivid0', type: 'divider' },
       {
         id: 'dtstrip0', type: 'row', blocks: [
           { id: 'dtac0000', type: 'stat', field: 'ac', look: 'stacked' },
-          { id: 'dthp0000', type: 'stat', field: 'hp', look: 'stacked', pattern: '{hp}[ ({hit_dice})]', rollFrom: 'hit_dice' },
           { id: 'dtspeed0', type: 'stat', field: 'speed', look: 'stacked' },
           {
             id: 'dtinit00', type: 'stat', field: 'initiative', look: 'stacked', display: 'signed',
@@ -67,11 +63,9 @@ export const D20_CREATURE: BuiltInTemplate = builtIn('builtin:d20-creature', 'd2
       { id: 'dtskill0', type: 'pairs', field: 'skillsaves', label: 'Skills', display: 'signed' },
       { id: 'dtsenses', type: 'stat', field: 'senses', look: 'run-in' },
       { id: 'dtlangs0', type: 'stat', field: 'languages', look: 'run-in' },
-      { id: 'dtlevel0', type: 'stat', field: 'level', look: 'run-in' },
       { id: 'dtdivid1', type: 'divider' },
       { id: 'dtattack', type: 'entries', field: 'attacks', heading: 'Attacks', addLabel: 'Add attack' },
       { id: 'dttraits', type: 'entries', field: 'traits', heading: 'Special Abilities', addLabel: 'Add ability' },
-      { id: 'dtdesc00', type: 'text', field: 'description' },
     ],
   },
   sample: { name: 'Creature name' },

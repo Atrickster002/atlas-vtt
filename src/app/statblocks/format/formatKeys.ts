@@ -15,6 +15,7 @@ import type {
   StatblockTemplate,
   TemplateBlock,
   TemplateField,
+  TemplateHeader,
   TemplateLayout,
   TemplateSource,
 } from '../model/templateTypes';
@@ -44,18 +45,20 @@ function keyOrder<K extends string>(order: Record<K, true>): KeyOrder<K> {
 }
 
 export const TEMPLATE_KEYS = keyOrder<keyof StatblockTemplate>({
-  format: true, version: true, id: true, description: true, suits: true, derivedFrom: true, source: true,
-  importedFrom: true, fields: true, layout: true, lookups: true, sample: true,
+  format: true, version: true, id: true, description: true, suits: true, diceSetId: true, derivedFrom: true, source: true,
+  importedFrom: true, fields: true, header: true, layout: true, lookups: true, sample: true,
 });
+
+export const HEADER_KEYS = keyOrder<keyof TemplateHeader>({ hidden: true });
 
 export const FIELD_KEYS = keyOrder<keyof TemplateField>({
   key: true, label: true, type: true, meaning: true, formerKeys: true, unit: true, options: true, open: true,
   several: true, numbered: true,
-  slots: true, slotKeys: true, entry: true, prompt: true,
+  slots: true, slotKeys: true, header: true, rows: true, align: true, addRows: true, addColumns: true, entry: true, prompt: true,
 });
 
 export const ENTRY_SHAPE_KEYS = keyOrder<keyof EntryShape>({ nameKey: true, textKey: true, extras: true });
-export const ENTRY_EXTRA_KEYS = keyOrder<keyof EntryExtra>({ key: true, label: true, type: true });
+export const ENTRY_EXTRA_KEYS = keyOrder<keyof EntryExtra>({ key: true, label: true, type: true, options: true, several: true });
 export const LAYOUT_KEYS = keyOrder<keyof TemplateLayout>({ maxColumns: true, columnWidth: true, blocks: true });
 export const CONDITION_KEYS = keyOrder<KeysOfUnion<Condition>>({ field: true, is: true, value: true });
 export const SCORE_COLUMN_KEYS = keyOrder<keyof ScoreColumn>({ label: true, field: true, formula: true, display: true });
@@ -73,10 +76,11 @@ const BLOCK_BASE: Record<Exclude<keyof BlockBase, 'id'>, true> = {
 const BLOCK_PROPS: { [T in FileBlockType]: Record<OwnBlockKeys<T>, true> } = {
   section: { heading: true, headingField: true, collapsible: true, blocks: true },
   row: { align: true, blocks: true },
-  tabs: { blocks: true },
+  tabs: { heading: true, blocks: true },
   title: { field: true, level: true, pattern: true },
   line: { fields: true, pattern: true, separator: true },
   stat: { field: true, label: true, look: true, pattern: true, display: true, rollFrom: true },
+  metric: { heading: true, fields: true },
   scores: { field: true, orientation: true, perLine: true, display: true, columns: true },
   tags: { field: true, label: true, look: true },
   text: { field: true, text: true, heading: true },

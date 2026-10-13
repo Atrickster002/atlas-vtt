@@ -1,79 +1,116 @@
 import { describe, expect, it } from 'vitest';
 import {
-  deleteSelection, duplicateSelection, groupSelection, insertCatalogueBlock, insertNamedStat, pasteClip,
-  putSelectionSideBySide, turnSelectionInto, ungroupSelection,
+  deleteSelection, duplicateSelection, insertCatalogueBlock, pasteClip, toggleHeaderPartHidden,
 } from '../../../../src/app/statblocks/editor/template-editor/blockActions';
 import { clipOf, copyBlocks, rememberClip } from '../../../../src/app/statblocks/editor/template-editor/blockClipboard';
-import { insertTarget, moveIntoPrevious, moveOutOfParent, moveSelection } from '../../../../src/app/statblocks/editor/template-editor/blockMoves';
+import { insertTarget, moveSelection } from '../../../../src/app/statblocks/editor/template-editor/blockMoves';
+import { commitLabel } from '../../../../src/app/statblocks/editor/template-editor/labelCommit';
+import { HEADER_MESSAGE } from '../../../../src/app/statblocks/editor/template-editor/sessionEdit';
 import { findBlock } from '../../../../src/app/statblocks/model/treeQueries';
 import { FakeSession, sampleTemplate, shape, template } from './editorKit';
 
 const session = (): FakeSession => new FakeSession(sampleTemplate());
 const layoutShape = (s: FakeSession): string => shape(s.template.layout.blocks);
 
-describe('moving blocks without a drag', () => {
-  it('steps a block past its neighbour, then out of its container at the end', () => {
+describe('moving tiles without a drag', () => {
+  it('steps a tile past its neighbour, and stops at the top of the rows', () => {
     const s = session();
-    expect(moveSelection(s, ['stat-hp1'], -1).announce).toBe('Moved Hit points to section Defenses, position 1 of 2.');
-    expect(layoutShape(s)).toBe('title001 section1(stat-hp1 stat-ac1) row00001(stat-sp1 stat-cr1) divider1');
     moveSelection(s, ['stat-hp1'], -1);
-    expect(layoutShape(s)).toBe('title001 stat-hp1 section1(stat-ac1) row00001(stat-sp1 stat-cr1) divider1');
+    expect(layoutShape(s)).toBe('title001 stat-hp1 stat-ac1 row00001(stat-sp1 stat-cr1) divider1');
+    moveSelection(s, ['stat-hp1'], -1);
+    expect(moveSelection(s, ['stat-hp1'], -1).announce).toBe('Already at the top.');
+    expect(layoutShape(s)).toBe('stat-hp1 title001 stat-ac1 row00001(stat-sp1 stat-cr1) divider1');
     expect(s.steps).toBe(2);
+  });
+
+  it('leaves the header\'s parts where they are, and says so', () => {
+    const s = session();
+    for (const step of [1, -1] as const) expect(moveSelection(s, ['header-name'], step).announce).toBe(HEADER_MESSAGE);
+    expect(layoutShape(s)).toBe(shape(sampleTemplate().layout.blocks));
+    expect(s.steps).toBe(0);
+  });
+
+  it('steps a tile along its row, and out of it into a row of its own, the row left with one tile becoming that tile', () => {
+    const s = session();
+    moveSelection(s, ['stat-cr1'], -1);
+    expect(layoutShape(s)).toBe('title001 stat-ac1 stat-hp1 row00001(stat-cr1 stat-sp1) divider1');
+    moveSelection(s, ['stat-cr1'], -1);
+    expect(layoutShape(s)).toBe('title001 stat-ac1 stat-hp1 stat-cr1 stat-sp1 divider1');
   });
 
   it('moves a run of siblings together and stops at the end of the list', () => {
     const s = session();
     moveSelection(s, ['stat-sp1', 'stat-cr1'], 1);
-    expect(layoutShape(s)).toBe('title001 section1(stat-ac1 stat-hp1) row00001(stat-sp1 stat-cr1) divider1');
+    expect(layoutShape(s)).toBe('title001 stat-ac1 stat-hp1 row00001(stat-sp1 stat-cr1) divider1');
     expect(moveSelection(s, ['divider1'], 1).announce).toBe('Already at the end.');
     expect(s.steps).toBe(0);
   });
 
-  it('puts a block into the container before it, and out of its own', () => {
-    const s = session();
-    expect(moveIntoPrevious(s, 'row00001').announce).toBe('Moved Side by side to section Defenses, position 3 of 3.');
-    expect(layoutShape(s)).toBe('title001 section1(stat-ac1 stat-hp1 row00001(stat-sp1 stat-cr1)) divider1');
-    expect(moveIntoPrevious(s, 'title001').announce).toBe('There is no section or row before it.');
-    moveOutOfParent(s, 'stat-ac1');
-    expect(layoutShape(s)).toBe('title001 section1(stat-hp1 row00001(stat-sp1 stat-cr1)) stat-ac1 divider1');
-    expect(moveOutOfParent(s, 'title001').announce).toBe('Already at the top level.');
-  });
-
-  it('refuses a Row into a Row, saying why', () => {
-    const s = new FakeSession(template([
-      { id: 'rowaaaa1', type: 'row', blocks: [] },
-      { id: 'rowbbbb1', type: 'row', blocks: [] },
-    ]));
-    expect(moveIntoPrevious(s, 'rowbbbb1').announce).toBe("That block can't go there.");
-    expect(s.steps).toBe(0);
-  });
-
-  it('inserts after the anchor, or after the Row a Row would land in', () => {
+  it('inserts after the anchor, or after the Row a Row would land in (the note panel\'s Add section)', () => {
     const { layout } = sampleTemplate();
-    expect(insertTarget(layout, 'stat-ac1', 'stat')).toEqual({ parentId: 'section1', index: 1 });
-    expect(insertTarget(layout, 'stat-sp1', 'row')).toEqual({ parentId: null, index: 3 });
-    expect(insertTarget(layout, null, 'stat')).toEqual({ parentId: null, index: 4 });
-  });
-
-  it('fills an empty container it is anchored on, where the container takes the type', () => {
-    const layout = { maxColumns: 1 as const, blocks: [
-      { id: 'tabs0001', type: 'tabs' as const, blocks: [{ id: 'tabempty', type: 'section' as const, heading: 'Tab 1', blocks: [] }] },
-      { id: 'rowempty', type: 'row' as const, blocks: [] },
-    ] };
-    expect(insertTarget(layout, 'tabempty', 'stat')).toEqual({ parentId: 'tabempty', index: 0 });
-    expect(insertTarget(layout, 'rowempty', 'stat')).toEqual({ parentId: 'rowempty', index: 0 });
-    expect(insertTarget(layout, 'rowempty', 'row')).toEqual({ parentId: null, index: 2 });
+    expect(insertTarget(layout, 'stat-ac1', 'stat')).toEqual({ parentId: null, index: 2 });
+    expect(insertTarget(layout, 'stat-sp1', 'row')).toEqual({ parentId: null, index: 4 });
+    expect(insertTarget(layout, null, 'stat')).toEqual({ parentId: null, index: 5 });
   });
 });
 
 describe('inserting', () => {
-  it('inserts a catalogue block after the selection as one step, selected', () => {
+  it('inserts a new tile in a row of its own after the selection\'s row, selected, a step once it is kept', () => {
     const s = session();
-    const outcome = insertCatalogueBlock(s, 'stat', { after: 'stat-ac1' });
-    expect(s.steps).toBe(1);
-    expect(outcome.inserted).toBeDefined();
+    const outcome = insertCatalogueBlock(s, 'stat', { after: 'stat-sp1' });
+    expect(outcome.toName).toBe(outcome.inserted);
     expect(outcome.select).toEqual([outcome.inserted]);
-    expect(findBlock(s.template.layout.blocks, outcome.inserted ?? '')).toMatchObject({ parentId: 'section1', index: 1 });
+    expect(findBlock(s.template.layout.blocks, outcome.inserted ?? '')).toMatchObject({ parentId: null, index: 4 });
+    expect(s.steps).toBe(0);
+    outcome.placement?.keep();
+    outcome.placement?.keep();
+    expect(s.steps).toBe(1);
+  });
+
+  it('names a tile placed to be named in the same step: one undo takes the named tile away', () => {
+    const s = session();
+    const before = s.template;
+    const outcome = insertCatalogueBlock(s, 'scores', { after: null });
+    s.apply((template) => commitLabel(template, outcome.inserted ?? '', 'Stress').template);
+    outcome.placement?.keep();
+    expect(s.steps).toBe(1);
+    expect(s.template.fields.find((field) => field.key === 'stress')).toMatchObject({ type: 'scores', slots: ['', '', ''], rows: [[], []] });
+    s.undo();
+    expect(s.template).toBe(before);
+    s.redo();
+    expect(findBlock(s.template.layout.blocks, outcome.inserted ?? '')?.block).toMatchObject({ field: 'stress' });
+  });
+
+  it('lets a tile go without a name: the template as before, no step, nothing for undo or redo to bring back', () => {
+    const s = session();
+    s.apply((template) => ({ ...template, layout: { ...template.layout, maxColumns: 2 } }));
+    const before = s.template;
+    const outcome = insertCatalogueBlock(s, 'stat', { after: null });
+    outcome.placement?.drop();
+    outcome.placement?.keep();
+    expect(s.template).toBe(before);
+    expect(s.steps).toBe(1);
+    s.undo();
+    expect(s.template.layout.maxColumns).toBe(1);
+    s.redo();
+    expect(s.template).toBe(before);
+    expect(s.getSnapshot().canRedo).toBe(false);
+  });
+
+  it('puts a divider in as one step at once: it has nothing to name', () => {
+    const s = session();
+    const outcome = insertCatalogueBlock(s, 'divider', { after: null });
+    expect(outcome.placement).toBeUndefined();
+    expect(s.steps).toBe(1);
+    expect(s.gestureOpen).toBe(false);
+  });
+
+  it('inserts after the header where the selection is part of it, and at the end without a selection', () => {
+    const s = session();
+    const afterName = insertCatalogueBlock(s, 'divider', { after: 'title001' });
+    expect(findBlock(s.template.layout.blocks, afterName.inserted ?? '')).toMatchObject({ parentId: null, index: 1 });
+    const atEnd = insertCatalogueBlock(s, 'divider', { after: null });
+    expect(findBlock(s.template.layout.blocks, atEnd.inserted ?? '')?.index).toBe(s.template.layout.blocks.length - 1);
   });
 
   it('brings the name field along with a Title where the template lacks it', () => {
@@ -82,31 +119,22 @@ describe('inserting', () => {
     expect(s.template.fields).toEqual([{ key: 'name', label: 'Name', type: 'text' }]);
   });
 
-  it('inserts a Value of the name typed, with a new property of that name', () => {
-    const s = new FakeSession(template([]));
-    const outcome = insertNamedStat(s, 'Mana', { after: null });
-    expect(s.steps).toBe(1);
-    expect(s.template.fields).toEqual([{ key: 'mana', label: 'Mana', type: 'text' }]);
-    expect(s.template.layout.blocks[0]).toMatchObject({ type: 'stat', field: 'mana' });
-    expect(outcome.announce).toBe('Added Mana.');
-  });
-
   it('inserts at the gap the + line named', () => {
     const s = session();
     const outcome = insertCatalogueBlock(s, 'divider', { at: { parentId: 'row00001', index: 1 } });
     expect(findBlock(s.template.layout.blocks, outcome.inserted ?? '')).toMatchObject({ parentId: 'row00001', index: 1 });
   });
 
-  it('changes nothing in a built-in, and says so', () => {
-    const s = new FakeSession(sampleTemplate(), { readOnly: true, readOnlyReason: 'built-in' });
-    expect(insertCatalogueBlock(s, 'stat', { after: null }).announce).toBe('Built-in template. Make a copy to change it.');
-    expect(deleteSelection(s, ['stat-ac1']).announce).toBe('Built-in template. Make a copy to change it.');
+  it('changes nothing in a template of a newer Atlas, and says so', () => {
+    const s = new FakeSession(sampleTemplate(), { readOnly: true, readOnlyReason: 'newer' });
+    expect(insertCatalogueBlock(s, 'stat', { after: null }).announce).toBe('Update Atlas to edit this template.');
+    expect(deleteSelection(s, ['stat-ac1']).announce).toBe('Update Atlas to edit this template.');
     expect(s.steps).toBe(0);
   });
 });
 
 describe('the toolbar\'s edits', () => {
-  it('deletes the selection in one step, names it, and moves focus to the next sibling', () => {
+  it('deletes the selection in one step, names it, and moves focus to the next tile', () => {
     const s = session();
     const outcome = deleteSelection(s, ['stat-ac1']);
     expect(outcome).toMatchObject({ select: ['stat-hp1'], deleted: 'Armor class' });
@@ -115,32 +143,36 @@ describe('the toolbar\'s edits', () => {
     expect(layoutShape(s)).toBe(shape(sampleTemplate().layout.blocks));
   });
 
-  it('duplicates each selected block right after it and selects the copies', () => {
+  it('hides a part of the header in one step and shows it again, saying so, and never deletes, copies or moves one', () => {
+    const s = new FakeSession(template(sampleTemplate().layout.blocks, [
+      ...sampleTemplate().fields, { key: 'level', label: 'Tier', type: 'rating', meaning: 'rating' },
+    ]));
+    expect(toggleHeaderPartHidden(s, 'header-level')).toEqual({ select: [], announce: 'Tier hidden. It stays in the template, off the card.' });
+    expect(s.template.header).toEqual({ hidden: ['level'] });
+    expect(s.steps).toBe(1);
+    expect(toggleHeaderPartHidden(s, 'header-level')).toEqual({ select: ['header-level'], announce: 'Tier shown on the card.' });
+    expect(s.template.header).toBeUndefined();
+    expect(toggleHeaderPartHidden(s, 'header-name')).toEqual({ announce: 'Every statblock shows its name.' });
+    expect(toggleHeaderPartHidden(s, 'stat-ac1')).toEqual({});
+    const before = s.steps;
+    expect(deleteSelection(s, ['header-level']).announce).toBe(HEADER_MESSAGE);
+    expect(duplicateSelection(s, ['header-hp']).announce).toBe(HEADER_MESSAGE);
+    expect(s.steps).toBe(before);
+  });
+
+  it('leaves the other tile of a row of two on its own row', () => {
+    const s = session();
+    deleteSelection(s, ['stat-sp1']);
+    expect(layoutShape(s)).toBe('title001 stat-ac1 stat-hp1 stat-cr1 divider1');
+  });
+
+  it('duplicates each selected tile right after it and selects the copies', () => {
     const s = session();
     const outcome = duplicateSelection(s, ['stat-ac1', 'stat-hp1']);
     expect(s.steps).toBe(1);
-    const section = findBlock(s.template.layout.blocks, 'section1')?.block;
-    const ids = section && 'blocks' in section ? section.blocks.map((block) => block.id) : [];
-    expect(ids).toHaveLength(4);
-    expect(outcome.select).toEqual([ids[1], ids[3]]);
-  });
-
-  it('groups siblings into a section, puts a lone block beside the next, and ungroups', () => {
-    const s = session();
-    const grouped = groupSelection(s, ['title001', 'section1']);
-    expect(grouped.announce).toBe('Grouped into a section.');
-    const sectionId = grouped.select?.[0] ?? '';
-    expect(layoutShape(s)).toBe(`${sectionId}(title001 section1(stat-ac1 stat-hp1)) row00001(stat-sp1 stat-cr1) divider1`);
-    expect(ungroupSelection(s, [sectionId]).select).toEqual(['title001']);
-    const side = putSelectionSideBySide(s, ['stat-ac1']);
-    expect(layoutShape(s)).toBe(`title001 section1(${side.select?.[0] ?? ''}(stat-ac1 stat-hp1)) row00001(stat-sp1 stat-cr1) divider1`);
-    expect(ungroupSelection(s, ['stat-ac1']).announce).toBe('Select a section or row first.');
-  });
-
-  it('turns a block into another type in place', () => {
-    const s = session();
-    expect(turnSelectionInto(s, ['stat-ac1'], 'track').announce).toBe('Turned into Track.');
-    expect(findBlock(s.template.layout.blocks, 'stat-ac1')?.block).toMatchObject({ type: 'track', field: 'ac' });
+    const ids = s.template.layout.blocks.map((block) => block.id);
+    expect(ids).toHaveLength(7);
+    expect(outcome.select).toEqual([ids[2], ids[4]]);
   });
 
   it('copies blocks with their fields and pastes them re-keyed, into another template too', () => {

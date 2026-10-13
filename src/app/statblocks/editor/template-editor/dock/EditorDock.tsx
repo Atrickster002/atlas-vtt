@@ -1,41 +1,49 @@
-import React, { forwardRef } from 'react';
+import React from 'react';
 import { Redo2, Undo2 } from 'lucide-react';
 import { ToolButton } from '../../../../packages/components/primitives/ToolButton';
+import { useKindDrag } from '../../dnd/useDragSources';
+import { blockGlyph } from '../editorGlyphs';
+import { insertItems, itemKey, type InsertItem } from '../insertItems';
+import { UNDOES_PLACEMENT } from '../naming/NamePopover';
 import { shortcutText } from '../shortcutText';
-import { DOCK_PANELS } from './dockPanels';
-import type { DockPanelId } from './dockPrefs';
+import './dock.scss';
 
 export interface EditorDockProps {
-  /** The panel open now; its button is ringed in the accent. */
-  open: DockPanelId | null;
-  onToggle: (id: DockPanelId) => void;
+  /** Unset while the template takes no edits. */
+  onAdd?: ((item: InsertItem) => void) | undefined;
   canUndo: boolean;
   canRedo: boolean;
   onUndo: () => void;
   onRedo: () => void;
 }
 
-/**
- * The template editor's dock (§2.5): a vertical capsule floating at the note
- * column's left edge with the four panels (Add, Structure, Properties,
- * Template) and the session's undo and redo. Each button names its key.
- */
-export const EditorDock = forwardRef<HTMLDivElement, EditorDockProps>(({ open, onToggle, canUndo, canRedo, onUndo, onRedo }, ref) => (
-  <div ref={ref} className="atlas-te-dock" role="toolbar" aria-orientation="vertical" aria-label="Template tools" data-te-region="dock">
-    {DOCK_PANELS.map((panel) => (
-      <ToolButton
-        key={panel.id}
-        icon={panel.icon}
-        label={panel.label}
-        shortcut={shortcutText(['Mod', 'Alt'], panel.digit)}
-        isActive={open === panel.id}
-        onClick={() => onToggle(panel.id)}
-      />
-    ))}
-    <span className="atlas-te-dock__divider" aria-hidden="true" />
-    <ToolButton icon={Undo2} label="Undo" shortcut={shortcutText(['Mod'], 'Z')} isActive={false} disabled={!canUndo} onClick={onUndo} />
-    <ToolButton icon={Redo2} label="Redo" shortcut={shortcutText(['Mod', 'Shift'], 'Z')} isActive={false} disabled={!canRedo} onClick={onRedo} />
-  </div>
-));
+/** One kind: a click adds it after the selected row, a drag puts it where the line shows. */
+function AddButton({ item, onAdd }: { item: InsertItem; onAdd: EditorDockProps['onAdd'] }): React.JSX.Element {
+  const drag = useKindDrag(item, !onAdd);
+  return (
+    <span ref={drag.ref} className="atlas-te-dock__add" data-item={itemKey(item)} onPointerDown={drag.onPointerDown}>
+      <ToolButton icon={blockGlyph(item.type)} label={`Add ${item.label.toLowerCase()}`} subtitle={item.example} isActive={false} disabled={!onAdd} tooltipSide="left"
+        onClick={() => onAdd?.(item)} />
+    </span>
+  );
+}
 
-EditorDock.displayName = 'EditorDock';
+/**
+ * The template editor's dock: a vertical capsule in the note column, beside the
+ * line between the note and the card and halfway down it,
+ * edge with the six kinds a statblock is built from, each added by a click
+ * or dragged onto the card, and the session's undo and redo. While a tile
+ * just placed asks for its name, Undo takes that tile away.
+ */
+export function EditorDock({ onAdd, canUndo, canRedo, onUndo, onRedo }: EditorDockProps): React.JSX.Element {
+  return (
+    <div className="atlas-te-dock" role="toolbar" aria-orientation="vertical" aria-label="Add to the template" data-te-region="dock">
+      {insertItems().map((item) => <AddButton key={itemKey(item)} item={item} onAdd={onAdd} />)}
+      <span className="atlas-te-dock__divider" aria-hidden="true" />
+      <span className="atlas-te-dock__history" {...{ [UNDOES_PLACEMENT]: '' }}>
+        <ToolButton icon={Undo2} label="Undo" shortcut={shortcutText(['Mod'], 'Z')} isActive={false} disabled={!canUndo} onClick={onUndo} tooltipSide="left" />
+      </span>
+      <ToolButton icon={Redo2} label="Redo" shortcut={shortcutText(['Mod', 'Shift'], 'Z')} isActive={false} disabled={!canRedo} onClick={onRedo} tooltipSide="left" />
+    </div>
+  );
+}

@@ -15,7 +15,10 @@ import { planImport, resolvePlan, type ImportAction, type PlannedItem, type Reso
 import { buildReview, type ImportReview } from './importReview';
 import { planTemplateImport, reusedNotesOf, switchReusedNotes, templateReview, templatesChangedSinceReview, writeTemplates } from './importTemplates';
 import { readInstallRecord, writeInstallRecord, type CollectionField } from './installRecord';
-import { planPresetImport, presetsChangedSinceReview, writePresets } from './bundlePresetFiles';
+import { DICE_SET_RECORDS } from './bundleDiceSetFiles';
+import { PRESET_RECORDS, withPresetDiceSet } from './bundlePresetFiles';
+import { planRecordImport, recordsChangedSinceReview, writeRecords } from './bundleRecordFiles';
+import { recordIdMap } from '../vaultRecords/bundleRecords';
 import { t } from '../../i18n';
 
 export interface ImportDecision {
@@ -74,9 +77,12 @@ export async function openCollectionImport(
   onProgress({ message: t('bundle.comparing'), fraction: 0.6 });
   const reader = bundleFileReader(bundle);
   const collectionName = existing?.name ?? suggestedName ?? manifest.collection.name;
-  const templates = await planTemplateImport(app, manifest, reader, record, collectionName);
-  const presets = await planPresetImport(app, manifest, reader, record, collectionName);
-  const targets = await planTargets(app, assets, bundle, collectionId, record, templates.planned, presets);
+  // Sets first: a preset or template the bundle carries names a set that came in as a copy by the copy's id.
+  const diceSets = await planRecordImport(app, DICE_SET_RECORDS, manifest, reader, record?.diceSets, collectionName);
+  const diceSetIds = recordIdMap(diceSets);
+  const templates = await planTemplateImport(app, manifest, reader, record, collectionName, diceSetIds);
+  const presets = await planRecordImport(app, PRESET_RECORDS, manifest, reader, record?.presets, collectionName, (entry) => withPresetDiceSet(entry, diceSetIds));
+  const targets = await planTargets(app, assets, bundle, collectionId, record, templates.planned, { presets, diceSets });
   // Compare against what the user sees: open maps may hold unsaved changes.
   await saveOpenMaps(app, new Set([...targets.paths.values(), ...Object.values(record?.files ?? {}).map((file) => file.target)]));
   const { items, unitAssets } = await gatherImportInputs(app, assets, bundle, targets, existing, record);
@@ -141,7 +147,10 @@ async function assertUnchangedSinceReview(app: App, assets: AssetService, contex
   const items = context.plan.units.flatMap((unit) => unit.items).filter((item) => item.kind === 'field' || actions.has(item.key));
   const files = items.filter((item) => item.kind === 'file').map((item) => context.targets.targetOf(idOf(item.key))!);
   await saveOpenMaps(app, new Set(files));
-  let changed = await templatesChangedSinceReview(app, context.targets.templates) || await presetsChangedSinceReview(app, context.targets.presets);
+  const { templates, presets, diceSets } = context.targets;
+  let changed = await templatesChangedSinceReview(app, templates)
+    || await recordsChangedSinceReview(app, PRESET_RECORDS, presets)
+    || await recordsChangedSinceReview(app, DICE_SET_RECORDS, diceSets);
   for (const item of items) changed ||= await currentFingerprint(app, assets, context, item) !== item.mine;
   if (changed) throw new Error('Your vault changed since the review. Import the file again to see the current changes');
 }
@@ -188,7 +197,8 @@ async function applyImport(
       written += 1;
     }
     written += await writeTemplates(journal, targets.templates);
-    written += await writePresets(app, journal, targets.presets);
+    written += await writeRecords(app, PRESET_RECORDS, journal, targets.presets);
+    written += await writeRecords(app, DICE_SET_RECORDS, journal, targets.diceSets);
     // Removals come last, checked against the vault as the writes left it.
     const removalTargets = new Set(removals.map((item) => targets.targetOf(idOf(item.key))!));
     const inUse = removalTargets.size > 0 ? await pathsInUse(app, assets, targets, upsert, remove, removalTargets) : new Set<string>();

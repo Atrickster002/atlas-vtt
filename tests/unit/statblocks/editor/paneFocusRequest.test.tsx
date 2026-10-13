@@ -42,7 +42,7 @@ describe('the pane\'s focus request', () => {
     await act(async () => { harness.rerender({ notePath: HAG_PATH, focusRequest: 1 }); });
     await act(async () => { await Promise.resolve(); });
 
-    expect(harness.result.container.querySelector('[data-block-id="gctitle0"]')?.textContent).toBe('Bog Hag');
+    expect(harness.result.container.querySelector('[data-block-id="header-name"]')?.textContent).toBe('Bog Hag');
     expect(document.activeElement).toBe(note);
     note.remove();
   });

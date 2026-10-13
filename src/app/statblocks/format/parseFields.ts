@@ -5,7 +5,9 @@
  */
 
 import { isReservedKey } from '../model/reservedKeys';
-import { FIELD_MEANINGS, FIELD_TYPES, type EntryShape, type TemplateField } from '../model/templateTypes';
+import {
+  FIELD_MEANINGS, FIELD_TYPES, TABLE_ALIGNS, type EntryShape, type TableAlign, type TableCell, type TemplateField,
+} from '../model/templateTypes';
 import { ENTRY_EXTRA_KEYS, ENTRY_SHAPE_KEYS, FIELD_KEYS } from './formatKeys';
 import { describeValue, isRecord, own } from './jsonValues';
 import { ObjectReader } from './objectReader';
@@ -14,7 +16,7 @@ import { asBoolean, asKey, asOneOf, asString, choices } from './valueReads';
 type EntryExtra = NonNullable<EntryShape['extras']>[number];
 
 const TEXT = 'text';
-const EXTRA_TYPES = ['text', 'number', 'list', 'dice'] as const satisfies readonly EntryExtra['type'][];
+const EXTRA_TYPES = ['text', 'number', 'list', 'dice', 'choice'] as const satisfies readonly EntryExtra['type'][];
 
 export interface FieldContext {
   readonly problems: string[];
@@ -59,9 +61,32 @@ export function parseField(raw: unknown, index: number, ctx: FieldContext): Temp
     ...r.opt('numbered', asBoolean, 'true or false'),
     ...r.optList('slots', asString, TEXT),
     ...r.optList('slotKeys', asString, TEXT),
+    ...r.opt('header', asFalse, 'false'),
+    ...r.optList('rows', asTableRow, 'lists of numbers, text or null'),
+    ...r.optList('align', asAlign, `${choices(TABLE_ALIGNS)} or null`),
+    ...r.opt('addRows', asFalse, 'false'),
+    ...r.opt('addColumns', asFalse, 'false'),
     ...r.opt('entry', (value) => readEntryShape(value, r.where, ctx.problems), 'an object'),
     ...r.opt('prompt', asString, TEXT),
   });
+}
+
+/** `header: false` hides a Table's header row; `true` is what unset means and is not kept. */
+function asFalse(value: unknown): false | undefined {
+  return value === false ? false : undefined;
+}
+
+function isTableCell(value: unknown): value is TableCell {
+  return value === null || typeof value === 'string' || (typeof value === 'number' && Number.isFinite(value));
+}
+
+/** A row of a Table's starting cells: a list of numbers, text and nulls, or none at all. */
+function asTableRow(value: unknown): TableCell[] | undefined {
+  return Array.isArray(value) && value.every(isTableCell) ? [...value] : undefined;
+}
+
+function asAlign(value: unknown): TableAlign | null | undefined {
+  return value === null ? null : TABLE_ALIGNS.find((align) => align === value);
 }
 
 function readEntryShape(raw: unknown, where: string, problems: string[]): EntryShape | undefined {
@@ -83,5 +108,7 @@ function readEntryExtra(raw: unknown, index: number, where: string, problems: st
     key,
     label: r.withDefault('label', asString, key, TEXT),
     type: r.withDefault('type', asOneOf(EXTRA_TYPES), 'text', choices(EXTRA_TYPES)),
+    ...r.optList('options', asString, TEXT),
+    ...r.opt('several', asBoolean, 'true or false'),
   });
 }

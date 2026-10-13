@@ -49,13 +49,13 @@ describe('known blocks', () => {
   });
 
   it('reads an unknown choice as the first option and writes the file\'s choice back', () => {
-    const { template, problems } = read([{ id: 'aaaaaaa1', type: 'stat', field: 'hp', look: 'boxed', display: 'roman' }]);
+    const { template, problems } = read([{ id: 'aaaaaaa1', type: 'stat', field: 'hp', look: 'tilted', display: 'roman' }]);
     expect(plain(template.layout.blocks)).toEqual([{ id: 'aaaaaaa1', type: 'stat', field: 'hp', look: 'run-in' }]);
     expect(problems).toEqual([
-      expect.stringContaining('"look" is "boxed", not run-in or stacked; "run-in" is used'),
+      expect.stringContaining('"look" is "tilted", not run-in or stacked; "run-in" is used'),
       expect.stringContaining('"display" is "roman", not plain or signed; it is ignored'),
     ]);
-    expect(writtenBlocks(template)).toEqual([{ id: 'aaaaaaa1', type: 'stat', field: 'hp', look: 'boxed', display: 'roman' }]);
+    expect(writtenBlocks(template)).toEqual([{ id: 'aaaaaaa1', type: 'stat', field: 'hp', look: 'tilted', display: 'roman' }]);
   });
 
   it('keeps unknown keys on blocks and writes them after the known ones', () => {
@@ -119,6 +119,21 @@ describe('tabs', () => {
     expect(problems).toEqual([]);
     expect(template.layout.blocks).toEqual(blocks);
     expect(writtenBlocks(template)).toEqual(blocks);
+  });
+
+  it('reads and writes the heading of a Tabs block, written before its tabs', () => {
+    const blocks = [{
+      id: 'tabs0001', type: 'tabs', heading: 'Spellbook', blocks: [
+        { id: 'tab00001', type: 'section', heading: 'Cantrips', blocks: [{ id: 'entries1', type: 'entries', field: 'spells' }] },
+      ],
+    }];
+    const { template, problems } = read(blocks);
+    expect(problems).toEqual([]);
+    expect(template.layout.blocks[0]).toMatchObject({ type: 'tabs', heading: 'Spellbook' });
+    const written = writtenBlocks(template) as Array<Record<string, unknown>>;
+    expect(written).toEqual(blocks);
+    expect(Object.keys(written[0]!)).toEqual(['id', 'type', 'heading', 'blocks']);
+    expect(read([{ ...blocks[0], heading: 3 }]).problems).toEqual([expect.stringContaining('heading')]);
   });
 
   it('reads a Spells look it does not know as the lines, keeping it to write back', () => {

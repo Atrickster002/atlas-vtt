@@ -33,46 +33,44 @@ describe('fsLayoutToTemplate on a synthetic layout', () => {
   it('maps every block, in order, onto the template’s blocks', () => {
     expect(outline(convertBeast().template.layout.blocks)).toEqual([
       'row align="spread"',
-      '  section whenEmpty="hide"',
+      '  section whenEmpty="fold"',
       '    row align="spread"',
-      '      title name level=1 whenEmpty="hide"',
       '      section',
       '        row align="spread" extras=hasRule',
       '          script summary="A button that runs JavaScript"',
       '          script summary="A button that runs an Obsidian command"',
-      '    line size,kind,alignment separator=", " whenEmpty="hide"',
-      '  image portrait whenEmpty="hide"',
+      '    line size,kind,alignment separator=", " whenEmpty="fold"',
+      '  image portrait whenEmpty="fold"',
       'divider',
-      'section whenEmpty="hide"',
-      '  stat armor pattern="{armor}[ ({armor_note})]" when armor present whenEmpty="hide"',
-      '  stat vitality pattern="{vitality} ({vitality_dice})" rollFrom="vitality_dice" when vitality present whenEmpty="hide" extras=dice,diceCallback',
-      '  stat pace whenEmpty="hide"',
+      'section whenEmpty="fold"',
+      '  stat armor pattern="{armor}[ ({armor_note})]" when armor present whenEmpty="fold"',
+      '  stat vitality pattern="{vitality} ({vitality_dice})" rollFrom="vitality_dice" when vitality present whenEmpty="fold" extras=dice,diceCallback',
+      '  stat pace whenEmpty="fold"',
       'divider',
-      'scores scores column="floor((value - 10) / 2)" whenEmpty="hide"',
+      'scores scores column="floor((value - 10) / 2)" whenEmpty="fold"',
       'divider when scores present',
       'scores knacks column="floor(value / 3)"',
       'scores omens extras=calculate,modifier',
       'section',
-      '  pairs resists display="signed" whenEmpty="hide"',
+      '  pairs resists display="signed" whenEmpty="fold"',
       '  script summary="Talents formatted by JavaScript"',
-      'stat level display="signed" whenEmpty="hide"',
-      'stat rank pattern="{rank} {role}" when rank present whenEmpty="hide"',
+      'stat rank pattern="{rank} {role}" when rank present whenEmpty="fold"',
       'stat languages whenEmpty="fallback" fallback="None"',
       'stat aura label="Aura:" whenEmpty="fallback" fallback="-" cls="glow" extras=doNotAddClass,markdown',
-      'entries features heading="Features" whenEmpty="hide"',
-      'entries moves heading="Moves" whenEmpty="hide" extras=dice,subheadingText',
+      'entries features heading="Features" whenEmpty="fold"',
+      'entries moves heading="Moves" whenEmpty="fold" extras=dice,subheadingText',
       'script summary="Gambits formatted by JavaScript"',
       'section headingField="lore_title"',
-      '  entries lore whenEmpty="hide"',
-      'spells spells heading="Spells" whenEmpty="hide"',
-      'text notes heading="Notes" whenEmpty="hide" extras=markdown',
+      '  entries lore whenEmpty="fold"',
+      'spells spells heading="Spells" whenEmpty="fold"',
+      'text notes heading="Notes" whenEmpty="fold" extras=markdown',
       'heading text="Tactics" level="section"',
       'text text="Flees at half health."',
       'section heading="Secrets" collapsible="closed"',
-      '  text secrets whenEmpty="hide" extras=markdown',
+      '  text secrets whenEmpty="fold" extras=markdown',
       'divider',
       'section',
-      '  stat source whenEmpty="hide"',
+      '  stat source whenEmpty="fold"',
       'script summary="One of 2 parts, chosen by JavaScript"',
       'script summary="Hit points and Wounds tracks drawn with JavaScript"',
       'script summary="JavaScript reading motto"',
@@ -152,6 +150,36 @@ describe('fsLayoutToTemplate on a synthetic layout', () => {
   });
 });
 
+describe('the header of an imported layout', () => {
+  const layout = layoutFrom({
+    id: 'monster-layout', name: 'Monster', blocks: [
+      { type: 'group', id: 'h1', properties: [], nested: [
+        { type: 'heading', id: 'h2', properties: ['name'], size: 1 },
+        { type: 'subheading', id: 'h3', properties: ['size', 'type', 'alignment'], separator: ', ' },
+      ] },
+      { type: 'image', id: 'h4', properties: ['image'] },
+      { type: 'property', id: 'h5', properties: ['hp'], display: 'Hit Points', diceProperty: 'hit_dice' },
+      { type: 'property', id: 'h6', properties: ['cr'], display: 'Challenge' },
+      { type: 'text', id: 'h7', properties: ['description'], markdown: true },
+      { type: 'property', id: 'h8', properties: ['ac'], display: 'Armor Class' },
+    ],
+  });
+  const { template } = fsLayoutToTemplate(layout, { id: ID });
+
+  it('takes the blocks of the name, the image, the hit points, the level and the description out of the layout', () => {
+    expect(outline(template.layout.blocks)).toEqual(['section', '  line size,type,alignment separator=", "', 'stat ac whenEmpty="fallback" fallback="-"']);
+  });
+
+  it('keeps each part\'s key, gives FS\'s challenge the level\'s meaning, and hides what shows only beside other values', () => {
+    const fields = new Map(template.fields.map((field) => [field.key, field]));
+    expect(fields.get('cr')).toMatchObject({ label: 'Challenge', meaning: 'rating' });
+    expect(fields.get('hp')).toMatchObject({ label: 'Hit Points' });
+    expect(fields.get('hp')?.meaning).toBeUndefined();
+    expect(template.header).toEqual({ hidden: ['type'] });
+    expectParses(template);
+  });
+});
+
 describe('included layouts', () => {
   it('stops a layout that includes itself', () => {
     const [first] = LOOP_LAYOUTS;
@@ -174,7 +202,7 @@ describe('included layouts', () => {
 
   it('leaves included layouts out without a resolver', () => {
     const { template, report } = fsLayoutToTemplate(BEAST_LAYOUT, { id: ID });
-    expect(outline(template.layout.blocks)).not.toContain('  stat source whenEmpty="hide"');
+    expect(outline(template.layout.blocks)).not.toContain('  stat source whenEmpty="fold"');
     expect(report.dropped).toContain('The included layout "synthetic-footer" was not found, so its blocks were left out.');
   });
 });
@@ -220,6 +248,42 @@ describe('untrusted layouts', () => {
   });
 });
 
+describe('an inline group of one block', () => {
+  it('becomes that block, so a long value takes the card\'s width', () => {
+    // As Fantasy Statblocks' environment layouts set a long list of links on a line of its own
+    const layout = layoutFrom({
+      name: 'Places', blocks: [
+        { type: 'inline', properties: [], hasRule: true, nested: [{ type: 'property', properties: ['adversaries'], display: 'Potential Adversaries:', conditioned: true }] },
+        { type: 'inline', properties: [], cls: 'pair', nested: [{ type: 'property', properties: ['impulses'] }] },
+        { type: 'inline', properties: [], nested: [{ type: 'property', properties: ['a'] }, { type: 'property', properties: ['b'] }] },
+      ],
+    });
+    expect(outline(fsLayoutToTemplate(layout, { id: ID }).template.layout.blocks)).toEqual([
+      'stat adversaries label="Potential Adversaries:" whenEmpty="fold"',
+      'divider',
+      'row align="spread" cls="pair"',
+      '  stat impulses whenEmpty="fallback" fallback="-"',
+      'row align="spread"',
+      '  stat a whenEmpty="fallback" fallback="-"',
+      '  stat b whenEmpty="fallback" fallback="-"',
+    ]);
+  });
+});
+
+describe('a spells block', () => {
+  it('is headed as Fantasy Statblocks names its first list: its heading, else "Spellcasting"', () => {
+    const layout = layoutFrom({
+      name: 'Casters', blocks: [
+        { type: 'spells', properties: ['spells'] },
+        { type: 'spells', properties: ['innate'], heading: 'Innate Spellcasting' },
+        { type: 'spells', properties: ['rituals'], heading: '' },
+      ],
+    });
+    const headings = fsLayoutToTemplate(layout, { id: ID }).template.layout.blocks.map((block) => ('heading' in block ? block.heading : undefined));
+    expect(headings).toEqual(['Spellcasting', 'Innate Spellcasting', undefined]);
+  });
+});
+
 describe('the converter’s source', () => {
   it('never builds or evaluates code', () => {
     const folder = join(__dirname, '../../../../src/app/statblocks/fs');
@@ -227,5 +291,33 @@ describe('the converter’s source', () => {
       const source = readFileSync(join(folder, file), 'utf8');
       expect(source, file).not.toMatch(/\bnew\s+Function\b|\bFunction\s*\(|\beval\s*\(|\bimport\s*\(/);
     }
+  });
+});
+
+describe('a layout whose top heading shows another key than the name', () => {
+  const headed = (key: string, size: number): FsLayout => layoutFrom({
+    id: 'headed', name: 'Headed',
+    blocks: [
+      { type: 'heading', id: 'h1', properties: [key], size, fallback: 'Creature' },
+      { type: 'property', id: 'p1', properties: ['armor'], display: 'Armor', conditioned: true },
+    ],
+  });
+  const meanings = (template: ReturnType<typeof fsLayoutToTemplate>['template']): Record<string, string | undefined> =>
+    Object.fromEntries(template.fields.map((field) => [field.key, field.meaning]));
+
+  it('makes that key the display name the header shows, and leaves its heading out of the layout', () => {
+    const { template } = fsLayoutToTemplate(headed('title', 1), { id: ID });
+    expect(meanings(template)).toMatchObject({ title: 'display-name' });
+    expect(outline(template.layout.blocks)).toEqual(['stat armor whenEmpty="fold"']);
+    expectParses(template);
+  });
+
+  it('keeps a heading on the name, and one that is not the top heading, as before', () => {
+    const named = fsLayoutToTemplate(headed('name', 1), { id: ID }).template;
+    expect(named.fields.some((field) => field.meaning === 'display-name')).toBe(false);
+    expect(outline(named.layout.blocks)).toEqual(['stat armor whenEmpty="fold"']);
+    const minor = fsLayoutToTemplate(headed('title', 2), { id: ID }).template;
+    expect(minor.fields.some((field) => field.meaning === 'display-name')).toBe(false);
+    expect(outline(minor.layout.blocks)[0]).toBe('title title level=2 fallback="Creature"');
   });
 });

@@ -1,3 +1,4 @@
+import { D20_DICE_SET_ID } from '../builtInDiceSets';
 import type { SystemPreset } from '../../types/systemPresetTypes';
 import { OLD_SCHOOL_ESSENTIALS_LIGHTS } from '../lightPresets/oldSchoolEssentials';
 import { HP_RESOURCE } from '../../resources/resourceDefinitions';
@@ -25,6 +26,7 @@ export const OLD_SCHOOL_ESSENTIALS: SystemPreset = {
       abstractRangeBands: [],
     },
     dice: { defaultRoll: '1d20', crit: 'natural' },
+    diceSetId: D20_DICE_SET_ID,
     conditions: conditionsOf('ose', [
       { name: 'Paralysed', color: '#38bdf8', icon: 'frozen-body' },
       { name: 'Petrified', color: '#78716c', icon: 'stoned-skull' },

@@ -27,6 +27,14 @@
   }
 }
 
+// A heading with a control at its end ("Add ability").
+:where(.atlas-sb-sheet) .atlas-sb-section-heading__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: $spacing-s;
+}
+
 :where(.atlas-sb-sheet) .atlas-sb-section-heading--minor {
   color: var(--text-muted);
   letter-spacing: 0.04em;
@@ -140,6 +148,12 @@
     color: var(--text-faint);
     font-style: normal;
     font-weight: $font-weight-normal;
+  }
+
+  // A name not given yet (a tile just placed): the label or heading it will have, faint, in its own type.
+  .atlas-sb-labelled > .atlas-sb-label.atlas-sb-placeholder,
+  .atlas-sb-section-heading.atlas-sb-placeholder {
+    color: var(--text-faint);
   }
 
   .atlas-sb-problem {

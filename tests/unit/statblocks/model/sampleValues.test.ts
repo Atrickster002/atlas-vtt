@@ -86,4 +86,25 @@ describe('sampleRecord', () => {
     };
     expect(sampleRecord(template)).toEqual({ name: 'Creature name', hp: 22, image: null, speed: '30 ft.' });
   });
+
+  it('leaves every number empty for the template editor, the template\'s own samples and abilities\' number parts too', () => {
+    const template: StatblockTemplate = {
+      format: TEMPLATE_FORMAT, version: TEMPLATE_VERSION, id: 'marsh-creature-k7m2qa',
+      fields: [
+        { key: 'name', label: 'Name', type: 'text' },
+        { key: 'hp', label: 'Hit Points', type: 'number' },
+        { key: 'cr', label: 'Challenge', type: 'rating' },
+        { key: 'stats', label: 'Abilities', type: 'scores', slots: ['STR', 'DEX'] },
+        { key: 'actions', label: 'Actions', type: 'entries', entry: { extras: [{ key: 'cost', label: 'Cost', type: 'number' }, { key: 'range', label: 'Range', type: 'text' }] } },
+      ],
+      layout: { maxColumns: 2, blocks: [] },
+      sample: { name: 'Creature name', hp: 40 },
+    };
+    const record = sampleRecord(template, { numbers: false });
+    expect(Object.keys(record).sort()).toEqual(['actions', 'name']);
+    expect(record.name).toBe('Creature name');
+    const [first] = record.actions as Array<Record<string, unknown>>;
+    expect(first).toHaveProperty('range');
+    expect(first).not.toHaveProperty('cost');
+  });
 });

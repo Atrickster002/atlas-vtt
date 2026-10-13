@@ -8,13 +8,13 @@
  */
 
 import type { BuiltInTemplate } from '../model/templateTypes';
-import { builtIn, headerRow, nameField, portraitField, runInStat } from './presetParts';
+import { builtIn, descriptionField, hiddenParts, nameField, portraitField, runInStat } from './presetParts';
 
-export const BX_CREATURE: BuiltInTemplate = builtIn('builtin:bx-creature', 'B/X-style creature', 1, {
+export const BX_CREATURE: BuiltInTemplate = builtIn('builtin:bx-creature', 'B/X-style creature', 2, {
   fields: [
     nameField(),
     portraitField(),
-    { key: 'description', label: 'Description', type: 'markdown' },
+    descriptionField(),
     // Text, so both armor scales fit: "7 [12]".
     { key: 'ac', label: 'Armor Class', type: 'text', meaning: 'armor' },
     // A rating, as hit dice read: "3+1*".
@@ -30,19 +30,15 @@ export const BX_CREATURE: BuiltInTemplate = builtIn('builtin:bx-creature', 'B/X-
     { key: 'treasure', label: 'Treasure', type: 'text' },
     { key: 'traits', label: 'Special Abilities', type: 'entries' },
   ],
+  // The era's creatures name no type: hit dice are the level.
+  ...hiddenParts('type'),
   layout: {
     maxColumns: 2,
     columnWidth: 22,
     blocks: [
-      headerRow({ row: 'bxhead00', section: 'bxname00', image: 'bximage0' }, [
-        { id: 'bxtitle0', type: 'title', field: 'name', level: 1 },
-      ]),
-      { id: 'bxdesc00', type: 'text', field: 'description' },
       {
         id: 'bxstrip0', type: 'row', blocks: [
           { id: 'bxac0000', type: 'stat', field: 'ac', label: 'AC', look: 'stacked' },
-          { id: 'bxhd0000', type: 'stat', field: 'hit_dice', label: 'HD', look: 'stacked' },
-          { id: 'bxhp0000', type: 'stat', field: 'hp', label: 'HP', look: 'stacked' },
           { id: 'bxmove00', type: 'stat', field: 'movement', label: 'MV', look: 'stacked' },
         ],
       },

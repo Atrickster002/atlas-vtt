@@ -1,6 +1,7 @@
-import React, { useEffect, useId } from 'react';
+import React, { useEffect, useId, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { motion } from 'framer-motion';
+import { cn } from '../../../../../utils/cn';
 import { handledByAnotherControl } from '../../../../keyboard/tooltipEscape';
 import { CloseButton } from '../../../../packages/components/primitives/CloseButton';
 import { dialogOverlayMotion, useDialogWindowVariants } from '../../../../packages/components/primitives/dialogMotion';
@@ -13,6 +14,10 @@ export interface EditorDialogProps {
   children: React.ReactNode;
   /** The actions, the confirming one last. */
   footer: React.ReactNode;
+  /** What takes focus as the dialog opens; the dialog itself when unset. */
+  initialFocus?: React.RefObject<HTMLElement | null> | undefined;
+  /** A class of the window's own, for a dialog that needs another width. */
+  className?: string | undefined;
 }
 
 /**
@@ -20,9 +25,17 @@ export interface EditorDialogProps {
  * corner, the close button in its header, closed by Escape unless a control
  * inside used the key.
  */
-export function EditorDialog({ anchor, title, onClose, children, footer }: EditorDialogProps): React.JSX.Element {
+export function EditorDialog({ anchor, title, onClose, children, footer, initialFocus, className }: EditorDialogProps): React.JSX.Element {
   const windowVariants = useDialogWindowVariants();
   const titleId = useId();
+  const windowRef = useRef<HTMLDivElement>(null);
+
+  // A dialog takes focus as it opens and gives it back to where it was.
+  useEffect(() => {
+    const before = anchor.doc.activeElement;
+    (initialFocus?.current ?? windowRef.current)?.focus({ preventScroll: true });
+    return () => { if (before?.instanceOf(HTMLElement) && before.isConnected) before.focus({ preventScroll: true }); };
+  }, [anchor, initialFocus]);
 
   useEffect(() => {
     const doc = anchor.doc;
@@ -41,7 +54,7 @@ export function EditorDialog({ anchor, title, onClose, children, footer }: Edito
       className="atlas-vtt-plugin atlas-te-dialog-overlay"
       onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}
     >
-      <motion.div className="atlas-te-dialog" variants={windowVariants} role="dialog" aria-modal="true" aria-labelledby={titleId}>
+      <motion.div ref={windowRef} tabIndex={-1} className={cn('atlas-te-dialog', className)} variants={windowVariants} role="dialog" aria-modal="true" aria-labelledby={titleId}>
         <div className="atlas-te-dialog__header">
           <h2 id={titleId}>{title}</h2>
           <CloseButton onClick={onClose} />

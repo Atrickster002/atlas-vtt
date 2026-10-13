@@ -8,6 +8,7 @@ import type { StatblockTemplate } from '../model/templateTypes';
 import type { FieldRecord } from '../values/fieldValues';
 import { valueText } from '../values/valueText';
 import { BlockList } from './BlockView';
+import { StatblockHeader } from './StatblockHeader';
 import { useStatblockDiceRolling } from './shared/useStatblockDiceRolling';
 import { SheetContext, type SheetContextValue } from './sheetContext';
 import { sheetState } from './sheetState';
@@ -43,7 +44,7 @@ export interface StatblockSheetProps {
   app?: App | undefined;
   /** The statblock note, which links and images resolve from and rolls are tagged with. */
   sourcePath?: string | undefined;
-  /** Shown above the blocks, across the card (a note on the template it is drawn with). */
+  /** Shown above the statblock's header, across the card (a note on the template it is drawn with). */
   header?: React.ReactNode;
   /** Shown under the blocks, across the card (the DM screen's token resources). */
   footer?: React.ReactNode;
@@ -54,7 +55,8 @@ export interface StatblockSheetProps {
 }
 
 /**
- * A statblock drawn natively from its template: the runtime card. Top-level
+ * A statblock drawn natively from its template: the runtime card. The header
+ * Atlas draws for every statblock comes first (`StatblockHeader`). Top-level
  * blocks flow into CSS columns (`columns: <columnWidth>em <maxColumns>`),
  * which take their count from the width the card gets, so it reads as one
  * column in the hover preview and the DM screen and as two in a wide pane.
@@ -85,7 +87,7 @@ export function StatblockSheet({
   );
   const sheet = useMemo((): SheetContextValue => ({ state, app, sourcePath }), [state, app, sourcePath]);
   const openTabs = useOpenTabsState(template.layout, reveal);
-  const diceRef = useStatblockDiceRolling({
+  const [diceRef, rollMenu] = useStatblockDiceRolling({
     app,
     notePath: sourcePath,
     tokens: rollTokens ?? (token ? [token] : []),
@@ -112,11 +114,13 @@ export function StatblockSheet({
         >
           <div className="atlas-statblock-body">
             {header}
+            <StatblockHeader template={template} />
             <div className="atlas-sb-columns" style={columns}>
               <BlockList blocks={template.layout.blocks} />
             </div>
             {footer}
           </div>
+          {rollMenu}
         </div>
       </OpenTabsContext.Provider>
     </SheetContext.Provider>

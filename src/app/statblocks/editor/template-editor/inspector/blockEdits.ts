@@ -9,7 +9,7 @@ import { fieldByKey } from '../../../model/fieldKeys';
 import { updateBlock, type BlockChanges } from '../../../model/treeOps';
 import { boundField } from '../../../model/treeQueries';
 import type {
-  BlockType, FieldKey, FieldMeaning, StatblockTemplate, TemplateBlock, TemplateField,
+  BlockType, FieldKey, StatblockTemplate, TemplateBlock, TemplateField,
 } from '../../../model/templateTypes';
 import type { EditorSession } from '../sessionTypes';
 
@@ -35,20 +35,6 @@ export function editField(session: EditorSession, key: FieldKey, changes: FieldC
 export function boundFieldOf(template: StatblockTemplate, block: TemplateBlock): TemplateField | undefined {
   const key = boundField(block);
   return key ? fieldByKey(template.fields, key) : undefined;
-}
-
-/**
- * The template with `meaning` on the field `key`. The editor allows one field
- * per meaning, so a field that had it gives it up; `undefined` takes it off.
- */
-export function withMeaning(template: StatblockTemplate, key: FieldKey, meaning: FieldMeaning | undefined): StatblockTemplate {
-  let next = template;
-  if (meaning !== undefined) {
-    for (const field of template.fields) {
-      if (field.key !== key && field.meaning === meaning) next = updateField(next, field.key, { meaning: undefined });
-    }
-  }
-  return updateField(next, key, { meaning });
 }
 
 /** "STR, DEX, CON" → the labels, trimmed, empty ones dropped. */

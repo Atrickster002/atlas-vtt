@@ -3,8 +3,9 @@
  * the template's: group → Section, inline → Row, collapse → a collapsible
  * Section, layout → a Section of the included layout's blocks. The blocks
  * that show values are `fsLeafBlocks`'; JavaScript, `ifelse` and buttons are
- * kept as scripts. A `hasRule` becomes a Divider after its block. What each
- * FS block became is tallied for the report.
+ * kept as scripts, except buttons for a plugin Atlas stands in for
+ * (`fsIntegrations.ts`), which are left out. A `hasRule` becomes a Divider
+ * after its block. What each FS block became is tallied for the report.
  */
 
 import { describeValue, isRecord, own } from '../format/jsonValues';
@@ -14,6 +15,7 @@ import type { ImportContext } from './fsImportState';
 import {
   asScript, flags, full, headingOf, keysOf, recordFields, textOf, type Converted, type FsRecord, type Leaf, type Place,
 } from './fsBlockParts';
+import { replacedIntegration } from './fsIntegrations';
 import { LEAF_BLOCKS } from './fsLeafBlocks';
 
 /** Deeper FS blocks are left out: wrappers can add levels, and a template keeps 32. */
@@ -47,6 +49,11 @@ function recordWithin(list: unknown, ctx: ImportContext, depth: number): void {
   }
 }
 
+const button: Leaf = (record, ctx, at) => {
+  const replaced = replacedIntegration(record);
+  return replaced === null ? asScript(record, ctx, at) : dropped(replaced);
+};
+
 const script: Leaf = (record, ctx, at) => {
   recordWithin(own(record, 'nested'), ctx, at.depth + 1);
   recordWithin(own(record, 'conditions'), ctx, at.depth + 1);
@@ -76,7 +83,13 @@ const inline: Leaf = (record, ctx, at) => {
   const sectionId = wrapped ? ctx.nextId() : null;
   const id = ctx.nextId();
   const blocks = convertBlocks(own(record, 'nested'), ctx, { depth: at.depth + 1, parent: 'row' });
-  const row: TemplateBlock = { id, type: 'row', align: 'spread', blocks, ...flags(record, ['nested', ...head.read], at) };
+  const rowFlags = flags(record, ['nested', ...head.read], at);
+  // A row of one block is that block, as the editor tidies it (`tidyRows`); its width is then the card's
+  const [only] = blocks;
+  // A row whose blocks were all left out (Initiative Tracker's buttons) and that has no heading leaves nothing behind
+  if (!only && head.heading === undefined && head.headingField === undefined) return full([]);
+  if (sectionId === null && only && blocks.length === 1 && !rowFlags.className) return full([only]);
+  const row: TemplateBlock = { id, type: 'row', align: 'spread', blocks, ...rowFlags };
   if (sectionId === null) return full([row]);
   return full([{
     id: sectionId, type: 'section', ...(head.heading ? { heading: head.heading } : {}),
@@ -122,7 +135,7 @@ const included: Leaf = (record, ctx, at) => {
 };
 
 const OTHER_BLOCKS: ReadonlyMap<string, Leaf> = new Map(Object.entries({
-  group, inline, collapse, layout: included, javascript: script, ifelse: script, action: script,
+  group, inline, collapse, layout: included, javascript: script, ifelse: script, action: button,
 }));
 
 function convertByType(record: FsRecord, type: string, ctx: ImportContext, at: Place): Converted {

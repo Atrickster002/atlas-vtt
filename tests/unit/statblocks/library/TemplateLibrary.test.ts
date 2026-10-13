@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { TFile, TFolder } from 'obsidian';
 import { TemplateLibrary } from '../../../../src/app/statblocks/library/TemplateLibrary';
 import { MARSH_CREATURE } from '../../../fixtures/statblockTemplateFixtures';
+import { withHeader } from '../../../../src/app/statblocks/model/headerDuplicates';
 import { creatureVault, forbidWrites, type CreatureVault } from '../../../mocks/creatureVault';
 import { BUILT_IN, MARSH_ID, MARSH_PATH, TEMPLATE_FOLDER, marshText } from './templateTexts';
 
@@ -45,7 +46,7 @@ describe('TemplateLibrary: reading', () => {
     expect(target.isLoading()).toBe(true);
     await loaded(target);
 
-    expect(target.get(MARSH_ID)).toEqual({ template: MARSH_CREATURE, name: 'Marsh creature', status: 'ok', builtIn: false, path: MARSH_PATH });
+    expect(target.get(MARSH_ID)).toEqual({ template: withHeader(MARSH_CREATURE), name: 'Marsh creature', status: 'ok', builtIn: false, path: MARSH_PATH });
     expect(target.get(SWAMP_ID)).toMatchObject({ name: 'Swamp beast', path: SWAMP_PATH });
     expect(target.get(BUILT_IN.id)).toEqual({ template: BUILT_IN.template, name: 'Test creature', status: 'ok', builtIn: true, path: null });
     expect(target.get('unknown-abc123')).toBeNull();

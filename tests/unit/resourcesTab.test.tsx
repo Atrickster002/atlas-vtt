@@ -160,7 +160,7 @@ describe('ResourcesTab', () => {
     expect(last(onChange)[0]).toMatchObject({ direction: 'static' });
     // HP defeated its token; a static value never does
     expect(last(onChange)[0]).not.toHaveProperty('defeatedWhenSpent', true);
-    expect((screen.getByRole('button', { name: 'A static value never defeats the token' }) as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.getByRole('button', { name: 'A static value never defeats the token' }).getAttribute('aria-disabled')).toBe('true');
     fireEvent.click(screen.getByRole('button', { name: /^Static/ }));
     expect(last(onChange)[0]!.direction).toBe('drains');
   });

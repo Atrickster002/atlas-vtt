@@ -45,12 +45,12 @@ describe('the statblock pane over a native note', () => {
     expect(speed.querySelector('.atlas-sb-prompt')?.textContent).toBe('Add speed');
     expect(speed.getAttribute('role')).toBe('button');
     expect(speed.getAttribute('aria-label')).toBe('Edit Speed');
-    expect(blockOf(result.container, 'gctitle0').textContent).toBe('Marsh Warden');
+    expect(blockOf(result.container, 'header-name').textContent).toBe('Marsh Warden');
   });
 
   it('writes a committed number with the value the edit started from', async () => {
     const { result, writer } = await pane();
-    fireEvent.click(blockOf(result.container, 'gchp0000'));
+    fireEvent.click(blockOf(result.container, 'header-hp'));
     const input = screen.getByRole('textbox', { name: 'Hit Points' });
     expect((input as HTMLInputElement).value).toBe('14');
     fireEvent.change(input, { target: { value: '18' } });
@@ -61,7 +61,7 @@ describe('the statblock pane over a native note', () => {
 
   it('keeps text that does not parse as typed, and flags it', async () => {
     const { result, writer } = await pane();
-    fireEvent.click(blockOf(result.container, 'gchp0000'));
+    fireEvent.click(blockOf(result.container, 'header-hp'));
     const input = screen.getByRole('textbox', { name: 'Hit Points' });
     fireEvent.change(input, { target: { value: '1/4' } });
     expect(input.getAttribute('aria-invalid')).toBe('true');
@@ -71,18 +71,18 @@ describe('the statblock pane over a native note', () => {
 
   it('reverts on Escape and writes nothing', async () => {
     const { result, writer } = await pane();
-    fireEvent.click(blockOf(result.container, 'gchp0000'));
+    fireEvent.click(blockOf(result.container, 'header-hp'));
     const input = screen.getByRole('textbox', { name: 'Hit Points' });
     fireEvent.change(input, { target: { value: '99' } });
     await act(async () => { fireEvent.keyDown(input, { key: 'Escape' }); });
     expect(writer.writes).toEqual([]);
     expect(screen.queryByRole('textbox', { name: 'Hit Points' })).toBeNull();
-    expect(blockOf(result.container, 'gchp0000').textContent).toContain('14');
+    expect(blockOf(result.container, 'header-hp').textContent).toContain('14');
   });
 
   it('moves with Tab in the template\'s field order, empty values included', async () => {
     const { result } = await pane();
-    fireEvent.click(blockOf(result.container, 'gctitle0'));
+    fireEvent.click(blockOf(result.container, 'header-name'));
     expect(focusedLabel()).toBe('Name');
     const order: Array<string | null> = [];
     for (let step = 0; step < 4; step += 1) {
@@ -98,7 +98,7 @@ describe('the statblock pane over a native note', () => {
   it('shows a conflict when the note changed meanwhile, and keeps mine on request', async () => {
     const { result, writer, source } = await pane();
     writer.answer = (patches) => ({ applied: [], conflicts: [...patches], backend: 'editor', problem: null });
-    fireEvent.click(blockOf(result.container, 'gchp0000'));
+    fireEvent.click(blockOf(result.container, 'header-hp'));
     const input = screen.getByRole('textbox', { name: 'Hit Points' });
     fireEvent.change(input, { target: { value: '20' } });
     act(() => source.set(NOTE_PATH, { ...WARDEN, hp: 18 }));
@@ -114,13 +114,13 @@ describe('the statblock pane over a native note', () => {
     expect(writer.writes.at(-1)?.patches).toEqual([{ op: 'set', path: ['hp'], base: 18, next: 20 }]);
     expect(screen.queryByRole('group', { name: 'Hit Points conflict' })).toBeNull();
     // The chip goes with its answer; focus stays on the value it was about.
-    expect(document.activeElement).toBe(blockOf(result.container, 'gchp0000'));
+    expect(document.activeElement).toBe(blockOf(result.container, 'header-hp'));
   });
 
   it('drops a conflict for the note\'s value without writing', async () => {
     const { result, writer } = await pane();
     writer.answer = (patches) => ({ applied: [], conflicts: [...patches], backend: 'editor', problem: null });
-    fireEvent.click(blockOf(result.container, 'gchp0000'));
+    fireEvent.click(blockOf(result.container, 'header-hp'));
     const input = screen.getByRole('textbox', { name: 'Hit Points' });
     fireEvent.change(input, { target: { value: '20' } });
     await act(async () => { fireEvent.keyDown(input, { key: 'Enter' }); });
@@ -130,7 +130,7 @@ describe('the statblock pane over a native note', () => {
     fireEvent.click(notes);
     expect(screen.queryByRole('group', { name: 'Hit Points conflict' })).toBeNull();
     expect(writer.writes.length).toBe(writes);
-    expect(document.activeElement).toBe(blockOf(result.container, 'gchp0000'));
+    expect(document.activeElement).toBe(blockOf(result.container, 'header-hp'));
   });
 
   it('edits an entry by its path and moves it with Alt+↓', async () => {
@@ -153,7 +153,7 @@ describe('the statblock pane over a native note', () => {
 
   it('commits long text after a second without typing, and stays in the field', async () => {
     const { result, writer } = await pane();
-    fireEvent.click(blockOf(result.container, 'gcdesc00'));
+    fireEvent.click(blockOf(result.container, 'header-description'));
     const text = screen.getByRole('textbox', { name: 'Description' });
     vi.useFakeTimers();
     try {
@@ -191,31 +191,58 @@ describe('the statblock pane over a native note', () => {
     expect(blockOf(result.container, 'b5lang00').querySelector('.atlas-sb-pane-derived')).toBeNull();
   });
 
-  it('says how to get a deleted entry back', async () => {
+  it('deletes an ability emptied of name and text when it is left, and says how to get it back', async () => {
     const { result, writer } = await pane();
-    // The ability's menu, by right-click at rest (spec §5.5): the same rows as its handle's.
-    fireEvent.contextMenu(blockOf(result.container, 'gcaction').querySelectorAll('.atlas-sb-trait')[0]!);
-    await act(async () => { fireEvent.click(await screen.findByRole('menuitem', { name: /^Delete Bite/ })); });
+    fireEvent.click(blockOf(result.container, 'gcaction').querySelectorAll('.atlas-sb-trait')[0]!);
+    const name = screen.getAllByRole('textbox', { name: 'Action name' })[0] as HTMLInputElement;
+    const text = name.closest('.atlas-sb-pane-entry-editor')!.querySelector<HTMLElement>('[data-entry-part="text"]')!;
+    fireEvent.focus(name);
+    fireEvent.change(name, { target: { value: '' } });
+    text.textContent = '';
+    fireEvent.input(text);
+    await act(async () => { fireEvent.blur(name); });
     expect(writer.patches()).toEqual([{ op: 'remove', list: 'actions', item: WARDEN.actions[0] }]);
     expect(result.container.querySelector('.atlas-sb-pane-live')?.textContent).toBe('Deleted Bite. Press Ctrl+Z to undo.');
   });
 
-  it('lists the note\'s other properties in the tray and removes one from the note', async () => {
-    const { writer } = await pane({ ...WARDEN, tags: ['marsh'], lair: 'Sunken causeway' });
-    fireEvent.click(screen.getByRole('button', { name: 'More properties (2)' }));
-    expect(screen.getByRole('heading', { name: 'Note' })).toBeTruthy();
-    expect(screen.getByRole('heading', { name: 'Not in this template' })).toBeTruthy();
-    expect(screen.getByText('marsh')).toBeTruthy();
-    const row = screen.getByRole('textbox', { name: 'lair' }).closest('.atlas-sb-pane-tray__row') as HTMLElement;
-    await act(async () => { fireEvent.click(within(row).getByRole('button', { name: 'Remove from note' })); });
-    expect(writer.patches()).toEqual([{ op: 'delete', path: ['lair'], base: 'Sunken causeway' }]);
+  it('adds an ability at the end of its list from the plus at the end of its heading', async () => {
+    const { result, writer } = await pane();
+    const add = within(blockOf(result.container, 'gcaction')).getByRole('button', { name: 'Add action' });
+    fireEvent.click(add);
+    const name = screen.getByRole('textbox', { name: 'Action name' }) as HTMLInputElement;
+    expect(name.closest('.atlas-sb-pane-entry-editor--new')).not.toBeNull();
+    expect(document.activeElement).toBe(name);
+    fireEvent.focus(name);
+    fireEvent.change(name, { target: { value: 'Roar' } });
+    await act(async () => { fireEvent.blur(name); });
+    expect(writer.patches()).toEqual([{ op: 'insert', list: 'actions', item: { name: 'Roar' }, after: WARDEN.actions[1] }]);
+  });
+
+  it('opens no menu on a right-click and draws no handle beside a block: the card is filled in, not built', async () => {
+    const { result } = await pane();
+    const hp = blockOf(result.container, 'header-hp');
+    expect(fireEvent.contextMenu(hp)).toBe(true);
+    expect(fireEvent.contextMenu(blockOf(result.container, 'gcaction').querySelectorAll('.atlas-sb-trait')[0]!)).toBe(true);
+    expect(screen.queryByRole('menu')).toBeNull();
+    expect(document.querySelector('.atlas-sb-handle[data-glyph="menu"]')).toBeNull();
+  });
+
+  it('holds the note\'s tags and aliases in the tray, and nothing of what the template does not show', async () => {
+    await pane({ ...WARDEN, tags: ['marsh'], cssclasses: ['wide'], lair: 'Sunken causeway' });
+    fireEvent.click(screen.getByRole('button', { name: 'More properties (1)' }));
+    const tray = document.querySelector<HTMLElement>('.atlas-sb-pane-tray__content')!;
+    expect([...tray.querySelectorAll('.atlas-sb-pane-tray__key')].map((key) => key.textContent)).toEqual(['Tags', 'Aliases']);
+    expect(within(tray).getByText('marsh')).toBeTruthy();
+    expect(within(tray).queryByText('wide')).toBeNull();
+    expect(within(tray).queryByText(/lair|Sunken causeway/)).toBeNull();
+    expect(within(tray).queryByRole('heading')).toBeNull();
   });
 
   it('runs the focused input\'s commit when the pane closes mid-word', async () => {
     const pendingCommit = { current: null as (() => Promise<void>) | null };
     const harness = await renderPane({ frontmatter: WARDEN, pendingCommit });
     apps.push(harness.app);
-    fireEvent.click(blockOf(harness.result.container, 'gchp0000'));
+    fireEvent.click(blockOf(harness.result.container, 'header-hp'));
     const input = screen.getByRole('textbox', { name: 'Hit Points' });
     fireEvent.focus(input);
     fireEvent.change(input, { target: { value: '30' } });
@@ -225,7 +252,7 @@ describe('the statblock pane over a native note', () => {
 
   it('writes what was typed to its own note when the pane follows its partner to another', async () => {
     const harness = await pane();
-    fireEvent.click(blockOf(harness.result.container, 'gchp0000'));
+    fireEvent.click(blockOf(harness.result.container, 'header-hp'));
     fireEvent.change(screen.getByRole('textbox', { name: 'Hit Points' }), { target: { value: '22' } });
     await act(async () => { harness.rerender({ notePath: 'Bestiary/Bog Hag.md' }); });
     expect(harness.writer.writes).toEqual([{ path: NOTE_PATH, patches: [{ op: 'set', path: ['hp'], base: 14, next: 22 }] }]);

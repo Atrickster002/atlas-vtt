@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { NoteFieldWriter } from '../../../../src/app/statblocks/notes/NoteFieldWriter';
+import { templateBodyPath } from '../../../../src/app/statblocks/library/templatePaths';
 import { switchTemplates } from '../../../../src/app/statblocks/notes/templateSwitch';
+import { MARSH_PATH, marshText } from '../library/templateTexts';
 import { noteHarness, type NoteHarness } from './noteHarness';
 
 const note = (template: string, body = ''): string => `---\nstatblock: true\natlas-template: ${template}\nhp: 3\n---\n${body}`;
@@ -23,6 +25,18 @@ describe('switchTemplates', () => {
     expect(harness.files.get('a.md')).toBe(note(NEW));
     expect(open.editor.getValue()).toBe(note(NEW, 'Typed.\n'));
     expect(progress.mock.calls).toEqual([[1, 3], [2, 3], [3, 3]]);
+  });
+
+  it('changes only the template a note names, never its body, whatever text the new template gives new notes', async () => {
+    harness = noteHarness({
+      'a.md': note(OLD, '## Mine\n\nWritten by hand.\n'),
+      [MARSH_PATH]: marshText({ id: 'bog-creature-abc123' }),
+      [templateBodyPath(MARSH_PATH)]: '## Lair\n',
+    });
+
+    await switchTemplates(harness.app, [{ path: 'a.md', from: OLD }], 'bog-creature-abc123');
+
+    expect(harness.files.get('a.md')).toBe(note('bog-creature-abc123', '## Mine\n\nWritten by hand.\n'));
   });
 
   it('keeps a note whose template changed since it was listed, and one it cannot read', async () => {

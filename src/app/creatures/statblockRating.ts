@@ -22,6 +22,17 @@ export function scalarText(value: unknown): string | null {
   return typeof value === 'string' && value.trim() !== '' ? value.trim() : null;
 }
 
+/**
+ * The name a statblock goes by where it is shown (its card's header, a token's
+ * nameplate, a list): the field its template means as the display name where
+ * it holds one (Cairn's `title`, "Aranea"), else `name`, which stays what
+ * identifies it ("Aranea (Cairn)"). Null where it names nothing.
+ */
+export function statblockDisplayName(fields: StatblockFields, meanings: FieldMeanings): string | null {
+  const meant = meanings['display-name'];
+  return (meant === undefined ? null : scalarText(fields[meant])) ?? scalarText(fields.name);
+}
+
 /** The field the template means as the rating, else the first of `keys` that holds a value; null without one. */
 export function statblockRating(fields: StatblockFields, meanings: FieldMeanings, keys: readonly string[]): StatblockRating | null {
   const meant = meanings.rating;

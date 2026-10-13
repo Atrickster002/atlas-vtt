@@ -13,21 +13,23 @@ export type TemplateEditorProblem =
   /** Another file holds the same template id. */
   | { kind: 'duplicate'; of: string }
   /** The `statblockEditor` experimental switch is off. */
-  | { kind: 'off' };
+  | { kind: 'off' }
+  /** A template that was never saved, and is closed now (Obsidian restarted since). */
+  | { kind: 'gone' };
 
 export interface TemplateEditorSurfaceProps extends Omit<TemplateEditorProps, 'session'> {
   session: EditorSession | null;
   problem: TemplateEditorProblem | null;
   /**
    * Raised for each "select this block" request: the editor starts again with
-   * that selection. The editor is kept by the view, never by the session, so
-   * a session swapped under it (a built-in's copy) keeps what is selected.
+   * that selection. The editor is kept by the view, never by the session.
    */
   selectRequest?: number | undefined;
 }
 
 function problemText(problem: Exclude<TemplateEditorProblem, { kind: 'loading' }>): string {
   if (problem.kind === 'off') return 'Turn on the statblock editor under Experimental features to edit templates.';
+  if (problem.kind === 'gone') return 'This template was never saved, and it closed.';
   if (problem.kind === 'duplicate') return `This file has the same template id as ${problem.of}. Edit that one, or delete this copy.`;
   return problem.problems[0] ? `This file can't be read as a statblock template: ${problem.problems[0]}` : "This file can't be read as a statblock template.";
 }

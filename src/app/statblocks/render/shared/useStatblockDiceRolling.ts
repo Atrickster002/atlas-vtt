@@ -1,10 +1,13 @@
-import { useCallback, useContext, useLayoutEffect, useRef } from 'react';
-import type { App } from 'obsidian';
-import { attachDiceRolling } from '../../../services/statblockDiceLinks';
+import { createElement, useCallback, useContext, useLayoutEffect, useRef, type ReactNode } from 'react';
+import { Platform, type App } from 'obsidian';
+import { attachDiceRolling, type RollChoice, type RollMenuOpener } from '../../../services/statblockDiceLinks';
 import { rollHitPoints } from '../../../services/statblockHitPoints';
 import type { DiceRollSource } from '../../../services/statblockRolls';
 import type { TokenVitals } from '../../../services/statblockVitalsSync';
 import { AtlasUIContext } from '../../../react/root/AtlasUIContext';
+import { useOptionalContextMenu, type ContextMenuController, type ContextMenuEntry } from '../../../react/root/ContextMenuContext';
+import { t } from '../../../i18n';
+import { RollMenuHost } from './RollMenuHost';
 import type { TokenRollContext } from '../../../types/diceRollOrigin';
 import { OffMapRollsContext } from './offMapRolls';
 
@@ -25,6 +28,25 @@ export interface StatblockDiceRolling {
 /** A ref callback for the statblock's container; what it returns detaches the listeners. */
 export type StatblockDiceRef = (el: HTMLElement | null) => (() => void) | undefined;
 
+/** The container's ref, and the menu host to render beside it where no surface has a context menu (else null). */
+export type StatblockDiceRolls = [ref: StatblockDiceRef, rollMenu: ReactNode];
+
+/** The keys a menu row names for its roll. */
+function keyHint(choice: RollChoice): string | undefined {
+  if (choice.side === 'advantage') return t('dice.shiftClick');
+  if (choice.side === 'disadvantage') return Platform.isMacOS ? t('dice.optionClick') : t('dice.altClick');
+  return undefined;
+}
+
+const SIDE_ICONS = { advantage: 'chevrons-up', disadvantage: 'chevrons-down' } as const;
+
+function menuEntries(choices: readonly RollChoice[]): ContextMenuEntry[] {
+  return choices.map((choice): ContextMenuEntry => {
+    const hint = keyHint(choice);
+    return { type: 'item', label: choice.label, icon: choice.side ? SIDE_ICONS[choice.side] : 'dices', onClick: choice.roll, ...(hint && { hint }) };
+  });
+}
+
 function rollSource({ notePath, tokens, name, viewId, originContext }: StatblockDiceRolling): DiceRollSource {
   const [token] = tokens;
   return {
@@ -42,20 +64,29 @@ function rollSource({ notePath, tokens, name, viewId, originContext }: Statblock
  * dice links inside it through the open map's dice tool, or shows them where
  * `OffMapRollsContext` says when no map on screen does. Dice on the hit point
  * line put rolled hit points on the tokens. Only listens, so it is safe on DOM
- * React owns; the options are read at the moment of a roll.
+ * React owns; the options are read at the moment of a roll. A right-click on a
+ * roll opens its menu in the surface's context menu, else in the menu host
+ * returned beside the ref, which the statblock renders.
  */
-export function useStatblockDiceRolling(rolling: StatblockDiceRolling): StatblockDiceRef {
+export function useStatblockDiceRolling(rolling: StatblockDiceRolling): StatblockDiceRolls {
   const offMap = useContext(OffMapRollsContext);
+  const surfaceMenu = useOptionalContextMenu();
+  const ownMenu = useRef<ContextMenuController | null>(null);
+  const menu = useRef(surfaceMenu);
   const ownView = useContext(AtlasUIContext)?.view?.viewId;
   const options = { ...rolling, viewId: rolling.viewId ?? ownView };
   const latest = useRef({ options, offMap });
   useLayoutEffect(() => {
     latest.current = { options, offMap };
+    menu.current = surfaceMenu;
   });
 
   const { app } = options;
-  return useCallback((el: HTMLElement | null): (() => void) | undefined => {
+  const ref = useCallback((el: HTMLElement | null): (() => void) | undefined => {
     if (!el || !app) return undefined;
+    const openMenu: RollMenuOpener = (choices, at, link) => {
+      (menu.current ?? ownMenu.current)?.open(menuEntries(choices), at, { returnFocus: link });
+    };
     return attachDiceRolling(
       el,
       app,
@@ -65,6 +96,8 @@ export function useStatblockDiceRolling(rolling: StatblockDiceRolling): Statbloc
         rollHitPoints(app, formula, notePath ?? '', tokens, abilityName, viewId, originContext, shownOn);
       },
       () => latest.current.offMap,
+      openMenu,
     );
   }, [app]);
+  return [ref, surfaceMenu ? null : createElement(RollMenuHost, { controller: ownMenu })];
 }

@@ -17,12 +17,8 @@ vi.mock('../../src/app/services/statblockDiceLinks', () => ({
   linkDiceIn: () => undefined,
   splitDiceSegments: (text: string) => [{ text, dice: false }],
 }));
-vi.mock('../../src/app/statblocks/render/shared/useStatblockDiceRolling', () => ({ useStatblockDiceRolling: () => undefined }));
+vi.mock('../../src/app/statblocks/render/shared/useStatblockDiceRolling', () => ({ useStatblockDiceRolling: () => [undefined, null] }));
 vi.mock('../../src/app/services/TokenStatblockLinkService', () => ({ TokenStatblockLinkService: { getInstance: () => ({}) } }));
-vi.mock('../../src/app/statblocks/editor/template-editor/templateEditorActions', () => ({
-  duplicateTemplate: async () => null,
-  newStatblockFromTemplate: async () => undefined,
-}));
 vi.mock('../../src/app/statblocks/editor/create/createFlow', () => ({
   createStatblock: async () => null,
   startStatblockCreation: async () => null,
@@ -155,7 +151,8 @@ describe('dragging an ability by its handle', () => {
     const [trait] = abilities(harness, 'gctraits');
     const handle = await handleOf(bite!);
     const list = blockOf(harness.result.container, ACTION_LIST).getBoundingClientRect();
-    const to = { x: centreOf(handle).x, y: trait!.getBoundingClientRect().top - 40 };
+    // The traits stand in the other column, beside the actions: the pointer goes over to them, above the actions' list.
+    const to = { x: centreOf(trait!).x, y: list.top - 40 };
     const ghostTops: number[] = [];
     await pressAndMove(centreOf(handle), to, 24, () => {
       const ghost = document.querySelector('.atlas-list-drag-ghost');
@@ -164,7 +161,7 @@ describe('dragging an ability by its handle', () => {
     expect(ghostTops.length).toBeGreaterThan(0);
     // The copy's surface stands its inset around the ability's own text.
     expect(Math.min(...ghostTops)).toBeGreaterThanOrEqual(list.top - 8);
-    expect(document.querySelector('.atlas-sb-drag-hint')?.textContent).toMatch(/^Abilities stay in their list\./);
+    expect(document.querySelector('.atlas-sb-drag-hint')?.textContent).toMatch(/stays in its list\.$/);
     await act(async () => {
       await mouse.up(to.x, to.y);
       await frames(2);
@@ -264,7 +261,7 @@ describe('dragging an ability by its handle', () => {
     }
   });
 
-  it('opens the ability\'s menu with a click on its handle, and keeps focus where it was', async () => {
+  it('opens no menu with a click on its handle and keeps focus where it was; a block has no handle at all', async () => {
     const harness = await pane();
     const [bite] = abilities(harness);
     const handle = await handleOf(bite!);
@@ -273,8 +270,27 @@ describe('dragging an ability by its handle', () => {
       await mouse.click(centreOf(handle).x, centreOf(handle).y);
       await frames(3);
     });
-    expect([...document.querySelectorAll('[role="menuitem"]')].map((row) => row.textContent)[0]).toMatch(/^Edit Bite/);
-    expect(bite!.hasAttribute('data-sb-menu-target')).toBe(true);
-    expect(document.activeElement === before || document.activeElement?.closest('[role="menu"]') !== null).toBe(true);
+    expect(document.querySelector('[role="menu"]')).toBeNull();
+    expect(document.activeElement).toBe(before);
+
+    const hp = blockOf(harness.result.container, 'header-hp');
+    await act(async () => {
+      await mouse.move(centreOf(hp).x, centreOf(hp).y);
+      await frames(3);
+    });
+    expect(document.querySelector('.atlas-sb-handle')).toBeNull();
+  });
+
+  it('stands its grip in the card\'s padding, clear of the card\'s border and of the ability', async () => {
+    const harness = await pane();
+    const [bite] = abilities(harness);
+    const handle = await handleOf(bite!);
+    const glyph = handle.querySelector('svg')!.getBoundingClientRect();
+    const card = harness.result.container.querySelector('.atlas-sb-pane-card')!.getBoundingClientRect();
+    const name = bite!.querySelector('.atlas-sb-trait-name')!.getBoundingClientRect();
+    // The grip's dots, not its whole box: the outer columns of Lucide's grip lie 9 and 15 of 24 across.
+    const dots = { left: glyph.left + glyph.width * (8 / 24), right: glyph.left + glyph.width * (16 / 24) };
+    expect(dots.left - card.left).toBeGreaterThanOrEqual(3);
+    expect(name.left - dots.right).toBeGreaterThanOrEqual(3);
   });
 });

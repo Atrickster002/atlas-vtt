@@ -36,7 +36,7 @@ export function addTab(layout: TemplateLayout, tabsId: string, nextId: BlockIdSo
   return done(withChildren(layout, tabsId, (tabs) => spliced(tabs, tabs.length, 0, tab)), tab.id);
 }
 
-/** A list without its heading, which its tab takes over. */
+/** A list without its heading, which the Tabs block takes over. */
 function withoutHeading(block: TemplateBlock): TemplateBlock {
   if (!('heading' in block)) return block;
   const { heading: _heading, ...rest } = block;
@@ -45,9 +45,10 @@ function withoutHeading(block: TemplateBlock): TemplateBlock {
 
 /**
  * Wraps a list (Abilities, Tags, Labelled values, Spells) into a new Tabs
- * block in its place: the list is the first tab, headed with the list's
- * heading (else "Tab 1"), and an empty "Tab 2" stands beside it. Refused
- * where Tabs may not stand (in a Side by side, straight in Tabs).
+ * block in its place: the Tabs block takes the list's heading, so the
+ * component keeps its name, the list is the first tab, "Tab 1", and an empty
+ * "Tab 2" stands beside it. Refused where Tabs may not stand (in a Side by
+ * side, straight in Tabs).
  */
 export function splitIntoTabs(layout: TemplateLayout, listId: string, nextId: BlockIdSource): TreeEdit {
   const found = findBlock(layout.blocks, listId);
@@ -57,9 +58,9 @@ export function splitIntoTabs(layout: TemplateLayout, listId: string, nextId: Bl
   const parentType = parentTypeOf(layout, found.parentId);
   if (parentType === null || !canContain(parentType, 'tabs')) return refuse(layout, 'not-allowed-here');
   const heading = 'heading' in list ? list.heading?.trim() : undefined;
-  const first: SectionBlock = { id: nextId(), type: 'section', heading: heading || tabLabel(1), blocks: [withoutHeading(list)] };
+  const first: SectionBlock = { id: nextId(), type: 'section', heading: tabLabel(1), blocks: [withoutHeading(list)] };
   const second: SectionBlock = { id: nextId(), type: 'section', heading: tabLabel(2), blocks: [] };
-  const tabs: TabsBlock = { id: nextId(), type: 'tabs', blocks: [first, second] };
+  const tabs: TabsBlock = { id: nextId(), type: 'tabs', ...(heading && { heading }), blocks: [first, second] };
   const taken = collectBlockIds(layout.blocks);
   const fresh = [first.id, second.id, tabs.id];
   if (fresh.some((id) => taken.has(id)) || new Set(fresh).size !== fresh.length) return refuse(layout, 'duplicate-id');

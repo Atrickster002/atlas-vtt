@@ -17,6 +17,7 @@ import type {
 } from '../../../types/collectionSettingsTypes';
 import type { CreatureFilterDefinition } from '../../../types/creatureFilterTypes';
 import type { DiceRules } from '../../../types/diceRulesTypes';
+import type { DiceSet } from '../../../types/diceSetTypes';
 import type { InitiativeRules } from '../../../types/initiativeRulesTypes';
 import type { TokenVisionDefaults } from '../../../types/lightingTypes';
 import type { LightPresetDefinition } from '../../../types/lightPresetTypes';
@@ -45,9 +46,12 @@ export interface CollectionSettingsDraft {
   setConditions: (conditions: ConditionDefinition[]) => void;
   resources: ResourceDefinition[];
   setResources: (resources: ResourceDefinition[]) => void;
-  /** Unset while the collection takes the dice of its preset; read with `collectionDiceRules`. */
+  /** The dice rules a collection that picked no set stored; unset while it takes its preset's. Read with `collectionDiceSet`. */
   dice: DiceRules | undefined;
-  setDice: (dice: DiceRules) => void;
+  /** The dice set the collection picked from the library; unset where it rolls `dice` or its preset's. */
+  diceSetId: string | undefined;
+  /** Picks a set from the library as the collection's dice. */
+  pickDiceSet: (set: DiceSet) => void;
   /** Unset while the collection takes the initiative rules of its preset; read with `collectionInitiativeRules`. */
   initiative: InitiativeRules | undefined;
   setInitiative: (initiative: InitiativeRules | undefined) => void;
@@ -98,6 +102,7 @@ export function useCollectionSettingsDraft(
   /** The resources the collection had when the draft opened; a bar switch follows only a resource that came or went. */
   const loadedResources = useRef<readonly ResourceDefinition[]>([]);
   const [dice, setDice] = useState<DiceRules | undefined>(undefined);
+  const [diceSetId, setDiceSetId] = useState<string | undefined>(undefined);
   const [initiative, setInitiative] = useState<InitiativeRules | undefined>(undefined);
   const [systemPresetId, setSystemPresetId] = useState<string | undefined>(undefined);
   const [lootBases, setLootBases] = useState<string[]>([]);
@@ -122,6 +127,7 @@ export function useCollectionSettingsDraft(
     loadedResources.current = loaded;
     setResources(loaded);
     setDice(settings.dice);
+    setDiceSetId(settings.diceSetId);
     setInitiative(parseInitiativeRules(settings.initiative));
     setSystemPresetId(settings.systemPresetId);
     setLootBases(settings.lootBases ?? []);
@@ -141,6 +147,7 @@ export function useCollectionSettingsDraft(
     setResources(keepingPlayerVisibility(rules.resources, resources));
     setDefaultWidgets(rules.defaultWidgets);
     setDice(rules.dice);
+    setDiceSetId(rules.diceSetId);
     setDefaultTokenVision(rules.defaultTokenVision);
     // The collection reads its preset's senses, light presets, initiative rules and roles until they are edited.
     setSenses(undefined);
@@ -157,6 +164,7 @@ export function useCollectionSettingsDraft(
     setResources(vanilla.resources);
     setDefaultWidgets(vanilla.defaultWidgets);
     setDice(vanilla.dice);
+    setDiceSetId(vanilla.diceSetId);
     setDefaultTokenVision(vanilla.defaultTokenVision);
     setSenses(vanilla.senses);
     setLightPresets(vanilla.lightPresets);
@@ -165,6 +173,15 @@ export function useCollectionSettingsDraft(
     setSystemPresetId(undefined);
   };
 
+  const pickDiceSet = (set: DiceSet): void => {
+    setDiceSetId(set.id);
+  };
+
+  /**
+   * The settings to save. A picked set is the collection's dice: the dice rules it stored before
+   * are removed, so a set that goes missing falls back to the system's dice and never to a choice
+   * the GM replaced.
+   */
   const toSettings = (): Partial<CollectionSettings> => {
     const saved = savedResources(resources);
     return {
@@ -175,7 +192,8 @@ export function useCollectionSettingsDraft(
       lightPresets,
       conditions,
       resources: saved,
-      ...(dice && { dice: { ...dice, defaultRoll: dice.defaultRoll.trim() } }),
+      ...(diceSetId ? { dice: undefined } : dice && { dice: { ...dice, defaultRoll: dice.defaultRoll.trim() } }),
+      diceSetId,
       initiative: initiative && savedInitiativeRules(initiative),
       // Trimmed, with the field as label where none was typed.
       customCreatureFilters: parseCreatureFilters(customCreatureFilters),
@@ -196,7 +214,7 @@ export function useCollectionSettingsDraft(
     lightPresets,
     conditions, setConditions,
     resources, setResources,
-    dice, setDice,
+    dice, diceSetId, pickDiceSet,
     initiative, setInitiative,
     customCreatureFilters, setCustomCreatureFilters,
     hiddenCreatureFilters, setHiddenCreatureFilters,

@@ -1,8 +1,8 @@
 /**
  * Opening the template gallery outside a dialog of Atlas (the command "New
  * statblock template…"): for the collection named, else the default one. The
- * new template opens in the template editor; "Use for" writes the role into
- * the collection's settings. Behind the `statblockEditor` switch.
+ * new template opens in the template editor unsaved; "Use for" gives it to the
+ * role once it is saved. Behind the `statblockEditor` switch.
  */
 
 import React from 'react';
@@ -12,7 +12,7 @@ import { AssetService } from '../../../services/AssetService';
 import { systemPresetsOf } from '../../../services/mapCollectionRules';
 import { collectionStatblockRoles } from '../../roles/collectionStatblockRoles';
 import { showHostedDialog } from '../hostedDialog';
-import { openCreatedTemplate } from './galleryActions';
+import { openPick } from './galleryActions';
 import { TemplateLibrary } from '../../library/TemplateLibrary';
 import { builtInsNamedBy, systemTemplateIds } from './gallerySources';
 import { TemplateGallery, type TemplateGalleryProps } from './TemplateGallery';
@@ -40,6 +40,6 @@ export async function openTemplateGallery(app: App, collectionId: string | null 
     doc: activeDocument,
     roles: collectionStatblockRoles(settings, presets),
     systemTemplateIds: [...new Set([...builtInsNamedBy(name, builtIns), ...systemTemplateIds(system)])],
-    onCreated: (created, roleId) => openCreatedTemplate(app, created, id, roleId),
+    onUse: (pick, roleId) => openPick(app, pick, id, roleId),
   });
 }

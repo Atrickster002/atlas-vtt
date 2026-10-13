@@ -23,3 +23,15 @@ export function inlineMarkdown(text: string): string {
     .replace(NUMBER, '$1\\$2')
     .replace(QUOTE, '$1\\>');
 }
+
+/**
+ * Characters that make Markdown draw text otherwise than it reads: marks
+ * (`*`, `_`, `` ` ``, `~`, `=`), links and embeds (`[`, `!`, a URL), HTML
+ * and entities (`<`, `&`), escapes, math, comments and tags (`\`, `$`, `%`, `#`).
+ */
+const MARKUP = /[*_`~=[!<&\\$%#]|:\/\//;
+
+/** Whether Markdown would draw the text otherwise than as it reads. */
+export function hasInlineMarkup(text: string): boolean {
+  return MARKUP.test(text);
+}

@@ -1,3 +1,4 @@
+import { D20_ROLL_UNDER_DICE_SET_ID } from '../builtInDiceSets';
 import type { SystemPreset } from '../../types/systemPresetTypes';
 import { CAIRN_LIGHTS } from '../lightPresets/cairn';
 import { HP_RESOURCE } from '../../resources/resourceDefinitions';
@@ -25,6 +26,7 @@ export const CAIRN: SystemPreset = {
     },
     // Saves roll under an attribute on a d20: a 1 always succeeds, a 20 always fails.
     dice: { defaultRoll: '1d20', crit: 'roll-under' },
+    diceSetId: D20_ROLL_UNDER_DICE_SET_ID,
     // Side initiative: each round the PCs act, then their opponents; nothing is rolled for the order.
     initiative: { mode: 'sides', roll: '1d20', firstSide: 'players' },
     conditions: conditionsOf('cairn', [

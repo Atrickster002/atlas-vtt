@@ -6,6 +6,8 @@
 
 - A template can limit a value to a list of choices, picked from a dropdown: one, several, or several each with a number, like senses or movement
 
+- A value can stand in a box, its label small over a large number, like hit points or thresholds in a printed stat block. Boxed values side by side join into one strip: set a value's Label to Boxed in the template editor
+
 ## Improved
 
 - The creature filter Layout is now called Template. Type `template:` in the search; `layout:` still works

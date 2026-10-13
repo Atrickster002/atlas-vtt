@@ -3,13 +3,15 @@ import { handledByAnotherControl } from '../../../keyboard/tooltipEscape';
 import { isModHeld } from '../../../keyboard/modKey';
 import type { EntriesBlock, FieldValue, TemplateField } from '../../model/templateTypes';
 import type { NotePatch } from '../../notes/patchTypes';
-import { entryName, entryText } from '../../values/entryValues';
-import { usePartDraft } from './entryDraft';
+import { entryExtraTexts, entryName, entryText } from '../../values/entryValues';
+import { usePartDraft, useExtraDrafts } from './entryDraft';
+import { EntryExtraInputs, ENTRY_PART_CONTROL } from './EntryExtraInputs';
 import { typingCaret } from './entryFocus';
 import {
-  entryList, entryPartPatches, entryWithPart, insertEntryPatch, moveEntryToPatch, newEntry, removeEntryPatch, shownEntryIndexes,
+  entryList, entryPartPatches, entryWithPart, insertEntryPatch, type EntryPartKey, moveEntryToPatch, newEntry, removeEntryPatch, shownEntryIndexes,
 } from './entryPatches';
-import { singular } from './entryNoun';
+import { singular } from '../../values/entryNoun';
+import { removedMessage } from './announcements';
 import { focusStaysIn } from './focusWithin';
 import { usePaneEdit } from './paneEditContext';
 import { caretIn, insertAtCaret, placeCaret, textOf } from './plainEditable';
@@ -25,16 +27,15 @@ export interface EntryInlineEditorProps {
   editing: EntryEditing;
 }
 
-const ENDS_IN_PUNCTUATION = /[.!?:;]$/;
-
 /**
- * One ability typed in place (spec §6.3): its name, run in and bold italic
- * as the card writes it, then its text in the card's own line, so the list
- * around it stays drawn and the card keeps its look. Enter in the name goes
- * to the text; Enter in the text (or Mod+Enter) writes the ability and starts
- * the next; Shift+Enter breaks the line; Backspace in an empty ability deletes
- * it; Alt+↑/↓ move it and Mod+D duplicates it, each one write to the note
- * that takes the text being typed along.
+ * One ability typed in place (spec §6.3): fields where the ability stands,
+ * its name, the parts its list's shape names ("Type", "Range") and its text,
+ * in the card's own type, so the list around it stays drawn. Enter in the
+ * name or a part goes on to the next part or the text; Enter in the text (or
+ * Mod+Enter) writes the ability, parts picked included, and starts the next;
+ * Shift+Enter breaks the line; Backspace in an empty ability deletes it, as
+ * does leaving it with name and text emptied; Alt+↑/↓ move it and Mod+D
+ * duplicates it, each one write to the note that takes what is typed along.
  */
 export function EntryInlineEditor({ block, field, editing }: EntryInlineEditorProps): React.JSX.Element {
   const pane = usePaneEdit();
@@ -46,7 +47,9 @@ export function EntryInlineEditor({ block, field, editing }: EntryInlineEditorPr
   const item = editing.kind === 'edit' ? editing.item : null;
   const startName = item === null ? '' : entryName(item, shape) ?? '';
   const startText = item === null ? '' : entryText(item, shape) ?? '';
+  const startExtras = item === null ? {} : entryExtraTexts(item, shape);
   const nameDraft = usePartDraft(startName, item ?? {});
+  const extraDrafts = useExtraDrafts();
   const [textStarted] = useState(startText);
   // What the text holds as typed, kept also once the span has gone (the editor closing for another reason writes it).
   const textNow = useRef(startText);
@@ -62,29 +65,40 @@ export function EntryInlineEditor({ block, field, editing }: EntryInlineEditorPr
   };
 
   /** What was last written from here (a move took the text along): later commits are based on it. */
-  const written = useRef<{ item: FieldValue; name: string; text: string } | null>(null);
+  const written = useRef<{ item: FieldValue; name: string; text: string; extras: Record<string, string> } | null>(null);
+  /** What is typed, to be based on once `after` is written. */
+  const writing = (after: FieldValue): NonNullable<typeof written.current> => ({
+    item: after, name: nameDraft.value, text: textTyped(), extras: { ...(written.current?.extras ?? startExtras), ...extraDrafts.changed() },
+  });
 
-  /** What the ability will read once what is typed is written; and the patches that write it. */
+  /** What the ability will read once what is typed is written; and the patches that write it, part by part. */
   const typed = (): { after: FieldValue; patches: NotePatch[] } => {
     const name = nameDraft.value;
     const text = textTyped();
-    if (editing.kind === 'new') return { after: newEntry(shape, name, text), patches: [] };
-    const base = written.current ?? { item: editing.item, name: startName, text: startText };
-    const named = entryWithPart(base.item, shape, 'name', name);
-    const after = entryWithPart(named, shape, 'text', text);
-    if (name === base.name && text === base.text) return { after: base.item, patches: [] };
-    const patches = [
-      ...entryPartPatches(listKey(), editing.index, base.item, shape, 'name', name),
-      ...entryPartPatches(listKey(), editing.index, named, shape, 'text', text),
-    ];
+    if (editing.kind === 'new') return { after: newEntry(shape, name, text, extraDrafts.changed()), patches: [] };
+    const base = written.current ?? { item: editing.item, name: startName, text: startText, extras: startExtras };
+    const extras = Object.entries(extraDrafts.changed()).filter(([key, value]) => value !== (base.extras[key] ?? ''));
+    if (name === base.name && text === base.text && extras.length === 0) return { after: base.item, patches: [] };
+    const parts: Array<[EntryPartKey, string]> = [['name', name], ...extras.map(([key, value]): [EntryPartKey, string] => [{ extra: key }, value]), ['text', text]];
+    let after = base.item;
+    const patches: NotePatch[] = [];
+    for (const [part, value] of parts) {
+      patches.push(...entryPartPatches(listKey(), editing.index, after, shape, part, value));
+      after = entryWithPart(after, shape, part, value);
+    }
     return { after, patches };
   };
 
-  /** Writes what is typed, once; a new ability left blank is dropped. Returns the ability as it will read. */
+  /** Writes what is typed, once; a new ability left blank is dropped, one emptied is deleted. Returns the ability as it will read. */
   const commit = (): FieldValue | null => {
     if (finished.current) return null;
     finished.current = true;
     nameDraft.end();
+    if (editing.kind === 'edit' && !nameDraft.value.trim() && !textTyped().trim()) {
+      write([removeEntryPatch(listKey(), written.current?.item ?? editing.item)]);
+      pane.announce(removedMessage(startName || noun.toLowerCase()));
+      return null;
+    }
     const { after, patches } = typed();
     if (editing.kind === 'new') {
       const name = entryName(after, shape);
@@ -143,11 +157,11 @@ export function EntryInlineEditor({ block, field, editing }: EntryInlineEditorPr
     }
     const active = rootRef.current?.doc.activeElement ?? null;
     const part = active === textRef.current ? 'text' : 'name';
-    const caret = part === 'text' && textRef.current ? caretIn(textRef.current) : typingCaret(active);
+    const caret = part === 'text' && textRef.current ? caretIn(textRef.current) : active === nameRef.current ? typingCaret(active) : undefined;
     const { after, patches } = typed();
     const order = list().map((value, at): FieldValue => (at === editing.index ? after : value));
     lastFocus.current = { part, caret };
-    written.current = { item: after, name: nameDraft.value, text: textTyped() };
+    written.current = writing(after);
     write([...patches, moveEntryToPatch(listKey(), order, from, to)]);
     pane.start({ blockId: block.id, field: field.key, anchor: after, part, caret });
   };
@@ -159,11 +173,25 @@ export function EntryInlineEditor({ block, field, editing }: EntryInlineEditorPr
     else pane.start({ blockId: block.id, field: field.key, add: true, anchor: done, entry: shown });
   };
 
+  /** Enter in the name or a part: on to the next part, else the text. */
+  const focusAfter = (from: EventTarget): void => {
+    const parts = [...(rootRef.current?.querySelectorAll<HTMLElement>(`[${ENTRY_PART_CONTROL}]`) ?? [])];
+    const next = from === nameRef.current ? parts[0] : parts[parts.indexOf(from as HTMLElement) + 1];
+    if (next) next.focus();
+    else if (textRef.current) {
+      textRef.current.focus();
+      placeCaret(textRef.current, textOf(textRef.current).length);
+    }
+  };
+
   const onKeyDown = (event: React.KeyboardEvent<HTMLElement>): void => {
+    // A part's dropdown that took the key (picked, closed, removed a pick) keeps it.
+    if (handledByAnotherControl(event.nativeEvent)) return;
     const inText = event.target === textRef.current;
+    const inName = event.target === nameRef.current;
+    const inPart = !inText && !inName && (event.target as Partial<Element>).hasAttribute?.(ENTRY_PART_CONTROL) === true;
     const step = event.altKey && editing.kind === 'edit' ? (event.key === 'ArrowUp' ? -1 : event.key === 'ArrowDown' ? 1 : 0) : 0;
     if (event.key === 'Escape') {
-      if (handledByAnotherControl(event.nativeEvent)) return;
       event.preventDefault();
       finished.current = true;
       pane.stop(true);
@@ -175,26 +203,23 @@ export function EntryInlineEditor({ block, field, editing }: EntryInlineEditorPr
       event.preventDefault();
       // The text typed goes along in the same write; typing goes on in this ability.
       const { after, patches } = typed();
-      written.current = { item: after, name: nameDraft.value, text: textTyped() };
+      written.current = writing(after);
       write([insertEntryPatch(listKey(), list(), editing.index, after), ...patches]);
       pane.start({ blockId: block.id, field: field.key, anchor: after, part: inText ? 'text' : 'name' });
-    } else if (event.key === 'Enter' && !inText && !isModHeld(event)) {
+    } else if (event.key === 'Enter' && (inName || inPart) && !isModHeld(event)) {
       event.preventDefault();
-      if (textRef.current) {
-        textRef.current.focus();
-        placeCaret(textRef.current, textOf(textRef.current).length);
-      }
+      focusAfter(event.target);
     } else if (event.key === 'Enter' && (isModHeld(event) || (inText && !event.shiftKey))) {
       event.preventDefault();
       nextAfter(commit());
     } else if (event.key === 'Enter' && inText && event.shiftKey) {
       event.preventDefault();
       if (textRef.current) insertAtCaret(textRef.current, '\n');
-    } else if (event.key === 'Tab' && (inText ? !event.shiftKey : event.shiftKey)) {
+    } else if (event.key === 'Tab' && (inText ? !event.shiftKey : inName && event.shiftKey)) {
       event.preventDefault();
       commit();
       pane.move(field.key, event.shiftKey ? -1 : 1);
-    } else if (event.key === 'Backspace' && !nameDraft.value && !textTyped()) {
+    } else if (event.key === 'Backspace' && (inName || inText) && !nameDraft.value && !textTyped()) {
       event.preventDefault();
       finished.current = true;
       if (editing.kind === 'edit') write([removeEntryPatch(listKey(), editing.item)]);
@@ -217,8 +242,6 @@ export function EntryInlineEditor({ block, field, editing }: EntryInlineEditorPr
   commitRef.current = commit;
   useEffect(() => () => { commitRef.current(); }, []);
 
-  const name = nameDraft.value;
-  const punctuation = nameStyle === 'run-in' && name.trim() && !ENDS_IN_PUNCTUATION.test(name.trim()) ? '.' : '';
   return (
     <div
       ref={rootRef}
@@ -236,15 +259,19 @@ export function EntryInlineEditor({ block, field, editing }: EntryInlineEditorPr
           type="text"
           className="atlas-sb-pane-input atlas-sb-pane-entry__name"
           data-entry-part="name"
-          value={name}
+          value={nameDraft.value}
           placeholder={`${noun} name`}
           aria-label={`${noun} name`}
           spellCheck
           onFocus={nameDraft.focus}
           onChange={(event) => nameDraft.change(event.target.value)}
         />
-        {punctuation}
       </span>
+      <EntryExtraInputs
+        extras={shape?.extras ?? []}
+        textOf={(key) => extraDrafts.value(key, startExtras[key] ?? '')}
+        onChange={extraDrafts.change}
+      />
       <span
         ref={(element) => {
           if (element && textRef.current !== element && element.textContent === '') element.textContent = textStarted;

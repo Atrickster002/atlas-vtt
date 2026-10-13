@@ -4,15 +4,15 @@
  * all text and no name.
  */
 
-import type { EntryShape, FieldValue } from '../model/templateTypes';
+import type { EntryExtraShape, EntryShape, FieldValue } from '../model/templateTypes';
 import { isEmptyValue } from './emptyValue';
+import { splitListText } from './listText';
+import { parseNumberText } from './numberText';
 import { valueText } from './valueText';
 
 export const DEFAULT_ENTRY_NAME_KEY = 'name';
 /** Fantasy Statblocks' key; its Daggerheart notes use `text`, which their templates name in `textKey`. */
 export const DEFAULT_ENTRY_TEXT_KEY = 'desc';
-
-type EntryExtraShape = NonNullable<EntryShape['extras']>[number];
 
 export interface EntryExtra extends EntryExtraShape {
   value: FieldValue;
@@ -47,9 +47,23 @@ export function entryName(entry: FieldValue | undefined, shape?: EntryShape): st
   return textOf(asRecord(entry)?.[entryNameKey(shape)]);
 }
 
+/**
+ * The key this entry's text is read and written under: the shape's, else
+ * `desc` where the entry holds nothing under the shape's key but has a `desc`.
+ * Fantasy Statblocks draws an entry whose callback gives nothing
+ * (`return property.text` on `{ name, desc }`) with its `desc`, and the notes
+ * of one layout keep either.
+ */
+export function entryTextKeyOf(entry: FieldValue | undefined, shape?: EntryShape): string {
+  const key = entryTextKey(shape);
+  const record = asRecord(entry);
+  if (!record || key === DEFAULT_ENTRY_TEXT_KEY || textOf(record[key]) !== undefined) return key;
+  return textOf(record[DEFAULT_ENTRY_TEXT_KEY]) === undefined ? key : DEFAULT_ENTRY_TEXT_KEY;
+}
+
 export function entryText(entry: FieldValue | undefined, shape?: EntryShape): string | undefined {
   const record = asRecord(entry);
-  return record ? textOf(record[entryTextKey(shape)]) : textOf(entry);
+  return record ? textOf(record[entryTextKeyOf(record, shape)]) : textOf(entry);
 }
 
 /** The shape's extras the entry has a value for, in the shape's order. */
@@ -60,4 +74,20 @@ export function entryExtras(entry: FieldValue | undefined, shape?: EntryShape): 
     const value = record[extra.key];
     return value === undefined || isEmptyValue(value) ? [] : [{ ...extra, value }];
   });
+}
+
+/** Each of the shape's extras as text, by key, as an input shows it: '' where the entry has none. */
+export function entryExtraTexts(entry: FieldValue | undefined, shape?: EntryShape): Record<string, string> {
+  const record = asRecord(entry);
+  return Object.fromEntries((shape?.extras ?? []).map((extra) => [extra.key, valueText(record?.[extra.key])]));
+}
+
+/** What text typed for an extra stores, by its type: a number where it reads as one, a list's items, else the text. Undefined where blank. */
+export function extraValue(extra: Pick<EntryExtraShape, 'type'> | undefined, text: string): FieldValue | undefined {
+  const trimmed = text.trim();
+  if (trimmed === '') return undefined;
+  if (extra?.type === 'number') return parseNumberText(trimmed) ?? trimmed;
+  if (extra?.type !== 'list') return trimmed;
+  const items = splitListText(trimmed);
+  return items.length > 0 ? items : undefined;
 }

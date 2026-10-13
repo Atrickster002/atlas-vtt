@@ -1,9 +1,12 @@
 /**
- * The file side of a template session (§8.7): what the file holds, autosave,
- * and following the library: its own writes coming back, renames, someone
- * else's change, the file gone. Resolving a conflict and renaming build on it
+ * The file side of a template session (§8.7): what the file holds, saving on
+ * request, and following the library: its own writes coming back, renames,
+ * someone else's change, the file gone. Resolving a conflict builds on it
  * (`SessionFile`). The draft and its history live in the session core, which
  * this side reaches through a `DraftHost`.
+ *
+ * Nothing is written until the user saves: a built-in and a template never
+ * saved have no file of their own, and are saved as new templates instead.
  */
 
 import type { App } from 'obsidian';
@@ -13,9 +16,12 @@ import type { StatblockTemplate, TemplateId } from '../model/templateTypes';
 import { observeDisk, saveProblemText, type SessionConflict } from './templateConflict';
 import { templateName } from './templateFiles';
 import type { TemplateLibrary } from './TemplateLibrary';
-import { TemplateAutosave, type PendingWrite, type WriteOutcome } from './templateWriter';
+import { writeTemplateText, type PendingWrite, type WriteOutcome } from './templateWriter';
 
-export type ReadOnlyReason = 'built-in' | 'newer';
+/** Only a template from a newer Atlas cannot be edited; a built-in is edited and saved as a new template. */
+export type ReadOnlyReason = 'newer';
+
+export type SaveResult = { ok: true } | { ok: false; problem: string };
 
 /** What the file side asks of the session core. */
 export interface DraftHost {
@@ -27,15 +33,25 @@ export interface DraftHost {
   changed(): void;
 }
 
-const readOnlyOf = (entry: LibraryTemplate): ReadOnlyReason | null => (entry.builtIn ? 'built-in' : entry.status === 'newer' ? 'newer' : null);
+const readOnlyOf = (entry: LibraryTemplate): ReadOnlyReason | null => (entry.status === 'newer' ? 'newer' : null);
+
+function conflictText(conflict: SessionConflict | null): string {
+  return conflict === 'deleted'
+    ? 'The template\'s file is gone.'
+    : 'The template was changed somewhere else. Choose which version to keep first.';
+}
 
 export class SessionFileSync {
   path: string | null;
   name: string;
   readOnly: ReadOnlyReason | null;
+  readonly builtIn: boolean;
+  /** A template made in the editor and never saved: it has no file yet. */
+  readonly unsaved: boolean;
   conflict: SessionConflict | null = null;
   problem: string | null = null;
-  /** The template the file holds; null when it holds text that is not this template. */
+  writing = false;
+  /** The template the file holds; null when it holds text that is not this template, or there is no file yet. */
   protected saved: StatblockTemplate | null;
   /** The text the file held when the session last loaded or wrote it. */
   protected baseText: string;
@@ -46,7 +62,6 @@ export class SessionFileSync {
    * on reading the disk can be ahead of it, and until then its "same" is stale.
    */
   private confirmed = false;
-  private readonly autosave: TemplateAutosave;
   /** File operations of the session's own under way; the library's news waits for them. */
   private ownOperations = 0;
   private observeLater = false;
@@ -58,70 +73,47 @@ export class SessionFileSync {
     entry: LibraryTemplate,
     text: string,
     protected readonly host: DraftHost,
+    unsaved = false,
   ) {
     this.path = entry.path;
     this.name = entry.name;
     this.readOnly = readOnlyOf(entry);
-    this.saved = entry.template;
+    this.builtIn = entry.builtIn;
+    this.unsaved = unsaved;
+    this.saved = unsaved ? null : entry.template;
     this.baseText = text;
-    this.autosave = new TemplateAutosave(app, library, this);
-  }
-
-  get writing(): boolean {
-    return this.autosave.writing;
   }
 
   isDirty(): boolean {
     return this.host.draft() !== this.saved;
   }
 
-  /** The draft changed: what renders the template shows it, and a committed step is saved soon. */
-  draftChanged(): void {
-    this.library.setDraft(this.id, this.isDirty() ? this.host.draft() : null);
-    if (!this.host.inGesture() && this.isDirty()) this.autosave.schedule();
-  }
-
-  /** A gesture began: nothing is written until it ends. */
-  holdWrites(): void {
-    this.autosave.cancel();
-  }
-
-  flush(): Promise<void> {
-    return this.autosave.flush();
-  }
-
-  takeWrite(): PendingWrite | null {
-    if (this.readOnly || this.conflict || this.path === null) return null;
+  /** Writes the draft over its file ("Update"), only while the file holds what the session last loaded or wrote. */
+  async save(): Promise<SaveResult> {
+    if (this.readOnly) return { ok: false, problem: 'Update Atlas to change this template.' };
+    if (this.builtIn || this.unsaved || this.path === null) return { ok: false, problem: 'Save it as a new template.' };
+    if (this.conflict) return { ok: false, problem: conflictText(this.conflict) };
+    if (this.writing) return { ok: false, problem: 'The template is being saved.' };
     const template = this.host.draft();
-    if (template === this.saved) return null;
+    if (template === this.saved) return { ok: true };
     const text = serializeTemplate(template);
-    if (text !== this.baseText) return { path: this.path, baseText: this.baseText, text, template };
-    this.markSaved(template);
-    return null;
-  }
-
-  writingChanged(): void {
-    this.host.changed();
-  }
-
-  settled(outcome: WriteOutcome, write: PendingWrite): void {
-    if (outcome.kind === 'written') {
-      this.baseText = write.text;
-      this.problem = null;
-      this.markSaved(write.template);
-    } else if (outcome.kind === 'changed') {
-      this.enterConflict('changed', outcome.text, false);
-    } else if (outcome.kind === 'missing') {
-      this.enterConflict('deleted', null, false);
-    } else {
-      this.problem = saveProblemText(outcome.problem);
+    if (text === this.baseText) {
+      this.markSaved(template);
+      this.host.changed();
+      return { ok: true };
     }
-    this.afterOwnWork();
+    const write: PendingWrite = { path: this.path, baseText: this.baseText, text, template };
+    this.writing = true;
+    this.host.changed();
+    const outcome = await writeTemplateText(this.app, this.library, write);
+    this.writing = false;
+    this.settled(outcome, write);
+    return outcome.kind === 'written' ? { ok: true } : { ok: false, problem: this.problem ?? conflictText(this.conflict) };
   }
 
   /** The library changed: the session's own write coming back, a rename, someone else's change, or the file gone. */
   libraryChanged(): void {
-    if (this.readOnly === 'built-in' || this.path === null) return;
+    if (this.builtIn || this.unsaved || this.path === null) return;
     if (this.writing || this.ownOperations > 0) {
       this.observeLater = true;
       return;
@@ -141,14 +133,8 @@ export class SessionFileSync {
     this.host.changed();
   }
 
-  dispose(): void {
-    this.autosave.dispose();
-    this.library.setDraft(this.id, null);
-  }
-
   protected markSaved(template: StatblockTemplate): void {
     this.saved = template;
-    this.library.setDraft(this.id, this.isDirty() ? this.host.draft() : null);
   }
 
   /** Takes a version of the file in as the session's start. */
@@ -159,7 +145,6 @@ export class SessionFileSync {
     this.problem = null;
     this.leaveConflict();
     this.host.reset(entry.template);
-    this.library.setDraft(this.id, null);
   }
 
   protected movedTo(path: string): void {
@@ -168,19 +153,17 @@ export class SessionFileSync {
     this.name = templateName(path);
   }
 
-  /** Stops saving until the user chooses a version; nothing is written meanwhile. */
+  /** Nothing is written over the file until the user chooses a version. */
   protected enterConflict(conflict: SessionConflict, other: string | null, confirmed: boolean): void {
     this.confirmed = confirmed || (this.confirmed && this.conflict === conflict);
     this.conflict = conflict;
     this.other = other;
-    this.autosave.cancel();
   }
 
   protected leaveConflict(): void {
     this.conflict = null;
     this.other = null;
     this.confirmed = false;
-    if (this.isDirty() && !this.host.inGesture()) this.autosave.schedule();
   }
 
   /** Runs a file operation of the session's own; what the library announces meanwhile waits for `afterOwnWork`. */
@@ -201,5 +184,20 @@ export class SessionFileSync {
     }
     this.observeLater = false;
     this.libraryChanged();
+  }
+
+  private settled(outcome: WriteOutcome, write: PendingWrite): void {
+    if (outcome.kind === 'written') {
+      this.baseText = write.text;
+      this.problem = null;
+      this.markSaved(write.template);
+    } else if (outcome.kind === 'changed') {
+      this.enterConflict('changed', outcome.text, false);
+    } else if (outcome.kind === 'missing') {
+      this.enterConflict('deleted', null, false);
+    } else {
+      this.problem = saveProblemText(outcome.problem);
+    }
+    this.afterOwnWork();
   }
 }
