@@ -39,10 +39,20 @@ $hero-cta-height: 40px;
   @include dashboard-art-well;
   position: absolute;
   inset: 0 0 0 auto;
-  width: 68%;
+  width: 70%;
   background: none;
-  // The map fades out towards the text, into the card's own surface.
-  mask-image: linear-gradient(to right, transparent 0%, rgb(0 0 0 / 55%) 22%, #000 52%);
+  // The map fades out towards the text, into the card's own surface: eased, so a pale map shows no
+  // edge where the fade begins.
+  mask-image: linear-gradient(
+    to right,
+    transparent 0%,
+    rgb(0 0 0 / 4%) 8%,
+    rgb(0 0 0 / 14%) 16%,
+    rgb(0 0 0 / 32%) 25%,
+    rgb(0 0 0 / 56%) 34%,
+    rgb(0 0 0 / 80%) 43%,
+    #000 54%
+  );
 
   @container atlas-dashboard (max-width: #{$hero-narrow}) {
     position: relative;

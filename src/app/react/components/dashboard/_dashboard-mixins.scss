@@ -18,6 +18,8 @@ $dashboard-press-scale: 0.985;
   padding: 0;
   font: inherit;
   text-align: start;
+  // Obsidian centres a button's content; a card lays out its own.
+  justify-content: flex-start;
   color: var(--text-normal);
   background: none;
   border: none;
