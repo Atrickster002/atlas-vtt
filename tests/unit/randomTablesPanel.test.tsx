@@ -202,4 +202,35 @@ describe('New table', () => {
     await waitFor(() => expect(app.vault.getFileByPath(`atlas-vtt/collections/${collectionId}/tables/Gear.md`)).toBeTruthy());
     await waitFor(() => expect(AssetService.getInstance(app).getCollectionSettings(collectionId).randomTables?.[0]?.kind).toBe('items'));
   });
+
+  it('imports the checked file tables as notes without rolling them', async () => {
+    const { app, store, collectionId } = await mount([]);
+    fireEvent.click(await screen.findByRole('button', { name: 'New table' }));
+    fireEvent.click(screen.getByRole('radio', { name: 'Import file' }));
+    const text = '## Weather\n| d4 | Result |\n| --- | --- |\n| 1-4 | Rain |\n\n## Treasure\n| d6 | Result |\n| --- | --- |\n| 1-6 | Coin |';
+    fireEvent.change(screen.getByLabelText('Choose a table file'), { target: { files: [{ name: 'Tables.md', size: text.length, arrayBuffer: async () => new TextEncoder().encode(text).buffer }] } });
+    fireEvent.click(await screen.findByRole('checkbox', { name: 'Import Treasure' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Import 1 table' }));
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'New table' })).toBeNull());
+    expect(app.vault.getFileByPath(`atlas-vtt/collections/${collectionId}/tables/Treasure.md`)).toBeTruthy();
+    expect(app.vault.getFileByPath(`atlas-vtt/collections/${collectionId}/tables/Weather.md`)).toBeNull();
+    expect(AssetService.getInstance(app).getCollectionSettings(collectionId).randomTables).toHaveLength(1);
+    expect(store.getState().lootRoller.lastRoll).toBeUndefined();
+  });
+
+  it('keeps the destination collection from when the importer was opened', async () => {
+    const { app, store, collectionId } = await mount([]);
+    const assets = AssetService.getInstance(app);
+    const other = await act(async () => assets.createCollection('Other'));
+    fireEvent.click(await screen.findByRole('button', { name: 'New table' }));
+    fireEvent.click(screen.getByRole('radio', { name: 'Import file' }));
+    act(() => store.setState({ mapPath: `atlas-vtt/collections/${other.id}/scenes/Other.atlasmap` }));
+    const text = '## Weather\n| d4 | Result |\n| --- | --- |\n| 1-4 | Rain |';
+    fireEvent.change(screen.getByLabelText('Choose a table file'), { target: { files: [{ name: 'Tables.md', size: text.length, arrayBuffer: async () => new TextEncoder().encode(text).buffer }] } });
+    fireEvent.click(await screen.findByRole('checkbox', { name: 'Import Weather' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Import 1 table' }));
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'New table' })).toBeNull());
+    expect(assets.getCollectionSettings(collectionId).randomTables).toHaveLength(1);
+    expect(assets.getCollectionSettings(other.id).randomTables ?? []).toEqual([]);
+  });
 });

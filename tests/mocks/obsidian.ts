@@ -640,3 +640,6 @@ export class Menu {
     return this.showAtPosition({ x: event.clientX, y: event.clientY });
   }
 }
+export async function loadPdfJs(): Promise<unknown> {
+  throw new Error('PDF.js must be supplied by PDF reader tests');
+}

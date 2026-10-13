@@ -11,7 +11,9 @@ If you set a token or map background to an `http://` or `https://` image URL, or
 
 ## Files outside the vault
 
-Atlas VTT does not read or write files outside your vault.
+Atlas VTT reads files outside your vault only when you choose them for import. Random-table imports read selected PDF, XLSX, CSV, TSV, Markdown and text files on your device and create Markdown notes inside your vault. The source files are not changed or uploaded. Atlas does not scan other files on your device.
+
+PDF imports use Obsidian's bundled PDF reader. XLSX imports read XML parts locally; the Open XML namespace identifiers in those parts are format names, not network requests.
 
 ## Code execution
 

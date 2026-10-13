@@ -13,6 +13,7 @@ import { tableProblems } from './tableProblems';
 /** Whether the first column holds the rolls: its header is a die, or every body cell starts like a number. */
 function hasRollColumn(table: MarkdownTable): boolean {
   if (table.headers.length < 2 || table.rows.length === 0) return false;
+  if (isWeightHeader(table.headers[0]!)) return false;
   return dieOfHeader(table.headers[0]!) !== null || table.rows.every((row) => looksLikeRoll(row[0] ?? ''));
 }
 

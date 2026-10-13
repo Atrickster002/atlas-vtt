@@ -61,6 +61,10 @@ New to Atlas? [Start here](https://atlas-vtt.dev/docs/start/install) takes you f
 
 Want to try upcoming features early? Beta builds are available through BRAT, see [docs/beta-testing.md](docs/beta-testing.md).
 
+In the beta, **Random tables → New table → Import file** reads local PDFs with embedded text, XLSX workbooks, CSV/TSV exports, Markdown and text. Preview the detected tables, check the ones to keep and enter any missing names before creating notes in your collection. PDF detection supports complete dice tables on one page and skips ambiguous layouts; it does not extract scanned pages or guarantee every table in a book. Workbooks with formulas, merged cells or formatted numeric values should be exported as displayed-values CSV first. Images and website links are handled by copying their text into **Paste**.
+
+The imports stay on your device. The XLSX reader uses the `http://schemas.openxmlformats.org` XML namespace identifiers locally and makes no requests to that address.
+
 <details>
 <summary>Manual installation</summary>
 

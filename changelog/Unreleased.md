@@ -12,6 +12,7 @@
 - The loot roller is now Random tables: roll on the tables in your notes as well as on your loot bases, with their dice, ranges and weights, and tables whose rows roll other tables or a base's views. Dice written in backticks are rolled with the result
 - Each collection names its item rarities and their colours in its Random tables settings, where tables are also taken from any note and set to give text or items
 - New table: paste a table from a PDF, a web page or a spreadsheet, see how it rolls and what is wrong with it, and save it as a note of the collection
+- Import random tables from local PDFs with embedded text, XLSX workbooks, CSV/TSV exports, Markdown and text files. Preview the detected tables, check the ones to keep and confirm their names before saving Markdown notes. Ambiguous and incomplete PDF tables are skipped; scanned pages need text copied with a separate text recognition tool
 
 ## Improved
 
@@ -33,6 +34,9 @@
 - The token creator finds statblock notes without the Fantasy Statblocks plugin too. Its image source is now called Statblock notes
 
 ## Fixed
+
+- A Weight column at the start of a random table supplies its weights instead of being read as dice results
+- A failed random-table import stays open for retry and reuses notes already created, while imported notes keep safe file names even with long Unicode titles
 
 - Rolling initiative adds each creature's modifier from its linked statblock, read from a field you pick in the collection's settings, or from an ability score such as DEX (D&D 5e reads Initiative, else DEX). With a contribution by anacletoTM
 - Auto detect finds the grid of a small map picture, with cells of about ten pixels, where it took four cells for one

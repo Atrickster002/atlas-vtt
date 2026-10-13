@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { GripHorizontal } from 'lucide-react';
 import { CoinIcon } from '../CoinIcon';
@@ -31,9 +31,9 @@ import { TableSummary } from './TableSummary';
 import { TablesSkeleton } from './TablesSkeleton';
 import { useSourceRoll } from './useSourceRoll';
 import { openLink, openNote } from './openNote';
-import { addTableSource, setTableNoRepeats } from './tableSettingsWrite';
+import { setTableNoRepeats } from './tableSettingsWrite';
 import { PasteTableDialog, type PastedTableNote } from './PasteTableDialog';
-import { writeTableNote } from '../../../randomTables/tableNoteWrite';
+import { saveImportedTables, type ImportedTableNote, type ImportSaveJournal } from '../../../randomTables/import/saveImportedTables';
 import { tableSourceId } from '../../../randomTables/tableLookup';
 import { tablesFolder } from '../../../randomTables/tablePaths';
 import { runInBackground } from '../../../utils/backgroundTask';
@@ -71,7 +71,9 @@ function RandomTablesPanel(): React.ReactElement {
   const windowVariants = useDialogWindowVariants();
   const [freshRollId, setFreshRollId] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [pasting, setPasting] = useState(false);
+  const [importCollection, setImportCollection] = useState<string | null>(null);
+  const viewedCollection = useRef(collectionId);
+  viewedCollection.current = collectionId;
   /** A table just written from a paste, rolled once it has been read. */
   const [pendingRoll, setPendingRoll] = useState<string | null>(null);
 
@@ -107,15 +109,24 @@ function RandomTablesPanel(): React.ReactElement {
     roll();
   });
 
-  const savePasted = (note: PastedTableNote): void => {
-    if (!collectionId) return;
-    setPasting(false);
-    runInBackground(writeTableNote(app, collectionId, note.name, note.table, note.kind).then(async (written) => {
-      await addTableSource(app, collectionId, written);
+  const openImporter = (): void => {
+    setImportCollection(collectionId);
+  };
+
+  const savePasted = async (note: PastedTableNote, journal: ImportSaveJournal): Promise<void> => {
+    if (!importCollection) throw new Error('No destination collection');
+    const [written] = await saveImportedTables(app, importCollection, [{ ...note, id: 0 }], journal);
+    if (written && viewedCollection.current === importCollection) {
       const id = tableSourceId(written);
       update({ selected: id, pane: 'results' });
       setPendingRoll(id);
-    }), 'Saving a pasted table', t('tables.paste.saveFailed'));
+    }
+  };
+
+  const saveFileTables = async (notes: readonly ImportedTableNote[], journal: ImportSaveJournal): Promise<void> => {
+    if (!importCollection) throw new Error('No destination collection');
+    const written = await saveImportedTables(app, importCollection, notes, journal);
+    if (written[0] && viewedCollection.current === importCollection) update({ selected: tableSourceId(written[0]), pane: 'results' });
   };
 
   const shownIds = usePlayerLootIds();
@@ -158,7 +169,7 @@ function RandomTablesPanel(): React.ReactElement {
         <LootEmptyState
           inCollection={collectionId !== null}
           basesOff={basesOff && hasSources}
-          onNewTable={() => setPasting(true)}
+          onNewTable={openImporter}
           onUseNote={() => setSettingsOpen(true)}
         />
       ) : (
@@ -171,7 +182,7 @@ function RandomTablesPanel(): React.ReactElement {
               onSelect={(selected) => update({ selected })}
               disabledViews={disabledViews}
               onDisabledViewsChange={(views) => update({ disabledViews: views })}
-              onNewTable={() => setPasting(true)}
+              onNewTable={openImporter}
             />
           </aside>
           <div className="atlas-loot-roller__main">
@@ -219,8 +230,8 @@ function RandomTablesPanel(): React.ReactElement {
       )}
 
       <AnimatePresence>
-        {pasting && collectionId && (
-          <PasteTableDialog key="paste" folder={tablesFolder(collectionId)} onSave={savePasted} onClose={() => setPasting(false)} />
+        {importCollection && (
+          <PasteTableDialog key="paste" folder={tablesFolder(importCollection)} onSave={savePasted} onImport={saveFileTables} onClose={() => setImportCollection(null)} />
         )}
         {settingsOpen && collectionId && (
           <CollectionSettingsModal

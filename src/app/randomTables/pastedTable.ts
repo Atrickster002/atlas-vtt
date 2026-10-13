@@ -24,6 +24,8 @@ export interface PasteOptions {
   resultHeader: string;
   /** Header of a roll column whose numbers name no die (a translated word too). */
   rollHeader: string;
+  /** A strict file importer can reject a clipped cell or row instead of accepting a partial table. */
+  onLimit?: () => void;
 }
 
 /** The numbers at a line's start are read from this many characters and words at most. */
@@ -118,10 +120,11 @@ function rollAtStart(line: string): LineRoll | null {
 }
 
 /** A wrapped line added to the cell before it; a word a hyphen broke at the line's end is joined whole. */
-function joined(previous: string, next: string): string {
+function joined(previous: string, next: string, onLimit?: () => void): string {
   const brokenWord = previous.endsWith('-') && /\p{L}/u.test(previous.charAt(previous.length - 2)) && /\p{Ll}/u.test(next.charAt(0));
-  if (brokenWord) return cell(previous.slice(0, -1) + next);
-  return cell(previous === '' ? next : `${previous} ${next}`);
+  const text = brokenWord ? previous.slice(0, -1) + next : previous === '' ? next : `${previous} ${next}`;
+  if (text.length > TABLE_LIMITS.cellCharacters) onLimit?.();
+  return cell(text);
 }
 
 /** The header among the lines before the first numbered one: the last that starts with a die, else the first. */
@@ -143,6 +146,7 @@ function unnumbered(lines: readonly string[], resultHeader: string): PastedTable
 }
 
 function fromLines(lines: readonly string[], options: PasteOptions): PastedTable {
+  if (lines.some((line) => line.trim().length > TABLE_LIMITS.cellCharacters)) options.onLimit?.();
   const filled = lines.map((line) => line.slice(0, TABLE_LIMITS.cellCharacters).trim()).filter((line) => line !== '');
   const firstRoll = filled.findIndex((line) => rollAtStart(line) !== null);
   if (firstRoll < 0) return unnumbered(filled, options.resultHeader);
@@ -151,11 +155,11 @@ function fromLines(lines: readonly string[], options: PasteOptions): PastedTable
   for (const line of filled.slice(firstRoll)) {
     const start = rollAtStart(line);
     if (start) {
-      if (rows.length === TABLE_LIMITS.rows) break;
+      if (rows.length === TABLE_LIMITS.rows) { options.onLimit?.(); break; }
       rows.push([start.roll, cell(start.rest)]);
     } else {
       const row = rows[rows.length - 1]!;
-      row[1] = joined(row[1]!, line);
+      row[1] = joined(row[1]!, line, options.onLimit);
     }
   }
   const header = headerLine(filled.slice(0, firstRoll), options.resultHeader);
