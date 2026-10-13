@@ -11,6 +11,7 @@ import type {
   BlockType,
   Condition,
   EntryShape,
+  HeaderTrack,
   ScoreColumn,
   StatblockTemplate,
   TemplateBlock,
@@ -49,7 +50,9 @@ export const TEMPLATE_KEYS = keyOrder<keyof StatblockTemplate>({
   importedFrom: true, fields: true, header: true, layout: true, lookups: true, sample: true,
 });
 
-export const HEADER_KEYS = keyOrder<keyof TemplateHeader>({ hidden: true });
+export const HEADER_KEYS = keyOrder<keyof TemplateHeader>({ hidden: true, hitPoints: true });
+
+export const HEADER_TRACK_KEYS = keyOrder<keyof HeaderTrack>({ look: true, counts: true, resource: true });
 
 export const FIELD_KEYS = keyOrder<keyof TemplateField>({
   key: true, label: true, type: true, meaning: true, formerKeys: true, unit: true, options: true, open: true,

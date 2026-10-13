@@ -13,11 +13,11 @@
 
 import { patternRefs } from '../expressions/patternRefs';
 import { findCode } from './fsCodeKeys';
-import { HEADER_PARTS, displayNameKey, headerKey, hitDiceKey, setHeaderPartHidden, withHeaderFields } from './templateHeader';
+import { HEADER_PARTS, displayNameKey, headerKey, hitDiceKey, setHeaderPartHidden, withHeaderFields, withHeaderSettings } from './templateHeader';
 import { fieldsShownBy, flattenReadingOrder } from './treeQueries';
 import {
   HEADER_PART_IDS, TEMPLATE_VERSION, isContainerBlock,
-  type FieldKey, type HeaderPartId, type StatblockTemplate, type TemplateBlock, type TemplateField,
+  type FieldKey, type HeaderPartId, type HeaderTrack, type TrackBlock, type StatblockTemplate, type TemplateBlock, type TemplateField,
 } from './templateTypes';
 
 /** Blocks that show one value plainly; lists, tables and scripts stay. */
@@ -80,6 +80,18 @@ function joinsHeaderValues(block: TemplateBlock, keys: ReadonlySet<FieldKey>): b
   return shown.length > 1 && shown.every((key) => keys.has(key)) && ONLY_SEPARATORS.test(pattern.replace(/\{[^}]*\}/g, ''));
 }
 
+/**
+ * The Track the layout draws the hit points with (a row of boxes): the header draws them so instead,
+ * as it draws every hit points. One holding code kept for Fantasy Statblocks stays.
+ */
+function trackOfHitPoints(blocks: readonly TemplateBlock[], key: FieldKey): TrackBlock | undefined {
+  return blocks.find((block): block is TrackBlock => block.type === 'track' && block.field === key && findCode(block).length === 0);
+}
+
+function headerTrackOf(block: TrackBlock): HeaderTrack {
+  return { look: block.look, counts: block.counts, ...(block.resource ? { resource: block.resource } : {}) };
+}
+
 /** A block an older Atlas kept off the card (`hidden: true`, read as a key this Atlas does not model). */
 function wasHidden(block: TemplateBlock): boolean {
   return Object.hasOwn(block, 'hidden') && (block as unknown as Record<string, unknown>).hidden === true;
@@ -115,14 +127,19 @@ export function withoutHeaderDuplicates(template: StatblockTemplate): StatblockT
       }
     }
   }
+  const hitPointsTrack = trackOfHitPoints(all, headerKey(template.fields, 'hp'));
+  if (hitPointsTrack) gone.add(hitPointsTrack.id);
   const partKeys = new Set(HEADER_PART_IDS.map((part) => headerKey(template.fields, part)));
   for (const block of all) if (joinsHeaderValues(block, partKeys)) gone.add(block.id);
   if (gone.size === 0) return template;
   const blocks = withoutBlocks(template.layout.blocks, gone);
   const still = plainlyShown(blocks);
   for (const part of HEADER_PART_IDS) if (still.has(headerKey(template.fields, part))) hide.add(part);
+  const tracked = hitPointsTrack && !template.header?.hitPoints
+    ? withHeaderSettings(template, { ...template.header, hitPoints: headerTrackOf(hitPointsTrack) })
+    : template;
   const hidden = [...hide].filter((part) => HEADER_PARTS[part].hideable)
-    .reduce((current, part) => setHeaderPartHidden(current, part, true), template);
+    .reduce((current, part) => setHeaderPartHidden(current, part, true), tracked);
   return { ...hidden, layout: { ...template.layout, blocks } };
 }
 
