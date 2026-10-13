@@ -9,6 +9,7 @@
 - Statblock templates for 5E (2014 and 2024), Cairn, Draw Steel and Fate, and general ones for creatures, NPCs and hazards
 - A template can limit a value to a list of choices, picked from a dropdown: one, several, or several each with a number, like senses or movement
 - A value can stand in a box, its label small over a large number, like hit points or thresholds in a printed stat block. Boxed values side by side join into one strip: set a value's Label to Boxed in the template editor
+- The loot roller is now Random tables: roll on the tables in your notes as well as on your loot bases, with their dice, ranges and weights, and tables whose rows roll other tables or a base's views. Dice written in backticks are rolled with the result
 
 ## Improved
 

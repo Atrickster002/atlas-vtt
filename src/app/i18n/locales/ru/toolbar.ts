@@ -22,7 +22,7 @@ export const toolbar: Translation = {
   'toolbar.laser': 'Лазерная указка',
   'toolbar.lassoSelection': 'Выделение лассо',
   'toolbar.line': 'Линия',
-  'toolbar.lootRoller': 'Генератор добычи',
+  'toolbar.lootRoller': 'Случайные таблицы',
   'toolbar.measureOptions': 'Настройки линейки',
   'toolbar.moveOptions': 'Настройки перемещения',
   'toolbar.notePin': 'Пин заметки',

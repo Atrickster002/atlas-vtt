@@ -22,7 +22,7 @@ export const toolbar = {
   'toolbar.laser': 'Laser Pointer',
   'toolbar.lassoSelection': 'Lasso Selection',
   'toolbar.line': 'Line',
-  'toolbar.lootRoller': 'Loot Roller',
+  'toolbar.lootRoller': 'Random tables',
   'toolbar.measureOptions': 'Measure Tool Options',
   'toolbar.moveOptions': 'Move Tool Options',
   'toolbar.notePin': 'Note Pin Tool',

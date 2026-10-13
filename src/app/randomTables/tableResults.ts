@@ -45,6 +45,7 @@ async function textResult(found: CollectionTable, draw: TableDraw, context: Cell
     notePath: source.path,
     ...(draw.roll && { roll: draw.roll }),
     text: text.text,
+    ...(text.rolls.length > 0 && { rolls: text.rolls }),
     fields,
   };
   return { result, items: text.items };

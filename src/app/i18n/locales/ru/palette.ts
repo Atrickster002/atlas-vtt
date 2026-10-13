@@ -21,7 +21,7 @@ export const palette: Translation = {
   'palette.noResultsHint': 'Попробуйте другой запрос',
   'palette.notePinTool': 'Пин заметки',
   'palette.openDiceLog': 'Открыть журнал бросков',
-  'palette.openLootRoller': 'Открыть генератор добычи',
+  'palette.openLootRoller': 'Открыть случайные таблицы',
   'palette.openSceneBrowser': 'Открыть список сцен',
   'palette.panel.grid': 'Настройки сетки',
   'palette.panel.localPlayerView': 'Настройки локального экрана игроков',

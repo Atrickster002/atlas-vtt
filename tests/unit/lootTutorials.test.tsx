@@ -66,19 +66,19 @@ describe('the loot roller’s tours', () => {
   });
 });
 
-describe('the empty loot roller', () => {
-  it('offers to set up loot in a collection without bases', () => {
-    const onSetUp = vi.fn();
-    render(<LootEmptyState inCollection basesAvailable loaded baseCount={0} onSetUp={onSetUp} />);
-    fireEvent.click(screen.getByRole('button', { name: 'Set up loot' }));
-    expect(onSetUp).toHaveBeenCalledOnce();
+describe('the empty Random tables window', () => {
+  it('offers a table from a note in a collection without tables', () => {
+    const onUseNote = vi.fn();
+    render(<LootEmptyState inCollection basesOff={false} onUseNote={onUseNote} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Use a table from a note' }));
+    expect(onUseNote).toHaveBeenCalledOnce();
   });
 
   it('has nothing to set up outside a collection or while Bases is off', () => {
-    render(<LootEmptyState inCollection={false} basesAvailable loaded baseCount={0} onSetUp={vi.fn()} />);
+    render(<LootEmptyState inCollection={false} basesOff={false} onUseNote={vi.fn()} />);
     expect(screen.queryByRole('button')).toBeNull();
     cleanup();
-    render(<LootEmptyState inCollection basesAvailable={false} loaded baseCount={1} onSetUp={vi.fn()} />);
+    render(<LootEmptyState inCollection basesOff onUseNote={vi.fn()} />);
     expect(screen.queryByRole('button')).toBeNull();
   });
 });

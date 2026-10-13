@@ -90,7 +90,7 @@ export const csm = {
   'csm.tab.creatureFilters': 'Creature Filters',
   'csm.tab.grid': 'Grid & Measure',
   'csm.tab.initiative': 'Initiative',
-  'csm.tab.loot': 'Loot',
+  'csm.tab.loot': 'Random tables',
   'csm.tab.system': 'Game System',
   'csm.tab.vision': 'Vision',
   'csm.tab.widgets': 'Default Widgets',

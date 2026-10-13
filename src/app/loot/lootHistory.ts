@@ -9,6 +9,14 @@ export interface TableResultField {
   hidden?: true;
 }
 
+/** A number rolled inside a result's text: its dice, its total and where the total stands in the text. */
+export interface TableResultRoll {
+  formula: string;
+  total: number;
+  /** Index of the total's first character in the text. */
+  at: number;
+}
+
 /** One result of a roll on a table that is no Items table, copied out of its note. */
 export interface TableResult {
   id: string;
@@ -20,6 +28,8 @@ export interface TableResult {
   roll?: { die: string; total: number };
   /** The first result column, its dice and linked tables rolled. */
   text: string;
+  /** The numbers dice in the text rolled, to mark them; absent where none were rolled. */
+  rolls?: TableResultRoll[];
   /** The other columns; `hidden` ones are the GM's. */
   fields: TableResultField[];
 }
@@ -65,6 +75,18 @@ function isResultField(value: unknown): value is TableResultField {
     && (value.hidden === undefined || value.hidden === true);
 }
 
+function isResultRoll(value: unknown, text: string): value is TableResultRoll {
+  if (!isRecord(value) || typeof value.formula !== 'string' || !isFiniteNumber(value.total) || !isFiniteNumber(value.at)) return false;
+  return Number.isInteger(value.at) && value.at >= 0 && text.startsWith(String(value.total), value.at);
+}
+
+/** A saved result with its marks of rolled numbers checked: a mark that does not stand on its number is dropped. */
+function checkedResult(result: TableResult): TableResult {
+  const { rolls, ...rest } = result;
+  const valid = Array.isArray(rolls) ? rolls.filter((roll) => isResultRoll(roll, result.text)) : [];
+  return { ...rest, ...(valid.length > 0 && { rolls: valid }) };
+}
+
 function isTableResult(value: unknown): value is TableResult {
   if (!isRecord(value)) return false;
   const { id, source, notePath, roll, text, fields } = value;
@@ -82,7 +104,7 @@ export function readLootRoll(value: unknown): LootRoll | null {
   const { id, rolledAt, mapName, draws, results } = value;
   if (typeof id !== 'string' || !isFiniteNumber(rolledAt) || typeof mapName !== 'string' || !Array.isArray(draws)) return null;
   const valid = draws.filter(isLootDraw);
-  const validResults = Array.isArray(results) ? results.filter(isTableResult) : [];
+  const validResults = Array.isArray(results) ? results.filter(isTableResult).map(checkedResult) : [];
   if (valid.length === 0 && validResults.length === 0) return null;
   return { id, rolledAt, mapName, draws: valid, ...(validResults.length > 0 && { results: validResults }) };
 }

@@ -90,7 +90,7 @@ export const csm: Translation = {
   'csm.tab.creatureFilters': 'Фильтры существ',
   'csm.tab.grid': 'Сетка и измерения',
   'csm.tab.initiative': 'Инициатива',
-  'csm.tab.loot': 'Добыча',
+  'csm.tab.loot': 'Случайные таблицы',
   'csm.tab.system': 'Игровая система',
   'csm.tab.vision': 'Зрение',
   'csm.tab.widgets': 'Виджеты по умолчанию',

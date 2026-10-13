@@ -26,6 +26,7 @@ import { history } from './history';
 import { importReview } from './importReview';
 import { initiative } from './initiative';
 import { loot } from './loot';
+import { tables } from './tables';
 import { lpv } from './lpv';
 import { map } from './map';
 import { menu } from './menu';
@@ -114,6 +115,7 @@ export const en = {
   ...importReview,
   ...initiative,
   ...loot,
+  ...tables,
   ...lpv,
   ...map,
   ...menu,
