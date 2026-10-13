@@ -10,10 +10,12 @@ export interface UseForFieldProps {
   roles: readonly StatblockRole[];
   value: string | null;
   onChange: (roleId: string | null) => void;
+  /** The gallery's overlay, where the list opens over the dialog, which clips its content. */
+  layer: HTMLElement | null;
 }
 
 /** "Starts new statblocks for: [Monster ▾]" in the gallery's footer (§7.9): the kind of statblock the new template starts. */
-export function UseForField({ roles, value, onChange }: UseForFieldProps): React.JSX.Element {
+export function UseForField({ roles, value, onChange, layer }: UseForFieldProps): React.JSX.Element {
   const labelId = useId();
   const options: SelectOption<string>[] = [
     { value: NO_ROLE, label: 'Nothing yet' },
@@ -22,7 +24,7 @@ export function UseForField({ roles, value, onChange }: UseForFieldProps): React
   return (
     <div className="atlas-te-gallery__use-for">
       <span id={labelId} className="atlas-te-gallery__use-for-label">Starts new statblocks for</span>
-      <Select value={value ?? NO_ROLE} options={options} labelledBy={labelId} onChange={(next) => onChange(next === NO_ROLE ? null : next)} />
+      <Select value={value ?? NO_ROLE} options={options} labelledBy={labelId} onChange={(next) => onChange(next === NO_ROLE ? null : next)} layer={layer} />
     </div>
   );
 }
