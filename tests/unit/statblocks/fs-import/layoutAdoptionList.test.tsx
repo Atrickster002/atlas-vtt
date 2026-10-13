@@ -63,7 +63,7 @@ describe('the Statblocks tab\'s Fantasy Statblocks layouts', () => {
     ]));
 
     await act(async () => { fireEvent.click(screen.getAllByRole('button', { name: 'Move to Atlas…' })[0]!); });
-    const dialog = await screen.findByRole('dialog', { name: 'Imported Marsh layout' });
+    const dialog = await screen.findByRole('dialog', { name: 'Marsh layout is ready' });
     fireEvent.click(within(dialog).getByRole('button', { name: 'Move 3 statblocks to Atlas' }));
     await screen.findByText('Moved 3 statblocks.');
     const id = JSON.parse(vault.files.get('atlas-vtt/statblock-templates/Marsh layout.atlastemplate')!) as { id: string };
@@ -86,7 +86,7 @@ describe('the Statblocks tab\'s Fantasy Statblocks layouts', () => {
     show();
     await waitFor(() => expect(rows()).toEqual([['Marsh layout', 'Template: Marsh layout', '3 statblocks']]));
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Move to Atlas…' })); });
-    expect(await screen.findByRole('dialog', { name: 'Marsh layout' })).toBeTruthy();
+    expect(await screen.findByRole('dialog', { name: 'Marsh layout is ready' })).toBeTruthy();
   });
 
   it('shows nothing for a collection whose statblocks no layout draws', async () => {

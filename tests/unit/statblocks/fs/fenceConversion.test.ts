@@ -59,13 +59,13 @@ describe('convertFenceText', () => {
     const same = convertFenceText(`---\nhp: 9\n---\n${FENCE}`, conversion());
     expect('text' in same && same.text).toContain('---\nhp: 9\nstatblock: true\n');
     const text = `---\nhp: 12\nname: Old hag\nstatblock: Marsh layout\n---\n${FENCE}`;
-    expect(convertFenceText(text, conversion())).toEqual({ problem: 'Its properties already hold other values for statblock, name and hp.' });
+    expect(convertFenceText(text, conversion())).toEqual({ problem: 'The note already holds other values for statblock, name and hp.' });
   });
 
   it('leaves a note with several fences, a fence that changed, or properties Atlas cannot write', () => {
-    expect(convertFenceText(`${FENCE}${FENCE}`, conversion())).toEqual({ problem: 'It holds 2 statblock code blocks; only a note with one is moved.' });
-    expect(convertFenceText(FENCE.replace('hp: 9', 'hp: 10'), conversion())).toEqual({ problem: 'Its statblock code block changed meanwhile.' });
-    expect(convertFenceText('No fence.\n', conversion())).toEqual({ problem: 'It no longer holds a statblock code block.' });
+    expect(convertFenceText(`${FENCE}${FENCE}`, conversion())).toEqual({ problem: 'It holds 2 statblocks; only a note with one is moved.' });
+    expect(convertFenceText(FENCE.replace('hp: 9', 'hp: 10'), conversion())).toEqual({ problem: 'Its statblock changed while it was being moved.' });
+    expect(convertFenceText('No fence.\n', conversion())).toEqual({ problem: 'Its statblock is no longer in the note.' });
     expect(convertFenceText(`---\ntags: [marsh\n---\n${FENCE}`, conversion())).toEqual({ problem: expect.stringContaining('YAML error') });
   });
 });

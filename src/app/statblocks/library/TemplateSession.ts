@@ -111,6 +111,11 @@ export class TemplateSession {
     return this.released ? Promise.resolve({ ok: false, problem: 'The template is closed.' }) : this.core.save();
   }
 
+  /** The text a template without a file (never saved, or a built-in) gives its note once saved; ignored for a saved template. */
+  setDraftBody(text: string): void {
+    if (!this.released) this.core.setDraftBody(text);
+  }
+
   /** Drops the unsaved changes and their history, in every view of the template. */
   discard(): void {
     if (!this.released) this.core.discard();

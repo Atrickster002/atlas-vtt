@@ -3,14 +3,27 @@ import { MotionGlobalConfig } from 'framer-motion';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MarkdownView, Platform, TFile, type OpenViewState, type WorkspaceLeaf } from 'obsidian';
 import { BODY_PLACEHOLDER } from '../../../../src/app/statblocks/editor/template-editor/shell/TemplateBodyColumn';
-import { SAVE_HINT } from '../../../../src/app/statblocks/editor/template-editor/shell/TemplateCapsule';
+import { BODY_LABEL, START_FROM_NOTE } from '../../../../src/app/statblocks/editor/template-editor/shell/bodyTexts';
+import { DRAFT_SAVE_HINT, SAVE_HINT } from '../../../../src/app/statblocks/editor/template-editor/shell/TemplateCapsule';
 import { followTemplateBodies } from '../../../../src/app/statblocks/library/templateBodyNotes';
 import { templateBodyPath } from '../../../../src/app/statblocks/library/templatePaths';
 import { TemplateSession } from '../../../../src/app/statblocks/library/TemplateSession';
 import { MARSH_CREATURE } from '../../../fixtures/statblockTemplateFixtures';
 import { described } from '../library/sessionVault';
 import { MARSH_ID, MARSH_PATH, TEMPLATE_FOLDER } from '../library/templateTexts';
-import { editorViews, saveButton } from './editorViewKit';
+import { editorViews, saveButton, saveOffered } from './editorViewKit';
+
+/** Obsidian's note search, as far as the column opens it: what it leaves out, and the choice. */
+const chooser = vi.hoisted(() => ({ skip: undefined as string | null | undefined, choose: null as ((file: import('obsidian').TFile) => void) | null }));
+vi.mock('../../../../src/app/statblocks/editor/template-editor/shell/NoteTextModal', () => ({
+  NoteTextModal: class {
+    constructor(_app: unknown, skip: string | null, choose: (file: import('obsidian').TFile) => void) {
+      chooser.skip = skip;
+      chooser.choose = choose;
+    }
+    open(): void {}
+  },
+}));
 
 vi.mock('../../../../src/app/services/AssetService', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../../../src/app/services/AssetService')>();
@@ -66,6 +79,8 @@ afterAll(() => { MotionGlobalConfig.skipAnimations = false; });
 
 beforeEach(async () => {
   await setUp();
+  chooser.skip = undefined;
+  chooser.choose = null;
   leaves = [];
   Object.assign(views.vault.app.workspace, {
     getLeaf: vi.fn(() => {
@@ -132,19 +147,52 @@ describe('the template\'s note in the left column', () => {
     expect(leaves[0]!.view!.editor.focus).toHaveBeenCalled();
   });
 
-  it('says a template never saved gets its note when saved, and shows the text that note will start with', async () => {
+  it('lets a template never saved be typed in at once: the cursor is in its text, which its save writes into its note', async () => {
     const session = TemplateSession.openUnsaved(views.vault.app, MARSH_CREATURE, 'Bog Hag', null, 'Keep away.');
     await views.open({ draftId: session.getSnapshot().id });
+    const text = screen.getByRole<HTMLTextAreaElement>('textbox', { name: BODY_LABEL });
+    expect(text.value).toBe('Keep away.');
+    expect(document.activeElement).toBe(text);
+    expect(screen.queryByRole('button', { name: START_FROM_NOTE })).toBeNull();
+    act(() => { fireEvent.change(text, { target: { value: 'Keep away from the bog.' } }); });
+    expect(session.getSnapshot().draftBody).toBe('Keep away from the bog.');
+    expect(text.value).toBe('Keep away from the bog.');
+    const describedBy = saveButton().getAttribute('aria-describedby');
+    expect(document.getElementById(describedBy!)?.textContent).toBe(DRAFT_SAVE_HINT);
+    expect(leaves).toHaveLength(0);
     session.release();
-    expect(column().textContent).toContain('Save the template to write the text its statblocks start with.');
-    expect(column().querySelector('.atlas-te-note__draft')?.textContent).toBe('Keep away.');
-    expect(screen.queryByRole('button', { name: BODY_PLACEHOLDER })).toBeNull();
+  });
+
+  it('lets a built-in be typed in too: its text makes Save offered, and an empty text offers a note to start from', async () => {
+    await views.open({ templateId: 'builtin:generic-creature' });
+    const text = screen.getByRole<HTMLTextAreaElement>('textbox', { name: BODY_LABEL });
+    expect(text.value).toBe('');
+    expect(text.placeholder).toBe(BODY_PLACEHOLDER);
+    expect(document.activeElement, 'only a template just made takes the cursor').not.toBe(text);
+    expect(screen.getByRole('button', { name: START_FROM_NOTE })).toBeTruthy();
+    expect(saveOffered()).toBe(false);
+    act(() => { fireEvent.change(text, { target: { value: 'Notes.' } }); });
+    expect(saveOffered()).toBe(true);
+    expect(screen.queryByRole('button', { name: START_FROM_NOTE })).toBeNull();
     expect(leaves).toHaveLength(0);
   });
 
-  it('says a built-in gets a note once saved as a template of one\'s own', async () => {
-    await views.open({ templateId: 'builtin:generic-creature' });
-    expect(column().textContent).toContain('Save this template as your own to write the text its statblocks start with.');
+  it('starts the text from a note chosen in the vault\'s note search', async () => {
+    views.vault.writeExternally('Bestiary/Goblin.md', '---\nname: Goblin\n---\nThey run.\n');
+    const session = TemplateSession.openUnsaved(views.vault.app, MARSH_CREATURE, 'Bog Hag');
+    await views.open({ draftId: session.getSnapshot().id });
+    fireEvent.click(screen.getByRole('button', { name: START_FROM_NOTE }));
+    expect(chooser.choose).toBeTypeOf('function');
+    await act(async () => { chooser.choose!(new TFile('Bestiary/Goblin.md')); });
+    await waitFor(() => expect(screen.getByRole<HTMLTextAreaElement>('textbox', { name: BODY_LABEL }).value).toBe('They run.\n'));
+    session.release();
+  });
+
+  it('offers a note to start from beside the offer to start an empty note', async () => {
+    await views.open({ file: MARSH_PATH });
+    await screen.findByRole('button', { name: BODY_PLACEHOLDER });
+    fireEvent.click(screen.getByRole('button', { name: START_FROM_NOTE }));
+    expect(chooser.skip).toBe(MARSH_NOTE);
     expect(leaves).toHaveLength(0);
   });
 });

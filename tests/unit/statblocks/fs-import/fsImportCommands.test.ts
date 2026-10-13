@@ -69,7 +69,7 @@ describe('importing a layout file (§6.2)', () => {
     expect(item?.title).toBe('Import as statblock template');
     item?.click();
 
-    expect(await screen.findByRole('dialog', { name: 'Imported Footer layout' })).toBeTruthy();
+    expect(await screen.findByRole('dialog', { name: 'Footer layout is ready' })).toBeTruthy();
     expect(templateFiles()).toEqual([`${TEMPLATE_FOLDER}/Footer layout.atlastemplate`]);
     expect(openTemplateEditor).toHaveBeenCalledWith(vault.app, expect.objectContaining({ path: `${TEMPLATE_FOLDER}/Footer layout.atlastemplate` }));
   });

@@ -1,6 +1,6 @@
 /**
  * Putting Track blocks where an imported layout drew tracks of boxes with
- * JavaScript (§6.2): the report's "Replace them with Track blocks?". Pure: a
+ * JavaScript (§6.2), which every import does through `withTracksInPlace`. Pure: a
  * template goes in, the template with each such script replaced comes out,
  * and the number fields the tracks show are added where the template lacks
  * them. Scripts without a known replacement stay as they are.
@@ -9,6 +9,7 @@
 import { addField } from '../model/fieldOps';
 import { blockIdSource } from '../model/templateIds';
 import type { ScriptBlock, StatblockTemplate, TemplateLayout } from '../model/templateTypes';
+import type { FsImportResult } from './fsLayoutTypes';
 import { insertBlock, removeBlock } from '../model/treeOps';
 import { collectBlockIds, findBlock, flattenReadingOrder } from '../model/treeQueries';
 import { suggestedTrackReplacement } from './fsScripts';
@@ -53,4 +54,15 @@ export function withTrackBlocks(template: StatblockTemplate, scriptIds?: readonl
     for (const field of replacement.fields) if (!known.has(field.key)) result = addField(result, field);
   }
   return result;
+}
+
+/**
+ * An import with Track blocks in place of every script they can stand in
+ * for, and a report that names only the scripts the template still keeps.
+ */
+export function withTracksInPlace({ template, report }: FsImportResult): FsImportResult {
+  const replaced = withTrackBlocks(template);
+  if (replaced === template) return { template, report };
+  const kept = new Set(flattenReadingOrder(replaced.layout.blocks).filter((block) => block.type === 'script').map((block) => block.id));
+  return { template: replaced, report: { ...report, scripts: report.scripts.filter((script) => kept.has(script.blockId)) } };
 }

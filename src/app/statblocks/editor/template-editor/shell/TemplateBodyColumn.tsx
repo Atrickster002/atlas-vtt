@@ -1,15 +1,19 @@
-import React, { useEffect, useRef } from 'react';
-import { Component, MarkdownRenderer, type App } from 'obsidian';
+import React, { useRef } from 'react';
+import { FileText } from 'lucide-react';
+import type { App } from 'obsidian';
+import { Button } from '../../../../packages/components/primitives/button';
 import { cn } from '../../../../../utils/cn';
 import { runInBackground } from '../../../../utils/backgroundTask';
 import { startTemplateBody } from '../../../library/templateBodyNotes';
 import { useTemplateEditor } from '../editorContext';
-import type { SessionSnapshot } from '../sessionTypes';
+import { BODY_PLACEHOLDER, START_FROM_NOTE } from './bodyTexts';
+import { DraftBodyEditor } from './DraftBodyEditor';
 import { readableLineOn } from './obsidianConfig';
+import { chooseNoteToStartFrom } from './startFromNote';
 import { useHostedNote, useTemplateBodyFile } from './useTemplateBodyNote';
 import './template-body.scss';
 
-export const BODY_PLACEHOLDER = 'Write what every new statblock of this template starts with…';
+export { BODY_PLACEHOLDER } from './bodyTexts';
 /** The empty note's placeholder, which the stylesheet draws: a CSS string. */
 const PLACEHOLDER_STYLE = { '--atlas-te-note-placeholder': JSON.stringify(BODY_PLACEHOLDER) } as React.CSSProperties;
 /** Marks the hosted note: every key pressed in it is the note's. */
@@ -21,13 +25,8 @@ export interface TemplateBodyColumnProps {
   previewRef: React.RefObject<HTMLDivElement | null>;
   /** What stands over the note while it is open (the template as JSON); the note keeps its place under it. */
   cover?: React.ReactNode;
-}
-
-/** A template with no file has no note yet: saving it gives it one. */
-function unsavedLine(snapshot: SessionSnapshot): string {
-  return snapshot.builtIn
-    ? 'Save this template as your own to write the text its statblocks start with.'
-    : 'Save the template to write the text its statblocks start with.';
+  /** The text of a template just made takes the cursor as it shows, so typing starts at once. */
+  focusText?: boolean | undefined;
 }
 
 /**
@@ -35,16 +34,19 @@ function unsavedLine(snapshot: SessionSnapshot): string {
  * file, whose text every new statblock of the template starts with, in
  * Obsidian's own editor with the note view's width and margins, so the card
  * stands where a note view's does. It saves as it is typed, like any note.
- * A template without its note offers to start one; a built-in or a template
- * never saved has none until it is saved.
+ * A template without its note offers to start one. A template without a file
+ * (never saved, or a built-in) has no note until it is saved: its text is
+ * typed at once in a text box in the note's place, and its save writes it
+ * into the note. An empty text offers to start from a note of the vault.
  */
-export function TemplateBodyColumn({ app, previewRef, cover }: TemplateBodyColumnProps): React.JSX.Element {
-  const { snapshot } = useTemplateEditor();
+export function TemplateBodyColumn({ app, previewRef, cover, focusText = false }: TemplateBodyColumnProps): React.JSX.Element {
+  const { snapshot, session } = useTemplateEditor();
   const file = useTemplateBodyFile(app, snapshot.id, snapshot.path);
   const hostRef = useRef<HTMLDivElement>(null);
   const focusOnShow = useRef(false);
   useHostedNote(app, file, hostRef, focusOnShow);
   const templatePath = snapshot.path;
+  const fromNote = app && !snapshot.readOnly ? (): void => chooseNoteToStartFrom(app, session) : undefined;
 
   const start = (): void => {
     if (!app || templatePath === null) return;
@@ -52,40 +54,57 @@ export function TemplateBodyColumn({ app, previewRef, cover }: TemplateBodyColum
     runInBackground(startTemplateBody(app, templatePath), 'Starting the template\'s note', 'Couldn\'t create the template\'s note.');
   };
 
+  const content = (): React.ReactNode => {
+    if (file) return <div ref={hostRef} className="atlas-te-note__host" style={PLACEHOLDER_STYLE} {...{ [HOSTED_NOTE_ATTRIBUTE]: '' }} />;
+    if (templatePath === null) {
+      return (
+        <>
+          <DraftBodyEditor
+            text={snapshot.draftBody}
+            readOnly={snapshot.readOnly}
+            onChange={(text) => session.setDraftBody(text)}
+            focusOnShow={focusText}
+          />
+          {snapshot.draftBody === '' && fromNote && <StartFromNoteHint onChoose={fromNote} />}
+        </>
+      );
+    }
+    return (
+      <>
+        <button type="button" className="atlas-te-note__stand-in atlas-te-note__start" onClick={start}>
+          <span className="atlas-te-note__line">{BODY_PLACEHOLDER}</span>
+        </button>
+        {fromNote && <StartFromNoteHint onChoose={fromNote} />}
+      </>
+    );
+  };
+
   return (
     <div className="atlas-te-note" data-te-region="note" data-covered={cover ? '' : undefined}>
       <div ref={previewRef} className={cn('atlas-te-note__editor', readableLineOn(app) && 'is-readable-line-width')}>
-        {file ? (
-          <div ref={hostRef} className="atlas-te-note__host" style={PLACEHOLDER_STYLE} {...{ [HOSTED_NOTE_ATTRIBUTE]: '' }} />
-        ) : templatePath === null ? (
-          <div className="atlas-te-note__stand-in">
-            <p className="atlas-te-note__line">{unsavedLine(snapshot)}</p>
-            {app && snapshot.draftBody !== '' && <DraftBody app={app} text={snapshot.draftBody} />}
-          </div>
-        ) : (
-          <button type="button" className="atlas-te-note__stand-in atlas-te-note__start" onClick={start}>
-            <span className="atlas-te-note__line">{BODY_PLACEHOLDER}</span>
-          </button>
-        )}
+        {content()}
       </div>
       {cover}
     </div>
   );
 }
 
-/** The text a template never saved will write into its note, rendered as Obsidian renders a note, read only. */
-function DraftBody({ app, text }: { app: App; text: string }): React.JSX.Element {
-  const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return undefined;
-    const owner = new Component();
-    owner.load();
-    runInBackground(MarkdownRenderer.render(app, text, el, '', owner), 'Showing the template\'s text');
-    return () => {
-      owner.unload();
-      el.empty();
-    };
-  }, [app, text]);
-  return <div ref={ref} className="atlas-te-note__draft markdown-rendered" />;
+/**
+ * "Start from a note…" under the placeholder of an empty text: a layer over
+ * the column that takes no press but the button's, so a press anywhere else
+ * still lands in the text. The placeholder is repeated unseen above it, so the
+ * button stands under the placeholder however that wraps.
+ */
+function StartFromNoteHint({ onChoose }: { onChoose: () => void }): React.JSX.Element {
+  return (
+    <div className="atlas-te-note__empty">
+      <span className="atlas-te-note__line atlas-te-note__spacer" aria-hidden="true">{BODY_PLACEHOLDER}</span>
+      <span className="atlas-te-note__line">
+        <Button type="button" variant="ghost" className="atlas-te-note__from-note" onClick={onChoose}>
+          <FileText aria-hidden="true" />
+          {START_FROM_NOTE}
+        </Button>
+      </span>
+    </div>
+  );
 }
