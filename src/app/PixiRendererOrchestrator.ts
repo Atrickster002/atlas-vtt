@@ -59,10 +59,13 @@ import type { MapImageChange } from './pixi/mapImage/mapImageView';
 import type { TileView } from './pixi/mapImage/levelOfDetail';
 import { frameView } from './services/playerFrameDemand';
 import { MapController } from './MapController';
-import { NO_STRETCH, sameStretch, type MapStretch } from './grid/mapStretch';
+import { NO_STRETCH, readMapStretch, sameStretch, type MapStretch } from './grid/mapStretch';
 import { levelImageOnItsOwn, viewedImagePlacement } from './levels/levelAlignment';
 import { viewedLevelId } from './levels/sceneLevels';
 import { levelObjects } from './levels/levelObjects';
+import { watchMapVideoPlayback } from './pixi/mapImage/video/watchMapVideoPlayback';
+import { playerWindowStore } from './stores/playerWindowStore';
+import { PlayerWindowService } from './services/PlayerWindowService';
 import { fitZoomRange } from './pixi/fitMapRect';
 import { viewCentreInClient, worldToClient, type ClientPoint } from './pixi/utils/worldToClient';
 
@@ -601,12 +604,35 @@ export class PixiRendererOrchestrator { // Renamed class
     const stopChanges = mapImage.onChange((change) => this.mapImageChanged(change));
     const stopBackground = MapController.followBackground(this.obsApp, this.store, mapImage);
     const stopStretch = MapController.followStretch(this.store, mapImage, () => this.mapSizeSettled());
+    const stopPlayback = this.watchMapVideo(mapImage);
     this.stopFollowingMapImage = (): void => {
       stopChanges();
       stopBackground();
       stopStretch();
+      stopPlayback();
     };
     this.mapImageChanged('image');
+  }
+
+  /** Plays the map image's animated map while someone sees it; returns the function that stops. */
+  private watchMapVideo(mapImage: MapImage): () => void {
+    const app = this.pixiAppManager.getApp();
+    if (!app?.renderer) return () => undefined;
+    const settings = SettingsService.forApp(this.obsApp);
+    return watchMapVideoPlayback({
+      map: mapImage,
+      canvas: app.canvas,
+      renderer: app.renderer,
+      scene: {
+        getState: () => this.store.getState(),
+        subscribe: (listener) => this.store.subscribe((state) => state.isMapLoading || !state.mapLoaded, listener),
+      },
+      players: {
+        shown: () => PlayerWindowService.getInstance()?.mirrors(this.store) ?? false,
+        subscribe: (listener) => playerWindowStore.subscribe(listener),
+      },
+      animate: settings ? { get: () => settings.getAnimateMaps(), onChange: (listener) => settings.onChange(listener) } : null,
+    });
   }
 
   public getMapImage(): MapImage | null {
@@ -819,9 +845,12 @@ export class PixiRendererOrchestrator { // Renamed class
    */
   public captureSceneFrame<T>(frame: SceneFrame, render: () => T, picture?: TileView | null): T {
     const restoreMapImage = picture ? this.mapImage?.drawFor(picture) : undefined;
+    // A picture of an animated map shows its poster, as its asset card does, not whatever frame plays now.
+    const restoreVideo = this.mapImage?.hideVideoFor();
     try {
       return captureSceneFrame({ gmViewLayers: this.gmViewLayers(), markerLayers: this.markerLayers(), lighting: this.lighting }, frame, render);
     } finally {
+      restoreVideo?.();
       restoreMapImage?.();
     }
   }

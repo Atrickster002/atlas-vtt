@@ -133,6 +133,11 @@ export class PlayerWindowService {
     return this.isWindowOpen() ? this.playerWindow : null;
   }
 
+  /** Whether the open window shows live frames of the view that owns `store`, rendered from that view. */
+  public mirrors(store: StoreApi<ViewAtlasState>): boolean {
+    return this.isWindowOpen() && this.streamSource?.store === store && this.heldFrame === null;
+  }
+
   /** Keep players on the current frame while the DM works on another scene tab. */
   public holdCurrentFrame(): void {
     if (!this.isWindowOpen()) return;

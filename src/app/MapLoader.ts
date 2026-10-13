@@ -6,6 +6,7 @@ import { AssetValidationService, type MissingAsset } from './services/AssetValid
 import type { MapImageSource } from './pixi/mapImage/mapImageTypes';
 import { resolveLevel } from './levels/sceneLevels';
 import { levelBackground } from './levels/levelEdits';
+import { isVideoMapPath } from './pixi/mapImage/video/videoMapFiles';
 
 export interface LoadedMap {
   mapData: MapFile;
@@ -20,8 +21,8 @@ export interface LoadedMap {
 const EMPTY_MAP_CELLS = 20;
 
 /**
- * What a scene whose background is `background` shows: the image file, the
- * missing-image placeholder when the file is gone, or an empty world of 20 × 20
+ * What a scene whose background is `background` shows: the image file, the video
+ * of an animated map, the missing-image placeholder when the file is gone, or an empty world of 20 × 20
  * cells without a background.
  */
 export function mapImageSourceFor(app: App, background: string | null | undefined, gridSize: number | undefined): MapImageSource {
@@ -30,7 +31,7 @@ export function mapImageSourceFor(app: App, background: string | null | undefine
     return { kind: 'none', width: side, height: side };
   }
   const file = app.vault.getAbstractFileByPath(normalizePath(background));
-  if (file instanceof TFile) return { kind: 'file', file };
+  if (file instanceof TFile) return isVideoMapPath(file.path) ? { kind: 'video', file } : { kind: 'file', file };
   console.error(`[MapLoader] Background image not found: ${background}`);
   return { kind: 'placeholder' };
 }

@@ -11,6 +11,7 @@ import { levelAlignmentsOf, levelImagePlacement, viewedImagePlacement } from './
 import { cellNumberStyleOfGrid } from './grid/cellNumbering';
 import { MapImage } from './pixi/mapImage/MapImage';
 import { MapImageService } from './pixi/mapImage/MapImageService';
+import { vaultMapVideos } from './pixi/mapImage/video/vaultMapVideos';
 import { fitMapRect, fitZoomRange } from './pixi/fitMapRect';
 import { showCamera, type ViewCamera } from './pixi/viewCamera';
 import { requestRender } from './pixi/RenderScheduler';
@@ -58,8 +59,9 @@ function viewMapImage(app: App, renderer: MapRenderer): MapImage | null {
   const viewport = renderer.getViewportInstance();
   if (!viewport) return null;
   const pixi = renderer.getAppInstance();
+  const service = MapImageService.forApp(app);
   const mapImage = new MapImage({
-    service: MapImageService.forApp(app),
+    service,
     viewport,
     // Not the app's ticker: a load stops that one to hold the last frame (`bindMapLoadingFrameHold`)
     // and waits for the tiles in view, which arrive on this one.
@@ -69,6 +71,7 @@ function viewMapImage(app: App, renderer: MapRenderer): MapImage | null {
     // While a load holds the last frame, the crossfade from it shows the tiles, so they do not fade in too.
     drawAtOnce: () => !pixi.ticker.started || prefersReducedMotion(pixi.canvas),
     picture: MAP_THUMBNAIL_SIZE,
+    video: vaultMapVideos(app, service, pixi.renderer, pixi.canvas),
   });
   renderer.setMapImage(mapImage);
   return mapImage;

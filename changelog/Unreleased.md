@@ -16,6 +16,7 @@
 - Each collection names its item rarities and their colours in its Random tables settings, where tables are also taken from any note and set to give text or items
 - New table: paste a table from a PDF, a web page or a spreadsheet, see how it rolls and what is wrong with it, and save it as a note of the collection
 - Import random tables from local PDFs with embedded text, XLSX workbooks, CSV/TSV exports, Markdown and text files. Preview the detected tables, check the ones to keep and confirm their names before saving Markdown notes. Ambiguous and incomplete PDF tables are skipped; scanned pages need text copied with a separate text recognition tool
+- Animated maps: add a WebM or MP4 video in the map creator or drop it on the asset manager, and it plays on the map and in the player window while someone sees it. Switch Animate maps off in Atlas' settings to show their first frame instead
 
 ## Improved
 

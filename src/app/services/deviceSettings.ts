@@ -9,6 +9,8 @@ import { isLightingQualityLevel, type LightingQualityLevel } from '../lighting/l
 export const INPUT_MODE_STORAGE_KEY = 'atlas-vtt:input-mode';
 /** How much the lighting may ask of this device's graphics (`LightingQualityLevel`). */
 export const LIGHTING_QUALITY_STORAGE_KEY = 'atlas-vtt:lighting-quality';
+/** Whether animated maps play on this device; unset follows the system's reduced motion (`animateMapsOn`). */
+export const ANIMATE_MAPS_STORAGE_KEY = 'atlas-vtt:animate-maps';
 
 type DeviceStorage = Pick<App, 'loadLocalStorage' | 'saveLocalStorage'>;
 
@@ -49,5 +51,24 @@ export function saveLightingQuality(storage: DeviceStorage, level: LightingQuali
     storage.saveLocalStorage(LIGHTING_QUALITY_STORAGE_KEY, level);
   } catch (error) {
     console.error('[Atlas] Could not save the lighting quality of this device', error);
+  }
+}
+
+/** Whether animated maps play on this device, or null when it was never chosen. */
+export function loadAnimateMaps(storage: DeviceStorage): boolean | null {
+  try {
+    const stored: unknown = storage.loadLocalStorage(ANIMATE_MAPS_STORAGE_KEY);
+    return typeof stored === 'boolean' ? stored : null;
+  } catch (error) {
+    console.error('[Atlas] Could not read whether this device animates maps', error);
+    return null;
+  }
+}
+
+export function saveAnimateMaps(storage: DeviceStorage, on: boolean): void {
+  try {
+    storage.saveLocalStorage(ANIMATE_MAPS_STORAGE_KEY, on);
+  } catch (error) {
+    console.error('[Atlas] Could not save whether this device animates maps', error);
   }
 }

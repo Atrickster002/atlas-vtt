@@ -64,7 +64,7 @@ function setup(contextLost = false) {
   const drawn = deferred();
   const whenReady = vi.fn((_rect: Rectangle, _worldPerScreenPixel: number, _timeoutMs: number) => drawn.promise);
   Object.assign(orchestrator as any, {
-    mapImage: { layer: background, worldRect: { x: 0, y: 0, width: 800, height: 600 }, whenReady, drawFor },
+    mapImage: { layer: background, worldRect: { x: 0, y: 0, width: 800, height: 600 }, whenReady, drawFor, hideVideoFor: () => () => undefined },
     pinRenderer: { getPinContainer: () => pins },
     hexLinkRenderer: { container: hexLinks },
     tokenRenderer: { getGmViewLayers: () => [{ layer: hiddenToken, visible: true, alpha: 0.5 }] },

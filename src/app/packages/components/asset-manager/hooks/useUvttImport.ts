@@ -2,14 +2,16 @@ import { useEffect, useRef } from 'react';
 import { type App } from 'obsidian';
 import { runUvttImport } from '../../../../import/uvtt/runUvttImport';
 import { isUvttFileName } from '../../../../import/uvtt/uvttFileNames';
+import { runVideoMapImport } from '../../../../import/videoMaps/runVideoMapImport';
+import { isVideoMapPath } from '../../../../pixi/mapImage/video/videoMapFiles';
 import { useStableCallback } from '../../../../react/hooks/useStableCallback';
 import type { AssetService } from '../../../../services/AssetService';
 import { showNotice } from '../../../../ui/notice';
 
 /**
- * Imports Universal VTT files into a collection and opens the scene of the last one that
- * arrived, as a new scene is opened. Where `stay` says so once they arrived, the scenes are
- * only added.
+ * Imports map files into a collection: videos become animated maps, and Universal VTT files
+ * scenes, of which the last that arrived opens, as a new scene is opened. Where `stay` says so
+ * once they arrived, the scenes are only added.
  */
 export type ImportMaps = (files: readonly File[], collectionId: string, stay?: () => boolean) => Promise<void>;
 
@@ -29,17 +31,21 @@ export interface UvttImportOptions {
 
 const MANAGER_WINDOW = '.atlas-asset-manager-container';
 
-/** The files of `files` that are Universal VTT maps by their names. */
-export function uvttFilesAmong(files: readonly File[]): File[] {
-  return files.filter((file) => isUvttFileName(file.name));
+/** The types a browser names the videos an animated map may be while they are dragged. */
+const VIDEO_MAP_TYPES: ReadonlySet<string> = new Set(['video/webm', 'video/mp4', 'video/x-m4v']);
+
+/** The files of `files` that are map files by their names: Universal VTT maps and animated maps. */
+export function mapFilesAmong(files: readonly File[]): File[] {
+  return files.filter((file) => isUvttFileName(file.name) || isVideoMapPath(file.name));
 }
 
 /**
  * Whether a drag carries a file that may be a map file. A drag names no files, only their types,
- * and the browser knows none for a map file's extension: files of a type it knows pass by.
+ * and the browser knows none for a Universal VTT file's extension: of the files of a type it
+ * knows, only videos are taken.
  */
 export function mayCarryMapFile(transfer: Pick<DataTransfer, 'items'>): boolean {
-  return Array.from(transfer.items).some((item) => item.kind === 'file' && item.type === '');
+  return Array.from(transfer.items).some((item) => item.kind === 'file' && (item.type === '' || VIDEO_MAP_TYPES.has(item.type)));
 }
 
 function overManager(event: DragEvent): DataTransfer | null {
@@ -51,12 +57,12 @@ function sayNotMaps(files: readonly File[]): void {
   const names = files.map((file) => file.name);
   const last = names.pop();
   const which = names.length > 0 ? `${names.join(', ')} and ${last} are not maps` : `${last} is not a map`;
-  showNotice(`${which} Atlas can import. Drop a .dd2vtt, .uvtt or .df2vtt file.`);
+  showNotice(`${which} Atlas can import. Drop a .dd2vtt, .uvtt or .df2vtt file, or a WebM or MP4 video.`);
 }
 
 /**
- * The asset manager's import of Universal VTT maps: the function its map creator calls, and map
- * files dropped anywhere on its window, a folder tile included. The scene of an import opens
+ * The asset manager's import of map files (Universal VTT maps and videos): the function its map
+ * creator calls, and map files dropped anywhere on its window, a folder tile included. The scene of an import opens
  * only for the asset manager that started it, while it is still open and nothing else is open
  * in it that the scene would close: an import takes seconds, and the GM may have moved on.
  */
@@ -75,7 +81,11 @@ export function useUvttImport(options: UvttImportOptions): ImportMaps {
     const manager = managerOpenings.current;
     const creator = latest.current.isMapCreatorOpen ? creatorOpenings.current : null;
 
-    const imported = await runUvttImport(app, assetService, files, collectionId);
+    const videos = files.filter((file) => isVideoMapPath(file.name));
+    if (videos.length > 0) await runVideoMapImport(app, assetService, videos, collectionId);
+    const uvttFiles = files.filter((file) => isUvttFileName(file.name));
+    if (uvttFiles.length === 0) return;
+    const imported = await runUvttImport(app, assetService, uvttFiles, collectionId);
     const last = imported[imported.length - 1];
     const now = latest.current;
     if (!last || !now.isOpen || managerOpenings.current !== manager || now.isBusy) return;
@@ -108,7 +118,7 @@ export function useUvttImport(options: UvttImportOptions): ImportMaps {
       const transfer = overManager(event);
       if (!transfer) return;
       const files = Array.from(transfer.files);
-      const maps = uvttFilesAmong(files);
+      const maps = mapFilesAmong(files);
       const lookalikes = files.filter((file) => file.type === '' && !maps.includes(file));
       // A drop that holds neither is not for the import; it goes where it would have gone
       if (maps.length === 0 && lookalikes.length === 0) return;
