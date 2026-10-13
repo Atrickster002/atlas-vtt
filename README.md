@@ -41,6 +41,12 @@ Keep scenes, maps, encounters, and characters together in collections. Use folde
 
 ![Atlas VTT collection manager with character tokens, folders, tags, and actions for spawning tokens and linking statblocks](docs/images/collection-manager.webp)
 
+## Atlas Sidebar
+
+[Atlas Sidebar](https://github.com/atlas-vtt/atlas-sidebar) is an optional companion plugin. It turns Obsidian's tabs into a vertical list with pinned tabs, folders, essentials and spaces, and keeps a pin at the top that takes you back to your scene in one click.
+
+[![Atlas Sidebar, vertical tabs for Atlas VTT. The sidebar with the Atlas pin and the open notes beside a world map in Atlas.](docs/images/atlas-sidebar.webp)](https://github.com/atlas-vtt/atlas-sidebar)
+
 ## Install
 
 Requires **Obsidian 1.8.7 or newer on desktop**. Atlas VTT is available through Obsidian's community plugins.
