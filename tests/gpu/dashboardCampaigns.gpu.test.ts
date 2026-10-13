@@ -1,31 +1,31 @@
 import '../setup/obsidianDom';
-import React from 'react';
-import { act, cleanup, fireEvent, render } from '@testing-library/react';
+import { act, cleanup, fireEvent } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { page } from 'vitest/browser';
-import type { TFile } from 'obsidian';
+import type { App } from 'obsidian';
 import css from '../../styles/main.scss?inline';
 import type { StoredCampaign } from '../../src/app/campaigns/campaignTypes';
-import { Dashboard } from '../../src/app/react/components/dashboard/Dashboard';
 import { AssetService } from '../../src/app/services/AssetService';
-import { mapThumbnailPath } from '../../src/app/utils/dataFileMigration';
-import { createInMemoryApp } from '../mocks/inMemoryVault';
-import { memoryCampaigns } from '../mocks/memoryCampaigns';
-import { memoryPresets } from '../mocks/memoryPresets';
 import { SystemPresetFiles } from '../../src/app/services/systemPresets/SystemPresetFiles';
+import { memoryPresets } from '../mocks/memoryPresets';
 import { DASHBOARD_THEME as THEME } from './dashboardTheme';
+import { buttonNamed, DAY, mountDashboard, paintedMap, query, queryAll, settle, shot } from './dashboardHarness';
 
 // The campaign's game system dialog can delete a preset, which reaches the map views' services.
 vi.mock('events', async () => import('eventemitter3'));
+// A map's sharp picture comes from its tile pyramid; here it is the painted picture itself.
+vi.mock('../../src/app/react/components/dashboard/mapPicture', () => ({
+  mapPictureUrl: (app: App, path: string): Promise<string | null> => {
+    const file = app.vault.getFileByPath(path);
+    return Promise.resolve(file ? app.vault.getResourcePath(file) : null);
+  },
+  releaseMapPictures: (): void => undefined,
+}));
 
 /**
  * The dashboard with campaigns, laid out by the plugin's stylesheet over Obsidian's default theme
  * variables (light and dark). Each test also saves a screenshot beside it, in `__screenshots__`, for a look by eye.
  */
-const SCENE_PATH = 'atlas-vtt/collections/Cairn/scenes/Blue Mouth Caves.atlasmap';
-const OTHER_SCENE = 'atlas-vtt/collections/Cairn/scenes/Hollow Oak.atlasmap';
-const DAY = 24 * 60 * 60 * 1000;
-const sceneFile = (path: string): string => JSON.stringify({ version: 4, state: { schema: 'atlas-vtt', version: 4, mapPath: path, objects: {} } });
 
 /** Cut-out art, as tokens without a ring have: a figure on a transparent ground. */
 function cutOut(hue: number): string {
@@ -41,93 +41,36 @@ function cutOut(hue: number): string {
   return canvas.toDataURL();
 }
 
-/** A small painted picture standing in for a scene's thumbnail. */
-function picture(hue: number): string {
-  const canvas = document.createElement('canvas');
-  canvas.width = 160;
-  canvas.height = 100;
-  const context = canvas.getContext('2d')!;
-  const gradient = context.createLinearGradient(0, 0, 160, 100);
-  gradient.addColorStop(0, `hsl(${hue}, 35%, 45%)`);
-  gradient.addColorStop(1, `hsl(${hue + 40}, 30%, 25%)`);
-  context.fillStyle = gradient;
-  context.fillRect(0, 0, 160, 100);
-  return canvas.toDataURL();
-}
-
 const PARTY = [
-  { name: 'Aria', art: 'art/aria.webp', hue: 10, ring: true },
-  { name: 'Finn', art: 'art/finn.webp', hue: 130, ring: true },
-  { name: 'Tamsin', art: 'art/tamsin.webp', hue: 250, ring: true },
-  { name: 'Brom', art: 'art/brom.webp', hue: 40, ring: false },
-  { name: 'Wren', art: 'art/wren.webp', hue: 300, ring: false },
+  { name: 'Aria', art: 'art/aria.webp', picture: paintedMap(10, 96, 96), ring: true },
+  { name: 'Finn', art: 'art/finn.webp', picture: paintedMap(130, 96, 96), ring: true },
+  { name: 'Tamsin', art: 'art/tamsin.webp', picture: paintedMap(250, 96, 96), ring: true },
+  { name: 'Brom', art: 'art/brom.webp', picture: cutOut(40), ring: false },
+  { name: 'Wren', art: 'art/wren.webp', picture: cutOut(300), ring: false },
 ];
 
-/** The cave scene's file, with the party standing on it. */
-const caveWithParty = (): string => JSON.stringify({
-  version: 4,
-  state: {
-    schema: 'atlas-vtt', version: 4, mapPath: SCENE_PATH,
-    objects: { tokens: Object.fromEntries(PARTY.map((member, index) => [`t${index}`, { imagePath: member.art, ...(index === 0 && { ringColor: '#c0392b' }) }])) },
-  },
-});
-
-/** Mounts the dashboard; `campaigns` gets the id of each scene by name, for world maps and last scenes. */
-async function mount(theme: 'light' | 'dark', campaigns: (sceneIds: Map<string, string>) => StoredCampaign[] = () => [], { party = false }: { party?: boolean } = {}): Promise<ReturnType<typeof memoryCampaigns>> {
-  document.body.className = `theme-${theme}`;
-  const { app } = createInMemoryApp({
-    files: {
-      [SCENE_PATH]: party ? caveWithParty() : sceneFile(SCENE_PATH),
-      [OTHER_SCENE]: sceneFile(OTHER_SCENE),
-      [mapThumbnailPath(SCENE_PATH)]: 'JPG',
-      [mapThumbnailPath(OTHER_SCENE)]: 'JPG',
-      ...Object.fromEntries(PARTY.map((member) => [member.art, 'WEBP'])),
-    },
-  });
-  const pictures = new Map([
-    [mapThumbnailPath(SCENE_PATH), picture(200)],
-    [mapThumbnailPath(OTHER_SCENE), picture(90)],
-    ...PARTY.map((member) => [member.art, member.ring ? picture(member.hue) : cutOut(member.hue)] as const),
-  ]);
-  vi.mocked(app.vault.getResourcePath).mockImplementation((file: TFile) => pictures.get(file.path) ?? '');
-  AssetService.resetInstance();
-  const assets = AssetService.getInstance(app);
-  await assets.initialize();
-  if (party) {
-    await assets.addAssets(PARTY.map((member) => ({
-      type: 'token' as const, name: member.name, imagePath: member.art, tags: [], collection: 'Cairn', playerCharacter: true as const, showRing: member.ring,
-    })));
-  }
-  const scenes = await assets.getAssets(undefined, 'scene');
-  const storage = memoryCampaigns(campaigns(new Map(scenes.map((scene) => [scene.name, scene.id]))));
-  render(
-    React.createElement('div', { className: 'workspace-leaf-content atlas-dashboard-view atlas-vtt-plugin' },
-      React.createElement(Dashboard, { app, campaignStorage: storage, onOpenScene: vi.fn(), onCreateMap: vi.fn(), onOpenAssetManager: vi.fn() })),
-  );
-  await expect.poll(() => document.querySelectorAll('.recent-scenes .dashboard-row').length).toBe(2);
-  return storage;
-}
-
-const query = (selector: string): HTMLElement => document.querySelector<HTMLElement>(selector)!;
-const shot = (name: string): Promise<string> => page.screenshot({ path: `__screenshots__/atlas-campaigns-${name}.png`, element: query('.atlas-dashboard-view') });
-const buttonNamed = (name: string): HTMLButtonElement => [...document.querySelectorAll('button')].find((button) => button.textContent?.trim() === name)!;
-
-function campaignsOf(sceneIds: Map<string, string>): StoredCampaign[] {
+/** The cave scene is the world map of the first campaign, which is played; the others have none. */
+function campaignsOf({ scenes }: { scenes: Map<string, string> }): StoredCampaign[] {
   const now = Date.now();
-  const caveId = sceneIds.get('Blue Mouth Caves')!;
   return [
-    { id: 'a', name: 'Rise of the Blood Olms', createdAt: now - 30 * DAY, lastPlayed: now - 2 * DAY, nextSession: '2026-10-18', worldMap: caveId },
+    { id: 'a', name: 'Rise of the Blood Olms', createdAt: now - 30 * DAY, lastPlayed: now - 2 * DAY, worldMap: scenes.get('Blue Mouth Caves')!, lastScene: scenes.get('Blue Mouth Caves')! },
     { id: 'b', name: 'The Witherwild', createdAt: now - 12 * DAY, lastPlayed: now - 9 * DAY },
     { id: 'c', name: 'Dolmenwood', createdAt: now - 3 * 60 * 60 * 1000 },
   ];
 }
 
-describe('the dashboard with campaigns', () => {
+const loaded = async (): Promise<void> => {
+  await expect.poll(() => queryAll('.scene-grid .scene-card').length).toBe(2);
+  await expect.poll(() => (query('.continue-hero__art .atlas-map-art__sharp') as HTMLImageElement | null)?.naturalWidth ?? 0).toBeGreaterThan(0);
+};
+
+const box = (element: Element): DOMRect => element.getBoundingClientRect();
+
+describe('the dashboard', () => {
   const style = document.createElement('style');
   style.textContent = THEME + css;
 
-  beforeEach(async () => {
-    await page.viewport(1280, 860);
+  beforeEach(() => {
     document.head.append(style);
   });
 
@@ -139,133 +82,148 @@ describe('the dashboard with campaigns', () => {
   });
 
   for (const theme of ['dark', 'light'] as const) {
-    it(`lists campaigns as rows as tall as the recent scenes (${theme})`, async () => {
-      await mount(theme, campaignsOf);
-      const campaignRow = query('.campaigns-panel .dashboard-row').getBoundingClientRect();
-      const sceneRow = query('.recent-scenes .dashboard-row').getBoundingClientRect();
-      expect(campaignRow.height).toBeCloseTo(sceneRow.height, 0);
-      expect(query('.campaigns-panel .dashboard-row img').getAttribute('src')).toMatch(/^data:image/);
-      await shot(`dashboard-${theme}`);
-    });
+    for (const size of [{ width: 1600, height: 1000 }, { width: 800, height: 1000 }]) {
+      it(`leads with the scene to continue, then campaigns and recent scenes as cards with their art (${theme}, ${size.width})`, async () => {
+        await mountDashboard(theme, campaignsOf, { party: PARTY, size });
+        await loaded();
+        await expect.poll(() => queryAll('.campaign-card .campaign-face').length).toBe(5);
 
-    it(`shows a campaign's page and its world map picker (${theme})`, async () => {
-      const storage = await mount(theme, campaignsOf);
-      act(() => storage.update('a', (entry) => ({ ...entry, description: 'Blue Mouth Caves, below the Hollow Oak. The olms rise when the river runs red.' })));
-      fireEvent.click(query('.campaigns-panel .dashboard-row'));
-      await expect.poll(() => document.querySelector('.campaign-page')).not.toBeNull();
-      // The play row holds the party's room before any face is there.
-      expect(query('.campaign-page__play').offsetHeight).toBe(44);
-      // Every control of a settings row ends at the panel's inner edge.
-      const inner = query('.campaign-settings').getBoundingClientRect().right - 1 - 12;
-      for (const row of document.querySelectorAll('.campaign-setting')) {
-        expect((row.lastElementChild as HTMLElement).getBoundingClientRect().right).toBeCloseTo(inner, 0);
-      }
-      await shot(`page-${theme}`);
-      fireEvent.click(query('.world-map-picker__trigger'));
-      await expect.poll(() => document.querySelectorAll('.world-map-picker__option').length).toBe(2);
-      await new Promise((resolve) => setTimeout(resolve, 200));
-      await shot(`picker-${theme}`);
-    });
-  }
+        // The hero is as wide as the page's content and continues the last scene.
+        const hero = box(query('.continue-hero'));
+        const grid = box(query('.campaign-grid'));
+        expect(hero.width).toBeCloseTo(grid.width, 0);
+        expect(query('.continue-hero__title').textContent).toBe('Blue Mouth Caves');
+        // Its map is the scene's own picture, faded out towards the text from inside the picture:
+        // no box edge where the fade begins, and the picture reaches the card's border on every side.
+        const heroBox = query('.continue-hero');
+        const inner = { left: box(heroBox).left + heroBox.clientLeft, right: box(heroBox).left + heroBox.clientLeft + heroBox.clientWidth };
+        const artBox = box(query('.continue-hero__art'));
+        const picture = box(query('.continue-hero__art .atlas-map-art__sharp'));
+        const mask = getComputedStyle(query('.continue-hero__art')).maskImage;
+        if (size.width > 1000) {
+          expect(artBox.left).toBeCloseTo(inner.left, 0);
+          expect(mask).toMatch(/^linear-gradient\(to right, rgba\(0, 0, 0, 0\) 0%, rgba\(0, 0, 0, 0\) 28%/);
+        }
+        expect(artBox.right).toBeCloseTo(inner.right, 0);
+        expect(picture.right).toBeGreaterThanOrEqual(inner.right);
+        expect(picture.left).toBeLessThanOrEqual(artBox.left);
+        // The card clips the picture to its own corners.
+        expect(getComputedStyle(heroBox).overflow).toBe('hidden');
 
-  for (const theme of ['dark', 'light'] as const) {
-    it(`names the campaign's game system in a row like the others, and opens its settings (${theme})`, async () => {
-      vi.spyOn(SystemPresetFiles, 'forApp').mockReturnValue(memoryPresets() as unknown as SystemPresetFiles);
-      const system = { systemPresetId: 'builtin:cairn', gridDefaults: { unitType: 'feet', unitDistance: 5, measurementMode: 'metric' }, conditions: [], dice: { defaultRoll: '1d12', crit: 'roll-under' } };
-      await mount(theme, (sceneIds) => campaignsOf(sceneIds).map((campaign) => (campaign.id === 'a' ? { ...campaign, system } : campaign)));
-      fireEvent.click(query('.campaigns-panel .dashboard-row'));
-      await expect.poll(() => document.querySelector('.campaign-system__trigger')).not.toBeNull();
-      const trigger = query('.campaign-system__trigger').getBoundingClientRect();
-      const worldMap = query('.world-map-picker__trigger').getBoundingClientRect();
-      expect(trigger.height).toBeCloseTo(worldMap.height, 0);
-      expect(trigger.left).toBeCloseTo(worldMap.left, 0);
-      expect(trigger.right).toBeCloseTo(worldMap.right, 0);
-      expect(query('.campaign-system__trigger').textContent).toContain('Cairn');
-      expect(query('.campaign-system__trigger').textContent).toContain('Edited');
-      await shot(`system-row-${theme}`);
+        // Campaign cards: one height in a row, their art 16:9, the world map's picture where there is one.
+        const cards = queryAll('.campaign-grid .campaign-card:not(.campaign-card--new)');
+        expect(cards.map((card) => card.querySelector('.dashboard-card__title')?.textContent)).toEqual(['Rise of the Blood Olms', 'The Witherwild', 'Dolmenwood']);
+        const art = box(cards[0]!.querySelector('.dashboard-card__art')!);
+        expect(art.width / art.height).toBeCloseTo(16 / 9, 1);
+        expect(cards[0]!.querySelector('img')).not.toBeNull();
+        expect(cards[1]!.querySelector('.campaign-emblem')).not.toBeNull();
+        const firstRow = cards.filter((card) => Math.abs(box(card).top - box(cards[0]!).top) < 1);
+        for (const card of firstRow) expect(box(card).height).toBeCloseTo(box(cards[0]!).height, 0);
+        // The new campaign card stands in the grid like the others.
+        expect(query('.campaign-card--new').textContent).toBe('New campaign');
 
-      fireEvent.click(query('.campaign-system__trigger'));
-      await expect.poll(() => document.querySelector('.atlas-collection-settings-modal [role="radio"][aria-checked="true"]')).not.toBeNull();
-      await new Promise((resolve) => setTimeout(resolve, 300));
-      const modal = query('.atlas-collection-settings-modal');
-      const tabs = [...modal.querySelectorAll('.atlas-collection-settings-tab')].map((tab) => tab.textContent);
-      expect(tabs).toEqual(['Game System', 'Dice', 'Grid & Measure', 'Conditions', 'Resources', 'Initiative']);
-      // The close button sits in the header's corner, inside the dialog.
-      const close = modal.querySelector('.atlas-collection-settings-header button')!.getBoundingClientRect();
-      const box = modal.getBoundingClientRect();
-      expect(close.right).toBeLessThan(box.right);
-      expect(close.top).toBeGreaterThan(box.top);
-      await page.screenshot({ path: `__screenshots__/atlas-campaigns-system-dialog-${theme}.png`, element: modal });
-    });
-
-    it(`shows the party of the last scene at the row's end: ringed faces as a fan, the others side by side (${theme})`, async () => {
-      await mount(theme, (sceneIds) => [
-        ...campaignsOf(sceneIds).map((campaign) => (campaign.id === 'a' ? { ...campaign, lastScene: sceneIds.get('Blue Mouth Caves')! } : campaign)),
-      ], { party: true });
-      await expect.poll(() => document.querySelectorAll('.campaigns-panel .campaign-face').length).toBe(5);
-      const rows = [...document.querySelectorAll<HTMLElement>('.campaigns-panel .campaign-row')];
-      const [withParty, withoutParty] = [rows[0]!, rows[1]!];
-      expect(withParty.getBoundingClientRect().height).toBeCloseTo(withoutParty.getBoundingClientRect().height, 0);
-      expect(withParty.getBoundingClientRect().height).toBeCloseTo(query('.recent-scenes .dashboard-row').getBoundingClientRect().height, 0);
-
-      // Measured by layout boxes, which the fan's turn leaves alone.
-      const boxes = (selector: string): DOMRect[] => [...withParty.querySelectorAll<HTMLElement>(selector)].map((face) => {
-        const saved = face.style.transform;
-        face.style.transform = 'none';
-        const box = face.getBoundingClientRect();
-        face.style.transform = saved;
-        return box;
+        // Recent scenes leave out the one the hero continues.
+        expect(queryAll('.scene-card .dashboard-card__title').map((title) => title.textContent)).not.toContain('Blue Mouth Caves');
+        // Nothing runs past the pane.
+        expect(document.querySelector('.atlas-dashboard-view')!.scrollWidth).toBeLessThanOrEqual(size.width);
+        await settle();
+        await shot(`home-${theme}-${size.width}`);
       });
-      const fan = boxes('.campaign-party__fan .campaign-face');
-      const side = boxes('.campaign-party__row .campaign-face');
-      expect(fan).toHaveLength(3);
-      expect(side).toHaveLength(2);
-      for (let index = 1; index < fan.length; index += 1) expect(fan[index]!.left).toBeLessThan(fan[index - 1]!.right - 8);
-      expect(side[1]!.left).toBeGreaterThanOrEqual(side[0]!.right);
-      expect(side[0]!.left).toBeGreaterThanOrEqual(fan[2]!.right);
-      // Turned, not just shifted: the first and last ringed faces lean apart.
-      const turns = [...withParty.querySelectorAll<HTMLElement>('.campaign-party__fan .campaign-face')].map((face) => getComputedStyle(face).transform);
-      expect(turns[0]).not.toBe(turns[2]);
-      // The faces end at the row's inner edge, after the row's text.
-      const content = withParty.querySelector('.dashboard-row__content')!.getBoundingClientRect();
-      expect(fan[0]!.left).toBeGreaterThanOrEqual(content.right);
-      expect(side[1]!.right).toBeCloseTo(withParty.getBoundingClientRect().right - 8, 0);
-      await new Promise((resolve) => setTimeout(resolve, 300));
-      await shot(`party-${theme}`);
+    }
 
-      // The page shows the same party, larger, beside the play control.
-      fireEvent.click(withParty);
-      await expect.poll(() => document.querySelectorAll('.campaign-page .campaign-face').length).toBe(5);
+    it(`shows the campaign played on this device, and a card's hover and press (${theme})`, async () => {
+      const mounted = await mountDashboard(theme, campaignsOf, { size: { width: 1280, height: 860 } });
+      await loaded();
+      fireEvent.click(query('.campaign-card'));
+      await expect.poll(() => document.querySelector('.campaign-page')).not.toBeNull();
       fireEvent.click(buttonNamed('Play'));
-      await expect.poll(() => document.querySelector('.campaign-page .campaign-playing')).not.toBeNull();
-      const play = query('.campaign-page__play').getBoundingClientRect();
-      expect(query('.campaign-page .campaign-face').offsetHeight).toBe(44);
-      expect(play.height).toBe(44);
-      await new Promise((resolve) => setTimeout(resolve, 300));
-      await shot(`page-playing-${theme}`);
-      fireEvent.click(buttonNamed('Stop'));
+      fireEvent.click(query('.campaign-page__back'));
+      await expect.poll(() => document.querySelector('.campaign-card .campaign-playing')).not.toBeNull();
+      expect(mounted.storage.current()).toHaveLength(3);
+
+      const card = query('.campaign-card');
+      await page.elementLocator(card).hover();
+      await settle(700);
+      expect(getComputedStyle(card).transform).not.toBe('none');
+      await shot(`home-hover-${theme}`, query('.campaign-grid'));
+      fireEvent.click(query('.campaign-card'));
+      await expect.poll(() => document.querySelector('.campaign-hero__stop')).not.toBeNull();
+      fireEvent.click(query('.campaign-hero__stop'));
     });
   }
 
-  it('lays the search out as a field of the control height across the panel', async () => {
-    await mount('dark', campaignsOf);
-    const field = query('.campaigns-search .atlas-asset-manager-search').getBoundingClientRect();
-    const panel = query('.campaigns-panel').getBoundingClientRect();
-    expect(field.height).toBeCloseTo(30, 0);
-    expect(field.left).toBeCloseTo(panel.left + 1 + 12, 0);
-    expect(field.right).toBeCloseTo(panel.right - 1 - 12, 0);
-    fireEvent.change(query('.campaigns-search input'), { target: { value: 'wither' } });
-    await expect.poll(() => document.querySelectorAll('.campaigns-panel .campaign-row').length).toBe(1);
-    await shot('search-dark');
-  });
-
-  it('shows the empty state, then the new campaign field with its error', async () => {
-    await mount('dark');
+  it('makes the first campaign from the card at the grid\'s end, saying what is wrong with its name', async () => {
+    await mountDashboard('dark', () => [], { scenes: false });
+    await expect.poll(() => document.querySelector('.continue-hero--empty')).not.toBeNull();
+    expect(document.querySelector('.scene-grid')).toBeNull();
+    await settle();
     await shot('empty-dark');
-    fireEvent.click(buttonNamed('New campaign'));
+    fireEvent.click(query('.campaign-card--new'));
     const input = query('.campaign-new__input') as HTMLInputElement;
     fireEvent.keyDown(input, { key: 'Enter' });
     await expect.poll(() => document.querySelector('.campaign-field-error')?.textContent).toBe('Enter a name');
-    await shot('new-dark');
+    await shot('new-dark', query('.campaign-grid'));
+  });
+
+  it('shows the hero and the cards in their own shapes while they load', async () => {
+    let finish: () => void = () => undefined;
+    const collections = AssetService.prototype.getCollections;
+    vi.spyOn(AssetService.prototype, 'getCollections').mockImplementation(function (this: AssetService) {
+      return new Promise((resolve) => { finish = () => resolve(collections.call(this)); });
+    });
+    await mountDashboard('dark', campaignsOf, { campaignsLoading: true });
+    await expect.poll(() => document.querySelector('.continue-hero--loading')).not.toBeNull();
+    const skeletons = queryAll('.campaign-grid .campaign-card');
+    expect(skeletons).toHaveLength(3);
+    expect(query('.campaign-grid').getAttribute('role')).toBe('status');
+    await settle(600);
+    await shot('loading-dark');
+    const placeholder = box(skeletons[0]!.querySelector('.dashboard-card__art')!);
+    expect(placeholder.width / placeholder.height).toBeCloseTo(16 / 9, 1);
+    finish();
+  });
+
+  it('offers a search from five campaigns on, laid out at the control height', async () => {
+    const now = Date.now();
+    await mountDashboard('dark', () => ['Cairn', 'Dolmenwood', 'The Witherwild', 'Shadowdark', 'Mörk Borg'].map((name, index) => ({ id: `c${index}`, name, createdAt: now - index * DAY })));
+    await loaded();
+    const field = box(query('.dashboard-section__search .atlas-asset-manager-search'));
+    expect(field.height).toBeCloseTo(30, 0);
+    fireEvent.change(query('.dashboard-section__search input'), { target: { value: 'wither' } });
+    await expect.poll(() => queryAll('.campaign-grid .campaign-card:not(.campaign-card--new)').length).toBe(1);
+    await shot('search-dark', query('.dashboard-section'));
+  });
+
+  for (const theme of ['dark', 'light'] as const) {
+    it(`names the game system on the card and the page, and opens its settings from the page (${theme})`, async () => {
+      vi.spyOn(SystemPresetFiles, 'forApp').mockReturnValue(memoryPresets() as unknown as SystemPresetFiles);
+      const system = { systemPresetId: 'builtin:cairn', gridDefaults: { unitType: 'feet', unitDistance: 5, measurementMode: 'metric' }, conditions: [], dice: { defaultRoll: '1d12', crit: 'roll-under' } };
+      await mountDashboard(theme, (ids) => campaignsOf(ids).map((campaign) => (campaign.id === 'a' ? { ...campaign, system } : campaign)));
+      await loaded();
+      expect(query('.campaign-card .dashboard-card__system').textContent).toBe('Cairn');
+      fireEvent.click(query('.campaign-card'));
+      await expect.poll(() => document.querySelector('.campaign-system__trigger')).not.toBeNull();
+      expect(query('.campaign-hero__system').textContent).toBe('Cairn');
+      expect(query('.campaign-system__trigger').textContent).toContain('Edited');
+      // The system's button spans the side column, as the world map card does.
+      expect(box(query('.campaign-system__trigger')).width).toBeCloseTo(box(query('.world-map-card__frame')).width, 0);
+
+      fireEvent.click(query('.campaign-system__trigger'));
+      await expect.poll(() => document.querySelector('.atlas-collection-settings-modal [role="radio"][aria-checked="true"]')).not.toBeNull();
+      await settle(300);
+      const modal = query('.atlas-collection-settings-modal');
+      const tabs = [...modal.querySelectorAll('.atlas-collection-settings-tab')].map((tab) => tab.textContent);
+      expect(tabs).toEqual(['Game System', 'Dice', 'Grid & Measure', 'Conditions', 'Resources', 'Initiative']);
+      await page.screenshot({ path: `__screenshots__/atlas-dashboard-system-dialog-${theme}.png`, element: modal });
+    });
+  }
+
+  it('shows changes made elsewhere on the page at once', async () => {
+    const { storage } = await mountDashboard('dark', campaignsOf);
+    await loaded();
+    fireEvent.click(query('.campaign-card'));
+    await expect.poll(() => document.querySelector('.campaign-page')).not.toBeNull();
+    act(() => storage.update('a', (entry) => ({ ...entry, description: 'Blue Mouth Caves, below the Hollow Oak.' })));
+    expect((query('.campaign-description__input') as HTMLTextAreaElement).value).toBe('Blue Mouth Caves, below the Hollow Oak.');
   });
 });

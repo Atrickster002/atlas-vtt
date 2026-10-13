@@ -20,12 +20,14 @@ export type ContextMenuEntry =
     destructive?: boolean;
     /** Drawn before the label, e.g. a condition's badge. */
     leading?: React.ReactNode;
-    /** Said after the label in a quieter tone, e.g. the character a player plays. */
+    /** Said after the label in a quieter tone, e.g. the character a player plays, a key, or the template a statblock role starts from. */
     detail?: string;
     /** Choosing the item leaves the menu open, for toggles that are often picked several at a time. */
     keepOpen?: boolean;
     /** − value + controls after the label, also driven by the + and - keys while the item is highlighted. */
     stepper?: MenuStepper;
+    /** What choosing the row does, in a sentence or two: a tooltip beside the row while it is pointed at or focused. */
+    description?: string;
   }
   | {
     type: 'submenu';
@@ -46,6 +48,12 @@ export interface MenuStepper {
   canDecrement: boolean;
 }
 
+/** A line between two groups of rows. */
+export const MENU_SEPARATOR: ContextMenuEntry = {
+  type: 'custom',
+  render: () => <div className="atlas-ctx-separator" role="separator" />,
+};
+
 type ContextMenuItemEntry = Extract<ContextMenuEntry, { type: 'item' }>;
 type ContextMenuSubmenuEntry = Extract<ContextMenuEntry, { type: 'submenu' }>;
 
@@ -58,6 +66,11 @@ function runEntryAction(entry: ContextMenuItemEntry): void {
 }
 
 // ── Icon helper ─────────────────────────────────────────────────────────────
+
+/** An Obsidian icon in a menu row's icon slot; an empty name keeps the slot, so labels line up. */
+export function MenuIcon({ name }: { name: string }): React.ReactElement {
+  return name ? <ObsidianIcon name={name} /> : <span className="atlas-ctx-icon-spacer" />;
+}
 
 function ObsidianIcon({ name }: { name: string }): React.ReactElement {
   const ref = useRef<HTMLSpanElement>(null);
@@ -205,18 +218,21 @@ export function renderEntries(
           else onClose();
         };
         const disabled = entry.disabled !== undefined ? { disabled: entry.disabled } : {};
-        if (entry.checked !== undefined) {
-          return (
-            <DropdownMenu.CheckboxItem key={`check-${idx}`} className={className} checked={entry.checked} {...disabled} onSelect={onSelect} onKeyDown={stepperKeys(entry.stepper)}>
+        const row = entry.checked !== undefined
+          ? (
+            <DropdownMenu.CheckboxItem className={className} checked={entry.checked} {...disabled} onSelect={onSelect} onKeyDown={stepperKeys(entry.stepper)}>
               <ItemContent entry={entry} />
             </DropdownMenu.CheckboxItem>
+          )
+          : (
+            <DropdownMenu.Item className={className} {...disabled} onSelect={onSelect} onKeyDown={stepperKeys(entry.stepper)}>
+              <ItemContent entry={entry} />
+            </DropdownMenu.Item>
           );
-        }
-        return (
-          <DropdownMenu.Item key={`item-${idx}`} className={className} {...disabled} onSelect={onSelect} onKeyDown={stepperKeys(entry.stepper)}>
-            <ItemContent entry={entry} />
-          </DropdownMenu.Item>
-        );
+        const key = `${entry.checked !== undefined ? 'check' : 'item'}-${idx}`;
+        return entry.description
+          ? <LabelTooltip key={key} label={entry.description} side="right" describe multiline>{row}</LabelTooltip>
+          : <React.Fragment key={key}>{row}</React.Fragment>;
       }
     }
   });

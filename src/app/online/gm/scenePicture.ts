@@ -15,7 +15,7 @@ export interface PictureInputs {
   readonly gridSize: number;
   /** Whether players see token names (Atlas's nameplate setting for the player view); without, only player tokens' names are sent. */
   readonly showNames: boolean;
-  /** What players may know of a token: open to claim, taken, or the GM's. */
+  /** What players may know of a token: a player token, or the GM's. */
   claimOf(tokenId: string, token: TokenEntity): Claim;
   /** The artwork at a vault path as players are sent it, or null while it is unknown or cannot be sent. */
   art(path: string): AssetRef | null;

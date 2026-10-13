@@ -2,13 +2,23 @@
  * How the dice of a roll are written out, wherever a roll is listed. Marks
  * follow the number: `6!` exploded, `8✓` a success, `1✗` a failure, `(3)`
  * dropped, and `1→4` a die rolled again and the die that took its place. A
- * Fate die shows `+`, `−` or `0` on its own, and its number in a sum.
+ * Fate die shows `+`, `−` or `0` on its own, and its number in a sum. Dice a
+ * dice set named are written by their names (`Sun 9 · Moon 4 + 3`).
  */
 
 import { explodes } from './diceExplosion';
 import type { RolledDie } from './diceFormula';
+import type { RolledWithSet } from '../types/diceSetTypes';
 
 type ListedDie = Pick<RolledDie, 'value' | 'negative' | 'exploded' | 'rerolled' | 'dropped' | 'success' | 'failure' | 'min' | 'label'>;
+
+/** The dice of a roll that count: those neither dropped nor rolled again. A dropped die's explosion is dropped with it. */
+export function keptRolls<T extends Pick<RolledDie, 'dropped' | 'rerolled'>>(rolls: readonly T[]): T[] {
+  return rolls.filter((roll) => !roll.dropped && !roll.rerolled);
+}
+
+/** Whether a roll dropped any die (`2d20kh1`, advantage). */
+export const droppedAny = (rolls: readonly Pick<RolledDie, 'dropped'>[]): boolean => rolls.some((roll) => roll.dropped);
 
 const isFate = (die: ListedDie): boolean => die.min !== undefined && die.min < 0;
 
@@ -61,13 +71,62 @@ export function diceList(rolls: readonly ListedDie[]): string {
 
 /**
  * One die for a list of the dice rolled: `d6: 6!`, `dF: +`, `d6[fire]: 4`,
- * and `−d10: 7` for a die an explosion subtracts.
+ * `−d10: 7` for a die an explosion or disadvantage subtracts, and `Sun: 9`
+ * for a die a dice set named.
  */
 export function dieLabel(rolls: readonly RolledDie[], index: number): string {
   const roll = rolls[index]!;
   const label = roll.label === undefined ? '' : `[${roll.label}]`;
   const value = marked(rolls, index, isFate(roll) ? fateFace(roll.value) : String(roll.value));
-  return `${roll.negative && roll.exploded ? '−' : ''}${roll.die}${label}: ${value}`;
+  return `${roll.negative && (roll.exploded || roll.advantage) ? '−' : ''}${roll.name ?? roll.die}${label}: ${value}`;
+}
+
+type NamedDie = Pick<RolledDie, 'value' | 'negative' | 'exploded' | 'name' | 'dropped' | 'rerolled'>;
+
+/** ` + 3` or ` − 3`; nothing without a modifier. */
+export function modifierText(modifier: number): string {
+  if (modifier === 0) return '';
+  return modifier > 0 ? ` + ${modifier}` : ` − ${Math.abs(modifier)}`;
+}
+
+/** A space a line never breaks at: a die's name stays with its number, a bonus with the last die. */
+const KEEP = '\u00a0';
+
+/**
+ * The kept dice of a roll by the names a dice set gave them, with the modifier:
+ * `Sun 9 · Moon 4 + 3`. A die rolled for an explosion is added to the die it
+ * was rolled for (`Sun 12! + 5 · Moon 4`). A line wraps only between dice.
+ * Null where no die has a name: the plain sum says it then.
+ */
+export function namedDiceLine(all: readonly NamedDie[], modifiers: number): string | null {
+  const rolls = keptRolls(all);
+  if (!rolls.some((roll) => roll.name)) return null;
+  const chunks: string[] = [];
+  rolls.forEach((roll, i) => {
+    const value = `${roll.value}${explodes(rolls, i) ? '!' : ''}`;
+    if (roll.exploded && chunks.length > 0) {
+      chunks[chunks.length - 1] += `${KEEP}${roll.negative ? '−' : '+'}${KEEP}${value}`;
+      return;
+    }
+    const signed = roll.negative ? `−${value}` : value;
+    chunks.push(roll.name ? `${roll.name}${KEEP}${signed}` : signed);
+  });
+  return `${chunks.join(' · ')}${modifierText(modifiers).replace(/ /g, KEEP)}`;
+}
+
+/** What a roll rolled: its formula, after the dice set where that was not the collection's (`Power roll · 2d10+3`). */
+export function rollFormulaText(result: { formula: string; diceSet?: RolledWithSet | undefined }): string {
+  return result.diceSet ? `${result.diceSet.name} · ${result.formula}` : result.formula;
+}
+
+/**
+ * A roll in one line for a card or the log: its dice by name where a set named them
+ * (`Sun 9 · Moon 4 + 3`), else its formula, after the set where that was not the collection's.
+ */
+export function rollLine(result: { formula: string; rolls: readonly NamedDie[]; modifiers: number; diceSet?: RolledWithSet | undefined }): string {
+  const named = namedDiceLine(result.rolls, result.modifiers);
+  if (named === null) return rollFormulaText(result);
+  return result.diceSet ? `${result.diceSet.name} · ${named}` : named;
 }
 
 export type DieState = 'max' | 'min' | 'dropped' | 'rerolled' | 'success' | 'failure';

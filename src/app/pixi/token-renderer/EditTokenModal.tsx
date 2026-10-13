@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
-import { TFile, type App } from 'obsidian';
+import type { App } from 'obsidian';
 import type { StoreApi } from 'zustand';
 import type { ViewAtlasState } from '../../storeFactory';
 import type { TokenUpdates } from '../../types/viewState';
@@ -15,10 +15,10 @@ import { mapLightPresets } from '../../services/mapCollectionRules';
 import { mapSenseRules } from '../../services/mapSenseRules';
 import { rulesLookup } from '../../services/mapRules';
 import { useStatblockSenses, type StatblockLink } from './useStatblockSenses';
+import { useStatblockResourceDefaults } from './useStatblockResourceDefaults';
 import { parseNumberInput } from './NumberOverrideField';
 import { buildResourceEdits } from '../../resources/resourceEdits';
 import type { ResourceDefinition, ResourceValue } from '../../resources/resourceTypes';
-import { startingResources } from '../../resources/statblockResourceValues';
 import { handledByAnotherControl } from '../../keyboard/tooltipEscape';
 import { TokenIdentitySection, TokenResourcesSection } from './EditTokenSections';
 import { TokenLightSection, TokenVisionSection, type TokenLightingContext } from './TokenLightingFields';
@@ -44,14 +44,13 @@ interface EditTokenModalProps {
   initial: EditTokenValues;
   /** The resources of the map's collection, in the order they show. */
   definitions: readonly ResourceDefinition[];
-  /** What the linked statblock gives each resource. */
-  resourceDefaults: Record<string, ResourceValue>;
   lighting: TokenLightingContext;
   /** Whether the token's vision and light can be edited: only with dynamic lighting switched on. */
   showLighting: boolean;
   /** The statblock the token links, whose senses it follows while it has none of its own. */
   statblock: StatblockLink | null;
-  onSave: (values: EditTokenValues) => void;
+  /** Saves the form; `resourceDefaults` is what the linked statblock gives each resource. */
+  onSave: (values: EditTokenValues, resourceDefaults: Record<string, ResourceValue>) => void;
   onClose: () => void;
 }
 
@@ -60,8 +59,9 @@ interface EditTokenModalProps {
  * vision) and the light it carries on the right, so the fields are read and tabbed through
  * column by column. A dialog too narrow for two columns stacks them in the same order.
  */
-function EditTokenModalInner({ initial, definitions, resourceDefaults, lighting, showLighting, statblock, onSave, onClose }: EditTokenModalProps): React.ReactElement {
+function EditTokenModalInner({ initial, definitions, lighting, showLighting, statblock, onSave, onClose }: EditTokenModalProps): React.ReactElement {
   const inherited = useStatblockSenses(statblock);
+  const resourceDefaults = useStatblockResourceDefaults(statblock, definitions);
   const [name, setName] = useState(initial.name);
   const [showNameplate, setShowNameplate] = useState(initial.showNameplate);
   const [maxInputs, setMaxInputs] = useState<Record<string, string>>(
@@ -86,7 +86,7 @@ function EditTokenModalInner({ initial, definitions, resourceDefaults, lighting,
       maxima: Object.fromEntries(definitions.map(({ key }) => [key, parseNumberInput(maxInputs[key] ?? '')])),
       vision,
       light,
-    });
+    }, resourceDefaults);
   };
 
   useEffect(() => {
@@ -163,12 +163,6 @@ function lightingContext(state: ViewAtlasState, app: App, rules: SenseRules): To
   };
 }
 
-function readResourceDefaults(app: App, statblockPath: string | undefined, definitions: readonly ResourceDefinition[]): Record<string, ResourceValue> {
-  const file = statblockPath ? app.vault.getAbstractFileByPath(statblockPath) : null;
-  const frontmatter = file instanceof TFile ? app.metadataCache.getFileCache(file)?.frontmatter : undefined;
-  return frontmatter ? startingResources(frontmatter, definitions) : {};
-}
-
 /**
  * Imperatively opens an Edit Token modal by mounting a React root.
  * Call from non-React code (e.g. InteractionController).
@@ -184,7 +178,6 @@ export function openEditTokenModal(
   const rules = mapSenseRules(app, AssetService.getInstance(app), store.getState());
   const lighting = lightingContext(store.getState(), app, rules);
   const statblock = character?.statblockPath ? { app, path: character.statblockPath, rules } : null;
-  const resourceDefaults = readResourceDefaults(app, character?.statblockPath, definitions);
   const container = document.body.createDiv({ cls: 'atlas-vtt-plugin atlas-vtt-root' });
   const root = createRoot(container);
 
@@ -206,7 +199,7 @@ export function openEditTokenModal(
    * the modal is open (damage, a carried light, a move), and a field the GM did not touch must
    * not put back what the token had when the modal opened.
    */
-  const handleSave = (values: EditTokenValues): void => {
+  const handleSave = (values: EditTokenValues, resourceDefaults: Record<string, ResourceValue>): void => {
     const current = levelObjects(store.getState()).tokens[token.id];
     const changed = <K extends keyof EditTokenValues>(key: K): boolean => JSON.stringify(values[key]) !== JSON.stringify(initial[key]);
     const maxima = definitions.filter(({ key }) => values.maxima[key] !== initial.maxima[key]);
@@ -234,7 +227,6 @@ export function openEditTokenModal(
         showLighting={dynamicLightingOn(app)}
         statblock={statblock}
         definitions={definitions}
-        resourceDefaults={resourceDefaults}
         onSave={handleSave}
         onClose={cleanup}
       />

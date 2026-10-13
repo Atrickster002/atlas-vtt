@@ -9,6 +9,7 @@ import type { TagsAndCollectionsState } from './useTagsAndCollections';
 import type { StatblockLinkState } from './useStatblockLink';
 import { isShortcutScopeActive } from '../../../../utils/activeLeafGuard';
 import { matchesMapHotkey } from '../../../../keyboard/mapHotkeys';
+import { isTextEntryTarget } from '../../../../keyboard/textEntry';
 import { SettingsService } from '../../../../services/SettingsService';
 
 interface EffectDeps {
@@ -52,8 +53,7 @@ export function useAssetManagerEffects({
       // Map shortcuts are suspended while this modal is open, so it owns closing
       // via the asset-manager binding. Consume the event before it reaches the map.
       if (!e.defaultPrevented && matchesMapHotkey(e, 'assets', SettingsService.forApp(data.app))) {
-        const target = e.target as Element | null;
-        if (target?.closest?.('input, textarea, select, [contenteditable]:not([contenteditable="false"]), .cm-editor, [role="textbox"]')) return;
+        if (isTextEntryTarget(e.target)) return;
         if (document.querySelector('.modal-container, .prompt, .suggestion-container, .menu, .atlas-ctx-menu')) return;
         e.preventDefault();
         onClose();

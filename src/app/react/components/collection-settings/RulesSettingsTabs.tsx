@@ -1,5 +1,5 @@
 import React from 'react';
-import { Dice5, Dices, Eye, Gauge, Grid3X3, LayoutGrid, ListFilter, ShieldAlert, Swords } from 'lucide-react';
+import { Dice5, Dices, Eye, Gauge, Grid3X3, LayoutGrid, ListFilter, ScrollText, ShieldAlert, Swords } from 'lucide-react';
 import { CoinIcon } from '../CoinIcon';
 import { Button } from '../../../packages/components/primitives/button';
 import { collectionConeAngle } from '../../../gameSystems/coneAngle';
@@ -8,6 +8,8 @@ import { editedSenses } from '../../../gameSystems/senseEditing';
 import type { SystemPresetService } from '../../../services/SystemPresetService';
 import type { InitiativeRules } from '../../../types/initiativeRulesTypes';
 import type { SystemPreset } from '../../../types/systemPresetTypes';
+import type { FieldSuggestion } from '../../../resources/resourceFieldSuggestions';
+import type { DiceSets } from '../../hooks/useDiceSets';
 import { t } from '../../../i18n';
 import { ConditionsTab } from './ConditionsTab';
 import { DiceTab } from './DiceTab';
@@ -20,7 +22,8 @@ import type { RulesDraft } from './useRulesDraft';
 import { VisionTab } from './VisionTab';
 
 /** The tabs of a settings dialog: the game system's rules, and what a collection keeps beside them. */
-export type SettingsTab = 'system' | 'dice' | 'grid' | 'vision' | 'widgets' | 'conditions' | 'resources' | 'initiative' | 'creatureFilters' | 'loot';
+export type SettingsTab =
+  'system' | 'dice' | 'grid' | 'vision' | 'widgets' | 'conditions' | 'resources' | 'initiative' | 'statblocks' | 'creatureFilters' | 'loot';
 
 const TAB_LABELS: Record<SettingsTab, { label: string; icon: React.ReactNode }> = {
   system: { label: t('csm.tab.system'), icon: <Dices size={16} /> },
@@ -31,6 +34,7 @@ const TAB_LABELS: Record<SettingsTab, { label: string; icon: React.ReactNode }> 
   conditions: { label: t('csm.tab.conditions'), icon: <ShieldAlert size={16} /> },
   resources: { label: 'Resources', icon: <Gauge size={16} /> },
   initiative: { label: t('csm.tab.initiative'), icon: <Swords size={16} /> },
+  statblocks: { label: 'Statblocks', icon: <ScrollText size={16} /> },
   creatureFilters: { label: t('csm.tab.creatureFilters'), icon: <ListFilter size={16} /> },
   loot: { label: t('csm.tab.loot'), icon: <CoinIcon size={16} /> },
 };
@@ -44,12 +48,16 @@ interface RulesSettingsTabsProps {
   /** The draft as it reads (`viewOfRules`). */
   view: RulesView;
   presets: { service: SystemPresetService | null; presets: readonly SystemPreset[] };
+  /** The vault's dice sets, which the Dice tab picks from. */
+  diceSets: DiceSets;
   onDeletePreset: (preset: SystemPreset) => Promise<void>;
   /** A choice of no game system at all, for rules that may have none. */
   none?: NoSystemChoice;
   lightingOn: boolean;
-  /** The statblock fields the Resources tab offers as chips. */
-  fieldSuggestions: readonly string[];
+  /** The statblock fields the Resources tab offers as chips (`resourceFieldSuggestions`). */
+  fieldSuggestions: readonly FieldSuggestion[];
+  /** The statblock fields the initiative modifier is offered (`initiativeFieldSuggestions`). */
+  initiativeFieldSuggestions: readonly FieldSuggestion[];
   /** The content of a tab that is not one of the rules', such as a collection's loot. */
   renderOther?: (tab: SettingsTab) => React.ReactNode;
 }
@@ -60,7 +68,7 @@ interface RulesSettingsTabsProps {
  * kept; any other tab is the caller's (`renderOther`).
  */
 export function RulesSettingsTabs({
-  tabs, activeTab, onTabChange, draft, view, presets, onDeletePreset, none, lightingOn, fieldSuggestions, renderOther,
+  tabs, activeTab, onTabChange, draft, view, presets, diceSets, onDeletePreset, none, lightingOn, fieldSuggestions, initiativeFieldSuggestions, renderOther,
 }: RulesSettingsTabsProps): React.ReactElement {
   const shown = tabs.filter((tab) => tab !== 'vision' || lightingOn);
 
@@ -80,7 +88,7 @@ export function RulesSettingsTabs({
           />
         );
       case 'dice':
-        return <DiceTab dice={view.dice} onChange={draft.setDice} />;
+        return <DiceTab diceSet={view.diceSet} diceSets={diceSets} onPick={draft.pickDiceSet} />;
       case 'grid':
         return (
           <GridMeasurementTab
@@ -104,7 +112,7 @@ export function RulesSettingsTabs({
       case 'resources':
         return <ResourcesTab resources={draft.resources} onChange={draft.setResources} fieldSuggestions={fieldSuggestions} />;
       case 'initiative':
-        return <InitiativeFields initiative={view.initiative} onChange={initiativeEdit(draft, view)} />;
+        return <InitiativeFields initiative={view.initiative} onChange={initiativeEdit(draft, view)} fieldSuggestions={initiativeFieldSuggestions} />;
       default:
         return renderOther?.(activeTab);
     }

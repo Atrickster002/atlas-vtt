@@ -1,6 +1,6 @@
-import { Menu, setIcon } from 'obsidian';
+import { setIcon } from 'obsidian';
 import { createTokenPortrait } from '../../../packages/components/shared/tokenPortraitElement';
-import { showBelow } from './controls.ts';
+import { openMenuBelow } from './dockMenu.ts';
 import type { GroupPlayer, OnlinePlayer, PlayerGroup, TokenRow } from './panelModel.ts';
 
 /** What the list's rows and menus do. */
@@ -54,18 +54,21 @@ function playerRow(list: HTMLElement, player: GroupPlayer, face: TokenRow | null
   more.addEventListener('click', () => {
     const selected = actions.selected();
     const owned = [...(face === null ? [] : [face]), ...tokens].map((token) => token.tokenId);
-    const menu = new Menu();
-    menu.addItem((item) => item.setTitle('Assign selected tokens here').setIcon('user-plus').setDisabled(selected.length === 0).onClick(() => actions.assign(selected, player.id)));
-    menu.addItem((item) => item.setTitle('Release all').setIcon('undo-2').setDisabled(owned.length === 0).onClick(() => actions.release(owned)));
-    menu.addSeparator();
-    menu.addItem((item) => item.setTitle('Remove from table').setIcon('user-x').setWarning(true).onClick(() => actions.kick(player.id)));
-    showBelow(menu, more);
+    openMenuBelow([
+      { title: 'Assign selected tokens here', icon: 'user-plus', disabled: selected.length === 0, run: () => actions.assign(selected, player.id) },
+      { title: 'Release all', icon: 'undo-2', disabled: owned.length === 0, run: () => actions.release(owned) },
+      { title: 'Remove from table', icon: 'user-x', warning: true, apart: true, run: () => actions.kick(player.id) },
+    ], more);
   });
 }
 
+/** A player as a menu row names them: away players say so. */
+export const playerTitle = (player: OnlinePlayer): string => (player.online ? player.name : `${player.name} (away)`);
+
 /**
- * Who plays the token, inside its row at the right; it shows with the row's hover or focus (always on
- * touch screens).
+ * Who plays the token, inside its row at the right. Only the GM gives tokens to players, so on a token
+ * nobody plays it always shows as Assign; a player's name shows with the row's hover or focus (always
+ * on touch screens).
  */
 function ownerPicker(row: HTMLElement, token: TokenRow, players: readonly OnlinePlayer[], actions: ListActions): void {
   const owner = token.owner;
@@ -77,14 +80,11 @@ function ownerPicker(row: HTMLElement, token: TokenRow, players: readonly Online
   picker.createSpan({ cls: 'atlas-online-owner__text', text: owner?.name ?? 'Assign' });
   setIcon(picker.createSpan({ cls: 'atlas-online-chevron' }), 'chevron-down');
   picker.addEventListener('click', () => {
-    const menu = new Menu();
-    for (const player of players) {
-      menu.addItem((item) => item.setTitle(player.online ? player.name : `${player.name} (away)`).setChecked(owner?.id === player.id).onClick(() => actions.assign([token.tokenId], player.id)));
-    }
-    if (players.length > 0) menu.addSeparator();
-    menu.addItem((item) => item.setTitle('Release').setIcon('undo-2').setDisabled(owner === null).onClick(() => actions.release([token.tokenId])));
-    menu.addItem((item) => item.setTitle('Not a player token').setIcon('shield').onClick(() => actions.unmark([token.tokenId])));
-    showBelow(menu, picker);
+    openMenuBelow([
+      ...players.map((player) => ({ title: playerTitle(player), checked: owner?.id === player.id, run: () => actions.assign([token.tokenId], player.id) })),
+      { title: 'Release', icon: 'undo-2', disabled: owner === null, apart: players.length > 0, run: () => actions.release([token.tokenId]) },
+      { title: 'Not a player token', icon: 'shield', run: () => actions.unmark([token.tokenId]) },
+    ], picker);
   });
 }
 
@@ -106,7 +106,7 @@ export function renderPlayerList(parent: HTMLElement, groups: readonly PlayerGro
     if (group.player === null && group.tokens.length === 0) continue;
     const block = list.createDiv({ cls: 'atlas-online-group' });
     if (group.player !== null) playerRow(block, group.player, group.face, group.tokens, actions);
-    else block.createDiv({ cls: 'atlas-online-group-label', text: 'Unclaimed' });
+    else block.createDiv({ cls: 'atlas-online-group-label', text: 'Not assigned' });
     for (const token of group.tokens) tokenRow(block, token, players, actions);
   }
   return list;

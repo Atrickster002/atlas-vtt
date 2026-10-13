@@ -108,10 +108,10 @@ describe('the menu', () => {
 
 describe('the list', () => {
   const claims = [
-    { tokenId: 'ogre', label: 'Ogre', claimedBy: BEN.id },
-    { tokenId: 'gone', label: 'Gone', claimedBy: null },
-    { tokenId: 'bear', label: 'Bear', claimedBy: null },
-    { tokenId: 'wolf', label: 'Wolf', claimedBy: ANA.id },
+    { tokenId: 'ogre', label: 'Ogre', ownerId: BEN.id },
+    { tokenId: 'gone', label: 'Gone', ownerId: null },
+    { tokenId: 'bear', label: 'Bear', ownerId: null },
+    { tokenId: 'wolf', label: 'Wolf', ownerId: ANA.id },
   ];
 
   it('groups tokens by player in name order, then the free ones, leaving out tokens the scene lost', () => {
@@ -126,7 +126,7 @@ describe('the list', () => {
   });
 
   it('shows a player with several tokens by the first of them, in the scene\'s order, and lists the others', () => {
-    const both = [{ tokenId: 'ogre', label: 'Ogre', claimedBy: ANA.id }, { tokenId: 'wolf', label: 'Wolf', claimedBy: ANA.id }];
+    const both = [{ tokenId: 'ogre', label: 'Ogre', ownerId: ANA.id }, { tokenId: 'wolf', label: 'Wolf', ownerId: ANA.id }];
     const [ana] = groupsOf(snapshot({ players: [ANA], playerTokens: both }), scene());
     expect(ana?.face?.tokenId).toBe('ogre');
     expect(ana?.tokens.map((token) => token.tokenId)).toEqual(['wolf']);
@@ -140,7 +140,7 @@ describe('the list', () => {
 
   it('has a free group to say there are no player tokens, and none while every player token is taken', () => {
     expect(groupsOf(snapshot(), scene())).toEqual([{ player: null, face: null, tokens: [] }]);
-    const taken = groupsOf(snapshot({ players: [ANA], playerTokens: [{ tokenId: 'wolf', label: 'Wolf', claimedBy: ANA.id }] }), scene());
+    const taken = groupsOf(snapshot({ players: [ANA], playerTokens: [{ tokenId: 'wolf', label: 'Wolf', ownerId: ANA.id }] }), scene());
     expect(taken.map((group) => group.player?.name ?? null)).toEqual(['Ana']);
   });
 
@@ -151,7 +151,7 @@ describe('the list', () => {
 });
 
 describe('the selection bar', () => {
-  const claims = [{ tokenId: 'ogre', label: 'Ogre', claimedBy: null }];
+  const claims = [{ tokenId: 'ogre', label: 'Ogre', ownerId: null }];
 
   it('is absent with nothing selected on the shared map', () => {
     expect(selectionBarOf(snapshot({ playerTokens: claims }), scene())).toBeNull();
@@ -235,7 +235,7 @@ describe('the view of OnlineControl', () => {
   it('names each token by who claimed it, and assigning marks the token too', () => {
     const source = control();
     const api = onlineApi(source, hideNothing);
-    expect(api.snapshot().playerTokens).toEqual([{ tokenId: 'ogre', label: 'Ogre', claimedBy: ANA.id }, { tokenId: 'bear', label: 'Bear', claimedBy: null }]);
+    expect(api.snapshot().playerTokens).toEqual([{ tokenId: 'ogre', label: 'Ogre', ownerId: ANA.id }, { tokenId: 'bear', label: 'Bear', ownerId: null }]);
     const leaf = {} as WorkspaceLeaf;
     api.start(leaf);
     api.assign(['bear'], BEN.id);

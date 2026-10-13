@@ -14,6 +14,6 @@ export const command = {
   'command.showMapInPlayerWindow': 'Show current map in local player window',
   'command.toggleDiceLog': 'Toggle dice log',
   'command.toggleInitiativeTracker': 'Toggle initiative tracker',
-  'command.toggleLootRoller': 'Toggle loot roller',
+  'command.toggleLootRoller': 'Toggle random tables',
   'command.viewChangelog': 'View changelog',
 } as const satisfies Record<string, Message>;

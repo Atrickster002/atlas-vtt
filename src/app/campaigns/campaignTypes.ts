@@ -15,8 +15,6 @@ export interface Campaign {
   readonly lastPlayed?: number;
   /** The time played in all its sessions, in milliseconds. */
   readonly playtime?: number;
-  /** The day of the next session, `YYYY-MM-DD`. */
-  readonly nextSession?: string;
   /** The world map: a map or scene of any collection, by asset id. */
   readonly worldMap?: string;
   /** The scene played last, by asset id. */
@@ -47,6 +45,6 @@ export type StoredCampaign = StoredRecord;
  * The fields a campaign's settings change; a field given as undefined is removed. `system` changes
  * the stored system field by field (`CampaignService.update`).
  */
-export type CampaignChanges = Partial<Pick<Campaign, 'description' | 'nextSession' | 'worldMap'>> & {
+export type CampaignChanges = Partial<Pick<Campaign, 'description' | 'worldMap'>> & {
   readonly system?: Partial<CampaignSystem> | undefined;
 };

@@ -34,7 +34,7 @@ function LootResultCardView({ draw, fresh, order, onOpenSource, onOpenLink, show
   return (
     <motion.li
       className={`atlas-loot-card${fresh ? ' atlas-loot-card--fresh' : ''}`}
-      data-rarity={rarityTone(draw.rarity)}
+      data-rarity={draw.tone ?? rarityTone(draw.rarity)}
       initial={fresh ? enter : false}
       animate={{ opacity: 1, transform: 'translateY(0px) scale(1)' }}
       transition={{ duration: PANEL_ENTER_MS / 1000, ease: EASE_OUT_CONTROL_POINTS, delay: fresh ? order * STAGGER_S : 0 }}

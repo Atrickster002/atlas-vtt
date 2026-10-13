@@ -725,6 +725,7 @@ export class FogOfWarRenderer {
     // A press a pin, door badge or light marker took paints no fog.
     if (isHandled(event)) return;
 
+    this.previewSprite.visible = true;
     this.stroke.begin(this.strokePoint(event));
     this.previewStroke();
   }

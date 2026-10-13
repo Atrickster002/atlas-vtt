@@ -18,8 +18,9 @@ export const MAX_TOKEN_SIZE = 100_000;
 export const MAX_TOKEN_CELLS = 1_000;
 
 /**
- * Whether players may claim a token: `open` for a player token nobody has claimed, `taken` for one a
- * player has (the GM gave it, or a player claimed it), null for the GM's own tokens.
+ * Whether a token is a player token: `taken` for one (whether or not the GM gave it to a player yet),
+ * null for the GM's own tokens. Only the GM gives tokens to players, so `open` is never sent; pages
+ * from before offered such a token to claim, and still read it.
  */
 export type Claim = 'open' | 'taken' | null;
 

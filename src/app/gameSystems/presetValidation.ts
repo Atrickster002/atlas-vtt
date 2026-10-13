@@ -21,13 +21,16 @@ import { BUILT_IN_ID_PREFIX, type SystemPreset, type SystemRules } from '../type
 import { WIDGET_ICON_PATHS, resolveWidgetIcon, type WidgetIcon } from '../types/widgetIcons';
 import type { AnyWidget } from '../types/widgetTypes';
 import { isValidClockSegments } from '../utils/clockWidget';
-import { CRIT_RULES, isValidDefaultRoll, parseExplodeRule } from './diceRules';
+import { CRIT_RULES, parseExplodeRule } from './diceRules';
+import { parseRollGroups } from './diceSets';
 import { parseInitiativeRules } from './initiativeRules';
 import { parseLightPresets } from './lightPresetValidation';
+import { parseItemRarities } from './itemRarities';
 import { GENERIC_SENSES } from './senses/generic';
 import { parseSenseDefinitions } from './senseValidation';
 import { parseVisionDefaults } from './visionDefaults';
 import { isHexColor } from '../utils/hexColor';
+import { parseStatblockRoles } from '../statblocks/roles/roleValidation';
 
 const UNIT_TYPES: readonly GridUnitType[] = ['feet', 'yards', 'meters', 'units', 'custom'];
 const MEASUREMENT_MODES: readonly MeasurementMode[] = ['metric', 'abstract'];
@@ -121,7 +124,8 @@ function parseWidget(raw: unknown): AnyWidget | null {
 }
 
 function parseDiceRules(raw: unknown): DiceRules | null {
-  if (!isRecord(raw) || typeof raw.defaultRoll !== 'string' || !isValidDefaultRoll(raw.defaultRoll)) return null;
+  // One dice group, or the groups of a dice set written for older versions (`1d20+1d6`).
+  if (!isRecord(raw) || typeof raw.defaultRoll !== 'string' || !parseRollGroups(raw.defaultRoll)) return null;
   if (!isOneOf(CRIT_RULES, raw.crit)) return null;
   const explode = parseExplodeRule(raw.explode);
   return { defaultRoll: raw.defaultRoll.trim(), crit: raw.crit, ...(explode && { explode }) };
@@ -148,6 +152,7 @@ export function parseSystemRules(raw: unknown): SystemRules | null {
     : [];
   const defaultWidgets = parseEnabledFlags(raw.defaultWidgets);
   const dice = parseDiceRules(raw.dice);
+  const diceSetId = isNonEmptyString(raw.diceSetId) ? raw.diceSetId : undefined;
   const initiative = parseInitiativeRules(raw.initiative);
   // Rules saved before resources existed track the bars their default widgets switched on.
   const resources = Array.isArray(raw.resources)
@@ -155,6 +160,9 @@ export function parseSystemRules(raw: unknown): SystemRules | null {
     : withLegacyBars([{ ...HP_RESOURCE }], defaultWidgets);
   const senses = parseSenseDefinitions(raw.senses);
   const lightPresets = parseLightPresets(raw.lightPresets);
+  // An empty list names no roles: the preset's collections offer the generic ones.
+  const statblockRoles = parseStatblockRoles(raw.statblockRoles);
+  const itemRarities = parseItemRarities(raw.itemRarities);
   // A collection set from the preset has these senses, so only they can be a default.
   const defaultTokenVision = parseVisionDefaults(raw.defaultTokenVision, senses ?? GENERIC_SENSES);
   return {
@@ -163,11 +171,14 @@ export function parseSystemRules(raw: unknown): SystemRules | null {
     ...(widgets.length > 0 && { widgets }),
     ...(Object.keys(defaultWidgets).length > 0 && { defaultWidgets }),
     ...(dice && { dice }),
+    ...(diceSetId && { diceSetId }),
     ...(initiative && { initiative }),
     ...(resources.length > 0 && { resources }),
     ...(defaultTokenVision && { defaultTokenVision }),
     ...(senses && { senses }),
     ...(lightPresets?.length && { lightPresets }),
+    ...(statblockRoles?.length && { statblockRoles }),
+    ...(itemRarities && { itemRarities }),
   };
 }
 

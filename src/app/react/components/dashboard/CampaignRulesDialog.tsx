@@ -5,7 +5,8 @@ import type { Campaign } from '../../../campaigns/campaignTypes';
 import type { CampaignService } from '../../../campaigns/CampaignService';
 import { viewOfRules } from '../../../gameSystems/rulesView';
 import { vanillaSystemSettings } from '../../../gameSystems/systemRules';
-import { discoverResourceFields } from '../../../resources/resourceFields';
+import { resourceFieldSuggestions } from '../../../resources/resourceFieldSuggestions';
+import { initiativeFieldSuggestions } from '../../../initiative/initiativeFieldSuggestions';
 import { AssetService } from '../../../services/AssetService';
 import { SettingsService } from '../../../services/SettingsService';
 import { deleteSystemPreset } from '../../../services/systemPresetDeletion';
@@ -17,6 +18,7 @@ import { useCollectionCreatures } from '../collection-settings/useCollectionCrea
 import { useRulesDraft } from '../collection-settings/useRulesDraft';
 import { useExperimentalFeature } from '../../hooks/useExperimentalFeature';
 import { useSystemPresets } from '../../hooks/useSystemPresets';
+import { useDiceSets } from '../../hooks/useDiceSets';
 import { usePlayedCollections } from './usePlayedCollections';
 
 /** A campaign makes no scenes, so its system has no default widgets, and no creature filters or loot. */
@@ -37,12 +39,15 @@ interface CampaignRulesDialogProps {
  */
 export function CampaignRulesDialog({ app, campaign, service, onClose }: CampaignRulesDialogProps): React.ReactElement {
   const systemPresets = useSystemPresets(app);
+  const diceSets = useDiceSets(app);
   const lightingOn = useExperimentalFeature('dynamicLighting', SettingsService.forApp(app));
   const draft = useRulesDraft();
   const [hasSystem, setHasSystem] = useState(campaign.system !== undefined);
   const [activeTab, setActiveTab] = useState<SettingsTab>('system');
-  const collections = usePlayedCollections(app, campaign, activeTab === 'resources');
-  const creatures = useCollectionCreatures(app, AssetService.getInstance(app), collections, activeTab === 'resources');
+  const offersFields = activeTab === 'resources' || activeTab === 'initiative';
+  const collections = usePlayedCollections(app, campaign, offersFields);
+  const creatures = useCollectionCreatures(app, AssetService.getInstance(app), collections, offersFields);
+  const statblockRecords = creatures.creatures.map((creature) => creature.fields);
 
   // Read once, as the dialog opens: a save made elsewhere meanwhile does not take the GM's edits away.
   const opened = useRef({ system: campaign.system, presets: systemPresets.presets });
@@ -52,7 +57,7 @@ export function CampaignRulesDialog({ app, campaign, service, onClose }: Campaig
     load(system ? campaignRules(system, presets) : vanillaSystemSettings());
   }, [load]);
 
-  const view = viewOfRules(draft, systemPresets.presets);
+  const view = viewOfRules(draft, systemPresets.presets, diceSets.sets);
   const canSave = !hasSystem || view.isValid;
 
   const save = (): void => {
@@ -95,10 +100,12 @@ export function CampaignRulesDialog({ app, campaign, service, onClose }: Campaig
         draft={{ ...draft, applyPreset }}
         view={view}
         presets={systemPresets}
+        diceSets={diceSets}
         onDeletePreset={deletePreset}
         none={{ summary: t('campaign.systemNoneSummary'), isActive: !hasSystem, onSelect: () => setHasSystem(false) }}
         lightingOn={lightingOn}
-        fieldSuggestions={discoverResourceFields(creatures.creatures.map((creature) => creature.fields))}
+        fieldSuggestions={resourceFieldSuggestions([], statblockRecords)}
+        initiativeFieldSuggestions={initiativeFieldSuggestions([], statblockRecords)}
       />
     </SettingsDialog>
   );

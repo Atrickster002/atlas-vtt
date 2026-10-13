@@ -7,6 +7,8 @@ import type { StoredCampaign } from './campaignTypes';
 export interface CampaignStorage {
   /** The campaigns as stored, unvalidated; the same array while nothing changed. */
   entries(): readonly StoredCampaign[];
+  /** Whether the campaigns were read once, so `entries` holds what the vault does. */
+  isLoaded(): boolean;
   create(entry: StoredCampaign): void;
   /** Changes the stored campaign `id` with `change`, which gets the campaign as stored. */
   update(id: string, change: (stored: StoredCampaign) => StoredCampaign): void;

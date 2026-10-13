@@ -1,6 +1,7 @@
 import { shownJoinCode } from '../../protocol/index.ts';
 import { PAUSED_TEXT, type GateActions, type GateView } from '../joinGate.ts';
-import { copyRow, textButton, type MenuEntry } from './controls.ts';
+import { copyRow, textButton } from './controls.ts';
+import type { MenuEntry } from './dockMenu.ts';
 import { copyText } from './dockDom.ts';
 import type { OnlineApi } from './panelModel.ts';
 

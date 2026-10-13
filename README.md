@@ -41,6 +41,12 @@ Keep scenes, maps, encounters, and characters together in collections. Use folde
 
 ![Atlas VTT collection manager with character tokens, folders, tags, and actions for spawning tokens and linking statblocks](docs/images/collection-manager.webp)
 
+## Atlas Sidebar
+
+[Atlas Sidebar](https://github.com/atlas-vtt/atlas-sidebar) is an optional companion plugin. It turns Obsidian's tabs into a vertical list with pinned tabs, folders, essentials and spaces, and keeps a pin at the top that takes you back to your scene in one click.
+
+[![Atlas Sidebar, vertical tabs for Atlas VTT. The sidebar with the Atlas pin and the open notes beside a world map in Atlas.](docs/images/atlas-sidebar.webp)](https://github.com/atlas-vtt/atlas-sidebar)
+
 ## Install
 
 Requires **Obsidian 1.8.7 or newer on desktop**. Atlas VTT is available through Obsidian's community plugins.
@@ -54,6 +60,10 @@ Check for updates under **Settings → Community plugins**.
 New to Atlas? [Start here](https://atlas-vtt.dev/docs/start/install) takes you from installing it to showing your first map to your players.
 
 Want to try upcoming features early? Beta builds are available through BRAT, see [docs/beta-testing.md](docs/beta-testing.md).
+
+In the beta, **Random tables → New table → Import file** reads local PDFs with embedded text, XLSX workbooks, CSV/TSV exports, Markdown and text. Preview the detected tables, check the ones to keep and enter any missing names before creating notes in your collection. PDF detection supports complete dice tables on one page and skips ambiguous layouts; it does not extract scanned pages or guarantee every table in a book. Workbooks with formulas, merged cells or formatted numeric values should be exported as displayed-values CSV first. Images and website links are handled by copying their text into **Paste**.
+
+The imports stay on your device. The XLSX reader uses the `http://schemas.openxmlformats.org` XML namespace identifiers locally and makes no requests to that address.
 
 <details>
 <summary>Manual installation</summary>
@@ -95,6 +105,17 @@ npm test
 The build also copies the plugin into local test vaults when they are present.
 
 </details>
+
+## Game system templates
+
+Atlas VTT comes with statblock templates for 5E, Cairn, Draw Steel and Fate. Each holds the fields and layout of a statblock, not rules text or creatures. Atlas VTT arranged the stat block structure as an editable template.
+
+- 5E (2014 rules): This work includes material taken from the System Reference Document 5.1 ("SRD 5.1") by Wizards of the Coast LLC and available at https://dnd.wizards.com/resources/systems-reference-document. The SRD 5.1 is licensed under the Creative Commons Attribution 4.0 International License available at https://creativecommons.org/licenses/by/4.0/legalcode.
+- 5E (2024 rules): This work includes material from the System Reference Document 5.2.1 ("SRD 5.2.1") by Wizards of the Coast LLC, available at https://www.dndbeyond.com/srd. The SRD 5.2.1 is licensed under the Creative Commons Attribution 4.0 International License, available at https://creativecommons.org/licenses/by/4.0/legalcode.
+- Cairn: The Cairn template is based on Cairn by Yochai Gal (https://cairnrpg.com), licensed under CC BY-SA 4.0 (https://creativecommons.org/licenses/by-sa/4.0/). Atlas VTT adapted the creature format into an editable template; this template is available under CC BY-SA 4.0 or GPL-3.0.
+- Fate: This work is based on Fate Core System and Fate Accelerated Edition (found at https://www.faterpg.com/), products of Evil Hat Productions, LLC, developed, authored, and edited by Leonard Balsera, Brian Engard, Jeremy Keller, Ryan Macklin, Mike Olson, Clark Valentine, Amanda Valentine, Fred Hicks, and Rob Donoghue, and licensed for our use under the Creative Commons Attribution 3.0 Unported license (https://creativecommons.org/licenses/by/3.0/).
+
+The Draw Steel statblock template and system preset in Atlas VTT are an independent product published under the DRAW STEEL Creator License and are not affiliated with MCDM Productions, LLC. DRAW STEEL © 2026 MCDM Productions, LLC.
 
 ## Credits and license
 

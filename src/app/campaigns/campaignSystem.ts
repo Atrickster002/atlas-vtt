@@ -8,7 +8,7 @@ import { isRecord } from './campaignValues';
 
 /**
  * The game system a campaign plays by, stored as a collection's rules are: the preset it was taken
- * from, measurement, conditions, dice, resources and default vision, and senses, light presets and
+ * from, measurement, conditions, dice (a dice set of the library, or dice rules), resources and default vision, and senses, light presets and
  * initiative rules only once the GM edited them (until then the preset's are read). No default
  * widgets: a campaign makes no scenes.
  */
@@ -36,6 +36,7 @@ export function readCampaignSystem(raw: unknown): CampaignSystem | undefined {
     conditions: rules.conditions,
     ...(typeof systemPresetId === 'string' && systemPresetId !== '' && systemPresetId.length <= MAX_PRESET_ID && { systemPresetId }),
     ...(rules.dice && { dice: rules.dice }),
+    ...(rules.diceSetId && { diceSetId: rules.diceSetId }),
     ...(resources && { resources }),
     ...(defaultTokenVision && { defaultTokenVision }),
     ...(rules.senses && { senses: rules.senses }),

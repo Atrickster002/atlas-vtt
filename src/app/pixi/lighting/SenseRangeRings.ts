@@ -2,7 +2,8 @@ import { Container, Graphics, Text, TextStyle } from 'pixi.js';
 import type { Viewport } from 'pixi-viewport';
 import { formatReach, type MeasurementSettings } from '../../grid/measurementFormat';
 import { unitScaleOf } from '../../lighting/lightingUnits';
-import type { ViewAtlasStore } from '../../storeFactory';
+import type { SceneStore } from '../../lighting/shownTokens';
+import type { ViewAtlasState } from '../../storeFactory';
 import type { Point } from '../../types/visionTypes';
 import { GM_SIGHT_POLICY } from '../../vision/tokenSightPolicy';
 import { sightSources } from '../../vision/sight';
@@ -45,7 +46,7 @@ interface Rect {
 
 export interface SenseRangeRingsDeps {
   viewport: Viewport;
-  store: ViewAtlasStore;
+  store: SceneStore<ViewAtlasState>;
   /** A lit scene in the GM's view: else there are no rings. */
   shown: () => boolean;
   measurement: () => MeasurementSettings;

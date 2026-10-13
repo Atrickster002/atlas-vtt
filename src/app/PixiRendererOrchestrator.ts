@@ -37,6 +37,7 @@ import { TextRenderer } from "./pixi/TextRenderer"; // Import TextRenderer
 import { TextTool } from "./tools/TextTool"; // Import TextTool
 import type { LightingController } from './pixi/lighting/LightingController';
 import { LightingFeature } from './pixi/lighting/LightingFeature';
+import { ShownPlaces } from './lighting/shownPlaces';
 import type { SceneFrame } from './pixi/lighting/engine/types';
 import { captureSceneFrame } from './pixi/sceneFrameCapture';
 import { AudioTool } from './tools/AudioTool';
@@ -84,6 +85,8 @@ export class PixiRendererOrchestrator { // Renamed class
   private textTool?: TextTool; // Add TextTool instance
   /** The view's lighting, built and removed as the GM switches dynamic lighting on and off. */
   private lightingFeature?: LightingFeature;
+  /** Where gliding tokens are drawn: the token renderer notes them, the lighting reads its tokens there. */
+  private readonly shownPlaces = new ShownPlaces();
   /** The players' frame, rendered at the player window's size; made when this view is first presented. */
   private playerFrames?: Pick<PlayerFrameTexture, 'canRender' | 'render' | 'copy' | 'release' | 'destroy'>;
   private get lighting(): LightingController | undefined {
@@ -354,7 +357,8 @@ export class PixiRendererOrchestrator { // Renamed class
             () => this.selectionManager?.updateSelectionOverlay(),
             this.store,
             this.eventBus,
-            this.viewId
+            this.viewId,
+            this.shownPlaces,
         );
         // Set PIXI app reference for renderer access
         this.tokenRenderer.setPixiApp(this.pixiAppManager.app);
@@ -412,6 +416,7 @@ export class PixiRendererOrchestrator { // Renamed class
         albedo: () => this.mapImage?.albedoTexture() ?? null,
         grid: () => this.gridSystem ?? null,
         fogCoverage: () => this.fogRenderer!.getCommittedCoverage(),
+        shown: this.shownPlaces,
       });
     }
 
@@ -528,7 +533,8 @@ export class PixiRendererOrchestrator { // Renamed class
             () => this.selectionManager?.updateSelectionOverlay(), // Pass callback to SelectionManager
             this.store,
             this.eventBus,
-            this.viewId
+            this.viewId,
+            this.shownPlaces,
         );
         // Set PIXI app reference for renderer access
         this.tokenRenderer.setPixiApp(this.pixiAppManager.app);

@@ -42,8 +42,6 @@ export interface AtlasSettings {
   diceFont: DiceFont;
   /** Experimental features the GM switched on. Read with `isExperimentalOn`. */
   experimental: Partial<Record<ExperimentalFeatureId, boolean>>;
-  /** The statblock beside its note: whether its first-visit hint was dismissed. */
-  statblockPane: { hintDismissed: boolean };
   /** The GM's toolbar layout, only what differs from the default; read with `getToolbarLayout`. */
   toolbar: StoredToolbarLayout;
   localPlayerView: {
@@ -77,7 +75,6 @@ export const DEFAULT_SETTINGS: AtlasSettings = {
   diceColour: DEFAULT_DICE_LOOK.colour,
   diceFont: DEFAULT_DICE_LOOK.font,
   experimental: {},
-  statblockPane: { hintDismissed: false },
   toolbar: {},
   localPlayerView: {
     // UI element visibility defaults

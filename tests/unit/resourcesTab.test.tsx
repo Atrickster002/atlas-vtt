@@ -17,7 +17,7 @@ function Editor({ initial, onChange = vi.fn(), fields = ['hp', 'stats.0', 'ammo'
   fields?: string[];
 }): React.ReactElement {
   const [resources, setResources] = useState(initial);
-  return <ResourcesTab resources={resources} fieldSuggestions={fields} onChange={(next) => { setResources(next); onChange(next); }} />;
+  return <ResourcesTab resources={resources} fieldSuggestions={fields.map((path) => ({ path }))} onChange={(next) => { setResources(next); onChange(next); }} />;
 }
 const sockets = (): HTMLElement[] => within(screen.getByRole('group', { name: 'Resource sockets' })).getAllByRole('button');
 const socket = (name: string | RegExp): HTMLElement => within(screen.getByRole('group', { name: 'Resource sockets' })).getByRole('button', { name });
@@ -160,7 +160,7 @@ describe('ResourcesTab', () => {
     expect(last(onChange)[0]).toMatchObject({ direction: 'static' });
     // HP defeated its token; a static value never does
     expect(last(onChange)[0]).not.toHaveProperty('defeatedWhenSpent', true);
-    expect((screen.getByRole('button', { name: 'A static value never defeats the token' }) as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.getByRole('button', { name: 'A static value never defeats the token' }).getAttribute('aria-disabled')).toBe('true');
     fireEvent.click(screen.getByRole('button', { name: /^Static/ }));
     expect(last(onChange)[0]!.direction).toBe('drains');
   });

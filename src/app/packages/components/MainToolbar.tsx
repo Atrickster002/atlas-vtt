@@ -44,6 +44,7 @@ export const MainToolbar = forwardRef<HTMLDivElement, MainToolbarProps>(({ viewI
   const hotkeyLabel = useHotkeyLabels()
   const experimentalOn: Record<ExperimentalFeatureId, boolean> = {
     dynamicLighting: useExperimentalFeature('dynamicLighting'),
+    statblockEditor: useExperimentalFeature('statblockEditor'),
     onlinePlay: useExperimentalFeature('onlinePlay'),
   }
   const liveLayout = useToolbarLayout()

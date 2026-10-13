@@ -46,9 +46,9 @@ describe('campaign paths', () => {
 
 describe('reading a campaign', () => {
   it('keeps what it can read and leaves the rest unset, and marks a later format read-only', () => {
-    expect(parseCampaign({ id: 'c1', name: '  The Witherwild ', createdAt: 5, nextSession: '2026-10-19', worldMap: 'map-1', playtime: 3600 }))
-      .toEqual({ id: 'c1', name: 'The Witherwild', createdAt: 5, nextSession: '2026-10-19', worldMap: 'map-1', playtime: 3600 });
-    expect(parseCampaign({ id: 'c1', name: 'X', createdAt: 'yesterday', nextSession: 'friday', lastPlayed: -1, description: 7 })).toEqual({ id: 'c1', name: 'X', createdAt: 0 });
+    expect(parseCampaign({ id: 'c1', name: '  The Witherwild ', createdAt: 5, worldMap: 'map-1', playtime: 3600 }))
+      .toEqual({ id: 'c1', name: 'The Witherwild', createdAt: 5, worldMap: 'map-1', playtime: 3600 });
+    expect(parseCampaign({ id: 'c1', name: 'X', createdAt: 'yesterday', lastPlayed: -1, description: 7 })).toEqual({ id: 'c1', name: 'X', createdAt: 0 });
     expect(parseCampaign({ id: 'c1', name: '' })).toBeNull();
     expect(parseCampaign({ id: 'c1', name: 'X', format: 9 })?.readOnly).toBe(true);
   });
@@ -80,14 +80,14 @@ describe('CampaignFiles', () => {
     const { campaigns, files, service } = vault({ [`${FOLDER}/Witherwild/campaign.json`]: fileText({ id: 'c1', name: 'Witherwild', createdAt: 1, party: ['kept'] }) });
     await campaigns.load();
     service.rename('c1', 'The Witherwild');
-    service.update('c1', { description: 'Hex crawl', nextSession: '2026-10-19' });
+    service.update('c1', { description: 'Hex crawl', worldMap: 'map-1' });
     await campaigns.flush();
     expect(files.has(`${FOLDER}/Witherwild/campaign.json`)).toBe(false);
-    expect(JSON.parse(files.get(`${FOLDER}/The Witherwild/campaign.json`)!)).toEqual({ format: 1, id: 'c1', name: 'The Witherwild', createdAt: 1, party: ['kept'], description: 'Hex crawl', nextSession: '2026-10-19' });
-    service.update('c1', { description: undefined, nextSession: '' });
+    expect(JSON.parse(files.get(`${FOLDER}/The Witherwild/campaign.json`)!)).toEqual({ format: 1, id: 'c1', name: 'The Witherwild', createdAt: 1, party: ['kept'], description: 'Hex crawl', worldMap: 'map-1' });
+    service.update('c1', { description: undefined, worldMap: '' });
     await campaigns.flush();
     expect(JSON.parse(files.get(`${FOLDER}/The Witherwild/campaign.json`)!)).not.toHaveProperty('description');
-    expect(service.get('c1')).not.toHaveProperty('nextSession');
+    expect(service.get('c1')).not.toHaveProperty('worldMap');
   });
 
   it('applies an edit to what the file holds then, so another device\'s field survives', async () => {
@@ -95,9 +95,19 @@ describe('CampaignFiles', () => {
     const { campaigns, files, service } = vault({ [path]: fileText({ id: 'c1', name: 'Witherwild', createdAt: 1 }) });
     await campaigns.load();
     files.set(path, fileText({ id: 'c1', name: 'Witherwild', createdAt: 1, worldMap: 'map-from-elsewhere' }));
-    service.update('c1', { nextSession: '2026-10-19' });
+    service.update('c1', { description: 'Hex crawl' });
     await campaigns.flush();
-    expect(JSON.parse(files.get(path)!)).toMatchObject({ worldMap: 'map-from-elsewhere', nextSession: '2026-10-19' });
+    expect(JSON.parse(files.get(path)!)).toMatchObject({ worldMap: 'map-from-elsewhere', description: 'Hex crawl' });
+  });
+
+  it('leaves a next session day older versions wrote in the file, unread, when other fields are written', async () => {
+    const path = `${FOLDER}/Witherwild/campaign.json`;
+    const { campaigns, files, service } = vault({ [path]: fileText({ id: 'c1', name: 'Witherwild', createdAt: 1, nextSession: '2026-10-19' }) });
+    await campaigns.load();
+    expect(service.get('c1')).not.toHaveProperty('nextSession');
+    service.update('c1', { description: 'Hex crawl' });
+    await campaigns.flush();
+    expect(JSON.parse(files.get(path)!)).toMatchObject({ description: 'Hex crawl', nextSession: '2026-10-19' });
   });
 
   it('follows another device: a campaign arriving, changed, its folder renamed, and deleted', async () => {
@@ -110,10 +120,10 @@ describe('CampaignFiles', () => {
     emit('create', new TFile(path));
     await settle();
     expect(service.list().map((campaign) => campaign.name)).toEqual(['Witherwild']);
-    files.set(path, fileText({ id: 'c1', name: 'Witherwild', createdAt: 1, nextSession: '2026-11-01' }));
+    files.set(path, fileText({ id: 'c1', name: 'Witherwild', createdAt: 1, description: 'Hex crawl' }));
     emit('modify', new TFile(path));
     await settle();
-    expect(service.get('c1')?.nextSession).toBe('2026-11-01');
+    expect(service.get('c1')?.description).toBe('Hex crawl');
     emit('rename', new TFolder(`${FOLDER}/Moor`), `${FOLDER}/Witherwild`);
     expect(campaigns.pathOf('c1')).toBe(`${FOLDER}/Moor/campaign.json`);
     emit('delete', new TFolder(`${FOLDER}/Moor`));

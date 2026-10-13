@@ -1,6 +1,8 @@
-import { Menu, setIcon } from 'obsidian';
+import { setIcon } from 'obsidian';
 import { MOTION_EASE_OUT, prefersReducedMotion } from '../../../utils/motion';
 import { textButton } from './controls.ts';
+import { openMenuBelow } from './dockMenu.ts';
+import { playerTitle } from './playerList.ts';
 import type { OnlinePlayer, SelectionBar } from './panelModel.ts';
 
 export interface SelectionActions {
@@ -33,10 +35,7 @@ export function renderSelectionBar(parent: HTMLElement, bar: SelectionBar, playe
       : textButton(buttons, 'Unmark', () => actions.unmark(bar.tokenIds));
     mark.dataset.focusKey = 'mark';
     const assign = textButton(buttons, 'Assign', () => {
-      const menu = new Menu();
-      for (const player of players) menu.addItem((item) => item.setTitle(player.online ? player.name : `${player.name} (away)`).onClick(() => actions.assign(bar.tokenIds, player.id)));
-      const rect = assign.getBoundingClientRect();
-      menu.showAtPosition({ x: rect.left, y: rect.bottom + 4 }, assign.doc);
+      openMenuBelow(players.map((player) => ({ title: playerTitle(player), run: () => actions.assign(bar.tokenIds, player.id) })), assign);
     });
     setIcon(assign.createSpan({ cls: 'atlas-online-chevron' }), 'chevron-down');
     assign.disabled = !bar.canAssign;

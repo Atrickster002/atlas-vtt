@@ -10,6 +10,7 @@ import { prepareSaveImages, type SaveImageContext } from './prepareSaveImages';
 import { saveEditedPreview } from './saveEditedPreview';
 import type { EditTokenInput, TokenPreview } from './types';
 import type { ProcessedImage } from '../../../../imageProcessing/imageProcessing';
+import type { SavedToken } from './tokenStatblocks';
 import { prebuildMapImageAt } from '../../../../pixi/mapImage/prebuildMapImage';
 import { showNotice } from '../../../../ui/notice';
 
@@ -24,6 +25,8 @@ export interface SaveTokenPreviewsOptions extends SaveImageContext {
   playerCharacters?: boolean;
   /** Called with every batch of previews once their assets are registered. */
   onSaved?: (ids: string[]) => void;
+  /** Called with the tokens of every batch once they are registered (the Statblocks row makes their notes). */
+  onTokensSaved?: (tokens: SavedToken[]) => void;
   /** Called once per preview as it is saved or fails, with the count so far and the number being saved. */
   onProgress?: (done: number, total: number) => void;
   signal?: AbortSignal;
@@ -100,6 +103,7 @@ async function savePreviews(options: SaveTokenPreviewsOptions): Promise<number> 
       if (asset.type === 'map') prebuildMapImageAt(app, asset.mapFilePath);
     }
     options.onSaved?.(written.map(w => w.id));
+    options.onTokensSaved?.(written.flatMap(({ asset }) => (asset.type === 'token' ? [{ name: asset.name, imagePath: asset.imagePath, statblockPath: asset.statblockPath }] : [])));
   };
 
   /** Writes a preview's files; a failure is reported and leaves nothing behind. */

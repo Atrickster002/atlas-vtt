@@ -25,11 +25,18 @@ export interface PreviewImage {
   size?: number | undefined;
   name?: string;
   statblockPath?: string;
+  /** The vault image the preview was read from. */
+  vaultPath?: string;
 }
+
+/** Where the creator takes images from: uploads, statblock art or images already in the vault. */
+export type CreatorSource = 'images' | 'statblocks' | 'vault';
 
 export interface TokenPreview {
   tags?: string[];
   statblockPath?: string;
+  /** The vault image the preview was read from. */
+  vaultPath?: string;
   showRing?: boolean;
   /** Default footprint saved on the asset; undefined keeps 1×1. */
   size?: number | undefined;

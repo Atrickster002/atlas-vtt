@@ -1534,23 +1534,6 @@ export class AssetService {
     if (changed) await this.saveMetadata();
   }
 
-  /** The tags of a group: registered in any collection or carried by any asset of the group, sorted by name. */
-  async getAllTags(group: TagGroup): Promise<string[]> {
-    await this.ensureLoaded();
-    if (!this.metadata) return [];
-
-    const tags = new Set<string>();
-    for (const collection of Object.values(this.metadata.collections)) {
-      for (const tag of Object.values(collection.tags ?? {})) {
-        if (tag.group === group) tags.add(tag.name);
-      }
-    }
-    for (const asset of Object.values(this.metadata.assets)) {
-      if (tagGroupOf(asset.type) === group) asset.tags.forEach((tag) => tags.add(tag));
-    }
-    return Array.from(tags).sort();
-  }
-
   /** The tags a collection registers in a group. */
   async getCollectionTags(collectionId: string, group: TagGroup): Promise<TagMetadata[]> {
     await this.ensureLoaded();

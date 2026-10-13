@@ -188,10 +188,13 @@ export function useTokenPreviews(mode: CreatorMode): TokenPreviewsApi {
   }, [mode, queuePatch]);
 
   const addImages = useCallback((images: PreviewImage[]): void => {
-    const paths = new Set(previewsRef.current.flatMap(p => p.statblockPath ? [p.statblockPath] : []));
+    // A statblock or a vault image is added once; the same key never names both.
+    const sourceOf = (image: Pick<PreviewImage, 'statblockPath' | 'vaultPath'>): string | undefined => image.statblockPath ?? image.vaultPath;
+    const paths = new Set(previewsRef.current.flatMap(p => sourceOf(p) ?? []));
     const fresh = images.filter(image => {
-      if (!image.file.type.startsWith('image/') || (image.statblockPath && paths.has(image.statblockPath))) return false;
-      if (image.statblockPath) paths.add(image.statblockPath);
+      const source = sourceOf(image);
+      if (!image.file.type.startsWith('image/') || (source && paths.has(source))) return false;
+      if (source) paths.add(source);
       return true;
     }).map(image => ({ ...previewFromFile(image.file), ...image, tags: image.tags ?? [], showRing: image.showRing ?? defaultRing }));
     if (fresh.length === 0) return;

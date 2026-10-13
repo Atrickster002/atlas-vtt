@@ -257,10 +257,6 @@ export class Dock {
       copy: () => copyText(this.root, this.deps.api.snapshot().link ?? ''),
       toggleQr: () => this.qr.toggle(),
       hideImage: () => this.deps.api.hideImage(),
-      openSettings: () => {
-        this.go(close(this.state), false);
-        this.deps.openSettings();
-      },
     };
   }
 

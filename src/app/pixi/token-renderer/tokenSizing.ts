@@ -8,6 +8,8 @@ import { t } from '../../i18n';
  * centered on a cell.
  */
 
+import type { FieldMeanings } from '../../statblocks/resolve/fieldMeanings';
+
 const REFERENCE_CELL_SIZE = 70;
 const REFERENCE_STROKE_WIDTH = 4;
 
@@ -36,6 +38,12 @@ export function tokenSizeFromCreatureSize(value: unknown): number | undefined {
   if (typeof value !== 'string') return undefined;
   const word = value.trim().toLowerCase().split(/\s+/)[0] ?? '';
   return CREATURE_SIZE_MULTIPLIERS[word];
+}
+
+/** Size multiplier a statblock's size gives: the field its template means as the size first, then `size`. */
+export function tokenSizeFromStatblock(fields: Readonly<Record<string, unknown>>, meanings: FieldMeanings): number | undefined {
+  const meant = meanings.size === undefined ? undefined : tokenSizeFromCreatureSize(fields[meanings.size]);
+  return meant ?? tokenSizeFromCreatureSize(fields.size);
 }
 
 /** Token sprite diameter in pixels for a token covering `sizeInCells` cells. */

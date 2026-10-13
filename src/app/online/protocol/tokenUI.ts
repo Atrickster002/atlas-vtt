@@ -46,11 +46,14 @@ export interface SharedTokenUI {
 
 const isValue = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value) && Math.abs(value) <= MAX_TOKEN_VALUE;
 
+/** A static value may be 0 (an armour class); a counting one needs a maximum above 0. */
+const holdsValue = (direction: unknown, max: number): boolean => (direction === 'static' ? max >= 0 : max > 0);
+
 function parseBar(value: unknown): SharedBar | null {
   if (!isRecord(value)) return null;
   const { colour, direction, defeats, current, max } = value;
   if (typeof colour !== 'string' || !HEX_COLOUR.test(colour) || !DIRECTIONS.includes(direction) || typeof defeats !== 'boolean') return null;
-  if (!isValue(current) || !isValue(max) || !(max > 0)) return null;
+  if (!isValue(current) || !isValue(max) || !holdsValue(direction, max)) return null;
   return { colour, direction: direction as SharedBar['direction'], defeats, current, max };
 }
 

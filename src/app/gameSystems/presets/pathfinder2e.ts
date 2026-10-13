@@ -1,3 +1,4 @@
+import { D20_DICE_SET_ID } from '../builtInDiceSets';
 import type { SystemPreset } from '../../types/systemPresetTypes';
 import { PATHFINDER_2E_LIGHTS } from '../lightPresets/pathfinder2e';
 import { HP_RESOURCE } from '../../resources/resourceDefinitions';
@@ -24,6 +25,9 @@ export const PATHFINDER_2E: SystemPreset = {
       abstractRangeBands: [],
     },
     dice: { defaultRoll: '1d20', crit: 'natural' },
+    diceSetId: D20_DICE_SET_ID,
+    // Its statblock template's Initiative field is added to the d20.
+    initiative: { mode: 'turn-order', roll: '1d20', firstSide: 'players', modifier: { field: 'initiative' } },
     conditions: conditionsOf('pathfinder2e', [
       { name: 'Blinded', color: '#475569', icon: 'blindfold', effect: 'blinded' },
       { name: 'Clumsy', color: '#ca8a04', icon: 'falling', valued: true },
@@ -64,5 +68,13 @@ export const PATHFINDER_2E: SystemPreset = {
     resources: [{ ...HP_RESOURCE }],
     senses: PATHFINDER_2E_SENSES,
     lightPresets: PATHFINDER_2E_LIGHTS,
+    statblockRoles: [{ id: 'creature', name: 'Creature', templateId: 'builtin:d20-creature' }],
+    // Rarity is a trait in PF2e; Unique is the rarest.
+    itemRarities: [
+      { name: 'Common', tone: 'common' },
+      { name: 'Uncommon', tone: 'uncommon' },
+      { name: 'Rare', tone: 'rare' },
+      { name: 'Unique', tone: 'legendary' },
+    ],
   },
 };

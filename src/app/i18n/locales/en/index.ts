@@ -18,6 +18,7 @@ import { campaign } from './campaign';
 import { quest } from './quest';
 import { dashboard } from './dashboard';
 import { dice } from './dice';
+import { diceLab } from './diceLab';
 import { exportDialog } from './exportDialog';
 import { grid } from './grid';
 import { gridModal } from './gridModal';
@@ -25,6 +26,7 @@ import { history } from './history';
 import { importReview } from './importReview';
 import { initiative } from './initiative';
 import { loot } from './loot';
+import { tables } from './tables';
 import { lpv } from './lpv';
 import { map } from './map';
 import { menu } from './menu';
@@ -43,6 +45,7 @@ import { transfer } from './transfer';
 import { view } from './view';
 import { widgets } from './widgets';
 import { sbImport } from './sbImport';
+import { vaultImages } from './vaultImages';
 import { filters } from './filters';
 import { search } from './search';
 import { sort } from './sort';
@@ -105,6 +108,7 @@ export const en = {
   ...quest,
   ...dashboard,
   ...dice,
+  ...diceLab,
   ...exportDialog,
   ...grid,
   ...gridModal,
@@ -112,6 +116,7 @@ export const en = {
   ...importReview,
   ...initiative,
   ...loot,
+  ...tables,
   ...lpv,
   ...map,
   ...menu,
@@ -130,6 +135,7 @@ export const en = {
   ...view,
   ...widgets,
   ...sbImport,
+  ...vaultImages,
   ...filters,
   ...search,
   ...sort,

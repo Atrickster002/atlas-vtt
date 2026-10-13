@@ -217,6 +217,8 @@ describe('TokenRenderer Integration Tests', () => {
     );
     const links = TokenStatblockLinkService.getInstance(obsidianApp);
     const lookup = vi.spyOn(links, 'getStatblockLinkedToToken').mockResolvedValue(null);
+    // The service is shared by every test and holds the first test's vault, so the note is read here.
+    const record = vi.spyOn(links, 'readStatblockRecord').mockResolvedValue({ fields: { name: 'Goblin', hp: 12, difficulty: 14 } });
     const linked = { ...token({ id: 'linked' }), kind: 'character' as const, name: 'Old', overriddenMax: ['hp'] };
     store.getState().addToken(linked);
     const other = { ...token({ id: 'other', imagePath: ORC_IMAGE }), kind: 'character' as const, name: 'Other' };
@@ -224,7 +226,8 @@ describe('TokenRenderer Integration Tests', () => {
     await waitForTokens('linked', 'other');
     const listenerCount = links.listenerCount('link-changed');
     links.emit('link-changed', { type: 'linked', tokenImagePath: GOBLIN_IMAGE, statblockPath: file.path });
-    expect(store.getState().objects.tokens.linked).toMatchObject({ statblockPath: file.path, name: 'Goblin', difficulty: '14' });
+    // The link reads its statblock through the resolver first.
+    await vi.waitFor(() => expect(store.getState().objects.tokens.linked).toMatchObject({ statblockPath: file.path, name: 'Goblin', difficulty: '14' }));
     expect(store.getState().objects.tokens.linked?.overriddenMax).toBeUndefined();
     expect(store.getState().objects.tokens.other).toMatchObject({ name: 'Other' });
     destroyRenderer();
@@ -232,6 +235,7 @@ describe('TokenRenderer Integration Tests', () => {
     links.emit('link-changed', { type: 'unlinked', tokenImagePath: GOBLIN_IMAGE, statblockPath: null });
     expect(store.getState().objects.tokens.linked).toMatchObject({ statblockPath: file.path, name: 'Goblin' });
     lookup.mockRestore();
+    record.mockRestore();
     cache.mockRestore();
   });
 
@@ -1225,6 +1229,27 @@ describe('TokenRenderer Integration Tests', () => {
       peeking = true;
       tokenRenderer.refreshPlayerSight();
       expect(tokenRenderer.playersSeeOnCanvas()?.('goblin')).toBe(false);
+    });
+
+    it('draws the token UI as the players see it while the canvas shows their view: session view or the peek', async () => {
+      let peeking = false;
+      tokenRenderer.setPlayerSightProvider(() => undefined, () => peeking);
+      store.getState().addToken(token({ id: 'goblin', kind: 'character' }));
+      await waitForTokens('goblin');
+      const drawsForPlayers = (): boolean =>
+        (tokenRenderer as unknown as { uiManager: { getTokenUIs(): Record<string, { playersView: boolean }> } }).uiManager.getTokenUIs().goblin!.playersView;
+      expect(drawsForPlayers()).toBe(false);
+      store.getState().setGMView(false);
+      expect(drawsForPlayers()).toBe(true);
+      store.getState().setGMView(true);
+      expect(drawsForPlayers()).toBe(false);
+      peeking = true;
+      tokenRenderer.refreshPlayerSight();
+      expect(drawsForPlayers()).toBe(true);
+      // A token placed meanwhile is drawn the same way
+      store.getState().addToken(token({ id: 'orc', kind: 'character', x: 300 }));
+      await waitForTokens('orc');
+      expect((tokenRenderer as unknown as { uiManager: { getTokenUIs(): Record<string, { playersView: boolean }> } }).uiManager.getTokenUIs().orc!.playersView).toBe(true);
     });
 
     it('tells its listeners after every pass over the players\' sight and every change of the tokens', async () => {

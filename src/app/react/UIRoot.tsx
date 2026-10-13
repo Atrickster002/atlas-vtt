@@ -16,7 +16,7 @@ import DMScreen from './components/DMScreen';
 import { InitiativeTracker } from './components/InitiativeTracker';
 import { DiceRollLog } from './components/dice-log/DiceRollLog';
 import { DiceRollDisplay } from './components/dice/DiceRollDisplay';
-import { LootRoller } from './components/loot/LootRollerPanel';
+import { RandomTables } from './components/randomTables/RandomTablesPanel';
 import { MapLoadingOverlay } from './components/MapLoadingOverlay';
 import { SceneTabBar } from './components/SceneTabBar';
 import { LevelSwitcher } from './components/levels/LevelSwitcher';
@@ -228,7 +228,7 @@ export const UIRoot: React.FC<UIRootProps> = ({ app, view, pixiApp }) => {
           {!isPlayerView && <PanelBoundary name="the initiative tracker"><InitiativeTracker /></PanelBoundary>}
 
           {/* Loot Roller - floating window, DM only */}
-          {!isPlayerView && <PanelBoundary name="the loot roller"><LootRoller /></PanelBoundary>}
+          {!isPlayerView && <PanelBoundary name="the random tables"><RandomTables /></PanelBoundary>}
           {!isPlayerView && lightingOn && <PanelBoundary name="the light settings"><LightPopoverHost /><LightZonePopoverHost /></PanelBoundary>}
           {!isPlayerView && lightingOn && <PanelBoundary name="the scene lighting"><SceneLightingPanelHost /></PanelBoundary>}
 

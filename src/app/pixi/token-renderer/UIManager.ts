@@ -33,6 +33,8 @@ export class UIManager implements ITokenUIManager {
   private playerUIContainer: Container | null = null;
   private playerTokenUIs: Record<string, TokenUIRenderer> = {};
   private tokenUIs: Record<string, TokenUIRenderer> = {};
+  /** The canvas shows the players' view (session view, the peek): token UIs draw what players see. */
+  private playersView = false;
   private tokenControlsUI?: TokenControlsUI;
   private tokenRotationUI?: TokenRotationUI;
   private tokenResizeUI?: TokenResizeUI;
@@ -133,6 +135,7 @@ export class UIManager implements ITokenUIManager {
     ui.resourceDefsProvider = () => this.resourceDefsProvider();
     ui.zoomProvider = () => this.viewport.scale.x;
     ui.onScaleChange = (scale) => this.tokenControlsUI?.setScaleFor(tokenId, scale);
+    ui.setPlayersView(this.playersView);
     this.tokenUIs[tokenId] = ui;
     
     const uiElement = ui.getContainer();
@@ -370,6 +373,18 @@ export class UIManager implements ITokenUIManager {
   updateHandlePositions(): void {
     this.tokenRotationUI?.updateHandlePositions();
     this.tokenResizeUI?.updateHandlePositions();
+  }
+
+  /**
+   * Whether the canvas shows the players' view (session view, the peek): every token's UI then
+   * draws the resources players see, its wheels at rest, as the player window does.
+   */
+  setPlayersView(on: boolean): void {
+    if (this.playersView === on) return;
+    this.playersView = on;
+    for (const ui of Object.values(this.tokenUIs)) ui.setPlayersView(on);
+    // The +/- controls sit on the resources just redrawn
+    this.updateSelectionUI(this.store.getState().selectedIds);
   }
 
   /** Shows or hides a token's UI with its token; while hidden, no later update of the token shows it again. */

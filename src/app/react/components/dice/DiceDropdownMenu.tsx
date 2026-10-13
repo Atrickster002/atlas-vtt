@@ -2,7 +2,8 @@ import React, { useEffect, useRef } from 'react';
 import { cn } from 'src/utils/cn';
 import { useKeepInView } from '../../../packages/components/primitives/useKeepInView';
 import { DiceTool } from '../../../tools/DiceTool';
-import { DiceTray } from './DiceTray';
+import { DiceTray, type TrayAdvantage } from './DiceTray';
+import { advantageSidesFor, ruledSides } from '../../../tools/diceAdvantage';
 import { useAtlasUI } from '../../root/AtlasUIContext';
 import { diceFontClass, useDiceLook } from '../../hooks/useDiceLook';
 import { useShareRolls } from '../../hooks/useShareRolls';
@@ -14,12 +15,21 @@ export interface DiceDropdownMenuProps {
   triggerRef?: React.RefObject<HTMLElement | null>;
 }
 
+/** What advantage the collection's dice set offers the tray; undefined where it has no rule. */
+function trayAdvantage(diceTool: DiceTool): TrayAdvantage | undefined {
+  const rules = diceTool.rollingDice();
+  const sides = ruledSides(rules);
+  return sides.length > 0 ? { sides, applies: (formula) => advantageSidesFor(formula, rules).length > 0 } : undefined;
+}
+
 export function DiceDropdownMenu({ diceTool, isOpen, onToggle, triggerRef }: DiceDropdownMenuProps): React.ReactElement | null {
   const trayRef = useRef<HTMLDivElement>(null);
   const { app } = useAtlasUI();
   const look = useDiceLook(app ?? undefined);
   const keepInView = useKeepInView(trayRef, isOpen, 'top');
   const shareRolls = useShareRolls();
+  // Read as the tray opens: it unmounts when closed, so a set changed meanwhile is read anew.
+  const advantage = isOpen ? trayAdvantage(diceTool) : undefined;
 
   // ── Click-outside ────────────────────────────
 
@@ -55,11 +65,13 @@ export function DiceDropdownMenu({ diceTool, isOpen, onToggle, triggerRef }: Dic
     >
       <div className="atlas-dice-panel">
         <DiceTray
-          onRoll={(formula) => {
-            if (!diceTool.rollDice(formula)) return false;
+          onRoll={(formula, side) => {
+            const rolled = side ? diceTool.rollDice(formula, undefined, undefined, { advantage: side }) : diceTool.rollDice(formula);
+            if (!rolled) return false;
             onToggle();
             return true;
           }}
+          advantage={advantage}
           {...(shareRolls && { shareRolls })}
         />
       </div>

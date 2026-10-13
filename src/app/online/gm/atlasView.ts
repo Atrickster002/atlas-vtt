@@ -125,3 +125,21 @@ export function drawnTokenPlaces(renderer: unknown, tokenIds: readonly string[])
   }
   return places;
 }
+
+/** An Atlas tab's store and the map path its player tokens are kept by. */
+export interface WorkScene {
+  readonly store: SceneStore;
+  readonly mapPath: string;
+}
+
+/** The store of the active Atlas tab, or null while none is active. */
+export function activeStore(app: App): SceneStore | null {
+  const leaf = activeAtlasLeaf(app);
+  return leaf === null ? null : sceneStoreOf(leaf);
+}
+
+/** A store with its map path, or null while it shows no map. */
+export function workScene(store: SceneStore | null): WorkScene | null {
+  const mapPath = store?.getState().mapPath ?? null;
+  return store === null || mapPath === null ? null : { store, mapPath };
+}

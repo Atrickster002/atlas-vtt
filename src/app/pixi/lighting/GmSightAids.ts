@@ -3,7 +3,8 @@ import type { Viewport } from 'pixi-viewport';
 import type { MeasurementSettings } from '../../grid/measurementFormat';
 import { unitScaleOf } from '../../lighting/lightingUnits';
 import { tokenVisionOn } from '../../lighting/sceneLightingOptions';
-import type { ViewAtlasStore } from '../../storeFactory';
+import type { SceneStore } from '../../lighting/shownTokens';
+import type { ViewAtlasState } from '../../storeFactory';
 import type { SightRules } from '../../vision/sightRules';
 import type { MapBounds } from '../../vision/visibility';
 import { restingTokenUIScale } from '../token-renderer/tokenSizing';
@@ -19,7 +20,7 @@ export const SIGHT_AIDS_Z_INDEX = 97;
 
 export interface GmSightAidsDeps {
   viewport: Viewport;
-  store: ViewAtlasStore;
+  store: SceneStore<ViewAtlasState>;
   measurement: () => MeasurementSettings;
   bounds: () => MapBounds | null;
   rules: () => SightRules;

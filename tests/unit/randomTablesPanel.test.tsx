@@ -1,0 +1,236 @@
+import React from 'react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { App } from 'obsidian';
+import { MotionGlobalConfig } from 'framer-motion';
+import { createInMemoryApp } from '../mocks/inMemoryVault';
+import { fakeQueries } from '../mocks/fakeLootQueries';
+import { BREW_NOTE } from '../fixtures/tableNotes';
+import { createViewAtlasStore, type ViewAtlasStore } from '../../src/app/storeFactory';
+import { AtlasUIContext } from '../../src/app/react/root/AtlasUIContext';
+import { ViewStoreProvider } from '../../src/app/react/ViewStoreContext';
+import { RandomTables } from '../../src/app/react/components/randomTables/RandomTablesPanel';
+import { AssetService } from '../../src/app/services/AssetService';
+import { LootHistoryStore } from '../../src/app/loot/LootHistoryStore';
+import type { RandomTableSource } from '../../src/app/types/randomTableTypes';
+
+vi.mock('../../src/app/plugin/atlasLeaves', () => ({ getLoadedAtlasView: () => null }));
+vi.mock('../../src/app/loot/lootQueryView', () => import('../mocks/fakeLootQueries'));
+
+const GEAR_NOTE = '| Item | Price |\n| --- | --- |\n| Rope | 1 |\n';
+
+interface Mounted {
+  app: App;
+  store: ViewAtlasStore;
+  collectionId: string;
+}
+
+type Handler = (...args: unknown[]) => void;
+
+/** Workspace events that reach their listeners, as Obsidian's do: settings saved reach the window. */
+function liveWorkspaceEvents(app: App): void {
+  const handlers = new Map<string, Set<Handler>>();
+  Object.assign(app.workspace, {
+    on: (name: string, handler: Handler) => {
+      handlers.set(name, (handlers.get(name) ?? new Set()).add(handler));
+      return { name, handler };
+    },
+    offref: (ref: { name: string; handler: Handler }) => handlers.get(ref.name)?.delete(ref.handler),
+    trigger: (name: string, ...args: unknown[]) => handlers.get(name)?.forEach((handler) => handler(...args)),
+  });
+}
+
+async function mount(randomTables: RandomTableSource[], lootBases: string[] = []): Promise<Mounted> {
+  const { app } = createInMemoryApp({
+    files: { 'Adventures/Brew.md': BREW_NOTE, 'Gear.md': GEAR_NOTE, 'Loot/Items.base': 'views:\n  - type: table\n    name: Weapons\n' },
+  });
+  liveWorkspaceEvents(app);
+  const assets = AssetService.getInstance(app);
+  await assets.initialize();
+  const collectionId = assets.getDefaultCollectionId();
+  await assets.updateCollectionSettings(collectionId, { randomTables, lootBases, lootCurrency: 'gp' });
+  const store = createViewAtlasStore(app, 'map');
+  store.getState().setPersistenceEnabled(false);
+  store.setState({ mapPath: `atlas-vtt/collections/${collectionId}/scenes/Cellar.atlasmap` });
+  store.getState().setLootRollerOpen(true);
+  render(
+    <AtlasUIContext.Provider value={{ app, view: null, pixiApp: null, renderer: null }}>
+      <ViewStoreProvider store={store}><RandomTables /></ViewStoreProvider>
+    </AtlasUIContext.Provider>,
+  );
+  return { app, store, collectionId };
+}
+
+const RUMOURS: RandomTableSource = { path: 'Adventures/Brew.md', table: '🗣️ Rumours in the Taproom', index: 1, kind: 'text', hiddenColumns: ['True?'] };
+const GEAR: RandomTableSource = { path: 'Gear.md', index: 0, kind: 'items' };
+
+beforeEach(() => {
+  MotionGlobalConfig.skipAnimations = true;
+  fakeQueries.reset();
+  Reflect.set(AssetService, 'instance', null);
+});
+
+afterEach(() => {
+  cleanup();
+  vi.restoreAllMocks();
+  MotionGlobalConfig.skipAnimations = false;
+});
+
+describe('the Random tables window', () => {
+  it('lists the tables of notes by kind and rolls the one picked, its hidden column marked', async () => {
+    const { app, store, collectionId } = await mount([RUMOURS, GEAR]);
+    const sidebar = await screen.findByRole('complementary');
+    const items = within(sidebar).getByRole('region', { name: 'Items' });
+    const text = within(sidebar).getByRole('region', { name: 'Text' });
+    expect(within(items).getByRole('button', { name: /Gear/ })).toBeTruthy();
+    const rumours = within(text).getByRole('button', { name: /Rumours in the Taproom/ });
+    expect(rumours.textContent).toContain('d6');
+
+    fireEvent.click(rumours);
+    expect(store.getState().lootRoller.selected).toBe('Adventures/Brew.md#1');
+    expect(document.querySelector('.atlas-tables-chip')?.textContent).toBe('Rolls d6');
+
+    vi.spyOn(Math, 'random').mockReturnValue(0.4); // a 3 on the d6
+    fireEvent.click(screen.getByRole('button', { name: 'Roll 🗣️ Rumours in the Taproom' }));
+
+    const card = await screen.findByText('"The old wizard kept a pet that ate fire."');
+    const result = card.closest('li')!;
+    expect(within(result).getByText('3')).toBeTruthy();
+    expect(within(result).getByText('True?')).toBeTruthy();
+    expect(result.querySelector('.atlas-table-card__field.is-hidden')).toBeTruthy();
+    expect(within(result).getByText('Brew › 🗣️ Rumours in the Taproom')).toBeTruthy();
+
+    await waitFor(async () => expect(await LootHistoryStore.forApp(app).load(collectionId)).toHaveLength(1));
+    const [saved] = await LootHistoryStore.forApp(app).load(collectionId);
+    expect(saved?.draws).toEqual([]);
+    expect(saved?.results?.[0]?.roll).toEqual({ die: 'd6', total: 3 });
+  });
+
+  it('shows rolls of every kind in the history, counted', async () => {
+    const { store } = await mount([RUMOURS, GEAR]);
+    fireEvent.click(within(await screen.findByRole('complementary')).getByRole('button', { name: /Gear/ }));
+    expect(screen.queryByText('No repeats')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Roll Gear' }));
+    await screen.findByText('Rope');
+
+    fireEvent.click(within(screen.getByRole('complementary')).getByRole('button', { name: /Rumours in the Taproom/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Roll 🗣️ Rumours in the Taproom' }));
+    await waitFor(() => expect(store.getState().lootRoller.lastRoll?.results).toHaveLength(1));
+
+    act(() => store.getState().updateLootRoller({ pane: 'history' }));
+    await waitFor(() => expect(document.querySelectorAll('.atlas-loot-history__roll')).toHaveLength(2));
+    const counts = [...document.querySelectorAll('.atlas-loot-history__count')].map((count) => count.textContent);
+    expect(counts).toEqual(['1 result', '1 item']);
+  });
+
+  it('saves No repeats on the table, keeping the rest of its entry', async () => {
+    const { app, collectionId } = await mount([{ ...RUMOURS, ...{ future: 1 } } as RandomTableSource]);
+    await waitFor(() => expect(document.querySelector('.atlas-tables-chip')?.textContent).toBe('Rolls d6'));
+    fireEvent.click(screen.getByRole('switch', { name: 'No repeats' }));
+    await waitFor(() => expect(AssetService.getInstance(app).getCollectionSettings(collectionId).randomTables).toEqual([
+      { ...RUMOURS, future: 1, noRepeats: true },
+    ]));
+  });
+
+  it('searches the tables by name', async () => {
+    await mount([RUMOURS, GEAR, { path: 'Adventures/Brew.md', index: 0, kind: 'text' }]);
+    const search = await screen.findByRole('searchbox', { name: 'Search tables' });
+    fireEvent.change(search, { target: { value: 'tunnel' } });
+    const sidebar = screen.getByRole('complementary');
+    expect(within(sidebar).queryByRole('button', { name: /Rumours/ })).toBeNull();
+    expect(within(sidebar).getByRole('button', { name: /Tunnel Encounters/ })).toBeTruthy();
+    fireEvent.change(search, { target: { value: 'nothing like it' } });
+    expect(within(sidebar).getByText('No table matches')).toBeTruthy();
+  });
+
+  it('offers a table from a note while the collection has none', async () => {
+    await mount([]);
+    expect(await screen.findByText('No random tables yet')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Use a table from a note' })).toBeTruthy();
+  });
+
+  it('marks a table whose note is gone and does not roll it', async () => {
+    await mount([{ path: 'Gone.md', index: 0, kind: 'text' }]);
+    const roll = await screen.findByRole('button', { name: 'Roll Gone' });
+    expect((roll as HTMLButtonElement).disabled).toBe(true);
+    expect(document.querySelector('.atlas-tables-chip--problem')?.textContent).toBe('The note is gone');
+  });
+});
+
+describe('New table', () => {
+  const PDF = 'd6 Encounter\n1 Two giant rats fighting over a dead centipede\n2 A brewery cat, Mustard\n3 Ale seeps through the ceiling; the smell draws a swarm of rats\n4 A ghostly whisper\n5 A loose flagstone hides a fall into a cis-\ntern with `2d6` gp\n7 Nothing but warm air';
+
+  it('shows the pasted table read only with its problems, writes it as a note under a free name and rolls it once', async () => {
+    const { app, store, collectionId } = await mount([RUMOURS]);
+    await app.vault.createFolder(`atlas-vtt/collections/${collectionId}/tables`);
+    await app.vault.create(`atlas-vtt/collections/${collectionId}/tables/Cellar.md`, 'taken');
+
+    fireEvent.click(within(await screen.findByRole('complementary')).getByRole('button', { name: 'New table' }));
+    const dialog = screen.getByRole('dialog', { name: 'New table' });
+    const save = within(dialog).getByRole('button', { name: 'Save and roll' }) as HTMLButtonElement;
+    expect(save.disabled).toBe(true);
+    fireEvent.change(within(dialog).getByRole('textbox', { name: 'Table to paste' }), { target: { value: PDF } });
+    fireEvent.change(within(dialog).getByRole('textbox', { name: 'Name' }), { target: { value: 'Cellar' } });
+
+    const chips = [...dialog.querySelectorAll('.atlas-tables-chip')].map((chip) => chip.textContent);
+    expect(chips).toEqual(['Rolls d6', '1 row the die never rolls', '1 gap']);
+    expect(within(dialog).getByText('A loose flagstone hides a fall into a cistern with', { exact: false })).toBeTruthy();
+    expect(within(dialog).getByText('2d6 is rolled with the result')).toBeTruthy();
+    // Nothing in the preview can be edited.
+    expect(dialog.querySelector('.atlas-paste-table__preview input, .atlas-paste-table__preview textarea, .atlas-paste-table__preview [contenteditable]')).toBeNull();
+
+    vi.spyOn(Math, 'random').mockReturnValue(0.1);
+    fireEvent.click(save);
+    const path = `atlas-vtt/collections/${collectionId}/tables/Cellar 2.md`;
+    await waitFor(() => expect(app.vault.getFileByPath(path)).toBeTruthy());
+    expect(await app.vault.read(app.vault.getFileByPath(path)!)).toMatch(/^## Cellar\n\n\| d6 \| Encounter \|\n\| --- \| --- \|\n\| 1 \| Two giant rats/);
+    await waitFor(() => expect(AssetService.getInstance(app).getCollectionSettings(collectionId).randomTables).toContainEqual(
+      { path, table: 'Cellar', index: 0, kind: 'text' },
+    ));
+    await waitFor(() => expect(store.getState().lootRoller.lastRoll?.results?.[0]?.text).toBe('Two giant rats fighting over a dead centipede'));
+    expect(store.getState().lootRoller.selected).toBe(`${path}#0`);
+  });
+
+  it('writes the tables folder where the collection has none yet', async () => {
+    const { app, collectionId } = await mount([]);
+    fireEvent.click(await screen.findByRole('button', { name: 'New table' }));
+    const dialog = screen.getByRole('dialog', { name: 'New table' });
+    fireEvent.change(within(dialog).getByRole('textbox', { name: 'Table to paste' }), { target: { value: 'Weight\tItem\tPrice\n3\tRope\t1 sp\n1\tLantern\t5 gp' } });
+    fireEvent.change(within(dialog).getByRole('textbox', { name: 'Name' }), { target: { value: 'Gear' } });
+    expect(within(dialog).getByRole('radio', { name: 'Items' }).getAttribute('aria-checked')).toBe('true');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Save and roll' }));
+    await waitFor(() => expect(app.vault.getFileByPath(`atlas-vtt/collections/${collectionId}/tables/Gear.md`)).toBeTruthy());
+    await waitFor(() => expect(AssetService.getInstance(app).getCollectionSettings(collectionId).randomTables?.[0]?.kind).toBe('items'));
+  });
+
+  it('imports the checked file tables as notes without rolling them', async () => {
+    const { app, store, collectionId } = await mount([]);
+    fireEvent.click(await screen.findByRole('button', { name: 'New table' }));
+    fireEvent.click(screen.getByRole('radio', { name: 'Import file' }));
+    const text = '## Weather\n| d4 | Result |\n| --- | --- |\n| 1-4 | Rain |\n\n## Treasure\n| d6 | Result |\n| --- | --- |\n| 1-6 | Coin |';
+    fireEvent.change(screen.getByLabelText('Choose a table file'), { target: { files: [{ name: 'Tables.md', size: text.length, arrayBuffer: async () => new TextEncoder().encode(text).buffer }] } });
+    fireEvent.click(await screen.findByRole('checkbox', { name: 'Import Treasure' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Import 1 table' }));
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'New table' })).toBeNull());
+    expect(app.vault.getFileByPath(`atlas-vtt/collections/${collectionId}/tables/Treasure.md`)).toBeTruthy();
+    expect(app.vault.getFileByPath(`atlas-vtt/collections/${collectionId}/tables/Weather.md`)).toBeNull();
+    expect(AssetService.getInstance(app).getCollectionSettings(collectionId).randomTables).toHaveLength(1);
+    expect(store.getState().lootRoller.lastRoll).toBeUndefined();
+  });
+
+  it('keeps the destination collection from when the importer was opened', async () => {
+    const { app, store, collectionId } = await mount([]);
+    const assets = AssetService.getInstance(app);
+    const other = await act(async () => assets.createCollection('Other'));
+    fireEvent.click(await screen.findByRole('button', { name: 'New table' }));
+    fireEvent.click(screen.getByRole('radio', { name: 'Import file' }));
+    act(() => store.setState({ mapPath: `atlas-vtt/collections/${other.id}/scenes/Other.atlasmap` }));
+    const text = '## Weather\n| d4 | Result |\n| --- | --- |\n| 1-4 | Rain |';
+    fireEvent.change(screen.getByLabelText('Choose a table file'), { target: { files: [{ name: 'Tables.md', size: text.length, arrayBuffer: async () => new TextEncoder().encode(text).buffer }] } });
+    fireEvent.click(await screen.findByRole('checkbox', { name: 'Import Weather' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Import 1 table' }));
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'New table' })).toBeNull());
+    expect(assets.getCollectionSettings(collectionId).randomTables).toHaveLength(1);
+    expect(assets.getCollectionSettings(other.id).randomTables ?? []).toEqual([]);
+  });
+});

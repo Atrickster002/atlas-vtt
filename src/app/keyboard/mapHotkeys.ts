@@ -2,6 +2,7 @@ import type { ExperimentalFeatureId } from '../experimental/experimentalFeatures
 import { AMBIENT_AUDIO_ENABLED } from '../featureFlags';
 import { isActiveAtlasLeaf } from '../utils/activeLeafGuard';
 import { handledByAnotherControl } from './tooltipEscape';
+import { isTextEntryTarget } from './textEntry';
 import type { SettingsService } from '../services/SettingsService';
 import { t } from '../i18n';
 
@@ -97,8 +98,7 @@ export function namesHotkey(label: string): boolean {
 }
 export function canRunMapHotkeys(event: KeyboardEvent, viewId?: string): boolean {
   if (handledByAnotherControl(event) || event.isComposing || !isActiveAtlasLeaf(viewId)) return false;
-  const target = event.target as Element | null;
-  if (target?.closest?.('input, textarea, select, [contenteditable]:not([contenteditable="false"]), .cm-editor, [role="textbox"]')) return false;
+  if (isTextEntryTarget(event.target)) return false;
   if (document.querySelector('.modal-container, .prompt, .suggestion-container, .menu, .atlas-asset-manager-modal, .atlas-command-palette-overlay, .atlas-onboarding-overlay, .atlas-hotkey-help, .atlas-text-dialog-backdrop, .atlas-dm-screen-wrapper, .atlas-grid-alignment-panel, [aria-modal="true"]')) return false;
   return true;
 }

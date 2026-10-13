@@ -16,7 +16,7 @@ const snapshot = (over: Partial<OnlineSnapshot> = {}): OnlineSnapshot => ({ stat
 
 function actions(): MenuActions & { openAccountPage: ReturnType<typeof vi.fn<() => void>> } {
   return {
-    start: vi.fn(), openSettings: vi.fn(), signIn: vi.fn(), cancelSignIn: vi.fn(), reopenSignIn: vi.fn(), signOut: vi.fn(), retry: vi.fn(), openAccountPage: vi.fn<() => void>(),
+    start: vi.fn(), signIn: vi.fn(), cancelSignIn: vi.fn(), reopenSignIn: vi.fn(), signOut: vi.fn(), retry: vi.fn(), openAccountPage: vi.fn<() => void>(),
     newCode: vi.fn(), setRequireCode: vi.fn(), setAskToJoin: vi.fn(), copyCode: () => Promise.resolve(true), hideImage: vi.fn(),
     stop: vi.fn(), share: vi.fn(), copy: () => Promise.resolve(true), toggleQr: vi.fn(),
   };

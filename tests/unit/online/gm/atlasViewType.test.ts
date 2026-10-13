@@ -9,7 +9,7 @@ const ROOT = path.resolve(fileURLToPath(new URL('../../../../', import.meta.url)
 
 describe('the companion plugin', () => {
   it('finds Atlas map tabs by the view type the vendor registers them under', () => {
-    const source = fs.readFileSync(path.join(ROOT, 'src/app/atlas-view.ts'), 'utf8');
+    const source = fs.readFileSync(path.join(ROOT, 'src/app/atlasViewType.ts'), 'utf8');
     const declared = /export const ATLAS_VIEW_TYPE = ["']([^"']+)["'];/.exec(source)?.[1];
     expect(declared).toBe(ATLAS_VIEW_TYPE);
   });

@@ -11,6 +11,7 @@ import type { ResourceDefinition } from '../../../resources/resourceTypes';
 import { withChangedBars } from '../../../resources/sceneVisibility';
 import type { CollectionGridDefaults, ConditionDefinition } from '../../../types/collectionSettingsTypes';
 import type { DiceRules } from '../../../types/diceRulesTypes';
+import type { DiceSet } from '../../../types/diceSetTypes';
 import type { InitiativeRules } from '../../../types/initiativeRulesTypes';
 import type { TokenVisionDefaults } from '../../../types/lightingTypes';
 import type { LightPresetDefinition } from '../../../types/lightPresetTypes';
@@ -36,9 +37,12 @@ export interface RulesDraft {
   setConditions: (conditions: ConditionDefinition[]) => void;
   resources: ResourceDefinition[];
   setResources: (resources: ResourceDefinition[]) => void;
-  /** Unset while the rules take the dice of their preset; read with `collectionDiceRules`. */
+  /** The dice rules that rules which picked no set stored; unset while they take their preset's. Read with `collectionDiceSet`. */
   dice: DiceRules | undefined;
-  setDice: (dice: DiceRules) => void;
+  /** The dice set picked from the library; unset where the rules roll `dice` or their preset's. */
+  diceSetId: string | undefined;
+  /** Picks a set from the library as the rules' dice. */
+  pickDiceSet: (set: DiceSet) => void;
   /** Unset while the rules take the initiative rules of their preset; read with `collectionInitiativeRules`. */
   initiative: InitiativeRules | undefined;
   setInitiative: (initiative: InitiativeRules | undefined) => void;
@@ -65,6 +69,7 @@ export function useRulesDraft(): RulesDraft {
   /** The resources the rules had when the draft was loaded; a bar switch follows only a resource that came or went. */
   const loadedResources = useRef<readonly ResourceDefinition[]>([]);
   const [dice, setDice] = useState<DiceRules | undefined>(undefined);
+  const [diceSetId, setDiceSetId] = useState<string | undefined>(undefined);
   const [initiative, setInitiative] = useState<InitiativeRules | undefined>(undefined);
   const [systemPresetId, setSystemPresetId] = useState<string | undefined>(undefined);
 
@@ -81,6 +86,7 @@ export function useRulesDraft(): RulesDraft {
     loadedResources.current = loaded;
     setResources(loaded);
     setDice(settings.dice);
+    setDiceSetId(settings.diceSetId);
     setInitiative(parseInitiativeRules(settings.initiative));
     setSystemPresetId(settings.systemPresetId);
   }, []);
@@ -92,6 +98,7 @@ export function useRulesDraft(): RulesDraft {
     setResources(keepingPlayerVisibility(rules.resources, resources));
     setDefaultWidgets(rules.defaultWidgets);
     setDice(rules.dice);
+    setDiceSetId(rules.diceSetId);
     setDefaultTokenVision(rules.defaultTokenVision);
     // The rules read their preset's senses, light presets and initiative rules until they are edited.
     setSenses(undefined);
@@ -107,6 +114,7 @@ export function useRulesDraft(): RulesDraft {
     setResources(vanilla.resources);
     setDefaultWidgets(vanilla.defaultWidgets);
     setDice(vanilla.dice);
+    setDiceSetId(vanilla.diceSetId);
     setDefaultTokenVision(vanilla.defaultTokenVision);
     setSenses(vanilla.senses);
     setLightPresets(vanilla.lightPresets);
@@ -114,6 +122,14 @@ export function useRulesDraft(): RulesDraft {
     setSystemPresetId(undefined);
   };
 
+  const pickDiceSet = (set: DiceSet): void => {
+    setDiceSetId(set.id);
+  };
+
+  /**
+   * A picked set is the rules' dice: the dice rules stored before are removed, so a set that goes
+   * missing falls back to the system's dice and never to a choice the GM replaced.
+   */
   const toSettings = (): RulesSettings => {
     const saved = savedResources(resources);
     return {
@@ -124,7 +140,8 @@ export function useRulesDraft(): RulesDraft {
       lightPresets,
       conditions,
       resources: saved,
-      ...(dice && { dice: { ...dice, defaultRoll: dice.defaultRoll.trim() } }),
+      ...(diceSetId ? { dice: undefined } : dice && { dice: { ...dice, defaultRoll: dice.defaultRoll.trim() } }),
+      diceSetId,
       initiative: initiative && savedInitiativeRules(initiative),
       systemPresetId,
     };
@@ -138,7 +155,7 @@ export function useRulesDraft(): RulesDraft {
     lightPresets,
     conditions, setConditions,
     resources, setResources,
-    dice, setDice,
+    dice, diceSetId, pickDiceSet,
     initiative, setInitiative,
     systemPresetId, setSystemPresetId,
     load, applyPreset, clearSystem, toSettings,

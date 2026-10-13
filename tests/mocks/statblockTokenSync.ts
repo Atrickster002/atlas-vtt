@@ -29,7 +29,10 @@ function makeFixture() {
     findAssetByAnyPath: vi.fn(async (): Promise<TokenAsset | null> => null),
     getStatblockLinkedToToken: vi.fn(async (): Promise<string | null> => null),
     linkTokenToStatblock: vi.fn(async (): Promise<boolean> => true),
-    readStatblockRecord: vi.fn(async (): Promise<Readonly<Record<string, unknown>> | null> => ({ hp: 20, stress: 6 })),
+    // What the statblock resolver reads from the note: its fields, as the note's frontmatter holds them.
+    readStatblockRecord: vi.fn(async (): Promise<{ fields: Readonly<Record<string, unknown>> } | null> => ({
+      fields: { name: 'Hero', hp: 20, stress: 6, difficulty: 15 },
+    })),
   });
   const ref = app.metadataCache.on('changed', () => {});
   let changed: (file: TFile) => Promise<void> = async () => {};

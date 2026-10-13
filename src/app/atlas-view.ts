@@ -15,7 +15,9 @@ import { restoreLinkedSnapshot } from './links/openAtlasLink';
 import type { ViewCamera } from './pixi/viewCamera';
 import { showNotice } from './ui/notice';
 
-export const ATLAS_VIEW_TYPE = "atlas-vtt";
+import { ATLAS_VIEW_TYPE } from './atlasViewType';
+
+export { ATLAS_VIEW_TYPE };
 
 interface AtlasViewState {
   mapFilePath: string | null;

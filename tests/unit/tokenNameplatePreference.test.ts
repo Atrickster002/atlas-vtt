@@ -37,7 +37,7 @@ describe('per-token nameplate preference', () => {
     const hidden = store.getState().addToken({ ...hero, showNameplate: false } as never);
 
     store.getState().updateToken(shown, STATBLOCK_UNLINK_UPDATES);
-    store.getState().updateToken(hidden, buildStatblockLinkUpdates({ name: 'Goblin', hp: 7 }, 'Hero', [HP_RESOURCE], undefined));
+    store.getState().updateToken(hidden, buildStatblockLinkUpdates({ fields: { name: 'Goblin', hp: 7 } }, 'Hero', [HP_RESOURCE], undefined));
 
     expect(store.getState().objects.tokens[shown]?.showNameplate).toBe(true);
     expect(store.getState().objects.tokens[hidden]?.showNameplate).toBe(false);
