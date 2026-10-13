@@ -25,5 +25,6 @@ export const levels = {
   'levels.deleteWithObjects': 'Delete them too',
   'levels.moveTo': 'Move to level',
   'levels.movedNotice': 'Moved to {name}',
+  'levels.refit': 'The grid changed type, so {names} no longer fit it. Align the grid on each of them to fit its map again.',
   'levels.alignOtherGrid': 'This level\'s map shows another kind of grid than the scene. A scene has one grid; pick its type to fit the map to it.',
 } as const satisfies Record<string, Message>;

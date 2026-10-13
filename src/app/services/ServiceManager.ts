@@ -1,4 +1,5 @@
 import { App } from 'obsidian';
+import { watchLevelsToRefit } from '../react/components/levels/levelRefitNotice';
 import type AtlasVTTPlugin from '../../../main';
 import { EventEmitter } from 'events';
 import { RendererService } from './RendererService';
@@ -43,6 +44,7 @@ export class ServiceManager {
   private diceToastObserver: DiceToastObserver;
   private viewId: string;
   private sceneThumbnails: SceneThumbnailUpdater;
+  private readonly stopRefitNotice: () => void;
   
   constructor(private app: App, private store: ViewAtlasStore, private plugin?: AtlasVTTPlugin, viewId?: string) {
     // Create event bus for inter-service communication
@@ -76,6 +78,7 @@ export class ServiceManager {
 
     void Promise.all([this.settingsService.initialize(), this.assetService.initialize()]);
     
+    this.stopRefitNotice = watchLevelsToRefit(store);
     this.sceneThumbnails = new SceneThumbnailUpdater(store, {
       render: () => this.renderMapThumbnail(),
       save: (mapPath, bytes) => this.mapThumbnailService.saveThumbnail(mapPath, bytes),
@@ -245,6 +248,8 @@ export class ServiceManager {
     }
     PartySync.forApp(this.app)?.unregisterStore(this.viewId);
     
+    this.stopRefitNotice();
+
     // Writes a pending thumbnail, so it must run while the renderer still shows the scene
     this.sceneThumbnails.destroy();
 

@@ -1,5 +1,6 @@
 import type { OnLevels, OnOneLevel, SceneLevel } from '../types/sceneLevelTypes';
 import type { ViewState } from '../types/viewState';
+import type { MovesWithMap } from '../grid/mapStretchObjects';
 
 /** The levels of a scene, bottom first; a scene without them has one level. */
 export type SceneLevels = readonly SceneLevel[] | undefined;
@@ -102,4 +103,11 @@ export function levelExploredMask(state: Pick<ViewState, 'exploredMask' | 'explo
 export function onlyOnLevel(object: OnOneLevel & OnLevels, levelId: string, levels: SceneLevels): boolean {
   if (!onLevel(object, levelId, levels)) return false;
   return !hasLevels(levels) || levels.every((other) => other.id === levelId || !onLevel(object, other.id, levels));
+}
+
+/** What moves with level `levelId`'s image: the objects on it and on no other; everything in a scene without levels. */
+export function movesWithLevel(state: { levels?: SceneLevels }, levelId: string | null): MovesWithMap | undefined {
+  const { levels } = state;
+  if (!hasLevels(levels) || levelId === null) return undefined;
+  return (object) => onlyOnLevel(object, levelId, levels);
 }

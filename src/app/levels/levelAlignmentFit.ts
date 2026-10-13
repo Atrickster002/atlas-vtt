@@ -14,7 +14,7 @@ export interface FoundGrid {
  * How far the scene's grid can be moved and lie on itself again: one cell either way on a square
  * grid; on a hex grid one hex along its rows and two rows (√3 cells) across them.
  */
-function gridPeriod(grid: GridState): { x: number; y: number } {
+export function gridPeriod(grid: Pick<GridState, 'size' | 'type'>): { x: number; y: number } {
   const across = grid.size * Math.sqrt(3);
   if (grid.type === 'hex-vertical') return { x: grid.size, y: across };
   if (grid.type === 'hex-horizontal') return { x: across, y: grid.size };

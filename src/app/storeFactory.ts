@@ -44,10 +44,11 @@ import { movedPathOf, rewriteMapReferences } from './services/renamedPaths';
 import { conditionValue, removeCondition, setConditionValue } from './utils/conditionValues';
 import { HydrationTracker } from './stores/hydrationTracker';
 import { isolateListeners } from './stores/isolatedListeners';
-import { firstLevelId, placedOnViewedLevel, placedOnViewedLevels } from './levels/sceneLevels';
-import { createSceneLevelsActions, movesWithLevel, writeExploredMask, type SceneLevelsSlice } from './stores/sceneLevelsSlice';
+import { firstLevelId, movesWithLevel, placedOnViewedLevel, placedOnViewedLevels } from './levels/sceneLevels';
+import { createSceneLevelsActions, writeExploredMask, type SceneLevelsSlice } from './stores/sceneLevelsSlice';
 import { levelsForFile, readExploredMasks, readSceneLevels } from './levels/levelFile';
 import { levelAlignmentsOf, withoutAlignments } from './levels/levelAlignment';
+import { levelsCarriedWithGrid, type CarriedLevels, type GridCarryScene } from './levels/levelGridCarry';
 
 // Individual store state interface (same as AtlasState but isolated)
 export interface ViewAtlasState extends ViewState {
@@ -351,6 +352,11 @@ export type ViewAtlasStore = Mutate<
   rehydrateFromFile: (isSuperseded?: () => boolean) => Promise<void>;
 };
 
+/** The levels a grid write carries along; none while a load restores the scene, whose file already holds them as they belong. */
+function carriedLevels(state: GridCarryScene & { isMapLoading: boolean }, grid: GridState | null): CarriedLevels | null {
+  return state.isMapLoading ? null : levelsCarriedWithGrid(state, grid);
+}
+
 function applyTokenUpdates(token: TokenEntity | undefined, updates: TokenUpdates): void {
   if (!token) return;
   const normalized = updates.imagePath
@@ -510,18 +516,28 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
             draft.background = bg;
           }),
 
-          // Set grid state
-          setGrid: (grid) => set((draft) => {
-            draft.grid = grid;
-          }),
-
-          alignGrid: (grid, move) => {
-            // The grid is the scene's, its image the first level's: what stands on other levels stays
-            const state = get();
-            const objects = move ? objectsMovedWithMap(state.objects, move, movesWithLevel(state, firstLevelId(state.levels))) : null;
+          // Set grid state; the levels fitted to it follow it in the same write (one undo step)
+          setGrid: (grid) => {
+            const carried = carriedLevels(get(), grid);
             set((draft) => {
               draft.grid = grid;
-              if (objects) draft.objects = objects;
+              if (carried) {
+                draft.levelAlignments = carried.levelAlignments;
+                draft.objects = carried.objects;
+              }
+            });
+          },
+
+          alignGrid: (grid, move) => {
+            // The grid is the scene's, its image the first level's: what stands on it alone moves with that image,
+            // and every level fitted to the grid follows the grid to stay on its art
+            const state = get();
+            const objects = move ? objectsMovedWithMap(state.objects, move, movesWithLevel(state, firstLevelId(state.levels))) : state.objects;
+            const carried = carriedLevels({ ...state, objects }, grid);
+            set((draft) => {
+              draft.grid = grid;
+              draft.objects = carried?.objects ?? objects;
+              if (carried) draft.levelAlignments = carried.levelAlignments;
             });
           },
           

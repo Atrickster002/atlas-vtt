@@ -6,9 +6,11 @@ import { createViewAtlasStore, type ViewAtlasStore } from '../../../src/app/stor
 import { MapService } from '../../../src/app/services/MapService';
 import type { RendererService } from '../../../src/app/services/RendererService';
 import type { MapImageSource } from '../../../src/app/pixi/mapImage/mapImageTypes';
-import { movedWithMap } from '../../../src/app/grid/mapStretch';
+import { movedWithMap, worldToImage } from '../../../src/app/grid/mapStretch';
 import { levelImagePlacement } from '../../../src/app/levels/levelAlignment';
 import { levelObjects } from '../../../src/app/levels/levelObjects';
+import { watchLevelsToRefit } from '../../../src/app/react/components/levels/levelRefitNotice';
+import { Notice } from 'obsidian';
 
 vi.mock('obsidian', async (importOriginal) => ({ ...(await importOriginal<typeof import('obsidian')>()), Notice: vi.fn() }));
 
@@ -240,5 +242,73 @@ describe('a scene file naming a level it does not have', () => {
     expect(Object.keys(levelObjects(state).walls)).toEqual(['lostWall']);
     expect(Object.keys(levelObjects({ ...state, viewedLevel: 'upper' }).tokens)).toEqual([]);
     expect(Object.keys(levelObjects({ ...state, viewedLevel: 'upper' }).walls)).toEqual([]);
+  });
+});
+
+describe('the scene\'s grid realigned on the first level', () => {
+  const ALIGNED = { offset: { x: 61, y: 47 }, scale: 1.4, stretch: { x: 1, y: 1 } };
+  const objects = {
+    tokens: {
+      guard: { id: 'guard', kind: 'token', x: 100, y: 100, imagePath: 'tokens/guard.png' },
+      mage: { id: 'mage', kind: 'token', x: 215, y: 117, imagePath: 'tokens/mage.png', level: 'upper' },
+    },
+    fog: {}, pins: {}, texts: {}, drawings: {}, walls: {}, lights: {},
+  };
+  const withAlignment = LEVELS.map((entry) => (entry.id === 'upper' ? { ...entry, alignment: ALIGNED } : entry));
+  type Temporal = { temporal: { getState(): { undo(): void; pastStates: unknown[] } } };
+
+  it('takes every fitted floor and what stands on it along, in the grid\'s own undo step', async () => {
+    const harness = setup(JSON.stringify({ version: 5, state: sceneState({ version: 5, levels: withAlignment, objects }) }));
+    await harness.service.loadMap(harness.rendererService, SCENE);
+    const before = harness.store.getState();
+    const image = { width: 1000, height: 800 };
+    const mageOnArt = worldToImage(before.objects.tokens.mage!, image, levelImagePlacement(before, 'upper'));
+
+    before.alignGrid({ ...before.grid!, size: 64, offsetX: 30, offsetY: 12, mapStretch: { x: 1.1, y: 1 } }, movedWithMap(image, { x: 1, y: 1 }, { x: 1.1, y: 1 }));
+
+    const after = harness.store.getState();
+    expect(after.levelAlignments?.upper?.scale).toBeCloseTo(1.4 * 64 / 70, 9);
+    const mageNow = worldToImage(after.objects.tokens.mage!, image, levelImagePlacement(after, 'upper'));
+    expect(mageNow.x).toBeCloseTo(mageOnArt.x, 4);
+    expect(mageNow.y).toBeCloseTo(mageOnArt.y, 4);
+    expect(after.objects.tokens.guard).toMatchObject({ x: 110, y: 100 });
+    const temporal = (harness.store as unknown as Temporal).temporal;
+    expect(temporal.getState().pastStates).toHaveLength(1);
+
+    temporal.getState().undo();
+    const undone = harness.store.getState();
+    expect(undone.grid?.size).toBe(70);
+    expect(undone.levelAlignments).toEqual({ upper: ALIGNED });
+    expect(undone.objects.tokens.mage).toMatchObject({ x: 215, y: 117 });
+    expect(undone.objects.tokens.guard).toMatchObject({ x: 100, y: 100 });
+  });
+
+  it('changes nothing else in a scene with one level', async () => {
+    const harness = setup(JSON.stringify({ version: 4, state: sceneState() }));
+    await harness.service.loadMap(harness.rendererService, SCENE);
+    const before = harness.store.getState();
+
+    before.setGrid({ ...before.grid!, size: 90, offsetX: 3 });
+
+    expect(harness.store.getState().objects).toBe(before.objects);
+    expect(harness.store.getState().levelAlignments).toBeUndefined();
+  });
+});
+
+describe('a grid that changes type', () => {
+  it('leaves fitted floors as they are and names them to the GM once', async () => {
+    const aligned = { offset: { x: 0, y: 0 }, scale: 1.2, stretch: { x: 1, y: 1 } };
+    const levels = LEVELS.map((entry) => (entry.id === 'upper' ? { ...entry, alignment: aligned } : entry));
+    const harness = setup(JSON.stringify({ version: 5, state: sceneState({ version: 5, levels }) }));
+    await harness.service.loadMap(harness.rendererService, SCENE);
+    vi.mocked(Notice).mockClear();
+    const stop = watchLevelsToRefit(harness.store);
+
+    harness.store.getState().setGrid({ ...harness.store.getState().grid!, type: 'hex-vertical' });
+
+    expect(harness.store.getState().levelAlignments).toEqual({ upper: aligned });
+    expect(vi.mocked(Notice)).toHaveBeenCalledTimes(1);
+    expect(String(vi.mocked(Notice).mock.calls[0]?.[0])).toContain('Upper floor');
+    stop();
   });
 });

@@ -4,10 +4,10 @@
  */
 
 import type { LevelScene } from '../levels/levelEdits';
-import { firstLevelId, hasLevels, isLevelOf, onlyOnLevel, viewedLevelId } from '../levels/sceneLevels';
+import { firstLevelId, isLevelOf, movesWithLevel, viewedLevelId } from '../levels/sceneLevels';
 import type { LevelAlignment, SceneLevel } from '../types/sceneLevelTypes';
 import type { MapMove } from '../grid/mapStretch';
-import { objectsMovedWithMap, type MovesWithMap } from '../grid/mapStretchObjects';
+import { objectsMovedWithMap } from '../grid/mapStretchObjects';
 import type { ViewState } from '../types/viewState';
 
 export interface SceneLevelsSlice {
@@ -30,12 +30,6 @@ type LevelsDraft = Pick<ViewState, 'levels' | 'viewedLevel' | 'objects' | 'backg
 
 type ImmerSet = (fn: (draft: LevelsDraft) => void) => void;
 
-/** What moves with level `levelId`'s image: the objects on it and on no other; everything in a scene without levels. */
-export function movesWithLevel(state: Pick<ViewState, 'levels'>, levelId: string | null): MovesWithMap | undefined {
-  const { levels } = state;
-  if (!hasLevels(levels) || levelId === null) return undefined;
-  return (object) => onlyOnLevel(object, levelId, levels);
-}
 
 /** Where a level's explored memory is kept: the first level's in `exploredMask`. A level the scene no longer has keeps none. */
 export function writeExploredMask(draft: Pick<ViewState, 'levels' | 'viewedLevel' | 'exploredMask' | 'exploredMasks'>, dataUrl: string | null, level: string | null | undefined): void {
