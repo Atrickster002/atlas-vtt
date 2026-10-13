@@ -18,6 +18,7 @@ vi.mock('../../../../src/app/services/AssetService', async (importOriginal) => {
     getAssets: async () => store.tokens,
     getTokenAssets: async () => store.tokens,
     findTokenAssetByImagePath: (path: string) => store.tokens.find((token) => token.imagePath === path) ?? null,
+    loadedTokenAssets: () => store.tokens,
     onReconciled: () => () => undefined,
     getDefaultCollectionId: () => 'campaign',
     getCollectionSettings: () => ({ conditions: [] }),
@@ -101,7 +102,8 @@ describe('the token socket', () => {
     expect(document.activeElement).toBe(within(dialog).getByRole('textbox', { name: 'Search tokens' }));
   });
 
-  it('shows an empty socket that asks for art where the note names none', async () => {
+  it('shows an empty socket that asks for art where the note names none and no token is linked', async () => {
+    store.tokens = store.tokens.filter((entry) => entry.id !== 'warden');
     await pane({ ...WARDEN, image: undefined });
     expect(socket().classList.contains('atlas-sb-token-socket--empty')).toBe(true);
     expect(socket().textContent).toBe('Add token art');
@@ -123,7 +125,8 @@ describe('the token socket', () => {
     const dialog = await open();
     await act(async () => { fireEvent.click(within(dialog).getByRole('button', { name: 'Bog Hag' })); });
     await settle();
-    expect(links.linkTokenToStatblock).toHaveBeenCalledWith(HAG_ART, NOTE_PATH, { updateStatblockAvatar: true });
+    // Beside the token linked already; the panel shows the link, so the service shows no notice of it.
+    expect(links.linkTokenToStatblock).toHaveBeenCalledWith(HAG_ART, NOTE_PATH, { updateStatblockAvatar: true, notice: false });
     expect(screen.queryByRole('dialog', { name: 'Token art' })).toBeNull();
     expect(document.activeElement).toBe(socket());
   });
@@ -185,6 +188,12 @@ describe('the token socket', () => {
     expect(screen.queryByRole('dialog', { name: 'Token art' })).toBeNull();
     await act(async () => { chooser.choose?.(new TFile('Art/plain.png')); });
     expect(writer.writes.at(-1)).toEqual({ path: NOTE_PATH, patches: [{ op: 'set', path: ['image'], base: WARDEN_ART, next: 'Art/plain.png' }] });
+  });
+
+  it('shows the linked token\'s art where the note\'s picture is a file the vault no longer holds', async () => {
+    await pane({ ...WARDEN, image: 'Art/gone.webp' });
+    expect(socket().classList.contains('atlas-sb-token-socket--empty')).toBe(false);
+    expect(socket().querySelector('img')?.getAttribute('src')).toContain(WARDEN_ART);
   });
 
   it('switches the ring of the token whose art the statblock shows', async () => {
