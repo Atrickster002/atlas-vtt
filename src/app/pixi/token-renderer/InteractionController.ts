@@ -692,7 +692,7 @@ export class InteractionController implements ITokenInteractionController {
 
 
     // Player character: the library token it was placed from, for the GM alone
-    const playerCharacter = this.isPlayerView ? null : placedPlayerCharacterEntry(this.obsApp, token);
+    const playerCharacter = this.isPlayerView ? null : placedPlayerCharacterEntry(this.obsApp, token, this.store);
     if (playerCharacter) entries.push(playerCharacter);
 
     // Ring colour of the selection in one undo step; the clicked token's colour is ticked

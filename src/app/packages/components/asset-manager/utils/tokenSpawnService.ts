@@ -22,6 +22,7 @@ import { systemPresetsOf } from '../../../../services/mapCollectionRules';
 import { rulesLookup } from '../../../../services/mapRules';
 import type { TokenVision, TokenVisionDefaults } from '../../../../types/lightingTypes';
 import { placementVision } from '../../../../creatures/placementVision';
+import { isPlayerCharacter } from '../../../../characters/playerCharacters';
 import { showNotice } from '../../../../ui/notice';
 
 // ─── Viewport helpers ───────────────────────────────────────────────
@@ -156,6 +157,8 @@ interface TokenSource {
   statblockPath: string | null;
   size?: number | undefined;
   showRing?: boolean | undefined;
+  /** Placed from one of the players' characters (`isPlayerCharacter`): its token sees by default. */
+  playerCharacter: boolean;
 }
 
 /** Fields an asset-manager view model or stored token reference may carry. */
@@ -185,6 +188,7 @@ async function resolveTokenSource(ctx: SpawnContext, ref: TokenSourceRef): Promi
     statblockPath: record?.statblockPath ?? ref.statblockPath ?? null,
     size: record?.size ?? ref.size,
     showRing: record?.showRing ?? ref.showRing,
+    playerCharacter: record !== null && isPlayerCharacter(record),
   };
 }
 
@@ -195,11 +199,11 @@ function spawnVisionDefaults(ctx: SpawnContext, target: SpawnTarget): TokenVisio
     : undefined;
 }
 
-/** Builds a token from its asset; `visionDefaults` (the placing collection's) start vision off (`placementVision`). */
+/** Builds a token from its asset; `visionDefaults` (the placing collection's) start vision off but for a player character (`placementVision`). */
 async function buildTokenData(
   app: ObsidianApp,
   pos: { x: number; y: number },
-  { assetId, imagePath, name, statblockPath, size, showRing }: TokenSource,
+  { assetId, imagePath, name, statblockPath, size, showRing, playerCharacter }: TokenSource,
   definitions: readonly ResourceDefinition[],
   visionDefaults: TokenVisionDefaults | undefined,
 ): Promise<TokenSpawnData> {
@@ -221,7 +225,7 @@ async function buildTokenData(
     Object.assign(data, overrides);
   }
 
-  const vision = placementVision(visionDefaults, Boolean(statblockPath));
+  const vision = placementVision(visionDefaults, Boolean(statblockPath), playerCharacter);
   if (vision) data.vision = vision;
 
   return data;
