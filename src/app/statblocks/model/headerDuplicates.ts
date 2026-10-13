@@ -135,8 +135,9 @@ export function withoutHeaderDuplicates(template: StatblockTemplate): StatblockT
   const blocks = withoutBlocks(template.layout.blocks, gone);
   const still = plainlyShown(blocks);
   for (const part of HEADER_PART_IDS) if (still.has(headerKey(template.fields, part))) hide.add(part);
-  const tracked = hitPointsTrack && !template.header?.hitPoints
-    ? withHeaderSettings(template, { ...template.header, hitPoints: headerTrackOf(hitPointsTrack) })
+  // The header takes the hit points the track drew, so a part an earlier read hid shows again: hidden, they would be gone.
+  const tracked = hitPointsTrack
+    ? setHeaderPartHidden(withHeaderSettings(template, { ...template.header, hitPoints: template.header?.hitPoints ?? headerTrackOf(hitPointsTrack) }), 'hp', false)
     : template;
   const hidden = [...hide].filter((part) => HEADER_PARTS[part].hideable)
     .reduce((current, part) => setHeaderPartHidden(current, part, true), tracked);

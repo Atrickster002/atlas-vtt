@@ -47,6 +47,13 @@ describe('hit points a template draws as a track', () => {
     expect(container.querySelector('.atlas-sb-sheet > :not(.atlas-sb-header) [data-block-id="trkhp000"]')).toBeNull();
   });
 
+  it('show again where an earlier read had hidden the header\'s hit points', () => {
+    const hid = setHeaderPartHidden(imported(), 'hp', true);
+    const read = withoutHeaderDuplicates(setHeaderPartHidden(hid, 'type', true));
+    expect(read.header).toEqual({ hidden: ['type'], hitPoints: { look: 'boxes', counts: 'down', resource: 'hp' } });
+    expect(headerParts(read).find((part) => part.id === 'hp')?.hidden).toBe(false);
+  });
+
   it('stay a number where no track draws them', () => {
     const plain = withoutHeaderDuplicates(template([FEATS], FIELDS));
     expect(plain.header).toBeUndefined();
