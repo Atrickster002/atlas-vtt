@@ -102,11 +102,9 @@
   // Anchors the suggestions; narrow headers make the field an absolute overlay instead.
   position: relative;
   @include atlas-flex-row($gap: $spacing-xs);
-  // The same on every tab: room for typed filters and the filter button. It
-  // narrows to its minimum before the asset type tabs give up their room.
-  flex: 1 1 240px;
-  max-width: 240px;
-  min-width: 140px;
+  // The same on every tab: room for typed filters and the filter button. Its
+  // width is the toolbar's track (`_header.scss`), which narrows before the
+  // asset type tabs give up their room.
   height: $control-height;
   padding: 0 $spacing-xs 0 $spacing-s;
   background: var(--background-modifier-form-field);
@@ -178,7 +176,6 @@
     right: $spacing-m;
     z-index: 2;
     width: auto;
-    max-width: none;
     // Covers the controls of the row around the field as well.
     box-shadow: 0 0 0 $spacing-m var(--background-primary);
     opacity: 0;
