@@ -19,6 +19,7 @@ import { useCollectionSettingsDraft } from './collection-settings/useCollectionS
 import { useExperimentalFeature } from '../hooks/useExperimentalFeature';
 import { DefaultWidgetsTab } from './collection-settings/DefaultWidgetsTab';
 import { resourceFieldSuggestions } from '../../resources/resourceFieldSuggestions';
+import { initiativeFieldSuggestions } from '../../initiative/initiativeFieldSuggestions';
 import { RandomTablesTab } from './collection-settings/RandomTablesTab';
 import { viewOfRules, type RulesView } from '../../gameSystems/rulesView';
 import { CreatureFiltersTab } from './collection-settings/CreatureFiltersTab';
@@ -78,9 +79,11 @@ export function CollectionSettingsModal({
   // Local draft of settings — only persisted on Save
   const draft = useCollectionSettingsDraft(assetService, collectionId, isOpen);
   const collectionIds = useMemo(() => [collectionId], [collectionId]);
-  const offersFields = isOpen && (activeTab === 'creatureFilters' || activeTab === 'resources');
+  const offersFields = isOpen && (activeTab === 'creatureFilters' || activeTab === 'resources' || activeTab === 'widgets');
   const collectionCreatures = useCollectionCreatures(app ?? null, assetService, collectionIds, offersFields);
   const roleTemplates = useRoleTemplates(app ?? null, collectionStatblockRoles(draft, systemPresets.presets), offersFields);
+  const statblockRecords = collectionCreatures.creatures.map((creature) => creature.fields);
+  const initiativeFields = initiativeFieldSuggestions(roleTemplates, statblockRecords);
 
   // Resolve the collection name for the header
   useEffect(() => {
@@ -144,6 +147,7 @@ export function CollectionSettingsModal({
             onChange={draft.setDefaultWidgets}
             initiative={view.initiative}
             onInitiativeChange={initiativeEdit(draft, view)}
+            initiativeFieldSuggestions={initiativeFields}
           />
         );
       case 'statblocks':
@@ -215,7 +219,8 @@ export function CollectionSettingsModal({
         diceSets={diceSets}
         onDeletePreset={handleDeletePreset}
         lightingOn={lightingOn}
-        fieldSuggestions={resourceFieldSuggestions(roleTemplates, collectionCreatures.creatures.map((creature) => creature.fields))}
+        fieldSuggestions={resourceFieldSuggestions(roleTemplates, statblockRecords)}
+        initiativeFieldSuggestions={initiativeFields}
         renderOther={renderOther}
       />
     </SettingsDialog>

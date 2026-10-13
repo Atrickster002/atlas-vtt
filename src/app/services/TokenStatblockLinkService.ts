@@ -3,16 +3,14 @@ import { App, TFile } from 'obsidian';
 import { EventEmitter } from 'events';
 import { AssetService, type TokenAsset } from './AssetService';
 import { difficultyLabel } from '../creatures/statblockRating';
-import { isBestiaryResolved } from './FantasyStatblocksService';
-import { boundedFields } from '../creatures/statblockValues';
 import { mapResources } from '../resources/collectionResources';
 import { rulesLookup } from './mapRules';
 import { tokenFromFile, tokenToFile } from '../resources/resourceFileFormat';
 import type { ResourceDefinition } from '../resources/resourceTypes';
 import { startingResources } from '../resources/statblockResourceValues';
 import type { StatblockFields } from '../resources/statblockResourceSync';
-import { NO_MEANINGS, type FieldMeanings } from '../statblocks/resolve/fieldMeanings';
-import { readStatblock } from '../statblocks/resolve/readStatblock';
+import type { FieldMeanings } from '../statblocks/resolve/fieldMeanings';
+import { readStatblockRecord } from '../statblocks/resolve/statblockRecord';
 import { isPersistedMapEnvelope } from './MapPersistence';
 import { STATBLOCK_IMAGE_KEYS } from './statblockImageKeys';
 import { statblockImageSrc } from '../statblocks/render/shared/statblockImage';
@@ -412,18 +410,9 @@ export class TokenStatblockLinkService extends EventEmitter {
     /** What the fields of the statblock's template mean (hit points, rating under other keys). */
     meanings: FieldMeanings;
   } | null> {
-    const file = this.app.vault.getAbstractFileByPath(statblockPath);
-    if (!(file instanceof TFile)) return null;
-
-    const noted: unknown = this.app.metadataCache.getFileCache(file)?.frontmatter;
-    const frontmatter = noted ? boundedFields(noted) : undefined;
-    // Asked before the read: a parse that ends meanwhile does not make what was read whole.
-    const parsing = !isBestiaryResolved();
-    const statblock = await readStatblock(this.app, statblockPath);
-    if (!frontmatter && !statblock) return null;
-    if (wholeOnly && parsing && (!statblock || statblock.fields.extends !== undefined)) return null;
-    const record = { ...statblock?.fields, ...frontmatter };
-    const meanings = statblock?.meanings ?? NO_MEANINGS;
+    const read = await readStatblockRecord(this.app, statblockPath, wholeOnly);
+    if (!read) return null;
+    const { record, meanings } = read;
     const displayKey = meanings['display-name'];
     const difficulty = difficultyLabel(record, meanings);
     return {

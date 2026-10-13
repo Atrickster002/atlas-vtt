@@ -6,6 +6,7 @@ import type { CampaignService } from '../../../campaigns/CampaignService';
 import { viewOfRules } from '../../../gameSystems/rulesView';
 import { vanillaSystemSettings } from '../../../gameSystems/systemRules';
 import { resourceFieldSuggestions } from '../../../resources/resourceFieldSuggestions';
+import { initiativeFieldSuggestions } from '../../../initiative/initiativeFieldSuggestions';
 import { AssetService } from '../../../services/AssetService';
 import { SettingsService } from '../../../services/SettingsService';
 import { deleteSystemPreset } from '../../../services/systemPresetDeletion';
@@ -43,8 +44,10 @@ export function CampaignRulesDialog({ app, campaign, service, onClose }: Campaig
   const draft = useRulesDraft();
   const [hasSystem, setHasSystem] = useState(campaign.system !== undefined);
   const [activeTab, setActiveTab] = useState<SettingsTab>('system');
-  const collections = usePlayedCollections(app, campaign, activeTab === 'resources');
-  const creatures = useCollectionCreatures(app, AssetService.getInstance(app), collections, activeTab === 'resources');
+  const offersFields = activeTab === 'resources' || activeTab === 'initiative';
+  const collections = usePlayedCollections(app, campaign, offersFields);
+  const creatures = useCollectionCreatures(app, AssetService.getInstance(app), collections, offersFields);
+  const statblockRecords = creatures.creatures.map((creature) => creature.fields);
 
   // Read once, as the dialog opens: a save made elsewhere meanwhile does not take the GM's edits away.
   const opened = useRef({ system: campaign.system, presets: systemPresets.presets });
@@ -101,7 +104,8 @@ export function CampaignRulesDialog({ app, campaign, service, onClose }: Campaig
         onDeletePreset={deletePreset}
         none={{ summary: t('campaign.systemNoneSummary'), isActive: !hasSystem, onSelect: () => setHasSystem(false) }}
         lightingOn={lightingOn}
-        fieldSuggestions={resourceFieldSuggestions([], creatures.creatures.map((creature) => creature.fields))}
+        fieldSuggestions={resourceFieldSuggestions([], statblockRecords)}
+        initiativeFieldSuggestions={initiativeFieldSuggestions([], statblockRecords)}
       />
     </SettingsDialog>
   );

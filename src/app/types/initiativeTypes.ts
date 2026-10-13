@@ -29,8 +29,14 @@ export interface InitiativeEntry {
   /** Rolled initiative value (after modifiers) */
   initiative: number;
 
-  /** Initiative modifier from statblock/character */
+  /**
+   * The GM's own modifier, added to every roll (`ownModifier`). Every version writes it, 0 where
+   * there is none, and older ones add it to their rolls.
+   */
   initiativeModifier: number;
+
+  /** `initiativeModifier` was set in the edit popup, so a 0 there is the GM's too; `undefined` clears it when patched. */
+  modifierByHand?: true | undefined;
 
   /** Path to token image for avatar display */
   imagePath: string;

@@ -421,6 +421,47 @@ $tracker-width: 96px;
     -moz-appearance: textfield;
   }
 
+  &__fields {
+    display: flex;
+    align-items: flex-end;
+    gap: 8px;
+  }
+
+  &__field {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+  }
+
+  // Captions read like the hint below them
+  &__caption {
+    font-size: 10px;
+    color: var(--text-muted);
+    background: color-mix(in srgb, var(--background-primary) 80%, transparent);
+    padding: 4px;
+    border-radius: 4px;
+  }
+
+  // The GM's own modifier: the same field, quieter until it is focused
+  &__input--modifier {
+    width: 64px;
+    font-size: 16px;
+    border-color: var(--background-modifier-border);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+
+    &::placeholder {
+      color: var(--text-faint);
+      font-weight: 400;
+    }
+
+    &:focus {
+      box-shadow:
+        0 0 0 4px color-mix(in oklch, var(--interactive-accent) 15%, transparent),
+        0 8px 24px rgba(0, 0, 0, 0.4);
+    }
+  }
+
   &__hint {
     font-size: 10px;
     color: var(--text-muted);

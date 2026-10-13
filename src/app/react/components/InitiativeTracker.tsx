@@ -13,6 +13,8 @@ import { useAtlasUI } from '../root/AtlasUIContext';
 import { SIDE_LABELS, listedBySides, sideOf, sidesInOrder } from '../../initiative/sides';
 import { useInitiativeTokenSync } from '../../initiative/useInitiativeTokenSync';
 import { useMapInitiativeRules } from '../../initiative/useMapInitiativeRules';
+import { useInitiativeRolls } from '../../initiative/useInitiativeRolls';
+import { initiativeEdit, modifierText } from '../../initiative/initiativeEdit';
 import { LabelTooltip } from '../../packages/components/primitives/tooltip';
 import { scrollWithin } from '../../utils/scrollWithin';
 import { EditInitiativePopup } from './EditInitiativePopup';
@@ -42,13 +44,12 @@ export const InitiativeTracker: React.FC = () => {
   const mapLoaded = useAtlasStore((s) => s.mapLoaded);
   const isMapLoading = useAtlasStore((s) => s.isMapLoading);
   const rules = useMapInitiativeRules();
+  const { roll, rolling } = useInitiativeRolls(app, rules);
   const bySides = listedBySides(initiative, rules);
   const firstSide = initiative.sides?.first ?? rules.firstSide;
 
   // Store actions
   const removeFromInitiative = useAtlasStore((s) => s.removeFromInitiative);
-  const rollAllInitiative = useAtlasStore((s) => s.rollAllInitiative);
-  const rollEntryInitiative = useAtlasStore((s) => s.rollEntryInitiative);
   const nextTurn = useAtlasStore((s) => s.nextTurn);
   const previousTurn = useAtlasStore((s) => s.previousTurn);
   const reorderInitiative = useAtlasStore((s) => s.reorderInitiative);
@@ -68,6 +69,7 @@ export const InitiativeTracker: React.FC = () => {
   const [editingEntry, setEditingEntry] = useState<InitiativeEntry | null>(null);
   const [editAnchorRect, setEditAnchorRect] = useState<DOMRect | null>(null);
   const [editValue, setEditValue] = useState<string>('');
+  const [editModifier, setEditModifier] = useState<string>('');
 
   const sideLabelId = useId();
 
@@ -130,13 +132,14 @@ export const InitiativeTracker: React.FC = () => {
   const handleContextMenu = useCallback(
     (e: React.MouseEvent, entry: InitiativeEntry, cardElement: HTMLElement): void => {
       const entries = initiativeCardMenu(entry, tokens[entry.tokenId], { bySides, fightRuns: initiative.isActive }, {
-        roll: () => rollEntryInitiative(entry.id, rules.roll),
+        roll: () => roll(entry.id),
         moveToFront: () => moveToFront(entry.id),
         moveToBack: () => moveToBack(entry.id),
         edit: () => {
           setEditingEntry(entry);
           setEditAnchorRect(cardElement.getBoundingClientRect());
           setEditValue(String(entry.initiative));
+          setEditModifier(modifierText(entry));
         },
         updateToken: (changes) => updateTokens([{ id: entry.tokenId, changes }]),
         setSitsOut: (sitsOut) => setInitiativeSitsOut(entry.id, sitsOut),
@@ -145,7 +148,7 @@ export const InitiativeTracker: React.FC = () => {
 
       openContextMenuGlobal(entries, { x: e.clientX, y: e.clientY });
     },
-    [tokens, bySides, initiative.isActive, rules.roll, rollEntryInitiative, moveToFront, moveToBack, removeFromInitiative, updateTokens, setInitiativeSitsOut]
+    [tokens, bySides, initiative.isActive, roll, moveToFront, moveToBack, removeFromInitiative, updateTokens, setInitiativeSitsOut]
   );
 
   // Hover handler for statblock preview (CMD+hover)
@@ -192,8 +195,8 @@ export const InitiativeTracker: React.FC = () => {
           <LabelTooltip label="Roll initiative">
             <button
               className="clickable-icon atlas-initiative-tracker__btn"
-              onClick={() => rollAllInitiative(rules.roll)}
-              disabled={sortedEntries.length === 0}
+              onClick={() => roll()}
+              disabled={sortedEntries.length === 0 || rolling}
             >
               <Dices />
             </button>
@@ -284,11 +287,10 @@ export const InitiativeTracker: React.FC = () => {
           anchorRect={editAnchorRect}
           value={editValue}
           onChange={setEditValue}
+          modifier={editModifier}
+          onModifierChange={setEditModifier}
           onConfirm={() => {
-            const parsed = parseInt(editValue, 10);
-            if (!isNaN(parsed)) {
-              updateInitiativeEntry(editingEntry.id, { initiative: parsed });
-            }
+            updateInitiativeEntry(editingEntry.id, initiativeEdit(editValue, editModifier));
             setEditingEntry(null);
             setEditAnchorRect(null);
           }}

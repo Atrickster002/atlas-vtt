@@ -307,50 +307,6 @@ $swatch: 24px;
   font-size: $font-ui-smaller;
 }
 
-.atlas-csm-resource-card__chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: $spacing-xs;
-  max-height: 56px;
-  overflow-y: auto;
-}
-
-.atlas-csm-field-chip {
-  appearance: none;
-  height: auto;
-  padding: 2px $spacing-s;
-  border: $border-width-s solid var(--background-modifier-border) !important;
-  border-radius: $radius-full !important;
-  // A capsule, not Obsidian's squircle
-  corner-shape: round;
-  background: none !important;
-  box-shadow: none !important;
-  color: var(--text-muted);
-  font-size: $font-ui-smaller;
-  cursor: pointer;
-  transition: color $transition-fast $transition-ease, border-color $transition-fast $transition-ease;
-
-  &.atlas-selected {
-    color: var(--text-normal);
-    border-color: var(--text-muted) !important;
-    background: var(--background-modifier-hover) !important;
-  }
-}
-
-// A template's name for the field comes first; the path a resource stores follows it
-.atlas-csm-field-chip__path {
-  margin-inline-start: $spacing-xs;
-  color: var(--text-faint);
-  font-family: var(--font-monospace);
-}
-
-@media (hover: hover) and (pointer: fine) {
-  .atlas-csm-field-chip:hover {
-    color: var(--text-normal);
-    border-color: var(--background-modifier-border-hover) !important;
-  }
-}
-
 @media (prefers-reduced-motion: reduce) {
   .atlas-csm-socket,
   .atlas-csm-socket__plus { transition: none; }

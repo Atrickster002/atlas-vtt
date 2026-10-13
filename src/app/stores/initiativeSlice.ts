@@ -8,6 +8,7 @@ import type { InitiativeState, InitiativeEntry, InitiativeConfig } from '../type
 import { createDefaultInitiativeState } from '../types/initiativeTypes';
 import type { InitiativeRules } from '../types/initiativeRulesTypes';
 import { DEFAULT_INITIATIVE_RULES } from '../gameSystems/initiativeRules';
+import { combatantModifier, ownModifier } from '../initiative/initiativeModifier';
 import { clearSittingOut, nextSideTurn, previousSideTurn, rollInitiativeDice } from '../initiative/turns';
 
 /**
@@ -24,9 +25,13 @@ export interface InitiativeSlice {
   addToInitiative: (entry: Omit<InitiativeEntry, 'id' | 'order' | 'isActive'>) => string;
   removeFromInitiative: (id: string) => void;
   updateInitiativeEntry: (id: string, updates: Partial<InitiativeEntry>) => void;
-  /** Rolls `roll` (the collection's initiative dice; a d20 when left out) for every combatant. */
-  rollAllInitiative: (roll?: string) => void;
-  rollEntryInitiative: (id: string, roll?: string) => void;
+  /**
+   * Rolls `roll` (the collection's initiative dice; a d20 when left out) for every combatant, adding
+   * each one's modifier (`combatantModifier`: its own, else its statblock's from `fromStatblocks`).
+   * A statblock's modifier counts for the roll only and is never written onto the entry.
+   */
+  rollAllInitiative: (roll?: string, fromStatblocks?: ReadonlyMap<string, number>) => void;
+  rollEntryInitiative: (id: string, roll?: string, fromStatblock?: number | null) => void;
   nextTurn: () => void;
   previousTurn: () => void;
   reorderInitiative: (fromIndex: number, toIndex: number) => void;
@@ -151,9 +156,9 @@ export function createInitiativeActions(
       }
     }),
 
-    rollAllInitiative: (roll = DEFAULT_ROLL) => {
+    rollAllInitiative: (roll = DEFAULT_ROLL, fromStatblocks) => {
       const totals = new Map(get().initiative.entries.map(entry => [
-        entry.id, rollInitiativeDice(roll, random) + entry.initiativeModifier,
+        entry.id, rollInitiativeDice(roll, random) + combatantModifier(ownModifier(entry), fromStatblocks?.get(entry.id)),
       ]));
       set((draft) => {
         for (const entry of draft.initiative.entries) {
@@ -167,10 +172,10 @@ export function createInitiativeActions(
       });
     },
 
-    rollEntryInitiative: (id, roll = DEFAULT_ROLL) => {
+    rollEntryInitiative: (id, roll = DEFAULT_ROLL, fromStatblock) => {
       const entry = get().initiative.entries.find(e => e.id === id);
       if (!entry) return;
-      const total = rollInitiativeDice(roll, random) + entry.initiativeModifier;
+      const total = rollInitiativeDice(roll, random) + combatantModifier(ownModifier(entry), fromStatblock);
       set((draft) => {
         const current = draft.initiative.entries.find(e => e.id === id);
         if (current) current.initiative = total;
