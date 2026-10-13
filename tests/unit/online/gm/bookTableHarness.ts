@@ -10,7 +10,8 @@ import { app, atlasTab, FakeSocket, png, present, workspace, type FakeTab } from
 import { fakeTokenSource } from './fakeTokenSource.ts';
 import { advanceSettled } from './settled.ts';
 import { sceneState } from './shareHarness.ts';
-import { setWorldMapGate } from '../../../../src/app/online/gm/book/worldMapGate.ts';
+import { setWorldMapGate, type WorldMapTree } from '../../../../src/app/online/gm/book/worldMapGate.ts';
+import { NO_STRETCH } from '../../../../src/app/grid/mapStretch';
 
 /*
  * A running table with two heroes in a cave of the collection `Cairn`, for tests of the players'
@@ -94,6 +95,8 @@ export function vaultFiles(): Map<string, Uint8Array> {
 
 /** The image the world map of the campaign being played names; null while none is played or it names none. */
 let named: string | null = WORLD_MAP;
+/** The maps the world map leads into, where a test names them (`nameWorldMapTree`). */
+let tree: WorldMapTree | null = null;
 const worldMapListeners = new Set<() => void>();
 
 /**
@@ -102,7 +105,20 @@ const worldMapListeners = new Set<() => void>();
  */
 export function nameWorldMap(path: string | null): void {
   named = path;
+  tree = null;
   for (const listener of [...worldMapListeners]) listener();
+}
+
+/** The campaign being played names a world map whose pins lead into other maps. */
+export function nameWorldMapTree(next: WorldMapTree): void {
+  tree = next;
+  for (const listener of [...worldMapListeners]) listener();
+}
+
+/** The world map as Atlas answers, in short: an image under a maps folder is the artwork of the map the campaign names, anything else in the vault is not. */
+function answer(): WorldMapTree | null {
+  if (tree !== null) return tree;
+  return named?.includes('maps/') === true ? { root: 'world', levels: [{ key: 'world', title: 'World', image: named, stretch: NO_STRETCH, entrances: [] }] } : null;
 }
 
 export interface OpenTable {
@@ -121,9 +137,9 @@ export interface OpenTable {
 export async function openTable(shelf: BookShelf, players: readonly PlayerInfo[], owners: Readonly<Record<string, string>> = { [BRANNOCH]: ANA, [MIRA]: BEN }): Promise<OpenTable> {
   workspace.files = vaultFiles();
   named = WORLD_MAP;
+  tree = null;
   setWorldMapGate({
-    // As Atlas answers, in short: an image under a maps folder is the artwork of the map the campaign names, anything else in the vault is not.
-    worldMap: () => Promise.resolve(named?.includes('maps/') === true ? named : null),
+    worldMap: () => Promise.resolve(answer()),
     onChange: (listener) => {
       worldMapListeners.add(listener);
       return () => void worldMapListeners.delete(listener);

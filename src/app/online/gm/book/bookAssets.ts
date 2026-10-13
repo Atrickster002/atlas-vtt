@@ -2,7 +2,7 @@ import type { BookQuest } from '../../protocol/index.ts';
 import type { PictureAssets } from '../assetAnswers.ts';
 import type { PlayedCharacter } from './characters.ts';
 import type { QuestAsset } from './questGate.ts';
-import type { WorldMapFile } from './worldMap.ts';
+import type { WorldMapFile } from './worldMapLevels.ts';
 
 /** What one player's book names that they may fetch by hash. */
 export interface NamedAssets {
@@ -22,11 +22,13 @@ function questAssetOf(hash: string, quests: readonly BookQuest[], served: (hash:
 }
 
 /**
- * What an asset only this player's book names is served from, by hash: the world map, their own
- * character's artwork, or the whole text or an image of a quest they were sent. Nothing else.
+ * What an asset only this player's book names is served from, by hash: the world map or a map it
+ * leads into, their own character's artwork, or the whole text or an image of a quest they were
+ * sent. Nothing else.
  */
 export function bookAssetOf(hash: string, named: NamedAssets, served: (hash: string) => QuestAsset | undefined): QuestAsset | undefined {
-  if (named.worldMap?.map.image.hash === hash) return { path: named.worldMap.path };
+  const map = named.worldMap?.paths.get(hash);
+  if (map !== undefined) return { path: map };
   if (named.character !== null && named.character.sheet.art?.hash === hash) return { path: named.character.key };
   return questAssetOf(hash, named.quests, served);
 }

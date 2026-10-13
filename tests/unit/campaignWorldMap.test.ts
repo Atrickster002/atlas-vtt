@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { App } from 'obsidian';
 import { CampaignPlay } from '../../src/app/campaigns/campaignPlay';
 import type { StoredCampaign } from '../../src/app/campaigns/campaignTypes';
+import type { WorldMapTree } from '../../src/app/online/gm/book/worldMapGate';
 import { campaignWorldMapGate } from '../../src/app/plugin/campaignWorldMapGate';
 import { AssetService, type Asset } from '../../src/app/services/AssetService';
 import { createInMemoryApp } from '../mocks/inMemoryVault';
@@ -34,6 +35,7 @@ interface Setup {
   readonly play: CampaignPlay;
   readonly campaigns: ReturnType<typeof memoryCampaigns>;
   readonly worldMap: () => Promise<string | null>;
+  readonly tree: () => Promise<WorldMapTree | null>;
 }
 
 function setup(initial: readonly StoredCampaign[]): Setup {
@@ -44,11 +46,14 @@ function setup(initial: readonly StoredCampaign[]): Setup {
   } });
   // Looked up as the index does: a plain record, where `constructor` names no asset of its own.
   const index: Record<string, Asset> = Object.fromEntries(ASSETS.map((asset) => [asset.id, asset]));
-  vi.spyOn(AssetService, 'getInstance').mockReturnValue({ getAssetById: async (id: string) => index[id] || null } as unknown as AssetService);
+  vi.spyOn(AssetService, 'getInstance').mockReturnValue({
+    getAssetById: async (id: string) => index[id] || null,
+    getAssets: async (_collection: string | undefined, type: string) => ASSETS.filter((asset) => asset.type === type),
+  } as unknown as AssetService);
   const campaigns = memoryCampaigns(initial);
   const play = CampaignPlay.forApp(app);
   const gate = campaignWorldMapGate(app, () => play, () => campaigns);
-  return { app, play, campaigns, worldMap: () => gate.worldMap() };
+  return { app, play, campaigns, worldMap: async () => (await gate.worldMap())?.levels[0]?.image ?? null, tree: () => gate.worldMap() };
 }
 
 afterEach(() => { vi.restoreAllMocks(); });

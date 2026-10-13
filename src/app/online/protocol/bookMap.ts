@@ -35,9 +35,11 @@ export interface MapPlace {
   readonly y: number;
 }
 
-/** A player's own pin on the world map. */
+/** A player's own pin on the world map, or on a map it leads into. */
 export interface BookPin extends MapPlace {
   readonly id: string;
+  /** The map it stands on (`BookNestedMap.id`); none for the world map itself. */
+  readonly map?: string;
   readonly kind: PinKind;
   readonly title: string;
   readonly body: string;
@@ -79,7 +81,8 @@ export function parseBookPin(value: unknown): BookPin | null {
   const kind = pinKind(value.kind);
   const title = bookLine(value.title, MAX_MAP_TITLE, true);
   const body = bookText(value.body, MAX_PIN_BODY);
-  return kind === null || title === null || body === null ? null : { id: value.id, x: value.x, y: value.y, kind, title, body };
+  if (kind === null || title === null || body === null || (value.map !== undefined && (typeof value.map !== 'string' || !ID.test(value.map)))) return null;
+  return { id: value.id, ...(value.map !== undefined && { map: value.map }), x: value.x, y: value.y, kind, title, body };
 }
 
 function parsePlace(value: unknown): MapPlace | null | undefined {

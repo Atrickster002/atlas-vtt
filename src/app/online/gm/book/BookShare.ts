@@ -20,7 +20,7 @@ import type { QuestAsset } from './questGate.ts';
 import { checkResourceEdit, type ResourceEdit } from './resourceEdit.ts';
 import type { ResourceAnswer } from './resourceWrites.ts';
 import { NO_QUESTS, sentOf, type SentBook } from './sentBook.ts';
-import { WorldMaps, type FileStat, type WorldMapFile } from './worldMap.ts';
+import { WorldMaps, type FileStat, type WorldMapFile, type WorldMapTree } from './worldMap.ts';
 
 export interface BookSharePorts extends Timers {
   send(body: GmMessage, to: string): void;
@@ -36,8 +36,8 @@ export interface BookSharePorts extends Timers {
   readImage(path: string): Promise<VaultImage | null>;
   /** The file at a vault path as it is now, or null when there is none. */
   stat(path: string): FileStat | null;
-  /** The vault path of the image players may be shown as the world map now, or null for none. */
-  worldMap(): Promise<string | null>;
+  /** The world map players may be shown now with the maps it leads into, or null for none. */
+  worldMap(): Promise<WorldMapTree | null>;
   /** The quests of the campaign being played, as players read them: the same for every character. */
   quests(): Promise<readonly BookQuest[]>;
   /** What a quest's whole text or image is served from, by hash, while the quests last answered name it. */

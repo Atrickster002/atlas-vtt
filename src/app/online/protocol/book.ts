@@ -1,5 +1,6 @@
 import { isSide, parseAsset, type AssetRef } from './asset.ts';
 import { parseBookCharacter, parseBookResourceMessage, type BookCharacter, type BookResourceMessage } from './bookCharacter.ts';
+import { isMapId, parseNestedMaps, rootEntrances, type BookNestedMap, type MapEntrance } from './bookLevels.ts';
 import { MAX_BOOK_PINS, MAX_BOOK_QUESTS, parseBookPin, parseBookQuest, type BookPin, type BookQuest } from './bookMap.ts';
 import { DEFAULT_BOOK_SLOTS, parseBookSlots, parseEquipped, parseSlotMessage, settledEquipped, type BookSlots, type Equipped, type SlotMessage } from './bookSlots.ts';
 import { bookLine, bookText, MAX_BOOK_TITLE } from './bookText.ts';
@@ -7,6 +8,7 @@ import { isRecord } from './shape.ts';
 import { MAX_TOKEN_VALUE } from './tokenUI.ts';
 
 export * from './bookCharacter.ts';
+export * from './bookLevels.ts';
 export * from './bookMap.ts';
 export * from './questText.ts';
 
@@ -58,11 +60,19 @@ export interface PurseRow {
   readonly amount: number;
 }
 
-/** The campaign's world map: an image by hash and its own size in pixels. It never names its file. */
+/**
+ * The campaign's world map: an image by hash and its own size in pixels. It never names its file. Its
+ * entrances lead into the maps the GM's pins open, and theirs further (`maps`, each once however
+ * often it is entered); an older GM names neither.
+ */
 export interface BookWorldMap {
   readonly image: AssetRef;
   readonly width: number;
   readonly height: number;
+  /** Its id, where an entrance leads back to it. */
+  readonly id?: string;
+  readonly entrances?: readonly MapEntrance[];
+  readonly maps?: readonly BookNestedMap[];
 }
 
 /** Everything one player's pages besides the table show. Without a character only the world map is there. */
@@ -176,7 +186,11 @@ function parseWorldMap(value: unknown): BookWorldMap | null | undefined {
   if (value === null) return null;
   if (!isRecord(value) || !isSide(value.width) || !isSide(value.height)) return undefined;
   const image = parseAsset(value.image);
-  return image === null ? undefined : { image, width: value.width, height: value.height };
+  const id = isMapId(value.id) ? value.id : undefined;
+  const maps = parseNestedMaps(value.maps, id);
+  const entrances = maps === null ? null : rootEntrances(value.entrances, maps);
+  if (image === null || maps === null || entrances === null) return undefined;
+  return { image, width: value.width, height: value.height, ...(id !== undefined && { id }), ...(entrances.length > 0 && { entrances }), ...(maps.length > 0 && { maps }) };
 }
 
 /**

@@ -9,14 +9,14 @@ import { sceneThumbnailPath } from './collectionBundle/collectionReferences';
  * The artwork of a map or scene that can be a world map: the map's image, or the background a
  * scene's file shows. A scene without one has none: its thumbnail is a small picture Atlas makes anew.
  */
-async function worldMapArtwork(app: App, asset: Asset): Promise<string | null> {
+export async function worldMapArtwork(app: App, asset: Asset): Promise<string | null> {
   const thumbnail = asset.type === 'scene' && asset.data?.mapPath ? sceneThumbnailPath(asset.data.mapPath) : null;
   const [candidate] = await coverCandidates(app, [asset]);
   return candidate === undefined || candidate.sourcePath === thumbnail ? null : candidate.sourcePath;
 }
 
 /** Whether a vault path lies in Atlas's own folders for a collection: its folder, or the images its maps share. */
-function inAtlasFolders(path: string, collectionId: string): boolean {
+export function inAtlasFolders(path: string, collectionId: string): boolean {
   if (path.split('/').some((part) => part === '..' || part === '.' || part === '')) return false;
   return path.startsWith(`${collectionFolderPath(collectionId)}/`) || path.startsWith(`${GLOBAL_ASSETS_DIR}/`);
 }

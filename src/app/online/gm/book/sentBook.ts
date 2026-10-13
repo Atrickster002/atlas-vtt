@@ -1,6 +1,6 @@
 import type { BookQuest } from '../../protocol/index.ts';
 import type { PlayedCharacter } from './characters.ts';
-import type { WorldMapFile } from './worldMap.ts';
+import type { WorldMapFile } from './worldMapLevels.ts';
 
 /** What one player was last sent of their book, to compare with what they would be sent now. */
 export interface SentBook {

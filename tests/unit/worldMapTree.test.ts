@@ -1,0 +1,109 @@
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import type { App } from 'obsidian';
+import { CampaignPlay } from '../../src/app/campaigns/campaignPlay';
+import { campaignWorldMapGate } from '../../src/app/plugin/campaignWorldMapGate';
+import { AssetService, type Asset } from '../../src/app/services/AssetService';
+import { worldMapTree } from '../../src/app/services/worldMapTree';
+import { createInMemoryApp, type InMemoryApp } from '../mocks/inMemoryVault';
+import { memoryCampaigns } from '../mocks/memoryCampaigns';
+
+const SCENES = 'atlas-vtt/collections/dungeon/scenes';
+const ART = 'atlas-vtt/collections/dungeon/art';
+const path = (name: string): string => `${SCENES}/${name}.atlasmap`;
+
+interface Pin {
+  readonly x: number;
+  readonly y: number;
+  readonly notePath: string;
+  readonly gmOnly?: boolean;
+}
+
+const sceneFile = (background: string | null, pins: readonly Pin[] = [], grid: object | null = null): string => JSON.stringify({
+  version: 4,
+  state: { schema: 'atlas-vtt', version: 4, background, grid, objects: { tokens: {}, fog: {}, pins: Object.fromEntries(pins.map((pin, index) => [`pin-${index}`, { id: `pin-${index}`, kind: 'pin', ...pin }])) } },
+});
+
+const scene = (id: string, name: string): Asset => ({ id, type: 'scene', name, collection: 'dungeon', tags: [], data: { mapPath: path(name) } }) as unknown as Asset;
+const ASSETS = [
+  scene('world', 'World'), scene('town', 'Town'), scene('house', 'House'), scene('secret', 'Secret'), scene('bare', 'Bare'),
+  { id: 'region', type: 'map', name: 'Region', collection: 'dungeon', tags: [], mapFilePath: 'atlas-vtt/assets/region.webp' } as unknown as Asset,
+];
+
+function vault(): App {
+  return vaultWithEvents().app;
+}
+
+function vaultWithEvents(): InMemoryApp {
+  const memory = createInMemoryApp({ files: {
+    [`${ART}/world.webp`]: 'IMG', [`${ART}/town.webp`]: 'IMG', [`${ART}/house.webp`]: 'IMG', [`${ART}/secret.webp`]: 'IMG', 'atlas-vtt/assets/region.webp': 'IMG',
+    [path('World')]: sceneFile(`${ART}/world.webp`, [
+      { x: 100, y: 50, notePath: path('Town') },
+      { x: 10, y: 10, notePath: path('Secret'), gmOnly: true },
+      { x: 20, y: 20, notePath: 'Notes/Lore.md' },
+      // A link made into another collection before such links were refused opens the scene at the same place in this one.
+      { x: 30, y: 30, notePath: 'atlas-vtt/collections/other/scenes/Town.atlasmap#Night' },
+      { x: 40, y: 40, notePath: path('Gone') },
+      { x: 50, y: 50, notePath: path('World') },
+    ], { type: 'square', size: 70, offsetX: 0, offsetY: 0, mapStretch: { x: 1.2, y: 1 } }),
+    [path('Town')]: sceneFile(`${ART}/town.webp`, [{ x: 5, y: 6, notePath: path('House') }, { x: 7, y: 8, notePath: path('World') }]),
+    [path('House')]: sceneFile(`${ART}/house.webp`, [{ x: 1, y: 2, notePath: path('Bare') }]),
+    [path('Secret')]: sceneFile(`${ART}/secret.webp`),
+    [path('Bare')]: sceneFile(null),
+  } });
+  const index: Record<string, Asset> = Object.fromEntries(ASSETS.map((asset) => [asset.id, asset]));
+  vi.spyOn(AssetService, 'getInstance').mockReturnValue({
+    getAssetById: async (id: string) => index[id] || null,
+    getAssets: async (_collection: string | undefined, type: string) => ASSETS.filter((asset) => asset.type === type),
+  } as unknown as AssetService);
+  return memory;
+}
+
+afterEach(() => { vi.restoreAllMocks(); });
+
+describe('the maps a world map leads into', () => {
+  it('follow the scene links of the pins players may see, each scene once, nearest first, as far as they go', async () => {
+    const read = await worldMapTree(vault(), 'world', 32);
+    expect(read?.tree.root).toBe('world');
+    expect(read?.tree.levels.map((level) => [level.key, level.title, level.image])).toEqual([
+      ['world', 'World', `${ART}/world.webp`],
+      ['town', 'Town', `${ART}/town.webp`],
+      ['house', 'House', `${ART}/house.webp`],
+    ]);
+    const [world, town, house] = read?.tree.levels ?? [];
+    // The GM's hidden pin, a note, a scene that is gone and the map itself lead nowhere.
+    expect(world?.entrances).toEqual([{ x: 100, y: 50, to: 'town' }, { x: 30, y: 30, to: 'town' }]);
+    expect(world?.stretch).toEqual({ x: 1.2, y: 1 });
+    // A pin back to the world map is an entrance as well: the page leads back along the path.
+    expect(town?.entrances).toEqual([{ x: 5, y: 6, to: 'house' }, { x: 7, y: 8, to: 'world' }]);
+    // A scene without a background has no image to show: it is left out, the pin into it stays for the page to drop.
+    expect(house?.entrances).toEqual([{ x: 1, y: 2, to: 'bare' }]);
+    expect(read?.scenePaths).toEqual([path('World'), path('Town'), path('House'), path('Bare')]);
+  });
+
+  it('stop at the limit, and a plain map is a world map without entrances', async () => {
+    const app = vault();
+    expect((await worldMapTree(app, 'world', 1))?.tree.levels.map((level) => level.key)).toEqual(['world', 'town']);
+    expect((await worldMapTree(app, 'region', 32))?.tree).toEqual({ root: 'region', levels: [{ key: 'region', title: 'Region', image: 'atlas-vtt/assets/region.webp', stretch: { x: 1, y: 1 }, entrances: [] }] });
+    expect(await worldMapTree(app, 'bare', 32)).toBeNull();
+    expect(await worldMapTree(app, 'gone', 32)).toBeNull();
+  });
+
+  it('may be others once one of their scenes is saved, and not for any other file', async () => {
+    const { app, emit } = vaultWithEvents();
+    const play = CampaignPlay.forApp(app);
+    const campaigns = memoryCampaigns([{ id: 'one', name: 'one', createdAt: 1, worldMap: 'world' }]);
+    play.play('one');
+    const gate = campaignWorldMapGate(app, () => play, () => campaigns);
+    const heard = vi.fn();
+    const stop = gate.onChange(heard);
+    await gate.worldMap();
+    emit('modify', { path: path('Secret') });
+    expect(heard).not.toHaveBeenCalled();
+    emit('modify', { path: path('Town') });
+    emit('rename', { path: `${SCENES}/Town 2.atlasmap` }, path('House'));
+    expect(heard).toHaveBeenCalledTimes(2);
+    stop();
+    emit('modify', { path: path('Town') });
+    expect(heard).toHaveBeenCalledTimes(2);
+  });
+});

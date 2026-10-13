@@ -1,0 +1,74 @@
+import { IMAGE_MIME_TYPES, isSide, MAX_ASSET_BYTES, type AssetRef } from '../../protocol/index.ts';
+import { imageDimensions } from '../../../imageProcessing/imageDimensions';
+import { sha256Hex } from '../assetServe.ts';
+import type { VaultImage } from '../TokenShare.ts';
+
+/** A vault file as it is now: when it was last written and how large it is. */
+export interface FileStat {
+  readonly mtime: number;
+  readonly size: number;
+}
+
+/** An image as players are sent it: by hash, with its size in pixels. */
+export interface MapImage {
+  readonly image: AssetRef;
+  readonly width: number;
+  readonly height: number;
+}
+
+export interface MapImagePorts {
+  /** The file at a vault path as it is now, or null when there is none. */
+  stat(path: string): FileStat | null;
+  /** The image at a vault path, or null when it is missing or of a type players cannot be sent. */
+  readImage(path: string): Promise<VaultImage | null>;
+  /** An image that was being read is known now. */
+  read(): void;
+}
+
+/**
+ * The images of the world map and the maps it leads into, each read from its bytes once and kept
+ * while its file stays as it is (its path, time and size). A file that is missing, unreadable, too
+ * large or of a type players cannot be sent is no image.
+ */
+export class MapImages {
+  private readonly ports: MapImagePorts;
+  /** Each path asked for, by its time and size, with what it is; `reading` until that is known. */
+  private readonly known = new Map<string, { readonly key: string; readonly image: MapImage | null | 'reading' }>();
+
+  constructor(ports: MapImagePorts) {
+    this.ports = ports;
+  }
+
+  /** The image at a path: null for none, undefined while it is being read (`read` hears when it has been). */
+  get(path: string): MapImage | null | undefined {
+    const stat = this.ports.stat(path);
+    if (stat === null || stat.size > MAX_ASSET_BYTES) return null;
+    const key = `${stat.mtime}\n${stat.size}`;
+    const last = this.known.get(path);
+    if (last?.key === key) return last.image === 'reading' ? undefined : last.image;
+    this.known.set(path, { key, image: 'reading' });
+    void this.load(path).then((image) => {
+      if (this.known.get(path)?.key !== key) return;
+      this.known.set(path, { key, image });
+      this.ports.read();
+    });
+    return undefined;
+  }
+
+  /** Forgets every image but those at `paths`: the maps players may be shown now. */
+  keepOnly(paths: ReadonlySet<string>): void {
+    for (const path of [...this.known.keys()]) if (!paths.has(path)) this.known.delete(path);
+  }
+
+  private async load(path: string): Promise<MapImage | null> {
+    try {
+      const image = await this.ports.readImage(path);
+      if (image === null || image.bytes.length > MAX_ASSET_BYTES || !IMAGE_MIME_TYPES.includes(image.mime)) return null;
+      const size = await imageDimensions(new Blob([image.bytes], { type: image.mime }));
+      if (size === null || !isSide(size.width) || !isSide(size.height)) return null;
+      return { image: { hash: await sha256Hex(image.bytes), size: image.bytes.length, mime: image.mime }, width: size.width, height: size.height };
+    } catch {
+      return null;
+    }
+  }
+}
