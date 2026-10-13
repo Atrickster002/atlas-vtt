@@ -1,10 +1,13 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { createViewAtlasStore, type ViewAtlasStore } from '../../../src/app/storeFactory';
 import { getHistoryStore } from '../../../src/app/stores/history';
 import type { SceneLevel } from '../../../src/app/types/sceneLevelTypes';
 import type { FogOperation } from '../../../src/app/types/fogTypes';
 import type { DrawingStroke } from '../../../src/app/types';
 import { createInMemoryApp } from '../../mocks/inMemoryVault';
+import { WallInteraction } from '../../../src/app/pixi/vision/WallInteraction';
+import type { WallRenderer } from '../../../src/app/pixi/vision/WallRenderer';
+import type { WallSegment } from '../../../src/app/types/wallTypes';
 
 const LEVELS: SceneLevel[] = [
   { id: 'ground', name: 'Ground', elevation: { bottom: 0, top: 10 }, background: null },
@@ -50,5 +53,24 @@ describe('clearing a floor', () => {
     store.getState().clearFog();
 
     expect(store.getState().objects.fog).toEqual({});
+  });
+});
+
+describe('walls selected on a floor the GM left', () => {
+  const wall = (id: string, levels: WallSegment['levels']): WallSegment => ({ id, kind: 'wall', type: 'solid', p1: { x: 0, y: 0 }, p2: { x: 10, y: 0 }, levels });
+
+  it('are let go of, so Delete and the wall menu never reach a floor nobody sees', () => {
+    const store = twoFloorStore('upper');
+    store.setState({ objects: { ...store.getState().objects, walls: { up: wall('up', ['upper']), tower: wall('tower', 'all') } } });
+    const renderer = { setSelectedWalls: vi.fn(), forceRedraw: vi.fn() } as unknown as WallRenderer;
+    const interaction = new WallInteraction(store, renderer);
+    interaction.selectWallChain('up', false);
+    interaction.selectWallChain('tower', true);
+
+    store.getState().setViewedLevel('ground');
+    expect(interaction.getSelectedWallIds()).toEqual(['tower']);
+    interaction.deleteSelected();
+
+    expect(Object.keys(store.getState().objects.walls)).toEqual(['up']);
   });
 });
