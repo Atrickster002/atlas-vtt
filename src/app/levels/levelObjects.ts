@@ -90,3 +90,12 @@ export function levelObjects<O extends ObjectsByKind>(state: LevelObjectsState<O
   // The same kinds as `objects`, each filtered: the shape the caller handed in
   return result as O;
 }
+
+/**
+ * Every level's objects, for what applies to the whole scene and not to what a view shows: a
+ * statblock edit reaching every linked token, a transform that hands the scene on to readers of
+ * `levelObjects`. Never for drawing, hit-testing, sight or selection.
+ */
+export function everyLevelObjects<O extends ObjectsByKind>(state: { objects: O }): O {
+  return state.objects;
+}
