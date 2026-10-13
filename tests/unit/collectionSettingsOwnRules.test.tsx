@@ -163,7 +163,7 @@ describe('the collection settings modal and the initiative rules', () => {
     type('1d10 ');
     expect(rollField().value).toBe('1d10 ');
     await save();
-    expect(saved()?.initiative).toEqual({ mode: 'turn-order', roll: '1d10', firstSide: 'players' });
+    expect(saved()?.initiative).toEqual({ mode: 'turn-order', roll: '1d10', firstSide: 'players', modifierField: 'initiative' });
   });
 
   it('stores nothing once the rules are the game system\'s again', async () => {

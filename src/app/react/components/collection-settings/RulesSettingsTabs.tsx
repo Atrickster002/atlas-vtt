@@ -56,6 +56,8 @@ interface RulesSettingsTabsProps {
   lightingOn: boolean;
   /** The statblock fields the Resources tab offers as chips (`resourceFieldSuggestions`). */
   fieldSuggestions: readonly FieldSuggestion[];
+  /** The statblock fields the initiative modifier is offered (`initiativeFieldSuggestions`). */
+  initiativeFieldSuggestions: readonly FieldSuggestion[];
   /** The content of a tab that is not one of the rules', such as a collection's loot. */
   renderOther?: (tab: SettingsTab) => React.ReactNode;
 }
@@ -66,7 +68,7 @@ interface RulesSettingsTabsProps {
  * kept; any other tab is the caller's (`renderOther`).
  */
 export function RulesSettingsTabs({
-  tabs, activeTab, onTabChange, draft, view, presets, diceSets, onDeletePreset, none, lightingOn, fieldSuggestions, renderOther,
+  tabs, activeTab, onTabChange, draft, view, presets, diceSets, onDeletePreset, none, lightingOn, fieldSuggestions, initiativeFieldSuggestions, renderOther,
 }: RulesSettingsTabsProps): React.ReactElement {
   const shown = tabs.filter((tab) => tab !== 'vision' || lightingOn);
 
@@ -110,7 +112,7 @@ export function RulesSettingsTabs({
       case 'resources':
         return <ResourcesTab resources={draft.resources} onChange={draft.setResources} fieldSuggestions={fieldSuggestions} />;
       case 'initiative':
-        return <InitiativeFields initiative={view.initiative} onChange={initiativeEdit(draft, view)} />;
+        return <InitiativeFields initiative={view.initiative} onChange={initiativeEdit(draft, view)} fieldSuggestions={initiativeFieldSuggestions} />;
       default:
         return renderOther?.(activeTab);
     }

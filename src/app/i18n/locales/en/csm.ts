@@ -82,6 +82,7 @@ export const csm = {
   'csm.system.group': 'Game system',
   'csm.system.intro': 'A game system sets how the ruler measures distance and which conditions tokens can have. Presets are shared by every collection in this vault.',
   'csm.system.presetName': 'Preset name',
+  'csm.statblockFieldChips': 'Fields in this collection\'s statblocks',
   'csm.system.resetTo': 'Reset to {name}',
   'csm.system.saveAs': 'Save as Preset',
   'csm.system.saveChanges': 'Save changes to preset',

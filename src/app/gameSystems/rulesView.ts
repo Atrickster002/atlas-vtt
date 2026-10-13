@@ -39,7 +39,8 @@ export interface RulesView {
 
 /** Whether what was typed is the system's rules to the letter; a roll with a space or another case is kept as typed. */
 export function isSameAsTyped(typed: InitiativeRules, system: InitiativeRules): boolean {
-  return typed.mode === system.mode && typed.firstSide === system.firstSide && typed.roll === system.roll;
+  return typed.mode === system.mode && typed.firstSide === system.firstSide && typed.roll === system.roll
+    && (typed.modifierField ?? '') === (system.modifierField ?? '');
 }
 
 /** Rules as a dialog holds them: every part may be unset, or given as undefined. */

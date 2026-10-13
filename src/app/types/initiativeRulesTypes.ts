@@ -12,6 +12,11 @@ export interface InitiativeRules {
   mode: InitiativeMode;
   /** Turn order: the dice a combatant rolls, one group `NdS` such as `1d20`. */
   roll: string;
+  /**
+   * Turn order: the statblock field (dotted path, as a resource names its field) whose number is
+   * added to a combatant's roll. Unset reads the field the statblock's template means as initiative.
+   */
+  modifierField?: string;
   /** Sides: the side that acts first in every round. */
   firstSide: InitiativeSide;
 }

@@ -68,3 +68,25 @@ describe('initiative roll inputs', () => {
     expect(random).not.toHaveBeenCalled();
   });
 });
+
+describe('initiative rolls with statblock modifiers', () => {
+  it('adds the statblock\'s modifier where the entry has none of its own, and keeps a hand-set one', () => {
+    const { actions, get } = setup([entry('own', 2), entry('linked'), entry('plain')], [0.5]);
+    actions.setInitiativeConfig({ autoSort: false });
+    actions.rollAllInitiative('1d20', new Map([['own', 9], ['linked', 5]]));
+    expect(get().initiative.entries.map(e => [e.id, e.initiative])).toEqual([['own', 13], ['linked', 16], ['plain', 11]]);
+  });
+
+  it('rolls one entry with its statblock\'s modifier, and keeps its own where the statblock gives none', () => {
+    const { actions, get } = setup([entry('linked'), entry('own', -1)], [0.5]);
+    actions.rollEntryInitiative('linked', '1d20', 4);
+    actions.rollEntryInitiative('own', '1d20', null);
+    expect(get().initiative.entries.map(e => [e.id, e.initiative])).toEqual([['linked', 15], ['own', 10]]);
+  });
+
+  it('never writes the statblock\'s modifier onto the entry', () => {
+    const { actions, get } = setup([entry('linked')], [0.5]);
+    actions.rollAllInitiative('1d20', new Map([['linked', 5]]));
+    expect(get().initiative.entries[0]!.initiativeModifier).toBe(0);
+  });
+});

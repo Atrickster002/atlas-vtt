@@ -22,6 +22,8 @@ export const DND_5E: SystemPreset = {
     },
     dice: { defaultRoll: '1d20', crit: 'natural' },
     diceSetId: D20_DICE_SET_ID,
+    // Its statblock template's Initiative field is added to the d20.
+    initiative: { mode: 'turn-order', roll: '1d20', firstSide: 'players', modifierField: 'initiative' },
     conditions: conditionsOf('dnd5e', [
       { name: 'Blinded', color: '#475569', icon: 'blindfold', effect: 'blinded' },
       { name: 'Charmed', color: '#db2777', icon: 'heart' },

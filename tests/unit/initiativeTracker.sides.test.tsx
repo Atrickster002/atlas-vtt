@@ -1,5 +1,5 @@
 import React from 'react';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { InitiativeEntry, InitiativeState } from '../../src/app/types/initiativeTypes';
 import type { InitiativeRules } from '../../src/app/types/initiativeRulesTypes';
@@ -38,6 +38,7 @@ vi.mock('../../src/app/react/root/ContextMenuContext', () => ({
 vi.mock('../../src/app/react/root/AtlasUIContext', () => ({ useAtlasUI: () => ({ app: null, view: null }) }));
 vi.mock('../../src/app/react/ViewStoreContext', () => ({
   useAtlasStore: (selector: (storeState: typeof state) => unknown) => selector(state),
+  useViewStoreHook: () => ({ getState: () => state }),
 }));
 vi.mock('../../src/app/resources/useMapResources', () => ({ useMapResources: () => [] }));
 vi.mock('../../src/app/pixi/utils/tokenHighlight', () => ({ zoomToTokenWithHighlight: vi.fn() }));
@@ -174,17 +175,17 @@ describe('the initiative tracker of a collection that fights by sides', () => {
 describe('the initiative tracker in turn order', () => {
   beforeEach(() => { collection.rules = { mode: 'turn-order', roll: '1d10', firstSide: 'players' }; });
 
-  it('lists the combatants in one order with their numbers and rolls the collection\'s dice', () => {
+  it('lists the combatants in one order with their numbers and rolls the collection\'s dice', async () => {
     const { container } = render(<InitiativeTracker />);
 
     expect(groups(container)).toEqual([]);
     expect(container.querySelectorAll('.atlas-initiative-card__initiative')).toHaveLength(4);
     fireEvent.click(screen.getByRole('button', { name: 'Roll initiative' }));
-    expect(state.rollAllInitiative).toHaveBeenCalledWith('1d10');
+    await waitFor(() => expect(state.rollAllInitiative).toHaveBeenCalledWith('1d10', new Map()));
     expect(menuOf(container, 0)).toEqual(expect.arrayContaining(['Roll Initiative', 'Edit Initiative']));
     expect(menuOf(container, 0)).not.toContain('Move to Players');
     clickItem('Roll Initiative');
-    expect(state.rollEntryInitiative).toHaveBeenCalledWith('entry-goblin', '1d10');
+    await waitFor(() => expect(state.rollEntryInitiative).toHaveBeenCalledWith('entry-goblin', '1d10', null));
   });
 });
 

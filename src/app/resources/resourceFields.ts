@@ -74,17 +74,17 @@ export function parseResourceValue(value: unknown, spent = false): ResourceValue
   return max === null ? null : { current: spent ? 0 : max, max };
 }
 
-/** How deep `discoverResourceFields` looks: a field, a list entry (`stats.0`), a record inside a record. */
+/** How deep `discoverFields` looks: a field, a list entry (`stats.0`), a record inside a record. */
 const DISCOVERY_DEPTH = 2;
 
 /**
- * The fields of the given statblocks that hold a quantity, as paths a resource definition can
+ * The fields of the given statblocks whose values `accepts`, as dotted paths a setting can
  * name. Fields that identify or render a statblock (`mtime`, `columns`) are left out.
  */
-export function discoverResourceFields(records: readonly Readonly<Record<string, unknown>>[]): string[] {
+export function discoverFields(records: readonly Readonly<Record<string, unknown>>[], accepts: (value: unknown) => boolean): string[] {
   const found = new Set<string>();
   const visit = (value: unknown, path: string, depth: number): void => {
-    if (path && parseResourceValue(value)) found.add(path);
+    if (path && accepts(value)) found.add(path);
     if (depth >= DISCOVERY_DEPTH) return;
     if (Array.isArray(value)) {
       value.forEach((item, index) => visit(item, path ? `${path}.${index}` : String(index), depth + 1));
@@ -96,4 +96,9 @@ export function discoverResourceFields(records: readonly Readonly<Record<string,
   };
   for (const record of records) visit(record, '', 0);
   return [...found].sort();
+}
+
+/** The fields of the given statblocks that hold a quantity, as paths a resource definition can name. */
+export function discoverResourceFields(records: readonly Readonly<Record<string, unknown>>[]): string[] {
+  return discoverFields(records, (value) => parseResourceValue(value) !== null);
 }

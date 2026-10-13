@@ -6,11 +6,22 @@ import React from 'react';
 import { ObsidianMenuDropdown } from '../ObsidianMenuDropdown';
 import { isValidDefaultRoll } from '../../../gameSystems/diceRules';
 import { SIDE_LABELS } from '../../../initiative/sides';
+import type { FieldSuggestion } from '../../../resources/resourceFieldSuggestions';
 import type { InitiativeMode, InitiativeRules, InitiativeSide } from '../../../types/initiativeRulesTypes';
+import { t } from '../../../i18n';
+import { StatblockFieldChips } from './StatblockFieldChips';
 
 interface InitiativeFieldsProps {
   initiative: InitiativeRules;
   onChange: (initiative: InitiativeRules) => void;
+  /** The statblock fields offered for the modifier (`initiativeFieldSuggestions`). */
+  fieldSuggestions: readonly FieldSuggestion[];
+}
+
+/** `rules` with the modifier field as typed; an empty field is none. */
+function withModifierField(rules: InitiativeRules, typed: string): InitiativeRules {
+  const { mode, roll, firstSide } = rules;
+  return typed === '' ? { mode, roll, firstSide } : { mode, roll, firstSide, modifierField: typed };
 }
 
 const MODE_OPTIONS: Record<InitiativeMode, string> = {
@@ -23,7 +34,7 @@ const MODE_DESCRIPTIONS: Record<InitiativeMode, string> = {
   sides: 'The players and their opponents take turns as two sides, in any order within a side. Nothing is rolled.',
 };
 
-export function InitiativeFields({ initiative, onChange }: InitiativeFieldsProps): React.ReactElement {
+export function InitiativeFields({ initiative, onChange, fieldSuggestions }: InitiativeFieldsProps): React.ReactElement {
   const rollValid = isValidDefaultRoll(initiative.roll);
 
   return (
@@ -42,24 +53,45 @@ export function InitiativeFields({ initiative, onChange }: InitiativeFieldsProps
       </div>
 
       {initiative.mode === 'turn-order' ? (
-        <div className="atlas-csm-field">
-          <label className="atlas-csm-label" htmlFor="atlas-csm-initiative-roll">Initiative Roll</label>
-          <input
-            id="atlas-csm-initiative-roll"
-            type="text"
-            className="atlas-csm-input"
-            placeholder="1d20"
-            spellCheck={false}
-            aria-invalid={!rollValid || undefined}
-            value={initiative.roll}
-            onChange={(e) => onChange({ ...initiative, roll: e.target.value })}
-          />
-          {!rollValid && (
-            <p className="atlas-csm-hint atlas-csm-hint--error" role="alert">
-              Enter one group of dice, such as 1d20 or 1d10.
-            </p>
-          )}
-        </div>
+        <>
+          <div className="atlas-csm-field">
+            <label className="atlas-csm-label" htmlFor="atlas-csm-initiative-roll">Initiative Roll</label>
+            <input
+              id="atlas-csm-initiative-roll"
+              type="text"
+              className="atlas-csm-input"
+              placeholder="1d20"
+              spellCheck={false}
+              aria-invalid={!rollValid || undefined}
+              value={initiative.roll}
+              onChange={(e) => onChange({ ...initiative, roll: e.target.value })}
+            />
+            {!rollValid && (
+              <p className="atlas-csm-hint atlas-csm-hint--error" role="alert">
+                Enter one group of dice, such as 1d20 or 1d10.
+              </p>
+            )}
+          </div>
+          <div className="atlas-csm-field">
+            <label className="atlas-csm-label" htmlFor="atlas-csm-initiative-modifier">{t('initiative.modifierField')}</label>
+            <input
+              id="atlas-csm-initiative-modifier"
+              type="text"
+              className="atlas-csm-input"
+              placeholder={t('initiative.modifierPlaceholder')}
+              spellCheck={false}
+              aria-describedby="atlas-csm-initiative-modifier-hint"
+              value={initiative.modifierField ?? ''}
+              onChange={(e) => onChange(withModifierField(initiative, e.target.value))}
+            />
+            <StatblockFieldChips
+              suggestions={fieldSuggestions}
+              value={initiative.modifierField ?? ''}
+              onPick={(path) => onChange(withModifierField(initiative, path))}
+            />
+            <p id="atlas-csm-initiative-modifier-hint" className="atlas-csm-hint">{t('initiative.modifierHint')}</p>
+          </div>
+        </>
       ) : (
         <div className="atlas-csm-field">
           <label className="atlas-csm-label">Acts First</label>

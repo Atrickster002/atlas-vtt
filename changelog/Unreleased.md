@@ -30,6 +30,7 @@
 
 ## Fixed
 
+- Rolling initiative adds each creature's modifier from its linked statblock, read from a field you pick in the collection's settings (Initiative for D&D 5e and Pathfinder 2e). With a contribution by anacletoTM
 - Auto detect finds the grid of a small map picture, with cells of about ten pixels, where it took four cells for one
 - A grid placed with Freehand stays exactly where and as large as you placed it, on maps with a printed grid too
 - The note picker of a pin and the right-click menus of pins and drawings open beside them, with Obsidian's left sidebar open too

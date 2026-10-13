@@ -3,6 +3,7 @@
  */
 
 import React from 'react';
+import type { FieldSuggestion } from '../../../resources/resourceFieldSuggestions';
 import type { InitiativeRules } from '../../../types/initiativeRulesTypes';
 import { InitiativeFields } from './InitiativeFields';
 import { t } from '../../../i18n';
@@ -12,6 +13,8 @@ interface DefaultWidgetsTabProps {
   onChange: (widgets: Record<string, boolean>) => void;
   initiative: InitiativeRules;
   onInitiativeChange: (initiative: InitiativeRules) => void;
+  /** The statblock fields offered for the initiative modifier (`initiativeFieldSuggestions`). */
+  initiativeFieldSuggestions: readonly FieldSuggestion[];
 }
 
 /** Available widget definitions for the MVP. */
@@ -33,6 +36,7 @@ export function DefaultWidgetsTab({
   onChange,
   initiative,
   onInitiativeChange,
+  initiativeFieldSuggestions,
 }: DefaultWidgetsTabProps): React.ReactElement {
   const toggle = (key: string): void => {
     onChange({ ...defaultWidgets, [key]: !defaultWidgets[key] });
@@ -59,7 +63,7 @@ export function DefaultWidgetsTab({
           </label>
         </div>
       ))}
-      <InitiativeFields initiative={initiative} onChange={onInitiativeChange} />
+      <InitiativeFields initiative={initiative} onChange={onInitiativeChange} fieldSuggestions={initiativeFieldSuggestions} />
     </>
   );
 }
