@@ -9,6 +9,8 @@ import { collectMapObjects, countMapObjects, type CopyableCollections, type MapO
 import { duplicateStep, placeMapObjects } from '../clipboard/mapObjectPlacement';
 import { computeNextInstanceNumber } from './tokenInstanceNumbers';
 import { raiseTokens } from './tokenStacking';
+import type { SceneLevel } from '../types/sceneLevelTypes';
+import { placedOnViewedLevel } from '../levels/sceneLevels';
 
 export interface MapObjectsSlice {
   /** Adds the objects under fresh ids, selects them and returns the new ids. */
@@ -24,6 +26,8 @@ interface MapObjectsStoreState {
   grid: GridState | null;
   selectedIds: string[];
   _audioDirty: boolean;
+  levels?: SceneLevel[] | undefined;
+  viewedLevel?: string | null | undefined;
 }
 
 type ImmerSet = (fn: (draft: MapObjectsStoreState) => void) => void;
@@ -34,27 +38,29 @@ function createObjectId(prefix: string): string {
 
 function addCopies(draft: MapObjectsStoreState, content: MapObjectContent): string[] {
   const { objects } = draft;
+  // Copies land on the level the view shows, as new objects do.
+  const level = placedOnViewedLevel(draft);
   const ids: string[] = [];
   for (const token of content.tokens) {
     const id = createObjectId('tok');
-    objects.tokens[id] = { ...token, id, instanceNumber: computeNextInstanceNumber(objects.tokens, token.imagePath) };
+    objects.tokens[id] = { ...token, id, instanceNumber: computeNextInstanceNumber(objects.tokens, token.imagePath), ...level };
     ids.push(id);
   }
   // Copies keep the order their originals lie in, above everything on the map.
   raiseTokens(objects.tokens, ids);
   for (const drawing of content.drawings) {
     const id = createObjectId('drawing');
-    objects.drawings[id] = { ...drawing, id, timestamp: Date.now() };
+    objects.drawings[id] = { ...drawing, id, timestamp: Date.now(), ...level };
     ids.push(id);
   }
   for (const text of content.texts) {
     const id = createObjectId('text');
-    objects.texts[id] = { ...text, id };
+    objects.texts[id] = { ...text, id, ...level };
     ids.push(id);
   }
   for (const pin of content.pins) {
     const id = createObjectId('pin');
-    objects.pins[id] = isPinLabelKind(pin.icon) ? { ...pin, id, label: nextPinLabel(objects.pins, pin.icon) } : { ...pin, id };
+    objects.pins[id] = isPinLabelKind(pin.icon) ? { ...pin, id, label: nextPinLabel(objects.pins, pin.icon), ...level } : { ...pin, id, ...level };
     ids.push(id);
   }
   if (ids.length > 0) draft.selectedIds = ids;

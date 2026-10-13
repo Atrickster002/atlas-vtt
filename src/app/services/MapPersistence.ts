@@ -16,6 +16,8 @@ import { sceneFromFile, sceneToFile, tokenFromFile } from '../resources/resource
 import { pausedTimers } from '../utils/timerWidget';
 import { preserveDamagedSceneFile, SceneFileError } from './sceneFileProblems';
 import { SceneFileWriter } from './sceneFileWriter';
+import type { SceneLevel } from '../types/sceneLevelTypes';
+import { LEVELS_FILE_VERSION, readSceneLevels, sceneFileVersion } from '../levels/levelFile';
 
 import type { FogOperation } from '../types/fogTypes';
 
@@ -25,6 +27,11 @@ export type Pin = NotePin;
 
 // Add constants for schema identification and versioning
 export const ATLAS_SCHEMA = 'atlas-vtt' as const;
+/**
+ * The version of the scene state in memory, and of every scene file with one level. Never bumped
+ * for a change older versions can ignore: they load a file of a higher version empty (up to
+ * 0.6.0) or refuse it. A scene with several levels is written as `LEVELS_FILE_VERSION`.
+ */
 export const ATLAS_VERSION = 4;
 
 /**
@@ -36,6 +43,8 @@ export interface MapFile {
   /** Human-readable map name, written when the map is created (absent in older files) */
   name?: string;
   background: string | null;
+  /** The scene's levels, bottom first; absent for a scene with one level. The first level's background is `background`. */
+  levels?: SceneLevel[] | undefined;
   grid: GridState | null;
   objects: {
     tokens: Record<string, TokenEntity>;
@@ -133,7 +142,7 @@ export function parseSceneFile(content: string): LoadableMapEnvelope {
     throw new SceneFileError('invalidJson');
   }
   if (!isPersistedMapEnvelope(raw) || !raw.state) throw new SceneFileError('structure');
-  const isNewer = [raw.version, raw.state.version].some((version) => version !== undefined && version > ATLAS_VERSION);
+  const isNewer = [raw.version, raw.state.version].some((version) => version !== undefined && version > LEVELS_FILE_VERSION);
   if (isNewer) throw new SceneFileError('newer');
   return { ...raw, state: raw.state };
 }
@@ -157,7 +166,7 @@ export function createAtlasStorage<T extends { mapPath: string | null; mapLoaded
     app,
     (path) => store.getState().mapPath === path,
     // Only here, once per write: the store hands over its state on every change
-    (value) => JSON.stringify({ ...value, state: sceneToFile(value.state as object) }),
+    (value) => JSON.stringify(withFileVersion({ ...value, state: sceneToFile(value.state as object) })),
   );
 
   return {
@@ -223,12 +232,13 @@ export function createAtlasStorage<T extends { mapPath: string | null; mapLoaded
       // A timer stops when its scene closes: a run in the file was cut short by a quit or crash
       const widgets = state?.widgetSettings?.widgets;
       if (state?.widgetSettings && isRecord(widgets)) state.widgetSettings.widgets = pausedTimers(widgets);
-      if (state?.version && state.version < ATLAS_VERSION) {
+      // The state was upgraded in place above, and a file of several levels is read as it is.
+      // zustand discards any state whose envelope version differs from the store's, which
+      // would load the map empty.
+      if (state?.version && state.version !== ATLAS_VERSION) {
         state.version = ATLAS_VERSION;
       }
-      // The state was upgraded in place above. zustand discards any state whose
-      // envelope version differs from the store's, which would load the map empty.
-      if (parsed.version !== undefined && parsed.version < ATLAS_VERSION) {
+      if (parsed.version !== undefined && parsed.version !== ATLAS_VERSION) {
         parsed.version = ATLAS_VERSION;
       }
 
@@ -281,6 +291,12 @@ export function createAtlasStorage<T extends { mapPath: string | null; mapLoaded
   };
 }
 
+
+/** A scene as its file holds it: one of several levels with the version they need (`sceneFileVersion`), any other as it is. */
+function withFileVersion<V extends { version?: number; state: object }>(value: V): V {
+  const version = sceneFileVersion('levels' in value.state ? value.state.levels : undefined);
+  return version === ATLAS_VERSION ? value : { ...value, version, state: { ...value.state, version } };
+}
 
 /**
  * Migrate tokens to use relative paths instead of app:// URLs
@@ -389,6 +405,8 @@ export function migrateMapFile(persisted: unknown): MapFile {
     : {};
 
   const zones = lightZonesFromFile(persisted.objects?.lightZones);
+  const background = persisted.background ?? null;
+  const levels = readSceneLevels(persisted.levels, background);
 
   // Merge persisted over initial, ensuring all fields present
   return {
@@ -396,6 +414,8 @@ export function migrateMapFile(persisted: unknown): MapFile {
     ...persisted,
     schema: ATLAS_SCHEMA,
     version: ATLAS_VERSION,
+    background,
+    levels,
     // Deeply merge nested objects
     objects: {
       tokens: migratedTokens,

@@ -44,6 +44,9 @@ import { movedPathOf, rewriteMapReferences } from './services/renamedPaths';
 import { conditionValue, removeCondition, setConditionValue } from './utils/conditionValues';
 import { HydrationTracker } from './stores/hydrationTracker';
 import { isolateListeners } from './stores/isolatedListeners';
+import { placedOnViewedLevel, placedOnViewedLevels } from './levels/sceneLevels';
+import { createSceneLevelsActions, writeExploredMask, type SceneLevelsSlice } from './stores/sceneLevelsSlice';
+import { levelsWithBackground, readExploredMasks, readSceneLevels } from './levels/levelFile';
 
 // Individual store state interface (same as AtlasState but isolated)
 export interface ViewAtlasState extends ViewState {
@@ -139,7 +142,8 @@ export interface ViewAtlasState extends ViewState {
   clearFog: () => void;
   /** Merges `changes` into the scene's lighting; an option given as undefined is removed. */
   setSceneLighting: (changes: SceneLightingChanges) => void;
-  setExploredMask: (dataUrl: string | null) => void;
+  /** Sets the explored memory of `level` (unset: the level the view shows; null: the first); a level the scene no longer has keeps none. */
+  setExploredMask: (dataUrl: string | null, level?: string | null) => void;
   setExploredEdits: (count: number) => void;
 
   // Wall actions
@@ -192,6 +196,12 @@ export interface ViewAtlasState extends ViewState {
   setWidgetValue: (widgetId: string, value: number) => void;
   setGMView: (on: boolean) => void;
   setDMNotePath: (path: string | null) => void;
+
+  // Levels (from sceneLevelsSlice.ts)
+  setViewedLevel: SceneLevelsSlice['setViewedLevel'];
+  setLevels: SceneLevelsSlice['setLevels'];
+  applyLevelScene: SceneLevelsSlice['applyLevelScene'];
+  moveTokensToLevel: SceneLevelsSlice['moveTokensToLevel'];
 
   // Copy, paste and duplicate (from mapObjectsSlice.ts)
   insertMapObjects: MapObjectsSlice['insertMapObjects'];
@@ -570,7 +580,7 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
                 // Normalize the image path to prevent app:// URLs
                 const imagePath = normalizeImagePath(data.imagePath);
                 const instanceNumber = computeNextInstanceNumber(draft.objects.tokens, imagePath);
-                draft.objects.tokens[id] = { ...data, id, kind: data.kind ?? 'token', imagePath, instanceNumber } as TokenEntity;
+                draft.objects.tokens[id] = { ...data, id, kind: data.kind ?? 'token', imagePath, instanceNumber, ...placedOnViewedLevel(draft) } as TokenEntity;
                 ids.push(id);
               }
               raiseTokens(draft.objects.tokens, ids);
@@ -599,7 +609,7 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
               ...(data.showRing !== undefined && { showRing: data.showRing }),
             };
             set((draft) => {
-              draft.objects.tokens[id] = token;
+              draft.objects.tokens[id] = { ...token, ...placedOnViewedLevel(draft) };
               raiseTokens(draft.objects.tokens, [id]);
             });
             return id;
@@ -620,6 +630,7 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
                 instanceNumber,
                 ...(extra.notePath && { notePath: extra.notePath }),
                 ...(data.snapped !== undefined && { snapped: data.snapped }),
+                ...placedOnViewedLevel(draft),
               };
               draft.objects.tokens[id] = char;
               raiseTokens(draft.objects.tokens, [id]);
@@ -895,7 +906,8 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
                 kind: 'pin',
                 x, 
                 y, 
-                notePath
+                notePath,
+                ...placedOnViewedLevel(draft),
               };
               if (icon) {
                 newPin.icon = icon;
@@ -952,7 +964,8 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
               const textElement: TextElement = {
                 id,
                 kind: 'text',
-                ...data
+                ...data,
+                ...placedOnViewedLevel(draft),
               };
               draft.objects.texts[id] = textElement;
             });
@@ -995,7 +1008,8 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
                 timestamp: Date.now(),
                 ...data,
                 // Create a deep copy of points array to avoid frozen object issues
-                points: data.points.map((p: { x: number; y: number }) => ({ x: p.x, y: p.y }))
+                points: data.points.map((p: { x: number; y: number }) => ({ x: p.x, y: p.y })),
+                ...placedOnViewedLevel(draft),
               };
               draft.objects.drawings[id] = drawingStroke;
             });
@@ -1045,6 +1059,7 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
                 kind: 'fog',
                 timestamp: Date.now(),
                 ...data,
+                ...placedOnViewedLevel(draft),
               };
               draft.objects.fog[id] = op;
             });
@@ -1103,8 +1118,8 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
             if (draft.lighting.litThreshold !== undefined) draft.lighting.litThreshold = clampLitThreshold(draft.lighting.litThreshold);
           }),
 
-          setExploredMask: (dataUrl) => set((draft) => {
-            draft.exploredMask = dataUrl;
+          setExploredMask: (dataUrl, level) => set((draft) => {
+            writeExploredMask(draft, dataUrl, level);
           }),
 
           setExploredEdits: (count) => set((draft) => {
@@ -1121,10 +1136,11 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
           },
 
           // Wall actions
+          // A wall, light, zone or sound is on the level the view shows, unless it names its levels (a piece of a split wall).
           addWall: (data) => {
             const id = `wall_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
             set((draft) => {
-              draft.objects.walls[id] = { id, kind: 'wall', ...data };
+              draft.objects.walls[id] = { id, kind: 'wall', ...placedOnViewedLevels(draft), ...data };
               draft._audioDirty = true;
             });
             return id;
@@ -1181,7 +1197,7 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
           addLight: (data) => {
             const id = `light_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
             set((draft) => {
-              draft.objects.lights[id] = { id, kind: 'light', ...data };
+              draft.objects.lights[id] = { id, kind: 'light', ...placedOnViewedLevels(draft), ...data };
             });
             return id;
           },
@@ -1207,7 +1223,7 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
             set((draft) => {
               // Whatever is in their place that is no record (a store filled by something else than a load) gives way.
               if (!isRecord(draft.objects.lightZones)) draft.objects.lightZones = {};
-              draft.objects.lightZones[id] = { id, kind: 'light-zone', ...data };
+              draft.objects.lightZones[id] = { id, kind: 'light-zone', ...placedOnViewedLevels(draft), ...data };
             });
             return id;
           },
@@ -1230,7 +1246,7 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
           addAudio: (data) => {
             const id = `audio_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
             set((draft) => {
-              draft.objects.audios[id] = { id, kind: 'audio', ...data };
+              draft.objects.audios[id] = { id, kind: 'audio', ...placedOnViewedLevels(draft), ...data };
               draft._audioDirty = true;
             });
             return id;
@@ -1289,7 +1305,10 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
             draft.lootRoller = createInitialLootRollerState();
             draft.lighting = { ...DEFAULT_SCENE_LIGHTING };
             draft.exploredMask = null;
+            draft.exploredMasks = undefined;
             draft.exploredEdits = 0;
+            draft.levels = undefined;
+            draft.viewedLevel = null;
 
             // Note: We don't clear background here - it will be set by the new map
             // Note: We don't clear mapPath - it must be preserved for storage adapter
@@ -1396,6 +1415,9 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
           lootRoller: createInitialLootRollerState(),
           ...createLootRollerActions(set),
 
+          // --- Levels of the scene (from sceneLevelsSlice.ts) ---
+          ...createSceneLevelsActions(set),
+
           // --- Per-view UI visibility (from uiSlice.ts) ---
           ...createInitialUIState(),
           ...createUIActions(set),
@@ -1431,6 +1453,7 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
               version: state.version,
               mapPath: state.mapPath, // Include mapPath to verify data belongs to correct map
               background: state.background,
+              levels: levelsWithBackground(state.levels, state.background),
               grid: state.grid,
               objects: state.objects,
               camera: state.camera,
@@ -1445,15 +1468,19 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
               lootRoller: state.lootRoller, // Loot roller window, filters and history
               lighting: state.lighting,
               exploredMask: state.exploredMask,
+              exploredMasks: state.exploredMasks,
             };
           },
           
           // The map file arrives unchecked; fields that need it are checked here, once per load.
           merge: (persisted, current): ViewAtlasState => {
             const saved: Partial<ViewAtlasState> = isRecord(persisted) ? persisted : {};
+            const levels = readSceneLevels(saved.levels, saved.background ?? current.background);
             return {
               ...current,
               ...saved,
+              levels,
+              exploredMasks: readExploredMasks(saved.exploredMasks, levels),
               lootRoller: readLootRollerState(saved.lootRoller),
               lighting: readSceneLighting(saved.lighting),
               exploredMask: readExploredMask(saved.exploredMask),
