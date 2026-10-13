@@ -29,6 +29,9 @@
 - The note picker of a pin and the right-click menus of pins and drawings open beside them, with Obsidian's left sidebar open too
 - Measured distances show one decimal place, so a 1.5 m cell reads 1.5 m instead of 2 m
 - The fog brush paints and reveals an even stroke while you drag it, where a slow stroke showed a pattern of half-covered dots until it was let go
+- Saving an encounter from the asset manager or scene browser asks for its name in front of it, where the dialog opened behind it
+- Cmd+A (Ctrl+A) in a text field of the asset manager, such as the rename field, selects its text instead of every asset
+- Creating maps, tokens and scenes offers only the tags of the chosen collection, no longer tags deleted from it or kept by other collections
 
 ## Important changes
 
