@@ -1,8 +1,7 @@
 import React, { useEffect, useId, useRef, useState } from 'react';
 import type { Campaign } from '../../../campaigns/campaignTypes';
 import type { CampaignService } from '../../../campaigns/CampaignService';
-import { isSessionDay, MAX_CAMPAIGN_DESCRIPTION } from '../../../campaigns/campaignValidation';
-import { CloseButton } from '../../../packages/components/primitives/CloseButton';
+import { MAX_CAMPAIGN_DESCRIPTION } from '../../../campaigns/campaignValidation';
 import { t } from '../../../i18n';
 
 interface FieldProps {
@@ -100,50 +99,6 @@ export function CampaignDescriptionField({ campaign, service, disabled }: FieldP
         onChange={(event) => setDraft(event.target.value)}
         onBlur={save}
       />
-    </div>
-  );
-}
-
-/** The day of the next session; a complete day is saved as it is picked, × clears it. */
-export function NextSessionField({ campaign, service, disabled, labelledBy }: FieldProps & { labelledBy: string }): React.JSX.Element {
-  const stored = campaign.nextSession ?? '';
-  const [draft, setDraft, setFocused] = useDraft(stored);
-
-  const onChange = (value: string): void => {
-    setDraft(value);
-    // A day typed in parts reads as empty until it is complete.
-    if (isSessionDay(value) && value !== stored) service.update(campaign.id, { nextSession: value });
-  };
-
-  const onBlur = (): void => {
-    setFocused(false);
-    if (draft === '' && stored !== '') service.update(campaign.id, { nextSession: '' });
-  };
-
-  return (
-    <div className="campaign-date">
-      <input
-        className="campaign-date__input"
-        type="date"
-        value={draft}
-        aria-labelledby={labelledBy}
-        disabled={disabled}
-        onFocus={() => setFocused(true)}
-        onChange={(event) => onChange(event.target.value)}
-        onBlur={onBlur}
-      />
-      <span className="campaign-clear-slot">
-        {stored !== '' && !disabled && (
-          <CloseButton
-            placement="inline"
-            aria-label={t('campaign.clearNextSession')}
-            onClick={() => {
-              setDraft('');
-              service.update(campaign.id, { nextSession: '' });
-            }}
-          />
-        )}
-      </span>
     </div>
   );
 }

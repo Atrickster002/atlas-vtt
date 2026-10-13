@@ -1,4 +1,4 @@
-import { getLocale, t } from '../../../i18n';
+import { t } from '../../../i18n';
 import type { MessageKey } from '../../../i18n/types';
 
 /** The sentence for each step of a relative time; the counted ones take `{count}`. */
@@ -27,12 +27,4 @@ export function formatRelativeTime(timestamp: number, phrases: RelativeTimePhras
   if (diff < HOUR) return t(phrases.minutes, { count: Math.floor(diff / MINUTE) });
   if (diff < DAY) return t(phrases.hours, { count: Math.floor(diff / HOUR) });
   return t(phrases.days, { count: Math.floor(diff / DAY) });
-}
-
-/** A day written `YYYY-MM-DD`, shown as the language writes a short date ("Oct 18"). */
-export function formatDay(day: string): string {
-  const [year, month, date] = day.split('-').map(Number);
-  const local = new Date(year!, month! - 1, date);
-  const sameYear = local.getFullYear() === new Date().getFullYear();
-  return local.toLocaleDateString(getLocale(), { month: 'short', day: 'numeric', ...(!sameYear && { year: 'numeric' }) });
 }
