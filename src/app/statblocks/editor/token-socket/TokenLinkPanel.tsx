@@ -1,16 +1,18 @@
 import React, { useId, useMemo, useRef, useState } from 'react';
-import { ImageIcon, Sparkles, Unlink } from 'lucide-react';
+import type { TFile } from 'obsidian';
+import { Sparkles, Unlink } from 'lucide-react';
 import { Button } from '../../../packages/components/primitives/button';
 import { CloseButton } from '../../../packages/components/primitives/CloseButton';
 import { DropdownToggleRow } from '../../../packages/components/primitives/DropdownToggleRow';
+import { SegmentedControl, type SegmentedOption } from '../../../packages/components/primitives/SegmentedControl';
 import { LabelTooltip } from '../../../packages/components/primitives/tooltip';
 import { TokenPortrait } from '../../../packages/components/shared/TokenPortrait';
+import { t } from '../../../i18n';
 import type { TemplateField } from '../../model/templateTypes';
 import type { PaneEditController } from '../statblock-pane/paneEditContext';
-import { TokenChoiceGrid } from './TokenChoiceGrid';
-import { artFile, artSrc, artToken, isTheArt, linkToken, makeToken, setArt, setRing, unlinkToken } from './tokenSocketActions';
+import { TokenArtChoices, type ArtSource } from './TokenArtChoices';
+import { artFile, artSrc, isTheArt, linkToken, makeToken, setArt, setRing, shownArt, unlinkToken } from './tokenSocketActions';
 import { useNoteTokens, type CardToken } from './useNoteTokens';
-import { VaultImageModal } from './VaultImageModal';
 
 export interface TokenLinkPanelProps {
   pane: PaneEditController;
@@ -22,26 +24,37 @@ export interface TokenLinkPanelProps {
   searchRef: React.RefObject<HTMLInputElement | null>;
 }
 
+const SOURCES: readonly SegmentedOption<ArtSource>[] = [
+  { value: 'tokens', label: 'Tokens' },
+  { value: 'vault', label: t('vaultImages.list') },
+];
+
+/** The first choice of the open tab, which Down from the search reaches. */
+const FIRST_CHOICE = '.atlas-sb-token-choice[tabindex="0"], .atlas-vault-images__card';
+
 /**
  * What the token socket opens: the tokens linked to the statblock, each
- * unlinkable and the one whose art the note shows marked; the collection's
- * tokens to link; and the note's art without a token (any vault image) or a
- * new token made of it.
+ * unlinkable and the one whose art the note shows marked; one search with the
+ * Ring switch beside it; and a tab of the collection's tokens to link or of
+ * the vault's images to take as the note's art.
  */
 export function TokenLinkPanel({ pane, field, collectionId, onClose, searchRef }: TokenLinkPanelProps): React.JSX.Element {
   const { app } = pane;
   const tokens = useNoteTokens(app, pane.notePath, collectionId, true);
   const [busy, setBusy] = useState<string | null>(null);
+  const [query, setQuery] = useState('');
+  const [source, setSource] = useState<ArtSource>('tokens');
   const panelRef = useRef<HTMLDivElement>(null);
   const titleId = useId();
-  const linkedLabelId = useId();
   const art = artSrc(pane, field);
+  const shown = shownArt(pane, field);
   const linkedIds = useMemo(() => new Set(tokens.linked.map((token) => token.id)), [tokens.linked]);
-  const source = artFile(pane, field);
-  const framed = artToken(pane, field);
-  const canMake = tokens.loaded && tokens.linked.length === 0 && source !== null && collectionId !== null;
+  const artImage = artFile(pane, field);
+  const framed = shown.token;
+  const canMake = tokens.loaded && tokens.linked.length === 0 && artImage !== null && collectionId !== null;
+  const vault = source === 'vault';
 
-  /** Runs one action at a time; the panel says what it does meanwhile. */
+  /** Runs one action at a time; a status says what it does meanwhile. */
   const run = (label: string, action: () => Promise<unknown>, after?: () => void): void => {
     if (busy) return;
     setBusy(label);
@@ -62,6 +75,8 @@ export function TokenLinkPanel({ pane, field, collectionId, onClose, searchRef }
     if (await linkToken(pane, field, token)) pane.announce(`Linked ${token.name}.`);
   }, () => onClose(true));
 
+  const chooseImage = (file: TFile): void => run('Setting the art', () => setArt(pane, field, file.path), () => onClose(true));
+
   const unlink = (token: CardToken): void => run('Unlinking', async () => {
     if (await unlinkToken(app, token)) pane.announce(`Unlinked ${token.name}.`);
   });
@@ -69,12 +84,6 @@ export function TokenLinkPanel({ pane, field, collectionId, onClose, searchRef }
   const showArtOf = (token: CardToken): void => run('Setting the art', async () => {
     if (token.imagePath) await setArt(pane, field, token.imagePath);
   });
-
-  const chooseImage = (): void => {
-    if (busy) return;
-    onClose(false);
-    new VaultImageModal(app, (file) => void setArt(pane, field, file.path)).open();
-  };
 
   const toggleRing = (): void => {
     if (framed) run('Setting the ring', () => setRing(pane, framed, framed.showRing === false));
@@ -84,6 +93,21 @@ export function TokenLinkPanel({ pane, field, collectionId, onClose, searchRef }
     if (collectionId) run('Creating a token', () => makeToken(pane, collectionId));
   };
 
+  const onSearchKeyDown = (event: React.KeyboardEvent<HTMLInputElement>): void => {
+    // Escape empties a search first; once empty, it closes the panel.
+    if (event.key === 'Escape' && query !== '') {
+      event.preventDefault();
+      event.stopPropagation();
+      setQuery('');
+      return;
+    }
+    if (event.key !== 'ArrowDown') return;
+    const first = panelRef.current?.querySelector<HTMLElement>(FIRST_CHOICE);
+    if (!first) return;
+    event.preventDefault();
+    first.focus();
+  };
+
   return (
     <div ref={panelRef} className="atlas-sb-token-panel" role="dialog" aria-labelledby={titleId} aria-busy={busy !== null} tabIndex={-1}>
       <div className="atlas-sb-token-panel__header">
@@ -91,63 +115,71 @@ export function TokenLinkPanel({ pane, field, collectionId, onClose, searchRef }
         <CloseButton onClick={() => onClose(true)} />
       </div>
       <div className="atlas-sb-token-panel__body">
-        {/* Kept when the art is no token's, so the panel keeps its shape. */}
-        <DropdownToggleRow
-          label="Ring"
-          value={framed !== null && framed.showRing !== false}
-          onChange={toggleRing}
-          disabled={framed === null || busy !== null}
-          disabledReason={framed ? undefined : art ? 'This art belongs to no token' : 'Add token art first'}
-        />
         {tokens.linked.length > 0 && (
-          <section className="atlas-sb-token-panel__section" aria-labelledby={linkedLabelId}>
-            <h4 id={linkedLabelId} className="atlas-sb-token-panel__label">Linked</h4>
-            <ul className="atlas-sb-token-panel__linked">
-              {tokens.linked.map((token) => (
-                <li key={token.id} className="atlas-sb-token-panel__row">
-                  <TokenPortrait
-                    className="atlas-sb-token-panel__portrait"
-                    src={token.thumbnailUrl || token.imageUrl}
-                    alt=""
-                    showRing={token.showRing !== false}
-                    pending={token.thumbnailPending}
-                  />
-                  <span className="atlas-sb-token-panel__name">{token.name}</span>
-                  {isTheArt(app, token, art)
-                    ? <span className="atlas-sb-token-panel__badge">Statblock image</span>
-                    : <Button type="button" variant="ghost" size="sm" aria-disabled={busy !== null || undefined} onClick={() => showArtOf(token)}>Use its art</Button>}
-                  <LabelTooltip label={`Unlink ${token.name}`}>
-                    <Button type="button" variant="ghost" size="icon" className="atlas-sb-token-panel__unlink" aria-disabled={busy !== null || undefined} onClick={() => unlink(token)}>
-                      <Unlink aria-hidden="true" />
-                    </Button>
-                  </LabelTooltip>
-                </li>
-              ))}
-            </ul>
-          </section>
+          <ul className="atlas-sb-token-panel__linked" aria-label="Linked tokens">
+            {tokens.linked.map((token) => (
+              <li key={token.id} className="atlas-sb-token-panel__row">
+                <TokenPortrait
+                  className="atlas-sb-token-panel__portrait"
+                  src={token.thumbnailUrl || token.imageUrl}
+                  alt=""
+                  showRing={token.showRing !== false}
+                  pending={token.thumbnailPending}
+                />
+                <span className="atlas-sb-token-panel__name">{token.name}</span>
+                {isTheArt(app, token, art)
+                  ? <span className="atlas-sb-token-panel__badge">Statblock image</span>
+                  : <Button type="button" variant="ghost" size="sm" aria-disabled={busy !== null || undefined} onClick={() => showArtOf(token)}>Use its art</Button>}
+                <LabelTooltip label={`Unlink ${token.name}`}>
+                  <Button type="button" variant="ghost" size="icon" className="atlas-sb-token-panel__unlink" aria-disabled={busy !== null || undefined} onClick={() => unlink(token)}>
+                    <Unlink aria-hidden="true" />
+                  </Button>
+                </LabelTooltip>
+              </li>
+            ))}
+          </ul>
         )}
-        <TokenChoiceGrid
-          tokens={tokens.choices}
-          linkedIds={linkedIds}
-          loaded={tokens.loaded}
-          busy={busy !== null}
-          onChoose={choose}
-          searchRef={searchRef}
-        />
-      </div>
-      <div className="atlas-sb-token-panel__footer">
-        <Button type="button" variant="outline" size="sm" aria-disabled={busy !== null || undefined} onClick={chooseImage}>
-          <ImageIcon aria-hidden="true" />
-          Choose image…
-        </Button>
         {canMake && (
-          <Button type="button" variant="outline" size="sm" aria-disabled={busy !== null || undefined} onClick={create}>
+          <Button type="button" variant="ghost" size="sm" className="atlas-sb-token-panel__make" aria-disabled={busy !== null || undefined} onClick={create}>
             <Sparkles aria-hidden="true" />
             Create token from art
           </Button>
         )}
-        {busy && <span className="atlas-sb-token-panel__status" role="status">{busy}…</span>}
+        <div className="atlas-sb-token-panel__controls">
+          <input
+            ref={searchRef}
+            type="text"
+            className="atlas-sb-token-panel__search"
+            placeholder={vault ? t('vaultImages.searchPlaceholder') : 'Search tokens'}
+            aria-label={vault ? t('vaultImages.search') : 'Search tokens'}
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            onKeyDown={onSearchKeyDown}
+          />
+          {/* Kept when the art is no token's, so the row keeps its shape. */}
+          <DropdownToggleRow
+            label="Ring"
+            value={framed !== null && framed.showRing !== false}
+            onChange={toggleRing}
+            disabled={framed === null || busy !== null}
+            disabledReason={framed ? undefined : shown.src ? 'This art belongs to no token' : 'Add token art first'}
+          />
+        </div>
+        <SegmentedControl className="atlas-sb-token-panel__sources" value={source} options={SOURCES} onChange={setSource} ariaLabel="Choose from" />
+        <TokenArtChoices
+          app={app}
+          source={source}
+          tokens={tokens}
+          linkedIds={linkedIds}
+          query={query}
+          busy={busy !== null}
+          chosenImage={artImage?.path ?? null}
+          searchRef={searchRef}
+          onChooseToken={choose}
+          onChooseImage={chooseImage}
+        />
       </div>
+      <span className="atlas-sb-token-panel__hidden" role="status">{busy ? `${busy}…` : ''}</span>
     </div>
   );
 }

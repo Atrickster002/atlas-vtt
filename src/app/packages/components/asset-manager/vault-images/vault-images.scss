@@ -1,4 +1,5 @@
 @use '../../../../../../styles/tokens' as *;
+@use '../../../../../../styles/mixins' as *;
 
 // The vault's images as asset cards (`_asset-cards.scss`), in rows a virtual list places.
 .atlas-vault-images {
@@ -39,5 +40,18 @@
     background: var(--background-primary);
     color: var(--text-muted);
     font-size: $font-ui-smaller;
+  }
+  // A card chosen at a click is a button: it keeps the card's look (`_asset-cards.scss`), not Obsidian's button.
+  @at-root button#{&}__card {
+    height: auto;
+    margin: 0;
+    border: 0;
+    background: none;
+    box-shadow: none;
+    font: inherit;
+    cursor: pointer;
+    @include atlas-corner-shape;
+
+    &[aria-disabled='true'] { cursor: default; }
   }
 }
