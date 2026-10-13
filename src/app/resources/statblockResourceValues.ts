@@ -1,4 +1,5 @@
 import { parseResourceValue, resolveField } from './resourceFields';
+import { holdsValue } from './resourceValues';
 import type { ResourceDefinition, ResourceValue } from './resourceTypes';
 import { NO_MEANINGS, type FieldMeanings } from '../statblocks/resolve/fieldMeanings';
 
@@ -13,7 +14,7 @@ export function statblockResourceValue(
 ): ResourceValue | null {
   // A bare maximum starts full or empty by direction; a stated current ("12/27") is kept.
   const parsed = parseResourceValue(resolveField(record, definition.field, meanings), definition.direction === 'fills');
-  return parsed && parsed.max > 0 ? parsed : null;
+  return parsed && holdsValue(definition, parsed) ? parsed : null;
 }
 
 export function startingResources(

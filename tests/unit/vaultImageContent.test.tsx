@@ -87,3 +87,13 @@ it('shows no thumbnail for an image the workers cannot read', async () => {
   const { app } = createInMemoryApp({ files: FILES });
   expect(await new VaultImageThumbnails(app).load(new TFile('Art/Goblin.png'))).toBeNull();
 });
+
+it('lays a large vault out in rows of cards and mounts only the rows in view', () => {
+  const files = Object.fromEntries(Array.from({ length: 600 }, (_, index) => [`Art/${String(index).padStart(3, '0')}.png`, 'art']));
+  const { app } = createInMemoryApp({ files });
+  const { container } = render(<VaultImageContent app={app} mode="map" queuedPaths={[]} onAdd={vi.fn()} onClose={vi.fn()} controller={new AbortController()} />);
+  const rows = container.querySelectorAll('.atlas-vault-images__row');
+  expect(rows.length).toBeGreaterThan(0);
+  expect(rows[0]!.querySelectorAll('.atlas-asset-card').length).toBeGreaterThan(1);
+  expect(container.querySelectorAll('.atlas-asset-card').length).toBeLessThan(100);
+});

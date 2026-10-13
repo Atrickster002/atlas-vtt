@@ -45,7 +45,7 @@ const app = {
 const assets = {
   initialize: vi.fn().mockResolvedValue(undefined),
   getCollections: vi.fn().mockResolvedValue([{ id: 'Dungeons', name: 'Dungeons' }]),
-  getAllTags: vi.fn().mockResolvedValue([]),
+  getCollectionTags: vi.fn().mockResolvedValue([]),
 } as unknown as AssetService;
 
 beforeEach(() => {

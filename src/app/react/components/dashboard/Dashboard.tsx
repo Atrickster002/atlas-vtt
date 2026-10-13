@@ -1,17 +1,14 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { App } from 'obsidian';
-import { FolderOpen, Plus } from 'lucide-react';
 import type { CampaignStorage } from '../../../campaigns/CampaignFiles';
 import { CampaignPlay } from '../../../campaigns/campaignPlay';
 import { useCampaignPlay } from '../../../campaigns/useCampaignPlay';
 import { useCampaigns } from '../../../campaigns/useCampaigns';
-import { Button } from '../../../packages/components/primitives/button';
-import { t } from '../../../i18n';
+import { BUILT_IN_SYSTEM_PRESETS } from '../../../gameSystems/builtInPresets';
+import { useSystemPresets } from '../../hooks/useSystemPresets';
 import { CampaignPage } from './CampaignPage';
-import { CampaignsSection } from './CampaignsSection';
-import { ContinueCard } from './ContinueCard';
+import { HomePage } from './HomePage';
 import { useWorldMaps } from './libraryPictures';
-import { RecentScenesPanel } from './RecentScenesPanel';
 import { useCampaignParties } from './useCampaignParties';
 import { useRecentScenes } from './useRecentScenes';
 
@@ -24,11 +21,13 @@ export interface DashboardProps {
   onOpenAssetManager: () => void;
 }
 
-/** Atlas' start page: the scene to continue, the campaigns, recent scenes; or one campaign's page. */
+/** Atlas' start page (`HomePage`), or one campaign's page. */
 export function Dashboard({ app, campaignStorage, onOpenScene, onCreateMap, onOpenAssetManager }: DashboardProps): React.JSX.Element {
   const { scenes, isLoading } = useRecentScenes(app);
-  const { service, campaigns } = useCampaigns(campaignStorage);
+  const { service, campaigns, isLoading: campaignsLoading } = useCampaigns(campaignStorage);
   const worldMaps = useWorldMaps(app);
+  const { presets: vaultPresets } = useSystemPresets(app);
+  const presets = vaultPresets.length > 0 ? vaultPresets : BUILT_IN_SYSTEM_PRESETS;
   const play = CampaignPlay.forApp(app);
   const playingId = useCampaignPlay(play);
   const [openId, setOpenId] = useState<string | null>(null);
@@ -51,72 +50,41 @@ export function Dashboard({ app, campaignStorage, onOpenScene, onCreateMap, onOp
     }
   }, [openId]);
 
-  const actionTiles = [
-    { key: 'create', icon: Plus, title: t('dashboard.createScene'), desc: t('dashboard.createSceneDesc'), onClick: onCreateMap },
-    { key: 'assets', icon: FolderOpen, title: t('dashboard.assets'), desc: t('dashboard.assetsDesc'), onClick: onOpenAssetManager },
-  ] as const;
-
   return (
     <div ref={rootRef} className="atlas-dashboard">
-      <div className="dashboard-container">
-        {service && openCampaign ? (
-          <CampaignPage
-            app={app}
-            campaign={openCampaign}
-            campaigns={campaigns}
-            service={service}
-            worldMaps={worldMaps}
-            isPlaying={openCampaign.id === playingId}
-            onPlay={() => play.play(openCampaign.id)}
-            onStop={() => play.stop()}
-            party={parties.get(openCampaign.id) ?? []}
-            onBack={() => setOpenId(null)}
-          />
-        ) : (
-          <main className="dashboard-stage">
-            <div className="dashboard-hero">
-              <h1 className="dashboard-title">
-                Atlas<span>VTT</span>
-              </h1>
-              <p className="dashboard-tagline">{t('dashboard.tagline')}</p>
-            </div>
-
-            <div className="dashboard-columns">
-              <div className="dashboard-actions">
-                <ContinueCard scene={scenes[0] ?? null} onOpenScene={onOpenScene} onCreateMap={onCreateMap} />
-                {service && (
-                  <CampaignsSection
-                    app={app}
-                    service={service}
-                    campaigns={campaigns}
-                    worldMaps={worldMaps}
-                    playingId={playingId}
-                    parties={parties}
-                    onOpenCampaign={setOpenId}
-                  />
-                )}
-                <div className="action-grid">
-                  {actionTiles.map(({ key, icon: Icon, title, desc, onClick }) => (
-                    <Button key={key} variant="ghost" className="action-card" onClick={onClick}>
-                      <span className="action-icon">
-                        <Icon size={18} />
-                      </span>
-                      <span className="action-text">
-                        <span className="action-title">{title}</span>
-                        <span className="action-desc">{desc}</span>
-                      </span>
-                    </Button>
-                  ))}
-                </div>
-              </div>
-
-              <aside className="dashboard-recent">
-                <RecentScenesPanel scenes={scenes} isLoading={isLoading} onOpenScene={onOpenScene} />
-              </aside>
-            </div>
-          </main>
-        )}
-      </div>
+      {service && openCampaign ? (
+        <CampaignPage
+          key={openCampaign.id}
+          app={app}
+          campaign={openCampaign}
+          campaigns={campaigns}
+          service={service}
+          worldMaps={worldMaps}
+          presets={presets}
+          isPlaying={openCampaign.id === playingId}
+          onPlay={() => play.play(openCampaign.id)}
+          onStop={() => play.stop()}
+          party={parties.get(openCampaign.id) ?? []}
+          onBack={() => setOpenId(null)}
+        />
+      ) : (
+        <HomePage
+          app={app}
+          service={service}
+          campaigns={campaigns}
+          campaignsLoading={campaignsLoading}
+          worldMaps={worldMaps.choices}
+          presets={presets}
+          playingId={playingId}
+          parties={parties}
+          scenes={scenes}
+          scenesLoading={isLoading}
+          onOpenScene={onOpenScene}
+          onCreateMap={onCreateMap}
+          onOpenAssetManager={onOpenAssetManager}
+          onOpenCampaign={setOpenId}
+        />
+      )}
     </div>
   );
 }

@@ -5,7 +5,7 @@ import { mapResources } from '../../../resources/collectionResources';
 import { rulesLookup } from '../../../services/mapRules';
 import { slottedResources } from '../../../resources/resourceSlots';
 import { toggleHidden } from '../../../resources/sceneVisibility';
-import { shapeOf } from '../../../resources/visibleResources';
+import { resourceToggleLabel } from './resourceToggleLabel';
 import { DEFAULT_TOKEN_SETTINGS } from '../../../storeFactory';
 import { t } from '../../../i18n';
 
@@ -49,7 +49,7 @@ export function TokenSettingsPanel({ view }: TokenSettingsPanelProps): React.Rea
         {slottedResources(definitions).map(({ definition, slot }) => (
           <SettingToggleRow
             key={definition.key}
-            label={`Show ${definition.name} ${shapeOf(slot) === 'bar' ? 'bars' : 'wheels'}`}
+            label={resourceToggleLabel(definition, slot)}
             value={!hidden.includes(definition.key)}
             onToggle={() => change({ hiddenResources: toggleHidden(store?.getState().tokenSettings?.hiddenResources, definition.key) })}
           />

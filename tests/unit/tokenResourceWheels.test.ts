@@ -95,15 +95,62 @@ describe('resource wheels on a token', () => {
     } finally { ui.destroy(); }
   });
 
-  it('never shows wheels in the player view', () => {
+  it('shows the wheels players see at rest in the player view, and only those', () => {
+    const { ui } = tokenUI({ showResources: false });
+    ui.resourceDefsProvider = () => [HP, STR, { ...AMMO, visibleToPlayers: true }, LUCK];
+    try {
+      ui.update(hero, 62, { showTokenNameplates: false });
+      settle();
+      // Players can neither hover nor select, so a wheel they see stands there at rest; the map's own switches are the GM's
+      expect(wheelSlots(ui).map((slot) => slot.key)).toEqual(['ammo']);
+      expect(wheelsView(ui).visible).toBe(true);
+      expect(wheelsView(ui).alpha).toBe(1);
+      expect(wheelsView(ui).children).toHaveLength(1);
+    } finally { ui.destroy(); }
+  });
+
+  it('shows no wheel in the player view while players see none', () => {
     const { ui } = tokenUI();
     try {
       ui.update(hero, 62, { showTokenNameplates: false });
       ui.setHoverState(true);
-      ui.setSelectionState(true);
       settle();
       expect(wheelSlots(ui)).toEqual([]);
       expect(wheelsView(ui).children).toHaveLength(0);
+    } finally { ui.destroy(); }
+  });
+
+  it('shows the GM\'s canvas what players see while it shows their view, and the GM\'s own again after', () => {
+    const { ui } = tokenUI({ showResources: false });
+    ui.resourceDefsProvider = () => [{ ...HP, visibleToPlayers: true }, STR, { ...AMMO, visibleToPlayers: true }, LUCK];
+    try {
+      ui.update(hero, 62);
+      expect(ui.getResourceSlots()).toEqual([]);
+      ui.setPlayersView(true);
+      settle();
+      expect(ui.getResourceSlots().map((slot) => [slot.key, slot.kind])).toEqual([['hp', 'bar'], ['ammo', 'wheel']]);
+      expect(wheelsView(ui).visible).toBe(true);
+      ui.setPlayersView(false);
+      settle();
+      expect(ui.getResourceSlots()).toEqual([]);
+    } finally { ui.destroy(); }
+  });
+
+  it('keeps the wheels at rest in the GM\'s players\' view through hover and selection', () => {
+    const { ui } = tokenUI();
+    ui.resourceDefsProvider = () => [HP, STR, { ...AMMO, visibleToPlayers: true }, LUCK];
+    try {
+      ui.update(hero, 62);
+      ui.setPlayersView(true);
+      ui.setHoverState(true);
+      settle();
+      ui.setHoverState(false);
+      settle();
+      expect(wheelsView(ui).visible).toBe(true);
+      ui.setPlayersView(false);
+      settle();
+      // Back in the GM's view the wheels answer hover again
+      expect(wheelsView(ui).visible).toBe(false);
     } finally { ui.destroy(); }
   });
 

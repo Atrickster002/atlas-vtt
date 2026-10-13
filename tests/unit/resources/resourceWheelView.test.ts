@@ -73,4 +73,12 @@ describe('ResourceWheelView', () => {
     expect(drawn(wheel).filter(({ action, color: c, shapes }) => action === 'stroke' && c === BAR_LOOK.trackColor && shapes.includes('lineTo'))).toEqual([]);
     expect((wheel.view.children[1] as Text).text).toBe('5');
   });
+
+  it('shows a static value of 0 as a whole ring around a 0', () => {
+    const wheel = new ResourceWheelView();
+    wheel.update({ definition: ARMOR, value: { current: 0, max: 0 }, slot: 2 }, 0, 0);
+    const color = Number.parseInt(ARMOR.color.slice(1), 16);
+    expect(drawn(wheel).find((shape) => shape.color === color)?.shapes).toContain('circle');
+    expect((wheel.view.children[1] as Text).text).toBe('0');
+  });
 });

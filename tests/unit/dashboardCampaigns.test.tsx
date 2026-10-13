@@ -13,6 +13,8 @@ import { memoryPresets } from '../mocks/memoryPresets';
 
 const dialogs = vi.hoisted(() => ({ confirmAction: vi.fn() }));
 vi.mock('../../src/app/ui/confirmDialog', () => ({ confirmAction: dialogs.confirmAction }));
+// Sharp map pictures come from the map tile worker, which a test without a browser has not.
+vi.mock('../../src/app/react/components/dashboard/mapPicture', () => ({ mapPictureUrl: () => Promise.resolve(null), releaseMapPictures: () => undefined }));
 
 import { Dashboard } from '../../src/app/react/components/dashboard/Dashboard';
 
@@ -62,6 +64,7 @@ async function renderDashboard(
 }
 
 const nameField = (): HTMLInputElement => screen.getByRole('textbox', { name: 'Campaign name' });
+const cardNames = (): string[] => [...document.querySelectorAll('.campaign-card:not(.campaign-card--new) .dashboard-card__title')].map((name) => name.textContent ?? '');
 const stored = (storage: ReturnType<typeof memoryCampaigns>, name: string): StoredCampaign | undefined => storage.current().find((entry) => entry.name === name);
 
 beforeEach(() => {
@@ -76,9 +79,9 @@ afterEach(() => {
 });
 
 describe('the campaigns on the dashboard', () => {
-  it('starts with one line and a way to make the first campaign, which opens its page', async () => {
+  it('starts with the card that makes the first campaign, which opens its page', async () => {
     const { storage } = await renderDashboard();
-    expect(screen.getByText('No campaigns yet.')).toBeTruthy();
+    expect(cardNames()).toEqual([]);
 
     fireEvent.click(screen.getByRole('button', { name: 'New campaign' }));
     fireEvent.keyDown(nameField(), { key: 'Enter' });
@@ -108,16 +111,18 @@ describe('the campaigns on the dashboard', () => {
     expect(screen.getByRole('button', { name: 'New campaign' })).toBeTruthy();
   });
 
-  it('lists campaigns the most recently played first, with when and the next session', async () => {
+  it('shows campaigns as cards, the most recently played first, with when and the game system', async () => {
     await renderDashboard([
-      { id: 'a', name: 'Cairn', createdAt: Date.now() - 10 * DAY },
+      { id: 'a', name: 'Cairn', createdAt: Date.now() - 10 * DAY, system: { systemPresetId: 'builtin:cairn', gridDefaults: { unitType: 'feet', unitDistance: 5, measurementMode: 'metric' }, conditions: [] } },
       { id: 'b', name: 'Witherwild', createdAt: Date.now() - 20 * DAY, lastPlayed: Date.now() - 2 * DAY, nextSession: '2026-10-18' },
     ]);
-    const rows = within(screen.getByRole('region', { name: 'Campaigns' })).getAllByRole('button').filter((button) => button.classList.contains('dashboard-row'));
-    expect(rows.map((row) => row.querySelector('.dashboard-row__name')?.textContent)).toEqual(['Witherwild', 'Cairn']);
-    expect(rows[0]!.textContent).toContain('Last played 2d ago');
-    expect(rows[0]!.textContent).toContain('Next session');
-    expect(rows[1]!.textContent).toContain('Created 10d ago');
+    const cards = within(screen.getByRole('region', { name: 'Campaigns' })).getAllByRole('button').filter((button) => button.matches('.campaign-card:not(.campaign-card--new)'));
+    expect(cardNames()).toEqual(['Witherwild', 'Cairn']);
+    expect(cards[0]!.textContent).toContain('Last played 2d ago');
+    // A day of a next session older versions kept is no longer shown.
+    expect(cards[0]!.textContent).not.toContain('Next session');
+    expect(cards[1]!.textContent).toContain('Created 10d ago');
+    expect(cards[1]!.querySelector('.dashboard-card__system')?.textContent).toBe('Cairn');
   });
 
   it('follows campaigns renamed, added and deleted elsewhere', async () => {
@@ -160,7 +165,7 @@ describe('a campaign\'s page', () => {
     expect(storage.current().find((entry) => entry.id === 'a')?.name).toBe('Cairn: Blue Mouth Caves');
   });
 
-  it('saves the description on leaving it, and the next session as it is picked or cleared', async () => {
+  it('saves the description on leaving it, and has no next session to set', async () => {
     const { storage } = await openPage([{ id: 'a', name: 'Cairn', createdAt: 1 }], 'Cairn');
     const description = screen.getByRole('textbox', { name: 'Description' });
     fireEvent.focus(description);
@@ -169,29 +174,31 @@ describe('a campaign\'s page', () => {
     fireEvent.blur(description);
     expect(storage.current()[0]!.description).toBe('The olms rise.');
 
-    const day = screen.getByLabelText('Next session') as HTMLInputElement;
-    fireEvent.change(day, { target: { value: '2026-10-18' } });
-    expect(storage.current()[0]!.nextSession).toBe('2026-10-18');
-    fireEvent.click(screen.getByRole('button', { name: 'Clear next session' }));
-    expect(storage.current()[0]!.nextSession).toBeUndefined();
-    expect(day.value).toBe('');
+    expect(screen.queryByLabelText('Next session')).toBeNull();
   });
 
-  it('takes any map or scene of the library as its world map, and lets it go again', async () => {
+  it('takes any map or scene of the library as its world map, changes and removes it', async () => {
     const { storage, mapId } = await openPage([{ id: 'a', name: 'Cairn', createdAt: 1 }], 'Cairn');
-    const trigger = screen.getByRole('button', { name: 'World map' });
+    const choose = await screen.findByRole('button', { name: 'Choose a world map' });
     await waitFor(() => {
-      fireEvent.click(trigger);
+      if (!choose.getAttribute('aria-expanded')?.includes('true')) fireEvent.click(choose);
       expect(screen.getAllByRole('option')).toHaveLength(2);
     });
     expect(screen.getAllByRole('option').map((option) => option.textContent)).toEqual(['CaveScene', 'KeepMap']);
     fireEvent.change(screen.getByRole('searchbox', { name: 'Search maps and scenes' }), { target: { value: 'kee' } });
     fireEvent.click(screen.getByRole('option', { name: /Keep/ }));
     expect(storage.current()[0]!.worldMap).toBe(mapId);
-    expect(trigger.textContent).toContain('Keep');
+    // A plain map says that a press makes it a scene, where pins can be placed.
+    expect(screen.getByRole('button', { name: 'Make it a scene to place pins Keep' })).toBeTruthy();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Clear world map' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Change World map' }));
+    fireEvent.click(screen.getByRole('option', { name: /Cave/ }));
+    expect(storage.current()[0]!.worldMap).not.toBe(mapId);
+    expect(screen.getByRole('button', { name: 'Place pins Cave' })).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Remove world map' }));
     expect(storage.current()[0]!.worldMap).toBeUndefined();
+    expect(screen.getByRole('button', { name: 'Choose a world map' })).toBeTruthy();
   });
 
   it('deletes the campaign only once the GM confirms, saying what stays', async () => {
@@ -209,7 +216,7 @@ describe('a campaign\'s page', () => {
     dialogs.confirmAction.mockResolvedValueOnce(true);
     fireEvent.click(screen.getByRole('button', { name: 'Delete campaign' }));
     await waitFor(() => expect(storage.current()).toHaveLength(0));
-    expect(screen.getByText('No campaigns yet.')).toBeTruthy();
+    expect(cardNames()).toEqual([]);
   });
 
   it('shows changes made elsewhere and returns to the dashboard when the campaign is deleted there', async () => {
@@ -220,7 +227,7 @@ describe('a campaign\'s page', () => {
 
     act(() => storage.remove('a'));
     expect(screen.queryByRole('textbox', { name: 'Campaign name' })).toBeNull();
-    expect(screen.getByText('No campaigns yet.')).toBeTruthy();
+    expect(cardNames()).toEqual([]);
   });
 
   it('shows a campaign of a newer Atlas with its fields disabled and says why', async () => {
@@ -228,18 +235,20 @@ describe('a campaign\'s page', () => {
     expect(screen.getByText('This campaign was saved by a newer version of Atlas. Update Atlas to change it.')).toBeTruthy();
     expect(nameField().disabled).toBe(true);
     expect((screen.getByRole('textbox', { name: 'Description' }) as HTMLTextAreaElement).disabled).toBe(true);
-    expect((screen.getByRole('button', { name: 'World map' }) as HTMLButtonElement).disabled).toBe(true);
+    expect((await screen.findByRole('button', { name: 'Choose a world map' }) as HTMLButtonElement).disabled).toBe(true);
     expect((screen.getByRole('button', { name: 'Delete campaign' }) as HTMLButtonElement).disabled).toBe(true);
   });
 });
 
 describe('searching campaigns on the dashboard', () => {
-  const rowNames = (): string[] => [...document.querySelectorAll('.campaign-row .dashboard-row__name')].map((name) => name.textContent ?? '');
+  const rowNames = cardNames;
+  const MORE = ['Dolmenwood', 'Shadowdark', 'Mörk Borg'].map((name, index): StoredCampaign => ({ id: `m${index}`, name, createdAt: 0 }));
 
-  it('filters the campaigns by name and description, and says when none match', async () => {
+  it('filters many campaigns by name and description, and says when none match', async () => {
     await renderDashboard([
       { id: 'a', name: 'Cairn', createdAt: 1, description: 'The olms rise.' },
       { id: 'b', name: 'The Witherwild', createdAt: 2 },
+      ...MORE,
     ]);
     const field = screen.getByRole('combobox', { name: 'Search campaigns' });
     expect(screen.queryByRole('button', { name: 'Filters' })).toBeNull();
@@ -251,11 +260,11 @@ describe('searching campaigns on the dashboard', () => {
     expect(rowNames()).toEqual([]);
     expect(screen.getByText('No campaigns match your search.')).toBeTruthy();
     fireEvent.change(field, { target: { value: '' } });
-    expect(rowNames()).toEqual(['The Witherwild', 'Cairn']);
+    expect(rowNames()).toEqual(['The Witherwild', 'Cairn', 'Dolmenwood', 'Mörk Borg', 'Shadowdark']);
   });
 
-  it('offers no search while there are no campaigns', async () => {
-    await renderDashboard();
+  it('offers no search while a glance shows every campaign', async () => {
+    await renderDashboard([{ id: 'a', name: 'Cairn', createdAt: 1 }, { id: 'b', name: 'The Witherwild', createdAt: 2 }]);
     expect(screen.queryByRole('combobox', { name: 'Search campaigns' })).toBeNull();
   });
 });

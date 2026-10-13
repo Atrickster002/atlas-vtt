@@ -56,6 +56,7 @@ import { HeaderAutocompleteSuggest } from './src/app/plugin/HeaderAutocompleteSu
 import { registerAtlasLinks } from './src/app/links/registerAtlasLinks';
 import { registerCommands } from './src/app/plugin/registerCommands';
 import { CampaignFiles } from './src/app/campaigns/CampaignFiles';
+import { releaseMapPictures } from './src/app/react/components/dashboard/mapPicture';
 import { PlayedRules } from './src/app/campaigns/playedRules';
 import { QuestIndex } from './src/app/campaigns/quests/QuestIndex';
 import { nameQuestCampaigns } from './src/app/campaigns/quests/nameQuestCampaigns';
@@ -245,6 +246,7 @@ export default class AtlasVTTPlugin extends Plugin {
     this.globalAssetManager?.close();
     // The asset manager only starts to close here; its overlay's class must not outlive the plugin.
     releaseOverlayBodyClass();
+    releaseMapPictures(this.app);
     CreatureIndex.release(this.app);
     TemplateLibrary.release(this.app);
     TileDecoderClient.release(this.app);

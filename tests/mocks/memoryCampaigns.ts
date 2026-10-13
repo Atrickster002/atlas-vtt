@@ -12,6 +12,7 @@ export function memoryCampaigns(initial: readonly StoredCampaign[] = []): Campai
   return {
     current: () => entries,
     entries: () => entries,
+    isLoaded: () => true,
     create: (entry) => set([...entries, entry]),
     update: (id, change) => set(entries.map((entry) => (entry.id === id ? change(entry) : entry))),
     remove: (id) => set(entries.filter((entry) => entry.id !== id)),

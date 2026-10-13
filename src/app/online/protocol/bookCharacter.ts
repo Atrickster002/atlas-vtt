@@ -47,11 +47,14 @@ const isValue = (value: unknown): value is number => typeof value === 'number' &
 /** A key a resource may be named by: a string of 1 to `MAX_RESOURCE_KEY` characters, none of them a control character. */
 export const isResourceKey = (value: unknown): value is string => typeof value === 'string' && value.length > 0 && value.length <= MAX_RESOURCE_KEY && !CONTROL.test(value);
 
+/** A static value may be 0 (an armour class); a counting one needs a maximum above 0. */
+const holdsValue = (direction: unknown, max: number): boolean => (direction === 'static' ? max >= 0 : max > 0);
+
 /** A resource as the page reads it. A sheet of an older GM names no key and says nothing of edits: it reads as one the player cannot change. */
 function parseResource(value: unknown): SheetResource | null {
   if (!isRecord(value) || typeof value.colour !== 'string' || !HEX_COLOUR.test(value.colour) || !DIRECTIONS.includes(value.direction)) return null;
   const name = bookLine(value.name, MAX_BOOK_TITLE);
-  if (name === null || !isValue(value.current) || !isValue(value.max) || !(value.max > 0)) return null;
+  if (name === null || !isValue(value.current) || !isValue(value.max) || !holdsValue(value.direction, value.max)) return null;
   const key = value.key === undefined || value.key === null ? null : isResourceKey(value.key) ? value.key : undefined;
   const editable = value.editable === undefined ? false : typeof value.editable === 'boolean' ? value.editable : undefined;
   if (key === undefined || editable === undefined) return null;

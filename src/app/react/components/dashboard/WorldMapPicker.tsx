@@ -1,6 +1,5 @@
 import React, { useEffect, useId, useMemo, useRef, useState } from 'react';
-import { Check, ChevronDown, Map } from 'lucide-react';
-import { CloseButton } from '../../../packages/components/primitives/CloseButton';
+import { Check, Map } from 'lucide-react';
 import { STANDING_LIST } from '../../../keyboard/tooltipEscape';
 import { cn } from '../../../../utils/cn';
 import { t } from '../../../i18n';
@@ -10,30 +9,35 @@ interface WorldMapPickerProps {
   choices: WorldMapChoice[];
   /** The chosen map's or scene's asset id. */
   value: string | undefined;
-  onChange: (id: string | undefined) => void;
+  onChange: (id: string) => void;
+  /** Names the trigger and the list. */
   labelledBy: string;
   disabled: boolean;
+  /** Where the list opens from: the picker's root, positioned by `className`. */
+  className?: string;
+  triggerClassName: string;
+  /** What the trigger shows. */
+  children: React.ReactNode;
 }
 
 const STEP: Record<string, number> = { ArrowDown: 1, ArrowUp: -1 };
 
-function Thumb({ choice }: { choice: WorldMapChoice | undefined }): React.JSX.Element {
+function Thumb({ choice }: { choice: WorldMapChoice }): React.JSX.Element {
   return (
     <span className="world-map-thumb">
-      {choice?.thumbnailUrl ? <img src={choice.thumbnailUrl} alt="" /> : <Map size={14} />}
+      {choice.thumbnailUrl ? <img src={choice.thumbnailUrl} alt="" /> : <Map size={14} />}
     </span>
   );
 }
 
-/** Picks any map or scene of the library, searched by name; the chosen one can be cleared. */
-export function WorldMapPicker({ choices, value, onChange, labelledBy, disabled }: WorldMapPickerProps): React.JSX.Element {
+/** Picks any map or scene of the library, searched by name, from a list that opens below its trigger. */
+export function WorldMapPicker({ choices, value, onChange, labelledBy, disabled, className, triggerClassName, children }: WorldMapPickerProps): React.JSX.Element {
   const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState('');
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const listId = useId();
   const searchLabelId = useId();
-  const chosen = choices.find((choice) => choice.id === value);
   const shown = useMemo(() => {
     const words = query.trim().toLowerCase();
     return words === '' ? choices : choices.filter((choice) => choice.name.toLowerCase().includes(words));
@@ -77,11 +81,11 @@ export function WorldMapPicker({ choices, value, onChange, labelledBy, disabled 
   };
 
   return (
-    <div ref={rootRef} className={cn('world-map-picker', isOpen && 'is-open')}>
+    <div ref={rootRef} className={cn('world-map-picker', isOpen && 'is-open', className)}>
       <button
         ref={triggerRef}
         type="button"
-        className={cn('world-map-picker__trigger', isOpen && 'atlas-open')}
+        className={cn(triggerClassName, isOpen && 'atlas-open')}
         aria-labelledby={labelledBy}
         aria-haspopup="listbox"
         aria-expanded={isOpen}
@@ -89,15 +93,8 @@ export function WorldMapPicker({ choices, value, onChange, labelledBy, disabled 
         disabled={disabled}
         onClick={() => setIsOpen((open) => !open)}
       >
-        <Thumb choice={chosen} />
-        <span className={cn('world-map-picker__value', !chosen && 'is-empty')}>{chosen?.name ?? t('campaign.chooseWorldMap')}</span>
-        {!chosen && <ChevronDown aria-hidden="true" className="world-map-picker__chevron" />}
+        {children}
       </button>
-      <span className="campaign-clear-slot">
-        {value !== undefined && !disabled && (
-          <CloseButton placement="inline" aria-label={t('campaign.clearWorldMap')} onClick={() => onChange(undefined)} />
-        )}
-      </span>
       {isOpen && (
         <div className="world-map-picker__popover" onKeyDown={onListKeyDown}>
           <span id={searchLabelId} hidden>{t('campaign.searchMaps')}</span>

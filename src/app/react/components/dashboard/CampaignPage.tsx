@@ -1,20 +1,24 @@
-import React, { useId } from 'react';
+import React from 'react';
 import type { App } from 'obsidian';
 import { ArrowLeft, Play, Square, Trash2 } from 'lucide-react';
 import type { Campaign } from '../../../campaigns/campaignTypes';
 import type { CampaignService } from '../../../campaigns/CampaignService';
 import { Button } from '../../../packages/components/primitives/button';
+import type { SystemPreset } from '../../../types/systemPresetTypes';
 import { confirmAction } from '../../../ui/confirmDialog';
 import { t } from '../../../i18n';
-import { CampaignDescriptionField, CampaignNameField, NextSessionField } from './CampaignFields';
+import { campaignActivity, campaignHueStyle, PlayingMark } from './CampaignCard';
+import { CampaignDescriptionField, CampaignNameField } from './CampaignFields';
 import { CampaignSystemSetting } from './CampaignSystemSetting';
-import { campaignActivity, PlayingMark } from './CampaignRow';
-import type { WorldMapChoice } from './libraryPictures';
+import { campaignSystemName } from './campaignSystemName';
+import { useDiceSets } from '../../hooks/useDiceSets';
+import type { WorldMapChoices } from './libraryPictures';
+import { MapArt } from './MapArt';
 import { PartyFaces } from './PartyFaces';
 import { CampaignQuests } from './quests/CampaignQuests';
+import { useWorldMapArtwork } from './quests/useWorldMapImage';
 import type { PartyFace } from './useCampaignParties';
-import { WorldMapAction } from './WorldMapAction';
-import { WorldMapPicker } from './WorldMapPicker';
+import { WorldMapCard } from './WorldMapCard';
 
 interface CampaignPageProps {
   app: App;
@@ -22,7 +26,8 @@ interface CampaignPageProps {
   /** Every campaign of the vault: a quest note is matched against all of them. */
   campaigns: readonly Campaign[];
   service: CampaignService;
-  worldMaps: WorldMapChoice[];
+  worldMaps: WorldMapChoices;
+  presets: readonly SystemPreset[];
   /** Whether this device plays the campaign. */
   isPlaying: boolean;
   onPlay: () => void;
@@ -32,13 +37,18 @@ interface CampaignPageProps {
   onBack: () => void;
 }
 
-/** One campaign: its name, description, quests, next session, world map and game system, edited where they stand; played from here. */
-export function CampaignPage({ app, campaign, campaigns, service, worldMaps, isPlaying, onPlay, onStop, party, onBack }: CampaignPageProps): React.JSX.Element {
+/**
+ * One campaign, around its world: the world map behind the page's head, fading into the page, the
+ * name and Play over it, then the world map to open for its pins, the game system, the description
+ * and the quests, edited where they stand.
+ */
+export function CampaignPage({ app, campaign, campaigns, service, worldMaps, presets, isPlaying, onPlay, onStop, party, onBack }: CampaignPageProps): React.JSX.Element {
   const locked = campaign.readOnly === true;
-  const nextSessionId = useId();
-  const worldMapId = useId();
-  const systemId = useId();
-  const worldMap = worldMaps.find((choice) => choice.id === campaign.worldMap);
+  const artwork = useWorldMapArtwork(app, service, campaign);
+  const { sets } = useDiceSets(app);
+  const choice = worldMaps.choices.find((candidate) => candidate.id === campaign.worldMap);
+  const hasBackdrop = campaign.worldMap !== undefined;
+  const systemName = campaign.system ? campaignSystemName(campaign.system, presets, sets).name : null;
 
   const deleteCampaign = async (): Promise<void> => {
     const confirmed = await confirmAction({
@@ -53,68 +63,62 @@ export function CampaignPage({ app, campaign, campaigns, service, worldMaps, isP
   };
 
   return (
-    <div className="campaign-page">
-      <Button variant="ghost" className="campaign-page__back" onClick={onBack}>
-        <ArrowLeft size={16} />
-        <span>{t('campaign.backToDashboard')}</span>
-      </Button>
+    <div className="campaign-page dashboard-page" data-backdrop={hasBackdrop || undefined} style={campaignHueStyle(campaign)}>
+      <div className="campaign-backdrop" aria-hidden="true">
+        {hasBackdrop && <MapArt app={app} path={artwork.path} pathPending={artwork.pending} thumbnailUrl={choice?.thumbnailUrl ?? null} />}
+      </div>
 
-      <header className="campaign-page__header">
-        <CampaignNameField campaign={campaign} service={service} disabled={locked} />
-        <span className="campaign-page__meta">{campaignActivity(campaign)}</span>
-        {locked && <p className="campaign-page__locked">{t('campaign.newerVersion')}</p>}
-        <div className="campaign-page__play">
-          {isPlaying ? (
-            <>
-              <PlayingMark />
-              <Button variant="ghost" className="campaign-page__stop" onClick={onStop}>
-                <Square size={14} />
-                <span>{t('campaign.stop')}</span>
+      <div className="dashboard-container campaign-page__container">
+        <Button variant="ghost" className="campaign-page__back" onClick={onBack}>
+          <ArrowLeft aria-hidden="true" />
+          <span>{t('campaign.backToDashboard')}</span>
+        </Button>
+
+        <header className="campaign-hero">
+          <p className="campaign-hero__meta">
+            {systemName !== null && (
+              <>
+                <span className="campaign-hero__system">{systemName}</span>
+                <span className="dashboard-card__separator" aria-hidden="true">&middot;</span>
+              </>
+            )}
+            <span>{campaignActivity(campaign)}</span>
+          </p>
+          <CampaignNameField campaign={campaign} service={service} disabled={locked} />
+          {locked && <p className="campaign-page__locked">{t('campaign.newerVersion')}</p>}
+          <div className="campaign-hero__actions">
+            {isPlaying ? (
+              <span className="campaign-hero__playing">
+                <PlayingMark />
+                <Button variant="ghost" className="campaign-hero__stop" onClick={onStop}>
+                  <Square aria-hidden="true" />
+                  <span>{t('campaign.stop')}</span>
+                </Button>
+              </span>
+            ) : (
+              <Button className="campaign-hero__play" disabled={locked} onClick={onPlay}>
+                <Play aria-hidden="true" />
+                <span>{t('campaign.play')}</span>
               </Button>
-            </>
-          ) : (
-            <Button className="campaign-page__start" disabled={locked} onClick={onPlay}>
-              <Play size={14} />
-              <span>{t('campaign.play')}</span>
-            </Button>
-          )}
-          <WorldMapAction app={app} campaign={campaign} service={service} choice={worldMap} disabled={locked} />
-          <PartyFaces faces={party} size="page" />
-        </div>
-      </header>
-
-      <div className="campaign-page__columns">
-        <div className="campaign-page__main">
-          <CampaignDescriptionField campaign={campaign} service={service} disabled={locked} />
-          <CampaignQuests app={app} campaign={campaign} campaigns={campaigns} service={service} disabled={locked} />
-        </div>
-
-        <aside className="campaign-page__side">
-          <div className="dashboard-panel campaign-settings">
-            <div className="campaign-setting">
-              <span id={nextSessionId} className="campaign-setting__label">{t('campaign.nextSession')}</span>
-              <NextSessionField campaign={campaign} service={service} disabled={locked} labelledBy={nextSessionId} />
-            </div>
-            <div className="campaign-setting">
-              <span id={worldMapId} className="campaign-setting__label">{t('campaign.worldMap')}</span>
-              <WorldMapPicker
-                choices={worldMaps}
-                value={campaign.worldMap}
-                onChange={(id) => service.update(campaign.id, { worldMap: id ?? '' })}
-                labelledBy={worldMapId}
-                disabled={locked}
-              />
-            </div>
-            <div className="campaign-setting">
-              <span id={systemId} className="campaign-setting__label">{t('campaign.gameSystem')}</span>
-              <CampaignSystemSetting app={app} campaign={campaign} service={service} labelledBy={systemId} disabled={locked} />
-            </div>
+            )}
+            <PartyFaces faces={party} size="page" />
           </div>
-          <Button variant="ghost" className="campaign-page__delete" disabled={locked} onClick={() => { void deleteCampaign(); }}>
-            <Trash2 size={16} />
-            <span>{t('campaign.delete')}</span>
-          </Button>
-        </aside>
+        </header>
+
+        <div className="campaign-page__body">
+          <aside className="campaign-page__side">
+            <WorldMapCard app={app} campaign={campaign} service={service} worldMaps={worldMaps} artwork={artwork} disabled={locked} />
+            <CampaignSystemSetting app={app} campaign={campaign} service={service} disabled={locked} />
+          </aside>
+          <div className="campaign-page__main">
+            <CampaignDescriptionField campaign={campaign} service={service} disabled={locked} />
+            <CampaignQuests app={app} campaign={campaign} campaigns={campaigns} service={service} disabled={locked} />
+            <Button variant="ghost" className="campaign-page__delete" disabled={locked} onClick={() => { void deleteCampaign(); }}>
+              <Trash2 aria-hidden="true" />
+              <span>{t('campaign.delete')}</span>
+            </Button>
+          </div>
+        </div>
       </div>
     </div>
   );
