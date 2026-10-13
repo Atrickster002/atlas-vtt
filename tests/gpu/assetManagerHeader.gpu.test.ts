@@ -136,14 +136,12 @@ describe('the asset manager header', () => {
     expect(tops.size).toBe(1);
   });
 
-  it.each([1500, 1200, 1000])('leaves the tabs as far from the navigation as from the search at %ipx', async (width) => {
+  it.each([1500, 1200, 1000, 900])('centres the tabs in the header at %ipx, whatever its groups hold', async (width) => {
     const header = await show(width, 0);
-    const lastNavigation = Array.from(header.querySelectorAll<HTMLElement>('.atlas-am-toolbar-left > *'))
-      .filter((control) => control.getClientRects().length > 0).pop()?.getBoundingClientRect();
+    const toolbar = header.querySelector<HTMLElement>('.atlas-am-toolbar')?.getBoundingClientRect();
     const tabs = header.querySelector<HTMLElement>('.atlas-asset-manager-tabs')?.getBoundingClientRect();
-    const search = header.querySelector<HTMLElement>('.atlas-asset-manager-search')?.getBoundingClientRect();
-    if (!lastNavigation || !tabs || !search) throw new Error('the header did not render its groups');
-    expect(Math.abs((tabs.left - lastNavigation.right) - (search.left - tabs.right))).toBeLessThanOrEqual(1);
+    if (!toolbar || !tabs) throw new Error('the header did not render its tabs');
+    expect(Math.abs((tabs.left + tabs.right) / 2 - (toolbar.left + toolbar.right) / 2)).toBeLessThanOrEqual(1);
   });
 
   it.each([1250, 1000, 870, 600, 400])('does not animate its controls while it fits again at %ipx', async (width) => {
