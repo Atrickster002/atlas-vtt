@@ -61,7 +61,8 @@ export function countByRarity(items: readonly LootItem[]): Map<RarityTone, numbe
   return counts;
 }
 
-function toDraw(item: LootItem, currency: string | undefined): LootDraw {
+/** An item as drawn: copied out of its note, its price in the currency. */
+export function toDraw(item: LootItem, currency: string | undefined): LootDraw {
   const { id, price, ...rest } = item;
   return { ...rest, id: crypto.randomUUID(), notePath: id, ...(price && { price: formatPrice(price, currency) }) };
 }

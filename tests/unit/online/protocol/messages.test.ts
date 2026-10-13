@@ -242,12 +242,9 @@ describe('moves', () => {
 describe('claims', () => {
   const id = '0'.repeat(24);
 
-  it('read a player\'s claim of a token players know, and nothing else: no release, which is the GM\'s', () => {
-    expect(parsePlayerMessage({ t: 'claim', scene: 's', id, extra: 1 })).toEqual({ t: 'claim', scene: 's', id });
+  it('are no player message: only the GM gives tokens, so a claim or release from an older page reads as nothing', () => {
+    expect(parsePlayerMessage({ t: 'claim', scene: 's', id })).toBeNull();
     expect(parsePlayerMessage({ t: 'release', scene: 's', id })).toBeNull();
-    for (const bad of [{ id: 'gm-token' }, { id: undefined }, { scene: '' }, { scene: 'x'.repeat(65) }, { scene: 3 }]) {
-      expect(parsePlayerMessage({ t: 'claim', scene: 's', id, ...bad }), JSON.stringify(bad)).toBeNull();
-    }
   });
 });
 

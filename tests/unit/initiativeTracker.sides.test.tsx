@@ -127,7 +127,7 @@ describe('the initiative tracker of a collection that fights by sides', () => {
     expect(container).toBeDefined();
   });
 
-  it('moves a combatant to the other side from its card', () => {
+  it('moves a combatant to the other side from its card; one moved to the players sees', () => {
     const { container } = render(<InitiativeTracker />);
 
     // Cards stand in their groups: hero, cleric, goblin, rat
@@ -137,7 +137,7 @@ describe('the initiative tracker of a collection that fights by sides', () => {
     clickItem('Move to Opponents');
 
     expect(state.updateTokens.mock.calls).toEqual([
-      [[{ id: 'goblin', changes: { side: 'players' } }]],
+      [[{ id: 'goblin', changes: { side: 'players', vision: { enabled: true } } }]],
       [[{ id: 'hero', changes: { side: 'opponents' } }]],
     ]);
   });

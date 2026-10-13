@@ -25,7 +25,7 @@ export interface PlayerTokenClaim {
   /** What the GM calls the token. */
   readonly label: string;
   /** The id of the player who has it, or null while it is free. */
-  readonly claimedBy: string | null;
+  readonly ownerId: string | null;
 }
 
 export interface OnlineSnapshot {
@@ -105,7 +105,7 @@ export function onlineApi(control: ControlSource, hideImage: () => void): Online
       sharedName: control.table?.sharedStore === null ? null : control.table?.presentedName ?? null,
       sharedTokens: control.table?.sharedStore?.getState().objects.tokens ?? {},
       players: control.players(),
-      playerTokens: control.playerTokens().map(({ tokenId, label, owner }) => ({ tokenId, label, claimedBy: owner?.id ?? null })),
+      playerTokens: control.playerTokens().map(({ tokenId, label, owner }) => ({ tokenId, label, ownerId: owner?.id ?? null })),
       seats: control.seats(),
       gate: control.table?.gate.view() ?? null,
       ...(control.table?.image.isShown === true && { imageShown: true }),
@@ -238,7 +238,7 @@ export interface TokenRow {
   readonly owner: GroupPlayer | null;
 }
 
-/** A player and their tokens, or (player null) the player tokens nobody has claimed. */
+/** A player and their tokens, or (player null) the player tokens the GM gave to nobody yet. */
 export interface PlayerGroup {
   readonly player: GroupPlayer | null;
   /** The token shown as the player's picture: the first they play, in the scene's order. Null without one, and for the free tokens. */
@@ -264,11 +264,11 @@ const byName = (a: OnlinePlayer, b: OnlinePlayer): number => a.name.localeCompar
 export function groupsOf(snapshot: OnlineSnapshot, scene: SceneFacts): PlayerGroup[] {
   const players = [...snapshot.players].sort(byName).map(groupPlayer);
   const known = new Map(players.map((player) => [player.id, player]));
-  const rows = snapshot.playerTokens.flatMap((claim): TokenRow[] => {
-    const token = scene.tokens[claim.tokenId];
+  const rows = snapshot.playerTokens.flatMap((seat): TokenRow[] => {
+    const token = scene.tokens[seat.tokenId];
     if (token === undefined) return [];
-    const owner = claim.claimedBy === null ? null : known.get(claim.claimedBy) ?? null;
-    return [{ tokenId: claim.tokenId, label: claim.label, imagePath: token.imagePath, showRing: token.showRing !== false, ringColor: token.ringColor ?? null, hidden: token.isHidden === true, owner }];
+    const owner = seat.ownerId === null ? null : known.get(seat.ownerId) ?? null;
+    return [{ tokenId: seat.tokenId, label: seat.label, imagePath: token.imagePath, showRing: token.showRing !== false, ringColor: token.ringColor ?? null, hidden: token.isHidden === true, owner }];
   });
   const groups: PlayerGroup[] = players.map((player) => {
     const [face = null, ...tokens] = rows.filter((row) => row.owner?.id === player.id);
@@ -292,6 +292,6 @@ export function selectionBarOf(snapshot: OnlineSnapshot, scene: SceneFacts): Sel
   if (!scene.isShared) return { kind: 'share' };
   const tokenIds = scene.selected.filter((id) => Object.hasOwn(scene.tokens, id));
   if (tokenIds.length === 0) return null;
-  const marked = new Set(snapshot.playerTokens.map((claim) => claim.tokenId));
+  const marked = new Set(snapshot.playerTokens.map((seat) => seat.tokenId));
   return { kind: 'selected', tokenIds, action: tokenIds.every((id) => marked.has(id)) ? 'unmark' : 'mark', canAssign: snapshot.players.length > 0 };
 }

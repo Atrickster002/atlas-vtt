@@ -41,5 +41,11 @@ export const DAGGERHEART: SystemPreset = {
       { id: 'adversary', name: 'Adversary', templateId: 'builtin:generic-creature' },
       { id: 'environment', name: 'Environment', templateId: 'builtin:generic-hazard' },
     ],
+    itemRarities: [
+      { name: 'Common', tone: 'common' },
+      { name: 'Uncommon', tone: 'uncommon' },
+      { name: 'Rare', tone: 'rare' },
+      { name: 'Legendary', tone: 'legendary' },
+    ],
   },
 };

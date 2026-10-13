@@ -1,5 +1,4 @@
 import '../statblock-import/statblock-import.scss';
-import './vault-images.scss';
 import React, { useEffect, useMemo, useState } from 'react';
 import { TFile, type App } from 'obsidian';
 import { Search } from 'lucide-react';
@@ -10,7 +9,7 @@ import { vaultImageFile } from '../token-creator/vaultImageFile';
 import type { CreatorMode, PreviewImage } from '../token-creator/types';
 import { VaultImageGrid } from './VaultImageGrid';
 import { VaultImageThumbnails } from './vaultImageThumbnails';
-import { vaultImages } from './vaultImageFiles';
+import { matchingVaultImages, vaultImages } from './vaultImageFiles';
 import { t } from '../../../../i18n';
 
 interface Props {
@@ -50,10 +49,7 @@ export function VaultImageContent({ app, mode, queuedPaths, onAdd, onClose, cont
   const queued = useMemo(() => new Set(queuedPaths), [queuedPaths]);
   const [scrollElement, setScrollElement] = useState<HTMLDivElement | null>(null);
 
-  const filtered = useMemo(() => {
-    const words = query.toLowerCase().split(/\s+/).filter(Boolean);
-    return files.filter((file) => words.every((word) => file.path.toLowerCase().includes(word)));
-  }, [files, query]);
+  const filtered = useMemo(() => matchingVaultImages(files, query), [files, query]);
   const chosen = [...selected].filter((path) => !queued.has(path));
   const toggle = (path: string): void => {
     setSelected((current) => { const next = new Set(current); if (next.has(path)) next.delete(path); else next.add(path); return next; });
@@ -86,7 +82,7 @@ export function VaultImageContent({ app, mode, queuedPaths, onAdd, onClose, cont
           <span>{t('vaultImages.selected', { count: chosen.length })}</span>
         </div>
         {filtered.length > 0
-          ? <VaultImageGrid files={filtered} thumbnails={thumbnails} selected={selected} queued={queued} disabled={running} scrollElement={scrollElement} onToggle={toggle} />
+          ? <VaultImageGrid files={filtered} thumbnails={thumbnails} pick={{ kind: 'many', selected, queued, onToggle: toggle }} disabled={running} scrollElement={scrollElement} />
           : <p>{query ? t('vaultImages.noMatch') : t('vaultImages.noneFound')}</p>}
       </div>
       <footer className="atlas-token-creator__footer atlas-statblock-import__footer">

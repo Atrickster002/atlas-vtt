@@ -33,7 +33,7 @@ const shown = (row: Element): string => [...row.querySelectorAll('.atlas-online-
 
 describe('the players of an online table', () => {
   it('shows a player who plays a token as one entry: the token as their picture, under the name they chose', () => {
-    const { el } = list({ players: [ANA], playerTokens: [{ tokenId: 'cleric', label: 'Cleric', claimedBy: ANA.id }] });
+    const { el } = list({ players: [ANA], playerTokens: [{ tokenId: 'cleric', label: 'Cleric', ownerId: ANA.id }] });
     expect(el.querySelectorAll('.atlas-online-player')).toHaveLength(1);
     expect(el.querySelectorAll('.atlas-online-token')).toHaveLength(0);
     const row = el.querySelector('.atlas-online-player');
@@ -55,17 +55,17 @@ describe('the players of an online table', () => {
     expect(el.querySelector('.atlas-online-sr-only')?.textContent).toBe('Away');
   });
 
-  it('lists a player\'s further tokens under them, and the tokens nobody plays under Unclaimed', () => {
-    const { el } = list({ players: [ANA], playerTokens: [{ tokenId: 'cleric', label: 'Cleric', claimedBy: ANA.id }, { tokenId: 'wolf', label: 'Wolf', claimedBy: ANA.id }, { tokenId: 'bear', label: 'Bear', claimedBy: null }] });
+  it('lists a player\'s further tokens under them, and the tokens nobody plays under Not assigned', () => {
+    const { el } = list({ players: [ANA], playerTokens: [{ tokenId: 'cleric', label: 'Cleric', ownerId: ANA.id }, { tokenId: 'wolf', label: 'Wolf', ownerId: ANA.id }, { tokenId: 'bear', label: 'Bear', ownerId: null }] });
     const groups = [...el.querySelectorAll('.atlas-online-group')];
     expect(groups).toHaveLength(2);
     expect([...groups[0]!.querySelectorAll('.atlas-online-token__name')].map((name) => name.textContent)).toEqual(['Wolf']);
-    expect(groups[1]?.querySelector('.atlas-online-group-label')?.textContent).toBe('Unclaimed');
+    expect(groups[1]?.querySelector('.atlas-online-group-label')?.textContent).toBe('Not assigned');
     expect([...groups[1]!.querySelectorAll('.atlas-online-token__name')].map((name) => name.textContent)).toEqual(['Bear']);
   });
 
   it('selects the player\'s token on the map when their picture or name is pressed', () => {
-    const { el, does } = list({ players: [ANA], playerTokens: [{ tokenId: 'cleric', label: 'Cleric', claimedBy: ANA.id }] });
+    const { el, does } = list({ players: [ANA], playerTokens: [{ tokenId: 'cleric', label: 'Cleric', ownerId: ANA.id }] });
     el.querySelector<HTMLButtonElement>('.atlas-online-player__main')?.click();
     expect(does.selectToken).toHaveBeenCalledWith('cleric');
   });

@@ -13,6 +13,7 @@ import type { FieldMeanings } from '../statblocks/resolve/fieldMeanings';
 import { readStatblockRecord } from '../statblocks/resolve/statblockRecord';
 import { isPersistedMapEnvelope } from './MapPersistence';
 import { STATBLOCK_IMAGE_KEYS } from './statblockImageKeys';
+import { statblockImageSrc } from '../statblocks/render/shared/statblockImage';
 import { NoteFieldWriter } from '../statblocks/notes/NoteFieldWriter';
 import type { NotePatch } from '../statblocks/notes/patchTypes';
 import type { BaseToken, Character } from '../types';
@@ -39,6 +40,11 @@ function nonEmpty<T extends object>(record: T): T | undefined {
 function frontmatterLabel(value: unknown): string | undefined {
   if (typeof value === 'number') return String(value);
   return typeof value === 'string' && value !== '' ? value : undefined;
+}
+
+/** A note's name as a notice names it: its file name without the folder and extension. */
+function noteName(path: string): string {
+  return (path.split('/').pop() ?? path).replace(/\.md$/, '');
 }
 
 function setOrDelete<T, K extends keyof T>(target: T, key: K, value: T[K] | undefined): void {
@@ -94,7 +100,11 @@ export class TokenStatblockLinkService extends EventEmitter {
    * tokens linked to the statblock stay linked; this token's previous
    * statblock, if any, is unlinked. Map tokens spawned from the image are
    * updated too. With `updateStatblockAvatar` the token's art becomes the
-   * statblock's picture when the note has none yet.
+   * statblock's picture when the note has none it can show (none, or a file
+   * the vault no longer holds); a picture that shows is never replaced.
+   * One notice at most: that the token moved here from another statblock,
+   * else that it was linked, unless `notice` is false (a panel that shows
+   * the link itself).
    */
   async linkTokenToStatblock(
     tokenImagePath: string, 
@@ -103,9 +113,11 @@ export class TokenStatblockLinkService extends EventEmitter {
       updateStatblockAvatar?: boolean;
       /** The note's image named the token (`StatblockTokenSync`); passed on with every event. */
       fromNote?: boolean;
+      /** Whether a plain link is announced; a token moved from another statblock always is. */
+      notice?: boolean;
     } = {}
   ): Promise<boolean> {
-    const { updateStatblockAvatar = true, fromNote = false } = options;
+    const { updateStatblockAvatar = true, fromNote = false, notice = true } = options;
     
     // Get the statblock file
     const statblockFile = this.app.vault.getAbstractFileByPath(statblockPath);
@@ -117,8 +129,8 @@ export class TokenStatblockLinkService extends EventEmitter {
     // Check if this token is already linked to another statblock
     const currentStatblockPath = await this.getStatblockLinkedToToken(tokenImagePath);
     if (currentStatblockPath && currentStatblockPath !== statblockPath) {
-      // Unlink from current statblock
-      await this.unlinkToken(tokenImagePath, { updateStatblockAvatar: true, notify: false, fromNote });
+      // A token links one statblock: it leaves its current one, which the notice below names.
+      await this.unlinkToken(tokenImagePath, { updateStatblockAvatar: true, notify: false, notice: false, fromNote });
     }
     
     // Find the asset using improved path matching
@@ -127,7 +139,7 @@ export class TokenStatblockLinkService extends EventEmitter {
     const finalTokenPath = asset?.imagePath ?? tokenImagePath;
     if (asset) await this.assetService.updateAsset(asset.id, { statblockPath });
 
-    if (updateStatblockAvatar && !this.readStatblockImage(statblockFile)) {
+    if (updateStatblockAvatar && !this.showsStatblockImage(statblockFile)) {
       await this.updateStatblockImage(statblockPath, finalTokenPath);
     }
     
@@ -151,8 +163,12 @@ export class TokenStatblockLinkService extends EventEmitter {
     
     this.app.workspace.trigger('atlas-vtt:refresh-assets');
     
-    // Show success notice
-    showNotice(t('link.linked'));
+    const moved = currentStatblockPath !== null && currentStatblockPath !== statblockPath;
+    if (moved) {
+      showNotice(t('link.moved', { token: asset?.name ?? t('link.unknown'), previous: noteName(currentStatblockPath) }));
+    } else if (notice) {
+      showNotice(t('link.linked'));
+    }
     
     return true;
   }
@@ -162,6 +178,7 @@ export class TokenStatblockLinkService extends EventEmitter {
    * `notify` fires the asset-manager refresh event; pass false when the unlink
    * is one step of a larger operation that refreshes once at the end.
    * `fromNote` marks the event as one a statblock note's image caused.
+   * `notice: false` shows no notice, for an unlink that is one step of a link.
    */
   async unlinkToken(
     tokenImagePath: string,
@@ -169,9 +186,10 @@ export class TokenStatblockLinkService extends EventEmitter {
       updateStatblockAvatar?: boolean;
       notify?: boolean;
       fromNote?: boolean;
+      notice?: boolean;
     } = {}
   ): Promise<boolean> {
-    const { updateStatblockAvatar = true, notify = true, fromNote = false } = options;
+    const { updateStatblockAvatar = true, notify = true, fromNote = false, notice = true } = options;
     
     // Get current statblock
     const statblockPath = await this.getStatblockLinkedToToken(tokenImagePath);
@@ -194,8 +212,7 @@ export class TokenStatblockLinkService extends EventEmitter {
     
     if (notify) this.app.workspace.trigger('atlas-vtt:refresh-assets');
     
-    // Show a notice to confirm unlinking
-    showNotice(t('link.unlinked'));
+    if (notice) showNotice(t('link.unlinked'));
     
     if (updateStatblockAvatar) await this.releaseStatblockImage(statblockPath, tokenImagePath);
     
@@ -280,6 +297,12 @@ export class TokenStatblockLinkService extends EventEmitter {
     const frontmatter: Record<string, unknown> | undefined = this.app.metadataCache.getFileCache(file)?.frontmatter;
     const images = STATBLOCK_IMAGE_KEYS.map((key) => frontmatter?.[key]);
     return images.find((image): image is string => typeof image === 'string' && image.length > 0) ?? null;
+  }
+
+  /** Whether the statblock has a picture that shows: a web address, or a file the vault holds. */
+  private showsStatblockImage(file: TFile): boolean {
+    const image = this.readStatblockImage(file);
+    return image !== null && statblockImageSrc(this.app, image, file.path) !== '';
   }
 
   /**

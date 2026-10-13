@@ -69,5 +69,12 @@ export const PATHFINDER_2E: SystemPreset = {
     senses: PATHFINDER_2E_SENSES,
     lightPresets: PATHFINDER_2E_LIGHTS,
     statblockRoles: [{ id: 'creature', name: 'Creature', templateId: 'builtin:d20-creature' }],
+    // Rarity is a trait in PF2e; Unique is the rarest.
+    itemRarities: [
+      { name: 'Common', tone: 'common' },
+      { name: 'Uncommon', tone: 'uncommon' },
+      { name: 'Rare', tone: 'rare' },
+      { name: 'Unique', tone: 'legendary' },
+    ],
   },
 };

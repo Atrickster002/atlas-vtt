@@ -4,7 +4,7 @@ import { produce } from 'immer';
 import type { TokenEntity } from '../../../../src/app/types';
 import type { TokenPerception } from '../../../../src/app/vision/tokenPerception';
 import type { SceneState, SceneStore } from '../../../../src/app/online/gm/atlasView.ts';
-import type { SeatSource } from '../../../../src/app/online/gm/playerClaims.ts';
+import type { SeatSource } from '../../../../src/app/online/gm/seatSource.ts';
 import { imageMimeType, SceneShare } from '../../../../src/app/online/gm/SceneShare.ts';
 import type { DiceSource } from '../../../../src/app/online/gm/atlasDice.ts';
 import type { AtlasPlayerSettings, LightingSource } from '../../../../src/app/online/gm/atlasLighting.ts';

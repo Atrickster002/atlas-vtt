@@ -3,7 +3,6 @@ export * from './book.ts';
 export * from './bookSlots.ts';
 export * from './bookText.ts';
 export * from './build.ts';
-export * from './claims.ts';
 export * from './colours.ts';
 export * from './delta.ts';
 export * from './deltaReader.ts';

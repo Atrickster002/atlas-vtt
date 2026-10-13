@@ -3,7 +3,7 @@ import { NO_INSTANCE_NUMBERS, type InstanceNumbers } from '../../vision/instance
 import { ArtRefs } from './artRefs.ts';
 import type { PlayerTokenSource, SceneStore } from './atlasView.ts';
 import type { ListedTokens } from './mineShare.ts';
-import type { SeatSource } from './playerClaims.ts';
+import type { SeatSource } from './seatSource.ts';
 import { sharedTokens, snapGridOf } from './scenePicture.ts';
 import { SequencedList } from './sequencedList.ts';
 import { NO_TOKEN_RULES, numberShownTokens, type TokenRules } from './tokenUI.ts';
@@ -24,7 +24,7 @@ export interface TokenSharePorts {
   showNames(): boolean;
   /** The map's resource and condition definitions as the GM's token renderer reads them, or null while they cannot be read: then no bar or condition is sent. */
   tokenRules?(): TokenRules | null;
-  /** Which tokens players may claim; without it every token is the GM's. */
+  /** Which tokens are player tokens; without it every token is the GM's. */
   seats?: Pick<SeatSource, 'claimOf'> | undefined;
   randomId(): string;
   now(): number;

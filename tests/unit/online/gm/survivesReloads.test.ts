@@ -162,7 +162,7 @@ describe('the online table', () => {
     online.stop();
   });
 
-  it('keeps the table in the plugin data through a reload of the companion, with the same link, players and claims', async () => {
+  it('keeps the table in the plugin data through a reload of the companion, with the same link, players and owners', async () => {
     const tab = atlasTab(caveScene());
     workspace.leaves = [tab.leaf];
     present(tab);

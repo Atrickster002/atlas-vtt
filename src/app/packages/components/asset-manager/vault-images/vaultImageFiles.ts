@@ -9,3 +9,9 @@ export function vaultImages(app: App): TFile[] {
     .filter((file) => isVaultImage(file) && !file.path.startsWith(own))
     .sort((a, b) => a.path.localeCompare(b.path));
 }
+
+/** The images whose path holds every word of `query`, in any case. */
+export function matchingVaultImages(files: readonly TFile[], query: string): TFile[] {
+  const words = query.toLowerCase().split(/\s+/).filter(Boolean);
+  return files.filter((file) => words.every((word) => file.path.toLowerCase().includes(word)));
+}

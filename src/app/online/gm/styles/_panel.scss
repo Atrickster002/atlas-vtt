@@ -120,7 +120,7 @@
     @include atlas-scrollbar;
   }
 
-  // A player and their tokens, or the unclaimed ones: rows close together, groups $spacing-s apart.
+  // A player and their tokens, or those not assigned yet: rows close together, groups $spacing-s apart.
   .atlas-online-group {
     display: flex;
     flex: none;
@@ -252,7 +252,8 @@
   .atlas-online-player:hover .atlas-online-player__more,
   .atlas-online-player:focus-within .atlas-online-player__more,
   .atlas-online-token:hover .atlas-online-owner,
-  .atlas-online-token:focus-within .atlas-online-owner {
+  .atlas-online-token:focus-within .atlas-online-owner,
+  .atlas-online-token .atlas-online-owner--free {
     opacity: 1;
   }
 

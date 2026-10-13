@@ -22,6 +22,7 @@ import { sameSenses } from './senseRules';
 import { hasVisionDefaults, sameVisionDefaults } from './visionDefaults';
 import { DEFAULT_CONE_ANGLE } from '../grid/measurementFormat';
 import { sameStatblockRoles } from '../statblocks/roles/collectionStatblockRoles';
+import { DEFAULT_ITEM_RARITIES, parseItemRarities, sameItemRarities } from './itemRarities';
 
 /** Measurement of a collection that never set any: 5-foot squares, every diagonal counts 1. */
 export const DEFAULT_GRID_DEFAULTS: Readonly<CollectionGridDefaults> = {
@@ -34,13 +35,13 @@ export const DEFAULT_GRID_DEFAULTS: Readonly<CollectionGridDefaults> = {
 
 /** What a game system sets in a collection's settings. */
 export type SystemSettings = Required<Pick<CollectionSettings, 'gridDefaults' | 'conditions' | 'defaultWidgets' | 'dice' | 'resources'>>
-  & Pick<CollectionSettings, 'systemPresetId' | 'diceSetId' | 'defaultTokenVision' | 'senses' | 'lightPresets' | 'initiative' | 'statblockRoles'>;
+  & Pick<CollectionSettings, 'systemPresetId' | 'diceSetId' | 'defaultTokenVision' | 'senses' | 'lightPresets' | 'initiative' | 'statblockRoles' | 'itemRarities'>;
 
 /**
  * A collection without a game system: default measurement and dice, HP as its only resource
  * (its bar on for new scenes), no conditions, no default widgets, no default vision, and no
- * senses, light presets, initiative rules or statblock roles of its own, so it uses the generic
- * ones. Role folders are the collection's own and stay.
+ * senses, light presets, initiative rules, statblock roles or item rarities of its own, so it uses
+ * the generic ones. Role folders are the collection's own and stay.
  */
 export function vanillaSystemSettings(): SystemSettings {
   return {
@@ -56,6 +57,7 @@ export function vanillaSystemSettings(): SystemSettings {
     lightPresets: undefined,
     initiative: undefined,
     statblockRoles: undefined,
+    itemRarities: undefined,
   };
 }
 
@@ -125,8 +127,8 @@ function sameDiceChoice(a: Pick<SystemRules, 'dice' | 'diceSetId'>, b: Pick<Syst
 
 /**
  * Whether a collection's `rules` play as `preset` does; condition ids do not matter. Rules
- * without senses, light presets, initiative rules or statblock roles of their own read the
- * preset's, so they are the same in that. Role folders are no part of the rules.
+ * without senses, light presets, initiative rules, statblock roles or item rarities of their own
+ * read the preset's, so they are the same in that. Role folders are no part of the rules.
  */
 export function sameSystemRules(preset: SystemRules, rules: SystemRules): boolean {
   return sameGridDefaults(preset.gridDefaults, rules.gridDefaults)
@@ -138,8 +140,15 @@ export function sameSystemRules(preset: SystemRules, rules: SystemRules): boolea
     && (rules.lightPresets === undefined || sameLightPresets(preset.lightPresets, rules.lightPresets))
     && (rules.initiative === undefined || sameInitiativeRules(preset.initiative, rules.initiative))
     && (!rules.statblockRoles?.length || sameStatblockRoles(preset.statblockRoles, rules.statblockRoles))
+    && sameOwnRarities(preset, rules)
     && preset.conditions.length === rules.conditions.length
     && preset.conditions.every((condition, i) => sameCondition(condition, rules.conditions[i]!));
+}
+
+/** Whether rules with rarity words of their own name the preset's (else the ladder's). */
+function sameOwnRarities(preset: SystemRules, rules: SystemRules): boolean {
+  const own = parseItemRarities(rules.itemRarities);
+  return own === undefined || sameItemRarities(preset.itemRarities ?? DEFAULT_ITEM_RARITIES, own);
 }
 
 const SQUARE_UNIT: Record<GridUnitType, string> = { feet: 'ft', yards: 'yd', meters: 'm', units: 'unit', custom: 'unit' };

@@ -44,3 +44,25 @@ export function statblockImageToken(app: App, raw: string, sourcePath: string | 
   const file = statblockImageFile(app, raw, sourcePath);
   return file ? AssetService.getInstance(app).findTokenAssetByImagePath(file.path) : null;
 }
+
+/** A linked token's art as a card shows it in place of a picture the note cannot show. */
+export interface LinkedTokenArt {
+  src: string;
+  token: TokenAsset;
+}
+
+/**
+ * The art of the first library token linked to the statblock whose image the
+ * vault holds (index order, as the link service picks the picture): what a
+ * card shows where the note names no picture, or one the vault no longer
+ * holds. Null before the asset index is read.
+ */
+export function linkedTokenArt(app: App, statblockPath: string | undefined): LinkedTokenArt | null {
+  if (!statblockPath) return null;
+  for (const token of AssetService.getInstance(app).loadedTokenAssets()) {
+    if (token.statblockPath !== statblockPath || !token.imagePath) continue;
+    const file = app.vault.getFileByPath(token.imagePath);
+    if (file) return { src: app.vault.getResourcePath(file), token };
+  }
+  return null;
+}

@@ -1,4 +1,5 @@
-// The panel the socket opens: header, Ring switch, linked tokens, footer.
+// The panel the socket opens: header, linked tokens, search and Ring switch, the tabs and their choices.
+// No rules between them: spacing alone parts them.
 
 @use '../../../../../styles/tokens' as *;
 @use '../../../../../styles/mixins' as *;
@@ -49,7 +50,6 @@
     @include atlas-flex-row($spacing-s);
     @include atlas-close-header($panel-inset);
     flex-shrink: 0;
-    border-bottom: $border-width-s solid var(--divider-color);
   }
 
   .atlas-sb-token-panel__title {
@@ -59,36 +59,60 @@
     font-weight: $font-weight-semibold;
   }
 
-  // Padding equals the gap between the sections.
+  // Padding equals the gap between its rows; the header's own padding is the rest of the top's.
   .atlas-sb-token-panel__body {
     @include atlas-flex-col($panel-inset);
     flex: 1 1 auto;
     min-height: 0;
-    padding: $panel-inset;
+    padding: calc(#{$panel-inset} - #{$close-button-gap}) $panel-inset $panel-inset;
     overflow-y: auto;
     @include atlas-scrollbar;
   }
 
-  // The Ring switch: its label starts on the panel's text edge.
-  .atlas-sb-token-panel__body > .atlas-dropdown-toggle-row {
-    --atlas-menu-text-inset: 0px;
+  // The search fills the row; the Ring switch stands at its end, its label beside it.
+  .atlas-sb-token-panel__controls {
+    @include atlas-flex-row($spacing-m);
+    flex-shrink: 0;
+
+    > .atlas-dropdown-toggle-row {
+      --atlas-menu-text-inset: 0px;
+      flex: none;
+      gap: $spacing-s;
+    }
+
+    > .atlas-dropdown-toggle-row .atlas-dropdown-toggle-row__label {
+      flex: none;
+    }
+  }
+
+  .atlas-sb-token-panel__sources {
     flex-shrink: 0;
   }
 
-  .atlas-sb-token-panel__section {
-    @include atlas-flex-col($spacing-s);
-    align-items: stretch;
+  // One well for either tab, of a fixed height: switching tabs or searching never resizes the panel.
+  // It scrolls on its own, with room for the choices' focus rings.
+  .atlas-sb-token-panel__choices {
+    flex-shrink: 0;
+    height: $grid-max-height;
+    padding: 2px;
+    margin: -2px;
+    overflow-y: auto;
+    @include atlas-scrollbar;
   }
 
-  .atlas-sb-token-panel__label {
-    margin: 0;
-    color: var(--text-muted);
-    font-size: $font-ui-smaller;
-    font-weight: $font-weight-semibold;
+  .atlas-sb-token-panel__make {
+    align-self: flex-start;
+    gap: $spacing-xs;
+
+    svg {
+      width: $icon-xs;
+      height: $icon-xs;
+    }
   }
 
   .atlas-sb-token-panel__linked {
     @include atlas-flex-col($spacing-xs);
+    flex-shrink: 0;
     margin: 0;
     padding: 0;
     list-style: none;
@@ -129,8 +153,12 @@
     height: $icon-xs;
   }
 
+  // As tall as the switch beside it.
   input.atlas-sb-token-panel__search {
-    width: 100%;
+    flex: 1;
+    align-self: stretch;
+    min-width: 0;
+    height: auto;
   }
 
   .atlas-sb-token-panel__empty {
@@ -143,37 +171,5 @@
 
   .atlas-sb-token-panel__hidden {
     @include atlas-visually-hidden;
-  }
-
-  // The footer's controls sit in the panel's bottom corners, concentric with them.
-  .atlas-sb-token-panel__footer {
-    @include atlas-flex-row($spacing-s);
-    flex-shrink: 0;
-    flex-wrap: wrap;
-    justify-content: space-between;
-    padding: $panel-inset;
-    border-top: $border-width-s solid var(--divider-color);
-
-    > .btn {
-      gap: $spacing-xs;
-
-      svg {
-        width: $icon-xs;
-        height: $icon-xs;
-      }
-    }
-
-    > .btn:first-child {
-      @include atlas-panel-inset-radius($panel-inset, bottom-left);
-    }
-
-    > .btn:nth-child(2) {
-      @include atlas-panel-inset-radius($panel-inset, bottom-right);
-    }
-  }
-
-  .atlas-sb-token-panel__status {
-    color: var(--text-muted);
-    font-size: $font-ui-smaller;
   }
 }

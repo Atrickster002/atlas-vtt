@@ -9,13 +9,14 @@ import { allSnapshotFiles, hiddenSnapshotFiles } from '../snapshots/sceneSnapsho
 import { STATBLOCK_IMAGE_KEYS } from './statblockImageKeys';
 import { NoteFieldWriter } from '../statblocks/notes/NoteFieldWriter';
 import type { NotePatch } from '../statblocks/notes/patchTypes';
+import { withMovedTableNotes } from '../randomTables/tableSettings';
 
 /**
  * Propagates file path changes (renames/moves) across all storage layers:
  * - Asset metadata (assets-metadata.json), including scene records of a renamed map
  * - Map files (.atlasmap token instances and pin targets) and scene snapshots
  * - Statblock frontmatter (the image fields)
- * - Collection loot bases
+ * - Collection loot bases and random table notes
  * - The thumbnail of a renamed map
  *
  * The open map is updated separately by its view, from the same vault event.
@@ -46,7 +47,7 @@ export class FileReferenceService {
     for (const { from, to } of fileMoves) await this.renameMapThumbnail(from, to);
     await this.updateMapFiles(moved);
     await this.updateStatblockFrontmatter(moved);
-    await this.updateLootBases(moved);
+    await this.updateRandomTableSources(moved);
   }
 
   /**
@@ -171,14 +172,17 @@ export class FileReferenceService {
   }
 
   // ---------------------------------------------------------------------------
-  /** Collections keep rolling on a loot base after it is renamed or moved. */
-  private async updateLootBases(moved: MovedPath): Promise<void> {
+  /** Collections keep rolling on a loot base or a table note after it is renamed or moved. */
+  private async updateRandomTableSources(moved: MovedPath): Promise<void> {
     const assetService = AssetService.getInstance(this.app);
     for (const collection of await assetService.getCollections()) {
-      const lootBases = collection.settings.lootBases;
-      if (!lootBases?.some((path) => moved(path) !== null)) continue;
+      const { lootBases } = collection.settings;
+      const basesMoved = lootBases?.some((path) => moved(path) !== null) ?? false;
+      const randomTables = withMovedTableNotes(collection.settings, moved);
+      if (!basesMoved && !randomTables) continue;
       await assetService.updateCollectionSettings(collection.id, {
-        lootBases: lootBases.map((path) => moved(path) ?? path),
+        ...(basesMoved && lootBases && { lootBases: lootBases.map((path) => moved(path) ?? path) }),
+        ...(randomTables && { randomTables }),
       });
     }
   }

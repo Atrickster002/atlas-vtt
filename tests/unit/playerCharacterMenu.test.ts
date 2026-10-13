@@ -89,18 +89,35 @@ describe('the map token menu', () => {
     expect(itemLabels((await setup(true)).rightClick('named'))).not.toContain(MAKE);
   });
 
-  it('marks the library token and back, without an undo step in the scene', async () => {
+  it('marks the library token and back; making it one switches its tokens\' vision on in one undo step, and nothing switches it off', async () => {
     const { rightClick, assets, store, app } = await setup();
-    const steps = getHistoryStore(store)!.getState().pastStates.length;
+    const history = getHistoryStore(store)!;
+    const steps = history.getState().pastStates.length;
+    const vision = (id: string): unknown => store.getState().objects.tokens[id]?.vision;
 
     click(rightClick('named'), MAKE);
+    expect([vision('named'), vision('older')]).toEqual([{ enabled: true }, undefined]);
+    expect(history.getState().pastStates.length).toBe(steps + 1);
     await vi.waitFor(async () => expect(await assets.getAssetById('ranger')).toMatchObject({ playerCharacter: true }));
     await vi.waitFor(() => expect(app.workspace.trigger).toHaveBeenCalledWith('atlas-vtt:refresh-assets'));
     expect(itemLabels(rightClick('named'))).toContain(UNMAKE);
 
     click(opened.entries, UNMAKE);
     await vi.waitFor(async () => expect(await assets.getAssetById('ranger')).not.toHaveProperty('playerCharacter'));
-    expect(getHistoryStore(store)!.getState().pastStates.length).toBe(steps);
+    expect(vision('named')).toEqual({ enabled: true });
+    expect(history.getState().pastStates.length).toBe(steps + 1);
+    history.getState().undo();
+    expect(vision('named')).toBeUndefined();
+  });
+
+  it('keeps vision a GM switched off on a token that already was a player character\'s', async () => {
+    const { rightClick, assets, store } = await setup();
+    click(rightClick('named'), MAKE);
+    await vi.waitFor(async () => expect(await assets.getAssetById('ranger')).toMatchObject({ playerCharacter: true }));
+    store.getState().updateTokens([{ id: 'named', changes: { vision: { enabled: false } } }]);
+    store.getState().updateTokens([{ id: 'named', changes: { x: 70 } }]);
+    rightClick('named');
+    expect(store.getState().objects.tokens.named?.vision).toEqual({ enabled: false });
   });
 });
 

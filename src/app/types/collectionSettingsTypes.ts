@@ -8,6 +8,7 @@
 import type { ResourceDefinition } from '../resources/resourceTypes';
 import type { CreatureFilterDefinition } from './creatureFilterTypes';
 import type { DiceRules } from './diceRulesTypes';
+import type { RandomTableSource, RarityOption } from './randomTableTypes';
 import type { InitiativeRules } from './initiativeRulesTypes';
 import type { LightPresetDefinition } from './lightPresetTypes';
 import type { TokenVisionDefaults } from './lightingTypes';
@@ -127,4 +128,14 @@ export interface CollectionSettings {
   lootBases?: string[];
   /** Named after plain-number item prices, e.g. "gold" or "thorns". */
   lootCurrency?: string | undefined;
+  /**
+   * Tables in Markdown notes the collection rolls on, beside the bases of `lootBases`. Arrives
+   * unchecked: read with `readRandomTables`, write with `withRandomTable`.
+   */
+  randomTables?: RandomTableSource[] | undefined;
+  /**
+   * The words items name their rarity with, stored only once the collection has its own. Unset while
+   * it takes those of its preset; read with `collectionItemRarities`.
+   */
+  itemRarities?: readonly RarityOption[] | undefined;
 }

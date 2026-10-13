@@ -26,6 +26,7 @@ vi.mock('../../src/app/services/AssetService', async (importOriginal) => {
     loadedCollections: () => [],
     getAssets: async () => [],
     getDefaultCollectionId: () => 'campaign',
+    loadedTokenAssets: () => [],
     getCollectionSettings: () => ({ conditions: [] }),
   };
   return { ...actual, AssetService: { getInstance: () => assets } };
