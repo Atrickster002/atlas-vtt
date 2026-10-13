@@ -29,6 +29,7 @@ import { maxLightRange } from '../../lighting/lightRanges';
 import { lightForm, lightFromForm, visionForm, visionFromForm, type LightForm, type VisionForm } from '../../lighting/tokenLighting';
 import { numberText } from '../../utils/numberInput';
 import { t } from '../../i18n';
+import { levelObjects } from '../../levels/levelObjects';
 
 interface EditTokenValues {
   name: string;
@@ -206,7 +207,7 @@ export function openEditTokenModal(
    * not put back what the token had when the modal opened.
    */
   const handleSave = (values: EditTokenValues): void => {
-    const current = store.getState().objects.tokens[token.id];
+    const current = levelObjects(store.getState()).tokens[token.id];
     const changed = <K extends keyof EditTokenValues>(key: K): boolean => JSON.stringify(values[key]) !== JSON.stringify(initial[key]);
     const maxima = definitions.filter(({ key }) => values.maxima[key] !== initial.maxima[key]);
     const updates: TokenUpdates = {

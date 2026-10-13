@@ -1,4 +1,5 @@
 import { Text, type Container } from 'pixi.js';
+import { levelObjects } from '../../levels/levelObjects';
 import type { ViewState } from '../../types/viewState';
 import { NO_INSTANCE_NUMBERS, badgeNumberInView, numberTokensInView, type InstanceNumbers, type TokenInView } from '../../vision/instanceNumbers';
 import type { TokenSeen } from '../../vision/measureOrigin';
@@ -6,7 +7,7 @@ import { setLayerVisibility, type LayerVisibility } from '../playerSafeFrame';
 import { PLAYER_BADGE_TEXT_LABEL, badgeParts, type InstanceBadgeParts } from './instanceBadgeParts';
 
 /** What the players' instance badges read of the view's state: its tokens, its map and whether it shows badges. */
-export type PlayerBadgeState = Pick<ViewState, 'mapPath'> & {
+export type PlayerBadgeState = Pick<ViewState, 'mapPath' | 'levels' | 'viewedLevel'> & {
   readonly objects: Pick<ViewState['objects'], 'tokens'>;
   readonly tokenSettings?: Partial<Pick<ViewState['tokenSettings'], 'showInstanceBadges'>>;
 };
@@ -74,7 +75,9 @@ export class PlayerInstanceBadges {
 
   /** Numbers the tokens `seen` answers for and works out what each badge shows; writes only a players' number that changed. */
   pass(seen: TokenSeen): void {
-    const { mapPath, objects, tokenSettings } = this.host.state();
+    const state = this.host.state();
+    const { mapPath, tokenSettings } = state;
+    const objects = levelObjects(state);
     if (mapPath !== this.numberedMap) {
       this.numbers = NO_INSTANCE_NUMBERS;
       this.numberedMap = mapPath;

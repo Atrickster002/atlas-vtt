@@ -7,6 +7,7 @@ import type { Point } from '../../types/visionTypes';
 import type { WallSegment, WallType } from '../../types/wallTypes';
 import { endsAt, snapToWallEnd, type WallEnd } from '../lighting/wallEnds';
 import type { WallEdit } from '../lighting/wallJoints';
+import { levelObjects } from '../../levels/levelObjects';
 
 /** Screen pixels a pressed wall end must travel before it follows the pointer: less is a click. */
 const DRAG_THRESHOLD = 3;
@@ -61,7 +62,7 @@ export class WallInteraction {
       this.selectWallChain(wallId, addToSelection);
       // Toggle door on plain click (not multi-select)
       if (!addToSelection) {
-        const wall = this.store.getState().objects.walls[wallId];
+        const wall = levelObjects(this.store.getState()).walls[wallId];
         if (wall && (wall.type === 'door' || wall.type === 'secret-door')) {
           this.store.getState().toggleDoor(wallId);
         }
@@ -90,7 +91,7 @@ export class WallInteraction {
     const state = this.store.getState();
     const point = { x: worldX, y: worldY };
     // Never onto the far end of a wall that moves with it, which would shrink that wall to a point.
-    const to = free ? point : snapToWallEnd(point, state.objects.walls, zoom, { skip: new Set(drag.ends.map((end) => end.wallId)), avoid: drag.farEnds });
+    const to = free ? point : snapToWallEnd(point, levelObjects(state).walls, zoom, { skip: new Set(drag.ends.map((end) => end.wallId)), avoid: drag.farEnds });
     for (const end of drag.ends) state.updateWall(end.wallId, { [end.end]: to });
   }
 
@@ -145,7 +146,7 @@ export class WallInteraction {
     runHistoryTransaction(this.store, () => this.selectedWallIds.forEach((id) => {
       const updates: Record<string, unknown> = { type };
       if (type === 'door' || type === 'secret-door') {
-        const wall = state.objects.walls[id];
+        const wall = levelObjects(state).walls[id];
         if (wall && wall.closed === undefined) {
           updates.closed = true;
         }
@@ -188,7 +189,7 @@ export class WallInteraction {
    * Without it, replaces the selection.
    */
   selectWallChain(wallId: string, addToSelection: boolean): void {
-    const walls = this.store.getState().objects.walls;
+    const walls = levelObjects(this.store.getState()).walls;
     const wall = walls[wallId];
     if (!wall) return;
 
@@ -250,7 +251,7 @@ export class WallInteraction {
   }
 
   private holdJoint(wallId: string, vertex: 'p1' | 'p2', pressedAt: Point, plain: boolean): void {
-    const walls = this.store.getState().objects.walls;
+    const walls = levelObjects(this.store.getState()).walls;
     const wall = walls[wallId];
     if (!wall) return;
     this.endDrag();

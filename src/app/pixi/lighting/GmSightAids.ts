@@ -12,6 +12,7 @@ import type { TokenPerception } from '../../vision/tokenPerception';
 import { PlayerSightMarks } from './PlayerSightMarks';
 import { SenseRangeRings } from './SenseRangeRings';
 import { sightMarks } from './sightMarks';
+import { levelObjects } from '../../levels/levelObjects';
 
 /** Above the lighting layer (90), the outlines of sensed tokens (95) and a light's range rings (96), below the token UI (100). */
 export const SIGHT_AIDS_Z_INDEX = 97;
@@ -53,7 +54,7 @@ export class GmSightAids {
     viewport.addChild(this.view);
     this.cleanups.push(store.subscribe((state, previous) => {
       if (
-        state.objects.tokens !== previous.objects.tokens || state.selectedIds !== previous.selectedIds || state.lighting !== previous.lighting
+        levelObjects(state).tokens !== levelObjects(previous).tokens || state.selectedIds !== previous.selectedIds || state.lighting !== previous.lighting
         || state.heldTokens !== previous.heldTokens || state.grid !== previous.grid || state.isMapLoading !== previous.isMapLoading
       ) this.schedule();
     }));
@@ -89,7 +90,7 @@ export class GmSightAids {
     const state = store.getState();
     const perceived = this.shown() ? perception() : undefined;
     const { cellSize } = unitScaleOf(measurement(), state.grid);
-    this.marks.sync(perceived ? sightMarks(state.objects.tokens, perceived, cellSize) : [], restingTokenUIScale(cellSize));
+    this.marks.sync(perceived ? sightMarks(levelObjects(state).tokens, perceived, cellSize) : [], restingTokenUIScale(cellSize));
     this.rings.draw();
   }
 

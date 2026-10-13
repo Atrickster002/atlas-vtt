@@ -8,6 +8,7 @@ import { watchClick } from '../utils/clickRelease';
 import { dispatchPinAction } from '../utils/pinActions';
 import type { HexLinkRenderer } from './HexLinkRenderer';
 import { t } from '../../i18n';
+import { levelObjects } from '../../levels/levelObjects';
 
 /** What the viewport-level pointer dispatch calls for linked hexes. */
 export interface HexLinkPointerHandlers {
@@ -36,7 +37,7 @@ export class HexLinkInteraction implements HexLinkPointerHandlers {
   constructor(private readonly options: HexLinkInteractionOptions) {}
 
   private pin(pinId: string): NotePin | undefined {
-    return this.options.store.getState().objects.pins[pinId];
+    return levelObjects(this.options.store.getState()).pins[pinId];
   }
 
   hitTest(worldX: number, worldY: number): string | null {
