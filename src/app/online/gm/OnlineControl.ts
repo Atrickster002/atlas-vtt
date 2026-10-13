@@ -19,7 +19,7 @@ export interface PlayerTokenRow {
   readonly tokenId: string;
   /** What the GM calls the token. */
   readonly label: string;
-  /** The player who has it, or null while it is open to claim. */
+  /** The player the GM gave it to, or null while the GM gave it to nobody. */
   readonly owner: KnownPlayer | null;
 }
 

@@ -8,7 +8,6 @@ import { parseLightingScene, parseSight, type SharedLightingScene, type SharedSi
 import { parseLive, type LiveMessage } from './live.ts';
 import type { LogMessage, PlayerLogMessage } from './log.ts';
 import { isPlayerLogType, parseLogMessage, parsePlayerLog } from './logParse.ts';
-import { parsePlayerClaim, type PlayerClaim } from './claims.ts';
 import { parsePlayerRoll, parseRoll, parseRollRefused, type PlayerRoll, type RollMessage, type RollRefused } from './dice.ts';
 import { parseAnnotations, parseDoors, parseGrid, parsePinFound, parsePins, parseSensed, type PlayerPinFound, type SensedMark, type SharedAnnotations, type SharedDoor, type SharedGrid, type SharedPin } from './mapLayers.ts';
 import { parseMarks, parsePlayerMark, type MarksMessage, type PlayerCursor, type PlayerLaser, type PlayerMeasure } from './marks.ts';
@@ -106,7 +105,7 @@ export interface PlayerAssetRequest {
   readonly maxSide?: number;
 }
 
-export type PlayerMessage = PlayerAssetRequest | PlayerResync | PlayerMove | PlayerDrag | PlayerDragCancel | PlayerClaim | PlayerRoll | PlayerLaser | PlayerMeasure | PlayerCursor | PlayerLogMessage | PlayerBookMessage | PlayerPinFound;
+export type PlayerMessage = PlayerAssetRequest | PlayerResync | PlayerMove | PlayerDrag | PlayerDragCancel | PlayerRoll | PlayerLaser | PlayerMeasure | PlayerCursor | PlayerLogMessage | PlayerBookMessage | PlayerPinFound;
 
 const MAX_CHUNKS = Math.ceil(MAX_ASSET_BYTES / ASSET_CHUNK_BYTES);
 const BASE64 = /^[A-Za-z0-9+/]*={0,2}$/;
@@ -242,7 +241,6 @@ export function parsePlayerMessage(value: unknown): PlayerMessage | null {
   if (!isRecord(value)) return null;
   if (value.t === 'move' || value.t === 'drag') return parsePlayerMove(value, value.t);
   if (value.t === 'drag-cancel') return parseDragCancel(value);
-  if (value.t === 'claim') return parsePlayerClaim(value);
   if (value.t === 'pin-found') return parsePinFound(value, isSceneId);
   if (value.t === 'roll') return parsePlayerRoll(value);
   if (value.t === 'laser' || value.t === 'measure' || value.t === 'cursor') return parsePlayerMark(value);

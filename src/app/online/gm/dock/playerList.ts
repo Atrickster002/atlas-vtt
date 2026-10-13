@@ -64,8 +64,9 @@ function playerRow(list: HTMLElement, player: GroupPlayer, face: TokenRow | null
 }
 
 /**
- * Who plays the token, inside its row at the right; it shows with the row's hover or focus (always on
- * touch screens).
+ * Who plays the token, inside its row at the right. Only the GM gives tokens to players, so on a token
+ * nobody plays it always shows as Assign; a player's name shows with the row's hover or focus (always
+ * on touch screens).
  */
 function ownerPicker(row: HTMLElement, token: TokenRow, players: readonly OnlinePlayer[], actions: ListActions): void {
   const owner = token.owner;
@@ -106,7 +107,7 @@ export function renderPlayerList(parent: HTMLElement, groups: readonly PlayerGro
     if (group.player === null && group.tokens.length === 0) continue;
     const block = list.createDiv({ cls: 'atlas-online-group' });
     if (group.player !== null) playerRow(block, group.player, group.face, group.tokens, actions);
-    else block.createDiv({ cls: 'atlas-online-group-label', text: 'Unclaimed' });
+    else block.createDiv({ cls: 'atlas-online-group-label', text: 'Not assigned' });
     for (const token of group.tokens) tokenRow(block, token, players, actions);
   }
   return list;
