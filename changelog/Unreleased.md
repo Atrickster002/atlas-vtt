@@ -4,6 +4,7 @@
 - Player characters: right-click a character on the map or in the asset manager to make it one; they have a tab of their own in the asset manager, beside the other characters
 - A campaign you play keeps one set of numbers for each player character: hit points and the other values changed on one scene show on every scene of the campaign, and travel with its folder to your other devices
 - Dice formulas take the notation Foundry, Roll20 and Dice Roller share: advantage as 2d20kh1, keep and drop, rerolls (r1, ro<2, rr1), x explosions, success counts (cs>=5), d%, Fate dice (dF), labels like 2d6[fire], and * / with brackets. Dropped and rerolled dice show struck through
+- Animated maps: add a WebM or MP4 video in the map creator or drop it on the asset manager, and it plays on the map and in the player window while someone sees it. Switch Animate maps off in Atlas' settings to show their first frame instead
 
 ## Improved
 
