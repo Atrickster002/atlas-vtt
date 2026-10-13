@@ -12,7 +12,6 @@ import { HeaderMenu } from './HeaderMenu';
 import { HeaderSearch } from './HeaderSearch';
 import type { FilterSearch } from '../hooks/useFilterSearch';
 import { useHeaderCompaction } from '../hooks/useHeaderCompaction';
-import { SortControls } from './SortControls';
 import { TabSwitcher } from './TabSwitcher';
 import { TokenIcon } from '../../../../react/components/TokenIcon';
 import { tabHasFolders } from '../utils/tabKinds';
@@ -36,16 +35,15 @@ export interface HeaderProps {
   sel: Pick<
     SelectionState,
     'navigationHistory' | 'handleNavigateBack' | 'handleNavigateForward' |
-    'selectedAssetIds' | 'selectedFolderIds' | 'handleClearSelection' |
-    'sortBy' | 'sortOptions' | 'setSortBy' | 'sortOrder' | 'setSortOrder'
+    'selectedAssetIds' | 'selectedFolderIds' | 'handleClearSelection'
   >;
 }
 
 /**
  * One-row toolbar: navigation and selection on the left, asset type in the
- * centre, search / sort / create on the right. When its controls do
- * not fit, the tabs, the search and the sort fold into menus and buttons
- * (`useHeaderCompaction`), so they never overlap.
+ * centre, search and create on the right. When its controls do not fit, the
+ * tabs and the search fold into a menu and a button (`useHeaderCompaction`),
+ * so they never overlap.
  */
 export function Header({
   app,
@@ -131,14 +129,6 @@ export function Header({
 
         <div className="atlas-am-toolbar-right">
           <HeaderSearch app={app} search={search} onSearch={onSearch} query={query} />
-          <SortControls
-            sortBy={sel.sortBy}
-            sortOptions={sel.sortOptions}
-            setSortBy={sel.setSortBy}
-            sortOrder={sel.sortOrder}
-            setSortOrder={sel.setSortOrder}
-          />
-
           <HeaderMenu
             label={t('am.header.create')}
             triggerClassName="atlas-asset-manager-create-btn"

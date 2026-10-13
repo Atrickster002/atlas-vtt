@@ -40,11 +40,6 @@ function headerProps(selected: number, tokens: number): HeaderProps {
       selectedAssetIds: Array.from({ length: selected }, (_, index) => String(index)),
       selectedFolderIds: [],
       handleClearSelection: noop,
-      sortBy: 'name',
-      sortOptions: ['name', 'date', 'type', 'rating'],
-      setSortBy: noop,
-      sortOrder: 'asc',
-      setSortOrder: noop,
     },
   };
 }
@@ -67,7 +62,7 @@ function layoutProblems(header: HTMLElement): string[] {
   const bounds = header.getBoundingClientRect();
   const controls = shownControls(header).map((control) => ({ name: control.className, rect: control.getBoundingClientRect() }));
   const problems: string[] = [];
-  if (controls.length < 7) problems.push(`only ${controls.length} controls found`);
+  if (controls.length < 5) problems.push(`only ${controls.length} controls found`);
   controls.forEach((a, index) => {
     if (a.rect.left < bounds.left - SLACK || a.rect.right > bounds.right + SLACK) problems.push(`${a.name} leaves the header`);
     for (const b of controls.slice(index + 1)) {
