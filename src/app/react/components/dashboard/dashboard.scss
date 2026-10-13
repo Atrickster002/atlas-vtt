@@ -94,6 +94,32 @@ $dashboard-narrow: 720px;
   }
 }
 
+// The sword of Atlas' icon, as behind the sign-in page of atlas-vtt.dev: as tall as the pane and
+// standing on its bottom edge, so the blade runs out of the pane. Sticky and taking no room, it
+// stays put while the page scrolls under it; `100cqh` is the pane's height (the view is a size
+// container, `.atlas-dashboard-view` in main.scss).
+.dashboard-sword {
+  position: sticky;
+  top: 0;
+  z-index: -1;
+  height: 100cqh;
+  margin-bottom: -100cqh;
+  overflow: hidden;
+  pointer-events: none;
+  opacity: 0.24;
+  animation: dashboard-fade-in $transition-slow $transition-ease-out both;
+
+  img {
+    position: absolute;
+    bottom: 0;
+    left: 50%;
+    height: 100%;
+    width: auto;
+    max-width: none;
+    transform: translateX(-50%);
+  }
+}
+
 // ── Top bar ─────────────────────────────────────────────────────────────────
 
 .dashboard-topbar {
@@ -105,15 +131,24 @@ $dashboard-narrow: 720px;
 }
 
 .dashboard-wordmark {
+  @include atlas-flex-row($spacing-s);
   margin: 0;
-  @include dashboard-display-type;
-  font-size: var(--font-ui-large);
+  font-family: $font-atlas-display;
+  font-weight: normal;
+  font-size: calc(var(--font-ui-large) * 1.4);
+  line-height: 1;
   color: var(--text-normal);
 
   span {
-    margin-inline-start: 0.25em;
     color: var(--text-accent);
   }
+}
+
+// The app's icon, its rounded square drawn into the image.
+.dashboard-wordmark__icon {
+  flex: none;
+  width: 1.5em;
+  height: 1.5em;
 }
 
 .dashboard-topbar__actions {

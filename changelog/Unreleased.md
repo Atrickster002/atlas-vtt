@@ -16,6 +16,7 @@
 
 ## Improved
 
+- The dashboard carries Atlas' icon and name in Atlas' own lettering, with the sword standing behind the page
 - The initiative card's edit dialog takes a modifier of your own for a combatant, which counts instead of its statblock's until you clear it
 - The Spectral Engine, which detects a map's grid, shows the grid being found: it is etched into the map along the map's own lines, sharpens as the search grows sure of it, and settles as its glow fades
 - A new scene shows its map at once and finds its grid in front of you, where a loading screen covered both before
