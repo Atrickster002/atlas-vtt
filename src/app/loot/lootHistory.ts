@@ -1,7 +1,34 @@
 import { isFiniteNumber, isRecord, isStringArray } from '../utils/guards';
 import type { LootDraw, LootProperty } from './lootRoller';
 
-/** One press of the Roll button: the items it drew, when and on which map. */
+/** A column of a rolled row beside its result text. */
+export interface TableResultField {
+  label: string;
+  value: string;
+  /** A column only the GM sees (a rumour's "True?"). */
+  hidden?: true;
+}
+
+/** One result of a roll on a table that is no Items table, copied out of its note. */
+export interface TableResult {
+  id: string;
+  /** Where it comes from: [note name, table name]. */
+  source: string[];
+  /** The note, for Open note; never sent to players. */
+  notePath: string;
+  /** The die read, as shown: "d6", 4. Absent for weighted tables. */
+  roll?: { die: string; total: number };
+  /** The first result column, its dice and linked tables rolled. */
+  text: string;
+  /** The other columns; `hidden` ones are the GM's. */
+  fields: TableResultField[];
+}
+
+/**
+ * One press of the Roll button: the items it drew and the results of other tables, when and
+ * on which map. A roll without items keeps `draws` empty, so earlier versions, whose reader
+ * needs a valid draw, leave it out whole rather than show half of it.
+ */
 export interface LootRoll {
   id: string;
   /** Unix time in milliseconds. */
@@ -9,9 +36,10 @@ export interface LootRoll {
   /** Name of the map the roll was made on. */
   mapName: string;
   draws: LootDraw[];
+  results?: TableResult[];
 }
 
-/** Rolls kept per collection, newest first. */
+/** Rolls kept per collection, newest first, of every kind. */
 export const LOOT_HISTORY_LIMIT = 100;
 
 function isLootProperty(value: unknown): value is LootProperty {
@@ -32,14 +60,31 @@ function isLootDraw(value: unknown): value is LootDraw {
     && Array.isArray(properties) && properties.every(isLootProperty);
 }
 
-/** A saved roll, or null when the data is not one; its broken items are dropped. */
+function isResultField(value: unknown): value is TableResultField {
+  return isRecord(value) && typeof value.label === 'string' && typeof value.value === 'string'
+    && (value.hidden === undefined || value.hidden === true);
+}
+
+function isTableResult(value: unknown): value is TableResult {
+  if (!isRecord(value)) return false;
+  const { id, source, notePath, roll, text, fields } = value;
+  return typeof id === 'string'
+    && isStringArray(source)
+    && typeof notePath === 'string'
+    && (roll === undefined || (isRecord(roll) && typeof roll.die === 'string' && isFiniteNumber(roll.total)))
+    && typeof text === 'string'
+    && Array.isArray(fields) && fields.every(isResultField);
+}
+
+/** A saved roll, or null when the data is not one; its broken items and results are dropped. */
 export function readLootRoll(value: unknown): LootRoll | null {
   if (!isRecord(value)) return null;
-  const { id, rolledAt, mapName, draws } = value;
+  const { id, rolledAt, mapName, draws, results } = value;
   if (typeof id !== 'string' || !isFiniteNumber(rolledAt) || typeof mapName !== 'string' || !Array.isArray(draws)) return null;
   const valid = draws.filter(isLootDraw);
-  if (valid.length === 0) return null;
-  return { id, rolledAt, mapName, draws: valid };
+  const validResults = Array.isArray(results) ? results.filter(isTableResult) : [];
+  if (valid.length === 0 && validResults.length === 0) return null;
+  return { id, rolledAt, mapName, draws: valid, ...(validResults.length > 0 && { results: validResults }) };
 }
 
 /** The rolls of a collection's history file, which arrives unchecked. */
