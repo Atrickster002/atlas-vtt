@@ -42,7 +42,7 @@ export const csm: Translation = {
   'csm.grid.bandsInvalid': 'Каждой дистанции нужно целое число клеток, от 1.',
   'csm.grid.diagonal': 'Движение по диагонали',
   'csm.grid.diagonal.alternating': 'Чередовать 1 и 2 (5/10/5)',
-  'csm.grid.diagonal.equidistant': 'Каждая диагональ = 1 (5e)',
+  'csm.grid.diagonal.equidistant': 'Каждая диагональ = 1',
   'csm.grid.diagonal.euclidean': 'Точное расстояние',
   'csm.grid.distance': 'Расстояние на клетку',
   'csm.grid.distanceInvalid': 'Расстоянию на клетку нужно число от 0,000001 до 1 000 000.',

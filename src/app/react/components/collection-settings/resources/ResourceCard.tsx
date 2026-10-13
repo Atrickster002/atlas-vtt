@@ -2,14 +2,15 @@ import React, { useEffect, useRef } from 'react';
 import { cn } from '../../../../../utils/cn';
 import { DropdownSwatchGrid } from '../../../../packages/components/primitives/DropdownSwatchGrid';
 import { RESOURCE_COLORS } from '../../../../resources/resourceColors';
+import type { FieldSuggestion } from '../../../../resources/resourceFieldSuggestions';
 import type { ResourceDefinition } from '../../../../resources/resourceTypes';
 import type { SocketPlace } from './resourceSockets';
 
 interface ResourceCardProps {
   place: SocketPlace;
   resource: ResourceDefinition;
-  /** Statblock fields of the collection's creatures that hold a quantity. */
-  fieldSuggestions: readonly string[];
+  /** Statblock fields that hold a quantity: the role templates' (with their names), then the statblocks'. */
+  fieldSuggestions: readonly FieldSuggestion[];
   /** The resource was just placed: its name is typed next. */
   focusName: boolean;
   onChange: (partial: Partial<ResourceDefinition>) => void;
@@ -18,9 +19,13 @@ interface ResourceCardProps {
 /** "bar below the token" as the card's heading. */
 const heading = (where: string): string => where.replace(/^./, (first) => first.toUpperCase());
 
+/** Whether a suggestion's path or name holds what is typed. */
+const holds = ({ path, label }: FieldSuggestion, typed: string): boolean =>
+  path.toLowerCase().includes(typed) || Boolean(label?.toLowerCase().includes(typed));
+
 /**
- * The name, statblock field and colour of the selected socket's resource. The fields found
- * in the collection's statblocks are offered to click; typing in the field narrows them.
+ * The name, statblock field and colour of the selected socket's resource. The fields of the
+ * collection's role templates and statblocks are offered to click; typing in the field narrows them.
  */
 export function ResourceCard({ place, resource, fieldSuggestions, focusName, onChange }: ResourceCardProps): React.ReactElement {
   const nameRef = useRef<HTMLInputElement>(null);
@@ -30,9 +35,9 @@ export function ResourceCard({ place, resource, fieldSuggestions, focusName, onC
   }, [focusName, place.slot]);
 
   const typed = resource.field.trim().toLowerCase();
-  const narrowed = fieldSuggestions.filter((field) => field.toLowerCase().includes(typed));
+  const narrowed = fieldSuggestions.filter((suggestion) => holds(suggestion, typed));
   // A field that is one of the suggestions narrows nothing: the others stay on offer
-  const offered = fieldSuggestions.some((field) => field.toLowerCase() === typed) ? fieldSuggestions : narrowed;
+  const offered = fieldSuggestions.some(({ path }) => path.toLowerCase() === typed) ? fieldSuggestions : narrowed;
 
   return (
     <div className="atlas-csm-resource-card">
@@ -57,10 +62,10 @@ export function ResourceCard({ place, resource, fieldSuggestions, focusName, onC
       <DropdownSwatchGrid label="Colour" swatches={RESOURCE_COLORS} value={resource.color} onChange={(color) => onChange({ color })} />
       {offered.length > 0 && (
         <div className="atlas-csm-resource-card__chips" role="group" aria-label="Fields in this collection's statblocks">
-          {offered.map((field) => (
-            <button key={field} type="button" className={cn('atlas-csm-field-chip', field === resource.field && 'atlas-selected')}
-              aria-pressed={field === resource.field} onClick={() => onChange({ field })}>
-              {field}
+          {offered.map(({ path, label }) => (
+            <button key={path} type="button" className={cn('atlas-csm-field-chip', path === resource.field && 'atlas-selected')}
+              aria-pressed={path === resource.field} onClick={() => onChange({ field: path })}>
+              {label && label !== path ? <>{label}<span className="atlas-csm-field-chip__path">{path}</span></> : path}
             </button>
           ))}
         </div>

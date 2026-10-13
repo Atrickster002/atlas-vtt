@@ -1,3 +1,4 @@
+import { D20_DICE_SET_ID } from '../builtInDiceSets';
 import type { SystemPreset } from '../../types/systemPresetTypes';
 import { DND_5E_LIGHTS } from '../lightPresets/dnd5e';
 import { HP_RESOURCE } from '../../resources/resourceDefinitions';
@@ -20,6 +21,7 @@ export const DND_5E: SystemPreset = {
       abstractRangeBands: [],
     },
     dice: { defaultRoll: '1d20', crit: 'natural' },
+    diceSetId: D20_DICE_SET_ID,
     conditions: conditionsOf('dnd5e', [
       { name: 'Blinded', color: '#475569', icon: 'blindfold', effect: 'blinded' },
       { name: 'Charmed', color: '#db2777', icon: 'heart' },
@@ -40,5 +42,10 @@ export const DND_5E: SystemPreset = {
     resources: [{ ...HP_RESOURCE }],
     senses: DND_5E_SENSES,
     lightPresets: DND_5E_LIGHTS,
+    // 5e writes NPCs in the monster statblock format.
+    statblockRoles: [
+      { id: 'monster', name: 'Monster', templateId: 'builtin:5e-2024-monster' },
+      { id: 'npc', name: 'NPC', templateId: 'builtin:5e-2024-monster' },
+    ],
   },
 };

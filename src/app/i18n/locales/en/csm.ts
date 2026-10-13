@@ -42,7 +42,7 @@ export const csm = {
   'csm.grid.bandsInvalid': 'Every band needs a whole number of squares, 1 or more.',
   'csm.grid.diagonal': 'Diagonal Movement',
   'csm.grid.diagonal.alternating': 'Alternate 1 and 2 (5/10/5)',
-  'csm.grid.diagonal.equidistant': 'Every diagonal counts 1 (5e)',
+  'csm.grid.diagonal.equidistant': 'Every diagonal counts 1',
   'csm.grid.diagonal.euclidean': 'Exact distance',
   'csm.grid.distance': 'Distance per Square',
   'csm.grid.distanceInvalid': 'Distance per Square needs a number from 0.000001 to 1,000,000.',

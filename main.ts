@@ -9,6 +9,19 @@ import { DashboardView, DASHBOARD_VIEW_TYPE } from './src/app/dashboard-view';
 import { initializeAtlasStorage } from './src/app/atlasStorageInit';
 import { t } from './src/app/i18n';
 import { CreatureIndex } from './src/app/creatures/CreatureIndex';
+import { TemplateLibrary } from './src/app/statblocks/library/TemplateLibrary';
+import { registerStatblockFence } from './src/app/statblocks/render/statblockFence';
+import { registerNoteStatblockPanels } from './src/app/statblocks/editor/note-panel/noteStatblockPanels';
+import { TemplateEditorView } from './src/app/statblocks/editor/TemplateEditorView';
+import { TEMPLATE_EDITOR_VIEW_TYPE } from './src/app/statblocks/editor/templateEditorState';
+import { openTemplateEditor } from './src/app/statblocks/editor/openTemplateEditor';
+import { TEMPLATE_EXTENSION } from './src/app/statblocks/library/templateFiles';
+import { appPaneServices } from './src/app/statblocks/editor/paneServices';
+import { registerNoteWriterFlush } from './src/app/plugin/noteWriterFlush';
+import { followTemplateBodies } from './src/app/statblocks/library/templateBodyNotes';
+import { registerHostedDialogRelease } from './src/app/statblocks/editor/hostedDialog';
+import { editInStatblockPane } from './src/app/statblocks/editor/create/entryPoints';
+import { registerStatblockFileMenu } from './src/app/statblocks/editor/create/statblockCommands';
 import { disposeImageProcessing } from './src/app/imageProcessing/imageProcessing';
 import { disposeSpectralEngine } from './src/app/pixi/spectralEngine/spectralEngineService';
 import { registerLootQueryView } from './src/app/loot/lootQueryView';
@@ -57,6 +70,7 @@ import { runStartupMigration } from './src/app/plugin/startupMigration';
 import { migrateLegacySnapshots } from './src/app/snapshots/legacySnapshotMigration';
 import { migrateSettingsToPluginData } from './src/app/plugin/settingsMigration';
 import { SystemPresetFiles } from './src/app/services/systemPresets/SystemPresetFiles';
+import { DiceSetFiles } from './src/app/services/diceSets/DiceSetFiles';
 import { registerStatusBarVisibility } from './src/app/plugin/statusBarVisibility';
 import { registerVaultSync } from './src/app/plugin/vaultSync';
 import { ChangelogService } from './src/app/changelog/ChangelogService';
@@ -118,6 +132,8 @@ export default class AtlasVTTPlugin extends Plugin {
     this.register(recordCampaignPlay(this.app, campaignFiles, campaignsRead));
     // And keeps one set of values for each of its player characters, shared by every map view.
     registerPartySync(this, campaignFiles, campaignsRead);
+    // The vault's dice sets are vault files too; collections and templates pick from them.
+    void DiceSetFiles.open(this.app).load().catch((error: unknown) => console.error('[Atlas] Reading the dice sets failed:', error));
     // Settings carried over even when the data file migration failed, so they are not lost to the defaults.
     const settingsReady = storageReady.catch(() => undefined).then(async () => {
       await presetFiles.load();
@@ -135,10 +151,19 @@ export default class AtlasVTTPlugin extends Plugin {
     // Views first, so workspace restore can resolve persisted Atlas tabs
     // before the slower startup path finishes.
     this.registerAtlasViews();
+    // Before the first await, so notes restored at startup draw their statblock fence.
+    registerStatblockFence(this, (path) => { editInStatblockPane(this.app, path, { collectionId: null, from: 'note' }); });
+    // Statblock edits reach their notes before a window closes or Obsidian quits.
+    registerNoteWriterFlush(this);
+    // A template's note moves and goes with its template file.
+    this.register(followTemplateBodies(this.app));
+    // The template gallery and the layout import report go with their window, and with Atlas.
+    registerHostedDialogRelease(this);
 
     await storageReady;
     await this.settingsService.initialize();
     registerDiceLookSync(this, this.settingsService);
+    this.registerStatblockPanels();
     const changelogService = new ChangelogService(this.app, this.settingsService, {
       installedVersion: this.manifest.version,
       existingInstallation: await existingInstallation,
@@ -172,6 +197,7 @@ export default class AtlasVTTPlugin extends Plugin {
       imageDisplay: this.imageDisplayService,
       assetManager: this.globalAssetManager,
     });
+    registerStatblockFileMenu(this);
 
     this.app.workspace.onLayoutReady(() => {
       registerColorSwatchIcons();
@@ -209,6 +235,7 @@ export default class AtlasVTTPlugin extends Plugin {
     PlayedRules.release(this.app);
     CampaignFiles.release(this.app);
     QuestIndex.release(this.app);
+    DiceSetFiles.release(this.app);
     this.widgetSyncService?.destroy();
     this.widgetSyncService = undefined;
 
@@ -221,10 +248,24 @@ export default class AtlasVTTPlugin extends Plugin {
     releaseOverlayBodyClass();
     releaseMapPictures(this.app);
     CreatureIndex.release(this.app);
+    TemplateLibrary.release(this.app);
     TileDecoderClient.release(this.app);
     MapImageService.release(this.app);
     disposeImageProcessing();
     disposeSpectralEngine();
+  }
+
+  /** The statblock beside every native statblock note, in every window, while the statblock editor is switched on. */
+  private registerStatblockPanels(): void {
+    registerNoteStatblockPanels(this, {
+      services: appPaneServices,
+      actions: {
+        // In the note's own leaf (§8.4); Obsidian's Back returns to the note.
+        openTemplate: ({ templateId, path, blockId, collectionId, notePath }, leaf) => {
+          void openTemplateEditor(this.app, { templateId, path, collectionId, select: blockId, leaf, fromNote: notePath });
+        },
+      },
+    });
   }
 
   private registerAtlasViews(): void {
@@ -233,5 +274,7 @@ export default class AtlasVTTPlugin extends Plugin {
     this.registerView(LOCAL_PLAYER_VIEW_TYPE, (leaf) => new LocalPlayerView(leaf));
     this.registerView(DASHBOARD_VIEW_TYPE, (leaf) => new DashboardView(leaf, this));
     registerLootQueryView(this);
+    this.registerView(TEMPLATE_EDITOR_VIEW_TYPE, (leaf) => new TemplateEditorView(leaf));
+    this.registerExtensions([TEMPLATE_EXTENSION], TEMPLATE_EDITOR_VIEW_TYPE);
   }
 }

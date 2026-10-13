@@ -49,7 +49,7 @@ describe('StatblockTokenSync', () => {
     f.links.readStatblockImage.mockReturnValue('new.png');
     f.links.findAssetByAnyPath.mockResolvedValue(tokenAsset());
     await f.change();
-    expect(f.links.linkTokenToStatblock).toHaveBeenCalledWith('new.png', 'Hero.md', { updateStatblockAvatar: false });
+    expect(f.links.linkTokenToStatblock).toHaveBeenCalledWith('new.png', 'Hero.md', { updateStatblockAvatar: false, fromNote: true });
     expect(f.store.getState().objects.tokens.hero?.imagePath).toBe('hero.png');
     f.sync.destroy();
   });
@@ -71,17 +71,20 @@ describe('StatblockTokenSync', () => {
     f.sync.destroy();
   });
 
-  it('links every matching image and clears only derived fields when unlinked', () => {
+  it('links every matching image and clears only derived fields when unlinked', async () => {
     const f = setup();
     f.store.getState().addToken(character({ overriddenMax: ['hp'], resources: { hp: { current: 2, max: 7 } } }));
     f.store.getState().addToken({ ...character({ id: 'plain' }), kind: 'token' });
     f.store.getState().addToken(character({ id: 'other', imagePath: 'other.png' }));
     f.link({ type: 'linked', tokenImagePath: 'hero.png', statblockPath: 'Hero.md' });
+    await vi.waitFor(() => expect(f.store.getState().objects.tokens.hero?.statblockPath).toBe('Hero.md'));
+    await vi.waitFor(() => expect(f.store.getState().objects.tokens.hero?.name).toBe('Hero'));
     for (const id of ['hero', 'plain']) {
       expect(f.store.getState().objects.tokens[id]).toMatchObject({ statblockPath: 'Hero.md', name: 'Hero', difficulty: '15', resources: { hp: { current: 20, max: 20 } } });
       expect(f.store.getState().objects.tokens[id]?.overriddenMax).toBeUndefined();
     }
     f.link({ type: 'unlinked', tokenImagePath: 'hero.png', statblockPath: null });
+    await vi.waitFor(() => expect(f.store.getState().objects.tokens.hero?.statblockPath).toBeUndefined());
     const hero = f.store.getState().objects.tokens.hero;
     expect(hero).toMatchObject({ x: 10, y: 20, imagePath: 'hero.png' });
     for (const key of ['statblockPath', 'name', 'statblockName', 'resources', 'difficulty', 'overriddenMax']) {

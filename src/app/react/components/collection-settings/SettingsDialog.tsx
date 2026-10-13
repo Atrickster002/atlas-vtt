@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import { Button } from '../../../packages/components/primitives/button';
 import { CloseButton } from '../../../packages/components/primitives/CloseButton';
 import { dialogOverlayMotion, useDialogWindowVariants } from '../../../packages/components/primitives/dialogMotion';
+import { handledByAnotherControl } from '../../../keyboard/tooltipEscape';
 import { t } from '../../../i18n';
 
 interface SettingsDialogProps {
@@ -20,8 +21,8 @@ interface SettingsDialogProps {
 
 /**
  * The window of a settings dialog with vertical tabs (a collection's settings, a campaign's game
- * system): its heading and close button, the body, and Cancel and Save. Escape and a press beside
- * it close it without saving.
+ * system): its heading and close button, the body, and Cancel and Save. Escape no control used and
+ * a press beside it close it without saving.
  */
 export function SettingsDialog({ title, subtitle, closeLabel, canSave, onSave, onClose, children }: SettingsDialogProps): React.ReactElement {
   const windowVariants = useDialogWindowVariants();
@@ -29,7 +30,8 @@ export function SettingsDialog({ title, subtitle, closeLabel, canSave, onSave, o
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent): void => {
-      if (event.key === 'Escape') onClose();
+      // Unless an open list or another control in the dialog took it.
+      if (event.key === 'Escape' && !handledByAnotherControl(event)) onClose();
     };
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);

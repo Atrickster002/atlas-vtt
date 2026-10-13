@@ -5,6 +5,10 @@
 - A campaign you play keeps one set of numbers for each player character: hit points and the other values changed on one scene show on every scene of the campaign, and travel with its folder to your other devices
 - Make tokens and maps from images already in your vault: the token and map creators have a From vault tab, and your files stay where they are
 - Dice formulas take the notation Foundry, Roll20 and Dice Roller share: advantage as 2d20kh1, keep and drop, rerolls (r1, ro<2, rr1), x explosions, success counts (cs>=5), d%, Fate dice (dF), labels like 2d6[fire], and * / with brackets. Dropped and rerolled dice show struck through
+- Statblocks show without the Fantasy Statblocks plugin: Atlas draws them itself on token hovers, in the DM screen and in the asset manager
+- Statblock templates for 5E (2014 and 2024), Cairn, Draw Steel and Fate, and general ones for creatures, NPCs and hazards
+- A template can limit a value to a list of choices, picked from a dropdown: one, several, or several each with a number, like senses or movement
+- A value can stand in a box, its label small over a large number, like hit points or thresholds in a printed stat block. Boxed values side by side join into one strip: set a value's Label to Boxed in the template editor
 
 ## Improved
 
@@ -21,12 +25,15 @@
 - Atlas' messages at the edge of the window take the look of its panels in your theme, where they were Obsidian's dark box
 - Several tokens can share one statblock, for colour variants of a creature or NPCs of one kind: linking another token keeps the first, and the DM screen shows them as one statblock
 - A statblock keeps its own picture: linking a token sets it only where the statblock has none, and a token copied to another collection keeps its statblock
+- The creature filter Layout is now called Template. Type `template:` in the search; `layout:` still works
+- The token creator finds statblock notes without the Fantasy Statblocks plugin too. Its image source is now called Statblock notes
 
 ## Fixed
 
 - Auto detect finds the grid of a small map picture, with cells of about ten pixels, where it took four cells for one
 - A grid placed with Freehand stays exactly where and as large as you placed it, on maps with a printed grid too
 - The note picker of a pin and the right-click menus of pins and drawings open beside them, with Obsidian's left sidebar open too
+- Hovering a token whose note holds its statblock in a code block shows the statblock, not the plain note
 - Measured distances show one decimal place, so a 1.5 m cell reads 1.5 m instead of 2 m
 - The fog brush paints and reveals an even stroke while you drag it, where a slow stroke showed a pattern of half-covered dots until it was let go
 - Saving an encounter from the asset manager or scene browser asks for its name in front of it, where the dialog opened behind it

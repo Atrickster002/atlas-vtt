@@ -18,6 +18,7 @@ import { campaign } from './campaign';
 import { quest } from './quest';
 import { dashboard } from './dashboard';
 import { dice } from './dice';
+import { diceLab } from './diceLab';
 import { exportDialog } from './exportDialog';
 import { grid } from './grid';
 import { gridModal } from './gridModal';
@@ -105,6 +106,7 @@ export const en = {
   ...quest,
   ...dashboard,
   ...dice,
+  ...diceLab,
   ...exportDialog,
   ...grid,
   ...gridModal,

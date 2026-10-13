@@ -11,6 +11,7 @@ import { t } from '../../../i18n';
 import { CampaignCard } from './CampaignCard';
 import { CardSkeleton } from './CardSkeleton';
 import { campaignSystemName } from './campaignSystemName';
+import { useDiceSets } from '../../hooks/useDiceSets';
 import type { WorldMapChoice } from './libraryPictures';
 import { NewCampaignField } from './NewCampaignField';
 import type { CampaignParties } from './useCampaignParties';
@@ -39,6 +40,7 @@ interface CampaignsSectionProps {
  * place. Many campaigns are searched by name and description.
  */
 export function CampaignsSection({ app, service, campaigns, isLoading, worldMaps, presets, playingId, parties, onOpenCampaign }: CampaignsSectionProps): React.JSX.Element {
+  const { sets } = useDiceSets(app);
   const [isCreating, setIsCreating] = useState(false);
   const [search, setSearch] = useState('');
   const headingId = useId();
@@ -69,7 +71,7 @@ export function CampaignsSection({ app, service, campaigns, isLoading, worldMaps
               campaign={campaign}
               service={service}
               worldMap={worldMaps.find((choice) => choice.id === campaign.worldMap)}
-              systemName={campaign.system ? campaignSystemName(campaign.system, presets).name : null}
+              systemName={campaign.system ? campaignSystemName(campaign.system, presets, sets).name : null}
               isPlaying={campaign.id === playingId}
               party={parties.get(campaign.id) ?? []}
               onOpen={() => onOpenCampaign(campaign.id)}

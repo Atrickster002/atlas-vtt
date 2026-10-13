@@ -105,7 +105,7 @@ export function ContentPane(props: ContentPaneProps): React.JSX.Element {
   const cardHandlers = useAssetCardHandlers({
     app: props.app, openAsset, selectedAssetIds, setDraggedItems,
     onAssetSelect: props.onAssetSelect, onAssetContextMenu: props.onAssetContextMenu,
-    onSpawnCountChange: props.onSpawnCountChange, onArtNeeded,
+    onSpawnCountChange: props.onSpawnCountChange, onArtNeeded, onClose: props.onClose,
   });
   useSpawnCountTyping(scrollElement, props.onSpawnCountChange);
   useAssetStatblockPreview({

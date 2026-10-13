@@ -118,6 +118,7 @@
   @import '../src/app/react/components/dashboard/quests/quests.scss';
   @import '../src/app/react/components/dashboard/quests/quest-place.scss';
   @import '../src/app/react/components/dice-log/dice-roll-log.scss';
+  @import '../src/app/react/components/dice/rolled-dice.scss';
   @import '../src/app/react/components/loot/loot-roller.scss';
   @import '../src/app/pixi/lighting/light-panel.scss';
   @import '../src/app/pixi/lighting/light-popover.scss';
@@ -134,7 +135,13 @@
   @import '../src/app/react/components/collection-settings/conditions-tab.scss';
   @import '../src/app/react/components/collection-settings/vision-tab.scss';
   @import '../src/app/react/components/senses/senses-editor.scss';
+  @import '../src/app/react/components/collection-settings/fan/radial-fan.scss';
   @import '../src/app/react/components/collection-settings/resources-tab.scss';
+  @import '../src/app/react/components/collection-settings/dice-lab/dice-lab.scss';
+  @import '../src/app/react/components/collection-settings/dice-lab/dice-lab-options.scss';
+  @import '../src/app/react/components/collection-settings/dice-lab/dice-tray.scss';
+  @import '../src/app/react/components/collection-settings/dice-lab/dice-set-picker.scss';
+  @import '../src/app/react/components/collection-settings/dice-lab/dice-step.scss';
   @import '../src/app/services/note-preview-window.scss';
   @import '../src/app/services/embedded-leaf.scss';
   @import '../src/app/react/components/atlas-toast.scss';

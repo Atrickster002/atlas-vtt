@@ -11,6 +11,7 @@ import { campaignActivity, campaignHueStyle, PlayingMark } from './CampaignCard'
 import { CampaignDescriptionField, CampaignNameField } from './CampaignFields';
 import { CampaignSystemSetting } from './CampaignSystemSetting';
 import { campaignSystemName } from './campaignSystemName';
+import { useDiceSets } from '../../hooks/useDiceSets';
 import type { WorldMapChoices } from './libraryPictures';
 import { MapArt } from './MapArt';
 import { PartyFaces } from './PartyFaces';
@@ -44,9 +45,10 @@ interface CampaignPageProps {
 export function CampaignPage({ app, campaign, campaigns, service, worldMaps, presets, isPlaying, onPlay, onStop, party, onBack }: CampaignPageProps): React.JSX.Element {
   const locked = campaign.readOnly === true;
   const artwork = useWorldMapArtwork(app, service, campaign);
+  const { sets } = useDiceSets(app);
   const choice = worldMaps.choices.find((candidate) => candidate.id === campaign.worldMap);
   const hasBackdrop = campaign.worldMap !== undefined;
-  const systemName = campaign.system ? campaignSystemName(campaign.system, presets).name : null;
+  const systemName = campaign.system ? campaignSystemName(campaign.system, presets, sets).name : null;
 
   const deleteCampaign = async (): Promise<void> => {
     const confirmed = await confirmAction({

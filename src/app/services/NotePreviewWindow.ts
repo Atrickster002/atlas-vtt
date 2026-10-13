@@ -1,6 +1,7 @@
 import { App, WorkspaceLeaf, TFile, ItemView, MarkdownRenderer, MarkdownView, Component, setIcon } from 'obsidian';
 import { getActiveWorkspaceLeaf, suppressActiveLeaf } from '../utils/embeddedLeafFocus';
 import { runInBackground } from '../utils/backgroundTask';
+import { openDetachedNoteLeaf } from './detachedNoteLeaf';
 import type { NotePreviewUIManager, PreviewAnchorRef } from './NotePreviewUIManager';
 import type { NoteViewState, PinnedNotePreview } from '../stores/pinnedNotePreviewSlice';
 import { PreviewWindowPlacement } from './previewWindowLayout';
@@ -311,79 +312,20 @@ export class NotePreviewWindow {
       }
     }
 
-    // Strategy 2: Create a hidden leaf for full functionality
-    const originalActiveLeaf = this.preferredActiveLeaf ?? getActiveWorkspaceLeaf(this.app.workspace);
+    // Strategy 2: a leaf of its own, out of the workspace, for full editing.
+    this.leaf = await openDetachedNoteLeaf(this.app, file, {
+      keepActive: this.preferredActiveLeaf,
+      openState: toOpenViewState(this.savedViewState),
+    });
+    if (this.leaf?.view) {
+      contentContainer.empty();
+      contentContainer.classList.add('atlas-note-preview-content--scrollable');
+      contentContainer.appendChild(this.leaf.view.containerEl);
+      this.leaf.view.containerEl.classList.add('atlas-embedded-leaf-view');
+      this.positionMountedNote();
 
-    // Suppress active-leaf switching during leaf creation + file loading
-    restoreActiveLeaf = suppressActiveLeaf(ws);
-    try {
-      // Create the leaf
-      this.leaf = this.app.workspace.getLeaf(true);
-
-      if (this.leaf) {
-        this.leaf.containerEl?.setAttribute('data-atlas-preview', 'true');
-        this.leaf.tabHeaderEl?.setAttribute('data-atlas-preview', 'true');
-
-        // Move the leaf out of the main split to prevent it from affecting the view
-        this.leaf.detach();
-      }
-
-      if (!this.leaf) {
-        restoreActiveLeaf();
-        if (originalActiveLeaf) {
-          this.app.workspace.setActiveLeaf(originalActiveLeaf, { focus: false });
-        }
-      } else {
-        try {
-          await this.leaf.openFile(file, toOpenViewState(this.savedViewState));
-
-          // Restore setActiveLeaf now that async workspace ops are done
-          restoreActiveLeaf();
-          if (originalActiveLeaf) {
-            this.app.workspace.setActiveLeaf(originalActiveLeaf, { focus: false });
-          }
-
-          // Check if leaf still exists after opening file
-          if (!this.leaf || !this.leaf.view) {
-            console.error("[NotePreviewWindow] Leaf or view disappeared after opening file");
-            this.leaf = null;
-            return;
-          }
-
-          // Now, append the leaf's view to our container
-          if (contentContainer && this.leaf.view) {
-            contentContainer.empty();
-            contentContainer.classList.add('atlas-note-preview-content--scrollable');
-            contentContainer.appendChild(this.leaf.view.containerEl);
-            this.leaf.view.containerEl.classList.add('atlas-embedded-leaf-view');
-            this.positionMountedNote();
-
-            // Intercept link clicks to prevent navigation away from map view
-            this.interceptLinkClicks(contentContainer);
-          } else {
-            console.error("[NotePreviewWindow] Content container not found for manual append.");
-            // Still detach if we couldn't append the view
-            if (this.leaf) {
-              this.leaf.detach();
-              this.leaf = null;
-            }
-          }
-        } catch (error) {
-          restoreActiveLeaf();
-          if (originalActiveLeaf) {
-            this.app.workspace.setActiveLeaf(originalActiveLeaf, { focus: false });
-          }
-          console.error("[NotePreviewWindow] Error opening file in leaf:", error);
-          if (this.leaf) {
-            this.leaf.detach();
-            this.leaf = null;
-          }
-        }
-      }
-    } finally {
-      // Whatever throws above (the workspace may have no tab group to make a leaf in), the
-      // workspace must get setActiveLeaf back: a release is counted once however often it runs.
-      restoreActiveLeaf();
+      // Intercept link clicks to prevent navigation away from map view
+      this.interceptLinkClicks(contentContainer);
     }
 
     if (!this.leaf && contentContainer) {

@@ -2,6 +2,7 @@ import type { WorkspaceLeaf } from 'obsidian';
 import type { DiceRollOrigin } from '../../types/diceRollOrigin';
 import type { DiceRollResult } from '../../types/diceTypes';
 import type { DiceRules } from '../../types/diceRulesTypes';
+import type { RollingDice } from '../../types/diceSetTypes';
 import { call } from './atlasView.ts';
 
 /** What `dice-rolled` carries on an Atlas view's bus: the roll and, when known, the token it was made for. */
@@ -14,8 +15,8 @@ export type DiceRolledListener = (result: DiceRollResult, origin?: DiceRollOrigi
 export interface DiceSource {
   readonly viewId: string;
   rollDice(formula: string, source?: DiceRollResult['source'], origin?: DiceRollOrigin): DiceRollResult | null;
-  /** The rules the tool rolls by: its map's collection's. */
-  rules(): DiceRules;
+  /** The dice the tool rolls a bare bonus with: its map's dice set (or a collection's stored dice rules). */
+  rules(): DiceRules | RollingDice;
   on(event: 'dice-rolled', listener: DiceRolledListener): unknown;
   off(event: 'dice-rolled', listener: DiceRolledListener): unknown;
 }
@@ -39,7 +40,7 @@ export function diceSourceOf(leaf: WorkspaceLeaf): DiceSource | null {
   return {
     viewId,
     rollDice: (formula, source, origin) => tool.rollDice(formula, source, origin) as DiceRollResult | null,
-    rules: () => tool.getDiceRules() as DiceRules,
+    rules: () => tool.getDiceRules() as DiceRules | RollingDice,
     on: (event, listener) => bus.on(event, listener),
     off: (event, listener) => bus.off(event, listener),
   };

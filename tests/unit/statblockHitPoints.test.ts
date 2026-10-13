@@ -37,7 +37,10 @@ function mapView(totals: number[], tokenIds: string[], isPlayerView = false) {
   return { view, rolls, updateTokens };
 }
 
-const appWith = (...views: unknown[]) => ({ workspace: { getLeavesOfType: () => views.map((view) => ({ view })) } }) as never;
+const appWith = (...views: unknown[]) => ({
+  workspace: { getLeavesOfType: () => views.map((view) => ({ view })) },
+  vault: { getFileByPath: () => null },
+}) as never;
 
 describe('rollHitPoints', () => {
   beforeEach(() => { collection.resources = [HP]; });

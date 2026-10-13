@@ -1,0 +1,34 @@
+// The import report and adoption batch of a Fantasy Statblocks layout (§6.2,
+// §6.4). The window is `atlas-te-dialog`; its lists and progress come from
+// `batchParts.tsx`.
+
+@use '../../../../../styles/tokens' as *;
+@use '../../../../../styles/mixins' as *;
+
+.atlas-vtt-plugin {
+  .atlas-te-dialog.atlas-fs-import {
+    width: 480px;
+  }
+
+  .atlas-fs-import__section {
+    @include atlas-flex-col($spacing-s);
+    align-items: stretch;
+  }
+
+  .atlas-fs-import__row {
+    @include atlas-flex-row($spacing-s);
+    justify-content: space-between;
+  }
+
+  .atlas-fs-import__question {
+    color: var(--text-normal);
+  }
+
+  .atlas-fs-import__adopt {
+    align-self: flex-start;
+    height: auto;
+    min-height: var(--input-height);
+    white-space: normal;
+    text-align: start;
+  }
+}

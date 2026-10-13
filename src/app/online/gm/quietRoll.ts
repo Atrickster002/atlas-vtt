@@ -3,6 +3,7 @@ import { getDiceCrit } from '../../tools/diceCrit';
 import { rollFormula } from '../../tools/diceFormula';
 import { parseFormula } from '../../tools/parseFormula';
 import type { DiceRules } from '../../types/diceRulesTypes';
+import type { RollingDice } from '../../types/diceSetTypes';
 import { sharedRoll } from './RollShare.ts';
 
 /** A number in [0, 1) from the cryptographic source. */
@@ -15,7 +16,7 @@ function cryptoRandom(): number {
  * screen and without a line in the scene's roll history: for rolls in a message, and private rolls
  * Atlas's own player window must not show. Null for a formula that does not parse or holds no dice.
  */
-export function quietRoll(formula: string, rules: DiceRules, id: string, now: number, random: () => number = cryptoRandom): SharedRoll | null {
+export function quietRoll(formula: string, rules: DiceRules | RollingDice, id: string, now: number, random: () => number = cryptoRandom): SharedRoll | null {
   const parsed = parseFormula(formula);
   if (!parsed.ok || !parsed.terms.some((term) => term.kind === 'dice')) return null;
   const { rolls, modifiers, total, linear } = rollFormula(parsed, random, rules);

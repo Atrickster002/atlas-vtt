@@ -7,6 +7,7 @@ import type { CampaignService } from '../../../campaigns/CampaignService';
 import { t } from '../../../i18n';
 import { useSystemPresets } from '../../hooks/useSystemPresets';
 import { campaignSystemName } from './campaignSystemName';
+import { useDiceSets } from '../../hooks/useDiceSets';
 import { CampaignRulesDialog } from './CampaignRulesDialog';
 
 interface CampaignSystemSettingProps {
@@ -20,8 +21,9 @@ interface CampaignSystemSettingProps {
 export function CampaignSystemSetting({ app, campaign, service, disabled }: CampaignSystemSettingProps): React.JSX.Element {
   const headingId = useId();
   const { presets } = useSystemPresets(app);
+  const { sets } = useDiceSets(app);
   const [isOpen, setIsOpen] = useState(false);
-  const shown = campaign.system ? campaignSystemName(campaign.system, presets) : null;
+  const shown = campaign.system ? campaignSystemName(campaign.system, presets, sets) : null;
 
   return (
     <section className="campaign-system" aria-labelledby={headingId}>

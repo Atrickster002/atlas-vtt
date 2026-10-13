@@ -39,11 +39,12 @@ const IMPORTING = t('bundle.importing');
 
 function describeImport(result: CollectionImportResult): string {
   const name = t('bundle.nameVersion', { name: result.collectionName, version: result.version });
-  if (result.created) return t('bundle.imported', { name });
+  const switched = result.switchedNotes > 0 ? ` ${t('bundle.switchedNotes', { count: result.switchedNotes })}` : '';
+  if (result.created) return `${t('bundle.imported', { name })}${switched}`;
   const parts = [t('bundle.filesWritten', { count: result.written }), t('bundle.filesRemoved', { count: result.removed })];
   if (result.keptLocal > 0) parts.push(t('bundle.keptLocal', { count: result.keptLocal }));
   const backup = result.backupCount > 0 ? t('bundle.backedUp', { folder: result.backupFolder }) : '';
-  return t('bundle.updated', { name, parts: parts.join(', '), backup });
+  return `${t('bundle.updated', { name, parts: parts.join(', '), backup })}${switched}`;
 }
 
 function downloadBlob(blob: Blob, fileName: string): void {

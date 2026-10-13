@@ -60,14 +60,14 @@ export function fieldLabel(field: string): string {
   return words.charAt(0).toUpperCase() + words.slice(1);
 }
 
-/** A filter on one statblock field, labelled after it. */
+/** A filter on one statblock field, labelled after it unless a `label` (a template's name for the field) is given. */
 export function filterForField(
   existing: readonly CreatureFilterDefinition[],
   field: string,
   kind: CreatureFilterKind,
+  label = fieldLabel(field),
 ): CreatureFilterDefinition {
   const id = newCreatureFilterId(existing, field);
-  const label = fieldLabel(field);
   return kind === 'range' ? { id, label, kind, field } : { id, label, kind, fields: [field] };
 }
 

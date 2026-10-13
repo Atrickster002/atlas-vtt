@@ -10,7 +10,7 @@ import { rulesForMap } from '../../src/app/gameSystems/mapRules';
 import { rulesOfPreset } from '../../src/app/gameSystems/systemRules';
 import { mapResources } from '../../src/app/resources/collectionResources';
 import { AssetService } from '../../src/app/services/AssetService';
-import { mapDiceRules } from '../../src/app/services/mapDiceRules';
+import { mapDiceSet } from '../../src/app/services/diceSets/collectionDiceSets';
 import { mapMeasurementSettings } from '../../src/app/services/mapMeasurementSettings';
 import { mapInitiativeRules } from '../../src/app/services/mapInitiativeRules';
 import { onMapRulesChange, rulesLookup } from '../../src/app/services/mapRules';
@@ -115,11 +115,11 @@ describe('a map while a campaign with a system is played', () => {
     play.play('saga');
     for (const path of [MAP, LOOSE, UNKNOWN]) expect(rulesForMap(lookup, path).source).toEqual({ kind: 'campaign', id: 'saga' });
     expect(mapResources(lookup, MAP).map((resource) => resource.key)).toEqual(preset('builtin:cairn').rules.resources!.map((resource) => resource.key));
-    expect(mapDiceRules(app, LOOSE)).toEqual(preset('builtin:cairn').rules.dice);
+    expect(mapDiceSet(app, LOOSE).id).toBe(preset('builtin:cairn').rules.diceSetId);
     expect(mapInitiativeRules(app, MAP)).toEqual(preset('builtin:cairn').rules.initiative);
     play.stop();
     expect(rulesForMap(lookup, MAP).source).toEqual({ kind: 'collection', id: 'dungeon' });
-    expect(mapDiceRules(app, MAP)).toEqual(preset('builtin:dnd5e').rules.dice);
+    expect(mapDiceSet(app, MAP).id).toBe(preset('builtin:dnd5e').rules.diceSetId);
   });
 
   it('measures as the campaign\'s system does', () => {

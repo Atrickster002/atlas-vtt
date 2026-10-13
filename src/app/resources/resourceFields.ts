@@ -1,4 +1,5 @@
 import { IGNORED_FIELDS } from '../creatures/creatureFieldDiscovery';
+import { NO_MEANINGS, type FieldMeanings } from '../statblocks/resolve/fieldMeanings';
 import { clampValue } from './resourceValues';
 import type { ResourceValue } from './resourceTypes';
 
@@ -12,27 +13,38 @@ export function isHitPointsKey(key: string): boolean {
   return HIT_POINT_KEYS.includes(normalizedKey(key.replace(/:\s*$/, '')));
 }
 
+/** The key that holds hit points under another name: the template's `hit-points` field, else one of their usual names. */
+function hitPointsKey(keys: readonly string[], meanings: FieldMeanings): string | undefined {
+  const meant = meanings['hit-points'];
+  return meant !== undefined && keys.includes(meant) ? meant : keys.find(isHitPointsKey);
+}
+
 /**
  * The value under `key`: the exact key, else one spelled differently
- * (`Max Stress` for `max_stress`), else, for hit points, any of their usual names.
+ * (`Max Stress` for `max_stress`), else, for hit points, the field the
+ * statblock's template means as its hit points or any of their usual names.
  */
-function lookup(record: Record<string, unknown>, key: string): unknown {
+function lookup(record: Record<string, unknown>, key: string, meanings: FieldMeanings): unknown {
   if (key in record) return record[key];
   const wanted = normalizedKey(key);
   const keys = Object.keys(record);
   const match = keys.find((candidate) => normalizedKey(candidate) === wanted)
-    ?? (isHitPointsKey(key) ? keys.find(isHitPointsKey) : undefined);
+    ?? (isHitPointsKey(key) ? hitPointsKey(keys, meanings) : undefined);
   return match === undefined ? undefined : record[match];
 }
 
-/** Reads a dotted path (`stats.0`, `resources.mana`) from a statblock record. */
-export function resolveField(record: Readonly<Record<string, unknown>>, path: string): unknown {
+/**
+ * Reads a dotted path (`stats.0`, `resources.mana`) from a statblock record.
+ * `meanings` are those of the record's template (`ResolvedStatblock.meanings`);
+ * they apply to the record's own keys, not to keys inside its values.
+ */
+export function resolveField(record: Readonly<Record<string, unknown>>, path: string, meanings: FieldMeanings = NO_MEANINGS): unknown {
   const parts = path.split('.').map((part) => part.trim()).filter(Boolean);
   if (parts.length === 0) return undefined;
   let value: unknown = record;
-  for (const part of parts) {
+  for (const [index, part] of parts.entries()) {
     if (Array.isArray(value)) value = /^\d+$/.test(part) ? value[Number(part)] : undefined;
-    else if (value !== null && typeof value === 'object') value = lookup(value as Record<string, unknown>, part);
+    else if (value !== null && typeof value === 'object') value = lookup(value as Record<string, unknown>, part, index === 0 ? meanings : NO_MEANINGS);
     else return undefined;
   }
   return value;

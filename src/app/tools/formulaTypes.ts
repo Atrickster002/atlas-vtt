@@ -30,6 +30,12 @@ export interface DiceKeep {
   readonly mode: 'keep' | 'drop';
   readonly end: 'highest' | 'lowest';
   readonly count: number;
+  /**
+   * A die and the dice its explosion rolled are ranked as one, by what they
+   * add up to, and kept or dropped together. Never written; advantage sets it,
+   * so that its extra die never makes an explosion count for less.
+   */
+  readonly chains?: true;
 }
 
 /** Counts the dice that meet `when` instead of adding them up. */
@@ -52,6 +58,13 @@ export interface DiceTerm {
   readonly keep?: DiceKeep;
   readonly tally?: DiceTally;
   readonly label?: string;
+  /**
+   * The term's last die rolls only its tens and shares the units of its
+   * first: Call of Cthulhu's bonus and penalty die. Never written; advantage sets it.
+   */
+  readonly sharedUnits?: true;
+  /** The die advantage or disadvantage added. Never written; advantage sets it. */
+  readonly advantage?: true;
 }
 
 export interface ConstantTerm {

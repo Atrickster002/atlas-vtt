@@ -523,7 +523,6 @@ export class TokenRenderer {
     this.uiManager.syncUIPosition(tokenId, x, y);
   }
 
-
   private reestablishTokenInteractivity(tokenGroup: Container): void {
     const isPlayerView = this.store.getState().isPlayerView || false;
     

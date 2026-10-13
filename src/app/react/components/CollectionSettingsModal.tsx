@@ -2,7 +2,7 @@
  * CollectionSettingsModal
  *
  * Vertical-tabbed modal for configuring per-collection settings:
- *   Game System | Dice | Grid & Measurement | Vision | Default Widgets | Conditions | Resources | Creature Filters | Loot
+ *   Game System | Dice | Grid & Measurement | Vision | Default Widgets | Conditions | Resources | Statblocks | Creature Filters | Loot
  *
  * Opens after collection creation and via a gear button in the sidebar.
  */
@@ -14,15 +14,21 @@ import type { SystemPreset } from '../../types/systemPresetTypes';
 import { deleteSystemPreset } from '../../services/systemPresetDeletion';
 import { syncCollectionSystem } from '../../services/collectionSystemSync';
 import { useSystemPresets } from '../hooks/useSystemPresets';
+import { useDiceSets } from '../hooks/useDiceSets';
 import { useCollectionSettingsDraft } from './collection-settings/useCollectionSettingsDraft';
 import { useExperimentalFeature } from '../hooks/useExperimentalFeature';
 import { DefaultWidgetsTab } from './collection-settings/DefaultWidgetsTab';
-import { discoverResourceFields } from '../../resources/resourceFields';
+import { resourceFieldSuggestions } from '../../resources/resourceFieldSuggestions';
 import { LootTab } from './collection-settings/LootTab';
-import { viewOfRules } from '../../gameSystems/rulesView';
+import { viewOfRules, type RulesView } from '../../gameSystems/rulesView';
 import { CreatureFiltersTab } from './collection-settings/CreatureFiltersTab';
 import { useCollectionCreatures } from './collection-settings/useCollectionCreatures';
+import { useRoleTemplates } from './collection-settings/useRoleTemplates';
 import { isCompleteCreatureFilter } from '../../creatures/creatureFilterDefinitions';
+import type { TemplateId } from '../../statblocks/model/templateTypes';
+import { collectionStatblockRoles } from '../../statblocks/roles/collectionStatblockRoles';
+import { statblockRolesAreValid } from '../../statblocks/roles/roleValidation';
+import { StatblocksTab } from '../../statblocks/settings/StatblocksTab';
 import { initiativeEdit, RulesSettingsTabs, type SettingsTab } from './collection-settings/RulesSettingsTabs';
 import { SettingsDialog } from './collection-settings/SettingsDialog';
 import { t } from '../../i18n';
@@ -33,22 +39,37 @@ interface CollectionSettingsModalProps {
   collectionId: string;
   /** The tab it opens on; Game System by default. */
   initialTab?: CollectionSettingsTab;
+  /**
+   * Opens a statblock template for this collection (`collectionId`). The Statblocks tab's Edit
+   * saves the settings and closes the dialog first; without it the tab offers no Edit.
+   */
+  onEditTemplate?: (templateId: TemplateId, collectionId: string) => void;
 }
 
 export type CollectionSettingsTab = Exclude<SettingsTab, 'initiative'>;
 
-const TABS: readonly CollectionSettingsTab[] = ['system', 'dice', 'grid', 'vision', 'widgets', 'conditions', 'resources', 'creatureFilters', 'loot'];
+/** The tabs in order; Vision only while dynamic lighting is on, Statblocks only while the statblock editor is. */
+function collectionTabs(statblockEditorOn: boolean): readonly CollectionSettingsTab[] {
+  return [
+    'system', 'dice', 'grid', 'vision', 'widgets', 'conditions', 'resources',
+    ...(statblockEditorOn ? ['statblocks' as const] : []),
+    'creatureFilters', 'loot',
+  ];
+}
 
 export function CollectionSettingsModal({
   isOpen,
   onClose,
   collectionId,
   initialTab = 'system',
+  onEditTemplate,
 }: CollectionSettingsModalProps): React.ReactElement | null {
   const { app } = useAtlasUI();
   const lightingOn = useExperimentalFeature('dynamicLighting');
+  const statblockEditorOn = useExperimentalFeature('statblockEditor');
   const assetService = app ? AssetService.getInstance(app) : null;
   const systemPresets = useSystemPresets(app);
+  const diceSets = useDiceSets(app);
 
   const [activeTab, setActiveTab] = useState<SettingsTab>(initialTab);
   const [collectionName, setCollectionName] = useState('');
@@ -57,7 +78,9 @@ export function CollectionSettingsModal({
   // Local draft of settings — only persisted on Save
   const draft = useCollectionSettingsDraft(assetService, collectionId, isOpen);
   const collectionIds = useMemo(() => [collectionId], [collectionId]);
-  const collectionCreatures = useCollectionCreatures(app ?? null, assetService, collectionIds, isOpen && (activeTab === 'creatureFilters' || activeTab === 'resources'));
+  const offersFields = isOpen && (activeTab === 'creatureFilters' || activeTab === 'resources');
+  const collectionCreatures = useCollectionCreatures(app ?? null, assetService, collectionIds, offersFields);
+  const roleTemplates = useRoleTemplates(app ?? null, collectionStatblockRoles(draft, systemPresets.presets), offersFields);
 
   // Resolve the collection name for the header
   useEffect(() => {
@@ -76,21 +99,35 @@ export function CollectionSettingsModal({
     return () => { cancelled = true; };
   }, [isOpen, collectionId, assetService]);
 
-  const view = viewOfRules(draft, systemPresets.presets);
-  const canSave = view.isValid && draft.customCreatureFilters.every(isCompleteCreatureFilter);
+  const rulesView = viewOfRules(draft, systemPresets.presets, diceSets.sets);
+  // A collection's statblock roles are part of its game system, as a preset holds them.
+  const view: RulesView = {
+    ...rulesView,
+    systemRules: { ...rulesView.systemRules, statblockRoles: collectionStatblockRoles(draft, systemPresets.presets) },
+  };
+  const canSave = view.isValid
+    && draft.customCreatureFilters.every(isCompleteCreatureFilter)
+    && statblockRolesAreValid(draft.statblockRoles ?? []);
 
-  const handleSave = async (): Promise<void> => {
-    if (!app || !assetService || !canSave) return;
+  /** Saves the draft and closes the dialog; false when nothing was saved. */
+  const save = async (): Promise<boolean> => {
+    if (!app || !assetService || !canSave) return false;
 
     try {
       await assetService.updateCollectionSettings(collectionId, draft.toSettings());
       // Widgets and token conditions follow the saved game system in every scene.
       await syncCollectionSystem(app, collectionId, systemPresets.presets);
       onClose();
+      return true;
     } catch (err) {
       console.error('[CollectionSettingsModal] Failed to save:', err);
+      return false;
     }
   };
+
+  const editTemplate = onEditTemplate && ((templateId: TemplateId): void => {
+    void save().then((saved) => { if (saved) onEditTemplate(templateId, collectionId); });
+  });
 
   const handleDeletePreset = async (preset: SystemPreset): Promise<void> => {
     if (!app || !systemPresets.service) return;
@@ -109,6 +146,21 @@ export function CollectionSettingsModal({
             onInitiativeChange={initiativeEdit(draft, view)}
           />
         );
+      case 'statblocks':
+        return app && statblockEditorOn && (
+          <StatblocksTab
+            app={app}
+            collectionId={collectionId}
+            ownRoles={draft.statblockRoles}
+            onOwnRolesChange={draft.setStatblockRoles}
+            folders={draft.statblockRoleFolders}
+            onFoldersChange={draft.setStatblockRoleFolders}
+            systemPresetId={draft.systemPresetId}
+            presets={systemPresets.presets}
+            canSave={canSave}
+            onEditTemplate={editTemplate}
+          />
+        );
       case 'creatureFilters':
         return (
           <CreatureFiltersTab
@@ -118,6 +170,7 @@ export function CollectionSettingsModal({
             onCustomChange={draft.setCustomCreatureFilters}
             creatures={collectionCreatures.creatures}
             pending={collectionCreatures.pending}
+            templates={roleTemplates}
           />
         );
       case 'loot':
@@ -143,19 +196,20 @@ export function CollectionSettingsModal({
       subtitle={releaseLine}
       closeLabel={t('csm.close')}
       canSave={canSave}
-      onSave={() => { void handleSave(); }}
+      onSave={() => { void save(); }}
       onClose={onClose}
     >
       <RulesSettingsTabs
-        tabs={TABS}
+        tabs={collectionTabs(statblockEditorOn)}
         activeTab={activeTab}
         onTabChange={setActiveTab}
         draft={draft}
         view={view}
         presets={systemPresets}
+        diceSets={diceSets}
         onDeletePreset={handleDeletePreset}
         lightingOn={lightingOn}
-        fieldSuggestions={discoverResourceFields(collectionCreatures.creatures.map((creature) => creature.fields))}
+        fieldSuggestions={resourceFieldSuggestions(roleTemplates, collectionCreatures.creatures.map((creature) => creature.fields))}
         renderOther={renderOther}
       />
     </SettingsDialog>

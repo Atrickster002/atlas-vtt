@@ -57,6 +57,8 @@ const app = {
     },
   },
   metadataCache: {
+    on: vi.fn(() => ({})),
+    offref: vi.fn(),
     getFileCache: (file: TFile) => ({ frontmatter: statblockFrontmatter[file.path]
       ?? { 'atlas-type': 'statblock', 'template-id': 'old-template', name: 'New Creature 32' } }),
   },

@@ -341,6 +341,106 @@ export class Modal {
 }
 
 /** Obsidian's editor suggester; Obsidian sets `context` when one of its suggestions is chosen. */
+/** The list of a suggestion popover: its values, the highlighted one, and taking it. */
+class SuggestChooser<T> {
+  values: T[] = [];
+  selectedItem = 0;
+  constructor(private readonly owner: PopoverSuggest<T>) {}
+  setSuggestions(values: T[]): void {
+    this.values = values;
+    this.selectedItem = 0;
+    this.owner.suggestEl.replaceChildren();
+    for (const value of values) {
+      const el = document.createElement('div');
+      el.className = 'suggestion-item';
+      this.owner.renderSuggestion(value, el);
+      this.owner.suggestEl.appendChild(el);
+    }
+  }
+  moveSelectedItem(step: number): void {
+    if (this.values.length) this.selectedItem = (this.selectedItem + step + this.values.length) % this.values.length;
+  }
+  useSelectedItem(event: KeyboardEvent): boolean {
+    const value = this.values[this.selectedItem];
+    if (value === undefined) return false;
+    this.owner.selectSuggestion(value, event);
+    return true;
+  }
+}
+
+/** Obsidian's suggestion popover: a key scope pushed while open (arrows, Enter, Escape) over the list, not attached to a document. */
+export abstract class PopoverSuggest<T> {
+  scope: Scope;
+  isOpen = false;
+  suggestEl: HTMLElement = document.createElement('div');
+  suggestions: SuggestChooser<T> = new SuggestChooser(this);
+  constructor(public app: any, scope?: Scope) {
+    this.scope = new Scope(scope ?? app.scope);
+    this.scope.register([], 'ArrowDown', () => { this.suggestions.moveSelectedItem(1); return false; });
+    this.scope.register([], 'ArrowUp', () => { this.suggestions.moveSelectedItem(-1); return false; });
+    this.scope.register([], 'Enter', (event) => { this.suggestions.useSelectedItem(event); return false; });
+    this.scope.register([], 'Escape', () => { this.close(); return false; });
+  }
+  open(): void {
+    if (this.isOpen) return;
+    this.isOpen = true;
+    this.app.keymap.pushScope(this.scope);
+  }
+  close(): void {
+    this.app.keymap.popScope(this.scope);
+    this.isOpen = false;
+    this.suggestions.values = [];
+  }
+  abstract renderSuggestion(value: T, el: HTMLElement): void;
+  abstract selectSuggestion(value: T, event: MouseEvent | KeyboardEvent): void;
+}
+
+/** Obsidian's suggestions for a text field: asked on every `input` while it has focus, closed on blur. */
+export abstract class AbstractInputSuggest<T> extends PopoverSuggest<T> {
+  limit = 100;
+  private selectCb: ((value: T, event: MouseEvent | KeyboardEvent) => void) | null = null;
+  constructor(app: any, protected textInputEl: HTMLInputElement | HTMLDivElement) {
+    super(app);
+    textInputEl.addEventListener('input', () => this.onInputChange());
+    textInputEl.addEventListener('focus', () => this.onInputChange());
+    textInputEl.addEventListener('blur', () => this.close());
+  }
+  getValue(): string {
+    return this.textInputEl instanceof HTMLInputElement ? this.textInputEl.value : this.textInputEl.innerText;
+  }
+  setValue(value: string): void {
+    if (this.textInputEl instanceof HTMLInputElement) this.textInputEl.value = value;
+    else this.textInputEl.innerText = value;
+  }
+  onSelect(callback: (value: T, event: MouseEvent | KeyboardEvent) => void): this {
+    this.selectCb = callback;
+    return this;
+  }
+  selectSuggestion(value: T, event: MouseEvent | KeyboardEvent): void {
+    this.selectCb?.(value, event);
+  }
+  protected abstract getSuggestions(query: string): T[] | Promise<T[]>;
+  private onInputChange(): void {
+    if (this.textInputEl.ownerDocument.activeElement !== this.textInputEl) return;
+    const found = this.getSuggestions(this.getValue());
+    if (!Array.isArray(found)) return;
+    if (found.length === 0) {
+      this.close();
+      return;
+    }
+    this.suggestions.setSuggestions(this.limit > 0 ? found.slice(0, this.limit) : found);
+    this.open();
+  }
+}
+
+/** The aliases a note's frontmatter names, under `aliases` or `alias`, as a list. */
+export function parseFrontMatterAliases(frontmatter: any): string[] | null {
+  const raw = frontmatter?.aliases ?? frontmatter?.alias;
+  if (raw === undefined || raw === null) return null;
+  const list = Array.isArray(raw) ? raw : String(raw).split(/,\s*/);
+  return list.map(String).filter((alias) => alias.trim() !== '');
+}
+
 export abstract class EditorSuggest<T> {
   context: { editor: unknown; file: unknown; start: unknown; end: unknown; query: string } | null = null;
   /** Never read: present so a subclass's item type is used. */

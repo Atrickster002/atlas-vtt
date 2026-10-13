@@ -33,9 +33,12 @@ export function withLegacyBars(
   return kept;
 }
 
-/** `Hit Protection` → `hit-protection`, unique among `taken` (`ammo`, `ammo-2`, …). */
-export function resourceKey(name: string, taken: Iterable<string>): string {
-  const base = name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'resource';
+/**
+ * `Hit Protection` → `hit-protection`, unique among `taken` (`ammo`, `ammo-2`, …); `fallback`
+ * where the name has no letter or digit to key by. Statblock roles take their ids by this rule too.
+ */
+export function resourceKey(name: string, taken: Iterable<string>, fallback = 'resource'): string {
+  const base = name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || fallback;
   const used = new Set(taken);
   if (!used.has(base)) return base;
   let n = 2;

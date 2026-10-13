@@ -36,7 +36,12 @@ export function ActionsMenuButton({ label, entries, className, icon: Icon = More
           align="end"
           sideOffset={4}
           collisionPadding={8}
-          onCloseAutoFocus={onCloseAutoFocus}
+          onCloseAutoFocus={(event) => {
+            onCloseAutoFocus(event);
+            // An entry that moved focus on (an input it opened) keeps it; the trigger takes it back only from nowhere.
+            const focused = trigger?.ownerDocument.activeElement;
+            if (focused && focused !== focused.ownerDocument.body && focused !== trigger && !focused.closest('[role="menu"]')) event.preventDefault();
+          }}
           onEscapeKeyDown={(event) => event.stopPropagation()}
         >
           {renderEntries(entries, () => setIsOpen(false))}

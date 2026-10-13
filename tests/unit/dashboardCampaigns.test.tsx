@@ -364,7 +364,7 @@ describe('a campaign\'s game system', () => {
     await closed();
 
     const system = storage.current()[0]!.system as Record<string, unknown>;
-    expect(system).toMatchObject({ systemPresetId: 'builtin:dnd5e', dice: { defaultRoll: '1d20', crit: 'natural' } });
+    expect(system).toMatchObject({ systemPresetId: 'builtin:dnd5e', diceSetId: 'builtin:d20' });
     expect(system).not.toHaveProperty('defaultWidgets');
     expect(row().textContent).toContain('D&D 5e');
     expect(row().textContent).not.toContain('Edited');
@@ -375,21 +375,21 @@ describe('a campaign\'s game system', () => {
     fireEvent.click(row());
     fireEvent.click(within(dialog()).getByRole('radio', { name: /D&D 5e/ }));
     fireEvent.click(within(dialog()).getByRole('button', { name: 'Dice' }));
-    fireEvent.change(within(dialog()).getByLabelText('Default Roll'), { target: { value: '2d6' } });
+    fireEvent.click(within(dialog()).getByRole('option', { name: /^Power roll/ }));
     fireEvent.click(within(dialog()).getByRole('button', { name: 'Save' }));
     await closed();
 
-    expect(storage.current()[0]!.system).toMatchObject({ systemPresetId: 'builtin:dnd5e', dice: { defaultRoll: '2d6' } });
+    expect(storage.current()[0]!.system).toMatchObject({ systemPresetId: 'builtin:dnd5e', diceSetId: 'builtin:power-roll' });
     expect(row().textContent).toContain('D&D 5e');
     expect(row().textContent).toContain('Edited');
 
     // What was not saved stays unsaved.
     fireEvent.click(row());
     fireEvent.click(within(dialog()).getByRole('button', { name: 'Dice' }));
-    fireEvent.change(within(dialog()).getByLabelText('Default Roll'), { target: { value: '3d6' } });
+    fireEvent.click(within(dialog()).getByRole('option', { name: /^d20 roll-under/ }));
     fireEvent.click(within(dialog()).getByRole('button', { name: 'Cancel' }));
     await closed();
-    expect(storage.current()[0]!.system).toMatchObject({ dice: { defaultRoll: '2d6' } });
+    expect(storage.current()[0]!.system).toMatchObject({ diceSetId: 'builtin:power-roll' });
   });
 
   it('is removed by choosing no game system, which leaves every map to its collection', async () => {
