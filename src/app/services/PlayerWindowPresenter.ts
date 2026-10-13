@@ -12,6 +12,8 @@ import { PlayerWindowService } from './PlayerWindowService';
 import { presentedSceneOf, readPresentedScene, type PresentedScene, type PresentedSceneStore } from './presentedScene';
 import { rendersOnChange, requestRender, setBeforeRender } from '../pixi/RenderScheduler';
 import { showNotice } from '../ui/notice';
+import { hasLevels, resolveLevel, viewedLevelId } from '../levels/sceneLevels';
+import { showsPresentedLevel } from './presentedLevel';
 
 /** Unsubscribes the tab watcher of the view whose tab is currently presented. */
 let stopWatchingPresentedTab: (() => void) | null = null;
@@ -22,6 +24,8 @@ let watchedView: AtlasView | null = null;
 export interface PresentOptions {
   /** Open the player window on this device even where another plugin shows players the scene (`showElsewhere`). */
   openWindow?: boolean;
+  /** Show this level of the scene (the tab shows it first); without one, the level the tab shows. */
+  levelId?: string;
 }
 
 /** Present the active view's current scene tab to players. */
@@ -41,12 +45,13 @@ export async function presentActiveTab(app: App, options: PresentOptions = {}): 
  * keeps showing it while the DM browses other tabs, and so does a plugin that shows the presented
  * scene elsewhere (`showElsewhere`). With neither, or with `openWindow`, the player window is opened on it.
  */
-export async function presentTab(app: App, view: AtlasView, tabId: string, { openWindow = false }: PresentOptions = {}): Promise<void> {
+export async function presentTab(app: App, view: AtlasView, tabId: string, { openWindow = false, levelId }: PresentOptions = {}): Promise<void> {
   const tab = findTab(view, tabId);
   if (!tab) return;
 
   await view.switchToTab(tabId);
   if (view.tabMetaStore.getState().activeTabId !== tabId) return;
+  if (levelId !== undefined) view.atlasStore.getState().setViewedLevel(levelId);
 
   const source = await waitForRenderedFrameSource(view);
   if (!source) {
@@ -55,7 +60,8 @@ export async function presentTab(app: App, view: AtlasView, tabId: string, { ope
   }
 
   const presented = presentedSceneOf(app);
-  presented.set({ tabId, filePath: tab.filePath });
+  const level = viewedLevelId(view.atlasStore.getState());
+  presented.set({ tabId, filePath: tab.filePath, ...(level ? { levelId: level } : {}) });
   const service = PlayerWindowService.getInstance();
   if (service?.isWindowOpen()) {
     service.presentCanvas(source, tabId, tab.filePath);
@@ -129,10 +135,14 @@ async function attachPlayerWindow(app: App, player: LocalPlayerView): Promise<vo
     player.contentEl.setText(t('present.loadFailed'));
     return;
   }
+  // The presented level, else the first: the tab shows it, as players will
+  const sourceState = sourceView.atlasStore.getState();
+  if (hasLevels(sourceState.levels)) sourceState.setViewedLevel(resolveLevel(sourceState.levels, scene?.levelId));
   const source = await waitForRenderedFrameSource(sourceView);
   if (!source || player.isClosed) return;
   // The tab the scene was found in is the presented one from now on, also where its id was made anew
-  presented.set({ tabId: sourceTab.id, filePath: sourceTab.filePath });
+  const level = viewedLevelId(sourceView.atlasStore.getState());
+  presented.set({ tabId: sourceTab.id, filePath: sourceTab.filePath, ...(level ? { levelId: level } : {}) });
   const service = PlayerWindowService.getInstance() ?? new PlayerWindowService(
     app, sourceView.atlasStore, sourceView.serviceManager.getSettingsService(),
   );
@@ -148,7 +158,7 @@ async function attachPlayerWindow(app: App, player: LocalPlayerView): Promise<vo
   if (sameScene && session.frozen) service.freezeCamera(session.camera ?? source.getCamera?.());
   // Saved for another scene, the camera and the freeze say nothing about this one
   if (!sameScene) player.updateSession({ camera: null, frozen: false });
-  service.attachToView(player, source, { tabId: sourceTab.id, filePath: sourceTab.filePath });
+  service.attachToView(player, source, { tabId: sourceTab.id, filePath: sourceTab.filePath, ...(level ? { levelId: level } : {}) });
   watchPresentedTab(sourceView, service);
   if (previousTabId && previousTabId !== sourceTab.id) await sourceView.switchToTab(previousTabId);
 }
@@ -199,8 +209,17 @@ function watchPresentedTab(view: AtlasView, service: PlayerWindowService): void 
     if (!shownTabId || !showsScene(state) || showsScene(previous)) return;
     if (state.mapPath === findTab(view, shownTabId)?.filePath) void resumePresentedTab(view, service, shownTabId);
   });
+  // Levels behave like tabs: another level of the presented tab holds the players' frame, coming back resumes it
+  const stopWatchingLevels = view.atlasStore.subscribe((state, previous) => {
+    if (viewedLevelId(state) === viewedLevelId(previous) || !showsScene(state)) return;
+    const { shownTabId } = playerWindowStore.getState();
+    if (!shownTabId || view.tabMetaStore.getState().activeTabId !== shownTabId) return;
+    if (showsPresentedLevel(view)) void resumePresentedTab(view, service, shownTabId);
+    else service.holdCurrentFrame();
+  });
   stopWatchingPresentedTab = (): void => {
     stopWatchingTabs();
+    stopWatchingLevels();
     stopWatchingScene();
     stopWatchingWindow();
     stopWatchingPresentedTab = null;
@@ -218,8 +237,14 @@ async function resumePresentedTab(view: AtlasView, service: PlayerWindowService,
   const state = view.atlasStore.getState();
   // The DM may have moved on while the frames were drawn
   if (!source || !showsScene(state) || state.mapPath !== findTab(view, tabId)?.filePath) return;
+  // The tab came back on another level than players are shown: they keep the frame they have
+  if (!showsPresentedLevel(view)) {
+    service.holdCurrentFrame();
+    return;
+  }
   service.releaseHeldFrame(source);
 }
+
 
 function findTab(view: AtlasView, tabId: string): SceneTab | undefined {
   return view.tabMetaStore.getState().tabs.find((tab) => tab.id === tabId);
@@ -259,7 +284,7 @@ async function waitForRenderedFrameSource(view: AtlasView): Promise<PlayerFrameS
       const viewport = view.serviceManager.getRendererService().getViewport();
       return viewport ? { width: viewport.screenWidth, height: viewport.screenHeight, resolution: app.renderer.resolution } : undefined;
     },
-    canRender: () => renderer.canRenderPlayerFrame(),
+    canRender: () => renderer.canRenderPlayerFrame() && showsPresentedLevel(view),
     release: () => renderer.releasePlayerFrame(),
     addDemandRegion: (region) => renderer.getMapImage()?.addDemandRegion(region) ?? noRegion,
   };

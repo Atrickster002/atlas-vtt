@@ -14,7 +14,7 @@ import { t } from '../i18n';
 import { cannotRender, PlayerFrameMirror, type PlayerFrameSource } from './PlayerFrameMirror';
 import { framedCamera } from './playerFrame';
 import type { Screen } from '../types/playerFrame';
-import type { PresentedScene } from './presentedScene';
+import { presentedSceneOf, type PresentedScene } from './presentedScene';
 import { onMapRulesChange } from './mapRules';
 import { showNotice } from '../ui/notice';
 
@@ -52,6 +52,8 @@ export class PlayerWindowService {
   private frozenCamera: PlayerCameraState | null = null;
   /** The camera of the last frame players were shown of the presented scene; none until a frame of that scene came. */
   private shownCamera: PlayerCameraState | null = null;
+  /** The level of the shown tab players see; another level of the same tab is another picture, as another tab is. */
+  private shownLevelId: string | null = null;
   /** Last player frame, shown unchanged while the DM works on another scene tab. */
   private heldFrame: HTMLCanvasElement | null = null;
   /** Crossfade from the previous map, still playing after the DM presented another scene. */
@@ -184,7 +186,9 @@ export class PlayerWindowService {
       showNotice(t('player.notOpen'));
       return;
     }
-    const anotherScene = playerWindowStore.getState().shownTabId !== tabId;
+    const levelId = presentedSceneOf(this.app).get()?.levelId ?? null;
+    const anotherScene = playerWindowStore.getState().shownTabId !== tabId || this.shownLevelId !== levelId;
+    this.shownLevelId = levelId;
     if (anotherScene) this.crossfadeToNextMap();
     this.streamSource = source;
     this.mirror?.markStale();
@@ -220,6 +224,7 @@ export class PlayerWindowService {
 
   public attachToView(view: LocalPlayerView, source: PlayerFrameSource, scene: PresentedScene): void {
     this.playerView = view;
+    this.shownLevelId = scene.levelId ?? null;
     this.playerWindow = view.contentEl.win;
     this.streamSource = source;
     this.shownCamera = null;
