@@ -9,6 +9,8 @@ import { AssetService, type Asset } from './AssetService';
 import { isPersistedMapEnvelope } from './MapPersistence';
 import { linkedMapPath, sceneLinkTarget } from './sceneLinks';
 import { inAtlasFolders, worldMapArtwork } from './worldMap';
+import { readSceneLevels } from '../levels/levelFile';
+import { firstLevelId, onLevel } from '../levels/sceneLevels';
 
 /** The world map's maps as read, and the scene files they were read from, whose changes may change them. */
 export interface WorldMapTreeRead {
@@ -16,11 +18,18 @@ export interface WorldMapTreeRead {
   readonly scenePaths: readonly string[];
 }
 
-/** A scene file's pins that are shown (not the GM's alone), with a link and a place that can be read. */
+/**
+ * A scene file's pins that are shown (not the GM's alone), with a link and a place that can be read,
+ * on its first floor: the floor whose map the world map shows.
+ */
 function shownPins(state: Record<string, unknown>): NotePin[] {
   const objects = isRecord(state.objects) ? state.objects : {};
   const pins = isRecord(objects.pins) ? Object.values(objects.pins) : [];
-  return pins.filter((pin): pin is NotePin => isRecord(pin) && pin.gmOnly !== true && typeof pin.notePath === 'string' && Number.isFinite(pin.x) && Number.isFinite(pin.y));
+  const levels = readSceneLevels(state.levels, null);
+  const first = firstLevelId(levels);
+  return pins
+    .filter((pin): pin is NotePin => isRecord(pin) && pin.gmOnly !== true && typeof pin.notePath === 'string' && Number.isFinite(pin.x) && Number.isFinite(pin.y))
+    .filter((pin) => first === null || onLevel(pin, first, levels));
 }
 
 /** The saved state of a scene file, or null when it cannot be read. */
