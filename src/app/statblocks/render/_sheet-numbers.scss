@@ -93,8 +93,8 @@ $track-boxes-per-line: 12;
     border-radius: $radius-xs;
 
     &.is-marked {
-      border-color: var(--atlas-sb-track-color, var(--text-accent));
-      background: var(--atlas-sb-track-color, var(--text-accent));
+      border-color: var(--text-accent);
+      background: var(--text-accent);
     }
   }
 
@@ -117,7 +117,7 @@ $track-boxes-per-line: 12;
   .atlas-sb-gauge-fill {
     display: block;
     height: 100%;
-    background: var(--atlas-sb-track-color, var(--text-accent));
+    background: var(--text-accent);
     transform: scaleX(var(--atlas-sb-gauge-share, 0));
     transform-origin: left center;
   }

@@ -9,7 +9,6 @@ vi.mock('../../../../src/app/services/statblockHitPoints', () => ({
   },
 }));
 
-import type { ResourceDefinition } from '../../../../src/app/resources/resourceTypes';
 import type { TemplateBlock, TemplateField } from '../../../../src/app/statblocks/model/templateTypes';
 import { blockEl, fakeApp, renderSheet, templateOf } from './sheetTestKit';
 
@@ -33,8 +32,6 @@ const BLOCKS: TemplateBlock[] = [
 const TEMPLATE = templateOf(FIELDS, BLOCKS);
 const VALUES = { name: 'Hob', image: 'art/hob.png', hp: 12, hit_dice: '3d8', stress: 6, traits: [{ name: 'Bite', desc: 'Deals 1d4 damage.' }] };
 
-const STRESS: ResourceDefinition = { key: 'stress', name: 'Stress', field: 'stress', direction: 'fills', color: '#aa66ff', visibleToPlayers: true };
-
 describe('StatblockSheet: tracks', () => {
   it('shows a box per point of the maximum, where the count starts', () => {
     const { container } = renderSheet(TEMPLATE, VALUES);
@@ -44,12 +41,11 @@ describe('StatblockSheet: tracks', () => {
     expect(blockEl(container, 'gauge000')!.querySelector('.atlas-sb-gauge-value')?.textContent).toBe('12 / 12');
   });
 
-  it("shows the token's value in its resource's colour", () => {
-    const token = { id: 't1', name: 'Hob 1', resources: { stress: { current: 2, max: 6 }, hp: { current: 5, max: 12 } }, definitions: [STRESS] };
+  it("shows the token's value", () => {
+    const token = { id: 't1', name: 'Hob 1', resources: { stress: { current: 2, max: 6 }, hp: { current: 5, max: 12 } } };
     const { container } = renderSheet(TEMPLATE, VALUES, { token });
     const stress = blockEl(container, 'stress00')!;
     expect(stress.querySelectorAll('.is-marked')).toHaveLength(2);
-    expect(stress.querySelector<HTMLElement>('.atlas-sb-track-value')!.style.getPropertyValue('--atlas-sb-track-color')).toBe('#aa66ff');
     expect(blockEl(container, 'gauge000')!.querySelector('.atlas-sb-gauge-value')?.textContent).toBe('5 / 12');
     expect(blockEl(container, 'gauge000')!.querySelector('[role="meter"]')?.getAttribute('aria-valuenow')).toBe('5');
   });

@@ -74,22 +74,21 @@ function TemplateNotice({ statblock, onChooseTemplate }: Pick<LinkedSheetProps, 
  * token its resource values for Track blocks. A card that stands for several
  * tokens shows the statblock's own values; the DM screen lists each token's.
  */
-function useTokenContext(app: App, tokens: TokenVitals[], tokenActions: StatblockTokenActions | undefined): StatblockTokenContext | undefined {
+function useTokenContext(app: App, tokens: TokenVitals[]): StatblockTokenContext | undefined {
   const art = useTokenPortrait(app, tokens);
   // Most mounts pass new token objects on every render: the context follows their values, not them.
   const single = tokens.length === 1 ? tokens[0] : undefined;
   const isSingle = single !== undefined;
   const { id, name, imagePath, resources } = single ?? {};
-  const definitions = tokenActions?.definitions;
   return useMemo((): StatblockTokenContext | undefined => {
     if (!art && !isSingle) return undefined;
-    return { id, name, imagePath, resources, art, definitions };
-  }, [art, isSingle, id, name, imagePath, resources, definitions]);
+    return { id, name, imagePath, resources, art };
+  }, [art, isSingle, id, name, imagePath, resources]);
 }
 
 /** A statblock drawn with its template (or the auto template) through `StatblockSheet`. */
 export function LinkedSheet({ app, statblock, variant, tokens, viewId, originContext, tokenActions, onChooseTemplate, className }: LinkedSheetProps): React.JSX.Element {
-  const token = useTokenContext(app, tokens, tokenActions);
+  const token = useTokenContext(app, tokens);
   // The DM screen draws as boxes and names what the template's Track blocks and Scores slots do.
   const look = useMemo(() => templateQuantityLook(statblock.template), [statblock.template]);
   const footer = tokenActions && tokens.length > 0

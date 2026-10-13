@@ -1,4 +1,3 @@
-import type { ResourceDefinition } from '../../resources/resourceTypes';
 import type { TokenVitals } from '../../services/statblockVitalsSync';
 import type { StatblockPortrait } from './shared/tokenPortrait';
 
@@ -16,6 +15,4 @@ export type SheetMode = 'view' | 'editing';
 export interface StatblockTokenContext extends Pick<TokenVitals, 'id' | 'name' | 'imagePath' | 'resources'> {
   /** The token's art, resolved to a URL (`useTokenPortrait`); it replaces the Image block's art. */
   art?: StatblockPortrait | undefined;
-  /** The map's resource definitions: a Track bound to one shows the token's value in its colour. */
-  definitions?: readonly ResourceDefinition[] | undefined;
 }
