@@ -715,6 +715,7 @@ export class TokenRenderer {
       this.applyTokenVisibilityPolicy(token, tokenGroup, token, perception);
     }
     this.playerSight.syncOutlines(perception);
+    this.uiManager.setPlayersView(this.playerSight.showsPlayers() || this.isInPlayerMode());
     this.dragRuler.refreshVisibility();
     this.notifyPlayersView();
   }

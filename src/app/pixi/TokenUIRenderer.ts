@@ -57,8 +57,12 @@ export class TokenUIRenderer {
   private besideToken: Container;
   /** The mirror of `besideToken` past the left resize button; holds the wheels of the left side. */
   private leftOfToken: Container;
-  /** The resources of the wheel slots, shown on hover and selection. */
+  /** The resources of the wheel slots, shown on hover and selection; in the players' view at rest. */
   private wheels = new ResourceWheels();
+  /** The GM's canvas shows the players' view (session view, the peek): resources as players see them. */
+  private playersView = false;
+  /** The wheels stand at rest instead of answering hover and selection: the players' view has neither. */
+  private wheelsAtRest = false;
   private difficultyBadge: Container;
   private difficultyText: Text;
   private defeatedOverlay: Graphics;
@@ -306,19 +310,22 @@ export class TokenUIRenderer {
   }
   
   
-  /** Redraws the UI for `token`, whose sprite is `spriteWidth` world pixels wide. */
+  /**
+   * Redraws the UI for `token`, whose sprite is `spriteWidth` world pixels wide. With
+   * `playerSettings` it is the players' copy of the UI, drawn for the player window.
+   */
   public update(token: BaseToken & Partial<Character>, spriteWidth: number, playerSettings?: Pick<AtlasSettings['localPlayerView'], 'showTokenNameplates'>): void {
     const tokenSettings = this.store?.getState().tokenSettings;
+    const forPlayers = playerSettings !== undefined || this.playersView;
     // Players see the resources their definitions allow, whatever the DM hides on this map.
-    const viewer: ResourceViewer = playerSettings ? 'player' : 'dm';
+    const viewer: ResourceViewer = forPlayers ? 'player' : 'dm';
     const definitions = this.resourceDefsProvider();
-    // The map's own switches hide resources from the GM; the player view never reads them
-    const hidden = playerSettings ? [] : tokenSettings?.hiddenResources ?? [];
+    // The map's own switches hide resources from the GM; the players' view never reads them
+    const hidden = forPlayers ? [] : tokenSettings?.hiddenResources ?? [];
     const shown = visibleResources(token, definitions, viewer).filter(({ definition }) => !hidden.includes(definition.key));
 
     const bars = shown.filter(({ slot }) => shapeOf(slot) === 'bar');
-    // Wheels answer the game master's hover and selection; the player view has neither
-    const wheels = playerSettings ? [] : shown.filter(({ slot }) => shapeOf(slot) === 'wheel');
+    const wheels = shown.filter(({ slot }) => shapeOf(slot) === 'wheel');
 
     const resourcesKey = shown.map(({ definition, value, slot }) =>
       `${definition.key}:${slot}:${definition.name}:${definition.color}:${value.current}/${value.max}`).join('|');
@@ -327,7 +334,7 @@ export class TokenUIRenderer {
     const defeated = isDefeated(token, definitions);
     // The ring's size setting moves the resize buttons, and with them the wheels
     const ringScale = tokenSettings?.tokenRingSize ?? 1;
-    const updateKey = `${resourcesKey}_${defeated}_${spriteWidth}_${ringScale}_${this.isHovered}_${this.isSelected}_${token.name || ''}_${showNameplate}_${token.statblockName || ''}_${conditionsKey}`;
+    const updateKey = `${resourcesKey}_${forPlayers}_${defeated}_${spriteWidth}_${ringScale}_${this.isHovered}_${this.isSelected}_${token.name || ''}_${showNameplate}_${token.statblockName || ''}_${conditionsKey}`;
 
     // Skip update if nothing has changed
     if (this.lastUpdateData === updateKey) {
@@ -365,6 +372,8 @@ export class TokenUIRenderer {
     const baseGap = 2; // Gap between token and first bar
     this.resources.update(bars, baseGap, this.canAnimateValues());
     this.wheels.update(wheels);
+    this.wheelsAtRest = forPlayers;
+    this.setRevealAlpha(this.resources.getTextAlpha());
 
     this.hasContent = hasResources || showNameplate || hasConditions;
     this.container.visible = this.hasContent && !this.hiddenWithToken;
@@ -589,16 +598,28 @@ export class TokenUIRenderer {
     this.updateTextVisibility();
   }
   
+  /**
+   * The GM's canvas shows the players' view (session view, the peek) or the GM's own: in the
+   * players' view it draws the resources players see, its wheels at rest, as the player window does.
+   */
+  public setPlayersView(on: boolean): void {
+    if (this.playersView === on) return;
+    this.playersView = on;
+    if (!this.currentToken || this.currentTokenSize <= 0) return;
+    this.lastUpdateData = '';
+    this.update(this.currentToken, this.currentTokenSize);
+  }
+
   /** Shows or hides the wheels of both sides, e.g. during a resize. */
   private setWheelsVisible(visible: boolean): void {
     this.besideToken.visible = visible;
     this.leftOfToken.visible = visible;
   }
 
-  /** Bar numbers and wheels show together, on hover and selection. */
+  /** Bar numbers and wheels show together, on hover and selection; wheels at rest show always. */
   private setRevealAlpha(alpha: number): void {
     this.resources.setTextAlpha(alpha);
-    this.wheels.setAlpha(alpha);
+    this.wheels.setAlpha(this.wheelsAtRest ? 1 : alpha);
   }
 
   private updateTextVisibility(): void {

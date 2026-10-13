@@ -689,8 +689,9 @@ export class InteractionController implements ITokenInteractionController {
     const playerCharacter = this.isPlayerView ? null : placedPlayerCharacterEntry(this.obsApp, token);
     if (playerCharacter) entries.push(playerCharacter);
 
-    // Ring color submenu
+    // Ring colour of the selection in one undo step; the clicked token's colour is ticked
     const currentRingColor = token.ringColor;
+    const ringTargets = this.contextMenuTargets(token.id);
     const ringColors = [
       { name: t('color.default'), value: null },
       { name: t('color.blue'), value: '#086ddd' },
@@ -713,7 +714,9 @@ export class InteractionController implements ITokenInteractionController {
         type: 'item' as const,
         label: color.name,
         checked: color.value === currentRingColor || (color.value === null && !currentRingColor),
-        onClick: () => this.store.getState().setTokenRing(token.id, color.value),
+        onClick: () => this.store.getState().updateTokens(
+          ringTargets.map((id) => ({ id, changes: { ringColor: color.value ?? undefined } })),
+        ),
       })),
     });
 

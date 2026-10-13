@@ -23,7 +23,8 @@ const { createViewAtlasStore } = (await import(/* @vite-ignore */ STORE_FACTORY)
  * - nameplates show by the player view's Show nameplates alone (`TokenUIRenderer.update` with player
  *   settings; the map's and the token's own nameplate switches decide only the GM's canvas);
  * - bars are the resources `visibleToPlayers` in bar sockets (`visibleResources(…, 'player')`; the
- *   map's hidden resources decide only the GM's canvas);
+ *   map's hidden resources decide only the GM's canvas); the player window also shows the wheels
+ *   players see, at rest, which the companion does not send yet;
  * - everything else is the scene as the store holds it.
  * Settings change without a store write, so players must get them within the companion's poll.
  */
@@ -154,8 +155,9 @@ describe("Atlas's player window rules, read from its source at the pin", () => {
 
   it("draws players' nameplates by Show nameplates alone and their bars by the resources they may see, never the map's hidden ones", () => {
     const ui = vendor('pixi/TokenUIRenderer.ts');
-    expect(ui).toContain("const viewer: ResourceViewer = playerSettings ? 'player' : 'dm';");
-    expect(ui).toContain('const hidden = playerSettings ? [] : tokenSettings?.hiddenResources ?? [];');
+    expect(ui).toContain('const forPlayers = playerSettings !== undefined || this.playersView;');
+    expect(ui).toContain("const viewer: ResourceViewer = forPlayers ? 'player' : 'dm';");
+    expect(ui).toContain('const hidden = forPlayers ? [] : tokenSettings?.hiddenResources ?? [];');
     expect(ui).toContain('const showNameplate = playerSettings ? playerSettings.showTokenNameplates : isNameplateVisible(');
     expect(vendor('pixi/token-renderer/UIManager.ts')).toContain('ui.update(token, sprite.tokenSize || 70, settings);');
   });

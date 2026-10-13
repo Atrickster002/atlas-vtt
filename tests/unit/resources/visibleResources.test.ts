@@ -24,6 +24,11 @@ describe('visibleResources', () => {
     expect(visibleResources({ resources: { hp: { current: 0, max: 0 } } }, definitions, 'dm')).toEqual([]);
   });
 
+  it('shows a static value of 0, which is a value and no empty maximum', () => {
+    const ac: ResourceDefinition = { ...def('ac', true), direction: 'static' };
+    expect(visibleResources({ resources: { ac: { current: 0, max: 0 } } }, [ac], 'dm').map((r) => r.value)).toEqual([{ current: 0, max: 0 }]);
+  });
+
   it('gives each resource the slot of its place in the collection, whatever the token holds', () => {
     const seven = ['hp', 'str', 'ammo', 'luck', 'mana', 'grit', 'fuel'].map((key) => def(key, true));
     const holder = { resources: { ammo: { current: 4, max: 6 }, grit: { current: 1, max: 1 }, fuel: { current: 2, max: 2 }, hp: { current: 3, max: 8 } } };
