@@ -66,3 +66,27 @@
   width: 1.125rem;
   color: var(--text-normal);
 }
+
+// The small switch: as tall as a small control, its thumb a disc concentric with the pill
+// (outer radius = thumb radius + the 2px between them), and no icon to read as a button.
+.atlas-toggle--s {
+  border-radius: $radius-full;
+
+  .atlas-toggle__switch {
+    width: 36px;
+    height: 20px;
+    padding: 1px;
+    border-radius: $radius-full;
+  }
+
+  .atlas-toggle__thumb {
+    width: 16px;
+    height: 16px;
+    border-radius: $radius-full;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.16);
+  }
+
+  .atlas-toggle__thumb--on {
+    transform: translateX(16px);
+  }
+}

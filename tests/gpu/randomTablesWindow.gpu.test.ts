@@ -108,6 +108,14 @@ describe('the Random tables window', () => {
       vi.spyOn(Math, 'random').mockReturnValueOnce(0.4).mockReturnValue(0.9);
       await rollAndWait(2);
       expect(panel().querySelector('.atlas-table-card__field.is-hidden dt')?.firstChild?.textContent).toBe('True?');
+      // No repeats is a small switch, no taller than the chips beside it and centred on them, without an icon.
+      const toggle = rect(panel().querySelector('.atlas-tables-summary .atlas-toggle')!);
+      const chip = rect(panel().querySelector('.atlas-tables-summary .atlas-tables-chip')!);
+      const open = rect(panel().querySelector('.atlas-tables-summary__open')!);
+      expect(toggle.height).toBeLessThanOrEqual(chip.height);
+      expect(Math.abs((toggle.top + toggle.bottom) / 2 - (chip.top + chip.bottom) / 2)).toBeLessThan(1);
+      expect(Math.abs((toggle.top + toggle.bottom) / 2 - (open.top + open.bottom) / 2)).toBeLessThan(1);
+      expect(panel().querySelector('.atlas-tables-summary .atlas-toggle__icon')).toBeNull();
       await page.screenshot({ path: `__screenshots__/random-tables-${theme}-result.png`, element: panel() });
 
       fireEvent.click(within(panel()).getByRole('tab', { name: /History/ }));

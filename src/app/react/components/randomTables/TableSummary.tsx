@@ -31,7 +31,7 @@ export function TableSummary({ found, onNoRepeatsChange, onOpenNote }: TableSumm
       ))}
       <span className="atlas-tables-summary__end">
         <span id={switchLabel} className="atlas-tables-summary__switch-label">{t('tables.noRepeats')}</span>
-        <ToggleSwitch value={noRepeats} labelledBy={switchLabel} onChange={() => onNoRepeatsChange(!noRepeats)} />
+        <ToggleSwitch size="s" value={noRepeats} labelledBy={switchLabel} onChange={() => onNoRepeatsChange(!noRepeats)} />
         <LabelTooltip label={t('tables.openNote')}>
           <Button variant="ghost" size="icon" className="atlas-tables-summary__open" onClick={onOpenNote}>
             <ArrowUpRight />
