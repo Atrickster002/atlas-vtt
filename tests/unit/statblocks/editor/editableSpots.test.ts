@@ -3,7 +3,8 @@ import { FIVE_E_2014_MONSTER } from '../../../../src/app/statblocks/presets/five
 import { GENERIC_CREATURE } from '../../../../src/app/statblocks/presets/generic';
 import { EVERY_BLOCK } from '../../../fixtures/statblockTemplateFixtures';
 import { sheetState } from '../../../../src/app/statblocks/render/sheetState';
-import { editableSpots, neighbourSpot, patternFields } from '../../../../src/app/statblocks/editor/statblock-pane/editableSpots';
+import { editableFields, editableSpots, neighbourSpot } from '../../../../src/app/statblocks/editor/statblock-pane/editableSpots';
+import { writtenFields } from '../../../../src/app/statblocks/expressions/patternFields';
 
 const creature = GENERIC_CREATURE.template;
 const spotsOf = (record: Record<string, unknown>, template = creature): ReturnType<typeof editableSpots> =>
@@ -39,10 +40,19 @@ describe('editableSpots', () => {
     expect(spotsOf({ kind: 'Beast' }, EVERY_BLOCK).byBlock.has('b3entr00')).toBe(true);
   });
 
-  it('reads plain references from a pattern, never a slot or a formula', () => {
-    expect(patternFields('{hp}[ ({hit_dice})]')).toEqual(['hp', 'hit_dice']);
-    expect(patternFields('{stats.1} {=floor((stats.1 - 10) / 2)}')).toEqual([]);
-    expect(patternFields('{unclosed')).toEqual([]);
+  it('reads plain references from a pattern, never a slot, a formula or a lookup', () => {
+    expect(writtenFields('{hp}[ ({hit_dice})]')).toEqual(['hp', 'hit_dice']);
+    expect(writtenFields('{stats.1} {=floor((stats.1 - 10) / 2)}')).toEqual([]);
+    expect(writtenFields('{cr|lookup:xp}[; PB {cr|lookup:pb}]')).toEqual([]);
+    expect(writtenFields('{str|signed}')).toEqual(['str']);
+    expect(writtenFields('{unclosed')).toEqual([]);
+  });
+
+  it('types nothing into a value its pattern works out, though the block is bound to the field', () => {
+    const fields = new Map([['cr', { key: 'cr', label: 'CR', type: 'rating' as const }]]);
+    const xp = { id: 'xpline00', type: 'stat' as const, field: 'cr', label: 'XP', look: 'run-in' as const, pattern: '{cr|lookup:xp}' };
+    expect(editableFields(xp, fields)).toEqual([]);
+    expect(editableFields({ ...xp, pattern: undefined }, fields).map((field) => field.key)).toEqual(['cr']);
   });
 
   it('steps forwards and back, and nowhere past either end', () => {

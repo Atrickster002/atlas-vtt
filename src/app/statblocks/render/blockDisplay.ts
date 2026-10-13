@@ -4,6 +4,7 @@
  */
 
 import { blockVisibility, evaluateCondition } from '../expressions/conditions';
+import { writtenFields } from '../expressions/patternFields';
 import { patternRefs } from '../expressions/patternRefs';
 import { blockSpec } from '../model/blockCatalogue';
 import { kindName } from '../model/templateGrid';
@@ -48,11 +49,20 @@ export function valuePrompt(field: Pick<TemplateField, 'label' | 'prompt'> | und
   return label ? `Add ${inPrompt(label)}` : unnamed;
 }
 
+/** The field a block's pattern works its value out of (XP from a challenge rating), where it writes none as it is. */
+function workedOutFrom(block: TemplateBlock): FieldKey | undefined {
+  const pattern = 'pattern' in block ? block.pattern : undefined;
+  if (!pattern || writtenFields(pattern).length > 0) return undefined;
+  return patternRefs(pattern)[0];
+}
+
 /**
- * What the editing mode shows for an empty block: the prompt of its field, or a list's own "Add" words; a tile not
- * named yet takes its provisional field's ("Add value").
+ * What the editing mode shows for an empty block: where it works its value out, what from ("From CR"); else the prompt
+ * of its field, or a list's own "Add" words; a tile not named yet takes its provisional field's ("Add value").
  */
 function promptFor(block: TemplateBlock, sheet: SheetState): string {
+  const source = workedOutFrom(block);
+  if (source) return `From ${sheet.fields.get(source)?.label?.trim() || source}`;
   const key = boundField(block);
   const field = key ? sheet.fields.get(key) : sheet.provisional;
   return valuePrompt(field, kindName(block), block.type === 'entries' ? block.addLabel?.trim() : undefined);
