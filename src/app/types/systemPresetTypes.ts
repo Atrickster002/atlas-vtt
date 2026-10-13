@@ -9,6 +9,7 @@ import type { DiceRules } from './diceRulesTypes';
 import type { InitiativeRules } from './initiativeRulesTypes';
 import type { TokenVisionDefaults } from './lightingTypes';
 import type { LightPresetDefinition } from './lightPresetTypes';
+import type { RarityOption } from './randomTableTypes';
 import type { SenseDefinition } from './senseTypes';
 import type { StatblockRole } from '../statblocks/model/roleTypes';
 import type { AnyWidget } from './widgetTypes';
@@ -56,6 +57,11 @@ export interface SystemRules {
    * for a system that names none: its collections offer the generic roles (`collectionStatblockRoles`).
    */
   statblockRoles?: readonly StatblockRole[];
+  /**
+   * The words the system's items name their rarity with. Unset for a system without rarities:
+   * its collections read the classic ladder (`collectionItemRarities`).
+   */
+  itemRarities?: readonly RarityOption[];
 }
 
 /** Built-in preset ids start with this; user presets never do. */

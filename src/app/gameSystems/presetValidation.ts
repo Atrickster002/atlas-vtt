@@ -25,6 +25,7 @@ import { CRIT_RULES, parseExplodeRule } from './diceRules';
 import { parseRollGroups } from './diceSets';
 import { parseInitiativeRules } from './initiativeRules';
 import { parseLightPresets } from './lightPresetValidation';
+import { parseItemRarities } from './itemRarities';
 import { GENERIC_SENSES } from './senses/generic';
 import { parseSenseDefinitions } from './senseValidation';
 import { parseVisionDefaults } from './visionDefaults';
@@ -161,6 +162,7 @@ export function parseSystemRules(raw: unknown): SystemRules | null {
   const lightPresets = parseLightPresets(raw.lightPresets);
   // An empty list names no roles: the preset's collections offer the generic ones.
   const statblockRoles = parseStatblockRoles(raw.statblockRoles);
+  const itemRarities = parseItemRarities(raw.itemRarities);
   // A collection set from the preset has these senses, so only they can be a default.
   const defaultTokenVision = parseVisionDefaults(raw.defaultTokenVision, senses ?? GENERIC_SENSES);
   return {
@@ -176,6 +178,7 @@ export function parseSystemRules(raw: unknown): SystemRules | null {
     ...(senses && { senses }),
     ...(lightPresets?.length && { lightPresets }),
     ...(statblockRoles?.length && { statblockRoles }),
+    ...(itemRarities && { itemRarities }),
   };
 }
 

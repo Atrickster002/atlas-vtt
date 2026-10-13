@@ -2,6 +2,7 @@ import { D20_DICE_SET_ID } from '../builtInDiceSets';
 import type { SystemPreset } from '../../types/systemPresetTypes';
 import { DND_5E_LIGHTS } from '../lightPresets/dnd5e';
 import { HP_RESOURCE } from '../../resources/resourceDefinitions';
+import { DEFAULT_ITEM_RARITIES } from '../itemRarities';
 import { DND_5E_SENSES } from '../senses/dnd5e';
 import { builtInPresetId, conditionsOf } from './presetHelpers';
 
@@ -47,5 +48,7 @@ export const DND_5E: SystemPreset = {
       { id: 'monster', name: 'Monster', templateId: 'builtin:5e-2024-monster' },
       { id: 'npc', name: 'NPC', templateId: 'builtin:5e-2024-monster' },
     ],
+    // The classic ladder is 5e's own: Common to Legendary, and Artifact.
+    itemRarities: DEFAULT_ITEM_RARITIES,
   },
 };
