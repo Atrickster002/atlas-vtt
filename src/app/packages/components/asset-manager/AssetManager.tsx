@@ -240,7 +240,6 @@ export default function AssetManager({ isOpen, onClose, initialTab, onExitComple
                   onCreateMap={crud.handleCreateMap}
                   onCreateCollection={crud.handleCreateCollection}
                   onCreateFolder={crud.handleCreateFolder}
-                  onRefresh={() => { void crud.handleRefresh(); }}
                   sidebarToggleLabel={sidebar.toggleLabel}
                   onToggleSidebar={sidebar.toggle}
                   sel={sel}

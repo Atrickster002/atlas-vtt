@@ -31,7 +31,6 @@ function headerProps(selected: number, tokens: number): HeaderProps {
     onTabChange: noop,
     assetCounts: { scenes: 12, maps: 34, encounters: 5, tokens, party: 4 },
     onCreateFolder: noop,
-    onRefresh: noop,
     sidebarToggleLabel: 'Hide sidebar',
     onToggleSidebar: noop,
     sel: {
@@ -68,7 +67,7 @@ function layoutProblems(header: HTMLElement): string[] {
   const bounds = header.getBoundingClientRect();
   const controls = shownControls(header).map((control) => ({ name: control.className, rect: control.getBoundingClientRect() }));
   const problems: string[] = [];
-  if (controls.length < 9) problems.push(`only ${controls.length} controls found`);
+  if (controls.length < 7) problems.push(`only ${controls.length} controls found`);
   controls.forEach((a, index) => {
     if (a.rect.left < bounds.left - SLACK || a.rect.right > bounds.right + SLACK) problems.push(`${a.name} leaves the header`);
     for (const b of controls.slice(index + 1)) {
@@ -134,7 +133,7 @@ describe('the asset manager header', () => {
   });
 
   it('shows the tabs side by side when there is room and one row of controls when there is not', async () => {
-    const wide = await show(1400, 2);
+    const wide = await show(1100, 2);
     expect(wide.querySelector('.atlas-asset-manager-tabs')?.getClientRects()).toHaveLength(1);
     const narrow = await show(600, 2);
     expect(narrow.querySelector('.atlas-asset-manager-tabs')?.getClientRects()).toHaveLength(0);
