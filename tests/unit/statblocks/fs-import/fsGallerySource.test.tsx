@@ -73,7 +73,7 @@ describe('From Fantasy Statblocks (§7.9)', () => {
 
     const created = onCreated.mock.calls[0]![0];
     expect(created.path).toBe(`${TEMPLATE_FOLDER}/Marsh layout.atlastemplate`);
-    const dialog = await screen.findByRole('dialog', { name: 'Imported Marsh layout' });
+    const dialog = await screen.findByRole('dialog', { name: 'Marsh layout is ready' });
     expect(dialog.textContent).toContain('Move 2 statblocks to Atlas');
   });
 
@@ -89,7 +89,7 @@ describe('From Fantasy Statblocks (§7.9)', () => {
     fireEvent.click(screen.getByRole('radio', { name: 'Marsh layout' }));
     fireEvent.click(screen.getByRole('button', { name: 'Move 2 statblocks to Atlas…' }));
     expect(onClose).toHaveBeenCalled();
-    const dialog = await screen.findByRole('dialog', { name: 'Marsh layout' });
+    const dialog = await screen.findByRole('dialog', { name: 'Marsh layout is ready' });
     fireEvent.click(within(dialog).getByRole('button', { name: 'Move 2 statblocks to Atlas' }));
     await within(dialog).findByText('Moved 2 statblocks.');
     expect(vault.files.get('Bestiary/Hag.md')).toMatch(/^---\nstatblock: true\natlas-template: /);

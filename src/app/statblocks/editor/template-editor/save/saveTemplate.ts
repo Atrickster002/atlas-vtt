@@ -1,8 +1,8 @@
 /**
  * Saving a template from the editor: Update writes the draft over the
  * template's file; Save as new writes it as a template of its own, with a
- * copy of the original's note (a template never saved writes the text it was
- * made with), and drops the draft from the original, which stays as it was.
+ * copy of the original's note (a template without a file writes the text
+ * typed for it, or the text it was made with), and drops the draft from the original, which stays as it was.
  * The note itself saves as it is typed, like any note: Update leaves it alone. A note on a built-in
  * that the editor was opened from switches to the new template, and a
  * template made from the gallery for a role starts that role's statblocks.
@@ -36,9 +36,9 @@ function asNewTemplate(snapshot: SessionSnapshot): StatblockTemplate {
   return snapshot.unsaved ? snapshot.template : { ...snapshot.template, derivedFrom: copiedFrom(snapshot.id) };
 }
 
-/** What the new template's note starts with: the draft's own text, else a copy of the saved template's note. */
+/** What the new template's note starts with: the text typed for a template without a file, else a copy of the saved template's note. */
 function bodyOfNew(app: App, snapshot: SessionSnapshot): Promise<string> {
-  return snapshot.unsaved ? Promise.resolve(snapshot.draftBody) : readTemplateBody(app, snapshot.path);
+  return snapshot.path === null ? Promise.resolve(snapshot.draftBody) : readTemplateBody(app, snapshot.path);
 }
 
 /** The note on the built-in names the new template instead (compare-and-swap: a note changed meanwhile keeps its own). */

@@ -1,4 +1,4 @@
-import React, { useEffect, useId, useRef } from 'react';
+import React, { useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { motion } from 'framer-motion';
 import type { App } from 'obsidian';
@@ -8,7 +8,8 @@ import { dialogOverlayMotion, useDialogWindowVariants } from '../../../packages/
 import { useDialogEscape } from '../../../packages/components/primitives/useDialogEscape';
 import type { FsLayoutImport, LayoutIdentity } from '../../fs/fsImport';
 import { statblockCount, type LayoutStatblocks } from '../../fs/fsLayoutStatblocks';
-import { keptScripts } from './layoutImportActions';
+import { moveLabel, readyTitle } from './importReportText';
+import { partsOnlyFsShows } from './layoutImportActions';
 import { AdoptionSection, ImportSummary } from './LayoutImportParts';
 import { useLayoutAdoption } from './useLayoutAdoption';
 import './layout-import-dialog.scss';
@@ -28,18 +29,21 @@ export interface LayoutImportDialogProps {
 }
 
 /**
- * The import report (§6.2) and the batch that moves the layout's statblocks
- * to Atlas (§6.4) in one dialog: what the import made, Track blocks for
- * scripts that drew tracks, and "Move 214 statblocks to Atlas" with the
- * statblocks listed first, progress, Cancel and a summary. Without a report
- * (the layout was imported before) it is the batch alone.
+ * What an import of a Fantasy Statblocks layout made (§6.2) and the batch
+ * that moves the layout's statblocks to Atlas (§6.4), in one dialog: what
+ * Atlas can show now, then "Move 214 statblocks to Atlas" with what moving
+ * does and the statblocks folded away, progress, Cancel and what it did.
  */
 export function LayoutImportDialog({ app, doc, layout, imported, statblocks, onOpenTemplate, onClose }: LayoutImportDialogProps): React.JSX.Element {
   const windowVariants = useDialogWindowVariants();
   const titleId = useId();
   const windowRef = useRef<HTMLDivElement>(null);
   const { phase, adopt, cancel } = useLayoutAdoption(app, statblocks, imported.id);
+  const [fsOnlyParts] = useState(() => partsOnlyFsShows(app, imported));
+  const total = statblockCount(statblocks);
+  const name = layout.name.trim() || imported.name;
   const running = phase.kind === 'running';
+  const offersMove = total > 0 && phase.kind === 'ready';
   // Closing while notes are switched stops at the next note.
   const close = (): void => {
     cancel();
@@ -48,7 +52,6 @@ export function LayoutImportDialog({ app, doc, layout, imported, statblocks, onO
   useDialogEscape(windowRef, close);
   useEffect(() => windowRef.current?.focus({ preventScroll: true }), []);
 
-  const title = imported.report ? `Imported ${layout.name}` : layout.name;
   return createPortal(
     <motion.div
       {...dialogOverlayMotion}
@@ -65,21 +68,12 @@ export function LayoutImportDialog({ app, doc, layout, imported, statblocks, onO
         tabIndex={-1}
       >
         <div className="atlas-te-dialog__header">
-          <h2 id={titleId}>{title}</h2>
+          <h2 id={titleId}>{readyTitle(name)}</h2>
           <CloseButton onClick={close} />
         </div>
         <div className="atlas-te-dialog__body">
-          {imported.report
-            ? <ImportSummary app={app} templateId={imported.id} report={imported.report} />
-            : <p className="atlas-te-dialog__text">Imported before as {imported.name}.</p>}
-          {statblockCount(statblocks) > 0 && (
-            <AdoptionSection
-              statblocks={statblocks}
-              phase={phase}
-              scripts={phase.kind === 'finished' ? keptScripts(app, imported.id) : []}
-              onAdopt={adopt}
-            />
-          )}
+          <ImportSummary layoutName={name} fsOnlyParts={fsOnlyParts} report={imported.report} />
+          {total > 0 && <AdoptionSection statblocks={statblocks} phase={phase} />}
         </div>
         <div className="atlas-te-dialog__footer">
           {running ? (
@@ -89,7 +83,14 @@ export function LayoutImportDialog({ app, doc, layout, imported, statblocks, onO
               {onOpenTemplate && (
                 <Button type="button" variant="outline" size="sm" onClick={() => { onOpenTemplate(); close(); }}>Open template</Button>
               )}
-              <Button type="button" size="sm" onClick={close}>Done</Button>
+              {offersMove ? (
+                <>
+                  <Button type="button" variant="outline" size="sm" onClick={close}>Not now</Button>
+                  <Button type="button" size="sm" onClick={adopt}>{moveLabel(total)}</Button>
+                </>
+              ) : (
+                <Button type="button" size="sm" onClick={close}>Done</Button>
+              )}
             </>
           )}
         </div>

@@ -20,6 +20,8 @@ export interface TemplateNoteRowProps {
   footer: React.ReactNode;
   /** Stands over the note column while set. */
   noteCover?: React.ReactNode;
+  /** The text of a template just made takes the cursor as it shows. */
+  focusText?: boolean | undefined;
 }
 
 /**
@@ -32,7 +34,7 @@ export const TemplateNoteRow = forwardRef<HTMLDivElement, TemplateNoteRowProps>(
   const { app, room } = props;
   return (
     <div ref={ref} className={cn('atlas-te-row', room.stacked && 'atlas-sb-note--stacked')}>
-      <TemplateBodyColumn app={app} previewRef={props.previewRef} cover={props.noteCover} />
+      <TemplateBodyColumn app={app} previewRef={props.previewRef} cover={props.noteCover} focusText={props.focusText} />
       <PanelHost
         width={room.width}
         stacked={room.stacked}

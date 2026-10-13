@@ -1,11 +1,11 @@
 import React from 'react';
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MotionGlobalConfig } from 'framer-motion';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { TooltipProvider } from '../../../../src/app/packages/components/primitives/tooltip';
 import { LayoutImportDialog } from '../../../../src/app/statblocks/editor/fs-import/LayoutImportDialog';
 import {
-  blocksLine, keptScriptsLine, moveExplanation, moveLabel, movedLine, replaceQuestion, scriptsLine,
+  detailsLine, fsOnlyLine, moveExplanation, moveLabel, movedLine, readyLine, readyTitle,
 } from '../../../../src/app/statblocks/editor/fs-import/importReportText';
 import type { LayoutStatblocks } from '../../../../src/app/statblocks/fs/fsLayoutStatblocks';
 import { importFsLayout, type FsLayoutImport } from '../../../../src/app/statblocks/fs/fsImport';
@@ -50,66 +50,71 @@ function show(statblocks: LayoutStatblocks = ALL, given: FsLayoutImport = import
   );
 }
 
-const report = (scripts: FsImportReport['scripts']): FsImportReport => ({
-  blocks: 11, fields: 9, scripts, dropped: [], partial: [], withoutCode: { total: 9, full: 9 },
+const report = (dropped: string[], partial: string[]): FsImportReport => ({
+  blocks: 11, fields: 9, scripts: [], dropped, partial, withoutCode: { total: 9, full: 9 },
 });
 
-describe('the report\'s words', () => {
-  it('says what the import made, the scripts it kept and what can replace them', () => {
-    const tracks = report([
-      { blockId: 'a', summary: 'Hit points tracks drawn with JavaScript', suggestion: 'track' },
-      { blockId: 'b', summary: 'Stress tracks drawn with JavaScript', suggestion: 'track' },
-    ]);
-    expect(`${blocksLine(tracks)} ${scriptsLine(tracks)} ${replaceQuestion(tracks)}`).toBe(
-      '11 blocks imported. 2 scripts kept for Fantasy Statblocks (Hit points tracks drawn with JavaScript; Stress tracks drawn with JavaScript). Replace them with Track blocks?',
-    );
-    const mixed = report([...tracks.scripts, { blockId: 'c', summary: 'A button', suggestion: null }]);
-    expect(replaceQuestion(mixed)).toBe('Replace the 2 that draw tracks with Track blocks?');
-    expect(scriptsLine(report([]))).toBeNull();
-    expect(replaceQuestion(report([{ blockId: 'c', summary: 'A button', suggestion: null }]))).toBeNull();
+describe('the dialog\'s words', () => {
+  it('says what Atlas can show now and what of the look it cannot, without naming code', () => {
+    expect(readyTitle('DaggerHeart Adversary')).toBe('DaggerHeart Adversary is ready');
+    expect(readyLine('DaggerHeart Adversary')).toBe('Atlas can now show statblocks the way DaggerHeart Adversary does.');
+    expect(fsOnlyLine(0)).toBeNull();
+    expect(fsOnlyLine(1)).toBe('One part shows only in Fantasy Statblocks.');
+    expect(fsOnlyLine(2)).toBe('2 parts show only in Fantasy Statblocks.');
+    expect(detailsLine(null)).toBeNull();
+    expect(detailsLine(report([], []))).toBeNull();
+    expect(detailsLine(report(['a'], []))).toBe('Some details were left out.');
+    expect(detailsLine(report([], ['a']))).toBe('Some details look simpler.');
+    expect(detailsLine(report(['a'], ['b']))).toBe('Some details were left out or look simpler.');
   });
 
-  it('says what the batch does and did', () => {
+  it('says what moving does and did', () => {
     expect(moveLabel(214)).toBe('Move 214 statblocks to Atlas');
     expect(moveLabel(1)).toBe('Move 1 statblock to Atlas');
     expect(movedLine(214, 214)).toBe('Moved 214 statblocks.');
     expect(movedLine(12, 214)).toBe('Moved 12 of 214 statblocks.');
-    expect(moveExplanation({ frontmatter: ['a'], fences: [] })).toBe('Statblocks in properties keep their values and layout.');
-    expect(moveExplanation({ frontmatter: [], fences: ['a'] })).toBe('A code block becomes its note\'s properties and leaves the note; the rest of the note stays as it is.');
-    expect(keptScriptsLine([])).toBeNull();
-    expect(keptScriptsLine(['A button', 'A chart', 'A clock', 'A dial'])).toBe(
-      'The template keeps 4 scripts for Fantasy Statblocks (A button; A chart; A clock; 1 more); Atlas shows them as placeholders.',
+    expect(moveExplanation({ frontmatter: ['a'], fences: [] })).toBe('Moving your statblocks lets you open and edit them in Atlas; every value stays as it is.');
+    expect(moveExplanation({ frontmatter: [], fences: ['a'] })).toBe(
+      'Moving your statblocks lets you open and edit them in Atlas; every value stays as it is. A statblock written into a note\'s text moves out of the text and shows beside the note.',
     );
   });
 });
 
 describe('LayoutImportDialog', () => {
-  it('replaces the track-drawing script with Track blocks through the template\'s session', async () => {
+  it('says the layout is ready, with its tracks already Track blocks and nothing asked', () => {
     show({ frontmatter: [], fences: [] });
-    expect(screen.getByRole('dialog', { name: 'Imported Marsh layout' })).toBeTruthy();
-    expect(screen.getByText(/blocks imported\. 1 script kept for Fantasy Statblocks \(Hit points and Stress tracks drawn with JavaScript\)\./)).toBeTruthy();
-    expect(screen.getByText('Replace it with Track blocks?')).toBeTruthy();
-
-    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Replace with Track blocks' })); });
-    await screen.findByText('Replaced with Track blocks.');
+    expect(screen.getByRole('dialog', { name: 'Marsh layout is ready' })).toBeTruthy();
+    expect(screen.getByText(/^Atlas can now show statblocks the way Marsh layout does\./).textContent).not.toMatch(/Fantasy Statblocks/);
+    expect(screen.queryByText(/JavaScript|script|Track blocks/)).toBeNull();
     const saved = JSON.parse(vault.files.get(imported.path)!) as StatblockTemplate;
-    expect(saved.layout.blocks.filter((block) => block.type === 'track').map((block) => block.type === 'track' && block.field)).toEqual(['hp', 'stress']);
-    expect(saved.layout.blocks.some((block) => block.type === 'script')).toBe(false);
+    expect(saved.layout.blocks.flatMap((block) => (block.type === 'track' ? [block.field] : []))).toEqual(['hp', 'stress']);
+    expect(screen.getAllByRole('button').map((button) => button.textContent)).toEqual(['', 'Done']);
   });
 
-  it('lists the statblocks first, by kind, then moves them with progress, and says what it did', async () => {
+  it('names the parts only Fantasy Statblocks shows and what was left out', () => {
+    show({ frontmatter: [], fences: [] }, { ...imported, report: { ...report(['x'], []), scripts: [{ blockId: 'a', summary: 'A button', suggestion: null }] } });
+    expect(screen.getByText('Atlas can now show statblocks the way Marsh layout does. One part shows only in Fantasy Statblocks. Some details were left out.')).toBeTruthy();
+  });
+
+  it('lists the statblocks folded away, then moves them with progress, and says what it did', async () => {
     show();
     fireEvent.click(screen.getByRole('button', { name: 'Show the 4 statblocks' }));
-    expect(screen.getAllByRole('listitem').map((item) => item.textContent)).toEqual(['Bog Properties', 'Fen Properties', 'Hag Code block', 'Mire Properties']);
+    expect(screen.getAllByRole('listitem').map((item) => item.textContent)).toEqual(['Bog', 'Fen', 'Hag In the note\'s text', 'Mire']);
 
     fireEvent.click(screen.getByRole('button', { name: 'Move 4 statblocks to Atlas' }));
     expect(screen.getByRole('progressbar', { name: 'Moving statblocks' })).toBeTruthy();
     await screen.findByText('Moved 4 statblocks.');
     for (const path of NOTES) expect(vault.files.get(path)).toBe(fsNote(path.slice(9, -3)).replace(/---\n$/, `atlas-template: ${imported.id}\n---\n`));
     expect(vault.files.get(HAG)).toBe(`---\nstatblock: true\natlas-template: ${imported.id}\nname: Hag\nlayout: Marsh layout\nhp: 9\n---\nShe waits.\n\nThe end.\n`);
-    expect(screen.getByText(/^The template keeps 1 script for Fantasy Statblocks \(Hit points and Stress tracks drawn with JavaScript\); Atlas shows it as a placeholder\.$/)).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Done' }));
     expect(onClose).toHaveBeenCalled();
+  });
+
+  it('closes on Not now without moving anything', () => {
+    show();
+    fireEvent.click(screen.getByRole('button', { name: 'Not now' }));
+    expect(onClose).toHaveBeenCalled();
+    for (const path of NOTES) expect(vault.files.get(path)).toBe(fsNote(path.slice(9, -3)));
   });
 
   it('stops at Cancel and lists the statblocks it left as they were, with why', async () => {
@@ -122,10 +127,10 @@ describe('LayoutImportDialog', () => {
     expect(screen.getAllByText('Not reached before Cancel.').length).toBeGreaterThan(0);
   });
 
-  it('is the batch alone for a layout imported before, and closes on Escape', async () => {
+  it('offers the move for a layout imported before, and closes on Escape', async () => {
     show({ frontmatter: NOTES.slice(0, 1), fences: [] }, { ...imported, report: null });
-    expect(screen.getByRole('dialog', { name: 'Marsh layout' })).toBeTruthy();
-    expect(screen.getByText('Imported before as Marsh layout.')).toBeTruthy();
+    expect(screen.getByRole('dialog', { name: 'Marsh layout is ready' })).toBeTruthy();
+    expect(screen.getByText('Atlas can now show statblocks the way Marsh layout does.')).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Move 1 statblock to Atlas' })).toBeTruthy();
     fireEvent.keyDown(document, { key: 'Escape' });
     await waitFor(() => expect(onClose).toHaveBeenCalled());

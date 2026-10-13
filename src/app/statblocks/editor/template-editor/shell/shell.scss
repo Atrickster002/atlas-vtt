@@ -32,7 +32,9 @@ $dock-clearance: calc(32px + 2 * #{$spacing-xs} + 2 * #{$border-width-m} + 2 * #
     --atlas-te-dock-clearance: #{$dock-clearance};
 
     .atlas-te-note__view .cm-scroller,
-    .atlas-te-note__stand-in {
+    .atlas-te-note__stand-in,
+    .atlas-te-note__draft,
+    .atlas-te-note__empty {
       padding-inline-end: $dock-clearance;
     }
   }

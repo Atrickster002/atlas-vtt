@@ -2,7 +2,11 @@ import '../setup/obsidianDom';
 import { cleanup } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { userEvent } from 'vitest/browser';
-import { BODY_PLACEHOLDER } from '../../src/app/statblocks/editor/template-editor/shell/TemplateBodyColumn';
+import React from 'react';
+import { render } from '@testing-library/react';
+import type { App } from 'obsidian';
+import { TemplateEditorContext, type TemplateEditorContextValue } from '../../src/app/statblocks/editor/template-editor/editorContext';
+import { BODY_PLACEHOLDER, TemplateBodyColumn } from '../../src/app/statblocks/editor/template-editor/shell/TemplateBodyColumn';
 import { SAVE_HINT } from '../../src/app/statblocks/editor/template-editor/shell/TemplateCapsule';
 import { FakeSession, sampleTemplate } from '../unit/statblocks/template-editor/editorKit';
 import { frames, mount, px, useEditorStyles } from './sidePanesHarness';
@@ -23,6 +27,7 @@ vi.mock('../../src/app/statblocks/render/shared/useStatblockDiceRolling', () => 
  * note view is the element tree Obsidian gives a Markdown view, put where the
  * column hosts it. What the editor does is checked in Obsidian itself.
  */
+const h = React.createElement;
 const NOTE_FONT = 'Georgia, serif';
 const LINE_WIDTH = 640;
 const MARGIN = 32;
@@ -57,6 +62,23 @@ function hostNoteView(root: HTMLElement, lines: string[]): HTMLElement {
     else line.setText(text);
   }
   return view;
+}
+
+/** The column alone, as the editor holds it, with an app that has a vault: the offer to start from a note needs one. */
+function mountColumn(session: FakeSession): HTMLElement {
+  const app = { vault: { on: () => ({}), offref: () => undefined } } as unknown as App;
+  const context = { app, session, snapshot: session.getSnapshot() } as TemplateEditorContextValue;
+  render(h('div', { className: 'atlas-vtt-plugin' },
+    h('div', { className: 'atlas-statblock-editor', style: { height: 600, width: 800, display: 'grid', '--font-text': NOTE_FONT, '--file-line-width': `${LINE_WIDTH}px`, '--file-margins': `${MARGIN}px`, '--line-height-normal': '1.5', '--font-text-size': '16px' } as React.CSSProperties },
+      h(Live, { session, context }))));
+  return document.querySelector<HTMLElement>('.atlas-te-note')!;
+}
+
+/** Follows the session, as the editor does. */
+function Live({ session, context }: { session: FakeSession; context: TemplateEditorContextValue }): React.JSX.Element {
+  const snapshot = React.useSyncExternalStore(session.subscribe, session.getSnapshot);
+  return h(TemplateEditorContext.Provider, { value: { ...context, snapshot } },
+    h(TemplateBodyColumn, { app: context.app, previewRef: { current: null } }));
 }
 
 describe('the template\'s note column', () => {
@@ -109,6 +131,48 @@ describe('the template\'s note column', () => {
     const view = hostNoteView(root, ['']);
     await frames(1);
     expect(getComputedStyle(view.querySelector('.cm-line')!, '::before').content).toBe(JSON.stringify(BODY_PLACEHOLDER));
+  });
+
+  it('takes typing at once in a template just made: its text stands where a note\'s does, before the dock', async () => {
+    const session = new FakeSession(sampleTemplate(), { path: null, unsaved: true });
+    const root = mountNote(session);
+    await frames(3);
+    const text = root.querySelector<HTMLTextAreaElement>('.atlas-te-note__draft-text')!;
+    expect(document.activeElement, 'the cursor is in the text').toBe(text);
+    expect(getComputedStyle(text).fontFamily).toBe(NOTE_FONT);
+    const note = root.querySelector('.atlas-te-note')!.getBoundingClientRect();
+    const draft = root.querySelector<HTMLElement>('.atlas-te-note__draft')!;
+    const left = note.left + px(getComputedStyle(draft).paddingLeft);
+    const right = note.right - px(getComputedStyle(draft).paddingRight);
+    const box = text.getBoundingClientRect();
+    expect(box.width).toBeCloseTo(Math.min(LINE_WIDTH, right - left), 0);
+    expect(box.left - left).toBeCloseTo(right - box.right, 0);
+    expect(box.top - note.top).toBeCloseTo(MARGIN, 0);
+    expect(box.bottom, 'the text box fills the column').toBeCloseTo(note.bottom - MARGIN, 0);
+    expect(box.right, 'the text ends before the dock').toBeLessThanOrEqual(root.querySelector('.atlas-te-dock')!.getBoundingClientRect().left);
+
+    await userEvent.type(text, 'Lair');
+    expect(session.getSnapshot().draftBody).toBe('Lair');
+    expect(text.value).toBe('Lair');
+    // A press in the margin beside the text puts the cursor back in it.
+    text.blur();
+    await userEvent.click(draft, { position: { x: 4, y: 4 } });
+    expect(document.activeElement).toBe(text);
+  });
+
+  it('offers a note to start from under the placeholder of an empty text, its icon where the text starts, and leaves once there is text', async () => {
+    const session = new FakeSession(sampleTemplate(), { path: null, unsaved: true });
+    const column = mountColumn(session);
+    await frames(2);
+    const text = column.querySelector<HTMLTextAreaElement>('.atlas-te-note__draft-text')!;
+    const box = text.getBoundingClientRect();
+    const offer = column.querySelector<HTMLElement>('.atlas-te-note__from-note')!;
+    expect(offer.querySelector('svg')!.getBoundingClientRect().left).toBeCloseTo(box.left, 0);
+    const lineHeight = px(getComputedStyle(text).lineHeight);
+    expect(offer.getBoundingClientRect().top, 'it stands under the placeholder').toBeGreaterThanOrEqual(box.top + lineHeight);
+    expect(document.elementFromPoint(box.left + 200, box.top + lineHeight * 4), 'the rest of the column is the text\'s').toBe(text);
+    await userEvent.type(text, 'Lair');
+    expect(column.querySelector('.atlas-te-note__from-note')).toBeNull();
   });
 
   it('tells over Save what it covers, also while there is nothing to save', async () => {

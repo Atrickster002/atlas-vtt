@@ -4,9 +4,7 @@
  * §7.6). Pure: a template and the card's state in, spots out.
  */
 
-import { isExpressionError } from '../../expressions/errors';
-import { parsePatternCached } from '../../expressions/patternParse';
-import type { PatternNode } from '../../expressions/patternTypes';
+import { writtenFields } from '../../expressions/patternFields';
 import {
   isContainerBlock, type FieldKey, type FieldType, type StatblockTemplate, type TemplateBlock, type TemplateField,
 } from '../../model/templateTypes';
@@ -35,27 +33,11 @@ export interface EditableSpots {
   order: readonly EditSpot[];
 }
 
-function plainRefs(nodes: readonly PatternNode[], keys: FieldKey[]): void {
-  for (const node of nodes) {
-    // `stats.1` is one slot of a field, and a formula derives its value: neither is edited from here.
-    if (node.kind === 'refs') keys.push(...node.refs.filter((ref) => !ref.includes('.')));
-    else if (node.kind === 'optional') plainRefs(node.nodes, keys);
-  }
-}
-
-/** The fields a pattern writes as they are, in the order it names them. */
-export function patternFields(pattern: string | undefined): FieldKey[] {
-  if (!pattern) return [];
-  const ast = parsePatternCached(pattern);
-  const keys: FieldKey[] = [];
-  if (!isExpressionError(ast)) plainRefs(ast.nodes, keys);
-  return keys;
-}
-
 function blockKeys(block: TemplateBlock): FieldKey[] {
   switch (block.type) {
-    case 'title': case 'stat': return [block.field, ...patternFields(block.pattern)];
-    case 'line': return [...block.fields, ...patternFields(block.pattern)];
+    // A pattern says what shows: where it works its value out (XP from a challenge rating), nothing is typed there.
+    case 'title': case 'stat': return block.pattern ? writtenFields(block.pattern) : [block.field];
+    case 'line': return block.pattern ? writtenFields(block.pattern) : [...block.fields];
     // Each number of a Metric is filled in on its own, in its own place (`ValueSlot`'s `field`).
     case 'metric': return block.fields.filter((key) => key !== '');
     case 'text': return block.field ? [block.field] : [];

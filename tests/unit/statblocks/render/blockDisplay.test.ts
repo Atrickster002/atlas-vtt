@@ -40,6 +40,13 @@ describe('blockDisplay', () => {
     expect(blockDisplay(block('b5immu00'), state({}, 'editing'))).toEqual({ state: 'prompt', prompt: 'Add damage immunities' });
   });
 
+  it('says what a worked-out value comes from instead of asking for it', () => {
+    const xp: TemplateBlock = { id: 'xpline00', type: 'stat', field: 'cr', label: 'XP', look: 'run-in', pattern: '{cr|lookup:xp}[; PB {cr|lookup:pb}]' };
+    expect(blockDisplay(xp, state({}, 'editing'))).toEqual({ state: 'prompt', prompt: 'From CR' });
+    expect(blockDisplay(xp, state({}))).toBeNull();
+    expect(blockDisplay(block('b5cr0000'), state({}, 'editing'))).toEqual({ state: 'prompt', prompt: 'Add CR' });
+  });
+
   it('hides an empty block, and prompts for it while editing', () => {
     expect(blockDisplay(block('b5speed0'), state({}))).toBeNull();
     expect(blockDisplay(block('b5speed0'), state({}, 'editing'))).toEqual({ state: 'prompt', prompt: 'Add speed' });

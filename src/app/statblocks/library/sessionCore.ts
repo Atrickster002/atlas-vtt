@@ -37,12 +37,13 @@ export interface SessionSnapshot {
   /** Made in the editor and never saved: its first save names it. */
   unsaved: boolean;
   /**
-   * For a template never saved: the text its first save writes into the note
-   * beside it (a statblock's own text, when the template was made from one);
-   * empty otherwise. Saved templates keep theirs in that note.
+   * For a template without a file (never saved, or a built-in): the text its
+   * next save writes into the note beside it, typed in the editor or the
+   * statblock's own text when the template was made from one; empty for a
+   * saved template, which keeps its text in that note.
    */
   draftBody: string;
-  /** The draft differs from what the file holds (always, for a template never saved). */
+  /** The draft or its text differs from what the file holds (always, for a template never saved). */
   dirty: boolean;
   /** The draft. */
   template: StatblockTemplate;
@@ -90,11 +91,14 @@ export class SessionCore {
   private readonly detachers: Array<() => void> = [];
   private snapshot: SessionSnapshot;
   private disposed = false;
+  /** The text a template without a file gives its note once saved (`startBody` until typed in). */
+  private draftBody: string;
 
   private constructor(
-    app: App, library: TemplateLibrary, entry: LibraryTemplate, text: string, unsaved: boolean, private readonly draftBody = '',
+    app: App, library: TemplateLibrary, entry: LibraryTemplate, text: string, unsaved: boolean, private readonly startBody = '',
   ) {
     this.id = entry.template.id;
+    this.draftBody = startBody;
     this.store = createTemplateDraftStore(entry.template);
     this.file = new SessionFile(app, library, this.id, entry, text, this, unsaved);
     this.snapshot = this.build();
@@ -179,9 +183,21 @@ export class SessionCore {
     return this.disposed ? Promise.resolve({ ok: false, problem: 'The template is closed.' }) : this.file.save();
   }
 
+  /**
+   * Sets the text a template without a file gives its note once saved. Not an
+   * undo step of the template: the text has its own undo where it is typed.
+   */
+  setDraftBody(text: string): void {
+    if (this.disposed || this.file.readOnly || this.file.path !== null || text === this.draftBody) return;
+    this.draftBody = text;
+    this.changed();
+  }
+
   /** Drops the unsaved changes and their history: the draft is what the file holds again. */
   discard(): void {
-    if (!this.disposed) this.file.discard();
+    if (this.disposed) return;
+    this.draftBody = this.startBody;
+    this.file.discard();
   }
 
   resolveConflict(choice: ConflictChoice): Promise<void> {
@@ -212,8 +228,8 @@ export class SessionCore {
       path: this.file.path,
       builtIn: this.file.builtIn,
       unsaved: this.file.unsaved,
-      draftBody: this.file.unsaved ? this.draftBody : '',
-      dirty: editable && this.file.isDirty(),
+      draftBody: this.file.path === null ? this.draftBody : '',
+      dirty: editable && this.isDirty(),
       template: this.draft(),
       readOnly: !editable,
       readOnlyReason: readOnly,
@@ -225,10 +241,15 @@ export class SessionCore {
     };
   }
 
+  /** The draft differs from the file, or a template without a file has text its save would write. */
+  private isDirty(): boolean {
+    return this.file.isDirty() || (this.file.path === null && this.draftBody !== this.startBody);
+  }
+
   private saveState(): SaveState {
     if (this.file.conflict) return 'conflict';
     if (this.file.writing) return 'saving';
-    const dirty = !this.file.readOnly && this.file.isDirty();
+    const dirty = !this.file.readOnly && this.isDirty();
     if (dirty && this.file.problem) return 'error';
     return dirty ? 'dirty' : 'saved';
   }

@@ -3,7 +3,7 @@ import { TFile } from 'obsidian';
 import { AssetService } from '../../../../src/app/services/AssetService';
 import { saveTemplate } from '../../../../src/app/statblocks/editor/template-editor/save/saveTemplate';
 import { copyTemplate, createTemplateFile, deleteTemplate } from '../../../../src/app/statblocks/library/templateActions';
-import { followTemplateBodies, readTemplateBody, startTemplateBody } from '../../../../src/app/statblocks/library/templateBodyNotes';
+import { followTemplateBodies, noteOpenBody, readTemplateBody, replaceTemplateBody, startTemplateBody } from '../../../../src/app/statblocks/library/templateBodyNotes';
 import { freeTemplatePath, templateBodyPath } from '../../../../src/app/statblocks/library/templatePaths';
 import { TemplateLibrary } from '../../../../src/app/statblocks/library/TemplateLibrary';
 import { TemplateSession } from '../../../../src/app/statblocks/library/TemplateSession';
@@ -150,6 +150,46 @@ describe('saving from the template editor', () => {
     expect(session.getSnapshot()).toMatchObject({ unsaved: true, draftBody: 'Keep away.\n' });
     await saveTemplate(vault.app, session, { kind: 'new', name: 'Bog Hag' }, null);
     expect(vault.files.get(`${TEMPLATE_FOLDER}/Bog Hag.md`)).toBe('Keep away.\n');
+  });
+
+  it('writes the text typed for a template never saved, in place of the one it was made with', async () => {
+    const session = open(TemplateSession.openUnsaved(vault.app, MARSH_CREATURE, 'Bog Hag', null, 'Keep away.\n'));
+    session.setDraftBody('## Lair\n\nA sunken hut.\n');
+    expect(session.getSnapshot().draftBody).toBe('## Lair\n\nA sunken hut.\n');
+    await saveTemplate(vault.app, session, { kind: 'new', name: 'Bog Hag' }, null);
+    expect(vault.files.get(`${TEMPLATE_FOLDER}/Bog Hag.md`)).toBe('## Lair\n\nA sunken hut.\n');
+  });
+
+  it('lets a built-in hold typed text: it counts as a change, Save as new writes it, and discarding drops it', async () => {
+    const session = open(TemplateSession.open(vault.app, 'builtin:generic-creature'));
+    expect(session.getSnapshot().dirty).toBe(false);
+    session.setDraftBody('Notes.\n');
+    expect(session.getSnapshot()).toMatchObject({ draftBody: 'Notes.\n', dirty: true, saveState: 'dirty' });
+    session.discard();
+    expect(session.getSnapshot()).toMatchObject({ draftBody: '', dirty: false });
+    session.setDraftBody('Notes.\n');
+    await saveTemplate(vault.app, session, { kind: 'new', name: 'My creature' }, null);
+    expect(vault.files.get(`${TEMPLATE_FOLDER}/My creature.md`)).toBe('Notes.\n');
+  });
+
+  it('keeps no typed text for a saved template: its text is its note\'s', () => {
+    const session = open(TemplateSession.open(vault.app, MARSH_ID));
+    session.setDraftBody('Elsewhere.\n');
+    expect(session.getSnapshot()).toMatchObject({ draftBody: '', dirty: false });
+  });
+
+  it('replaces the note\'s text through the editor that shows it, else in the file, made where missing', async () => {
+    const replace = vi.fn();
+    const stop = noteOpenBody(vault.app, vault.app.vault.getFileByPath(MARSH_NOTE)!, { read: () => LAIR, replace });
+    await replaceTemplateBody(vault.app, MARSH_PATH, 'From a note.\n');
+    expect(replace).toHaveBeenCalledWith('From a note.\n');
+    expect(vault.files.get(MARSH_NOTE)).toBe(LAIR);
+    stop();
+    await replaceTemplateBody(vault.app, MARSH_PATH, 'From a note.\n');
+    expect(vault.files.get(MARSH_NOTE)).toBe('From a note.\n');
+    vault.deleteExternally(MARSH_NOTE);
+    await replaceTemplateBody(vault.app, MARSH_PATH, 'Again.\n');
+    expect(vault.files.get(MARSH_NOTE)).toBe('Again.\n');
   });
 
   it('gives a copy of a built-in no note: built-ins have none', async () => {

@@ -23,9 +23,11 @@ import {
   type FieldKey,
   type FieldMeaning,
   type HeaderPartId,
+  type HeaderTrack,
   type StatblockTemplate,
   type TemplateBlock,
   type TemplateField,
+  type TemplateHeader,
 } from './templateTypes';
 
 interface HeaderPartSpec {
@@ -120,8 +122,12 @@ export function hitDiceKey(fields: readonly TemplateField[]): FieldKey | null {
   return fields.some((field) => field.key === HIT_DICE_KEY && field.type === 'dice') ? HIT_DICE_KEY : null;
 }
 
-/** The hit points' block: "22 (4d8 + 4)" where the template keeps hit dice, which then roll the hit points. */
-function hitPointsBlock(blockId: string, key: FieldKey, fields: readonly TemplateField[]): TemplateBlock {
+/**
+ * The hit points' block: the template's track where it draws them as one (a row of boxes), else
+ * "22 (4d8 + 4)" where the template keeps hit dice, which then roll the hit points.
+ */
+function hitPointsBlock(blockId: string, key: FieldKey, fields: readonly TemplateField[], track: HeaderTrack | undefined): TemplateBlock {
+  if (track) return { id: blockId, type: 'track', field: key, ...track };
   const dice = hitDiceKey(fields);
   if (!dice || dice === key) return { id: blockId, type: 'stat', field: key, look: 'run-in' };
   return { id: blockId, type: 'stat', field: key, look: 'run-in', pattern: `{${key}}[ ({${dice}})]`, rollFrom: dice };
@@ -134,13 +140,13 @@ function nameBlock(blockId: string, key: FieldKey, fields: readonly TemplateFiel
   return { id: blockId, type: 'title', field: shown, level: 1, whenEmpty: 'fallback', fallback: `{${key}}` };
 }
 
-function partBlock(id: HeaderPartId, key: FieldKey, fields: readonly TemplateField[]): TemplateBlock {
+function partBlock(id: HeaderPartId, key: FieldKey, fields: readonly TemplateField[], header: TemplateHeader | undefined): TemplateBlock {
   const blockId = BLOCK_IDS[id];
   switch (id) {
     case 'name': return nameBlock(blockId, key, fields);
     case 'token': return { id: blockId, type: 'image', field: key, shape: 'token' };
     case 'description': return { id: blockId, type: 'text', field: key };
-    case 'hp': return hitPointsBlock(blockId, key, fields);
+    case 'hp': return hitPointsBlock(blockId, key, fields, header?.hitPoints);
     default: return { id: blockId, type: 'stat', field: key, look: 'run-in' };
   }
 }
@@ -161,7 +167,7 @@ export function headerParts(template: StatblockTemplate): readonly HeaderPart[] 
     const spec = HEADER_PARTS[id];
     return {
       id,
-      block: partBlock(id, key, template.fields),
+      block: partBlock(id, key, template.fields, template.header),
       key,
       label: fieldByKey(template.fields, key)?.label?.trim() || spec.label,
       hidden: isHidden(template, id),
@@ -204,8 +210,14 @@ export function setHeaderPartHidden(template: StatblockTemplate, id: HeaderPartI
   if (hidden) now.add(id);
   else now.delete(id);
   const list = HEADER_PART_IDS.filter((part) => now.has(part));
+  const { hidden: _hidden, ...kept } = template.header ?? {};
+  return withHeaderSettings(template, list.length > 0 ? { ...kept, hidden: list } : kept);
+}
+
+/** The template with `header` as its header settings, and none where they say nothing. */
+export function withHeaderSettings(template: StatblockTemplate, header: TemplateHeader): StatblockTemplate {
   const { header: _header, ...rest } = template;
-  return list.length > 0 ? { ...rest, header: { hidden: list } } : rest;
+  return Object.keys(header).length > 0 ? { ...rest, header } : rest;
 }
 
 /**

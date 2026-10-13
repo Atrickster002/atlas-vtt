@@ -42,6 +42,7 @@
 - A fixed value such as an armour class shows on its token when it is 0, and follows its statblock down to 0
 - A ring colour picked from a token's right-click menu colours every selected token, in one undo step
 - Resource wheels that players may see now show in the player window and in session view, and every resource, wheels too, has its switch in the player view settings
+- On a lit scene, the light and sight of a token that glides to a new place, such as after an undo, move with the token instead of arriving before it. A token whose way crosses a wall is put in its place at once
 
 ## Important changes
 

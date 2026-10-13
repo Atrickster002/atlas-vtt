@@ -8,7 +8,7 @@ import type { TemplateSession } from '../../library/TemplateSession';
  */
 export type EditorSession = Pick<
   TemplateSession,
-  'getSnapshot' | 'subscribe' | 'apply' | 'beginGesture' | 'endGesture' | 'abandonGesture' | 'undo' | 'redo' | 'resolveConflict'
+  'getSnapshot' | 'subscribe' | 'apply' | 'beginGesture' | 'endGesture' | 'abandonGesture' | 'undo' | 'redo' | 'resolveConflict' | 'setDraftBody'
 >;
 
 export type { SaveState, SessionSnapshot } from '../../library/TemplateSession';

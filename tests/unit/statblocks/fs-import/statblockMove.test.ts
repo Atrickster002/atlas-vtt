@@ -66,11 +66,11 @@ describe('moving statblocks to Atlas (§6.4)', () => {
     const result = await moveStatblocks(app(), { frontmatter: [], fences: Object.keys(files) }, TEMPLATE);
     expect(result.moved).toEqual([]);
     expect(Object.fromEntries(result.skipped.map(({ path, reason }) => [path, reason]))).toEqual({
-      'A/Gone.md': 'It no longer holds a statblock code block.',
-      'A/Taken.md': 'Its properties already hold other values for hp.',
-      'A/Two.md': 'It holds 2 statblock code blocks; only a note with one is moved.',
+      'A/Gone.md': 'Its statblock is no longer in the note.',
+      'A/Taken.md': 'The note already holds other values for hp.',
+      'A/Two.md': 'It holds 2 statblocks; only a note with one is moved.',
       'A/Unknown.md': 'Fantasy Statblocks has no creature named Owlbear.',
-      'A/Unread.md': 'Its statblock code block can\'t be read.',
+      'A/Unread.md': 'Its statblock can\'t be read.',
     });
     for (const [path, text] of Object.entries(files)) expect(harness.files.get(path)).toBe(text);
   });
@@ -78,7 +78,7 @@ describe('moving statblocks to Atlas (§6.4)', () => {
   it('moves no fence that builds on a creature while Fantasy Statblocks cannot read it', async () => {
     harness = noteHarness({ 'Encounters/Ford.md': GOBLIN });
     const off = await moveStatblocks(app(), { frontmatter: [], fences: ['Encounters/Ford.md'] }, TEMPLATE);
-    expect(off.skipped).toEqual([{ path: 'Encounters/Ford.md', reason: 'It builds on the creature Goblin; turn on Fantasy Statblocks to move it.' }]);
+    expect(off.skipped).toEqual([{ path: 'Encounters/Ford.md', reason: 'It is based on the creature Goblin; turn on Fantasy Statblocks to move it.' }]);
     withGoblin();
     Object.assign(window, { FantasyStatblocks: { ...(window as unknown as { FantasyStatblocks: object }).FantasyStatblocks, isResolved: () => false } });
     const reading = await moveStatblocks(app(), { frontmatter: [], fences: ['Encounters/Ford.md'] }, TEMPLATE);

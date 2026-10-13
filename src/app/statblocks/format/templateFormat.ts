@@ -15,6 +15,7 @@ import {
   ENTRY_SHAPE_KEYS,
   FIELD_KEYS,
   HEADER_KEYS,
+  HEADER_TRACK_KEYS,
   IMPORTED_FROM_KEYS,
   LAYOUT_KEYS,
   SCORE_COLUMN_KEYS,
@@ -73,7 +74,7 @@ const TEMPLATE_NESTED: NestedWriters = new Map([
   ['source', objectWriter(SOURCE_KEYS)],
   ['importedFrom', objectWriter(IMPORTED_FROM_KEYS)],
   ['fields', listWriter(objectWriter(FIELD_KEYS, new Map([['entry', writeEntryShape]])))],
-  ['header', objectWriter(HEADER_KEYS)],
+  ['header', objectWriter(HEADER_KEYS, new Map([['hitPoints', objectWriter(HEADER_TRACK_KEYS)]]))],
   ['layout', objectWriter(LAYOUT_KEYS, new Map([['blocks', listWriter(writeBlock)]]))],
 ]);
 
