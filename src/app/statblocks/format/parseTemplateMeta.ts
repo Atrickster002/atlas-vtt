@@ -2,9 +2,11 @@
 
 import { HEADER_PARTS } from '../model/templateHeader';
 import {
-  HEADER_PART_IDS, type HeaderPartId, type StatblockTemplate, type TemplateHeader, type TemplateLicence, type TemplateSource,
+  HEADER_PART_IDS, type HeaderPartId, type HeaderTrack, type StatblockTemplate, type TemplateHeader, type TemplateLicence,
+  type TemplateSource,
 } from '../model/templateTypes';
-import { DERIVED_FROM_KEYS, HEADER_KEYS, IMPORTED_FROM_KEYS, SOURCE_KEYS } from './formatKeys';
+import { TRACK_COUNTS, TRACK_LOOKS } from './blockParts';
+import { DERIVED_FROM_KEYS, HEADER_KEYS, HEADER_TRACK_KEYS, IMPORTED_FROM_KEYS, SOURCE_KEYS } from './formatKeys';
 import { describeValue, isRecord } from './jsonValues';
 import { ObjectReader } from './objectReader';
 import { JSON_OBJECT, asJsonRecord, asKey, asNonNegativeInteger, asOneOf, asString, asText } from './valueReads';
@@ -57,7 +59,21 @@ const HIDEABLE_PARTS: readonly HeaderPartId[] = HEADER_PART_IDS.filter((id) => H
 export function readHeader(raw: unknown, problems: string[]): TemplateHeader | undefined {
   if (!isRecord(raw)) return undefined;
   const r = new ObjectReader(raw, 'The template’s header', problems, HEADER_KEYS);
-  return r.finish({ ...r.optList('hidden', asOneOf(HIDEABLE_PARTS), 'header parts a template may hide (level, type, hp, description)') });
+  return r.finish({
+    ...r.optList('hidden', asOneOf(HIDEABLE_PARTS), 'header parts a template may hide (level, type, hp, description)'),
+    ...r.opt('hitPoints', (value) => readHeaderTrack(value, problems), 'an object'),
+  });
+}
+
+/** How the header draws its hit points as a track; undefined where it says nothing readable. */
+function readHeaderTrack(raw: unknown, problems: string[]): HeaderTrack | undefined {
+  if (!isRecord(raw)) return undefined;
+  const r = new ObjectReader(raw, 'The header’s hit points', problems, HEADER_TRACK_KEYS);
+  return r.finish({
+    look: r.withDefault('look', asOneOf(TRACK_LOOKS), TRACK_LOOKS[0], 'boxes or gauge'),
+    counts: r.withDefault('counts', asOneOf(TRACK_COUNTS), TRACK_COUNTS[0], 'down or up'),
+    ...r.opt('resource', asString, 'a text'),
+  });
 }
 
 export function readImportedFrom(raw: unknown, problems: string[]): ImportedFrom | undefined {

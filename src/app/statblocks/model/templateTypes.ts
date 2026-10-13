@@ -87,6 +87,16 @@ export const HEADER_PART_IDS: readonly HeaderPartId[] = ['name', 'token', 'level
 export interface TemplateHeader {
   /** Parts kept off the card, in `HEADER_PART_IDS` order; never the name or the token art. */
   hidden?: HeaderPartId[];
+  /** The hit points drawn as a track (a row of boxes, a gauge) where the system marks them so; unset, as a number. */
+  hitPoints?: HeaderTrack;
+}
+
+/** How the header draws a track: a Track block's look without its field, which is the part's own. */
+export interface HeaderTrack {
+  look: 'boxes' | 'gauge';
+  counts: 'down' | 'up';
+  /** The token resource whose values the track shows on a token's statblock. */
+  resource?: string;
 }
 
 export interface TemplateField {
