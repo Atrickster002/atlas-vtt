@@ -10,6 +10,7 @@ import type { Point } from '../../types/visionTypes';
 import type { LightMarkers } from './LightMarkers';
 import type { LightRangeRings } from './LightRangeRings';
 import { ringHandleCursor } from './lightRingGeometry';
+import { levelObjects } from '../../levels/levelObjects';
 
 /** Screen pixels the pointer may move before a press on a marker is a drag, not a click. */
 export const LIGHT_DRAG_THRESHOLD = 5;
@@ -128,7 +129,7 @@ export class LightInteraction {
 
   private pressMarker(lightId: string, event: Press): void {
     const { viewport, store, markers } = this.deps;
-    const light = readLight(store.getState().objects.lights[lightId]);
+    const light = readLight(levelObjects(store.getState()).lights[lightId]);
     if (!light) return;
     const start = { x: event.global.x, y: event.global.y };
     const grabbed = viewport.toWorld(start.x, start.y);
@@ -169,7 +170,7 @@ export class LightInteraction {
     const { viewport, store, rings } = this.deps;
     const lightId = store.getState().lightPopover;
     const geometry = rings.geometry();
-    const emission = lightId ? readLight(store.getState().objects.lights[lightId])?.emission : undefined;
+    const emission = lightId ? readLight(levelObjects(store.getState()).lights[lightId])?.emission : undefined;
     if (!lightId || !geometry || !emission) return;
     // The handle keeps its distance to the pointer, so it does not jump when grabbed off-centre.
     const offset = Math.hypot(grabbedAt.x - geometry.center.x, grabbedAt.y - geometry.center.y) - geometry.radius[field];
@@ -177,7 +178,7 @@ export class LightInteraction {
     rings.setDragging(field);
 
     const onMove = (move: FederatedPointerEvent): void => {
-      const light = readLight(store.getState().objects.lights[lightId]);
+      const light = readLight(levelObjects(store.getState()).lights[lightId]);
       if (!light) return;
       const at = viewport.toWorld(move.global.x, move.global.y);
       const radius = Math.max(0, Math.hypot(at.x - light.x, at.y - light.y) - offset);
@@ -200,7 +201,7 @@ export class LightInteraction {
   private turn(grabbedAt: Point): void {
     const { viewport, store, rings } = this.deps;
     const lightId = store.getState().lightPopover;
-    const grabbed = lightId ? readLight(store.getState().objects.lights[lightId]) : undefined;
+    const grabbed = lightId ? readLight(levelObjects(store.getState()).lights[lightId]) : undefined;
     if (!lightId || !grabbed) return;
     // A light that was never turned has no rotation, and faces up as with 0; a cancelled turn leaves it without one.
     const rotation = grabbed.rotation;
@@ -210,7 +211,7 @@ export class LightInteraction {
     rings.setDragging('rotation');
 
     const onMove = (move: FederatedPointerEvent): void => {
-      const light = readLight(store.getState().objects.lights[lightId]);
+      const light = readLight(levelObjects(store.getState()).lights[lightId]);
       if (!light) return;
       const next = snapDirection(directionTo(light, viewport.toWorld(move.global.x, move.global.y)) + offset, move.altKey);
       if (next !== (light.rotation ?? 0)) store.getState().updateLight(lightId, { rotation: next });
@@ -233,7 +234,7 @@ export class LightInteraction {
       endHistoryTransaction(store);
       return;
     }
-    if (readLight(store.getState().objects.lights[lightId])) restore();
+    if (readLight(levelObjects(store.getState()).lights[lightId])) restore();
     // The history looks at a write once its listeners are done: closed inside one, the step
     // would be left for the write that cancelled the drag, with the drag's state as its past.
     if (this.inStoreWrite) queueMicrotask(() => abandonHistoryTransaction(store));

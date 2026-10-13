@@ -20,6 +20,7 @@ import type { SeatSource } from './seatSource.ts';
 import { PlayerMoves } from './playerMoves.ts';
 import { RulesShare, type RulesSharePorts } from './RulesShare.ts';
 import { TOKEN_POLL_MS, TokenShare, type TokenSharePorts } from './TokenShare.ts';
+import { levelObjects } from '../../levels/levelObjects';
 
 export { imageMimeType, isLit, LIGHTING_REFUSAL, REPEAT_REQUEST_MS };
 
@@ -106,7 +107,7 @@ export class SceneShare {
         listedToken: (alias) => this.tokens.listedToken(alias),
         ownerOf: (tokenId) => seats?.ownerOf(tokenId),
         map: this.mapSize,
-        walls: sceneWalls(store.getState().objects.walls, this.scene?.lit === true, this.mapSize),
+        walls: sceneWalls(levelObjects(store.getState()).walls, this.scene?.lit === true, this.mapSize),
       }),
     });
     this.marks = new MarkShare({ ...ports, cursorsShown }, () => this.mapSize);

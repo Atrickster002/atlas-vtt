@@ -17,6 +17,7 @@ import { colorNumber } from './token-renderer/resources/ResourceBarView';
 import type { ResourceDefinition, ResourceDefsProvider } from '../resources/resourceTypes';
 import { resourceUpdate, withCurrent } from '../resources/resourceValues';
 import { visibleResources } from '../resources/visibleResources';
+import { levelObjects } from '../levels/levelObjects';
 
 type ControlIconType = 'plus' | 'minus';
 
@@ -265,7 +266,7 @@ export class TokenControlsUI {
   /** Shows the controls of a token whose bars and wheels are drawn at `uiScale`. */
   public show(tokenId: string, worldX: number, worldY: number, tokenSize: number, uiScale: number): void {
     const state = this.store.getState();
-    const token = state.objects.tokens[tokenId] as Character | undefined;
+    const token = levelObjects(state).tokens[tokenId] as Character | undefined;
     
     if (!token || this.slotsProvider(tokenId).length === 0) {
       this.hide();
@@ -350,7 +351,7 @@ export class TokenControlsUI {
       // The token may have changed since the controls were shown (dashboard, Kill, Edit Token), so
       // every edit starts from the stored token: it must not write old values over other resources.
       const edit = (change: (stored: ResourceValue) => ResourceValue): void => {
-        const live = this.currentTokenId ? this.store.getState().objects.tokens[this.currentTokenId] : undefined;
+        const live = this.currentTokenId ? levelObjects(this.store.getState()).tokens[this.currentTokenId] : undefined;
         const stored = live?.resources?.[definition.key];
         if (!live || !stored) return;
         const next = change(stored);
@@ -419,7 +420,7 @@ export class TokenControlsUI {
   private setTokenValue(updates: TokenUpdates): void {
     if (!this.currentTokenId) return;
     this.store.getState().updateToken(this.currentTokenId, updates);
-    const updatedToken = this.store.getState().objects.tokens[this.currentTokenId] as Character | undefined;
+    const updatedToken = levelObjects(this.store.getState()).tokens[this.currentTokenId] as Character | undefined;
     if (updatedToken) {
       this.updateButtons(updatedToken);
     }

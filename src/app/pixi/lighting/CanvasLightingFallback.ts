@@ -24,6 +24,7 @@ import { LightReaches } from '../../vision/lightReaches';
 import { sourcesInDarkness } from '../../vision/magicalDarkness';
 import { activeLights, engineLight } from '../../vision/lightSources';
 import type { SceneLightingView } from './sceneLightingView';
+import { levelObjects } from '../../levels/levelObjects';
 
 /** Full ambient light: everything in sight counts as lit. */
 const FULL_DAYLIGHT: AmbientLight = { ambient: 1 };
@@ -122,7 +123,7 @@ export class CanvasLightingFallback implements SceneLightingView {
     const rules = this.deps.rules?.();
     const measurement = this.deps.measurement();
     const held = heldForSight(state);
-    const inputs = [state.lighting, state.objects.tokens, state.objects.walls, state.objects.lights, state.grid, held, rules, bounds?.width, bounds?.height, measurement.unitDistance];
+    const inputs = [state.lighting, levelObjects(state).tokens, levelObjects(state).walls, levelObjects(state).lights, state.grid, held, rules, bounds?.width, bounds?.height, measurement.unitDistance];
     if (inputs.every((input, i) => input === this.inputs[i]) && inputs.length === this.inputs.length) return;
     this.inputs = inputs;
     if (!state.lighting.enabled || !bounds) {
@@ -134,9 +135,9 @@ export class CanvasLightingFallback implements SceneLightingView {
       return;
     }
     const scale = unitScaleOf(measurement, state.grid);
-    const walls = this.sealedWalls(state.objects.walls, worldTexel(bounds));
+    const walls = this.sealedWalls(levelObjects(state).walls, worldTexel(bounds));
     const tokens = this.sightTokens.read(state);
-    const dark = activeLights(state.objects.lights, tokens, state.lighting.ambient).filter((light) => light.emission.darkness).map((light) => engineLight(light, scale));
+    const dark = activeLights(levelObjects(state).lights, tokens, state.lighting.ambient).filter((light) => light.emission.darkness).map((light) => engineLight(light, scale));
     // The same list while there is no darkness, so whoever compares it finds it unchanged.
     this.reaches = dark.length > 0 ? this.darknessReaches.sync(dark, walls) : NO_REACHES;
     const sources = sourcesInDarkness(sightSources(tokens, scale, bounds, rules, GM_SIGHT_POLICY), FULL_DAYLIGHT, this.reaches);
@@ -145,7 +146,7 @@ export class CanvasLightingFallback implements SceneLightingView {
     // The same regions are the same sight: what was worked out from it (who is seen) stays good.
     if (!sameSight(sight, this.sight)) this.sight = sight;
     this.sightBuilt = true;
-    const spots = seenSpots(this.sight, FULL_DAYLIGHT, this.reaches, state.objects.tokens, scale.cellSize, walls, { conditions: rules?.conditions ?? [], held, policy: PLAYER_SIGHT_POLICY });
+    const spots = seenSpots(this.sight, FULL_DAYLIGHT, this.reaches, levelObjects(state).tokens, scale.cellSize, walls, { conditions: rules?.conditions ?? [], held, policy: PLAYER_SIGHT_POLICY });
     this.setDarkness(bounds, spots);
     this.deps.onSightChange?.();
   }

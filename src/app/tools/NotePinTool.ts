@@ -15,6 +15,7 @@ import { hexLinkAt } from '../grid/hexLinks';
 import { linkedSceneFile, mayLinkFromScene } from '../services/sceneLinks';
 import { t } from '../i18n';
 import { showNotice } from '../ui/notice';
+import { levelObjects } from '../levels/levelObjects';
 
 interface NotePinDropdownResult {
   accepted: boolean;
@@ -313,7 +314,7 @@ export class NotePinTool {
     this.preview.hold();
     this.preview.showLinkedHex(center);
 
-    const existing = hexLinkAt(this.store.getState().objects.pins, layout, center);
+    const existing = hexLinkAt(levelObjects(this.store.getState()).pins, layout, center);
     if (existing) {
       await this.showNotePinDropdownForExistingPin(existing);
     } else {

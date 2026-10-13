@@ -23,6 +23,7 @@ import { wallList } from './wallList';
 import type { EngineLight, EngineZone } from '../pixi/lighting/engine/types';
 import { LightReaches } from './lightReaches';
 import { activeLights, engineLight } from './lightSources';
+import { levelObjects } from '../levels/levelObjects';
 
 /** What a scene's lighting works out on the CPU, in world pixels: the engine draws it and the rules read it. */
 export interface SceneModel {
@@ -48,6 +49,9 @@ export interface SceneState {
   lighting: ViewState['lighting'];
   grid: ViewState['grid'];
   heldTokens: ViewState['heldTokens'];
+  /** The scene's levels and the one shown: only that level's walls, lights and tokens count (`levelObjects`). */
+  levels?: ViewState['levels'];
+  viewedLevel?: ViewState['viewedLevel'];
 }
 
 interface Built {
@@ -76,7 +80,7 @@ export class SceneModelBuilder {
 
   /** The model of `state`, and whether this call built it anew. */
   update(state: SceneState, bounds: MapBounds, measurement: () => MeasurementSettings, sightRules?: () => SightRules): { model: SceneModel; rebuilt: boolean } {
-    const { walls, lights, lightZones: zones } = state.objects;
+    const { walls, lights, lightZones: zones } = levelObjects(state);
     const { grid, lighting } = state;
     const tokens = this.sightTokens.read(state);
     const rules = sightRules?.();
@@ -99,10 +103,10 @@ export class SceneModelBuilder {
 
   private build(state: SceneState, tokens: Record<string, TokenEntity>, bounds: MapBounds, measurement: MeasurementSettings, rules: SightRules | undefined): SceneModel {
     const scale = unitScaleOf(measurement, state.grid);
-    const walls = sealedWalls(wallList(state.objects.walls), worldTexel(bounds));
-    const zoneList = lightZoneList(state.objects.lightZones);
+    const walls = sealedWalls(wallList(levelObjects(state).walls), worldTexel(bounds));
+    const zoneList = lightZoneList(levelObjects(state).lightZones);
     const ambient = withZones(state.lighting, zoneList);
-    const shining = activeLights(state.objects.lights, tokens, ambient).map((light) => engineLight(light, scale));
+    const shining = activeLights(levelObjects(state).lights, tokens, ambient).map((light) => engineLight(light, scale));
     const everyReach = this.lightReaches.sync(shining, walls);
     // A light whose flame stands in magical darkness it does not outshine gives nothing: the picture and the rule both leave it out.
     const out = shining.map((light) => !light.darkness && quenched(light, light.priority ?? 0, everyReach));
@@ -157,7 +161,7 @@ export class SceneSpots {
   constructor(private readonly policy: SightPolicy = PLAYER_SIGHT_POLICY) {}
 
   update(model: SceneModel, state: SceneState, measurement: () => MeasurementSettings, sightRules?: () => SightRules, sight: Sight = model.sight): SeenSpot[] {
-    const inputs: SpotInputs = { sight, model, tokens: state.objects.tokens, held: heldForSight(state), lighting: state.lighting, grid: state.grid, rules: sightRules?.() };
+    const inputs: SpotInputs = { sight, model, tokens: levelObjects(state).tokens, held: heldForSight(state), lighting: state.lighting, grid: state.grid, rules: sightRules?.() };
     const last = this.inputs;
     this.inputs = inputs;
     if (last && (Object.keys(inputs) as (keyof SpotInputs)[]).every((key) => last[key] === inputs[key])) return this.spots;

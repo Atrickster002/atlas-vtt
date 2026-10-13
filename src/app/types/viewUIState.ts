@@ -25,6 +25,11 @@ export interface ViewUIState {
   heldTokens: HeldTokens;
   /** What the lighting tool's explored-memory mode does with a stroke: the one place the menu and the tool read it from. */
   exploredBrush: ExploredBrushOptions;
+  /**
+   * The level of the scene this view shows (`viewedLevelId` reads it): unset, or one the scene
+   * does not have, is the first. Kept with the tab's camera, never with the scene, and never an undo step.
+   */
+  viewedLevel?: string | null | undefined;
   /** The toolbar editor is open in this view: tray, hide and show, inert tools. Never saved. */
   isToolbarEditing: boolean;
 }

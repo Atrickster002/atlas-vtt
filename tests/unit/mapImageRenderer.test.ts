@@ -36,7 +36,7 @@ async function showScene(size = 1400): Promise<Harness> {
   const manager = {
     init: vi.fn(),
     getViewport: () => viewport,
-    getApp: () => ({ renderer: { resolution: 1 } }),
+    getApp: () => ({ renderer: { resolution: 1 }, canvas: document.createElement('canvas') }),
     destroy: vi.fn(),
   };
   const events = new EventEmitter();
@@ -189,6 +189,7 @@ describe('a background that changes outside a load', () => {
 
     store.getState().setBackground('maps/gone.png');
 
-    expect(load).toHaveBeenCalledWith({ kind: 'placeholder' });
+    // Drawn as the level it shows is placed: the scene's own stretch
+    expect(load).toHaveBeenCalledWith({ kind: 'placeholder' }, { x: 1, y: 1 });
   });
 });

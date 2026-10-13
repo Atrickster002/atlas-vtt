@@ -38,6 +38,7 @@ import { SessionLighting } from './SessionLighting';
 import { SightRulesWatch } from './SightRulesWatch';
 import { WallEditor } from './WallEditor';
 import type { LightingQualitySource } from '../../lighting/lightingQuality';
+import { levelObjects } from '../../levels/levelObjects';
 import { glideWayIsClear } from '../../lighting/glideWay';
 import type { ShownPlaces } from '../../lighting/shownPlaces';
 import { followShownPlaces } from '../../lighting/shownTokens';
@@ -130,7 +131,7 @@ export class LightingController {
     this.lightMarkers = new LightMarkers(viewport, store);
     this.rangeRings = new LightRangeRings(viewport, store, measurement);
     this.editor = new WallEditor(viewport, store, eventBus, (lightIds) => this.lightMarkers.setSelected(lightIds), () => mapLightPresets(obsApp, store.getState()));
-    this.doors = new DoorIcons(store, app.canvas, () => playerDoorSight(this.renderer, store.getState().objects.walls, deps.fogCoverage?.()));
+    this.doors = new DoorIcons(store, app.canvas, () => playerDoorSight(this.renderer, levelObjects(store.getState()).walls, deps.fogCoverage?.()));
     viewport.addChild(this.doors.view, this.doors.playerView);
     this.lights = new LightInteraction({
       viewport,
@@ -196,7 +197,7 @@ export class LightingController {
   /** How the players perceive each token, for their frame and for session view; sight hides nothing in an unlit scene. */
   playerSight(): TokenPerception | undefined {
     const state = this.deps.store.getState();
-    return playerTokenSight(this.renderer, state.objects.tokens, { conditions: this.sightRules().conditions, held: heldForSight(state) }, this.perceptions);
+    return playerTokenSight(this.renderer, levelObjects(state).tokens, { conditions: this.sightRules().conditions, held: heldForSight(state) }, this.perceptions);
   }
 
   /** The senses and conditions of the map's collection, and how each token perceives. */

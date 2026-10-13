@@ -16,6 +16,7 @@ import { tokenSenses } from '../../vision/tokenSenses';
 import { wallList } from '../../vision/wallList';
 import type { SceneState } from './atlasView.ts';
 import { roundPlace } from './scenePicture.ts';
+import { levelObjects } from '../../levels/levelObjects';
 
 const finite = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value);
 
@@ -65,8 +66,8 @@ export function sharedLightingScene(state: SceneState, rules: SightRules, measur
   return {
     cellSize,
     unitDistance,
-    walls: wallList(state.objects.walls).map(sharedWall),
-    zones: lightZoneList(state.objects.lightZones).map((zone) => ({
+    walls: wallList(levelObjects(state).walls).map(sharedWall),
+    zones: lightZoneList(levelObjects(state).lightZones).map((zone) => ({
       polygon: zone.polygon.flatMap((corner) => [corner.x, corner.y]), ambient: zone.ambient, ...(zone.ambientColor && { colour: zone.ambientColor }),
     })),
     senses: rules.definitions.map((definition): JsonRecord => ({ ...definition })),
@@ -121,7 +122,7 @@ function sightToken(token: TokenEntity, inputs: SightInputs): SightToken | null 
 /** The parts of a lit scene that change while it is played: its lighting, its lights that are switched on, its tokens and the held ones. */
 export function sharedSight(inputs: SightInputs): SharedSight {
   const { state } = inputs;
-  const every = Object.values(state.objects.tokens).flatMap((token) => {
+  const every = Object.values(levelObjects(state).tokens).flatMap((token) => {
     const entry = sightToken(token, inputs);
     return entry === null ? [] : [{ entry, id: token.id }];
   });
@@ -131,13 +132,13 @@ export function sharedSight(inputs: SightInputs): SharedSight {
   const held = Object.entries(heldForSight(state)).flatMap(([id, at]) => (sent.has(id) && finite(at.x) && finite(at.y) ? [{ id: inputs.tokenAlias(id), x: roundPlace(at.x), y: roundPlace(at.y) }] : []));
   return {
     lighting: { ...state.lighting },
-    lights: lightList(state.objects.lights).filter((light) => light.hidden !== true).map((light) => ({
+    lights: lightList(levelObjects(state).lights).filter((light) => light.hidden !== true).map((light) => ({
       id: inputs.lightAlias(light.id), x: light.x, y: light.y, emission: { ...light.emission },
       ...(finite(light.rotation) && { rotation: light.rotation }), ...(finite(light.activeBelowAmbient) && { activeBelowAmbient: light.activeBelowAmbient }),
     })),
     tokens: tokens.map(({ entry }) => entry),
     held,
     // Every vision token hidden: the players' sight is none, not all (`selectSight`).
-    ...(!every.some(({ entry }) => entry.vision) && Object.values(state.objects.tokens).some((token) => token.vision?.enabled === true) && { blind: true as const }),
+    ...(!every.some(({ entry }) => entry.vision) && Object.values(levelObjects(state).tokens).some((token) => token.vision?.enabled === true) && { blind: true as const }),
   };
 }

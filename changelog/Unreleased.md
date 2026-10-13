@@ -5,6 +5,9 @@
 - A campaign you play keeps one set of numbers for each player character: hit points and the other values changed on one scene show on every scene of the campaign, and travel with its folder to your other devices
 - Make tokens and maps from images already in your vault: the token and map creators have a From vault tab, and your files stay where they are
 - Dice formulas take the notation Foundry, Roll20 and Dice Roller share: advantage as 2d20kh1, keep and drop, rerolls (r1, ro<2, rr1), x explosions, success counts (cs>=5), d%, Fate dice (dF), labels like 2d6[fire], and * / with brackets. Dropped and rerolled dice show struck through
+- Scenes with several levels: add floors in the command palette's Scene levels page, each on a map image of its own, then name, stack, reorder or delete them. A switcher at the map's left edge (and Page Up and Page Down) shows one floor at a time, with its own tokens, walls, lights, fog and explored areas
+- A scene keeps one grid for all its floors: align the grid on a floor above the first, and that floor's map is scaled and moved onto the grid instead, taking only its own tokens, walls and lights along. Changing the grid later keeps every fitted floor on its map
+- Move tokens to another floor from their right-click menu, and show a floor to players with the eye beside it in the switcher: players keep their picture while you look at another floor
 - Statblocks show without the Fantasy Statblocks plugin: Atlas draws them itself on token hovers, in the DM screen and in the asset manager
 - Statblock templates for 5E (2014 and 2024), Cairn, Draw Steel and Fate, and general ones for creatures, NPCs and hazards
 - A template can limit a value to a list of choices, picked from a dropdown: one, several, or several each with a number, like senses or movement
@@ -12,6 +15,8 @@
 - The loot roller is now Random tables: roll on the tables in your notes as well as on your loot bases, with their dice, ranges and weights, and tables whose rows roll other tables or a base's views. Dice written in backticks are rolled with the result
 - Each collection names its item rarities and their colours in its Random tables settings, where tables are also taken from any note and set to give text or items
 - New table: paste a table from a PDF, a web page or a spreadsheet, see how it rolls and what is wrong with it, and save it as a note of the collection
+- Import random tables from local PDFs with embedded text, XLSX workbooks, CSV/TSV exports, Markdown and text files. Preview the detected tables, check the ones to keep and confirm their names before saving Markdown notes. Ambiguous and incomplete PDF tables are skipped; scanned pages need text copied with a separate text recognition tool
+- Animated maps: add a WebM or MP4 video in the map creator or drop it on the asset manager, and it plays on the map and in the player window while someone sees it. Switch Animate maps off in Atlas' settings to show their first frame instead
 
 ## Improved
 
@@ -57,6 +62,7 @@
 
 ## Important changes
 
+- A scene with several levels is saved in a newer format, which older versions of Atlas cannot open; versions up to 0.6.0 would even open it empty and save over it. Scenes with one level are saved as before
 - New table accepts pasted text only for now; the file-import tab is hidden
 - The arrow keys no longer nudge a grid while it is being aligned
 - The first fog stroke after all fog was deleted shows while you draw it, where it appeared only once let go

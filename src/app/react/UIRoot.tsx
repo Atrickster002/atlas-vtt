@@ -19,6 +19,7 @@ import { DiceRollDisplay } from './components/dice/DiceRollDisplay';
 import { RandomTables } from './components/randomTables/RandomTablesPanel';
 import { MapLoadingOverlay } from './components/MapLoadingOverlay';
 import { SceneTabBar } from './components/SceneTabBar';
+import { LevelSwitcher } from './components/levels/LevelSwitcher';
 import { SceneSwitcher } from './components/scene-switcher/SceneSwitcher';
 import { presentTab as presentSceneTab } from '../services/PlayerWindowPresenter';
 import { usePresentedScene } from './hooks/usePresentedScene';
@@ -184,6 +185,10 @@ export const UIRoot: React.FC<UIRootProps> = ({ app, view, pixiApp }) => {
           >
             <PanelBoundary name="the toolbar"><MainToolbar viewId={view?.viewId} /></PanelBoundary>
           </BottomToolbarRow>
+
+          {!isPlayerView && !isMapLoading && (
+            <PanelBoundary name="the level switcher"><LevelSwitcher /></PanelBoundary>
+          )}
 
           {!isPlayerView && !isMapLoading && (
             <PanelBoundary name="the scene switcher">

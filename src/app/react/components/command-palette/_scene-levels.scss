@@ -1,0 +1,90 @@
+@use '../../../../../styles/tokens' as *;
+@use '../../../../../styles/mixins' as *;
+
+// ── Scene levels page ───────────────────────────────────────────────────────
+// One row per floor, top floor first: name, elevation, then its actions as one group.
+
+.atlas-scene-levels {
+  @include atlas-flex-col($spacing-s);
+  padding: 0 $spacing-l $spacing-l;
+}
+
+.atlas-scene-levels__add {
+  @include atlas-flex-row($spacing-s);
+  @include atlas-ghost-button;
+  justify-content: center;
+  height: var(--input-height);
+  border-radius: $radius-l;
+  box-shadow: none;
+  font-size: $font-ui-small;
+  cursor: pointer;
+
+  svg {
+    width: $icon-s;
+    height: $icon-s;
+  }
+}
+
+.atlas-scene-levels__list {
+  @include atlas-flex-col($spacing-xs);
+}
+
+.atlas-scene-levels__hint {
+  margin: 0;
+  color: var(--text-faint);
+  font-size: $font-ui-small;
+}
+
+.atlas-scene-level {
+  @include atlas-flex-row($spacing-xs);
+  padding: $spacing-xs;
+  border-radius: $radius-l;
+  cursor: pointer;
+
+  &:hover {
+    background: var(--background-modifier-hover);
+  }
+
+  &--viewed {
+    background: var(--background-modifier-hover);
+    box-shadow: inset 2px 0 0 var(--interactive-accent);
+  }
+}
+
+.atlas-scene-level__name {
+  @include atlas-text-input;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.atlas-scene-level__elevation {
+  @include atlas-flex-row($spacing-xs);
+  flex-shrink: 0;
+  color: var(--text-faint);
+}
+
+.atlas-scene-level__number {
+  @include atlas-text-input;
+  width: 52px;
+  text-align: right;
+}
+
+.atlas-scene-level__actions {
+  @include atlas-flex-row(0);
+  flex-shrink: 0;
+}
+
+.atlas-scene-level__button {
+  @include atlas-icon-button('m');
+  @include atlas-ghost-button;
+  box-shadow: none;
+
+  &:disabled {
+    opacity: 0.4;
+    cursor: default;
+  }
+
+  &--destructive:hover:not(:disabled) {
+    color: var(--text-error);
+  }
+}

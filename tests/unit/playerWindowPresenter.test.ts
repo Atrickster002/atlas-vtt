@@ -578,3 +578,42 @@ describe('PlayerWindowPresenter', () => {
     });
   });
 });
+
+describe('the presented level', () => {
+  const levels = [
+    { id: 'ground', name: 'Ground', elevation: { bottom: 0, top: 10 }, background: null },
+    { id: 'upper', name: 'Upper', elevation: { bottom: 10, top: 20 }, background: null },
+  ];
+
+  beforeEach(() => {
+    vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => setTimeout(() => cb(0), 0));
+    resetPlayerWindowStore();
+    serviceMock.isWindowOpen.mockReturnValue(true);
+    Object.values(serviceMock).forEach((fn) => fn.mockClear());
+  });
+
+  test('holds the players\' frame while the DM shows another level of the presented tab, and shows it live again on the presented one', async () => {
+    const app = deviceApp();
+    const { view, atlasStore } = createFakeView();
+    view.app = app;
+    // A map image that shows whichever level is asked for at once
+    view.serviceManager.getRendererService().getRenderer().getMapImage = () => null;
+    const store = atlasStore as unknown as ReturnType<typeof createStore<Record<string, unknown>>>;
+    store.setState({ mapPath: 'maps/tower.md', levels, viewedLevel: 'ground', setViewedLevel: (id: string) => store.setState({ viewedLevel: id }) });
+    const tower = view.tabMetaStore.getState().addTab('maps/tower.md', 'Tower');
+
+    await presentTab(app, view, tower, { levelId: 'upper' });
+
+    expect(presentedSceneOf(app).get()).toEqual({ tabId: tower, filePath: 'maps/tower.md', levelId: 'upper' });
+    expect(store.getState().viewedLevel).toBe('upper');
+    expect(shownSource().canRender?.()).toBe(true);
+
+    store.setState({ viewedLevel: 'ground' });
+    expect(serviceMock.holdCurrentFrame).toHaveBeenCalled();
+    expect(shownSource().canRender?.()).toBe(false);
+
+    store.setState({ viewedLevel: 'upper' });
+    await waitForRelease(atlasStore);
+    expect(shownSource().canRender?.()).toBe(true);
+  });
+});

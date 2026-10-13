@@ -37,12 +37,14 @@ import { copyDragSelection } from './dragCopy';
 import type { DragRuler } from './DragRuler';
 import { runInBackground } from '../../utils/backgroundTask';
 import { tokenSizeSubmenu } from '../../react/components/context-menu/tokenSizeMenu';
+import { tokenLevelSubmenu } from '../../react/components/context-menu/tokenLevelMenu';
 import { tokenLightingEntries } from '../../react/components/context-menu/tokenLightingMenu';
 import { mapLightPresets } from '../../services/mapCollectionRules';
 import { conditionsSubmenu } from '../../react/components/context-menu/conditionsMenu';
 import { placedPlayerCharacterEntry } from '../../react/components/context-menu/playerCharacterMenu';
 import { holdTokens } from '../../lighting/sightOnDrop';
 import { t } from '../../i18n';
+import { levelObjects } from '../../levels/levelObjects';
 
 interface DragState {
   isDragging: boolean;
@@ -146,14 +148,14 @@ export class InteractionController implements ITokenInteractionController {
     e.stopPropagation();
 
     if (e.button === 2) {
-      const token = this.store.getState().objects.tokens[tokenId];
+      const token = levelObjects(this.store.getState()).tokens[tokenId];
       if (token && !this.isPlayerView) {
         this.showContextMenu(token, e);
       }
       return;
     }
 
-    const token = this.store.getState().objects.tokens[tokenId];
+    const token = levelObjects(this.store.getState()).tokens[tokenId];
     if (!token) return;
     if (this.isPlayerView) {
       return;
@@ -176,7 +178,7 @@ export class InteractionController implements ITokenInteractionController {
     }
 
     // Use the first token as the reference for prepareInteraction (it will detect the multi-selection)
-    const firstToken = this.store.getState().objects.tokens[tokenIds[0]!];
+    const firstToken = levelObjects(this.store.getState()).tokens[tokenIds[0]!];
     if (!firstToken) return;
 
     this.prepareInteraction(firstToken, e);
@@ -191,7 +193,7 @@ export class InteractionController implements ITokenInteractionController {
     if (prevId) {
       this.handleHoverEnd(prevId);
       // Emit hide preview for previous token
-      const prevToken = this.store.getState().objects.tokens[prevId];
+      const prevToken = levelObjects(this.store.getState()).tokens[prevId];
       if (prevToken?.kind === 'character' && prevToken.statblockPath?.trim()) {
         this.eventBus.emit('pin-hide-preview', {
           pin: { id: prevToken.id, notePath: prevToken.statblockPath, x: prevToken.x, y: prevToken.y, type: 'token' },
@@ -204,7 +206,7 @@ export class InteractionController implements ITokenInteractionController {
     if (tokenId) {
       this.handleHoverStart(tokenId);
       // Emit hover preview for new token
-      const token = this.store.getState().objects.tokens[tokenId];
+      const token = levelObjects(this.store.getState()).tokens[tokenId];
       if (token?.kind === 'character' && e && token.statblockPath?.trim()) {
         this.eventBus.emit('pin-hover-preview', {
           pin: {
@@ -479,7 +481,7 @@ export class InteractionController implements ITokenInteractionController {
       
       const tokenUpdates: Array<{id: string, x: number, y: number}> = [];
       const snapToGrid = this.store.getState().grid?.snapToGrid ?? true;
-      const tokens = this.store.getState().objects.tokens;
+      const tokens = levelObjects(this.store.getState()).tokens;
       
       for (const id of this.dragState.dragIds) {
         const initPos = this.dragState.initialPositions[id];
@@ -541,9 +543,10 @@ export class InteractionController implements ITokenInteractionController {
 
   /** The selected tokens when the right-clicked token is one of them, otherwise that token alone. */
   private contextMenuTargets(tokenId: string): string[] {
-    const { selectedIds, objects } = this.store.getState();
-    if (!selectedIds.includes(tokenId)) return [tokenId];
-    return selectedIds.filter((id) => objects.tokens[id] !== undefined);
+    const state = this.store.getState();
+    const objects = levelObjects(state);
+    if (!state.selectedIds.includes(tokenId)) return [tokenId];
+    return state.selectedIds.filter((id) => objects.tokens[id] !== undefined);
   }
 
   private showContextMenu(token: TokenEntity, e: FederatedPointerEvent): void {
@@ -557,15 +560,20 @@ export class InteractionController implements ITokenInteractionController {
 
     // Size
     entries.push(tokenSizeSubmenu(token.size, size => {
-      const { grid, objects, updateToken } = this.store.getState();
-      const current = objects.tokens[token.id];
+      const state = this.store.getState();
+      const { grid, updateToken } = state;
+      const current = levelObjects(state).tokens[token.id];
       if (!current) return;
       const center = resizedTokenCenter(current, current.size || 1, size, grid);
       updateToken(token.id, { size, x: center.x, y: center.y });
     }));
 
+    // Move to another level of the scene, the selection in one undo step
+    const levelMenu = tokenLevelSubmenu(this.store, this.contextMenuTargets(token.id));
+    if (levelMenu) entries.push(levelMenu);
+
     // Hide/Show the selection in one undo step; the clicked token decides which way
-    const currentToken = this.store.getState().objects.tokens[token.id];
+    const currentToken = levelObjects(this.store.getState()).tokens[token.id];
     const isHidden = currentToken?.isHidden || false;
     const hideTargets = this.contextMenuTargets(token.id);
     entries.push({
@@ -835,9 +843,10 @@ export class InteractionController implements ITokenInteractionController {
     }
 
     for (const tokenId of tokenIds) {
-      const { initiative, objects, addToInitiative, removeFromInitiative } = this.store.getState();
+      const state = this.store.getState();
+      const { initiative, addToInitiative, removeFromInitiative } = state;
       const entry = initiative.entries.find((e) => e.tokenId === tokenId);
-      const token = objects.tokens[tokenId];
+      const token = levelObjects(state).tokens[tokenId];
       if (remove && entry) removeFromInitiative(entry.id);
       else if (!remove && !entry && token) addToInitiative(initiativeEntryForToken(token));
     }

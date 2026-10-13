@@ -9,6 +9,7 @@ import type { Point } from '../../types/visionTypes';
 import { LightZoneOverlay } from './LightZoneOverlay';
 import { closesDraft, zoneCornerAt, zoneHandleAt, type ZoneCorner } from './lightZoneGeometry';
 import { snapToWallEnd } from './wallEnds';
+import { levelObjects } from '../../levels/levelObjects';
 
 export interface LightZoneEditorDeps {
   viewport: Viewport;
@@ -64,7 +65,7 @@ export class LightZoneEditor {
     viewport.on('zoomed-end', this.redraw);
     eventBus.on('wall-submode-changed', this.onSubMode);
     this.unsubscribe = store.subscribe((state, previous) => {
-      if (state.objects.lightZones !== previous.objects.lightZones || state.lightZonePopover !== previous.lightZonePopover) this.draw();
+      if (levelObjects(state).lightZones !== levelObjects(previous).lightZones || state.lightZonePopover !== previous.lightZonePopover) this.draw();
     });
   }
 
@@ -195,7 +196,7 @@ export class LightZoneEditor {
   }
 
   private zones(): ReturnType<typeof lightZoneList> {
-    return lightZoneList(this.deps.store.getState().objects.lightZones);
+    return lightZoneList(levelObjects(this.deps.store.getState()).lightZones);
   }
 
   private zoom(): number {
@@ -203,7 +204,7 @@ export class LightZoneEditor {
   }
 
   private snapped(point: Point, { altKey }: Keys): Point {
-    return altKey ? point : snapToWallEnd(point, this.deps.store.getState().objects.walls, this.zoom());
+    return altKey ? point : snapToWallEnd(point, levelObjects(this.deps.store.getState()).walls, this.zoom());
   }
 
   private place(point: Point, keys: Keys): void {
@@ -241,7 +242,7 @@ export class LightZoneEditor {
     const { corner, before } = this.drag!;
     this.drag = null;
     this.watchPointer(false);
-    if (store.getState().objects.lightZones?.[corner.zoneId]) store.getState().updateLightZone(corner.zoneId, { polygon: before });
+    if (levelObjects(store.getState()).lightZones?.[corner.zoneId]) store.getState().updateLightZone(corner.zoneId, { polygon: before });
     abandonHistoryTransaction(store);
   }
 

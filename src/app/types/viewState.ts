@@ -9,6 +9,7 @@ import type { DiceRollResult } from './diceTypes';
 import type { CameraState, GridState } from './gridTypes';
 import type { ViewUIState } from './viewUIState';
 import type { PartyValues } from './partyTypes';
+import type { LevelAlignment, SceneLevel } from './sceneLevelTypes';
 
 /** Data read from a map view, independent of the store and persistence services. */
 export interface ViewState extends ViewUIState {
@@ -39,6 +40,19 @@ export interface ViewState extends ViewUIState {
   // Map background image path
   background: string | null;
 
+  /**
+   * The scene's levels (floors), bottom first; absent for a scene with one level. Objects stay in
+   * the flat `objects` with their level tag; what a view shows of them is `levelObjects`. The first
+   * level's background is `background`: read a level's with `levelBackground`. Saved with the map,
+   * never undo-tracked, like `lighting`.
+   */
+  levels?: SceneLevel[] | undefined;
+  /**
+   * How each level's image is fitted to the scene's grid, by level id (`levelImagePlacement`); in a
+   * file each level carries its own. Undo-tracked level by level, unlike `levels`.
+   */
+  levelAlignments?: Record<string, LevelAlignment> | undefined;
+
   // Grid configuration
   grid: GridState | null;
 
@@ -63,6 +77,8 @@ export interface ViewState extends ViewUIState {
   lighting: SceneLighting;
   /** What the players' tokens have explored, as a PNG data URL; saved with the map, never undo-tracked. */
   exploredMask: string | null;
+  /** The explored memories of the levels above the first, by level id; the first level's is `exploredMask`. */
+  exploredMasks?: Record<string, string> | undefined;
   /**
    * How many edits by hand led to the explored memory as it is, counted since the scene loaded.
    * The memory itself is no store state, so this count stands for it in the undo history: a

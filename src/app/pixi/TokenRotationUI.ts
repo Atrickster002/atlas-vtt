@@ -10,6 +10,7 @@ import type { TokenHandleContainer } from './token-renderer/types';
 import { findTokenGroup } from './token-renderer/findTokenGroup';
 import type { TokenResizeUI } from './TokenResizeUI';
 import { destroyTree } from './utils/destroyTree';
+import { levelObjects } from '../levels/levelObjects';
 
 export class TokenRotationUI {
   private viewport: Viewport;
@@ -148,7 +149,7 @@ export class TokenRotationUI {
     
     // Create handles for each selected token
     for (const tokenId of tokenIds) {
-      const token = this.store.getState().objects.tokens[tokenId];
+      const token = levelObjects(this.store.getState()).tokens[tokenId];
       if (!token) continue;
       
       // Get the token container if provided
@@ -197,7 +198,7 @@ export class TokenRotationUI {
    */
   public updateHandlePositions(tokenSprites?: Record<string, Container>, temporarySizes?: Record<string, number>): void {
     for (const [tokenId, handle] of this.rotationHandles) {
-      const token = this.store.getState().objects.tokens[tokenId];
+      const token = levelObjects(this.store.getState()).tokens[tokenId];
       if (!token) continue;
       
       const gridSize = this.store.getState().grid?.size || 70;
@@ -313,7 +314,7 @@ export class TokenRotationUI {
     let count = 0;
     
     for (const tokenId of this.rotatingTokenIds) {
-      const token = this.store.getState().objects.tokens[tokenId];
+      const token = levelObjects(this.store.getState()).tokens[tokenId];
       if (token) {
         centerX += token.x;
         centerY += token.y;
@@ -363,7 +364,7 @@ export class TokenRotationUI {
     let count = 0;
     
     for (const tokenId of this.rotatingTokenIds) {
-      const token = this.store.getState().objects.tokens[tokenId];
+      const token = levelObjects(this.store.getState()).tokens[tokenId];
       if (token) {
         centerX += token.x;
         centerY += token.y;
@@ -396,7 +397,7 @@ export class TokenRotationUI {
       let newRotation = (initialRotation + deltaAngle) % 360;
       if (newRotation < 0) newRotation += 360;
       
-      const token = this.store.getState().objects.tokens[tokenId];
+      const token = levelObjects(this.store.getState()).tokens[tokenId];
       if (token && token.rotation !== newRotation) {
         anyChanged = true;
         updates.push({ id: tokenId, rotation: newRotation });

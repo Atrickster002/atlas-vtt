@@ -20,7 +20,7 @@ import { useTokenPreviews } from './token-creator/useTokenPreviews';
 import { useStatblockRow } from './token-creator/useStatblockRow';
 import type { SavedToken } from './token-creator/tokenStatblocks';
 import { useFrameProgress } from '../primitives/useFrameProgress';
-import { uvttFilesAmong, type ImportMaps } from './hooks/useUvttImport';
+import { mapFilesAmong, type ImportMaps } from './hooks/useUvttImport';
 import type { CreatorMode, CreatorSource, EditTokenInput, PreviewImage } from './token-creator/types';
 import { t } from '../../../i18n';
 
@@ -33,7 +33,7 @@ interface TokenCreatorProps {
   initialSource?: CreatorSource;
   /** New tokens are player characters: the creator was opened from the Player characters tab. */
   playerCharacters?: boolean;
-  /** Given to the map creator: takes the Universal VTT files among the added files, which become scenes at once. */
+  /** Given to the map creator: takes the map files among the added files, which are imported at once (Universal VTT maps become scenes, videos animated maps). */
   onImportMaps?: ImportMaps;
 }
 
@@ -110,7 +110,7 @@ export function TokenCreator({ isOpen, onClose, mode = 'token', selectedCollecti
       previews.addImages([{ file, tags, showRing, size }]);
       return;
     }
-    const maps = onImportMaps ? uvttFilesAmong(files) : [];
+    const maps = onImportMaps ? mapFilesAmong(files) : [];
     const images = files.filter(file => !maps.includes(file));
     // The imported scene opens and the creator closes, unless images wait here to be created by then
     if (maps.length > 0) void onImportMaps?.(maps, collection, () => previewCountRef.current > 0);

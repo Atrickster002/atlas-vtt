@@ -15,6 +15,7 @@ import { zoneHandlePoint } from '../../lighting/lightZones';
 import type { ViewAtlasState } from '../../storeFactory';
 import { ringHandlePoints } from './lightRingGeometry';
 import type { VisionCone } from '../../vision/visionCone';
+import { levelObjects } from '../../levels/levelObjects';
 
 /** Between the marker's edge, or the bright ring, and the popover. */
 const GAP = 12;
@@ -49,7 +50,7 @@ type ReadTarget = (state: ViewAtlasState, id: string, zoom: number) => MapPopove
 /** The popover of the light `lightId`. `unitDistance` is the game units a grid cell spans. */
 export function useLightPopoverPosition(ref: React.RefObject<HTMLElement | null>, lightId: string, unitDistance: number): () => void {
   return useMapPopoverPosition(ref, lightId, (state, id, zoom) => {
-    const light = readLight(state.objects.lights[id]);
+    const light = readLight(levelObjects(state).lights[id]);
     if (!light) return null;
     const scale = unitScaleOf({ unitDistance }, state.grid);
     return {
@@ -62,7 +63,7 @@ export function useLightPopoverPosition(ref: React.RefObject<HTMLElement | null>
 /** The popover of the light zone `zoneId`, beside the zone's handle. */
 export function useZonePopoverPosition(ref: React.RefObject<HTMLElement | null>, zoneId: string): void {
   useMapPopoverPosition(ref, zoneId, (state, id) => {
-    const zone = state.objects.lightZones?.[id];
+    const zone = levelObjects(state).lightZones?.[id];
     return zone ? { ...zoneHandlePoint(zone.polygon), bright: 0, dim: 0, marker: ZONE_HANDLE_RADIUS } : null;
   });
 }

@@ -21,6 +21,7 @@ import {
   type LightMarkerLook,
   type LightMarkerTheme,
 } from './lightMarker';
+import { levelObjects } from '../../levels/levelObjects';
 
 /** Above the lighting layer (90), so the GM finds lights in the dark; below token UI (100). */
 export const LIGHT_MARKERS_Z_INDEX = 95;
@@ -117,8 +118,8 @@ export class LightMarkers {
     viewport.on('zoomed-end', this.rescale);
     this.unsubscribe = store.subscribe((state, previous) => {
       if (
-        state.objects.lights !== previous.objects.lights
-        || state.objects.lightZones !== previous.objects.lightZones
+        levelObjects(state).lights !== levelObjects(previous).lights
+        || levelObjects(state).lightZones !== levelObjects(previous).lightZones
         || state.lighting.enabled !== previous.lighting.enabled
         || state.lighting.ambient !== previous.lighting.ambient
         || state.activeTool !== previous.activeTool
@@ -164,7 +165,7 @@ export class LightMarkers {
   /** The light whose marker is at the world point, while the markers show. */
   hitTest(x: number, y: number): string | null {
     if (!this.view.visible) return null;
-    return lightMarkerAt(lightList(this.store.getState().objects.lights), { x, y }, this.viewport.scale.x);
+    return lightMarkerAt(lightList(levelObjects(this.store.getState()).lights), { x, y }, this.viewport.scale.x);
   }
 
   private glyphTexture(kind: LightKind): Texture | null {
@@ -182,10 +183,10 @@ export class LightMarkers {
     this.view.visible = shown;
     if (!shown) return;
     // The lights that can be read: what else the record holds has no marker.
-    const lights = lightList(state.objects.lights);
+    const lights = lightList(levelObjects(state).lights);
     const ids = new Set(lights.map((light) => light.id));
     // A lamp that follows the ambient light goes by the light where it stands, as the rule does (`activeLights`).
-    const ambient = withZones(state.lighting, lightZoneList(state.objects.lightZones));
+    const ambient = withZones(state.lighting, lightZoneList(levelObjects(state).lightZones));
     for (const [id, marker] of this.markers) {
       if (ids.has(id)) continue;
       marker.lift?.cancel();

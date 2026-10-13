@@ -21,6 +21,8 @@
     "src/app/lighting/**/*.tsx",
     "src/app/fog/**/*.ts",
     "src/app/fog/**/*.tsx",
+    "src/app/levels/**/*.ts",
+    "src/app/levels/**/*.tsx",
     "src/app/vision/**/*.ts",
     "src/app/vision/**/*.tsx",
     "src/app/gameSystems/**/*.ts",
