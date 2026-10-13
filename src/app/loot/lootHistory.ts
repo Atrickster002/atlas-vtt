@@ -1,5 +1,6 @@
 import { isFiniteNumber, isRecord, isStringArray } from '../utils/guards';
 import type { LootDraw, LootProperty } from './lootRoller';
+import { isRarityTone } from './lootRarity';
 
 /** A column of a rolled row beside its result text. */
 export interface TableResultField {
@@ -70,6 +71,12 @@ function isLootDraw(value: unknown): value is LootDraw {
     && Array.isArray(properties) && properties.every(isLootProperty);
 }
 
+/** A saved draw with a tone this Atlas paints; a tone it does not know is dropped, the draw kept. */
+function checkedDraw(draw: LootDraw): LootDraw {
+  const { tone, ...rest } = draw;
+  return isRarityTone(tone) ? { ...rest, tone } : rest;
+}
+
 function isResultField(value: unknown): value is TableResultField {
   return isRecord(value) && typeof value.label === 'string' && typeof value.value === 'string'
     && (value.hidden === undefined || value.hidden === true);
@@ -103,7 +110,7 @@ export function readLootRoll(value: unknown): LootRoll | null {
   if (!isRecord(value)) return null;
   const { id, rolledAt, mapName, draws, results } = value;
   if (typeof id !== 'string' || !isFiniteNumber(rolledAt) || typeof mapName !== 'string' || !Array.isArray(draws)) return null;
-  const valid = draws.filter(isLootDraw);
+  const valid = draws.filter(isLootDraw).map(checkedDraw);
   const validResults = Array.isArray(results) ? results.filter(isTableResult).map(checkedResult) : [];
   if (valid.length === 0 && validResults.length === 0) return null;
   return { id, rolledAt, mapName, draws: valid, ...(validResults.length > 0 && { results: validResults }) };

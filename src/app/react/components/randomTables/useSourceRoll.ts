@@ -1,6 +1,5 @@
 import { useMemo } from 'react';
 import type { LootRoll } from '../../../loot/lootHistory';
-import type { RarityTone } from '../../../loot/lootRarity';
 import { countByRarity, countDrawable, rollLoot } from '../../../loot/lootRoller';
 import { rollCollectionTable, tableRollEntry } from '../../../randomTables/tableResults';
 import type { SelectedSource } from './tableSelection';
@@ -17,32 +16,34 @@ export interface SourceRoll {
   /** What a roll does, or why it cannot be made. */
   hint: string;
   canRoll: boolean;
-  /** Items of each rarity a base's ticked views hold; empty for a table. */
-  rarityCounts: ReadonlyMap<RarityTone, number>;
+  /** Items of each rarity word (`rarityKey`) a base's ticked views hold; empty for a table. */
+  rarityCounts: ReadonlyMap<string, number>;
   /** Makes the roll; null when it gave nothing. */
   roll: (count: number, mapName: string) => Promise<LootRoll | null>;
 }
 
 interface RollChoices {
   disabledViews: ReadonlySet<string>;
-  excludedRarities: ReadonlySet<RarityTone>;
+  /** Rarity words switched off (`rarityKey`). */
+  excludedRarities: ReadonlySet<string>;
 }
 
-const NO_RARITIES: ReadonlyMap<RarityTone, number> = new Map();
+const NO_RARITIES: ReadonlyMap<string, number> = new Map();
 
 /** How the selected source is rolled: a base's ticked views by rarity, or a note's table by its die or weights. */
 export function useSourceRoll(
   source: SelectedSource | null,
-  library: Pick<RandomTablesLibrary, 'currency' | 'resolver'>,
+  library: Pick<RandomTablesLibrary, 'currency' | 'resolver' | 'rarities'>,
   { disabledViews, excludedRarities }: RollChoices,
   count: number,
 ): SourceRoll {
   const baseItems = useMemo(() => (source?.kind === 'base'
     ? source.base.views.filter((view) => !disabledViews.has(view.id)).flatMap((view) => view.items)
     : []), [source, disabledViews]);
-  const rarityCounts = useMemo(() => (baseItems.length > 0 ? countByRarity(baseItems) : NO_RARITIES), [baseItems]);
-  const available = useMemo(() => countDrawable(baseItems, excludedRarities), [baseItems, excludedRarities]);
-  const { currency, resolver } = library;
+  const { currency, resolver, rarities } = library;
+  const rarity = useMemo(() => ({ rarities, excluded: excludedRarities }), [rarities, excludedRarities]);
+  const rarityCounts = useMemo(() => (baseItems.length > 0 ? countByRarity(baseItems, rarities) : NO_RARITIES), [baseItems, rarities]);
+  const available = useMemo(() => countDrawable(baseItems, rarity), [baseItems, rarity]);
 
   if (source?.kind === 'table') {
     const found = source.table;
@@ -57,7 +58,7 @@ export function useSourceRoll(
       canRoll,
       rarityCounts: NO_RARITIES,
       roll: async (rolls, mapName) => {
-        const outcome = await rollCollectionTable(found, { count: rolls, resolver, currency });
+        const outcome = await rollCollectionTable(found, { count: rolls, resolver, currency, rarities });
         return outcome.results.length + outcome.draws.length > 0 ? tableRollEntry(outcome, mapName) : null;
       },
     };
@@ -70,7 +71,7 @@ export function useSourceRoll(
     canRoll: available > 0,
     rarityCounts,
     roll: (rolls, mapName) => {
-      const draws = rollLoot(baseItems, { count: rolls, excluded: excludedRarities, currency });
+      const draws = rollLoot(baseItems, { count: rolls, rarity, currency });
       return Promise.resolve(draws.length > 0 ? { id: crypto.randomUUID(), rolledAt: Date.now(), mapName, draws } : null);
     },
   };

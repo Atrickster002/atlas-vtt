@@ -5,7 +5,10 @@ import { TableNoteReader, type CollectionTable } from '../../../randomTables/Tab
 import type { TableResolver } from '../../../randomTables/resultCells';
 import { readRandomTables } from '../../../randomTables/tableSettings';
 import { AssetService } from '../../../services/AssetService';
-import type { RandomTableSource } from '../../../types/randomTableTypes';
+import type { RandomTableSource, RarityOption } from '../../../types/randomTableTypes';
+import { collectionItemRarities, sameItemRarities } from '../../../gameSystems/itemRarities';
+import { useSystemPresets } from '../../hooks/useSystemPresets';
+import type { SystemPreset } from '../../../types/systemPresetTypes';
 import { useCollectionLoot, useLootBases } from '../loot/useLootBases';
 
 /** The tables a collection rolls on, grouped by what their results are. */
@@ -21,6 +24,8 @@ export interface RandomTablesLibrary {
   basesAvailable: boolean;
   /** Finds the tables and Base views links in results name. */
   resolver: TableResolver;
+  /** The words the collection's items name their rarity with, each with its tone. */
+  rarities: readonly RarityOption[];
 }
 
 function sourcesOf(app: App, collectionId: string | null): RandomTableSource[] {
@@ -44,6 +49,28 @@ function useTableSources(app: App, collectionId: string | null): readonly Random
   return sources;
 }
 
+function raritiesOf(app: App, collectionId: string | null, presets: readonly SystemPreset[]): readonly RarityOption[] {
+  return collectionItemRarities(collectionId ? AssetService.getInstance(app).getCollectionSettings(collectionId) : {}, presets);
+}
+
+/** The collection's rarity words, following edits to its settings and to the presets. */
+function useCollectionRarities(app: App, collectionId: string | null): readonly RarityOption[] {
+  const { presets } = useSystemPresets(app);
+  const [rarities, setRarities] = useState(() => raritiesOf(app, collectionId, presets));
+  useEffect(() => {
+    const update = (): void => {
+      const next = raritiesOf(app, collectionId, presets);
+      setRarities((current) => (sameItemRarities(current, next) ? current : next));
+    };
+    update();
+    const ref = app.workspace.on('atlas-vtt:collection-settings-changed', (changedId) => {
+      if (changedId === collectionId) update();
+    });
+    return () => app.workspace.offref(ref);
+  }, [app, collectionId, presets]);
+  return rarities;
+}
+
 /**
  * Every table of a collection, live: the views of its loot bases (as the loot roller reads
  * them) and the tables of the notes it names, each with its die or count and its problems.
@@ -52,6 +79,7 @@ export function useRandomTables(app: App, collectionId: string | null): RandomTa
   const loot = useCollectionLoot(app, collectionId);
   const library = useLootBases(app, loot.bases);
   const sources = useTableSources(app, collectionId);
+  const rarities = useCollectionRarities(app, collectionId);
   const [tables, setTables] = useState<readonly CollectionTable[]>([]);
   const [reader, setReader] = useState<TableNoteReader | null>(null);
 
@@ -72,5 +100,6 @@ export function useRandomTables(app: App, collectionId: string | null): RandomTa
     loaded: library.loaded && reader !== null && tables.length === sources.length && tables.every((table) => table.status !== 'loading'),
     basesAvailable: library.basesAvailable,
     resolver: reader?.resolver ?? { resolve: () => Promise.resolve(null) },
-  }), [library, tables, loot.currency, reader, sources.length]);
+    rarities,
+  }), [library, tables, loot.currency, reader, sources.length, rarities]);
 }

@@ -2,44 +2,48 @@ import React from 'react';
 import { Dices, Minus, Plus } from 'lucide-react';
 import { Button } from '../../../packages/components/primitives/button';
 import { LabelTooltip } from '../../../packages/components/primitives/tooltip';
-import { RARITY_LABELS, RARITY_TONES, type RarityTone } from '../../../loot/lootRarity';
+import { rarityKey } from '../../../loot/lootRoller';
+import type { RarityOption } from '../../../types/randomTableTypes';
 import { LOOT_MAX_COUNT } from '../../../stores/lootRollerSlice';
 import { t } from '../../../i18n';
 
 interface RarityTogglesProps {
-  /** Items of each rarity in the ticked views; empty when no item names its rarity. */
-  rarityCounts: ReadonlyMap<RarityTone, number>;
-  excluded: ReadonlySet<RarityTone>;
-  onExcludedChange: (excluded: RarityTone[]) => void;
+  /** The collection's rarity words, in their order. */
+  rarities: readonly RarityOption[];
+  /** Items of each word (`rarityKey`) in the ticked views; empty when no item names one. */
+  rarityCounts: ReadonlyMap<string, number>;
+  excluded: ReadonlySet<string>;
+  onExcludedChange: (excluded: string[]) => void;
 }
 
-/** A toggle per rarity of the ladder: switched-off rarities are never rolled. */
-export function RarityToggles({ rarityCounts, excluded, onExcludedChange }: RarityTogglesProps): React.ReactElement | null {
-  if (rarityCounts.size === 0) return null;
-  const toggle = (tone: RarityTone): void => {
+/** A toggle per rarity word of the collection, in its tone: switched-off rarities are never rolled. */
+export function RarityToggles({ rarities, rarityCounts, excluded, onExcludedChange }: RarityTogglesProps): React.ReactElement | null {
+  if (rarityCounts.size === 0 || rarities.length === 0) return null;
+  const toggle = (key: string): void => {
     const next = new Set(excluded);
-    if (!next.delete(tone)) next.add(tone);
+    if (!next.delete(key)) next.add(key);
     onExcludedChange([...next]);
   };
 
   return (
     <div className="atlas-loot-rarities" role="group" aria-label={t('loot.rarities')}>
-      {RARITY_TONES.map((tone) => {
-        const on = !excluded.has(tone);
-        const toneCount = rarityCounts.get(tone) ?? 0;
-        const values = { count: toneCount, rarity: RARITY_LABELS[tone].toLowerCase() };
+      {rarities.map((option) => {
+        const key = rarityKey(option);
+        const on = !excluded.has(key);
+        const count = rarityCounts.get(key) ?? 0;
+        const values = { count, rarity: option.name };
         return (
-          <LabelTooltip key={tone} describe label={on ? t('loot.rarityOn', values) : t('loot.rarityOff', values)}>
+          <LabelTooltip key={key} describe label={on ? t('loot.rarityOn', values) : t('loot.rarityOff', values)}>
             <button
               type="button"
               className={`atlas-loot-rarity${on ? ' is-on' : ''}`}
-              data-rarity={tone}
+              data-rarity={option.tone ?? undefined}
               aria-pressed={on}
-              onClick={() => toggle(tone)}
+              onClick={() => toggle(key)}
             >
               <span className="atlas-loot-rarity__gem" />
-              <span className="atlas-loot-rarity__label">{RARITY_LABELS[tone]}</span>
-              <span className="atlas-loot-rarity__count">{toneCount}</span>
+              <span className="atlas-loot-rarity__label">{option.name}</span>
+              <span className="atlas-loot-rarity__count">{count}</span>
             </button>
           </LabelTooltip>
         );

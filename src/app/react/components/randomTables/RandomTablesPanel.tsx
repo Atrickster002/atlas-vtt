@@ -153,6 +153,7 @@ function RandomTablesPanel(): React.ReactElement {
                 />
               ) : (
                 <RarityToggles
+                  rarities={library.rarities}
                   rarityCounts={sourceRoll.rarityCounts}
                   excluded={excludedRarities}
                   onExcludedChange={(excluded) => update({ excludedRarities: excluded })}

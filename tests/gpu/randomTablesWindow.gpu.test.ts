@@ -4,7 +4,7 @@ import { MotionGlobalConfig } from 'framer-motion';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { page } from 'vitest/browser';
 import css from '../../styles/main.scss?inline';
-import { mountTablesWindow, TABLES_THEME, type TablesWindow } from './randomTablesHarness';
+import { mountTablesWindow, RARITY_SETTINGS, TABLES_THEME, type TablesWindow } from './randomTablesHarness';
 
 const views = vi.hoisted(() => {
   const item = (name: string, type: string, price: string, extra: Record<string, string> = {}): { path: string; name: string; values: Record<string, string> } => ({
@@ -14,6 +14,14 @@ const views = vi.hoisted(() => {
     Weapons: [item('Longsword', 'Weapon', '20', { 'note.damage': 'd8' }), item('Blunderbuss', 'Weapon', '40', { 'note.damage': 'd12, blast' })],
     Armor: [item('Chainmail', 'Armor', '40', { 'note.armor': '2' })],
     Tools: [item('Rope, 50ft', 'Tool', '5'), item('Lantern', 'Tool', '10', { 'note.description': 'Burns six hours on a flask of oil.' })],
+    Magic: [
+      item('Potion of Healing', 'Potion', '50', { 'note.rarity': 'Common' }),
+      item('Bag of Holding', 'Wondrous item', '500', { 'note.rarity': 'Uncommon' }),
+      item('Flame Tongue', 'Weapon', '5000', { 'note.rarity': 'Rare' }),
+      item('Staff of Power', 'Staff', '95500', { 'note.rarity': 'Very rare' }),
+      item('Vorpal Sword', 'Weapon', '', { 'note.rarity': 'Legendary' }),
+      item("Grandmother's Locket", 'Trinket', '', { 'note.rarity': 'Heirloom' }),
+    ],
   } as Record<string, { path: string; name: string; values: Record<string, string> }[]>;
 });
 
@@ -26,7 +34,7 @@ vi.mock('../../src/app/loot/lootQueryView', () => ({
     constructor(_app: unknown, private readonly config: { views: { name: string }[] }, _path: string, private readonly listener: { onSnapshot: (snapshot: unknown) => void }) {}
     start(): Promise<void> {
       const entries = views[this.config.views[0]?.name ?? ''] ?? [];
-      const order = ['note.type', 'note.price', 'note.damage', 'note.armor', 'note.description'];
+      const order = ['note.type', 'note.rarity', 'note.price', 'note.damage', 'note.armor', 'note.description'];
       queueMicrotask(() => this.listener.onSnapshot({ entries, order, displayNames: { 'note.damage': 'Damage', 'note.armor': 'Armor' } }));
       return Promise.resolve();
     }
@@ -37,7 +45,7 @@ vi.mock('../../src/app/loot/lootQueryView', () => ({
 const panel = (): HTMLElement => document.querySelector<HTMLElement>('.atlas-loot-roller')!;
 const rect = (element: Element): DOMRect => element.getBoundingClientRect();
 const sidebar = (): HTMLElement => panel().querySelector<HTMLElement>('.atlas-loot-roller__sidebar')!;
-const select = (name: RegExp): void => fireEvent.click(within(sidebar()).getByRole('button', { name }));
+const select = (name: RegExp): void => { fireEvent.click(within(sidebar()).getByRole('button', { name })); };
 const rollButton = (): HTMLButtonElement => panel().querySelector<HTMLButtonElement>('.atlas-loot-roll-button')!;
 
 /** Every element of the window that ends outside it, by its class. */
@@ -150,4 +158,22 @@ describe('the Random tables window', () => {
     const row = sidebar().querySelector<HTMLElement>('.atlas-tables-row')!;
     expect(getComputedStyle(row).borderTopLeftRadius).toBe(getComputedStyle(sidebar().querySelector('.atlas-tables-search')!).borderTopLeftRadius);
   });
+
+  for (const theme of ['light', 'dark'] as const) {
+    it(`paints rarities in the collection's words, its own word too, in ${theme}`, async () => {
+      await page.viewport(1280, 860);
+      shown = await mountTablesWindow(theme, undefined, RARITY_SETTINGS);
+      await expect.poll(() => panel()?.querySelectorAll('.atlas-loot-rarity').length).toBe(6);
+      const words = [...panel().querySelectorAll('.atlas-loot-rarity')].map((toggle) => [toggle.querySelector('.atlas-loot-rarity__label')?.textContent, toggle.getAttribute('data-rarity')]);
+      expect(words).toEqual([['Common', 'common'], ['Uncommon', 'uncommon'], ['Rare', 'rare'], ['Very rare', 'epic'], ['Legendary', 'legendary'], ['Heirloom', 'legendary']]);
+      fireEvent.click(panel().querySelector('.atlas-loot-rarity[data-rarity="common"]')!);
+      for (let i = 0; i < 4; i++) fireEvent.click(panel().querySelector('.atlas-loot-stepper__button:last-of-type')!);
+      let next = 0;
+      vi.spyOn(Math, 'random').mockImplementation(() => [0.05, 0.3, 0.5, 0.7, 0.9][next++ % 5]!);
+      await rollAndWait(5);
+      const tones = [...panel().querySelectorAll('.atlas-loot-list__cards > li')].map((card) => card.getAttribute('data-rarity'));
+      expect(tones).toEqual(['uncommon', 'rare', 'epic', 'legendary', 'legendary']);
+      await page.screenshot({ path: `__screenshots__/random-tables-${theme}-rarities.png`, element: panel() });
+    });
+  }
 });

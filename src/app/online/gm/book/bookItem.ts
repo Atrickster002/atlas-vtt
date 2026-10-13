@@ -18,7 +18,7 @@ export function bookItemOf(draw: LootDraw, id: string, at: number): BookItem | n
     name: clippedLine(draw.name, MAX_BOOK_TITLE) ?? UNNAMED,
     type: clippedLine(draw.type, MAX_BOOK_TITLE),
     rarity: clippedLine(draw.rarity, MAX_BOOK_TITLE),
-    tone: rarityTone(draw.rarity) ?? null,
+    tone: draw.tone ?? rarityTone(draw.rarity) ?? null,
     price: clippedLine(draw.price, MAX_BOOK_TITLE),
     description: clippedText(draw.description, MAX_ITEM_TEXT),
     properties: draw.properties.flatMap((property) => {

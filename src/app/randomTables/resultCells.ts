@@ -14,6 +14,7 @@ import { rollLoot, toDraw, type LootDraw } from '../loot/lootRoller';
 import type { LootItem } from '../loot/lootItem';
 import { rollFormula } from '../tools/diceFormula';
 import { parseFormula, type ParsedFormula } from '../tools/parseFormula';
+import type { RarityOption } from '../types/randomTableTypes';
 import { TABLE_LIMITS, type RandomTable } from './tableModel';
 import { rollTable } from './tableRoller';
 
@@ -73,6 +74,8 @@ export interface CellContext {
   budget: { results: number };
   /** Named after plain-number prices of drawn items, e.g. "gp". */
   currency?: string | undefined;
+  /** The collection's rarity words, which paint drawn items. */
+  rarities?: readonly RarityOption[];
 }
 
 /** A backtick span or a wikilink, each on one line and bounded, so the scan stays linear. */
@@ -100,7 +103,9 @@ async function rollLinked(target: string, context: CellContext, stopped: Nesting
   if (context.budget.results <= 0) return stop('results', stopped);
   context.budget.results--;
   if (linked.kind === 'view') {
-    const [item] = rollLoot(linked.items, { count: 1, currency: context.currency, random: context.random });
+    const [item] = rollLoot(linked.items, {
+      count: 1, currency: context.currency, random: context.random, ...(context.rarities && { rarity: { rarities: context.rarities } }),
+    });
     return item ? { ...nothing(), text: item.name, items: [item] } : nothing();
   }
   const [draw] = rollTable(linked.table, { count: 1, random: context.random });
@@ -111,7 +116,7 @@ async function rollLinked(target: string, context: CellContext, stopped: Nesting
     fromPath: linked.notePath,
     trail: [...context.trail, linked.key],
   });
-  return item ? { ...cell, items: [toDraw(item, context.currency), ...cell.items] } : cell;
+  return item ? { ...cell, items: [toDraw(item, context.currency, context.rarities), ...cell.items] } : cell;
 }
 
 function stop(reason: NestingStop, stopped: NestingStop[]): null {

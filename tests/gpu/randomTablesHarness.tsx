@@ -13,12 +13,13 @@ import { DASHBOARD_THEME } from './dashboardTheme';
 /** Obsidian's theme colours the cards and chips read, beside the dashboard's variables. */
 export const TABLES_THEME = `${DASHBOARD_THEME}
   .theme-light { --color-orange: #ec7500; --color-yellow: #e0ac00; --color-green: #08b94e; --color-blue: #086ddd; --color-purple: #7852ee; --link-color: hsl(258, 88%, 66%); --background-secondary-alt: var(--color-base-05); }
-  .theme-dark { --color-orange: #e9973f; --color-yellow: #e0de71; --color-green: #44cf6e; --color-blue: #53dfdd; --color-purple: #a882ff; --link-color: hsl(255, 89.8%, 75.9%); --background-secondary-alt: var(--color-base-05); }
+  .theme-dark { --color-orange: #e9973f; --color-yellow: #e0de71; --color-green: #44cf6e; --color-blue: #027aff; --color-purple: #a882ff; --link-color: hsl(255, 89.8%, 75.9%); --background-secondary-alt: var(--color-base-05); }
   .atlas-tables-map { position: relative; width: 100vw; height: 100vh; overflow: hidden; background: var(--background-secondary); }
 `;
 
 /** A Cairn collection's notes: tables as GMs write them, and a master table over the loot base's views. */
 export const TABLE_FILES: Record<string, string> = {
+  '5e/Magic items.base': 'views:\n  - type: table\n    name: Magic\n',
   'Cairn/Items.base': 'views:\n  - type: table\n    name: Weapons\n  - type: table\n    name: Armor\n  - type: table\n    name: Tools\n',
   'Adventures/A Most Potent Brew.md': `## Rumours in the Taproom
 
@@ -61,6 +62,20 @@ export const TABLE_SETTINGS: Partial<CollectionSettings> = {
     { path: 'Adventures/A Most Potent Brew.md', table: 'Rumours in the Taproom', index: 0, kind: 'text', hiddenColumns: ['True?'] },
     { path: 'Adventures/A Most Potent Brew.md', table: 'Cellar encounters', index: 1, kind: 'text' },
     { path: 'Cairn/NPC traits.md', table: 'Traits', index: 0, kind: 'text' },
+  ],
+};
+
+/** A 5e collection's magic items, painted by the collection's own rarity words, one of them its own. */
+export const RARITY_SETTINGS: Partial<CollectionSettings> = {
+  lootBases: ['5e/Magic items.base'],
+  lootCurrency: 'gp',
+  itemRarities: [
+    { name: 'Common', tone: 'common' },
+    { name: 'Uncommon', tone: 'uncommon' },
+    { name: 'Rare', tone: 'rare' },
+    { name: 'Very rare', tone: 'epic' },
+    { name: 'Legendary', tone: 'legendary' },
+    { name: 'Heirloom', tone: 'legendary' },
   ],
 };
 

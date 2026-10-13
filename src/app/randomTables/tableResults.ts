@@ -10,6 +10,7 @@ import { toDraw, type LootDraw } from '../loot/lootRoller';
 import { resolveCell, type CellContext, type TableResolver } from './resultCells';
 import type { CollectionTable } from './TableNoteReader';
 import { tableSourceId } from './tableLookup';
+import type { RarityOption } from '../types/randomTableTypes';
 import { TABLE_LIMITS } from './tableModel';
 import { rollTable, type TableDraw } from './tableRoller';
 
@@ -19,6 +20,8 @@ export interface TableRollRequest {
   resolver: TableResolver;
   /** Named after plain-number item prices. */
   currency?: string | undefined;
+  /** The collection's rarity words, which paint drawn items. */
+  rarities?: readonly RarityOption[];
   random?: () => number;
 }
 
@@ -57,7 +60,7 @@ async function itemDraws(found: CollectionTable, draw: TableDraw, context: CellC
   const nested = await resolveCell(draw.row.cells[0] ?? '', context);
   if (nested.items.length > 0) return nested.items;
   const item = found.items?.[draw.row.index];
-  return item ? [toDraw(item, context.currency)] : [];
+  return item ? [toDraw(item, context.currency, context.rarities)] : [];
 }
 
 /** Rolls `found` (a table that was found in its note); nothing for a table that is missing. */
@@ -72,6 +75,7 @@ export async function rollCollectionTable(found: CollectionTable, request: Table
     trail: [tableSourceId({ path: found.source.path, index: found.table.index })],
     budget: { results: TABLE_LIMITS.results - draws.length },
     currency: request.currency,
+    ...(request.rarities && { rarities: request.rarities }),
   };
   const outcome: TableRollOutcome = { results: [], draws: [] };
   for (const draw of draws) {
