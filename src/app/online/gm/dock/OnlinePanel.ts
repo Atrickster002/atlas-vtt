@@ -43,7 +43,6 @@ export interface PanelActions extends ListActions, SelectionActions, FeedbackAct
   stop(): void;
   copy(): Promise<boolean>;
   toggleQr(): void;
-  openSettings(): void;
 }
 
 /** Panels whose Stop waits for its confirmation; kept apart from the DOM, which every redraw replaces. */
@@ -92,7 +91,7 @@ function stopConfirm(layer: HTMLElement, actions: PanelActions, redraw: () => vo
 
 /**
  * The online panel: the working surface while players are at the table. A header with the title, the
- * status as a dot, "…" (Settings, Send feedback, the gates' New code and two switches, Stop table) and
+ * status as a dot, "…" (Send feedback, the gates' New code and two switches, Stop table) and
  * Close; the line of a table that closes for want of access; the line of a pause; the line of a shown image; Copy invite link and the join code; the players with their tokens; the bar for the selected tokens or to show this map; the feedback form and Stop's
  * confirmation while open. Redrawn whole on every change, keeping focus and the list's scroll position.
  */
@@ -103,7 +102,6 @@ export function renderPanel(layer: HTMLElement, view: PanelView, actions: PanelA
   layer.empty();
   layer.addClass('atlas-online-panel');
   const entries: MenuEntry[] = [
-    { title: 'Settings', icon: 'settings', run: () => actions.openSettings() },
     { title: view.feedback.open ? 'Close feedback' : 'Send feedback', icon: 'message-square', run: () => actions.toggleFeedback() },
     ...gateEntries(view.gate, actions),
     { title: 'Stop table', icon: 'power', warning: true, apart: true, run: () => {

@@ -8,7 +8,6 @@ export interface DockDeps {
   readonly api: OnlineApi;
   /** The GM's account: sign-in, what the relay says it may host, and the way to its page. */
   readonly account: AccountApi;
-  openSettings(): void;
   /** The URL the vault serves an image at. */
   imageSrc(path: string): string;
   /** Where the panel's feedback goes, and the switch for error reports. */

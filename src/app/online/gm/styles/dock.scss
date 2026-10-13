@@ -20,10 +20,15 @@ $dock-inner: calc(#{$button-height-l} + 2 * #{$spacing-s});
 // control's. It never changes while the control opens.
 .atlas-online-room {
   flex: none;
-  box-sizing: content-box;
   width: calc(#{$dock-inner} + #{$spacing-s});
   border-inline: $border-width-m solid transparent;
   pointer-events: none;
+}
+
+// Their sizes are content sizes (morph.ts sets the content box as well), so they must win over the
+// plugin's reset that makes every element in `.atlas-vtt-plugin` border-box.
+.atlas-vtt-plugin :is(.atlas-online-room, .atlas-online-dock) {
+  box-sizing: content-box;
 }
 
 // One element in every state: the button, and the menu or panel it grows into (morph.ts sets its
@@ -34,7 +39,6 @@ $dock-inner: calc(#{$button-height-l} + 2 * #{$spacing-s});
   left: 0;
   bottom: 0;
   z-index: 1;
-  box-sizing: content-box;
   width: $dock-inner;
   height: $dock-inner;
   pointer-events: auto;

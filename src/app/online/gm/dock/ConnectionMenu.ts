@@ -15,7 +15,6 @@ export interface MenuActions extends AccountActions, GateRowActions, ImageRowAct
   copy(): Promise<boolean>;
   /** Opens or closes the invite link's QR card. */
   toggleQr(): void;
-  openSettings(): void;
 }
 
 /** The control focused before a redraw, so a redraw keeps it. */
@@ -35,7 +34,7 @@ export const MENU_WIDTH = 300;
 
 /**
  * The short-lived menu of a control without players: start a table, or, once it runs, its header
- * (status, "…" with Settings, the gates and Stop), the line of a table that closes for want of access, the line of a pause, the line of a shown image, Copy invite link, the join
+ * (status, "…" with the gates and Stop), the line of a table that closes for want of access, the line of a pause, the line of a shown image, Copy invite link, the join
  * code, and Show this map to players while players see another. Nobody is at the table yet, so Stop asks nothing. It turns into the panel when the
  * first player joins.
  */
@@ -48,7 +47,6 @@ export function renderMenu(layer: HTMLElement, model: MenuModel, actions: MenuAc
     return restore();
   }
   surfaceHeader(layer, 'Online table', model.status, model.status.tone === 'green' ? null : model.status.text, [
-    { title: 'Settings', icon: 'settings', run: () => actions.openSettings() },
     ...gateEntries(model.gate, actions),
     { title: 'Stop table', icon: 'power', warning: true, apart: true, run: () => actions.stop() },
   ], null);
