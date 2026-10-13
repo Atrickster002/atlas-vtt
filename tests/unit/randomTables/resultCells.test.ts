@@ -2,24 +2,29 @@ import { describe, expect, it } from 'vitest';
 import { tablesOfNote } from '../../../src/app/randomTables/noteTables';
 import { resolveCell, type CellContext, type LinkedTable, type TableResolver } from '../../../src/app/randomTables/resultCells';
 import { TABLE_LIMITS } from '../../../src/app/randomTables/tableModel';
+import type { LootItem } from '../../../src/app/loot/lootItem';
+import { rollTable } from '../../../src/app/randomTables/tableRoller';
 import { seededRandom } from '../library/fakeSync';
 
-/** Tables by link: "Gems" is a whole note, "Treasure#Coins" a heading. */
-function resolverOf(notes: Record<string, string>): TableResolver {
+/** Tables by link: "Gems" is a whole note, "Treasure#Coins" a heading, "Loot.base#Rare" a Base view. */
+function resolverOf(notes: Record<string, string>, views: Record<string, LootItem[]> = {}): TableResolver {
   return {
     resolve: async (link): Promise<LinkedTable | null> => {
+      const items = views[link];
+      if (items) return { kind: 'view', key: link, items };
       const [note = '', heading] = link.split('#');
       const text = notes[note];
       if (text === undefined) return null;
       const { tables } = tablesOfNote(text, note);
       const table = heading === undefined ? (tables.length === 1 ? tables[0] : undefined) : tables.find((t) => t.heading === heading);
-      return table ? { key: `${note}.md#${table.index}`, table, notePath: `${note}.md` } : null;
+      return table ? { kind: 'table', key: `${note}.md#${table.index}`, table, notePath: `${note}.md` } : null;
     },
   };
 }
 
-const context = (notes: Record<string, string> = {}, seed = 1): CellContext => ({
-  resolver: resolverOf(notes),
+const context = (notes: Record<string, string> = {}, seed = 1, views: Record<string, LootItem[]> = {}): CellContext => ({
+  resolver: resolverOf(notes, views),
+  currency: 'gp',
   fromPath: 'Here.md',
   random: seededRandom(seed),
   trail: [],
@@ -83,5 +88,47 @@ describe('a rolled cell', () => {
     const cell = await resolveCell('[[Mid]]', context(notes));
     expect(cell.text.split('x').length - 1).toBeLessThan(TABLE_LIMITS.results);
     expect(cell.stopped).toContain('results');
+  });
+});
+
+const item = (name: string, view: string, price?: string): LootItem =>
+  ({ id: `Items/${name}.md`, name, source: ['Loot', view], ...(price && { price }), properties: [] });
+
+describe('a master table', () => {
+  const views = {
+    'Loot.base#Common': [item('Rope', 'Common', '1'), item('Torch', 'Common', '1')],
+    'Loot.base#Rare': [item('Ring of Warmth', 'Rare', '1500')],
+  };
+  const notes = {
+    Master: '| d6 | Loot |\n| --- | --- |\n| 1-3 | [[Loot.base#Common]] |\n| 4-5 | ![[Loot.base#Rare]] |\n| 6 | [[Coins]] |\n',
+    Coins: oneRow('`2d6` gp'),
+  };
+
+  it('rolls the view or table its rolled row links: items from Base views, text from note tables', async () => {
+    const resolver = resolverOf(notes, views);
+    const master = (await resolver.resolve('Master', 'Here.md'))!;
+    if (master.kind !== 'table') throw new Error('Master is a table');
+    const seen = new Set<string>();
+    const random = seededRandom(9);
+    for (let i = 0; i < 100; i++) {
+      const [draw] = rollTable(master.table, { count: 1, random });
+      const cell = await resolveCell(draw!.row!.cells[0]!, { ...context(notes, 0, views), random });
+      if (cell.items.length > 0) expect(cell.text).toBe(cell.items[0]!.name);
+      seen.add(cell.items[0]?.source[1] ?? (/^\d+ gp$/.test(cell.text) ? 'Coins' : cell.text));
+    }
+    expect([...seen].sort()).toEqual(['Coins', 'Common', 'Rare']);
+  });
+
+  it('draws a Base view\'s item as the loot roller does, price in the currency', async () => {
+    const cell = await resolveCell('Found: ![[Loot.base#Rare]]', context(notes, 1, views));
+    expect(cell.text).toBe('Found: Ring of Warmth');
+    expect(cell.items).toMatchObject([{ name: 'Ring of Warmth', notePath: 'Items/Ring of Warmth.md', price: '1,500 gp' }]);
+  });
+
+  it('counts a view against the depth limit like a table', async () => {
+    const chain = Object.fromEntries(Array.from({ length: TABLE_LIMITS.depth }, (_, i) => [`T${i}`, oneRow(i < TABLE_LIMITS.depth - 1 ? `[[T${i + 1}]]` : '[[Loot.base#Rare]]')]));
+    const cell = await resolveCell('[[T0]]', context(chain, 1, views));
+    expect(cell.stopped).toEqual(['depth']);
+    expect(cell.items).toEqual([]);
   });
 });
