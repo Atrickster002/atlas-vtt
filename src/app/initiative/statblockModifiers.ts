@@ -1,5 +1,6 @@
 /** Reading the initiative modifiers of the combatants from their linked statblocks before a roll. */
 
+import type { ModifierSources } from '../gameSystems/initiativeModifierSources';
 import type { StatblockFields } from '../resources/statblockResourceSync';
 import type { TokenEntity } from '../types';
 import type { InitiativeEntry } from '../types/initiativeTypes';
@@ -19,12 +20,12 @@ function linkedNote(token: TokenEntity | undefined): string | undefined {
 
 /**
  * The statblock modifiers of `entries`, reading each linked note once through `read` (the
- * statblock resolver, `TokenStatblockLinkService.readStatblockRecord`).
+ * statblock resolver, `readStatblockRecord`), for the map's rules' `sources`.
  */
 export async function readStatblockModifiers(
   entries: readonly InitiativeEntry[],
   tokens: Readonly<Record<string, TokenEntity>>,
-  field: string | undefined,
+  sources: ModifierSources,
   read: (path: string) => Promise<StatblockFields | null>,
 ): Promise<StatblockModifiers> {
   const notes = new Map(entries.flatMap((entry) => {
@@ -37,7 +38,7 @@ export async function readStatblockModifiers(
   const unread: string[] = [];
   for (const [entryId, path] of notes) {
     const statblock = records.get(path);
-    const modifier = statblock ? statblockInitiativeModifier(statblock, field) : null;
+    const modifier = statblock ? statblockInitiativeModifier(statblock, sources) : null;
     if (modifier === null) unread.push(entryId);
     else modifiers.set(entryId, modifier);
   }

@@ -90,3 +90,14 @@ describe('initiative rolls with statblock modifiers', () => {
     expect(get().initiative.entries[0]!.initiativeModifier).toBe(0);
   });
 });
+
+describe('a modifier the GM set on an entry', () => {
+  it('wins over the statblock\'s, an explicit 0 too, and a cleared one lets the statblock count again', () => {
+    const { actions, get } = setup([{ ...entry('zero'), modifierByHand: true }], [0.5]);
+    actions.rollAllInitiative('1d20', new Map([['zero', 5]]));
+    expect(get().initiative.entries[0]!.initiative).toBe(11);
+    actions.updateInitiativeEntry('zero', { initiativeModifier: 0, modifierByHand: undefined });
+    actions.rollAllInitiative('1d20', new Map([['zero', 5]]));
+    expect(get().initiative.entries[0]!.initiative).toBe(16);
+  });
+});

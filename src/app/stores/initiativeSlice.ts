@@ -8,7 +8,7 @@ import type { InitiativeState, InitiativeEntry, InitiativeConfig } from '../type
 import { createDefaultInitiativeState } from '../types/initiativeTypes';
 import type { InitiativeRules } from '../types/initiativeRulesTypes';
 import { DEFAULT_INITIATIVE_RULES } from '../gameSystems/initiativeRules';
-import { combatantModifier } from '../initiative/initiativeModifier';
+import { combatantModifier, ownModifier } from '../initiative/initiativeModifier';
 import { clearSittingOut, nextSideTurn, previousSideTurn, rollInitiativeDice } from '../initiative/turns';
 
 /**
@@ -158,7 +158,7 @@ export function createInitiativeActions(
 
     rollAllInitiative: (roll = DEFAULT_ROLL, fromStatblocks) => {
       const totals = new Map(get().initiative.entries.map(entry => [
-        entry.id, rollInitiativeDice(roll, random) + combatantModifier(entry.initiativeModifier, fromStatblocks?.get(entry.id)),
+        entry.id, rollInitiativeDice(roll, random) + combatantModifier(ownModifier(entry), fromStatblocks?.get(entry.id)),
       ]));
       set((draft) => {
         for (const entry of draft.initiative.entries) {
@@ -175,7 +175,7 @@ export function createInitiativeActions(
     rollEntryInitiative: (id, roll = DEFAULT_ROLL, fromStatblock) => {
       const entry = get().initiative.entries.find(e => e.id === id);
       if (!entry) return;
-      const total = rollInitiativeDice(roll, random) + combatantModifier(entry.initiativeModifier, fromStatblock);
+      const total = rollInitiativeDice(roll, random) + combatantModifier(ownModifier(entry), fromStatblock);
       set((draft) => {
         const current = draft.initiative.entries.find(e => e.id === id);
         if (current) current.initiative = total;

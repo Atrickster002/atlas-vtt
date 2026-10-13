@@ -35,9 +35,9 @@ describe('the collection settings\' initiative fields', () => {
     const onChange = vi.fn();
     const { rerender } = render(<InitiativeFields fieldSuggestions={[]} initiative={TURN_ORDER} onChange={onChange} />);
     fireEvent.change(screen.getByLabelText('Modifier field'), { target: { value: 'combat.init' } });
-    expect(onChange).toHaveBeenLastCalledWith({ ...TURN_ORDER, modifierField: 'combat.init' });
+    expect(onChange).toHaveBeenLastCalledWith({ ...TURN_ORDER, modifier: { field: 'combat.init' } });
 
-    rerender(<InitiativeFields fieldSuggestions={[]} initiative={{ ...TURN_ORDER, modifierField: 'x' }} onChange={onChange} />);
+    rerender(<InitiativeFields fieldSuggestions={[]} initiative={{ ...TURN_ORDER, modifier: { field: 'x' } }} onChange={onChange} />);
     fireEvent.change(screen.getByLabelText('Modifier field'), { target: { value: '' } });
     expect(onChange).toHaveBeenLastCalledWith(TURN_ORDER);
   });
@@ -47,9 +47,9 @@ describe('the collection settings\' initiative fields', () => {
     const suggestions = [{ path: 'initiative', label: 'Initiative' }, { path: 'dex_mod' }];
     const { rerender } = render(<InitiativeFields fieldSuggestions={suggestions} initiative={TURN_ORDER} onChange={onChange} />);
     fireEvent.click(screen.getByRole('button', { name: /dex_mod/ }));
-    expect(onChange).toHaveBeenLastCalledWith({ ...TURN_ORDER, modifierField: 'dex_mod' });
+    expect(onChange).toHaveBeenLastCalledWith({ ...TURN_ORDER, modifier: { field: 'dex_mod' } });
 
-    rerender(<InitiativeFields fieldSuggestions={suggestions} initiative={{ ...TURN_ORDER, modifierField: 'ini' }} onChange={onChange} />);
+    rerender(<InitiativeFields fieldSuggestions={suggestions} initiative={{ ...TURN_ORDER, modifier: { field: 'ini' } }} onChange={onChange} />);
     expect(screen.queryByRole('button', { name: /dex_mod/ })).toBeNull();
     expect(screen.getByRole('button', { name: /Initiative/ })).toBeDefined();
   });
@@ -57,5 +57,32 @@ describe('the collection settings\' initiative fields', () => {
   it('offers no modifier by sides, where nothing is rolled', () => {
     render(<InitiativeFields fieldSuggestions={[{ path: 'initiative' }]} initiative={{ ...TURN_ORDER, mode: 'sides' }} onChange={vi.fn()} />);
     expect(screen.queryByLabelText('Modifier field')).toBeNull();
+  });
+
+  it('reads the field as an ability score once switched on, which needs a field', () => {
+    const onChange = vi.fn();
+    const { rerender } = render(<InitiativeFields fieldSuggestions={[]} initiative={TURN_ORDER} onChange={onChange} />);
+    expect(screen.getByRole<HTMLInputElement>('checkbox', { name: 'Ability score' }).disabled).toBe(true);
+
+    rerender(<InitiativeFields fieldSuggestions={[]} initiative={{ ...TURN_ORDER, modifier: { field: 'dex' } }} onChange={onChange} />);
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Ability score' }));
+    expect(onChange).toHaveBeenLastCalledWith({ ...TURN_ORDER, modifier: { field: 'dex', abilityScore: true } });
+  });
+
+  it('shows the fallback a game system names, and removes it', () => {
+    const onChange = vi.fn();
+    const rules = { ...TURN_ORDER, modifier: { field: 'initiative' }, modifierFallback: { field: 'stats.1', abilityScore: true as const } };
+    render(<InitiativeFields fieldSuggestions={[]} initiative={rules} onChange={onChange} />);
+    expect(screen.getByText(/stats\.1, read as an ability score/)).toBeDefined();
+    fireEvent.click(screen.getByRole('button', { name: 'Remove fallback' }));
+    expect(onChange).toHaveBeenLastCalledWith({ ...TURN_ORDER, modifier: { field: 'initiative' } });
+  });
+
+  it('keeps the fallback while the field is typed', () => {
+    const onChange = vi.fn();
+    const rules = { ...TURN_ORDER, modifierFallback: { field: 'stats.1', abilityScore: true as const } };
+    render(<InitiativeFields fieldSuggestions={[]} initiative={rules} onChange={onChange} />);
+    fireEvent.change(screen.getByLabelText('Modifier field'), { target: { value: 'init' } });
+    expect(onChange).toHaveBeenLastCalledWith({ ...rules, modifier: { field: 'init' } });
   });
 });

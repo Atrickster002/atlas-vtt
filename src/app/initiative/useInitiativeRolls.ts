@@ -6,6 +6,7 @@ import { isBestiaryResolved } from '../services/FantasyStatblocksService';
 import { readStatblockRecord } from '../statblocks/resolve/statblockRecord';
 import type { InitiativeRules } from '../types/initiativeRulesTypes';
 import { showNotice } from '../ui/notice';
+import { ownModifier } from './initiativeModifier';
 import { readStatblockModifiers } from './statblockModifiers';
 
 interface InitiativeRolls {
@@ -38,7 +39,7 @@ export function useInitiativeRolls(app: App, rules: InitiativeRules): Initiative
     if (entries.length === 0) return;
     // Asked before the read: a parse that ends meanwhile does not make what was read whole.
     const parsing = !isBestiaryResolved();
-    const { modifiers, unread } = await readStatblockModifiers(entries, before.objects.tokens, rules.modifierField, async (path) => {
+    const { modifiers, unread } = await readStatblockModifiers(entries, before.objects.tokens, rules, async (path) => {
       const read = await readStatblockRecord(app, path);
       return read && { fields: read.record, meanings: read.meanings };
     });
@@ -49,7 +50,7 @@ export function useInitiativeRolls(app: App, rules: InitiativeRules): Initiative
     if (entryId === undefined) now.rollAllInitiative(rules.roll, modifiers);
     else now.rollEntryInitiative(entryId, rules.roll, modifiers.get(entryId) ?? null);
     // A combatant with a modifier of the GM's own missed nothing
-    const missed = entries.filter((entry) => entry.initiativeModifier === 0 && unread.includes(entry.id)).length;
+    const missed = entries.filter((entry) => ownModifier(entry) === undefined && unread.includes(entry.id)).length;
     if (parsing && missed > 0) showNotice(t('initiative.statblocksLoading', { count: missed }));
   }, [app, store, rules]);
 

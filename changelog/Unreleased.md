@@ -12,6 +12,7 @@
 
 ## Improved
 
+- The initiative card's edit dialog takes a modifier of your own for a combatant, which counts instead of its statblock's until you clear it
 - The Spectral Engine, which detects a map's grid, shows the grid being found: it is etched into the map along the map's own lines, sharpens as the search grows sure of it, and settles as its glow fades
 - A new scene shows its map at once and finds its grid in front of you, where a loading screen covered both before
 - Tables that play without a grid can switch off Detect grid on new scenes in the command palette's grid settings: new scenes then have no grid and nothing snaps
@@ -30,7 +31,7 @@
 
 ## Fixed
 
-- Rolling initiative adds each creature's modifier from its linked statblock, read from a field you pick in the collection's settings (Initiative for D&D 5e and Pathfinder 2e). With a contribution by anacletoTM
+- Rolling initiative adds each creature's modifier from its linked statblock, read from a field you pick in the collection's settings, or from an ability score such as DEX (D&D 5e reads Initiative, else DEX). With a contribution by anacletoTM
 - Auto detect finds the grid of a small map picture, with cells of about ten pixels, where it took four cells for one
 - A grid placed with Freehand stays exactly where and as large as you placed it, on maps with a printed grid too
 - The note picker of a pin and the right-click menus of pins and drawings open beside them, with Obsidian's left sidebar open too

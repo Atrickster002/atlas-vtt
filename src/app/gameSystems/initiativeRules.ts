@@ -6,6 +6,7 @@
 import type { InitiativeMode, InitiativeRules, InitiativeSide } from '../types/initiativeRulesTypes';
 import type { SystemPreset } from '../types/systemPresetTypes';
 import { isValidDefaultRoll } from './diceRules';
+import { modifierSources, sameModifierSources } from './initiativeModifierSources';
 
 /** Initiative of a collection without a game system: a d20 each, highest first. */
 export const DEFAULT_INITIATIVE_RULES: Readonly<InitiativeRules> = { mode: 'turn-order', roll: '1d20', firstSide: 'players' };
@@ -17,21 +18,10 @@ export const INITIATIVE_SIDES: readonly InitiativeSide[] = ['players', 'opponent
 /** Stored initiative rules, or undefined when they are none. */
 export function parseInitiativeRules(raw: unknown): InitiativeRules | undefined {
   if (typeof raw !== 'object' || raw === null) return undefined;
-  const { mode, roll, firstSide, modifierField } = raw as Record<string, unknown>;
+  const { mode, roll, firstSide, modifier, modifierFallback } = raw as Record<string, unknown>;
   if (!INITIATIVE_MODES.includes(mode as InitiativeMode) || !INITIATIVE_SIDES.includes(firstSide as InitiativeSide)) return undefined;
   if (typeof roll !== 'string' || !isValidDefaultRoll(roll)) return undefined;
-  return withModifierField({ mode: mode as InitiativeMode, roll: roll.trim(), firstSide: firstSide as InitiativeSide }, modifierField);
-}
-
-/** The field a modifier is read from, trimmed; none for a blank or no text. */
-function fieldOf(modifierField: unknown): string | undefined {
-  return typeof modifierField === 'string' && modifierField.trim() !== '' ? modifierField.trim() : undefined;
-}
-
-/** `rules` with the modifier field as it is stored: trimmed, and absent where it is none. */
-function withModifierField(rules: InitiativeRules, modifierField: unknown): InitiativeRules {
-  const field = fieldOf(modifierField);
-  return { mode: rules.mode, roll: rules.roll, firstSide: rules.firstSide, ...(field !== undefined && { modifierField: field }) };
+  return { mode: mode as InitiativeMode, roll: roll.trim(), firstSide: firstSide as InitiativeSide, ...modifierSources({ modifier, modifierFallback }) };
 }
 
 /**
@@ -45,7 +35,7 @@ export function isValidInitiativeRules(rules: InitiativeRules): boolean {
 /** The rules as they are stored: the roll trimmed, and a d20 where it was left half typed behind another mode. */
 export function savedInitiativeRules(rules: InitiativeRules): InitiativeRules {
   const roll = isValidDefaultRoll(rules.roll) ? rules.roll.trim() : DEFAULT_INITIATIVE_RULES.roll;
-  return withModifierField({ ...rules, roll }, rules.modifierField);
+  return { mode: rules.mode, roll, firstSide: rules.firstSide, ...modifierSources(rules) };
 }
 
 /**
@@ -67,6 +57,6 @@ export function sameInitiativeRules(a: InitiativeRules | undefined, b: Initiativ
   const right = b ?? DEFAULT_INITIATIVE_RULES;
   return left.mode === right.mode
     && left.firstSide === right.firstSide
-    && fieldOf(left.modifierField) === fieldOf(right.modifierField)
+    && sameModifierSources(left, right)
     && left.roll.trim().toLowerCase() === right.roll.trim().toLowerCase();
 }

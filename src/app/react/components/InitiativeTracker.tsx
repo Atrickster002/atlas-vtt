@@ -14,6 +14,7 @@ import { SIDE_LABELS, listedBySides, sideOf, sidesInOrder } from '../../initiati
 import { useInitiativeTokenSync } from '../../initiative/useInitiativeTokenSync';
 import { useMapInitiativeRules } from '../../initiative/useMapInitiativeRules';
 import { useInitiativeRolls } from '../../initiative/useInitiativeRolls';
+import { initiativeEdit, modifierText } from '../../initiative/initiativeEdit';
 import { LabelTooltip } from '../../packages/components/primitives/tooltip';
 import { scrollWithin } from '../../utils/scrollWithin';
 import { EditInitiativePopup } from './EditInitiativePopup';
@@ -68,6 +69,7 @@ export const InitiativeTracker: React.FC = () => {
   const [editingEntry, setEditingEntry] = useState<InitiativeEntry | null>(null);
   const [editAnchorRect, setEditAnchorRect] = useState<DOMRect | null>(null);
   const [editValue, setEditValue] = useState<string>('');
+  const [editModifier, setEditModifier] = useState<string>('');
 
   const sideLabelId = useId();
 
@@ -137,6 +139,7 @@ export const InitiativeTracker: React.FC = () => {
           setEditingEntry(entry);
           setEditAnchorRect(cardElement.getBoundingClientRect());
           setEditValue(String(entry.initiative));
+          setEditModifier(modifierText(entry));
         },
         updateToken: (changes) => updateTokens([{ id: entry.tokenId, changes }]),
         setSitsOut: (sitsOut) => setInitiativeSitsOut(entry.id, sitsOut),
@@ -284,11 +287,10 @@ export const InitiativeTracker: React.FC = () => {
           anchorRect={editAnchorRect}
           value={editValue}
           onChange={setEditValue}
+          modifier={editModifier}
+          onModifierChange={setEditModifier}
           onConfirm={() => {
-            const parsed = parseInt(editValue, 10);
-            if (!isNaN(parsed)) {
-              updateInitiativeEntry(editingEntry.id, { initiative: parsed });
-            }
+            updateInitiativeEntry(editingEntry.id, initiativeEdit(editValue, editModifier));
             setEditingEntry(null);
             setEditAnchorRect(null);
           }}

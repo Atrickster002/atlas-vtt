@@ -27,7 +27,7 @@ export const PATHFINDER_2E: SystemPreset = {
     dice: { defaultRoll: '1d20', crit: 'natural' },
     diceSetId: D20_DICE_SET_ID,
     // Its statblock template's Initiative field is added to the d20.
-    initiative: { mode: 'turn-order', roll: '1d20', firstSide: 'players', modifierField: 'initiative' },
+    initiative: { mode: 'turn-order', roll: '1d20', firstSide: 'players', modifier: { field: 'initiative' } },
     conditions: conditionsOf('pathfinder2e', [
       { name: 'Blinded', color: '#475569', icon: 'blindfold', effect: 'blinded' },
       { name: 'Clumsy', color: '#ca8a04', icon: 'falling', valued: true },

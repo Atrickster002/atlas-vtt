@@ -1,7 +1,8 @@
 /**
  * The statblock fields the initiative settings offer as chips for the modifier: what the
- * collection's role templates mean as initiative first, then their other numbers, then the
- * further fields its statblocks hold that read as a modifier.
+ * collection's role templates mean as initiative first, then their other numbers and the slots
+ * of their scores (an ability score, read with the switch), then the further fields its
+ * statblocks hold that read as a number.
  */
 
 import { discoverFields } from '../resources/resourceFields';
@@ -22,6 +23,9 @@ export function initiativeFieldSuggestions(
   };
   fields.filter((field) => field.meaning === 'initiative').map(suggestionOf).forEach(offer);
   fields.filter((field) => field.type === 'number').map(suggestionOf).forEach(offer);
+  for (const field of fields) {
+    if (field.type === 'scores') (field.slots ?? []).forEach((slot, index) => offer({ path: `${field.key}.${index}`, label: slot }));
+  }
   discoverFields(records, (value) => parseInitiativeModifier(value) !== null).forEach((path) => offer({ path }));
   return [...offered.values()];
 }

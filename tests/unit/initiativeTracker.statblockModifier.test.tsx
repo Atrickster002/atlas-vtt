@@ -5,7 +5,7 @@ import type { App } from 'obsidian';
 import { createInMemoryApp, parseFrontmatter } from '../mocks/inMemoryVault';
 import type { InitiativeRules } from '../../src/app/types/initiativeRulesTypes';
 
-const rules = vi.hoisted(() => ({ current: { mode: 'turn-order', roll: '1d20', firstSide: 'players', modifierField: 'initiative' } as InitiativeRules }));
+const rules = vi.hoisted(() => ({ current: { mode: 'turn-order', roll: '1d20', firstSide: 'players', modifier: { field: 'initiative' } } as InitiativeRules }));
 vi.mock('../../src/app/initiative/useMapInitiativeRules', () => ({ useMapInitiativeRules: () => rules.current }));
 const showNotice = vi.hoisted(() => vi.fn());
 vi.mock('../../src/app/ui/notice', () => ({ showNotice }));
@@ -29,12 +29,14 @@ const SCENE = 'atlas-vtt/collections/5e/scenes/Road.atlasmap';
 const CAPTAIN = 'statblocks/Bandit Captain.md';
 const COMMONER = 'statblocks/Commoner.md';
 const WOLF = 'statblocks/Wolf.md';
+const SRD_CAPTAIN = 'statblocks/SRD Bandit Captain.md';
 
 function setup(): { app: App; store: ViewAtlasStore } {
   const { app, files } = createInMemoryApp({ files: {
     [CAPTAIN]: '---\nstatblock: true\nname: Bandit Captain\ninitiative: +5\n---\n',
     [COMMONER]: '---\nstatblock: true\nname: Commoner\nhp: 4\n---\n',
     [WOLF]: '```statblock\ncreature: Wolf\n```\n',
+    [SRD_CAPTAIN]: '```statblock\ncreature: Bandit Captain\n```\n',
   } });
   // The notes' properties, as Obsidian's metadata cache reads them
   app.metadataCache.getFileCache = (file) => ({ frontmatter: parseFrontmatter(files.get(file.path) ?? '') });
@@ -63,6 +65,7 @@ const initiativeOf = (store: ViewAtlasStore, id: string): number | undefined =>
 
 afterEach(() => {
   vi.restoreAllMocks();
+  rules.current = { mode: 'turn-order', roll: '1d20', firstSide: 'players', modifier: { field: 'initiative' } };
   showNotice.mockClear();
   delete (window as Window & { FantasyStatblocks?: unknown }).FantasyStatblocks;
 });
@@ -106,5 +109,29 @@ describe('rolling initiative with the statblocks\' modifiers', () => {
     expect(initiativeOf(store, wolf)).toBe(11);
     expect(initiativeOf(store, ownWolf)).toBe(14);
     expect(showNotice).toHaveBeenCalledWith(expect.stringMatching(/still reading the vault: 1 combatant rolled without its statblock/));
+  });
+
+  it('rolls 1d20+3 for a 5e Bandit Captain of Fantasy Statblocks\' SRD (DEX 16) by the D&D 5e rules', async () => {
+    const { BUILT_IN_SYSTEM_PRESETS } = await import('../../src/app/gameSystems/builtInPresets');
+    const { collectionInitiativeRules } = await import('../../src/app/gameSystems/initiativeRules');
+    const dnd5e = BUILT_IN_SYSTEM_PRESETS.find((p) => p.name === 'D&D 5e')!;
+    rules.current = collectionInitiativeRules({ systemPresetId: dnd5e.id }, BUILT_IN_SYSTEM_PRESETS);
+    // As Fantasy Statblocks' bundled SRD holds it: no initiative, the six scores as `stats`
+    const banditCaptain = {
+      name: 'Bandit Captain', path: SRD_CAPTAIN, source: '5e SRD', size: 'Medium', type: 'humanoid', ac: 15, hp: 65,
+      hit_dice: '10d8 + 20', speed: '30 ft.', stats: [15, 16, 14, 14, 11, 14], cr: '2',
+    };
+    Object.assign(window, { FantasyStatblocks: { isResolved: () => true, hasCreature: () => false, getBestiaryCreatures: () => [banditCaptain] } });
+    const { app, store } = setup();
+    let captain = '';
+    act(() => { captain = add(store, 'Captain', SRD_CAPTAIN); });
+    show(app, store);
+
+    vi.spyOn(Math, 'random').mockReturnValue(0);
+    fireEvent.click(screen.getByRole('button', { name: 'Roll initiative' }));
+    await waitFor(() => expect(initiativeOf(store, captain)).toBe(4));
+    vi.spyOn(Math, 'random').mockReturnValue(0.99);
+    fireEvent.click(screen.getByRole('button', { name: 'Roll initiative' }));
+    await waitFor(() => expect(initiativeOf(store, captain)).toBe(23));
   });
 });
