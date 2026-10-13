@@ -8,7 +8,7 @@ import { ProgressStatus } from '../../primitives/ProgressStatus';
 import { useFrameProgress } from '../../primitives/useFrameProgress';
 import { vaultImageFile } from '../token-creator/vaultImageFile';
 import type { CreatorMode, PreviewImage } from '../token-creator/types';
-import { VaultImageList } from './VaultImageList';
+import { VaultImageGrid } from './VaultImageGrid';
 import { VaultImageThumbnails } from './vaultImageThumbnails';
 import { vaultImages } from './vaultImageFiles';
 import { t } from '../../../../i18n';
@@ -86,7 +86,7 @@ export function VaultImageContent({ app, mode, queuedPaths, onAdd, onClose, cont
           <span>{t('vaultImages.selected', { count: chosen.length })}</span>
         </div>
         {filtered.length > 0
-          ? <VaultImageList files={filtered} thumbnails={thumbnails} selected={selected} queued={queued} disabled={running} scrollElement={scrollElement} onToggle={toggle} />
+          ? <VaultImageGrid files={filtered} thumbnails={thumbnails} selected={selected} queued={queued} disabled={running} scrollElement={scrollElement} onToggle={toggle} />
           : <p>{query ? t('vaultImages.noMatch') : t('vaultImages.noneFound')}</p>}
       </div>
       <footer className="atlas-token-creator__footer atlas-statblock-import__footer">
