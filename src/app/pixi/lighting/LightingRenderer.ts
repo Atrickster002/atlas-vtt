@@ -22,6 +22,7 @@ import type { LightingAttempt } from './lightingAttempts';
 import { PlayerView } from './PlayerView';
 import { SceneModelBuilder, SceneSpots, type SceneModel, type SceneState } from '../../vision/sceneModel';
 import type { ExploredMemoryWatcher, SceneLightingView } from './sceneLightingView';
+import { levelExploredMask, viewedLevelId } from '../../levels/sceneLevels';
 
 /** Above tokens, below their nameplates and bars (100): the GM keeps readable labels in the dark. */
 export const LIGHTING_Z_INDEX = 90;
@@ -31,7 +32,7 @@ const DEFAULT_CELL_SIZE = 70;
 export type LightingUnavailable = 'failed' | 'unfinished';
 
 /** What the lighting reads of its view's state: the scene it lights, the load flag and the explored memory's part. */
-export type LightingState = SceneState & ExploredMemoryState & Pick<ViewState, 'exploredMask'>;
+export type LightingState = SceneState & ExploredMemoryState & Pick<ViewState, 'exploredMask' | 'exploredMasks'>;
 
 export type LightingStore = Pick<StoreApi<LightingState>, 'getState' | 'subscribe'>;
 
@@ -247,7 +248,8 @@ export class LightingRenderer implements SceneLightingView {
       return;
     }
     this.engine.setEnabled(true);
-    this.memory.sync(bounds, state.exploredMask);
+    // Each level has its memory: showing another one saves the one left and loads its own
+    this.memory.sync(bounds, levelExploredMask(state), viewedLevelId(state));
 
     const { model, rebuilt } = this.model.update(state, bounds, this.deps.measurement, this.deps.rules);
     const base = rebuilt || !this.lastScene ? (this.lastScene = this.takeModel(model, state, bounds)) : this.lastScene;
@@ -280,7 +282,7 @@ export class LightingRenderer implements SceneLightingView {
     const state = this.deps.store.getState();
     // The memory comes back as it was last saved: the texels its undo steps hold belong to a texture that is gone.
     this.memory.forgetEdits();
-    this.memory.reload(state.exploredMask);
+    this.memory.reload(levelExploredMask(state));
     this.update(state);
   }
 
