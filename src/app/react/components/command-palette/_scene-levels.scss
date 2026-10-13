@@ -14,7 +14,6 @@
   @include atlas-ghost-button;
   justify-content: center;
   height: var(--input-height);
-  border: $border-width-s dashed var(--background-modifier-border);
   border-radius: $radius-l;
   box-shadow: none;
   font-size: $font-ui-small;
