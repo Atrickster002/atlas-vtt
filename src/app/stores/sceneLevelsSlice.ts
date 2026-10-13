@@ -4,8 +4,10 @@
  */
 
 import type { LevelScene } from '../levels/levelEdits';
-import { firstLevelId, isLevelOf, viewedLevelId } from '../levels/sceneLevels';
-import type { SceneLevel } from '../types/sceneLevelTypes';
+import { firstLevelId, hasLevels, isLevelOf, onlyOnLevel, viewedLevelId } from '../levels/sceneLevels';
+import type { LevelAlignment, SceneLevel } from '../types/sceneLevelTypes';
+import type { MapMove } from '../grid/mapStretch';
+import { objectsMovedWithMap, type MovesWithMap } from '../grid/mapStretchObjects';
 import type { ViewState } from '../types/viewState';
 
 export interface SceneLevelsSlice {
@@ -17,11 +19,23 @@ export interface SceneLevelsSlice {
   applyLevelScene: (scene: LevelScene) => void;
   /** Puts tokens on level `levelId` where they stand, in one write (one undo step); the moved ones leave the selection. */
   moveTokensToLevel: (ids: readonly string[], levelId: string) => void;
+  /**
+   * Fits level `levelId`'s image to the scene's grid with `alignment`, and `move` takes what stands
+   * on that level alone along (`objectsMovedWithMap`): one write, one undo step.
+   */
+  alignLevel: (levelId: string, alignment: LevelAlignment, move?: MapMove) => void;
 }
 
-type LevelsDraft = Pick<ViewState, 'levels' | 'viewedLevel' | 'objects' | 'background' | 'exploredMask' | 'exploredMasks' | 'selectedIds' | 'lightPopover' | 'lightZonePopover'>;
+type LevelsDraft = Pick<ViewState, 'levels' | 'viewedLevel' | 'objects' | 'background' | 'exploredMask' | 'exploredMasks' | 'levelAlignments' | 'selectedIds' | 'lightPopover' | 'lightZonePopover'>;
 
 type ImmerSet = (fn: (draft: LevelsDraft) => void) => void;
+
+/** What moves with level `levelId`'s image: the objects on it and on no other; everything in a scene without levels. */
+export function movesWithLevel(state: Pick<ViewState, 'levels'>, levelId: string | null): MovesWithMap | undefined {
+  const { levels } = state;
+  if (!hasLevels(levels) || levelId === null) return undefined;
+  return (object) => onlyOnLevel(object, levelId, levels);
+}
 
 /** Where a level's explored memory is kept: the first level's in `exploredMask`. A level the scene no longer has keeps none. */
 export function writeExploredMask(draft: Pick<ViewState, 'levels' | 'viewedLevel' | 'exploredMask' | 'exploredMasks'>, dataUrl: string | null, level: string | null | undefined): void {
@@ -37,7 +51,7 @@ export function writeExploredMask(draft: Pick<ViewState, 'levels' | 'viewedLevel
   draft.exploredMasks = Object.keys(masks).length > 0 ? masks : undefined;
 }
 
-export function createSceneLevelsActions(set: ImmerSet): SceneLevelsSlice {
+export function createSceneLevelsActions(set: ImmerSet, get: () => LevelsDraft): SceneLevelsSlice {
   return {
     setViewedLevel: (id) => set((draft) => {
       if ((draft.viewedLevel ?? null) === id) return;
@@ -57,8 +71,19 @@ export function createSceneLevelsActions(set: ImmerSet): SceneLevelsSlice {
       draft.objects = scene.objects;
       draft.exploredMask = scene.exploredMask;
       draft.exploredMasks = scene.exploredMasks;
+      draft.levelAlignments = scene.levelAlignments;
       draft.selectedIds = [];
     }),
+
+    alignLevel: (levelId, alignment, move) => {
+      const state = get();
+      if (!isLevelOf(state.levels, levelId)) return;
+      const objects = move ? objectsMovedWithMap(state.objects, move, movesWithLevel(state, levelId)) : null;
+      set((draft) => {
+        draft.levelAlignments = { ...draft.levelAlignments, [levelId]: alignment };
+        if (objects) draft.objects = objects;
+      });
+    },
 
     moveTokensToLevel: (ids, levelId) => set((draft) => {
       if (!isLevelOf(draft.levels, levelId)) return;

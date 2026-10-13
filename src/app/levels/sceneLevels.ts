@@ -94,3 +94,12 @@ export function levelExploredMask(state: Pick<ViewState, 'exploredMask' | 'explo
   const id = viewedLevelId(state);
   return id === null || id === firstLevelId(state.levels) ? state.exploredMask : state.exploredMasks?.[id] ?? null;
 }
+
+/**
+ * Whether `object` is on level `levelId` and on no other: what moves with that level's image when
+ * its alignment changes. A wall or light of several levels, or of all, stays with the others.
+ */
+export function onlyOnLevel(object: OnOneLevel & OnLevels, levelId: string, levels: SceneLevels): boolean {
+  if (!onLevel(object, levelId, levels)) return false;
+  return !hasLevels(levels) || levels.every((other) => other.id === levelId || !onLevel(object, other.id, levels));
+}

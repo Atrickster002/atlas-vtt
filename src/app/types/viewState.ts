@@ -9,7 +9,7 @@ import type { DiceRollResult } from './diceTypes';
 import type { CameraState, GridState } from './gridTypes';
 import type { ViewUIState } from './viewUIState';
 import type { PartyValues } from './partyTypes';
-import type { SceneLevel } from './sceneLevelTypes';
+import type { LevelAlignment, SceneLevel } from './sceneLevelTypes';
 
 /** Data read from a map view, independent of the store and persistence services. */
 export interface ViewState extends ViewUIState {
@@ -47,6 +47,11 @@ export interface ViewState extends ViewUIState {
    * never undo-tracked, like `lighting`.
    */
   levels?: SceneLevel[] | undefined;
+  /**
+   * How each level's image is fitted to the scene's grid, by level id (`levelImagePlacement`); in a
+   * file each level carries its own. Undo-tracked level by level, unlike `levels`.
+   */
+  levelAlignments?: Record<string, LevelAlignment> | undefined;
 
   // Grid configuration
   grid: GridState | null;

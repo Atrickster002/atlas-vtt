@@ -44,9 +44,10 @@ import { movedPathOf, rewriteMapReferences } from './services/renamedPaths';
 import { conditionValue, removeCondition, setConditionValue } from './utils/conditionValues';
 import { HydrationTracker } from './stores/hydrationTracker';
 import { isolateListeners } from './stores/isolatedListeners';
-import { placedOnViewedLevel, placedOnViewedLevels } from './levels/sceneLevels';
-import { createSceneLevelsActions, writeExploredMask, type SceneLevelsSlice } from './stores/sceneLevelsSlice';
-import { levelsWithBackground, readExploredMasks, readSceneLevels } from './levels/levelFile';
+import { firstLevelId, placedOnViewedLevel, placedOnViewedLevels } from './levels/sceneLevels';
+import { createSceneLevelsActions, movesWithLevel, writeExploredMask, type SceneLevelsSlice } from './stores/sceneLevelsSlice';
+import { levelsForFile, readExploredMasks, readSceneLevels } from './levels/levelFile';
+import { levelAlignmentsOf, withoutAlignments } from './levels/levelAlignment';
 
 // Individual store state interface (same as AtlasState but isolated)
 export interface ViewAtlasState extends ViewState {
@@ -202,6 +203,7 @@ export interface ViewAtlasState extends ViewState {
   setLevels: SceneLevelsSlice['setLevels'];
   applyLevelScene: SceneLevelsSlice['applyLevelScene'];
   moveTokensToLevel: SceneLevelsSlice['moveTokensToLevel'];
+  alignLevel: SceneLevelsSlice['alignLevel'];
 
   // Copy, paste and duplicate (from mapObjectsSlice.ts)
   insertMapObjects: MapObjectsSlice['insertMapObjects'];
@@ -514,7 +516,9 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
           }),
 
           alignGrid: (grid, move) => {
-            const objects = move ? objectsMovedWithMap(get().objects, move) : null;
+            // The grid is the scene's, its image the first level's: what stands on other levels stays
+            const state = get();
+            const objects = move ? objectsMovedWithMap(state.objects, move, movesWithLevel(state, firstLevelId(state.levels))) : null;
             set((draft) => {
               draft.grid = grid;
               if (objects) draft.objects = objects;
@@ -1308,6 +1312,7 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
             draft.exploredMasks = undefined;
             draft.exploredEdits = 0;
             draft.levels = undefined;
+            draft.levelAlignments = undefined;
             draft.viewedLevel = null;
 
             // Note: We don't clear background here - it will be set by the new map
@@ -1416,7 +1421,7 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
           ...createLootRollerActions(set),
 
           // --- Levels of the scene (from sceneLevelsSlice.ts) ---
-          ...createSceneLevelsActions(set),
+          ...createSceneLevelsActions(set, get),
 
           // --- Per-view UI visibility (from uiSlice.ts) ---
           ...createInitialUIState(),
@@ -1453,7 +1458,7 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
               version: state.version,
               mapPath: state.mapPath, // Include mapPath to verify data belongs to correct map
               background: state.background,
-              levels: levelsWithBackground(state.levels, state.background),
+              levels: levelsForFile(state.levels, state.background, state.levelAlignments),
               grid: state.grid,
               objects: state.objects,
               camera: state.camera,
@@ -1475,11 +1480,13 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
           // The map file arrives unchecked; fields that need it are checked here, once per load.
           merge: (persisted, current): ViewAtlasState => {
             const saved: Partial<ViewAtlasState> = isRecord(persisted) ? persisted : {};
-            const levels = readSceneLevels(saved.levels, saved.background ?? current.background);
+            const read = readSceneLevels(saved.levels, saved.background ?? current.background);
+            const levels = withoutAlignments(read);
             return {
               ...current,
               ...saved,
               levels,
+              levelAlignments: levelAlignmentsOf(read),
               exploredMasks: readExploredMasks(saved.exploredMasks, levels),
               lootRoller: readLootRollerState(saved.lootRoller),
               lighting: readSceneLighting(saved.lighting),

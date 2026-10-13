@@ -1,3 +1,16 @@
+import type { MapStretch } from '../grid/mapStretch';
+
+/**
+ * How a level's map image lies on the scene's one grid: drawn with `stretch` (as the scene's own
+ * image is drawn with `GridState.mapStretch`), then scaled by `scale` and moved by `offset` world
+ * pixels, so its printed grid lies on the scene's. Read it only through `levelImagePlacement`.
+ */
+export interface LevelAlignment {
+  offset: { x: number; y: number };
+  scale: number;
+  stretch: MapStretch;
+}
+
 /** A level's height range in game units: what it stands on and where its ceiling is. */
 export interface LevelElevation {
   bottom: number;
@@ -21,6 +34,11 @@ export interface SceneLevel {
   sees?: string[];
   /** Where the level's background lies, in cells from the scene's origin. */
   offset?: { x: number; y: number };
+  /**
+   * How the level's image is fitted to the scene's grid. In a scene file only: in memory it is the
+   * view state's `levelAlignments`, which undo reaches level by level.
+   */
+  alignment?: LevelAlignment | undefined;
 }
 
 /**

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { levelsWithBackground, readExploredMasks, readSceneLevels, sceneFileVersion } from '../../../src/app/levels/levelFile';
+import { levelsForFile, readExploredMasks, readSceneLevels, sceneFileVersion } from '../../../src/app/levels/levelFile';
 import type { SceneLevel } from '../../../src/app/types/sceneLevelTypes';
 
 const MASK = 'data:image/png;base64,AAAA';
@@ -47,11 +47,11 @@ describe('writing a scene file\'s levels', () => {
   ];
 
   it('writes the scene\'s background as the first level\'s, the same copy each time', () => {
-    const written = levelsWithBackground(levels, 'map.png');
+    const written = levelsForFile(levels, 'map.png');
 
     expect(written?.[0]?.background).toBe('map.png');
-    expect(levelsWithBackground(levels, 'map.png')).toBe(written);
-    expect(levelsWithBackground(written, 'map.png')).toBe(written);
+    expect(levelsForFile(levels, 'map.png')).toBe(written);
+    expect(levelsForFile(written, 'map.png')).toBe(written);
   });
 
   it('gives a scene of several levels version 5 and every other scene version 4', () => {

@@ -189,6 +189,7 @@ describe('a background that changes outside a load', () => {
 
     store.getState().setBackground('maps/gone.png');
 
-    expect(load).toHaveBeenCalledWith({ kind: 'placeholder' });
+    // Drawn as the level it shows is placed: the scene's own stretch
+    expect(load).toHaveBeenCalledWith({ kind: 'placeholder' }, { x: 1, y: 1 });
   });
 });

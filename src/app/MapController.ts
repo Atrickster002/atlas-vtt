@@ -6,7 +6,8 @@ import { MAP_THUMBNAIL_SIZE } from './services/MapThumbnailService';
 import type { PixiRendererOrchestrator } from './PixiRendererOrchestrator';
 import type { GridOptions } from './grid/GridSystem';
 import { parseGridColor } from './grid/gridContrastColor';
-import { readMapStretch, sameStretch } from './grid/mapStretch';
+import { sameStretch } from './grid/mapStretch';
+import { levelAlignmentsOf, levelImagePlacement, viewedImagePlacement } from './levels/levelAlignment';
 import { cellNumberStyleOfGrid } from './grid/cellNumbering';
 import { MapImage } from './pixi/mapImage/MapImage';
 import { MapImageService } from './pixi/mapImage/MapImageService';
@@ -91,7 +92,8 @@ async function loadAndDisplay(
 
   const mapImage = viewMapImage(app, renderer);
   if (mapImage) {
-    await showBackground(mapImage, levelBackground(mapData, level), () => mapImage.load(image, readMapStretch(mapData.grid?.mapStretch)));
+    const placement = levelImagePlacement({ levels: mapData.levels, grid: mapData.grid, levelAlignments: levelAlignmentsOf(mapData.levels) }, level);
+    await showBackground(mapImage, levelBackground(mapData, level), () => mapImage.load(image, placement));
     if (isSuperseded()) return null;
   }
 
@@ -156,19 +158,29 @@ function followBackground(app: App, store: ViewAtlasStore, mapImage: MapImage): 
     // A load sets the background itself and shows the image of its file.
     if (!state.mapLoaded || state.isMapLoading) return;
     if (shownBackground.get(mapImage) === background) return;
-    void showBackground(mapImage, background, () => mapImage.load(mapImageSourceFor(app, background, state.grid?.size)));
+    // The image comes in drawn as its level is aligned, and follows an alignment changed while it loaded
+    void showBackground(mapImage, background, () => mapImage.load(mapImageSourceFor(app, background, state.grid?.size), viewedImagePlacement(state))).then(() => {
+      const placement = viewedImagePlacement(store.getState());
+      if (shownBackground.get(mapImage) === background && !sameStretch(placement, mapImage.mapStretch)) mapImage.setStretch(placement);
+    });
   });
 }
 
+/** Whether another image is on its way into `mapImage`, which will come in drawn as its level is. */
+function loadingAnother(mapImage: MapImage): boolean {
+  return shownBackground.get(mapImage) !== loadedBackground.get(mapImage);
+}
+
 /**
- * Draws the map image with the stretch of the store's grid whenever that changes outside a load
- * (an alignment applied, its undo or redo), and says so with `onFollowed`. Returns the unsubscribe.
+ * Draws the map image as the level the view shows is aligned (`viewedImagePlacement`) whenever that
+ * changes outside a load (an alignment applied, its undo or redo, another level shown), and says so
+ * with `onFollowed`. Returns the unsubscribe.
  */
 function followStretch(store: ViewAtlasStore, mapImage: MapImage, onFollowed: () => void): () => void {
-  return store.subscribe((state) => readMapStretch(state.grid?.mapStretch), (stretch) => {
+  return store.subscribe((state) => viewedImagePlacement(state), (stretch) => {
     const state = store.getState();
-    // A load shows its image with the stretch of its file.
-    if (!state.mapLoaded || state.isMapLoading) return;
+    // A load shows its image with the stretch of its file, and another level's image comes in drawn as its level is.
+    if (!state.mapLoaded || state.isMapLoading || loadingAnother(mapImage)) return;
     mapImage.setStretch(stretch);
     // The image may have been drawn this way already, as an alignment's preview: nothing changed on it then.
     onFollowed();

@@ -2,6 +2,7 @@ import type { SceneLevel } from '../types/sceneLevelTypes';
 import { isFiniteNumber, isRecord } from '../utils/guards';
 import { readExploredMask } from '../lighting/exploredMaskCodec';
 import type { SceneLevels } from './sceneLevels';
+import { readLevelAlignment, type LevelAlignments } from './levelAlignment';
 
 /** The version of a scene file written by every Atlas since files had versions, and of every scene with one level. */
 export const SINGLE_LEVEL_FILE_VERSION = 4;
@@ -30,7 +31,8 @@ function readLevel(value: unknown): SceneLevel | null {
   if (!isRecord(value)) return null;
   const id = text(value.id);
   if (!id) return null;
-  const { foreground, sees, offset, ...rest } = value;
+  const { foreground, sees, offset, alignment, ...rest } = value;
+  const readAlignment = readLevelAlignment(alignment);
   const readSees = Array.isArray(sees) ? sees.filter((entry): entry is string => typeof entry === 'string') : undefined;
   const readOff = readOffset(offset);
   return {
@@ -42,6 +44,7 @@ function readLevel(value: unknown): SceneLevel | null {
     ...(foreground !== undefined && { foreground: text(foreground) }),
     ...(readSees && { sees: readSees }),
     ...(readOff && { offset: readOff }),
+    ...(readAlignment && { alignment: readAlignment }),
   };
 }
 
@@ -80,18 +83,30 @@ export function sceneFileVersion(levels: unknown): number {
   return Array.isArray(levels) && levels.length > 1 ? LEVELS_FILE_VERSION : SINGLE_LEVEL_FILE_VERSION;
 }
 
-const withBackgrounds = new WeakMap<readonly SceneLevel[], { background: string | null; levels: SceneLevel[] }>();
+const forFile = new WeakMap<readonly SceneLevel[], { background: string | null; alignments: LevelAlignments | undefined; levels: SceneLevel[] }>();
 
 /**
- * `levels` with the first level's background set to the scene's, as the file holds them: the same
- * list where it already is, and the same copy for as long as the two stay, so a save compares equal.
+ * `levels` as the file holds them: the first level's background set to the scene's, and each
+ * level's alignment (`alignments`, kept beside the levels in memory) inside it. The same list where
+ * nothing is to be added, and the same copy for as long as the three stay, so a save compares equal.
  */
+export function levelsForFile(levels: SceneLevel[] | undefined, background: string | null, alignments?: LevelAlignments): SceneLevel[] | undefined {
+  const [first] = levels ?? [];
+  if (!levels || !first) return levels;
+  if (first.background === background && !alignments) return levels;
+  const known = forFile.get(levels);
+  if (known?.background === background && known.alignments === alignments) return known.levels;
+  const copy = levels.map((level, index) => {
+    const alignment = alignments?.[level.id];
+    return { ...level, ...(index === 0 && { background }), ...(alignment && { alignment }) };
+  });
+  forFile.set(levels, { background, alignments, levels: copy });
+  return copy;
+}
+
+/** `levels` with the first level's background set to the scene's; the same list where it already is. */
 export function levelsWithBackground(levels: SceneLevel[] | undefined, background: string | null): SceneLevel[] | undefined {
   const [first, ...rest] = levels ?? [];
   if (!levels || !first || first.background === background) return levels;
-  const known = withBackgrounds.get(levels);
-  if (known?.background === background) return known.levels;
-  const copy = [{ ...first, background }, ...rest];
-  withBackgrounds.set(levels, { background, levels: copy });
-  return copy;
+  return [{ ...first, background }, ...rest];
 }

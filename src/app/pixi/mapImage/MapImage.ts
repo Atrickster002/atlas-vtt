@@ -74,7 +74,9 @@ export class MapImage {
   get worldRect(): PixelRect | null {
     if (!this.shown) return null;
     const { box } = turnedBox(this.shown.width, this.shown.height, this.stretch);
-    return { x: 0, y: 0, width: box.width * this.stretch.x, height: box.height * this.stretch.y };
+    // The world begins at the origin; an image placed further in leaves a margin before it.
+    const { x: left = 0, y: top = 0 } = this.stretch.offset ?? {};
+    return { x: 0, y: 0, width: left + box.width * this.stretch.x, height: top + box.height * this.stretch.y };
   }
 
   /** The image's own size in pixels, whatever its stretch; null before the first load and after `clear`. */
@@ -82,10 +84,10 @@ export class MapImage {
     return this.shown ? { width: this.shown.width, height: this.shown.height } : null;
   }
 
-  /** The corners of an image that lies turned in its world rect, which then holds a little more than the image; null for a level one. */
+  /** The corners of an image that lies turned, or placed in from the origin, in its world rect, which then holds more than the image; null for one that fills it. */
   get outline(): Array<{ x: number; y: number }> | null {
     const { shown, stretch } = this;
-    if (!shown || !stretch.rotation) return null;
+    if (!shown || (!stretch.rotation && !stretch.offset?.x && !stretch.offset?.y)) return null;
     const { width, height } = shown;
     return [{ x: 0, y: 0 }, { x: width, y: 0 }, { x: width, y: height }, { x: 0, y: height }].map((corner) => imageToWorld(corner, { width, height }, stretch));
   }
@@ -283,11 +285,13 @@ export class MapImage {
     this.turned.pivot.set(shown.width / 2, shown.height / 2);
     this.turned.position.set(shown.width / 2 - corner.x, shown.height / 2 - corner.y);
     this.turned.rotation = (-(this.stretch.rotation ?? 0) * Math.PI) / 180;
+    const { x: left = 0, y: top = 0 } = this.stretch.offset ?? {};
+    this.layer.position.set(left, top);
     this.layer.scale.set(x, y);
     // In the layer's own space, which the scale stretches.
     this.layer.boundsArea = new Rectangle(0, 0, box.width, box.height);
-    this.deps.viewport.worldWidth = Math.max(box.width * x, MIN_WORLD_SIDE);
-    this.deps.viewport.worldHeight = Math.max(box.height * y, MIN_WORLD_SIDE);
+    this.deps.viewport.worldWidth = Math.max(left + box.width * x, MIN_WORLD_SIDE);
+    this.deps.viewport.worldHeight = Math.max(top + box.height * y, MIN_WORLD_SIDE);
     for (const [region, release] of this.regions) {
       release();
       this.regions.set(region, shown.layer?.addDemandRegion(this.onImage(region)) ?? noop);
@@ -299,10 +303,11 @@ export class MapImage {
    * axes' detail. Of a turned image it is the upright box around the view, which holds a little more.
    */
   private onImage(view: TileView): TileView {
-    const { x, y, rotation } = this.stretch;
-    if (x === 1 && y === 1 && !rotation) return view;
+    const { x, y, rotation, offset } = this.stretch;
+    const { x: shiftX = 0, y: shiftY = 0 } = offset ?? {};
+    if (x === 1 && y === 1 && !rotation && !shiftX && !shiftY) return view;
     const { rect } = view;
-    const unstretched = { x: rect.x / x, y: rect.y / y, width: rect.width / x, height: rect.height / y };
+    const unstretched = { x: (rect.x - shiftX) / x, y: (rect.y - shiftY) / y, width: rect.width / x, height: rect.height / y };
     const worldPerScreenPixel = view.worldPerScreenPixel / Math.max(x, y);
     if (!rotation || !this.shown) return { rect: unstretched, worldPerScreenPixel };
 
