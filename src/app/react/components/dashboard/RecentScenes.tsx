@@ -1,5 +1,5 @@
 import React, { useId } from 'react';
-import { Map } from 'lucide-react';
+import { Map, Play } from 'lucide-react';
 import { RevealImage } from '../../../packages/components/primitives/RevealImage';
 import { SkeletonGroup } from '../../../packages/components/primitives/Skeleton';
 import { t } from '../../../i18n';
@@ -40,7 +40,10 @@ export function RecentScenes({ scenes, isLoading, onOpenScene }: RecentScenesPro
         <div className="dashboard-grid scene-grid">
           {scenes.map((scene) => (
             <button key={scene.id} type="button" className="dashboard-card scene-card" onClick={() => onOpenScene(scene.path)}>
-              <span className="dashboard-card__art scene-card__art"><SceneThumbnail scene={scene} /></span>
+              <span className="dashboard-card__art scene-card__art">
+                <SceneThumbnail scene={scene} />
+                <span className="scene-card__play" aria-hidden="true"><Play /></span>
+              </span>
               <span className="dashboard-card__body">
                 <span className="dashboard-card__text">
                   <span className="dashboard-card__title">{scene.name}</span>

@@ -23,9 +23,9 @@ function HeroSkeleton(): React.JSX.Element {
   return (
     <SkeletonGroup className="continue-hero continue-hero--loading" label={t('dashboard.loadingScenes')}>
       <span className="continue-hero__body">
-        <span className="continue-hero__eyebrow"><Skeleton shape="text" width="9em" /></span>
-        <span className="continue-hero__title"><Skeleton shape="text" width="14em" /></span>
-        <span className="continue-hero__meta"><Skeleton shape="text" width="8em" /></span>
+        <span className="continue-hero__eyebrow"><Skeleton shape="text" width="40%" /></span>
+        <span className="continue-hero__title"><Skeleton shape="text" width="80%" /></span>
+        <span className="continue-hero__meta"><Skeleton shape="text" width="30%" /></span>
         <Skeleton shape="pill" className="continue-hero__cta" />
       </span>
     </SkeletonGroup>
