@@ -102,8 +102,8 @@ function parseRewards(value: unknown): string[] | null {
   return rewards;
 }
 
-/** A quest's images; undefined for none named, null for a list that is malformed or too long. */
-function parseImages(value: unknown): QuestImage[] | null | undefined {
+/** The images a text embeds (a quest's, a found note's); undefined for none named, null for a list that is malformed or too long. */
+export function parseQuestImages(value: unknown): QuestImage[] | null | undefined {
   if (value === undefined) return undefined;
   if (!Array.isArray(value) || value.length > MAX_QUEST_IMAGES) return null;
   const images: QuestImage[] = [];
@@ -121,7 +121,7 @@ export function parseBookQuest(value: unknown): BookQuest | null {
   const title = bookLine(value.title, MAX_MAP_TITLE);
   const body = bookText(value.body ?? '', MAX_QUEST_BODY);
   const text = value.text === undefined ? undefined : parseTextAsset(value.text);
-  const images = parseImages(value.images);
+  const images = parseQuestImages(value.images);
   const place = parsePlace(value.place);
   const xp = value.xp ?? 0;
   const rewards = parseRewards(value.rewards);

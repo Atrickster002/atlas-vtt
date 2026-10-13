@@ -50,6 +50,8 @@ export interface SceneBindingPorts {
   logArt(hash: string): string | undefined;
   /** The roll button of the table's log a player's roll answers, as they may roll it. */
   rollRequest(from: string, answer: RollRequestAnswer): RollRequest | null;
+  /** The entry of the table's log that tells who found a readable pin of a map, or null while nobody has. */
+  foundPin(mapPath: string, pinId: string): string | null;
 }
 
 /** Claims are taken only while the presented scene is shown: a held list cannot show them. */
@@ -118,6 +120,7 @@ export function bindScene(ports: SceneBindingPorts, tab: AtlasTab, presented: Pr
     randomId: () => ports.randomId(),
     logRoll: (roll) => live() && ports.logRoll(roll),
     logArt: (hash) => ports.logArt(hash),
+    foundPin: (mapPath, pinId) => ports.foundPin(mapPath, pinId),
     rollRequest: (from, answer) => (shown() ? ports.rollRequest(from, answer) : null),
     now: () => timers.now(),
     setTimer: (run, ms) => timers.setTimer(() => live() && run(), ms),

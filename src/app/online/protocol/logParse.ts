@@ -1,7 +1,7 @@
 import { GM_AUTHOR, inlineMarks, isAuthor, MAX_FLAVOR, parseAudience, parsePeople, parseSpeaker, shownLine, type ChatStyle, type LogSpeaker } from './chat.ts';
 import { parseSharedRoll, type SharedRoll } from './dice.ts';
 import { chatText, isLogId, isLogReaction, isTime, LOG_REACTIONS, LOG_REFUSALS, MAX_LOG_ENTRIES, MAX_REPLY_PREVIEW, type ChatRefusal, type LogEntry, type LogMessage, type LogReaction, type LogReply, type PlayerChat, type PlayerLogMessage, type RollRequestRef } from './log.ts';
-import { parseLootCard, parseShownImageRef } from './logShown.ts';
+import { parseFoundNote, parseLootCard, parseShownImageRef } from './logShown.ts';
 import { MAX_PLAYERS, playerName, UNSEEN, UNSHOWN } from './relay.ts';
 import { isRecord } from './shape.ts';
 import { TOKEN_ID_PATTERN } from './tokens.ts';
@@ -127,6 +127,11 @@ export function parseLogEntry(value: unknown): LogEntry | null {
   if (value.kind === 'loot') {
     const item = parseLootCard(value.item);
     return item === null ? null : { ...base, kind: 'loot', item, ...(reactions !== undefined && { reactions }) };
+  }
+  if (value.kind === 'found') {
+    // A pin is found by a player at the table, never by the GM.
+    const note = value.who === GM_AUTHOR ? null : parseFoundNote(value);
+    return note === null ? null : { ...base, kind: 'found', ...note, ...(reactions !== undefined && { reactions }) };
   }
   return value.kind === 'chat' ? parseChatEntry(value, base, reactions) : null;
 }

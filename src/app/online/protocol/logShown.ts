@@ -1,5 +1,8 @@
-import { isSide, parseAsset, type AssetRef } from './asset.ts';
+import { isSide, parseAsset, parseTextAsset, type AssetRef } from './asset.ts';
+import { MAX_QUEST_BODY, parseQuestImages } from './bookMap.ts';
+import { bookText } from './bookText.ts';
 import { shownLine } from './chat.ts';
+import type { QuestImage } from './questText.ts';
 import { isRecord } from './shape.ts';
 
 /** The most properties a loot card carries, and the longest a name, a short value and a description may be. */
@@ -16,6 +19,21 @@ export interface LootCard {
   readonly price?: string;
   readonly description?: string;
   readonly properties: readonly { readonly label: string; readonly value: string }[];
+}
+
+/** The longest title of a found note. */
+export const MAX_FOUND_TITLE = 120;
+
+/**
+ * A note a readable pin let the players read, as the GM sends it: its title (the note's name, or the
+ * heading the pin links to), the opening of its Markdown text, the whole text by hash where the
+ * opening is not all of it (`TEXT_MIME_TYPE`), and the images the text embeds, as a quest's.
+ */
+export interface FoundNote {
+  readonly title: string;
+  readonly body: string;
+  readonly text?: AssetRef;
+  readonly images?: readonly QuestImage[];
 }
 
 /** An image the GM showed the players: by hash with its size, never its file's name or path. */
@@ -61,4 +79,14 @@ export function parseShownImageRef(value: Record<string, unknown>): ShownImageRe
   const image = parseAsset(value.image);
   if (image === null || !isSide(value.width) || !isSide(value.height)) return null;
   return { image, width: value.width, height: value.height };
+}
+
+/** A found note as a log entry carries it, or null for anything malformed. */
+export function parseFoundNote(value: Record<string, unknown>): FoundNote | null {
+  const title = shownLine(value.title, MAX_FOUND_TITLE);
+  const body = bookText(value.body, MAX_QUEST_BODY);
+  const text = value.text === undefined ? undefined : parseTextAsset(value.text);
+  const images = parseQuestImages(value.images);
+  if (title === null || body === null || text === null || images === null) return null;
+  return { title, body, ...(text !== undefined && { text }), ...(images !== undefined && images.length > 0 && { images }) };
 }

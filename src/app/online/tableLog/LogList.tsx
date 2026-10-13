@@ -1,8 +1,9 @@
-import type { ImageEntry, LogSpeaker, RollEntry, TablePerson } from '../protocol/index.ts';
+import type { FoundEntry, ImageEntry, LogSpeaker, RollEntry, TablePerson } from '../protocol/index.ts';
 import { ArrowDown, MessagesSquare } from 'lucide-react';
 import { useEffect, useState, type FocusEvent, type KeyboardEvent, type ReactElement } from 'react';
 import { audienceNames } from './audience.ts';
 import { ChatRow } from './ChatRow.tsx';
+import { FoundRow } from './FoundRow.tsx';
 import { classes } from './classes.ts';
 import { continuesPrevious, shownName } from './logAuthors.ts';
 import type { ShownEntry } from './LogState.ts';
@@ -42,10 +43,11 @@ export interface LogListProps {
   readonly people: readonly TablePerson[];
   readonly imageSrc: ((entry: ImageEntry) => string | null) | undefined;
   readonly openImage: ((entry: ImageEntry) => void) | undefined;
+  readonly openFound: ((entry: FoundEntry) => void) | undefined;
   readonly onTabStop: (id: string) => void;
 }
 
-const hasTools = (entry: ShownEntry): boolean => entry.kind === 'chat' || entry.kind === 'roll' || entry.kind === 'image' || entry.kind === 'loot';
+const hasTools = (entry: ShownEntry): boolean => entry.kind === 'chat' || entry.kind === 'roll' || entry.kind === 'image' || entry.kind === 'loot' || entry.kind === 'found';
 
 /** The way down, over the list's lower edge: what arrived below, or just the way where nothing did. */
 function JumpPill({ scroll }: { readonly scroll: LogScroll }): ReactElement {
@@ -64,7 +66,7 @@ function JumpPill({ scroll }: { readonly scroll: LogScroll }): ReactElement {
  * two days. The Tab key reaches one row; the arrow keys move between rows. A thread stands under
  * its root, which is ruled off from the answers.
  */
-export function LogList({ entries, stats, selected, ui, api, scroll, rollFace, speakerPortrait, people, imageSrc, openImage, onTabStop }: LogListProps): ReactElement {
+export function LogList({ entries, stats, selected, ui, api, scroll, rollFace, speakerPortrait, people, imageSrc, openImage, openFound, onTabStop }: LogListProps): ReactElement {
   const now = useNow();
   const inThread = api.thread !== null;
   const portraitOf = (speaker: LogSpeaker | undefined): Portrait | null => (speaker === undefined ? null : speakerPortrait?.(speaker) ?? null);
@@ -115,6 +117,7 @@ export function LogList({ entries, stats, selected, ui, api, scroll, rollFace, s
                 {entry.kind === 'secret' && <SecretRow entry={entry} self={api.self} time={time} />}
                 {entry.kind === 'image' && <ImageRow entry={entry} src={imageSrc?.(entry) ?? null} onOpen={openImage === undefined ? undefined : () => openImage(entry)} time={time} thread={thread} api={api} {...flags} />}
                 {entry.kind === 'loot' && <LootRow entry={entry} time={time} thread={thread} api={api} {...flags} />}
+                {entry.kind === 'found' && <FoundRow entry={entry} onOpen={openFound === undefined ? undefined : () => openFound(entry)} time={time} thread={thread} api={api} {...flags} />}
                 {(entry.kind === 'joined' || entry.kind === 'left') && (
                   <div className="atlas-online-log__presence">
                     {entry.kind === 'joined' ? `${shownName(entry.who, entry.name, api.self)} joined the table` : `${shownName(entry.who, entry.name, api.self)} left the table`}

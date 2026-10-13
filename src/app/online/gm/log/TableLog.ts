@@ -1,23 +1,22 @@
-import { GM_AUTHOR, isLogReaction, isPlayerLogType, isRecord, MAX_LOG_ENTRIES, parseLogEntry, parsePlayerLog, quoting, type ChatRefusal, type LogEntry, type LogReactionEmoji, type LootCard, type PlayerInfo, type PlayerLogMessage, type ShownImageRef, type RollRequestAnswer, type TablePerson } from '../../protocol/index.ts';
+import { GM_AUTHOR, isLogReaction, isPlayerLogType, isRecord, MAX_LOG_ENTRIES, parseLogEntry, parsePlayerLog, type ChatRefusal, type FoundNote, type LogEntry, type LogReactionEmoji, type LootCard, type PlayerInfo, type PlayerLogMessage, type ShownImageRef, type RollRequestAnswer, type TablePerson } from '../../protocol/index.ts';
 import { MoveRate } from '../moveCheck.ts';
 import { chatFields, keepsRolls, rollButton } from './logChat.ts';
 import { CHAT_BURST, CHATS_PER_SECOND, GM_NAME, LOG_SNAPSHOT_BYTES, REACT_BURST, REACTS_PER_SECOND, REFUSAL_BURST, REFUSALS_PER_SECOND, rollEntry, type ChatDraft, type LoggedRoll, type RollRequest, type SpokenAs, type TableLogPorts } from './logTypes.ts';
-import { entriesWithin, imageFileIn, readSavedLog, seesWhole, sharedEntry, speakerArtIn, takesReactions, viewOf, type GmLogEntry, type SavedLog } from './logEntries.ts';
+import { entriesWithin, imageFileIn, isRemovable, readSavedLog, requoted, seesWhole, sharedEntry, speakerArtIn, takesReactions, viewOf, type FoundPin, type GmLogEntry, type SavedLog } from './logEntries.ts';
 import { publishEntry, retractEntry, sendLog } from './logFanout.ts';
 import { LEAVE_GRACE_MS, LogPresence } from './LogPresence.ts';
-import { withReaction } from './logReactions.ts';
+import { reacted } from './logReactions.ts';
 
 export { CHAT_BURST, CHATS_PER_SECOND, GM_NAME, LEAVE_GRACE_MS, LOG_SNAPSHOT_BYTES, REACT_BURST, REACTS_PER_SECOND, REFUSAL_BURST, REFUSALS_PER_SECOND };
 export type { ChatDraft, LoggedRoll, RollRequest, SpokenAs, TableLogPorts };
 
 /**
- * The table's log, kept by the GM: chat messages, rolls, and who came and went. Players' messages are
- * taken only as checked (shape and text by the protocol's parser, the sender as the relay stamped it,
- * their rate, whom they whisper and as whom they speak, and that what they edit or delete is their
- * own). Every change goes to each player as they may see it (`viewOf`): whispers only to their
- * audience, a private roll whole to the people shown it and as a line that it was made to the rest.
- * Entries only the GM has (`hidden`) are never sent and are counted apart, so nothing players hold
- * tells of them. Nothing is kept that a client would not read (`parseLogEntry`).
+ * The table's log, kept by the GM: chat, rolls, who came and went, what the GM showed or handed out and the notes players found.
+ * Players' messages are taken only as checked (shape and text by the protocol's parser, the sender as the relay stamped it,
+ * their rate, whom they whisper and as whom they speak, and that what they edit or delete is their own). Every change goes to
+ * each player as they may see it (`viewOf`): whispers only to their audience, a private roll whole to the people shown it and
+ * as a line that it was made to the rest. Entries only the GM has (`hidden`) are never sent and are counted apart, so nothing
+ * players hold tells of them. Nothing is kept that a client would not read (`parseLogEntry`).
  */
 export class TableLog {
   private readonly ports: TableLogPorts;
@@ -82,6 +81,20 @@ export class TableLog {
     void this.add({ ...this.stamp(GM_AUTHOR, GM_NAME), kind: 'loot', item });
   }
 
+  /** A player at the table found a readable pin: everyone reads its note. Its entry's id, or null where it could not be logged. */
+  pinFound(who: string, note: FoundNote, pin: FoundPin): string | null {
+    const name = this.presence.nameOf(who);
+    const entry: GmLogEntry | null = name === null ? null : { ...this.stamp(who, name), kind: 'found', ...note, pin };
+    return entry !== null && this.add(entry) ? entry.id : null;
+  }
+
+  /** An entry the table changed (a found note's new text), to everyone who holds it; nothing where a client would not read it. */
+  revise(entry: GmLogEntry): void {
+    if (this.find(entry.id) === undefined || parseLogEntry(sharedEntry(entry)) === null) return;
+    this.replace(entry);
+    this.ports.changed();
+  }
+
   /** The relay's welcome: exactly these players are connected. */
   welcome(players: readonly PlayerInfo[]): void {
     this.presence.welcome(players);
@@ -118,10 +131,10 @@ export class TableLog {
     return this.changeText(GM_AUTHOR, id, text);
   }
 
-  /** The GM deletes a chat message, their own or a player's, of those the GM sees. */
+  /** The GM deletes a chat message, their own or a player's, an image, an item or a found note, of those the GM sees. */
   remove(id: string): void {
     const entry = this.visible(id, GM_AUTHOR);
-    if (entry?.kind === 'chat' || entry?.kind === 'image' || entry?.kind === 'loot') this.drop(entry);
+    if (entry !== undefined && isRemovable(entry)) this.drop(entry);
   }
 
   /** The GM gives or takes back a reaction. */
@@ -216,7 +229,7 @@ export class TableLog {
     if (entry.text === text) return null;
     if (!keepsRolls(entry.text, text)) return 'roll';
     this.replace({ ...entry, text, edited: this.ports.clock() });
-    this.requote(id, text);
+    this.list = requoted(this.list, id, text);
     this.ports.changed();
     return null;
   }
@@ -224,10 +237,9 @@ export class TableLog {
   private setReaction(who: string, id: string, emoji: LogReactionEmoji, on: boolean): boolean {
     const entry = this.visible(id, who);
     if (entry === undefined || !takesReactions(entry) || !isLogReaction(emoji)) return false;
-    const reactions = withReaction(entry.reactions ?? [], emoji, who, on);
-    if (reactions === null) return true;
-    const { reactions: _before, ...rest } = entry;
-    this.replace(reactions.length === 0 ? rest : { ...rest, reactions });
+    const next = reacted(entry, emoji, who, on);
+    if (next === entry) return true;
+    this.replace(next);
     this.ports.changed();
     return true;
   }
@@ -272,21 +284,11 @@ export class TableLog {
     publishEntry((body, to) => this.ports.send(body, to), this.presence.players, entry);
   }
 
-  /**
-   * The answers to the entry `id` quote its new text, or nothing once it was deleted (null). Players
-   * are told nothing more: their pages do the same by the same rule (`quoting`), so a message with
-   * many answers costs one frame to change, not one for each. An answer to a whisper is a whisper to
-   * the same people, so the quote reaches only those who were shown what it quotes.
-   */
-  private requote(id: string, text: string | null): void {
-    this.list = this.list.map((other) => (other.kind === 'chat' && other.reply?.id === id ? { ...other, reply: quoting(other.reply, text) } : other));
-  }
-
   private drop(entry: GmLogEntry): void {
     this.list = this.list.filter((other) => other.id !== entry.id);
     retractEntry((body, to) => this.ports.send(body, to), this.presence.players, entry);
-    // Answers keep standing, without what they quoted.
-    this.requote(entry.id, null);
+    // Answers keep standing, without what they quoted (`requoted`).
+    this.list = requoted(this.list, entry.id, null);
     this.ports.changed();
   }
 

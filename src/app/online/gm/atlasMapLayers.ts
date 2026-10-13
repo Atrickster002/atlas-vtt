@@ -1,11 +1,12 @@
 import type { SensedMark } from '../protocol/index.ts';
 import type { FogCoverage } from '../../fog/fogCoverage';
 import type { GridOptions } from '../../grid/GridSystem';
-import { playerDoorSight } from '../../pixi/lighting/playerLightingLayers';
+import { playerDoorSight, playerPointSight } from '../../pixi/lighting/playerLightingLayers';
 import type { SceneLightingView } from '../../pixi/lighting/sceneLightingView';
 import { PlayedRules } from '../../campaigns/playedRules';
 import type { CollectionLookup, RulesLookup } from '../../gameSystems/mapRules';
 import type { TokenEntity } from '../../types';
+import type { Point } from '../../types/visionTypes';
 import type { WallSegment } from '../../types/wallTypes';
 import type { TokenPerception } from '../../vision/tokenPerception';
 import { field } from './atlasLighting.ts';
@@ -24,6 +25,8 @@ export interface MapLayerSource {
    * scene's lighting cannot be read or its sight is not yet the scene's.
    */
   doorsSeen(walls: Readonly<Record<string, WallSegment>>, fog: FogCoverage | null): ReadonlySet<string> | null;
+  /** Which of `points` the players' picture of a lit scene shows now (the doors' rule, with the committed fog); null as for the doors. */
+  pointsSeen(points: readonly Point[], fog: FogCoverage | null): boolean[] | null;
   /** The tokens the players only sense now, where their frame outlines them; null as for the doors. */
   sensed(tokens: Readonly<Record<string, TokenEntity>>): SensedMark[] | null;
   /** Where the map's rules are looked up (Atlas's asset service and the played campaign), or null. */
@@ -64,6 +67,10 @@ export function mapLayerSourceOf(renderer: unknown, view: unknown): MapLayerSour
     doorsSeen: (walls, fog) => {
       const lighting = controllerOf(renderer);
       return lighting === null ? null : playerDoorSight(lighting.view, { ...walls }, fog);
+    },
+    pointsSeen: (points, fog) => {
+      const lighting = controllerOf(renderer);
+      return lighting === null ? null : playerPointSight(lighting.view, points, fog);
     },
     sensed: (tokens) => {
       const lighting = controllerOf(renderer);

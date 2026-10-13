@@ -10,7 +10,7 @@ import type { LogMessage, PlayerLogMessage } from './log.ts';
 import { isPlayerLogType, parseLogMessage, parsePlayerLog } from './logParse.ts';
 import { parsePlayerClaim, type PlayerClaim } from './claims.ts';
 import { parsePlayerRoll, parseRoll, parseRollRefused, type PlayerRoll, type RollMessage, type RollRefused } from './dice.ts';
-import { parseAnnotations, parseDoors, parseGrid, parseSensed, type SensedMark, type SharedAnnotations, type SharedDoor, type SharedGrid } from './mapLayers.ts';
+import { parseAnnotations, parseDoors, parseGrid, parsePinFound, parsePins, parseSensed, type PlayerPinFound, type SensedMark, type SharedAnnotations, type SharedDoor, type SharedGrid, type SharedPin } from './mapLayers.ts';
 import { parseMarks, parsePlayerMark, type MarksMessage, type PlayerCursor, type PlayerLaser, type PlayerMeasure } from './marks.ts';
 import { isRecord } from './shape.ts';
 import { MAX_SCENE_ID, parseDragCancel, parseMoveRefused, parsePlayerMove, parseSnapGrid, type MoveRefused, type PlayerDrag, type PlayerDragCancel, type PlayerMove, type SnapGrid } from './moves.ts';
@@ -68,6 +68,8 @@ export type GmMessage =
   | { readonly t: 'doors'; readonly scene: string; readonly doors: readonly SharedDoor[] }
   /** The tokens the players only sense now, as outlines (a lit scene only). */
   | { readonly t: 'sensed'; readonly scene: string; readonly tokens: readonly SensedMark[] }
+  /** The readable pins where the players see the map now. */
+  | { readonly t: 'pins'; readonly scene: string; readonly pins: readonly SharedPin[] }
   /** The drawings and texts on the map, but those committed fog covers whole. */
   | ({ readonly t: 'annotations'; readonly scene: string } & SharedAnnotations)
   /** The players' initiative list; null while it is not shown. */
@@ -104,7 +106,7 @@ export interface PlayerAssetRequest {
   readonly maxSide?: number;
 }
 
-export type PlayerMessage = PlayerAssetRequest | PlayerResync | PlayerMove | PlayerDrag | PlayerDragCancel | PlayerClaim | PlayerRoll | PlayerLaser | PlayerMeasure | PlayerCursor | PlayerLogMessage | PlayerBookMessage;
+export type PlayerMessage = PlayerAssetRequest | PlayerResync | PlayerMove | PlayerDrag | PlayerDragCancel | PlayerClaim | PlayerRoll | PlayerLaser | PlayerMeasure | PlayerCursor | PlayerLogMessage | PlayerBookMessage | PlayerPinFound;
 
 const MAX_CHUNKS = Math.ceil(MAX_ASSET_BYTES / ASSET_CHUNK_BYTES);
 const BASE64 = /^[A-Za-z0-9+/]*={0,2}$/;
@@ -155,6 +157,10 @@ function parseSceneInput(value: Record<string, unknown>, scene: string): GmMessa
     case 'sensed': {
       const tokens = parseSensed(value.tokens);
       return tokens === null ? null : { t: 'sensed', scene, tokens };
+    }
+    case 'pins': {
+      const pins = parsePins(value.pins);
+      return pins === null ? null : { t: 'pins', scene, pins };
     }
     case 'annotations': {
       const annotations = parseAnnotations(value);
@@ -237,6 +243,7 @@ export function parsePlayerMessage(value: unknown): PlayerMessage | null {
   if (value.t === 'move' || value.t === 'drag') return parsePlayerMove(value, value.t);
   if (value.t === 'drag-cancel') return parseDragCancel(value);
   if (value.t === 'claim') return parsePlayerClaim(value);
+  if (value.t === 'pin-found') return parsePinFound(value, isSceneId);
   if (value.t === 'roll') return parsePlayerRoll(value);
   if (value.t === 'laser' || value.t === 'measure' || value.t === 'cursor') return parsePlayerMark(value);
   if (isPlayerLogType(value.t)) return parsePlayerLog(value);

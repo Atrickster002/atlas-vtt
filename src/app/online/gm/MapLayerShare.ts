@@ -9,6 +9,7 @@ import type { MapLayerSource } from './atlasMapLayers.ts';
 import type { SceneState, SceneStore } from './atlasView.ts';
 import { sharedInitiative } from './initiativeInputs.ts';
 import { sharedAnnotations, sharedDoors, sharedGrid } from './mapLayerInputs.ts';
+import { ReadablePins, type ListedPin } from './pins/ReadablePins.ts';
 import type { VaultImage } from './TokenShare.ts';
 import { WidgetShare } from './WidgetShare.ts';
 
@@ -18,12 +19,16 @@ export interface MapLayerSharePorts extends PacerClock {
   mapLayers(): MapLayerSource | null;
   atlasSettings(): AtlasPlayerSettings;
   readImage(path: string): Promise<VaultImage | null>;
+  /** A new alias: 24 hex characters from the cryptographic source. */
+  randomId(): string;
+  /** The log entry that tells who found the pin `pinId` of the map `mapPath`, or null while nobody has. */
+  foundPin?(mapPath: string, pinId: string): string | null;
 }
 
 /** The shortest time between two sends of the map's layers, as for the token list. */
 export const MAP_LAYER_INTERVAL_MS = 66;
 
-type LayerMessage = Extract<GmMessage, { t: 'grid' | 'doors' | 'sensed' | 'annotations' | 'initiative' }>;
+type LayerMessage = Extract<GmMessage, { t: 'grid' | 'doors' | 'sensed' | 'annotations' | 'initiative' | 'pins' }>;
 type LayerState = SceneState & Partial<Pick<ViewState, 'initiative' | 'initiativeTrackerOpen'>>;
 
 interface Sent {
@@ -43,7 +48,8 @@ interface AnnotationKey {
  * What players see of the map beside its tokens, fog and lighting, sent to all whenever it changes, at
  * most every `MAP_LAYER_INTERVAL_MS`: the grid, the drawings and texts that fog does not cover whole,
  * the initiative list, the widgets (`WidgetShare`) and, in a lit scene, the badges of the doors they see and the outlines of the
- * tokens they only sense. Pins are the GM's alone and never sent.
+ * tokens they only sense. Of the pins only those the GM made readable, where the players see the map
+ * (`ReadablePins`); every other pin is the GM's alone and never sent.
  */
 export class MapLayerShare {
   private readonly store: SceneStore;
@@ -52,6 +58,7 @@ export class MapLayerShare {
   private readonly fog = new FogCoverageCache();
   private readonly art: ArtRefs;
   private readonly widgets: WidgetShare;
+  private readonly pins: ReadablePins;
   private scene: { readonly id: string; readonly lit: boolean } | null = null;
   private readonly last = new Map<LayerMessage['t'], Sent>();
   private annotations: { readonly key: AnnotationKey; readonly value: SharedAnnotations } | null = null;
@@ -64,6 +71,7 @@ export class MapLayerShare {
     this.ports = ports;
     this.pacer = new Pacer(ports, MAP_LAYER_INTERVAL_MS, () => this.flush());
     this.art = new ArtRefs((path) => ports.readImage(path), () => this.update());
+    this.pins = new ReadablePins(() => ports.randomId());
     this.widgets = new WidgetShare(store, { ...ports, showWidgets: () => ports.atlasSettings().showWidgets });
   }
 
@@ -76,6 +84,7 @@ export class MapLayerShare {
     this.annotationsSent = null;
     this.shownArt = new Map();
     this.art.clear();
+    this.pins.clear();
     this.fog.reset();
     this.pacer.cancel();
     this.widgets.setScene(scene?.id ?? null);
@@ -128,11 +137,30 @@ export class MapLayerShare {
     });
     this.shownArt = art;
     this.publish({ t: 'initiative', scene: scene.id, list });
+    const pins = this.readablePins(state, source, fog);
+    if (pins !== null) this.publish({ t: 'pins', scene: scene.id, pins: this.pins.shared(pins, (pinId) => this.ports.foundPin?.(state.mapPath ?? '', pinId) ?? null) });
     if (!scene.lit) return;
     const seen = source.doorsSeen(state.objects.walls, fog);
     if (seen !== null) this.publish({ t: 'doors', scene: scene.id, doors: sharedDoors(state.objects.walls, seen) });
     const sensed = source.sensed(state.objects.tokens);
     if (sensed !== null) this.publish({ t: 'sensed', scene: scene.id, tokens: sensed });
+  }
+
+  /**
+   * The readable pin players know as `alias` in the scene `sceneId`, while they see it now; null for
+   * any other, and while the scene is not shared, loads or its layers cannot be read.
+   */
+  readablePin(sceneId: string, alias: string): (ListedPin & { readonly map: string }) | null {
+    const state: LayerState = this.store.getState();
+    const source = this.ports.mapLayers();
+    const map = state.mapPath;
+    if (this.scene?.id !== sceneId || source === null || map === null || !state.mapLoaded || state.isMapLoading) return null;
+    const listed = this.readablePins(state, source, this.fog.get(state.objects.fog, map))?.find((pin) => pin.alias === alias);
+    return listed === undefined ? null : { ...listed, map };
+  }
+
+  private readablePins(state: SceneState, source: MapLayerSource, fog: FogCoverage | null): ListedPin[] | null {
+    return this.pins.listed(state, { lit: this.scene?.lit === true, fog, seen: (points) => source.pointsSeen(points, fog) });
   }
 
   /** The drawings and texts, worked out again only when they or the fog changed. */

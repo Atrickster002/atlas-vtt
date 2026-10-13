@@ -1,4 +1,4 @@
-import { GM_AUTHOR, isRecord, MAX_LOG_ENTRIES, MAX_PLAYERS, parseLogEntry, PLAYER_ID_PATTERN, type LogEntry } from '../../protocol/index.ts';
+import { GM_AUTHOR, isRecord, MAX_LOG_ENTRIES, MAX_PLAYERS, parseLogEntry, PLAYER_ID_PATTERN, quoting, type LogEntry } from '../../protocol/index.ts';
 import type { TokenEntity } from '../../../types';
 import type { DiceRollResult } from '../../../types/diceTypes';
 
@@ -19,13 +19,21 @@ export function rollFaceOf(source: DiceRollResult['source'], tokens: Readonly<Re
   return { face: { name: name.slice(0, MAX_FACE_TEXT), image: image === undefined || image === '' || image.length > MAX_FACE_TEXT ? null : image } };
 }
 
+/** The readable pin a found note's entry was found at: the map, the pin's id there and its link as it was then. */
+export interface FoundPin {
+  readonly map: string;
+  readonly pin: string;
+  readonly link: string;
+}
+
 /**
  * An entry as the GM keeps it: what players are sent, and beside it what only the GM's log has.
  * `hidden`: players never get the entry (a GM's roll they are not shown). `face`: the roll's token.
  * `speakerArt`: the vault path of the speaking token's artwork, which its viewers may be sent.
  * `imageFile`: the vault path of an image the GM showed, which players may be sent while it is logged.
+ * `pin`: the readable pin a found note was found at.
  */
-export type GmLogEntry = LogEntry & { readonly hidden?: true; readonly face?: RollFace; readonly speakerArt?: string; readonly imageFile?: string };
+export type GmLogEntry = LogEntry & { readonly hidden?: true; readonly face?: RollFace; readonly speakerArt?: string; readonly imageFile?: string; readonly pin?: FoundPin };
 
 /** The token the GM's log names for an entry, when it holds one. */
 export function faceOf(entry: LogEntry): RollFace | undefined {
@@ -34,7 +42,7 @@ export function faceOf(entry: LogEntry): RollFace | undefined {
 
 /** An entry as players are sent it: without what only the GM's log has. */
 export function sharedEntry(entry: GmLogEntry): LogEntry {
-  const { hidden: _hidden, face: _face, speakerArt: _art, imageFile: _file, ...shared } = entry;
+  const { hidden: _hidden, face: _face, speakerArt: _art, imageFile: _file, pin: _pin, ...shared } = entry;
   return shared;
 }
 
@@ -109,12 +117,14 @@ function readLogEntries(saved: unknown): GmLogEntry[] {
     const face = entry.kind === 'roll' ? readFace(value.face) : undefined;
     const speakerArt = vaultPath(value.speakerArt);
     const imageFile = entry.kind === 'image' ? vaultPath(value.imageFile) : undefined;
+    const pin = entry.kind === 'found' ? readFoundPin(value.pin) : undefined;
     entries.push({
       ...entry,
       ...(value.hidden === true && { hidden: true as const }),
       ...(face !== undefined && { face }),
       ...(speakerArt !== undefined && { speakerArt }),
       ...(imageFile !== undefined && { imageFile }),
+      ...(pin !== undefined && { pin }),
     });
   }
   return entries;
@@ -135,7 +145,27 @@ function vaultPath(value: unknown): string | undefined {
   return typeof value === 'string' && value !== '' && value.length <= MAX_FACE_TEXT ? value : undefined;
 }
 
-/** Whether an entry takes reactions: what was said, rolled, shown or handed out. */
-export function takesReactions(entry: LogEntry): entry is Extract<LogEntry, { readonly kind: 'chat' | 'roll' | 'image' | 'loot' }> {
-  return entry.kind === 'chat' || entry.kind === 'roll' || entry.kind === 'image' || entry.kind === 'loot';
+/** Whether an entry takes reactions: what was said, rolled, shown, handed out or found. */
+export function takesReactions(entry: LogEntry): entry is Extract<LogEntry, { readonly kind: 'chat' | 'roll' | 'image' | 'loot' | 'found' }> {
+  return entry.kind === 'chat' || entry.kind === 'roll' || entry.kind === 'image' || entry.kind === 'loot' || entry.kind === 'found';
+}
+
+/** Whether the GM may delete an entry: a chat message, an image shown, an item handed out, a note found (which may then be found again). */
+export const isRemovable = (entry: LogEntry): boolean => entry.kind === 'chat' || entry.kind === 'image' || entry.kind === 'loot' || entry.kind === 'found';
+
+/** A readable pin as kept with a found note's entry, or undefined. */
+function readFoundPin(value: unknown): FoundPin | undefined {
+  if (!isRecord(value)) return undefined;
+  const [map, pin, link] = [vaultPath(value.map), vaultPath(value.pin), vaultPath(value.link)];
+  return map === undefined || pin === undefined || link === undefined ? undefined : { map, pin, link };
+}
+
+/**
+ * The answers to the entry `id` quote its new text, or nothing once it was deleted (null). Players
+ * are told nothing more: their pages do the same by the same rule (`quoting`), so a message with
+ * many answers costs one frame to change, not one for each. An answer to a whisper is a whisper to
+ * the same people, so the quote reaches only those who were shown what it quotes.
+ */
+export function requoted(list: readonly GmLogEntry[], id: string, text: string | null): GmLogEntry[] {
+  return list.map((other) => (other.kind === 'chat' && other.reply?.id === id ? { ...other, reply: quoting(other.reply, text) } : other));
 }

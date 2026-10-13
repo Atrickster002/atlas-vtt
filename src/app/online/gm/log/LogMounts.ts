@@ -14,6 +14,8 @@ export interface LogMountsDeps {
   imageSrc(path: string): string;
   /** The table's log opened on a view: that view's control makes way. */
   opened(leaf: WorkspaceLeaf): void;
+  /** Opens a note by its link, as from the note `sourcePath` (a found note, from the map its pin is on). */
+  openNote(link: string, sourcePath: string): void;
 }
 
 /** A map view's container element; Obsidian's `View.containerEl`. */
@@ -84,6 +86,10 @@ export class LogMounts {
       imageSrc: (entry) => {
         const path = (entry as GmLogEntry).imageFile;
         return path === undefined ? null : this.deps.imageSrc(path);
+      },
+      openFound: (entry) => {
+        const pin = (entry as GmLogEntry).pin;
+        if (pin !== undefined) this.deps.openNote(pin.link, pin.map);
       },
       canSend: () => table.status === 'online',
       rollFace: (entry) => this.rollFace(entry),

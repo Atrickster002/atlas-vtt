@@ -1,4 +1,4 @@
-import type { ChatStyle, ImageEntry, LogReactionEmoji, LogSpeaker, RollEntry, RollMode, RollRequestAnswer } from '../protocol/index.ts';
+import type { ChatStyle, FoundEntry, ImageEntry, LogReactionEmoji, LogSpeaker, RollEntry, RollMode, RollRequestAnswer } from '../protocol/index.ts';
 import type { LogState } from './LogState.ts';
 
 /** A message as the viewer says it; `speaker` is the key of one of the panel's `speakers` (absent: as oneself). */
@@ -70,6 +70,8 @@ export interface TableLogPanelProps {
   readonly imageSrc?: (entry: ImageEntry) => string | null;
   /** Opens an image the GM showed large. */
   readonly openImage?: (entry: ImageEntry) => void;
+  /** Opens a note a player found, to read it whole; without it the log shows its opening only. */
+  readonly openFound?: (entry: FoundEntry) => void;
   /** 'floating': the fixed panel at the left edge with header, pin and close; 'embedded': fills its container (a phone's sheet, which has its own title and close). */
   readonly variant: 'floating' | 'embedded';
   readonly onClose: () => void;
