@@ -1,12 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { normalizePath } from 'obsidian';
 import { motion } from 'framer-motion';
 import { MapIcon } from 'lucide-react';
 import type { AssetService } from '../../../services/AssetService';
-import { newSceneFile } from '../../../services/newSceneFile';
-import { SettingsService } from '../../../services/SettingsService';
-import { normalizeImagePath } from '../../../utils/pathUtils';
-import { ensureFolder } from '../../../plugin/vaultFolders';
+import { createScene, SceneNameTakenError } from '../../../services/createScene';
 import { useAtlasUI } from '../../../react/root/AtlasUIContext';
 import { CloseButton } from '../primitives/CloseButton';
 import { Button } from '../primitives/button';
@@ -89,39 +85,12 @@ export default function CreateSceneModal({
 
     setIsCreating(true);
     try {
-      const collection = await assetService.getCollection(selectedCollection);
-      if (!collection) {
-        throw new Error(`Collection "${selectedCollection}" no longer exists. Select another collection and try again.`);
-      }
-      const collectionId = collection.id;
-
-      // If invoked from a map, the scene starts on its image (as a vault-relative path)
-      const mapData = newSceneFile(
-        assetService.getCollectionSettings(collectionId),
-        backgroundPath ? normalizeImagePath(backgroundPath) : null,
-        SettingsService.forApp(app)?.detectsGridOnNewScenes() ?? true,
-      );
-
-      const scenePath = normalizePath(`atlas-vtt/collections/${collectionId}/scenes/${sceneName.trim()}.atlasmap`);
-
-      if (app.vault.getAbstractFileByPath(scenePath)) {
-        showNotice(t('am.scene.nameTaken', { name: sceneName.trim() }));
-        return;
-      }
-
-      // The map file and its scene record are written as one step, so the vault
-      // check never finds the new map without a scene and adds a second one.
-      const sceneFile = await assetService.runExclusive(async () => {
-        await ensureFolder(app, scenePath.substring(0, scenePath.lastIndexOf('/')));
-        const file = await app.vault.create(scenePath, JSON.stringify(mapData, null, 2));
-        await assetService.addAsset({
-          type: 'scene',
-          name: sceneName.trim(),
-          collection: collectionId,
-          tags: selectedTags,
-          data: { mapPath: scenePath },
-        });
-        return file;
+      const { file: sceneFile } = await createScene(app, assetService, {
+        name: sceneName,
+        collectionId: selectedCollection,
+        // If invoked from a map, the scene starts on its image
+        background: backgroundPath ?? null,
+        tags: selectedTags,
       });
 
       await app.workspace.getLeaf(false).openFile(sceneFile);
@@ -132,6 +101,10 @@ export default function CreateSceneModal({
       // Notify that scene was created (this will close the asset manager)
       onSceneCreated();
     } catch (error) {
+      if (error instanceof SceneNameTakenError) {
+        showNotice(t('am.scene.nameTaken', { name: error.sceneName }));
+        return;
+      }
       console.error('[CreateSceneModal] Error creating scene:', error);
       showNotice(t('am.scene.createFailed', { error: error instanceof Error ? error.message : String(error) }));
     } finally {

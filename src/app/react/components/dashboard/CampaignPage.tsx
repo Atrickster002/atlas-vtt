@@ -13,6 +13,7 @@ import type { WorldMapChoice } from './libraryPictures';
 import { PartyFaces } from './PartyFaces';
 import { CampaignQuests } from './quests/CampaignQuests';
 import type { PartyFace } from './useCampaignParties';
+import { WorldMapAction } from './WorldMapAction';
 import { WorldMapPicker } from './WorldMapPicker';
 
 interface CampaignPageProps {
@@ -37,6 +38,7 @@ export function CampaignPage({ app, campaign, campaigns, service, worldMaps, isP
   const nextSessionId = useId();
   const worldMapId = useId();
   const systemId = useId();
+  const worldMap = worldMaps.find((choice) => choice.id === campaign.worldMap);
 
   const deleteCampaign = async (): Promise<void> => {
     const confirmed = await confirmAction({
@@ -76,6 +78,7 @@ export function CampaignPage({ app, campaign, campaigns, service, worldMaps, isP
               <span>{t('campaign.play')}</span>
             </Button>
           )}
+          <WorldMapAction app={app} campaign={campaign} service={service} choice={worldMap} disabled={locked} />
           <PartyFaces faces={party} size="page" />
         </div>
       </header>
