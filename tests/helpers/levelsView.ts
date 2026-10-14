@@ -1,17 +1,17 @@
 import { EventEmitter } from 'events';
 import { Application, CanvasSource, Container, Matrix, RenderTexture, Sprite, Texture, type WebGLRenderer } from 'pixi.js';
 import { Viewport } from 'pixi-viewport';
-import { NO_STRETCH } from '../../../../grid/mapStretch';
-import { createViewAtlasStore, type ViewAtlasStore } from '../../../../storeFactory';
-import type { SceneLevel } from '../../../../types/sceneLevelTypes';
-import type { TokenRenderer } from '../../../TokenRenderer';
-import { RenderScheduler } from '../../../RenderScheduler';
-import { LightingController } from '../../LightingController';
-import type { BelowMapImage } from '../BelowLevel';
-import type { BelowLevelsHost } from '../LevelsBelow';
-import type { TokenArt } from '../BelowTokens';
-import type { FogCover } from '../../../../vision/throughSight';
-import { createInMemoryApp } from '../../../../../../tests/mocks/inMemoryVault';
+import { NO_STRETCH } from '../../src/app/grid/mapStretch';
+import { createViewAtlasStore, type ViewAtlasStore } from '../../src/app/storeFactory';
+import type { SceneLevel } from '../../src/app/types/sceneLevelTypes';
+import type { TokenRenderer } from '../../src/app/pixi/TokenRenderer';
+import { RenderScheduler } from '../../src/app/pixi/RenderScheduler';
+import { LightingController } from '../../src/app/pixi/lighting/LightingController';
+import type { BelowMapImage } from '../../src/app/pixi/lighting/levels/BelowLevel';
+import type { BelowLevelsHost } from '../../src/app/pixi/lighting/levels/LevelsBelow';
+import type { TokenArt } from '../../src/app/pixi/lighting/levels/BelowTokens';
+import type { FogCover } from '../../src/app/vision/throughSight';
+import { createInMemoryApp } from '../mocks/inMemoryVault';
 
 /** The scene's two floors: the view looks at the upper one and down into the ground floor. */
 export const LEVELS: SceneLevel[] = [

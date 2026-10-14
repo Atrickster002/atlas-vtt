@@ -1,8 +1,8 @@
-import '../../../../../../tests/setup/obsidianDom';
+import '../setup/obsidianDom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { TokenEntity } from '../../../../types';
-import type { LevelSurface } from '../../../../types/sceneLevelTypes';
-import { LEVELS, openLevelsView, paintedTexture, worldOf, type LevelsView } from './levelsHarness';
+import type { TokenEntity } from '../../src/app/types';
+import type { LevelSurface } from '../../src/app/types/sceneLevelTypes';
+import { LEVELS, openLevelsView, paintedTexture, worldOf, type LevelsView } from '../helpers/levelsView';
 
 vi.mock('events', async () => import('eventemitter3'));
 
