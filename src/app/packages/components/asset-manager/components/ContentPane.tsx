@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { ChevronDown, PackageOpen } from 'lucide-react';
+import { PackageOpen } from 'lucide-react';
 import type { App } from 'obsidian';
 import type {
   Tab, AnyAsset, Folder as FolderType, SelectionEvent,
@@ -8,6 +8,8 @@ import type {
 import { getTabDisplayName } from '../types';
 import { AssetCard } from './AssetCard';
 import { FolderGridItem } from './FolderGridItem';
+import { SectionHeader } from './SectionHeader';
+import { SelectionInfo } from './SelectionInfo';
 import { VirtualAssetGrid } from './VirtualAssetGrid';
 import { fadeVariants } from './gridMotion';
 import { useOpenAsset } from '../hooks/useOpenAsset';
@@ -55,30 +57,6 @@ export interface ContentPaneProps {
   scrollMemory: ScrollMemory;
   /** Set while filters narrow the list; the empty state offers to clear them. */
   onClearFilters?: () => void;
-}
-
-interface SectionHeaderProps {
-  title: string;
-  count: number;
-  collapsed: boolean;
-  onToggle: () => void;
-}
-
-function SectionHeader({ title, count, collapsed, onToggle }: SectionHeaderProps): React.JSX.Element {
-  return (
-    <div
-      className="atlas-section-header"
-      onClick={onToggle}
-      role="button"
-      aria-expanded={!collapsed}
-      tabIndex={0}
-      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onToggle(); }}
-    >
-      <ChevronDown className={`atlas-chevron ${collapsed ? 'atlas-collapsed' : ''}`} />
-      <h3>{title}</h3>
-      <span className="atlas-section-count">{count}</span>
-    </div>
-  );
 }
 
 const NO_IDS: ReadonlySet<string> = new Set();
@@ -143,6 +121,10 @@ export function ContentPane(props: ContentPaneProps): React.JSX.Element {
   const endDrag = (): void => { setDraggedItems(null); setDropTarget(null); };
 
   const isEmpty = assets.length === 0 && folders.length === 0;
+  // The first section's header carries the selection, under the sort.
+  const selection = (
+    <SelectionInfo count={selectedAssetIds.length + selectedFolderIds.length} onClear={onClearSelection} />
+  );
 
   return (
     <div
@@ -179,6 +161,7 @@ export function ContentPane(props: ContentPaneProps): React.JSX.Element {
                   count={folders.length}
                   collapsed={collapsedSections.folders}
                   onToggle={() => setCollapsedSections((prev) => ({ ...prev, folders: !prev.folders }))}
+                  end={selection}
                 />
                 {!collapsedSections.folders && (
                   <div className="atlas-folder-grid" onClick={clearIfBackground}>
@@ -210,6 +193,7 @@ export function ContentPane(props: ContentPaneProps): React.JSX.Element {
                   count={assets.length}
                   collapsed={collapsedSections.assets}
                   onToggle={() => setCollapsedSections((prev) => ({ ...prev, assets: !prev.assets }))}
+                  end={folders.length === 0 && selection}
                 />
                 {!collapsedSections.assets && (
                   <VirtualAssetGrid

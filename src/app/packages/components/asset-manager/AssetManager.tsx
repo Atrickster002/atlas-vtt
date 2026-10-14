@@ -254,7 +254,6 @@ export default function AssetManager({ isOpen, onClose, initialTab, onExitComple
                     activeTab={shown.tab}
                     path={shown.folderPath}
                     onNavigateToFolder={sel.handleNavigateToFolder}
-                    selection={{ count: sel.selectedAssetIds.length + sel.selectedFolderIds.length, onClear: sel.handleClearSelection }}
                     sort={sel}
                   />
                   <div className="atlas-asset-manager-main">

@@ -31,7 +31,7 @@
   min-width: 0;
 }
 
-// ── Location: breadcrumb, selection and sort ────────────────────────────────
+// ── Location: breadcrumb and sort ───────────────────────────────────────────
 
 // Its own row above the panes, so it stays put while they slide. The buttons'
 // inline padding lines their labels up with the content's edges.
@@ -85,49 +85,6 @@
     &.atlas-current {
       color: var(--text-normal);
       pointer-events: none;
-    }
-  }
-}
-
-// ── Selection ───────────────────────────────────────────────────────────────
-
-.atlas-selection-info {
-  @include atlas-flex-row($gap: $spacing-xs);
-  flex-shrink: 0;
-  height: $control-height;
-  padding: 0 $spacing-xs 0 $spacing-s;
-  background: color-mix(in oklch, var(--interactive-accent) 14%, transparent);
-  color: var(--text-accent);
-  border-radius: $radius-m;
-  font-size: $font-ui-small;
-  font-weight: $font-weight-medium;
-  white-space: nowrap;
-  opacity: 1;
-  transform: translateX(0);
-  transition: opacity 150ms $transition-ease-out, transform 150ms $transition-ease-out;
-
-  @starting-style {
-    opacity: 0;
-    transform: translateX(4px);
-  }
-
-  .atlas-clear-selection-btn {
-    &.btn,
-    &.btn--icon {
-      width: 20px;
-      height: 20px;
-      border-radius: $radius-s;
-      color: var(--text-accent);
-    }
-
-    svg {
-      width: 12px;
-      height: 12px;
-    }
-
-    &:hover {
-      background: color-mix(in oklch, var(--interactive-accent) 20%, transparent);
-      color: var(--text-accent);
     }
   }
 }
@@ -208,6 +165,19 @@
 
 // ── Section headers ─────────────────────────────────────────────────────────
 
+.atlas-section-header-row {
+  @include atlas-flex-row($gap: $spacing-s);
+  // The header's hover reaches past the content's edge on the left only, so
+  // whatever stands at the row's end ends on that edge.
+  margin-left: -$spacing-xs;
+
+  .atlas-section-header {
+    flex: 1;
+    min-width: 0;
+    margin: 0;
+  }
+}
+
 .atlas-section-header {
   @include atlas-flex-row($gap: $spacing-xs);
   height: 24px;
@@ -247,6 +217,51 @@
 
     &.atlas-collapsed {
       transform: rotate(-90deg);
+    }
+  }
+}
+
+// ── Selection, at the end of the first section's header ─────────────────────
+
+.atlas-selection-info {
+  @include atlas-flex-row($gap: $spacing-xs);
+  flex-shrink: 0;
+  // As tall as the section header it stands in, so a selection moves no row.
+  height: 24px;
+  padding: 0 2px 0 $spacing-s;
+  background: color-mix(in oklch, var(--interactive-accent) 14%, transparent);
+  color: var(--text-accent);
+  // Concentric with the clear button, 2px inside it.
+  border-radius: calc(#{$radius-s} + 2px);
+  font-size: $font-ui-small;
+  font-weight: $font-weight-medium;
+  white-space: nowrap;
+  opacity: 1;
+  transform: translateX(0);
+  transition: opacity 150ms $transition-ease-out, transform 150ms $transition-ease-out;
+
+  @starting-style {
+    opacity: 0;
+    transform: translateX(4px);
+  }
+
+  .atlas-clear-selection-btn {
+    &.btn,
+    &.btn--icon {
+      width: 20px;
+      height: 20px;
+      border-radius: $radius-s;
+      color: var(--text-accent);
+    }
+
+    svg {
+      width: 12px;
+      height: 12px;
+    }
+
+    &:hover {
+      background: color-mix(in oklch, var(--interactive-accent) 20%, transparent);
+      color: var(--text-accent);
     }
   }
 }
