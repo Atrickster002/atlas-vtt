@@ -203,7 +203,7 @@ export class PlayerWindowService {
     // The camera players saw the scene before through says nothing about this one
     if (anotherScene) this.shownCamera = null;
     playerWindowStore.setState({ shownTabId: tabId });
-    this.playerView?.updateSession({ tabId, ...(filePath ? { filePath } : {}), frozen: false, ...(anotherScene ? { camera: null } : {}) });
+    this.playerView?.updateSession({ tabId, ...(filePath ? { filePath } : {}), levelId: levelId ?? undefined, frozen: false, ...(anotherScene ? { camera: null } : {}) });
     this.followSource();
   }
 
@@ -219,7 +219,7 @@ export class PlayerWindowService {
    */
   public static async openLeaf(app: App, scene: PresentedScene): Promise<LocalPlayerView | null> {
     const leaf = app.workspace.getLeavesOfType(LOCAL_PLAYER_VIEW_TYPE)[0] ?? app.workspace.openPopoutLeaf();
-    await leaf.setViewState({ type: LOCAL_PLAYER_VIEW_TYPE, state: { tabId: scene.tabId, filePath: scene.filePath, frozen: false } });
+    await leaf.setViewState({ type: LOCAL_PLAYER_VIEW_TYPE, state: { tabId: scene.tabId, filePath: scene.filePath, ...(scene.levelId ? { levelId: scene.levelId } : {}), frozen: false } });
     return leaf.view instanceof LocalPlayerView ? leaf.view : null;
   }
 
@@ -236,7 +236,7 @@ export class PlayerWindowService {
     this.pinFrozenCamera();
     this.mirror?.markStale();
     playerWindowStore.setState({ shownTabId: scene.tabId });
-    view.updateSession({ tabId: scene.tabId, filePath: scene.filePath });
+    view.updateSession({ tabId: scene.tabId, filePath: scene.filePath, levelId: scene.levelId });
     // Bind now: the popout may still be loading, and the DM can switch tabs before it has
     this.destroySceneOverlays();
     this.sceneOverlays = [

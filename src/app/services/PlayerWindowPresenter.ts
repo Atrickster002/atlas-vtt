@@ -146,8 +146,8 @@ async function attachPlayerWindow(app: App, player: LocalPlayerView): Promise<vo
   const service = PlayerWindowService.getInstance() ?? new PlayerWindowService(
     app, sourceView.atlasStore, sourceView.serviceManager.getSettingsService(),
   );
-  // The window's camera belongs to the scene it showed; another scene starts on the DM's camera
-  const sameScene = session.tabId === sourceTab.id || session.filePath === sourceTab.filePath;
+  // The window's camera belongs to the scene and level it showed; another starts on the DM's camera
+  const sameScene = (session.tabId === sourceTab.id || session.filePath === sourceTab.filePath) && (session.levelId ?? null) === level;
   const viewport = sourceView.serviceManager.getRendererService().getViewport();
   // A frozen camera is rendered on its own, so only a live presentation moves the DM viewport.
   if (sameScene && session.camera && viewport && !session.frozen) {
