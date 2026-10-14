@@ -33,6 +33,22 @@ export function detailsLine(report: FsImportReport | null): string | null {
   return simpler ? 'Some details look simpler.' : null;
 }
 
+/**
+ * Each part the import shows only in Fantasy Statblocks, left out or shows simpler, in the
+ * report's own sentences: the parts drawn with JavaScript first, as "Shown only in Fantasy
+ * Statblocks: Hit points tracks drawn with JavaScript."
+ */
+export function detailSentences(report: FsImportReport | null): string[] {
+  if (!report) return [];
+  const scripts = report.scripts.map((script) => `Shown only in Fantasy Statblocks: ${script.summary}.`);
+  return [...scripts, ...report.dropped, ...report.partial];
+}
+
+/** "Show the 3 details" */
+export function detailsToggleLabel(count: number): string {
+  return count === 1 ? 'Show the detail' : `Show the ${count} details`;
+}
+
 /** "Move 214 statblocks to Atlas" */
 export function moveLabel(count: number): string {
   return `Move ${plural(count, 'statblock')} to Atlas`;
