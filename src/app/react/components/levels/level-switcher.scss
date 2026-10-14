@@ -10,7 +10,10 @@ $level-height: 28px;
   left: $spacing-s;
   top: 50%;
   transform: translateY(-50%);
-  z-index: 100;
+  // A bar of the map like the scene tabs, below the main toolbar's row: that row is the layer
+  // ($z-dropdown) of the toolbar's overlays (asset manager, map creator, command palette), and a
+  // bar of the same z-index after it in the page would be drawn over all of them.
+  z-index: $z-dropdown - 1;
   display: flex;
   flex-direction: column;
   gap: $level-switcher-inset;
