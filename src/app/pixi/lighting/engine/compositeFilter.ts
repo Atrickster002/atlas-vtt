@@ -25,7 +25,7 @@ export type LightingMode = 'gm' | 'player';
 
 /** The level stack as the composite reads it (`LevelStackTexture`): what each texel of the stack's grid shows. */
 export interface CompositeStack {
-  /** Red is the level each texel shows (0 the viewed one, 1 the level below drawn, 255 nothing). */
+  /** Red is the level each texel shows (0 the viewed one, 1 and 2 the levels below drawn, 255 nothing). */
   texture: Texture;
   /** Where the texture's first texel lies in the grid, and how many it has. */
   box: { x: number; y: number; columns: number; rows: number };
@@ -34,6 +34,12 @@ export interface CompositeStack {
   columns: number;
   rows: number;
 }
+
+/** The pictures of the levels below drawn for a render, nearest first: null where a level has none. */
+export type BelowPictures = readonly [Texture | null, Texture | null];
+
+/** No level below is drawn for the render. */
+export const NO_BELOW: BelowPictures = [null, null];
 
 /** The bounce's weight in the composite; 0 in a world without bounce. */
 const BOUNCE_GAIN: number = BOUNCE.gain;
@@ -72,11 +78,12 @@ export interface CompositeFilter {
   /** The level stack of the view's openings, or null while the level shows only itself: nothing of it is read then. */
   setStack(stack: CompositeStack | null): void;
   /**
-   * The level below as its own composite drew the render about to be drawn, texel on pixel, dimmed by
-   * `dim`; null shows nothing in its texels.
+   * The levels below as their own composites drew the render about to be drawn, texel on pixel,
+   * nearest first, dimmed by `dim` once per level down; a level without a picture shows nothing in
+   * its texels.
    */
-  setBelow(picture: Texture | null, dim: number): void;
-  /** Which level of the stack this composite draws: 0 the viewed one, 1 the level below. */
+  setBelow(pictures: BelowPictures, dim: number): void;
+  /** Which level of the stack this composite draws: 0 the viewed one, 1 or 2 a level below. */
   setLevelIndex(index: number): void;
 }
 
@@ -120,6 +127,7 @@ export function createCompositeFilter(world: LightingWorld, explored: Texture): 
   const gridColor = new Float32Array(3);
   const stackBox = new Float32Array(4);
   const stackGrid = new Float32Array(2);
+  const belowShown = new Float32Array(2);
   let gridMark: number | undefined;
   const group = new UniformGroup({
     uScreenToWorld: { value: screenToWorld, type: 'mat3x3<f32>' },
@@ -159,7 +167,7 @@ export function createCompositeFilter(world: LightingWorld, explored: Texture): 
     uStackTexel: { value: 1, type: 'f32' },
     uHasBelow: { value: 0, type: 'f32' },
     uLevelIndex: { value: 0, type: 'f32' },
-    uBelowCount: { value: 0, type: 'f32' },
+    uBelowShown: { value: belowShown, type: 'vec2<f32>' },
     uBelowDim: { value: 1, type: 'f32' },
   });
   const u = group.uniforms;
@@ -179,6 +187,7 @@ export function createCompositeFilter(world: LightingWorld, explored: Texture): 
       uZonesLifted: noDarkness.source,
       uStack: noDarkness.source,
       uBelow1: noDarkness.source,
+      uBelow2: noDarkness.source,
       ...fieldResources(world),
     },
     blendRequired: true,
@@ -275,9 +284,10 @@ export function createCompositeFilter(world: LightingWorld, explored: Texture): 
       }
       group.update();
     },
-    setBelow(picture, dim): void {
-      filter.resources.uBelow1 = (picture ?? noDarkness).source;
-      u.uBelowCount = picture ? 1 : 0;
+    setBelow([first, second], dim): void {
+      filter.resources.uBelow1 = (first ?? noDarkness).source;
+      filter.resources.uBelow2 = (second ?? noDarkness).source;
+      belowShown.set([first ? 1 : 0, second ? 1 : 0]);
       u.uBelowDim = dim;
       group.update();
     },

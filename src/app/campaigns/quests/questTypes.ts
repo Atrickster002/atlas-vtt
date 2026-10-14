@@ -13,7 +13,6 @@ export const QUEST_PROPERTY = {
   status: 'status',
   experience: 'experience',
   rewards: 'rewards',
-  place: 'place',
   /** Never changed once written: players' notes on a quest name it by this. */
   id: 'atlas-id',
 } as const;
@@ -29,12 +28,6 @@ export type QuestKind = (typeof QUEST_KINDS)[number];
 export const QUEST_STATUSES = ['open', 'active', 'done', 'failed'] as const;
 export type QuestStatus = (typeof QUEST_STATUSES)[number];
 
-/** A point on the campaign's world map: shares 0..1 of its image's width and height. */
-export interface QuestPlace {
-  readonly x: number;
-  readonly y: number;
-}
-
 /** A quest note as Atlas reads its frontmatter. What could not be read is unset, never guessed. */
 export interface Quest {
   readonly path: string;
@@ -49,7 +42,6 @@ export interface Quest {
   readonly status: QuestStatus;
   readonly experience?: number;
   readonly rewards: readonly string[];
-  readonly place?: QuestPlace;
   /** When the note was made and last written (milliseconds since the epoch), as the vault says. */
   readonly created: number;
   readonly modified: number;

@@ -38,34 +38,27 @@ $dashboard-press-scale: 0.985;
   }
 }
 
-/// A raised card of the dashboard: the theme's secondary surface and a hairline, lifted on hover
-/// and pressed in on press. Only transform, shadow and border colour move.
+/// A card of the dashboard: the theme's secondary surface and a hairline, highlighted on hover and
+/// pressed in on press. It never lifts (Fabian, 2026-10-14: highlight, hover and press are enough).
 @mixin dashboard-card-surface {
   background: var(--background-secondary);
   border: $border-width-s solid var(--background-modifier-border);
   border-radius: $radius-xl;
   @include atlas-corner-shape;
-  transition: transform $transition-normal $transition-ease-out,
-              box-shadow $transition-normal $transition-ease-out,
+  transition: transform $transition-press $transition-ease-out,
               border-color $transition-fast $transition-ease;
 
   @media (hover: hover) and (pointer: fine) {
     &:hover:not(:disabled) {
-      transform: translateY(-2px);
       border-color: var(--background-modifier-border-hover);
-      box-shadow: var(--shadow-s);
     }
   }
 
   &:active:not(:disabled) {
     transform: scale($dashboard-press-scale);
-    box-shadow: none;
-    transition-duration: $transition-fast;
   }
 
   @media (prefers-reduced-motion: reduce) {
-    &,
-    &:hover:not(:disabled),
     &:active:not(:disabled) {
       transform: none;
     }

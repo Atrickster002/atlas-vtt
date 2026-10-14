@@ -4,6 +4,7 @@ import { TilePortKeeper, type TileWorkerCrash } from './tilePortKeeper';
 import { workerPort, type PortFactory } from './tilePorts';
 import { MapClosedError } from './tileErrors';
 import { openWithRetry, type BytesSource, type MainThreadDecode, type OpenExchange } from './tileOpenRequest';
+import type { ArtAlpha } from '../../levels/artRaster';
 import {
   isTileEvent,
   type FileIdentity,
@@ -122,6 +123,15 @@ export class TileDecoderClient {
     return this.bitmap({ type: 'overview', id: this.nextId++, handle: target, maxSide }, handle, signal);
   }
 
+  /** Which pixels of the map's overview fit within `maxSide` hold art (alpha above `threshold`), read in the worker; rejects as `tile` does. */
+  async alphaRaster(handle: number, maxSide: number, threshold: number, signal?: AbortSignal): Promise<ArtAlpha> {
+    const target = this.handles.get(handle);
+    if (target === undefined) throw new MapClosedError();
+    const reply = await this.answer({ type: 'alpha-raster', id: this.nextId++, handle: target, maxSide, threshold }, handle, signal);
+    if (reply.type !== 'alpha-raster') throw this.failure(reply);
+    return reply.raster;
+  }
+
   /** Ends an open; requests still pending for it reject with `MapClosedError`. A handle of a crashed worker is ignored. */
   close(handle: number): void {
     const target = this.handles.get(handle);
@@ -191,6 +201,17 @@ export class TileDecoderClient {
     handle: number,
     signal: AbortSignal | undefined,
   ): Promise<ImageBitmap> {
+    const reply = await this.answer(message, handle, signal);
+    if (reply.type !== 'bitmap') throw this.failure(reply);
+    return reply.bitmap;
+  }
+
+  /** The reply to a request about an open map, which `signal` cancels in the worker too. */
+  private async answer(
+    message: Extract<TileRequest, { type: 'tile' | 'overview' | 'alpha-raster' }>,
+    handle: number,
+    signal: AbortSignal | undefined,
+  ): Promise<TileReply> {
     signal?.throwIfAborted();
     const onAbort = (): void => {
       const pending = this.pending.get(message.id);
@@ -201,9 +222,7 @@ export class TileDecoderClient {
     };
     signal?.addEventListener('abort', onAbort, { once: true });
     try {
-      const reply = await this.request(message, [], handle);
-      if (reply.type !== 'bitmap') throw this.failure(reply);
-      return reply.bitmap;
+      return await this.request(message, [], handle);
     } finally {
       signal?.removeEventListener('abort', onAbort);
     }
@@ -251,7 +270,7 @@ export class TileDecoderClient {
     }
   }
 
-  /** Fails every pending request (tile and overview requests as closed) and forgets every handle. */
+  /** Fails every pending request (those about an open map as closed) and forgets every handle. */
   private fail(reason: Error): void {
     this.handles.clear();
     const pending = [...this.pending.values()];

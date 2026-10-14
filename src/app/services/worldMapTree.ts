@@ -2,7 +2,10 @@ import { TFile, type App } from 'obsidian';
 import { NO_STRETCH } from '../grid/mapStretch';
 import { hexLayoutOfGrid, pinDisplayPoint } from '../grid/hexLinks';
 import { t } from '../i18n';
-import type { WorldMapEntrance, WorldMapLevel, WorldMapTree } from '../online/gm/book/worldMapGate.ts';
+import type { WorldMapEntrance, WorldMapLevel, WorldMapQuest, WorldMapTree } from '../online/gm/book/worldMapGate.ts';
+import { noteFile } from '../online/gm/pins/foundNotes.ts';
+import { readQuest } from '../campaigns/quests/questProperties';
+import { linksReadableNote, pinNoteLink } from '../tools/pinNoteLink';
 import type { NotePin } from '../types';
 import type { GridState } from '../types/gridTypes';
 import type { SceneLevel } from '../types/sceneLevelTypes';
@@ -17,10 +20,12 @@ import { pinSceneLevel } from '../levels/pinSceneLevel';
 import { firstLevelId, levelById, onLevel } from '../levels/sceneLevels';
 import { levelLabel } from '../react/components/levels/levelEditing';
 
-/** The world map's maps as read, and the scene files they were read from, whose changes may change them. */
+/** The world map's maps as read, and the scene files and notes they were read from, whose changes may change them. */
 export interface WorldMapTreeRead {
   readonly tree: WorldMapTree;
   readonly scenePaths: readonly string[];
+  /** The notes the world map's pins link that are not scenes: a quest's id is read from its note. */
+  readonly notePaths: readonly string[];
 }
 
 /** A map of the tree: a plain map or a scene, and of a scene with several levels the floor shown (null: its first). */
@@ -61,6 +66,16 @@ async function readScene(app: App, mapPath: string): Promise<SceneRead | null> {
   }
 }
 
+/** The note a pin on the map at `mapPath` links (no scene), with the id of its quest; no id where the note is no quest or has none yet. */
+function linkedNote(app: App, pin: NotePin, mapPath: string): { path: string; id: string | undefined } | null {
+  if (!linksReadableNote(pin)) return null;
+  const file = noteFile(app, pinNoteLink(pin.notePath).linkpath, mapPath);
+  if (file === null) return null;
+  const frontmatter: unknown = app.metadataCache.getFileCache(file)?.frontmatter;
+  const quest = readQuest({ path: file.path, basename: file.basename, created: file.stat.ctime, modified: file.stat.mtime }, frontmatter);
+  return { path: file.path, id: quest?.id };
+}
+
 /** The map image of a floor above a scene's first, where it lies in Atlas's own folders for the scene's collection. */
 function floorImage(asset: Asset, levels: SceneLevel[] | undefined, floor: string): string | null {
   const image = levelById(levels, floor)?.background ?? null;
@@ -74,6 +89,8 @@ function floorImage(asset: Asset, levels: SceneLevel[] | undefined, floor: strin
  */
 class TreeReader {
   private readonly scenes = new Map<string, Promise<SceneRead | null>>();
+  /** The notes the pins read so far link, besides scenes. */
+  readonly notePaths = new Set<string>();
 
   constructor(private readonly app: App, private readonly sceneAssets: ReadonlyMap<string, Asset>) {}
 
@@ -114,15 +131,22 @@ class TreeReader {
     const placement = levelImagePlacement({ levels: scene.levels, grid: grid as GridState | null, levelAlignments: levelAlignmentsOf(scene.levels) }, shown);
     const entrances: WorldMapEntrance[] = [];
     const leadsTo: TreeMap[] = [];
+    const quests: WorldMapQuest[] = [];
     for (const pin of shownPins(scene, shown)) {
+      const point = pinDisplayPoint(pin, layout);
+      const note = linkedNote(this.app, pin, mapPath);
+      if (note !== null) {
+        this.notePaths.add(note.path);
+        if (note.id !== undefined) quests.push({ x: point.x, y: point.y, id: note.id });
+        continue;
+      }
       const target = await this.target(mapPath, pin);
       const to = target === null ? key : keyOf(target);
       if (target === null || to === key) continue;
-      const point = pinDisplayPoint(pin, layout);
       entrances.push({ x: point.x, y: point.y, to });
       if (!leadsTo.some((known) => keyOf(known) === to)) leadsTo.push(target);
     }
-    return { level: { key, title, image, stretch: placement, entrances }, leadsTo };
+    return { level: { key, title, image, stretch: placement, entrances, ...(quests.length > 0 && { quests }) }, leadsTo };
   }
 }
 
@@ -134,7 +158,8 @@ class TreeReader {
  * without scene has no pins. A pin that opens its scene on a floor above the first leads into that
  * floor's map, a map of its own in the tree, as it opens on the GM's map. Every image must be its
  * map's artwork (a floor's: its map) in Atlas's own folders: a map without one is left out with the
- * maps only it leads to, and a world map without one is none.
+ * maps only it leads to, and a world map without one is none. A pin that links a quest note places
+ * the quest on its map (`WorldMapLevel.quests`) once the note has its id.
  */
 export async function worldMapTree(app: App, assetId: string, maxLevels: number): Promise<WorldMapTreeRead | null> {
   const assets = AssetService.getInstance(app);
@@ -160,5 +185,5 @@ export async function worldMapTree(app: App, assetId: string, maxLevels: number)
       queue.push(next);
     }
   }
-  return { tree: { root: root.id, levels }, scenePaths };
+  return { tree: { root: root.id, levels }, scenePaths, notePaths: [...reader.notePaths] };
 }

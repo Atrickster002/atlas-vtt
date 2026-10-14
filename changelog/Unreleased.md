@@ -25,12 +25,15 @@
 - A pin that links a scene of several floors can open it on a floor: pick it in the pin's right-click menu. A pin to another floor of its own scene shows that floor
 - Replace map image, in the command palette and beside each floor in Scene levels: put a video, a gridless version or a larger export of the same map in its place, and the grid, walls, lights and tokens stay where they are
 - Openings between floors: draw a hole in a floor with Openings in the lighting menu, and the floor below shows through it, lit as it is down there, with its tokens and fog. Players see through an opening only what their tokens see, and remember it. A token put down over an opening falls to the floor below. A shape drawn over an opening and set to Floor in its popover makes a bridge or a balcony
+- Floors exported with transparent parts open by themselves: where a floor's map is transparent, the floors below show through it, two of them deep, with nothing to draw. A tower whose map is smaller than the ground's looks out over the ground beyond it. In Scene levels, each floor's layers button says which floors below it sees and whether its transparent parts are open
+- Snapshots of an upper floor show the floors below through its openings
 
 ## Improved
 
 - The asset manager shows all its tabs side by side in a normal window: New folder has moved into the + menu, the sort into the row above the assets, the refresh button is gone (Refresh stays in the right-click menu), and the search narrows before the tabs fold into a menu
 - The asset manager's Characters tab is now called Tokens
-- The dashboard carries Atlas' icon and name in Atlas' own lettering, with the sword standing behind the page
+- The dashboard carries Atlas' icon and name in Atlas' own lettering
+- The dashboard's icons come from the same set as the map pins and widgets: a treasure map for maps, a d20 for a campaign, a banner for a new campaign, a chest for the asset manager, a rule book for the game system
 - The initiative card's edit dialog takes a modifier of your own for a combatant, which counts instead of its statblock's until you clear it
 - The Spectral Engine, which detects a map's grid, shows the grid being found: it is etched into the map along the map's own lines, sharpens as the search grows sure of it, and settles as its glow fades
 - A new scene shows its map at once and finds its grid in front of you, where a loading screen covered both before
@@ -56,6 +59,7 @@
 - Rolling initiative adds each creature's modifier from its linked statblock, read from a field you pick in the collection's settings, or from an ability score such as DEX (D&D 5e reads Initiative, else DEX). With a contribution by anacletoTM
 - Auto detect finds the grid of a small map picture, with cells of about ten pixels, where it took four cells for one
 - A grid placed with Freehand stays exactly where and as large as you placed it, on maps with a printed grid too
+- A dropdown list near the bottom of a scrolling panel opens above its button instead of being cut off
 - The note picker of a pin and the right-click menus of pins and drawings open beside them, with Obsidian's left sidebar open too
 - Hovering a token whose note holds its statblock in a code block shows the statblock, not the plain note
 - Measured distances show one decimal place, so a 1.5 m cell reads 1.5 m instead of 2 m

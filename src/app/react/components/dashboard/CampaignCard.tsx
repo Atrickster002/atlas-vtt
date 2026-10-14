@@ -1,6 +1,5 @@
 import React from 'react';
 import type { App } from 'obsidian';
-import { Compass } from 'lucide-react';
 import type { Campaign } from '../../../campaigns/campaignTypes';
 import type { CampaignService } from '../../../campaigns/CampaignService';
 import { fnv1a32 } from '../../../utils/hashing';
@@ -8,9 +7,11 @@ import { t } from '../../../i18n';
 import type { WorldMapChoice } from './libraryPictures';
 import { MapArt } from './MapArt';
 import { PartyFaces } from './PartyFaces';
-import { useWorldMapArtwork } from './quests/useWorldMapImage';
+import { useWorldMapArtwork } from './useWorldMapArtwork';
 import { formatRelativeTime, type RelativeTimePhrases } from './relativeTime';
 import type { PartyFace } from './useCampaignParties';
+import { GameIcon } from '../GameIcon';
+import { WIDGET_ICON_PATHS } from '../../../types/widgetIcons';
 
 const PLAYED: RelativeTimePhrases = {
   justNow: 'campaign.playedJustNow',
@@ -41,11 +42,11 @@ export function campaignHueStyle(campaign: Campaign): React.CSSProperties {
   return { '--campaign-hue': `${fnv1a32(campaign.id) % 360}` } as React.CSSProperties;
 }
 
-/** The art of a campaign without a world map: its own tint and a compass. */
+/** The art of a campaign without a world map: its own tint and a d20. */
 export function CampaignEmblem(): React.JSX.Element {
   return (
     <span className="campaign-emblem" aria-hidden="true">
-      <Compass className="campaign-emblem__icon" strokeWidth={1.25} />
+      <GameIcon path={WIDGET_ICON_PATHS.d20} className="campaign-emblem__icon" />
     </span>
   );
 }

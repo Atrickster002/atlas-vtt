@@ -142,9 +142,14 @@ describe('the dashboard', () => {
       expect(mounted.storage.current()).toHaveLength(3);
 
       const card = query('.campaign-card');
+      const offset = (): number => card.getBoundingClientRect().top - query('.campaign-grid').getBoundingClientRect().top;
+      const resting = { top: offset(), border: getComputedStyle(card).borderTopColor };
       await page.elementLocator(card).hover();
       await settle(700);
-      expect(getComputedStyle(card).transform).not.toBe('none');
+      // A card is highlighted on hover and never lifts.
+      expect(getComputedStyle(card).transform).toBe('none');
+      expect(offset()).toBe(resting.top);
+      expect(getComputedStyle(card).borderTopColor).not.toBe(resting.border);
       await shot(`home-hover-${theme}`, query('.campaign-grid'));
       fireEvent.click(query('.campaign-card'));
       await expect.poll(() => document.querySelector('.campaign-hero__stop')).not.toBeNull();

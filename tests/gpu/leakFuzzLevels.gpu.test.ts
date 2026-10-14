@@ -1,6 +1,8 @@
 /// <reference types="vite/client" />
 import '../setup/obsidianDom';
-import { Matrix } from 'pixi.js';
+import { Matrix, Texture } from 'pixi.js';
+import { NO_STRETCH } from '../../src/app/grid/mapStretch';
+import { artCells } from '../../src/app/levels/artRaster';
 import { describe, expect, it, vi } from 'vitest';
 import { showsMap } from '../../src/app/gameSystems/senseRules';
 import { NORMAL_SIGHT } from '../../src/app/gameSystems/senses/generic';
@@ -9,7 +11,7 @@ import { wallBand, worldTexel } from '../../src/app/lighting/lightingConstants';
 import { levelObjects, levelObjectsOn } from '../../src/app/levels/levelObjects';
 import { levelStack, shownAt, stackGrid, VIEWED, VOID, type LevelStack } from '../../src/app/levels/levelStack';
 import { levelSurfaceList } from '../../src/app/levels/levelSurfaces';
-import { stampClip, type TexelMask } from '../../src/app/levels/stackClip';
+import { stampClip } from '../../src/app/levels/stackClip';
 import { distToSeg } from '../../src/app/lighting/segments';
 import { exploredGrid } from '../../src/app/pixi/lighting/ExploredTexture';
 import { mapMeasurementSettings } from '../../src/app/services/mapMeasurementSettings';
@@ -17,7 +19,6 @@ import { rulesLookup } from '../../src/app/services/mapRules';
 import type { TokenEntity } from '../../src/app/types';
 import type { LightSource, LightZone } from '../../src/app/types/lightingTypes';
 import type { LevelSurface } from '../../src/app/types/sceneLevelTypes';
-import type { WallSegment } from '../../src/app/types/wallTypes';
 import { lightLevelAt } from '../../src/app/vision/lightLevels';
 import { perceive, regionContains } from '../../src/app/vision/perception';
 import { SceneModelBuilder, SceneSpots } from '../../src/app/vision/sceneModel';
@@ -25,7 +26,9 @@ import type { Sight } from '../../src/app/vision/sight';
 import { belowTokenPerception, sightBelow, type BelowSight } from '../../src/app/vision/throughSight';
 import type { MapBounds } from '../../src/app/vision/visibility';
 import { fuzzRooms, insidePolygon, rng, type FuzzRoom, type P } from '../../src/app/pixi/lighting/engine/__tests__/fuzzRooms';
-import { LEVELS, openLevelsView, paintedTexture, worldOf, type LevelsView } from '../helpers/levelsView';
+import { fakeLevelArt, LEVELS, openLevelsView, paintedTexture, worldOf, type LevelsView } from '../helpers/levelsView';
+import { ART_CLEAN, fuzzArt, type ArtReport } from './levelsArtFuzz';
+import { belowArt, cyan, inPlainView, inside, light, lit, magenta, maskAlpha, nearAllowed, surface, toEdges, token, wallsOn } from '../helpers/levelsFuzz';
 
 vi.mock('events', async () => import('eventemitter3'));
 
@@ -89,21 +92,6 @@ interface FuzzOptions {
   shrunkRule?: boolean;
 }
 
-/** Any trace of the level below's hue: its floor in dim light at night is dark (red and blue some 45 over green). */
-const magenta = (pixels: Uint8ClampedArray, o: number): boolean => pixels[o]! > pixels[o + 1]! + 16 && pixels[o + 2]! > pixels[o + 1]! + 16;
-const cyan = (pixels: Uint8ClampedArray, o: number): boolean => pixels[o + 1]! > pixels[o]! + 50 && pixels[o + 2]! > pixels[o]! + 50;
-const lit = (pixels: Uint8ClampedArray, o: number): boolean => pixels[o]! + pixels[o + 1]! + pixels[o + 2]! > 3;
-
-/** Magenta noise, the level below's own hue. */
-function belowArt(map: number): ReturnType<typeof paintedTexture> {
-  const side = Math.min(map, 2048);
-  return paintedTexture(side, side, (x, y) => {
-    const n = ((x * 73856093) ^ (y * 19349663)) >>> 0;
-    const v = 150 + (n % 90);
-    return [v, 20 + (n % 15), v];
-  });
-}
-
 /** An opening of `kind` for the upper room `room`. */
 function openingOf(kind: Kind, room: FuzzRoom, below: FuzzRoom, map: number, rand: () => number): P[] {
   const [cx, cy] = room.centre;
@@ -133,91 +121,6 @@ function openingOf(kind: Kind, room: FuzzRoom, below: FuzzRoom, map: number, ran
   return rand() < 0.5
     ? [[0, cy - half], [reach, cy - half], [reach, cy + half], [0, cy + half]]
     : [[cx - half, map], [cx - half, map - reach], [cx + half, map - reach], [cx + half, map]];
-}
-
-function surface(id: string, polygon: readonly P[], open: boolean): LevelSurface {
-  return { id, kind: 'level-surface', level: 'upper', open, polygon: polygon.map(([x, y]) => ({ x, y })) };
-}
-
-function wallsOn(room: FuzzRoom, prefix: string, level: string): Record<string, WallSegment> {
-  return Object.fromEntries(room.walls.map((wall) => [`${prefix}${wall.id}`, { ...wall, id: `${prefix}${wall.id}`, levels: [level] }]));
-}
-
-function light(id: string, [x, y]: P, level: string, dim: number, extra: Partial<LightSource['emission']> = {}, rotation?: number): LightSource {
-  return { id, kind: 'light', x, y, levels: [level], ...(rotation !== undefined && { rotation }), emission: { bright: dim / 2, dim, color: '#ffffff', intensity: 1, animation: 'none', ...extra } };
-}
-
-function token(id: string, [x, y]: P, level: string, extra: Partial<TokenEntity> = {}): TokenEntity {
-  return { id, kind: 'token', x, y, imagePath: 'art.png', size: 1, level, ...extra } as TokenEntity;
-}
-
-/** A point inside `polygon` near its middle, or null. */
-function inside(polygon: readonly P[], rand: () => number): P | null {
-  const xs = polygon.map((p) => p[0]);
-  const ys = polygon.map((p) => p[1]);
-  for (let attempt = 0; attempt < 40; attempt++) {
-    const p: P = [Math.min(...xs) + rand() * (Math.max(...xs) - Math.min(...xs)), Math.min(...ys) + rand() * (Math.max(...ys) - Math.min(...ys))];
-    if (insidePolygon(p, polygon)) return p;
-  }
-  return null;
-}
-
-/** Whether the segment from `a` to `b` crosses the wall. */
-function crosses(a: P, b: P, wall: WallSegment): boolean {
-  const side = (p: P, q: { x: number; y: number }, r: { x: number; y: number }): number => (r.x - q.x) * (p[1] - q.y) - (r.y - q.y) * (p[0] - q.x);
-  const [d1, d2] = [side(a, wall.p1, wall.p2), side(b, wall.p1, wall.p2)];
-  const cross = (q: { x: number; y: number }): number => (b[0] - a[0]) * (q.y - a[1]) - (b[1] - a[1]) * (q.x - a[0]);
-  return d1 * d2 <= 0 && cross(wall.p1) * cross(wall.p2) <= 0;
-}
-
-/** A point of the opening the upper room's `from` has a clear line to, or null. */
-function inPlainView(from: P, opening: readonly P[], walls: readonly WallSegment[], rand: () => number): P | null {
-  for (let attempt = 0; attempt < 40; attempt++) {
-    const p = inside(opening, rand);
-    if (p && walls.every((wall) => !crosses(from, p, wall))) return p;
-  }
-  return null;
-}
-
-/** Distance from `p` to the nearest edge of any of the polygons. */
-function toEdges(p: { x: number; y: number }, polygons: readonly (readonly { x: number; y: number }[])[]): number {
-  let best = Infinity;
-  for (const polygon of polygons) {
-    for (let i = 0; i < polygon.length; i++) {
-      const a = polygon[i]!;
-      const b = polygon[(i + 1) % polygon.length]!;
-      best = Math.min(best, distToSeg(p.x, p.y, [a.x, a.y, b.x, b.y]));
-    }
-  }
-  return best;
-}
-
-/** Whether a memory texel of `clip` lies within `reach` texels of (`mx`, `my`). */
-function nearAllowed(clip: TexelMask | null, mx: number, my: number, reach: number): boolean {
-  if (!clip) return false;
-  for (let y = Math.floor(my - reach); y <= Math.ceil(my + reach); y++) {
-    for (let x = Math.floor(mx - reach); x <= Math.ceil(mx + reach); x++) {
-      const [cx, cy] = [x - clip.x, y - clip.y];
-      if (cx >= 0 && cy >= 0 && cx < clip.columns && cy < clip.rows && clip.allowed[cy * clip.columns + cx]) return true;
-    }
-  }
-  return false;
-}
-
-/** The alpha of every texel of a saved memory mask. */
-async function maskAlpha(dataUrl: string): Promise<{ width: number; height: number; alpha: Uint8ClampedArray }> {
-  const image = new Image();
-  image.src = dataUrl;
-  await image.decode();
-  const canvas = document.createElement('canvas');
-  canvas.width = image.naturalWidth;
-  canvas.height = image.naturalHeight;
-  const context = canvas.getContext('2d')!;
-  context.drawImage(image, 0, 0);
-  const data = context.getImageData(0, 0, canvas.width, canvas.height).data;
-  const alpha = new Uint8ClampedArray(canvas.width * canvas.height);
-  for (let i = 0; i < alpha.length; i++) alpha[i] = data[i * 4 + 3]!;
-  return { width: canvas.width, height: canvas.height, alpha };
 }
 
 /**
@@ -322,7 +225,9 @@ async function fuzz({ seed, trials, map = 2048, resolution = 1, quality, belowRe
       const state = store.getState();
       const measurement = () => mapMeasurementSettings(rulesLookup(view.obsApp), state);
       const ruleSurfaces = shrunkRule ? levelSurfaceList(levelObjects(state).levelSurfaces).map((entry) => ({ ...entry, polygon: entry.polygon.map((p) => ({ x: ox + (p.x - ox) * 0.5, y: oy + (p.y - oy) * 0.5 })) })) : levelSurfaceList(levelObjects(state).levelSurfaces);
-      const stack: LevelStack = levelStack({ id: 'upper', surfaces: ruleSurfaces }, [{ id: 'ground', surfaces: levelSurfaceList(levelObjectsOn(state, 'ground').levelSurfaces), pictured: belowBounds }], ['ground'], stackGrid(bounds));
+      const grid = stackGrid(bounds);
+      const groundArt = artCells(fakeLevelArt({ texture: Texture.EMPTY, ...belowBounds }), NO_STRETCH, true, grid);
+      const stack: LevelStack = levelStack({ id: 'upper', surfaces: ruleSurfaces }, [{ id: 'ground', surfaces: levelSurfaceList(levelObjectsOn(state, 'ground').levelSurfaces), art: groundArt }], ['ground'], grid);
       const viewed: Sight = view.controller.renderer.currentSight();
       const seen = { ...state, viewedLevel: 'ground' };
       const { model } = new SceneModelBuilder().update(seen, belowBounds, measurement);
@@ -514,5 +419,50 @@ describe('leak fuzz: looking down through openings', () => {
     const report = await fuzz({ seed: 3, trials: 10, shrunkRule: true });
     console.info(`negative control (levels): ${JSON.stringify(report)}`);
     expect(report.viewedChanged).toBeGreaterThan(100);
+  });
+});
+
+describe('leak fuzz: looking down through the transparent parts of a level\'s map, two levels deep', () => {
+  function expectArtHolds(report: ArtReport, trials: number): void {
+    expect(report.rooms).toBe(trials);
+    expect(report.viewed).toBeGreaterThan(trials * 1000);
+    expect(report.below[0] + report.below[1]).toBeGreaterThan(trials * 1000);
+    expect(report.belowHue[0]).toBeGreaterThan(trials * 50);
+    expect(report.belowHue[1]).toBeGreaterThan(trials * 20);
+    expect(report.seenLit).toBeGreaterThan(trials * 20);
+    expect(report.seenShown).toBeGreaterThan(report.seenLit * 0.98);
+    expect(report.tokensSeen).toBeGreaterThan(0);
+    expect(report.tokensUnseen).toBeGreaterThan(0);
+    expect(report).toMatchObject(ART_CLEAN);
+  }
+
+  it.each(['frame', 'tower', 'turned'] as const)('shows each level below only through transparent art and where the view\'s sight says, on levels laid out as %s', { timeout: 3_600_000 }, async (kind) => {
+    const trials = kind === 'frame' ? TRIALS : SIDE_TRIALS;
+    const report = await fuzzArt({ seed: 41 + kind.length, trials, case: kind });
+    console.info(`leak fuzz (levels, art, ${kind}): ${JSON.stringify({ trials, ...report })}`);
+    expectArtHolds(report, trials);
+    if (kind === 'frame') {
+      expect(report.opaque).toBeGreaterThan(0);
+      expect(report.memories).toBeGreaterThan(0);
+      expect(report.remembered).toBeGreaterThan(trials * 50);
+    }
+  });
+
+  it('holds where the tile worker reads a resized overview of a map larger than it', { timeout: 3_600_000 }, async () => {
+    const report = await fuzzArt({ seed: 53, trials: SIDE_TRIALS, case: 'large' });
+    console.info(`leak fuzz (levels, art, large image): ${JSON.stringify({ trials: SIDE_TRIALS, ...report })}`);
+    expectArtHolds(report, SIDE_TRIALS);
+  });
+
+  it.each([['balanced', 8192], ['saver', 9000]] as const)('holds at the %s lighting quality on a map of %i px', { timeout: 3_600_000 }, async (level, side) => {
+    const report = await fuzzArt({ seed: 59, trials: SIDE_TRIALS, case: 'frame', map: side, quality: LIGHTING_QUALITY[level] });
+    console.info(`leak fuzz (levels, art, ${level}, ${side} px): ${JSON.stringify({ trials: SIDE_TRIALS, ...report })}`);
+    expectArtHolds(report, SIDE_TRIALS);
+  });
+
+  it('finds a level below under art the view reads as transparent up to half opaque (the checks can fail)', { timeout: 3_600_000 }, async () => {
+    const report = await fuzzArt({ seed: 41, trials: 10, case: 'frame', looseArt: true });
+    console.info(`negative control (levels, art): ${JSON.stringify(report)}`);
+    expect(report.artLeaks).toBeGreaterThan(100);
   });
 });

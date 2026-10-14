@@ -42,13 +42,13 @@ import { WALL_PUSH_GLSL, wallPushGlsl } from './wallPushGlsl';
  * sees it everywhere, the players wherever their picture shows the map, now or from memory.
  * Openings (read only while uHasBelow is set): uStack holds the level stack (`LevelStack`) on its
  * box of texels (uStackBox, uStackTexel, uStackGrid): red is the level each texel shows, 0 the one
- * the view shows, 1 the level below drawn, 255 nothing. In the viewed level's composite
- * (uLevelIndex 0) a texel that shows anything else is a hole: the eraser took the map and the
- * grid's backing there, so what is left of the scene beneath is the viewed level's own tokens,
- * lit as everywhere, over uBelow1 (that level's own composite, rendered for this very picture,
- * texel on pixel: uBelowCount 1) dimmed by uBelowDim, or nothing (black for the GM, the unexplored
- * colour for the players). In a level below's composite (uLevelIndex 1) nothing is seen outside the
- * texels that show it.
+ * the view shows, 1 and 2 the levels below drawn (nearest first), 255 nothing. In the viewed
+ * level's composite (uLevelIndex 0) a texel that shows anything else is a hole: the eraser took the
+ * map and the grid's backing there, so what is left of the scene beneath is the viewed level's own
+ * tokens, lit as everywhere, over uBelow1 or uBelow2 (that level's own composite, rendered for this
+ * very picture, texel on pixel, where uBelowShown says it was) dimmed by uBelowDim once per level
+ * down, or nothing (black for the GM, the unexplored colour for the players). In a level below's
+ * composite (uLevelIndex 1 or 2) nothing is seen outside the texels that show it.
  */
 export const compositeFragment = `${GLSL_VERSION}
 in vec2 vTextureCoord;
@@ -101,7 +101,8 @@ uniform float uStackTexel;
 uniform float uHasBelow;
 uniform float uLevelIndex;
 uniform sampler2D uBelow1;
-uniform float uBelowCount;
+uniform sampler2D uBelow2;
+uniform vec2 uBelowShown;
 uniform float uBelowDim;
 ${fieldGlsl('uField')}
 ${fieldGlsl('uSightField')}
@@ -121,7 +122,7 @@ const float UNSEEN_FADE = 0.4;
 const float GRID_DARK_AMBIENT = 0.35;
 
 // The level the stack shows at world point w: 0 the one the view shows (also off the stack's grid
-// and box), 1 the level below drawn, 255 nothing. The texel holding w decides, as the rule's shownAt.
+// and box), 1 or 2 a level below drawn, 255 nothing. The texel holding w decides, as the rule's shownAt.
 int stackAt(vec2 w) {
   if (uHasBelow < 0.5) return 0;
   vec2 cell = floor(w / uStackTexel);
@@ -353,9 +354,11 @@ void main() {
   if (hole) {
     // The level below as its own composite drew this very pixel, or nothing; the viewed level's tokens over it.
     vec3 under = uMode > 0.5 ? toSrgb(uUnexplored) : vec3(0.0);
-    if (shownLevel == 1 && uBelowCount > 0.5) {
-      ivec2 pixel = clamp(ivec2(floor(screen * uInputPixel.x * uInputSize.z)), ivec2(0), textureSize(uBelow1, 0) - 1);
-      under = texelFetch(uBelow1, pixel, 0).rgb * uBelowDim;
+    ivec2 pixel = ivec2(floor(screen * uInputPixel.x * uInputSize.z));
+    if (shownLevel == 1 && uBelowShown.x > 0.5) {
+      under = texelFetch(uBelow1, clamp(pixel, ivec2(0), textureSize(uBelow1, 0) - 1), 0).rgb * uBelowDim;
+    } else if (shownLevel == 2 && uBelowShown.y > 0.5) {
+      under = texelFetch(uBelow2, clamp(pixel, ivec2(0), textureSize(uBelow2, 0) - 1), 0).rgb * (uBelowDim * uBelowDim);
     }
     shown = mix(under, shown, clamp(back.a, 0.0, 1.0));
   }

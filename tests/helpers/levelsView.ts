@@ -1,7 +1,8 @@
 import { EventEmitter } from 'events';
 import { Application, CanvasSource, Container, Matrix, RenderTexture, Sprite, Texture, type WebGLRenderer } from 'pixi.js';
 import { Viewport } from 'pixi-viewport';
-import { NO_STRETCH } from '../../src/app/grid/mapStretch';
+import { imageWorldRect, NO_STRETCH, sameStretch, turnedBox, type MapStretch } from '../../src/app/grid/mapStretch';
+import type { ArtAlpha, LevelArt } from '../../src/app/levels/artRaster';
 import { createViewAtlasStore, type ViewAtlasStore } from '../../src/app/storeFactory';
 import type { SceneLevel } from '../../src/app/types/sceneLevelTypes';
 import type { TokenRenderer } from '../../src/app/pixi/TokenRenderer';
@@ -40,24 +41,69 @@ export function paintedTexture(width: number, height: number, paint: (x: number,
   return new Texture({ source: new CanvasSource({ resource: canvas }) });
 }
 
+/** A map image of the fake vault: its picture, its size in pixels, and which pixels of it hold art (unset: all). */
+export interface FakeMap {
+  texture: Texture;
+  width: number;
+  height: number;
+  alpha?: ArtAlpha | null;
+}
+
+/** Every pixel holds art. */
+export const SOLID_ALPHA: ArtAlpha = { width: 1, height: 1, opaque: new Uint8Array([1]) };
+
+/** A map as the level stack reads it from the fake vault. */
+export function fakeLevelArt(map: FakeMap): LevelArt {
+  return { width: map.width, height: map.height, alpha: map.alpha === undefined ? SOLID_ALPHA : map.alpha };
+}
+
 /**
- * A map image of a level below that shows `texture` over `width` × `height` world pixels: no tiles
- * to wait for, and a load that finishes at once, or when `loaded` resolves.
+ * A map image that shows the fake vault's map of the background it loads, placed as `MapImage`
+ * places it (turned about its centre, stretched and moved by its placement): no tiles to wait for,
+ * and a load that finishes at once, or when `loaded` resolves.
  */
-export function fakeBelowImage(texture: Texture, width: number, height: number, loaded: Promise<void> = Promise.resolve()): BelowMapImage {
-  const layer = new Container({ label: 'map-image-below' });
-  const sprite = new Sprite(texture);
-  sprite.setSize(width, height);
-  layer.addChild(sprite);
+export function fakeMapImage(maps: Record<string, FakeMap>, loaded: Promise<void> = Promise.resolve(), label = 'map-image-below'): BelowMapImage {
+  const layer = new Container({ label });
+  const turned = new Container();
+  const sprite = new Sprite(Texture.EMPTY);
+  turned.addChild(sprite);
+  layer.addChild(turned);
+  let shown: FakeMap | null = null;
+  let stretch: MapStretch = NO_STRETCH;
+  let destroyed = false;
+  const place = (): void => {
+    if (!shown || destroyed) return;
+    const { width, height } = shown;
+    const { corner } = turnedBox(width, height, stretch);
+    sprite.texture = shown.texture;
+    sprite.setSize(width, height);
+    turned.pivot.set(width / 2, height / 2);
+    turned.position.set(width / 2 - corner.x, height / 2 - corner.y);
+    turned.rotation = (-(stretch.rotation ?? 0) * Math.PI) / 180;
+    layer.position.set(stretch.offset?.x ?? 0, stretch.offset?.y ?? 0);
+    layer.scale.set(stretch.x, stretch.y);
+  };
   return {
     layer,
-    worldRect: { x: 0, y: 0, width, height },
-    mapStretch: NO_STRETCH,
-    load: () => loaded,
-    setStretch: () => undefined,
+    get worldRect() { return shown ? { x: 0, y: 0, ...imageWorldRect(shown, stretch) } : null; },
+    get mapStretch() { return stretch; },
+    load: async (background, _gridSize, placement) => {
+      await loaded;
+      shown = background === null ? null : maps[background] ?? null;
+      if (placement) stretch = placement;
+      place();
+    },
+    setStretch: (next) => {
+      if (sameStretch(next, stretch)) return;
+      stretch = next;
+      place();
+    },
     drawFor: () => () => undefined,
     addDemandRegion: () => () => undefined,
-    destroy: () => layer.destroy({ children: true }),
+    destroy: () => {
+      destroyed = true;
+      layer.destroy({ children: true });
+    },
   };
 }
 
@@ -81,6 +127,13 @@ export interface LevelsViewOptions {
   belowRect?: MapBounds;
   /** The level below's image loads only once `releaseBelowImage` is called. */
   holdBelowImage?: boolean;
+  /** The scene's levels, bottom first; the upper one of `LEVELS` is viewed. */
+  levels?: SceneLevel[];
+  /** The fake vault's maps by path, over the ones `viewed`, `below` and `belowRect` make (`upper.png` and `ground.png`). */
+  maps?: Record<string, FakeMap>;
+  /** The level the view shows, and how its map is drawn; the store must place it alike. */
+  viewedLevel?: string;
+  viewedPlacement?: MapStretch;
 }
 
 export interface LevelsView {
@@ -107,6 +160,10 @@ export interface LevelsView {
   settledPlayerFrame(scale: number, x: number, y: number): Promise<Uint8ClampedArray>;
   /** Lets the level below's image finish loading, where it was held (`holdBelowImage`). */
   releaseBelowImage(): void;
+  /** The fake vault's maps by path: a test may add maps (another scene's) at any time. */
+  maps: Record<string, FakeMap>;
+  /** Shows map `background` on the viewed level, placed by `placement` (as the store must place it), and lets the lighting follow its size. */
+  showViewedMap(background: string, placement: MapStretch): Promise<void>;
   /** The GM's canvas through the camera, drawn as the render scheduler draws it, read back. */
   gmCanvas(scale: number, x: number, y: number): Uint8ClampedArray;
   dispose(): void;
@@ -126,34 +183,51 @@ export function belowNoise(map: number): Texture {
  * on a real renderer, as far as its lighting and its levels below go. The map images are
  * sprites, the tokens below take one art: nothing loads from the vault.
  */
-export async function openLevelsView({ map, pane, paneHeight = pane, resolution = 1, viewed, below, tokenArt, viewedFog, quality, belowRect, holdBelowImage = false }: LevelsViewOptions): Promise<LevelsView> {
+export async function openLevelsView({ map, pane, paneHeight = pane, resolution = 1, viewed, below, tokenArt, viewedFog, quality, belowRect, holdBelowImage = false, levels = LEVELS, maps: extraMaps = {}, viewedLevel = 'upper', viewedPlacement = NO_STRETCH }: LevelsViewOptions): Promise<LevelsView> {
   const app = new Application();
   await app.init({ width: pane, height: paneHeight, resolution, preference: 'webgl', antialias: false, autoStart: false, backgroundColor: 0x000000, useBackBuffer: true });
   const scheduler = new RenderScheduler(app);
   const viewport = new Viewport({ screenWidth: pane, screenHeight: paneHeight, worldWidth: map, worldHeight: map, events: app.renderer.events });
   viewport.sortableChildren = true;
-  const floor = new Sprite(viewed ?? Texture.WHITE);
-  floor.setSize(map, map);
+  const maps: Record<string, FakeMap> = {
+    'upper.png': { texture: viewed ?? Texture.WHITE, width: map, height: map },
+    'ground.png': { texture: below ?? belowNoise(map), width: belowRect?.width ?? map, height: belowRect?.height ?? map },
+    ...extraMaps,
+  };
+  const viewedBackground = levels.find((level) => level.id === viewedLevel)?.background ?? 'upper.png';
+  const floorImage = fakeMapImage(maps, Promise.resolve(), 'map-image');
+  await floorImage.load(viewedBackground, undefined, viewedPlacement);
+  const floor = floorImage.layer;
   viewport.addChild(floor);
+
   app.stage.addChild(viewport);
   const obsApp = createInMemoryApp().app;
   const store = createViewAtlasStore(obsApp, `levels-view-${Math.random()}`);
   store.getState().setPersistenceEnabled(false);
   store.getState().setMapPath('maps/levels.atlasmap');
-  const belowArt = below ?? belowNoise(map);
+  // The first level's map is the scene's own.
+  store.setState({ background: levels[0]?.background ?? null });
   const art = tokenArt ?? Texture.WHITE;
   const tokens: TokenArt = { acquire: () => Promise.resolve(art), release: () => undefined, destroyAll: () => undefined };
   let releaseBelowImage = (): void => undefined;
   const belowLoaded = holdBelowImage ? new Promise<void>((resolve) => { releaseBelowImage = resolve; }) : Promise.resolve();
   const host: BelowLevelsHost = {
-    createMapImage: () => fakeBelowImage(belowArt, belowRect?.width ?? map, belowRect?.height ?? map, belowLoaded),
+    createMapImage: () => fakeMapImage(maps, belowLoaded),
     createArt: () => tokens,
+    levelArt: (background) => {
+      const found = background === null ? undefined : maps[background];
+      return found ? Promise.resolve(fakeLevelArt(found)) : Promise.reject(new Error(`No map ${String(background)} in the fake vault`));
+    },
     viewedFog: viewedFog ?? ((): FogCover => undefined),
     placeEraser: (eraser) => viewport.addChildAt(eraser, viewport.getChildIndex(floor) + 1),
   };
   const controller = new LightingController({
     viewport, app, store, eventBus: new EventEmitter(), obsApp, viewId: 'levels-view',
-    bounds: () => ({ width: map, height: map }), albedo: () => null, below: host,
+    bounds: () => {
+      const rect = floorImage.worldRect!;
+      return { width: rect.width, height: rect.height };
+    },
+    albedo: () => null, below: host,
     ...(quality && { quality: { current: () => quality, onChange: () => () => undefined } }),
   });
   const ignore = (): void => undefined;
@@ -172,8 +246,12 @@ export async function openLevelsView({ map, pane, paneHeight = pane, resolution 
     viewport.position.set(x, y);
   };
   view = {
-    app, obsApp, viewport, store, controller,
+    app, obsApp, viewport, store, controller, maps,
     releaseBelowImage: () => releaseBelowImage(),
+    showViewedMap: async (background, placement) => {
+      await floorImage.load(background, undefined, placement);
+      controller.renderer.refreshBounds();
+    },
     displayFrames: (count) => { for (let i = 0; i < count; i++) app.ticker.update(time += 16); },
     settle: async () => {
       for (let i = 0; i < 3; i++) {

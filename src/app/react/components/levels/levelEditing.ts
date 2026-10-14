@@ -1,5 +1,5 @@
 import { t } from '../../../i18n';
-import { withLevelAdded, withLevelChanged, withLevelDeleted, withLevelsReordered, type LevelScene } from '../../../levels/levelEdits';
+import { withLevelAdded, withLevelChanged, withLevelDeleted, withLevelSight, withLevelsReordered, type LevelScene } from '../../../levels/levelEdits';
 import { firstLevelId, viewedLevelId } from '../../../levels/sceneLevels';
 import type { ViewAtlasStore } from '../../../storeFactory';
 import { getHistoryStore, runUntracked } from '../../../stores/history';
@@ -59,6 +59,27 @@ export function changeLevel(store: ViewAtlasStore, id: string, changes: { name?:
   const { levels, setLevels } = store.getState();
   if (!levels) return;
   editLevels(labelOf(store, id), () => runUntracked(store, () => setLevels(withLevelChanged(levels, id, changes))));
+}
+
+/**
+ * Level `id` sees level `below` through its openings, or not. Seeing every level below again is
+ * written as no list at all, so a level added below later is seen too.
+ */
+export function setLevelSees(store: ViewAtlasStore, id: string, below: string, seen: boolean): void {
+  const { levels, setLevels } = store.getState();
+  const level = levels?.find((entry) => entry.id === id);
+  if (!levels || !level) return;
+  const lower = levels.slice(0, levels.indexOf(level)).map((entry) => entry.id);
+  const current = level.sees ? lower.filter((entry) => level.sees!.includes(entry)) : lower;
+  const next = seen ? [...new Set([...current, below])] : current.filter((entry) => entry !== below);
+  const sees = lower.every((entry) => next.includes(entry)) ? undefined : lower.filter((entry) => next.includes(entry));
+  runUntracked(store, () => setLevels(withLevelSight(levels, id, { sees })));
+}
+
+/** The transparent parts of level `id`'s map are openings to the levels below, or floor. */
+export function setLevelOpenArt(store: ViewAtlasStore, id: string, open: boolean): void {
+  const { levels, setLevels } = store.getState();
+  if (levels) runUntracked(store, () => setLevels(withLevelSight(levels, id, { openArt: open })));
 }
 
 /** Shows `background` on level `id`; the first level's is the scene's own background, an edit like any other of it. */

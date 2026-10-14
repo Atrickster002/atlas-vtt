@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { App } from 'obsidian';
 import { QuestIndex } from '../../src/app/campaigns/quests/QuestIndex';
-import { createQuestNote, setQuestPlace, setQuestStatus } from '../../src/app/campaigns/quests/questNotes';
+import { createQuestNote, setQuestStatus } from '../../src/app/campaigns/quests/questNotes';
 import { QUEST_ID, readQuest } from '../../src/app/campaigns/quests/questProperties';
 import { questBody } from '../../src/app/campaigns/quests/questText';
 import { memoryCampaigns } from '../mocks/memoryCampaigns';
@@ -29,9 +29,9 @@ const CAMPAIGNS = [OLMS, WITHERWILD];
 const titlesOf = (index: QuestIndex, campaign: { id: string; name: string } = OLMS): string[] => index.of(campaign, CAMPAIGNS).map((quest) => quest.title);
 
 describe('reading a quest note', () => {
-  it('reads every property of a quest note', () => {
+  it('reads every property of a quest note, and no place: a pin on the world map places a quest', () => {
     const quest = readQuest(FILE, { 'atlas-type': 'quest', campaign: ' Blood Olms ', kind: 'main', status: 'active', experience: 300, rewards: ['Favour of the King'], place: { x: 0.25, y: 0.5 }, 'atlas-id': ID });
-    expect(quest).toEqual({ path: FILE.path, title: 'Crown', campaign: 'Blood Olms', id: ID, kind: 'main', status: 'active', experience: 300, rewards: ['Favour of the King'], place: { x: 0.25, y: 0.5 }, created: 1, modified: 2 });
+    expect(quest).toEqual({ path: FILE.path, title: 'Crown', campaign: 'Blood Olms', id: ID, kind: 'main', status: 'active', experience: 300, rewards: ['Favour of the King'], created: 1, modified: 2 });
   });
 
   it('is no quest without the type or a campaign', () => {
@@ -52,8 +52,8 @@ describe('reading a quest note', () => {
     expect(quest).not.toHaveProperty('experience');
     expect(quest).not.toHaveProperty('place');
     expect(quest).not.toHaveProperty('id');
-    expect(readQuest(FILE, { 'atlas-type': 'quest', campaign: 'X', experience: '1200', place: ['0.1', 0.9], rewards: 'One prize' })).toMatchObject({ experience: 1200, place: { x: 0.1, y: 0.9 }, rewards: ['One prize'] });
-    expect(readQuest(FILE, { 'atlas-type': 'quest', campaign: 'X', experience: 1.5, place: [0.1] })).not.toHaveProperty('place');
+    expect(readQuest(FILE, { 'atlas-type': 'quest', campaign: 'X', experience: '1200', rewards: 'One prize' })).toMatchObject({ experience: 1200, rewards: ['One prize'] });
+    expect(readQuest(FILE, { 'atlas-type': 'quest', campaign: 'X', experience: 1.5 })).not.toHaveProperty('experience');
   });
 
   it('reads a frontmatter value that holds itself without walking it', () => {
@@ -165,15 +165,12 @@ describe('the quest index', () => {
     expect(getFileCache).not.toHaveBeenCalled();
   });
 
-  it('writes status and place through the note\'s frontmatter, and creates a quest note with an id in the campaign\'s folder', async () => {
+  it('writes the status through the note\'s frontmatter, and creates a quest note with an id in the campaign\'s folder', async () => {
     const vault = questVault({ 'Quests/Crown.md': crown });
     const index = open(vault.app);
     await setQuestStatus(vault.app, 'Quests/Crown.md', 'failed');
-    await setQuestPlace(vault.app, 'Quests/Crown.md', { x: 0.123456, y: 1.5 });
-    expect(index.get('Quests/Crown.md')).toMatchObject({ status: 'failed', place: { x: 0.1235, y: 1 } });
+    expect(index.get('Quests/Crown.md')).toMatchObject({ status: 'failed' });
     expect(vault.files.get('Quests/Crown.md')).toContain('Find the crown under the root.');
-    await setQuestPlace(vault.app, 'Quests/Crown.md', null);
-    expect(index.get('Quests/Crown.md')).not.toHaveProperty('place');
 
     const folder = 'atlas-vtt/campaigns/Blood Olms';
     await createQuestNote(vault.app, folder, 'c-1', 'The sexton: a liar?', 'side');

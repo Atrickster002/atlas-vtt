@@ -79,6 +79,21 @@ export function withLevelChanged(levels: readonly SceneLevel[], id: string, chan
 }
 
 /**
+ * The scene's levels with what level `id` shows below it changed: `sees` (undefined: every level
+ * below, as when unset) and `openArt` (true: its transparent parts are openings, as when unset).
+ * Unset is written as no field at all, so a level left as it was is the level as it came.
+ */
+export function withLevelSight(levels: readonly SceneLevel[], id: string, changes: { sees?: string[] | undefined; openArt?: boolean }): SceneLevel[] {
+  return levels.map((level) => {
+    if (level.id !== id) return level;
+    const { sees, openArt, ...rest } = level;
+    const nextSees = 'sees' in changes ? changes.sees : sees;
+    const nextOpen = changes.openArt ?? openArt !== false;
+    return { ...rest, ...(nextSees && { sees: nextSees }), ...(!nextOpen && { openArt: false as const }) };
+  });
+}
+
+/**
  * The scene with its levels in the order of `ids` (bottom first). Where another level becomes the
  * first, everything that stood on the first by being unset names it from now on, so it stays there.
  */

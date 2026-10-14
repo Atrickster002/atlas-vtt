@@ -22,13 +22,6 @@ $hero-cta-height: 40px;
   overflow: hidden;
   border-radius: $radius-2xl;
 
-  // The hero's lift is quieter than a card's: it is large.
-  @media (hover: hover) and (pointer: fine) {
-    &:hover:not(:disabled) {
-      transform: translateY(-1px);
-    }
-  }
-
   @container atlas-dashboard (max-width: #{$hero-narrow}) {
     flex-direction: column;
     min-height: 0;
@@ -163,10 +156,6 @@ $hero-cta-height: 40px;
   }
 }
 
-.continue-hero--empty .continue-hero__cta svg {
-  fill: none;
-}
-
 .continue-hero__glyph {
   position: absolute;
   inset: 0;
@@ -177,7 +166,6 @@ $hero-cta-height: 40px;
   svg {
     width: 56px;
     height: 56px;
-    stroke-width: 1.25;
   }
 }
 

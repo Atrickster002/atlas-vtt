@@ -27,7 +27,8 @@ export function bookQuestOf(quest: Quest, id: string, text: BookQuestText): Book
     body: text.opening,
     ...(text.text !== undefined && { text: text.text }),
     ...(text.images.length > 0 && { images: text.images }),
-    place: quest.place ?? null,
+    // Where it leads is the GM's pin on the world map (`QuestPlaces`), never the note.
+    place: null,
     xp: Math.min(quest.experience ?? 0, MAX_TOKEN_VALUE),
     rewards,
   };

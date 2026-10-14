@@ -1,5 +1,5 @@
 import { MAX_CAMPAIGN_NAME } from '../campaignValidation';
-import { QUEST_KINDS, QUEST_PROPERTY, QUEST_STATUSES, QUEST_TYPE, type Quest, type QuestKind, type QuestPlace, type QuestStatus } from './questTypes';
+import { QUEST_KINDS, QUEST_PROPERTY, QUEST_STATUSES, QUEST_TYPE, type Quest, type QuestKind, type QuestStatus } from './questTypes';
 
 /** What Atlas reads of a quest note's frontmatter at most. */
 export const QUEST_LIMITS = {
@@ -24,7 +24,6 @@ type Frontmatter = Readonly<Record<string, unknown>>;
 const field = (frontmatter: Frontmatter, key: string): unknown => (Object.hasOwn(frontmatter, key) ? frontmatter[key] : undefined);
 const oneOf = <T extends string>(list: readonly T[], value: unknown): value is T => (list as readonly unknown[]).includes(value);
 const word = (value: unknown): unknown => (typeof value === 'string' ? value.trim().toLowerCase() : value);
-const isShare = (value: unknown): value is number => typeof value === 'number' && value >= 0 && value <= 1;
 
 /** Whether a note's frontmatter marks it as a quest. */
 export function isQuestFrontmatter(frontmatter: unknown): frontmatter is Frontmatter {
@@ -56,20 +55,6 @@ function rewardsOf(value: unknown): string[] {
   return rewards;
 }
 
-/** The two shares of a place: `{ x, y }`, or a list of two written by hand. */
-function sharesOf(value: unknown): readonly unknown[] {
-  if (Array.isArray(value)) {
-    const parts: readonly unknown[] = value;
-    return parts.length === 2 ? parts.map((part) => (typeof part === 'string' && part.trim() !== '' ? Number(part) : part)) : [];
-  }
-  return typeof value === 'object' && value !== null ? [field(value as Frontmatter, 'x'), field(value as Frontmatter, 'y')] : [];
-}
-
-function placeOf(value: unknown): QuestPlace | undefined {
-  const [x, y] = sharesOf(value);
-  return isShare(x) && isShare(y) ? { x, y } : undefined;
-}
-
 /** The note's file as the vault knows it. */
 export interface QuestFile {
   readonly path: string;
@@ -91,7 +76,6 @@ export function readQuest(file: QuestFile, frontmatter: unknown): Quest | null {
   const kind = word(field(frontmatter, QUEST_PROPERTY.kind));
   const status = word(field(frontmatter, QUEST_PROPERTY.status));
   const experience = experienceOf(field(frontmatter, QUEST_PROPERTY.experience));
-  const place = placeOf(field(frontmatter, QUEST_PROPERTY.place));
   return {
     path: file.path,
     title: file.basename,
@@ -101,7 +85,6 @@ export function readQuest(file: QuestFile, frontmatter: unknown): Quest | null {
     status: oneOf<QuestStatus>(QUEST_STATUSES, status) ? status : 'open',
     ...(experience !== undefined && { experience }),
     rewards: rewardsOf(field(frontmatter, QUEST_PROPERTY.rewards) ?? []),
-    ...(place !== undefined && { place }),
     created: file.created,
     modified: file.modified,
   };
