@@ -63,7 +63,6 @@
 - A ring colour picked from a token's right-click menu colours every selected token, in one undo step
 - Resource wheels that players may see now show in the player window and in session view, and every resource, wheels too, has its switch in the player view settings
 - On a lit scene, the light and sight of a token that glides to a new place, such as after an undo, move with the token instead of arriving before it. A token whose way crosses a wall is put in its place at once
-- Showing players a floor where no token with vision stands keeps it dark for them, with only what they explored there, instead of showing them the whole floor. A floor lies open only while no token on any floor of the scene has vision
 
 ## Important changes
 
