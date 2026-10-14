@@ -80,3 +80,25 @@ export type LevelLinkInput = Omit<LevelLink, 'id' | 'kind'>;
 
 /** Changes to a level link: a field given as undefined is removed. */
 export type LevelLinkChanges = { [Field in keyof LevelLinkInput]?: LevelLinkInput[Field] | undefined };
+
+/**
+ * Part of a level's floor the GM drew (Foundry's Define Surface): open to the levels below (a
+ * gallery, a pit, a stairwell) or floor. Through an open surface the view shows the level below,
+ * as far as the players' sight reaches; a token put down over one falls to the first level below
+ * that has floor there. A later surface lies over an earlier one of its level. Map geometry the GM
+ * draws (undo-tracked, in `objects.levelSurfaces`); read them with `levelSurfaceList`.
+ */
+export interface LevelSurface extends OnOneLevel {
+  id: string;
+  kind: 'level-surface';
+  /** The area's corners in world pixels, at least three. */
+  polygon: { x: number; y: number }[];
+  /** True: open to the levels below; false: floor, closing what lies under it. */
+  open: boolean;
+  name?: string | undefined;
+}
+
+export type LevelSurfaceInput = Omit<LevelSurface, 'id' | 'kind'>;
+
+/** Changes to a level surface: a field given as undefined is removed. */
+export type LevelSurfaceChanges = { [Field in keyof LevelSurfaceInput]?: LevelSurfaceInput[Field] | undefined };

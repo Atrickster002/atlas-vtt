@@ -46,6 +46,7 @@ import { HydrationTracker } from './stores/hydrationTracker';
 import { isolateListeners } from './stores/isolatedListeners';
 import { elsewhereThanViewedLevel, placedOnViewedLevel, placedOnViewedLevels } from './levels/sceneLevels';
 import { createSceneLevelsActions, writeExploredMask, type SceneLevelsSlice } from './stores/sceneLevelsSlice';
+import { createLevelSurfacesActions, type LevelSurfacesSlice } from './stores/levelSurfacesSlice';
 import { levelsForFile, readExploredMasks, readSceneLevels } from './levels/levelFile';
 import { levelAlignmentsOf, movesWithFrame, withoutAlignments } from './levels/levelAlignment';
 import { levelsCarriedWithGrid, type CarriedLevels, type GridCarryScene } from './levels/levelGridCarry';
@@ -211,6 +212,11 @@ export interface ViewAtlasState extends ViewState {
   updateLevelLink: SceneLevelsSlice['updateLevelLink'];
   deleteLevelLink: SceneLevelsSlice['deleteLevelLink'];
 
+  // Openings and floor on a level (from levelSurfacesSlice.ts)
+  addLevelSurface: LevelSurfacesSlice['addLevelSurface'];
+  updateLevelSurface: LevelSurfacesSlice['updateLevelSurface'];
+  deleteLevelSurface: LevelSurfacesSlice['deleteLevelSurface'];
+
   // Copy, paste and duplicate (from mapObjectsSlice.ts)
   insertMapObjects: MapObjectsSlice['insertMapObjects'];
   duplicateMapObjects: MapObjectsSlice['duplicateMapObjects'];
@@ -256,6 +262,8 @@ export interface ViewAtlasState extends ViewState {
   closeLightZonePopover: UISlice['closeLightZonePopover'];
   openLevelLinkPopover: UISlice['openLevelLinkPopover'];
   closeLevelLinkPopover: UISlice['closeLevelLinkPopover'];
+  openLevelSurfacePopover: UISlice['openLevelSurfacePopover'];
+  closeLevelSurfacePopover: UISlice['closeLevelSurfacePopover'];
   setSceneLightingPanelOpen: UISlice['setSceneLightingPanelOpen'];
   setHeldTokens: UISlice['setHeldTokens'];
   setExploredBrush: UISlice['setExploredBrush'];
@@ -1449,6 +1457,7 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
 
           // --- Levels of the scene (from sceneLevelsSlice.ts) ---
           ...createSceneLevelsActions(set, get),
+          ...createLevelSurfacesActions(set),
 
           // --- Per-view UI visibility (from uiSlice.ts) ---
           ...createInitialUIState(),

@@ -58,5 +58,6 @@ export function objectsMovedWithMap(objects: SceneObjects, move: MapMove, moves?
     fog: mapRecord(objects.fog, (operation) => movedFog(operation, move), moves),
     ...(objects.lightZones ? { lightZones: mapRecord(objects.lightZones, (zone) => ({ ...zone, polygon: zone.polygon.map(move) }), moves) } : {}),
     ...(objects.levelLinks ? { levelLinks: mapRecord(objects.levelLinks, (link) => (Array.isArray(link.polygon) ? { ...link, polygon: link.polygon.map(move) } : link), moves) } : {}),
+    ...(objects.levelSurfaces ? { levelSurfaces: mapRecord(objects.levelSurfaces, (surface) => (Array.isArray(surface.polygon) ? { ...surface, polygon: surface.polygon.map(move) } : surface), moves) } : {}),
   };
 }
