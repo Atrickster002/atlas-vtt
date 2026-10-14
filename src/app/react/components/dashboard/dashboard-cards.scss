@@ -93,7 +93,7 @@
   }
 }
 
-// The scene opens with a press: a play button rises on the picture under the pointer or the keyboard.
+// The scene opens with a press: a play button shows on the picture under the pointer or the keyboard.
 .scene-card__play {
   position: absolute;
   inset-inline-end: $spacing-s;
@@ -107,8 +107,7 @@
   background: var(--interactive-accent);
   box-shadow: 0 2px 8px rgb(0 0 0 / 30%);
   opacity: 0;
-  transform: translateY(4px);
-  transition: opacity $transition-normal $transition-ease-out, transform $transition-normal $transition-ease-out;
+  transition: opacity $transition-normal $transition-ease-out;
 
   svg {
     width: $icon-s;
@@ -120,13 +119,6 @@
 .scene-card:hover .scene-card__play,
 .scene-card:focus-visible .scene-card__play {
   opacity: 1;
-  transform: none;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .scene-card__play {
-    transform: none;
-  }
 }
 
 // A loading card is shapes alone: the group's sheen passes over the page, not over a card surface.
