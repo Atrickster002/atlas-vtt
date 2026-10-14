@@ -257,9 +257,9 @@ export async function fuzzArt({ seed, trials, case: kind, map = 2048, quality, r
       const viewed: Sight = view.controller.renderer.currentSight();
       const measurement = () => mapMeasurementSettings(rulesLookup(view.obsApp), state);
       const filter = 1.5 / scale + 0.01;
-      // The players' badges on the viewed level's doors stand over everything, the openings too.
+      // The players' badges on the viewed level's doors stand over everything, the openings too; their rim reaches a little past 20 px.
       const doors = room.upper.walls.filter((wall) => wall.type === 'door').map((wall) => ({ x: (wall.p1.x + wall.p2.x) / 2, y: (wall.p1.y + wall.p2.y) / 2 }));
-      const onBadge = (p: { x: number; y: number }): boolean => doors.some((door) => Math.hypot(door.x - p.x, door.y - p.y) < 20 / scale);
+      const onBadge = (p: { x: number; y: number }): boolean => doors.some((door) => Math.hypot(door.x - p.x, door.y - p.y) < 24 / scale);
       // An opening drawn on the viewed level opens its floor whatever its art.
       const drawnOpen = (p: { x: number; y: number }): boolean => {
         let open = false;
