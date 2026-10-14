@@ -1,4 +1,4 @@
-import { NO_STRETCH, type MapStretch } from '../grid/mapStretch';
+import { imageToWorld, NO_STRETCH, type ImageSize, type MapStretch } from '../grid/mapStretch';
 import type { GridState } from '../types/gridTypes';
 import type { LevelAlignment } from '../types/sceneLevelTypes';
 
@@ -46,4 +46,17 @@ export function fittedLevelAlignment(grid: GridState, found: FoundGrid, current:
     scale,
     stretch: found.mapStretch ?? NO_STRETCH,
   };
+}
+
+/**
+ * How far, in world pixels, the farthest corner of an image of `size` moves when it is drawn with
+ * `to` instead of `from`: 0 where the image stays where it lies.
+ */
+export function placementShift(size: ImageSize, from: MapStretch, to: MapStretch): number {
+  const corners = [{ x: 0, y: 0 }, { x: size.width, y: 0 }, { x: 0, y: size.height }, { x: size.width, y: size.height }];
+  return Math.max(...corners.map((corner) => {
+    const before = imageToWorld(corner, size, from);
+    const after = imageToWorld(corner, size, to);
+    return Math.hypot(after.x - before.x, after.y - before.y);
+  }));
 }

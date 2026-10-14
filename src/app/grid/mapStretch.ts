@@ -72,7 +72,7 @@ export function turnedBox(width: number, height: number, stretch: MapStretch): {
   return { cos, sin, box, corner: { x: (width - box.width) / 2, y: (height - box.height) / 2 } };
 }
 
-interface ImageSize {
+export interface ImageSize {
   width: number;
   height: number;
 }
