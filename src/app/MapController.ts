@@ -37,11 +37,25 @@ const shownBackground = new WeakMap<MapImage, string | null>();
 /** The background each map image has finished loading: what it shows on screen. */
 const loadedBackground = new WeakMap<MapImage, string | null>();
 
+/** Who hears that a map image has finished loading the background asked of it (`onBackgroundLoaded`). */
+const backgroundListeners = new Set<(mapImage: MapImage) => void>();
+
 /** Loads `background` into `mapImage` and notes it shown once loaded, unless another was asked for meanwhile. */
 async function showBackground(mapImage: MapImage, background: string | null, load: () => Promise<void>): Promise<void> {
   shownBackground.set(mapImage, background);
   await load();
-  if (shownBackground.get(mapImage) === background) loadedBackground.set(mapImage, background);
+  if (shownBackground.get(mapImage) !== background) return;
+  loadedBackground.set(mapImage, background);
+  for (const listener of [...backgroundListeners]) listener(mapImage);
+}
+
+/**
+ * Calls `listener` whenever a map image has finished loading the background it was last asked
+ * for, so whoever waits for `showsViewedLevel` learns when it turns true. Returns the unsubscribe.
+ */
+function onBackgroundLoaded(listener: (mapImage: MapImage) => void): () => void {
+  backgroundListeners.add(listener);
+  return () => { backgroundListeners.delete(listener); };
 }
 
 /**
@@ -193,4 +207,4 @@ function followStretch(store: ViewAtlasStore, mapImage: MapImage, onFollowed: ()
 /**
  * Handles loading map resources and initialising renderer state.
  */
-export const MapController = { loadAndDisplay, followBackground, followStretch, showsViewedLevel };
+export const MapController = { loadAndDisplay, followBackground, followStretch, showsViewedLevel, onBackgroundLoaded };
