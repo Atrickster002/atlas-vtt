@@ -1,6 +1,7 @@
 import '../setup/obsidianDom';
 import { act, cleanup, fireEvent } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { page } from 'vitest/browser';
 import type { App } from 'obsidian';
 import css from '../../styles/main.scss?inline';
 import type { StoredCampaign } from '../../src/app/campaigns/campaignTypes';
@@ -153,6 +154,68 @@ describe('a campaign\'s page', () => {
       act(() => fireEvent.click(query('.world-map-card__remove')));
       expect(storage.current()[0]).not.toHaveProperty('worldMap');
       await expect.poll(() => document.querySelector('.world-map-card__choose')).not.toBeNull();
+    });
+  }
+
+  for (const theme of ['dark', 'light'] as const) {
+    it(`opens the world map list above its button where the page has no room below, and keeps it in view (${theme})`, async () => {
+      await mountDashboard(theme, campaigns('scene'), { size: { width: 1600, height: 700 } });
+      await openPage();
+      await expect.poll(() => document.querySelector('.world-map-card__change')).not.toBeNull();
+      const view = query('.atlas-dashboard-view');
+      const change = query('.world-map-card__change');
+      // The card's foot at the foot of the pane.
+      view.scrollTop += box(change).bottom - box(view).bottom + 16;
+      fireEvent.click(change);
+      const popover = query('.world-map-picker__popover');
+      expect(popover.classList.contains('world-map-picker__popover--up')).toBe(true);
+      // Placing it scrolled nothing.
+      const scrolled = view.scrollTop;
+      await expect.poll(() => document.activeElement?.classList.contains('world-map-picker__search')).toBe(true);
+      expect(view.scrollTop).toBe(scrolled);
+      await settle(250);
+      expect(box(popover).bottom).toBeLessThanOrEqual(box(change).top);
+      expect(box(popover).top).toBeGreaterThanOrEqual(box(view).top);
+      await shot(`world-map-picker-up-${theme}`);
+
+      // A pane too short for the list on either side: it takes the roomier side and scrolls.
+      fireEvent.keyDown(popover, { key: 'Escape' });
+      await page.viewport(1600, 300);
+      view.style.height = '300px';
+      view.scrollTop = 0;
+      view.scrollTop += box(change).top - box(view).top - 140;
+      fireEvent.click(change);
+      const short = query('.world-map-picker__popover');
+      await settle(250);
+      expect(box(short).top).toBeGreaterThanOrEqual(box(view).top);
+      expect(box(short).bottom).toBeLessThanOrEqual(box(view).bottom);
+      const list = query('.world-map-picker__list');
+      expect(list.scrollHeight).toBeGreaterThan(list.clientHeight);
+      await shot(`world-map-picker-capped-${theme}`);
+    });
+
+    it(`gives the description a field of its own that grows with its text (${theme})`, async () => {
+      await mountDashboard(theme, campaigns('scene'), { size: { width: 1600, height: 1000 } });
+      await openPage();
+      const field = query('.campaign-description__field');
+      const input = query('.campaign-description__input') as HTMLTextAreaElement;
+      const quests = query('.campaign-quests__panel');
+      // The same surface as the quests' panel below it.
+      expect(getComputedStyle(field).backgroundColor).toBe(getComputedStyle(quests).backgroundColor);
+      expect(getComputedStyle(field).borderTopLeftRadius).toBe(getComputedStyle(quests).borderTopLeftRadius);
+      expect(getComputedStyle(input).resize).toBe('none');
+      expect(getComputedStyle(input).borderTopWidth).toBe('0px');
+      await settle(300);
+      await shot(`description-${theme}`, query('.campaign-description'));
+
+      const short = box(field).height;
+      fireEvent.focus(input);
+      input.focus();
+      fireEvent.change(input, { target: { value: Array.from({ length: 14 }, (_, n) => `Line ${n + 1} of what the campaign is about.`).join('\n') } });
+      await settle(300);
+      expect(box(field).height).toBeGreaterThan(short);
+      expect(getComputedStyle(field).borderTopColor).not.toBe(getComputedStyle(quests).borderTopColor);
+      await shot(`description-focused-${theme}`, query('.campaign-description'));
     });
   }
 

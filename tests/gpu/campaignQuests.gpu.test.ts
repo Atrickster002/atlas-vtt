@@ -31,7 +31,7 @@ const CAMPAIGN = 'Rise of the Blood Olms';
 
 const quest = (properties: string, body = 'The olms rise when the river runs red.'): string => `---\natlas-type: quest\ncampaign: ${CAMPAIGN}\n${properties}\n---\n${body}\n`;
 const QUESTS: Record<string, string> = {
-  'Quests/The crown under the root.md': quest('kind: main\nstatus: active\nexperience: 1200\nrewards: [Favour of the Horned King, A seat at the Hollow Oak]\nplace: { x: 0.32, y: 0.41 }'),
+  'Quests/The crown under the root.md': quest('kind: main\nstatus: active\nexperience: 1200\nrewards: [Favour of the Horned King, A seat at the Hollow Oak]'),
   "Quests/Rescue the miller's daughter.md": quest('kind: main\nstatus: open\nexperience: 400'),
   'Quests/Olm eggs for the alchemist.md': quest('kind: side\nstatus: open\nexperience: 150\nrewards: [3 gold pieces]'),
   "Quests/The sexton's ledger.md": quest('kind: side\nstatus: active'),
@@ -82,7 +82,7 @@ async function mount(theme: 'light' | 'dark'): Promise<void> {
   const [scene] = await assets.getAssets(undefined, 'scene');
   const storage = memoryCampaigns([{ id: 'a', name: CAMPAIGN, createdAt: Date.now() - 1e9, lastPlayed: Date.now() - 2e8, worldMap: scene!.id, description: 'Blue Mouth Caves, below the Hollow Oak.' }]);
   render(
-    React.createElement('div', { className: 'workspace-leaf-content atlas-dashboard-view atlas-vtt-plugin' },
+    React.createElement('div', { className: 'workspace-leaf-content atlas-dashboard-view atlas-vtt-plugin', style: { width: '1280px', height: '860px' } },
       React.createElement(Dashboard, { app, campaignStorage: storage, onOpenScene: vi.fn(), onCreateMap: vi.fn(), onOpenAssetManager: vi.fn() })),
   );
   await expect.poll(() => document.querySelector('.campaign-card')).not.toBeNull();
@@ -124,14 +124,10 @@ describe('the quests of a campaign\'s page', () => {
       expect(groups[0]!.getBoundingClientRect().top - box.top - border).toBeCloseTo(8, 0);
       expect(groups[1]!.getBoundingClientRect().top - groups[0]!.getBoundingClientRect().bottom).toBeCloseTo(8, 0);
       expect(box.bottom - border - groups.at(-1)!.getBoundingClientRect().bottom).toBeCloseTo(8, 0);
-      // Status controls share one column, place buttons end every row at the same edge.
+      // Status controls share one column.
       const rows = [...panel.querySelectorAll<HTMLElement>('.campaign-quest')];
       const statusLefts = rows.map((row) => row.querySelector('.atlas-select-trigger')!.getBoundingClientRect().left);
-      const placeRights = rows.map((row) => row.querySelector('.quest-place__trigger')!.getBoundingClientRect().right);
       for (const left of statusLefts) expect(left).toBeCloseTo(statusLefts[0]!, 0);
-      for (const right of placeRights) expect(right).toBeCloseTo(placeRights[0]!, 0);
-      expect(rowOf(CROWN).querySelector('.quest-place__trigger')!.classList.contains('is-placed')).toBe(true);
-      expect(rows.filter((row) => row.querySelector('.is-placed'))).toHaveLength(1);
       await settle();
       await page.screenshot({ path: `__screenshots__/atlas-quests-${theme}.png`, element: query('.campaign-quests') });
 
@@ -141,33 +137,18 @@ describe('the quests of a campaign\'s page', () => {
       await page.screenshot({ path: `__screenshots__/atlas-quests-unfolded-${theme}.png`, element: query('.campaign-quests') });
     });
 
-    it(`opens the world map of a quest with the map inset like its close button (${theme})`, async () => {
+    it(`opens a quest's status list above it where the page has no room below (${theme})`, async () => {
       await mount(theme);
-      const trigger = rowOf(CROWN).querySelector<HTMLElement>('.quest-place__trigger')!;
-      trigger.scrollIntoView({ block: 'start' });
-      await expect.poll(() => trigger.getAttribute('aria-disabled')).toBeNull();
+      const view = query('.atlas-dashboard-view');
+      const trigger = rowOf(CROWN).querySelector<HTMLElement>('.atlas-select-trigger')!;
+      // The row at the foot of the pane: the list has no room below it.
+      view.scrollTop += trigger.getBoundingClientRect().bottom - view.getBoundingClientRect().bottom + 12;
       fireEvent.click(trigger);
-      await expect.poll(() => (document.querySelector<HTMLImageElement>('.quest-place__map img')?.naturalWidth ?? 0) > 0).toBe(true);
+      const list = query('.atlas-select-content');
+      expect(list.classList.contains('atlas-select-content--up')).toBe(true);
       await settle();
-      const panel = query('.quest-place__panel');
-      const box = panel.getBoundingClientRect();
-      const border = parseFloat(getComputedStyle(panel).borderLeftWidth);
-      const map = query('.quest-place__map').getBoundingClientRect();
-      const close = query('.quest-place__header .atlas-close-btn').getBoundingClientRect();
-      expect(map.left - box.left - border).toBeCloseTo(8, 0);
-      expect(box.right - border - map.right).toBeCloseTo(8, 0);
-      expect(box.bottom - border - map.bottom).toBeCloseTo(8, 0);
-      expect(box.right - border - close.right).toBeCloseTo(8, 0);
-      expect(close.top - box.top - border).toBeCloseTo(8, 0);
-      // The image keeps its proportions, so a share of it is a share of the map players see.
-      expect(map.width / map.height).toBeCloseTo(600 / 400, 1);
-      // The pin stands where the note says, its point on the place.
-      const pin = query('.quest-place__pin').getBoundingClientRect();
-      expect((pin.left + pin.right) / 2).toBeCloseTo(map.left + 0.32 * map.width, 0);
-      expect(pin.bottom).toBeCloseTo(map.top + 0.41 * map.height, 0);
-      (document.activeElement as HTMLElement | null)?.blur();
-      await settle();
-      await page.screenshot({ path: `__screenshots__/atlas-quest-place-${theme}.png`, element: panel });
+      expect(list.getBoundingClientRect().bottom).toBeLessThanOrEqual(trigger.getBoundingClientRect().top);
+      expect(list.getBoundingClientRect().top).toBeGreaterThanOrEqual(view.getBoundingClientRect().top);
     });
   }
 });

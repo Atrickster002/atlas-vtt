@@ -1,11 +1,13 @@
 import React, { useId } from 'react';
-import { Map, Play } from 'lucide-react';
+import { Play } from 'lucide-react';
 import { RevealImage } from '../../../packages/components/primitives/RevealImage';
 import { SkeletonGroup } from '../../../packages/components/primitives/Skeleton';
 import { t } from '../../../i18n';
 import { CardSkeleton } from './CardSkeleton';
 import { formatRelativeTime } from './relativeTime';
 import { lastActivity, type RecentScene } from './useRecentScenes';
+import { GameIcon } from '../GameIcon';
+import { PIN_ICON_PATHS } from '../../../types/pinIconPaths';
 
 /** Placeholders while the scenes are read. */
 const SKELETON_CARDS = 4;
@@ -18,7 +20,7 @@ interface RecentScenesProps {
 
 /** A scene as the map shows it, or a map glyph while it has no thumbnail. */
 function SceneThumbnail({ scene }: { scene: RecentScene }): React.JSX.Element {
-  const glyph = <span className="scene-card__glyph" aria-hidden="true"><Map /></span>;
+  const glyph = <span className="scene-card__glyph" aria-hidden="true"><GameIcon path={PIN_ICON_PATHS.map} /></span>;
   return scene.thumbnailUrl ? <RevealImage src={scene.thumbnailUrl} alt="" className="dashboard-card__image" fallback={glyph} /> : glyph;
 }
 

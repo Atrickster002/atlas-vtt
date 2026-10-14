@@ -74,7 +74,7 @@ export function CampaignNameField({ campaign, service, disabled }: FieldProps): 
   );
 }
 
-/** The campaign's description, saved when the GM leaves the field. */
+/** The campaign's description, saved when the GM leaves the field; the field grows with its text. */
 export function CampaignDescriptionField({ campaign, service, disabled }: FieldProps): React.JSX.Element {
   const [draft, setDraft, setFocused] = useDraft(campaign.description ?? '');
   const labelId = useId();
@@ -88,17 +88,19 @@ export function CampaignDescriptionField({ campaign, service, disabled }: FieldP
   return (
     <div className="campaign-description">
       <span id={labelId} className="panel-heading">{t('campaign.description')}</span>
-      <textarea
-        className="campaign-description__input"
-        value={draft}
-        aria-labelledby={labelId}
-        placeholder={t('campaign.descriptionPlaceholder')}
-        maxLength={MAX_CAMPAIGN_DESCRIPTION}
-        disabled={disabled}
-        onFocus={() => setFocused(true)}
-        onChange={(event) => setDraft(event.target.value)}
-        onBlur={save}
-      />
+      <div className={disabled ? 'campaign-description__field is-disabled' : 'campaign-description__field'}>
+        <textarea
+          className="campaign-description__input"
+          value={draft}
+          aria-labelledby={labelId}
+          placeholder={t('campaign.descriptionPlaceholder')}
+          maxLength={MAX_CAMPAIGN_DESCRIPTION}
+          disabled={disabled}
+          onFocus={() => setFocused(true)}
+          onChange={(event) => setDraft(event.target.value)}
+          onBlur={save}
+        />
+      </div>
     </div>
   );
 }

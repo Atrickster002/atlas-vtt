@@ -32,7 +32,8 @@
 
 - The asset manager shows all its tabs side by side in a normal window: New folder has moved into the + menu, the sort into the row above the assets, the refresh button is gone (Refresh stays in the right-click menu), and the search narrows before the tabs fold into a menu
 - The asset manager's Characters tab is now called Tokens
-- The dashboard carries Atlas' icon and name in Atlas' own lettering, with the sword standing behind the page
+- The dashboard carries Atlas' icon and name in Atlas' own lettering
+- The dashboard's icons come from the same set as the map pins and widgets: a treasure map for maps, a d20 for a campaign, a banner for a new campaign, a chest for the asset manager, a rule book for the game system
 - The initiative card's edit dialog takes a modifier of your own for a combatant, which counts instead of its statblock's until you clear it
 - The Spectral Engine, which detects a map's grid, shows the grid being found: it is etched into the map along the map's own lines, sharpens as the search grows sure of it, and settles as its glow fades
 - A new scene shows its map at once and finds its grid in front of you, where a loading screen covered both before
@@ -58,6 +59,7 @@
 - Rolling initiative adds each creature's modifier from its linked statblock, read from a field you pick in the collection's settings, or from an ability score such as DEX (D&D 5e reads Initiative, else DEX). With a contribution by anacletoTM
 - Auto detect finds the grid of a small map picture, with cells of about ten pixels, where it took four cells for one
 - A grid placed with Freehand stays exactly where and as large as you placed it, on maps with a printed grid too
+- A dropdown list near the bottom of a scrolling panel opens above its button instead of being cut off
 - The note picker of a pin and the right-click menus of pins and drawings open beside them, with Obsidian's left sidebar open too
 - Hovering a token whose note holds its statblock in a code block shows the statblock, not the plain note
 - Measured distances show one decimal place, so a 1.5 m cell reads 1.5 m instead of 2 m

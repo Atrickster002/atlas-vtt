@@ -1,13 +1,11 @@
 import React from 'react';
 import type { App } from 'obsidian';
-import { FolderOpen, Plus } from 'lucide-react';
 import type { Campaign } from '../../../campaigns/campaignTypes';
 import type { CampaignService } from '../../../campaigns/CampaignService';
 import { Button } from '../../../packages/components/primitives/button';
 import type { SystemPreset } from '../../../types/systemPresetTypes';
 import { t } from '../../../i18n';
 import atlasIconUrl from '../../../assets/brand/atlas-icon.webp';
-import swordUrl from '../../../assets/brand/sword.webp';
 import { CampaignsSection } from './CampaignsSection';
 import { ContinueHero } from './ContinueHero';
 import { useSceneArtwork, type WorldMapChoice } from './libraryPictures';
@@ -15,6 +13,8 @@ import { MapArt } from './MapArt';
 import { RecentScenes } from './RecentScenes';
 import type { CampaignParties } from './useCampaignParties';
 import type { RecentScene } from './useRecentScenes';
+import { GameIcon } from '../GameIcon';
+import { DASHBOARD_ICON_PATHS } from '../../../types/dashboardIconPaths';
 
 export interface HomePageProps {
   app: App;
@@ -36,8 +36,7 @@ export interface HomePageProps {
 
 /**
  * Atlas' start screen: the scene to continue, the campaigns, the scenes played lately, and the ways
- * to make more. The last scene's colours glow faintly behind the top of the page, and the sword of
- * Atlas' icon stands behind it all, its blade running out of the pane's bottom edge.
+ * to make more. The last scene's colours glow faintly behind the top of the page.
  */
 export function HomePage(props: HomePageProps): React.JSX.Element {
   const { app, scenes, scenesLoading, onOpenScene, onCreateMap, onOpenAssetManager } = props;
@@ -51,9 +50,6 @@ export function HomePage(props: HomePageProps): React.JSX.Element {
           <MapArt app={app} path={artwork ?? null} pathPending={artwork === undefined} thumbnailUrl={last.thumbnailUrl} />
         </div>
       )}
-      <div className="dashboard-sword" aria-hidden="true">
-        <img src={swordUrl} alt="" draggable={false} />
-      </div>
       <main className="dashboard-container dashboard-home dashboard-page">
         <header className="dashboard-topbar">
           <h1 className="dashboard-wordmark">
@@ -62,11 +58,11 @@ export function HomePage(props: HomePageProps): React.JSX.Element {
           </h1>
           <div className="dashboard-topbar__actions">
             <Button variant="ghost" className="dashboard-topbar__action" onClick={onOpenAssetManager}>
-              <FolderOpen aria-hidden="true" />
+              <GameIcon path={DASHBOARD_ICON_PATHS['open-chest']} />
               <span>{t('dashboard.assets')}</span>
             </Button>
             <Button variant="ghost" className="dashboard-topbar__action" onClick={onCreateMap}>
-              <Plus aria-hidden="true" />
+              <GameIcon path={DASHBOARD_ICON_PATHS['quill-ink']} />
               <span>{t('dashboard.createScene')}</span>
             </Button>
           </div>

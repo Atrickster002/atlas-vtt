@@ -22,6 +22,31 @@ export function viewFrame(element: HTMLElement): ViewFrame {
   return { left: 0, top: 0, right: win.innerWidth, bottom: win.innerHeight }
 }
 
+/** Whether an `overflow` value cuts what lies outside the box (an unset one does not). */
+const clips = (overflow: string): boolean => overflow !== '' && overflow !== 'visible'
+
+/**
+ * The part of the view an element that hangs inside its ancestors can be seen in: the view
+ * (`viewFrame`), cut by every ancestor up to the leaf that clips its content (a page that scrolls).
+ */
+export function clippedViewFrame(element: HTMLElement): ViewFrame {
+  // A DOMRect's sides are getters of its prototype, which spreading leaves behind.
+  const { left, top, right, bottom } = viewFrame(element)
+  const frame = { left, top, right, bottom }
+  const leaf = element.closest('.workspace-leaf')
+  const win = getDomHost().ownerWindow(element)
+  for (let node = element.parentElement; node !== null && node !== leaf; node = node.parentElement) {
+    const { overflowX, overflowY } = win.getComputedStyle(node)
+    if (!clips(overflowX) && !clips(overflowY)) continue
+    const rect = node.getBoundingClientRect()
+    frame.left = Math.max(frame.left, rect.left)
+    frame.top = Math.max(frame.top, rect.top)
+    frame.right = Math.min(frame.right, rect.right)
+    frame.bottom = Math.min(frame.bottom, rect.bottom)
+  }
+  return frame
+}
+
 /**
  * Keeps the open popover in `ref` inside its view when the window is small:
  * shifts it sideways off an edge and caps its height to the room it opens

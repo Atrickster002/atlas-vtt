@@ -1,18 +1,15 @@
 import React, { useId } from 'react';
-import { QUEST_STATUSES, type Quest, type QuestPlace, type QuestStatus } from '../../../../campaigns/quests/questTypes';
+import { QUEST_STATUSES, type Quest, type QuestStatus } from '../../../../campaigns/quests/questTypes';
 import { Select, type SelectOption } from '../../../../packages/components/primitives/Select';
 import { t } from '../../../../i18n';
-import { QuestPlacePicker } from './QuestPlacePicker';
 
 const STATUS_OPTIONS: SelectOption<QuestStatus>[] = QUEST_STATUSES.map((status) => ({ value: status, label: t(`quest.status.${status}`) }));
 
 interface QuestRowProps {
   quest: Quest;
-  mapUrl: string | null;
   disabled: boolean;
   onOpen: () => void;
   onStatus: (status: QuestStatus) => void;
-  onPlace: (place: QuestPlace | null) => void;
 }
 
 /** What a quest brings, as the row's second line: its experience and rewards. */
@@ -21,8 +18,8 @@ function questGains(quest: Quest): string {
   return [...experience, ...quest.rewards].join(' · ');
 }
 
-/** A quest on its campaign's page: its status, its name (which opens its note) with what it brings, and its place on the world map. */
-export function QuestRow({ quest, mapUrl, disabled, onOpen, onStatus, onPlace }: QuestRowProps): React.JSX.Element {
+/** A quest on its campaign's page: its status, its name (which opens its note) with what it brings. Where it lies is a pin on the world map scene that links its note. */
+export function QuestRow({ quest, disabled, onOpen, onStatus }: QuestRowProps): React.JSX.Element {
   const statusLabelId = useId();
   const gains = questGains(quest);
 
@@ -36,7 +33,6 @@ export function QuestRow({ quest, mapUrl, disabled, onOpen, onStatus, onPlace }:
         <span className="campaign-quest__title">{quest.title}</span>
         {gains !== '' && <span className="campaign-quest__gains">{gains}</span>}
       </button>
-      <QuestPlacePicker title={quest.title} place={quest.place} mapUrl={mapUrl} onPlace={onPlace} disabled={disabled} />
     </li>
   );
 }

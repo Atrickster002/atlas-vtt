@@ -1,7 +1,6 @@
 import React, { useId, useState } from 'react';
 import type { App } from 'obsidian';
 import { AnimatePresence } from 'framer-motion';
-import { Settings2 } from 'lucide-react';
 import type { Campaign } from '../../../campaigns/campaignTypes';
 import type { CampaignService } from '../../../campaigns/CampaignService';
 import { t } from '../../../i18n';
@@ -9,6 +8,8 @@ import { useSystemPresets } from '../../hooks/useSystemPresets';
 import { campaignSystemName } from './campaignSystemName';
 import { useDiceSets } from '../../hooks/useDiceSets';
 import { CampaignRulesDialog } from './CampaignRulesDialog';
+import { GameIcon } from '../GameIcon';
+import { DASHBOARD_ICON_PATHS } from '../../../types/dashboardIconPaths';
 
 interface CampaignSystemSettingProps {
   app: App;
@@ -38,7 +39,7 @@ export function CampaignSystemSetting({ app, campaign, service, disabled }: Camp
       >
         <span className={shown ? 'campaign-system__name' : 'campaign-system__name is-empty'}>{shown?.name ?? t('csm.system.none')}</span>
         {shown?.edited && <span className="atlas-csm-tag atlas-csm-tag--accent">{t('csm.system.edited')}</span>}
-        <Settings2 aria-hidden="true" className="campaign-system__icon" />
+        <GameIcon path={DASHBOARD_ICON_PATHS['rule-book']} className="campaign-system__icon" />
       </button>
       <AnimatePresence>
         {isOpen && <CampaignRulesDialog app={app} campaign={campaign} service={service} onClose={() => setIsOpen(false)} />}
