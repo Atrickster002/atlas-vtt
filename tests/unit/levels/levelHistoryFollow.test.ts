@@ -29,8 +29,15 @@ function sceneStore(): { store: ViewAtlasStore; stop: () => void } {
   return { store, stop: followHistoryAcrossLevels(store) };
 }
 
-const undo = (store: ViewAtlasStore): void => getHistoryStore(store)?.getState().undo();
-const redo = (store: ViewAtlasStore): void => getHistoryStore(store)?.getState().redo();
+/** Undoes a step and lets the listeners that look at it decide. */
+const undo = async (store: ViewAtlasStore): Promise<void> => {
+  getHistoryStore(store)?.getState().undo();
+  await Promise.resolve();
+};
+const redo = async (store: ViewAtlasStore): Promise<void> => {
+  getHistoryStore(store)?.getState().redo();
+  await Promise.resolve();
+};
 
 afterEach(() => { vi.mocked(Notice).mockClear(); });
 
@@ -46,35 +53,51 @@ describe('the levels a write changed', () => {
 });
 
 describe('undo and redo on a scene with levels', () => {
-  it('show the level a step changed when it changed nothing on the level shown, and say so', () => {
+  it('show the level a step changed when it changed nothing on the level shown, and say so', async () => {
     const { store, stop } = sceneStore();
     store.getState().setViewedLevel('upper');
     store.getState().moveToken('mage', 70, 70);
     store.getState().setViewedLevel('ground');
 
-    undo(store);
+    await undo(store);
 
     expect(store.getState().objects.tokens.mage).toMatchObject({ x: 0 });
     expect(store.getState().viewedLevel).toBe('upper');
     expect(vi.mocked(Notice)).toHaveBeenCalledWith(expect.stringContaining('Upper'));
 
     store.getState().setViewedLevel('roof');
-    redo(store);
+    await redo(store);
     expect(store.getState().viewedLevel).toBe('upper');
     stop();
   });
 
-  it('stay on the level shown when a step changed it, and let go of what the step took to another level', () => {
+  it('stay on the level shown when a step changed it, and let go of what the step took to another level', async () => {
     const { store, stop } = sceneStore();
     store.getState().moveTokensToLevel(['knight'], 'upper');
-    undo(store);
+    await undo(store);
     store.getState().setSelection(['knight']);
 
-    redo(store);
+    await redo(store);
 
     expect(store.getState().viewedLevel).toBe('ground');
     expect(store.getState().selectedIds).toEqual([]);
     expect(vi.mocked(Notice)).not.toHaveBeenCalled();
+    stop();
+  });
+
+  it('count what listeners write while the step is heard with the step', async () => {
+    const { store, stop } = sceneStore();
+    store.getState().moveToken('knight', 70, 70);
+    // A listener that answers the undo on another floor, as the party's values are rebuilt on a character's tokens
+    const answer = store.subscribe((state, previous) => {
+      if (state.objects.tokens.knight !== previous.objects.tokens.knight) state.moveToken('mage', 5, 5);
+    });
+
+    await undo(store);
+
+    expect(store.getState().objects.tokens.mage).toMatchObject({ x: 5 });
+    expect(store.getState().viewedLevel).toBe('ground');
+    answer();
     stop();
   });
 

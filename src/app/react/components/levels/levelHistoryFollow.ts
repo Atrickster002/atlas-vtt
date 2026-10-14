@@ -18,14 +18,19 @@ function selectionOnShownLevel(state: ViewAtlasState): string[] {
  * Undo and redo of a scene with floors show the floor they changed, as a design tool shows the page
  * of an undone edit: where a step changed nothing on the floor shown, the view goes to the floor it
  * changed and the GM is told, so no undo works out of sight. A step that changed the floor shown
- * stays there, and what it took to another floor leaves the selection. Returns the unsubscribe.
+ * stays there, and what it took to another floor leaves the selection. What listeners write while
+ * the step is heard (the party's values rebuilt on a character's tokens) counts with it: the floors
+ * are compared once the undo is done. Returns the unsubscribe.
  */
 export function followHistoryAcrossLevels(store: ViewAtlasStore): () => void {
-  return store.subscribe((state, previous) => {
-    if (state.objects === previous.objects && state.levelAlignments === previous.levelAlignments) return;
+  let before: ViewAtlasState | null = null;
+  const decide = (): void => {
+    const start = before;
+    before = null;
+    const state = store.getState();
     const { levels } = state;
-    if (!hasLevels(levels) || !state.mapLoaded || state.isMapLoading || !isHistoryTravelling(store)) return;
-    const changed = levelsChanged(previous, state, levels);
+    if (!start || !hasLevels(levels) || !state.mapLoaded || state.isMapLoading) return;
+    const changed = levelsChanged(start, state, levels);
     const shown = viewedLevelId(state);
     if (shown === null || changed.length === 0) return;
     if (changed.includes(shown)) {
@@ -37,5 +42,11 @@ export function followHistoryAcrossLevels(store: ViewAtlasStore): () => void {
     if (!target) return;
     state.setViewedLevel(target.id);
     showNotice(t('levels.historyShown', { name: levelLabel(levels, target) }));
+  };
+  return store.subscribe((state, previous) => {
+    if (before !== null || (state.objects === previous.objects && state.levelAlignments === previous.levelAlignments)) return;
+    if (!hasLevels(state.levels) || !isHistoryTravelling(store)) return;
+    before = previous;
+    queueMicrotask(decide);
   });
 }
