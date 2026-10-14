@@ -64,9 +64,11 @@
 }
 
 .atlas-uvtt-floors__move {
-  @include atlas-icon-button('m');
+  @include atlas-icon-button('s');
   @include atlas-ghost-button;
-  flex-shrink: 0;
+  // As tall as the floor's name field beside it
+  width: var(--input-height);
+  height: var(--input-height);
   box-shadow: none;
 
   &:disabled {
