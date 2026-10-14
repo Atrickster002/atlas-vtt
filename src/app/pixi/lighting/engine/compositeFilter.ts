@@ -23,6 +23,18 @@ import { SEES_ALL } from '../../../vision/sight';
 
 export type LightingMode = 'gm' | 'player';
 
+/** The level stack as the composite reads it (`LevelStackTexture`): what each texel of the stack's grid shows. */
+export interface CompositeStack {
+  /** Red is the level each texel shows (0 the viewed one, 1 the level below drawn, 255 nothing). */
+  texture: Texture;
+  /** Where the texture's first texel lies in the grid, and how many it has. */
+  box: { x: number; y: number; columns: number; rows: number };
+  /** The grid's texel in world pixels, and its size. */
+  texel: number;
+  columns: number;
+  rows: number;
+}
+
 /** The bounce's weight in the composite; 0 in a world without bounce. */
 const BOUNCE_GAIN: number = BOUNCE.gain;
 
@@ -57,6 +69,15 @@ export interface CompositeFilter {
   setGrid(mark: GridMarkColor | null): void;
   /** Maps screen pixels of the render being drawn to world pixels; `zoom` is screen px per world px. */
   setView(screenToWorld: Matrix, zoom: number): void;
+  /** The level stack of the view's openings, or null while the level shows only itself: nothing of it is read then. */
+  setStack(stack: CompositeStack | null): void;
+  /**
+   * The level below as its own composite drew the render about to be drawn, texel on pixel, dimmed by
+   * `dim`; null shows nothing in its texels.
+   */
+  setBelow(picture: Texture | null, dim: number): void;
+  /** Which level of the stack this composite draws: 0 the viewed one, 1 the level below. */
+  setLevelIndex(index: number): void;
 }
 
 /**
@@ -97,6 +118,8 @@ export function createCompositeFilter(world: LightingWorld, explored: Texture): 
   const greyTint = new Float32Array(3);
   const darkTint = new Float32Array([1, 1, 1]);
   const gridColor = new Float32Array(3);
+  const stackBox = new Float32Array(4);
+  const stackGrid = new Float32Array(2);
   let gridMark: number | undefined;
   const group = new UniformGroup({
     uScreenToWorld: { value: screenToWorld, type: 'mat3x3<f32>' },
@@ -131,6 +154,13 @@ export function createCompositeFilter(world: LightingWorld, explored: Texture): 
     uFluSpacing: { value: BOUNCE.probe, type: 'f32' },
     uGrid: { value: 0, type: 'f32' },
     uGridColor: { value: gridColor, type: 'vec3<f32>' },
+    uStackBox: { value: stackBox, type: 'vec4<f32>' },
+    uStackGrid: { value: stackGrid, type: 'vec2<f32>' },
+    uStackTexel: { value: 1, type: 'f32' },
+    uHasBelow: { value: 0, type: 'f32' },
+    uLevelIndex: { value: 0, type: 'f32' },
+    uBelowCount: { value: 0, type: 'f32' },
+    uBelowDim: { value: 1, type: 'f32' },
   });
   const u = group.uniforms;
   // Bound while the scene has no darkness source, no ambient zone or no bounce, so the filter never holds a destroyed map.
@@ -147,6 +177,8 @@ export function createCompositeFilter(world: LightingWorld, explored: Texture): 
       uDarkness: noDarkness.source,
       uZones: noDarkness.source,
       uZonesLifted: noDarkness.source,
+      uStack: noDarkness.source,
+      uBelow1: noDarkness.source,
       ...fieldResources(world),
     },
     blendRequired: true,
@@ -231,6 +263,26 @@ export function createCompositeFilter(world: LightingWorld, explored: Texture): 
     setView(matrix, zoom): void {
       screenToWorld.copyFrom(matrix);
       u.uPixelWorld = 1 / zoom;
+      group.update();
+    },
+    setStack(stack): void {
+      filter.resources.uStack = (stack?.texture ?? noDarkness).source;
+      u.uHasBelow = stack ? 1 : 0;
+      if (stack) {
+        stackBox.set([stack.box.x, stack.box.y, stack.box.columns, stack.box.rows]);
+        stackGrid.set([stack.columns, stack.rows]);
+        u.uStackTexel = stack.texel;
+      }
+      group.update();
+    },
+    setBelow(picture, dim): void {
+      filter.resources.uBelow1 = (picture ?? noDarkness).source;
+      u.uBelowCount = picture ? 1 : 0;
+      u.uBelowDim = dim;
+      group.update();
+    },
+    setLevelIndex(index): void {
+      u.uLevelIndex = index;
       group.update();
     },
   };

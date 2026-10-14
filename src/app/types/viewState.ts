@@ -9,7 +9,7 @@ import type { DiceRollResult } from './diceTypes';
 import type { CameraState, GridState } from './gridTypes';
 import type { ViewUIState } from './viewUIState';
 import type { PartyValues } from './partyTypes';
-import type { LevelAlignment, LevelLink, SceneLevel } from './sceneLevelTypes';
+import type { LevelAlignment, LevelLink, LevelSurface, SceneLevel } from './sceneLevelTypes';
 
 /** Data read from a map view, independent of the store and persistence services. */
 export interface ViewState extends ViewUIState {
@@ -70,6 +70,8 @@ export interface ViewState extends ViewUIState {
     lightZones?: Record<string, LightZone>;
     /** Stairs and other areas that take a token to another level; absent until the first is drawn. Read with `levelLinkList`. */
     levelLinks?: Record<string, LevelLink>;
+    /** Openings to the levels below, and floor over them; absent until the first is drawn. Read with `levelSurfaceList`. */
+    levelSurfaces?: Record<string, LevelSurface>;
   };
 
   // Camera state

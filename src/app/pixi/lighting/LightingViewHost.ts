@@ -5,6 +5,9 @@ import type { HideableLayer } from '../playerSafeFrame';
 import type { SceneFrame } from './engine/types';
 import type { LightingUnavailable } from './LightingRenderer';
 import type { SceneLightingView } from './sceneLightingView';
+import type { TileView } from '../mapImage/levelOfDetail';
+import type { TokenPerception } from '../../vision/tokenPerception';
+import type { BelowPicture } from './levels/LevelsBelow';
 
 export interface LightingViewHostDeps {
   store: ViewAtlasStore;
@@ -83,6 +86,10 @@ export class LightingViewHost implements SceneLightingView {
   resetExplored(): void { this.view.resetExplored(); }
   editExplored(edit: ExploredEdit): boolean { return this.view.editExplored(edit); }
   beforeMapUnload(): void { this.view.beforeMapUnload(); }
+  prepareBelow(picture?: Omit<BelowPicture, 'camera'>): void { this.view.prepareBelow?.(picture); }
+  addBelowDemandRegion(view: TileView): () => void { return this.view.addBelowDemandRegion?.(view) ?? ((): void => undefined); }
+  releaseBelowPicture(): void { this.view.releaseBelowPicture?.(); }
+  belowTokenPerception(): TokenPerception { return this.view.belowTokenPerception?.() ?? ((): 'unseen' => 'unseen'); }
 
   /** An engine that fails while it prepares the frame is replaced during the call: the picture is then the fallback's. */
   renderForFrame<T>(frame: SceneFrame, render: () => T): T {

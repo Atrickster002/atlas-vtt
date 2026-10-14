@@ -99,7 +99,11 @@ export function levelMapKey(mapPath: string | null, view: LevelView): string | n
 
 /** The explored memory of the level a view shows: the first level's is `exploredMask`. */
 export function levelExploredMask(state: Pick<ViewState, 'exploredMask' | 'exploredMasks'> & LevelView): string | null {
-  const id = viewedLevelId(state);
+  return exploredMaskOf(state, viewedLevelId(state));
+}
+
+/** The explored memory of level `id` (null: a scene without levels), wherever the view is: the first level's is `exploredMask`. */
+export function exploredMaskOf(state: Pick<ViewState, 'exploredMask' | 'exploredMasks'> & LevelView, id: string | null): string | null {
   return id === null || id === firstLevelId(state.levels) ? state.exploredMask : state.exploredMasks?.[id] ?? null;
 }
 

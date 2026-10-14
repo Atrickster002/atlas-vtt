@@ -2,6 +2,7 @@ import type { FogCoverage } from '../../fog/fogCoverage';
 import type { EventEmitter } from 'events';
 import type { App } from 'obsidian';
 import type { Application, Texture } from 'pixi.js';
+import type { BelowLevelsHost } from './levels/LevelsBelow';
 import type { UnlitGrid } from '../../grid/gridLightingMark';
 import type { Viewport } from 'pixi-viewport';
 import type { MeasurementSettings } from '../../grid/measurementFormat';
@@ -29,7 +30,7 @@ import { LightInteraction } from './LightInteraction';
 import { LightMarkers } from './LightMarkers';
 import { LightRangeRings } from './LightRangeRings';
 import { LightingModes } from './LightingModes';
-import { showExploredTravelNotice, showZonesFullNotice } from './lightingNotices';
+import { showExploredTravelNotice, showSurfacesFullNotice, showZonesFullNotice } from './lightingNotices';
 import { closeStalePopovers } from './popoverGuards';
 import { playerDoorSight, playerLightingLayers, playerTokenSight, type GmOverlays } from './playerLightingLayers';
 import { PerceptionMemo, type TokenPerception } from '../../vision/tokenPerception';
@@ -63,6 +64,8 @@ export interface LightingControllerDeps {
   quality?: LightingQualitySource;
   /** Where gliding tokens are drawn: sight and light read them there. */
   shown?: ShownPlaces;
+  /** What the levels below the view need of it (`createBelowLevelsHost`); without it the openings show nothing below. */
+  below?: BelowLevelsHost;
 }
 
 /**
@@ -112,7 +115,7 @@ export class LightingController {
     });
     this.modes = new LightingModes({
       viewport, canvas: app.canvas, store, eventBus, bounds: deps.bounds, edit: (edit) => this.renderer.editExplored(edit),
-      onActiveChange: () => this.session.sync(), onFull: showZonesFullNotice, announce: showExploredTravelNotice,
+      onActiveChange: () => this.session.sync(), onFull: showZonesFullNotice, onSurfacesFull: showSurfacesFullNotice, announce: showExploredTravelNotice,
     });
     this.renderer = createSceneLighting({
       viewport, app, store, obsApp, measurement, bounds: deps.bounds, albedo: deps.albedo, ...(deps.grid && { grid: deps.grid }),
@@ -121,6 +124,7 @@ export class LightingController {
       exploredWatcher: this.modes.memory,
       ...(deps.quality && { quality: deps.quality }),
       scene,
+      ...(deps.below && { below: deps.below }),
     });
     this.sightAids = new GmSightAids({
       viewport, store: scene, measurement, bounds: deps.bounds,

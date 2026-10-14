@@ -4,6 +4,7 @@ import { exploredMemoryOn } from '../lighting/sceneLightingOptions';
 import { ambientLevel } from './lightLevels';
 import type { AmbientLight, LightReach, Sight, SightRegion } from './sight';
 import type { Polygon } from './visibility';
+import type { TexelMask } from '../levels/stackClip';
 
 /**
  * What explored memory records: `polygons`, drawn only inside `clip` when it is set, and without
@@ -20,6 +21,11 @@ export interface ExploredShapes {
    * adds its polygon, a dark one takes it away.
    */
   ambient?: { base: boolean; zones: { polygon: Polygon; lit: boolean }[] };
+  /**
+   * The memory's texels that may record anything of these shapes (`stampClip`): what is seen of a
+   * level below through openings above is recorded only where the openings showed it.
+   */
+  within?: TexelMask;
 }
 
 /** A region whose sense shows the map, with the area it covers. */

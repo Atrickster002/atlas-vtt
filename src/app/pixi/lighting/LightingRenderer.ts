@@ -14,7 +14,11 @@ import type { MapBounds } from '../../vision/visibility';
 import type { HideableLayer } from '../playerSafeFrame';
 import type { UnlitGrid } from '../../grid/gridLightingMark';
 import { requestRender } from '../RenderScheduler';
-import { awaitGpu, contextLost } from './engine/gpu';
+import { LevelsBelow, type BelowLevelsHost, type BelowPicture } from './levels/LevelsBelow';
+import type { TileView } from '../mapImage/levelOfDetail';
+import type { TokenPerception } from '../../vision/tokenPerception';
+import { contextLost } from './engine/gpu';
+import { AttemptProgress } from './AttemptProgress';
 import { LightingEngine } from './engine/LightingEngine';
 import type { EngineScene, SceneFrame } from './engine/types';
 import { ExploredMemory, type ExploredMemoryState } from './ExploredMemory';
@@ -31,8 +35,13 @@ const DEFAULT_CELL_SIZE = 70;
 /** Why the engine does not light a view: it stopped on this device, or its last attempt never drew a frame. */
 export type LightingUnavailable = 'failed' | 'unfinished';
 
-/** What the lighting reads of its view's state: the scene it lights, the load flag and the explored memory's part. */
-export type LightingState = SceneState & ExploredMemoryState & Pick<ViewState, 'exploredMask' | 'exploredMasks'>;
+/**
+ * What the lighting reads of its view's state: the scene it lights, the load flag, the explored
+ * memory's part, and what it draws of the level below through the openings (`LevelsBelow`).
+ */
+export type LightingState = SceneState & ExploredMemoryState & Pick<ViewState, 'exploredMask' | 'exploredMasks' | 'background' | 'levelAlignments'> & {
+  objects: Pick<ViewState['objects'], 'fog' | 'levelSurfaces'>;
+};
 
 export type LightingStore = Pick<StoreApi<LightingState>, 'getState' | 'subscribe'>;
 
@@ -62,14 +71,11 @@ export interface LightingRendererDeps {
   exploredWatcher?: ExploredMemoryWatcher;
   /** How much the lighting may ask of the graphics device, followed while the view lives; the default quality without one. */
   quality?: LightingQualitySource;
+  /** What the view gives the levels below it, seen through its openings; without it the openings show nothing below. */
+  below?: BelowLevelsHost;
 }
 
 type SceneWithoutLook = Omit<EngineScene, keyof SceneLook | 'albedo'>;
-/**
- * From the build that begins an attempt, over the first lit frame and the tick that waits for
- * the graphics process to execute it, to the tick after that one.
- */
-type AttemptState = 'none' | 'begun' | 'drawn' | 'executed' | 'done';
 
 /**
  * Scene lighting for one map view: feeds the store's walls, lights and vision tokens to the
@@ -100,12 +106,17 @@ export class LightingRenderer implements SceneLightingView {
   private lastScene: SceneWithoutLook | null = null;
   /** The albedo the engine was last given. */
   private albedo: Texture | null = null;
-  private attemptState: AttemptState = 'none';
+  private readonly attempt: AttemptProgress;
   private stopped = false;
   /** A scene build worked out new sight; reported once the guarded work is over. */
   private sightChanged = false;
-  private readonly onContextLost = (): void => this.memory.holdSaves();
+  private readonly onContextLost = (): void => {
+    this.memory.holdSaves();
+    this.levelsBelow?.holdSaves();
+  };
   private readonly playerView = new PlayerView((shown) => this.engine.setMode(shown ? 'player' : 'gm'));
+  /** The levels below seen through the viewed level's openings; none without a host. */
+  private readonly levelsBelow: LevelsBelow | null;
   private readonly unsubscribe: () => void;
   private readonly unsubscribeQuality: () => void;
   private quality: LightingQuality;
@@ -115,6 +126,7 @@ export class LightingRenderer implements SceneLightingView {
     const { renderer } = deps.app;
     this.quality = deps.quality?.current() ?? DEFAULT_LIGHTING_QUALITY;
     this.engine = new LightingEngine(renderer, this.quality);
+    this.attempt = new AttemptProgress(renderer, deps.attempt);
     this.layer = this.engine.layer;
     this.memory = new ExploredMemory({
       renderer,
@@ -127,6 +139,20 @@ export class LightingRenderer implements SceneLightingView {
       onChange: () => requestRender(deps.app),
       guard: (work) => this.run(work),
     });
+    this.levelsBelow = deps.below ? new LevelsBelow({
+      app: deps.app,
+      viewport: deps.viewport,
+      store: deps.store,
+      host: deps.below,
+      quality: () => this.quality,
+      measurement: deps.measurement,
+      ...(deps.rules && { rules: deps.rules }),
+      view: this.engine,
+      mode: () => (this.playerView.visible ? 'player' : 'gm'),
+      requestRender: () => requestRender(deps.app),
+      onReady: () => this.run(() => this.update(deps.store.getState())),
+      guard: (work) => this.run(work),
+    }) : null;
     renderer.canvas.addEventListener('webglcontextlost', this.onContextLost);
     this.layer.zIndex = LIGHTING_Z_INDEX;
     this.layer.onRender = (): void => this.onLayerRender();
@@ -162,12 +188,33 @@ export class LightingRenderer implements SceneLightingView {
     return this.engine.renderFrame(frame, render);
   }
 
+  prepareBelow(picture?: Omit<BelowPicture, 'camera'>): void {
+    this.run(() => this.levelsBelow?.prepare(picture));
+  }
+
+  addBelowDemandRegion(view: TileView): () => void {
+    return this.levelsBelow?.addDemandRegion(view) ?? ((): void => undefined);
+  }
+
+  releaseBelowPicture(): void {
+    this.levelsBelow?.releasePicture('frame');
+  }
+
+  belowTokenPerception(): TokenPerception {
+    return this.levelsBelow?.tokenPerception(this.deps.store.getState()) ?? ((): 'unseen' => 'unseen');
+  }
+
   /** The quality changed: the engine redraws at the new one, from the scene it holds. */
   private followQuality(): void {
     const quality = this.deps.quality?.current() ?? DEFAULT_LIGHTING_QUALITY;
     if (quality === this.quality) return;
     this.quality = quality;
-    this.run(() => this.engine.setQuality(quality));
+    this.run(() => {
+      this.engine.setQuality(quality);
+      // The levels below are lit a tier lower than the view: built anew at the new one.
+      this.levelsBelow?.reset(true);
+      this.update(this.deps.store.getState());
+    });
     requestRender(this.deps.app);
   }
 
@@ -189,10 +236,13 @@ export class LightingRenderer implements SceneLightingView {
 
   /** Before the map unloads: save the scene's pending memory into it, then start the next scene blank. */
   beforeMapUnload(): void {
-    this.run(() => this.memory.beforeMapUnload());
+    this.run(() => {
+      this.levelsBelow?.reset(true);
+      this.memory.beforeMapUnload();
+    });
     this.model.reset();
     this.lastScene = null;
-    this.endAttempt();
+    this.attempt.end();
   }
 
   /**
@@ -225,31 +275,39 @@ export class LightingRenderer implements SceneLightingView {
     this.stopped = true;
     // Whatever the memory holds now may be broken: the saved mask stays as it is.
     this.memory.cancelSaves();
+    this.levelsBelow?.reset(false);
     // An unfinished attempt builds nothing more, not even from the scene the engine remembers.
     this.engine.setEnabled(false);
     this.deps.onUnavailable?.(reason);
   }
 
-  private update(state: LightingState): void {
+  private update(current: LightingState): void {
+    let state = current;
     const { lighting } = state;
     // A load rewrites the store in steps (the next map's path, a cleared scene, the saved one):
     // lighting is off for its duration, and the update that ends it builds the scene whole.
     const bounds = lighting.enabled && !state.isMapLoading ? this.deps.bounds() : null;
     if (!bounds) {
       // Nothing is drawn while off; the next update after switching on rebuilds everything.
+      this.levelsBelow?.reset(true);
       this.engine.setEnabled(false);
       this.model.reset();
       this.lastScene = null;
-      this.endAttempt();
+      this.attempt.end();
       return;
     }
-    if (!this.beginAttempt()) {
+    if (!this.attempt.begin()) {
       this.stop('unfinished');
       return;
     }
     this.engine.setEnabled(true);
+    // A level below that the view no longer draws saves its memory first: the view may be about to
+    // take that level up. What the saves write reaches the store, so the state is read again.
+    this.levelsBelow?.drop(state);
+    state = this.deps.store.getState();
     // Each level has its memory: showing another one saves the one left and loads its own
     this.memory.sync(bounds, levelExploredMask(state), viewedLevelId(state));
+    state = this.deps.store.getState();
 
     const { model, rebuilt } = this.model.update(state, bounds, this.deps.measurement, this.deps.rules);
     const base = rebuilt || !this.lastScene ? (this.lastScene = this.takeModel(model, state, bounds)) : this.lastScene;
@@ -258,7 +316,9 @@ export class LightingRenderer implements SceneLightingView {
     // Both pictures always show the same tokens (`GM_SIGHT_POLICY`), so the same sight gives the same footprints.
     const gmSpots = gmSight === model.sight ? spots : this.gmSpots.update(model, state, this.deps.measurement, this.deps.rules, gmSight);
     this.albedo = this.deps.albedo();
-    this.engine.update({ ...base, albedo: this.albedo, spots: gmSpots, ...(gmSight !== model.sight && { playerSight: model.sight, playerSpots: spots }), ...sceneLook(lighting) });
+    this.engine.update({ ...base, albedo: this.albedo, spots: gmSpots, ...(gmSight !== model.sight && { playerSight: model.sight, playerSpots: spots }), ...sceneLook(state.lighting) });
+    this.levelsBelow?.update(state, bounds, { sight: model.sight, gmSight });
+    if (this.levelsBelow?.failed()) this.engine.fail(new Error('The lighting of a level below stopped'));
     requestRender(this.deps.app);
   }
 
@@ -278,44 +338,14 @@ export class LightingRenderer implements SceneLightingView {
    * never finished, which `LightingAttempt.begin` then reports.
    */
   private afterContextRestored(): void {
-    this.attemptState = 'none';
+    this.attempt.restart();
     const state = this.deps.store.getState();
     // The memory comes back as it was last saved: the texels its undo steps hold belong to a texture that is gone.
     this.memory.forgetEdits();
     this.memory.reload(levelExploredMask(state));
+    // The levels below come back from their saved memories, built anew.
+    this.levelsBelow?.reset(false);
     this.update(state);
-  }
-
-  /**
-   * Lighting a map is an attempt until the engine has drawn a frame of it (`LightingAttempt`
-   * notes it on this device, so a start that crashed the graphics process is not repeated).
-   * False when the last attempt on this map never finished.
-   */
-  private beginAttempt(): boolean {
-    if (this.attemptState !== 'none') return true;
-    if (this.deps.attempt?.begin() === false) return false;
-    this.attemptState = 'begun';
-    return true;
-  }
-
-  /** Lighting goes off or the map leaves: an attempt still open ends without a verdict. */
-  private endAttempt(): void {
-    if (this.attemptState !== 'none' && this.attemptState !== 'done') this.deps.attempt?.finish();
-    this.attemptState = 'none';
-  }
-
-  /**
-   * The frame after the first lit render waits until the graphics process has executed it
-   * (`awaitGpu`); the frame after that, which `run` skips on a lost context, ends the attempt.
-   */
-  private settleAttempt(): void {
-    if (this.attemptState === 'drawn') {
-      awaitGpu(this.deps.app.renderer);
-      this.attemptState = 'executed';
-    } else if (this.attemptState === 'executed') {
-      this.deps.attempt?.finish();
-      this.attemptState = 'done';
-    }
   }
 
   /** The composite maps screen pixels to the world with the camera of the frame being rendered. */
@@ -324,7 +354,7 @@ export class LightingRenderer implements SceneLightingView {
     const worldToScreen = new Matrix(viewport.scale.x, 0, 0, viewport.scale.y, viewport.x, viewport.y);
     this.engine.setView(worldToScreen.invert(), viewport.scale.x);
     this.engine.setGrid(this.deps.grid?.() ?? null);
-    if (this.attemptState === 'begun' && this.engine.hasWorld()) this.attemptState = 'drawn';
+    this.attempt.rendered(this.engine.hasWorld());
   }
 
   /**
@@ -336,9 +366,11 @@ export class LightingRenderer implements SceneLightingView {
   }
 
   private animate(): void {
-    this.settleAttempt();
+    this.attempt.settle();
     this.followAlbedo();
-    if (!this.layer.visible || !this.engine.busy()) return;
+    if (!this.layer.visible) return;
+    this.levelsBelow?.animate(performance.now());
+    if (!this.engine.busy()) return;
     // ponytail: animated lights redraw the whole light map even while off-screen; cull to the viewport if that gets slow.
     if (this.engine.animate(performance.now())) requestRender(this.deps.app);
   }
@@ -349,9 +381,11 @@ export class LightingRenderer implements SceneLightingView {
     this.unsubscribeQuality();
     this.deps.app.ticker.remove(this.tick);
     this.deps.app.renderer.canvas.removeEventListener('webglcontextlost', this.onContextLost);
-    this.endAttempt();
-    // The composite reads the memory's texture: it goes first.
+    this.attempt.end();
+    // The composites read the memories' and the stack's textures: they go first.
+    this.levelsBelow?.reset(false);
     this.engine.destroy();
+    this.levelsBelow?.destroy();
     this.memory.destroy();
   }
 }

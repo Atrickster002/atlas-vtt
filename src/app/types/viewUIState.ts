@@ -21,6 +21,8 @@ export interface ViewUIState {
   lightZonePopover: string | null;
   /** The stairs (level link) whose popover is open. */
   levelLinkPopover: string | null;
+  /** The opening or floor (level surface) whose popover is open. */
+  levelSurfacePopover: string | null;
   /** The scene lighting settings panel, opened from the lighting tool's menu. */
   isSceneLightingPanelOpen: boolean;
   /** The tokens the pointer holds (pressed or dragged), each where it stood when taken; set through `holdTokens`. */

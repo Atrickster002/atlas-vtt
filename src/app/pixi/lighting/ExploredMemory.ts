@@ -12,6 +12,8 @@ import { ExploredSteps } from './ExploredSteps';
 import { ExploredTexture } from './ExploredTexture';
 
 const EXPLORED_SAVE_DELAY = 2000;
+/** What sight recorded while a mask decodes, kept to draw again over it: a mask that never decodes must not grow this without end. */
+const MAX_RECORDED_WHILE_LOADING = 64;
 
 /** What the memory reads of its view's state and the two actions it calls; the tracked records let it trim the undo history (`forgetExploredEdits`). */
 export type ExploredMemoryState = HistorySnapshot & Pick<ViewState, 'mapPath' | 'isMapLoading' | 'exploredEdits'> & {
@@ -36,6 +38,11 @@ export interface ExploredMemoryDeps {
    * while the graphics device cannot take it and keeps its errors from escaping.
    */
   guard: (work: () => void) => void;
+  /**
+   * False for a memory the GM never edits (a level below the view's, seen through openings):
+   * it neither follows undo and redo of edits nor counts any.
+   */
+  edits?: boolean;
 }
 
 /**
@@ -58,6 +65,8 @@ export class ExploredMemory {
   private loadedMask: string | null | undefined = null;
   /** Bumped whenever the texture's content is superseded, so a load decoded too late is dropped. */
   private loadGeneration = 0;
+  /** What sight recorded while a saved mask was on its way in: drawn again over the mask once it is. */
+  private recordedWhileLoading: ExploredShapes[] = [];
   private ready = true;
   private contextLost = false;
   private readonly saver: ExploredSaveScheduler;
@@ -73,7 +82,7 @@ export class ExploredMemory {
     this.steps = new ExploredSteps(deps.renderer);
     this.revision = deps.store.getState().exploredEdits;
     // Undo and redo move the count; an edit of this memory's own has moved `revision` along with it.
-    this.unsubscribe = deps.store.subscribe((state) => this.follow(state.exploredEdits, state.isMapLoading));
+    this.unsubscribe = deps.edits === false ? (): void => undefined : deps.store.subscribe((state) => this.follow(state.exploredEdits, state.isMapLoading));
   }
 
   /**
@@ -90,6 +99,9 @@ export class ExploredMemory {
   record(shapes: ExploredShapes): void {
     if (!this.texture || !this.bounds) return;
     this.texture.add(shapes);
+    // The decoded mask replaces the texture: what is seen meanwhile must not go with what it replaces.
+    // A mask that never decodes keeps the memory from being saved at all; the oldest go past the cap.
+    if (!this.ready) this.recordedWhileLoading = [...this.recordedWhileLoading.slice(1 - MAX_RECORDED_WHILE_LOADING), shapes];
     this.steps.sightRecorded(shapes, this.bounds);
     this.saver.schedule();
   }
@@ -101,7 +113,7 @@ export class ExploredMemory {
    */
   edit(edit: ExploredEdit): boolean {
     const texture = this.texture;
-    if (!texture || !this.bounds || !this.isMemory()) return false;
+    if (!texture || !this.bounds || !this.isMemory() || this.deps.edits === false) return false;
     const shapes: ExploredShapes = { polygons: editPolygons(edit, this.bounds), clip: null };
     // The steps can tell only so many edits apart: before that runs out, the older ones can no longer be undone.
     if (this.steps.full) this.forgetEdits();
@@ -237,6 +249,7 @@ export class ExploredMemory {
     this.loadedMask = null;
     this.loadGeneration++;
     this.ready = true;
+    this.recordedWhileLoading = [];
   }
 
   private ensure(bounds: MapBounds): void {
@@ -279,6 +292,8 @@ export class ExploredMemory {
       this.deps.guard(() => {
         texture.draw(image);
         drawn = true;
+        for (const shapes of this.recordedWhileLoading) texture.add(shapes);
+        this.recordedWhileLoading = [];
         this.ready = true;
         this.deps.onChange();
       });

@@ -92,6 +92,14 @@ export function levelObjects<O extends ObjectsByKind>(state: LevelObjectsState<O
 }
 
 /**
+ * The objects of level `levelId`, as a view of that level reads them (`levelObjects`): for what a
+ * view shows of another level, the level below seen through its openings. Never for writes.
+ */
+export function levelObjectsOn<O extends ObjectsByKind>(state: LevelObjectsState<O>, levelId: string): O {
+  return levelObjects({ objects: state.objects, levels: state.levels, viewedLevel: levelId });
+}
+
+/**
  * Every level's objects, for what applies to the whole scene and not to what a view shows: a
  * statblock edit reaching every linked token, a transform that hands the scene on to readers of
  * `levelObjects`. Never for drawing, hit-testing, sight or selection.

@@ -28,11 +28,11 @@ function levelsOf(store: ViewAtlasStore, ids: readonly string[]): Map<string, st
 }
 
 /**
- * After tokens went up or down stairs: where the token dragged was the only one selected, the
- * view follows it to its level and keeps it selected; otherwise the GM is told which tokens left
- * the level shown, and for where.
+ * After tokens went up or down stairs, or fell through an opening: where the token dragged was the
+ * only one selected, the view follows it to its level and keeps it selected; otherwise the GM is
+ * told which tokens left the level shown, and for where. Tokens in `fell` fell; the others took stairs.
  */
-function followClimb(store: ViewAtlasStore, before: Map<string, string | null>, selected: readonly string[]): void {
+function followClimb(store: ViewAtlasStore, before: Map<string, string | null>, selected: readonly string[], fell: ReadonlySet<string> = new Set()): void {
   const state = store.getState();
   const after = levelsOf(store, [...before.keys()]);
   const climbed = [...before].filter(([id, level]) => after.get(id) !== level);
@@ -45,14 +45,20 @@ function followClimb(store: ViewAtlasStore, before: Map<string, string | null>, 
     store.getState().setSelection([id]);
     return;
   }
-  const byLevel = new Map<string, number>();
+  const byLevel = new Map<string, { took: number; fell: number }>();
   for (const [id] of climbed) {
     const level = after.get(id);
-    if (level && level !== viewedLevelId(state)) byLevel.set(level, (byLevel.get(level) ?? 0) + 1);
+    if (!level || level === viewedLevelId(state)) continue;
+    const counts = byLevel.get(level) ?? { took: 0, fell: 0 };
+    counts[fell.has(id) ? 'fell' : 'took']++;
+    byLevel.set(level, counts);
   }
-  for (const [level, count] of byLevel) {
+  for (const [level, { took, fell: fallen }] of byLevel) {
     const target = levelById(state.levels, level);
-    if (target) showNotice(t('levels.stairsTook', { count, name: levelLabel(state.levels, target) }));
+    if (!target) continue;
+    const name = levelLabel(state.levels, target);
+    if (took > 0) showNotice(t('levels.stairsTook', { count: took, name }));
+    if (fallen > 0) showNotice(t('openings.fell', { count: fallen, name }));
   }
 }
 
@@ -85,8 +91,10 @@ export function dropTokensOnStairs(store: ViewAtlasStore, places: readonly Token
   const selected = state.selectedIds;
   const choice = menuAt ? linkChoice(linkLandings(state, places)) : null;
   const before = levelsOf(store, places.map(({ id }) => id));
+  // Tokens that land in stairs leading to one level take them; any other that changes level fell through an opening.
+  const viaStairs = new Set(linkLandings(state, places).filter(({ targets }) => targets.length === 1).map(({ tokenId }) => tokenId));
   state.dropTokens(places);
-  followClimb(store, before, selected);
+  followClimb(store, before, selected, new Set(places.map(({ id }) => id).filter((id) => !viaStairs.has(id))));
   if (!choice || !menuAt) return false;
 
   let open = true;

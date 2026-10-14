@@ -10,6 +10,7 @@ import type AtlasVTTPlugin from '../../../main';
 import { migrateWidgetsToCollection, needsWidgetMigration } from '../utils/widgetMigration';
 import { lightZonesFromFile } from '../lighting/lightZones';
 import { levelLinksFromFile } from '../levels/levelLinks';
+import { levelSurfacesFromFile } from '../levels/levelSurfaces';
 import { normalizeImagePath } from '../utils/pathUtils';
 import { fixMapTokenPaths } from '../utils/fixMapPaths';
 import { getDataFilePath } from '../utils/dataFileMigration';
@@ -17,7 +18,7 @@ import { sceneFromFile, sceneToFile, tokenFromFile } from '../resources/resource
 import { pausedTimers } from '../utils/timerWidget';
 import { preserveDamagedSceneFile, SceneFileError } from './sceneFileProblems';
 import { SceneFileWriter } from './sceneFileWriter';
-import type { LevelLink, SceneLevel } from '../types/sceneLevelTypes';
+import type { LevelLink, LevelSurface, SceneLevel } from '../types/sceneLevelTypes';
 import { LEVELS_FILE_VERSION, readSceneLevels, sceneFileVersion } from '../levels/levelFile';
 
 import type { FogOperation } from '../types/fogTypes';
@@ -59,6 +60,8 @@ export interface MapFile {
     lightZones?: Record<string, LightZone>;
     /** Stairs between levels; absent until a map has some. */
     levelLinks?: Record<string, LevelLink>;
+    /** Openings to the levels below and floor over them; absent until a map has some. */
+    levelSurfaces?: Record<string, LevelSurface>;
   };
   camera: CameraState;
 }
@@ -409,6 +412,7 @@ export function migrateMapFile(persisted: unknown): MapFile {
 
   const zones = lightZonesFromFile(persisted.objects?.lightZones);
   const links = levelLinksFromFile(persisted.objects?.levelLinks);
+  const surfaces = levelSurfacesFromFile(persisted.objects?.levelSurfaces);
   const background = persisted.background ?? null;
   const levels = readSceneLevels(persisted.levels, background);
 
@@ -432,6 +436,7 @@ export function migrateMapFile(persisted: unknown): MapFile {
       lights: isRecord(persisted.objects?.lights) ? persisted.objects.lights : {},
       ...(zones && { lightZones: zones }),
       ...(links && { levelLinks: links }),
+      ...(surfaces && { levelSurfaces: surfaces }),
     },
     grid: persisted.grid ? migrateGrid(persisted.grid) : initial.grid,
     camera: persisted.camera || initial.camera

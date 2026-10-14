@@ -102,6 +102,7 @@ export function objectsAfterLevelEdit(objects: SceneObjects, levels: SceneLevels
     audios: rewriteMany(objects.audios, levels, edit),
     ...(objects.lightZones && { lightZones: rewriteMany(objects.lightZones, levels, edit) }),
     ...(objects.levelLinks && { levelLinks: rewriteLinks(objects.levelLinks, levels, edit) }),
+    ...(objects.levelSurfaces && { levelSurfaces: rewriteOne(objects.levelSurfaces, levels, edit) }),
   };
   const keys = Object.keys(result) as (keyof SceneObjects)[];
   return keys.every((key) => result[key] === objects[key]) ? objects : result;

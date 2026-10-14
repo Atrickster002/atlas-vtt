@@ -40,6 +40,15 @@ import { WALL_PUSH_GLSL, wallPushGlsl } from './wallPushGlsl';
  * again: uBackTexture's missing alpha is how much of the grid shows, painted unlit in uGridColor
  * (sRGB); a colour picked to contrast with the map is white where the ambient light is low. The GM
  * sees it everywhere, the players wherever their picture shows the map, now or from memory.
+ * Openings (read only while uHasBelow is set): uStack holds the level stack (`LevelStack`) on its
+ * box of texels (uStackBox, uStackTexel, uStackGrid): red is the level each texel shows, 0 the one
+ * the view shows, 1 the level below drawn, 255 nothing. In the viewed level's composite
+ * (uLevelIndex 0) a texel that shows anything else is a hole: the eraser took the map and the
+ * grid's backing there, so what is left of the scene beneath is the viewed level's own tokens,
+ * lit as everywhere, over uBelow1 (that level's own composite, rendered for this very picture,
+ * texel on pixel: uBelowCount 1) dimmed by uBelowDim, or nothing (black for the GM, the unexplored
+ * colour for the players). In a level below's composite (uLevelIndex 1) nothing is seen outside the
+ * texels that show it.
  */
 export const compositeFragment = `${GLSL_VERSION}
 in vec2 vTextureCoord;
@@ -84,6 +93,16 @@ uniform sampler2D uZonesLifted;
 uniform float uHasZones;
 uniform float uGrid;
 uniform vec3 uGridColor;
+uniform vec4 uInputPixel;
+uniform sampler2D uStack;
+uniform vec4 uStackBox;
+uniform vec2 uStackGrid;
+uniform float uStackTexel;
+uniform float uHasBelow;
+uniform float uLevelIndex;
+uniform sampler2D uBelow1;
+uniform float uBelowCount;
+uniform float uBelowDim;
 ${fieldGlsl('uField')}
 ${fieldGlsl('uSightField')}
 float clearance(vec2 w) { return uFieldClearance(w); }
@@ -100,6 +119,17 @@ const vec3 LUMA = vec3(0.2126, 0.7152, 0.0722);
 const float UNSEEN_FADE = 0.4;
 // Ambient light below which a grid coloured against the map is drawn white: a bright map lies too dark there for black lines.
 const float GRID_DARK_AMBIENT = 0.35;
+
+// The level the stack shows at world point w: 0 the one the view shows (also off the stack's grid
+// and box), 1 the level below drawn, 255 nothing. The texel holding w decides, as the rule's shownAt.
+int stackAt(vec2 w) {
+  if (uHasBelow < 0.5) return 0;
+  vec2 cell = floor(w / uStackTexel);
+  if (any(lessThan(cell, vec2(0.0))) || any(greaterThanEqual(cell, uStackGrid))) return 0;
+  vec2 local = cell - uStackBox.xy;
+  if (any(lessThan(local, vec2(0.0))) || any(greaterThanEqual(local, uStackBox.zw))) return 0;
+  return int(texelFetch(uStack, ivec2(local), 0).r * 255.0 + 0.5);
+}
 
 // Khronos PBR Neutral: colours stay as painted up to ~0.8, highlights roll off to white.
 vec3 neutral(vec3 color) {
@@ -191,9 +221,14 @@ void main() {
   vec2 screen = vTextureCoord * uInputSize.xy + uAreaOrigin;
   vec2 world = (uScreenToWorld * vec3(screen, 1.0)).xy;
   vec4 back = textureLod(uBackTexture, vTextureCoord, 0.0);
+  int shownLevel = stackAt(world);
+  // A hole in the viewed level: its map and grid were erased there, and what is left is its tokens.
+  bool hole = uLevelIndex < 0.5 && shownLevel != 0;
+  // A level below sees nothing of itself where the stack does not show it.
+  float gate = uLevelIndex > 0.5 && shownLevel != int(uLevelIndex + 0.5) ? 0.0 : 1.0;
   // A marked grid erased the alpha beneath it, premultiplied: what is left of the scene there is its colour scaled by the alpha.
-  float grid = uGrid > 0.5 ? clamp(1.0 - back.a, 0.0, 1.0) : 0.0;
-  vec3 albedo = toLinear(uGrid > 0.5 ? back.rgb / max(back.a, 1.0 / 255.0) : back.rgb);
+  float grid = uGrid > 0.5 && !hole ? clamp(1.0 - back.a, 0.0, 1.0) : 0.0;
+  vec3 albedo = toLinear(uGrid > 0.5 || hole ? back.rgb / max(back.a, 1.0 / 255.0) : back.rgb);
   // rgb: the lights' light; alpha: its luminance had every light its bright level here.
   vec4 lamps = textureLod(uLightMap, world / uLightWorld, 0.0);
   // Without bounce (the lighting quality's choice) no probe is read or traced to.
@@ -236,9 +271,9 @@ void main() {
   }
   vec3 ambient = ambientGiven * lightLeft;
   bounce *= lightLeft;
-  vec4 sight = textureLod(uTexture, vTextureCoord, 0.0);
+  vec4 sight = textureLod(uTexture, vTextureCoord, 0.0) * gate;
   // Senses: what is perceived without light is seen too.
-  float seen = max(uAllSeen, max(sight.r, max(sight.g, sight.b)));
+  float seen = max(uAllSeen * gate, max(sight.r, max(sight.g, sight.b)));
   vec3 direct = lamps.rgb;
   vec3 light = ambient + (direct + bounce * uBounceGain) * uExposure;
   float level = dot(light, LUMA);
@@ -314,6 +349,15 @@ void main() {
     // is low, the floor is dark and the grid is white. Lights never change it, or the grid would shade through every light's fade.
     vec3 ink = uGrid > 1.5 && dot(ambientGiven, LUMA) < GRID_DARK_AMBIENT ? vec3(1.0) : uGridColor;
     shown = mix(shown, ink, grid * clamp(gridShown, 0.0, 1.0));
+  }
+  if (hole) {
+    // The level below as its own composite drew this very pixel, or nothing; the viewed level's tokens over it.
+    vec3 under = uMode > 0.5 ? toSrgb(uUnexplored) : vec3(0.0);
+    if (shownLevel == 1 && uBelowCount > 0.5) {
+      ivec2 pixel = clamp(ivec2(floor(screen * uInputPixel.x * uInputSize.z)), ivec2(0), textureSize(uBelow1, 0) - 1);
+      under = texelFetch(uBelow1, pixel, 0).rgb * uBelowDim;
+    }
+    shown = mix(under, shown, clamp(back.a, 0.0, 1.0));
   }
   float dither = (fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715)))) - 0.5) / 255.0;
   finalColor = vec4(shown + dither, 1.0);

@@ -199,9 +199,10 @@ $gap: $spacing-s;
 
 // A light zone's popover: its name is text, not a number, and the four times of day share the
 // popover's width by what each needs, with the track and its options concentric in the popover.
-// Stairs' ways share it alike.
+// Stairs' ways share it alike, and an opening's choice of open or floor.
 .atlas-light-popover--zone,
-.atlas-light-popover--stairs {
+.atlas-light-popover--stairs,
+.atlas-light-popover--opening {
   .atlas-light-popover__range > input {
     padding: 0 $spacing-s;
     text-align: start;

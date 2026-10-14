@@ -42,6 +42,7 @@ import { TextRenderer } from "./pixi/TextRenderer"; // Import TextRenderer
 import { TextTool } from "./tools/TextTool"; // Import TextTool
 import type { LightingController } from './pixi/lighting/LightingController';
 import { LightingFeature } from './pixi/lighting/LightingFeature';
+import { createBelowLevelsHost } from './pixi/lighting/belowLevelsHost';
 import { ShownPlaces } from './lighting/shownPlaces';
 import type { SceneFrame } from './pixi/lighting/engine/types';
 import { captureSceneFrame } from './pixi/sceneFrameCapture';
@@ -442,6 +443,13 @@ export class PixiRendererOrchestrator { // Renamed class
         grid: () => this.gridSystem ?? null,
         fogCoverage: () => this.fogRenderer!.getCommittedCoverage(),
         shown: this.shownPlaces,
+        below: createBelowLevelsHost({
+          obsApp: this.obsApp,
+          app: this.pixiAppManager.app,
+          viewport,
+          viewedFog: () => this.fogRenderer?.getCommittedCoverage(),
+          placeEraser: (eraser) => this.placeAboveGrid(eraser),
+        }),
       });
     }
 
@@ -800,13 +808,39 @@ export class PixiRendererOrchestrator { // Renamed class
     const frames = this.playerFrames ??= new PlayerFrameTexture(app.renderer);
     if (!frames.canRender()) return;
     // The map image at the players' own detail, put back before the DM's render
-    const restoreMapImage = this.mapImage?.drawFor(frameView(frame));
+    const tiles = frameView(frame);
+    const restoreMapImage = this.mapImage?.drawFor(tiles);
+    const render = (): void => {
+      // The levels below the openings, for this frame's camera and size: the DM's own are drawn again before the DM's render.
+      this.lighting?.renderer.prepareBelow?.({ key: 'frame', width: frame.width / frame.resolution, height: frame.height / frame.resolution, resolution: frame.resolution, mode: 'player', tiles });
+      frames.render(app.stage, frame);
+    };
     try {
-      captureBeforeRender(this.playerFrameLayers(settings), () => frames.render(app.stage, frame), () => frames.copy(copy), frameCamera(viewport, frame));
+      captureBeforeRender(this.playerFrameLayers(settings), render, () => frames.copy(copy), frameCamera(viewport, frame));
     } finally {
       restoreMapImage?.();
-      if (!renderFollows) app.renderer.render(app.stage);
+      if (!renderFollows) {
+        this.lighting?.renderer.prepareBelow?.();
+        app.renderer.render(app.stage);
+      }
     }
+  }
+
+  /** Keeps the map's tiles of `view` (the player window's frame) loaded: the view's own, and those of the levels below its openings. */
+  public addMapDemandRegion(view: TileView): () => void {
+    const releases = [this.mapImage?.addDemandRegion(view), this.lighting?.renderer.addBelowDemandRegion?.(view)];
+    return (): void => {
+      for (const release of releases) release?.();
+    };
+  }
+
+  /** Puts `layer` into the viewport right above the grid (above the map where there is none), below the tokens. */
+  private placeAboveGrid(layer: Container): void {
+    const viewport = this.viewport;
+    if (!viewport || !this.mapImage) return;
+    const map = viewport.getChildIndex(this.mapImage.layer);
+    const grid = this.gridSystem ? viewport.children.findIndex((child) => child.label === 'grid') : -1;
+    viewport.addChildAt(layer, Math.max(map, grid) + 1);
   }
 
   /** Whether a players' frame can be rendered now: not while the graphics context is lost. */
@@ -819,6 +853,7 @@ export class PixiRendererOrchestrator { // Renamed class
   /** Gives back the graphics memory of the players' frame, once nobody is shown it any more. */
   public releasePlayerFrame(): void {
     this.playerFrames?.release();
+    this.lighting?.renderer.releaseBelowPicture?.();
   }
 
   /** What a players' frame changes on the stage: everything players must not see, hidden for one render. */
