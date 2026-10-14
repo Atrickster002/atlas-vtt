@@ -47,9 +47,10 @@ const TOUCH = 1e-6;
  * Level art on `grid`: open where the image drawn by `placement` holds no art in a texel's square
  * (outside the image counts as no art), then shrunk by one texel wherever art is near. Without
  * `opensArt` (the level's `openArt` is off) every pixel of the image holds art, and only what lies
- * outside it is open.
+ * outside it is open. Given `area`, only its texels are worked out (a level below is looked at only
+ * where the view above is open); every other texel reads as art.
  */
-export function artCells(art: LevelArt, placement: MapStretch, opensArt: boolean, grid: StackGrid): ArtCells {
+export function artCells(art: LevelArt, placement: MapStretch, opensArt: boolean, grid: StackGrid, area?: TexelBox): ArtCells {
   const alpha = opensArt && art.alpha ? art.alpha : SOLID;
   const sums = opaqueSums(alpha);
   const stride = alpha.width + 1;
@@ -72,25 +73,39 @@ export function artCells(art: LevelArt, placement: MapStretch, opensArt: boolean
   const state = new Uint8Array(columns * rows);
   const lastU = alpha.width - 1;
   const lastV = alpha.height - 1;
-  for (let row = 0; row < rows; row++) {
-    for (let column = 0; column < columns; column++) {
-      const u = origin.u + column * au + row * du;
-      const v = origin.v + column * av + row * dv;
+  // The area and the texels around it, which its shrink reads.
+  const region = area ? grown(area, columns, rows) : { x: 0, y: 0, columns, rows };
+  for (let row = region.y; row < region.y + region.rows; row++) {
+    const rowU = origin.u + row * du;
+    const rowV = origin.v + row * dv;
+    const from = row * columns;
+    for (let column = region.x; column < region.x + region.columns; column++) {
+      const u = rowU + column * au;
+      const v = rowV + column * av;
       const u0 = Math.floor(u + lowU - TOUCH);
       const u1 = Math.floor(u + highU + TOUCH);
       const v0 = Math.floor(v + lowV - TOUCH);
       const v1 = Math.floor(v + highV + TOUCH);
-      const at = row * columns + column;
       if (u1 < 0 || v1 < 0 || u0 > lastU || v0 > lastV) {
-        state[at] = 2;
+        state[from + column] = 2;
         continue;
       }
-      const [c0, c1, r0, r1] = [Math.max(0, u0), Math.min(lastU, u1), Math.max(0, v0), Math.min(lastV, v1)];
-      const count = sums[(r1 + 1) * stride + c1 + 1]! - sums[r0 * stride + c1 + 1]! - sums[(r1 + 1) * stride + c0]! + sums[r0 * stride + c0]!;
-      state[at] = count === 0 ? 1 : 0;
+      const c0 = u0 < 0 ? 0 : u0;
+      const c1 = u1 > lastU ? lastU : u1;
+      const top = (v0 < 0 ? 0 : v0) * stride;
+      const bottom = ((v1 > lastV ? lastV : v1) + 1) * stride;
+      const count = sums[bottom + c1 + 1]! - sums[top + c1 + 1]! - sums[bottom + c0]! + sums[top + c0]!;
+      state[from + column] = count === 0 ? 1 : 0;
     }
   }
-  return shrunk(state, columns, rows);
+  return shrunk(state, columns, rows, area ?? region);
+}
+
+/** `area` one texel wider all round, within the grid. */
+function grown(area: TexelBox, columns: number, rows: number): TexelBox {
+  const x = Math.max(0, area.x - 1);
+  const y = Math.max(0, area.y - 1);
+  return { x, y, columns: Math.min(columns, area.x + area.columns + 1) - x, rows: Math.min(rows, area.y + area.rows + 1) - y };
 }
 
 /** Counts of opaque pixels from the overview's corner (a summed-area table), one row and column wider. */
@@ -109,24 +124,25 @@ function opaqueSums({ width, height, opaque }: ArtAlpha): Int32Array {
 }
 
 /**
- * The open texels: those outside the image, and those of the image without art whose eight
- * neighbours hold no art either. A neighbour off the grid holds none.
+ * The open texels of `area`: those outside the image, and those of the image without art whose
+ * eight neighbours hold no art either. A neighbour off the grid holds none.
  */
-function shrunk(state: Uint8Array, columns: number, rows: number): ArtCells {
+function shrunk(state: Uint8Array, columns: number, rows: number, area: TexelBox): ArtCells {
   // Art, grown by one texel along rows, then along columns.
   const across = new Uint8Array(state.length);
-  for (let row = 0; row < rows; row++) {
+  const region = grown(area, columns, rows);
+  for (let row = region.y; row < region.y + region.rows; row++) {
     const from = row * columns;
-    for (let column = 0; column < columns; column++) {
+    for (let column = region.x; column < region.x + region.columns; column++) {
       const i = from + column;
       across[i] = state[i] === 0 || (column > 0 && state[i - 1] === 0) || (column + 1 < columns && state[i + 1] === 0) ? 1 : 0;
     }
   }
   const open = new Uint8Array(state.length);
   let [minX, minY, maxX, maxY] = [Infinity, Infinity, -Infinity, -Infinity];
-  for (let row = 0; row < rows; row++) {
+  for (let row = area.y; row < area.y + area.rows; row++) {
     const from = row * columns;
-    for (let column = 0; column < columns; column++) {
+    for (let column = area.x; column < area.x + area.columns; column++) {
       const i = from + column;
       const near = across[i] || (row > 0 && across[i - columns]) || (row + 1 < rows && across[i + columns]);
       if (state[i] !== 2 && near) continue;

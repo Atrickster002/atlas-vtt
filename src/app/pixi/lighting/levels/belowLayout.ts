@@ -3,7 +3,8 @@ import { artCells, type ArtCells, type LevelArt } from '../../../levels/artRaste
 import { levelImagePlacement } from '../../../levels/levelAlignment';
 import { levelBackground } from '../../../levels/levelEdits';
 import { levelObjects, levelObjectsOn } from '../../../levels/levelObjects';
-import { levelStack, levelsBelow, levelsShownBelow, stackGrid, type LevelStack, type StackGrid, type StackLevel } from '../../../levels/levelStack';
+import { levelStack, levelsBelow, levelsShownBelow, openingsBox, stackGrid, type LevelStack, type StackGrid, type StackLevel } from '../../../levels/levelStack';
+import type { TexelBox } from '../../../levels/surfaceRaster';
 import { levelSurfaceList } from '../../../levels/levelSurfaces';
 import { hasLevels, levelById, viewedLevelId } from '../../../levels/sceneLevels';
 import type { SceneLevel } from '../../../types/sceneLevelTypes';
@@ -33,6 +34,7 @@ interface KeptCells {
   placement: MapStretch;
   opensArt: boolean;
   grid: StackGrid;
+  area: TexelBox | undefined;
   cells: ArtCells;
 }
 
@@ -104,26 +106,27 @@ export class BelowLayout {
     }
     const grid = stackGrid({ width, height });
     const top = this.stackLevel(state, levelById(levels, viewed)!, grid);
-    const surfacesOpen = top.surfaces.some((surface) => surface.open);
+    const open = openingsBox(top, grid);
     // Its map not read yet, or all of it floor: nothing below is looked at.
-    if (!top.art?.box && !surfacesOpen) return { stack: null, shown, reach: null };
-    const stack = levelStack(top, below.map((level) => this.stackLevel(state, level, grid)), shown, grid);
+    if (!open) return { stack: null, shown, reach: null };
+    // The levels below matter only where the view is open.
+    const stack = levelStack(top, below.map((level) => this.stackLevel(state, level, grid, open)), shown, grid);
     return { stack: stack.box ? stack : null, shown, reach: stack.box ? { width, height } : null };
   }
 
-  /** A level as the stack reads it on `grid`: its surfaces, and its map where that has been read. */
-  private stackLevel(state: LightingState, level: SceneLevel, grid: StackGrid): StackLevel {
+  /** A level as the stack reads it on `grid`: its surfaces, and its map where that has been read, on `area` alone where given. */
+  private stackLevel(state: LightingState, level: SceneLevel, grid: StackGrid, area?: TexelBox): StackLevel {
     const surfaces = levelSurfaceList(levelObjectsOn(state, level.id).levelSurfaces);
     const art = this.artOf(state, level.id);
     if (!art) return { id: level.id, surfaces };
     const placement = levelImagePlacement(state, level.id);
     const opens = opensArt(level);
     const kept = this.cells.get(level.id);
-    if (kept && kept.art === art && kept.opensArt === opens && sameStretch(kept.placement, placement) && sameGrid(kept.grid, grid)) {
+    if (kept && kept.art === art && kept.opensArt === opens && sameStretch(kept.placement, placement) && sameGrid(kept.grid, grid) && sameBox(kept.area, area)) {
       return { id: level.id, surfaces, art: kept.cells };
     }
-    const cells = artCells(art, placement, opens, grid);
-    this.cells.set(level.id, { art, placement, opensArt: opens, grid, cells });
+    const cells = artCells(art, placement, opens, grid, area);
+    this.cells.set(level.id, { art, placement, opensArt: opens, grid, area, cells });
     return { id: level.id, surfaces, art: cells };
   }
 
@@ -156,4 +159,8 @@ export class BelowLayout {
 
 function sameGrid(a: StackGrid, b: StackGrid): boolean {
   return a.texel === b.texel && a.columns === b.columns && a.rows === b.rows;
+}
+
+function sameBox(a: TexelBox | undefined, b: TexelBox | undefined): boolean {
+  return a === b || (!!a && !!b && a.x === b.x && a.y === b.y && a.columns === b.columns && a.rows === b.rows);
 }

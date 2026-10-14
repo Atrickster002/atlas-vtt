@@ -52,6 +52,20 @@ describe('a level\'s map on the stack\'s grid', () => {
     }
   });
 
+  it('works out an area alone as the whole grid has it, and reads the rest as art', () => {
+    const alpha = blobs(rng(3), 90, 70);
+    const placement: MapStretch = { x: 1.2, y: 1.1, rotation: 2, offset: { x: 4, y: 7 } };
+    const whole = artCells({ width: 90, height: 70, alpha }, placement, true, grid);
+    const area = { x: 17, y: 9, columns: 40, rows: 33 };
+    const part = artCells({ width: 90, height: 70, alpha }, placement, true, grid, area);
+    for (let row = 0; row < 100; row++) {
+      for (let column = 0; column < 100; column++) {
+        const inArea = column >= area.x && column < area.x + area.columns && row >= area.y && row < area.y + area.rows;
+        expect(part.open[row * 100 + column], `${column},${row}`).toBe(inArea ? whole.open[row * 100 + column] : 0);
+      }
+    }
+  });
+
   it('closes a transparent line one texel wide', () => {
     const alpha = alphaOf(100, 100, (x) => x !== 50);
     expect(artCells({ width: 100, height: 100, alpha }, NO_STRETCH, true, grid).box).toBeNull();

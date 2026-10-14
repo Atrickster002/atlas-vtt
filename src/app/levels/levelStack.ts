@@ -113,7 +113,7 @@ function union(a: TexelBox | null, b: TexelBox | null): TexelBox | null {
 }
 
 /** The texels of the grid the viewed level may be open on: the bounds of its map's open texels and of its open surfaces; null without any. */
-function openingsBox(level: StackLevel, grid: StackGrid): TexelBox | null {
+export function openingsBox(level: StackLevel, grid: StackGrid): TexelBox | null {
   let box = level.art?.box ?? null;
   for (const surface of level.surfaces) {
     if (surface.open) box = union(box, polygonBox(surface.polygon, grid.texel, grid.columns, grid.rows));
