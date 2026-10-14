@@ -11,7 +11,6 @@ import type { SightRules } from '../../../vision/sightRules';
 import { belowTokenPerception, type FogCover } from '../../../vision/throughSight';
 import { PerceptionMemo, type TokenPerception } from '../../../vision/tokenPerception';
 import type { MapBounds } from '../../../vision/visibility';
-import type { MapImageSource } from '../../mapImage/mapImageTypes';
 import type { TileView } from '../../mapImage/levelOfDetail';
 import { HIDDEN_TOKEN_ALPHA } from '../../playerSafeFrame';
 import { addBeforeRender, BEFORE_RENDER_ORDER } from '../../RenderScheduler';
@@ -37,8 +36,6 @@ const RECORD_WHILE_DRAGGING_MS = 100;
 export interface BelowLevelsHost {
   /** A map image for a level below, drawn with the view's camera and never changing the view's world (`belowMapImage`). */
   createMapImage(): BelowMapImage;
-  /** What a level's background is shown from (`mapImageSourceFor`). */
-  mapSource(background: string | null, gridSize: number | undefined): MapImageSource;
   /** Token art for the tokens of a level below. */
   createArt(): TokenArt;
   /** The committed fog of the level the view shows (null: unreadable, which hides all). */
@@ -247,7 +244,6 @@ export class LevelsBelow {
       store: deps.store,
       quality: belowQuality(deps.quality()),
       image: deps.host.createMapImage(),
-      mapSource: (background, gridSize) => deps.host.mapSource(background, gridSize),
       art: deps.host.createArt(),
       requestRender: deps.requestRender,
       onReady: deps.onReady,

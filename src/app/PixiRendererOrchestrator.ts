@@ -41,7 +41,7 @@ import { TextRenderer } from "./pixi/TextRenderer"; // Import TextRenderer
 import { TextTool } from "./tools/TextTool"; // Import TextTool
 import type { LightingController } from './pixi/lighting/LightingController';
 import { LightingFeature } from './pixi/lighting/LightingFeature';
-import { createBelowLevelsHost } from './pixi/lighting/levels/belowLevelsHost';
+import { createBelowLevelsHost } from './pixi/lighting/belowLevelsHost';
 import { ShownPlaces } from './lighting/shownPlaces';
 import type { SceneFrame } from './pixi/lighting/engine/types';
 import { captureSceneFrame } from './pixi/sceneFrameCapture';

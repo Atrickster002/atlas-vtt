@@ -1,4 +1,4 @@
-import { Matrix, type Renderer, type RenderTexture } from 'pixi.js';
+import { Matrix, type Container, type Renderer, type RenderTexture } from 'pixi.js';
 import type { MeasurementSettings } from '../../../grid/measurementFormat';
 import { levelImagePlacement } from '../../../levels/levelAlignment';
 import { levelBackground } from '../../../levels/levelEdits';
@@ -6,7 +6,7 @@ import { levelObjectsOn } from '../../../levels/levelObjects';
 import { exploredMaskOf, levelMapKey } from '../../../levels/sceneLevels';
 import type { LevelStack } from '../../../levels/levelStack';
 import { stampClip, type TexelMask } from '../../../levels/stackClip';
-import { sameStretch } from '../../../grid/mapStretch';
+import { sameStretch, type MapStretch } from '../../../grid/mapStretch';
 import { sceneLook } from '../../../lighting/sceneLightingOptions';
 import { withZones } from '../../../lighting/lightZones';
 import type { TokenEntity } from '../../../types';
@@ -18,8 +18,7 @@ import type { SightRules } from '../../../vision/sightRules';
 import { GM_SIGHT_POLICY } from '../../../vision/tokenSightPolicy';
 import { SightBelow, type BelowSight } from '../../../vision/throughSight';
 import type { MapBounds } from '../../../vision/visibility';
-import type { MapImage } from '../../mapImage/MapImage';
-import type { MapImageSource } from '../../mapImage/mapImageTypes';
+import type { PixelRect } from '../../mapImage/pyramid';
 import type { TileView } from '../../mapImage/levelOfDetail';
 import { LightingEngine } from '../engine/LightingEngine';
 import type { CompositeStack, LightingMode } from '../engine/compositeFilter';
@@ -34,8 +33,18 @@ const DEFAULT_CELL_SIZE = 70;
 /** How translucent the GM sees the committed fog of a level below, as on the level itself. */
 const GM_FOG_ALPHA = 0.5;
 
-/** What a level below needs of its map image (`MapImage`). */
-export type BelowMapImage = Pick<MapImage, 'layer' | 'worldRect' | 'mapStretch' | 'load' | 'setStretch' | 'drawFor' | 'addDemandRegion' | 'destroy'>;
+/** What a level below needs of its map image: a `MapImage` the view's host loads its backgrounds into. */
+export interface BelowMapImage {
+  readonly layer: Container;
+  readonly worldRect: PixelRect | null;
+  readonly mapStretch: MapStretch;
+  /** Shows the level's `background` (a map file's path; null, none), placed by `stretch`. */
+  load(background: string | null, gridSize: number | undefined, stretch?: MapStretch): Promise<void>;
+  setStretch(stretch: MapStretch): void;
+  drawFor(view: TileView): () => void;
+  addDemandRegion(view: TileView): () => void;
+  destroy(): void;
+}
 
 export interface BelowLevelDeps {
   id: string;
@@ -43,8 +52,6 @@ export interface BelowLevelDeps {
   store: LightingStore;
   quality: LightingQuality;
   image: BelowMapImage;
-  /** What a level's background is shown from (`mapImageSourceFor`). */
-  mapSource: (background: string | null, gridSize: number | undefined) => MapImageSource;
   art: TokenArt;
   requestRender: () => void;
   /** The level's picture became ready, or stopped being: the stack must be worked out again. */
@@ -134,7 +141,7 @@ export class BelowLevel {
       return;
     }
     this.wanted = background;
-    void this.deps.image.load(this.deps.mapSource(background, state.grid?.size), placement).then(() => {
+    void this.deps.image.load(background, state.grid?.size, placement).then(() => {
       if (this.destroyed || this.wanted !== background) return;
       this.loaded = background;
       this.deps.onReady();

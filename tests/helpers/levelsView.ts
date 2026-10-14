@@ -147,7 +147,6 @@ export async function openLevelsView({ map, pane, paneHeight = pane, resolution 
   const belowLoaded = holdBelowImage ? new Promise<void>((resolve) => { releaseBelowImage = resolve; }) : Promise.resolve();
   const host: BelowLevelsHost = {
     createMapImage: () => fakeBelowImage(belowArt, belowRect?.width ?? map, belowRect?.height ?? map, belowLoaded),
-    mapSource: () => ({ kind: 'none', width: belowRect?.width ?? map, height: belowRect?.height ?? map }),
     createArt: () => tokens,
     viewedFog: viewedFog ?? ((): FogCover => undefined),
     placeEraser: (eraser) => viewport.addChildAt(eraser, viewport.getChildIndex(floor) + 1),
