@@ -11,7 +11,7 @@ import { useWorldMapArtwork } from './useWorldMapArtwork';
 import { formatRelativeTime, type RelativeTimePhrases } from './relativeTime';
 import type { PartyFace } from './useCampaignParties';
 import { GameIcon } from '../GameIcon';
-import { DASHBOARD_ICON_PATHS } from '../../../types/dashboardIconPaths';
+import { WIDGET_ICON_PATHS } from '../../../types/widgetIcons';
 
 const PLAYED: RelativeTimePhrases = {
   justNow: 'campaign.playedJustNow',
@@ -42,11 +42,11 @@ export function campaignHueStyle(campaign: Campaign): React.CSSProperties {
   return { '--campaign-hue': `${fnv1a32(campaign.id) % 360}` } as React.CSSProperties;
 }
 
-/** The art of a campaign without a world map: its own tint and a road winding into the mountains. */
+/** The art of a campaign without a world map: its own tint and a d20. */
 export function CampaignEmblem(): React.JSX.Element {
   return (
     <span className="campaign-emblem" aria-hidden="true">
-      <GameIcon path={DASHBOARD_ICON_PATHS['mountain-road']} className="campaign-emblem__icon" />
+      <GameIcon path={WIDGET_ICON_PATHS.d20} className="campaign-emblem__icon" />
     </span>
   );
 }

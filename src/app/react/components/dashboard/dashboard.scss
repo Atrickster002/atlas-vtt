@@ -94,32 +94,6 @@ $dashboard-narrow: 720px;
   }
 }
 
-// The sword of Atlas' icon, as behind the sign-in page of atlas-vtt.dev: as tall as the pane, its
-// pommel a third of the way down, so the blade runs out of the pane's bottom edge. Sticky and
-// taking no room, it stays put while the page scrolls under it; `100cqh` is the pane's height
-// (the view is a size container, `.atlas-dashboard-view` in main.scss).
-.dashboard-sword {
-  position: sticky;
-  top: 0;
-  z-index: -1;
-  height: 100cqh;
-  margin-bottom: -100cqh;
-  overflow: hidden;
-  pointer-events: none;
-  opacity: 0.24;
-  animation: dashboard-fade-in $transition-slow $transition-ease-out both;
-
-  img {
-    position: absolute;
-    top: calc(100% / 3);
-    left: 50%;
-    height: 100%;
-    width: auto;
-    max-width: none;
-    transform: translateX(-50%);
-  }
-}
-
 // ── Top bar ─────────────────────────────────────────────────────────────────
 
 .dashboard-topbar {

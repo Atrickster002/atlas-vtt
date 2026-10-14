@@ -716,8 +716,6 @@
 }
 
 .workspace-leaf-content.atlas-dashboard-view {
-  // A size container, so the dashboard's sword can be as tall as the pane (`100cqh`).
-  container-type: size;
   width: 100%;
   height: 100%;
   overflow: auto;

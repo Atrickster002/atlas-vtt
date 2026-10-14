@@ -95,16 +95,15 @@ $campaign-page-face: 40px;
   min-height: 176px;
   padding: $spacing-l;
   color: var(--text-muted);
-  background: transparent;
   transition: transform $transition-normal $transition-ease-out,
-              background-color $transition-fast $transition-ease,
               color $transition-fast $transition-ease,
               border-color $transition-fast $transition-ease;
 
   @media (hover: hover) and (pointer: fine) {
     &:hover:not(:disabled) {
       color: var(--text-normal);
-      background: var(--background-modifier-hover);
+      // The hover tint is translucent, so it lies over the card's surface rather than replacing it.
+      background-image: linear-gradient(var(--background-modifier-hover), var(--background-modifier-hover));
       box-shadow: none;
     }
   }

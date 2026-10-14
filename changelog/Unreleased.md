@@ -30,8 +30,8 @@
 
 - The asset manager shows all its tabs side by side in a normal window: New folder has moved into the + menu, the sort into the row above the assets, the refresh button is gone (Refresh stays in the right-click menu), and the search narrows before the tabs fold into a menu
 - The asset manager's Characters tab is now called Tokens
-- The dashboard carries Atlas' icon and name in Atlas' own lettering, with the sword standing behind the page
-- The dashboard's icons come from the same set as the map pins and widgets: a treasure map for maps, a mountain road for a campaign, a banner for a new campaign, a chest for the asset manager, a rule book for the game system
+- The dashboard carries Atlas' icon and name in Atlas' own lettering
+- The dashboard's icons come from the same set as the map pins and widgets: a treasure map for maps, a d20 for a campaign, a banner for a new campaign, a chest for the asset manager, a rule book for the game system
 - The initiative card's edit dialog takes a modifier of your own for a combatant, which counts instead of its statblock's until you clear it
 - The Spectral Engine, which detects a map's grid, shows the grid being found: it is etched into the map along the map's own lines, sharpens as the search grows sure of it, and settles as its glow fades
 - A new scene shows its map at once and finds its grid in front of you, where a loading screen covered both before
