@@ -56,3 +56,27 @@ export interface OnOneLevel {
 export interface OnLevels {
   levels?: LevelSet | undefined;
 }
+
+/** Which way a level link carries a token: only to levels above, only to levels below, or either way. */
+export type LevelLinkDirection = 'up' | 'down' | 'both';
+
+/**
+ * Stairs, a ladder, a trapdoor or an elevator (Foundry's Change Level region): an area of the map
+ * that joins the levels it stands on (`levels`, like a wall's). A token put down inside it on one of
+ * them goes to another of them at the same place, if `direction` lets it go that way; where several
+ * remain, the GM picks one. Map geometry the GM draws (undo-tracked, in `objects.levelLinks`). Read
+ * them with `levelLinkList`.
+ */
+export interface LevelLink extends OnLevels {
+  id: string;
+  kind: 'level-link';
+  /** The area's corners in world pixels, at least three. */
+  polygon: { x: number; y: number }[];
+  /** Unset is `both`. */
+  direction?: LevelLinkDirection | undefined;
+}
+
+export type LevelLinkInput = Omit<LevelLink, 'id' | 'kind'>;
+
+/** Changes to a level link: a field given as undefined is removed. */
+export type LevelLinkChanges = { [Field in keyof LevelLinkInput]?: LevelLinkInput[Field] | undefined };

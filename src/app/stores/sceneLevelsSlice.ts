@@ -5,7 +5,8 @@
 
 import type { LevelScene } from '../levels/levelEdits';
 import { firstLevelId, isLevelOf, movesWithLevel, viewedLevelId } from '../levels/sceneLevels';
-import type { LevelAlignment, SceneLevel } from '../types/sceneLevelTypes';
+import type { LevelAlignment, LevelLinkChanges, LevelLinkInput, SceneLevel } from '../types/sceneLevelTypes';
+import { isRecord } from '../utils/guards';
 import type { MapMove } from '../grid/mapStretch';
 import { objectsMovedWithMap } from '../grid/mapStretchObjects';
 import type { ViewState } from '../types/viewState';
@@ -24,9 +25,14 @@ export interface SceneLevelsSlice {
    * on that level alone along (`objectsMovedWithMap`): one write, one undo step.
    */
   alignLevel: (levelId: string, alignment: LevelAlignment, move?: MapMove) => void;
+  /** Adds stairs (a level link) in one undo step and returns its id. */
+  addLevelLink: (data: LevelLinkInput) => string;
+  /** Changes stairs; a field given as undefined is removed. */
+  updateLevelLink: (id: string, changes: LevelLinkChanges) => void;
+  deleteLevelLink: (id: string) => void;
 }
 
-type LevelsDraft = Pick<ViewState, 'levels' | 'viewedLevel' | 'objects' | 'background' | 'exploredMask' | 'exploredMasks' | 'levelAlignments' | 'selectedIds' | 'lightPopover' | 'lightZonePopover'>;
+type LevelsDraft = Pick<ViewState, 'levels' | 'viewedLevel' | 'objects' | 'background' | 'exploredMask' | 'exploredMasks' | 'levelAlignments' | 'selectedIds' | 'lightPopover' | 'lightZonePopover' | 'levelLinkPopover'>;
 
 type ImmerSet = (fn: (draft: LevelsDraft) => void) => void;
 
@@ -53,6 +59,7 @@ export function createSceneLevelsActions(set: ImmerSet, get: () => LevelsDraft):
       draft.selectedIds = [];
       draft.lightPopover = null;
       draft.lightZonePopover = null;
+      draft.levelLinkPopover = null;
     }),
 
     setLevels: (levels) => set((draft) => {
@@ -78,6 +85,30 @@ export function createSceneLevelsActions(set: ImmerSet, get: () => LevelsDraft):
         if (objects) draft.objects = objects;
       });
     },
+
+    addLevelLink: (data) => {
+      const id = `levellink_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
+      set((draft) => {
+        // Whatever is in their place that is no record (a store filled by something else than a load) gives way.
+        if (!isRecord(draft.objects.levelLinks)) draft.objects.levelLinks = {};
+        draft.objects.levelLinks[id] = { id, kind: 'level-link', ...data };
+      });
+      return id;
+    },
+
+    updateLevelLink: (id, changes) => set((draft) => {
+      const link = draft.objects.levelLinks?.[id];
+      if (!link) return;
+      Object.assign(link, changes);
+      for (const field of Object.keys(changes) as (keyof LevelLinkChanges)[]) {
+        if (changes[field] === undefined) delete link[field];
+      }
+    }),
+
+    deleteLevelLink: (id) => set((draft) => {
+      delete draft.objects.levelLinks?.[id];
+      if (draft.levelLinkPopover === id) draft.levelLinkPopover = null;
+    }),
 
     moveTokensToLevel: (ids, levelId) => set((draft) => {
       if (!isLevelOf(draft.levels, levelId)) return;

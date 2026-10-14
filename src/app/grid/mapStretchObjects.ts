@@ -57,5 +57,6 @@ export function objectsMovedWithMap(objects: SceneObjects, move: MapMove, moves?
     walls: mapRecord(objects.walls, (wall) => ({ ...wall, p1: move(wall.p1), p2: move(wall.p2) }), moves),
     fog: mapRecord(objects.fog, (operation) => movedFog(operation, move), moves),
     ...(objects.lightZones ? { lightZones: mapRecord(objects.lightZones, (zone) => ({ ...zone, polygon: zone.polygon.map(move) }), moves) } : {}),
+    ...(objects.levelLinks ? { levelLinks: mapRecord(objects.levelLinks, (link) => (Array.isArray(link.polygon) ? { ...link, polygon: link.polygon.map(move) } : link), moves) } : {}),
   };
 }

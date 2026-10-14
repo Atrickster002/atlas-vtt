@@ -1,4 +1,4 @@
-import type { LevelSet, OnLevels, OnOneLevel } from '../types/sceneLevelTypes';
+import type { LevelLink, LevelSet, OnLevels, OnOneLevel } from '../types/sceneLevelTypes';
 import type { ViewState } from '../types/viewState';
 import { firstLevelId, isLevelOf, type SceneLevels } from './sceneLevels';
 
@@ -73,6 +73,19 @@ function rewriteMany<T extends OnLevels>(record: Record<string, T>, levels: Scen
 }
 
 /**
+ * Stairs after an edit of the levels: rewritten like walls (`rewriteMany`), and gone where the edit
+ * left them joining fewer than two levels (a deleted level was one of only two ends, or its stairs
+ * moved onto the other end), since they lead nowhere then.
+ */
+function rewriteLinks(record: Record<string, LevelLink>, levels: SceneLevels, edit: MembershipEdit): Record<string, LevelLink> {
+  const rewritten = rewriteMany(record, levels, edit);
+  if (rewritten === record) return record;
+  const leadsNowhere = (id: string, link: LevelLink): boolean => link !== record[id] && Array.isArray(link.levels) && link.levels.length < 2;
+  const kept = Object.entries(rewritten).filter(([id, link]) => typeof link !== 'object' || link === null || !leadsNowhere(id, link));
+  return kept.length === Object.keys(rewritten).length ? rewritten : Object.fromEntries(kept);
+}
+
+/**
  * `objects` after an edit of the scene's levels, read with the levels as they were before it
  * (`levels`). Every collection the edit leaves alone keeps its record.
  */
@@ -88,6 +101,7 @@ export function objectsAfterLevelEdit(objects: SceneObjects, levels: SceneLevels
     lights: rewriteMany(objects.lights, levels, edit),
     audios: rewriteMany(objects.audios, levels, edit),
     ...(objects.lightZones && { lightZones: rewriteMany(objects.lightZones, levels, edit) }),
+    ...(objects.levelLinks && { levelLinks: rewriteLinks(objects.levelLinks, levels, edit) }),
   };
   const keys = Object.keys(result) as (keyof SceneObjects)[];
   return keys.every((key) => result[key] === objects[key]) ? objects : result;
