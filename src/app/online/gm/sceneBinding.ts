@@ -17,6 +17,7 @@ import type { SeatSource } from './seatSource.ts';
 import type { PresentedTab } from './presentedScene.ts';
 import { PresentedStore } from './presentedStore.ts';
 import { SceneShare } from './SceneShare.ts';
+import { tellStairsTaken } from './stairsNotice.ts';
 import type { AtlasTab, TabBinding } from './sharedTab.ts';
 import type { VaultImage } from './TokenShare.ts';
 import { showNotice } from '../../ui/notice';
@@ -110,6 +111,7 @@ export function bindScene(ports: SceneBindingPorts, tab: AtlasTab, presented: Pr
     logRoll: (roll) => live() && ports.logRoll(roll),
     logArt: (hash) => ports.logArt(hash),
     foundPin: (mapPath, pinId) => ports.foundPin(mapPath, pinId),
+    tookStairs: (taken) => live() && tellStairsTaken(ports.app, leaf, tab.store, taken),
     rollRequest: (from, answer) => (shown() ? ports.rollRequest(from, answer) : null),
     now: () => timers.now(),
     setTimer: (run, ms) => timers.setTimer(() => live() && run(), ms),

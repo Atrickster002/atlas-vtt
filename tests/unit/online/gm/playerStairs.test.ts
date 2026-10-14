@@ -1,5 +1,5 @@
 // @vitest-environment node
-import type { PlayerMove } from '../../../../src/app/online/protocol/index.ts';
+import type { PlayerDrag, PlayerMove } from '../../../../src/app/online/protocol/index.ts';
 import { describe, expect, it } from 'vitest';
 import { runUntracked } from '../../../../src/app/stores/history';
 import type { LevelLink, SceneLevel } from '../../../../src/app/types/sceneLevelTypes';
@@ -25,6 +25,7 @@ function table(link: LevelLink['levels']): Table {
 }
 
 const move = (x: number, y: number): PlayerMove => ({ t: 'move', scene: SCENE, id: ALIAS.ogre, x, y });
+const drag = (x: number, y: number): PlayerDrag => ({ t: 'drag', scene: SCENE, id: ALIAS.ogre, x, y });
 
 describe('a player\'s token on stairs the GM drew', () => {
   it('goes to the level they lead to, in the move\'s one undo step', () => {
@@ -36,10 +37,29 @@ describe('a player\'s token on stairs the GM drew', () => {
     expect(t.store.getState().objects.tokens.ogre?.level).toBeUndefined();
   });
 
+  it('is named to the GM with the level it went to, which players are not shown', () => {
+    const t = table(['ground', 'upper']);
+    t.moves.receive(ANA, move(300, 300));
+    expect(t.taken).toEqual([]);
+    t.moves.receive(ANA, move(500, 500));
+    expect(t.taken).toEqual([{ tokenId: 'ogre', level: 'upper' }]);
+  });
+
+  it('is named to the GM when a drag puts it down there, and only then', () => {
+    const t = table(['ground', 'upper']);
+    t.moves.drag(ANA, drag(300, 300));
+    t.moves.drag(ANA, drag(500, 500));
+    expect(t.taken).toEqual([]);
+    t.moves.receive(ANA, move(500, 500));
+    expect(t.store.getState().objects.tokens.ogre?.level).toBe('upper');
+    expect(t.taken).toEqual([{ tokenId: 'ogre', level: 'upper' }]);
+  });
+
   it('stays on its level where the stairs offer several: only the GM picks an elevator\'s floor', () => {
     const t = table('all');
     t.moves.receive(ANA, move(500, 500));
     expect(t.store.getState().objects.tokens.ogre).toMatchObject({ x: 500, y: 500 });
     expect(t.store.getState().objects.tokens.ogre?.level).toBeUndefined();
+    expect(t.taken).toEqual([]);
   });
 });

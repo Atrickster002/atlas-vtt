@@ -18,6 +18,7 @@ import { MarkShare, type MarkSharePorts } from './MarkShare.ts';
 import { sceneWalls, type MapSize } from './moveCheck.ts';
 import type { SeatSource } from './seatSource.ts';
 import { PlayerMoves } from './playerMoves.ts';
+import type { StairsTaken } from './stairsTaken.ts';
 import { RulesShare, type RulesSharePorts } from './RulesShare.ts';
 import { TOKEN_POLL_MS, TokenShare, type TokenSharePorts } from './TokenShare.ts';
 import { levelObjects } from '../../levels/levelObjects';
@@ -52,6 +53,8 @@ export interface SceneSharePorts extends TokenSharePorts, RulesSharePorts, Pick<
   rollRequest?(from: string, answer: RollRequestAnswer): RollRequest | null;
   /** The log entry that tells who found a readable pin of a map, or null while nobody has. */
   foundPin?(mapPath: string, pinId: string): string | null;
+  /** Players' tokens took stairs to a level the players are not shown, and left their picture. */
+  tookStairs?(taken: readonly StairsTaken[]): void;
 }
 
 /**
