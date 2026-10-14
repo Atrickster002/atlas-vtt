@@ -81,10 +81,6 @@
   &.atlas-dragging {
     border-color: color-mix(in oklch, var(--interactive-accent) 60%, transparent);
     background: color-mix(in oklch, var(--interactive-accent) 8%, transparent);
-
-    .atlas-token-creator__dropzone-icon {
-      transform: translateY(-2px);
-    }
   }
 
   .atlas-token-creator__dropzone-icon {
