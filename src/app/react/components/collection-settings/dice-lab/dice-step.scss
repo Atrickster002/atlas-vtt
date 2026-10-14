@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// Dice lab: what a die's fan opens under the die (DieStepPanel: its sides, name
+// Dice lab: what a die's fan opens beside the die (DieStepPanel: its sides, name
 // or colour), and what the fan's buttons show of the die (DieFan).
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -11,13 +11,21 @@ $step-width: 264px;
 // ── Step panel: sides, name or colour, under the die ───────────────────────
 .atlas-dice-lab__step-panel {
   @include atlas-elevated-surface;
+  @include atlas-scrollbar;
   position: absolute;
   z-index: 2;
   width: $step-width;
   padding: $spacing-m;
+  // Where the room runs out the panel takes a height cap and scrolls
+  overflow-y: auto;
   transform-origin: top center;
 
-  &.atlas-above { transform-origin: bottom center; }
+  // Takes focus only from the fan it replaces (DiceTray)
+  &:focus { outline: none; }
+
+  &[data-side='above'] { transform-origin: bottom center; }
+  &[data-side='right'] { transform-origin: left center; }
+  &[data-side='left'] { transform-origin: right center; }
 }
 
 .atlas-dice-lab__step {

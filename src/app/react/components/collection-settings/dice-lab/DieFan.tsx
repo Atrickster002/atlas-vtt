@@ -33,7 +33,7 @@ interface DieFanProps {
 
 /**
  * The round buttons that fan out over a die on the tray: its sides, name and
- * colour, each opening a step under the die, then copy and remove. The sides
+ * colour, each opening a step beside the die, then copy and remove. The sides
  * and colour buttons show what the die has.
  */
 export function DieFan(props: DieFanProps): React.ReactElement {

@@ -38,3 +38,12 @@ const fanRadius = (side: number): number => Math.max(LEAST_FAN_RADIUS, side / 2 
 export function dieFanSpots(count: number, width: number, height: number): FanSpot[] {
   return fanSpots(count, { radius: fanRadius(width), radiusY: fanRadius(height), centreDeg: -90, spreadDeg: FAN_SPREAD_DEG });
 }
+
+/** The most buttons a die's fan has (`DieFan`: sides, name, colour, copy, remove). */
+const MOST_FAN_BUTTONS = 5;
+
+/** How far a die of `width` × `height` and the fan over it reach left and right of its centre. */
+export function dieFanReach(width: number, height: number): number {
+  const spots = dieFanSpots(MOST_FAN_BUTTONS, width, height);
+  return Math.max(width / 2, ...spots.map((spot) => Math.abs(spot.x) + FAN_BUTTON_HALF));
+}

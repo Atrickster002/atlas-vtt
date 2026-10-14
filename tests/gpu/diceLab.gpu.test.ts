@@ -133,4 +133,41 @@ describe('the dice lab', () => {
       await settle(300);
     }
   });
+
+  it('opens a die\'s steps whole, in the stage, clear of the die and its fan, and the die stays where it is', async () => {
+    for (const [width, height, set] of [[1100, 820, /^Duality/], [1100, 560, /^Duality/], [1100, 560, /^Horde/], [700, 820, /^Duality/]] as const) {
+      await page.viewport(width, height);
+      await userEvent.click(page.getByRole('button', { name: set }));
+      await settle(1200);
+      const field = document.querySelector<HTMLElement>('.atlas-dice-lab__field')!;
+      const die = document.querySelector<HTMLElement>('button.atlas-dice-lab__die')!;
+      await userEvent.click(die);
+      await settle();
+      const before = die.getBoundingClientRect();
+      const scrollHeight = field.scrollHeight;
+      for (const step of [0, 1, 2]) {
+        // Clicked in place: a pointer click would first scroll the button into view, and the die with it
+        document.querySelectorAll<HTMLElement>('.atlas-csm-fan:not(.atlas-leaving) .atlas-csm-fan__button')[step]!.click();
+        await settle();
+        const panel = document.querySelector<HTMLElement>('.atlas-dice-lab__step-panel')!;
+        const box = panel.getBoundingClientRect();
+        const where = `${width} × ${height}, ${String(set)}, step ${step}`;
+        expect(inside(box, document.querySelector('.atlas-dice-lab__stage')!.getBoundingClientRect()), where).toBe(true);
+        expect(inside(box, document.querySelector('.atlas-dice-lab-dialog')!.getBoundingClientRect()), where).toBe(true);
+        // A narrow lab scrolls as a whole and leaves little of the stage in view: there the panel scrolls
+        if (width > 720) expect(panel.scrollHeight, `${where}: the whole panel shown`).toBe(panel.clientHeight);
+        else expect(inside(box, document.querySelector('.atlas-dice-lab')!.getBoundingClientRect()), where).toBe(true);
+        expect(overlap(box, die.getBoundingClientRect()), where).toBe(false);
+        for (const button of boxes('.atlas-csm-fan:not(.atlas-leaving) .atlas-csm-fan__button')) expect(overlap(box, button), where).toBe(false);
+        const after = die.getBoundingClientRect();
+        expect([after.left, after.top], `${where}: the die stays`).toEqual([before.left, before.top]);
+        expect(field.scrollHeight, `${where}: the tray does not grow`).toBe(scrollHeight);
+        // Back to the fan, which a panel opened over the die hides
+        await userEvent.keyboard('{Escape}');
+        await settle(300);
+      }
+      await userEvent.keyboard('{Escape}');
+      await settle(300);
+    }
+  });
 });

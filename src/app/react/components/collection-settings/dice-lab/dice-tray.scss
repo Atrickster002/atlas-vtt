@@ -81,6 +81,16 @@ $tray-padding: 64px;
 }
 
 // ── Tray ───────────────────────────────────────────────────────────────────
+// Holds the field and, beside it, the step panel of the open die, which the
+// field's scrolling must not cut (useTrayPlaces).
+.atlas-dice-lab__tray {
+  position: relative;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+
 // A felt tray: the secondary background, a light pooling in its middle and a soft
 // inner shadow along its rim, in the theme's own colours.
 .atlas-dice-lab__field {
@@ -104,6 +114,13 @@ $tray-padding: 64px;
     inset 0 0 0 $border-width-s var(--background-modifier-border),
     // A tray is recessed whatever the theme: its shadow is dark in both
     inset 0 2px 14px rgba(0, 0, 0, 0.2);
+}
+
+// A narrow lab scrolls as a whole (dice-lab.scss): the tray keeps the room of a few dice.
+@container atlas-dice-lab (max-width: 720px) {
+  .atlas-dice-lab__field {
+    min-height: 360px;
+  }
 }
 
 .atlas-dice-lab__field.atlas-dragging {
