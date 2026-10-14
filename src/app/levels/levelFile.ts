@@ -78,9 +78,15 @@ export function readExploredMasks(value: unknown, levels: SceneLevels): Record<s
   return Object.keys(masks).length > 0 ? masks : undefined;
 }
 
-/** The version a scene's file is written with: 5 with more than one level, else 4, so plain scenes open in older versions too. */
+/**
+ * The version a scene's file is written with: 5 with more than one level, or a level whose image an
+ * alignment of its own draws (a map image replaced by one of another size), which an older Atlas
+ * would draw at its own size under the grid; else 4, so plain scenes open in older versions too.
+ */
 export function sceneFileVersion(levels: unknown): number {
-  return Array.isArray(levels) && levels.length > 1 ? LEVELS_FILE_VERSION : SINGLE_LEVEL_FILE_VERSION;
+  if (!Array.isArray(levels)) return SINGLE_LEVEL_FILE_VERSION;
+  const aligned = levels.some((level) => isRecord(level) && level.alignment !== undefined);
+  return levels.length > 1 || aligned ? LEVELS_FILE_VERSION : SINGLE_LEVEL_FILE_VERSION;
 }
 
 const forFile = new WeakMap<readonly SceneLevel[], { background: string | null; alignments: LevelAlignments | undefined; levels: SceneLevel[] }>();

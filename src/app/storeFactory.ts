@@ -207,6 +207,9 @@ export interface ViewAtlasState extends ViewState {
   applyLevelScene: SceneLevelsSlice['applyLevelScene'];
   moveTokensToLevel: SceneLevelsSlice['moveTokensToLevel'];
   alignLevel: SceneLevelsSlice['alignLevel'];
+  addLevelLink: SceneLevelsSlice['addLevelLink'];
+  updateLevelLink: SceneLevelsSlice['updateLevelLink'];
+  deleteLevelLink: SceneLevelsSlice['deleteLevelLink'];
 
   // Copy, paste and duplicate (from mapObjectsSlice.ts)
   insertMapObjects: MapObjectsSlice['insertMapObjects'];
@@ -251,6 +254,8 @@ export interface ViewAtlasState extends ViewState {
   closeLightPopover: UISlice['closeLightPopover'];
   openLightZonePopover: UISlice['openLightZonePopover'];
   closeLightZonePopover: UISlice['closeLightZonePopover'];
+  openLevelLinkPopover: UISlice['openLevelLinkPopover'];
+  closeLevelLinkPopover: UISlice['closeLevelLinkPopover'];
   setSceneLightingPanelOpen: UISlice['setSceneLightingPanelOpen'];
   setHeldTokens: UISlice['setHeldTokens'];
   setExploredBrush: UISlice['setExploredBrush'];
@@ -829,8 +834,12 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
           }),
 
           dropTokens: (positions) => set((draft) => {
+            const levelsBefore = new Map(positions.map(({ id }) => [id, draft.objects.tokens[id]?.level]));
             placeTokens(draft, positions);
             if (Object.keys(draft.heldTokens).length > 0) draft.heldTokens = {};
+            // Tokens that went down or up stairs leave the selection, which stays on the level shown.
+            const climbed = new Set(positions.filter(({ id }) => draft.objects.tokens[id]?.level !== levelsBefore.get(id)).map(({ id }) => id));
+            if (climbed.size > 0) draft.selectedIds = draft.selectedIds.filter((id) => !climbed.has(id));
           }),
 
           deleteTokens: (ids) => set((draft) => {

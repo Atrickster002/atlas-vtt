@@ -4,6 +4,7 @@ import './map-link-preview.scss';
 import { runInBackground } from '../utils/backgroundTask';
 import { t } from '../i18n';
 import { mapThumbnailPath } from '../utils/dataFileMigration';
+import { showPinnedLevel } from '../links/openAtlasLink';
 
 /**
  * Lightweight tooltip-style preview for .atlasmap files linked via note pins.
@@ -200,6 +201,8 @@ export class MapLinkPreview {
     });
     this.app.workspace.setActiveLeaf(targetLeaf, { focus: true });
     this.hide();
+    // A token anchor names no level: the scene opens as it opens.
+    if ('sceneLevel' in this.originatingPin) await showPinnedLevel(this.app, this.file.path, this.originatingPin);
   }
 
   private clearHideTimeout(): void {

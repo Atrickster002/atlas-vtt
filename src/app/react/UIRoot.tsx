@@ -20,6 +20,7 @@ import { RandomTables } from './components/randomTables/RandomTablesPanel';
 import { MapLoadingOverlay } from './components/MapLoadingOverlay';
 import { SceneTabBar } from './components/SceneTabBar';
 import { LevelSwitcher } from './components/levels/LevelSwitcher';
+import { LevelLinkPopoverHost } from './components/levels/LevelLinkPopover';
 import { SceneSwitcher } from './components/scene-switcher/SceneSwitcher';
 import { presentTab as presentSceneTab } from '../services/PlayerWindowPresenter';
 import { usePresentedScene } from './hooks/usePresentedScene';
@@ -187,7 +188,7 @@ export const UIRoot: React.FC<UIRootProps> = ({ app, view, pixiApp }) => {
           </BottomToolbarRow>
 
           {!isPlayerView && !isMapLoading && (
-            <PanelBoundary name="the level switcher"><LevelSwitcher /></PanelBoundary>
+            <PanelBoundary name="the level switcher"><LevelSwitcher /><LevelLinkPopoverHost /></PanelBoundary>
           )}
 
           {!isPlayerView && !isMapLoading && (

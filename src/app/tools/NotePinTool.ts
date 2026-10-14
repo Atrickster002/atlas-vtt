@@ -13,6 +13,8 @@ import { NotePinPreview } from './notePinPreview';
 import { nearestHexCenter, type HexLayout } from '../grid/hexGeometry';
 import { hexLinkAt } from '../grid/hexLinks';
 import { linkedSceneFile, mayLinkFromScene } from '../services/sceneLinks';
+import { pinSceneLevel } from '../levels/pinSceneLevel';
+import { showPinnedLevel } from '../links/openAtlasLink';
 import { t } from '../i18n';
 import { showNotice } from '../ui/notice';
 import { levelObjects } from '../levels/levelObjects';
@@ -281,11 +283,17 @@ export class NotePinTool {
   public openLinkedNote(pin: NotePin): void {
     if (!pin.notePath) return;
 
-    const mapPath = this.store.getState().mapPath;
+    const state = this.store.getState();
+    const { mapPath } = state;
     const scene = linkedSceneFile(this.obsidianApp, mapPath, pin.notePath);
-    if (scene) {
+    // A pin that leads to another level of the scene it stands on only shows that level.
+    const ownLevel = scene?.path === mapPath ? pinSceneLevel(pin, state.levels) : null;
+    if (ownLevel !== null) {
+      state.setViewedLevel(ownLevel);
+    } else if (scene) {
       const leaf = this.obsidianApp.workspace.getLeavesOfType('atlas-vtt')[0] ?? this.obsidianApp.workspace.getLeaf(true);
       this.openMapInLeaf(leaf, scene.path);
+      runInBackground(showPinnedLevel(this.obsidianApp, scene.path, pin), `Showing the level of ${scene.path} a pin opens`);
     } else if (!mayLinkFromScene(mapPath, pin.notePath)) {
       showNotice(t('pin.crossCollection'));
     } else {

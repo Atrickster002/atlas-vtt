@@ -32,6 +32,7 @@ export const palette = {
   'palette.playerDashboard': 'Player dashboard configuration',
   'palette.sceneSnapshots': 'Scene snapshots',
   'palette.sceneLevels': 'Scene levels',
+  'palette.replaceMapImage': 'Replace map image',
   'palette.searchPlaceholder': 'Search commands...',
   'palette.openPlayerWindow': 'Open Player Window',
   'palette.sendMapToPlayerView': 'Send Current Map to Player View',

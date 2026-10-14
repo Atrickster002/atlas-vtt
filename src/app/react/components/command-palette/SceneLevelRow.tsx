@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { ArrowDown, ArrowUp, Image, Trash2 } from 'lucide-react';
+import { ArrowDown, ArrowUp, Image, Replace, Trash2 } from 'lucide-react';
 import { cn } from '../../../../utils/cn';
 import { LabelTooltip } from '../../../packages/components/primitives/tooltip';
 import type { LevelElevation, SceneLevel } from '../../../types/sceneLevelTypes';
@@ -16,6 +16,10 @@ interface SceneLevelRowProps {
   onElevation: (elevation: LevelElevation) => void;
   onMove: (direction: 1 | -1) => void;
   onPickImage: () => void;
+  /** Whether the level has an image another can take the place of. */
+  hasImage: boolean;
+  /** Picks an image of the same shape that takes the image's place, scaled onto it. */
+  onReplaceImage: () => void;
   onDelete: () => void;
 }
 
@@ -81,6 +85,7 @@ export function SceneLevelRow(props: SceneLevelRowProps): React.ReactElement {
         <RowButton label={t('levels.moveUp', { name })} icon={<ArrowUp />} disabled={!props.canMoveUp} onClick={() => props.onMove(1)} />
         <RowButton label={t('levels.moveDown', { name })} icon={<ArrowDown />} disabled={!props.canMoveDown} onClick={() => props.onMove(-1)} />
         <RowButton label={t('levels.changeImage', { name })} icon={<Image />} onClick={props.onPickImage} />
+        <RowButton label={t('levels.replaceImage', { name })} icon={<Replace />} disabled={!props.hasImage} onClick={props.onReplaceImage} />
         <RowButton label={t('levels.delete', { name })} icon={<Trash2 />} destructive onClick={props.onDelete} />
       </div>
     </div>

@@ -3,10 +3,12 @@ import { Plus } from 'lucide-react';
 import { useAtlasStore, useViewStoreHook } from '../../ViewStoreContext';
 import { useAtlasUI } from '../../root/AtlasUIContext';
 import { viewedLevelId } from '../../../levels/sceneLevels';
+import { levelBackground } from '../../../levels/levelEdits';
 import { collectionIdOfPath } from '../../../services/assetPaths';
 import { runInBackground } from '../../../utils/backgroundTask';
 import { addLevel, changeLevel, changeLevelBackground, deleteLevel, levelLabel, moveLevel } from '../levels/levelEditing';
 import { pickMapImage } from '../levels/MapImagePickerModal';
+import { replaceMapImage } from '../levels/replaceMapImage';
 import { SceneLevelRow } from './SceneLevelRow';
 import { presentLevelInsteadOf } from '../../../services/presentedLevel';
 import { t } from '../../../i18n';
@@ -21,6 +23,7 @@ export function SceneLevelsPanel(): React.ReactElement {
   const levels = useAtlasStore((state) => state.levels);
   const viewed = useAtlasStore((state) => viewedLevelId(state));
   const mapPath = useAtlasStore((state) => state.mapPath);
+  const background = useAtlasStore((state) => state.background);
   const collection = collectionIdOfPath(mapPath);
   const pick = (onChoose: (path: string | null) => void): void => runInBackground(pickMapImage(app, collection, onChoose), 'Picking a map image');
   const several = levels && levels.length > 1 ? levels : null;
@@ -48,6 +51,10 @@ export function SceneLevelsPanel(): React.ReactElement {
                 onElevation={(elevation) => changeLevel(store, level.id, { elevation })}
                 onMove={(direction) => moveLevel(store, level.id, direction)}
                 onPickImage={() => pick((path) => changeLevelBackground(store, level.id, path))}
+                hasImage={levelBackground({ levels: several, background }, level.id) !== null}
+                onReplaceImage={() => pick((path) => {
+                  if (path) runInBackground(replaceMapImage(app, store, level.id, path), 'Replacing a level\'s map image');
+                })}
                 onDelete={() => runInBackground(deleteLevel(store, level.id).then((target) => {
                   if (target && view) presentLevelInsteadOf(view, level.id, target);
                 }), 'Deleting a level')}

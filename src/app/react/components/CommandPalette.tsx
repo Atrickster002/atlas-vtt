@@ -26,7 +26,11 @@ import {
   UserCheck,
   History,
   Layers,
+  Replace,
 } from 'lucide-react';
+import { runInBackground } from '../../utils/backgroundTask';
+import { viewedLevelId } from '../../levels/sceneLevels';
+import { collectionIdOfPath } from '../../services/assetPaths';
 import { CoinIcon } from './CoinIcon';
 
 import { useStore } from 'zustand';
@@ -52,6 +56,8 @@ import { DiceSettingsPanel } from './command-palette/DiceSettingsPanel';
 import { ExperimentalFeaturesPanel } from './command-palette/ExperimentalFeaturesPanel';
 import { SceneSnapshotsPanel } from './command-palette/SceneSnapshotsPanel';
 import { SceneLevelsPanel } from './command-palette/SceneLevelsPanel';
+import { replaceMapImage } from './levels/replaceMapImage';
+import { pickMapImage } from './levels/MapImagePickerModal';
 import { placePalette, type PalettePosition } from './command-palette/palettePlacement';
 import { customizeToolbarCommand } from './command-palette/customizeToolbarCommand';
 import { isSettingsPanelId, type CommandOption, type SettingsPanelId } from './command-palette/types';
@@ -274,6 +280,21 @@ export function CommandPalette({ isOpen, onClose, toolbarRef, onCustomizeToolbar
       section: "tools",
       hasSubmenu: true,
       submenu: [],
+    },
+    {
+      id: "replace-map-image",
+      icon: <Replace />,
+      label: t('palette.replaceMapImage'),
+      keywords: ["swap", "gridless", "gridded", "video", "animated", "background"],
+      section: "tools",
+      action: () => {
+        onClose();
+        const state = store.getState();
+        const levelId = viewedLevelId(state);
+        runInBackground(pickMapImage(app, collectionIdOfPath(state.mapPath), (path) => {
+          if (path) runInBackground(replaceMapImage(app, store, levelId, path), 'Replacing the map image');
+        }), 'Picking a map image');
+      },
     },
     {
       id: "open-dice-log",

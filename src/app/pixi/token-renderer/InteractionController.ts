@@ -43,6 +43,7 @@ import { mapLightPresets } from '../../services/mapCollectionRules';
 import { conditionsSubmenu } from '../../react/components/context-menu/conditionsMenu';
 import { placedPlayerCharacterEntry } from '../../react/components/context-menu/playerCharacterMenu';
 import { holdTokens } from '../../lighting/sightOnDrop';
+import { dropTokensOnStairs, type StairsMenuPlace } from './stairsDrop';
 import { t } from '../../i18n';
 import { levelObjects } from '../../levels/levelObjects';
 
@@ -439,13 +440,18 @@ export class InteractionController implements ITokenInteractionController {
   }
 
   private onPointerUp = (e: FederatedPointerEvent): void => {
-    this.endDrag(this.viewport.toWorld(e.global));
+    this.endDrag(this.viewport.toWorld(e.global), { x: e.clientX, y: e.clientY, doc: this.viewport.options?.events?.domElement?.ownerDocument });
   };
 
-  /** Ends the press or drag with the pointer at `worldPos`: a drag drops its tokens there, as one undo step. */
-  private endDrag(worldPos: { x: number; y: number }): void {
+  /**
+   * Ends the press or drag with the pointer at `worldPos`: a drag drops its tokens there, as one undo
+   * step. `menuAt` is where a choice of levels opens for tokens dropped into an elevator (none for a
+   * pointer that was lost), whose pick joins that step.
+   */
+  private endDrag(worldPos: { x: number; y: number }, menuAt: StairsMenuPlace | null = null): void {
     if (!this.dragState.isDragging) return;
     const wasDrag = this.dragState.hasMoved;
+    let stepHeld = false;
 
     try {
       this.dragState.isDragging = false;
@@ -501,7 +507,7 @@ export class InteractionController implements ITokenInteractionController {
         tokenUpdates.push({id, x: finalPos.x, y: finalPos.y});
       }
       
-      if (tokenUpdates.length > 0) this.store.getState().dropTokens(tokenUpdates);
+      if (tokenUpdates.length > 0) stepHeld = dropTokensOnStairs(this.store, tokenUpdates, menuAt);
       
       // Update UI
       this.onSelectionUpdate?.();
@@ -512,7 +518,7 @@ export class InteractionController implements ITokenInteractionController {
     } catch (error) {
       console.error('[InteractionController] Error in onPointerUp handler:', error);
     } finally {
-      if (wasDrag) endHistoryTransaction(this.store);
+      if (wasDrag && !stepHeld) endHistoryTransaction(this.store);
       this.dragRuler?.end();
       delete this.dragState.rulerTokenId;
 

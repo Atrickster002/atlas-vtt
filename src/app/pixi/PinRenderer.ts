@@ -8,7 +8,7 @@ import { mapMarkerScale } from "./utils/mapMarkerScale";
 import { isHandled } from "./utils/handledEvents";
 import type { ViewAtlasState, ViewAtlasStore } from '../storeFactory';
 import { beginHistoryTransaction, endHistoryTransaction } from '../stores/history';
-import { openContextMenuGlobal } from '../react/root/ContextMenuContext';
+import type { ContextMenuEntry } from '../react/root/ContextMenuContext';
 import { pinSize } from '../styles/designTokens';
 import { isPinLabelKind, nextPinLabel } from '../tools/pinLabels';
 import { getPinIconDefinition, resolvePinIcon, type PinIconId } from '../types/pinIcons';
@@ -18,6 +18,7 @@ import { hexLayoutOfGrid, isShownAsHex, pinDisplayPoint } from '../grid/hexLinks
 import { MAP_LAYER_Z } from './mapLayerOrder';
 import { createReadableMark } from './pinReadableMark';
 import { readablePinEntry } from './pinReadableMenu';
+import { openPinMenu, type PinnedSceneLevels } from './pinSceneLevelMenu';
 import { t } from '../i18n';
 import { levelObjects } from '../levels/levelObjects';
 
@@ -40,6 +41,7 @@ export class PinRenderer {
   private _notePinToolViewportListener: ((e: FederatedPointerEvent) => void) | null = null;
   private _viewportPinClickListener: ((e: FederatedPointerEvent) => void) | null = null;
   private isPlayerView: boolean;
+  private pinnedSceneLevels: PinnedSceneLevels | null = null;
   private store: ViewAtlasStore;
   private iconTextureCache: Map<PinIconId, Texture | null> = new Map();
   private themeObserver: MutationObserver | null = null;
@@ -396,17 +398,20 @@ export class PinRenderer {
   }
   
 
+  /** Reads the levels of the scene a pin links, for its menu's level choice; set by the view. */
+  public setPinnedSceneLevels(read: PinnedSceneLevels): void {
+    this.pinnedSceneLevels = read;
+  }
+
   private showPinContextMenu(pin: NotePin, pos: { x: number; y: number }): void {
-    openContextMenuGlobal(
-      [
-        { type: 'item', label: t('pinMenu.open'), icon: 'file-text', onClick: () => dispatchPinAction('open', pin) },
-        { type: 'item', label: t('pinMenu.edit'), icon: 'edit', onClick: () => dispatchPinAction('edit', pin) },
-        ...[readablePinEntry(this.store, pin)].filter((entry) => entry !== null),
-        { type: 'item', label: t('common.duplicate'), icon: 'files', onClick: () => this.store.getState().duplicateMapObjects([pin.id]) },
-        { type: 'item', label: t('common.delete'), icon: 'trash', destructive: true, onClick: () => this.store.getState().deleteMapObject('pin', pin.id) },
-      ],
-      pos,
-    );
+    const entries: ContextMenuEntry[] = [
+      { type: 'item', label: t('pinMenu.open'), icon: 'file-text', onClick: () => dispatchPinAction('open', pin) },
+      { type: 'item', label: t('pinMenu.edit'), icon: 'edit', onClick: () => dispatchPinAction('edit', pin) },
+      ...[readablePinEntry(this.store, pin)].filter((entry) => entry !== null),
+      { type: 'item', label: t('common.duplicate'), icon: 'files', onClick: () => this.store.getState().duplicateMapObjects([pin.id]) },
+      { type: 'item', label: t('common.delete'), icon: 'trash', destructive: true, onClick: () => this.store.getState().deleteMapObject('pin', pin.id) },
+    ];
+    openPinMenu(this.store, pin, entries, pos, this.pinnedSceneLevels);
   }
 
   private syncPins = (

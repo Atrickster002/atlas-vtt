@@ -21,6 +21,12 @@ export interface NotePin extends OnOneLevel {
   hex?: boolean;
   /** Players may read the linked note (or the heading it names) once they find the pin on the map. */
   readable?: true;
+  /**
+   * The level of the linked scene the pin opens (a scene link only); unset opens the scene as it
+   * opens, on the level its tab last showed. Read with `pinSceneLevel`: a level the scene no longer
+   * has opens the first.
+   */
+  sceneLevel?: string;
 }
 
 /** A bounded resource value saved on an individual map token. */
