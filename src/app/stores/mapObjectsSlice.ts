@@ -11,6 +11,7 @@ import { computeNextInstanceNumber } from './tokenInstanceNumbers';
 import { raiseTokens } from './tokenStacking';
 import type { SceneLevel } from '../types/sceneLevelTypes';
 import { placedOnViewedLevel } from '../levels/sceneLevels';
+import { levelObjects } from '../levels/levelObjects';
 
 export interface MapObjectsSlice {
   /** Adds the objects under fresh ids, selects them and returns the new ids. */
@@ -84,9 +85,10 @@ export function createMapObjectsActions(set: ImmerSet, get: () => MapObjectsStor
     insertMapObjects: insert,
 
     duplicateMapObjects: (ids) => {
-      const { objects, grid } = get();
-      const content = collectMapObjects(objects, ids);
-      return insert(placeMapObjects(content, duplicateStep(grid), grid, objects));
+      const state = get();
+      const content = collectMapObjects(state.objects, ids);
+      // Copies step aside from what stands on the level shown, where they land: other floors are out of the way.
+      return insert(placeMapObjects(content, duplicateStep(state.grid), state.grid, levelObjects(state)));
     },
 
     removeMapObjects: (ids) => set((draft) => {
