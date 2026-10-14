@@ -1,4 +1,4 @@
-import { isCollection, isMap, isScalar, isSeq, type Node } from 'yaml';
+import { isCollection, isMap, isScalar, isSeq, type Node } from '../../services/noteYaml';
 import type { FieldKey, FieldValue } from '../model/templateTypes';
 import type { FieldPath } from './patchTypes';
 import {

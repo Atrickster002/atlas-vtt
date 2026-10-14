@@ -1,4 +1,6 @@
-import { Document, Scalar, isCollection, isMap, isPair, isScalar, isSeq, parse, visit, type Node, type ToStringOptions } from 'yaml';
+import {
+  Document, Scalar, isCollection, isMap, isPair, isScalar, isSeq, parseNoteYamlDocument, visit, type Node, type ToStringOptions,
+} from '../../services/noteYaml';
 import type { FieldValue } from '../model/templateTypes';
 
 /**
@@ -140,9 +142,13 @@ function quoteYaml11Lookalikes(doc: Document): void {
   });
 }
 
+/** A string the check cannot read (beyond Atlas' YAML limits, or no YAML) is quoted too. */
 function readsAsOtherIn11(value: string): boolean {
+  // As `parse` reads it with the log silent: what the document holds, whatever errors it has.
+  const doc = parseNoteYamlDocument(value, { version: '1.1', logLevel: 'silent' });
+  if (!doc) return true;
   try {
-    return parse(value, { version: '1.1', logLevel: 'silent' }) !== value;
+    return doc.toJS() !== value;
   } catch {
     return true;
   }

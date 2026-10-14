@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { NOTE_YAML_LIMITS } from '../../../../src/app/services/noteYaml';
 import { applyWrites } from '../../../../src/app/statblocks/notes/applyWrites';
 import { smallestChange } from '../../../../src/app/statblocks/notes/editorWrite';
+import { applyFrontmatterPatches } from '../../../../src/app/statblocks/notes/frontmatterPatch';
 import { frontmatterProblem } from '../../../../src/app/statblocks/notes/frontmatterProblem';
 import { WriteQueue } from '../../../../src/app/statblocks/notes/writeQueue';
 
@@ -19,6 +21,21 @@ describe('frontmatterProblem', () => {
   it('refuses properties not written one key per line, and a closing line Obsidian reads two ways', () => {
     expect(frontmatterProblem('---\n{hp: 3}\n---\n')?.message).toBe('The note\'s properties are not written as one key per line.');
     expect(frontmatterProblem('---\nhp: 3\n--- \nBody')).toMatchObject({ line: 3 });
+  });
+
+  it('refuses properties beyond what Atlas reads as YAML, and the patcher leaves such a note alone', () => {
+    const long = `---\nhp: 3\ndesc: ${'a'.repeat(NOTE_YAML_LIMITS.characters)}\n---\nBody`;
+    const aliases = Array.from({ length: NOTE_YAML_LIMITS.aliases + 1 }, (_, index) => `b${index}: *a`).join('\n');
+    const repeating = `---\nhp: 3\na: &a [x, x, x]\n${aliases}\n---\nBody`;
+    for (const text of [long, repeating]) {
+      expect(frontmatterProblem(text)).toEqual({
+        line: 2,
+        message: 'The note\'s properties are too long, or repeat too much through YAML aliases, for Atlas to read.',
+      });
+      const result = applyFrontmatterPatches(text, [{ op: 'set', path: ['hp'], base: 3, next: 4 }]);
+      expect(result.text).toBe(text);
+      expect(result.applied).toEqual([]);
+    }
   });
 });
 

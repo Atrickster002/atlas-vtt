@@ -3,7 +3,7 @@
  * note, in words the statblock pane shows. Pure.
  */
 
-import { isMap, parseDocument } from 'yaml';
+import { isMap, parseNoteYamlDocument } from '../../services/noteYaml';
 import { frontmatterBounds, readersAgree } from './frontmatterBounds';
 import { readFrontmatterDoc } from './yamlDocument';
 
@@ -26,7 +26,10 @@ export function frontmatterProblem(text: string): NoteProblem | null {
 
   const yaml = text.slice(bounds.from, bounds.to);
   if (readFrontmatterDoc(yaml)) return null;
-  const doc = parseDocument(yaml);
+  const doc = parseNoteYamlDocument(yaml);
+  if (!doc) {
+    return { line: lineOf(text, bounds.from), message: 'The note\'s properties are too long, or repeat too much through YAML aliases, for Atlas to read.' };
+  }
   const error = doc.errors[0];
   if (error) {
     // An error found at the end of the text (an unclosed list) is on the last line of the YAML.
