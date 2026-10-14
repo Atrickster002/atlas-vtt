@@ -10,6 +10,16 @@ import type { PolygonAreaOverlay } from './PolygonAreaOverlay';
 /** What a press needs of the pointer event: Alt places a corner freely, without snapping. */
 export type AreaKeys = { altKey: boolean };
 
+/** What a tool that draws areas takes of the pointer, from the token renderer's viewport dispatch. */
+export interface AreaToolPointer {
+  /** A left press at a world point; true when the tool took it. */
+  pointerDown(point: Point, keys: AreaKeys): boolean;
+  pointerMove(point: Point, keys: AreaKeys): void;
+  pointerUp(): void;
+  doubleClick(): void;
+  cursorAt(point: Point): string;
+}
+
 /** How the editor reads and writes one kind of area in the view's store. */
 export interface AreaStore<Area extends PolygonArea> {
   /** The areas the view shows, in the order they were drawn. */
@@ -51,7 +61,7 @@ export interface PolygonAreaEditorDeps<Area extends PolygonArea> {
  * and leave no step), a click on an area's handle opens its popover, and Delete deletes the area
  * whose popover is open. It takes input only while active and while its layer shows.
  */
-export class PolygonAreaEditor<Area extends PolygonArea> {
+export class PolygonAreaEditor<Area extends PolygonArea> implements AreaToolPointer {
   private isActive = false;
   private draft: Point[] = [];
   private cursor: Point | null = null;

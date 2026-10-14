@@ -144,3 +144,23 @@ export function linkChoice(landings: readonly LinkLanding[]): LinkChoice | null 
   const targets = several[0]!.targets.filter((id) => several.every((landing) => landing.targets.includes(id)));
   return targets.length > 0 ? { tokenIds: several.map((landing) => landing.tokenId), targets } : null;
 }
+
+/** Which way a link leads from level `from`: only up, only down, both ways, or nowhere from there. */
+export function linkHeading(link: LevelLink, from: string, levels: SceneLevels): 'up' | 'down' | 'both' | 'none' {
+  if (!hasLevels(levels)) return 'none';
+  const at = levels.findIndex((level) => level.id === from);
+  const targets = linkTargets(link, from, levels).map((id) => levels.findIndex((level) => level.id === id));
+  const up = targets.some((index) => index > at);
+  const down = targets.some((index) => index < at);
+  return up && down ? 'both' : up ? 'up' : down ? 'down' : 'none';
+}
+
+/**
+ * The level stairs drawn on level `from` lead to at first: the one above it, else the one below;
+ * the GM changes it in the stairs' popover. Null in a scene without levels.
+ */
+export function firstLinkTarget(from: string, levels: SceneLevels): string | null {
+  if (!hasLevels(levels)) return null;
+  const at = levels.findIndex((level) => level.id === from);
+  return levels[at + 1]?.id ?? levels[at - 1]?.id ?? null;
+}

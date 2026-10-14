@@ -18,8 +18,8 @@ export function lightZoneOverlay(viewport: Viewport): PolygonAreaOverlay<LightZo
     zIndex: LIGHT_ZONES_Z_INDEX,
     restingAlpha: 0,
     handleOf: (zone) => areaHandlePoint(zone.polygon),
-    decorate: (g, zone, handle, pixel, theme) => {
-      g.circle(handle.x, handle.y, (AREA_HANDLE_RADIUS - 4) * pixel).fill({ color: zoneLightColor(zone) }).stroke({ width: pixel, color: theme.stroke, alpha: 0.5 });
+    decorate: (g, zone, { at, pixel, theme }) => {
+      g.circle(at.x, at.y, (AREA_HANDLE_RADIUS - 4) * pixel).fill({ color: zoneLightColor(zone) }).stroke({ width: pixel, color: theme.stroke, alpha: 0.5 });
     },
   });
 }

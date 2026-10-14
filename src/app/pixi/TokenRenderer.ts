@@ -50,6 +50,7 @@ import type { HexLinkPointerHandlers } from './hexLinks/HexLinkInteraction';
 import type { LightPointerHandlers } from './lighting/LightInteraction';
 import { runInBackground } from '../utils/backgroundTask';
 import { isModHeld } from '../keyboard/modKey';
+import type { AreaToolPointer } from './areas/PolygonAreaEditor';
 import { levelObjects } from '../levels/levelObjects';
 
 /** What the lighting controller answers about a right-click on a door's badge. */
@@ -151,6 +152,9 @@ export class TokenRenderer {
   private wallDoubleClickHandler?: () => void;
   private wallContextMenuHandler?: (worldX: number, worldY: number, screenX: number, screenY: number) => void;
   private wallCursorProvider?: (worldX: number, worldY: number) => string;
+
+  /** The stairs tool's editor, which takes the pointer while that tool is active. */
+  private stairsTool?: AreaToolPointer;
 
   // Audio provider pattern — wired by PixiRendererOrchestrator
   private audioPointerDownHandler?: (worldX: number, worldY: number, e: FederatedPointerEvent) => boolean;
@@ -1475,6 +1479,11 @@ export class TokenRenderer {
     this.refreshPlayerSight();
   }
 
+  /** The stairs tool's editor: it takes every left press, move and release while the stairs tool is active. */
+  public setStairsTool(tool: AreaToolPointer): void {
+    this.stairsTool = tool;
+  }
+
   public setAudioPointerDownHandler(fn: (worldX: number, worldY: number, e: FederatedPointerEvent) => boolean): void {
     this.audioPointerDownHandler = fn;
   }
@@ -1678,6 +1687,12 @@ export class TokenRenderer {
       return;
     }
 
+    // ── Stairs tool: drawing and reshaping stairs between levels ─────────
+    if (activeTool === 'stairs' && e.button === 0 && this.stairsTool?.pointerDown(worldPos, e)) {
+      markHandled(e);
+      return;
+    }
+
     // ── Wall tool: drawing, vertex drag, selection ─────────────────────
     if (activeTool === 'wall' && e.button === 0 && this.wallPointerDownHandler) {
       const handled = this.wallPointerDownHandler(worldPos.x, worldPos.y, e);
@@ -1835,6 +1850,12 @@ export class TokenRenderer {
       return;
     }
 
+    if (activeTool === 'stairs' && this.stairsTool) {
+      this.stairsTool.pointerMove(worldPos, e);
+      this.applyCursor(lightCursor ?? this.stairsTool.cursorAt(worldPos));
+      return;
+    }
+
     if (lightCursor) {
       this.interactionController.handleViewportTokenHover(null);
       this.uiManager.setHoverState(null);
@@ -1878,13 +1899,18 @@ export class TokenRenderer {
   }
 
   private onViewportPointerUp = (): void => {
-    if (this.store.getState().activeTool === 'wall') {
+    const { activeTool } = this.store.getState();
+    if (activeTool === 'wall') {
       this.wallPointerUpHandler?.();
+    } else if (activeTool === 'stairs') {
+      this.stairsTool?.pointerUp();
     }
   };
 
   private onCanvasDoubleClick = (): void => {
-    if (this.store.getState().activeTool === 'wall') this.wallDoubleClickHandler?.();
+    const { activeTool } = this.store.getState();
+    if (activeTool === 'wall') this.wallDoubleClickHandler?.();
+    else if (activeTool === 'stairs') this.stairsTool?.doubleClick();
   };
 
   /**

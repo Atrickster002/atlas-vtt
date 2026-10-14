@@ -18,6 +18,8 @@ import { TokenRenderer } from "./pixi/token-renderer"; // Import TokenRenderer
 import { PinRenderer } from "./pixi/PinRenderer"; // Import PinRenderer
 import { HexLinkRenderer } from "./pixi/hexLinks/HexLinkRenderer";
 import { HexLinkInteraction } from "./pixi/hexLinks/HexLinkInteraction";
+import { LevelLinkEditor } from "./pixi/levelLinks/LevelLinkEditor";
+import { MAX_LEVEL_LINKS } from "./levels/levelLinks";
 import type { MapRect } from "./grid/cellNumbering";
 import type { NotePin } from "./types";
 import { captureBeforeRender, frameCamera, type LayerVisibility } from "./pixi/playerSafeFrame";
@@ -54,6 +56,7 @@ import { MAP_LAYER_Z } from './pixi/mapLayerOrder';
 import { shownRollTokens } from './pixi/playerRollTokens';
 import type { ShownRollToken } from './services/playerRollSource';
 import { t } from './i18n';
+import { showNotice } from './ui/notice';
 import type { MapImage } from './pixi/mapImage/MapImage';
 import type { MapImageChange } from './pixi/mapImage/mapImageView';
 import type { TileView } from './pixi/mapImage/levelOfDetail';
@@ -76,6 +79,8 @@ export class PixiRendererOrchestrator { // Renamed class
   private pinRenderer?: PinRenderer; // Add PinRenderer instance
   private hexLinkRenderer?: HexLinkRenderer;
   private hexLinkInteraction?: HexLinkInteraction;
+  /** The stairs between levels: shown to the GM, edited with the stairs tool. */
+  private levelLinks?: LevelLinkEditor;
   private selectionManager?: SelectionManager; // Add SelectionManager instance
   private fogRenderer?: FogOfWarRenderer; // Add FogRenderer instance
   private measureRenderer?: MeasureRenderer; // Add MeasureRenderer instance
@@ -387,6 +392,15 @@ export class PixiRendererOrchestrator { // Renamed class
       renderer: this.hexLinkRenderer,
       onNoteHover: (type, pin, e) => this.emitNoteHover(type, pin, e),
     });
+
+    if (!isPlayerView) {
+      this.levelLinks = new LevelLinkEditor({
+        viewport,
+        canvas: this.pixiAppManager.getCanvasElement(),
+        store: this.store,
+        onFull: () => showNotice(t('levels.stairsFull', { count: MAX_LEVEL_LINKS })),
+      });
+    }
 
     this.selectionManager = new SelectionManager(
         viewport,
@@ -835,6 +849,7 @@ export class PixiRendererOrchestrator { // Renamed class
     const layers: LayerVisibility[] = [];
     if (this.pinRenderer) layers.push({ layer: this.pinRenderer.getPinContainer(), visible: false });
     if (this.hexLinkRenderer) layers.push({ layer: this.hexLinkRenderer.container, visible: false });
+    if (this.levelLinks) layers.push({ layer: this.levelLinks.view, visible: false });
     return layers;
   }
 
@@ -892,7 +907,7 @@ export class PixiRendererOrchestrator { // Renamed class
       const settings = SettingsService.forApp(this.obsApp);
       // Escape key
       if (matchesMapHotkey(e, 'cancel', settings)) {
-        if (this.lighting?.handleEscape()) {
+        if (this.levelLinks?.handleEscape() || this.lighting?.handleEscape()) {
           e.preventDefault();
           return;
         }
@@ -906,14 +921,14 @@ export class PixiRendererOrchestrator { // Renamed class
       }
       
       // Enter closes the light zone being drawn
-      if (e.key === 'Enter' && this.lighting?.handleEnter()) {
+      if (e.key === 'Enter' && (this.levelLinks?.handleEnter() || this.lighting?.handleEnter())) {
         e.preventDefault();
         return;
       }
 
       // Delete selected tokens on Delete or Backspace key
       if (!this.store.getState().isPlayerView && (matchesMapHotkey(e, 'delete', settings) || matchesMapHotkey(e, 'deleteAlt', settings))) {
-        if (this.lighting?.handleDelete()) {
+        if (this.levelLinks?.handleDelete() || this.lighting?.handleDelete()) {
           e.preventDefault();
           return;
         }
@@ -988,6 +1003,7 @@ export class PixiRendererOrchestrator { // Renamed class
     if (this.hexLinkInteraction) {
       this.tokenRenderer.setHexLinkHandlers(this.hexLinkInteraction);
     }
+    if (this.levelLinks) this.tokenRenderer.setStairsTool(this.levelLinks);
     if (this.selectionManager) {
       this.selectionManager.setHitTestTokensProvider(
         (x, y) => this.tokenRenderer!.hitTestTokens(x, y)
@@ -1113,6 +1129,7 @@ export class PixiRendererOrchestrator { // Renamed class
     this.pinRenderer?.destroy(); // Destroy PinRenderer
     this.hexLinkInteraction?.destroy();
     this.hexLinkRenderer?.destroy();
+    this.levelLinks?.destroy();
     this.fogRenderer?.destroy(); // Destroy FogRenderer
     this.stopMeasuresFollowingPlayers?.();
     this.measureRenderer?.destroy(); // Destroy MeasureRenderer

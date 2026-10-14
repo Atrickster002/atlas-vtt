@@ -21,17 +21,25 @@ export interface AreaOverlayState {
   corner: AreaCorner | null;
 }
 
+/** The badge on an area's handle, of `AREA_HANDLE_RADIUS` screen pixels, which a look draws into. */
+export interface AreaBadge {
+  /** The badge's middle, in world pixels. */
+  at: Point;
+  /** A screen pixel in world pixels: the badge keeps its size on screen. */
+  pixel: number;
+  theme: CanvasBadgeTheme;
+  /** How strongly the area shows: 1 while edited, else the look's `restingAlpha`. */
+  alpha: number;
+}
+
 /** How one kind of area looks on the overlay. */
 export interface AreaLook<Area extends PolygonArea> {
   label: string;
   zIndex: number;
   /** Where an area's handle sits, in world pixels. */
   handleOf: (area: Area) => Point;
-  /**
-   * Draws what the handle shows of the area inside its badge, of `AREA_HANDLE_RADIUS` screen pixels;
-   * `pixel` is a screen pixel in world pixels, since the badge keeps its size on screen.
-   */
-  decorate: (g: Graphics, area: Area, handle: Point, pixel: number, theme: CanvasBadgeTheme) => void;
+  /** Draws what the handle shows of the area inside its badge (`AreaBadge`). */
+  decorate: (g: Graphics, area: Area, badge: AreaBadge) => void;
   /** How strongly an area's outline shows while it is not edited; 0 shows nothing then. */
   restingAlpha: number;
 }
@@ -88,7 +96,7 @@ export class PolygonAreaOverlay<Area extends PolygonArea> {
       }
       const handle = this.look.handleOf(area);
       dot(handle, AREA_HANDLE_RADIUS, theme.background, color);
-      this.look.decorate(g, area, handle, pixel, theme);
+      this.look.decorate(g, area, { at: handle, pixel, theme, alpha });
     }
     if (editing && draft.length > 0) {
       outline(cursor ? [...draft, cursor] : draft, false, theme.accent);
