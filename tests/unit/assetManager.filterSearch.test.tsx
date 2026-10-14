@@ -251,7 +251,7 @@ it('keeps the filter button on every tab, disabled where a tab has no filters ye
   expect(filters.disabled).toBe(true);
   expect(filters.getAttribute('aria-expanded')).toBe('false');
   await vi.waitFor(() => expect(screen.queryByRole('dialog', { name: 'Filters' })).toBeNull());
-  fireEvent.click(screen.getAllByRole('button', { name: /^Characters/ })[0]!);
+  fireEvent.click(screen.getAllByRole('button', { name: /^Tokens/ })[0]!);
   expect((screen.getByRole('button', { name: 'Filters' }) as HTMLButtonElement).disabled).toBe(false);
   expect(screen.queryByRole('dialog', { name: 'Filters' })).toBeNull();
 });

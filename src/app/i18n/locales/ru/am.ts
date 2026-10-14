@@ -123,7 +123,7 @@ export const am: Translation = {
   'am.tab.scenes': 'Сцены',
   'am.tab.maps': 'Карты',
   'am.tab.encounters': 'Стычки',
-  'am.tab.tokens': 'Персонажи',
+  'am.tab.tokens': 'Токены',
   'am.tab.party': 'Игроки',
   'am.card.select': 'Выбрать {name}',
   'am.card.statblockLinked': 'Статблок привязан — нажмите, чтобы открыть',

@@ -24,7 +24,7 @@ describe('the asset manager section header', () => {
 
   const show = (selected: number): HTMLElement => {
     flushSync(() => root.render(React.createElement(SectionHeader, {
-      title: 'Characters', count: 159, collapsed: false, onToggle: noop,
+      title: 'Tokens', count: 159, collapsed: false, onToggle: noop,
       end: React.createElement(SelectionInfo, { count: selected, onClear: noop }),
     })));
     const row = host.querySelector<HTMLElement>('.atlas-section-header-row');
