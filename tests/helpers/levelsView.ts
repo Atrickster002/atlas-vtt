@@ -64,8 +64,9 @@ export function fakeBelowImage(texture: Texture, width: number, height: number, 
 export interface LevelsViewOptions {
   /** The map's side in world pixels, the view's and the level below's alike. */
   map: number;
-  /** The canvas' side in points. */
+  /** The canvas' side in points (its width, where `paneHeight` is given). */
   pane: number;
+  paneHeight?: number;
   resolution?: number;
   /** What the viewed level's map and the level below's look like; a white floor above and a magenta noise below by default. */
   viewed?: Texture;
@@ -125,11 +126,11 @@ export function belowNoise(map: number): Texture {
  * on a real renderer, as far as its lighting and its levels below go. The map images are
  * sprites, the tokens below take one art: nothing loads from the vault.
  */
-export async function openLevelsView({ map, pane, resolution = 1, viewed, below, tokenArt, viewedFog, quality, belowRect, holdBelowImage = false }: LevelsViewOptions): Promise<LevelsView> {
+export async function openLevelsView({ map, pane, paneHeight = pane, resolution = 1, viewed, below, tokenArt, viewedFog, quality, belowRect, holdBelowImage = false }: LevelsViewOptions): Promise<LevelsView> {
   const app = new Application();
-  await app.init({ width: pane, height: pane, resolution, preference: 'webgl', antialias: false, autoStart: false, backgroundColor: 0x000000, useBackBuffer: true });
+  await app.init({ width: pane, height: paneHeight, resolution, preference: 'webgl', antialias: false, autoStart: false, backgroundColor: 0x000000, useBackBuffer: true });
   const scheduler = new RenderScheduler(app);
-  const viewport = new Viewport({ screenWidth: pane, screenHeight: pane, worldWidth: map, worldHeight: map, events: app.renderer.events });
+  const viewport = new Viewport({ screenWidth: pane, screenHeight: paneHeight, worldWidth: map, worldHeight: map, events: app.renderer.events });
   viewport.sortableChildren = true;
   const floor = new Sprite(viewed ?? Texture.WHITE);
   floor.setSize(map, map);
@@ -166,7 +167,7 @@ export async function openLevelsView({ map, pane, resolution = 1, viewed, below,
   const renderer = app.renderer as WebGLRenderer;
   // The view `settledPlayerFrame` renders with: the one returned.
   let view!: LevelsView;
-  const target = RenderTexture.create({ width: pane, height: pane, resolution });
+  const target = RenderTexture.create({ width: pane, height: paneHeight, resolution });
   const place = (scale: number, x: number, y: number): void => {
     viewport.scale.set(scale);
     viewport.position.set(x, y);
@@ -190,7 +191,7 @@ export async function openLevelsView({ map, pane, resolution = 1, viewed, below,
       const before = layers.map(({ layer }) => layer.visible);
       for (const { layer, visible } of layers) layer.visible = visible;
       try {
-        controller.renderer.prepareBelow?.({ key: 'frame', width: pane, height: pane, resolution, mode: 'player' });
+        controller.renderer.prepareBelow?.({ key: 'frame', width: pane, height: paneHeight, resolution, mode: 'player' });
         renderer.render({ container: app.stage, target, clear: true, clearColor: [0, 0, 0, 1] });
         return renderer.extract.pixels({ target }).pixels;
       } finally {
