@@ -5,7 +5,7 @@ import { levelBackground } from '../../../levels/levelEdits';
 import { levelObjectsOn } from '../../../levels/levelObjects';
 import { exploredMaskOf, levelMapKey } from '../../../levels/sceneLevels';
 import type { LevelStack } from '../../../levels/levelStack';
-import { stampClip } from '../../../levels/stackClip';
+import { stampClip, type TexelMask } from '../../../levels/stackClip';
 import { sameStretch } from '../../../grid/mapStretch';
 import { sceneLook } from '../../../lighting/sceneLightingOptions';
 import { withZones } from '../../../lighting/lightZones';
@@ -84,6 +84,8 @@ export class BelowLevel {
   private model: SceneModel | null = null;
   /** What the memory last recorded of the view's sight through the openings. */
   private recorded: { sight: Sight; model: SceneModel; stack: LevelStack } | null = null;
+  /** The memory texels the openings of `stack` show the level in (`stampClip`), kept while the stack and the map stay. */
+  private clip: { stack: LevelStack; bounds: MapBounds; within: TexelMask | null } | null = null;
   /** What the rules read of the level: set once it is built. */
   private rule: Omit<BelowSight, 'stack' | 'index'> | null = null;
   private mode: LightingMode = 'gm';
@@ -247,8 +249,16 @@ export class BelowLevel {
     if (sight.all) return;
     const looking: Sight = { all: false, regions: sight.regions.filter((region) => region.polygon !== null) };
     const shapes = exploredShapes(looking, withZones(state.lighting, model.ambient.zones ?? []), model.reaches);
-    const grid = exploredGrid(bounds);
-    const within = shapes && stampClip(stack, 1, { ...grid, mapWidth: bounds.width, mapHeight: bounds.height });
+    const within = shapes && this.clipOf(stack, bounds);
     if (shapes && within) this.memory.record({ ...shapes, within });
+  }
+
+  /** The memory texels `stack` shows the level in, worked out once for the stack and the map. */
+  private clipOf(stack: LevelStack, bounds: MapBounds): TexelMask | null {
+    const kept = this.clip;
+    if (kept?.stack === stack && kept.bounds.width === bounds.width && kept.bounds.height === bounds.height) return kept.within;
+    const within = stampClip(stack, 1, { ...exploredGrid(bounds), mapWidth: bounds.width, mapHeight: bounds.height });
+    this.clip = { stack, bounds, within };
+    return within;
   }
 }

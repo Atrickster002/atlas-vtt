@@ -30,6 +30,8 @@ export type { BelowPicture } from './BelowPictures';
 export const BELOW_GM_DIM = 0.6;
 /** How dark the players see it: a depth cue, never brighter than the level itself. */
 export const BELOW_PLAYER_DIM = 0.85;
+/** How often a drag records what the view sees through the openings into the memory below. */
+const RECORD_WHILE_DRAGGING_MS = 100;
 
 /** What a view gives its levels below that the lighting cannot make itself. */
 export interface BelowLevelsHost {
@@ -84,6 +86,8 @@ export class LevelsBelow {
   private readonly perceptions = new PerceptionMemo();
   private readonly stopPreparing: () => void;
   private eraserPlaced = false;
+  /** When what the view sees through the openings was last recorded. */
+  private recordedAt = -Infinity;
 
   constructor(private readonly deps: LevelsBelowDeps) {
     this.pictures = new BelowPictures(deps.app.renderer, () => deps.view.setBelow(null, 1));
@@ -125,7 +129,19 @@ export class LevelsBelow {
     // Once the levels are lit: a level counts in the stack from the update that gave it its world.
     const stack = this.stacks.build(state, viewBounds, wanted, (id) => this.levels.get(id));
     this.bind(stack);
-    if (stack) for (const id of wanted) this.levels.get(id)!.recordThrough(viewed.sight, stack, state);
+    if (stack && this.mayRecord(state)) for (const id of wanted) this.levels.get(id)!.recordThrough(viewed.sight, stack, state);
+  }
+
+  /**
+   * Whether what the view sees through the openings is recorded now: always, except while the
+   * pointer drags tokens, then at most every `RECORD_WHILE_DRAGGING_MS` (a stamp costs about as much
+   * as the rest of a drag step); the drop records where they came to stand.
+   */
+  private mayRecord(state: LightingState): boolean {
+    const now = performance.now();
+    if (Object.keys(state.heldTokens).length > 0 && now - this.recordedAt < RECORD_WHILE_DRAGGING_MS) return false;
+    this.recordedAt = now;
+    return true;
   }
 
   /** How the players perceive the tokens of the level below drawn, from the view above; everything unseen without one. */
