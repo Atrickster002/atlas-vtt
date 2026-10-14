@@ -48,7 +48,8 @@ export function LevelSwitcher(): React.ReactElement | null {
               className={cn('atlas-level-switcher__level', isViewed && 'atlas-level-switcher__level--active')}
               onClick={() => setViewedLevel(level.id)}
               onKeyDown={(event) => {
-                if (event.key !== 'Enter' && event.key !== ' ') return;
+                // The eye's Enter and Space are its own; every other key goes on to the map's shortcuts (PageUp, PageDown)
+                if (event.target !== event.currentTarget || (event.key !== 'Enter' && event.key !== ' ')) return;
                 event.preventDefault();
                 setViewedLevel(level.id);
               }}
@@ -65,7 +66,6 @@ export function LevelSwitcher(): React.ReactElement | null {
                     event.stopPropagation();
                     onPresentLevel(level.id);
                   }}
-                  onKeyDown={(event) => event.stopPropagation()}
                 >
                   <Eye size={12} />
                 </button>
