@@ -42,6 +42,8 @@ export function mayEditLevelLink(state: ViewAtlasState, linkId: string): boolean
  */
 export class LevelLinkEditor extends PolygonAreaEditor<LevelLink> {
   private readonly stopFollowing: () => void;
+  /** The stairs show at rest too, so a theme switched in Obsidian redraws them in its colours. */
+  private readonly themeWatch: MutationObserver;
 
   constructor(deps: LevelLinkEditorDeps) {
     const { viewport, canvas, store } = deps;
@@ -82,6 +84,8 @@ export class LevelLinkEditor extends PolygonAreaEditor<LevelLink> {
     });
     this.stopFollowing = store.subscribe((state, previous) => this.follow(state, previous));
     this.follow(store.getState(), null);
+    this.themeWatch = new MutationObserver(() => this.draw());
+    this.themeWatch.observe(canvas.ownerDocument.body, { attributes: true, attributeFilter: ['class'] });
   }
 
   /** The tool, the view and the scene decide whether the stairs show and are edited; a popover that can no longer be used closes. */
@@ -105,6 +109,7 @@ export class LevelLinkEditor extends PolygonAreaEditor<LevelLink> {
   }
 
   override destroy(): void {
+    this.themeWatch.disconnect();
     this.stopFollowing();
     super.destroy();
   }
