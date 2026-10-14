@@ -109,6 +109,16 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
+/** The kinds of objects a scene in memory always holds a record of (`ViewState['objects']`). */
+const OBJECT_KINDS = ['tokens', 'fog', 'pins', 'texts', 'drawings', 'walls', 'lights', 'audios'] as const;
+
+/** Gives `objects` an empty record of every kind it lacks; what it holds stays as it is. */
+function fillObjectKinds(objects: Record<string, unknown>): void {
+  for (const kind of OBJECT_KINDS) {
+    if (!objects[kind]) objects[kind] = {};
+  }
+}
+
 function isOptionalRecord(value: unknown): boolean {
   return value === undefined || value === null || isRecord(value);
 }
@@ -225,14 +235,10 @@ export function createAtlasStorage<T extends { mapPath: string | null; mapLoaded
         }
       }
 
-      // v3 → v4 migration: add walls and lights if missing
+      // Every kind the store holds as a record: walls and lights came with v4, and files written
+      // for a new scene or by an import leave out the kinds they hold nothing of
       const state = parsed.state;
-      if (state?.objects && !state.objects.walls) {
-        state.objects.walls = {};
-      }
-      if (state?.objects && !state.objects.lights) {
-        state.objects.lights = {};
-      }
+      if (state?.objects) fillObjectKinds(state.objects);
       // Files keep the token fields older versions of Atlas read; in memory tokens hold resources
       if (state) Object.assign(state, sceneFromFile(state));
       // A timer stops when its scene closes: a run in the file was cut short by a quit or crash

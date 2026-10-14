@@ -23,6 +23,7 @@ export const levels = {
   'levels.deleteBody': 'Its tokens, walls, lights and everything else on it can move to {target} or go with it. This cannot be undone.',
   'levels.deleteMove': 'Move them to {target}',
   'levels.deleteWithObjects': 'Delete them too',
+  'levels.editFailed': '{name} could not be changed. The scene is as it was.',
   'levels.moveTo': 'Move to level',
   'levels.movedNotice': 'Moved to {name}',
   'levels.refit': 'The grid changed type, so {names} no longer fit it. Align the grid on each of them to fit its map again.',
