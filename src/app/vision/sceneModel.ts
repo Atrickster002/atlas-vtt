@@ -1,4 +1,4 @@
-import { GM_SIGHT_POLICY, PLAYER_SIGHT_POLICY, type SightPolicy } from './tokenSightPolicy';
+import { GM_SIGHT_POLICY, PLAYER_SIGHT_POLICY, sceneHasVision, type SightPolicy } from './tokenSightPolicy';
 import { selectSight } from './selectSight';
 import type { MeasurementSettings } from '../grid/measurementFormat';
 import { sleeps } from '../lighting/lightActivity';
@@ -23,7 +23,7 @@ import { wallList } from './wallList';
 import type { EngineLight, EngineZone } from '../pixi/lighting/engine/types';
 import { LightReaches } from './lightReaches';
 import { activeLights, engineLight } from './lightSources';
-import { levelObjects } from '../levels/levelObjects';
+import { everyLevelObjects, levelObjects } from '../levels/levelObjects';
 
 /** What a scene's lighting works out on the CPU, in world pixels: the engine draws it and the rules read it. */
 export interface SceneModel {
@@ -49,7 +49,10 @@ export interface SceneState {
   lighting: ViewState['lighting'];
   grid: ViewState['grid'];
   heldTokens: ViewState['heldTokens'];
-  /** The scene's levels and the one shown: only that level's walls, lights and tokens count (`levelObjects`). */
+  /**
+   * The scene's levels and the one shown: only that level's walls, lights and tokens count (`levelObjects`), except
+   * that a level without a vision token sees nothing while a token on another level has vision (`sceneHasVision`).
+   */
   levels?: ViewState['levels'];
   viewedLevel?: ViewState['viewedLevel'];
 }
@@ -62,6 +65,8 @@ interface Built {
   grid: ViewState['grid'];
   lighting: SceneLighting;
   rules: SightRules | undefined;
+  /** A token on any level has vision (`sceneHasVision`): a level shown without one sees nothing, not all. */
+  hasVision: boolean;
   model: SceneModel;
 }
 
@@ -84,15 +89,17 @@ export class SceneModelBuilder {
     const { grid, lighting } = state;
     const tokens = this.sightTokens.read(state);
     const rules = sightRules?.();
+    // Read from every level: a token on another floor switching vision on or off changes this level's sight.
+    const hasVision = sceneHasVision(everyLevelObjects(state).tokens);
     const last = this.built;
-    if (last && last.walls === walls && last.lights === lights && last.zones === zones && last.tokens === tokens && last.grid === grid && last.rules === rules) {
+    if (last && last.walls === walls && last.lights === lights && last.zones === zones && last.tokens === tokens && last.grid === grid && last.rules === rules && last.hasVision === hasVision) {
       const same = !sightOptionsChanged(last.lighting, lighting) && !awakeLightsChanged(lights, withZones(last.lighting, lightZoneList(zones)), withZones(lighting, lightZoneList(zones)));
       // The lighting is noted either way: the next update compares with it, not with an older one.
       last.lighting = lighting;
       if (same) return { model: last.model, rebuilt: false };
     }
-    const model = this.build(state, tokens, bounds, measurement(), rules);
-    this.built = { walls, lights, zones, tokens, grid, lighting, rules, model };
+    const model = this.build(state, tokens, bounds, measurement(), rules, hasVision);
+    this.built = { walls, lights, zones, tokens, grid, lighting, rules, hasVision, model };
     return { model, rebuilt: true };
   }
 
@@ -101,7 +108,7 @@ export class SceneModelBuilder {
     this.built = null;
   }
 
-  private build(state: SceneState, tokens: Record<string, TokenEntity>, bounds: MapBounds, measurement: MeasurementSettings, rules: SightRules | undefined): SceneModel {
+  private build(state: SceneState, tokens: Record<string, TokenEntity>, bounds: MapBounds, measurement: MeasurementSettings, rules: SightRules | undefined, hasVision: boolean): SceneModel {
     const scale = unitScaleOf(measurement, state.grid);
     const walls = sealedWalls(wallList(levelObjects(state).walls), worldTexel(bounds));
     const zoneList = lightZoneList(levelObjects(state).lightZones);
@@ -117,7 +124,7 @@ export class SceneModelBuilder {
     const reaches = everyReach.filter((_, i) => !out[i]);
     const sources = sourcesInDarkness(sightSources(tokens, scale, bounds, rules, GM_SIGHT_POLICY), ambient, reaches);
     this.sightCache.retain(new Set(sources.map(source => source.tokenId)));
-    const gmSight = sceneSight(state.lighting, sources, walls, this.sightCache);
+    const gmSight = sceneSight(state.lighting, sources, walls, this.sightCache, { sceneHasVision: hasVision });
     const sight = selectSight(gmSight, tokens, PLAYER_SIGHT_POLICY);
     // Half a cell: the width of a zone's soft edge past its outline.
     const zones = zoneList.map(({ polygon, ambient: level, ambientColor }) => ({ polygon, ambient: level, ...(ambientColor && { ambientColor }), soft: scale.cellSize / 2 }));
