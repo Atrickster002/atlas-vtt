@@ -28,12 +28,13 @@ describe('the asset manager location bar', () => {
   let host: HTMLElement;
   let root: Root;
 
-  const show = (width: number, depth: number): HTMLElement => {
+  const show = (width: number, depth: number, selected = 0): HTMLElement => {
     host.style.width = `${width}px`;
     flushSync(() => root.render(React.createElement(LocationBar, {
       activeTab: 'tokens',
       path: folders(depth),
       onNavigateToFolder: noop,
+      selection: { count: selected, onClear: noop },
       sort: { sortBy: 'name', sortOptions: ['name', 'date', 'type', 'rating'], setSortBy: noop, sortOrder: 'asc', setSortOrder: noop },
     })));
     const bar = host.querySelector<HTMLElement>('.atlas-asset-manager-location');
@@ -55,13 +56,19 @@ describe('the asset manager location bar', () => {
     style.remove();
   });
 
-  it.each([[1000, 0], [1000, 3], [420, 0], [420, 4]])('keeps the sort at its end and clear of the breadcrumb at %ipx with %i folders open', (width, depth) => {
-    const bar = show(width, depth);
+  it.each([[1000, 0, 0], [1000, 3, 2], [420, 0, 0], [420, 4, 12345]])('keeps the sort at its end and clear of the breadcrumb at %ipx with %i folders open and %i selected', (width, depth, selected) => {
+    const bar = show(width, depth, selected);
     const inner = bar.getBoundingClientRect().right - parseFloat(getComputedStyle(bar).paddingRight);
     const sort = bar.querySelector<HTMLElement>('.atlas-am-sort')?.getBoundingClientRect();
     const breadcrumb = bar.querySelector<HTMLElement>('.atlas-asset-manager-breadcrumb')?.getBoundingClientRect();
     if (!sort || !breadcrumb) throw new Error('the location bar did not render its parts');
     expect(Math.abs(sort.right - inner)).toBeLessThanOrEqual(SLACK);
+    const selection = bar.querySelector<HTMLElement>('.atlas-selection-info')?.getBoundingClientRect();
+    expect(Boolean(selection)).toBe(selected > 0);
+    if (selection) {
+      expect(breadcrumb.right).toBeLessThanOrEqual(selection.left + SLACK);
+      expect(selection.right).toBeLessThanOrEqual(sort.left + SLACK);
+    }
     expect(breadcrumb.right).toBeLessThanOrEqual(sort.left + SLACK);
     expect(bar.getBoundingClientRect().height).toBeLessThan(60);
   });

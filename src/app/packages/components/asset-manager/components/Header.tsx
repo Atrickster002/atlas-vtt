@@ -1,6 +1,6 @@
 import React, { useRef } from 'react';
 import {
-  X, Plus, ChevronLeft, ChevronRight, FolderPlus, PanelLeft,
+  Plus, ChevronLeft, ChevronRight, FolderPlus, PanelLeft,
   Map as MapIcon, FolderOpen,
 } from 'lucide-react';
 import { Button } from '../../primitives/button';
@@ -34,13 +34,12 @@ export interface HeaderProps {
   onToggleSidebar: () => void;
   sel: Pick<
     SelectionState,
-    'navigationHistory' | 'handleNavigateBack' | 'handleNavigateForward' |
-    'selectedAssetIds' | 'selectedFolderIds' | 'handleClearSelection'
+    'navigationHistory' | 'handleNavigateBack' | 'handleNavigateForward'
   >;
 }
 
 /**
- * One-row toolbar: navigation and selection on the left, asset type in the
+ * One-row toolbar: navigation on the left, asset type in the
  * centre, search and create on the right. When its controls do not fit, the
  * tabs and the search fold into a menu and a button (`useHeaderCompaction`),
  * so they never overlap.
@@ -61,7 +60,6 @@ export function Header({
   onToggleSidebar,
   sel,
 }: HeaderProps): React.JSX.Element {
-  const selectionCount = sel.selectedAssetIds.length + sel.selectedFolderIds.length;
   const toolbarRef = useRef<HTMLDivElement>(null);
   useHeaderCompaction(toolbarRef);
 
@@ -102,25 +100,6 @@ export function Header({
               <ChevronRight />
             </Button>
           </LabelTooltip>
-
-          {selectionCount > 0 && (
-            <>
-              <div className="atlas-am-toolbar-divider" />
-              <div className="atlas-selection-info">
-                <span>{selectionCount}<span className="atlas-selection-label"> {t('am.header.selected')}</span></span>
-                <LabelTooltip label={t('dice.clearSelection')}>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="atlas-clear-selection-btn"
-                    onClick={sel.handleClearSelection}
-                  >
-                    <X />
-                  </Button>
-                </LabelTooltip>
-              </div>
-            </>
-          )}
         </div>
 
         <div className="atlas-am-toolbar-center">
