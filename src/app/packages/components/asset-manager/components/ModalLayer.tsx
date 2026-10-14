@@ -251,7 +251,7 @@ export function ModalLayer({
 
       {/* Map files as the floors of one scene: last, so it opens over the map creator that may hold them */}
       <AnimatePresence>
-        {floors.request && <UvttFloorsDialog request={floors.request} onChoose={floors.answer} />}
+        {isOpen && floors.request && <UvttFloorsDialog request={floors.request} onChoose={floors.answer} />}
       </AnimatePresence>
     </>
   );

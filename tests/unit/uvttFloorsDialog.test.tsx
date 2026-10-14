@@ -96,4 +96,11 @@ describe('the question an import asks', () => {
     await expect(third).resolves.toBeNull();
     expect(result.current.request).toBeNull();
   });
+
+  it('is answered as the dialog suggests when the asset manager closed before it was asked', async () => {
+    const { result } = renderHook(() => useFloorsChoice(false));
+
+    await expect(result.current.ask(REQUEST)).resolves.toEqual({ kind: 'levels', sceneName: REQUEST.sceneName, floors: REQUEST.floors });
+    expect(result.current.request).toBeNull();
+  });
 });
