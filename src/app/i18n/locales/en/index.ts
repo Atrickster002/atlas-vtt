@@ -86,6 +86,8 @@ import { wall } from './wall';
 import { sceneLight } from './sceneLight';
 import { vision } from './vision';
 import { videoMap } from './videoMap';
+import { uvttFloors } from './uvttFloors';
+import { uvtt } from './uvtt';
 
 /** English, the source language: every key exists here, and other languages translate a subset of it. */
 export const en = {
@@ -179,4 +181,6 @@ export const en = {
   ...sceneLight,
   ...vision,
   ...videoMap,
+  ...uvttFloors,
+  ...uvtt,
 } as const;
