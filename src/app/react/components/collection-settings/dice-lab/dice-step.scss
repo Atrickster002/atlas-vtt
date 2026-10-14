@@ -95,8 +95,6 @@ button.atlas-dice-lab__side {
   button.atlas-dice-lab__side:not(.atlas-selected):hover {
     background: var(--background-modifier-hover);
     color: var(--text-normal);
-
-    .atlas-die-still { transform: translateY(-2px); }
   }
 }
 

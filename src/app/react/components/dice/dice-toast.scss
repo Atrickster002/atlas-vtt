@@ -103,10 +103,6 @@ $toast-reveal-delay: 300ms;
   cursor: pointer;
   transition: transform $transition-fast $transition-ease, box-shadow $transition-fast $transition-ease;
 
-  &:hover {
-    transform: translateY(-1px);
-  }
-
   &:active {
     transform: scale(0.98);
   }

@@ -120,7 +120,7 @@ $tray-padding: 64px;
   &.atlas-lifted > * { opacity: 0.4; }
 }
 
-// A die is its picture: no button chrome, a ring when it is open, a lift under the pointer.
+// A die is its picture: no button chrome, a ring when it is open, a quieter ring under the pointer.
 .atlas-dice-lab__die {
   appearance: none;
   position: relative;
@@ -161,7 +161,7 @@ span.atlas-dice-lab__die {
 
 @media (hover: hover) and (pointer: fine) {
   button.atlas-dice-lab__die:not(.atlas-selected):hover {
-    transform: translateY(-3px);
+    box-shadow: 0 0 0 2px var(--background-secondary), 0 0 0 4px var(--background-modifier-border-hover);
   }
 }
 
