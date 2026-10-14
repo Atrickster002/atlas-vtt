@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { type App } from 'obsidian';
-import { runUvttImport } from '../../../../import/uvtt/runUvttImport';
+import { runUvttGroupImport, type ChooseFloors } from '../../../../import/uvtt/runUvttGroupImport';
 import { isUvttFileName } from '../../../../import/uvtt/uvttFileNames';
 import { runVideoMapImport } from '../../../../import/videoMaps/runVideoMapImport';
 import { isVideoMapPath } from '../../../../pixi/mapImage/video/videoMapFiles';
@@ -10,7 +10,8 @@ import { showNotice } from '../../../../ui/notice';
 
 /**
  * Imports map files into a collection: videos become animated maps, and Universal VTT files
- * scenes, of which the last that arrived opens, as a new scene is opened. Where `stay` says so
+ * scenes (several files that share a grid, the floors of one if the GM chooses), of which the
+ * last that arrived opens, as a new scene is opened. Where `stay` says so
  * once they arrived, the scenes are only added.
  */
 export type ImportMaps = (files: readonly File[], collectionId: string, stay?: () => boolean) => Promise<void>;
@@ -27,6 +28,8 @@ export interface UvttImportOptions {
   collectionId: string;
   /** Runs once an imported scene is open: the asset manager closes then, as after a new scene. */
   onSceneOpened: () => void;
+  /** Asks how files that can be the floors of one scene are imported; without it each file is a scene. */
+  chooseFloors?: ChooseFloors;
 }
 
 const MANAGER_WINDOW = '.atlas-asset-manager-container';
@@ -85,7 +88,7 @@ export function useUvttImport(options: UvttImportOptions): ImportMaps {
     if (videos.length > 0) await runVideoMapImport(app, assetService, videos, collectionId);
     const uvttFiles = files.filter((file) => isUvttFileName(file.name));
     if (uvttFiles.length === 0) return;
-    const imported = await runUvttImport(app, assetService, uvttFiles, collectionId);
+    const imported = await runUvttGroupImport(app, assetService, uvttFiles, collectionId, latest.current.chooseFloors);
     const last = imported[imported.length - 1];
     const now = latest.current;
     if (!last || !now.isOpen || managerOpenings.current !== manager || now.isBusy) return;

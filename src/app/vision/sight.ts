@@ -74,8 +74,8 @@ export interface SightRegion {
 }
 
 /**
- * What the vision tokens perceive, a region per token and sense. `all` means no token has
- * vision (or the scene has token vision off): normal sight reaches everywhere.
+ * What the vision tokens perceive, a region per token and sense. `all` means no token on any of
+ * the scene's levels has vision (or the scene has token vision off): normal sight reaches everywhere.
  */
 export interface Sight {
   all: boolean;
@@ -85,7 +85,7 @@ export interface Sight {
 /** No source contributes a visible region. */
 export const NO_SIGHT: Sight = { all: false, regions: [] };
 
-/** Sight of a viewer without a vision token: line of sight hides nothing. */
+/** Sight of a scene without a vision token: line of sight hides nothing. */
 export const SEES_ALL: Sight = { all: true, regions: [] };
 
 /** The area a light illuminates, for deciding on the CPU how well a point is lit. World pixels. */
@@ -221,18 +221,37 @@ function regionsOf(source: SightSource, walls: readonly WallSegment[]): SightReg
   ].filter((region) => region.radius > 0);
 }
 
-/** The scene's sight: that of its vision tokens, or everything while the scene has token vision off. */
+/** What the scene holds beyond the level its sight is worked out on. */
+export interface SightScene {
+  /** A token on any of the scene's levels has vision on (`sceneHasVision`); without one, sight is all. */
+  sceneHasVision: boolean;
+}
+
+/**
+ * The scene's sight: that of its vision tokens, or everything while the scene has token vision off. `sources` are
+ * those of the level shown; a level without one shows nothing while a token elsewhere in the scene has vision.
+ */
 export function sceneSight(
   lighting: Pick<SceneLighting, 'tokenVision'>,
   sources: readonly SightSource[],
   walls: readonly WallSegment[],
-  cache?: SightCache,
+  cache: SightCache | undefined,
+  scene: SightScene,
 ): Sight {
-  return tokenVisionOn(lighting) ? computeSight(sources, walls, cache) : SEES_ALL;
+  return tokenVisionOn(lighting) ? computeSight(sources, walls, cache, scene.sceneHasVision) : SEES_ALL;
 }
 
-export function computeSight(sources: readonly SightSource[], walls: readonly WallSegment[], cache: SightCache = new SightCache()): Sight {
-  if (sources.length === 0) return SEES_ALL;
+/**
+ * What `sources` perceive. Without a source, everything when the scene has no vision token at all (on a scene
+ * of one level, exactly when `sources` is empty, the default), and nothing when its vision tokens are elsewhere.
+ */
+export function computeSight(
+  sources: readonly SightSource[],
+  walls: readonly WallSegment[],
+  cache: SightCache = new SightCache(),
+  sceneHasVision = sources.length > 0,
+): Sight {
+  if (sources.length === 0) return sceneHasVision ? NO_SIGHT : SEES_ALL;
   return { all: false, regions: sources.flatMap((source) => cache.get(source, walls)) };
 }
 
