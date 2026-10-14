@@ -161,13 +161,12 @@ export function DiceTray({ dice, editable, setName, onDice, edgeDice = NO_EDGE_D
   const removeRefusal = dice.length <= 1 ? t('diceLab.lastDie') : null;
 
   return (
-    // The step panel lies beside the field, not in it: the field scrolls and would cut it.
-    <div ref={tray} className="atlas-dice-lab__tray" onKeyDown={onKeyDown}>
+    // The step panel lies beside the field, not in it: the field scrolls and would cut it. The group is the
+    // tray, so the panel stays part of the dice it changes.
+    <div ref={tray} className="atlas-dice-lab__tray" role="group" aria-label={t('diceLab.trayOf', { name: setName })} onKeyDown={onKeyDown}>
       <div
         ref={setField}
         className={cn('atlas-dice-lab__field', open && 'atlas-focused', drag.lifted && 'atlas-dragging')}
-        role="group"
-        aria-label={t('diceLab.trayOf', { name: setName })}
         onClick={(event) => { if (event.target === event.currentTarget) close(); }}
       >
         <AnimatePresence initial={false}>
