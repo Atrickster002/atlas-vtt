@@ -57,6 +57,21 @@ describe('entry patches', () => {
     ]);
   });
 
+  it('edits an entry written as a list as the record it reads as, and writes that record in its place', () => {
+    const listed = ['Bite', 'Melee ', '1d6'];
+    expect(entryPartPatches('actions', 0, listed, undefined, 'text', 'Melee 2d6')).toEqual([
+      { op: 'set', path: ['actions', 0], base: listed, next: { name: 'Bite', desc: 'Melee 2d6' } },
+    ]);
+    expect(entryPartPatches('actions', 0, listed, undefined, 'name', 'Maul')).toEqual([
+      { op: 'set', path: ['actions', 0], base: listed, next: { name: 'Maul', desc: 'Melee 1d6' } },
+    ]);
+    expect(entryPartPatches('actions', 0, listed, undefined, 'name', 'Bite')).toEqual([]);
+    expect(entryWithPart(listed, undefined, 'text', '')).toEqual({ name: 'Bite' });
+    const note = '---\nactions:\n  - [Bite, Melee 1d6]\n---\n';
+    expect(applyFrontmatterPatches(note, entryPartPatches('actions', 0, ['Bite', 'Melee 1d6'], undefined, 'text', 'Melee 2d6')).text)
+      .toBe('---\nactions:\n  - {name: Bite, desc: Melee 2d6}\n---\n');
+  });
+
   it('inserts, moves and removes entries by the entry itself', () => {
     expect(insertEntryPatch('actions', items, 0, newEntry(undefined, 'Sting', ''))).toEqual({
       op: 'insert', list: 'actions', after: bite, item: { name: 'Sting' },
