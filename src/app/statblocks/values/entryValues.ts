@@ -1,7 +1,8 @@
 /**
  * Entries fields ("Traits", "Actions"): lists of `{ name, desc, ...extras }`,
  * read through the field's `EntryShape`. An entry written as plain text is
- * all text and no name.
+ * all text and no name; one written as a list (`[Bite, Melee 1d6]`) is its
+ * name and then its text, as Fantasy Statblocks reads it.
  */
 
 import type { EntryExtraShape, EntryShape, FieldValue } from '../model/templateTypes';
@@ -32,6 +33,22 @@ function asRecord(entry: FieldValue | undefined): EntryRecord | null {
   return entry !== null && typeof entry === 'object' && !Array.isArray(entry) ? entry : null;
 }
 
+/** An entry written as a list, as the record it stands for: its first item the name, the rest the text. */
+export function listedEntryRecord(entry: FieldValue[], shape?: EntryShape): EntryRecord {
+  const [name, ...rest] = entry;
+  const record: EntryRecord = {};
+  const nameText = textOf(name);
+  const text = textOf(rest.map((part) => valueText(part)).join(''));
+  if (nameText !== undefined) record[entryNameKey(shape)] = nameText;
+  if (text !== undefined) record[entryTextKey(shape)] = text;
+  return record;
+}
+
+/** The record an entry stands for: itself, or a list entry read as one; null for an entry of plain text. */
+function entryRecord(entry: FieldValue | undefined, shape?: EntryShape): EntryRecord | null {
+  return Array.isArray(entry) ? listedEntryRecord(entry, shape) : asRecord(entry);
+}
+
 function textOf(value: FieldValue | undefined): string | undefined {
   const text = valueText(value);
   return text.trim() === '' ? undefined : text;
@@ -44,7 +61,7 @@ export function entryItems(value: FieldValue | undefined): FieldValue[] {
 }
 
 export function entryName(entry: FieldValue | undefined, shape?: EntryShape): string | undefined {
-  return textOf(asRecord(entry)?.[entryNameKey(shape)]);
+  return textOf(entryRecord(entry, shape)?.[entryNameKey(shape)]);
 }
 
 /**
@@ -56,19 +73,19 @@ export function entryName(entry: FieldValue | undefined, shape?: EntryShape): st
  */
 export function entryTextKeyOf(entry: FieldValue | undefined, shape?: EntryShape): string {
   const key = entryTextKey(shape);
-  const record = asRecord(entry);
+  const record = entryRecord(entry, shape);
   if (!record || key === DEFAULT_ENTRY_TEXT_KEY || textOf(record[key]) !== undefined) return key;
   return textOf(record[DEFAULT_ENTRY_TEXT_KEY]) === undefined ? key : DEFAULT_ENTRY_TEXT_KEY;
 }
 
 export function entryText(entry: FieldValue | undefined, shape?: EntryShape): string | undefined {
-  const record = asRecord(entry);
+  const record = entryRecord(entry, shape);
   return record ? textOf(record[entryTextKeyOf(record, shape)]) : textOf(entry);
 }
 
 /** The shape's extras the entry has a value for, in the shape's order. */
 export function entryExtras(entry: FieldValue | undefined, shape?: EntryShape): EntryExtra[] {
-  const record = asRecord(entry);
+  const record = entryRecord(entry, shape);
   if (!record) return [];
   return (shape?.extras ?? []).flatMap((extra) => {
     const value = record[extra.key];
@@ -78,7 +95,7 @@ export function entryExtras(entry: FieldValue | undefined, shape?: EntryShape): 
 
 /** Each of the shape's extras as text, by key, as an input shows it: '' where the entry has none. */
 export function entryExtraTexts(entry: FieldValue | undefined, shape?: EntryShape): Record<string, string> {
-  const record = asRecord(entry);
+  const record = entryRecord(entry, shape);
   return Object.fromEntries((shape?.extras ?? []).map((extra) => [extra.key, valueText(record?.[extra.key])]));
 }
 

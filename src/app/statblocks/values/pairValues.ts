@@ -1,10 +1,13 @@
 /**
  * Pairs fields as notes hold them: a record (`{ dex: 5 }`), a list of
- * one-key records (`[{ dexterity: 5 }]`, Fantasy Statblocks' saves), or text
- * items ("Stealth +5"). Names match without regard to case.
+ * one-key records (`[{ dexterity: 5 }]`, Fantasy Statblocks' saves), entries
+ * with a description (`[{ name: Dex, desc: +5 }]`, which Fantasy Statblocks'
+ * saves read too), or text items ("Stealth +5"). Names match without regard
+ * to case.
  */
 
 import type { FieldValue } from '../model/templateTypes';
+import { DEFAULT_ENTRY_TEXT_KEY, entryName } from './entryValues';
 import { parseNumberText } from './numberText';
 
 export interface Pair {
@@ -31,7 +34,17 @@ function itemPairs(item: FieldValue | undefined): Pair[] {
     return [parsePairText(text) ?? { key: text, value: null }];
   }
   if (item === null || typeof item !== 'object' || Array.isArray(item)) return [];
+  if (item[DEFAULT_ENTRY_TEXT_KEY] !== undefined) return [describedPair(item)];
   return Object.entries(item).map(([key, value]) => ({ key, value }));
+}
+
+/**
+ * An entry with a description is one pair, its name and its description, as Fantasy Statblocks
+ * reads it. A name it leaves out (none, or one starting with `_`) is an empty key.
+ */
+function describedPair(item: { [key: string]: FieldValue }): Pair {
+  const name = entryName(item)?.trim() ?? '';
+  return { key: name.startsWith('_') ? '' : name, value: item[DEFAULT_ENTRY_TEXT_KEY] ?? null };
 }
 
 /** Every pair of a pairs value in written order; values that hold no pairs give none. */

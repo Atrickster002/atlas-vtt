@@ -18,10 +18,10 @@ export function readyLine(layoutName: string): string {
   return `Atlas can now show statblocks the way ${layoutName} does.`;
 }
 
-/** "One part shows only in Fantasy Statblocks."; null when Atlas shows every part. */
+/** "One part shows simpler than in Fantasy Statblocks.": its values, without the look its layout draws; null when Atlas draws every part. */
 export function fsOnlyLine(parts: number): string | null {
   if (parts === 0) return null;
-  return parts === 1 ? 'One part shows only in Fantasy Statblocks.' : `${parts} parts show only in Fantasy Statblocks.`;
+  return parts === 1 ? 'One part shows simpler than in Fantasy Statblocks.' : `${parts} parts show simpler than in Fantasy Statblocks.`;
 }
 
 /** What of the look Atlas left out or shows simpler; null where it kept all of it. */
@@ -31,6 +31,16 @@ export function detailsLine(report: FsImportReport | null): string | null {
   if (left && simpler) return 'Some details were left out or look simpler.';
   if (left) return 'Some details were left out.';
   return simpler ? 'Some details look simpler.' : null;
+}
+
+/** Each detail the import left out or shows simpler, in the report's own sentences. */
+export function detailSentences(report: FsImportReport | null): string[] {
+  return report ? [...report.dropped, ...report.partial] : [];
+}
+
+/** "Show the 3 details" */
+export function detailsToggleLabel(count: number): string {
+  return count === 1 ? 'Show the detail' : `Show the ${count} details`;
 }
 
 /** "Move 214 statblocks to Atlas" */

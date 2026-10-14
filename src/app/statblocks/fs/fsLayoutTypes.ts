@@ -55,7 +55,7 @@ export interface FsImportOptions {
   resolveLayout?: FsLayoutResolver;
 }
 
-/** A `script` block the import made: FS JavaScript, kept for FS and shown as a placeholder. */
+/** A `script` block the import made: FS JavaScript, kept for FS, which Atlas shows as the values it reads. */
 export interface FsScriptNote {
   blockId: string;
   /** A phrase without a full stop: "Hit points and Stress tracks drawn with JavaScript". */

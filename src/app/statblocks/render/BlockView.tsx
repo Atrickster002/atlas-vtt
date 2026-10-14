@@ -54,7 +54,7 @@ function content(block: TemplateBlock, display: BlockDisplay): React.ReactNode {
     case 'spells': return <SpellsView block={block} display={display} />;
     case 'heading': return <HeadingView block={block} display={display} />;
     case 'divider': return <DividerView />;
-    case 'script': return <ScriptView />;
+    case 'script': return <ScriptView block={block} display={display} renderBlock={(shown) => <BlockView block={shown} />} />;
     case 'opaque': return null;
   }
 }

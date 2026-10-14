@@ -8,18 +8,22 @@ export type PatternBlock = TitleBlock | LineBlock | StatBlock;
 
 const DEFAULT_LINE_SEPARATOR = ' ';
 
-/** A Line without a pattern: its non-empty fields joined by its separator. */
+/** A Line without a pattern: its non-empty fields, each with its unit, joined by its separator. */
 function lineText(block: LineBlock, sheet: SheetState): ShownText {
-  const parts = block.fields.filter((key) => key !== '').map((key) => shownField(key, sheet));
+  const parts = block.fields.filter((key) => key !== '').map((key) => shownPattern(unitPattern(key, false, sheet), sheet, key));
   return {
     text: parts.filter(hasText).map((part) => part.text).join(block.separator ?? DEFAULT_LINE_SEPARATOR),
     problems: problemsOf(parts),
   };
 }
 
-/** A field's value, signed where asked, then the field's unit ("30 ft."). */
+/**
+ * A field's value, signed where asked, then a number field's unit ("30 ft."). A numbered choice
+ * keeps its unit with each pick ("darkvision 60 ft."), so its value is written as it is.
+ */
 function unitPattern(key: FieldKey, signed: boolean, sheet: SheetState): string {
-  const unit = sheet.fields.get(key)?.unit?.trim();
+  const field = sheet.fields.get(key);
+  const unit = field?.type === 'number' ? field.unit?.trim() : undefined;
   const value = fieldPattern(key, signed);
   return unit ? `${value} ${escapePatternText(unit)}` : value;
 }

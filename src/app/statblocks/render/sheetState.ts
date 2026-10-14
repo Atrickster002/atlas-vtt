@@ -1,5 +1,6 @@
 import type { PatternContext } from '../expressions/pattern';
 import type { Lookups } from '../expressions/filters';
+import { scriptReads, type ScriptRead } from '../model/scriptReads';
 import { withHeaderFields } from '../model/templateHeader';
 import type { FieldKey, StatblockTemplate, TemplateField } from '../model/templateTypes';
 import { fieldLabels, readField, readerFor, type FieldRecord, type ValueReader } from '../values/fieldValues';
@@ -21,6 +22,8 @@ export interface SheetState {
   folded: ReadonlySet<string>;
   /** The field a tile not named yet is drawn with, named after its kind (`provisionalSheet.ts`); never stored. */
   provisional?: TemplateField | undefined;
+  /** For each script block, by id, the values it reads, each in its block, with the blocks that show it too (`scriptReads`). */
+  scriptReads: ReadonlyMap<string, readonly ScriptRead[]>;
 }
 
 export interface SheetStateInput {
@@ -65,5 +68,6 @@ export function sheetState({ template, record: stored, lookups, mode, token, fol
     mode,
     token,
     folded: folded ?? NONE_FOLDED,
+    scriptReads: scriptReads(template),
   };
 }

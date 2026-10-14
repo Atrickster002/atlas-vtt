@@ -53,7 +53,14 @@ describe('entries', () => {
     expect(entryName({ name: '  ', desc: 'x' })).toBeUndefined();
     expect(entryText({ name: 'x' })).toBeUndefined();
     expect(entryText(undefined)).toBeUndefined();
-    expect(entryName(['a'])).toBeUndefined();
+    expect(entryName([''])).toBeUndefined();
+    expect(entryText(['a'])).toBeUndefined();
+  });
+
+  it('reads an entry written as a list as Fantasy Statblocks does: its name, then its text', () => {
+    expect(entryName(['Bite', 'Melee ', '1d6'])).toBe('Bite');
+    expect(entryText(['Bite', 'Melee ', '1d6'])).toBe('Melee 1d6');
+    expect(entryName(['Bite'])).toBe('Bite');
   });
 
   it('lists the entries of a value', () => {
