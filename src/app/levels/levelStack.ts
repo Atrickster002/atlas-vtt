@@ -61,16 +61,23 @@ export interface StackLevel {
   pictured?: { width: number; height: number } | undefined;
 }
 
-/** A level's floor on `box`: 1 where it is open, 0 where it has floor, by its surfaces in order. */
-function openCells(level: StackLevel, grid: StackGrid, box: TexelBox): Uint8Array {
-  const open = new Uint8Array(box.columns * box.rows);
+/**
+ * A level's floor on `box`: 1 where it is open, 0 where it has floor, by its surfaces in order;
+ * null where it has floor on all of it (no surface touches the box and its picture covers it).
+ */
+function openCells(level: StackLevel, grid: StackGrid, box: TexelBox): Uint8Array | null {
+  let open: Uint8Array | null = null;
   if (level.pictured) {
     // A texel only partly on the level's map shows nothing of it.
     const columns = Math.floor(level.pictured.width / grid.texel + 1e-9);
     const rows = Math.floor(level.pictured.height / grid.texel + 1e-9);
-    for (let row = 0; row < box.rows; row++) {
-      for (let column = 0; column < box.columns; column++) {
-        if (box.x + column >= columns || box.y + row >= rows) open[row * box.columns + column] = 1;
+    if (box.x + box.columns > columns || box.y + box.rows > rows) {
+      open = new Uint8Array(box.columns * box.rows);
+      const from = Math.max(0, columns - box.x);
+      for (let row = 0; row < box.rows; row++) {
+        const offset = row * box.columns;
+        if (box.y + row >= rows) open.fill(1, offset, offset + box.columns);
+        else if (from < box.columns) open.fill(1, offset + from, offset + box.columns);
       }
     }
   }
@@ -78,14 +85,17 @@ function openCells(level: StackLevel, grid: StackGrid, box: TexelBox): Uint8Arra
     const area = polygonBox(surface.polygon, grid.texel, grid.columns, grid.rows);
     const overlap = area && intersect(area, box);
     if (!overlap) continue;
+    // A floor over floor changes nothing.
+    if (!surface.open && !open) continue;
+    open ??= new Uint8Array(box.columns * box.rows);
     const { inside, touched } = polygonTexels(surface.polygon, grid.texel, overlap);
     for (let row = 0; row < overlap.rows; row++) {
       const target = (overlap.y + row - box.y) * box.columns + overlap.x - box.x;
+      const source = row * overlap.columns;
       for (let column = 0; column < overlap.columns; column++) {
-        const i = row * overlap.columns + column;
         if (surface.open) {
-          if (inside[i]) open[target + column] = 1;
-        } else if (touched[i]) {
+          if (inside[source + column]) open[target + column] = 1;
+        } else if (touched[source + column]) {
           open[target + column] = 0;
         }
       }
@@ -128,21 +138,27 @@ function openingsBox(surfaces: readonly LevelSurface[], grid: StackGrid): TexelB
 export function levelStack(viewed: StackLevel, below: readonly StackLevel[], shown: readonly string[], grid: StackGrid): LevelStack {
   const levels = [viewed.id, ...shown];
   const openings = openingsBox(viewed.surfaces, grid);
-  if (!openings) return { grid, levels, box: null, cells: new Uint8Array(0) };
-  const own = openCells(viewed, grid, openings);
-  const floors = below.map((level) => ({ open: openCells(level, grid, openings), index: shown.indexOf(level.id) }));
+  const own = openings && openCells(viewed, grid, openings);
+  if (!openings || !own) return { grid, levels, box: null, cells: new Uint8Array(0) };
+  // What each level below shows where it has floor, nearest first; the walk stops at the first that has.
+  const floors = below.map((level) => ({ open: openCells(level, grid, openings), value: shown.includes(level.id) ? shown.indexOf(level.id) + 1 : VOID }));
   const cells = new Uint8Array(own.length);
   let [minX, minY, maxX, maxY] = [Infinity, Infinity, -Infinity, -Infinity];
-  for (let i = 0; i < own.length; i++) {
-    if (!own[i]) continue;
-    const floor = floors.find(({ open }) => !open[i]);
-    cells[i] = floor && floor.index >= 0 ? floor.index + 1 : VOID;
-    const column = i % openings.columns;
-    const row = (i - column) / openings.columns;
-    minX = Math.min(minX, column);
-    minY = Math.min(minY, row);
-    maxX = Math.max(maxX, column);
-    maxY = Math.max(maxY, row);
+  for (let row = 0, i = 0; row < openings.rows; row++) {
+    for (let column = 0; column < openings.columns; column++, i++) {
+      if (!own[i]) continue;
+      let value = VOID;
+      for (const floor of floors) {
+        if (floor.open && floor.open[i]) continue;
+        value = floor.value;
+        break;
+      }
+      cells[i] = value;
+      if (column < minX) minX = column;
+      if (column > maxX) maxX = column;
+      if (row < minY) minY = row;
+      maxY = row;
+    }
   }
   if (minX === Infinity) return { grid, levels, box: null, cells: new Uint8Array(0) };
   // Cut to the texels that show anything but the viewed level.
