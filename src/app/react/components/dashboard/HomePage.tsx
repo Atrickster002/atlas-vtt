@@ -1,6 +1,5 @@
 import React from 'react';
 import type { App } from 'obsidian';
-import { FolderOpen, Plus } from 'lucide-react';
 import type { Campaign } from '../../../campaigns/campaignTypes';
 import type { CampaignService } from '../../../campaigns/CampaignService';
 import { Button } from '../../../packages/components/primitives/button';
@@ -15,6 +14,8 @@ import { MapArt } from './MapArt';
 import { RecentScenes } from './RecentScenes';
 import type { CampaignParties } from './useCampaignParties';
 import type { RecentScene } from './useRecentScenes';
+import { GameIcon } from '../GameIcon';
+import { DASHBOARD_ICON_PATHS } from '../../../types/dashboardIconPaths';
 
 export interface HomePageProps {
   app: App;
@@ -62,11 +63,11 @@ export function HomePage(props: HomePageProps): React.JSX.Element {
           </h1>
           <div className="dashboard-topbar__actions">
             <Button variant="ghost" className="dashboard-topbar__action" onClick={onOpenAssetManager}>
-              <FolderOpen aria-hidden="true" />
+              <GameIcon path={DASHBOARD_ICON_PATHS['open-chest']} />
               <span>{t('dashboard.assets')}</span>
             </Button>
             <Button variant="ghost" className="dashboard-topbar__action" onClick={onCreateMap}>
-              <Plus aria-hidden="true" />
+              <GameIcon path={DASHBOARD_ICON_PATHS['quill-ink']} />
               <span>{t('dashboard.createScene')}</span>
             </Button>
           </div>

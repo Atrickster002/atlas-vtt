@@ -1,6 +1,6 @@
 import React, { useId, useState } from 'react';
 import type { App } from 'obsidian';
-import { ChevronRight, Plus } from 'lucide-react';
+import { ChevronRight } from 'lucide-react';
 import type { Campaign } from '../../../../campaigns/campaignTypes';
 import type { CampaignService } from '../../../../campaigns/CampaignService';
 import { createQuestNote, setQuestStatus } from '../../../../campaigns/quests/questNotes';
@@ -12,6 +12,8 @@ import { runInBackground } from '../../../../utils/backgroundTask';
 import { t } from '../../../../i18n';
 import { NewQuestField } from './NewQuestField';
 import { QuestRow } from './QuestRow';
+import { GameIcon } from '../../GameIcon';
+import { WIDGET_ICON_PATHS } from '../../../../types/widgetIcons';
 
 interface CampaignQuestsProps {
   app: App;
@@ -70,7 +72,7 @@ export function CampaignQuests({ app, campaign, campaigns, service, disabled }: 
         <h2 id={headingId} className="panel-heading">{t('quest.quests')}</h2>
         {!isCreating && (
           <Button variant="ghost" className="campaign-quests__new" disabled={disabled || folder === null} onClick={() => setIsCreating(true)}>
-            <Plus size={16} />
+            <GameIcon path={WIDGET_ICON_PATHS.scroll} size={16} />
             <span>{t('quest.new')}</span>
           </Button>
         )}

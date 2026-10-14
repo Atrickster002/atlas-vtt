@@ -1,6 +1,6 @@
 import React from 'react';
 import type { App } from 'obsidian';
-import { ArrowLeft, Play, Square, Trash2 } from 'lucide-react';
+import { ArrowLeft, Play, Square } from 'lucide-react';
 import type { Campaign } from '../../../campaigns/campaignTypes';
 import type { CampaignService } from '../../../campaigns/CampaignService';
 import { Button } from '../../../packages/components/primitives/button';
@@ -19,6 +19,8 @@ import { CampaignQuests } from './quests/CampaignQuests';
 import { useWorldMapArtwork } from './useWorldMapArtwork';
 import type { PartyFace } from './useCampaignParties';
 import { WorldMapCard } from './WorldMapCard';
+import { GameIcon } from '../GameIcon';
+import { DASHBOARD_ICON_PATHS } from '../../../types/dashboardIconPaths';
 
 interface CampaignPageProps {
   app: App;
@@ -114,7 +116,7 @@ export function CampaignPage({ app, campaign, campaigns, service, worldMaps, pre
             <CampaignDescriptionField campaign={campaign} service={service} disabled={locked} />
             <CampaignQuests app={app} campaign={campaign} campaigns={campaigns} service={service} disabled={locked} />
             <Button variant="ghost" className="campaign-page__delete" disabled={locked} onClick={() => { void deleteCampaign(); }}>
-              <Trash2 aria-hidden="true" />
+              <GameIcon path={DASHBOARD_ICON_PATHS['burning-book']} />
               <span>{t('campaign.delete')}</span>
             </Button>
           </div>

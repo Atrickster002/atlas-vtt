@@ -1,6 +1,6 @@
 import React, { useId, useState } from 'react';
 import type { App } from 'obsidian';
-import { Map, MapPin, X } from 'lucide-react';
+import { X } from 'lucide-react';
 import type { Campaign } from '../../../campaigns/campaignTypes';
 import type { CampaignService } from '../../../campaigns/CampaignService';
 import { Button } from '../../../packages/components/primitives/button';
@@ -14,6 +14,8 @@ import { MapArt } from './MapArt';
 import type { WorldMapArtwork } from './useWorldMapArtwork';
 import { editWorldMap } from './worldMapScene';
 import { WorldMapPicker } from './WorldMapPicker';
+import { GameIcon } from '../GameIcon';
+import { PIN_ICON_PATHS } from '../../../types/pinIconPaths';
 
 interface WorldMapCardProps {
   app: App;
@@ -73,7 +75,7 @@ export function WorldMapCard({ app, campaign, service, worldMaps, artwork, disab
         triggerClassName="world-map-card__frame world-map-card__choose"
       >
         <span className="world-map-card__art world-map-card__art--empty">
-          <span className="world-map-card__emblem" aria-hidden="true"><Map strokeWidth={1.5} /></span>
+          <span className="world-map-card__emblem" aria-hidden="true"><GameIcon path={PIN_ICON_PATHS.map} /></span>
         </span>
         <span id={chooseId} className="world-map-card__choose-label">{t('campaign.chooseWorldMap')}</span>
       </WorldMapPicker>
@@ -95,11 +97,11 @@ export function WorldMapCard({ app, campaign, service, worldMaps, artwork, disab
               path={artwork.path}
               pathPending={artwork.pending}
               thumbnailUrl={choice.thumbnailUrl}
-              empty={<span className="world-map-card__emblem" aria-hidden="true"><Map strokeWidth={1.5} /></span>}
+              empty={<span className="world-map-card__emblem" aria-hidden="true"><GameIcon path={PIN_ICON_PATHS.map} /></span>}
             />
           </span>
           <span className="world-map-card__action">
-            <MapPin aria-hidden="true" />
+            <GameIcon path={PIN_ICON_PATHS.location} />
             <span id={actionId}>{t(makesScene ? 'campaign.makeWorldMapScene' : 'campaign.placePins')}</span>
           </span>
         </button>

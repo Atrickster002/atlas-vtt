@@ -1,10 +1,12 @@
 import React, { useEffect, useId, useMemo, useRef, useState } from 'react';
-import { Check, Map } from 'lucide-react';
+import { Check } from 'lucide-react';
 import { STANDING_LIST } from '../../../keyboard/tooltipEscape';
 import { useListPlacement } from '../../../packages/components/primitives/selectListPlacement';
 import { cn } from '../../../../utils/cn';
 import { t } from '../../../i18n';
 import type { WorldMapChoice } from './libraryPictures';
+import { GameIcon } from '../GameIcon';
+import { PIN_ICON_PATHS } from '../../../types/pinIconPaths';
 
 interface WorldMapPickerProps {
   choices: WorldMapChoice[];
@@ -26,7 +28,7 @@ const STEP: Record<string, number> = { ArrowDown: 1, ArrowUp: -1 };
 function Thumb({ choice }: { choice: WorldMapChoice }): React.JSX.Element {
   return (
     <span className="world-map-thumb">
-      {choice.thumbnailUrl ? <img src={choice.thumbnailUrl} alt="" /> : <Map size={14} />}
+      {choice.thumbnailUrl ? <img src={choice.thumbnailUrl} alt="" /> : <GameIcon path={PIN_ICON_PATHS.map} size={14} />}
     </span>
   );
 }

@@ -1,6 +1,5 @@
 import React, { useId, useMemo, useState } from 'react';
 import type { App } from 'obsidian';
-import { Plus } from 'lucide-react';
 import { campaignsMatching } from '../../../campaigns/campaignSearch';
 import type { Campaign } from '../../../campaigns/campaignTypes';
 import type { CampaignService } from '../../../campaigns/CampaignService';
@@ -15,6 +14,8 @@ import { useDiceSets } from '../../hooks/useDiceSets';
 import type { WorldMapChoice } from './libraryPictures';
 import { NewCampaignField } from './NewCampaignField';
 import type { CampaignParties } from './useCampaignParties';
+import { GameIcon } from '../GameIcon';
+import { DASHBOARD_ICON_PATHS } from '../../../types/dashboardIconPaths';
 
 /** From this many campaigns on, the section offers a search. */
 export const CAMPAIGN_SEARCH_FROM = 5;
@@ -87,7 +88,7 @@ export function CampaignsSection({ app, service, campaigns, isLoading, worldMaps
             </div>
           ) : (
             <button type="button" className="dashboard-card campaign-card campaign-card--new" onClick={() => setIsCreating(true)}>
-              <span className="campaign-card__new-icon" aria-hidden="true"><Plus /></span>
+              <span className="campaign-card__new-icon" aria-hidden="true"><GameIcon path={DASHBOARD_ICON_PATHS.banner} /></span>
               <span className="campaign-card__new-label">{t('campaign.new')}</span>
             </button>
           )}

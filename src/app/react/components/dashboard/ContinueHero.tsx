@@ -1,11 +1,14 @@
 import React from 'react';
 import type { App } from 'obsidian';
-import { Map, Play, Plus } from 'lucide-react';
+import { Play } from 'lucide-react';
 import { Skeleton, SkeletonGroup } from '../../../packages/components/primitives/Skeleton';
 import { t } from '../../../i18n';
 import { MapArt } from './MapArt';
 import { formatRelativeTime } from './relativeTime';
 import { lastActivity, type RecentScene } from './useRecentScenes';
+import { GameIcon } from '../GameIcon';
+import { DASHBOARD_ICON_PATHS } from '../../../types/dashboardIconPaths';
+import { PIN_ICON_PATHS } from '../../../types/pinIconPaths';
 
 interface ContinueHeroProps {
   app: App;
@@ -42,7 +45,7 @@ function SceneHero({ app, scene, artwork, onOpenScene }: { app: App; scene: Rece
           path={artwork ?? null}
           pathPending={artwork === undefined}
           thumbnailUrl={scene.thumbnailUrl}
-          empty={<span className="continue-hero__glyph" aria-hidden="true"><Map /></span>}
+          empty={<span className="continue-hero__glyph" aria-hidden="true"><GameIcon path={PIN_ICON_PATHS.map} /></span>}
         />
       </span>
       <span className="continue-hero__body">
@@ -66,14 +69,14 @@ export function ContinueHero({ app, scene, artwork, isLoading, onOpenScene, onCr
   return (
     <button type="button" className="continue-hero continue-hero--empty" onClick={onCreateMap}>
       <span className="continue-hero__art" aria-hidden="true">
-        <span className="continue-hero__glyph"><Map /></span>
+        <span className="continue-hero__glyph"><GameIcon path={PIN_ICON_PATHS.map} /></span>
       </span>
       <span className="continue-hero__body">
         <span className="continue-hero__eyebrow">{t('dashboard.begin')}</span>
         <span className="continue-hero__title">{t('dashboard.firstScene')}</span>
         <span className="continue-hero__meta">{t('dashboard.firstSceneMeta')}</span>
         <span className="continue-hero__cta">
-          <Plus aria-hidden="true" />
+          <GameIcon path={DASHBOARD_ICON_PATHS['quill-ink']} />
           <span>{t('dashboard.createScene')}</span>
         </span>
       </span>
