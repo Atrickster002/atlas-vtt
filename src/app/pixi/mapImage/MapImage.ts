@@ -11,7 +11,7 @@ import type { PixelRect } from './pyramid';
 import { isMapClosed } from './tileErrors';
 import { ResidentOverviews } from './residentOverviews';
 import { TileTextureCache } from './tileTextureCache';
-import { imageToWorld, NO_STRETCH, sameStretch, turnedBox, type MapStretch } from '../../grid/mapStretch';
+import { imageToWorld, imageWorldRect, NO_STRETCH, sameStretch, turnedBox, type MapStretch } from '../../grid/mapStretch';
 import { MapVideoSlot } from './video/MapVideoSlot';
 import type { MapVideoMode } from './video/mapVideoPlayback';
 
@@ -82,10 +82,7 @@ export class MapImage {
   /** The image in world units, as it is drawn; null before the first load and after `clear`. */
   get worldRect(): PixelRect | null {
     if (!this.shown) return null;
-    const { box } = turnedBox(this.shown.width, this.shown.height, this.stretch);
-    // The world begins at the origin; an image placed further in leaves a margin before it.
-    const { x: left = 0, y: top = 0 } = this.stretch.offset ?? {};
-    return { x: 0, y: 0, width: left + box.width * this.stretch.x, height: top + box.height * this.stretch.y };
+    return { x: 0, y: 0, ...imageWorldRect(this.shown, this.stretch) };
   }
 
   /** The image's own size in pixels, whatever its stretch; null before the first load and after `clear`. */

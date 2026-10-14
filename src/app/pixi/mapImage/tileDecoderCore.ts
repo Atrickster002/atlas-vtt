@@ -1,3 +1,4 @@
+import type { ArtAlpha } from '../../levels/artRaster';
 import { OpenError } from './decodedLevels';
 import { MapEntries, NeedBytes, type HeldBitmap, type MapEntry } from './mapEntries';
 import type { TileRef } from './pyramid';
@@ -91,6 +92,17 @@ export class TileDecoderCore {
 
   async overview(id: number, handle: number, maxSide: number): Promise<ImageBitmap | null> {
     return this.server.overview(id, handle, this.entryOf(handle), maxSide);
+  }
+
+  /** Which pixels of the overview fit within `maxSide` hold art (`opaquePixels`), or null when the request was cancelled meanwhile. */
+  async alphaRaster(id: number, handle: number, maxSide: number, threshold: number): Promise<ArtAlpha | null> {
+    const overview = await this.overview(id, handle, maxSide);
+    if (!overview) return null;
+    try {
+      return { width: overview.width, height: overview.height, opaque: this.deps.graphics.opaquePixels(overview, threshold) };
+    } finally {
+      overview.close();
+    }
   }
 
   cancel(id: number): void {
