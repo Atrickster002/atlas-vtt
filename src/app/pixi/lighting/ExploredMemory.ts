@@ -36,6 +36,11 @@ export interface ExploredMemoryDeps {
    * while the graphics device cannot take it and keeps its errors from escaping.
    */
   guard: (work: () => void) => void;
+  /**
+   * False for a memory the GM never edits (a level below the view's, seen through openings):
+   * it neither follows undo and redo of edits nor counts any.
+   */
+  edits?: boolean;
 }
 
 /**
@@ -73,7 +78,7 @@ export class ExploredMemory {
     this.steps = new ExploredSteps(deps.renderer);
     this.revision = deps.store.getState().exploredEdits;
     // Undo and redo move the count; an edit of this memory's own has moved `revision` along with it.
-    this.unsubscribe = deps.store.subscribe((state) => this.follow(state.exploredEdits, state.isMapLoading));
+    this.unsubscribe = deps.edits === false ? (): void => undefined : deps.store.subscribe((state) => this.follow(state.exploredEdits, state.isMapLoading));
   }
 
   /**
@@ -101,7 +106,7 @@ export class ExploredMemory {
    */
   edit(edit: ExploredEdit): boolean {
     const texture = this.texture;
-    if (!texture || !this.bounds || !this.isMemory()) return false;
+    if (!texture || !this.bounds || !this.isMemory() || this.deps.edits === false) return false;
     const shapes: ExploredShapes = { polygons: editPolygons(edit, this.bounds), clip: null };
     // The steps can tell only so many edits apart: before that runs out, the older ones can no longer be undone.
     if (this.steps.full) this.forgetEdits();

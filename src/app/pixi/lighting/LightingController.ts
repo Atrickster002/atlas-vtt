@@ -2,6 +2,7 @@ import type { FogCoverage } from '../../fog/fogCoverage';
 import type { EventEmitter } from 'events';
 import type { App } from 'obsidian';
 import type { Application, Texture } from 'pixi.js';
+import type { BelowLevelsHost } from './levels/LevelsBelow';
 import type { UnlitGrid } from '../../grid/gridLightingMark';
 import type { Viewport } from 'pixi-viewport';
 import type { MeasurementSettings } from '../../grid/measurementFormat';
@@ -63,6 +64,8 @@ export interface LightingControllerDeps {
   quality?: LightingQualitySource;
   /** Where gliding tokens are drawn: sight and light read them there. */
   shown?: ShownPlaces;
+  /** What the levels below the view need of it (`createBelowLevelsHost`); without it the openings show nothing below. */
+  below?: BelowLevelsHost;
 }
 
 /**
@@ -121,6 +124,7 @@ export class LightingController {
       exploredWatcher: this.modes.memory,
       ...(deps.quality && { quality: deps.quality }),
       scene,
+      ...(deps.below && { below: deps.below }),
     });
     this.sightAids = new GmSightAids({
       viewport, store: scene, measurement, bounds: deps.bounds,

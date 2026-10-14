@@ -24,7 +24,10 @@ import { LightReaches } from '../../vision/lightReaches';
 import { sourcesInDarkness } from '../../vision/magicalDarkness';
 import { activeLights, engineLight } from '../../vision/lightSources';
 import type { SceneLightingView } from './sceneLightingView';
-import { everyLevelObjects, levelObjects } from '../../levels/levelObjects';
+import { everyLevelObjects, levelObjects, levelObjectsOn } from '../../levels/levelObjects';
+import { levelStack, levelsBelow, stackGrid, type LevelStack } from '../../levels/levelStack';
+import { levelSurfaceList } from '../../levels/levelSurfaces';
+import { hasLevels, viewedLevelId } from '../../levels/sceneLevels';
 
 /** Full ambient light: everything in sight counts as lit. */
 const FULL_DAYLIGHT: AmbientLight = { ambient: 1 };
@@ -76,6 +79,8 @@ export class CanvasLightingFallback implements SceneLightingView {
   private sealed: { drawn: ViewAtlasState['objects']['walls']; texel: number; walls: readonly WallSegment[] } | null = null;
   /** What the black is composed from; none while there is none to show. */
   private source: DarknessSource | null = null;
+  /** The view's openings, black for the players: the fallback draws no level below. */
+  private closed: { inputs: readonly unknown[]; stack: LevelStack | null } = { inputs: [], stack: null };
   /** `source` changed since the black was composed. */
   private stale = false;
   private readonly playerView = new PlayerView((shown) => {
@@ -124,7 +129,7 @@ export class CanvasLightingFallback implements SceneLightingView {
     const measurement = this.deps.measurement();
     const held = heldForSight(state);
     const hasVision = sceneHasVision(everyLevelObjects(state).tokens);
-    const inputs = [state.lighting, levelObjects(state).tokens, hasVision, levelObjects(state).walls, levelObjects(state).lights, state.grid, held, rules, bounds?.width, bounds?.height, measurement.unitDistance];
+    const inputs = [state.lighting, levelObjects(state).tokens, hasVision, levelObjects(state).walls, levelObjects(state).lights, state.grid, held, rules, bounds?.width, bounds?.height, measurement.unitDistance, state.levels, state.viewedLevel, everyLevelObjects(state).levelSurfaces];
     if (inputs.every((input, i) => input === this.inputs[i]) && inputs.length === this.inputs.length) return;
     this.inputs = inputs;
     if (!state.lighting.enabled || !bounds) {
@@ -148,8 +153,27 @@ export class CanvasLightingFallback implements SceneLightingView {
     if (!sameSight(sight, this.sight)) this.sight = sight;
     this.sightBuilt = true;
     const spots = seenSpots(this.sight, FULL_DAYLIGHT, this.reaches, levelObjects(state).tokens, scale.cellSize, walls, { conditions: rules?.conditions ?? [], held, policy: PLAYER_SIGHT_POLICY });
-    this.setDarkness(bounds, spots);
+    this.setDarkness(bounds, spots, this.openings(state, bounds));
     this.deps.onSightChange?.();
+  }
+
+  /**
+   * The viewed level's openings as the stack reads them, with no level below drawn: every texel that
+   * is not the viewed level's own floor. Null without levels or openings. Worked out again only when
+   * the scene's surfaces, its levels or the map's size change.
+   */
+  private openings(state: ViewAtlasState, bounds: MapBounds): LevelStack | null {
+    const viewed = viewedLevelId(state);
+    const inputs = [state.levels, viewed, everyLevelObjects(state).levelSurfaces, bounds.width, bounds.height];
+    if (inputs.every((input, i) => input === this.closed.inputs[i])) return this.closed.stack;
+    let stack: LevelStack | null = null;
+    if (hasLevels(state.levels) && viewed !== null) {
+      const below = levelsBelow(state.levels, viewed).map((level) => ({ id: level.id, surfaces: levelSurfaceList(levelObjectsOn(state, level.id).levelSurfaces) }));
+      stack = levelStack({ id: viewed, surfaces: levelSurfaceList(levelObjects(state).levelSurfaces) }, below, [], stackGrid(bounds));
+      if (!stack.box) stack = null;
+    }
+    this.closed = { inputs, stack };
+    return stack;
   }
 
   private sealedWalls(drawn: ViewAtlasState['objects']['walls'], texel: number): readonly WallSegment[] {
@@ -165,8 +189,8 @@ export class CanvasLightingFallback implements SceneLightingView {
    * it, and only when that changed: a store change that leaves sight alone, or a view that does
    * not show the black, must not pay for composing and uploading a canvas.
    */
-  private setDarkness(bounds: MapBounds, spots: readonly SeenSpot[]): void {
-    const source: DarknessSource = { sight: this.sight, reaches: this.reaches.map((reach) => reach.polygon), footprints: spots.map((spot) => spot.polygon), width: bounds.width, height: bounds.height };
+  private setDarkness(bounds: MapBounds, spots: readonly SeenSpot[], closed: LevelStack | null): void {
+    const source: DarknessSource = { sight: this.sight, reaches: this.reaches.map((reach) => reach.polygon), footprints: spots.map((spot) => spot.polygon), width: bounds.width, height: bounds.height, closed };
     if (this.source && sameSource(source, this.source)) return;
     this.source = source;
     this.stale = true;
@@ -182,7 +206,7 @@ export class CanvasLightingFallback implements SceneLightingView {
   private drawDarkness(): void {
     if (!this.stale || !this.source) return;
     this.stale = false;
-    const { sight, reaches, footprints, width, height } = this.source;
+    const { sight, reaches, footprints, width, height, closed } = this.source;
     const seeing = sight.regions.filter((region) => showsMap(region.sense));
     const polygonsOf = (regions: readonly SightRegion[]): Polygon[] => regions.flatMap((region) => (region.polygon ? [region.polygon] : []));
     const piercing = seeing.filter((region) => perceivedLevel(region.sense, 'magical-dark') !== null);
@@ -192,6 +216,7 @@ export class CanvasLightingFallback implements SceneLightingView {
       shown: sight.all ? null : [...polygonsOf(seeing), ...footprints],
       darkness: reaches,
       pierced: [...polygonsOf(piercing), ...footprints],
+      closed,
     });
   }
 
@@ -212,10 +237,12 @@ interface DarknessSource {
   footprints: readonly Polygon[];
   width: number;
   height: number;
+  /** The view's openings, black whatever is seen there. */
+  closed: LevelStack | null;
 }
 
 function sameSource(a: DarknessSource, b: DarknessSource): boolean {
-  return a.sight === b.sight && a.width === b.width && a.height === b.height && samePolygons(a.reaches, b.reaches) && samePolygons(a.footprints, b.footprints);
+  return a.sight === b.sight && a.width === b.width && a.height === b.height && a.closed === b.closed && samePolygons(a.reaches, b.reaches) && samePolygons(a.footprints, b.footprints);
 }
 
 /** A reach keeps its polygon while it is not traced anew; a footprint is traced at every update, so its corners are compared. */
