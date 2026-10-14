@@ -11,7 +11,8 @@ const FILES = [
 ].map(fileOf);
 const RUNS = 600;
 
-describe('serialize ∘ parse on mutated templates', () => {
+// Seeded checks with a fixed workload: 3 to 4.5 s on a hosted runner, close to the 5 s default.
+describe('serialize ∘ parse on mutated templates', { timeout: 30_000 }, () => {
   it(`is a fixed point after one pass (${RUNS} seeded runs)`, () => {
     const random = mulberry32(0x5eed);
     let written = 0;

@@ -37,7 +37,8 @@ const CONTEXTS = [
   { text: "---\nx: '1'\n---\n", path: ['x'], base: '1' },
 ];
 
-describe('values', () => {
+// Seeded checks with a fixed workload: 3 to 4.5 s on a hosted runner, close to the 5 s default.
+describe('values', { timeout: 30_000 }, () => {
   it('writes every random value in every context so that it reads back exactly', () => {
     const random = mulberry32(77);
     for (let trial = 0; trial < 4000; trial++) {
