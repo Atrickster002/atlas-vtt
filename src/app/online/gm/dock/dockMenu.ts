@@ -9,7 +9,7 @@ export interface MenuEntry {
   readonly icon?: string;
   readonly run: () => void;
   readonly warning?: boolean;
-  /** A separator goes above it. */
+  /** A separator goes above it, where a row stands above it. */
   readonly apart?: boolean;
   /** A switch or a choice: ticked while on. */
   readonly checked?: boolean;
@@ -17,10 +17,11 @@ export interface MenuEntry {
   readonly disabled?: boolean;
 }
 
-function menuEntries(entries: readonly MenuEntry[]): ContextMenuEntry[] {
+/** Atlas' menu entries for `entries`. A separator never opens the menu: a list may begin with a row that stands apart in a longer one. */
+export function menuEntries(entries: readonly MenuEntry[]): ContextMenuEntry[] {
   const icons = entries.some((entry) => entry.icon !== undefined);
-  return entries.flatMap((entry): ContextMenuEntry[] => [
-    ...(entry.apart === true ? [MENU_SEPARATOR] : []),
+  return entries.flatMap((entry, index): ContextMenuEntry[] => [
+    ...(entry.apart === true && index > 0 ? [MENU_SEPARATOR] : []),
     {
       type: 'item',
       label: entry.title,

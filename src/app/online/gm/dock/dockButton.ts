@@ -8,10 +8,9 @@ const BADGE_POP_MS = 160;
 const badgeKey = (badge: Badge): string => (badge.kind === 'dot' ? `dot:${badge.tone}` : badge.kind === 'count' ? `count:${badge.count}` : 'none');
 
 /**
- * What the collapsed control shows: the button that fills it (globe, hover and accent fill) and, in
- * the pin, a box of the collapsed size at the control's bottom left, its status badge and tooltip. The
- * pin stays where the button rests while the control grows into the menu, and lies outside the
- * clipped content, so the badge may stand over the control's corner.
+ * The control's button (globe, hover and accent fill) and its pin, a box of the button's size that the
+ * status badge and tooltip hang from. The pin lies outside the clipped content, so the badge may stand
+ * over the control's corner.
  */
 export class DockButton {
   readonly button: HTMLButtonElement;
@@ -30,18 +29,9 @@ export class DockButton {
     this.button.addEventListener('click', (event) => onPress(event.detail === 0));
   }
 
-  /** What fades out as the control opens and back in as it closes. */
-  get collapsedParts(): readonly HTMLElement[] {
-    return [this.button, this.pin];
-  }
-
-  /**
-   * An open control's button takes the accent as it fades into the menu, names the surface it
-   * controls, and is inert: the surface lies over it.
-   */
+  /** While its menu or panel is open, the button takes the accent and names the surface it controls; pressed again, it closes it. */
   setOpen(open: boolean, surfaceId: string | null): void {
     this.button.toggleClass('is-active', open);
-    this.button.inert = open;
     this.button.setAttribute('aria-expanded', String(open));
     if (surfaceId === null) this.button.removeAttribute('aria-controls');
     else this.button.setAttribute('aria-controls', surfaceId);

@@ -9,7 +9,7 @@ import type { AnyAsset, AssetManagerProps, Tab } from './types';
 import { Header } from './components/Header';
 import { Sidebar } from './components/Sidebar';
 import { Content } from './components/Content';
-import { Breadcrumb } from './components/Breadcrumb';
+import { LocationBar } from './components/LocationBar';
 import { ModalLayer } from './components/ModalLayer';
 import { useAssetData } from './hooks/useAssetData';
 import { useSelectionHandlers, type VisibleIds } from './hooks/useSelectionHandlers';
@@ -250,10 +250,11 @@ export default function AssetManager({ isOpen, onClose, initialTab, onExitComple
                   onDrop={(e) => { if (draggedItems && sel.selectedFolderId === null) { e.preventDefault(); crud.handleDrop(null); } }}
                 >
                   <ActiveFilterBar groups={filterSearch.chips} onReset={filterSearch.reset} />
-                  <Breadcrumb
+                  <LocationBar
                     activeTab={shown.tab}
                     path={shown.folderPath}
                     onNavigateToFolder={sel.handleNavigateToFolder}
+                    sort={sel}
                   />
                   <div className="atlas-asset-manager-main">
                     <AssetTagMenuContext.Provider value={tagMenuActions}>

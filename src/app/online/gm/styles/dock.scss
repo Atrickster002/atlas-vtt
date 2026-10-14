@@ -16,8 +16,7 @@
 $dock-inner: calc(#{$button-height-l} + 2 * #{$spacing-s});
 
 // The room the control takes in the row: first in the start slot, so the undo/redo bar and the
-// toolbar always stand clear of the collapsed button. Its transparent border snaps like the
-// control's. It never changes while the control opens.
+// toolbar always stand clear of the button. Its transparent border snaps like the control's.
 .atlas-online-room {
   flex: none;
   width: calc(#{$dock-inner} + #{$spacing-s});
@@ -25,15 +24,14 @@ $dock-inner: calc(#{$button-height-l} + 2 * #{$spacing-s});
   pointer-events: none;
 }
 
-// Their sizes are content sizes (morph.ts sets the content box as well), so they must win over the
-// plugin's reset that makes every element in `.atlas-vtt-plugin` border-box.
+// Their sizes are content sizes, so they must win over the plugin's reset that makes every element
+// in `.atlas-vtt-plugin` border-box.
 .atlas-vtt-plugin :is(.atlas-online-room, .atlas-online-dock) {
   box-sizing: content-box;
 }
 
-// One element in every state: the button, and the menu or panel it grows into (morph.ts sets its
-// real width and height while open). Its bottom-left corner never moves, and it lies over the row's
-// bars while open. Its corner is the bars' and the panels' alike, so nothing eases between them.
+// The button, at the row's bottom left, as high as the bars. The menu or panel it opens hangs above
+// it (`.atlas-online-surface`), and the button stays as it is.
 .atlas-online-dock {
   position: absolute;
   left: 0;
@@ -47,7 +45,7 @@ $dock-inner: calc(#{$button-height-l} + 2 * #{$spacing-s});
   @include atlas-panel-radius($radius-2xl);
 }
 
-// Clips the content while the control grows; the badge lies outside it, over the corner.
+// Clips the button's fill to the corner; the badge lies outside it, over the corner.
 .atlas-online-dock__content {
   position: absolute;
   inset: 0;
@@ -56,8 +54,7 @@ $dock-inner: calc(#{$button-height-l} + 2 * #{$spacing-s});
   @include atlas-corner-shape;
 }
 
-// The collapsed control is the button, filled to its border. It grows along while the control opens
-// (inert and faded out), so its accent swells into the menu.
+// The button fills the control to its border, and takes the accent while its menu or panel is open.
 .atlas-online-dock .atlas-online-dock__button {
   position: absolute;
   inset: 0;
@@ -94,7 +91,7 @@ $dock-inner: calc(#{$button-height-l} + 2 * #{$spacing-s});
   }
 }
 
-// The globe stays centred where the button rests, at the bottom left, while the button grows.
+// The globe, centred in the button.
 .atlas-online-dock__face {
   position: absolute;
   left: 0;
@@ -106,7 +103,7 @@ $dock-inner: calc(#{$button-height-l} + 2 * #{$spacing-s});
   height: $dock-inner;
 }
 
-// A box of the collapsed control's inner size over its resting place: the badge and the tooltip hang from it.
+// A box of the button's inner size: the badge and the tooltip hang from it.
 .atlas-online-dock__pin {
   position: absolute;
   left: 0;
@@ -175,32 +172,36 @@ $dock-inner: calc(#{$button-height-l} + 2 * #{$spacing-s});
   to { box-shadow: 0 0 0 2px var(--background-primary), 0 0 0 8px color-mix(in oklch, var(--atlas-online-tone) 0%, transparent); }
 }
 
-// ── Content ─────────────────────────────────────────────────────────────────
+// ── Surface ─────────────────────────────────────────────────────────────────
 
-// The menu's or panel's content, laid out at its final width at the control's bottom left, where it
-// stays while the control grows around it. Clipped, never a scroll container: Chromium scrolls a
-// hidden overflow to anchor or reveal content, which moved the layers while the control grew.
-.atlas-online-layer {
+// The menu or panel: a surface of its own above the button, as the toolbar's tool menus hang above
+// theirs ($spacing-l above the button's content, `.atlas-dropdown-content--top`), its left edge on
+// the button's. It grows out of the button's corner (`animatePanelIn`); its width is set by
+// dockSurface.ts.
+.atlas-online-surface {
   position: absolute;
-  left: 0;
-  bottom: 0;
+  left: calc(-1 * var(--atlas-online-dock-border, #{$border-width-m}));
+  bottom: calc(100% + #{$spacing-l} - #{$spacing-s});
+  z-index: 1;
+  box-sizing: border-box;
+  transform-origin: bottom left;
+  @include atlas-elevated-surface;
+  @include atlas-panel-radius($radius-2xl);
+}
+
+// The menu's or panel's content.
+.atlas-online-layer {
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
   gap: $spacing-s;
   padding: $spacing-s;
-  // The room there is (morph.ts); the player list scrolls inside it.
+  // The room there is (dockSurface.ts); the player list scrolls inside it.
   max-height: var(--atlas-online-layer-max, none);
-  // Faded in by morph.ts once the control has begun to grow.
-  opacity: 0;
 
   > * {
     flex: none;
   }
-}
-
-.atlas-online-layer--leaving {
-  pointer-events: none;
 }
 
 @media (prefers-reduced-motion: reduce) {
