@@ -1,4 +1,4 @@
-import { Container, Graphics, Matrix, Texture, type Renderer } from 'pixi.js';
+import { Container, Graphics, Matrix, Rectangle, Texture, type Renderer } from 'pixi.js';
 import { exploredMemoryOn } from '../../../lighting/sceneLightingOptions';
 import { DEFAULT_LIGHTING_QUALITY, type LightingQuality } from '../../../lighting/lightingQuality';
 import type { UnlitGrid } from '../../../grid/gridLightingMark';
@@ -240,6 +240,7 @@ export class LightingEngine {
   setStack(stack: CompositeStack | null): void {
     this.stack = stack;
     this.composite?.setStack(stack);
+    if (this.levelIndex > 0) this.layer.filterArea = belowArea(stack);
   }
 
   /**
@@ -359,4 +360,15 @@ export class LightingEngine {
     this.boundsRect.clear().rect(0, 0, width, height).fill({ color: 0, alpha: 0 });
     this.sightLayers.clear();
   }
+}
+
+/**
+ * Where a level below's composite runs: the stack's texels, a texel wider all round, in world pixels
+ * (the layer's own). Its picture is read only where the stack shows it, so the rest of the map is
+ * left unlit and costs nothing; without a stack the whole map, as on the viewed level.
+ */
+function belowArea(stack: CompositeStack | null): Rectangle | undefined {
+  if (!stack) return undefined;
+  const { box, texel } = stack;
+  return new Rectangle((box.x - 1) * texel, (box.y - 1) * texel, (box.columns + 2) * texel, (box.rows + 2) * texel);
 }

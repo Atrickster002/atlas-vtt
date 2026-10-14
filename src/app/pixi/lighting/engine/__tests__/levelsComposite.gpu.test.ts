@@ -146,12 +146,18 @@ describe('the composite over openings', () => {
     // Everything is seen and lit: only the stack decides what of the level shows.
     engine.update(scene({ sight: computeSight([{ tokenId: 't', origin: { x: 256, y: 256 }, range: 2000, senses: [] }], []) }));
     engine.flush();
-    const stack = levelStack({ id: 'upper', surfaces: [{ id: 'hole', kind: 'level-surface', open: true, polygon: rect(0, 0, 256, 512) }] }, [{ id: 'ground', surfaces: [] }], ['ground'], stackGrid({ width: MAP, height: MAP }));
+    // Two openings: the floor of the viewed level between them lies inside the stack's texels.
+    const surfaces: LevelSurface[] = [
+      { id: 'west', kind: 'level-surface', open: true, polygon: rect(0, 0, 128, 512) },
+      { id: 'east', kind: 'level-surface', open: true, polygon: rect(384, 0, 128, 512) },
+    ];
+    const stack = levelStack({ id: 'upper', surfaces }, [{ id: 'ground', surfaces: [] }], ['ground'], stackGrid({ width: MAP, height: MAP }));
     stackTexture.update(stack, (bound) => engine.setStack(bound));
     const pixels = shoot(renderer, engine, null, 0.375, 0, 0, 1);
     const at = (sx: number, sy: number): number => pixels[(sy * SIZE + sx) * 4]!;
-    expect(at(40, 96)).toBeGreaterThan(200);
-    // Unexplored, unseen: black in the players' view.
-    expect(at(150, 96)).toBeLessThanOrEqual(1);
+    expect(at(20, 96)).toBeGreaterThan(200);
+    expect(at(170, 96)).toBeGreaterThan(200);
+    // The viewed level's own floor: black in the players' view.
+    expect(at(96, 96)).toBeLessThanOrEqual(1);
   });
 });
