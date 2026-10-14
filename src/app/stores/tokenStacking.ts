@@ -47,9 +47,9 @@ export interface PlacedTokensState {
  * it stays and the caller may offer the choice (`linkChoice`). Changes only what the scene saves and
  * undoes (the tokens' places, order and levels) and the audio flag; letting go of held tokens is
  * pointer state, which `dropTokens` does. Tokens not listed keep their objects. Changes `state` in
- * place (a store draft). Returns the tokens that went to another level.
+ * place (a store draft); returns nothing, so a recipe may hand its call on.
  */
-export function placeTokens(state: PlacedTokensState, positions: readonly TokenPlace[]): string[] {
+export function placeTokens(state: PlacedTokensState, positions: readonly TokenPlace[]): void {
   const { tokens } = state.objects;
   const landings = linkLandings(state, positions);
   for (const { id, x, y } of positions) {
@@ -59,15 +59,10 @@ export function placeTokens(state: PlacedTokensState, positions: readonly TokenP
       token.y = y;
     }
   }
-  const moved: string[] = [];
   for (const { tokenId, targets } of landings) {
     const token = tokens[tokenId];
-    if (token && targets.length === 1) {
-      token.level = targets[0];
-      moved.push(tokenId);
-    }
+    if (token && targets.length === 1) token.level = targets[0];
   }
   raiseTokens(tokens, positions.map(({ id }) => id));
   state._audioDirty = true;
-  return moved;
 }

@@ -834,10 +834,12 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
           }),
 
           dropTokens: (positions) => set((draft) => {
-            const moved = placeTokens(draft, positions);
+            const levelsBefore = new Map(positions.map(({ id }) => [id, draft.objects.tokens[id]?.level]));
+            placeTokens(draft, positions);
             if (Object.keys(draft.heldTokens).length > 0) draft.heldTokens = {};
             // Tokens that went down or up stairs leave the selection, which stays on the level shown.
-            if (moved.length > 0) draft.selectedIds = draft.selectedIds.filter((id) => !moved.includes(id));
+            const climbed = new Set(positions.filter(({ id }) => draft.objects.tokens[id]?.level !== levelsBefore.get(id)).map(({ id }) => id));
+            if (climbed.size > 0) draft.selectedIds = draft.selectedIds.filter((id) => !climbed.has(id));
           }),
 
           deleteTokens: (ids) => set((draft) => {
