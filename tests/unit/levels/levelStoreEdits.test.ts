@@ -15,7 +15,7 @@ const LEVELS: SceneLevel[] = [
 ];
 
 const fog = (id: string, level?: string): FogOperation => ({ id, kind: 'fog', timestamp: 1, type: 'rectangle', isErasing: false, x: 0, y: 0, width: 10, height: 10, ...(level && { level }) });
-const drawing = (id: string, level?: string): DrawingStroke => ({ id, kind: 'drawing', points: [0, 0, 1, 1], color: '#fff', width: 2, ...(level && { level }) }) as DrawingStroke;
+const drawing = (id: string, level?: string): DrawingStroke => ({ id, kind: 'drawing', points: [0, 0, 1, 1], color: '#fff', width: 2, ...(level && { level }) }) as unknown as DrawingStroke;
 
 /** A store holding a scene of two floors, showing `viewed`, with fog and a drawing on each. */
 function twoFloorStore(viewed: string): ViewAtlasStore {

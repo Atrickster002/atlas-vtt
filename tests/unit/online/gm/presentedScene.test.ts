@@ -231,7 +231,8 @@ describe('what Atlas presents', () => {
     expect(showsPresented(cave(), tab)).toBe(true);
     expect(showsPresented({ ...cave(), levels, viewedLevel: 'upper' }, tab)).toBe(true);
     expect(showsPresented({ ...cave(), levels, viewedLevel: 'ground' }, tab)).toBe(false);
-    expect(showsPresented({ ...cave(), levels, viewedLevel: 'ground' }, { ...tab, levelId: undefined })).toBe(true);
+    const { levelId: _presented, ...firstLevel } = tab;
+    expect(showsPresented({ ...cave(), levels, viewedLevel: 'ground' }, firstLevel)).toBe(true);
   });
 
   it('tells Atlas it shows the presented scene, and tells nothing to an Atlas without the call', () => {
