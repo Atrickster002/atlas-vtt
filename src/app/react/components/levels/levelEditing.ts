@@ -1,6 +1,6 @@
 import { t } from '../../../i18n';
 import { withLevelAdded, withLevelChanged, withLevelDeleted, withLevelsReordered, type LevelScene } from '../../../levels/levelEdits';
-import { firstLevelId } from '../../../levels/sceneLevels';
+import { firstLevelId, viewedLevelId } from '../../../levels/sceneLevels';
 import type { ViewAtlasStore } from '../../../storeFactory';
 import { getHistoryStore, runUntracked } from '../../../stores/history';
 import type { LevelElevation, SceneLevel } from '../../../types/sceneLevelTypes';
@@ -60,13 +60,17 @@ export function moveLevel(store: ViewAtlasStore, id: string, direction: 1 | -1):
   applyScene(store, state, withLevelsReordered(state, ids));
 }
 
-/** Asks whether the objects of level `id` move to the level next to it or go with it, then deletes the level. */
-export async function deleteLevel(store: ViewAtlasStore, id: string): Promise<void> {
+/**
+ * Asks whether the objects of level `id` move to the level next to it or go with it, then deletes
+ * the level. A view that showed it shows that neighbour. Returns the neighbour once the level is
+ * deleted, else null.
+ */
+export async function deleteLevel(store: ViewAtlasStore, id: string): Promise<string | null> {
   const levels = store.getState().levels ?? [];
   const index = levels.findIndex((level) => level.id === id);
   const level = levels[index];
   const target = levels[index - 1] ?? levels[index + 1];
-  if (!level || !target) return;
+  if (!level || !target) return null;
   const choice = await chooseAction<'move' | 'delete'>({
     title: t('levels.deleteTitle', { name: levelLabel(levels, level) }),
     message: [t('levels.deleteBody', { target: levelLabel(levels, target) })],
@@ -75,7 +79,10 @@ export async function deleteLevel(store: ViewAtlasStore, id: string): Promise<vo
       { label: t('levels.deleteMove', { target: levelLabel(levels, target) }), value: 'move', style: 'cta' },
     ],
   });
-  if (!choice) return;
+  if (!choice) return null;
   const state = store.getState();
+  const wasShown = viewedLevelId(state) === id;
   applyScene(store, state, withLevelDeleted(state, id, choice === 'move' ? target.id : null));
+  if (wasShown) store.getState().setViewedLevel(target.id);
+  return target.id;
 }

@@ -4,6 +4,7 @@ import { mayLinkFromScene } from '../services/sceneLinks';
 import { readMapClipboard, writeMapClipboard } from './mapClipboard';
 import { collectMapObjects, countMapObjects, type MapObjectContent, type Point } from './mapObjectContent';
 import { pasteOffset, placeMapObjects } from './mapObjectPlacement';
+import { levelObjects } from '../levels/levelObjects';
 
 type ClipboardStore = Pick<StoreApi<ViewAtlasState>, 'getState'>;
 
@@ -56,7 +57,7 @@ export async function pasteClipboard(store: ClipboardStore, target: Point): Prom
   if (!copied || !canEditMapObjects(state)) return [];
   const content = { ...copied, pins: copied.pins.filter((pin) => mayLinkFromScene(state.mapPath, pin.notePath)) };
   if (countMapObjects(content) === 0) return [];
-  const placed = placeMapObjects(content, pasteOffset(content, target, state.grid), state.grid, state.objects);
+  const placed = placeMapObjects(content, pasteOffset(content, target, state.grid), state.grid, levelObjects(state));
   return state.insertMapObjects(placed);
 }
 

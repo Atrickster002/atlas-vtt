@@ -21,6 +21,8 @@ import { PlayerMoves } from './playerMoves.ts';
 import { RulesShare, type RulesSharePorts } from './RulesShare.ts';
 import { TOKEN_POLL_MS, TokenShare, type TokenSharePorts } from './TokenShare.ts';
 import { levelObjects } from '../../levels/levelObjects';
+import { levelBackground } from '../../levels/levelEdits';
+import { viewedLevelId } from '../../levels/sceneLevels';
 
 export { imageMimeType, isLit, LIGHTING_REFUSAL, REPEAT_REQUEST_MS };
 
@@ -234,7 +236,9 @@ export class SceneShare {
       return;
     }
     this.refusal = null;
-    const key = `${state.mapPath ?? ''}\n${state.background ?? ''}\n${lit}`;
+    // The map of the level shown, whose objects the shares send (`levelObjects`)
+    const background = levelBackground(state, viewedLevelId(state));
+    const key = `${state.mapPath ?? ''}\n${viewedLevelId(state) ?? ''}\n${background ?? ''}\n${lit}`;
     if (key === this.key) {
       this.marks.update();
       this.tokens.update();
@@ -246,7 +250,7 @@ export class SceneShare {
     this.tokens.setScene(null);
     this.inputs.setScene(null);
     this.layers.setScene(null);
-    const built = await this.build(state.background);
+    const built = await this.build(background);
     if (this.key !== key) return;
     if (built === null) {
       this.ports.notice('Atlas Online cannot send this scene\'s map image.');

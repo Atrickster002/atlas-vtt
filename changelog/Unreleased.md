@@ -8,6 +8,8 @@
 - Scenes with several levels: add floors in the command palette's Scene levels page, each on a map image of its own, then name, stack, reorder or delete them. A switcher at the map's left edge (and Page Up and Page Down) shows one floor at a time, with its own tokens, walls, lights, fog and explored areas
 - A scene keeps one grid for all its floors: align the grid on a floor above the first, and that floor's map is scaled and moved onto the grid instead, taking only its own tokens, walls and lights along. Changing the grid later keeps every fitted floor on its map
 - Move tokens to another floor from their right-click menu, and show a floor to players with the eye beside it in the switcher: players keep their picture while you look at another floor
+- Undo and redo take you to the floor they changed, and clicking a combatant in the initiative tracker or locating a token from the DM screen shows the floor it stands on. Clear fog and Clear drawings clear the floor you see
+- A scene's export, a move to another collection and renaming a map image take every floor's map along
 - Statblocks show without the Fantasy Statblocks plugin: Atlas draws them itself on token hovers, in the DM screen and in the asset manager
 - Statblock templates for 5E (2014 and 2024), Cairn, Draw Steel and Fate, and general ones for creatures, NPCs and hazards
 - A template can limit a value to a list of choices, picked from a dropdown: one, several, or several each with a number, like senses or movement

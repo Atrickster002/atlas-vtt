@@ -80,6 +80,22 @@ describe('the maps a world map leads into', () => {
     expect(read?.scenePaths).toEqual([path('World'), path('Town'), path('House'), path('Bare')]);
   });
 
+  it('lead on only from the pins of a scene\'s first floor, whose map they stand on', async () => {
+    const memory = vaultWithEvents();
+    const town = JSON.parse(memory.files.get(path('Town'))!) as { version: number; state: { levels?: unknown; objects: { pins: Record<string, Record<string, unknown>> } } };
+    town.version = 5;
+    town.state.levels = [
+      { id: 'street', name: 'Street', elevation: { bottom: 0, top: 10 }, background: `${ART}/town.webp` },
+      { id: 'roofs', name: 'Roofs', elevation: { bottom: 10, top: 20 }, background: `${ART}/house.webp` },
+    ];
+    town.state.objects.pins['pin-0']!.level = 'roofs';
+    memory.files.set(path('Town'), JSON.stringify(town));
+
+    const read = await worldMapTree(memory.app, 'world', 32);
+    expect(read?.tree.levels.find((level) => level.key === 'town')?.entrances).toEqual([{ x: 7, y: 8, to: 'world' }]);
+    expect(read?.tree.levels.map((level) => level.key)).toEqual(['world', 'town']);
+  });
+
   it('stop at the limit, and a plain map is a world map without entrances', async () => {
     const app = vault();
     expect((await worldMapTree(app, 'world', 1))?.tree.levels.map((level) => level.key)).toEqual(['world', 'town']);

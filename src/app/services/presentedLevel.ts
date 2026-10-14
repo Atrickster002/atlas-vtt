@@ -15,3 +15,14 @@ export function showsPresentedLevel(view: AtlasView): boolean {
   return viewedLevelId(state) === resolveLevel(state.levels, presented.levelId)
     && MapController.showsViewedLevel(view.serviceManager.getRendererService().getRenderer()?.getMapImage() ?? null, state);
 }
+
+/**
+ * After level `deleted` of the scene `view` shows went, players who were shown it are shown
+ * `target`, the level that took its objects, as the GM's view is.
+ */
+export function presentLevelInsteadOf(view: AtlasView, deleted: string, target: string): void {
+  const presented = presentedSceneOf(view.app);
+  const scene = presented.get();
+  if (scene?.levelId !== deleted || scene.tabId !== view.tabMetaStore.getState().activeTabId) return;
+  presented.set({ ...scene, levelId: target });
+}

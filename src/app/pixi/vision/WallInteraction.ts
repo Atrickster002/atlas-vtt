@@ -116,6 +116,7 @@ export class WallInteraction {
   }
 
   private deleteSelection(): void {
+    this.keepShownSelection();
     if (this.selectedWallIds.size > 0) {
       this.store.getState().deleteWalls(Array.from(this.selectedWallIds));
       this.selectedWallIds.clear();
@@ -142,6 +143,7 @@ export class WallInteraction {
 
   /** Change the type of all selected walls. */
   changeSelectedWallType(type: WallType): void {
+    this.keepShownSelection();
     const state = this.store.getState();
     runHistoryTransaction(this.store, () => this.selectedWallIds.forEach((id) => {
       const updates: Record<string, unknown> = { type };
@@ -158,6 +160,7 @@ export class WallInteraction {
 
   /** Changes all selected walls alike, as one undo step: the side they let light through, what they block, whether they are limited. */
   updateSelected(changes: Partial<Pick<WallSegment, 'direction' | 'blocks' | 'limited'>>): void {
+    this.keepShownSelection();
     const state = this.store.getState();
     runHistoryTransaction(this.store, () => this.selectedWallIds.forEach((id) => state.updateWall(id, changes)));
     this.wallRenderer.forceRedraw();
@@ -166,14 +169,17 @@ export class WallInteraction {
   // ─── Getters ──────────────────────────────────────────────────────
 
   getSelectedWallIds(): string[] {
+    this.keepShownSelection();
     return Array.from(this.selectedWallIds);
   }
 
   getSelectedLightIds(): string[] {
+    this.keepShownSelection();
     return Array.from(this.selectedLightIds);
   }
 
   hasSelection(): boolean {
+    this.keepShownSelection();
     return this.selectedWallIds.size > 0 || this.selectedLightIds.size > 0;
   }
 
@@ -237,6 +243,26 @@ export class WallInteraction {
     }
 
     this.syncRendererSelection();
+  }
+
+  /**
+   * Lets go of the selected walls and lights the floor shown does not hold: those of a floor the GM
+   * left, or deleted. No edit of the selection reaches what the GM cannot see.
+   */
+  private keepShownSelection(): void {
+    const { walls, lights } = levelObjects(this.store.getState());
+    let changed = false;
+    for (const id of this.selectedWallIds) {
+      if (walls[id]) continue;
+      this.selectedWallIds.delete(id);
+      changed = true;
+    }
+    for (const id of this.selectedLightIds) {
+      if (lights[id]) continue;
+      this.selectedLightIds.delete(id);
+      changed = true;
+    }
+    if (changed) this.syncRendererSelection();
   }
 
   clearSelection(): void {
