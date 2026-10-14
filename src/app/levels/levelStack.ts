@@ -7,7 +7,7 @@
 
 import type { LevelSurface, SceneLevel } from '../types/sceneLevelTypes';
 import type { Point } from '../types/visionTypes';
-import { polygonBox, polygonTexels, type TexelBox } from './surfaceRaster';
+import { paintPolygon, polygonBox, type TexelBox } from './surfaceRaster';
 
 /** The levels below one that are drawn at most; the stack reads every other one as VOID. */
 export const MAX_LEVELS_SHOWN_BELOW = 1;
@@ -88,18 +88,7 @@ function openCells(level: StackLevel, grid: StackGrid, box: TexelBox): Uint8Arra
     // A floor over floor changes nothing.
     if (!surface.open && !open) continue;
     open ??= new Uint8Array(box.columns * box.rows);
-    const { inside, touched } = polygonTexels(surface.polygon, grid.texel, overlap);
-    for (let row = 0; row < overlap.rows; row++) {
-      const target = (overlap.y + row - box.y) * box.columns + overlap.x - box.x;
-      const source = row * overlap.columns;
-      for (let column = 0; column < overlap.columns; column++) {
-        if (surface.open) {
-          if (inside[source + column]) open[target + column] = 1;
-        } else if (touched[source + column]) {
-          open[target + column] = 0;
-        }
-      }
-    }
+    paintPolygon(surface.polygon, grid.texel, overlap, surface.open, open, box);
   }
   return open;
 }
@@ -144,21 +133,21 @@ export function levelStack(viewed: StackLevel, below: readonly StackLevel[], sho
   const floors = below.map((level) => ({ open: openCells(level, grid, openings), value: shown.includes(level.id) ? shown.indexOf(level.id) + 1 : VOID }));
   const cells = new Uint8Array(own.length);
   let [minX, minY, maxX, maxY] = [Infinity, Infinity, -Infinity, -Infinity];
-  for (let row = 0, i = 0; row < openings.rows; row++) {
-    for (let column = 0; column < openings.columns; column++, i++) {
-      if (!own[i]) continue;
-      let value = VOID;
-      for (const floor of floors) {
-        if (floor.open && floor.open[i]) continue;
-        value = floor.value;
-        break;
-      }
-      cells[i] = value;
-      if (column < minX) minX = column;
-      if (column > maxX) maxX = column;
-      if (row < minY) minY = row;
-      maxY = row;
+  // Only the open texels of the viewed level are looked at: the search for the next one is the array's own.
+  for (let i = own.indexOf(1); i >= 0; i = own.indexOf(1, i + 1)) {
+    let value = VOID;
+    for (const floor of floors) {
+      if (floor.open && floor.open[i]) continue;
+      value = floor.value;
+      break;
     }
+    cells[i] = value;
+    const row = Math.floor(i / openings.columns);
+    const column = i - row * openings.columns;
+    if (column < minX) minX = column;
+    if (column > maxX) maxX = column;
+    if (row < minY) minY = row;
+    maxY = row;
   }
   if (minX === Infinity) return { grid, levels, box: null, cells: new Uint8Array(0) };
   // Cut to the texels that show anything but the viewed level.

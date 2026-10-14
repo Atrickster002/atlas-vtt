@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { levelStack, levelsShownBelow, shownAt, shownAtCell, stackGrid, VIEWED, VOID, type StackLevel } from '../../../src/app/levels/levelStack';
 import { stampClip } from '../../../src/app/levels/stackClip';
-import { polygonTexels } from '../../../src/app/levels/surfaceRaster';
+import { paintPolygon, polygonTexels } from '../../../src/app/levels/surfaceRaster';
 import type { LevelSurface, SceneLevel } from '../../../src/app/types/sceneLevelTypes';
 import type { Point } from '../../../src/app/types/visionTypes';
 import { pointInPolygon } from '../../../src/app/vision/visibility';
@@ -54,6 +54,31 @@ describe('polygons on texels', () => {
           if (some) expect(touched[i], `texel ${column},${row} of trial ${trial}`).toBe(1);
         }
       }
+    }
+  });
+
+  it('paints an opening on the texels it covers wholly and floor on every texel it touches, as polygonTexels reads them', () => {
+    const rand = rng(11);
+    for (let trial = 0; trial < 60; trial++) {
+      const texel = [1, 1.5, 3.7][trial % 3]!;
+      const open = trial % 2 === 0;
+      const polygon = star(rand, 60 + rand() * 10, 60 + rand() * 10);
+      // The target is larger than the part painted, which lies within it off its corner.
+      const target = { x: 0, y: 0, columns: Math.ceil(150 / texel), rows: Math.ceil(150 / texel) };
+      const area = { x: 2, y: 3, columns: Math.ceil(130 / texel), rows: Math.ceil(130 / texel) };
+      const painted = new Uint8Array(target.columns * target.rows).map((_, i) => (i * 7) % 3 === 0 ? 1 : 0);
+      const expected = painted.slice();
+      const { inside, touched } = polygonTexels(polygon, texel, area);
+      for (let row = 0; row < area.rows; row++) {
+        for (let column = 0; column < area.columns; column++) {
+          const i = row * area.columns + column;
+          const at = (area.y + row) * target.columns + area.x + column;
+          if (open && inside[i]) expected[at] = 1;
+          if (!open && touched[i]) expected[at] = 0;
+        }
+      }
+      paintPolygon(polygon, texel, area, open, painted, target);
+      expect(painted, `trial ${trial}`).toEqual(expected);
     }
   });
 });
