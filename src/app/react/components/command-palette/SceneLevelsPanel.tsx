@@ -6,7 +6,7 @@ import { viewedLevelId } from '../../../levels/sceneLevels';
 import { levelBackground } from '../../../levels/levelEdits';
 import { collectionIdOfPath } from '../../../services/assetPaths';
 import { runInBackground } from '../../../utils/backgroundTask';
-import { addLevel, changeLevel, changeLevelBackground, deleteLevel, levelLabel, moveLevel } from '../levels/levelEditing';
+import { addLevel, changeLevel, changeLevelBackground, deleteLevel, levelLabel, moveLevel, setLevelOpenArt, setLevelSees } from '../levels/levelEditing';
 import { pickMapImage } from '../levels/MapImagePickerModal';
 import { replaceMapImage } from '../levels/replaceMapImage';
 import { SceneLevelRow } from './SceneLevelRow';
@@ -58,6 +58,9 @@ export function SceneLevelsPanel(): React.ReactElement {
                 onDelete={() => runInBackground(deleteLevel(store, level.id).then((target) => {
                   if (target && view) presentLevelInsteadOf(view, level.id, target);
                 }), 'Deleting a level')}
+                below={several.slice(0, index).reverse().map((entry) => ({ id: entry.id, name: levelLabel(several, entry) }))}
+                onSees={(id, seen) => setLevelSees(store, level.id, id, seen)}
+                onOpenArt={(open) => setLevelOpenArt(store, level.id, open)}
               />
             );
           })}

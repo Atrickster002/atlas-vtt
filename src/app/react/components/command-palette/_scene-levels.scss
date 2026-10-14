@@ -88,3 +88,35 @@
     color: var(--text-error);
   }
 }
+
+.atlas-scene-level__button--active {
+  color: var(--interactive-accent);
+}
+
+// What a level shows of the levels below it, opened under its row.
+.atlas-scene-level-entry {
+  @include atlas-flex-col($spacing-xs);
+}
+
+.atlas-scene-level__below {
+  @include atlas-flex-col($spacing-xs);
+  padding: $spacing-xs;
+  margin-left: $spacing-l;
+  border-radius: $radius-l;
+  background: var(--background-secondary);
+}
+
+.atlas-scene-level__switch {
+  @include atlas-flex-row($spacing-s);
+  justify-content: space-between;
+  padding: $spacing-xs;
+  font-size: $font-ui-small;
+  color: var(--text-normal);
+}
+
+.atlas-scene-level__label,
+.atlas-scene-level__hint {
+  padding: $spacing-xs;
+  font-size: $font-ui-smaller;
+  color: var(--text-faint);
+}
