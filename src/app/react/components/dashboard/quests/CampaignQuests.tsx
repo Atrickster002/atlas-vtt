@@ -3,7 +3,7 @@ import type { App } from 'obsidian';
 import { ChevronRight, Plus } from 'lucide-react';
 import type { Campaign } from '../../../../campaigns/campaignTypes';
 import type { CampaignService } from '../../../../campaigns/CampaignService';
-import { createQuestNote, setQuestPlace, setQuestStatus } from '../../../../campaigns/quests/questNotes';
+import { createQuestNote, setQuestStatus } from '../../../../campaigns/quests/questNotes';
 import { questKind } from '../../../../campaigns/quests/questProperties';
 import { isQuestOver, type Quest, type QuestKind } from '../../../../campaigns/quests/questTypes';
 import { useQuests } from '../../../../campaigns/quests/useQuests';
@@ -12,7 +12,6 @@ import { runInBackground } from '../../../../utils/backgroundTask';
 import { t } from '../../../../i18n';
 import { NewQuestField } from './NewQuestField';
 import { QuestRow } from './QuestRow';
-import { useWorldMapImage } from './useWorldMapImage';
 
 interface CampaignQuestsProps {
   app: App;
@@ -30,12 +29,10 @@ function openNote(app: App, path: string): void {
 
 /**
  * The campaign's quests, which are notes of the vault naming it: main quests, then side quests,
- * then those done or failed, folded away. Each row sets its status and its place on the world map;
- * its name opens its note. A new quest is a note in the campaign's folder, opened at once.
+ * then those done or failed, folded away. Each row sets its status; its name opens its note. A new quest is a note in the campaign's folder, opened at once.
  */
 export function CampaignQuests({ app, campaign, campaigns, service, disabled }: CampaignQuestsProps): React.JSX.Element {
   const quests = useQuests(app, campaign, campaigns);
-  const mapUrl = useWorldMapImage(app, service, campaign);
   const [isCreating, setIsCreating] = useState(false);
   const [showOver, setShowOver] = useState(false);
   const headingId = useId();
@@ -61,11 +58,9 @@ export function CampaignQuests({ app, campaign, campaigns, service, disabled }: 
     <QuestRow
       key={quest.path}
       quest={quest}
-      mapUrl={mapUrl}
       disabled={disabled}
       onOpen={() => openNote(app, quest.path)}
       onStatus={(status) => runInBackground(setQuestStatus(app, quest.path, status), `Setting the status of ${quest.path}`, t('quest.writeFailed'))}
-      onPlace={(place) => runInBackground(setQuestPlace(app, quest.path, place), `Setting the place of ${quest.path}`, t('quest.writeFailed'))}
     />
   );
 

@@ -130,6 +130,51 @@ describe('the maps a world map leads into', () => {
     expect(read?.scenePaths).toEqual([path('World'), path('Town'), path('House'), path('Bare')]);
   });
 
+  it('place the quests whose notes the pins players may see link, each once its note has an id', async () => {
+    const memory = vaultWithEvents();
+    const crown = 'a'.repeat(24);
+    const notes: Record<string, Record<string, unknown>> = {
+      'Quests/Crown.md': { 'atlas-type': 'quest', campaign: 'one', 'atlas-id': crown },
+      'Quests/Eggs.md': { 'atlas-type': 'quest', campaign: 'one', 'atlas-id': 'b'.repeat(24) },
+      'Quests/Ledger.md': { 'atlas-type': 'quest', campaign: 'one' },
+      'Notes/Lore.md': { tags: ['lore'] },
+    };
+    for (const note of Object.keys(notes)) memory.files.set(note, '');
+    vi.mocked(memory.app.metadataCache.getFileCache).mockImplementation((file) => ({ frontmatter: notes[file.path] }));
+    const world = JSON.parse(memory.files.get(path('World'))!) as { state: { objects: { pins: Record<string, Record<string, unknown>> } } };
+    const pins = world.state.objects.pins;
+    pins['pin-6'] = { id: 'pin-6', kind: 'pin', x: 60, y: 70, notePath: 'Quests/Crown.md' };
+    pins['pin-7'] = { id: 'pin-7', kind: 'pin', x: 80, y: 90, notePath: 'Quests/Crown.md#Reward' };
+    pins['pin-8'] = { id: 'pin-8', kind: 'pin', x: 1, y: 1, notePath: 'Quests/Eggs.md', gmOnly: true };
+    pins['pin-9'] = { id: 'pin-9', kind: 'pin', x: 2, y: 2, notePath: 'Quests/Ledger.md' };
+    memory.files.set(path('World'), JSON.stringify(world));
+
+    const read = await worldMapTree(memory.app, 'world', 32);
+    // The GM's own pin places nothing, a quest without an id yet and a note that is no quest neither.
+    expect(read?.tree.levels[0]?.quests).toEqual([{ x: 60, y: 70, id: crown }, { x: 80, y: 90, id: crown }]);
+    expect(read?.tree.levels[0]?.entrances).toEqual([{ x: 100, y: 50, to: 'town' }, { x: 30, y: 30, to: 'town' }]);
+    expect(read?.tree.levels[1]).not.toHaveProperty('quests');
+    expect(read?.notePaths).toEqual(['Notes/Lore.md', 'Quests/Crown.md', 'Quests/Ledger.md']);
+
+    // The world map may be another once a note its pins link is written: the quest may have its id now.
+    const play = CampaignPlay.forApp(memory.app);
+    play.play('one');
+    const gate = campaignWorldMapGate(memory.app, () => play, () => memoryCampaigns([{ id: 'one', name: 'one', createdAt: 1, worldMap: 'world' }]));
+    const changed: ((file: { path: string }) => void)[] = [];
+    vi.mocked(memory.app.metadataCache.on).mockImplementation((name: string, callback: (file: { path: string }) => void) => {
+      if (name === 'changed') changed.push(callback);
+      return {};
+    });
+    const heard = vi.fn();
+    const stop = gate.onChange(heard);
+    await gate.worldMap();
+    for (const callback of changed) callback({ path: 'Quests/Eggs.md' });
+    expect(heard).not.toHaveBeenCalled();
+    for (const callback of changed) callback({ path: 'Quests/Ledger.md' });
+    expect(heard).toHaveBeenCalledTimes(1);
+    stop();
+  });
+
   it('stop at the limit, and a plain map is a world map without entrances', async () => {
     const app = vault();
     expect((await worldMapTree(app, 'world', 1))?.tree.levels.map((level) => level.key)).toEqual(['world', 'town']);

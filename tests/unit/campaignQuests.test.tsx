@@ -8,9 +8,6 @@ import { QuestIndex } from '../../src/app/campaigns/quests/QuestIndex';
 import { memoryCampaigns } from '../mocks/memoryCampaigns';
 import { questVault, type QuestVault } from '../mocks/questVault';
 
-const worldMap = vi.hoisted(() => ({ path: null as string | null }));
-vi.mock('../../src/app/services/worldMap', () => ({ campaignWorldMap: () => Promise.resolve(worldMap.path) }));
-
 import { CampaignQuests } from '../../src/app/react/components/dashboard/quests/CampaignQuests';
 
 const WORLD_MAP = 'atlas-vtt/assets/world.webp';
@@ -37,7 +34,6 @@ const apps: App[] = [];
 const rowOf = (title: string): HTMLElement => screen.getByText(title).closest('li')!;
 
 beforeEach(() => {
-  worldMap.path = WORLD_MAP;
   vi.spyOn(console, 'error').mockImplementation(() => {});
 });
 
@@ -109,32 +105,14 @@ describe('the quests of a campaign\'s page', () => {
     expect(screen.queryByRole('textbox', { name: 'Quest title' })).toBeNull();
   });
 
-  it('sets a quest\'s place on the world map with a click or the arrow keys, and takes it away', async () => {
-    const { vault } = renderQuests({ 'Q/Crown.md': note('kind: main') });
-    // The world map is looked up first.
-    const trigger = await within(rowOf('Crown')).findByRole('button', { name: 'Place on the world map' });
-    expect(trigger.getAttribute('aria-disabled')).toBeNull();
-    fireEvent.click(trigger);
-    const map = screen.getByRole('button', { name: 'Place of Crown on the world map' });
-    expect(map.querySelector('img')?.getAttribute('src')).toBe(`app://vault/${WORLD_MAP}`);
-    vi.spyOn(map, 'getBoundingClientRect').mockReturnValue({ left: 100, top: 50, width: 400, height: 200, right: 500, bottom: 250, x: 100, y: 50, toJSON: () => ({}) });
-    fireEvent.click(map, { clientX: 200, clientY: 200, detail: 1 });
-    await waitFor(() => expect(vault.files.get('Q/Crown.md')).toMatch(/place:\n {2}x: 0.25\n {2}y: 0.75/));
-    fireEvent.keyDown(map, { key: 'ArrowRight', shiftKey: true });
-    await waitFor(() => expect(vault.files.get('Q/Crown.md')).toMatch(/x: 0.35/));
-    fireEvent.click(screen.getByRole('button', { name: 'Remove place' }));
-    await waitFor(() => expect(vault.files.get('Q/Crown.md')).not.toContain('place'));
-    fireEvent.keyDown(map, { key: 'Escape' });
-    expect(screen.queryByRole('dialog')).toBeNull();
+  it('places no quest on the world map itself: a pin on the world map scene does', async () => {
+    renderQuests({ 'Q/Crown.md': note('kind: main\nplace: { x: 0.25, y: 0.5 }') });
+    expect(within(rowOf('Crown')).getAllByRole('button').map((button) => button.textContent)).toEqual(['Crown']);
+    await act(async () => {});
   });
 
-  it('offers no place while the campaign has no world map, and no edits for a campaign a newer Atlas wrote', async () => {
-    worldMap.path = null;
+  it('offers no edits for a campaign a newer Atlas wrote', async () => {
     renderQuests({ 'Q/Crown.md': note('kind: main') }, { disabled: true });
-    const trigger = within(rowOf('Crown')).getByRole('button', { name: 'Choose a world map for the campaign first' });
-    expect(trigger.getAttribute('aria-disabled')).toBe('true');
-    fireEvent.click(trigger);
-    expect(screen.queryByRole('dialog')).toBeNull();
     expect((screen.getByRole('button', { name: 'New quest' }) as HTMLButtonElement).disabled).toBe(true);
     expect((screen.getByRole('combobox', { name: 'Status of Crown' }) as HTMLButtonElement).disabled).toBe(true);
     await act(async () => {});

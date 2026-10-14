@@ -16,7 +16,7 @@ import type { WorldMapChoices } from './libraryPictures';
 import { MapArt } from './MapArt';
 import { PartyFaces } from './PartyFaces';
 import { CampaignQuests } from './quests/CampaignQuests';
-import { useWorldMapArtwork } from './quests/useWorldMapImage';
+import { useWorldMapArtwork } from './useWorldMapArtwork';
 import type { PartyFace } from './useCampaignParties';
 import { WorldMapCard } from './WorldMapCard';
 

@@ -1,6 +1,7 @@
 import React, { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { Check, Map } from 'lucide-react';
 import { STANDING_LIST } from '../../../keyboard/tooltipEscape';
+import { useListPlacement } from '../../../packages/components/primitives/selectListPlacement';
 import { cn } from '../../../../utils/cn';
 import { t } from '../../../i18n';
 import type { WorldMapChoice } from './libraryPictures';
@@ -30,18 +31,31 @@ function Thumb({ choice }: { choice: WorldMapChoice }): React.JSX.Element {
   );
 }
 
-/** Picks any map or scene of the library, searched by name, from a list that opens below its trigger. */
+/**
+ * Picks any map or scene of the library, searched by name, from a list that opens below its trigger,
+ * or above it where the page has no room below, and scrolls where neither side holds it whole.
+ */
 export function WorldMapPicker({ choices, value, onChange, labelledBy, disabled, className, triggerClassName, children }: WorldMapPickerProps): React.JSX.Element {
   const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState('');
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
   const listId = useId();
   const searchLabelId = useId();
   const shown = useMemo(() => {
     const words = query.trim().toLowerCase();
     return words === '' ? choices : choices.filter((choice) => choice.name.toLowerCase().includes(words));
   }, [choices, query]);
+
+  // Where it opens is decided as it opens, by all the choices: filtering shortens it, never moves it.
+  const { fit } = useListPlacement(isOpen, triggerRef, popoverRef, null, choices.length);
+
+  // Focused once placed: focusing a field the view's edge cuts would scroll the page to it.
+  useEffect(() => {
+    if (isOpen) searchRef.current?.focus({ preventScroll: true });
+  }, [isOpen]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -96,16 +110,21 @@ export function WorldMapPicker({ choices, value, onChange, labelledBy, disabled,
         {children}
       </button>
       {isOpen && (
-        <div className="world-map-picker__popover" onKeyDown={onListKeyDown}>
+        <div
+          ref={popoverRef}
+          className={cn('world-map-picker__popover', fit.up && 'world-map-picker__popover--up')}
+          style={fit.maxHeight === null ? undefined : { maxHeight: fit.maxHeight }}
+          onKeyDown={onListKeyDown}
+        >
           <span id={searchLabelId} hidden>{t('campaign.searchMaps')}</span>
           <input
+            ref={searchRef}
             className="world-map-picker__search"
             type="search"
             value={query}
             placeholder={t('campaign.searchMaps')}
             aria-labelledby={searchLabelId}
             aria-controls={listId}
-            autoFocus
             onChange={(event) => setQuery(event.target.value)}
           />
           <div id={listId} role="listbox" aria-labelledby={labelledBy} className="world-map-picker__list" {...STANDING_LIST}>

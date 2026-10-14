@@ -2,7 +2,7 @@ import type React from 'react';
 import { useLayoutEffect, useState } from 'react';
 import { getDomHost } from '../../../host/dom';
 import { LIST_FITS, fitList, type ListFit } from './popoverFit';
-import { viewFrame } from './useKeepInView';
+import { clippedViewFrame, viewFrame } from './useKeepInView';
 
 /** Room between a select's trigger and its list (`atlas-select-popover`). */
 export const LIST_GAP = 4;
@@ -34,7 +34,8 @@ export interface ListPlacement {
 
 /**
  * Places an open select's list before paint: above its trigger or shortened
- * where the view's edge would cut it. In a `layer` (an element over the view
+ * where the view's edge, or a page around the trigger that scrolls, would cut
+ * it. In a `layer` (an element over the view
  * that clips nothing) the list is placed by the trigger's box, and placed
  * again while anything scrolls or the window resizes, so a dialog that clips
  * its content never cuts it and opening it moves nothing.
@@ -59,7 +60,8 @@ export function useListPlacement(
     const height = options.offsetHeight;
     const place = (): void => {
       const box = button.getBoundingClientRect();
-      const fit = fitList(box, height, viewFrame(button), LIST_GAP);
+      // A list in a layer floats over everything; one hanging from its trigger is cut by what clips the trigger's page.
+      const fit = fitList(box, height, layer ? viewFrame(button) : clippedViewFrame(button), LIST_GAP);
       setPlacement({ fit, style: layer ? layeredListStyle(box, layer.getBoundingClientRect(), fit) : {} });
     };
     place();

@@ -8,7 +8,7 @@ import { t } from '../../../i18n';
 import type { WorldMapChoice } from './libraryPictures';
 import { MapArt } from './MapArt';
 import { PartyFaces } from './PartyFaces';
-import { useWorldMapArtwork } from './quests/useWorldMapImage';
+import { useWorldMapArtwork } from './useWorldMapArtwork';
 import { formatRelativeTime, type RelativeTimePhrases } from './relativeTime';
 import type { PartyFace } from './useCampaignParties';
 

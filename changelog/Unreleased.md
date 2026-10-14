@@ -56,6 +56,7 @@
 - Rolling initiative adds each creature's modifier from its linked statblock, read from a field you pick in the collection's settings, or from an ability score such as DEX (D&D 5e reads Initiative, else DEX). With a contribution by anacletoTM
 - Auto detect finds the grid of a small map picture, with cells of about ten pixels, where it took four cells for one
 - A grid placed with Freehand stays exactly where and as large as you placed it, on maps with a printed grid too
+- A dropdown list near the bottom of a scrolling panel opens above its button instead of being cut off
 - The note picker of a pin and the right-click menus of pins and drawings open beside them, with Obsidian's left sidebar open too
 - Hovering a token whose note holds its statblock in a code block shows the statblock, not the plain note
 - Measured distances show one decimal place, so a 1.5 m cell reads 1.5 m instead of 2 m

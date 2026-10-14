@@ -21,7 +21,7 @@ export interface FoundHandout {
 }
 
 /** The note a pin's link names, from the map it is on: a path as written, else as Obsidian resolves the link; only Markdown. */
-function noteFile(app: App, linkpath: string, mapPath: string): TFile | null {
+export function noteFile(app: App, linkpath: string, mapPath: string): TFile | null {
   const file = app.vault.getAbstractFileByPath(linkpath) ?? app.metadataCache.getFirstLinkpathDest(linkpath, mapPath);
   return file instanceof TFile && file.extension === 'md' ? file : null;
 }

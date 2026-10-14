@@ -40,7 +40,7 @@ describe('the quests players are sent', () => {
     play.play('c-1');
     const sent = await quests();
     expect(sent.map((quest) => [quest.title, quest.kind, quest.state])).toEqual([['Crown', 'main', 'active'], ['Eggs', 'side', 'open'], ['Old', 'main', 'done']]);
-    expect(sent[0]).toEqual({ id: KEPT, kind: 'main', state: 'active', title: 'Crown', body: 'Find the crown.', place: { x: 0.25, y: 0.5 }, xp: 300, rewards: ['Favour of the King'] });
+    expect(sent[0]).toEqual({ id: KEPT, kind: 'main', state: 'active', title: 'Crown', body: 'Find the crown.', place: null, xp: 300, rewards: ['Favour of the King'] });
     // The page reads them as they are.
     expect(parsePlayerBook({ character: null, worldMap: null, items: [], notes: [], pins: [], quests: sent, purse: [] })?.quests).toEqual(sent);
   });

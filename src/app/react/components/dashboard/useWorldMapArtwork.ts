@@ -1,9 +1,8 @@
 import { useEffect, useState } from 'react';
 import type { App } from 'obsidian';
-import type { Campaign } from '../../../../campaigns/campaignTypes';
-import type { CampaignService } from '../../../../campaigns/CampaignService';
-import { campaignWorldMap } from '../../../../services/worldMap';
-import { resourceUrl } from '../libraryPictures';
+import type { Campaign } from '../../../campaigns/campaignTypes';
+import type { CampaignService } from '../../../campaigns/CampaignService';
+import { campaignWorldMap } from '../../../services/worldMap';
 
 /** A campaign's world map artwork: its vault path, null for none, and whether it is still being read. */
 export interface WorldMapArtwork {
@@ -31,10 +30,4 @@ export function useWorldMapArtwork(app: App, service: CampaignService, campaign:
 
   if (worldMap === undefined) return { path: null, pending: false };
   return read?.key === key ? { path: read.path, pending: false } : { path: null, pending: true };
-}
-
-/** The campaign's world map as an image URL, the artwork players are shown; null while it has none. */
-export function useWorldMapImage(app: App, service: CampaignService, campaign: Pick<Campaign, 'id' | 'worldMap'>): string | null {
-  const { path } = useWorldMapArtwork(app, service, campaign);
-  return path === null ? null : resourceUrl(app, path);
 }

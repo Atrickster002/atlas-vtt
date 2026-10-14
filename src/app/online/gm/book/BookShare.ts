@@ -17,6 +17,7 @@ import { sheetOf } from './bookSheet.ts';
 import { applyBookMessage, EMPTY_BOOK, withItem } from './bookStore.ts';
 import { Characters, type PlayedCharacter } from './characters.ts';
 import type { QuestAsset } from './questGate.ts';
+import { QuestPlaces } from './questPlaces.ts';
 import { checkResourceEdit, type ResourceEdit } from './resourceEdit.ts';
 import type { ResourceAnswer } from './resourceWrites.ts';
 import { NO_QUESTS, sentOf, type SentBook } from './sentBook.ts';
@@ -81,6 +82,7 @@ export class BookShare implements LootRecipientSource {
   private readonly art: ArtRefs;
   private readonly maps: WorldMaps;
   private readonly questList: AskedAnswer<readonly BookQuest[]>;
+  private readonly questPlaces = new QuestPlaces();
   private readonly answers: AssetAnswers;
   private readonly rate = new MoveRate(BOOK_BURST, BOOK_WRITES_PER_SECOND);
   /** The world map as it was last known. */
@@ -138,7 +140,7 @@ export class BookShare implements LootRecipientSource {
     // Being looked up or read: the books go out once both are known, with them.
     if (map === undefined || quests === undefined) return;
     this.worldMap = map;
-    this.quests = quests;
+    this.quests = this.questPlaces.of(quests, map?.questPlaces);
     const scene = this.ports.scene();
     const players = this.ports.players();
     if (scene !== null) this.read(scene, new Set(players.map((player) => player.id)));

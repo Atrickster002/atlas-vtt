@@ -11,7 +11,7 @@ import { describeError } from '../../../utils/errors';
 import { t } from '../../../i18n';
 import type { WorldMapChoices } from './libraryPictures';
 import { MapArt } from './MapArt';
-import type { WorldMapArtwork } from './quests/useWorldMapImage';
+import type { WorldMapArtwork } from './useWorldMapArtwork';
 import { editWorldMap } from './worldMapScene';
 import { WorldMapPicker } from './WorldMapPicker';
 

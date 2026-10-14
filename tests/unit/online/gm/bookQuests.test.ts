@@ -6,7 +6,8 @@ import { applyBookMessage, EMPTY_BOOK, readBooks } from '../../../../src/app/onl
 import { setQuestGate, type QuestAsset } from '../../../../src/app/online/gm/book/questGate.ts';
 import { sha256Hex } from '../../../../src/app/online/gm/assetServe.ts';
 import { FakeSocket, png, workspace } from './fakeTable.ts';
-import { ANA, BEN, BRANNOCH_ART, CAL, delivered, MIRA_ART, ofType, openTable, type OpenTable } from './bookTableHarness.ts';
+import { ANA, BEN, BRANNOCH_ART, CAL, delivered, MIRA_ART, nameWorldMapTree, ofType, openTable, WORLD_MAP, type OpenTable } from './bookTableHarness.ts';
+import { NO_STRETCH } from '../../../../src/app/grid/mapStretch';
 import { advanceSettled as advance } from './settled.ts';
 
 vi.mock('obsidian', () => ({ Notice: class {}, normalizePath: (path: string) => path, requestUrl: () => Promise.resolve({ status: 201, json: null }), PluginSettingTab: class {}, Setting: class {} }));
@@ -23,7 +24,7 @@ vi.mock('../../../../src/app/online/gm/gmMarks.ts', () => ({
 vi.mock('../../../../src/app/online/gm/atlasLighting.ts', async (original) => ({ ...(await original<typeof import('../../../../src/app/online/gm/atlasLighting.ts')>()), accentColour: () => '#112233' }));
 
 const id = (count: number): string => count.toString(16).padStart(24, '0');
-const quest = (count: number, parts: Partial<BookQuest> = {}): BookQuest => ({ id: id(count), kind: 'main', state: 'open', title: `Quest ${count}`, body: 'Find the crown.', place: { x: 0.4, y: 0.6 }, xp: 300, rewards: ['Favour of the King'], ...parts });
+const quest = (count: number, parts: Partial<BookQuest> = {}): BookQuest => ({ id: id(count), kind: 'main', state: 'open', title: `Quest ${count}`, body: 'Find the crown.', place: null, xp: 300, rewards: ['Favour of the King'], ...parts });
 
 /** The quests Atlas answers from the played campaign's notes, and a way to change them as an edit of a note would. */
 let quests: readonly BookQuest[] = [];
@@ -105,6 +106,27 @@ describe('quests at a running table', () => {
     // The same quests again (Atlas hands on the same list while no quest changed) send nothing.
     writeQuests(quests);
     await advance(100);
+    expect(ofType(delivered(table.socket), 'book')).toHaveLength(books);
+    table.online.stop();
+  });
+
+  it('places an active quest where the GM\'s pin on the world map stands, and a quest told, done or failed nowhere', async () => {
+    quests = [quest(1, { state: 'active' }), quest(2), quest(3, { state: 'active' })];
+    const table = await openTable(new BookShelf(), [{ id: ANA, name: 'Ana' }]);
+    // The world map is 1200 by 800: a quest's first pin places it, a pin beyond the image places nothing.
+    const pins = [{ x: 300, y: 400, id: id(1) }, { x: 900, y: 200, id: id(1) }, { x: 600, y: 400, id: id(2) }, { x: 5000, y: 0, id: id(3) }];
+    nameWorldMapTree({ root: 'world', levels: [{ key: 'world', title: 'World', image: WORLD_MAP, stretch: NO_STRETCH, entrances: [], quests: pins }] });
+    await advance(200);
+    expect(lastBook(table, ANA)?.quests.map((sent) => sent.place)).toEqual([{ x: 0.25, y: 0.5 }, null, null]);
+
+    writeQuests([quest(1, { state: 'done' }), quest(2, { state: 'active' }), quest(3, { state: 'active' })]);
+    await advance(200);
+    expect(lastBook(table, ANA)?.quests.map((sent) => sent.place)).toEqual([null, { x: 0.5, y: 0.5 }, null]);
+    const books = ofType(delivered(table.socket), 'book').length;
+    // The same quests and the same pins read again send nothing.
+    writeQuests(quests);
+    nameWorldMapTree({ root: 'world', levels: [{ key: 'world', title: 'World', image: WORLD_MAP, stretch: NO_STRETCH, entrances: [], quests: pins }] });
+    await advance(200);
     expect(ofType(delivered(table.socket), 'book')).toHaveLength(books);
     table.online.stop();
   });

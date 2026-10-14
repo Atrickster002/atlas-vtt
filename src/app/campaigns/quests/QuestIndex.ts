@@ -4,12 +4,11 @@ import { questsOfCampaign, type QuestCampaign } from './questCampaigns';
 import { byQuestOrder, readQuest } from './questProperties';
 import type { Quest } from './questTypes';
 
-/** Whether two readings of a note are the same quest: every field equal (rewards and place by value). */
+/** Whether two readings of a note are the same quest: every field equal (rewards by value). */
 function sameQuest(a: Quest | undefined, b: Quest | undefined): boolean {
   if (a === undefined || b === undefined) return a === b;
   return a.path === b.path && a.title === b.title && a.campaign === b.campaign && a.id === b.id && a.kind === b.kind && a.status === b.status
     && a.experience === b.experience && a.created === b.created && a.modified === b.modified
-    && a.place?.x === b.place?.x && a.place?.y === b.place?.y
     && a.rewards.length === b.rewards.length && a.rewards.every((reward, n) => reward === b.rewards[n]);
 }
 

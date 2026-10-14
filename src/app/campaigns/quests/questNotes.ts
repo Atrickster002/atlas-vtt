@@ -3,13 +3,11 @@ import { ensureFolder, isPathTaken } from '../../plugin/vaultFolders';
 import { freeNamedPath, nameStem } from '../../services/recordFiles/recordNames';
 import { randomHex } from '../../utils/randomHex';
 import { campaignOf, QUEST_ID } from './questProperties';
-import { QUEST_PROPERTY, QUEST_TYPE, type QuestKind, type QuestPlace, type QuestStatus } from './questTypes';
+import { QUEST_PROPERTY, QUEST_TYPE, type QuestKind, type QuestStatus } from './questTypes';
 
 /** The folder of a campaign's quests Atlas creates, inside the campaign's own folder. */
 export const QUESTS_FOLDER = 'quests';
 const FALLBACK_TITLE = 'Quest';
-/** Places are kept to this many decimals: a ten-thousandth of the map is finer than any pin. */
-const PLACE_DECIMALS = 4;
 
 type Frontmatter = Record<string, unknown>;
 
@@ -44,15 +42,6 @@ export async function createQuestNote(app: App, folder: string, campaignId: stri
 
 export function setQuestStatus(app: App, path: string, status: QuestStatus): Promise<boolean> {
   return changeFrontmatter(app, path, (frontmatter) => { frontmatter[QUEST_PROPERTY.status] = status; });
-}
-
-/** Sets where the quest leads on the campaign's world map, or takes the place away (null). */
-export function setQuestPlace(app: App, path: string, place: QuestPlace | null): Promise<boolean> {
-  const round = (share: number): number => Number(Math.min(1, Math.max(0, share)).toFixed(PLACE_DECIMALS));
-  return changeFrontmatter(app, path, (frontmatter) => {
-    if (place === null) delete frontmatter[QUEST_PROPERTY.place];
-    else frontmatter[QUEST_PROPERTY.place] = { x: round(place.x), y: round(place.y) };
-  });
 }
 
 /**

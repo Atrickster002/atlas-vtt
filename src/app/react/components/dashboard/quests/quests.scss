@@ -3,7 +3,7 @@
 @use '../campaign-controls' as *;
 
 // The quests of a campaign's page (CampaignQuests.tsx): the campaign's quest notes, grouped, each
-// row with its status, its name and its place on the world map.
+// row with its status and its name.
 
 $quest-status-width: 112px;
 

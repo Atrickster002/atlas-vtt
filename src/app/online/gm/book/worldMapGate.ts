@@ -9,6 +9,14 @@ export interface WorldMapEntrance {
   readonly to: string;
 }
 
+/** A quest the GM's pin places, where the pin stands: a point of the scene's world. */
+export interface WorldMapQuest {
+  readonly x: number;
+  readonly y: number;
+  /** The quest's id (`atlas-id` of its note). */
+  readonly id: string;
+}
+
 /** One map players may be shown: the world map, or a map its pins lead into. */
 export interface WorldMapLevel {
   /** The map's or scene's asset id. It is never sent. */
@@ -19,6 +27,8 @@ export interface WorldMapLevel {
   /** How its scene draws the image, whose world its entrances stand in; a map without a scene draws it as it is. */
   readonly stretch: MapStretch;
   readonly entrances: readonly WorldMapEntrance[];
+  /** The quests its pins place, by the pins that link their notes; none where no pin links a quest. */
+  readonly quests?: readonly WorldMapQuest[];
 }
 
 /** The world map and every map its pins lead into, however deep: `root` is the key of the world map, `levels` hold it first and each map once. */

@@ -2,7 +2,8 @@
 @use '../../../../../styles/mixins' as *;
 
 // The world map picker of a campaign's page (WorldMapPicker.tsx): a list whose options carry a
-// thumbnail, searched by name, opening below the trigger the world map card gives it.
+// thumbnail, searched by name, opening below the trigger the world map card gives it (above it where
+// the page has no room below).
 
 $picker-thumb-inset: 3px;
 
@@ -44,6 +45,13 @@ $picker-thumb-inset: 3px;
   max-height: 360px;
   padding: $spacing-xs;
   transform-origin: top right;
+}
+
+// Above the trigger, where the page leaves no room below (`useListPlacement`).
+.world-map-picker__popover--up {
+  top: auto;
+  bottom: calc(100% + #{$spacing-xs});
+  transform-origin: bottom right;
 }
 
 .world-map-picker__search {

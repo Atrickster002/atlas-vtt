@@ -1,4 +1,4 @@
-import { MAX_BOOK_MAPS, MAX_MAP_ENTRANCES, MAX_MAP_TITLE, type BookNestedMap, type BookWorldMap, type MapEntrance } from '../../protocol/index.ts';
+import { MAX_BOOK_MAPS, MAX_MAP_ENTRANCES, MAX_MAP_TITLE, type BookNestedMap, type BookWorldMap, type MapEntrance, type MapPlace } from '../../protocol/index.ts';
 import { worldToImage } from '../../../grid/mapStretch';
 import { clippedLine } from './bookTexts.ts';
 import type { MapImage } from './mapImages.ts';
@@ -12,6 +12,8 @@ export interface WorldMapFile {
   readonly map: BookWorldMap;
   /** The vault path of each image it shows, by hash. */
   readonly paths: ReadonlyMap<string, string>;
+  /** Where the GM's pins place quests on the world map, by quest id: the first pin of each that lies on the image. Never sent as such. */
+  readonly questPlaces: ReadonlyMap<string, MapPlace>;
 }
 
 /** The levels players reach from the world map, nearest first: only through maps that have an image, `MAX_BOOK_MAPS` of them besides the world map. */
@@ -33,17 +35,35 @@ function reachable(tree: WorldMapTree, images: ReadonlyMap<string, MapImage | nu
   return found;
 }
 
+/** A point of a level's world as shares of its image, or null where it lies off the image. */
+function shareOf(point: { readonly x: number; readonly y: number }, level: WorldMapLevel, image: MapImage): MapPlace | null {
+  const size = { width: image.width, height: image.height };
+  const pixel = worldToImage(point, size, level.stretch);
+  const x = pixel.x / size.width;
+  const y = pixel.y / size.height;
+  return x >= 0 && x <= 1 && y >= 0 && y <= 1 ? { x, y } : null;
+}
+
+/** Where a level's pins place quests, as shares of its image, by quest id: each quest at its first pin on the image. */
+function questPlacesOf(level: WorldMapLevel, image: MapImage): Map<string, MapPlace> {
+  const places = new Map<string, MapPlace>();
+  for (const quest of level.quests ?? []) {
+    if (places.has(quest.id)) continue;
+    const place = shareOf(quest, level, image);
+    if (place !== null) places.set(quest.id, place);
+  }
+  return places;
+}
+
 /** A level's entrances as shares of its image, to maps players reach, each once on its place and never to itself. */
 function entrancesOf(level: WorldMapLevel, image: MapImage, shown: ReadonlyMap<string, { readonly id: string; readonly title: string }>): MapEntrance[] {
   const entrances: MapEntrance[] = [];
-  const size = { width: image.width, height: image.height };
   for (const entrance of level.entrances) {
     const target = shown.get(entrance.to);
     if (target === undefined || entrance.to === level.key) continue;
-    const pixel = worldToImage(entrance, size, level.stretch);
-    const x = pixel.x / size.width;
-    const y = pixel.y / size.height;
-    if (!(x >= 0 && x <= 1 && y >= 0 && y <= 1)) continue;
+    const place = shareOf(entrance, level, image);
+    if (place === null) continue;
+    const { x, y } = place;
     if (entrances.some((known) => known.to === target.id && known.x === x && known.y === y)) continue;
     entrances.push({ x, y, to: target.id, title: target.title });
     if (entrances.length === MAX_MAP_ENTRANCES) break;
@@ -78,5 +98,5 @@ export function worldMapOf(tree: WorldMapTree, ids: ReadonlyMap<string, string>,
   }
   const entrances = entrancesOf(root, rootImage, shown);
   const map: BookWorldMap = { image: rootImage.image, width: rootImage.width, height: rootImage.height, ...(maps.length > 0 && { id: rootId, entrances, maps }) };
-  return { map, paths };
+  return { map, paths, questPlaces: questPlacesOf(root, rootImage) };
 }
