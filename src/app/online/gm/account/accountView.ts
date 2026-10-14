@@ -67,11 +67,6 @@ export function noticeText(notice: SignedOutNotice): string | null {
 
 const PLAN_NAMES: Readonly<Record<string, string>> = { beta: 'Early access', free: 'Free', host: 'Host', staff: 'Staff' };
 
-/** The plan as a short tag beside the menu's title; none for the ordinary plan, which needs no word. */
-export function planTag(access: HostAccess): string | null {
-  return access.plan === 'host' ? null : PLAN_NAMES[access.plan] ?? access.plan;
-}
-
 /** The plan in words: "Early access · up to 12 players". */
 export function planText(access: HostAccess): string {
   const players = access.maxPlayers === 1 ? '1 player' : `${access.maxPlayers} players`;

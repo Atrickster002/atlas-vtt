@@ -41,7 +41,7 @@ describe('the online menu before a table runs', () => {
   it('asks a signed-out GM to sign in, and offers nothing that takes a key', () => {
     const shown = menu({}, { kind: 'signed-out', notice: null });
     expect(shown.lines).toEqual(['Online play', 'Players see this map in their browsers and move their own tokens.']);
-    expect(shown.layer.querySelector('.atlas-online-tag')).toBeNull();
+    expect(shown.layer.querySelector('.atlas-online-handle')).toBeNull();
     expect(shown.buttons).toEqual(['Sign in to host']);
     expect(shown.layer.querySelector('input, form')).toBeNull();
   });
@@ -56,8 +56,9 @@ describe('the online menu before a table runs', () => {
     };
     for (const reason of ACCESS_REFUSALS) {
       const shown = menu({}, { kind: 'no-access', account: MARA, reason });
-      expect(shown.lines, reason).toEqual(['Online play', sentences[reason], 'Signed in as Mara (@mara)']);
-      expect(shown.buttons, reason).toEqual(['Open account page', 'Sign out']);
+      expect(shown.lines, reason).toEqual(['Online play', sentences[reason]]);
+      expect(shown.layer.querySelector('.atlas-online-title-row .atlas-online-handle')?.textContent, reason).toBe('@mara');
+      expect(shown.buttons, reason).toEqual(['Sign out', 'Open account page']);
       expect(shown.layer.querySelector('input, form'), reason).toBeNull();
       shown.press('Open account page');
       expect(shown.does.openAccountPage).toHaveBeenCalledTimes(1);
@@ -66,14 +67,12 @@ describe('the online menu before a table runs', () => {
     expect(menu({}, { kind: 'no-access', account: MARA, reason: null }).lines[1]).toBe('This account may not host online tables now. See your account page.');
   });
 
-  it('offers Start to an account the relay says may host, with its plan as a small tag beside the title and no more words', () => {
+  it('offers Start to an account the relay says may host, with its handle beside the title and no more words', () => {
     const shown = menu({}, CAN_HOST);
-    expect(shown.lines).toEqual(['Online play', 'Signed in as Mara (@mara)']);
-    expect(shown.layer.querySelector('.atlas-online-title-row .atlas-online-tag')?.textContent).toBe('Early access');
-    // The ordinary plan needs no word; the others say theirs.
-    expect(menu({}, { ...CAN_HOST, access: { plan: 'host', maxPlayers: 12, endsAt: null } }).layer.querySelector('.atlas-online-tag')).toBeNull();
-    expect(menu({}, { ...CAN_HOST, access: { plan: 'free', maxPlayers: 2, endsAt: null } }).layer.querySelector('.atlas-online-tag')?.textContent).toBe('Free');
+    expect(shown.lines).toEqual(['Online play']);
+    expect(shown.layer.querySelector('.atlas-online-title-row .atlas-online-handle')?.textContent).toBe('@mara');
     expect(shown.buttons).toEqual(['Sign out', 'Start online table']);
+    expect(shown.layer.querySelector('.atlas-online-actions > .atlas-online-button--ghost')?.textContent).toBe('Sign out');
     shown.press('Start online table');
     expect(shown.does.start).toHaveBeenCalledTimes(1);
   });
@@ -91,8 +90,8 @@ describe('the online menu before a table runs', () => {
     }
     // Once the relay named the reason, its sentence stands beside it, and the page is offered once.
     const named = menu({ status: 'refused', lost }, { kind: 'no-access', account: MARA, reason: 'access-ended' });
-    expect(named.lines).toEqual(['Online play', sentence, 'Your access to online play has ended. See your account page.', 'Signed in as Mara (@mara)']);
-    expect(named.buttons).toEqual(['Open account page', 'Sign out']);
+    expect(named.lines).toEqual(['Online play', sentence, 'Your access to online play has ended. See your account page.']);
+    expect(named.buttons).toEqual(['Sign out', 'Open account page']);
     expect(named.layer.querySelector('[role="alert"]')?.textContent).toBe(sentence);
   });
 
