@@ -18,6 +18,8 @@ interface UvttFloorsDialogProps {
 
 /** A floor as the dialog edits it: the name typed, and the one suggested for an empty field. */
 interface FloorDraft {
+  /** Stays with the floor while it moves, so its row keeps focus; file names may repeat. */
+  key: number;
   floor: UvttFloor;
   name: string;
   suggested: string;
@@ -41,7 +43,7 @@ export function UvttFloorsDialog({ request, onChoose }: UvttFloorsDialogProps): 
   const dialogRef = useRef<HTMLDivElement>(null);
   const [sceneName, setSceneName] = useState(request.sceneName);
   // Bottom first, as levels are stored; listed top first
-  const [floors, setFloors] = useState<FloorDraft[]>(() => request.floors.map((floor) => ({ floor, name: floor.name, suggested: floor.name })));
+  const [floors, setFloors] = useState<FloorDraft[]>(() => request.floors.map((floor, key) => ({ key, floor, name: floor.name, suggested: floor.name })));
   const cancel = (): void => onChoose(null);
   useDialogEscape(dialogRef, cancel);
 
@@ -98,7 +100,7 @@ export function UvttFloorsDialog({ request, onChoose }: UvttFloorsDialogProps): 
               {listed.map(({ draft, index }) => {
                 const name = draft.name.trim() || draft.suggested;
                 return (
-                  <li key={draft.floor.source.fileName + index} className="atlas-uvtt-floors__floor">
+                  <li key={draft.key} className="atlas-uvtt-floors__floor">
                     <div className="atlas-uvtt-floors__names">
                       <input
                         type="text"
