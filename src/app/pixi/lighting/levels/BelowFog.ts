@@ -24,14 +24,23 @@ export class BelowFog {
 
   constructor(private readonly onChange: () => void) {}
 
-  /** Composes `operations` over a level of `bounds`, keyed by `mapKey` (`levelMapKey`); the same operations and bounds again do nothing. */
+  /**
+   * Composes `operations` over a level of `bounds`, keyed by `mapKey` (`levelMapKey`); the same
+   * operations and bounds again do nothing. A level without fog holds no canvas: on a large map one
+   * takes 64 MB.
+   */
   sync(operations: Readonly<Record<string, FogOperation>>, bounds: { width: number; height: number }, mapKey: string | null): void {
-    const sized = this.size(bounds);
+    const empty = Object.keys(operations).length === 0;
+    const sized = !empty && this.size(bounds);
     if (!sized && operations === this.operations && mapKey === this.mapKey) return;
     this.operations = operations;
     this.mapKey = mapKey;
-    this.compositor!.composite(operations);
-    this.texture!.source.update();
+    if (empty) {
+      this.release();
+    } else {
+      this.compositor!.composite(operations);
+      this.texture!.source.update();
+    }
     this.onChange();
   }
 
@@ -41,10 +50,17 @@ export class BelowFog {
   }
 
   destroy(): void {
+    this.release();
+    destroyTree(this.view);
+  }
+
+  /** Lets go of the canvas and its texture. */
+  private release(): void {
     this.view.texture = Texture.EMPTY;
     this.texture?.destroy(true);
     this.compositor?.destroy();
-    destroyTree(this.view);
+    this.texture = null;
+    this.compositor = null;
   }
 
   /** A compositor of the level's size; true where it was made anew. */
@@ -52,9 +68,7 @@ export class BelowFog {
     const bounds: FogBounds = { x: 0, y: 0, width, height };
     const current = this.compositor?.getBounds();
     if (current && current.width === width && current.height === height) return false;
-    this.view.texture = Texture.EMPTY;
-    this.texture?.destroy(true);
-    this.compositor?.destroy();
+    this.release();
     this.compositor = new FogCanvasCompositor(bounds, FOG_SCALE, this.cache, () => this.mapKey);
     this.texture = Texture.from(this.compositor.getCanvas());
     this.view.texture = this.texture;
