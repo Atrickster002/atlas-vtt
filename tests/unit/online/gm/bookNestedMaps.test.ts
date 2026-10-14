@@ -32,7 +32,7 @@ const SECRET = 'atlas-vtt/collections/Cairn/maps/Secret.png';
 const TREE: WorldMapTree = {
   root: 'world',
   levels: [
-    { key: 'world', title: 'The Wide World', image: WORLD_MAP, stretch: NO_STRETCH, entrances: [{ x: 600, y: 200, to: 'town' }, { x: 5000, y: 200, to: 'town' }] },
+    { key: 'world', title: 'The Wide World', image: WORLD_MAP, stretch: NO_STRETCH, entrances: [{ x: 600, y: 200, to: 'town', icon: 'castle' }, { x: 5000, y: 200, to: 'town' }] },
     { key: 'town', title: 'Lowmoor', image: TOWN, stretch: { x: 1.5, y: 1 }, entrances: [{ x: 300, y: 100, to: 'inn' }, { x: 30, y: 30, to: 'world' }, { x: 60, y: 60, to: 'town' }] },
     { key: 'inn', title: 'The Inn', image: INN, stretch: NO_STRETCH, entrances: [{ x: 10, y: 10, to: 'cellar' }] },
     { key: 'cellar', title: 'Cellar', image: CELLAR, stretch: NO_STRETCH, entrances: [] },
@@ -80,7 +80,8 @@ describe('the maps the world map leads into', () => {
     const [town, inn] = map.maps ?? [];
     expect(map.maps?.map((each) => each.title)).toEqual(['Lowmoor', 'The Inn']);
     // On the world map 600 of 1200 is the middle; one pin beyond the image is no entrance.
-    expect(map.entrances).toEqual([{ x: 0.5, y: 0.25, to: town?.id, title: 'Lowmoor' }]);
+    // With the face of the GM's pin, so players see the pin the GM placed.
+    expect(map.entrances).toEqual([{ x: 0.5, y: 0.25, to: town?.id, title: 'Lowmoor', icon: 'castle' }]);
     // Lowmoor's scene draws its map half as wide again, so 300 of its world is 200 of 400 pixels; a pin back to the world map leads there, one to itself nowhere.
     expect(town?.entrances).toEqual([{ x: 0.5, y: 0.5, to: inn?.id, title: 'The Inn' }, { x: 0.05, y: 0.15, to: map.id, title: 'The Wide World' }]);
     // The cellar has no image: neither it nor the way into it is sent.

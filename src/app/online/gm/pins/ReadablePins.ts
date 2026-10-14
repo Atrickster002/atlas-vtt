@@ -1,13 +1,12 @@
 import { MAX_COORDINATE, MAX_SHARED_PINS, type SharedPin } from '../../protocol/index.ts';
 import type { FogCoverage } from '../../../fog/fogCoverage';
 import { hexLayoutOfGrid, pinDisplayPoint } from '../../../grid/hexLinks';
-import { isPinLabelKind } from '../../../tools/pinLabels';
 import { linksReadableNote } from '../../../tools/pinNoteLink';
 import type { NotePin } from '../../../types';
-import { resolvePinIcon } from '../../../types/pinIcons';
 import type { Point } from '../../../types/visionTypes';
 import type { SceneState } from '../atlasView.ts';
 import { levelObjects } from '../../../levels/levelObjects';
+import { sentPinFace } from './sentPinFace.ts';
 
 /** A readable pin players see now: the GM's pin, the place they see it at and the alias they know it by. */
 export interface ListedPin {
@@ -61,8 +60,7 @@ export class ReadablePins {
   /** The pins as players are sent them, each with the entry of the log that tells who found it. */
   shared(listed: readonly ListedPin[], found: (pinId: string) => string | null): SharedPin[] {
     return listed.map(({ pin, place, alias }) => {
-      const icon = resolvePinIcon(pin.icon);
-      return { id: alias, x: place.x, y: place.y, icon: isPinLabelKind(icon) ? 'pin' : icon, found: found(pin.id) };
+      return { id: alias, x: place.x, y: place.y, ...sentPinFace(pin), found: found(pin.id) };
     });
   }
 

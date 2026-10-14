@@ -65,7 +65,7 @@ function entrancesOf(level: WorldMapLevel, image: MapImage, shown: ReadonlyMap<s
     if (place === null) continue;
     const { x, y } = place;
     if (entrances.some((known) => known.to === target.id && known.x === x && known.y === y)) continue;
-    entrances.push({ x, y, to: target.id, title: target.title });
+    entrances.push({ x, y, to: target.id, title: target.title, ...(entrance.icon !== undefined && { icon: entrance.icon }), ...(entrance.label !== undefined && { label: entrance.label }) });
     if (entrances.length === MAX_MAP_ENTRANCES) break;
   }
   return entrances;

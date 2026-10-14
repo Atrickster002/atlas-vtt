@@ -7,6 +7,9 @@ export interface WorldMapEntrance {
   readonly y: number;
   /** The key of the map it opens (`WorldMapLevel.key`). */
   readonly to: string;
+  /** The face of the GM's pin (`sentPinFace`): players see the pin the GM placed. */
+  readonly icon?: string;
+  readonly label?: string;
 }
 
 /** A quest the GM's pin places, where the pin stands: a point of the scene's world. */

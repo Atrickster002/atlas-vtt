@@ -1,6 +1,7 @@
 import { isSide, parseAsset, type AssetRef } from './asset.ts';
 import { MAX_MAP_TITLE, type MapPlace } from './bookMap.ts';
 import { bookLine } from './bookText.ts';
+import { pinIconField, pinLabelField } from './mapLayers.ts';
 import { isRecord } from './shape.ts';
 
 /** The most maps the world map leads into, however deep, and the most entrances one map shows. */
@@ -10,10 +11,16 @@ export const MAX_MAP_ENTRANCES = 24;
 /** A map's id: 96 bits in hex, made by the GM for each map the world map leads into. */
 export const isMapId = (value: unknown): value is string => typeof value === 'string' && /^[0-9a-f]{24}$/.test(value);
 
-/** A way from one map into another: where it stands (shares of its map's sides), the map it opens and that map's name. */
+/**
+ * A way from one map into another: where it stands (shares of its map's sides), the map it opens and
+ * that map's name, and the face of the GM's pin it stands for (its icon as Atlas names it, the label of
+ * a numbered or lettered pin), so players see the pin the GM placed.
+ */
 export interface MapEntrance extends MapPlace {
   readonly to: string;
   readonly title: string;
+  readonly icon?: string;
+  readonly label?: string;
 }
 
 /** A map the world map leads into through the GM's pins: an image by hash, its size in pixels, its name and its own entrances. */
@@ -31,7 +38,7 @@ const isShare = (value: unknown): value is number => typeof value === 'number' &
 export function parseMapEntrance(value: unknown): MapEntrance | null {
   if (!isRecord(value) || !isShare(value.x) || !isShare(value.y) || !isMapId(value.to)) return null;
   const title = bookLine(value.title, MAX_MAP_TITLE);
-  return title === null ? null : { x: value.x, y: value.y, to: value.to, title };
+  return title === null ? null : { x: value.x, y: value.y, to: value.to, title, ...pinIconField(value.icon), ...pinLabelField(value.label) };
 }
 
 /** A map's entrances: none named is none, one that cannot be read is left out; null for a list that is no list or too long. */

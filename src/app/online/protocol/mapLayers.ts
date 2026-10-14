@@ -14,6 +14,14 @@ export const MAX_TEXT_LENGTH = 2_000;
 export const MAX_FONT_NAME = 100;
 /** A stamp's icon: the key Atlas names it by. */
 const ICON_PATTERN = /^[a-z0-9-]{1,40}$/;
+/** A numbered or lettered pin's label, as Atlas gives one: digits, or capitals. */
+const PIN_LABEL_PATTERN = /^(?:[0-9]{1,6}|[A-Z]{1,6})$/;
+
+/** A GM's pin's icon as Atlas names it, as a field to spread; none where there is none or it cannot be read. */
+export const pinIconField = (value: unknown): { icon?: string } => (typeof value === 'string' && ICON_PATTERN.test(value) ? { icon: value } : {});
+
+/** A numbered or lettered pin's label, as a field to spread; none where there is none or it cannot be read. */
+export const pinLabelField = (value: unknown): { label?: string } => (typeof value === 'string' && PIN_LABEL_PATTERN.test(value) ? { label: value } : {});
 /** A font family as a text names it: names, quotes, commas and spaces only. */
 const FONT_PATTERN = /^[\p{L}\p{N} ,'"_-]*$/u;
 
@@ -80,14 +88,16 @@ export interface SharedText {
 
 /**
  * A pin the GM made readable, where the players see the map now: its place, its icon (the key Atlas
- * names it by), and the log entry that tells who found it (null until someone did). `id` is an alias,
- * never the pin's id in the GM's scene, and nothing of its note comes with it.
+ * names it by), the label of a numbered or lettered pin, and the log entry that tells who found it
+ * (null until someone did). `id` is an alias, never the pin's id in the GM's scene, and nothing of its
+ * note comes with it.
  */
 export interface SharedPin {
   readonly id: string;
   readonly x: number;
   readonly y: number;
   readonly icon: string;
+  readonly label?: string;
   readonly found: string | null;
 }
 
@@ -208,7 +218,7 @@ export function parsePins(value: unknown): SharedPin[] | null {
   for (const pin of value) {
     if (!isRecord(pin) || !isAlias(pin.id) || !isPlace(pin.x) || !isPlace(pin.y) || typeof pin.icon !== 'string' || !ICON_PATTERN.test(pin.icon)) return null;
     if (pin.found !== null && !isAlias(pin.found)) return null;
-    pins.push({ id: pin.id, x: pin.x, y: pin.y, icon: pin.icon, found: pin.found });
+    pins.push({ id: pin.id, x: pin.x, y: pin.y, icon: pin.icon, ...pinLabelField(pin.label), found: pin.found });
   }
   return pins;
 }

@@ -110,6 +110,15 @@ describe('readable pins players are sent', () => {
     expect(parseGmMessage(ofKindLast(shown()))).not.toBeNull();
   });
 
+  it('send each pin with the face the GM sees: its icon, and the label of a numbered or lettered pin', async () => {
+    const { shown } = await table({
+      keep: pin('keep', 300, { icon: 'castle' }), room: pin('room', 400, { icon: 'number', label: '7' }), bare: pin('bare', 500, { icon: 'letter' }),
+    });
+    const faces = shown().map(({ icon, label }) => ({ icon, label }));
+    expect(faces).toEqual(expect.arrayContaining([{ icon: 'castle', label: undefined }, { icon: 'number', label: '7' }, { icon: 'pin', label: undefined }]));
+    expect(parseGmMessage(ofKindLast(shown()))).not.toBeNull();
+  });
+
   it('in a lit scene send only the pins where the players see the map now, as door badges', async () => {
     const { shown } = await table({ near: pin('near', 500), behind: pin('behind', 900) }, true);
     expect(shown().map((listed) => listed.x)).toEqual([500]);

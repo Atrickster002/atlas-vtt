@@ -4,6 +4,7 @@ import { hexLayoutOfGrid, pinDisplayPoint } from '../grid/hexLinks';
 import { t } from '../i18n';
 import type { WorldMapEntrance, WorldMapLevel, WorldMapQuest, WorldMapTree } from '../online/gm/book/worldMapGate.ts';
 import { noteFile } from '../online/gm/pins/foundNotes.ts';
+import { sentPinFace } from '../online/gm/pins/sentPinFace.ts';
 import { readQuest } from '../campaigns/quests/questProperties';
 import { linksReadableNote, pinNoteLink } from '../tools/pinNoteLink';
 import type { NotePin } from '../types';
@@ -143,7 +144,7 @@ class TreeReader {
       const target = await this.target(mapPath, pin);
       const to = target === null ? key : keyOf(target);
       if (target === null || to === key) continue;
-      entrances.push({ x: point.x, y: point.y, to });
+      entrances.push({ x: point.x, y: point.y, to, ...sentPinFace(pin) });
       if (!leadsTo.some((known) => keyOf(known) === to)) leadsTo.push(target);
     }
     return { level: { key, title, image, stretch: placement, entrances, ...(quests.length > 0 && { quests }) }, leadsTo };
