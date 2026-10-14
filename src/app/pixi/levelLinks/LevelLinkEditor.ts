@@ -108,7 +108,9 @@ export class LevelLinkEditor extends PolygonAreaEditor<LevelLink> {
     return this.view.visible ? shownLinks(this.deps.store.getState()) : [];
   }
 
+  /** The popover goes with the editor: a renderer built anew over the same store must not find it open. */
   override destroy(): void {
+    if (this.deps.store.getState().levelLinkPopover !== null) this.deps.store.getState().closeLevelLinkPopover();
     this.themeWatch.disconnect();
     this.stopFollowing();
     super.destroy();

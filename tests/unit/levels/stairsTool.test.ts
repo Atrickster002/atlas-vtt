@@ -10,6 +10,9 @@ import type { LevelLink, SceneLevel } from '../../../src/app/types/sceneLevelTyp
 import type { TokenEntity } from '../../../src/app/types';
 import type { ContextMenuEntry } from '../../../src/app/react/root/ContextMenuContext';
 import { createInMemoryApp } from '../../mocks/inMemoryVault';
+import { EventEmitter } from 'events';
+import type { App } from 'obsidian';
+import { onLeavingView } from '../../../src/app/pixi/viewLeaving';
 import { stubJsdomGraphics } from '../../mocks/jsdomGraphics';
 
 const menus = vi.hoisted(() => ({ opened: [] as { entries: ContextMenuEntry[]; onClose?: (() => void) | undefined }[] }));
@@ -46,14 +49,14 @@ function sceneStore(links: Record<string, LevelLink> = {}, tokens: Record<string
   return store;
 }
 
-function editorFor(store: ViewAtlasStore): LevelLinkEditor {
+function editorFor(store: ViewAtlasStore, { destroyedByTest = false } = {}): LevelLinkEditor {
   const restore = stubJsdomGraphics();
   const canvas = document.createElement('canvas');
   const viewport = new Viewport({ screenWidth: 800, screenHeight: 600, events: { domElement: canvas } as unknown as EventSystem });
   const full = vi.fn();
   const editor = new LevelLinkEditor({ viewport, canvas, store, onFull: full });
   cleanups.push(() => {
-    editor.destroy();
+    if (!destroyedByTest) editor.destroy();
     viewport.destroy();
     restore();
   });
@@ -96,6 +99,55 @@ describe('the stairs tool', () => {
     expect(store.getState().levelLinkPopover).toBeNull();
     store.setState({ levels: undefined });
     expect(store.getState().activeTool).toBe('move');
+  });
+});
+
+describe('the stairs popover', () => {
+  function openStairs(destroyedByTest = false): { store: ViewAtlasStore; editor: LevelLinkEditor } {
+    const store = sceneStore({ stairs: { id: 'stairs', kind: 'level-link', polygon: SQUARE, levels: ['ground', 'upper'] } });
+    const editor = editorFor(store, { destroyedByTest });
+    store.getState().setActiveTool('stairs');
+    store.getState().openLevelLinkPopover('stairs');
+    return { store, editor };
+  }
+
+  it('closes when its view unloads its scene or another Obsidian tab comes to the front by a key', () => {
+    const { store, editor } = openStairs();
+    const eventBus = new EventEmitter();
+    let leafChange: ((leaf: unknown) => void) | undefined;
+    const viewLeaf = { view: { viewId: 'view' } };
+    const workspace = {
+      on: (_event: string, handler: (leaf: unknown) => void) => {
+        leafChange = handler;
+        return handler;
+      },
+      offref: vi.fn(),
+      getLeavesOfType: (type: string) => (type === 'atlas-vtt' ? [viewLeaf] : []),
+    };
+    const stop = onLeavingView({ eventBus, obsApp: { workspace } as unknown as App, viewId: 'view' }, () => editor.stop());
+
+    leafChange!(viewLeaf);
+    expect(store.getState().levelLinkPopover).toBe('stairs');
+    leafChange!({ view: {} });
+    expect(store.getState().levelLinkPopover).toBeNull();
+
+    store.getState().openLevelLinkPopover('stairs');
+    eventBus.emit('map-unloading');
+    expect(store.getState().levelLinkPopover).toBeNull();
+    stop();
+    expect(eventBus.listenerCount('map-unloading')).toBe(0);
+    expect(workspace.offref).toHaveBeenCalledOnce();
+  });
+
+  it('closes when another scene loads, and when its editor goes with the renderer', () => {
+    const { store, editor } = openStairs(true);
+    store.getState().setMapLoading(true, 0, 'Loading');
+    expect(store.getState().levelLinkPopover).toBeNull();
+
+    store.getState().setMapLoading(false);
+    store.getState().openLevelLinkPopover('stairs');
+    editor.destroy();
+    expect(store.getState().levelLinkPopover).toBeNull();
   });
 });
 

@@ -19,6 +19,7 @@ import { PinRenderer } from "./pixi/PinRenderer"; // Import PinRenderer
 import { HexLinkRenderer } from "./pixi/hexLinks/HexLinkRenderer";
 import { HexLinkInteraction } from "./pixi/hexLinks/HexLinkInteraction";
 import { LevelLinkEditor } from "./pixi/levelLinks/LevelLinkEditor";
+import { onLeavingView } from "./pixi/viewLeaving";
 import { linkedSceneLevels } from "./services/linkedSceneLevels";
 import type { SceneLevel } from "./types/sceneLevelTypes";
 import { MAX_LEVEL_LINKS } from "./levels/levelLinks";
@@ -406,6 +407,8 @@ export class PixiRendererOrchestrator { // Renamed class
         store: this.store,
         onFull: () => showNotice(t('levels.stairsFull', { count: MAX_LEVEL_LINKS })),
       });
+      const stairs = this.levelLinks;
+      this.eventBusUnsubscribers.push(onLeavingView({ eventBus: this.eventBus, obsApp: this.obsApp, viewId: this.viewId }, () => stairs.stop()));
     }
 
     this.selectionManager = new SelectionManager(

@@ -7,6 +7,7 @@ import type { HeldTokens } from '../../../../src/app/types/viewUIState';
 import type { StoreApi } from 'zustand';
 import { PlayerMoves, type MoveState, type MoveStore } from '../../../../src/app/online/gm/playerMoves.ts';
 import { token } from './shareHarness.ts';
+import type { StairsTaken } from '../../../../src/app/online/gm/stairsTaken.ts';
 
 /** The actions of Atlas's view store these tests use, besides what player moves read. */
 export type ViewState = MoveState & Pick<AtlasViewState, 'objects'> & {
@@ -44,6 +45,8 @@ export interface Table {
   readonly history: StoreApi<HistoryState>;
   readonly moves: PlayerMoves;
   readonly sent: { readonly body: GmMessage; readonly to: string }[];
+  /** What the GM was told of players' tokens that took stairs. */
+  readonly taken: StairsTaken[];
 }
 
 /**
@@ -62,13 +65,15 @@ export function table(createViewAtlasStore: StoreFactory, walls: () => MoveWalls
   if (history === null) throw new Error('the store has no history');
   history.getState().clear();
   const sent: Table['sent'] = [];
+  const taken: StairsTaken[] = [];
   const moves = new PlayerMoves(store, {
     context: () => ({ scene: SCENE, listedToken: (alias) => LISTED.get(alias), ownerOf: (id) => OWNERS[id], map: { width: 2000, height: 1500 }, walls: walls() }),
     send: (body, to) => sent.push({ body, to }),
     now: () => Date.now(),
     setTimer: (run, ms) => setTimeout(run, ms) as unknown as number,
     clearTimer: (timer) => clearTimeout(timer),
+    tookStairs: (stairs) => taken.push(...stairs),
   });
   moves.start();
-  return { store, history, moves, sent };
+  return { store, history, moves, sent, taken };
 }
