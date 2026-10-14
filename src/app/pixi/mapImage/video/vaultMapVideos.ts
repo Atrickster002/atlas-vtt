@@ -14,7 +14,10 @@ export function vaultMapVideos(app: App, service: MapImageService, renderer: Ren
   return {
     open: async (file) => openVideoElement(canvas.ownerDocument, await app.vault.readBinary(file), videoMimeType(file.path)),
     maxTextureSize: () => maxTextureSide(renderer),
-    reportStill: (file, problem) => service.reportVideoStill(file, problem),
+    // A video deleted since its map was shown is no video that failed: the scene shows the missing map once it loads again.
+    reportStill: (file, problem) => {
+      if (app.vault.getFileByPath(file.path)) service.reportVideoStill(file, problem);
+    },
   };
 }
 
