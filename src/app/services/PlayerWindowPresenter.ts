@@ -12,7 +12,8 @@ import { PlayerWindowService } from './PlayerWindowService';
 import { presentedSceneOf, readPresentedScene, type PresentedScene, type PresentedSceneStore } from './presentedScene';
 import { rendersOnChange, requestRender, setBeforeRender } from '../pixi/RenderScheduler';
 import { showNotice } from '../ui/notice';
-import { hasLevels, resolveLevel, viewedLevelId } from '../levels/sceneLevels';
+import { hasLevels, levelById, resolveLevel, viewedLevelId } from '../levels/sceneLevels';
+import { levelLabel } from '../react/components/levels/levelEditing';
 import { showsPresentedLevel } from './presentedLevel';
 import { MapController } from '../MapController';
 
@@ -74,7 +75,14 @@ export async function presentTab(app: App, view: AtlasView, tabId: string, { ope
     // Players who see the scene nowhere get the player window, and so does a GM who asks for it
     else if (openWindow || !presented.isShownElsewhere()) await openPlayerWindow(app);
   }
-  showNotice(t(presentedNotice(presented), { name: tab.displayName }));
+  showNotice(t(presentedNotice(presented), { name: presentedName(view, tab) }));
+}
+
+/** What players were shown, as a notice names it: the scene, and the level of a scene with several. */
+function presentedName(view: AtlasView, tab: SceneTab): string {
+  const state = view.atlasStore.getState();
+  const level = hasLevels(state.levels) ? levelById(state.levels, viewedLevelId(state)) : null;
+  return level && state.levels ? t('present.sceneLevel', { scene: tab.displayName, level: levelLabel(state.levels, level) }) : tab.displayName;
 }
 
 /** What players were shown: the player window, only what another plugin shows, or nothing until the window opens. */

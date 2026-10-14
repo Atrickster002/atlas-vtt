@@ -609,6 +609,7 @@ describe('the presented level', () => {
     expect(presentedSceneOf(app).get()).toEqual({ tabId: tower, filePath: 'maps/tower.md', levelId: 'upper' });
     expect(store.getState().viewedLevel).toBe('upper');
     expect(shownSource().canRender?.()).toBe(true);
+    expect(vi.mocked(Notice)).toHaveBeenLastCalledWith('Player view shows Tower: Upper');
 
     store.setState({ viewedLevel: 'ground' });
     expect(serviceMock.holdCurrentFrame).toHaveBeenCalled();
