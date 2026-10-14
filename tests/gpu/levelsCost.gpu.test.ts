@@ -4,6 +4,12 @@ import { RenderTexture, type TextureSource, type WebGLRenderer } from 'pixi.js';
 import { describe, expect, it, vi } from 'vitest';
 import { LIGHTING_QUALITY, type LightingQuality } from '../../src/app/lighting/lightingQuality';
 import { levelStack, shownAt, stackGrid } from '../../src/app/levels/levelStack';
+import { artCells, OPEN_ALPHA_BYTE, type ArtAlpha } from '../../src/app/levels/artRaster';
+import { NO_STRETCH } from '../../src/app/grid/mapStretch';
+import type { SceneLevel } from '../../src/app/types/sceneLevelTypes';
+import { TileDecoderClient } from '../../src/app/pixi/mapImage/TileDecoderClient';
+import { workerPort } from '../../src/app/pixi/mapImage/tilePorts';
+import TileWorker from '../../src/app/pixi/mapImage/tileWorker?worker&inline';
 import { stampClip } from '../../src/app/levels/stackClip';
 import type { TokenEntity } from '../../src/app/types';
 import type { LightSource } from '../../src/app/types/lightingTypes';
@@ -12,7 +18,7 @@ import type { WallSegment } from '../../src/app/types/wallTypes';
 import { computeSight, lightReach, NO_SIGHT } from '../../src/app/vision/sight';
 import { belowTokenPerception, sightBelow } from '../../src/app/vision/throughSight';
 import { rng } from '../../src/app/pixi/lighting/engine/__tests__/fuzzRooms';
-import { belowNoise, LEVELS, openLevelsView, type LevelsView } from '../helpers/levelsView';
+import { belowNoise, LEVELS, openLevelsView, paintedTexture, type FakeMap, type LevelsView } from '../helpers/levelsView';
 
 vi.mock('events', async () => import('eventemitter3'));
 
@@ -127,7 +133,6 @@ describe('the cost of levels below (budgets asserted with VITE_PERF_STRICT)', ()
       const target = RenderTexture.create({ width: WIDTH, height: HEIGHT });
       const stage = (): void => renderer.render({ container: view.app.stage, target, clear: true });
       view.controller.renderer.prepareBelow?.();
-      const memoryWith = textureMb(renderer);
       const below = await medianGpu(gl, ext!, () => view.controller.renderer.prepareBelow?.());
       const withOpenings = await medianGpu(gl, ext!, stage);
       // A frame of the player window at its budget, through the same view.
@@ -137,6 +142,8 @@ describe('the cost of levels below (budgets asserted with VITE_PERF_STRICT)', ()
         renderer.render({ container: view.app.stage, target: frameTarget, clear: true });
       };
       const frameWith = await medianGpu(gl, ext!, frame);
+      // Once both pictures have their textures: what is measured without openings has them too.
+      const memoryWith = textureMb(renderer);
       const objects = view.store.getState().objects;
       // A drag step of a token that sees, with the level below drawn.
       const scout = 'upper-t0';
@@ -211,4 +218,111 @@ describe('the cost of levels below (budgets asserted with VITE_PERF_STRICT)', ()
       expect(perceiveMs).toBeLessThan(1);
     }
   });
+
+  it.each([['high', LIGHTING_QUALITY.high], ['balanced', LIGHTING_QUALITY.balanced]] as const)('measures two levels below through transparent art, lit at %s, on an 8,192 px map at 1440 × 900', async (name, quality, ctx) => {
+    // The upper floor's map is transparent over a disc of 1,600 px: the ground floor shows there, and the cellar through a hole of the ground floor's.
+    const side = 512;
+    const disc = (cx: number, cy: number, r: number): ArtAlpha => ({ width: side, height: side, opaque: Uint8Array.from({ length: side * side }, (_, i) => (Math.hypot((i % side) + 0.5 - cx, Math.floor(i / side) + 0.5 - cy) < r ? 0 : 1)) });
+    const scale = MAP / side;
+    const maps: Record<string, FakeMap> = {
+      'upper.png': { texture: paintedTexture(side, side, () => [140, 140, 140]), width: side, height: side, alpha: disc(256, 256, 800 / scale) },
+      'ground.png': { texture: belowNoise(side), width: side, height: side, alpha: disc(256, 256, 300 / scale) },
+      'cellar.png': { texture: paintedTexture(side, side, () => [200, 170, 30]), width: side, height: side },
+    };
+    const levels: SceneLevel[] = [
+      { id: 'cellar', name: 'Cellar', elevation: { bottom: -10, top: 0 }, background: 'cellar.png' },
+      ...LEVELS,
+    ];
+    const fitted = { offset: { x: 0, y: 0 }, scale, stretch: NO_STRETCH };
+    const view = await openLevelsView({ map: MAP, pane: WIDTH, paneHeight: HEIGHT, quality, levels, maps, viewedPlacement: { x: scale, y: scale } });
+    try {
+      const upper = scene('upper', 3);
+      const ground = scene('ground', 5);
+      view.store.setState({
+        mapLoaded: true, isMapLoading: false, levels, viewedLevel: 'upper', background: 'cellar.png',
+        levelAlignments: { cellar: fitted, ground: fitted, upper: fitted },
+        objects: { ...view.store.getState().objects, walls: { ...upper.walls, ...ground.walls }, lights: { ...upper.lights, ...ground.lights }, tokens: { ...upper.tokens, ...ground.tokens } },
+      });
+      view.store.getState().setSceneLighting({ enabled: true, ambient: 0.1 });
+      await view.settle();
+      await view.settle();
+      view.viewport.scale.set(0.5);
+      view.viewport.position.set(WIDTH / 2 - 4096 * 0.5, HEIGHT / 2 - 4096 * 0.5);
+      const renderer = view.app.renderer as WebGLRenderer;
+      const ext = renderer.gl.getExtension('EXT_disjoint_timer_query_webgl2') as TimerExt | null;
+      if (!ext) ctx.skip('no GPU timer');
+      const target = RenderTexture.create({ width: WIDTH, height: HEIGHT });
+      const stage = (): void => renderer.render({ container: view.app.stage, target, clear: true });
+      view.controller.renderer.prepareBelow?.();
+      const host = view.controller.renderer as unknown as { view: { levelsBelow: { levels: Map<string, unknown> } } };
+      const drawn = host.view.levelsBelow.levels.size;
+      const memoryWith = textureMb(renderer);
+      const below = await medianGpu(renderer.gl, ext!, () => view.controller.renderer.prepareBelow?.());
+      const withLevels = await medianGpu(renderer.gl, ext!, stage);
+      // The same scene seeing nothing below.
+      view.store.setState({ levels: levels.map((level) => (level.id === 'upper' ? { ...level, sees: [] } : level)) });
+      await view.settle();
+      view.controller.renderer.prepareBelow?.();
+      const memoryWithout = textureMb(renderer);
+      const without = await medianGpu(renderer.gl, ext!, stage);
+      target.destroy(true);
+      const figures = { quality: name, levelsDrawn: drawn, belowMs: below, compositeMs: withLevels - without, belowMemoryMb: memoryWith - memoryWithout };
+      console.info(`levels cost (two below, art): ${JSON.stringify(figures)}`);
+      expect(drawn).toBe(2);
+      if (STRICT) {
+        expect(figures.belowMs).toBeLessThan(name === 'high' ? 2 : 1);
+        expect(figures.compositeMs).toBeLessThan(0.3);
+      }
+    } finally {
+      view.dispose();
+    }
+  });
+
+  it('lays a map\'s transparent parts on the stack\'s grid quickly, and the tile worker reads them from an 8,192 px map', async () => {
+    const side = 2048;
+    const rand = rng(13);
+    const holes = Array.from({ length: 40 }, () => ({ x: rand() * side, y: rand() * side, r: 20 + rand() * 200 }));
+    const opaque = new Uint8Array(side * side);
+    for (let i = 0; i < opaque.length; i++) {
+      const [x, y] = [i % side, Math.floor(i / side)];
+      opaque[i] = holes.some((hole) => Math.abs(x - hole.x) < hole.r && Math.abs(y - hole.y) < hole.r && Math.hypot(x - hole.x, y - hole.y) < hole.r) ? 0 : 1;
+    }
+    const art = { width: MAP, height: MAP, alpha: { width: side, height: side, opaque } };
+    const grid = stackGrid({ width: MAP, height: MAP });
+    const level = medianCpu(() => artCells(art, NO_STRETCH, true, grid), 5);
+    const turned = medianCpu(() => artCells(art, { x: 1.05, y: 1, rotation: 2.5 }, true, grid), 5);
+    const cells = artCells(art, NO_STRETCH, true, grid);
+    const stackMs = medianCpu(() => levelStack({ id: 'upper', surfaces: [], art: cells }, [{ id: 'ground', surfaces: [], art: cells }, { id: 'cellar', surfaces: [] }], ['ground', 'cellar'], grid), 5);
+
+    // The worker reads an 8,192 px map's overview: built once, then read in the worker.
+    const canvas = new OffscreenCanvas(MAP, MAP);
+    const context = canvas.getContext('2d')!;
+    context.fillStyle = '#808080';
+    context.fillRect(0, 0, MAP, MAP);
+    for (const hole of holes) {
+      context.beginPath();
+      context.arc(hole.x * 4, hole.y * 4, hole.r * 4, 0, Math.PI * 2);
+      context.save();
+      context.globalCompositeOperation = 'destination-out';
+      context.fill();
+      context.restore();
+    }
+    const png = await (await canvas.convertToBlob({ type: 'image/png' })).arrayBuffer();
+    const client = new TileDecoderClient({ appId: null, worker: workerPort(() => new TileWorker({ name: 'levels cost worker' })) });
+    try {
+      const opened = await client.open(() => Promise.resolve(png.slice(0)), { path: 'maps/cost.png', size: png.byteLength, mtime: 1 });
+      const start = performance.now();
+      const read = await client.alphaRaster(opened.handle, 2048, OPEN_ALPHA_BYTE);
+      const workerMs = performance.now() - start;
+      client.close(opened.handle);
+      console.info(`levels cost (art): ${JSON.stringify({ artCellsMs: level, artCellsTurnedMs: turned, stackOfThreeMs: stackMs, workerAlphaMs: workerMs, overview: `${read.width}x${read.height}` })}`);
+      expect([read.width, read.height]).toEqual([2048, 2048]);
+      if (STRICT) {
+        expect(workerMs).toBeLessThan(150);
+        expect(level).toBeLessThan(150);
+      }
+    } finally {
+      client.dispose();
+    }
+  }, 300_000);
 });

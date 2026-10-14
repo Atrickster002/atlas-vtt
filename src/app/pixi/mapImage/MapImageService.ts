@@ -3,7 +3,9 @@ import { t } from '../../i18n';
 import { describeError } from '../../utils/errors';
 import { decodeImageOnMainThread, requiredMainThreadDecode } from './mainThreadDecode';
 import { TileDecoderClient, TileOpenError, type OpenedMap } from './TileDecoderClient';
-import type { TileRef } from './pyramid';
+import { OVERVIEW_MAX_SIDE, type TileRef } from './pyramid';
+import { OPEN_ALPHA_BYTE, type LevelArt } from '../../levels/artRaster';
+import { RecentAlphas } from './recentAlphas';
 import { showNotice } from '../../ui/notice';
 import type { MapVideoProblem } from './video/MapVideoSlot';
 
@@ -30,6 +32,7 @@ export class MapImageService {
   }
 
   private readonly reported = new Set<string>();
+  private readonly alphas = new RecentAlphas();
   private readonly reportedVideos = new Set<string>();
 
   constructor(private readonly app: App, readonly client: TileDecoderClient) {}
@@ -53,6 +56,21 @@ export class MapImageService {
     } catch (error) {
       if (!(error instanceof TileOpenError) || error.failure.kind !== 'decode-failed') throw error;
       return this.client.open(read, identity, decode);
+    }
+  }
+
+  /**
+   * A vault map image as the level stack reads it (`LevelArt`): its size and which pixels of its
+   * overview hold art, read in the tile worker. The art is kept for the last few images by their
+   * content, so a level shown again needs only the open. Rejects as `open` does.
+   */
+  async levelArt(file: TFile): Promise<LevelArt> {
+    const opened = await this.open(file);
+    try {
+      const { width, height } = opened.pyramid;
+      return { width, height, alpha: await this.alphas.of(opened.hash, () => this.client.alphaRaster(opened.handle, OVERVIEW_MAX_SIDE, OPEN_ALPHA_BYTE)) };
+    } finally {
+      this.close(opened.handle);
     }
   }
 

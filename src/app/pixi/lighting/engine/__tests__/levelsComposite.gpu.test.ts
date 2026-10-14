@@ -83,7 +83,7 @@ describe('the composite over openings', () => {
     stackTexture.update(stack, (bound) => engine.setStack(bound));
     const picture = patternPicture(renderer, resolution);
     cleanup.push(() => picture.destroy(true));
-    engine.setBelow(picture, 1);
+    engine.setBelow([picture, null], 1);
     const after = shoot(renderer, engine, stackTexture.eraser, scale, x, y, resolution);
     const below = readRgba(renderer, picture);
 

@@ -67,6 +67,8 @@ interface Built {
   rules: SightRules | undefined;
   /** A token on any level has vision (`sceneHasVision`): a level shown without one sees nothing, not all. */
   hasVision: boolean;
+  /** The world sight without a range reaches over. */
+  reach: MapBounds;
   model: SceneModel;
 }
 
@@ -83,8 +85,11 @@ export class SceneModelBuilder {
   private readonly lightReaches = new LightReaches();
   private built: Built | null = null;
 
-  /** The model of `state`, and whether this call built it anew. */
-  update(state: SceneState, bounds: MapBounds, measurement: () => MeasurementSettings, sightRules?: () => SightRules): { model: SceneModel; rebuilt: boolean } {
+  /**
+   * The model of `state`, and whether this call built it anew. Sight without a range reaches over
+   * `reach` (the map, unless the level's openings look over larger maps below it).
+   */
+  update(state: SceneState, bounds: MapBounds, measurement: () => MeasurementSettings, sightRules?: () => SightRules, reach: MapBounds = bounds): { model: SceneModel; rebuilt: boolean } {
     const { walls, lights, lightZones: zones } = levelObjects(state);
     const { grid, lighting } = state;
     const tokens = this.sightTokens.read(state);
@@ -92,14 +97,15 @@ export class SceneModelBuilder {
     // Read from every level: a token on another floor switching vision on or off changes this level's sight.
     const hasVision = sceneHasVision(everyLevelObjects(state).tokens);
     const last = this.built;
-    if (last && last.walls === walls && last.lights === lights && last.zones === zones && last.tokens === tokens && last.grid === grid && last.rules === rules && last.hasVision === hasVision) {
+    const sameReach = last?.reach.width === reach.width && last.reach.height === reach.height;
+    if (last && sameReach && last.walls === walls && last.lights === lights && last.zones === zones && last.tokens === tokens && last.grid === grid && last.rules === rules && last.hasVision === hasVision) {
       const same = !sightOptionsChanged(last.lighting, lighting) && !awakeLightsChanged(lights, withZones(last.lighting, lightZoneList(zones)), withZones(lighting, lightZoneList(zones)));
       // The lighting is noted either way: the next update compares with it, not with an older one.
       last.lighting = lighting;
       if (same) return { model: last.model, rebuilt: false };
     }
-    const model = this.build(state, tokens, bounds, measurement(), rules, hasVision);
-    this.built = { walls, lights, zones, tokens, grid, lighting, rules, hasVision, model };
+    const model = this.build(state, tokens, bounds, reach, measurement(), rules, hasVision);
+    this.built = { walls, lights, zones, tokens, grid, lighting, rules, hasVision, reach, model };
     return { model, rebuilt: true };
   }
 
@@ -108,7 +114,7 @@ export class SceneModelBuilder {
     this.built = null;
   }
 
-  private build(state: SceneState, tokens: Record<string, TokenEntity>, bounds: MapBounds, measurement: MeasurementSettings, rules: SightRules | undefined, hasVision: boolean): SceneModel {
+  private build(state: SceneState, tokens: Record<string, TokenEntity>, bounds: MapBounds, reach: MapBounds, measurement: MeasurementSettings, rules: SightRules | undefined, hasVision: boolean): SceneModel {
     const scale = unitScaleOf(measurement, state.grid);
     const walls = sealedWalls(wallList(levelObjects(state).walls), worldTexel(bounds));
     const zoneList = lightZoneList(levelObjects(state).lightZones);
@@ -122,7 +128,7 @@ export class SceneModelBuilder {
     const dark = shining.some((light) => light.darkness);
     const lights = shining.flatMap((light, i) => (out[i] ? [] : [dark ? { ...light, area: everyReach[i]!.polygon } : light]));
     const reaches = everyReach.filter((_, i) => !out[i]);
-    const sources = sourcesInDarkness(sightSources(tokens, scale, bounds, rules, GM_SIGHT_POLICY), ambient, reaches);
+    const sources = sourcesInDarkness(sightSources(tokens, scale, reach, rules, GM_SIGHT_POLICY), ambient, reaches);
     this.sightCache.retain(new Set(sources.map(source => source.tokenId)));
     const gmSight = sceneSight(state.lighting, sources, walls, this.sightCache, { sceneHasVision: hasVision });
     const sight = selectSight(gmSight, tokens, PLAYER_SIGHT_POLICY);

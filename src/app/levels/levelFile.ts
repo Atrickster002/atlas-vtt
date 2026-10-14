@@ -31,7 +31,7 @@ function readLevel(value: unknown): SceneLevel | null {
   if (!isRecord(value)) return null;
   const id = text(value.id);
   if (!id) return null;
-  const { foreground, sees, offset, alignment, ...rest } = value;
+  const { foreground, sees, offset, alignment, openArt, ...rest } = value;
   const readAlignment = readLevelAlignment(alignment);
   const readSees = Array.isArray(sees) ? sees.filter((entry): entry is string => typeof entry === 'string') : undefined;
   const readOff = readOffset(offset);
@@ -43,6 +43,7 @@ function readLevel(value: unknown): SceneLevel | null {
     background: text(value.background),
     ...(foreground !== undefined && { foreground: text(foreground) }),
     ...(readSees && { sees: readSees }),
+    ...(openArt === false && { openArt: false as const }),
     ...(readOff && { offset: readOff }),
     ...(readAlignment && { alignment: readAlignment }),
   };

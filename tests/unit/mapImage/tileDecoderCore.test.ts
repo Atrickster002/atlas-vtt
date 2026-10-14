@@ -111,6 +111,16 @@ describe('TileDecoderCore', () => {
     expect([small.width, small.height]).toEqual([3000, 2000]);
   });
 
+  it('reads which pixels of an overview hold art, and lets go of the overview', async () => {
+    const h = coreHarness();
+    const map = opened(await h.core.open(identity, fakePng(3000, 2000)));
+    const raster = await h.core.alphaRaster(1, map.handle, 600, 8);
+    expect([raster?.width, raster?.height]).toEqual([600, 400]);
+    expect(raster?.opaque.length).toBe(600 * 400);
+    expect(h.graphics.opaqueReads).toEqual([{ width: 600, height: 400, threshold: 8 }]);
+    expect(h.graphics.bitmaps.filter((bitmap) => bitmap.width === 600).every((bitmap) => bitmap.closed)).toBe(true);
+  });
+
   it('fits an overview from the full size, not from the rounded-up size of the level it is drawn from', async () => {
     const h = coreHarness();
     const map = opened(await h.core.open(identity, fakePng(4097, 307)));

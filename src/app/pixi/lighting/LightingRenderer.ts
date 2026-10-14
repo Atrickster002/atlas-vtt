@@ -21,6 +21,7 @@ import { contextLost } from './engine/gpu';
 import { AttemptProgress } from './AttemptProgress';
 import { LightingEngine } from './engine/LightingEngine';
 import type { EngineScene, SceneFrame } from './engine/types';
+import type { BelowShown } from './engine/LightingEngine';
 import { ExploredMemory, type ExploredMemoryState } from './ExploredMemory';
 import type { LightingAttempt } from './lightingAttempts';
 import { PlayerView } from './PlayerView';
@@ -181,11 +182,22 @@ export class LightingRenderer implements SceneLightingView {
 
   renderForFrame<T>(frame: SceneFrame, render: () => T): T {
     // Bounce still to build after an edit belongs in the picture; so does a world a restored context took.
+    let below: BelowShown | undefined;
     this.run(() => {
       this.followAlbedo();
       this.engine.flush();
+      below = this.belowForFrame(frame);
     });
-    return this.engine.renderFrame(frame, render);
+    return this.engine.renderFrame(frame, render, below);
+  }
+
+  /** The levels below seen through the openings, drawn for a picture of the scene in the GM's look; none for a frame without a size. */
+  private belowForFrame({ x, y, resolution, width, height }: SceneFrame): BelowShown | undefined {
+    if (!this.levelsBelow || !width || !height) return undefined;
+    return this.levelsBelow.drawFor({
+      key: 'thumbnail', camera: new Matrix(1, 0, 0, 1, -x, -y), width, height, resolution, mode: 'gm',
+      tiles: { rect: { x, y, width, height }, worldPerScreenPixel: 1 / resolution },
+    });
   }
 
   prepareBelow(picture?: Omit<BelowPicture, 'camera'>): void {
@@ -290,6 +302,7 @@ export class LightingRenderer implements SceneLightingView {
     if (!bounds) {
       // Nothing is drawn while off; the next update after switching on rebuilds everything.
       this.levelsBelow?.reset(true);
+      this.engine.setCoverage(null);
       this.engine.setEnabled(false);
       this.model.reset();
       this.lastScene = null;
@@ -309,7 +322,10 @@ export class LightingRenderer implements SceneLightingView {
     this.memory.sync(bounds, levelExploredMask(state), viewedLevelId(state));
     state = this.deps.store.getState();
 
-    const { model, rebuilt } = this.model.update(state, bounds, this.deps.measurement, this.deps.rules);
+    // What the view looks over: its own map, and the maps of the levels below seen through its openings.
+    const reach = this.levelsBelow?.reach(state, bounds) ?? null;
+    this.engine.setCoverage(reach);
+    const { model, rebuilt } = this.model.update(state, bounds, this.deps.measurement, this.deps.rules, reach ?? bounds);
     const base = rebuilt || !this.lastScene ? (this.lastScene = this.takeModel(model, state, bounds)) : this.lastScene;
     const spots = this.spots.update(model, state, this.deps.measurement, this.deps.rules);
     const gmSight = model.gmSight ?? model.sight;

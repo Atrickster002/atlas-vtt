@@ -77,6 +77,16 @@ interface ImageSize {
   height: number;
 }
 
+/**
+ * The world an image of `size` drawn with `stretch` fills: from the world's origin, which an image
+ * placed further in (`offset`) leaves a margin before, to the far corner of its stretched box.
+ */
+export function imageWorldRect(size: ImageSize, stretch: MapStretch): { width: number; height: number } {
+  const { box } = turnedBox(size.width, size.height, stretch);
+  const { x: left = 0, y: top = 0 } = stretch.offset ?? {};
+  return { width: left + box.width * stretch.x, height: top + box.height * stretch.y };
+}
+
 /** How points of the world move when the map under them is drawn another way (`movedWithMap`). */
 export type MapMove = (point: Point) => Point;
 

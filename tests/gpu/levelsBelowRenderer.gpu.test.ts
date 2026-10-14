@@ -7,7 +7,7 @@ import { requestRender, setBeforeRender } from '../../src/app/pixi/RenderSchedul
 import { CanvasLightingFallback } from '../../src/app/pixi/lighting/CanvasLightingFallback';
 import { copiedPixel } from '../../src/app/pixi/lighting/engine/__tests__/gpuTestUtils';
 import { watchGl } from '../../src/app/pixi/lighting/engine/__tests__/strictGl';
-import type { WebGLRenderer } from 'pixi.js';
+import { Rectangle, type WebGLRenderer } from 'pixi.js';
 import { resetContext } from '../../src/app/pixi/lighting/__tests__/rendererHarness';
 
 vi.mock('events', async () => import('eventemitter3'));
@@ -96,6 +96,42 @@ describe('levels below through openings, in a lit view', () => {
     expect(count(players, (o) => magenta(players, o))).toBeGreaterThan(all * 0.95);
     expect(count(gm, (o) => teal(gm, o))).toBeGreaterThan(all * 0.95);
     expect(count(gm, (o) => magenta(gm, o))).toBe(0);
+  });
+
+  it('draws the levels below into a picture of the scene (a snapshot\'s thumbnail) in the GM\'s look, through the picture\'s own frame', async () => {
+    const halves = paintedTexture(MAP, MAP, (x) => (x < MAP / 2 ? [220, 30, 220] : [30, 200, 200]));
+    const view = await openLevelsView({ map: MAP, pane: PANE, below: halves });
+    views.push(view);
+    await scene(view, { hole: { id: 'hole', kind: 'level-surface', level: 'upper', open: true, polygon: rect(0, 0, 512, 512) } }, { v: viewer('v', 60, 60) });
+    // The canvas looks at the left half; the picture frames the right half at half a pixel per world pixel.
+    view.viewport.scale.set(1);
+    view.viewport.position.set(0, 0);
+    const renderer = view.app.renderer as WebGLRenderer;
+    const picture = (frame: { x: number; y: number; resolution: number; width?: number; height?: number }): Uint8ClampedArray => {
+      const texture = view.controller.renderer.renderForFrame(frame, () => renderer.generateTexture({ target: view.viewport, frame: new Rectangle(frame.x, frame.y, 256, 512), resolution: frame.resolution }));
+      try {
+        return renderer.extract.pixels({ target: texture }).pixels;
+      } finally {
+        texture.destroy(true);
+      }
+    };
+    const teal = (pixels: Uint8ClampedArray, o: number): boolean => pixels[o + 1]! > pixels[o]! + 40 && pixels[o + 2]! > pixels[o]! + 40;
+    const count = (pixels: Uint8ClampedArray, test: (o: number) => boolean): number => {
+      let n = 0;
+      for (let o = 0; o < pixels.length; o += 4) if (test(o)) n++;
+      return n;
+    };
+    const framed = picture({ x: 256, y: 0, resolution: 0.5, width: 256, height: 512 });
+    const pixels = framed.length / 4;
+    expect(pixels).toBe(128 * 256);
+    expect(count(framed, (o) => teal(framed, o))).toBeGreaterThan(pixels * 0.95);
+    expect(count(framed, (o) => magenta(framed, o))).toBe(0);
+    // A frame without a size draws nothing below: its openings show nothing.
+    const bare = picture({ x: 256, y: 0, resolution: 0.5 });
+    expect(count(bare, (o) => teal(bare, o))).toBe(0);
+    // The canvas still shows its own level below afterwards.
+    const canvas = view.gmCanvas(1, 0, 0);
+    expect(count(canvas, (o) => magenta(canvas, o))).toBeGreaterThan(PANE * PANE * 0.95);
   });
 
   it('draws the canvas\'s level below in its own hook, after the player window\'s frame took its own, through the canvas\'s camera', async () => {

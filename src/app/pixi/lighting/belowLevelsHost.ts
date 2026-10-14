@@ -2,6 +2,8 @@ import { Ticker, type Application, type Container } from 'pixi.js';
 import type { App } from 'obsidian';
 import type { Viewport } from 'pixi-viewport';
 import { mapImageSourceFor } from '../../MapLoader';
+import { MISSING_ASSET_SIZE } from '../../services/AssetValidationService';
+import type { LevelArt } from '../../levels/artRaster';
 import { MapImage } from '../mapImage/MapImage';
 import { MapImageService } from '../mapImage/MapImageService';
 import type { MapImageViewport } from '../mapImage/mapImageTypes';
@@ -53,7 +55,28 @@ function belowMapImage(obsApp: App, image: MapImage): BelowMapImage {
   };
 }
 
-/** What a map view gives the levels below it: map images through its camera, token art, its fog and a place for the eraser. */
+/** A map without an image: no pixel of it holds art. */
+const CLEAR = { width: 1, height: 1, opaque: new Uint8Array(1) };
+
+/**
+ * A level's map as the level stack reads it, of the image a `MapImage` shows for `background`: a
+ * level without one holds no art; a missing or unreadable image shows the placeholder, whose
+ * transparency is not known, which holds art everywhere.
+ */
+async function readLevelArt(obsApp: App, background: string | null, gridSize: number | undefined): Promise<LevelArt> {
+  const source = mapImageSourceFor(obsApp, background, gridSize);
+  if (source.kind === 'none') return { width: source.width, height: source.height, alpha: CLEAR };
+  const placeholder = { width: MISSING_ASSET_SIZE, height: MISSING_ASSET_SIZE, alpha: null };
+  if (source.kind === 'placeholder') return placeholder;
+  try {
+    return await MapImageService.forApp(obsApp).levelArt(source.file);
+  } catch (error) {
+    console.warn(`[Atlas] The transparent parts of ${source.file.path} could not be read:`, error);
+    return placeholder;
+  }
+}
+
+/** What a map view gives the levels below it: map images through its camera, token art, the levels' maps, its fog and a place for the eraser. */
 export function createBelowLevelsHost({ obsApp, app, viewport, viewedFog, placeEraser }: BelowLevelsHostDeps): BelowLevelsHost {
   return {
     createMapImage: () => belowMapImage(obsApp, new MapImage({
@@ -68,6 +91,7 @@ export function createBelowLevelsHost({ obsApp, app, viewport, viewedFog, placeE
       art.setPixiApp(app);
       return art;
     },
+    levelArt: (background, gridSize) => readLevelArt(obsApp, background, gridSize),
     viewedFog,
     placeEraser,
   };

@@ -1,5 +1,7 @@
 import { Container, Graphics, Sprite, Texture } from 'pixi.js';
 import type { TokenEntity } from '../../../types';
+import type { TokenPerception } from '../../../vision/tokenPerception';
+import { HIDDEN_TOKEN_ALPHA } from '../../playerSafeFrame';
 import { computeTokenPixelSize } from '../../token-renderer/tokenSizing';
 import { destroyTree } from '../../utils/destroyTree';
 
@@ -22,6 +24,14 @@ interface Shown {
 
 /** How a token below shows in the picture being drawn: not at all, or at an opacity. */
 export type BelowTokenLook = { visible: false } | { visible: true; alpha: number };
+
+/** How the tokens below look in a picture: as the players perceive them (`perception`), or as the GM sees them, hidden ones translucent. */
+export function tokenLook(perception: TokenPerception | null): (token: TokenEntity) => BelowTokenLook {
+  return (token) => {
+    if (!perception) return { visible: true, alpha: token.isHidden ? HIDDEN_TOKEN_ALPHA : 1 };
+    return perception(token.id) === 'seen' ? { visible: true, alpha: 1 } : { visible: false };
+  };
+}
 
 /**
  * The tokens of a level below the view, as its picture through the view's openings draws them:

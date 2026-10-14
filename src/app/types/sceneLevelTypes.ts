@@ -30,8 +30,14 @@ export interface SceneLevel {
   background: string | null;
   /** A roof or canopy drawn above the tokens. */
   foreground?: string | null;
-  /** The levels seen through this one's transparent parts; unset is every level below it. */
+  /**
+   * The levels below this one that are drawn through its openings (the transparent parts of its map,
+   * the openings drawn on it), nearest first; unset is every level below it. A level below that it
+   * does not see still has its floor, and nothing shows where that floor is.
+   */
   sees?: string[];
+  /** False: the transparent parts of the level's map are floor, not openings to the levels below. Unset, they are openings. */
+  openArt?: false;
   /** Where the level's background lies, in cells from the scene's origin. */
   offset?: { x: number; y: number };
   /**
