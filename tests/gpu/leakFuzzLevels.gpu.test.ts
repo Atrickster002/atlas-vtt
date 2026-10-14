@@ -4,7 +4,7 @@ import { Matrix } from 'pixi.js';
 import { describe, expect, it, vi } from 'vitest';
 import { showsMap } from '../../src/app/gameSystems/senseRules';
 import { NORMAL_SIGHT } from '../../src/app/gameSystems/senses/generic';
-import { LIGHTING_QUALITY, type LightingQuality } from '../../src/app/lighting/lightingQuality';
+import { belowQuality, LIGHTING_QUALITY, type LightingQuality } from '../../src/app/lighting/lightingQuality';
 import { wallBand, worldTexel } from '../../src/app/lighting/lightingConstants';
 import { levelObjects, levelObjectsOn } from '../../src/app/levels/levelObjects';
 import { levelStack, shownAt, stackGrid, VIEWED, VOID, type LevelStack } from '../../src/app/levels/levelStack';
@@ -89,7 +89,8 @@ interface FuzzOptions {
   shrunkRule?: boolean;
 }
 
-const magenta = (pixels: Uint8ClampedArray, o: number): boolean => pixels[o]! > pixels[o + 1]! + 50 && pixels[o + 2]! > pixels[o + 1]! + 50;
+/** Any trace of the level below's hue: its floor in dim light at night is dark (red and blue some 45 over green). */
+const magenta = (pixels: Uint8ClampedArray, o: number): boolean => pixels[o]! > pixels[o + 1]! + 16 && pixels[o + 2]! > pixels[o + 1]! + 16;
 const cyan = (pixels: Uint8ClampedArray, o: number): boolean => pixels[o + 1]! > pixels[o]! + 50 && pixels[o + 2]! > pixels[o]! + 50;
 const lit = (pixels: Uint8ClampedArray, o: number): boolean => pixels[o]! + pixels[o + 1]! + pixels[o + 2]! > 3;
 
@@ -330,7 +331,8 @@ async function fuzz({ seed, trials, map = 2048, resolution = 1, quality, belowRe
       const spots = new SceneSpots().update(model, seen, measurement).map((spot) => spot.polygon);
       const sightEdges = [...mapRegions.flatMap((region) => (region.polygon ? [region.polygon] : [])), ...spots];
       const lightEdges = [...sightEdges, ...model.reaches.map((reach) => reach.polygon), ...Object.values(zones).map((zone) => zone.polygon)];
-      const texel = worldTexel(belowBounds, (quality ?? LIGHTING_QUALITY.high).maxTexels);
+      // The level below is lit a tier down (`belowQuality`): its walls' faces are as wide as its own texels make them.
+      const texel = worldTexel(belowBounds, belowQuality(quality ?? LIGHTING_QUALITY.high).maxTexels);
       const lowerWalls = Object.values(wallsOn(lower, 'b', 'ground'));
       const filter = 1.5 / scale + 0.01;
       const shown = (p: { x: number; y: number }): boolean => below.sight.all || mapRegions.some((region) => regionContains(region, p)) || spots.some((polygon) => insidePolygon([p.x, p.y], polygon.map((q): P => [q.x, q.y])));
@@ -370,15 +372,17 @@ async function fuzz({ seed, trials, map = 2048, resolution = 1, quality, belowRe
         const o = (sy * device + sx) * 4;
         if (frame[o + 1]! + frame[o + 2]! > 2 * frame[o]! + 60) report.tokensShown++;
       }
+      const edgeSlack = 0.01 / (scale * resolution * stack.grid.texel);
       for (let sy = 0; sy < device; sy++) {
         for (let sx = 0; sx < device; sx++) {
           const p = worldOf(sx, sy, resolution, scale, x, y);
           if (p.x < 0 || p.y < 0 || p.x >= map || p.y >= map) continue;
           const o = (sy * device + sx) * 4;
-          // A pixel whose middle lies on a texel's edge may read either texel.
+          // A pixel whose middle lies on a texel's edge may read either texel: within a hundredth of a
+          // device pixel, which is finer than the rasteriser places the quad the composite runs on.
           const cx = p.x / stack.grid.texel;
           const cy = p.y / stack.grid.texel;
-          if (Math.abs(cx - Math.round(cx)) < 1e-3 || Math.abs(cy - Math.round(cy)) < 1e-3) continue;
+          if (Math.abs(cx - Math.round(cx)) < edgeSlack || Math.abs(cy - Math.round(cy)) < edgeSlack) continue;
           const differs = frame[o] !== reference[o] || frame[o + 1] !== reference[o + 1] || frame[o + 2] !== reference[o + 2];
           if (kind === 'floor' && differs) report.floorChanged++;
           const k = shownAt(stack, p);
@@ -474,7 +478,8 @@ describe('leak fuzz: looking down through openings', () => {
     console.info(`leak fuzz (levels): ${JSON.stringify({ trials: TRIALS, ...report })}`);
     expectHolds(report, TRIALS);
     expect(report.voids).toBeGreaterThan(0);
-    expect(report.memories).toBeGreaterThan(TRIALS / 5);
+    // Nearly every trial with an opening in the scout's room leaves the level below a memory.
+    expect(report.memories).toBeGreaterThanOrEqual(report.kinds.inside * 0.8);
     expect(report.remembered).toBeGreaterThan(TRIALS * 100);
     expect(report.restored).toBeGreaterThan(TRIALS * 100);
     expect(report.tokensLit).toBeGreaterThan(0);
