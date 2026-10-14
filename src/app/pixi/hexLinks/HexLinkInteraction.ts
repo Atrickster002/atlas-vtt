@@ -2,9 +2,8 @@ import type { FederatedPointerEvent } from 'pixi.js';
 import type { Viewport } from 'pixi-viewport';
 import type { NotePin } from '../../types';
 import type { ViewAtlasStore } from '../../storeFactory';
-import { openContextMenuGlobal, type ContextMenuEntry } from '../../react/root/ContextMenuContext';
-import { runInBackground } from '../../utils/backgroundTask';
-import { withSceneLevelEntry, type PinnedSceneLevels } from '../pinSceneLevelMenu';
+import type { ContextMenuEntry } from '../../react/root/ContextMenuContext';
+import { openPinMenu, type PinnedSceneLevels } from '../pinSceneLevelMenu';
 import { readablePinEntry } from '../pinReadableMenu';
 import { watchClick } from '../utils/clickRelease';
 import { dispatchPinAction } from '../utils/pinActions';
@@ -93,10 +92,7 @@ export class HexLinkInteraction implements HexLinkPointerHandlers {
         onClick: () => this.options.store.getState().deleteMapObject('pin', pin.id),
       },
     ];
-    runInBackground(
-      withSceneLevelEntry(this.options.store, pin, entries, this.options.pinnedSceneLevels ?? null).then((menu) => openContextMenuGlobal(menu, position)),
-      'Opening a linked hex\'s menu',
-    );
+    openPinMenu(this.options.store, pin, entries, position, this.options.pinnedSceneLevels);
   }
 
   destroy(): void {

@@ -8,8 +8,7 @@ import { mapMarkerScale } from "./utils/mapMarkerScale";
 import { isHandled } from "./utils/handledEvents";
 import type { ViewAtlasState, ViewAtlasStore } from '../storeFactory';
 import { beginHistoryTransaction, endHistoryTransaction } from '../stores/history';
-import { openContextMenuGlobal, type ContextMenuEntry } from '../react/root/ContextMenuContext';
-import { runInBackground } from '../utils/backgroundTask';
+import type { ContextMenuEntry } from '../react/root/ContextMenuContext';
 import { pinSize } from '../styles/designTokens';
 import { isPinLabelKind, nextPinLabel } from '../tools/pinLabels';
 import { getPinIconDefinition, resolvePinIcon, type PinIconId } from '../types/pinIcons';
@@ -19,7 +18,7 @@ import { hexLayoutOfGrid, isShownAsHex, pinDisplayPoint } from '../grid/hexLinks
 import { MAP_LAYER_Z } from './mapLayerOrder';
 import { createReadableMark } from './pinReadableMark';
 import { readablePinEntry } from './pinReadableMenu';
-import { withSceneLevelEntry, type PinnedSceneLevels } from './pinSceneLevelMenu';
+import { openPinMenu, type PinnedSceneLevels } from './pinSceneLevelMenu';
 import { t } from '../i18n';
 import { levelObjects } from '../levels/levelObjects';
 
@@ -412,10 +411,7 @@ export class PinRenderer {
       { type: 'item', label: t('common.duplicate'), icon: 'files', onClick: () => this.store.getState().duplicateMapObjects([pin.id]) },
       { type: 'item', label: t('common.delete'), icon: 'trash', destructive: true, onClick: () => this.store.getState().deleteMapObject('pin', pin.id) },
     ];
-    runInBackground(
-      withSceneLevelEntry(this.store, pin, entries, this.pinnedSceneLevels).then((menu) => openContextMenuGlobal(menu, pos)),
-      'Opening a pin\'s menu',
-    );
+    openPinMenu(this.store, pin, entries, pos, this.pinnedSceneLevels);
   }
 
   private syncPins = (

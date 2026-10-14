@@ -1,4 +1,7 @@
 import type { ContextMenuEntry } from '../react/components/context-menu/AtlasContextMenu';
+import { openContextMenuGlobal } from '../react/root/ContextMenuContext';
+import { linkedMapPath } from '../services/sceneLinks';
+import { runInBackground } from '../utils/backgroundTask';
 import type { ViewAtlasStore } from '../storeFactory';
 import type { NotePin } from '../types';
 import type { SceneLevel } from '../types/sceneLevelTypes';
@@ -34,8 +37,18 @@ export function pinSceneLevelEntry(store: ViewAtlasStore, pin: NotePin, levels: 
   };
 }
 
-/** A pin's menu `entries`, with its level choice after the first two rows once the linked scene's levels are read. */
-export async function withSceneLevelEntry(store: ViewAtlasStore, pin: NotePin, entries: ContextMenuEntry[], read: PinnedSceneLevels | null): Promise<ContextMenuEntry[]> {
-  const entry = read ? pinSceneLevelEntry(store, pin, await read(pin)) : null;
-  return entry ? [...entries.slice(0, 2), entry, ...entries.slice(2)] : entries;
+/**
+ * Opens a pin's menu of `entries` at `position`: at once for a pin that links no scene, else once
+ * the linked scene's levels are read, with the level choice after the first two rows.
+ */
+export function openPinMenu(store: ViewAtlasStore, pin: NotePin, entries: ContextMenuEntry[], position: { x: number; y: number }, read: PinnedSceneLevels | null | undefined): void {
+  if (!read || !linkedMapPath(pin.notePath)) {
+    openContextMenuGlobal(entries, position);
+    return;
+  }
+  const withLevels = async (): Promise<void> => {
+    const entry = pinSceneLevelEntry(store, pin, await read(pin));
+    openContextMenuGlobal(entry ? [...entries.slice(0, 2), entry, ...entries.slice(2)] : entries, position);
+  };
+  runInBackground(withLevels(), 'Opening a pin\'s menu');
 }
