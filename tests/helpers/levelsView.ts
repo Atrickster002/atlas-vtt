@@ -160,6 +160,10 @@ export interface LevelsView {
   settledPlayerFrame(scale: number, x: number, y: number): Promise<Uint8ClampedArray>;
   /** Lets the level below's image finish loading, where it was held (`holdBelowImage`). */
   releaseBelowImage(): void;
+  /** The fake vault's maps by path: a test may add maps (another scene's) at any time. */
+  maps: Record<string, FakeMap>;
+  /** Shows map `background` on the viewed level, placed by `placement` (as the store must place it), and lets the lighting follow its size. */
+  showViewedMap(background: string, placement: MapStretch): Promise<void>;
   /** The GM's canvas through the camera, drawn as the render scheduler draws it, read back. */
   gmCanvas(scale: number, x: number, y: number): Uint8ClampedArray;
   dispose(): void;
@@ -195,7 +199,7 @@ export async function openLevelsView({ map, pane, paneHeight = pane, resolution 
   await floorImage.load(viewedBackground, undefined, viewedPlacement);
   const floor = floorImage.layer;
   viewport.addChild(floor);
-  const viewBounds = floorImage.worldRect!;
+
   app.stage.addChild(viewport);
   const obsApp = createInMemoryApp().app;
   const store = createViewAtlasStore(obsApp, `levels-view-${Math.random()}`);
@@ -219,7 +223,11 @@ export async function openLevelsView({ map, pane, paneHeight = pane, resolution 
   };
   const controller = new LightingController({
     viewport, app, store, eventBus: new EventEmitter(), obsApp, viewId: 'levels-view',
-    bounds: () => ({ width: viewBounds.width, height: viewBounds.height }), albedo: () => null, below: host,
+    bounds: () => {
+      const rect = floorImage.worldRect!;
+      return { width: rect.width, height: rect.height };
+    },
+    albedo: () => null, below: host,
     ...(quality && { quality: { current: () => quality, onChange: () => () => undefined } }),
   });
   const ignore = (): void => undefined;
@@ -238,8 +246,12 @@ export async function openLevelsView({ map, pane, paneHeight = pane, resolution 
     viewport.position.set(x, y);
   };
   view = {
-    app, obsApp, viewport, store, controller,
+    app, obsApp, viewport, store, controller, maps,
     releaseBelowImage: () => releaseBelowImage(),
+    showViewedMap: async (background, placement) => {
+      await floorImage.load(background, undefined, placement);
+      controller.renderer.refreshBounds();
+    },
     displayFrames: (count) => { for (let i = 0; i < count; i++) app.ticker.update(time += 16); },
     settle: async () => {
       for (let i = 0; i < 3; i++) {
