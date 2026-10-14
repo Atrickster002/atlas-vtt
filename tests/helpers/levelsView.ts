@@ -11,6 +11,9 @@ import type { BelowMapImage } from '../../src/app/pixi/lighting/levels/BelowLeve
 import type { BelowLevelsHost } from '../../src/app/pixi/lighting/levels/LevelsBelow';
 import type { TokenArt } from '../../src/app/pixi/lighting/levels/BelowTokens';
 import type { FogCover } from '../../src/app/vision/throughSight';
+import type { App } from 'obsidian';
+import type { LightingQuality } from '../../src/app/lighting/lightingQuality';
+import type { MapBounds } from '../../src/app/vision/visibility';
 import { createInMemoryApp } from '../mocks/inMemoryVault';
 
 /** The scene's two floors: the view looks at the upper one and down into the ground floor. */
@@ -68,10 +71,15 @@ export interface LevelsViewOptions {
   tokenArt?: Texture;
   /** The committed fog of the viewed level. */
   viewedFog?: () => FogCover;
+  /** The lighting quality the view is lit at; the default one without it. */
+  quality?: LightingQuality;
+  /** The level below's map, where it is not the whole map (a level fitted elsewhere, smaller than the view's). */
+  belowRect?: MapBounds;
 }
 
 export interface LevelsView {
   app: Application;
+  obsApp: App;
   viewport: Viewport;
   store: ViewAtlasStore;
   controller: LightingController;
@@ -85,6 +93,12 @@ export interface LevelsView {
    * one render into a texture, read back top row first.
    */
   playerFrame(scale: number, x: number, y: number): Uint8ClampedArray;
+  /**
+   * `playerFrame` once two in a row are the same: some passes finish over a few display frames
+   * after a change (a program compiled anew, the bounce), and a picture compared with another must
+   * not depend on the clock.
+   */
+  settledPlayerFrame(scale: number, x: number, y: number): Promise<Uint8ClampedArray>;
   /** The GM's canvas through the camera, drawn as the render scheduler draws it, read back. */
   gmCanvas(scale: number, x: number, y: number): Uint8ClampedArray;
   dispose(): void;
@@ -104,7 +118,7 @@ export function belowNoise(map: number): Texture {
  * on a real renderer, as far as its lighting and its levels below go. The map images are
  * sprites, the tokens below take one art: nothing loads from the vault.
  */
-export async function openLevelsView({ map, pane, resolution = 1, viewed, below, tokenArt, viewedFog }: LevelsViewOptions): Promise<LevelsView> {
+export async function openLevelsView({ map, pane, resolution = 1, viewed, below, tokenArt, viewedFog, quality, belowRect }: LevelsViewOptions): Promise<LevelsView> {
   const app = new Application();
   await app.init({ width: pane, height: pane, resolution, preference: 'webgl', antialias: false, autoStart: false, backgroundColor: 0x000000, useBackBuffer: true });
   const scheduler = new RenderScheduler(app);
@@ -122,8 +136,8 @@ export async function openLevelsView({ map, pane, resolution = 1, viewed, below,
   const art = tokenArt ?? Texture.WHITE;
   const tokens: TokenArt = { acquire: () => Promise.resolve(art), release: () => undefined, destroyAll: () => undefined };
   const host: BelowLevelsHost = {
-    createMapImage: () => fakeBelowImage(belowArt, map, map),
-    mapSource: () => ({ kind: 'none', width: map, height: map }),
+    createMapImage: () => fakeBelowImage(belowArt, belowRect?.width ?? map, belowRect?.height ?? map),
+    mapSource: () => ({ kind: 'none', width: belowRect?.width ?? map, height: belowRect?.height ?? map }),
     createArt: () => tokens,
     viewedFog: viewedFog ?? ((): FogCover => undefined),
     placeEraser: (eraser) => viewport.addChildAt(eraser, viewport.getChildIndex(floor) + 1),
@@ -131,6 +145,7 @@ export async function openLevelsView({ map, pane, resolution = 1, viewed, below,
   const controller = new LightingController({
     viewport, app, store, eventBus: new EventEmitter(), obsApp, viewId: 'levels-view',
     bounds: () => ({ width: map, height: map }), albedo: () => null, below: host,
+    ...(quality && { quality: { current: () => quality, onChange: () => () => undefined } }),
   });
   const ignore = (): void => undefined;
   controller.wire({
@@ -140,13 +155,15 @@ export async function openLevelsView({ map, pane, resolution = 1, viewed, below,
   } as unknown as TokenRenderer);
   let time = 1000;
   const renderer = app.renderer as WebGLRenderer;
+  // The view `settledPlayerFrame` renders with: the one returned.
+  let view!: LevelsView;
   const target = RenderTexture.create({ width: pane, height: pane, resolution });
   const place = (scale: number, x: number, y: number): void => {
     viewport.scale.set(scale);
     viewport.position.set(x, y);
   };
-  return {
-    app, viewport, store, controller,
+  view = {
+    app, obsApp, viewport, store, controller,
     displayFrames: (count) => { for (let i = 0; i < count; i++) app.ticker.update(time += 16); },
     settle: async () => {
       for (let i = 0; i < 3; i++) {
@@ -156,17 +173,33 @@ export async function openLevelsView({ map, pane, resolution = 1, viewed, below,
     },
     playerFrame: (scale, x, y) => {
       place(scale, x, y);
-      controller.renderer.modeLayer.visible = true;
+      // The bounce still to build after a change belongs in the picture, which would otherwise depend on the clock.
+      controller.renderer.renderForFrame({ x: 0, y: 0, resolution }, () => undefined);
+      // The players' layers, as the player window's frame applies them: the players' view, no GM overlays.
+      const layers = controller.playerLayers();
+      const before = layers.map(({ layer }) => layer.visible);
+      for (const { layer, visible } of layers) layer.visible = visible;
       try {
         controller.renderer.prepareBelow?.({ key: 'frame', width: pane, height: pane, resolution, mode: 'player' });
         renderer.render({ container: app.stage, target, clear: true, clearColor: [0, 0, 0, 1] });
         return renderer.extract.pixels({ target }).pixels;
       } finally {
-        controller.renderer.modeLayer.visible = false;
+        layers.forEach(({ layer }, i) => { layer.visible = before[i]!; });
       }
+    },
+    settledPlayerFrame: async (scale, x, y) => {
+      let last = view.playerFrame(scale, x, y).slice();
+      for (let attempt = 0; attempt < 12; attempt++) {
+        await view.settle();
+        const next = view.playerFrame(scale, x, y).slice();
+        if (next.every((value, i) => value === last[i])) return next;
+        last = next;
+      }
+      throw new Error('The players\' frame did not settle');
     },
     gmCanvas: (scale, x, y) => {
       place(scale, x, y);
+      controller.renderer.renderForFrame({ x: 0, y: 0, resolution }, () => undefined);
       controller.renderer.prepareBelow?.();
       renderer.render({ container: app.stage, target, clear: true, clearColor: [0, 0, 0, 1] });
       return renderer.extract.pixels({ target }).pixels;
@@ -178,6 +211,7 @@ export async function openLevelsView({ map, pane, resolution = 1, viewed, below,
       app.destroy(true, { children: true });
     },
   };
+  return view;
 }
 
 /** World point of device pixel (`sx`, `sy`) through camera (`scale`, `x`, `y`). */

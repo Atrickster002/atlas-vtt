@@ -12,6 +12,8 @@ import { ExploredSteps } from './ExploredSteps';
 import { ExploredTexture } from './ExploredTexture';
 
 const EXPLORED_SAVE_DELAY = 2000;
+/** What sight recorded while a mask decodes, kept to draw again over it: a mask that never decodes must not grow this without end. */
+const MAX_RECORDED_WHILE_LOADING = 64;
 
 /** What the memory reads of its view's state and the two actions it calls; the tracked records let it trim the undo history (`forgetExploredEdits`). */
 export type ExploredMemoryState = HistorySnapshot & Pick<ViewState, 'mapPath' | 'isMapLoading' | 'exploredEdits'> & {
@@ -63,6 +65,8 @@ export class ExploredMemory {
   private loadedMask: string | null | undefined = null;
   /** Bumped whenever the texture's content is superseded, so a load decoded too late is dropped. */
   private loadGeneration = 0;
+  /** What sight recorded while a saved mask was on its way in: drawn again over the mask once it is. */
+  private recordedWhileLoading: ExploredShapes[] = [];
   private ready = true;
   private contextLost = false;
   private readonly saver: ExploredSaveScheduler;
@@ -95,6 +99,9 @@ export class ExploredMemory {
   record(shapes: ExploredShapes): void {
     if (!this.texture || !this.bounds) return;
     this.texture.add(shapes);
+    // The decoded mask replaces the texture: what is seen meanwhile must not go with what it replaces.
+    // A mask that never decodes keeps the memory from being saved at all; the oldest go past the cap.
+    if (!this.ready) this.recordedWhileLoading = [...this.recordedWhileLoading.slice(1 - MAX_RECORDED_WHILE_LOADING), shapes];
     this.steps.sightRecorded(shapes, this.bounds);
     this.saver.schedule();
   }
@@ -242,6 +249,7 @@ export class ExploredMemory {
     this.loadedMask = null;
     this.loadGeneration++;
     this.ready = true;
+    this.recordedWhileLoading = [];
   }
 
   private ensure(bounds: MapBounds): void {
@@ -284,6 +292,8 @@ export class ExploredMemory {
       this.deps.guard(() => {
         texture.draw(image);
         drawn = true;
+        for (const shapes of this.recordedWhileLoading) texture.add(shapes);
+        this.recordedWhileLoading = [];
         this.ready = true;
         this.deps.onChange();
       });
