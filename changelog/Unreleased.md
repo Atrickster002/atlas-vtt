@@ -23,6 +23,7 @@
 - Stairs between floors: draw them with Stairs in the note pin's menu, and a token put down on them goes to the floor they lead to, at the same place. Stairs can lead both ways or only up or down, and an elevator offers its floors to pick from. When the token you moved was the only one selected, the view follows it. Players' tokens online take stairs too
 - A pin that links a scene of several floors can open it on a floor: pick it in the pin's right-click menu. A pin to another floor of its own scene shows that floor
 - Replace map image, in the command palette and beside each floor in Scene levels: put a video, a gridless version or a larger export of the same map in its place, and the grid, walls, lights and tokens stay where they are
+- Openings between floors: draw a hole in a floor with Openings in the lighting menu, and the floor below shows through it, lit as it is down there, with its tokens and fog. Players see through an opening only what their tokens see, and remember it. A token put down over an opening falls to the floor below. A shape drawn over an opening and set to Floor in its popover makes a bridge or a balcony
 
 ## Improved
 
