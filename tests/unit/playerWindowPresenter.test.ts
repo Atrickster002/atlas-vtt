@@ -62,6 +62,7 @@ import { presentedSceneOf, PRESENTED_SCENE_KEY } from '../../src/app/services/pr
 
 import { AtlasView } from '../../src/app/atlas-view';
 import { MapController } from '../../src/app/MapController';
+import { NO_STRETCH } from '../../src/app/grid/mapStretch';
 
 interface SceneState { isMapLoading: boolean; mapLoaded: boolean; mapPath: string | null }
 
@@ -632,7 +633,7 @@ describe('the presented level', () => {
     view.atlasStore = store;
     // A map image whose loads finish when the test says so
     const loads: Array<() => void> = [];
-    const mapImage = { load: vi.fn(() => new Promise<void>((done) => loads.push(done))), mapStretch: undefined, setStretch: vi.fn() };
+    const mapImage = { load: vi.fn(() => new Promise<void>((done) => loads.push(done))), mapStretch: NO_STRETCH, setStretch: vi.fn() };
     view.serviceManager.getRendererService().getRenderer().getMapImage = () => mapImage;
     vi.spyOn(console, 'error').mockImplementation(() => {});
     const vault = { vault: { getAbstractFileByPath: () => null } } as unknown as App;
