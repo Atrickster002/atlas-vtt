@@ -40,8 +40,11 @@ export function paintedTexture(width: number, height: number, paint: (x: number,
   return new Texture({ source: new CanvasSource({ resource: canvas }) });
 }
 
-/** A map image of a level below that shows `texture` over `width` × `height` world pixels at once: no tiles to wait for. */
-export function fakeBelowImage(texture: Texture, width: number, height: number): BelowMapImage {
+/**
+ * A map image of a level below that shows `texture` over `width` × `height` world pixels: no tiles
+ * to wait for, and a load that finishes at once, or when `loaded` resolves.
+ */
+export function fakeBelowImage(texture: Texture, width: number, height: number, loaded: Promise<void> = Promise.resolve()): BelowMapImage {
   const layer = new Container({ label: 'map-image-below' });
   const sprite = new Sprite(texture);
   sprite.setSize(width, height);
@@ -50,7 +53,7 @@ export function fakeBelowImage(texture: Texture, width: number, height: number):
     layer,
     worldRect: { x: 0, y: 0, width, height },
     mapStretch: NO_STRETCH,
-    load: () => Promise.resolve(),
+    load: () => loaded,
     setStretch: () => undefined,
     drawFor: () => () => undefined,
     addDemandRegion: () => () => undefined,
@@ -75,6 +78,8 @@ export interface LevelsViewOptions {
   quality?: LightingQuality;
   /** The level below's map, where it is not the whole map (a level fitted elsewhere, smaller than the view's). */
   belowRect?: MapBounds;
+  /** The level below's image loads only once `releaseBelowImage` is called. */
+  holdBelowImage?: boolean;
 }
 
 export interface LevelsView {
@@ -99,6 +104,8 @@ export interface LevelsView {
    * not depend on the clock.
    */
   settledPlayerFrame(scale: number, x: number, y: number): Promise<Uint8ClampedArray>;
+  /** Lets the level below's image finish loading, where it was held (`holdBelowImage`). */
+  releaseBelowImage(): void;
   /** The GM's canvas through the camera, drawn as the render scheduler draws it, read back. */
   gmCanvas(scale: number, x: number, y: number): Uint8ClampedArray;
   dispose(): void;
@@ -118,7 +125,7 @@ export function belowNoise(map: number): Texture {
  * on a real renderer, as far as its lighting and its levels below go. The map images are
  * sprites, the tokens below take one art: nothing loads from the vault.
  */
-export async function openLevelsView({ map, pane, resolution = 1, viewed, below, tokenArt, viewedFog, quality, belowRect }: LevelsViewOptions): Promise<LevelsView> {
+export async function openLevelsView({ map, pane, resolution = 1, viewed, below, tokenArt, viewedFog, quality, belowRect, holdBelowImage = false }: LevelsViewOptions): Promise<LevelsView> {
   const app = new Application();
   await app.init({ width: pane, height: pane, resolution, preference: 'webgl', antialias: false, autoStart: false, backgroundColor: 0x000000, useBackBuffer: true });
   const scheduler = new RenderScheduler(app);
@@ -135,8 +142,10 @@ export async function openLevelsView({ map, pane, resolution = 1, viewed, below,
   const belowArt = below ?? belowNoise(map);
   const art = tokenArt ?? Texture.WHITE;
   const tokens: TokenArt = { acquire: () => Promise.resolve(art), release: () => undefined, destroyAll: () => undefined };
+  let releaseBelowImage = (): void => undefined;
+  const belowLoaded = holdBelowImage ? new Promise<void>((resolve) => { releaseBelowImage = resolve; }) : Promise.resolve();
   const host: BelowLevelsHost = {
-    createMapImage: () => fakeBelowImage(belowArt, belowRect?.width ?? map, belowRect?.height ?? map),
+    createMapImage: () => fakeBelowImage(belowArt, belowRect?.width ?? map, belowRect?.height ?? map, belowLoaded),
     mapSource: () => ({ kind: 'none', width: belowRect?.width ?? map, height: belowRect?.height ?? map }),
     createArt: () => tokens,
     viewedFog: viewedFog ?? ((): FogCover => undefined),
@@ -164,6 +173,7 @@ export async function openLevelsView({ map, pane, resolution = 1, viewed, below,
   };
   view = {
     app, obsApp, viewport, store, controller,
+    releaseBelowImage: () => releaseBelowImage(),
     displayFrames: (count) => { for (let i = 0; i < count; i++) app.ticker.update(time += 16); },
     settle: async () => {
       for (let i = 0; i < 3; i++) {

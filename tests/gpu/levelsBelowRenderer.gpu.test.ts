@@ -3,6 +3,12 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { TokenEntity } from '../../src/app/types';
 import type { LevelSurface } from '../../src/app/types/sceneLevelTypes';
 import { LEVELS, openLevelsView, paintedTexture, worldOf, type LevelsView } from '../helpers/levelsView';
+import { requestRender, setBeforeRender } from '../../src/app/pixi/RenderScheduler';
+import { CanvasLightingFallback } from '../../src/app/pixi/lighting/CanvasLightingFallback';
+import { copiedPixel } from '../../src/app/pixi/lighting/engine/__tests__/gpuTestUtils';
+import { watchGl } from '../../src/app/pixi/lighting/engine/__tests__/strictGl';
+import type { WebGLRenderer } from 'pixi.js';
+import { resetContext } from '../../src/app/pixi/lighting/__tests__/rendererHarness';
 
 vi.mock('events', async () => import('eventemitter3'));
 
@@ -91,4 +97,112 @@ describe('levels below through openings, in a lit view', () => {
     expect(count(gm, (o) => teal(gm, o))).toBeGreaterThan(all * 0.95);
     expect(count(gm, (o) => magenta(gm, o))).toBe(0);
   });
+
+  it('draws the canvas\'s level below in its own hook, after the player window\'s frame took its own, through the canvas\'s camera', async () => {
+    const halves = paintedTexture(MAP, MAP, (x) => (x < MAP / 2 ? [220, 30, 220] : [30, 200, 200]));
+    const view = await openLevelsView({ map: MAP, pane: PANE, below: halves });
+    views.push(view);
+    await scene(view, { hole: { id: 'hole', kind: 'level-surface', level: 'upper', open: true, polygon: rect(0, 0, 512, 512) } }, { v: viewer('v', 60, 60) });
+    // The canvas looks at the right half; the player window's frame, taken first in the same render, at the left.
+    view.viewport.scale.set(1);
+    view.viewport.position.set(-256, 0);
+    let framed: Uint8ClampedArray | null = null;
+    const stop = setBeforeRender(view.app, () => {
+      const camera = { x: view.viewport.x, y: view.viewport.y };
+      framed = view.playerFrame(1, 0, 0).slice();
+      view.viewport.position.set(camera.x, camera.y);
+    });
+    requestRender(view.app);
+    view.displayFrames(1);
+    const canvas = copiedPixel(view.app.canvas as HTMLCanvasElement, PANE / 2, PANE / 2);
+    stop();
+    expect(framed).not.toBeNull();
+    const left = framed!;
+    const o = ((PANE / 2) * PANE + PANE / 2) * 4;
+    expect(magenta(left, o)).toBe(true);
+    // The canvas shows teal, the right half: its own picture, not the one the frame left bound.
+    expect(canvas[1]! > canvas[0]! + 60 && canvas[2]! > canvas[0]! + 60).toBe(true);
+  });
+
+  it('shows nothing of a level below until its picture is ready, then shows it', async () => {
+    const view = await openLevelsView({ map: MAP, pane: PANE, holdBelowImage: true });
+    views.push(view);
+    await scene(view, { hole: { id: 'hole', kind: 'level-surface', level: 'upper', open: true, polygon: rect(100, 100, 200, 200) } }, { v: viewer('v', 60, 60) });
+    const at = (pixels: Uint8ClampedArray): number => ((PANE / 2) * PANE + PANE / 2) * 4;
+    const before = view.playerFrame(PANE / MAP, 0, 0);
+    expect(Math.max(before[at(before)]!, before[at(before) + 1]!, before[at(before) + 2]!)).toBeLessThanOrEqual(1);
+    view.releaseBelowImage();
+    await view.settle();
+    const after = view.playerFrame(PANE / MAP, 0, 0);
+    expect(magenta(after, at(after))).toBe(true);
+  });
+
+  it('shows nothing below while the graphics context is lost, and the level below again once it is restored', async () => {
+    const view = await openLevelsView({ map: MAP, pane: PANE });
+    views.push(view);
+    await scene(view, { hole: { id: 'hole', kind: 'level-surface', level: 'upper', open: true, polygon: rect(100, 100, 200, 200) } }, { v: viewer('v', 60, 60) });
+    // Drawing below asks for nothing while the context is gone.
+    await resetContext(view.app.renderer as WebGLRenderer, () => expect(() => view.controller.renderer.prepareBelow?.()).not.toThrow());
+    view.store.setState({ objects: { ...view.store.getState().objects } });
+    await view.settle();
+    await view.settle();
+    const frame = view.playerFrame(PANE / MAP, 0, 0);
+    const o = ((PANE / 2) * PANE + PANE / 2) * 4;
+    expect(magenta(frame, o)).toBe(true);
+  });
+
+  it('gives the view over to the line-of-sight fallback when the lighting of the level below stops', async () => {
+    const view = await openLevelsView({ map: MAP, pane: PANE });
+    views.push(view);
+    await scene(view, { hole: { id: 'hole', kind: 'level-surface', level: 'upper', open: true, polygon: rect(100, 100, 200, 200) } }, { v: viewer('v', 60, 60) });
+    const host = view.controller.renderer as unknown as { view: { levelsBelow: { levels: Map<string, { engine: { fail(error: unknown): void } }> } } };
+    const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    host.view.levelsBelow.levels.get('ground')!.engine.fail(new Error('a pass threw'));
+    view.store.setState({ objects: { ...view.store.getState().objects } });
+    await view.settle();
+    error.mockRestore();
+    expect((view.controller.renderer as unknown as { view: unknown }).view).toBeInstanceOf(CanvasLightingFallback);
+  });
+
+  it('draws the openings, the level below and both composites with every uniform and draw valid (strict GL)', async () => {
+    const view = await openLevelsView({ map: MAP, pane: PANE });
+    views.push(view);
+    const watch = watchGl((view.app.renderer as WebGLRenderer).gl);
+    try {
+      await scene(view, { hole: { id: 'hole', kind: 'level-surface', level: 'upper', open: true, polygon: rect(100, 100, 200, 200) } }, { v: viewer('v', 60, 60), m: { id: 'm', kind: 'token', x: 200, y: 200, imagePath: 'm.png', level: 'ground' } as TokenEntity });
+      view.playerFrame(PANE / MAP, 0, 0);
+      view.gmCanvas(PANE / MAP, 0, 0);
+      expect(watch.draws()).toBeGreaterThan(10);
+      expect(watch.findings).toEqual([]);
+    } finally {
+      watch.stop();
+    }
+  });
+
+  it('saves what the level below remembers before the view takes that level up, and nothing writes it twice', async () => {
+    const view = await openLevelsView({ map: MAP, pane: PANE });
+    views.push(view);
+    await scene(view, { hole: { id: 'hole', kind: 'level-surface', level: 'upper', open: true, polygon: rect(100, 100, 200, 200) } }, { v: viewer('v', 60, 60) });
+    // Every save of the ground floor's memory, as the memories hand it to the store.
+    const writes: string[] = [];
+    const save = view.store.getState().setExploredMask;
+    view.store.setState({
+      setExploredMask: (dataUrl, level) => {
+        if ((level ?? 'ground') === 'ground' && dataUrl) writes.push(dataUrl);
+        save(dataUrl, level);
+      },
+    });
+    // The view goes down to the ground floor while the memory below still waits to be saved.
+    view.store.getState().setViewedLevel('ground');
+    await view.settle();
+    await new Promise((resolve) => setTimeout(resolve, 2300));
+    await view.settle();
+    // One save, the level below's, before the view read the ground floor's memory; no later one over it.
+    expect(writes).toHaveLength(1);
+    expect(writes[0]).toMatch(/^data:image\/png/);
+    const frame = view.playerFrame(PANE / MAP, 0, 0);
+    const o = ((PANE / 2) * PANE + PANE / 2) * 4;
+    // Remembered: the floor seen through the opening shows as memory on its own level.
+    expect(frame[o]! + frame[o + 1]! + frame[o + 2]!).toBeGreaterThan(3);
+  }, 30_000);
 });
