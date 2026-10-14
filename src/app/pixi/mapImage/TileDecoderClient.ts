@@ -4,7 +4,6 @@ import { TilePortKeeper, type TileWorkerCrash } from './tilePortKeeper';
 import { workerPort, type PortFactory } from './tilePorts';
 import { MapClosedError } from './tileErrors';
 import { openWithRetry, type BytesSource, type MainThreadDecode, type OpenExchange } from './tileOpenRequest';
-import type { ArtAlpha } from '../../levels/artRaster';
 import {
   isTileEvent,
   type FileIdentity,
@@ -102,9 +101,9 @@ export class TileDecoderClient {
     return { ...reply.opened, handle };
   }
 
-  /** Builds a map's pyramid into the cache without opening it; true once it is complete. `decode` as for `open`. */
-  async prebuild(source: BytesSource, identity: FileIdentity | null, decode?: MainThreadDecode): Promise<boolean> {
-    const reply = await this.openLike('prebuild', source, identity, decode);
+  /** Builds a map's pyramid into the cache without opening it; true once it is complete. */
+  async prebuild(source: BytesSource, identity: FileIdentity | null): Promise<boolean> {
+    const reply = await this.openLike('prebuild', source, identity);
     if (reply.type !== 'prebuilt') throw new Error(`Unexpected reply to prebuild: ${reply.type}`);
     return reply.complete;
   }
@@ -121,15 +120,6 @@ export class TileDecoderClient {
     const target = this.handles.get(handle);
     if (target === undefined) return Promise.reject(new MapClosedError());
     return this.bitmap({ type: 'overview', id: this.nextId++, handle: target, maxSide }, handle, signal);
-  }
-
-  /** Which pixels of the map's overview fit within `maxSide` hold art (alpha above `threshold`), read in the worker; rejects as `tile` does. */
-  async alphaRaster(handle: number, maxSide: number, threshold: number, signal?: AbortSignal): Promise<ArtAlpha> {
-    const target = this.handles.get(handle);
-    if (target === undefined) throw new MapClosedError();
-    const reply = await this.answer({ type: 'alpha-raster', id: this.nextId++, handle: target, maxSide, threshold }, handle, signal);
-    if (reply.type !== 'alpha-raster') throw this.failure(reply);
-    return reply.raster;
   }
 
   /** Ends an open; requests still pending for it reject with `MapClosedError`. A handle of a crashed worker is ignored. */
@@ -201,17 +191,6 @@ export class TileDecoderClient {
     handle: number,
     signal: AbortSignal | undefined,
   ): Promise<ImageBitmap> {
-    const reply = await this.answer(message, handle, signal);
-    if (reply.type !== 'bitmap') throw this.failure(reply);
-    return reply.bitmap;
-  }
-
-  /** The reply to a request about an open map, which `signal` cancels in the worker too. */
-  private async answer(
-    message: Extract<TileRequest, { type: 'tile' | 'overview' | 'alpha-raster' }>,
-    handle: number,
-    signal: AbortSignal | undefined,
-  ): Promise<TileReply> {
     signal?.throwIfAborted();
     const onAbort = (): void => {
       const pending = this.pending.get(message.id);
@@ -222,7 +201,9 @@ export class TileDecoderClient {
     };
     signal?.addEventListener('abort', onAbort, { once: true });
     try {
-      return await this.request(message, [], handle);
+      const reply = await this.request(message, [], handle);
+      if (reply.type !== 'bitmap') throw this.failure(reply);
+      return reply.bitmap;
     } finally {
       signal?.removeEventListener('abort', onAbort);
     }
@@ -270,7 +251,7 @@ export class TileDecoderClient {
     }
   }
 
-  /** Fails every pending request (those about an open map as closed) and forgets every handle. */
+  /** Fails every pending request (tile and overview requests as closed) and forgets every handle. */
   private fail(reason: Error): void {
     this.handles.clear();
     const pending = [...this.pending.values()];

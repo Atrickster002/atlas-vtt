@@ -2,7 +2,6 @@ import type { FogCoverage } from '../../fog/fogCoverage';
 import type { EventEmitter } from 'events';
 import type { App } from 'obsidian';
 import type { Application, Texture } from 'pixi.js';
-import type { BelowLevelsHost } from './levels/LevelsBelow';
 import type { UnlitGrid } from '../../grid/gridLightingMark';
 import type { Viewport } from 'pixi-viewport';
 import type { MeasurementSettings } from '../../grid/measurementFormat';
@@ -30,7 +29,7 @@ import { LightInteraction } from './LightInteraction';
 import { LightMarkers } from './LightMarkers';
 import { LightRangeRings } from './LightRangeRings';
 import { LightingModes } from './LightingModes';
-import { showExploredTravelNotice, showSurfacesFullNotice, showZonesFullNotice } from './lightingNotices';
+import { showExploredTravelNotice, showZonesFullNotice } from './lightingNotices';
 import { closeStalePopovers } from './popoverGuards';
 import { playerDoorSight, playerLightingLayers, playerTokenSight, type GmOverlays } from './playerLightingLayers';
 import { PerceptionMemo, type TokenPerception } from '../../vision/tokenPerception';
@@ -39,7 +38,6 @@ import { SessionLighting } from './SessionLighting';
 import { SightRulesWatch } from './SightRulesWatch';
 import { WallEditor } from './WallEditor';
 import type { LightingQualitySource } from '../../lighting/lightingQuality';
-import { levelObjects } from '../../levels/levelObjects';
 import { glideWayIsClear } from '../../lighting/glideWay';
 import type { ShownPlaces } from '../../lighting/shownPlaces';
 import { followShownPlaces } from '../../lighting/shownTokens';
@@ -64,8 +62,6 @@ export interface LightingControllerDeps {
   quality?: LightingQualitySource;
   /** Where gliding tokens are drawn: sight and light read them there. */
   shown?: ShownPlaces;
-  /** What the levels below the view need of it (`createBelowLevelsHost`); without it the openings show nothing below. */
-  below?: BelowLevelsHost;
 }
 
 /**
@@ -115,7 +111,7 @@ export class LightingController {
     });
     this.modes = new LightingModes({
       viewport, canvas: app.canvas, store, eventBus, bounds: deps.bounds, edit: (edit) => this.renderer.editExplored(edit),
-      onActiveChange: () => this.session.sync(), onFull: showZonesFullNotice, onSurfacesFull: showSurfacesFullNotice, announce: showExploredTravelNotice,
+      onActiveChange: () => this.session.sync(), onFull: showZonesFullNotice, announce: showExploredTravelNotice,
     });
     this.renderer = createSceneLighting({
       viewport, app, store, obsApp, measurement, bounds: deps.bounds, albedo: deps.albedo, ...(deps.grid && { grid: deps.grid }),
@@ -124,7 +120,6 @@ export class LightingController {
       exploredWatcher: this.modes.memory,
       ...(deps.quality && { quality: deps.quality }),
       scene,
-      ...(deps.below && { below: deps.below }),
     });
     this.sightAids = new GmSightAids({
       viewport, store: scene, measurement, bounds: deps.bounds,
@@ -135,7 +130,7 @@ export class LightingController {
     this.lightMarkers = new LightMarkers(viewport, store);
     this.rangeRings = new LightRangeRings(viewport, store, measurement);
     this.editor = new WallEditor(viewport, store, eventBus, (lightIds) => this.lightMarkers.setSelected(lightIds), () => mapLightPresets(obsApp, store.getState()));
-    this.doors = new DoorIcons(store, app.canvas, () => playerDoorSight(this.renderer, levelObjects(store.getState()).walls, deps.fogCoverage?.()));
+    this.doors = new DoorIcons(store, app.canvas, () => playerDoorSight(this.renderer, store.getState().objects.walls, deps.fogCoverage?.()));
     viewport.addChild(this.doors.view, this.doors.playerView);
     this.lights = new LightInteraction({
       viewport,
@@ -201,7 +196,7 @@ export class LightingController {
   /** How the players perceive each token, for their frame and for session view; sight hides nothing in an unlit scene. */
   playerSight(): TokenPerception | undefined {
     const state = this.deps.store.getState();
-    return playerTokenSight(this.renderer, levelObjects(state).tokens, { conditions: this.sightRules().conditions, held: heldForSight(state) }, this.perceptions);
+    return playerTokenSight(this.renderer, state.objects.tokens, { conditions: this.sightRules().conditions, held: heldForSight(state) }, this.perceptions);
   }
 
   /** The senses and conditions of the map's collection, and how each token perceives. */

@@ -12,13 +12,10 @@ import { ExploredSteps } from './ExploredSteps';
 import { ExploredTexture } from './ExploredTexture';
 
 const EXPLORED_SAVE_DELAY = 2000;
-/** What sight recorded while a mask decodes, kept to draw again over it: a mask that never decodes must not grow this without end. */
-const MAX_RECORDED_WHILE_LOADING = 64;
 
 /** What the memory reads of its view's state and the two actions it calls; the tracked records let it trim the undo history (`forgetExploredEdits`). */
 export type ExploredMemoryState = HistorySnapshot & Pick<ViewState, 'mapPath' | 'isMapLoading' | 'exploredEdits'> & {
-  /** Saves the memory of `level` (null: the first level), wherever the view is now. */
-  setExploredMask(dataUrl: string | null, level?: string | null): void;
+  setExploredMask(dataUrl: string | null): void;
   setExploredEdits(count: number): void;
 };
 
@@ -38,11 +35,6 @@ export interface ExploredMemoryDeps {
    * while the graphics device cannot take it and keeps its errors from escaping.
    */
   guard: (work: () => void) => void;
-  /**
-   * False for a memory the GM never edits (a level below the view's, seen through openings):
-   * it neither follows undo and redo of edits nor counts any.
-   */
-  edits?: boolean;
 }
 
 /**
@@ -65,16 +57,12 @@ export class ExploredMemory {
   private loadedMask: string | null | undefined = null;
   /** Bumped whenever the texture's content is superseded, so a load decoded too late is dropped. */
   private loadGeneration = 0;
-  /** What sight recorded while a saved mask was on its way in: drawn again over the mask once it is. */
-  private recordedWhileLoading: ExploredShapes[] = [];
   private ready = true;
   private contextLost = false;
   private readonly saver: ExploredSaveScheduler;
   private readonly steps: ExploredSteps;
   /** The store's count of edits the texture stands at. */
   private revision: number;
-  /** The level whose memory the texture holds (null: a scene without levels); undefined before the first `sync`. */
-  private level: string | null | undefined = undefined;
   private readonly unsubscribe: () => void;
 
   constructor(private readonly deps: ExploredMemoryDeps) {
@@ -82,26 +70,18 @@ export class ExploredMemory {
     this.steps = new ExploredSteps(deps.renderer);
     this.revision = deps.store.getState().exploredEdits;
     // Undo and redo move the count; an edit of this memory's own has moved `revision` along with it.
-    this.unsubscribe = deps.edits === false ? (): void => undefined : deps.store.subscribe((state) => this.follow(state.exploredEdits, state.isMapLoading));
+    this.unsubscribe = deps.store.subscribe((state) => this.follow(state.exploredEdits, state.isMapLoading));
   }
 
-  /**
-   * Sizes the memory to the map and loads the saved mask of `level` (the one the view shows)
-   * unless the texture holds it. Another level is like another scene: the memory of the level
-   * left is saved into it first, and its edits can no longer be undone.
-   */
-  sync(bounds: MapBounds, mask: string | null, level: string | null = null): void {
+  /** Sizes the memory to the map and loads the scene's saved mask unless the texture holds it. */
+  sync(bounds: MapBounds, mask: string | null): void {
     this.ensure(bounds);
-    if (level !== this.level) this.switchLevel(level);
     if (mask !== this.loadedMask) void this.load(mask);
   }
 
   record(shapes: ExploredShapes): void {
     if (!this.texture || !this.bounds) return;
     this.texture.add(shapes);
-    // The decoded mask replaces the texture: what is seen meanwhile must not go with what it replaces.
-    // A mask that never decodes keeps the memory from being saved at all; the oldest go past the cap.
-    if (!this.ready) this.recordedWhileLoading = [...this.recordedWhileLoading.slice(1 - MAX_RECORDED_WHILE_LOADING), shapes];
     this.steps.sightRecorded(shapes, this.bounds);
     this.saver.schedule();
   }
@@ -113,7 +93,7 @@ export class ExploredMemory {
    */
   edit(edit: ExploredEdit): boolean {
     const texture = this.texture;
-    if (!texture || !this.bounds || !this.isMemory() || this.deps.edits === false) return false;
+    if (!texture || !this.bounds || !this.isMemory()) return false;
     const shapes: ExploredShapes = { polygons: editPolygons(edit, this.bounds), clip: null };
     // The steps can tell only so many edits apart: before that runs out, the older ones can no longer be undone.
     if (this.steps.full) this.forgetEdits();
@@ -139,7 +119,7 @@ export class ExploredMemory {
     // No undo may bring back what goes for good.
     this.forgetEdits();
     this.supersede();
-    this.deps.store.getState().setExploredMask(null, this.level ?? null);
+    this.deps.store.getState().setExploredMask(null);
     this.deps.guard(() => {
       this.texture?.clear();
       this.deps.onChange();
@@ -166,18 +146,6 @@ export class ExploredMemory {
   /** Before the map unloads: save the scene's pending memory into it, then start the next scene blank. */
   beforeMapUnload(): void {
     this.saver.flush();
-    this.texture?.clear();
-    this.supersede();
-    this.forgetEdits();
-  }
-
-  private switchLevel(level: string | null): void {
-    // The save is heard by the store, whose listeners may have switched already
-    if (this.level !== undefined) this.saver.flush();
-    if (this.level === level) return;
-    const first = this.level === undefined;
-    this.level = level;
-    if (first) return;
     this.texture?.clear();
     this.supersede();
     this.forgetEdits();
@@ -249,7 +217,6 @@ export class ExploredMemory {
     this.loadedMask = null;
     this.loadGeneration++;
     this.ready = true;
-    this.recordedWhileLoading = [];
   }
 
   private ensure(bounds: MapBounds): void {
@@ -292,8 +259,6 @@ export class ExploredMemory {
       this.deps.guard(() => {
         texture.draw(image);
         drawn = true;
-        for (const shapes of this.recordedWhileLoading) texture.add(shapes);
-        this.recordedWhileLoading = [];
         this.ready = true;
         this.deps.onChange();
       });
@@ -304,6 +269,6 @@ export class ExploredMemory {
   private save(): void {
     if (!this.texture || !this.ready || this.contextLost) return;
     this.loadedMask = saveExploredMask(this.texture.toCanvas());
-    this.deps.store.getState().setExploredMask(this.loadedMask, this.level ?? null);
+    this.deps.store.getState().setExploredMask(this.loadedMask);
   }
 }

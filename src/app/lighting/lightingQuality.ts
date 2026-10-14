@@ -31,17 +31,6 @@ export const LIGHTING_QUALITY: Record<LightingQualityLevel, LightingQuality> = {
 
 export const DEFAULT_LIGHTING_QUALITY: LightingQuality = LIGHTING_QUALITY.high;
 
-/** A level below the view seen through its openings: `balanced` without bounce under `high`, else `saver`. */
-const BELOW_HIGH: LightingQuality = { ...LIGHTING_QUALITY.balanced, bounceMaxSide: 0 };
-
-/**
- * The quality a level below the view is lit at while the view is lit at `quality`: a tier lower,
- * never with bounce, since it shows only through openings, dimmed (`LevelsBelow`).
- */
-export function belowQuality(quality: LightingQuality): LightingQuality {
-  return quality.maxTexels > LIGHTING_QUALITY.balanced.maxTexels ? BELOW_HIGH : LIGHTING_QUALITY.saver;
-}
-
 export function isLightingQualityLevel(value: unknown): value is LightingQualityLevel {
   return typeof value === 'string' && (LIGHTING_QUALITY_LEVELS as readonly string[]).includes(value);
 }

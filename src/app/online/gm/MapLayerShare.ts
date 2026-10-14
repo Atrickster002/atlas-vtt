@@ -12,8 +12,6 @@ import { sharedAnnotations, sharedDoors, sharedGrid } from './mapLayerInputs.ts'
 import { ReadablePins, type ListedPin } from './pins/ReadablePins.ts';
 import type { VaultImage } from './TokenShare.ts';
 import { WidgetShare } from './WidgetShare.ts';
-import { levelObjects } from '../../levels/levelObjects';
-import { levelMapKey } from '../../levels/sceneLevels';
 
 export interface MapLayerSharePorts extends PacerClock {
   send(body: GmMessage, to?: string): void;
@@ -121,7 +119,7 @@ export class MapLayerShare {
     if (scene === null || source === null || !state.mapLoaded || state.isMapLoading) return;
     const settings = this.ports.atlasSettings();
     this.publish({ t: 'grid', scene: scene.id, grid: sharedGrid(source.grid()) });
-    const fog = this.fog.get(levelObjects(state).fog, levelMapKey(state.mapPath, state));
+    const fog = this.fog.get(state.objects.fog, state.mapPath);
     const annotations = this.annotationsOf(state, fog);
     // Drawings may run to megabytes: they are compared as text only when worked out anew.
     if (annotations !== this.annotationsSent) {
@@ -142,9 +140,9 @@ export class MapLayerShare {
     const pins = this.readablePins(state, source, fog);
     if (pins !== null) this.publish({ t: 'pins', scene: scene.id, pins: this.pins.shared(pins, (pinId) => this.ports.foundPin?.(state.mapPath ?? '', pinId) ?? null) });
     if (!scene.lit) return;
-    const seen = source.doorsSeen(levelObjects(state).walls, fog);
-    if (seen !== null) this.publish({ t: 'doors', scene: scene.id, doors: sharedDoors(levelObjects(state).walls, seen) });
-    const sensed = source.sensed(levelObjects(state).tokens);
+    const seen = source.doorsSeen(state.objects.walls, fog);
+    if (seen !== null) this.publish({ t: 'doors', scene: scene.id, doors: sharedDoors(state.objects.walls, seen) });
+    const sensed = source.sensed(state.objects.tokens);
     if (sensed !== null) this.publish({ t: 'sensed', scene: scene.id, tokens: sensed });
   }
 
@@ -157,7 +155,7 @@ export class MapLayerShare {
     const source = this.ports.mapLayers();
     const map = state.mapPath;
     if (this.scene?.id !== sceneId || source === null || map === null || !state.mapLoaded || state.isMapLoading) return null;
-    const listed = this.readablePins(state, source, this.fog.get(levelObjects(state).fog, levelMapKey(map, state)))?.find((pin) => pin.alias === alias);
+    const listed = this.readablePins(state, source, this.fog.get(state.objects.fog, map))?.find((pin) => pin.alias === alias);
     return listed === undefined ? null : { ...listed, map };
   }
 
@@ -167,10 +165,10 @@ export class MapLayerShare {
 
   /** The drawings and texts, worked out again only when they or the fog changed. */
   private annotationsOf(state: SceneState, fog: FogCoverage | null): SharedAnnotations {
-    const key: AnnotationKey = { drawings: levelObjects(state).drawings, texts: levelObjects(state).texts, fog };
+    const key: AnnotationKey = { drawings: state.objects.drawings, texts: state.objects.texts, fog };
     const known = this.annotations;
     if (known !== null && known.key.drawings === key.drawings && known.key.texts === key.texts && known.key.fog === key.fog) return known.value;
-    const value = sharedAnnotations(levelObjects(state).drawings, levelObjects(state).texts, fog);
+    const value = sharedAnnotations(state.objects.drawings, state.objects.texts, fog);
     this.annotations = { key, value };
     return value;
   }

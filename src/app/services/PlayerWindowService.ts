@@ -14,7 +14,7 @@ import { t } from '../i18n';
 import { cannotRender, PlayerFrameMirror, type PlayerFrameSource } from './PlayerFrameMirror';
 import { framedCamera } from './playerFrame';
 import type { Screen } from '../types/playerFrame';
-import { presentedSceneOf, type PresentedScene } from './presentedScene';
+import type { PresentedScene } from './presentedScene';
 import { onMapRulesChange } from './mapRules';
 import { showNotice } from '../ui/notice';
 
@@ -52,8 +52,6 @@ export class PlayerWindowService {
   private frozenCamera: PlayerCameraState | null = null;
   /** The camera of the last frame players were shown of the presented scene; none until a frame of that scene came. */
   private shownCamera: PlayerCameraState | null = null;
-  /** The level of the shown tab players see; another level of the same tab is another picture, as another tab is. */
-  private shownLevelId: string | null = null;
   /** Last player frame, shown unchanged while the DM works on another scene tab. */
   private heldFrame: HTMLCanvasElement | null = null;
   /** Crossfade from the previous map, still playing after the DM presented another scene. */
@@ -133,11 +131,6 @@ export class PlayerWindowService {
     return this.isWindowOpen() ? this.playerWindow : null;
   }
 
-  /** Whether the open window shows live frames of the view that owns `store`, rendered from that view. */
-  public mirrors(store: StoreApi<ViewAtlasState>): boolean {
-    return this.isWindowOpen() && this.streamSource?.store === store && this.heldFrame === null;
-  }
-
   /** Keep players on the current frame while the DM works on another scene tab. */
   public holdCurrentFrame(): void {
     if (!this.isWindowOpen()) return;
@@ -191,9 +184,7 @@ export class PlayerWindowService {
       showNotice(t('player.notOpen'));
       return;
     }
-    const levelId = presentedSceneOf(this.app).get()?.levelId ?? null;
-    const anotherScene = playerWindowStore.getState().shownTabId !== tabId || this.shownLevelId !== levelId;
-    this.shownLevelId = levelId;
+    const anotherScene = playerWindowStore.getState().shownTabId !== tabId;
     if (anotherScene) this.crossfadeToNextMap();
     this.streamSource = source;
     this.mirror?.markStale();
@@ -203,7 +194,7 @@ export class PlayerWindowService {
     // The camera players saw the scene before through says nothing about this one
     if (anotherScene) this.shownCamera = null;
     playerWindowStore.setState({ shownTabId: tabId });
-    this.playerView?.updateSession({ tabId, ...(filePath ? { filePath } : {}), levelId: levelId ?? undefined, frozen: false, ...(anotherScene ? { camera: null } : {}) });
+    this.playerView?.updateSession({ tabId, ...(filePath ? { filePath } : {}), frozen: false, ...(anotherScene ? { camera: null } : {}) });
     this.followSource();
   }
 
@@ -219,7 +210,7 @@ export class PlayerWindowService {
    */
   public static async openLeaf(app: App, scene: PresentedScene): Promise<LocalPlayerView | null> {
     const leaf = app.workspace.getLeavesOfType(LOCAL_PLAYER_VIEW_TYPE)[0] ?? app.workspace.openPopoutLeaf();
-    await leaf.setViewState({ type: LOCAL_PLAYER_VIEW_TYPE, state: { tabId: scene.tabId, filePath: scene.filePath, ...(scene.levelId ? { levelId: scene.levelId } : {}), frozen: false } });
+    await leaf.setViewState({ type: LOCAL_PLAYER_VIEW_TYPE, state: { tabId: scene.tabId, filePath: scene.filePath, frozen: false } });
     return leaf.view instanceof LocalPlayerView ? leaf.view : null;
   }
 
@@ -229,14 +220,13 @@ export class PlayerWindowService {
 
   public attachToView(view: LocalPlayerView, source: PlayerFrameSource, scene: PresentedScene): void {
     this.playerView = view;
-    this.shownLevelId = scene.levelId ?? null;
     this.playerWindow = view.contentEl.win;
     this.streamSource = source;
     this.shownCamera = null;
     this.pinFrozenCamera();
     this.mirror?.markStale();
     playerWindowStore.setState({ shownTabId: scene.tabId });
-    view.updateSession({ tabId: scene.tabId, filePath: scene.filePath, levelId: scene.levelId });
+    view.updateSession({ tabId: scene.tabId, filePath: scene.filePath });
     // Bind now: the popout may still be loading, and the DM can switch tabs before it has
     this.destroySceneOverlays();
     this.sceneOverlays = [

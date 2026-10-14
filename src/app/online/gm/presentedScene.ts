@@ -3,17 +3,14 @@ import type { PresentedSceneSource } from '../../services/presentedScene';
 import type { TabMetaState } from '../../stores/tabMetaStore';
 import { field } from './atlasLighting.ts';
 import type { SceneState } from './atlasView.ts';
-import { hasLevels, resolveLevel, viewedLevelId } from '../../levels/sceneLevels';
 
 /** Atlas's command that shows the active map tab's scene on the player view, as the eye on a scene tab does. */
 export const PRESENT_COMMAND = 'atlas-vtt:send-map-to-player-view';
 
-/** The scene tab Atlas presents to its player view (`PresentedScene`): its tab id, map file and level. */
+/** The scene tab Atlas presents to its player view (`PresentedScene`): its tab id and map file. */
 export interface Presented {
   readonly tabId: string;
   readonly filePath: string;
-  /** The level of a scene with several that players see; unset is the first. */
-  readonly levelId?: string;
 }
 
 /** A view's scene tabs (`AtlasView.tabMetaStore`), as far as the companion reads them. */
@@ -29,8 +26,6 @@ export interface PresentedTab {
   readonly tabId: string;
   readonly filePath: string;
   readonly name: string;
-  /** The level players see, as Atlas presents it; unset is the first. */
-  readonly levelId?: string;
 }
 
 /** The state of a zustand store (Atlas's are functions with the store methods on them), or undefined for anything else. */
@@ -45,9 +40,8 @@ const isText = (value: unknown): value is string => typeof value === 'string' &&
 /** The presented scene `state` names, or null for anything else. */
 export function readPresented(state: unknown): Presented | null {
   if (typeof state !== 'object' || state === null) return null;
-  const { tabId, filePath, levelId } = state as Record<string, unknown>;
-  if (!isText(tabId) || !isText(filePath)) return null;
-  return isText(levelId) ? { tabId, filePath, levelId } : { tabId, filePath };
+  const { tabId, filePath } = state as Record<string, unknown>;
+  return isText(tabId) && isText(filePath) ? { tabId, filePath } : null;
 }
 
 /** Atlas's presented scene as its plugin instance offers it (`presentedScene`), or null when it has none. */
@@ -111,7 +105,7 @@ export function findPresentedTab(leaves: readonly WorkspaceLeaf[], presented: Pr
     const tabs = tabSourceOf(leaf.view);
     if (tabs === null || isPlayerView(leaf.view)) continue;
     for (const tab of tabs.getState().tabs) {
-      const found = { leaf, tabs, tabId: tab.id, filePath: tab.filePath, name: tab.displayName, ...(presented.levelId ? { levelId: presented.levelId } : {}) };
+      const found = { leaf, tabs, tabId: tab.id, filePath: tab.filePath, name: tab.displayName };
       if (tab.id === presented.tabId) return found;
       if (byFile === null && tab.filePath === presented.filePath) byFile = found;
     }
@@ -119,14 +113,9 @@ export function findPresentedTab(leaves: readonly WorkspaceLeaf[], presented: Pr
   return byFile;
 }
 
-/**
- * Whether a view's store holds the presented tab's scene now: the tab is active, its scene loaded,
- * and of a scene with several levels the presented one shown, as Atlas's player window holds its
- * frame while the GM looks at another level.
- */
-export function showsPresented(state: Pick<SceneState, 'mapPath' | 'mapLoaded' | 'isMapLoading' | 'levels' | 'viewedLevel'>, presented: PresentedTab): boolean {
-  return presented.tabs.getState().activeTabId === presented.tabId && state.mapPath === presented.filePath && state.mapLoaded && !state.isMapLoading
-    && (!hasLevels(state.levels) || viewedLevelId(state) === resolveLevel(state.levels, presented.levelId));
+/** Whether a view's store holds the presented tab's scene now: the tab is active and its scene loaded. */
+export function showsPresented(state: Pick<SceneState, 'mapPath' | 'mapLoaded' | 'isMapLoading'>, presented: PresentedTab): boolean {
+  return presented.tabs.getState().activeTabId === presented.tabId && state.mapPath === presented.filePath && state.mapLoaded && !state.isMapLoading;
 }
 
 interface Commands {

@@ -1,7 +1,6 @@
 import { CanvasSource, Container, Graphics, Sprite, Texture } from 'pixi.js';
 import { getDomHost } from '../../host/dom';
 import type { Polygon } from '../../vision/visibility';
-import { VIEWED, type LevelStack } from '../../levels/levelStack';
 import { coverCanvas } from '../utils/coverCanvas';
 import { destroyTree } from '../utils/destroyTree';
 import { hardenTexels } from './hardenTexels';
@@ -17,12 +16,6 @@ export interface SightMaskShapes {
   darkness: readonly Polygon[];
   /** What is shown inside a magical darkness. */
   pierced: readonly Polygon[];
-  /**
-   * The level stack of the view's openings (`LevelStack`): every texel of it that does not show the
-   * viewed level is black, whatever is seen there. The fallback draws no level below, and the
-   * viewed level's map must not show through its own openings. Null without openings.
-   */
-  closed?: LevelStack | null;
 }
 
 /** The longest side of the mask in texels: a larger map gets texels of more than one world pixel. */
@@ -135,7 +128,6 @@ export class SightMask {
       if (shapes.shown) erase(context, shapes.shown, grid);
       else context.clearRect(0, 0, grid.columns, grid.rows);
       if (shapes.darkness.length > 0) this.drawDarkness(context, shapes, grid);
-      if (shapes.closed) fillClosed(context, shapes.closed, grid);
       harden(context);
       assertLive(context);
       this.sprite.scale.set(grid.texelWidth, grid.texelHeight);
@@ -232,31 +224,6 @@ function erase(context: CanvasRenderingContext2D, polygons: readonly Polygon[], 
   trace(context, polygons, grid);
   context.fill('nonzero');
   context.globalCompositeOperation = 'source-over';
-}
-
-/**
- * Black over every texel of the stack that shows anything but the viewed level, row by row, in
- * runs. An edge that cuts a texel of the mask leaves it partly black, which the hardening makes
- * black whole: the black never reaches less far than the stack's texels.
- */
-function fillClosed(context: CanvasRenderingContext2D, stack: LevelStack, { texelWidth, texelHeight }: MaskGrid): void {
-  const { box, cells, grid } = stack;
-  if (!box) return;
-  context.globalCompositeOperation = 'source-over';
-  context.fillStyle = BLACK;
-  const scaleX = grid.texel / texelWidth;
-  const scaleY = grid.texel / texelHeight;
-  for (let row = 0; row < box.rows; row++) {
-    let start = -1;
-    for (let column = 0; column <= box.columns; column++) {
-      const closed = column < box.columns && cells[row * box.columns + column] !== VIEWED;
-      if (closed && start < 0) start = column;
-      if (!closed && start >= 0) {
-        context.fillRect((box.x + start) * scaleX, (box.y + row) * scaleY, (column - start) * scaleX, scaleY);
-        start = -1;
-      }
-    }
-  }
 }
 
 /** Makes the composed canvas conservative (`hardenTexels`). */

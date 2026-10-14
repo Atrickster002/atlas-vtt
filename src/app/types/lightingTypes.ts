@@ -1,5 +1,4 @@
 import type { TokenSense } from './senseTypes';
-import type { OnLevels } from './sceneLevelTypes';
 
 /** Dynamic lighting of one scene. Saved in the map file, never undo-tracked. */
 export interface SceneLighting {
@@ -91,7 +90,7 @@ export interface LightEmission {
 }
 
 /** A light placed on the map. */
-export interface LightSource extends OnLevels {
+export interface LightSource {
   id: string;
   kind: 'light';
   x: number;
@@ -119,7 +118,7 @@ export type LightChanges = { [Field in keyof LightInput]?: LightInput[Field] | u
  * in a dark dungeon. Map geometry the GM draws like walls (undo-tracked, in `objects.lightZones`);
  * later zones lie over earlier ones. Read them with `lightZoneList`.
  */
-export interface LightZone extends OnLevels {
+export interface LightZone {
   id: string;
   kind: 'light-zone';
   name?: string;

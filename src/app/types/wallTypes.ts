@@ -1,11 +1,9 @@
-import type { OnLevels } from './sceneLevelTypes';
-
 export type WallType = 'solid' | 'door' | 'secret-door';
 
 /** What a wall can stop: the sight of tokens, or light. */
 export type WallChannel = 'sight' | 'light';
 
-export interface WallSegment extends OnLevels {
+export interface WallSegment {
   id: string;
   kind: 'wall';
   type: WallType;

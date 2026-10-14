@@ -10,12 +10,11 @@ import { observeResize } from '../../utils/observeResize';
 import { mapMarkerScale } from '../utils/mapMarkerScale';
 import { LIGHT_MARKER_RADIUS } from './lightMarker';
 import { placeLightPopover, type PopoverChoice } from './lightPopoverPlacement';
-import { AREA_HANDLE_RADIUS } from '../areas/areaGeometry';
-import { areaHandlePoint } from '../../vision/polygonArea';
+import { ZONE_HANDLE_RADIUS } from './lightZoneGeometry';
+import { zoneHandlePoint } from '../../lighting/lightZones';
 import type { ViewAtlasState } from '../../storeFactory';
 import { ringHandlePoints } from './lightRingGeometry';
 import type { VisionCone } from '../../vision/visionCone';
-import { levelObjects } from '../../levels/levelObjects';
 
 /** Between the marker's edge, or the bright ring, and the popover. */
 const GAP = 12;
@@ -45,12 +44,12 @@ export interface MapPopoverTarget {
 }
 
 /** Reads the target `id` from the store at viewport `zoom`; null when it is gone. */
-export type ReadTarget = (state: ViewAtlasState, id: string, zoom: number) => MapPopoverTarget | null;
+type ReadTarget = (state: ViewAtlasState, id: string, zoom: number) => MapPopoverTarget | null;
 
 /** The popover of the light `lightId`. `unitDistance` is the game units a grid cell spans. */
 export function useLightPopoverPosition(ref: React.RefObject<HTMLElement | null>, lightId: string, unitDistance: number): () => void {
   return useMapPopoverPosition(ref, lightId, (state, id, zoom) => {
-    const light = readLight(levelObjects(state).lights[id]);
+    const light = readLight(state.objects.lights[id]);
     if (!light) return null;
     const scale = unitScaleOf({ unitDistance }, state.grid);
     return {
@@ -63,8 +62,8 @@ export function useLightPopoverPosition(ref: React.RefObject<HTMLElement | null>
 /** The popover of the light zone `zoneId`, beside the zone's handle. */
 export function useZonePopoverPosition(ref: React.RefObject<HTMLElement | null>, zoneId: string): void {
   useMapPopoverPosition(ref, zoneId, (state, id) => {
-    const zone = levelObjects(state).lightZones?.[id];
-    return zone ? { ...areaHandlePoint(zone.polygon), bright: 0, dim: 0, marker: AREA_HANDLE_RADIUS } : null;
+    const zone = state.objects.lightZones?.[id];
+    return zone ? { ...zoneHandlePoint(zone.polygon), bright: 0, dim: 0, marker: ZONE_HANDLE_RADIUS } : null;
   });
 }
 
@@ -79,7 +78,7 @@ export function useZonePopoverPosition(ref: React.RefObject<HTMLElement | null>,
  * beam's handles came to lie under it. When `id` changes, the same popover travels to the
  * other target. `read` says where the target is and how far its rings reach.
  */
-export function useMapPopoverPosition(ref: React.RefObject<HTMLElement | null>, id: string, read: ReadTarget): () => void {
+function useMapPopoverPosition(ref: React.RefObject<HTMLElement | null>, id: string, read: ReadTarget): () => void {
   const store = useViewStoreHook();
   const { renderer, pixiApp } = useAtlasUI();
   const target = useRef(id);

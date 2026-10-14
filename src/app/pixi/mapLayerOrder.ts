@@ -8,8 +8,6 @@
 export const MAP_LAYER_Z = {
   /** The hover, press and Shift-preview highlight of linked hexes (GM only). */
   hexLinks: 92,
-  /** Stairs between levels: their outlines and badges, and the editor's corners (GM only). */
-  levelLinks: 93,
   /** Note pins (GM only). */
   pins: 98,
   /** The selection frame and the marquee or lasso being drawn. */

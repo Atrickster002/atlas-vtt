@@ -1,5 +1,4 @@
 import type { StoreApi } from 'zustand';
-import { levelObjects } from '../levels/levelObjects';
 import type { GridSystem } from '../grid/GridSystem';
 import type { ViewAtlasState } from '../storeFactory';
 import { tokenFootprints } from '../vision/measureOrigin';
@@ -24,8 +23,8 @@ export function measurePlayersView(deps: {
 }): MeasurePlayersView {
   return {
     footprints: () => {
-      const state = deps.store.getState();
-      return tokenFootprints(levelObjects(state).tokens, deps.tokens()?.getTokenSprites() ?? {}, deps.grid.getOptions().size, state.tokenSettings?.tokenRingSize ?? 1);
+      const { objects, tokenSettings } = deps.store.getState();
+      return tokenFootprints(objects.tokens, deps.tokens()?.getTokenSprites() ?? {}, deps.grid.getOptions().size, tokenSettings?.tokenRingSize ?? 1);
     },
     seenAtStart: () => deps.tokens()?.playersSeeInFrame(deps.lighting()) ?? NOTHING_SEEN,
     seenOnCanvas: () => deps.tokens()?.playersSeeOnCanvas() ?? null,

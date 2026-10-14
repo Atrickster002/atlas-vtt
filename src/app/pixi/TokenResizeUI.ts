@@ -9,7 +9,6 @@ import type { TokenHandleContainer } from './token-renderer/types';
 import { findTokenGroup } from './token-renderer/findTokenGroup';
 import { destroyTree } from './utils/destroyTree';
 import { resizedTokenCenter } from '../grid/gridPlacement';
-import { levelObjects } from '../levels/levelObjects';
 
 export class TokenResizeUI {
   private viewport: Viewport;
@@ -149,7 +148,7 @@ export class TokenResizeUI {
     
     // Create handles for each selected token
     for (const tokenId of tokenIds) {
-      const token = levelObjects(this.store.getState()).tokens[tokenId];
+      const token = this.store.getState().objects.tokens[tokenId];
       if (!token) continue;
       
       // Get the token container if provided
@@ -207,7 +206,7 @@ export class TokenResizeUI {
    */
   public updateHandlePositions(tokenSprites?: Record<string, Container>): void {
     for (const [tokenId, handles] of this.resizeHandles) {
-      const token = levelObjects(this.store.getState()).tokens[tokenId];
+      const token = this.store.getState().objects.tokens[tokenId];
       if (!token) continue;
       
       const gridSize = this.store.getState().grid?.size || 70;
@@ -321,7 +320,7 @@ export class TokenResizeUI {
     this.resizeStartX = worldPos.x;
     
     for (const tokenId of this.resizingTokenIds) {
-      const token = levelObjects(this.store.getState()).tokens[tokenId];
+      const token = this.store.getState().objects.tokens[tokenId];
       if (token) {
         // Get current size or default to 1
         const currentSize = token.size || 1;
@@ -378,7 +377,7 @@ export class TokenResizeUI {
       // Clamp size between 1 (1x1 grid) and 5 (9x9 grid)
       newSize = Math.max(1, Math.min(5, newSize));
       
-      const token = levelObjects(this.store.getState()).tokens[tokenId];
+      const token = this.store.getState().objects.tokens[tokenId];
       const lastTempSize = this.temporarySizes[tokenId];
       if (token && lastTempSize !== newSize) {
         anyChanged = true;
@@ -419,9 +418,7 @@ export class TokenResizeUI {
     let pendingUpdates: Array<{ id: string; changes: { size: number; x: number; y: number } }> = [];
     // If resize occurred, create a single undo state for all resizes
     if (this.hasResized) {
-      const state = this.store.getState();
-      const { grid } = state;
-      const objects = levelObjects(state);
+      const { grid, objects } = this.store.getState();
       
       for (const tokenId of this.resizingTokenIds) {
         const tempSize = this.temporarySizes[tokenId];

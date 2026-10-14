@@ -14,7 +14,6 @@ import type { SavedTable } from './savedTable.ts';
 import { RELAY_ORIGIN } from './servers.ts';
 import type { TableStatus } from './TableConnection.ts';
 import type { LostTable } from './tableEnd.ts';
-import { levelObjects } from '../../levels/levelObjects';
 
 /** A player token of a scene, or a token a player was given there, as the GM's panels list it. */
 export interface PlayerTokenRow {
@@ -178,7 +177,7 @@ export class OnlineControl {
   playerTokens(): PlayerTokenRow[] {
     const scene = this.sharedScene();
     if (scene === null) return [];
-    const { tokens } = levelObjects(scene.store.getState());
+    const { tokens } = scene.store.getState().objects;
     return this.ownership.seats(scene.mapPath, tokens).flatMap(({ tokenId, owner }) => {
       const token = tokens[tokenId];
       return token === undefined ? [] : [{ tokenId, label: tokenLabel(token), owner }];

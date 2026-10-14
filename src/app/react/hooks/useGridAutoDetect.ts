@@ -24,8 +24,6 @@ export interface AutoDetectListener {
   found(grid: AlignmentResult): void;
   /** The map has no grid to find. */
   none(): void;
-  /** Whether a grid found is one to offer; one that is not counts as none found. Unset, every grid is. */
-  accepts?(grid: AlignmentResult): boolean;
 }
 
 /**
@@ -63,7 +61,7 @@ export function useGridAutoDetect(view: AtlasView | null, controller: RefObject<
       return NO_GRID;
     }).then((outcome) => {
       if (asked.signal.aborted) return;
-      if (!outcome.result?.gridType || heard.current.accepts?.(outcome.result) === false) {
+      if (!outcome.result?.gridType) {
         scanned?.endScan(NO_GRID);
         view?.renderer?.cancelGridAlignment?.();
         heard.current.none();

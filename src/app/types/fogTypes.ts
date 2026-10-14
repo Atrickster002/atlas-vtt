@@ -7,11 +7,9 @@
  * HTML Canvas 2D and displayed as a PIXI Sprite.
  */
 
-import type { OnOneLevel } from './sceneLevelTypes';
-
 // ── Base ────────────────────────────────────────────────────────────────
 
-export interface FogOperationBase extends OnOneLevel {
+export interface FogOperationBase {
   id: string;
   kind: 'fog';
   timestamp: number;

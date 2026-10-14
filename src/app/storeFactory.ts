@@ -44,12 +44,6 @@ import { movedPathOf, rewriteMapReferences } from './services/renamedPaths';
 import { conditionValue, removeCondition, setConditionValue } from './utils/conditionValues';
 import { HydrationTracker } from './stores/hydrationTracker';
 import { isolateListeners } from './stores/isolatedListeners';
-import { elsewhereThanViewedLevel, placedOnViewedLevel, placedOnViewedLevels } from './levels/sceneLevels';
-import { createSceneLevelsActions, writeExploredMask, type SceneLevelsSlice } from './stores/sceneLevelsSlice';
-import { createLevelSurfacesActions, type LevelSurfacesSlice } from './stores/levelSurfacesSlice';
-import { levelsForFile, readExploredMasks, readSceneLevels } from './levels/levelFile';
-import { levelAlignmentsOf, movesWithFrame, withoutAlignments } from './levels/levelAlignment';
-import { levelsCarriedWithGrid, type CarriedLevels, type GridCarryScene } from './levels/levelGridCarry';
 
 // Individual store state interface (same as AtlasState but isolated)
 export interface ViewAtlasState extends ViewState {
@@ -133,7 +127,6 @@ export interface ViewAtlasState extends ViewState {
   moveDrawings: (ids: string[], dx: number, dy: number) => void;
   updateDrawings: (ids: string[], updates: Partial<Pick<DrawingStroke, 'color' | 'icon'>>) => void;
   deleteDrawing: (id: string) => void;
-  /** Removes the drawings of the level the view shows; other floors keep theirs. */
   clearDrawings: () => void;
   setDrawings: (drawings: Record<string, DrawingStroke>) => void;
 
@@ -143,12 +136,10 @@ export interface ViewAtlasState extends ViewState {
   deleteFogOperations: (ids: string[]) => void;
   duplicateFogOperations: (ids: string[]) => void;
   setFogOperations: (fog: Record<string, FogOperation>) => void;
-  /** Removes the fog of the level the view shows; other floors keep theirs. */
   clearFog: () => void;
   /** Merges `changes` into the scene's lighting; an option given as undefined is removed. */
   setSceneLighting: (changes: SceneLightingChanges) => void;
-  /** Sets the explored memory of `level` (unset: the level the view shows; null: the first); a level the scene no longer has keeps none. */
-  setExploredMask: (dataUrl: string | null, level?: string | null) => void;
+  setExploredMask: (dataUrl: string | null) => void;
   setExploredEdits: (count: number) => void;
 
   // Wall actions
@@ -202,21 +193,6 @@ export interface ViewAtlasState extends ViewState {
   setGMView: (on: boolean) => void;
   setDMNotePath: (path: string | null) => void;
 
-  // Levels (from sceneLevelsSlice.ts)
-  setViewedLevel: SceneLevelsSlice['setViewedLevel'];
-  setLevels: SceneLevelsSlice['setLevels'];
-  applyLevelScene: SceneLevelsSlice['applyLevelScene'];
-  moveTokensToLevel: SceneLevelsSlice['moveTokensToLevel'];
-  alignLevel: SceneLevelsSlice['alignLevel'];
-  addLevelLink: SceneLevelsSlice['addLevelLink'];
-  updateLevelLink: SceneLevelsSlice['updateLevelLink'];
-  deleteLevelLink: SceneLevelsSlice['deleteLevelLink'];
-
-  // Openings and floor on a level (from levelSurfacesSlice.ts)
-  addLevelSurface: LevelSurfacesSlice['addLevelSurface'];
-  updateLevelSurface: LevelSurfacesSlice['updateLevelSurface'];
-  deleteLevelSurface: LevelSurfacesSlice['deleteLevelSurface'];
-
   // Copy, paste and duplicate (from mapObjectsSlice.ts)
   insertMapObjects: MapObjectsSlice['insertMapObjects'];
   duplicateMapObjects: MapObjectsSlice['duplicateMapObjects'];
@@ -260,10 +236,6 @@ export interface ViewAtlasState extends ViewState {
   closeLightPopover: UISlice['closeLightPopover'];
   openLightZonePopover: UISlice['openLightZonePopover'];
   closeLightZonePopover: UISlice['closeLightZonePopover'];
-  openLevelLinkPopover: UISlice['openLevelLinkPopover'];
-  closeLevelLinkPopover: UISlice['closeLevelLinkPopover'];
-  openLevelSurfacePopover: UISlice['openLevelSurfacePopover'];
-  closeLevelSurfacePopover: UISlice['closeLevelSurfacePopover'];
   setSceneLightingPanelOpen: UISlice['setSceneLightingPanelOpen'];
   setHeldTokens: UISlice['setHeldTokens'];
   setExploredBrush: UISlice['setExploredBrush'];
@@ -366,11 +338,6 @@ export type ViewAtlasStore = Mutate<
    */
   rehydrateFromFile: (isSuperseded?: () => boolean) => Promise<void>;
 };
-
-/** The levels a grid write carries along; none while a load restores the scene, whose file already holds them as they belong. */
-function carriedLevels(state: GridCarryScene & { isMapLoading: boolean }, grid: GridState | null): CarriedLevels | null {
-  return state.isMapLoading ? null : levelsCarriedWithGrid(state, grid);
-}
 
 function applyTokenUpdates(token: TokenEntity | undefined, updates: TokenUpdates): void {
   if (!token) return;
@@ -531,28 +498,16 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
             draft.background = bg;
           }),
 
-          // Set grid state; the levels fitted to it follow it in the same write (one undo step)
-          setGrid: (grid) => {
-            const carried = carriedLevels(get(), grid);
-            set((draft) => {
-              draft.grid = grid;
-              if (carried) {
-                draft.levelAlignments = carried.levelAlignments;
-                draft.objects = carried.objects;
-              }
-            });
-          },
+          // Set grid state
+          setGrid: (grid) => set((draft) => {
+            draft.grid = grid;
+          }),
 
           alignGrid: (grid, move) => {
-            // What stands on the frame's levels moves with the frame's map, and every level fitted to the
-            // grid follows the grid to stay on its art
-            const state = get();
-            const objects = move ? objectsMovedWithMap(state.objects, move, movesWithFrame(state)) : state.objects;
-            const carried = carriedLevels({ ...state, objects }, grid);
+            const objects = move ? objectsMovedWithMap(get().objects, move) : null;
             set((draft) => {
               draft.grid = grid;
-              draft.objects = carried?.objects ?? objects;
-              if (carried) draft.levelAlignments = carried.levelAlignments;
+              if (objects) draft.objects = objects;
             });
           },
           
@@ -615,7 +570,7 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
                 // Normalize the image path to prevent app:// URLs
                 const imagePath = normalizeImagePath(data.imagePath);
                 const instanceNumber = computeNextInstanceNumber(draft.objects.tokens, imagePath);
-                draft.objects.tokens[id] = { ...data, id, kind: data.kind ?? 'token', imagePath, instanceNumber, ...placedOnViewedLevel(draft) } as TokenEntity;
+                draft.objects.tokens[id] = { ...data, id, kind: data.kind ?? 'token', imagePath, instanceNumber } as TokenEntity;
                 ids.push(id);
               }
               raiseTokens(draft.objects.tokens, ids);
@@ -644,7 +599,7 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
               ...(data.showRing !== undefined && { showRing: data.showRing }),
             };
             set((draft) => {
-              draft.objects.tokens[id] = { ...token, ...placedOnViewedLevel(draft) };
+              draft.objects.tokens[id] = token;
               raiseTokens(draft.objects.tokens, [id]);
             });
             return id;
@@ -665,7 +620,6 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
                 instanceNumber,
                 ...(extra.notePath && { notePath: extra.notePath }),
                 ...(data.snapped !== undefined && { snapped: data.snapped }),
-                ...placedOnViewedLevel(draft),
               };
               draft.objects.tokens[id] = char;
               raiseTokens(draft.objects.tokens, [id]);
@@ -842,12 +796,8 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
           }),
 
           dropTokens: (positions) => set((draft) => {
-            const levelsBefore = new Map(positions.map(({ id }) => [id, draft.objects.tokens[id]?.level]));
             placeTokens(draft, positions);
             if (Object.keys(draft.heldTokens).length > 0) draft.heldTokens = {};
-            // Tokens that went down or up stairs leave the selection, which stays on the level shown.
-            const climbed = new Set(positions.filter(({ id }) => draft.objects.tokens[id]?.level !== levelsBefore.get(id)).map(({ id }) => id));
-            if (climbed.size > 0) draft.selectedIds = draft.selectedIds.filter((id) => !climbed.has(id));
           }),
 
           deleteTokens: (ids) => set((draft) => {
@@ -945,8 +895,7 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
                 kind: 'pin',
                 x, 
                 y, 
-                notePath,
-                ...placedOnViewedLevel(draft),
+                notePath
               };
               if (icon) {
                 newPin.icon = icon;
@@ -1003,8 +952,7 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
               const textElement: TextElement = {
                 id,
                 kind: 'text',
-                ...data,
-                ...placedOnViewedLevel(draft),
+                ...data
               };
               draft.objects.texts[id] = textElement;
             });
@@ -1047,8 +995,7 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
                 timestamp: Date.now(),
                 ...data,
                 // Create a deep copy of points array to avoid frozen object issues
-                points: data.points.map((p: { x: number; y: number }) => ({ x: p.x, y: p.y })),
-                ...placedOnViewedLevel(draft),
+                points: data.points.map((p: { x: number; y: number }) => ({ x: p.x, y: p.y }))
               };
               draft.objects.drawings[id] = drawingStroke;
             });
@@ -1081,7 +1028,7 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
           }),
 
           clearDrawings: () => set((draft) => {
-            draft.objects.drawings = elsewhereThanViewedLevel(draft.objects.drawings, draft);
+            draft.objects.drawings = {};
           }),
 
           setDrawings: (drawings) => set((draft) => {
@@ -1098,7 +1045,6 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
                 kind: 'fog',
                 timestamp: Date.now(),
                 ...data,
-                ...placedOnViewedLevel(draft),
               };
               draft.objects.fog[id] = op;
             });
@@ -1145,7 +1091,7 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
           }),
 
           clearFog: () => set((draft) => {
-            draft.objects.fog = elsewhereThanViewedLevel(draft.objects.fog, draft);
+            draft.objects.fog = {};
           }),
 
           setSceneLighting: (changes) => set((draft) => {
@@ -1157,8 +1103,8 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
             if (draft.lighting.litThreshold !== undefined) draft.lighting.litThreshold = clampLitThreshold(draft.lighting.litThreshold);
           }),
 
-          setExploredMask: (dataUrl, level) => set((draft) => {
-            writeExploredMask(draft, dataUrl, level);
+          setExploredMask: (dataUrl) => set((draft) => {
+            draft.exploredMask = dataUrl;
           }),
 
           setExploredEdits: (count) => set((draft) => {
@@ -1175,11 +1121,10 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
           },
 
           // Wall actions
-          // A wall, light, zone or sound is on the level the view shows, unless it names its levels (a piece of a split wall).
           addWall: (data) => {
             const id = `wall_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
             set((draft) => {
-              draft.objects.walls[id] = { id, kind: 'wall', ...placedOnViewedLevels(draft), ...data };
+              draft.objects.walls[id] = { id, kind: 'wall', ...data };
               draft._audioDirty = true;
             });
             return id;
@@ -1236,7 +1181,7 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
           addLight: (data) => {
             const id = `light_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
             set((draft) => {
-              draft.objects.lights[id] = { id, kind: 'light', ...placedOnViewedLevels(draft), ...data };
+              draft.objects.lights[id] = { id, kind: 'light', ...data };
             });
             return id;
           },
@@ -1262,7 +1207,7 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
             set((draft) => {
               // Whatever is in their place that is no record (a store filled by something else than a load) gives way.
               if (!isRecord(draft.objects.lightZones)) draft.objects.lightZones = {};
-              draft.objects.lightZones[id] = { id, kind: 'light-zone', ...placedOnViewedLevels(draft), ...data };
+              draft.objects.lightZones[id] = { id, kind: 'light-zone', ...data };
             });
             return id;
           },
@@ -1285,7 +1230,7 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
           addAudio: (data) => {
             const id = `audio_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
             set((draft) => {
-              draft.objects.audios[id] = { id, kind: 'audio', ...placedOnViewedLevels(draft), ...data };
+              draft.objects.audios[id] = { id, kind: 'audio', ...data };
               draft._audioDirty = true;
             });
             return id;
@@ -1344,11 +1289,7 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
             draft.lootRoller = createInitialLootRollerState();
             draft.lighting = { ...DEFAULT_SCENE_LIGHTING };
             draft.exploredMask = null;
-            draft.exploredMasks = undefined;
             draft.exploredEdits = 0;
-            draft.levels = undefined;
-            draft.levelAlignments = undefined;
-            draft.viewedLevel = null;
 
             // Note: We don't clear background here - it will be set by the new map
             // Note: We don't clear mapPath - it must be preserved for storage adapter
@@ -1455,10 +1396,6 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
           lootRoller: createInitialLootRollerState(),
           ...createLootRollerActions(set),
 
-          // --- Levels of the scene (from sceneLevelsSlice.ts) ---
-          ...createSceneLevelsActions(set, get),
-          ...createLevelSurfacesActions(set),
-
           // --- Per-view UI visibility (from uiSlice.ts) ---
           ...createInitialUIState(),
           ...createUIActions(set),
@@ -1494,7 +1431,6 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
               version: state.version,
               mapPath: state.mapPath, // Include mapPath to verify data belongs to correct map
               background: state.background,
-              levels: levelsForFile(state.levels, state.background, state.levelAlignments),
               grid: state.grid,
               objects: state.objects,
               camera: state.camera,
@@ -1509,21 +1445,15 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
               lootRoller: state.lootRoller, // Loot roller window, filters and history
               lighting: state.lighting,
               exploredMask: state.exploredMask,
-              exploredMasks: state.exploredMasks,
             };
           },
           
           // The map file arrives unchecked; fields that need it are checked here, once per load.
           merge: (persisted, current): ViewAtlasState => {
             const saved: Partial<ViewAtlasState> = isRecord(persisted) ? persisted : {};
-            const read = readSceneLevels(saved.levels, saved.background ?? current.background);
-            const levels = withoutAlignments(read);
             return {
               ...current,
               ...saved,
-              levels,
-              levelAlignments: levelAlignmentsOf(read),
-              exploredMasks: readExploredMasks(saved.exploredMasks, levels),
               lootRoller: readLootRollerState(saved.lootRoller),
               lighting: readSceneLighting(saved.lighting),
               exploredMask: readExploredMask(saved.exploredMask),

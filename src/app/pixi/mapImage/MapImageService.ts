@@ -1,18 +1,14 @@
 import { type App, type TFile } from 'obsidian';
 import { t } from '../../i18n';
 import { describeError } from '../../utils/errors';
-import { decodeImageOnMainThread, requiredMainThreadDecode } from './mainThreadDecode';
+import { decodeImage, imageMimeType } from '../decodedImage';
 import { TileDecoderClient, TileOpenError, type OpenedMap } from './TileDecoderClient';
-import { OVERVIEW_MAX_SIDE, type TileRef } from './pyramid';
-import { OPEN_ALPHA_BYTE, type LevelArt } from '../../levels/artRaster';
-import { RecentAlphas } from './recentAlphas';
+import type { TileRef } from './pyramid';
 import { showNotice } from '../../ui/notice';
-import type { MapVideoProblem } from './video/MapVideoSlot';
 
 /**
  * Per app: the map tile worker every view opens its map images through, and
- * the notices for images that cannot be shown and animated maps that cannot play
- * (one per file and session).
+ * the notice for images that cannot be shown (one per file and session).
  */
 export class MapImageService {
   private static readonly instances = new WeakMap<App, MapImageService>();
@@ -32,8 +28,6 @@ export class MapImageService {
   }
 
   private readonly reported = new Set<string>();
-  private readonly alphas = new RecentAlphas();
-  private readonly reportedVideos = new Set<string>();
 
   constructor(private readonly app: App, readonly client: TileDecoderClient) {}
 
@@ -41,36 +35,19 @@ export class MapImageService {
    * Opens a vault image's tile pyramid. Bytes are read through the vault, and only when the cache
    * cannot serve the map by the file's path, size and time. SVG, which a worker cannot decode, and
    * any image the worker fails to decode are decoded on this thread at the size an `<img>` gives
-   * them, the size such a map has always had; the worker builds its pyramid from that bitmap. A
-   * video's pyramid is its poster's, taken here once and then cached like any map's.
+   * them, the size such a map has always had; the worker builds its pyramid from that bitmap.
    * Rejects with `TileOpenError` (or a decode error) when the image cannot be shown.
    */
   async open(file: TFile): Promise<OpenedMap> {
     const identity = { path: file.path, size: file.stat.size, mtime: file.stat.mtime };
     const read = (): Promise<ArrayBuffer> => this.app.vault.readBinary(file);
-    const required = requiredMainThreadDecode(file);
-    if (required) return this.client.open(read, identity, required);
-    const decode = (bytes: ArrayBuffer): Promise<ImageBitmap> => decodeImageOnMainThread(bytes, file.extension);
+    const decode = (bytes: ArrayBuffer): Promise<ImageBitmap> => decodeOnMainThread(bytes, file.extension);
+    if (file.extension.toLowerCase() === 'svg') return this.client.open(read, identity, decode);
     try {
       return await this.client.open(read, identity);
     } catch (error) {
       if (!(error instanceof TileOpenError) || error.failure.kind !== 'decode-failed') throw error;
       return this.client.open(read, identity, decode);
-    }
-  }
-
-  /**
-   * A vault map image as the level stack reads it (`LevelArt`): its size and which pixels of its
-   * overview hold art, read in the tile worker. The art is kept for the last few images by their
-   * content, so a level shown again needs only the open. Rejects as `open` does.
-   */
-  async levelArt(file: TFile): Promise<LevelArt> {
-    const opened = await this.open(file);
-    try {
-      const { width, height } = opened.pyramid;
-      return { width, height, alpha: await this.alphas.of(opened.hash, () => this.client.alphaRaster(opened.handle, OVERVIEW_MAX_SIDE, OPEN_ALPHA_BYTE)) };
-    } finally {
-      this.close(opened.handle);
     }
   }
 
@@ -91,14 +68,6 @@ export class MapImageService {
     return this.client.onRestart(listener);
   }
 
-  /** Tells the GM once per file and session that its animated map shows its first frame only, and why. */
-  reportVideoStill(file: TFile, problem: MapVideoProblem): void {
-    console.warn(`[Atlas] The animated map ${file.path} shows its first frame only:`, problem);
-    if (this.reportedVideos.has(file.path)) return;
-    this.reportedVideos.add(file.path);
-    showNotice(stillReasonOf(file, problem), 0);
-  }
-
   /** Tells the GM once per file and session that its image cannot be shown, and why. */
   reportUnshown(file: TFile, error: unknown): void {
     console.error(`[Atlas] The map image ${file.path} cannot be shown:`, error);
@@ -108,18 +77,15 @@ export class MapImageService {
   }
 }
 
-function stillReasonOf(file: TFile, problem: MapVideoProblem): string {
-  if (problem.kind === 'too-large') {
-    const { width, height, maxSide } = problem;
-    return t('map.videoTooLarge', { file: file.path, width, height, side: maxSide });
-  }
-  return t('map.videoUnplayable', { file: file.path, reason: describeError(problem.error) });
-}
-
 function reasonOf(error: unknown): string {
   if (error instanceof TileOpenError && error.failure.kind === 'too-large') {
     const { width, height, maxPixels, maxSide } = error.failure;
     return t('image.tooLarge', { width, height, megapixels: Math.floor(maxPixels / 1e6), side: maxSide });
   }
   return describeError(error);
+}
+
+async function decodeOnMainThread(bytes: ArrayBuffer, extension: string): Promise<ImageBitmap> {
+  const image = await decodeImage(bytes, imageMimeType(extension), Infinity);
+  return image instanceof ImageBitmap ? image : createImageBitmap(image);
 }

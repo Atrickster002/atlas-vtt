@@ -1,4 +1,3 @@
-import type { ArtAlpha } from '../../levels/artRaster';
 import type { Pyramid, TileRef } from './pyramid';
 
 /**
@@ -39,9 +38,7 @@ export type TileRequest =
   | { type: 'open' | 'prebuild'; id: number; identity: FileIdentity | null; bytes: ArrayBuffer | null; decoded?: ImageBitmap | null }
   | { type: 'tile'; id: number; handle: number; ref: TileRef }
   | { type: 'overview'; id: number; handle: number; maxSide: number }
-  /** Which pixels of the overview fit within `maxSide` hold art: alpha above `threshold` (of 255). */
-  | { type: 'alpha-raster'; id: number; handle: number; maxSide: number; threshold: number }
-  /** Drops a tile, overview or alpha request; nothing is answered for it. */
+  /** Drops a tile or overview request; nothing is answered for it. */
   | { type: 'cancel'; id: number }
   /** Ends an open; its pending requests are answered with an `error`. */
   | { type: 'close'; handle: number }
@@ -55,7 +52,6 @@ export type TileReply =
   /** A prebuild ended: `complete` is false when it gave way to an open or could not write the cache. */
   | { type: 'prebuilt'; id: number; hash: string; complete: boolean }
   | { type: 'bitmap'; id: number; bitmap: ImageBitmap }
-  | { type: 'alpha-raster'; id: number; raster: ArtAlpha }
   | { type: 'cache-size'; id: number; bytes: number }
   /** The cache was cleared except for the pyramids in use; `bytes` is what they still take. */
   | { type: 'cleared'; id: number; bytes: number }

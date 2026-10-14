@@ -3,9 +3,6 @@ import type { ExploredEdit } from '../../lighting/exploredEdits';
 import type { AmbientLight, LightReach, Sight } from '../../vision/sight';
 import type { HideableLayer } from '../playerSafeFrame';
 import type { SceneFrame } from './engine/types';
-import type { TileView } from '../mapImage/levelOfDetail';
-import type { TokenPerception } from '../../vision/tokenPerception';
-import type { BelowPicture } from './levels/LevelsBelow';
 
 /** Who shows the GM the explored memory while it is edited (the lighting tool's overlay, `ExploredBrush`). */
 export interface ExploredMemoryWatcher {
@@ -48,17 +45,5 @@ export interface SceneLightingView {
   editExplored(edit: ExploredEdit): boolean;
   /** The view's map is about to unload: finish pending saves for it. */
   beforeMapUnload(): void;
-  /**
-   * Draws the levels below the viewed level, seen through its openings (`LevelsBelow`), for a
-   * render of the stage about to happen through the camera the viewport holds now: the player
-   * window's frame, or without `picture` the canvas's own. Nothing where the view draws none.
-   */
-  prepareBelow?(picture?: Omit<BelowPicture, 'camera'>): void;
-  /** Keeps the tiles of `view` (the player window's frame) of the levels below loaded too. */
-  addBelowDemandRegion?(view: TileView): () => void;
-  /** The player window's levels below are no longer drawn: their graphics memory goes. */
-  releaseBelowPicture?(): void;
-  /** How the players perceive the tokens of the level below drawn through the openings; none without one. */
-  belowTokenPerception?(): TokenPerception;
   destroy(): void;
 }
