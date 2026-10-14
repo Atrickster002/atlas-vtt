@@ -3,6 +3,8 @@ import { getObsidianAccentColor, cssColorToHexNumber } from './colorUtils';
 import type { AtlasView } from '../../atlas-view';
 import { requestRender } from '../RenderScheduler';
 import { addFilter, removeFilter } from './filterList';
+import { everyLevelObjects } from '../../levels/levelObjects';
+import { hasLevels, onLevel, resolveLevel, viewedLevelId } from '../../levels/sceneLevels';
 
 /**
  * Configuration options for the zoom-to-token functionality
@@ -13,8 +15,18 @@ interface ZoomToTokenOptions {
   glowThickness?: number;
 }
 
+/** Shows the level token `tokenId` stands on, where the view shows another: a token is found on its own floor. */
+function showLevelOfToken(view: AtlasView, tokenId: string): void {
+  const state = view.getStore().getState();
+  const token = everyLevelObjects(state).tokens[tokenId];
+  const shown = viewedLevelId(state);
+  if (!token || !hasLevels(state.levels) || shown === null || onLevel(token, shown, state.levels)) return;
+  state.setViewedLevel(resolveLevel(state.levels, token.level));
+}
+
 /**
- * Zooms the viewport to center on a token and applies an animated glow highlight.
+ * Zooms the viewport to center on a token and applies an animated glow highlight, on the
+ * token's own level where the view showed another.
  * The highlight uses the Obsidian accent color and pulses for the specified duration.
  * 
  * @param view - The Atlas view instance containing the renderer
@@ -35,15 +47,36 @@ export function zoomToTokenWithHighlight(
   } = options;
 
   const viewport = view?.renderer?.getViewportInstance?.();
-  if (!viewport) {
+  if (!view || !viewport) {
     console.warn('Viewport not available for zoom-to-token');
     return;
   }
 
+  showLevelOfToken(view, tokenId);
   viewport.setZoom(zoomLevel);
   viewport.moveCenter(tokenPosition.x, tokenPosition.y);
 
-  addTokenHighlight(view, tokenId, { highlightDuration, glowThickness });
+  whenSpriteShown(view, tokenId, SPRITE_WAIT_MS, () => addTokenHighlight(view, tokenId, { highlightDuration, glowThickness }));
+}
+
+/** How long a highlight waits for the sprite of a token on a level just shown, which is drawn once its art has loaded. */
+const SPRITE_WAIT_MS = 2000;
+
+/** Calls `then` once token `tokenId` has a sprite on the canvas, or after `ms` without one. */
+function whenSpriteShown(view: AtlasView, tokenId: string, ms: number, then: () => void): void {
+  const hasSprite = (): boolean => Boolean(view.renderer?.getTokenRenderer()?.getTokenSprites()[tokenId]);
+  const ticker = view.renderer?.getAppInstance()?.ticker;
+  if (!ticker || hasSprite()) {
+    then();
+    return;
+  }
+  const started = performance.now();
+  const check = (): void => {
+    if (!hasSprite() && performance.now() - started < ms) return;
+    ticker.remove(check);
+    then();
+  };
+  ticker.add(check);
 }
 
 /**
