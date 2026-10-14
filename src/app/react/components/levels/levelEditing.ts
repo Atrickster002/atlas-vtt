@@ -16,7 +16,7 @@ import { showNotice } from '../../../ui/notice';
 
 /** What a level is called: its name, or its place among the scene's levels while it has none. */
 export function levelLabel(levels: readonly SceneLevel[], level: SceneLevel): string {
-  return level.name.trim() || t('levels.newName', { n: levels.indexOf(level) + 1 });
+  return level.name?.trim() || t('levels.newName', { n: levels.indexOf(level) + 1 });
 }
 
 /** The label of level `id` as the scene names it now, for a message about it. */

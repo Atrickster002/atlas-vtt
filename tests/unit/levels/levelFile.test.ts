@@ -25,7 +25,7 @@ describe('reading a scene file\'s levels', () => {
   it('reads what is broken as the defaults and keeps fields it does not know', () => {
     const [read] = readSceneLevels([{ id: 'a', name: 3, elevation: { bottom: 5, top: 2 }, background: '', sees: ['b', 4], offset: { x: 'no' }, future: { kept: true } }], null)!;
 
-    expect(read).toEqual({ id: 'a', name: '', elevation: { bottom: 5, top: 5 }, background: null, sees: ['b'], future: { kept: true } });
+    expect(read).toEqual({ id: 'a', elevation: { bottom: 5, top: 5 }, background: null, sees: ['b'], future: { kept: true } });
   });
 
   it('reads the explored memories of the levels above the first only', () => {

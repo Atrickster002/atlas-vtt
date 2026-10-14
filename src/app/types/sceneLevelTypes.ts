@@ -24,7 +24,8 @@ export interface LevelElevation {
  */
 export interface SceneLevel {
   id: string;
-  name: string;
+  /** What the GM calls the level; unset (never blank) where it has no name: `levelLabel` names it by its place then. */
+  name?: string;
   elevation: LevelElevation;
   /** The level's map image, a vault path; null for a level without one. */
   background: string | null;

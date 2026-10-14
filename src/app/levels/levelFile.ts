@@ -31,14 +31,15 @@ function readLevel(value: unknown): SceneLevel | null {
   if (!isRecord(value)) return null;
   const id = text(value.id);
   if (!id) return null;
-  const { foreground, sees, offset, alignment, ...rest } = value;
+  const { name, foreground, sees, offset, alignment, ...rest } = value;
   const readAlignment = readLevelAlignment(alignment);
   const readSees = Array.isArray(sees) ? sees.filter((entry): entry is string => typeof entry === 'string') : undefined;
   const readOff = readOffset(offset);
   return {
     ...rest,
     id,
-    name: typeof value.name === 'string' ? value.name : '',
+    // A blank name is none, as `withLevelChanged` keeps it
+    ...(typeof name === 'string' && name.trim() !== '' && { name }),
     elevation: readElevation(value.elevation),
     background: text(value.background),
     ...(foreground !== undefined && { foreground: text(foreground) }),
