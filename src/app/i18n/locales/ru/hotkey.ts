@@ -32,7 +32,7 @@ export const hotkey: Translation = {
   'hotkey.diceTray': 'Лоток кубиков',
   'hotkey.diceLog': 'Журнал бросков',
   'hotkey.initiative': 'Трекер инициативы',
-  'hotkey.lootRoller': 'Генератор добычи',
+  'hotkey.lootRoller': 'Случайные таблицы',
   'hotkey.previousTurn': 'Предыдущий ход (в бою)',
   'hotkey.nextTurn': 'Следующий ход (в бою)',
   'hotkey.increase': 'Увеличить удерживаемый счётчик',

@@ -32,6 +32,7 @@ vi.mock('../../src/app/react/root/ContextMenuContext', () => ({
 vi.mock('../../src/app/react/root/AtlasUIContext', () => ({ useAtlasUI: () => ({ app: null, view: null }) }));
 vi.mock('../../src/app/react/ViewStoreContext', () => ({
   useAtlasStore: (selector: (storeState: typeof state) => unknown) => selector(state),
+  useViewStoreHook: () => ({ getState: () => state }),
 }));
 vi.mock('../../src/app/resources/useMapResources', () => ({ useMapResources: () => [] }));
 vi.mock('../../src/app/pixi/utils/tokenHighlight', () => ({ zoomToTokenWithHighlight: vi.fn() }));

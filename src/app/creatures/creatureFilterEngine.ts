@@ -18,6 +18,7 @@ import type {
 } from '../types/creatureFilterTypes';
 import type { OptionValue, TokenFacts } from './creatureFacts';
 import { hasPicks, LAYOUT_FACET, optionState, STATBLOCK_FACET } from './creatureSelection';
+import { pickedOptionLabel, templateOptions } from './templateFacet';
 import { ALIGNMENT_PARTS, optionKey } from './creatureValues';
 
 export interface FacetOption extends OptionValue {
@@ -73,9 +74,6 @@ const outcome = (passes: boolean): Outcome => (passes ? 'pass' : 'fail');
 /** "Level 2" before "Level 10"; case and accents do not matter. */
 const LABEL_ORDER = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
 
-const layoutValues = (facts: TokenFacts): readonly OptionValue[] =>
-  (facts.creature?.layout ? [{ key: facts.creature.layout, label: facts.creature.layout }] : []);
-
 const optionValues = (definition: CreatureOptionsFilter) => (facts: TokenFacts): readonly OptionValue[] =>
   facts.options.get(definition.id) ?? [];
 
@@ -111,7 +109,7 @@ function activeChecks(definitions: readonly CreatureFilterDefinition[], selectio
     const wanted = selection.statblock === 'linked';
     checks.push({ id: STATBLOCK_FACET, test: (facts) => outcome(facts.linked === wanted) });
   }
-  const layoutCheck = optionsCheck(LAYOUT_FACET, selection.layouts, 'any', layoutValues);
+  const layoutCheck = optionsCheck(LAYOUT_FACET, selection.layouts, 'any', templateOptions);
   if (layoutCheck) checks.push(layoutCheck);
   for (const definition of definitions) {
     if (definition.kind === 'range') {
@@ -171,7 +169,7 @@ function optionFacet(
     }
   });
   for (const key of [...picks.include, ...picks.exclude]) {
-    if (!byKey.has(key)) byKey.set(key, { labels: new Map([[key, 1]]), total: 0, count: 0 });
+    if (!byKey.has(key)) byKey.set(key, { labels: new Map([[pickedOptionLabel(key), 1]]), total: 0, count: 0 });
   }
   const options = [...byKey.entries()].map(([key, entry]) => ({
     option: {
@@ -244,7 +242,7 @@ export function evaluateCreatureFilters(
     statblock[token.linked ? 'linked' : 'unlinked']++;
   });
 
-  const layouts = optionFacet(facts, layoutValues, counted(failures, LAYOUT_FACET), selection.layouts, 'any');
+  const layouts = optionFacet(facts, templateOptions, counted(failures, LAYOUT_FACET), selection.layouts, 'any');
 
   const ranges: RangeFacet[] = [];
   const options: OptionsFacet[] = [];

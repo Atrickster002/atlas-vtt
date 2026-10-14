@@ -12,10 +12,10 @@ import { filterSuggestions } from '../../src/app/packages/components/asset-manag
 import { emptyCreatureSelection, type CreatureFilterSelection } from '../../src/app/types/creatureFilterTypes';
 
 const CREATURES: Record<string, IndexedCreature> = {
-  goblin: { path: 'goblin', layout: 'Basic 5e', fields: { cr: '1/4', type: 'humanoid', source: 'Monster Manual' } },
-  wolf: { path: 'wolf', layout: 'Basic 5e', fields: { cr: '1/4', type: 'beast' } },
-  bear: { path: 'bear', layout: 'Basic 5e', fields: { cr: 1, type: 'Beast' } },
-  dragon: { path: 'dragon', layout: 'Basic 5e', fields: { cr: 10, type: 'dragon' } },
+  goblin: { path: 'goblin', templateId: null, meanings: {}, lookName: 'Basic 5e', fields: { cr: '1/4', type: 'humanoid', source: 'Monster Manual' } },
+  wolf: { path: 'wolf', templateId: null, meanings: {}, lookName: 'Basic 5e', fields: { cr: '1/4', type: 'beast' } },
+  bear: { path: 'bear', templateId: null, meanings: {}, lookName: 'Basic 5e', fields: { cr: 1, type: 'Beast' } },
+  dragon: { path: 'dragon', templateId: null, meanings: {}, lookName: 'Basic 5e', fields: { cr: 10, type: 'dragon' } },
 };
 const facts = [...Object.keys(CREATURES), 'plain'].map((path) => factsOf(path === 'plain' ? {} : { statblockPath: path }, (p) => CREATURES[p] ?? null, CATALOG_CREATURE_FILTERS));
 const { facets } = evaluateCreatureFilters(facts, CATALOG_CREATURE_FILTERS, emptyCreatureSelection());
@@ -34,7 +34,7 @@ describe('keywords', () => {
   it('offer name and tag everywhere and the statblock fields on the Characters tab', () => {
     expect(filterKeywords('maps', CATALOG_CREATURE_FILTERS).map((keyword) => keyword.prefix)).toEqual(['name', 'tag']);
     expect(keywords.map((keyword) => keyword.prefix)).toEqual([
-      'name', 'tag', 'statblock', 'layout', 'cr', 'level', 'tier', 'type', 'trait', 'rarity', 'alignment', 'source',
+      'name', 'tag', 'statblock', 'cr', 'level', 'tier', 'type', 'trait', 'rarity', 'alignment', 'source', 'template',
     ]);
   });
 
@@ -43,7 +43,7 @@ describe('keywords', () => {
       { id: 'hit-dice', label: 'Hit dice', kind: 'range', field: 'hit_dice' },
       { id: 'tag', label: 'Clash', kind: 'options', fields: ['tag'] },
     ]);
-    expect(custom.map((keyword) => keyword.prefix)).toEqual(['name', 'tag', 'statblock', 'layout', 'hit-dice']);
+    expect(custom.map((keyword) => keyword.prefix)).toEqual(['name', 'tag', 'statblock', 'hit-dice', 'template']);
   });
 
   it('read ranges and statblock choices as typed', () => {
@@ -72,7 +72,7 @@ describe('suggestions', () => {
   it('offer the keywords that can exclude after a minus', () => {
     const suggestions = filterSuggestions('-t', 2, sources);
     expect(suggestions?.heading).toBe('Exclude');
-    expect(suggestions?.items.map((item) => (item.kind === 'keyword' ? [item.keyword.prefix, item.negated] : null))).toEqual([['type', true], ['trait', true]]);
+    expect(suggestions?.items.map((item) => (item.kind === 'keyword' ? [item.keyword.prefix, item.negated] : null))).toEqual([['type', true], ['trait', true], ['template', true]]);
     expect(filterSuggestions('-type:', 6, sources)?.heading).toBe('Exclude type');
   });
 
@@ -132,7 +132,7 @@ describe('active filter chips', () => {
       ['Statblock', ['Without statblock']],
       ['Challenge rating', ['≥ 1']],
       ['Type', ['beast', 'not dragon']],
-      ['Layout', ['Basic 5e']],
+      ['Template', ['Basic 5e']],
       ['Tag', ['Forest']],
     ]);
     groups[2]!.items[0]!.remove();

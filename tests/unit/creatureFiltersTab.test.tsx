@@ -7,7 +7,7 @@ import type { CreatureFilterDefinition } from '../../src/app/types/creatureFilte
 
 afterEach(cleanup);
 
-const creature = (fields: Record<string, unknown>): IndexedCreature => ({ path: String(fields.name), layout: null, fields });
+const creature = (fields: Record<string, unknown>): IndexedCreature => ({ path: String(fields.name), templateId: null, meanings: {}, lookName: null, fields });
 const CREATURES = [
   creature({ name: 'Acid Burrower', tier: 1, type: 'Solo', difficulty: 14 }),
   creature({ name: 'Bear', tier: 1, type: 'Bruiser', difficulty: 14 }),

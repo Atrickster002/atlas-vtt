@@ -9,7 +9,7 @@ import type { AnyAsset, AssetManagerProps, Tab } from './types';
 import { Header } from './components/Header';
 import { Sidebar } from './components/Sidebar';
 import { Content } from './components/Content';
-import { Breadcrumb } from './components/Breadcrumb';
+import { LocationBar } from './components/LocationBar';
 import { ModalLayer } from './components/ModalLayer';
 import { useAssetData } from './hooks/useAssetData';
 import { useSelectionHandlers, type VisibleIds } from './hooks/useSelectionHandlers';
@@ -26,6 +26,7 @@ import { useOverlayBodyClass } from './hooks/useOverlayBodyClass';
 import { useLoadingReveal } from '../primitives/useLoadingReveal';
 import { useSidebarLayout } from './hooks/useSidebarLayout';
 import { useRememberedPlace } from './hooks/useRememberedPlace';
+import { useLeaveHiddenFolder } from './hooks/useLeaveHiddenFolder';
 import { sortAssets } from './utils/assetSort';
 import { filterFolders, type AssetFilter } from './utils/assetFilter';
 import { useCreatureFilters } from './hooks/useCreatureFilters';
@@ -62,6 +63,7 @@ export default function AssetManager({ isOpen, onClose, initialTab, onExitComple
 
   const visibleIds = useRef<VisibleIds>({ assets: [], folders: [] });
   const sel = useSelectionHandlers(visibleIds, data.folders, activeTab, isOpen);
+  useLeaveHiddenFolder(data, sel);
 
   const changeTab = useCallback((tab: Tab): void => {
     if (tab === activeTab) return;
@@ -162,7 +164,7 @@ export default function AssetManager({ isOpen, onClose, initialTab, onExitComple
   const statblock = useStatblockLink(data.app);
 
   const { handleAssetContextMenu, handleFolderContextMenu, handleContentContextMenu } =
-    useContextMenus({ data, sel, crud, tags, statblock, selectedCollection, onClose });
+    useContextMenus({ data, sel, crud, tags, statblock, selectedCollection, activeTab, onClose });
 
   useAssetManagerEffects({
     isOpen, onClose,
@@ -238,7 +240,6 @@ export default function AssetManager({ isOpen, onClose, initialTab, onExitComple
                   onCreateMap={crud.handleCreateMap}
                   onCreateCollection={crud.handleCreateCollection}
                   onCreateFolder={crud.handleCreateFolder}
-                  onRefresh={() => { void crud.handleRefresh(); }}
                   sidebarToggleLabel={sidebar.toggleLabel}
                   onToggleSidebar={sidebar.toggle}
                   sel={sel}
@@ -249,10 +250,11 @@ export default function AssetManager({ isOpen, onClose, initialTab, onExitComple
                   onDrop={(e) => { if (draggedItems && sel.selectedFolderId === null) { e.preventDefault(); crud.handleDrop(null); } }}
                 >
                   <ActiveFilterBar groups={filterSearch.chips} onReset={filterSearch.reset} />
-                  <Breadcrumb
+                  <LocationBar
                     activeTab={shown.tab}
                     path={shown.folderPath}
                     onNavigateToFolder={sel.handleNavigateToFolder}
+                    sort={sel}
                   />
                   <div className="atlas-asset-manager-main">
                     <AssetTagMenuContext.Provider value={tagMenuActions}>

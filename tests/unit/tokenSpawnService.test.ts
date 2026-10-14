@@ -224,6 +224,24 @@ describe('default token vision of the placing map\'s collection', () => {
   });
 });
 
+describe('a player character placed from the library', () => {
+  const defaults: TokenVisionDefaults = { range: 120, angle: 90 };
+
+  it('sees with the collection\'s default vision, in the one store write that places it', async () => {
+    const { ctx, spawned, addTokens } = setup({ goblin: { playerCharacter: true }, knight: {} }, defaults);
+    await spawnSelectedTokens(ctx, [unframed, framed]);
+    expect(addTokens).toHaveBeenCalledTimes(1);
+    expect(spawned.map((token) => token.vision)).toEqual([{ enabled: true, ...defaults }, { enabled: false, ...defaults }]);
+  });
+
+  it('sees without a default vision, from an encounter too, and never stamps vision off', async () => {
+    const { ctx, spawned } = setup({ goblin: { playerCharacter: true } });
+    await spawnTokenAsset(ctx, unframed, 2);
+    await spawnEncounterTokens(ctx, { id: 'e', name: 'E', type: 'encounters', tags: [], tokens: [{ id: 'goblin', name: 'Goblin', imagePath: 'tokens/goblin.png', size: 1 }], tokenPreviews: [], modifiedAt: 0 });
+    expect(spawned.map((token) => token.vision)).toEqual([{ enabled: true }, { enabled: true }, { enabled: true }]);
+  });
+});
+
 describe('default token vision of a token with a linked statblock', () => {
   const darkvision = GENERIC_SENSES.find((sense) => sense.role === 'darkvision')!;
   const defaults: TokenVisionDefaults = { range: 120, senses: [{ id: darkvision.id, range: 30 }] };
@@ -271,5 +289,34 @@ describe('default token vision of a token with a linked statblock', () => {
       tokens: [{ id: 'goblin', name: 'Goblin', imagePath: 'tokens/goblin.png', size: 1 }],
     });
     expect(spawned[0]!.vision).toEqual({ enabled: false, range: 120 });
+  });
+});
+
+describe('the library token a placed token came from', () => {
+  const encounter = (tokens: EncounterAsset['tokens']): EncounterAsset => ({
+    id: 'ambush', name: 'Ambush', type: 'encounters', tags: [], tokens, tokenPreviews: [], modifiedAt: 0,
+  });
+
+  it('is named on every token placed from a library token record', async () => {
+    const { ctx, spawned } = setup({ goblin: {}, knight: {} });
+    await spawnSelectedTokens(ctx, [unframed, framed]);
+    await spawnTokenAsset(ctx, unframed, 2);
+    expect(spawned.map((token) => token.assetId)).toEqual(['goblin', 'knight', 'goblin', 'goblin']);
+  });
+
+  it('is left out where no record is found', async () => {
+    const { ctx, spawned } = setup();
+    await spawnTokenAsset(ctx, unframed, 1);
+    expect(spawned[0]).not.toHaveProperty('assetId');
+  });
+
+  it('follows an encounter token that names a library token, and keeps the one a captured map token carried', async () => {
+    const { ctx, spawned } = setup({ goblin: {} });
+    await spawnEncounterTokens(ctx, encounter([
+      { id: 'goblin', name: 'Goblin', imagePath: 'tokens/goblin.png', size: 1 },
+      { id: 'map-token', name: 'Knight', imagePath: 'tokens/knight.png', state: { kind: 'token', imagePath: 'tokens/knight.png', assetId: 'knight' } },
+      { id: 'map-token-2', name: 'Knight', imagePath: 'tokens/knight.png', size: 1 },
+    ]));
+    expect(spawned.map((token) => token.assetId)).toEqual(['goblin', 'knight', undefined]);
   });
 });

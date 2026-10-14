@@ -21,7 +21,7 @@ export const palette = {
   'palette.noResultsHint': 'Try a different search term',
   'palette.notePinTool': 'Note Pin Tool',
   'palette.openDiceLog': 'Open dice log',
-  'palette.openLootRoller': 'Open loot roller',
+  'palette.openLootRoller': 'Open random tables',
   'palette.openSceneBrowser': 'Open scene browser',
   'palette.panel.grid': 'Grid Settings',
   'palette.panel.localPlayerView': 'Local Player View Settings',

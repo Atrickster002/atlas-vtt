@@ -63,6 +63,11 @@ const PARSE_YAML_USES = [
   { selector: "CallExpression[callee.name='require'][arguments.0.value='yaml']", message: PARSE_YAML_MESSAGE },
 ];
 const NOTE_YAML_PARSER = "src/app/services/noteYaml.ts";
+// Atlas' messages are Obsidian's notices in Atlas' look, which only the helper gives them.
+const NATIVE_NOTICE = [
+  { selector: "NewExpression[callee.name='Notice']", message: "Show a message with showNotice (src/app/ui/notice.ts), which gives it Atlas' look." },
+];
+const ATLAS_NOTICE = "src/app/ui/notice.ts";
 
 // The two files that may ask `visionOn`: no source without vision on, whatever a policy says,
 // and the selection's check of every token.
@@ -83,7 +88,7 @@ export default defineConfig([
         "ts-nocheck": true,
         "ts-expect-error": true,
       }],
-      "no-restricted-syntax": ["error", ...NO_NATIVE_TITLE, ...PARSE_YAML_USES],
+      "no-restricted-syntax": ["error", ...NATIVE_NOTICE, ...NO_NATIVE_TITLE, ...PARSE_YAML_USES],
     },
   },
   // Which tokens give sight and which a picture always shows is decided in one place,
@@ -93,19 +98,56 @@ export default defineConfig([
     files: ["src/app/vision/**/*.{ts,tsx}", "src/app/pixi/lighting/**/*.{ts,tsx}"],
     ignores: ["src/app/vision/tokenSightPolicy.ts", ...VISION_ON_ASKERS, "**/__tests__/**"],
     rules: {
-      "no-restricted-syntax": ["error", ...NO_NATIVE_TITLE, ...PARSE_YAML_USES, ...VISION_FIELD_READS, ...VISION_ON_USES],
+      "no-restricted-syntax": ["error", ...NATIVE_NOTICE, ...NO_NATIVE_TITLE, ...PARSE_YAML_USES, ...VISION_FIELD_READS, ...VISION_ON_USES],
     },
   },
   {
     files: VISION_ON_ASKERS,
     rules: {
-      "no-restricted-syntax": ["error", ...NO_NATIVE_TITLE, ...PARSE_YAML_USES, ...VISION_FIELD_READS],
+      "no-restricted-syntax": ["error", ...NATIVE_NOTICE, ...NO_NATIVE_TITLE, ...PARSE_YAML_USES, ...VISION_FIELD_READS],
     },
   },
   {
     files: [NOTE_YAML_PARSER],
     rules: {
-      "no-restricted-syntax": ["error", ...NO_NATIVE_TITLE],
+      "no-restricted-syntax": ["error", ...NATIVE_NOTICE, ...NO_NATIVE_TITLE],
+    },
+  },
+  {
+    files: [ATLAS_NOTICE],
+    rules: {
+      "no-restricted-syntax": ["error", ...NO_NATIVE_TITLE, ...PARSE_YAML_USES],
+    },
+  },
+  // Statblocks: only the drag-and-drop wrapper may import dnd-kit, and the pure
+  // core (model, format, expressions, values, the patcher, the FS layout
+  // converter) imports neither Obsidian nor React. The core rule is used
+  // because the obsidianmd preset owns the TypeScript variant, and overriding
+  // it would drop its options.
+  {
+    files: ["src/**/*.{ts,tsx}"],
+    ignores: ["src/app/statblocks/editor/dnd/**"],
+    rules: {
+      "no-restricted-imports": ["error", {
+        patterns: [{ group: ["@dnd-kit/*"], message: "Only statblocks/editor/dnd/ imports dnd-kit." }],
+      }],
+    },
+  },
+  {
+    files: [
+      "src/app/statblocks/{model,format,expressions,values}/**/*.{ts,tsx}",
+      "src/app/statblocks/notes/{frontmatterPatch,frontmatterBounds,frontmatterModel,yamlSplice,yamlDocument,yamlValueText,listIdentity,patchTypes}.ts",
+      "src/app/statblocks/fs/{fsLayoutToTemplate,fsBlocks,fsBlockParts,fsLeafBlocks,fsCallbackPatterns,fsCallbackSyntax,fsCallbackLexer,fsImportState,fsScripts,fsLayoutTypes,fsTrackReplacement}.ts",
+    ],
+    rules: {
+      "no-restricted-imports": ["error", {
+        paths: [
+          { name: "obsidian", message: "The statblock core is pure: no Obsidian." },
+          { name: "react", message: "The statblock core is pure: no React." },
+          { name: "react-dom", message: "The statblock core is pure: no React." },
+        ],
+        patterns: [{ group: ["@dnd-kit/*"], message: "Only statblocks/editor/dnd/ imports dnd-kit." }],
+      }],
     },
   },
   {

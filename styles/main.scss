@@ -11,7 +11,11 @@
 @use '../src/app/onboarding/onboarding';
 @use '../src/app/changelog/changelog';
 @use '../src/app/support/issue-report';
+@use '../src/app/online/gm/styles/dock';
+@use '../src/app/online/marks/styles/marks';
+@use '../src/app/online/tableLog/styles/table-log';
 @use './native-tooltips';
+@use './notices';
 
 // Registered so `atlas-scrollbar-while-scrolling` can fade the thumb. At-rules
 // must stay at the root: inside the scope block below they would be invalid.
@@ -30,8 +34,8 @@
  *  Credits: https://github.com/atlas-vtt/atlas-vtt/blob/main/THIRD_PARTY_NOTICES.md
  */
 
-// The display face of the 3D dice panel's numbers (dice-roll.scss). At-rules
-// stay at the root, like @property above.
+// Atlas' display face: the 3D dice panel's numbers (dice-roll.scss) and the dashboard's
+// wordmark. At-rules stay at the root, like @property above.
 @font-face {
   font-family: 'Atlas Fantaisie Artistique';
   src: url('../src/app/assets/fonts/fantaisie-artistique.ttf') format('truetype');
@@ -103,8 +107,17 @@
   @import '../src/app/react/components/dm-screen.scss';
   @import '../src/app/react/components/linked-note-panel.scss';
   @import '../src/app/react/components/player-dashboard.scss';
-  @import '../src/app/react/components/dashboard.scss';
+  @import '../src/app/react/components/dashboard/dashboard.scss';
+  @import '../src/app/react/components/dashboard/dashboard-cards.scss';
+  @import '../src/app/react/components/dashboard/continue-hero.scss';
+  @import '../src/app/react/components/dashboard/campaigns.scss';
+  @import '../src/app/react/components/dashboard/campaign-page.scss';
+  @import '../src/app/react/components/dashboard/campaign-fields.scss';
+  @import '../src/app/react/components/dashboard/world-map-card.scss';
+  @import '../src/app/react/components/dashboard/world-map-picker.scss';
+  @import '../src/app/react/components/dashboard/quests/quests.scss';
   @import '../src/app/react/components/dice-log/dice-roll-log.scss';
+  @import '../src/app/react/components/dice/rolled-dice.scss';
   @import '../src/app/react/components/loot/loot-roller.scss';
   @import '../src/app/pixi/lighting/light-panel.scss';
   @import '../src/app/pixi/lighting/light-popover.scss';
@@ -113,6 +126,10 @@
   @import '../src/app/react/components/loot/loot-lists.scss';
   @import '../src/app/react/components/loot/loot-card.scss';
   @import '../src/app/react/components/loot/player-loot.scss';
+  @import '../src/app/react/components/randomTables/random-tables.scss';
+  @import '../src/app/react/components/randomTables/table-result-card.scss';
+  @import '../src/app/react/components/randomTables/paste-table-dialog.scss';
+  @import '../src/app/react/components/randomTables/file-table-import.scss';
   @import '../src/app/packages/components/asset-manager/tag-search-modal.scss';
   @import '../src/app/pixi/token-renderer/edit-token-modal.scss';
   @import '../src/app/react/components/collection-settings-modal.scss';
@@ -121,7 +138,16 @@
   @import '../src/app/react/components/collection-settings/conditions-tab.scss';
   @import '../src/app/react/components/collection-settings/vision-tab.scss';
   @import '../src/app/react/components/senses/senses-editor.scss';
+  @import '../src/app/react/components/collection-settings/fan/radial-fan.scss';
   @import '../src/app/react/components/collection-settings/resources-tab.scss';
+  @import '../src/app/react/components/collection-settings/random-tables/random-tables-tab.scss';
+  @import '../src/app/react/components/collection-settings/random-tables/item-rarities.scss';
+  @import '../src/app/react/components/collection-settings/statblock-field-chips.scss';
+  @import '../src/app/react/components/collection-settings/dice-lab/dice-lab.scss';
+  @import '../src/app/react/components/collection-settings/dice-lab/dice-lab-options.scss';
+  @import '../src/app/react/components/collection-settings/dice-lab/dice-tray.scss';
+  @import '../src/app/react/components/collection-settings/dice-lab/dice-set-picker.scss';
+  @import '../src/app/react/components/collection-settings/dice-lab/dice-step.scss';
   @import '../src/app/services/note-preview-window.scss';
   @import '../src/app/services/embedded-leaf.scss';
   @import '../src/app/react/components/atlas-toast.scss';

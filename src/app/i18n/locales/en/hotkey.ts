@@ -32,7 +32,7 @@ export const hotkey = {
   'hotkey.diceTray': 'Dice tray',
   'hotkey.diceLog': 'Dice roll log',
   'hotkey.initiative': 'Initiative tracker',
-  'hotkey.lootRoller': 'Loot roller',
+  'hotkey.lootRoller': 'Random tables',
   'hotkey.previousTurn': 'Previous turn (during combat)',
   'hotkey.nextTurn': 'Next turn (during combat)',
   'hotkey.increase': 'Increase held counter',

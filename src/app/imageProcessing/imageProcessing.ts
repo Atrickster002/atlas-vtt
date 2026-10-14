@@ -177,7 +177,7 @@ export function renderFramedImage(source: Blob, placement: FramePlacement, optio
 }
 
 /** WebP bytes of `source` whose longer side is at most `spec.size` pixels. */
-export async function renderThumbnail(source: Blob, spec: ThumbnailSpec): Promise<ArrayBuffer> {
-  const { image } = await optimizeImage(source, { maxWidth: spec.size, maxHeight: spec.size, quality: spec.quality }, { webpOnly: true });
+export async function renderThumbnail(source: Blob, spec: ThumbnailSpec, options: Pick<ProcessOptions, 'signal' | 'background'> = {}): Promise<ArrayBuffer> {
+  const { image } = await optimizeImage(source, { maxWidth: spec.size, maxHeight: spec.size, quality: spec.quality }, { ...options, webpOnly: true });
   return image.arrayBuffer();
 }

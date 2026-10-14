@@ -162,8 +162,6 @@
   &:hover:not(.token-picker-item-current) {
     background: var(--background-modifier-hover);
     border-color: var(--interactive-accent);
-    transform: translateY(-2px);
-    box-shadow: var(--shadow-s);
   }
   
   &:active:not(.token-picker-item-current) {

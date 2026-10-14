@@ -1,4 +1,4 @@
-import { App, Notice, TFile } from 'obsidian';
+import { App, TFile } from 'obsidian';
 import { AssetRegistrationUncertainError } from '../../../../services/assetRegistrationRecovery';
 import { withStatblockImportLock } from '../../../../services/statblockImportLock';
 import { requireResolvedBestiary, statblockImportCandidate, statblockLookup, type StatblockLookup } from '../../../../services/statblockImportCandidates';
@@ -10,7 +10,9 @@ import { prepareSaveImages, type SaveImageContext } from './prepareSaveImages';
 import { saveEditedPreview } from './saveEditedPreview';
 import type { EditTokenInput, TokenPreview } from './types';
 import type { ProcessedImage } from '../../../../imageProcessing/imageProcessing';
+import type { SavedToken } from './tokenStatblocks';
 import { prebuildMapImageAt } from '../../../../pixi/mapImage/prebuildMapImage';
+import { showNotice } from '../../../../ui/notice';
 
 export interface SaveTokenPreviewsOptions extends SaveImageContext {
   app: App;
@@ -19,8 +21,12 @@ export interface SaveTokenPreviewsOptions extends SaveImageContext {
   collection: string;
   tags: string[];
   editToken?: EditTokenInput | null;
+  /** New tokens become player characters; an edited token keeps what it is. */
+  playerCharacters?: boolean;
   /** Called with every batch of previews once their assets are registered. */
   onSaved?: (ids: string[]) => void;
+  /** Called with the tokens of every batch once they are registered (the Statblocks row makes their notes). */
+  onTokensSaved?: (tokens: SavedToken[]) => void;
   /** Called once per preview as it is saved or fails, with the count so far and the number being saved. */
   onProgress?: (done: number, total: number) => void;
   signal?: AbortSignal;
@@ -89,7 +95,7 @@ async function savePreviews(options: SaveTokenPreviewsOptions): Promise<number> 
       // An unconfirmed write may have committed; its files must stay.
       if (error instanceof AssetRegistrationUncertainError) throw error;
       await discardAssetFiles(app, written.flatMap(w => w.discard));
-      new Notice(t(`creator.${mode}.saveFailedCount`, { count: written.length, error: error instanceof Error ? error.message : t('creator.indexWriteFailed') }));
+      showNotice(t(`creator.${mode}.saveFailedCount`, { count: written.length, error: error instanceof Error ? error.message : t('creator.indexWriteFailed') }));
       return;
     }
     saved += written.length;
@@ -97,6 +103,7 @@ async function savePreviews(options: SaveTokenPreviewsOptions): Promise<number> 
       if (asset.type === 'map') prebuildMapImageAt(app, asset.mapFilePath);
     }
     options.onSaved?.(written.map(w => w.id));
+    options.onTokensSaved?.(written.flatMap(({ asset }) => (asset.type === 'token' ? [{ name: asset.name, imagePath: asset.imagePath, statblockPath: asset.statblockPath }] : [])));
   };
 
   /** Writes a preview's files; a failure is reported and leaves nothing behind. */
@@ -115,12 +122,13 @@ async function savePreviews(options: SaveTokenPreviewsOptions): Promise<number> 
         : {
           type: 'token', showRing: preview.showRing !== false, name: preview.name, imagePath,
           ...(preview.size !== undefined && { size: preview.size }),
-          ...(preview.statblockPath ? { statblockPath: preview.statblockPath } : {}), ...metadata,
+          ...(preview.statblockPath ? { statblockPath: preview.statblockPath } : {}),
+          ...(options.playerCharacters && { playerCharacter: true as const }), ...metadata,
         };
       return { id: preview.id, asset, discard: mode === 'token' ? [imagePath, thumbnailPath] : [thumbnailPath] };
     } catch (error) {
       await discardAssetFiles(app, mode === 'token' ? [imagePath, thumbnailPath] : [thumbnailPath]);
-      new Notice(`${preview.name}: ${error instanceof Error ? error.message : t('creator.saveFailed')}`);
+      showNotice(`${preview.name}: ${error instanceof Error ? error.message : t('creator.saveFailed')}`);
       return null;
     } finally {
       if (!options.signal?.aborted) options.onProgress?.(++done, prepared.size);

@@ -28,6 +28,19 @@ describe('Atlas settings in the plugin data', () => {
     expect(reopened.getHotkeys().assets).toBe('q');
   });
 
+  it('shows no cursors to an online table until the GM says so, also in a vault whose settings an older Atlas wrote', async () => {
+    expect((await loaded()).settings.getLocalPlayerViewSettings().showCursors).toBe(false);
+    const older = await loaded({ localPlayerView: { showWidgets: false, showDiceRolls: true, showTokenHP: true } });
+    expect(older.settings.getLocalPlayerViewSettings()).toMatchObject({ showCursors: false, showWidgets: false, showDiceRolls: true });
+    older.settings.setLocalPlayerViewSettings({ showCursors: true });
+    await older.settings.saveSettingsNow();
+    // What the older version stored beside it is still there for it.
+    expect(older.data.stored()).toMatchObject({ localPlayerView: { showCursors: true, showWidgets: false, showDiceRolls: true, showTokenHP: true } });
+    const reopened = new SettingsService(older.app, undefined, older.data);
+    await reopened.initialize();
+    expect(reopened.getLocalPlayerViewSettings().showCursors).toBe(true);
+  });
+
   it('keeps what a newer Atlas stored when it saves', async () => {
     const { settings, data } = await loaded({
       futureSetting: { nested: [1, 2] },
@@ -66,6 +79,18 @@ describe('Atlas settings in the plugin data', () => {
     await settings.saveSettingsNow();
     expect(data.stored()).not.toHaveProperty('navigation');
     expect(data.stored()).not.toHaveProperty('systemPresets');
+  });
+
+  it('looks for the grid of new scenes unless the GM switched that off', async () => {
+    const { settings, data } = await loaded();
+    expect(settings.detectsGridOnNewScenes()).toBe(true);
+
+    settings.setDetectGridOnNewScenes(false);
+    await settings.saveSettingsNow();
+    expect(settings.detectsGridOnNewScenes()).toBe(false);
+    expect(data.stored()).toMatchObject({ detectGridOnNewScenes: false });
+    // Anything but a plain false, as another version may write, reads as on.
+    expect((await loaded({ detectGridOnNewScenes: 'no' })).settings.detectsGridOnNewScenes()).toBe(true);
   });
 
   it('reads the plugin data again when it changed on disk and tells every listener', async () => {

@@ -37,6 +37,7 @@ import { TextRenderer } from "./pixi/TextRenderer"; // Import TextRenderer
 import { TextTool } from "./tools/TextTool"; // Import TextTool
 import type { LightingController } from './pixi/lighting/LightingController';
 import { LightingFeature } from './pixi/lighting/LightingFeature';
+import { ShownPlaces } from './lighting/shownPlaces';
 import type { SceneFrame } from './pixi/lighting/engine/types';
 import { captureSceneFrame } from './pixi/sceneFrameCapture';
 import { AudioTool } from './tools/AudioTool';
@@ -45,8 +46,8 @@ import { AudioRenderer } from './pixi/audio/AudioRenderer';
 import { SoundRegistry } from './audio/SoundRegistry';
 import { AudioBufferCache } from './audio/AudioBufferCache';
 import { SpatialAudioEngine } from './audio/SpatialAudioEngine';
-import { AssetService } from './services/AssetService';
 import { mapMeasurementSettings } from './services/mapMeasurementSettings';
+import { rulesLookup } from './services/mapRules';
 import { findAtlasLeafByViewId } from './utils/atlasLeafLookup';
 import { requestRender } from './pixi/RenderScheduler';
 import { MAP_LAYER_Z } from './pixi/mapLayerOrder';
@@ -60,6 +61,7 @@ import { frameView } from './services/playerFrameDemand';
 import { MapController } from './MapController';
 import { NO_STRETCH, readMapStretch, sameStretch, type MapStretch } from './grid/mapStretch';
 import { fitZoomRange } from './pixi/fitMapRect';
+import { viewCentreInClient, worldToClient, type ClientPoint } from './pixi/utils/worldToClient';
 
 export class PixiRendererOrchestrator { // Renamed class
   private _isDestroyed: boolean = false;
@@ -80,6 +82,8 @@ export class PixiRendererOrchestrator { // Renamed class
   private textTool?: TextTool; // Add TextTool instance
   /** The view's lighting, built and removed as the GM switches dynamic lighting on and off. */
   private lightingFeature?: LightingFeature;
+  /** Where gliding tokens are drawn: the token renderer notes them, the lighting reads its tokens there. */
+  private readonly shownPlaces = new ShownPlaces();
   /** The players' frame, rendered at the player window's size; made when this view is first presented. */
   private playerFrames?: Pick<PlayerFrameTexture, 'canRender' | 'render' | 'copy' | 'release' | 'destroy'>;
   private get lighting(): LightingController | undefined {
@@ -229,11 +233,12 @@ export class PixiRendererOrchestrator { // Renamed class
             const updates: Partial<GridOptions> = {};
             let needsOptionsUpdate = false;
             
-            // Handle visibility separately as it uses setEnabled
+            // A grid that is hidden goes at once. One that is shown is shown below, with whatever else
+            // changed: switched on first it stood for a moment as it was before (a new scene's grid of
+            // 70 px squares flashed over the hexes just found for it).
             const visible = typeof grid.visible === 'boolean' ? grid.visible : true;
-            if (visible !== currentOptions.enabled) {
-              this.gridSystem.setEnabled(visible);
-            }
+            const shown = visible && !currentOptions.enabled;
+            if (!visible && currentOptions.enabled) this.gridSystem.setEnabled(false);
             
             // Collect all other updates
             if (grid.type !== undefined && grid.type !== currentOptions.type) {
@@ -276,8 +281,9 @@ export class PixiRendererOrchestrator { // Renamed class
             }
             
             // Apply all updates at once
+            if (shown && !needsOptionsUpdate) this.gridSystem.setEnabled(true);
             if (needsOptionsUpdate) {
-              this.gridSystem.updateOptions(updates);
+              this.gridSystem.updateOptions(shown ? { ...updates, enabled: true } : updates);
               
               // Re-snap all tokens to the new grid if grid type, size, or offset changed
               if (updates.type || updates.size || updates.offsetX !== undefined || updates.offsetY !== undefined) {
@@ -307,17 +313,15 @@ export class PixiRendererOrchestrator { // Renamed class
         if (!vp) return;
         const detail = e.detail;
         if (detail && typeof detail.callback === 'function') {
-          let clientX, clientY;
+          const canvas = this.pixiAppManager.getCanvasElement();
+          let at: ClientPoint;
           if (typeof detail.worldX === 'number' && typeof detail.worldY === 'number') {
-            const screenPos = vp.toScreen(detail.worldX, detail.worldY);
-            clientX = screenPos.x;
-            clientY = screenPos.y;
+            at = worldToClient(vp, canvas, detail.worldX, detail.worldY);
           } else {
             console.warn('[PixiRendererOrchestrator] get-viewport-position event had no worldX/Y.');
-            clientX = vp.screenWidth / 2;
-            clientY = vp.screenHeight / 2;
+            at = viewCentreInClient(vp, canvas);
           }
-          detail.callback(clientX, clientY);
+          detail.callback(at.x, at.y);
         }
       };
       window.addEventListener('get-viewport-position', this.getViewportPositionHandler);
@@ -348,7 +352,8 @@ export class PixiRendererOrchestrator { // Renamed class
             () => this.selectionManager?.updateSelectionOverlay(),
             this.store,
             this.eventBus,
-            this.viewId
+            this.viewId,
+            this.shownPlaces,
         );
         // Set PIXI app reference for renderer access
         this.tokenRenderer.setPixiApp(this.pixiAppManager.app);
@@ -406,6 +411,7 @@ export class PixiRendererOrchestrator { // Renamed class
         albedo: () => this.mapImage?.albedoTexture() ?? null,
         grid: () => this.gridSystem ?? null,
         fogCoverage: () => this.fogRenderer!.getCommittedCoverage(),
+        shown: this.shownPlaces,
       });
     }
 
@@ -522,7 +528,8 @@ export class PixiRendererOrchestrator { // Renamed class
             () => this.selectionManager?.updateSelectionOverlay(), // Pass callback to SelectionManager
             this.store,
             this.eventBus,
-            this.viewId
+            this.viewId,
+            this.shownPlaces,
         );
         // Set PIXI app reference for renderer access
         this.tokenRenderer.setPixiApp(this.pixiAppManager.app);
@@ -955,8 +962,8 @@ export class PixiRendererOrchestrator { // Renamed class
   private wireMeasureRendererProvider(): void {
     const measure = this.measureRenderer;
     if (!measure) return;
-    const assetService = AssetService.getInstance(this.obsApp);
-    measure.measurementSettingsProvider = () => mapMeasurementSettings(assetService, this.store.getState());
+    const rules = rulesLookup(this.obsApp);
+    measure.measurementSettingsProvider = () => mapMeasurementSettings(rules, this.store.getState());
     const grid = this.gridSystem;
     if (grid) measure.playersView = measurePlayersView({ store: this.store, grid, tokens: () => this.tokenRenderer, lighting: () => this.lighting?.playerSight() });
     this.stopMeasuresFollowingPlayers?.();
@@ -973,17 +980,14 @@ export class PixiRendererOrchestrator { // Renamed class
       this.audioRenderer.setSelectedAudio(hitId);
       // Open config panel
       if (this.viewport) {
-        const screenPos = this.viewport.toScreen(worldX, worldY);
-        const canvasRect = this.pixiAppManager.getCanvasElement()?.getBoundingClientRect();
-        const sx = (canvasRect?.left ?? 0) + screenPos.x;
-        const sy = (canvasRect?.top ?? 0) + screenPos.y;
+        const at = worldToClient(this.viewport, this.pixiAppManager.getCanvasElement(), worldX, worldY);
         openAudioConfigPanel(
           hitId,
           this.store,
           this.soundRegistry,
           (soundId) => this.previewSound(soundId),
-          sx,
-          sy,
+          at.x,
+          at.y,
         );
       }
       return true;
@@ -1011,17 +1015,14 @@ export class PixiRendererOrchestrator { // Renamed class
 
     // Open config panel for the new source
     if (this.viewport) {
-      const screenPos = this.viewport.toScreen(worldX, worldY);
-      const canvasRect = this.pixiAppManager.getCanvasElement()?.getBoundingClientRect();
-      const sx = (canvasRect?.left ?? 0) + screenPos.x;
-      const sy = (canvasRect?.top ?? 0) + screenPos.y;
+      const at = worldToClient(this.viewport, this.pixiAppManager.getCanvasElement(), worldX, worldY);
       openAudioConfigPanel(
         newId,
         this.store,
         this.soundRegistry,
         (soundId) => this.previewSound(soundId),
-        sx,
-        sy,
+        at.x,
+        at.y,
       );
     }
 

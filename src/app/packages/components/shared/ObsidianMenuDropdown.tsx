@@ -13,6 +13,10 @@ interface ObsidianMenuDropdownProps {
   onChange: (value: string) => void;
   placeholder?: string;
   className?: string;
+  /** Id of a visible label: the trigger is named by it and the value it shows. */
+  labelledBy?: string;
+  /** What each option does, by option key: shown in a tooltip beside its row. */
+  descriptions?: Readonly<Record<string, string>>;
 }
 
 const EMPTY_OPTION_LABEL = t('common.none');
@@ -29,8 +33,11 @@ export const ObsidianMenuDropdown: React.FC<ObsidianMenuDropdownProps> = ({
   options,
   onChange,
   placeholder,
-  className
+  className,
+  labelledBy,
+  descriptions
 }) => {
+  const valueId = React.useId();
   const [trigger, setTrigger] = useState<HTMLButtonElement | null>(null);
   const { isOpen, setIsOpen, onCloseAutoFocus } = useExclusiveDropdown();
   const close = (): void => setIsOpen(false);
@@ -42,6 +49,7 @@ export const ObsidianMenuDropdown: React.FC<ObsidianMenuDropdownProps> = ({
     label: formatOptionLabel(label),
     checked: value === key,
     onClick: () => onChange(key),
+    ...(descriptions?.[key] && { description: descriptions[key] }),
   }));
 
   // Get display value
@@ -59,8 +67,9 @@ export const ObsidianMenuDropdown: React.FC<ObsidianMenuDropdownProps> = ({
           disabled={disabled}
           variant="ghost"
           className={`text-icon-button atlas-obsidian-menu-dropdown ${className || ''}`}
+          aria-labelledby={labelledBy ? `${labelledBy} ${valueId}` : undefined}
         >
-          <span className="text-button-label">
+          <span id={valueId} className="text-button-label">
             {displayValue || placeholder || t('common.select')}
           </span>
           <span className="text-button-icon">

@@ -110,7 +110,8 @@ export interface ViewAtlasState extends ViewState {
   // Note Pin actions
   /** With `hex`, the note is linked to the hex containing (x, y) rather than pinned to the point. */
   addNotePin: (x: number, y: number, notePath: string, icon?: string, options?: { hex?: boolean }) => string;
-  updateNotePin: (id: string, updates: Partial<Omit<NotePin, 'id' | 'kind'>>) => void;
+  /** A field given as undefined is removed. */
+  updateNotePin: (id: string, updates: { [K in keyof Omit<NotePin, 'id' | 'kind'>]?: NotePin[K] | undefined }) => void;
   moveNotePin: (id: string, x: number, y: number) => void;
   deleteNotePin: (id: string) => void;
 
@@ -206,8 +207,8 @@ export interface ViewAtlasState extends ViewState {
   addToInitiative: (entry: Omit<InitiativeEntry, 'id' | 'order' | 'isActive'>) => string;
   removeFromInitiative: (id: string) => void;
   updateInitiativeEntry: (id: string, updates: Partial<InitiativeEntry>) => void;
-  rollAllInitiative: (roll?: string) => void;
-  rollEntryInitiative: (id: string, roll?: string) => void;
+  rollAllInitiative: (roll?: string, fromStatblocks?: ReadonlyMap<string, number>) => void;
+  rollEntryInitiative: (id: string, roll?: string, fromStatblock?: number | null) => void;
   nextTurn: () => void;
   previousTurn: () => void;
   reorderInitiative: (fromIndex: number, toIndex: number) => void;
@@ -271,10 +272,11 @@ export const DEFAULT_TOKEN_SETTINGS: Readonly<ViewAtlasState['tokenSettings']> =
   tokenRingSize: 1,
 };
 
-const createInitialState = (): Pick<ViewAtlasState, 'schema' | 'version' | 'mapPath' | 'background' | 'grid' | 'objects' | 'camera' | 'persistenceEnabled' | 'widgetSettings' | 'widgetValues' | 'dmNotePath' | 'tokenSettings' | 'initiative' | 'diceLog' | 'pinnedNotePreviews' | 'lootRoller' | 'lighting' | 'exploredMask' | 'exploredEdits'> => ({
+const createInitialState = (): Pick<ViewAtlasState, 'schema' | 'version' | 'mapPath' | 'background' | 'grid' | 'objects' | 'camera' | 'persistenceEnabled' | 'widgetSettings' | 'widgetValues' | 'dmNotePath' | 'tokenSettings' | 'initiative' | 'diceLog' | 'pinnedNotePreviews' | 'lootRoller' | 'lighting' | 'exploredMask' | 'exploredEdits' | 'partyValues'> => ({
   lighting: { ...DEFAULT_SCENE_LIGHTING },
   exploredMask: null,
   exploredEdits: 0,
+  partyValues: {},
   schema: ATLAS_SCHEMA,
   version: ATLAS_VERSION,
   mapPath: null,
@@ -913,7 +915,11 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
             const pin = draft.objects.pins[id];
             if (pin) {
               const kindChanged = updates.icon !== undefined && updates.icon !== pin.icon;
-              Object.assign(pin, updates);
+              // A field given as undefined is removed, so a switch turned off leaves nothing behind
+              for (const [key, value] of Object.entries(updates)) {
+                if (value === undefined) Reflect.deleteProperty(pin, key);
+                else Reflect.set(pin, key, value);
+              }
               // A pin keeps its label for life; only moving it to another sequence re-labels it
               if (kindChanged) {
                 delete pin.label;
@@ -1453,6 +1459,8 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
               exploredMask: readExploredMask(saved.exploredMask),
               // Counted per session: a file never brings one.
               exploredEdits: current.exploredEdits,
+              // The campaign's, never the scene's.
+              partyValues: current.partyValues,
             };
           },
 

@@ -1,9 +1,9 @@
 import { mapResources } from '../../../../resources/collectionResources';
 import type { ResourceDefinition } from '../../../../resources/resourceTypes';
-import { Notice, App as ObsidianApp } from 'obsidian';
+import { App as ObsidianApp } from 'obsidian';
 import type { TokenAsset, AnyAsset, EncounterAsset } from '../types';
 import { loadStatblockOverrides, type StatblockOverrides } from './statblockLoader';
-import { AssetService } from '../../../../services/AssetService';
+import type { AssetService } from '../../../../services/AssetService';
 import {
   FALLBACK_PITCH,
   cellPitch,
@@ -19,8 +19,11 @@ import { tokenFromFile } from '../../../../resources/resourceFileFormat';
 import { t } from '../../../../i18n';
 import { mapVisionDefaults } from '../../../../gameSystems/visionDefaults';
 import { systemPresetsOf } from '../../../../services/mapCollectionRules';
+import { rulesLookup } from '../../../../services/mapRules';
 import type { TokenVision, TokenVisionDefaults } from '../../../../types/lightingTypes';
 import { placementVision } from '../../../../creatures/placementVision';
+import { isPlayerCharacter } from '../../../../characters/playerCharacters';
+import { showNotice } from '../../../../ui/notice';
 
 // ─── Viewport helpers ───────────────────────────────────────────────
 
@@ -65,7 +68,7 @@ interface SpawnTarget {
 async function getSpawnTarget(ctx: SpawnContext): Promise<SpawnTarget | null> {
   const view = ctx.view ?? await loadAtlasView(ctx.app);
   if (!view) {
-    new Notice('No scene is open. Open a scene to add tokens to it.');
+    showNotice('No scene is open. Open a scene to add tokens to it.');
     return null;
   }
   if (view !== ctx.view) void ctx.app.workspace.revealLeaf(view.leaf);
@@ -73,7 +76,7 @@ async function getSpawnTarget(ctx: SpawnContext): Promise<SpawnTarget | null> {
   const viewport = rendererService.getViewport() as ViewportLike | null;
   const { mapPath, isMapLoading } = view.getStore().getState();
   if (!viewport || !mapPath || isMapLoading) {
-    new Notice('The scene is still loading. Add the tokens once it is open.');
+    showNotice('The scene is still loading. Add the tokens once it is open.');
     return null;
   }
   const gridSystem = rendererService.getGridSystem() as GridSystemLike | null;
@@ -135,6 +138,8 @@ interface TokenSpawnData extends StatblockOverrides {
   x: number;
   y: number;
   imagePath: string;
+  /** The library token it was placed from (`libraryTokenOf`). */
+  assetId?: string;
   kind: 'character';
   name: string;
   statblockPath?: string;
@@ -145,11 +150,15 @@ interface TokenSpawnData extends StatblockOverrides {
 
 /** What a spawned token inherits from its asset. */
 interface TokenSource {
+  /** The library token record the source was resolved from; unset when none was found. */
+  assetId?: string | undefined;
   imagePath: string;
   name: string;
   statblockPath: string | null;
   size?: number | undefined;
   showRing?: boolean | undefined;
+  /** Placed from one of the players' characters (`isPlayerCharacter`): its token sees by default. */
+  playerCharacter: boolean;
 }
 
 /** Fields an asset-manager view model or stored token reference may carry. */
@@ -173,26 +182,28 @@ async function resolveTokenSource(ctx: SpawnContext, ref: TokenSourceRef): Promi
     return null;
   }
   return {
+    ...(record && { assetId: record.id }),
     imagePath,
     name: ref.name || t('initiative.token'),
     statblockPath: record?.statblockPath ?? ref.statblockPath ?? null,
     size: record?.size ?? ref.size,
     showRing: record?.showRing ?? ref.showRing,
+    playerCharacter: record !== null && isPlayerCharacter(record),
   };
 }
 
 /** What new tokens start with in the scene they are spawned into, from its collection. */
 function spawnVisionDefaults(ctx: SpawnContext, target: SpawnTarget): TokenVisionDefaults | undefined {
   return ctx.assetService
-    ? mapVisionDefaults(ctx.assetService, target.view.getStore().getState().mapPath, systemPresetsOf(ctx.app))
+    ? mapVisionDefaults(rulesLookup(ctx.app, ctx.assetService), target.view.getStore().getState().mapPath, systemPresetsOf(ctx.app))
     : undefined;
 }
 
-/** Builds a token from its asset; `visionDefaults` (the placing collection's) start vision off (`placementVision`). */
+/** Builds a token from its asset; `visionDefaults` (the placing collection's) start vision off but for a player character (`placementVision`). */
 async function buildTokenData(
   app: ObsidianApp,
   pos: { x: number; y: number },
-  { imagePath, name, statblockPath, size, showRing }: TokenSource,
+  { assetId, imagePath, name, statblockPath, size, showRing, playerCharacter }: TokenSource,
   definitions: readonly ResourceDefinition[],
   visionDefaults: TokenVisionDefaults | undefined,
 ): Promise<TokenSpawnData> {
@@ -204,6 +215,7 @@ async function buildTokenData(
     name,
   };
 
+  if (assetId !== undefined) data.assetId = assetId;
   if (size !== undefined) data.size = size;
   if (showRing !== undefined) data.showRing = showRing;
 
@@ -213,16 +225,15 @@ async function buildTokenData(
     Object.assign(data, overrides);
   }
 
-  const vision = placementVision(visionDefaults, Boolean(statblockPath));
+  const vision = placementVision(visionDefaults, Boolean(statblockPath), playerCharacter);
   if (vision) data.vision = vision;
 
   return data;
 }
 
-/** The resources of the collection the target map belongs to. */
+/** The resources of the rules the target map plays by. */
 function targetResources(ctx: SpawnContext, target: SpawnTarget): ResourceDefinition[] {
-  const assets = ctx.assetService ?? AssetService.getInstance(ctx.app);
-  return mapResources(assets, target.view.getStore().getState().mapPath);
+  return mapResources(rulesLookup(ctx.app, ctx.assetService ?? undefined), target.view.getStore().getState().mapPath);
 }
 
 function imageExists(app: ObsidianApp, imagePath: string): boolean {
@@ -325,7 +336,7 @@ export async function spawnEncounterTokens(
   }
 
   const ids = addSpawnedTokens(target, tokens);
-  new Notice(ids.length < tokensToSpawn.length
+  showNotice(ids.length < tokensToSpawn.length
     ? t('am.spawnedPartial', { count: ids.length, expected: tokensToSpawn.length, name: encounter.name })
     : t('am.spawned', { count: ids.length, name: encounter.name }));
   return ids;

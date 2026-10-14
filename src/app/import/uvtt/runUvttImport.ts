@@ -1,9 +1,10 @@
-import { Notice, type App } from 'obsidian';
+import { type App } from 'obsidian';
 import { dynamicLightingOn } from '../../experimental/experimentalFeatures';
 import { IMAGE_PRESETS, optimizeImage } from '../../imageProcessing/imageProcessing';
 import type { AssetService } from '../../services/AssetService';
 import { AssetThumbnailService, THUMBNAIL_SPEC } from '../../services/AssetThumbnailService';
 import { importUvttFile, type UvttImportDeps, type UvttImported } from './importUvttFile';
+import { showNotice } from '../../ui/notice';
 
 /** A refusal stays long enough to read its reason. */
 const PROBLEM_NOTICE_MS = 12_000;
@@ -40,14 +41,14 @@ export async function runUvttImport(app: App, assetService: AssetService, files:
   const deps = importDeps(app, assetService);
   const imported: UvttImported[] = [];
   for (const file of files) {
-    const progress = new Notice(`Importing ${file.name}…`, 0);
+    const progress = showNotice(`Importing ${file.name}…`, 0);
     const result = await importUvttFile(deps, file, collectionId);
     progress.hide();
     if (result.ok) {
       imported.push(result);
-      new Notice(uvttImportSummary(result, dynamicLightingOn(app)));
+      showNotice(uvttImportSummary(result, dynamicLightingOn(app)));
     } else {
-      new Notice(`Could not import ${file.name}. ${result.problem}`, PROBLEM_NOTICE_MS);
+      showNotice(`Could not import ${file.name}. ${result.problem}`, PROBLEM_NOTICE_MS);
     }
   }
   if (imported.length > 0) app.workspace.trigger('atlas-vtt:refresh-assets');

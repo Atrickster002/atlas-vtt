@@ -1,26 +1,30 @@
-import { TFile, Modal, App as ObsidianApp, Notice, base64ToArrayBuffer } from 'obsidian';
+import { TFile, App as ObsidianApp, base64ToArrayBuffer } from 'obsidian';
 import type { AssetService, EncounterAsset } from '../services/AssetService';
 import { generateEncounterThumbnail } from './encounterThumbnail';
 import type { EncounterFormation } from './encounterFormation';
 import './encounter-save-modal.scss';
 import { runInBackground } from '../utils/backgroundTask';
 import { getLocale, t } from '../i18n';
+import { showNotice } from '../ui/notice';
+import { createDialogShell } from '../ui/dialogShell';
 
 /** One token as it will be stored inside an encounter. */
 export type EncounterTokenDraft = EncounterAsset['tokens'][number];
 
 const THUMBNAIL_DIR = 'atlas-vtt/assets/encounter-thumbnails';
 
+/**
+ * Asks for the encounter's name in Atlas' own dialog, which stacks above the asset
+ * manager (an Obsidian modal opened from there lay underneath it).
+ */
 function promptForEncounterName(app: ObsidianApp, tokens: EncounterTokenDraft[]): Promise<string | null> {
   return new Promise((resolve) => {
-    const modal = new Modal(app);
-    modal.titleEl.setText(t('encounter.saveTitle'));
-    const contentEl = modal.contentEl;
-    contentEl.createEl('p', { text: t('encounter.createWith', { count: tokens.length }) });
+    const { root, dialog } = createDialogShell(t('encounter.saveTitle'));
+    dialog.createEl('p', { cls: 'atlas-text-dialog__message', text: t('encounter.createWith', { count: tokens.length }) });
 
-    const previewContainer = contentEl.createDiv({ cls: 'atlas-encounter-save-preview' });
+    const previewContainer = dialog.createDiv({ cls: 'atlas-encounter-save-preview' });
 
-    const thumbEl = previewContainer.createDiv().createEl('img', { cls: 'atlas-encounter-save-thumbnail' });
+    const thumbEl = previewContainer.createEl('img', { cls: 'atlas-encounter-save-thumbnail' });
     runInBackground(
       generateEncounterThumbnail(app, tokens).then((url) => { if (url) thumbEl.src = url; }),
       'Encounter thumbnail preview',
@@ -29,30 +33,42 @@ function promptForEncounterName(app: ObsidianApp, tokens: EncounterTokenDraft[])
     const list = previewContainer.createDiv();
     list.createEl('p', { text: t('encounter.tokens'), cls: 'setting-item-description' });
     const ul = list.createEl('ul', { cls: 'atlas-encounter-save-tokens' });
-    tokens.forEach((t) => ul.createEl('li', { text: t.name }));
+    tokens.forEach((token) => ul.createEl('li', { text: token.name }));
 
-    const inputEl = contentEl.createEl('input', {
+    const inputEl = dialog.createEl('input', {
       type: 'text',
       placeholder: t('encounter.namePlaceholder'),
       value: t('encounter.defaultName', { date: new Date().toLocaleDateString(getLocale()) }),
       cls: 'atlas-encounter-save-input',
     });
 
+    const close = (name: string | null): void => {
+      root.remove();
+      resolve(name);
+    };
     const submit = (): void => {
       const name = inputEl.value.trim();
-      if (name) { modal.close(); resolve(name); }
+      if (name) close(name);
     };
 
-    const btns = contentEl.createDiv({ cls: 'atlas-encounter-save-buttons' });
-    btns.createEl('button', { text: t('common.cancel') }).onclick = () => { modal.close(); resolve(null); };
-    btns.createEl('button', { text: t('encounter.save'), cls: 'mod-cta' }).onclick = submit;
-    inputEl.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') submit();
-      else if (e.key === 'Escape') { modal.close(); resolve(null); }
+    const actions = dialog.createDiv({ cls: 'atlas-text-dialog__actions' });
+    actions.createEl('button', { text: t('common.cancel') }).addEventListener('click', () => close(null));
+    actions.createEl('button', { text: t('encounter.save'), cls: 'mod-cta' }).addEventListener('click', submit);
+    root.addEventListener('click', (event) => {
+      if (event.target === root) close(null);
+    });
+    root.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' && event.target === inputEl) {
+        event.preventDefault();
+        submit();
+      } else if (event.key === 'Escape') {
+        event.stopPropagation();
+        close(null);
+      }
     });
 
-    modal.open();
-    window.setTimeout(() => inputEl.focus(), 100);
+    inputEl.focus();
+    inputEl.select();
   });
 }
 
@@ -86,7 +102,7 @@ export async function saveEncounter(
   formation?: EncounterFormation,
 ): Promise<EncounterAsset | null> {
   if (tokens.length === 0) {
-    new Notice(t('encounter.noTokens'));
+    showNotice(t('encounter.noTokens'));
     return null;
   }
 
@@ -105,11 +121,11 @@ export async function saveEncounter(
       thumbnailUrl,
       data: { description: t('encounter.description', { count: tokens.length }) },
     });
-    new Notice(t('encounter.saved', { name: encounterName }));
+    showNotice(t('encounter.saved', { name: encounterName }));
     return encounter;
   } catch (error) {
     console.error('[encounterSaveService] Error saving encounter:', error);
-    new Notice(t('encounter.saveFailed'));
+    showNotice(t('encounter.saveFailed'));
     return null;
   }
 }

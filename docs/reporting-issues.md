@@ -20,6 +20,13 @@ the same modal or use **Copy report** to save your text. Do not close the modal
 until you have saved an unsent draft. A report awaiting confirmation may have
 reached GitHub; retrying it from the same modal will not create a second issue.
 
+## From the player page
+
+Players at an online table can open **More → Report an issue** on the player
+page. The form sends the report to the same service, with the page's version,
+browser, operating system and language, and optionally recent page errors. It
+needs no GitHub account and no Atlas account.
+
 ## Maintainers
 
 The reporting service source is in

@@ -16,6 +16,7 @@ const workspaceApp = { workspace: { on: () => ({}), offref: () => {} } };
 
 vi.mock('../../src/app/packages/components/asset-manager/hooks/useAssetData', () => ({
   useAssetData: (activeTab: Tab) => ({
+    shownFolderOf: (folderId: string | null) => folderId,
     folders: [], collections: [], availableTags: [], assets: loaded.assets, assetsLoading: loaded.tab !== activeTab,
     assetCounts: null, app: workspaceApp,
   }),

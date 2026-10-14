@@ -1,7 +1,8 @@
 import { GM_SIGHT_POLICY, PLAYER_SIGHT_POLICY } from '../../vision/tokenSightPolicy';
 import { selectSight } from '../../vision/selectSight';
 import type { Viewport } from 'pixi-viewport';
-import type { ViewAtlasState, ViewAtlasStore } from '../../storeFactory';
+import type { SceneStore } from '../../lighting/shownTokens';
+import type { ViewAtlasState } from '../../storeFactory';
 import type { WallSegment } from '../../types/wallTypes';
 import type { MeasurementSettings } from '../../grid/measurementFormat';
 import { unitScaleOf } from '../../lighting/lightingUnits';
@@ -31,7 +32,7 @@ const NO_REACHES: LightReach[] = [];
 
 export interface CanvasLightingDeps {
   viewport: Viewport;
-  store: ViewAtlasStore;
+  store: SceneStore<ViewAtlasState>;
   measurement: () => MeasurementSettings;
   bounds: () => MapBounds | null;
   /** The senses and conditions of the map's collection; the generic ones without it. */

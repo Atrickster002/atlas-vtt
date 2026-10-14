@@ -56,7 +56,7 @@ export interface OptionPicks {
 /** What the user picked in the asset manager's filters. Empty picks and missing ranges filter nothing. */
 export interface CreatureFilterSelection {
   statblock: StatblockLinkFilter;
-  /** Statblock layouts (Fantasy Statblocks layout names). */
+  /** The "Template" facet: keys of native templates and Fantasy Statblocks layouts (`templateFacet.ts`). */
   layouts: OptionPicks;
   /** Inclusive bounds by range filter id. */
   ranges: Record<string, NumericRange>;

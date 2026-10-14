@@ -93,6 +93,9 @@ export function needsPathNormalization(path: string): boolean {
 /** The last segment of a vault path: `a/b/goblin.webp` → `goblin.webp`. */
 export const baseName = (path: string): string => path.slice(path.lastIndexOf('/') + 1);
 
+/** A note's name as people read it: `Bestiary/Marsh Warden.md` → `Marsh Warden`. */
+export const noteName = (path: string): string => baseName(path).replace(/\.md$/i, '');
+
 /** The folder of a vault path: `a/b/goblin.webp` → `a/b`; empty at the vault root. */
 export const parentPath = (path: string): string => path.slice(0, Math.max(0, path.lastIndexOf('/')));
 

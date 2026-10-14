@@ -60,8 +60,8 @@ export const TOOLBAR_CONTROLS = [
     description: 'Roll any mix of dice and show the result to everyone at the table.',
   },
   {
-    id: 'loot', label: 'Loot roller', hotkey: 'lootRoller', dmOnly: true, hideable: true,
-    description: 'Roll random loot from the item notes in your collection.',
+    id: 'loot', label: 'Random tables', hotkey: 'lootRoller', dmOnly: true, hideable: true,
+    description: 'Roll on the random tables in your notes and loot bases.',
   },
   {
     id: 'assets', label: 'Asset manager', hotkey: 'assets', dmOnly: true, hideable: true,

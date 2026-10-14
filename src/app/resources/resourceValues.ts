@@ -15,6 +15,11 @@ export function startingValue(definition: ResourceDefinition, max: number): Reso
   return { current: definition.direction === 'fills' ? 0 : max, max };
 }
 
+/** Whether a value is one to show: a static value may be 0 (an armour class), a counting one needs a maximum above 0. */
+export function holdsValue(definition: ResourceDefinition, value: ResourceValue): boolean {
+  return definition.direction === 'static' ? value.max >= 0 : value.max > 0;
+}
+
 /** Used up: 0 when draining, full when filling. A value without a maximum is never spent. */
 export function isSpent(definition: ResourceDefinition, value: ResourceValue): boolean {
   if (value.max <= 0 || definition.direction === 'static') return false;

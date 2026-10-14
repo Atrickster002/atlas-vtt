@@ -1,22 +1,26 @@
 import { describe, expect, it } from 'vitest';
 import type { Container, Ticker } from 'pixi.js';
-import { TokenGlide, glideStep } from '../../src/app/pixi/token-renderer/TokenGlide';
+import { ShownPlaces } from '../../src/app/lighting/shownPlaces';
+import { TokenGlide, glideStep, placedAtOnce } from '../../src/app/pixi/token-renderer/TokenGlide';
 
 type Step = (ticker: Pick<Ticker, 'deltaMS'>) => void;
 
-function harness(reduced = false): { glide: TokenGlide; sprite: { position: { x: number; y: number; set(x: number, y: number): void } }; moves: number[]; steps: Set<Step>; frame(ms: number): void } {
+function harness(reduced = false, clearWay = true): { glide: TokenGlide; shown: ShownPlaces; sprite: { position: { x: number; y: number; set(x: number, y: number): void } }; moves: number[]; steps: Set<Step>; frame(ms: number): void } {
   const steps = new Set<Step>();
   const ticker = { add: (step: Step) => steps.add(step), remove: (step: Step) => steps.delete(step) } as unknown as Ticker;
   const position = { x: 0, y: 0, set(x: number, y: number): void { this.x = x; this.y = y; } };
   const sprite = { position };
   const moves: number[] = [];
+  const shown = new ShownPlaces();
   const glide = new TokenGlide({
+    shown,
+    clearWay: () => clearWay,
     getTicker: () => ticker,
     getSprite: () => sprite as unknown as Container,
     onMove: (_id, x) => moves.push(x),
     reducedMotion: () => reduced,
   });
-  return { glide, sprite, moves, steps, frame: (ms) => [...steps].forEach((step) => step({ deltaMS: ms })) };
+  return { glide, shown, sprite, moves, steps, frame: (ms) => [...steps].forEach((step) => step({ deltaMS: ms })) };
 }
 
 describe('TokenGlide', () => {
@@ -51,11 +55,59 @@ describe('TokenGlide', () => {
     expect(h.steps.size).toBe(0);
   });
 
+  it('tells sight and light where a gliding token is drawn, and nothing once it has arrived', () => {
+    const h = harness();
+    h.glide.to('hero', 70, 0);
+    expect(new Map(h.shown.entries()).get('hero')).toEqual({ x: 0, y: 0 });
+    h.frame(16);
+    expect(new Map(h.shown.entries()).get('hero')?.x).toBe(h.sprite.position.x);
+    for (let i = 0; i < 60; i += 1) h.frame(16);
+    expect(h.shown.size).toBe(0);
+  });
+
+  it('forgets where a token is drawn once something else moves it', () => {
+    const h = harness();
+    h.glide.to('hero', 70, 0);
+    h.frame(16);
+    h.glide.cancel('hero');
+    expect(h.shown.size).toBe(0);
+  });
+
+  it('puts a token whose way it may not be drawn on in its place at once', () => {
+    const h = harness(false, false);
+    h.glide.to('hero', 70, 0);
+    expect(h.sprite.position.x).toBe(70);
+    expect(h.steps.size).toBe(0);
+    expect(h.shown.size).toBe(0);
+  });
+
   it('puts the token in its place at once under reduced motion', () => {
     const h = harness(true);
     h.glide.to('hero', 70, 0);
     expect(h.sprite.position.x).toBe(70);
     expect(h.steps.size).toBe(0);
     expect(h.moves).toEqual([70]);
+  });
+});
+
+describe('whether a move the store made is shown at once', () => {
+  const glides = { held: false, pointerDrags: false, loading: false, mayGlide: true };
+
+  it('glides an ordinary move', () => {
+    expect(placedAtOnce(glides)).toBe(false);
+  });
+
+  it('places a token this view\'s own pointer drags: the drag draws it', () => {
+    expect(placedAtOnce({ ...glides, held: true, pointerDrags: true })).toBe(true);
+  });
+
+  it('glides a token someone else holds: a player dragging it online sends places, and nothing here draws the way between them', () => {
+    expect(placedAtOnce({ ...glides, held: true, pointerDrags: false })).toBe(false);
+  });
+
+  it('places everything while a map loads, and a move that may not be shown on its way', () => {
+    expect(placedAtOnce({ ...glides, loading: true })).toBe(true);
+    expect(placedAtOnce({ ...glides, mayGlide: false })).toBe(true);
+    expect(placedAtOnce({ ...glides, held: true, pointerDrags: false, mayGlide: false })).toBe(true);
   });
 });

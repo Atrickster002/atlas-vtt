@@ -1,4 +1,4 @@
-import { App, Notice } from 'obsidian';
+import { App } from 'obsidian';
 import type { ViewAtlasState } from '../storeFactory';
 import type { StoreApi } from 'zustand';
 import type { SettingsService } from './SettingsService';
@@ -15,6 +15,8 @@ import { cannotRender, PlayerFrameMirror, type PlayerFrameSource } from './Playe
 import { framedCamera } from './playerFrame';
 import type { Screen } from '../types/playerFrame';
 import type { PresentedScene } from './presentedScene';
+import { onMapRulesChange } from './mapRules';
+import { showNotice } from '../ui/notice';
 
 /** Scopes the rules in `player-window.scss` to the popout document. */
 const PLAYER_WINDOW_BODY_CLASS = 'atlas-player-window';
@@ -85,11 +87,11 @@ export class PlayerWindowService {
   public toggleCameraFreeze(): boolean {
     if (this.frozenCamera) {
       this.setFrozenCamera(null);
-      new Notice(t('player.unfrozen'));
+      showNotice(t('player.unfrozen'));
       return false;
     }
     this.freezeCamera();
-    new Notice(this.isFrozen() ? t('player.frozen') : t('player.nothingToFreeze'));
+    showNotice(this.isFrozen() ? t('player.frozen') : t('player.nothingToFreeze'));
     return this.isFrozen();
   }
 
@@ -179,7 +181,7 @@ export class PlayerWindowService {
    */
   public presentCanvas(source: PlayerFrameSource, tabId: string, filePath?: string): void {
     if (!this.isWindowOpen()) {
-      new Notice(t('player.notOpen'));
+      showNotice(t('player.notOpen'));
       return;
     }
     const anotherScene = playerWindowStore.getState().shownTabId !== tabId;
@@ -330,7 +332,7 @@ export class PlayerWindowService {
       // Double-check we have the right window
       if (this.playerWindow === window) {
         console.error('[PlayerWindowService] ERROR: Player window is the same as main window!');
-        new Notice(t('player.isMain'));
+        showNotice(t('player.isMain'));
         return;
       }
       
@@ -352,15 +354,15 @@ export class PlayerWindowService {
       this.sceneOverlays.forEach((overlay) => overlay.mount(content));
       this.settingsUnsubscribe?.();
       // Player view settings decide which layers players see
-      // So do the collection's settings: which resources they see
-      const collectionChanged = this.app.workspace.on('atlas-vtt:collection-settings-changed', () => {
+      // So do the rules the scene plays by: which resources they see
+      const stopRules = onMapRulesChange(this.app, 'any', () => {
         this.mirror?.markStale();
         this.sceneOverlays.forEach((overlay) => overlay.refresh?.());
       });
       const unsubscribeSettings = this.settingsService.onChange(() => this.mirror?.markStale());
       this.settingsUnsubscribe = () => {
         unsubscribeSettings();
-        this.app.workspace.offref(collectionChanged);
+        stopRules();
       };
 
       // Create freeze indicator
@@ -406,7 +408,7 @@ export class PlayerWindowService {
 
     } catch (error) {
       console.error('[PlayerWindowService] Error setting up player window:', error);
-      new Notice(t('player.setupFailed'));
+      showNotice(t('player.setupFailed'));
     }
   }
 

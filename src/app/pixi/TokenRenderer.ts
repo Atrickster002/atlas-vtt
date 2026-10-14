@@ -29,7 +29,9 @@ import { InteractionController } from './token-renderer/InteractionController';
 import { DragRuler } from './token-renderer/DragRuler';
 import { DragRulerView } from './token-renderer/DragRulerView';
 import { SyncService } from './token-renderer/SyncService';
-import { TokenGlide } from './token-renderer/TokenGlide';
+import { TokenGlide, placedAtOnce } from './token-renderer/TokenGlide';
+import type { ShownPlaces } from '../lighting/shownPlaces';
+import type { Point } from '../types/visionTypes';
 import { PLAYER_SIGHT_POLICY } from '../vision/tokenSightPolicy';
 import { createSceneSource } from '../plugin/host/sceneSource';
 import { updateInstanceBadge } from './token-renderer/InstanceBadge';
@@ -82,12 +84,9 @@ export class TokenRenderer {
     },
     () => this.pixiApp?.ticker ?? null,
   );
-  private readonly glide = new TokenGlide({
-    getTicker: () => this.pixiApp?.ticker ?? null,
-    getSprite: (tokenId) => this.tokenSprites[tokenId] ?? null,
-    onMove: (tokenId, x, y) => this.followToken(tokenId, x, y),
-    reducedMotion: () => prefersReducedMotion(this.viewport.options?.events?.domElement ?? document.body),
-  });
+  private readonly glide: TokenGlide;
+  /** Whether a token may be drawn on its way between two places; set by the lighting while it lights the view. */
+  private glideWay?: (from: Point, to: Point) => boolean;
   private uiManager: UIManager;
   private interactionController: InteractionController;
   private dragRuler: DragRuler;
@@ -163,8 +162,17 @@ export class TokenRenderer {
     selectionOverlayUpdater: () => void,
     store: ViewAtlasStore,
     eventBus: EventEmitter,
-    viewId?: string
+    viewId?: string,
+    shownPlaces?: ShownPlaces,
   ) {
+    this.glide = new TokenGlide({
+      getTicker: () => this.pixiApp?.ticker ?? null,
+      getSprite: (tokenId) => this.tokenSprites[tokenId] ?? null,
+      onMove: (tokenId, x, y) => this.followToken(tokenId, x, y),
+      reducedMotion: () => prefersReducedMotion(this.viewport.options?.events?.domElement ?? document.body),
+      ...(shownPlaces && { shown: shownPlaces }),
+      clearWay: (from, to) => this.glideWay?.(from, to) ?? true,
+    });
     this.obsApp = obsApp;
     this.viewport = viewport;
     this.gridSystem = gridSystem;
@@ -523,7 +531,6 @@ export class TokenRenderer {
     this.uiManager.syncUIPosition(tokenId, x, y);
   }
 
-
   private reestablishTokenInteractivity(tokenGroup: Container): void {
     const isPlayerView = this.store.getState().isPlayerView || false;
     
@@ -715,6 +722,7 @@ export class TokenRenderer {
       this.applyTokenVisibilityPolicy(token, tokenGroup, token, perception);
     }
     this.playerSight.syncOutlines(perception);
+    this.uiManager.setPlayersView(this.playerSight.showsPlayers() || this.isInPlayerMode());
     this.dragRuler.refreshVisibility();
     this.notifyPlayersView();
   }
@@ -823,11 +831,11 @@ export class TokenRenderer {
           if (!this.syncService.isTokenAnimating(token.id)) {
             // Cancel any ongoing animation for this token to ensure store position takes precedence
             this.syncService.cancelAnimation(token.id);
-            // A token the pointer holds is placed by its drag; a load shows the scene as it is
             const { heldTokens, isMapLoading } = this.store.getState();
             // A dropped token is already gliding from the pointer, where it showed, to this place
-            const glides = this.glide.headsTo(token.id, token.x, token.y) || this.mayGlide(token, prevToken);
-            if (heldTokens[token.id] || isMapLoading || !glides) {
+            const mayGlide = this.glide.headsTo(token.id, token.x, token.y) || this.mayGlide(token, prevToken);
+            const pointerDrags = this.interactionController.isDraggingTokens();
+            if (placedAtOnce({ held: !!heldTokens[token.id], pointerDrags, loading: isMapLoading, mayGlide })) {
               this.glide.jump(token.id, token.x, token.y);
             } else {
               this.glide.to(token.id, token.x, token.y);
@@ -1442,8 +1450,17 @@ export class TokenRenderer {
     this.wallCursorProvider = fn;
   }
 
-  /** The view's lighting is gone: nothing takes the pointer for lights, walls and doors any more, and no sight hides tokens. */
+  /**
+   * The lighting decides which ways a token may be drawn on (`glideWayIsClear`): its sight and light
+   * follow the token as it glides (`ShownPlaces`).
+   */
+  public setGlideWay(clearWay: (from: Point, to: Point) => boolean): void {
+    this.glideWay = clearWay;
+  }
+
+  /** The view's lighting is gone: nothing takes the pointer for lights, walls and doors any more, no sight hides tokens, and tokens glide on any way. */
   public clearLighting(): void {
+    delete this.glideWay;
     delete this.lightHandlers;
     delete this.doorClickHandler;
     delete this.doorMenuHandlers;

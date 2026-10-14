@@ -131,9 +131,9 @@ export function AdvancedFilterPanel({ panel, onClose, onReset, anchorRef }: Adva
         ))}
 
         {showLayouts && (
-          <FilterSection title={t('filters.layout')} active={hasPicks(selection.layouts)}>
+          <FilterSection title={t('filters.template')} active={hasPicks(selection.layouts)}>
             <OptionChips
-              label={t('filters.layout')}
+              label={t('filters.template')}
               options={facets.layouts}
               onChange={(layout, state) => setSelection((current) => withOptionState(current, LAYOUT_FACET, layout, state))}
             />

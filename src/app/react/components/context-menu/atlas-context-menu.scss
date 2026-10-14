@@ -24,6 +24,12 @@ $ctx-inset: $spacing-xs;
   @include atlas-scrollbar;
 }
 
+.atlas-ctx-separator {
+  height: $border-width-s;
+  margin: $spacing-xs 0;
+  background: var(--background-modifier-border);
+}
+
 .atlas-ctx-menu--dropdown {
   min-width: var(--radix-dropdown-menu-trigger-width);
 }
@@ -99,6 +105,22 @@ $ctx-inset: $spacing-xs;
         height: $icon-xs;
       }
     }
+  }
+}
+
+// ── Detail (a quieter second text after the label) ───────────────────────────
+
+// It keeps to the row's end and never takes more than half of it from the label.
+.atlas-ctx-item__detail {
+  @include atlas-truncate;
+  max-width: 50%;
+  margin-left: auto;
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+
+  // The detail already keeps to the end; what follows it stays beside it.
+  + .atlas-ctx-item__trailing {
+    margin-left: 0;
   }
 }
 

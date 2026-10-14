@@ -136,6 +136,7 @@ function setup(extra: Partial<ConstructorParameters<typeof LightingController>[0
       wired.playerViewActive = active;
       wired.sightIsCurrent = current;
     },
+    setGlideWay: () => undefined,
     refreshPlayerSight: wired.refreshPlayerSight,
     getSensedOutlineLayer: () => wired.sensedOutlines,
   } as unknown as TokenRenderer);

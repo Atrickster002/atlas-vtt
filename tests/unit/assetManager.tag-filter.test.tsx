@@ -12,6 +12,7 @@ const workspaceApp = { workspace: { on: () => ({}), offref: () => {} } };
 vi.mock('../../src/app/packages/components/asset-manager/hooks/useAssetData', () => ({
   useAssetData: () => ({
     app: workspaceApp,
+    shownFolderOf: (folderId: string | null) => folderId,
     folders: [], collections: [{ id: 'default', uid: 'u-default', name: 'Default' }],
     availableTags: [{ id: 'testing-tags', name: 'Testing Tags' }, { id: 'forest', name: 'Forest' }],
     assets: [
