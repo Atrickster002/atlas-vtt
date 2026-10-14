@@ -5,6 +5,7 @@ import type { AssetService } from '../../services/AssetService';
 import { AssetThumbnailService, THUMBNAIL_SPEC } from '../../services/AssetThumbnailService';
 import { importUvttFile, importUvttSource, type UvttImportDeps, type UvttImportResult, type UvttImported } from './importUvttFile';
 import { showNotice } from '../../ui/notice';
+import { t } from '../../i18n';
 import type { UvttSource } from './uvttSource';
 
 /** A refusal stays long enough to read its reason. */
@@ -37,14 +38,14 @@ export function importDeps(app: App, assetService: AssetService): UvttImportDeps
 async function runEach<T>(app: App, items: readonly T[], nameOf: (item: T) => string, importOne: (item: T) => Promise<UvttImportResult>): Promise<UvttImported[]> {
   const imported: UvttImported[] = [];
   for (const item of items) {
-    const progress = showNotice(`Importing ${nameOf(item)}…`, 0);
+    const progress = showNotice(t('uvtt.importing', { file: nameOf(item) }), 0);
     const result = await importOne(item);
     progress.hide();
     if (result.ok) {
       imported.push(result);
       showNotice(uvttImportSummary(result, dynamicLightingOn(app)));
     } else {
-      showNotice(`Could not import ${nameOf(item)}. ${result.problem}`, PROBLEM_NOTICE_MS);
+      showNotice(t('uvtt.couldNot', { file: nameOf(item), problem: result.problem }), PROBLEM_NOTICE_MS);
     }
   }
   if (imported.length > 0) app.workspace.trigger('atlas-vtt:refresh-assets');

@@ -34,7 +34,7 @@ async function readSources(files: readonly File[]): Promise<UvttSource[]> {
   const sources: UvttSource[] = [];
   for (const file of files) {
     const source = await readUvttSource(file);
-    if ('ok' in source) showNotice(`Could not import ${file.name}. ${source.problem}`, PROBLEM_NOTICE_MS);
+    if ('ok' in source) showNotice(t('uvtt.couldNot', { file: file.name, problem: source.problem }), PROBLEM_NOTICE_MS);
     else sources.push(source);
   }
   progress.hide();
