@@ -287,7 +287,12 @@ export class LevelsBelow {
     return level;
   }
 
+  /**
+   * Lets go of a level below. Saving its memory writes the store, whose listeners may update the
+   * view and let go of the other levels meanwhile: a level gone already is left alone.
+   */
   private remove(id: string, level: BelowLevel, flush: boolean): void {
+    if (this.levels.get(id) !== level) return;
     this.levels.delete(id);
     this.perception.forget(id);
     this.regions.leave(id);

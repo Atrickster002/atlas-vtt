@@ -232,6 +232,7 @@ export class BelowLevel {
    * it holds may be broken (a lost context, an engine that stopped).
    */
   destroy(flush: boolean): void {
+    if (this.destroyed) return;
     this.destroyed = true;
     if (flush) this.deps.guard(() => this.memory.beforeMapUnload());
     this.stage.release();
