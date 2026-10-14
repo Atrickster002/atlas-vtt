@@ -8,6 +8,8 @@ import { UVTT_LIMITS, type UvttMap, type UvttRefusal } from './uvttTypes';
 export interface UvttSource {
   /** The name of the file it was read from. */
   fileName: string;
+  /** The file's size in bytes. */
+  bytes: number;
   map: UvttMap;
   /** The map image as the file holds it. */
   image: Blob;
@@ -55,5 +57,5 @@ export async function readUvttSource(file: File): Promise<UvttSource | UvttRefus
   }
   const cellSize = cellSizeOn(map, size);
   if (typeof cellSize !== 'number') return cellSize;
-  return { fileName: file.name, map, image, size, cellSize };
+  return { fileName: file.name, bytes: file.size, map, image, size, cellSize };
 }
