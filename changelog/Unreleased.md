@@ -1,6 +1,7 @@
 ## New
 
 - Online play, in closed beta: host a table that your players join from their web browsers. It is off until you turn it on in the command palette's Experimental features page, and Atlas makes no connection for it until then
+- Players at an online table can report an issue from the player page, under More, the way Report an issue works in Atlas: it becomes a public issue on GitHub and needs no account. Report an issue in Atlas has the area Online play too
 - Campaigns on the dashboard: make and search them, play one to note the scenes it uses, and see the player characters who stood on its last scene
 - Player characters: right-click a character on the map or in the asset manager to make it one; they have a tab of their own in the asset manager, Players, beside the other characters
 - A campaign you play keeps one set of numbers for each player character: hit points and the other values changed on one scene show on every scene of the campaign, and travel with its folder to your other devices
