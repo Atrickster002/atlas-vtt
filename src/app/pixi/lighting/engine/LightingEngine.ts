@@ -240,7 +240,8 @@ export class LightingEngine {
   setStack(stack: CompositeStack | null): void {
     this.stack = stack;
     this.composite?.setStack(stack);
-    if (this.levelIndex > 0) this.layer.filterArea = belowArea(stack);
+    // A level below without a stack is drawn nowhere, so its area may stay as it was.
+    if (this.levelIndex > 0 && stack) this.layer.filterArea = belowArea(stack);
   }
 
   /**
@@ -365,10 +366,9 @@ export class LightingEngine {
 /**
  * Where a level below's composite runs: the stack's texels, a texel wider all round, in world pixels
  * (the layer's own). Its picture is read only where the stack shows it, so the rest of the map is
- * left unlit and costs nothing; without a stack the whole map, as on the viewed level.
+ * left unlit and costs nothing.
  */
-function belowArea(stack: CompositeStack | null): Rectangle | undefined {
-  if (!stack) return undefined;
+function belowArea(stack: CompositeStack): Rectangle {
   const { box, texel } = stack;
   return new Rectangle((box.x - 1) * texel, (box.y - 1) * texel, (box.columns + 2) * texel, (box.rows + 2) * texel);
 }
