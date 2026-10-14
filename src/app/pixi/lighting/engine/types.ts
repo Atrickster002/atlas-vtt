@@ -77,4 +77,7 @@ export interface SceneFrame {
   x: number;
   y: number;
   resolution: number;
+  /** The frame's size in world pixels; without one no level below is drawn into it. */
+  width?: number;
+  height?: number;
 }
