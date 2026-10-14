@@ -48,6 +48,15 @@ plugin names/versions and recent Atlas errors are optional. Automated diagnostic
 exclude vault names, file paths, note contents and map data; your own report
 text is published as entered.
 
+Players at an online table can report an issue from **More → Report an issue**
+on the player page. **Submit report** sends the report from their browser over
+HTTPS to the same reporting service, which publishes it the same way. Nothing is
+sent merely by opening the form. The report includes the text the player enters,
+the page's version, the browser and operating system by name only, and the
+interface language; recent page errors are optional. Before it is sent, the
+page takes the table's code, the join code and the player's key and name out of
+the text. It never includes the table, its map, tokens, notes or chat.
+
 The reporting service processes your IP address for abuse prevention. It stores
 a daily keyed address hash for up to 24 hours, not the raw IP. It retains request
 identifiers, report hashes and issue receipts to prevent duplicate submissions;
