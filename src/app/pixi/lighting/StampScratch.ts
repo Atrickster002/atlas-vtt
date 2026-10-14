@@ -1,4 +1,5 @@
-import { Container, Graphics, Matrix, RenderTexture, type Renderer } from 'pixi.js';
+import { BufferImageSource, Container, Graphics, Matrix, RenderTexture, Sprite, Texture, type Renderer } from 'pixi.js';
+import type { TexelMask } from '../../levels/stackClip';
 import type { ExploredShapes } from '../../vision/exploredShapes';
 import type { Polygon } from '../../vision/visibility';
 import { destroyTree } from '../utils/destroyTree';
@@ -18,15 +19,15 @@ export interface TexelRegion {
  * Where a stamp lands in the memory: the bounds of what it draws (of the clip where that is
  * smaller), in texels, cut to the texture. Null when it draws nothing.
  */
-export function stampRegion({ polygons, clip, ambient }: ExploredShapes, scale: number, limit: { width: number; height: number }): TexelRegion | null {
+export function stampRegion({ polygons, clip, ambient, within }: ExploredShapes, scale: number, limit: { width: number; height: number }): TexelRegion | null {
   // The ambient light of a scene with zones is painted over the whole clip.
   const drawn = ambient && clip ? boundsOf(clip) : boundsOf(polygons);
   const visible = clip ? boundsOf(clip) : drawn;
   if (!drawn || !visible) return null;
-  const x0 = Math.max(0, Math.floor(Math.max(drawn.minX, visible.minX) * scale));
-  const y0 = Math.max(0, Math.floor(Math.max(drawn.minY, visible.minY) * scale));
-  const x1 = Math.min(limit.width, Math.ceil(Math.min(drawn.maxX, visible.maxX) * scale));
-  const y1 = Math.min(limit.height, Math.ceil(Math.min(drawn.maxY, visible.maxY) * scale));
+  const x0 = Math.max(0, within?.x ?? 0, Math.floor(Math.max(drawn.minX, visible.minX) * scale));
+  const y0 = Math.max(0, within?.y ?? 0, Math.floor(Math.max(drawn.minY, visible.minY) * scale));
+  const x1 = Math.min(limit.width, within ? within.x + within.columns : Infinity, Math.ceil(Math.min(drawn.maxX, visible.maxX) * scale));
+  const y1 = Math.min(limit.height, within ? within.y + within.rows : Infinity, Math.ceil(Math.min(drawn.maxY, visible.maxY) * scale));
   return x1 > x0 && y1 > y0 ? { x: x0, y: y0, width: x1 - x0, height: y1 - y0 } : null;
 }
 
@@ -54,14 +55,21 @@ export class StampScratch {
   /** The darkness again, in white, shown only where a sense that sees in it perceives it. */
   private readonly pierced = new Graphics();
   private readonly piercing = new Graphics();
+  /** Erases what lies outside the memory texels a stamp may record in (`ExploredShapes.within`), drawn last. */
+  private readonly outsideBox = new Graphics();
+  private readonly outsideTexels = new Sprite(Texture.EMPTY);
+  /** The texture `outsideTexels` shows, made for the mask it was made from. */
+  private outside: { mask: TexelMask; texture: Texture } | null = null;
 
   constructor(private readonly renderer: Renderer) {
-    this.stamp.addChild(this.painter, this.clip, this.hole, this.pierced, this.piercing);
+    this.stamp.addChild(this.painter, this.clip, this.hole, this.pierced, this.piercing, this.outsideBox, this.outsideTexels);
     this.pierced.mask = this.piercing;
+    this.outsideBox.blendMode = 'erase';
+    this.outsideTexels.blendMode = 'erase';
   }
 
-  /** Builds the shapes once; `renderTile` then only moves them. */
-  begin({ polygons, clip, except, ambient }: ExploredShapes): void {
+  /** Builds the shapes once, for a memory stamped at `scale` texels per world pixel; `renderTile` then only moves them. */
+  begin({ polygons, clip, except, ambient, within }: ExploredShapes, scale = 1): void {
     this.painter.clear();
     if (ambient) this.paintAmbient(ambient, clip ?? []);
     fillPolygons(this.painter, polygons);
@@ -72,6 +80,32 @@ export class StampScratch {
     const seenInDarkness = except && except.unless.length > 0;
     fillPolygons(this.pierced.clear(), seenInDarkness ? except.areas : []);
     fillPolygons(this.piercing.clear(), seenInDarkness ? except.unless : []);
+    this.keepWithin(within ?? null, scale);
+  }
+
+  /**
+   * Erases every texel outside `mask` from what is drawn: around its box with four rectangles, inside
+   * it with a sprite whose texels are opaque where the mask leaves a texel out, drawn texel on pixel.
+   */
+  private keepWithin(mask: TexelMask | null, scale: number): void {
+    this.outsideBox.clear();
+    this.outsideTexels.visible = !!mask;
+    if (!mask) return;
+    if (this.outside?.mask !== mask) {
+      this.outside?.texture.destroy(true);
+      const pixels = new Uint8Array(mask.columns * mask.rows * 4);
+      for (let i = 0; i < mask.allowed.length; i++) pixels[i * 4 + 3] = mask.allowed[i] ? 0 : 255;
+      const source = new BufferImageSource({ resource: pixels, width: mask.columns, height: mask.rows, format: 'rgba8unorm', scaleMode: 'nearest', alphaMode: 'premultiplied-alpha' });
+      this.outside = { mask, texture: new Texture({ source }) };
+    }
+    this.outsideTexels.texture = this.outside.texture;
+    this.outsideTexels.position.set(mask.x / scale, mask.y / scale);
+    this.outsideTexels.scale.set(1 / scale);
+    const [left, top, right, bottom] = [mask.x / scale, mask.y / scale, (mask.x + mask.columns) / scale, (mask.y + mask.rows) / scale];
+    // Far enough to cover any memory: its texels lie within the map.
+    const far = 1e7;
+    this.outsideBox.rect(-far, -far, 2 * far, top + far).rect(-far, bottom, 2 * far, far)
+      .rect(-far, top, left + far, bottom - top).rect(right, top, far, bottom - top).fill({ color: 0xffffff, alpha: 1 });
   }
 
   /** Where the ambient light of a scene with zones is lit: the scene itself over the clip's bounds, then each zone in its order, lit or dark. */
@@ -94,6 +128,9 @@ export class StampScratch {
   }
 
   destroy(): void {
+    this.outsideTexels.texture = Texture.EMPTY;
+    this.outside?.texture.destroy(true);
+    this.outside = null;
     destroyTree(this.stamp);
     this.target.destroy(true);
   }

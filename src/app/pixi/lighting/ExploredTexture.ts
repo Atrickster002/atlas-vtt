@@ -58,7 +58,7 @@ export class ExploredTexture {
     const region = stampRegion(shapes, this.scale, this.texture);
     if (!region) return;
     this.mergeSprite.alpha = level;
-    this.scratch.begin(shapes);
+    this.scratch.begin(shapes, this.scale);
     for (const tile of tilesOf(region)) {
       this.mergeSprite.texture = this.scratch.renderTile(this.scale, tile.x, tile.y);
       this.mergeSprite.position.set(tile.x, tile.y);
