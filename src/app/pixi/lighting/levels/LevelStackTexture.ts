@@ -17,6 +17,7 @@ import type { CompositeStack } from '../engine/compositeFilter';
 export class LevelStackTexture {
   readonly eraser = new Sprite({ texture: Texture.EMPTY, label: 'level-openings-eraser', eventMode: 'none' });
   private texture: Texture | null = null;
+  private source: BufferImageSource | null = null;
   private stack: LevelStack | null = null;
   private bound: CompositeStack | null = null;
 
@@ -32,7 +33,9 @@ export class LevelStackTexture {
 
   /**
    * Uploads `stack` and hands what the composites read to `bind` (null while the stack shows only
-   * the viewed level) before the texture they read until now is destroyed. The same stack again does nothing.
+   * the viewed level). The same stack again does nothing. The texture is kept and filled anew:
+   * destroying one a batch of the last render still holds makes PIXI warn, and openings come and
+   * go as the GM draws them.
    */
   update(stack: LevelStack | null, bind: (composite: CompositeStack | null) => void): void {
     if (stack === this.stack) return;
@@ -40,8 +43,8 @@ export class LevelStackTexture {
     const box = stack?.box;
     if (!stack || !box) {
       this.bound = null;
+      this.eraser.visible = false;
       bind(null);
-      this.release();
       return;
     }
     const columns = box.columns + 2;
@@ -55,32 +58,45 @@ export class LevelStackTexture {
         pixels[at + 3] = shown === VIEWED ? 0 : 255;
       }
     }
-    const previous = this.texture;
-    this.texture = new Texture({
-      source: new BufferImageSource({ resource: pixels, width: columns, height: rows, format: 'rgba8unorm', scaleMode: 'nearest', alphaMode: 'premultiplied-alpha', autoGenerateMipmaps: false }),
-    });
+    const texture = this.fill(pixels, columns, rows);
     const { texel } = stack.grid;
-    this.eraser.texture = this.texture;
+    this.eraser.texture = texture;
     this.eraser.position.set((box.x - 1) * texel, (box.y - 1) * texel);
     this.eraser.scale.set(texel);
     this.eraser.visible = true;
-    this.bound = { texture: this.texture, box: { x: box.x - 1, y: box.y - 1, columns, rows }, texel, columns: stack.grid.columns, rows: stack.grid.rows };
+    this.bound = { texture, box: { x: box.x - 1, y: box.y - 1, columns, rows }, texel, columns: stack.grid.columns, rows: stack.grid.rows };
     bind(this.bound);
-    previous?.destroy(true);
   }
 
-  /** Lets go of the texture, which nothing may read any more. */
-  private release(): void {
-    this.bound = null;
-    this.eraser.visible = false;
-    this.eraser.texture = Texture.EMPTY;
-    this.texture?.destroy(true);
-    this.texture = null;
+  /**
+   * A texture of `pixels`, `columns` × `rows`. Its source is made once and then filled and resized in
+   * place; the texture around it is made anew, so its frame is the source's size, and the one before
+   * goes without its source.
+   */
+  private fill(pixels: Uint8Array, columns: number, rows: number): Texture {
+    let source = this.source;
+    if (!source) {
+      source = this.source = new BufferImageSource({ resource: pixels, width: columns, height: rows, format: 'rgba8unorm', scaleMode: 'nearest', alphaMode: 'premultiplied-alpha', autoGenerateMipmaps: false });
+    } else {
+      source.resource = pixels;
+      if (source.pixelWidth !== columns || source.pixelHeight !== rows) source.resize(columns, rows, 1);
+      source.update();
+    }
+    const previous = this.texture;
+    this.texture = new Texture({ source });
+    previous?.destroy(false);
+    return this.texture;
   }
 
+  /** Lets go of the texture: whoever read it has let go of it first. */
   destroy(): void {
     this.stack = null;
-    this.release();
+    this.bound = null;
+    this.eraser.texture = Texture.EMPTY;
+    this.texture?.destroy(false);
+    this.texture = null;
+    this.source?.destroy();
+    this.source = null;
     this.eraser.destroy();
   }
 }
