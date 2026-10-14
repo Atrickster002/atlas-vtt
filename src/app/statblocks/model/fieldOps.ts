@@ -62,7 +62,7 @@ function columnsRead(block: TemplateBlock, key: FieldKey): boolean {
 }
 
 /** The keys a block shows: its bound fields, its patterns' references and its Scores column formulas'. */
-function keysShownBy(block: TemplateBlock): FieldKey[] {
+export function keysShownBy(block: TemplateBlock): FieldKey[] {
   const columns = block.type === 'scores' ? (block.columns ?? []).flatMap((column) => (column.formula ? formulaRefs(column.formula) : [])) : [];
   return [...fieldsShownBy(block, patternRefs), ...columns];
 }

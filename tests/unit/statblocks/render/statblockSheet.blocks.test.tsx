@@ -32,7 +32,8 @@ describe('StatblockSheet: every block type', () => {
     const { container } = renderSheet(EVERY_BLOCK, VALUES);
 
     for (const block of flattenReadingOrder(EVERY_BLOCK.layout.blocks)) {
-      if (block.type === 'opaque') continue;
+      // A script that reads no value has nothing to show on a card; its own test is below.
+      if (block.type === 'opaque' || block.type === 'script') continue;
       const el = blockEl(container, block.id);
       expect(el, block.type).not.toBeNull();
       expect(el!.classList.contains('atlas-sb-item')).toBe(true);
@@ -61,10 +62,13 @@ describe('StatblockSheet: every block type', () => {
     }
   });
 
-  it('shows a script block as a placeholder and never its code', () => {
-    const { container } = renderSheet(EVERY_BLOCK, VALUES);
-    expect(blockText(container, 'b6scrip0')).toBe('Shown by Fantasy Statblocks');
+  it('never runs or shows a script block\'s code: a script that reads no value shows nothing, and says where it is drawn while edited', () => {
+    const { container, unmount } = renderSheet(EVERY_BLOCK, VALUES);
+    expect(blockEl(container, 'b6scrip0')).toBeNull();
     expect(container.textContent).not.toContain('return el;');
+    unmount();
+    const editing = renderSheet(EVERY_BLOCK, VALUES, { mode: 'editing' });
+    expect(blockText(editing.container, 'b6scrip0')).toBe('Shown by Fantasy Statblocks');
   });
 
   it('draws each block type in its own look', () => {

@@ -9,7 +9,7 @@ import type { FsLayoutImport } from '../../fs/fsImport';
 import { TemplateLibrary } from '../../library/TemplateLibrary';
 import { flattenReadingOrder } from '../../model/treeQueries';
 
-/** How many script blocks the template keeps for Fantasy Statblocks: parts Atlas shows only as placeholders. */
+/** How many script blocks the template keeps for Fantasy Statblocks: parts Atlas shows only as the values they read. */
 export function partsOnlyFsShows(app: App, imported: FsLayoutImport): number {
   if (imported.report) return imported.report.scripts.length;
   const template = TemplateLibrary.forApp(app).get(imported.id)?.template;

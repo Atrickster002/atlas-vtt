@@ -89,6 +89,24 @@ function tokenHolds(block: TemplateBlock, sheet: SheetState): boolean {
   return false;
 }
 
+const VIEWED = new WeakMap<SheetState, SheetState>();
+
+/** The sheet as a reading view shows it: what a script reads shows only where it holds a value, also while the statblock is edited. */
+export function viewedSheet(sheet: SheetState): SheetState {
+  if (sheet.mode === 'view') return sheet;
+  const known = VIEWED.get(sheet);
+  if (known) return known;
+  const viewed: SheetState = { ...sheet, mode: 'view' };
+  VIEWED.set(sheet, viewed);
+  return viewed;
+}
+
+/** The blocks a script block shows the values it reads in (`scriptReads`): those that hold a value. */
+export function scriptBlocksShown(blockId: string, sheet: SheetState): TemplateBlock[] {
+  const viewed = viewedSheet(sheet);
+  return (sheet.scriptReads.get(blockId) ?? []).filter((block) => blockDisplay(block, viewed) !== null);
+}
+
 function containerShows(block: ContainerBlock, sheet: SheetState): boolean {
   return sheet.mode === 'editing' || block.blocks.some((child) => blockDisplay(child, sheet) !== null);
 }
@@ -97,7 +115,8 @@ function decide(block: TemplateBlock, sheet: SheetState): BlockDisplay | null {
   if (block.type === 'opaque' || sheet.folded.has(block.id)) return null;
   if (block.showWhen && !evaluateCondition(block.showWhen, sheet.reader)) return null;
   if (isContainerBlock(block)) return containerShows(block, sheet) ? VALUE : null;
-  if (block.type === 'script' || block.type === 'divider') return VALUE;
+  if (block.type === 'divider') return VALUE;
+  if (block.type === 'script') return sheet.mode === 'editing' || scriptBlocksShown(block.id, sheet).length > 0 ? VALUE : null;
   if (block.type === 'heading') return block.text.trim() || sheet.mode === 'editing' ? VALUE : null;
   if (isUnboundBlock(block)) return sheet.mode === 'editing' ? { state: 'prompt', prompt: promptFor(block, sheet) } : null;
   if (tokenHolds(block, sheet)) return VALUE;
