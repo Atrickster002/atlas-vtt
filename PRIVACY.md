@@ -1,13 +1,26 @@
 # Privacy and network use
 
-Atlas VTT works offline. Maps, tokens, notes, audio and settings stay in your vault. Submitting an issue report is an optional network action.
+Atlas VTT works offline. Maps, tokens, notes, audio and settings stay in your vault. Atlas connects to the internet only when you choose to: to host online play, to submit an issue report, or to load an image from a web address.
 
-- No accounts, no telemetry, no analytics, no ads.
+- No telemetry, no analytics, no ads.
+- You need no account to use Atlas. Only hosting online play needs an Atlas account.
 - No code is downloaded or executed from the internet, and the plugin does not update itself.
 
 ## Network access
 
 If you set a token or map background to an `http://` or `https://` image URL, or copy an image that a note embeds from an external URL, that image is downloaded from the address in question. Images stored in your vault cause no network traffic.
+
+## Online play (closed beta)
+
+Online play lets you host a table that your players join from their web browsers. It is off until you turn on **Online play** in the command palette's **Experimental features** page. While it is off, Atlas makes no connection for it.
+
+**Your account.** To host a table you sign in with an Atlas account at `https://api.atlas-vtt.dev`. Atlas opens `https://atlas-vtt.dev` in your browser, where you approve the sign-in. The sign-in token is kept in Obsidian's secret storage on this device (Obsidian 1.11.4 or newer), never in the plugin's data or in a synced file. **Sign out** ends the session on the server too. While online play is in closed beta, hosting also needs an invite key, which you redeem on the [account page](https://atlas-vtt.dev/account). There you can also export or delete your account. What the account service keeps, and for how long, is in the [Atlas privacy notice](https://atlas-vtt.dev/legal/privacy).
+
+**Running a table.** Nothing is sent until you start a table. While it runs, Atlas connects to the table server at `https://play.atlas-vtt.dev` over an encrypted WebSocket and sends what your players may see: the scene you share as they see it (map, tokens, fog and lighting), images you show them, and what happens at the table, such as dice rolls, chat, loot you hand out, and their characters' sheets, quests and world map. Maps and art go from your computer through the server to each player's browser. The server passes all of this on and keeps none of it. For each table it keeps only check values (hashes) of the table's secret, its join code and the players' keys, when the table was made, and a short tag that names no one. A table is deleted 24 hours after its GM leaves it. Players need no account: they join with your link and join code.
+
+**On this device.** The running table, its log and your players' sheets are kept in `atlas-vtt/.atlas-data/online.json`, a folder sync tools do not carry.
+
+**Error reports and feedback.** **Send error reports** (Settings → Atlas VTT, off by default) sends online play's own errors to `https://play.atlas-vtt.dev`, without the table's code, secret, join code or the players' names. They are kept for 30 days. Feedback you send from the online panel goes there too, with diagnostics only if you include them, and is kept for 180 days.
 
 ## Files outside the vault
 
