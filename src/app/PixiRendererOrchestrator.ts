@@ -19,6 +19,8 @@ import { PinRenderer } from "./pixi/PinRenderer"; // Import PinRenderer
 import { HexLinkRenderer } from "./pixi/hexLinks/HexLinkRenderer";
 import { HexLinkInteraction } from "./pixi/hexLinks/HexLinkInteraction";
 import { LevelLinkEditor } from "./pixi/levelLinks/LevelLinkEditor";
+import { linkedSceneLevels } from "./services/linkedSceneLevels";
+import type { SceneLevel } from "./types/sceneLevelTypes";
 import { MAX_LEVEL_LINKS } from "./levels/levelLinks";
 import type { MapRect } from "./grid/cellNumbering";
 import type { NotePin } from "./types";
@@ -378,6 +380,8 @@ export class PixiRendererOrchestrator { // Renamed class
     // Check if this is a player view through the store
     const isPlayerView = this.store.getState().isPlayerView || false;
     this.pinRenderer = new PinRenderer(viewport, this.eventBus, this.store, isPlayerView);
+    const pinnedSceneLevels = (pin: NotePin): Promise<readonly SceneLevel[] | null> => linkedSceneLevels(this.obsApp, this.store.getState(), pin.notePath);
+    this.pinRenderer.setPinnedSceneLevels(pinnedSceneLevels);
 
     this.hexLinkRenderer = new HexLinkRenderer({
       viewport,
@@ -391,6 +395,7 @@ export class PixiRendererOrchestrator { // Renamed class
       store: this.store,
       renderer: this.hexLinkRenderer,
       onNoteHover: (type, pin, e) => this.emitNoteHover(type, pin, e),
+      pinnedSceneLevels,
     });
 
     if (!isPlayerView) {
