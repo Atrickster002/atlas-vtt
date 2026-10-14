@@ -7,10 +7,11 @@
 
 import type { LevelSurface, SceneLevel } from '../types/sceneLevelTypes';
 import type { Point } from '../types/visionTypes';
+import type { ArtCells } from './artRaster';
 import { paintPolygon, polygonBox, type TexelBox } from './surfaceRaster';
 
 /** The levels below one that are drawn at most; the stack reads every other one as VOID. */
-export const MAX_LEVELS_SHOWN_BELOW = 1;
+export const MAX_LEVELS_SHOWN_BELOW = 2;
 /** The longest side of the stack's grid in texels: a larger map gets texels of more than one world pixel. */
 export const STACK_MAX_SIDE = 2048;
 /** The level the view shows. */
@@ -18,7 +19,11 @@ export const VIEWED = 0;
 /** Nothing is shown: no level below is drawn there, or none has floor there. */
 export const VOID = 255;
 
-/** The stack's texels over the viewed level's map, from the world's origin: `texel` world pixels a side. */
+/**
+ * The stack's texels from the world's origin, `texel` world pixels a side: over the viewed level's
+ * map and those of the levels below it draws, so a level smaller than one below it (a tower over
+ * open ground) sees what lies beyond its own map.
+ */
 export interface StackGrid {
   width: number;
   height: number;
@@ -42,7 +47,7 @@ export function stackGrid(bounds: { width: number; height: number }): StackGrid 
 
 /**
  * What the view shows, by texel. Outside `box` it is the viewed level; inside, `cells` holds the
- * index into `levels` (0 the viewed level, 1 the level below shown) or `VOID`.
+ * index into `levels` (0 the viewed level, 1 and 2 the levels below drawn, nearest first) or `VOID`.
  */
 export interface LevelStack {
   grid: StackGrid;
@@ -53,32 +58,30 @@ export interface LevelStack {
   cells: Uint8Array;
 }
 
-/** A level the stack reads: its surfaces, in order, and where it has a picture at all (the drawn levels below: their map's rect). */
+/** A level the stack reads: its surfaces, in order, and where its own map leaves its floor open. */
 export interface StackLevel {
   id: string;
   surfaces: readonly LevelSurface[];
-  /** Only texels wholly inside this rect of world pixels have floor; unset, every texel has, unless a surface opens it. */
-  pictured?: { width: number; height: number } | undefined;
+  /**
+   * The level's map on the stack's grid (`artCells`): no floor where it is open (transparent, or
+   * outside the image). Unset, the level has floor on every texel unless a surface opens it: its
+   * map is not known yet, which fails closed.
+   */
+  art?: ArtCells | undefined;
 }
 
 /**
- * A level's floor on `box`: 1 where it is open, 0 where it has floor, by its surfaces in order;
- * null where it has floor on all of it (no surface touches the box and its picture covers it).
+ * A level's floor on `box`: 1 where it is open, 0 where it has floor, by its map and then its
+ * surfaces in order; null where it has floor on all of it.
  */
 function openCells(level: StackLevel, grid: StackGrid, box: TexelBox): Uint8Array | null {
   let open: Uint8Array | null = null;
-  if (level.pictured) {
-    // A texel only partly on the level's map shows nothing of it.
-    const columns = Math.floor(level.pictured.width / grid.texel + 1e-9);
-    const rows = Math.floor(level.pictured.height / grid.texel + 1e-9);
-    if (box.x + box.columns > columns || box.y + box.rows > rows) {
-      open = new Uint8Array(box.columns * box.rows);
-      const from = Math.max(0, columns - box.x);
-      for (let row = 0; row < box.rows; row++) {
-        const offset = row * box.columns;
-        if (box.y + row >= rows) open.fill(1, offset, offset + box.columns);
-        else if (from < box.columns) open.fill(1, offset + from, offset + box.columns);
-      }
+  const art = level.art;
+  if (art?.box && intersect(art.box, box)) {
+    open = new Uint8Array(box.columns * box.rows);
+    for (let row = 0; row < box.rows; row++) {
+      const from = (box.y + row) * grid.columns + box.x;
+      open.set(art.open.subarray(from, from + box.columns), row * box.columns);
     }
   }
   for (const surface of level.surfaces) {
@@ -101,19 +104,19 @@ function intersect(a: TexelBox, b: TexelBox): TexelBox | null {
   return right > x && bottom > y ? { x, y, columns: right - x, rows: bottom - y } : null;
 }
 
-/** The texels of the grid the viewed level's openings may open: the bounds of its open surfaces; null without one. */
-function openingsBox(surfaces: readonly LevelSurface[], grid: StackGrid): TexelBox | null {
-  let box: TexelBox | null = null;
-  for (const surface of surfaces) {
-    if (!surface.open) continue;
-    const area = polygonBox(surface.polygon, grid.texel, grid.columns, grid.rows);
-    if (!area) continue;
-    if (!box) box = area;
-    else {
-      const x = Math.min(box.x, area.x);
-      const y = Math.min(box.y, area.y);
-      box = { x, y, columns: Math.max(box.x + box.columns, area.x + area.columns) - x, rows: Math.max(box.y + box.rows, area.y + area.rows) - y };
-    }
+/** The smallest box holding both. */
+function union(a: TexelBox | null, b: TexelBox | null): TexelBox | null {
+  if (!a || !b) return a ?? b;
+  const x = Math.min(a.x, b.x);
+  const y = Math.min(a.y, b.y);
+  return { x, y, columns: Math.max(a.x + a.columns, b.x + b.columns) - x, rows: Math.max(a.y + a.rows, b.y + b.rows) - y };
+}
+
+/** The texels of the grid the viewed level may be open on: the bounds of its map's open texels and of its open surfaces; null without any. */
+function openingsBox(level: StackLevel, grid: StackGrid): TexelBox | null {
+  let box = level.art?.box ?? null;
+  for (const surface of level.surfaces) {
+    if (surface.open) box = union(box, polygonBox(surface.polygon, grid.texel, grid.columns, grid.rows));
   }
   return box;
 }
@@ -121,12 +124,13 @@ function openingsBox(surfaces: readonly LevelSurface[], grid: StackGrid): TexelB
 /**
  * The stack of a view of `viewed`, whose levels below are `below`, nearest first. At each texel
  * the viewed level shows where it has floor; elsewhere the walk goes down to the first level with
- * floor there, which shows if it is one of `shown` (the levels below the view draws, and whose
- * picture is ready), and is VOID otherwise. Where no level below has floor (a chasm) it is VOID.
+ * floor there, which shows if it is one of `shown` (the levels below the view draws, nearest
+ * first: their index in the stack is their place there, plus one), and is VOID otherwise. Where
+ * no level below has floor (a chasm) it is VOID.
  */
 export function levelStack(viewed: StackLevel, below: readonly StackLevel[], shown: readonly string[], grid: StackGrid): LevelStack {
   const levels = [viewed.id, ...shown];
-  const openings = openingsBox(viewed.surfaces, grid);
+  const openings = openingsBox(viewed, grid);
   const own = openings && openCells(viewed, grid, openings);
   if (!openings || !own) return { grid, levels, box: null, cells: new Uint8Array(0) };
   // What each level below shows where it has floor, nearest first; the walk stops at the first that has.
@@ -176,6 +180,18 @@ export function shownAt(stack: LevelStack, p: Point): number {
 /** Whether the stack shows anything but the viewed level, and the level below at index `index` somewhere. */
 export function showsBelow(stack: LevelStack, index: number): boolean {
   return stack.box !== null && stack.cells.includes(index);
+}
+
+/**
+ * `stack` as a view draws it while only the levels below for which `drawn` holds can be shown (the
+ * others' pictures are not ready): their texels show nothing. The same stack where all can.
+ */
+export function withDrawn(stack: LevelStack, drawn: (index: number) => boolean): LevelStack {
+  if (!stack.box) return stack;
+  const hidden = stack.levels.map((_, index) => index > 0 && !drawn(index));
+  if (!hidden.some((isHidden, index) => isHidden && stack.cells.includes(index))) return stack;
+  const cells = stack.cells.map((value) => (value !== VOID && hidden[value] ? VOID : value));
+  return { ...stack, cells };
 }
 
 /**

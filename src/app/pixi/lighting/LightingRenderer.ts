@@ -290,6 +290,7 @@ export class LightingRenderer implements SceneLightingView {
     if (!bounds) {
       // Nothing is drawn while off; the next update after switching on rebuilds everything.
       this.levelsBelow?.reset(true);
+      this.engine.setCoverage(null);
       this.engine.setEnabled(false);
       this.model.reset();
       this.lastScene = null;
@@ -309,7 +310,10 @@ export class LightingRenderer implements SceneLightingView {
     this.memory.sync(bounds, levelExploredMask(state), viewedLevelId(state));
     state = this.deps.store.getState();
 
-    const { model, rebuilt } = this.model.update(state, bounds, this.deps.measurement, this.deps.rules);
+    // What the view looks over: its own map, and the maps of the levels below seen through its openings.
+    const reach = this.levelsBelow?.reach(state, bounds) ?? null;
+    this.engine.setCoverage(reach);
+    const { model, rebuilt } = this.model.update(state, bounds, this.deps.measurement, this.deps.rules, reach ?? bounds);
     const base = rebuilt || !this.lastScene ? (this.lastScene = this.takeModel(model, state, bounds)) : this.lastScene;
     const spots = this.spots.update(model, state, this.deps.measurement, this.deps.rules);
     const gmSight = model.gmSight ?? model.sight;

@@ -48,6 +48,8 @@ export interface BelowMapImage {
 
 export interface BelowLevelDeps {
   id: string;
+  /** The level's index in the view's stack: 1 the nearest level below drawn, 2 the next. */
+  index: number;
   renderer: Renderer;
   store: LightingStore;
   quality: LightingQuality;
@@ -99,7 +101,7 @@ export class BelowLevel {
   private destroyed = false;
 
   constructor(private readonly deps: BelowLevelDeps) {
-    this.engine = new LightingEngine(deps.renderer, deps.quality, { levelIndex: 1, backBuffer: false });
+    this.engine = new LightingEngine(deps.renderer, deps.quality, { levelIndex: deps.index, backBuffer: false });
     this.tokens = new BelowTokens(deps.art, deps.requestRender);
     this.fog = new BelowFog(deps.requestRender);
     this.memory = new ExploredMemory({
@@ -118,6 +120,10 @@ export class BelowLevel {
 
   get id(): string {
     return this.deps.id;
+  }
+
+  get index(): number {
+    return this.deps.index;
   }
 
   /** The level's map in world pixels once its image is the one asked for; null until then. */
@@ -181,7 +187,7 @@ export class BelowLevel {
 
   /** What the rules read of the level from the view above, through `stack`; null until it is built. */
   belowSight(stack: LevelStack): BelowSight | null {
-    return this.rule && { stack, index: 1, ...this.rule };
+    return this.rule && { stack, index: this.deps.index, ...this.rule };
   }
 
   /** The level's committed fog as the rules read it (null: unreadable, which hides all). */
@@ -264,7 +270,7 @@ export class BelowLevel {
   private clipOf(stack: LevelStack, bounds: MapBounds): TexelMask | null {
     const kept = this.clip;
     if (kept?.stack === stack && kept.bounds.width === bounds.width && kept.bounds.height === bounds.height) return kept.within;
-    const within = stampClip(stack, 1, { ...exploredGrid(bounds), mapWidth: bounds.width, mapHeight: bounds.height });
+    const within = stampClip(stack, this.deps.index, { ...exploredGrid(bounds), mapWidth: bounds.width, mapHeight: bounds.height });
     this.clip = { stack, bounds, within };
     return within;
   }

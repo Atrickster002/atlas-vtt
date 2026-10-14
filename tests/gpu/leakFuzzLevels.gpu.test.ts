@@ -1,6 +1,8 @@
 /// <reference types="vite/client" />
 import '../setup/obsidianDom';
-import { Matrix } from 'pixi.js';
+import { Matrix, Texture } from 'pixi.js';
+import { NO_STRETCH } from '../../src/app/grid/mapStretch';
+import { artCells } from '../../src/app/levels/artRaster';
 import { describe, expect, it, vi } from 'vitest';
 import { showsMap } from '../../src/app/gameSystems/senseRules';
 import { NORMAL_SIGHT } from '../../src/app/gameSystems/senses/generic';
@@ -25,7 +27,7 @@ import type { Sight } from '../../src/app/vision/sight';
 import { belowTokenPerception, sightBelow, type BelowSight } from '../../src/app/vision/throughSight';
 import type { MapBounds } from '../../src/app/vision/visibility';
 import { fuzzRooms, insidePolygon, rng, type FuzzRoom, type P } from '../../src/app/pixi/lighting/engine/__tests__/fuzzRooms';
-import { LEVELS, openLevelsView, paintedTexture, worldOf, type LevelsView } from '../helpers/levelsView';
+import { fakeLevelArt, LEVELS, openLevelsView, paintedTexture, worldOf, type LevelsView } from '../helpers/levelsView';
 
 vi.mock('events', async () => import('eventemitter3'));
 
@@ -322,7 +324,9 @@ async function fuzz({ seed, trials, map = 2048, resolution = 1, quality, belowRe
       const state = store.getState();
       const measurement = () => mapMeasurementSettings(rulesLookup(view.obsApp), state);
       const ruleSurfaces = shrunkRule ? levelSurfaceList(levelObjects(state).levelSurfaces).map((entry) => ({ ...entry, polygon: entry.polygon.map((p) => ({ x: ox + (p.x - ox) * 0.5, y: oy + (p.y - oy) * 0.5 })) })) : levelSurfaceList(levelObjects(state).levelSurfaces);
-      const stack: LevelStack = levelStack({ id: 'upper', surfaces: ruleSurfaces }, [{ id: 'ground', surfaces: levelSurfaceList(levelObjectsOn(state, 'ground').levelSurfaces), pictured: belowBounds }], ['ground'], stackGrid(bounds));
+      const grid = stackGrid(bounds);
+      const groundArt = artCells(fakeLevelArt({ texture: Texture.EMPTY, ...belowBounds }), NO_STRETCH, true, grid);
+      const stack: LevelStack = levelStack({ id: 'upper', surfaces: ruleSurfaces }, [{ id: 'ground', surfaces: levelSurfaceList(levelObjectsOn(state, 'ground').levelSurfaces), art: groundArt }], ['ground'], grid);
       const viewed: Sight = view.controller.renderer.currentSight();
       const seen = { ...state, viewedLevel: 'ground' };
       const { model } = new SceneModelBuilder().update(seen, belowBounds, measurement);

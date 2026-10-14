@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { levelStack, levelsShownBelow, shownAt, shownAtCell, stackGrid, VIEWED, VOID, type StackLevel } from '../../../src/app/levels/levelStack';
+import { levelStack, levelsShownBelow, shownAt, shownAtCell, stackGrid, VIEWED, VOID, withDrawn, type StackLevel } from '../../../src/app/levels/levelStack';
+import { artCells, type ArtAlpha } from '../../../src/app/levels/artRaster';
+import { NO_STRETCH } from '../../../src/app/grid/mapStretch';
 import { stampClip } from '../../../src/app/levels/stackClip';
 import { paintPolygon, polygonTexels } from '../../../src/app/levels/surfaceRaster';
 import type { LevelSurface, SceneLevel } from '../../../src/app/types/sceneLevelTypes';
@@ -85,7 +87,14 @@ describe('polygons on texels', () => {
 
 describe('the level stack', () => {
   const grid = stackGrid({ width: 200, height: 200 });
-  const below = (id: string, surfaces: LevelSurface[] = [], pictured?: { width: number; height: number }): StackLevel => ({ id, surfaces, pictured });
+  const below = (id: string, surfaces: LevelSurface[] = [], art?: StackLevel['art']): StackLevel => ({ id, surfaces, art });
+  /** A map of `width` × `height` world pixels, holding art except where `clear` says. */
+  const mapArt = (width: number, height: number, clear: (x: number, y: number) => boolean = () => false, on = grid): StackLevel['art'] => {
+    const opaque = new Uint8Array(width * height);
+    for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) opaque[y * width + x] = clear(x, y) ? 0 : 1;
+    const alpha: ArtAlpha = { width, height, opaque };
+    return artCells({ width, height, alpha }, NO_STRETCH, true, on);
+  };
 
   it('shows only the viewed level without an opening, and needs no cells for it', () => {
     const stack = levelStack(below('upper', [surface('floor', false, rect(0, 0, 50, 50))]), [below('ground')], ['ground'], grid);
@@ -124,11 +133,42 @@ describe('the level stack', () => {
     expect(shownAt(levelStack(viewed, [below('ground')], [], grid), { x: 50, y: 50 })).toBe(VOID);
   });
 
-  it('shows a level below only on whole texels of its own map', () => {
+  it('shows a level below on every texel its map touches, and looks past it beyond', () => {
     const viewed = below('upper', [surface('hole', true, rect(0, 0, 200, 200))]);
-    const stack = levelStack(viewed, [below('ground', [], { width: 80.5, height: 200 })], ['ground'], grid);
-    expect(shownAtCell(stack, 79, 10)).toBe(1);
-    expect(shownAtCell(stack, 80, 10)).toBe(VOID);
+    const ground = artCells({ width: 805, height: 2000, alpha: null }, { x: 0.1, y: 0.1 }, true, grid);
+    const stack = levelStack(viewed, [below('ground', [], ground)], ['ground'], grid);
+    expect(shownAtCell(stack, 80, 10)).toBe(1);
+    expect(shownAtCell(stack, 81, 10)).toBe(VOID);
+  });
+
+  it('opens the viewed level where its map is transparent, and shows two levels below, nearest first', () => {
+    const viewed = below('upper', [], mapArt(200, 200, (x, y) => x >= 20 && x < 120 && y >= 20 && y < 120));
+    // The ground floor is transparent on its left half, the cellar holds art everywhere.
+    const stack = levelStack(viewed, [below('ground', [], mapArt(200, 200, (x) => x < 60)), below('cellar', [], mapArt(200, 200))], ['ground', 'cellar'], grid);
+    expect(shownAtCell(stack, 10, 50)).toBe(VIEWED);
+    expect(shownAtCell(stack, 40, 50)).toBe(2);
+    expect(shownAtCell(stack, 100, 50)).toBe(1);
+    // One texel of the ground floor's art along the edge of its transparent part, and one texel of the upper level's.
+    expect(shownAtCell(stack, 57, 50)).toBe(2);
+    expect(shownAtCell(stack, 58, 50)).toBe(1);
+    expect(shownAtCell(stack, 21, 50)).toBe(VIEWED);
+    expect(shownAtCell(stack, 22, 50)).toBe(2);
+  });
+
+  it('reads a level not yet ready as nothing, and stays the same stack while every level is', () => {
+    const viewed = below('upper', [surface('hole', true, rect(0, 0, 100, 100))]);
+    const stack = levelStack(viewed, [below('ground', [], mapArt(200, 200, (x) => x < 50)), below('cellar')], ['ground', 'cellar'], grid);
+    expect([shownAt(stack, { x: 20, y: 20 }), shownAt(stack, { x: 80, y: 20 })]).toEqual([2, 1]);
+    const cellarOnly = withDrawn(stack, (index) => index === 2);
+    expect([shownAt(cellarOnly, { x: 20, y: 20 }), shownAt(cellarOnly, { x: 80, y: 20 })]).toEqual([2, VOID]);
+    expect(withDrawn(stack, () => true)).toBe(stack);
+  });
+
+  it('reads a level below it does not see as floor: nothing shows past it', () => {
+    const viewed = below('upper', [surface('hole', true, rect(0, 0, 100, 100))]);
+    const stack = levelStack(viewed, [below('ground', [], mapArt(200, 200, (x) => x < 50)), below('cellar')], ['cellar'], grid);
+    expect(shownAt(stack, { x: 20, y: 20 })).toBe(1);
+    expect(shownAt(stack, { x: 80, y: 20 })).toBe(VOID);
   });
 
   it('reads outside its grid as nothing, and holds a large map at 2,048 texels a side', () => {
@@ -140,11 +180,12 @@ describe('the level stack', () => {
     expect(shownAt(stack, { x: 200, y: 200 })).toBe(1);
   });
 
-  it('draws the levels below that a level sees, nearest first, one of them', () => {
-    const levels: SceneLevel[] = ['cellar', 'ground', 'upper'].map((id) => ({ id, name: id, elevation: { bottom: 0, top: 1 }, background: null }));
-    expect(levelsShownBelow(levels, 'upper')).toEqual(['ground']);
-    expect(levelsShownBelow(levels.map((level) => (level.id === 'upper' ? { ...level, sees: ['cellar'] } : level)), 'upper')).toEqual(['cellar']);
-    expect(levelsShownBelow(levels, 'cellar')).toEqual([]);
+  it('draws the levels below that a level sees, nearest first, two of them', () => {
+    const levels: SceneLevel[] = ['vault', 'cellar', 'ground', 'upper'].map((id) => ({ id, name: id, elevation: { bottom: 0, top: 1 }, background: null }));
+    expect(levelsShownBelow(levels, 'upper')).toEqual(['ground', 'cellar']);
+    expect(levelsShownBelow(levels.map((level) => (level.id === 'upper' ? { ...level, sees: ['vault', 'cellar'] } : level)), 'upper')).toEqual(['cellar', 'vault']);
+    expect(levelsShownBelow(levels, 'cellar')).toEqual(['vault']);
+    expect(levelsShownBelow(levels, 'vault')).toEqual([]);
   });
 });
 
