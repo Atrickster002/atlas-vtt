@@ -5,6 +5,7 @@ import type { ViewAtlasStore } from '../../../storeFactory';
 import { getHistoryStore, runUntracked } from '../../../stores/history';
 import type { LevelElevation, SceneLevel } from '../../../types/sceneLevelTypes';
 import { chooseAction } from '../../../ui/confirmDialog';
+import { showNotice } from '../../../ui/notice';
 
 /**
  * Edits of a scene's levels from its settings. Levels are scene settings, like its lighting:
@@ -15,23 +16,49 @@ import { chooseAction } from '../../../ui/confirmDialog';
 
 /** What a level is called: its name, or its place among the scene's levels while it has none. */
 export function levelLabel(levels: readonly SceneLevel[], level: SceneLevel): string {
-  return level.name.trim() || t('levels.newName', { n: levels.indexOf(level) + 1 });
+  return level.name?.trim() || t('levels.newName', { n: levels.indexOf(level) + 1 });
+}
+
+/** The label of level `id` as the scene names it now, for a message about it. */
+function labelOf(store: ViewAtlasStore, id: string): string {
+  const levels = store.getState().levels ?? [];
+  const level = levels.find((entry) => entry.id === id);
+  return level ? levelLabel(levels, level) : id;
+}
+
+/**
+ * Runs an edit of level `name`'s scene. Every edit works out the whole result before it writes it
+ * in one store write, so one that fails has changed nothing; the GM is told, never left with a
+ * button that did nothing. Returns whether it was made.
+ */
+function editLevels(name: string, edit: () => void): boolean {
+  try {
+    edit();
+    return true;
+  } catch (error) {
+    console.error(`[Atlas] Editing the level ${name} failed:`, error);
+    showNotice(t('levels.editFailed', { name }));
+    return false;
+  }
 }
 
 /** Adds a level on top with `background` and shows it; a scene without levels gets its first one too. */
 export function addLevel(store: ViewAtlasStore, background: string | null): void {
   const state = store.getState();
   const count = (state.levels?.length || 1) + 1;
-  const levels = withLevelAdded(state, { name: t('levels.newName', { n: count }), background }, t('levels.firstName'));
-  runUntracked(store, () => state.setLevels(levels));
-  store.getState().setViewedLevel(levels.at(-1)?.id ?? null);
+  const name = t('levels.newName', { n: count });
+  editLevels(name, () => {
+    const levels = withLevelAdded(state, { name, background }, t('levels.firstName'));
+    runUntracked(store, () => state.setLevels(levels));
+    store.getState().setViewedLevel(levels.at(-1)?.id ?? null);
+  });
 }
 
 /** Renames level `id`, or changes its elevation. */
 export function changeLevel(store: ViewAtlasStore, id: string, changes: { name?: string; elevation?: LevelElevation }): void {
   const { levels, setLevels } = store.getState();
   if (!levels) return;
-  runUntracked(store, () => setLevels(withLevelChanged(levels, id, changes)));
+  editLevels(labelOf(store, id), () => runUntracked(store, () => setLevels(withLevelChanged(levels, id, changes))));
 }
 
 /**
@@ -59,8 +86,10 @@ export function setLevelOpenArt(store: ViewAtlasStore, id: string, open: boolean
 export function changeLevelBackground(store: ViewAtlasStore, id: string, background: string | null): void {
   const state = store.getState();
   if (!state.levels) return;
-  if (id === firstLevelId(state.levels)) state.setBackground(background);
-  else runUntracked(store, () => state.setLevels(withLevelChanged(state.levels!, id, { background })));
+  editLevels(labelOf(store, id), () => {
+    if (id === firstLevelId(state.levels)) state.setBackground(background);
+    else runUntracked(store, () => state.setLevels(withLevelChanged(state.levels!, id, { background })));
+  });
 }
 
 /** Writes an edit that moved objects or the first level's map, and lets go of the history that knew them otherwise. */
@@ -78,7 +107,7 @@ export function moveLevel(store: ViewAtlasStore, id: string, direction: 1 | -1):
   const to = from + direction;
   if (from < 0 || to < 0 || to >= ids.length) return;
   [ids[from], ids[to]] = [ids[to]!, ids[from]!];
-  applyScene(store, state, withLevelsReordered(state, ids));
+  editLevels(labelOf(store, id), () => applyScene(store, state, withLevelsReordered(state, ids)));
 }
 
 /**
@@ -103,7 +132,8 @@ export async function deleteLevel(store: ViewAtlasStore, id: string): Promise<st
   if (!choice) return null;
   const state = store.getState();
   const wasShown = viewedLevelId(state) === id;
-  applyScene(store, state, withLevelDeleted(state, id, choice === 'move' ? target.id : null));
+  const deleted = editLevels(levelLabel(levels, level), () => applyScene(store, state, withLevelDeleted(state, id, choice === 'move' ? target.id : null)));
+  if (!deleted) return null;
   if (wasShown) store.getState().setViewedLevel(target.id);
   return target.id;
 }

@@ -22,7 +22,7 @@ import { FreehandTab } from './FreehandTab';
 import { CloseButton } from '../../packages/components/primitives/CloseButton';
 import { t } from '../../i18n';
 import { showNotice } from '../../ui/notice';
-import { applyLevelAlignment, levelBeingFitted } from './levels/levelImageAlignment';
+import { acceptsLevelDetection, applyLevelAlignment, levelBeingFitted } from './levels/levelImageAlignment';
 
 type AlignmentTab = 'intersections' | 'freehand';
 /** What the choice of a manual way holds while none is chosen. */
@@ -164,6 +164,11 @@ export function GridAlignmentOverlay({ onClose }: GridAlignmentOverlayProps): Re
       if (leaving) return;
       // The way on from a map without a grid to find is to show Atlas one cell of it.
       setActiveTab((tab) => tab ?? 'intersections');
+    },
+    // On a level, only a grid the map's lines settle moves the level's image
+    accepts: (grid) => {
+      const level = store ? levelBeingFitted(store) : null;
+      return !store || !level || acceptsLevelDetection(store, level, grid, view?.renderer?.getMapImage?.()?.imageSize);
     },
   });
 

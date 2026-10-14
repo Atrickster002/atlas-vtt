@@ -75,8 +75,11 @@
 }
 
 .atlas-scene-level__button {
-  @include atlas-icon-button('m');
+  @include atlas-icon-button('s');
   @include atlas-ghost-button;
+  // As tall as the row's fields, as every control of a row is
+  width: var(--input-height);
+  height: var(--input-height);
   box-shadow: none;
 
   &:disabled {
@@ -85,6 +88,7 @@
   }
 
   &--destructive:hover:not(:disabled) {
+    background: color-mix(in oklch, var(--color-red) 12%, transparent);
     color: var(--text-error);
   }
 }

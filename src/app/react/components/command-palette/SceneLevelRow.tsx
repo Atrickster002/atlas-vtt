@@ -113,9 +113,9 @@ function LevelBelowSettings({ level, below, onSees, onOpenArt }: Pick<SceneLevel
 /** One level in the Levels page: its name, elevation and the actions on it. */
 export function SceneLevelRow(props: SceneLevelRowProps): React.ReactElement {
   const { level, name, isViewed } = props;
-  const [draft, setDraft] = useState(level.name);
+  const [draft, setDraft] = useState(level.name ?? '');
   const [showsBelow, setShowsBelow] = useState(false);
-  useEffect(() => setDraft(level.name), [level.name]);
+  useEffect(() => setDraft(level.name ?? ''), [level.name]);
   const { bottom, top } = level.elevation;
   const hasBelow = props.below.length > 0;
 
@@ -130,7 +130,7 @@ export function SceneLevelRow(props: SceneLevelRowProps): React.ReactElement {
           aria-label={t('levels.name', { name })}
           onClick={(event) => event.stopPropagation()}
           onChange={(event) => setDraft(event.target.value)}
-          onBlur={() => { if (draft.trim() !== level.name) props.onRename(draft.trim()); }}
+          onBlur={() => { if (draft.trim() !== (level.name ?? '')) props.onRename(draft.trim()); }}
           onKeyDown={(event) => { if (event.key === 'Enter') event.currentTarget.blur(); }}
         />
         <div className="atlas-scene-level__elevation" onClick={(event) => event.stopPropagation()}>

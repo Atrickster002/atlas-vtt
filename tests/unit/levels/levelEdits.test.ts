@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { levelBackground, withLevelAdded, withLevelDeleted, withLevelsReordered, type LevelScene } from '../../../src/app/levels/levelEdits';
+import { levelBackground, withLevelAdded, withLevelChanged, withLevelDeleted, withLevelsReordered, type LevelScene } from '../../../src/app/levels/levelEdits';
+import { readSceneLevels } from '../../../src/app/levels/levelFile';
+import { levelLabel } from '../../../src/app/react/components/levels/levelEditing';
 import { onLevel } from '../../../src/app/levels/sceneLevels';
 import type { SceneLevel } from '../../../src/app/types/sceneLevelTypes';
 import type { TokenEntity } from '../../../src/app/types';
@@ -95,5 +97,24 @@ describe('deleting a level', () => {
   it('never deletes the last level', () => {
     const only = { ...scene(), levels: [level('ground', 'ground.png')] };
     expect(withLevelDeleted(only, 'ground', null)).toBe(only);
+  });
+});
+
+describe('naming a level', () => {
+  it('keeps no name for a blank one, so the level is named by its place on every surface', () => {
+    const levels = [level('ground', 'ground.png'), level('upper', 'upper.png')];
+
+    const renamed = withLevelChanged(levels, 'upper', { name: '   ' });
+
+    expect(renamed[1]).not.toHaveProperty('name');
+    expect(levelLabel(renamed, renamed[1]!)).toBe('Level 2');
+    expect(withLevelChanged(renamed, 'upper', { name: 'Roof' })[1]?.name).toBe('Roof');
+  });
+
+  it('reads a blank name in a file as none', () => {
+    const [ground, upper] = readSceneLevels([{ id: 'ground', name: 'Ground' }, { id: 'upper', name: '' }], null);
+
+    expect(ground?.name).toBe('Ground');
+    expect(upper).not.toHaveProperty('name');
   });
 });

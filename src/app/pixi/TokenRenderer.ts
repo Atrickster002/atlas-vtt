@@ -989,6 +989,14 @@ export class TokenRenderer {
           
           this.applyTokenVisibilityPolicy(character, tokenGroup);
           this.applyDownedState(character, tokenGroup);
+
+          // A token selected before its sprite existed (it took stairs to the level the view
+          // followed it to) gets the frame and handles a selection change drew without it
+          const { selectedIds } = this.store.getState();
+          if (selectedIds.includes(token.id)) {
+            this.uiManager.updateSelectionUI(selectedIds);
+            this.selectionOverlayUpdater();
+          }
           
           // Request sort for proper z-ordering
           this.requestSort();

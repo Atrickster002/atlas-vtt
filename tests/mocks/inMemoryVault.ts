@@ -115,8 +115,9 @@ export function createInMemoryApp(seed: InMemoryVaultSeed = {}): InMemoryApp {
   const localStorage = new Map<string, unknown>();
   Object.assign(app, {
     loadLocalStorage: vi.fn((key: string) => localStorage.get(key) ?? null),
+    // As Obsidian does: any falsy value (`false`, `0`, `''`, null) clears the key instead of storing it
     saveLocalStorage: vi.fn((key: string, value: unknown) => {
-      if (value === null || value === undefined) localStorage.delete(key);
+      if (!value) localStorage.delete(key);
       else localStorage.set(key, value);
     }),
   });

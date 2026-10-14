@@ -68,7 +68,14 @@ export function withLevelAdded(scene: Pick<ViewState, 'levels' | 'background'>, 
 
 /** The scene's levels with level `id` changed by `changes`. */
 export function withLevelChanged(levels: readonly SceneLevel[], id: string, changes: Partial<Pick<SceneLevel, 'name' | 'background'>> & { elevation?: LevelElevation }): SceneLevel[] {
-  return levels.map((level) => (level.id === id ? { ...level, ...changes } : level));
+  return levels.map((level) => {
+    if (level.id !== id) return level;
+    const changed = { ...level, ...changes };
+    // A blank name is none: the level is named by its place (`levelLabel`)
+    if (changed.name?.trim() !== '') return changed;
+    const { name: _blank, ...unnamed } = changed;
+    return unnamed;
+  });
 }
 
 /**

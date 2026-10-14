@@ -37,9 +37,11 @@ function sameIds(a: readonly string[], b: unknown): boolean {
 
 /**
  * A record with `rewrite` applied to each entry; the same record where none changed. An entry that
- * is no object (a map file is kept as it came) is left as it is.
+ * is no object (a map file is kept as it came) is left as it is, and so is a record a scene lacks.
  */
 function rewriteRecord<T>(record: Record<string, T>, rewrite: (entry: T) => T | null): Record<string, T> {
+  // Typed as always there, but a file may leave out a kind it holds nothing of
+  if (!record) return record;
   let changed = false;
   const next: Record<string, T> = {};
   for (const [id, entry] of Object.entries(record)) {

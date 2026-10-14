@@ -4,6 +4,7 @@ import type { LocalPlayerView } from '../../src/app/local-player-view';
 import { describe, expect, test, vi, beforeEach } from 'vitest';
 import { Notice } from 'obsidian';
 import { createStore } from 'zustand/vanilla';
+import { subscribeWithSelector } from 'zustand/middleware';
 import { createTabMetaStore } from '../../src/app/stores/tabMetaStore';
 import { playerWindowStore, resetPlayerWindowStore } from '../../src/app/stores/playerWindowStore';
 import { SettingsService } from '../../src/app/services/SettingsService';
@@ -60,6 +61,8 @@ import { openPlayerWindow, restorePlayerWindow, presentTab } from '../../src/app
 import { presentedSceneOf, PRESENTED_SCENE_KEY } from '../../src/app/services/presentedScene';
 
 import { AtlasView } from '../../src/app/atlas-view';
+import { MapController } from '../../src/app/MapController';
+import { NO_STRETCH } from '../../src/app/grid/mapStretch';
 
 interface SceneState { isMapLoading: boolean; mapLoaded: boolean; mapPath: string | null }
 
@@ -607,6 +610,7 @@ describe('the presented level', () => {
     expect(presentedSceneOf(app).get()).toEqual({ tabId: tower, filePath: 'maps/tower.md', levelId: 'upper' });
     expect(store.getState().viewedLevel).toBe('upper');
     expect(shownSource().canRender?.()).toBe(true);
+    expect(vi.mocked(Notice)).toHaveBeenLastCalledWith('Player view shows Tower: Upper');
 
     store.setState({ viewedLevel: 'ground' });
     expect(serviceMock.holdCurrentFrame).toHaveBeenCalled();
@@ -615,6 +619,49 @@ describe('the presented level', () => {
     store.setState({ viewedLevel: 'upper' });
     await waitForRelease(atlasStore);
     expect(shownSource().canRender?.()).toBe(true);
+  });
+
+  test('shows players the presented level live again once its map has loaded, after the DM came back to it before it had', async () => {
+    const app = deviceApp();
+    const { view } = createFakeView();
+    view.app = app;
+    const store = createStore(subscribeWithSelector<Record<string, unknown>>(() => ({
+      isMapLoading: false, mapLoaded: true, mapPath: 'maps/tower.md', background: 'maps/ground.png', grid: null,
+      levels: [{ ...levels[0], background: 'maps/ground.png' }, { ...levels[1], background: 'maps/upper.png' }],
+      viewedLevel: 'ground', setViewedLevel: (id: string) => store.setState({ viewedLevel: id }),
+    })));
+    view.atlasStore = store;
+    // A map image whose loads finish when the test says so
+    const loads: Array<() => void> = [];
+    const mapImage = { load: vi.fn(() => new Promise<void>((done) => loads.push(done))), mapStretch: NO_STRETCH, setStretch: vi.fn() };
+    view.serviceManager.getRendererService().getRenderer().getMapImage = () => mapImage;
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const vault = { vault: { getAbstractFileByPath: () => null } } as unknown as App;
+    const stopFollowing = MapController.followBackground(vault, store as never, mapImage as never);
+    const finishLoad = async (): Promise<void> => {
+      await vi.waitFor(() => expect(loads).toHaveLength(1));
+      loads.shift()?.();
+      await flush();
+    };
+    const tower = view.tabMetaStore.getState().addTab('maps/tower.md', 'Tower');
+
+    const presenting = presentTab(app, view, tower, { levelId: 'upper' });
+    await finishLoad();
+    await presenting;
+    store.setState({ viewedLevel: 'ground' });
+    await finishLoad();
+    serviceMock.holdCurrentFrame.mockClear();
+    serviceMock.releaseHeldFrame.mockClear();
+
+    store.setState({ viewedLevel: 'upper' });
+    await flush();
+    expect(serviceMock.releaseHeldFrame).not.toHaveBeenCalled();
+    expect(shownSource().canRender?.()).toBe(false);
+
+    await finishLoad();
+    await waitForRelease(store);
+    expect(shownSource().canRender?.()).toBe(true);
+    stopFollowing();
   });
 
   test('a restored window takes up its frozen camera only on the level it was frozen on', async () => {

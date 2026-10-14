@@ -12,8 +12,10 @@ import { PlayerWindowService } from './PlayerWindowService';
 import { presentedSceneOf, readPresentedScene, type PresentedScene, type PresentedSceneStore } from './presentedScene';
 import { rendersOnChange, requestRender, setBeforeRender } from '../pixi/RenderScheduler';
 import { showNotice } from '../ui/notice';
-import { hasLevels, resolveLevel, viewedLevelId } from '../levels/sceneLevels';
+import { hasLevels, levelById, resolveLevel, viewedLevelId } from '../levels/sceneLevels';
+import { levelLabel } from '../react/components/levels/levelEditing';
 import { showsPresentedLevel } from './presentedLevel';
+import { MapController } from '../MapController';
 
 /** Unsubscribes the tab watcher of the view whose tab is currently presented. */
 let stopWatchingPresentedTab: (() => void) | null = null;
@@ -73,7 +75,14 @@ export async function presentTab(app: App, view: AtlasView, tabId: string, { ope
     // Players who see the scene nowhere get the player window, and so does a GM who asks for it
     else if (openWindow || !presented.isShownElsewhere()) await openPlayerWindow(app);
   }
-  showNotice(t(presentedNotice(presented), { name: tab.displayName }));
+  showNotice(t(presentedNotice(presented), { name: presentedName(view, tab) }));
+}
+
+/** What players were shown, as a notice names it: the scene, and the level of a scene with several. */
+function presentedName(view: AtlasView, tab: SceneTab): string {
+  const state = view.atlasStore.getState();
+  const level = hasLevels(state.levels) ? levelById(state.levels, viewedLevelId(state)) : null;
+  return level && state.levels ? t('present.sceneLevel', { scene: tab.displayName, level: levelLabel(state.levels, level) }) : tab.displayName;
 }
 
 /** What players were shown: the player window, only what another plugin shows, or nothing until the window opens. */
@@ -202,24 +211,41 @@ function watchPresentedTab(view: AtlasView, service: PlayerWindowService): void 
     const { shownTabId } = playerWindowStore.getState();
     if (shownTabId && state.activeTabId !== shownTabId) service.holdCurrentFrame();
   });
+  // Whether players are held only until the presented level's map has loaded in this view
+  let awaitingLevel = false;
+  const resume = (tabId: string): void => {
+    void resumePresentedTab(view, service, tabId).then((heldForLevel) => { awaitingLevel = heldForLevel; });
+  };
   // Coming back is not: the tab is active before its scene starts loading, and a retry after
   // a failed load changes no tab. Players see the scene again once the store holds it as loaded.
   const stopWatchingScene = view.atlasStore.subscribe((state, previous) => {
     const { shownTabId } = playerWindowStore.getState();
     if (!shownTabId || !showsScene(state) || showsScene(previous)) return;
-    if (state.mapPath === findTab(view, shownTabId)?.filePath) void resumePresentedTab(view, service, shownTabId);
+    if (state.mapPath === findTab(view, shownTabId)?.filePath) resume(shownTabId);
   });
-  // Levels behave like tabs: another level of the presented tab holds the players' frame, coming back resumes it
-  const stopWatchingLevels = view.atlasStore.subscribe((state, previous) => {
-    if (viewedLevelId(state) === viewedLevelId(previous) || !showsScene(state)) return;
+  // Levels behave like tabs: another level of the presented tab holds the players' frame. Coming
+  // back resumes it once that level's map has loaded, which is after the level changed.
+  const followLevel = (): void => {
     const { shownTabId } = playerWindowStore.getState();
-    if (!shownTabId || view.tabMetaStore.getState().activeTabId !== shownTabId) return;
-    if (showsPresentedLevel(view)) void resumePresentedTab(view, service, shownTabId);
-    else service.holdCurrentFrame();
+    if (!shownTabId || view.tabMetaStore.getState().activeTabId !== shownTabId || !showsScene(view.atlasStore.getState())) return;
+    if (showsPresentedLevel(view)) {
+      awaitingLevel = false;
+      resume(shownTabId);
+    } else {
+      awaitingLevel = true;
+      service.holdCurrentFrame();
+    }
+  };
+  const stopWatchingLevels = view.atlasStore.subscribe((state, previous) => {
+    if (viewedLevelId(state) !== viewedLevelId(previous) && showsScene(state)) followLevel();
+  });
+  const stopWatchingImages = MapController.onBackgroundLoaded((mapImage) => {
+    if (awaitingLevel && mapImage === view.serviceManager.getRendererService().getRenderer()?.getMapImage()) followLevel();
   });
   stopWatchingPresentedTab = (): void => {
     stopWatchingTabs();
     stopWatchingLevels();
+    stopWatchingImages();
     stopWatchingScene();
     stopWatchingWindow();
     stopWatchingPresentedTab = null;
@@ -232,17 +258,22 @@ function showsScene(state: ViewAtlasState): boolean {
   return state.mapLoaded && !state.isMapLoading;
 }
 
-async function resumePresentedTab(view: AtlasView, service: PlayerWindowService, tabId: string): Promise<void> {
+/**
+ * Shows players the presented tab `tabId` live again once it is drawn. Returns whether they keep
+ * their frame only because the view does not show the presented level, or its map, yet.
+ */
+async function resumePresentedTab(view: AtlasView, service: PlayerWindowService, tabId: string): Promise<boolean> {
   const source = await waitForRenderedFrameSource(view);
   const state = view.atlasStore.getState();
   // The DM may have moved on while the frames were drawn
-  if (!source || !showsScene(state) || state.mapPath !== findTab(view, tabId)?.filePath) return;
-  // The tab came back on another level than players are shown: they keep the frame they have
+  if (!source || !showsScene(state) || state.mapPath !== findTab(view, tabId)?.filePath) return false;
+  // The tab came back on another level than players are shown, or its map is still loading: they keep the frame they have
   if (!showsPresentedLevel(view)) {
     service.holdCurrentFrame();
-    return;
+    return true;
   }
   service.releaseHeldFrame(source);
+  return false;
 }
 
 

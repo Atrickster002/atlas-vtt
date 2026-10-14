@@ -378,6 +378,33 @@ describe('TokenRenderer Integration Tests', () => {
     });
   });
 
+  describe('Selection of a token that comes into view', () => {
+    it('draws the frame and handles of a token selected before its sprite existed, as one that took stairs to the level the view follows it to', async () => {
+      const levels = [
+        { id: 'ground', name: 'Ground', elevation: { bottom: 0, top: 10 }, background: null },
+        { id: 'upper', name: 'Upper', elevation: { bottom: 10, top: 20 }, background: null },
+      ];
+      store.setState({ levels, viewedLevel: 'ground' });
+      store.getState().addToken(token({ id: 'here' }));
+      await waitForTokens('here');
+      // A token that just took the stairs up: on the level above, not shown yet
+      const climber = { ...token({ id: 'climber', x: 300 }), kind: 'character' as const, name: 'Climber', level: 'upper' };
+      store.setState((state) => ({ objects: { ...state.objects, tokens: { ...state.objects.tokens, climber } } }));
+      const framedWithSprite: boolean[] = [];
+      selectionOverlayUpdater.mockImplementation(() => framedWithSprite.push(tokenRenderer.getTokenSprites().climber instanceof Container));
+      const handles = (): Container[] => (tokenRenderer as unknown as { uiManager: { getResizeUI(): { getHandles(): Container[] } | undefined } })
+        .uiManager.getResizeUI()?.getHandles() ?? [];
+
+      // As the drop does: the view follows the token, which stays selected
+      store.getState().setViewedLevel('upper');
+      store.getState().setSelection(['climber']);
+      await waitForTokens('climber');
+
+      await vi.waitFor(() => expect(framedWithSprite.at(-1)).toBe(true));
+      expect(handles().some((handle) => handle.parent === tokenGroup('climber'))).toBe(true);
+    });
+  });
+
   describe('Ring Color Update', () => {
     it('should update ring color when token ringColor changes', async () => {
       store.getState().addToken(token({ id: 'token-1', ringColor: '#ff0000' }));
