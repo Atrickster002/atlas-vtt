@@ -20,7 +20,8 @@
 - New table: paste a table from a PDF, a web page or a spreadsheet, see how it rolls and what is wrong with it, and save it as a note of the collection
 - Import random tables from local PDFs with embedded text, XLSX workbooks, CSV/TSV exports, Markdown and text files. Preview the detected tables, check the ones to keep and confirm their names before saving Markdown notes. Ambiguous and incomplete PDF tables are skipped; scanned pages need text copied with a separate text recognition tool
 - Animated maps: add a WebM or MP4 video in the map creator or drop it on the asset manager, and it plays on the map and in the player window while someone sees it. Switch Animate maps off in Atlas' settings to show their first frame instead
-- Stairs between floors: draw them with Stairs in the note pin's menu, and a token put down on them goes to the floor they lead to, at the same place. Stairs can lead both ways or only up or down, and an elevator offers its floors to pick from. When the token you moved was the only one selected, the view follows it. Players' tokens online take stairs too
+- Stairs between floors: draw them with Stairs in the note pin's menu, and a token put down on them goes to the floor they lead to, at the same place. Stairs can lead both ways or only up or down, and an elevator offers its floors to pick from. When the token you moved was the only one selected, the view follows it
+- Copy, cut, paste and duplicate stairs with the stairs tool: stairs pasted on another floor lead the same way from there, to the floor above or below it
 - A pin that links a scene of several floors can open it on a floor: pick it in the pin's right-click menu. A pin to another floor of its own scene shows that floor
 - Replace map image, in the command palette and beside each floor in Scene levels: put a video, a gridless version or a larger export of the same map in its place, and the grid, walls, lights and tokens stay where they are
 

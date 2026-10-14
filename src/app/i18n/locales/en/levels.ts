@@ -46,4 +46,9 @@ export const levels = {
   'levels.stairsStay': 'Stay on {name}',
   'levels.stairsFollowed': '{token} took the stairs to {name}',
   'levels.stairsTook': { one: '{count} token took the stairs to {name}', other: '{count} tokens took the stairs to {name}' },
+  'levels.copiedStairs': { one: '{count} staircase', other: '{count} staircases' },
+  'levels.stairsPasteOneLevel': 'Stairs join the levels of a scene, and this scene has only one.',
+  'levels.stairsTookUnseen': '{tokens} took the stairs to {name}, a level the players are not shown.',
+  'levels.stairsShowPlayers': 'Show {name} to players',
+  'levels.worldMapFloor': '{scene}: {level}',
 } as const satisfies Record<string, Message>;

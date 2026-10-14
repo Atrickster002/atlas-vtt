@@ -6,6 +6,7 @@ import type { HeldTokens } from '../../types/viewUIState';
 import type { Point } from '../movement/index.ts';
 import { checkMove, landing, MoveRate, type MoveContext } from './moveCheck.ts';
 import type { MoveState, MoveStore } from './playerMoves.ts';
+import { stairsTaken, type StairsTaken } from './stairsTaken.ts';
 
 /** Drag messages a player may send: a burst of 40, then 40 a second (the browser sends about 30). */
 export const DRAG_BURST = 40;
@@ -19,6 +20,8 @@ export interface PlayerDragPorts {
   now(): number;
   setTimer(run: () => void, ms: number): number;
   clearTimer(timer: number): void;
+  /** Dragged tokens put down inside stairs went to another level, which players are not shown. */
+  tookStairs?(taken: readonly StairsTaken[]): void;
 }
 
 /** A player's drag the GM follows: whose, which token (by GM id and by the id the player knows), and where it was taken from. */
@@ -177,6 +180,7 @@ export class PlayerDrags {
     for (const live of drags) this.live.delete(live.tokenId);
     const last = this.live.size === 0;
     if (outcome !== 'back') this.changed = true;
+    const before = this.store.getState();
     if (outcome !== 'as-is') {
       this.write((draft) => {
         if (outcome === 'back') {
@@ -188,6 +192,8 @@ export class PlayerDrags {
         } else placeTokens(draft, drags.map(({ tokenId }) => ({ id: tokenId, ...outcome })));
         if (last && Object.keys(draft.heldTokens).length > 0) draft.heldTokens = {};
       });
+      const taken = stairsTaken(before, this.store.getState(), drags.map(({ tokenId }) => tokenId));
+      if (taken.length > 0) this.ports.tookStairs?.(taken);
     }
     if (!last) return outcome === 'as-is' ? undefined : this.hold();
     const state = this.store.getState();
