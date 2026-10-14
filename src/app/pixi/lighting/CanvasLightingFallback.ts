@@ -1,4 +1,4 @@
-import { GM_SIGHT_POLICY, PLAYER_SIGHT_POLICY } from '../../vision/tokenSightPolicy';
+import { GM_SIGHT_POLICY, PLAYER_SIGHT_POLICY, sceneHasVision } from '../../vision/tokenSightPolicy';
 import { selectSight } from '../../vision/selectSight';
 import type { Viewport } from 'pixi-viewport';
 import type { SceneStore } from '../../lighting/shownTokens';
@@ -24,7 +24,7 @@ import { LightReaches } from '../../vision/lightReaches';
 import { sourcesInDarkness } from '../../vision/magicalDarkness';
 import { activeLights, engineLight } from '../../vision/lightSources';
 import type { SceneLightingView } from './sceneLightingView';
-import { levelObjects } from '../../levels/levelObjects';
+import { everyLevelObjects, levelObjects } from '../../levels/levelObjects';
 
 /** Full ambient light: everything in sight counts as lit. */
 const FULL_DAYLIGHT: AmbientLight = { ambient: 1 };
@@ -123,7 +123,8 @@ export class CanvasLightingFallback implements SceneLightingView {
     const rules = this.deps.rules?.();
     const measurement = this.deps.measurement();
     const held = heldForSight(state);
-    const inputs = [state.lighting, levelObjects(state).tokens, levelObjects(state).walls, levelObjects(state).lights, state.grid, held, rules, bounds?.width, bounds?.height, measurement.unitDistance];
+    const hasVision = sceneHasVision(everyLevelObjects(state).tokens);
+    const inputs = [state.lighting, levelObjects(state).tokens, hasVision, levelObjects(state).walls, levelObjects(state).lights, state.grid, held, rules, bounds?.width, bounds?.height, measurement.unitDistance];
     if (inputs.every((input, i) => input === this.inputs[i]) && inputs.length === this.inputs.length) return;
     this.inputs = inputs;
     if (!state.lighting.enabled || !bounds) {
@@ -142,7 +143,7 @@ export class CanvasLightingFallback implements SceneLightingView {
     this.reaches = dark.length > 0 ? this.darknessReaches.sync(dark, walls) : NO_REACHES;
     const sources = sourcesInDarkness(sightSources(tokens, scale, bounds, rules, GM_SIGHT_POLICY), FULL_DAYLIGHT, this.reaches);
     this.cache.retain(new Set(sources.map(source => source.tokenId)));
-    const sight = selectSight(sceneSight(state.lighting, sources, walls, this.cache), tokens, PLAYER_SIGHT_POLICY);
+    const sight = selectSight(sceneSight(state.lighting, sources, walls, this.cache, { sceneHasVision: hasVision }), tokens, PLAYER_SIGHT_POLICY);
     // The same regions are the same sight: what was worked out from it (who is seen) stays good.
     if (!sameSight(sight, this.sight)) this.sight = sight;
     this.sightBuilt = true;

@@ -16,7 +16,8 @@ import { tokenSenses } from '../../vision/tokenSenses';
 import { wallList } from '../../vision/wallList';
 import type { SceneState } from './atlasView.ts';
 import { roundPlace } from './scenePicture.ts';
-import { levelObjects } from '../../levels/levelObjects';
+import { everyLevelObjects, levelObjects } from '../../levels/levelObjects';
+import { sceneHasVision } from '../../vision/tokenSightPolicy';
 
 const finite = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value);
 
@@ -138,7 +139,8 @@ export function sharedSight(inputs: SightInputs): SharedSight {
     })),
     tokens: tokens.map(({ entry }) => entry),
     held,
-    // Every vision token hidden: the players' sight is none, not all (`selectSight`).
-    ...(!every.some(({ entry }) => entry.vision) && Object.values(levelObjects(state).tokens).some((token) => token.vision?.enabled === true) && { blind: true as const }),
+    // No vision token players get while the scene has one (every one hidden, or on another floor): the players'
+    // sight is none, not all (`selectSight`, `computeSight`).
+    ...(!every.some(({ entry }) => entry.vision) && sceneHasVision(everyLevelObjects(state).tokens) && { blind: true as const }),
   };
 }

@@ -116,7 +116,7 @@ function compare({ current, store, controller }: World): { held: unknown; fresh:
   const walls = sealedWalls(wallList(state.objects.walls), worldTexel(BOUNDS));
   const resolver = tokenSensesResolver(CreatureIndex.forApp(current.app), mapSenseRulesSource(current.app, assets, () => state));
   const rules = mapSightRules(current.app, state, (token) => resolver.visionOf(token));
-  const sight = sceneSight(state.lighting, sightSources(state.objects.tokens, scale, BOUNDS, rules), walls);
+  const sight = sceneSight(state.lighting, sightSources(state.objects.tokens, scale, BOUNDS, rules), walls, undefined, { sceneHasVision: true });
   const fresh = tokenPerception(sight, { ambient: 1 }, [], state.objects.tokens, { conditions: rules.conditions, held: heldForSight(state) });
   return {
     held: { sight: describeSight(controller.renderer.currentSight()), tokens: Object.fromEntries(ids.map((id) => [id, perception?.(id)])) },

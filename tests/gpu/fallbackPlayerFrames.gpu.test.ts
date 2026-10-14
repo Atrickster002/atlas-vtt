@@ -167,6 +167,27 @@ describe('the player window behind the line-of-sight fallback, in GM view', () =
     expect(shown(frames[0]!).black).toBe(0);
   });
 
+  it('captures a black frame of a floor the party is not on, and opens it once no token on any floor has vision', async () => {
+    const { store, frames, displayFrames, shown } = await open({});
+    const floor = (id: string, bottom: number): NonNullable<ReturnType<ViewAtlasStore['getState']>['levels']>[number] => ({ id, name: id, elevation: { bottom, top: bottom + 10 }, background: null });
+    // The party stands on the ground floor, which every object without a level is on.
+    store.setState({ levels: [floor('ground', 0), floor('upper', 10)] });
+    displayFrames(5);
+    frames.length = 0;
+
+    store.getState().setViewedLevel('upper');
+    displayFrames(60);
+    expect(frames).toHaveLength(1);
+    const sampled = ((SIZE - 8) / 2) ** 2;
+    expect(shown(frames[0]!)).toEqual({ outsideSight: 0, hiddenInSight: 0, black: sampled });
+
+    frames.length = 0;
+    for (const id of ['ada', 'bo']) store.getState().updateToken(id, { vision: { enabled: false } });
+    displayFrames(60);
+    expect(frames).toHaveLength(1);
+    expect(shown(frames[0]!).black).toBe(0);
+  });
+
   it('asks for no frame while sight stays as it is', async () => {
     const { store, frames, displayFrames } = await open({});
     displayFrames(5);
