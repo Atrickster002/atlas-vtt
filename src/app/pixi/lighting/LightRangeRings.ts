@@ -15,7 +15,6 @@ import { destroyTree } from '../utils/destroyTree';
 import { ValueTransition } from '../utils/ValueTransition';
 import { lightColorNumber } from './lightMarker';
 import { ringHandleAt, ringHandlePoint, rotationHandlePoint, type RingGeometry, type RingHandle } from './lightRingGeometry';
-import { levelObjects } from '../../levels/levelObjects';
 
 /** Above the light markers (95), below token UI (100). */
 export const RANGE_RINGS_Z_INDEX = 96;
@@ -66,7 +65,7 @@ export class LightRangeRings {
     viewport.on('zoomed-end', this.redraw);
     this.unsubscribe = store.subscribe((state, previous) => {
       if (state.lightPopover !== previous.lightPopover) this.follow(state.lightPopover);
-      else if (levelObjects(state).lights !== levelObjects(previous).lights || state.grid !== previous.grid) this.draw();
+      else if (state.objects.lights !== previous.objects.lights || state.grid !== previous.grid) this.draw();
     });
     this.follow(store.getState().lightPopover);
   }
@@ -120,7 +119,7 @@ export class LightRangeRings {
   }
 
   private shownLight(): LightSource | null {
-    return this.lightId ? readLight(levelObjects(this.store.getState()).lights[this.lightId]) : null;
+    return this.lightId ? readLight(this.store.getState().objects.lights[this.lightId]) : null;
   }
 
   /** The popover opened, moved to another light or closed. */

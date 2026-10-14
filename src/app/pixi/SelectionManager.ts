@@ -9,7 +9,6 @@ import { getDrawingBounds, type DrawingBounds } from './drawingGeometry';
 import type { LayerVisibility } from './playerSafeFrame';
 import { MAP_LAYER_Z } from './mapLayerOrder';
 import { pointInPolygon } from '../vision/visibility';
-import { levelObjects } from '../levels/levelObjects';
 
 export class SelectionManager {
   private viewport: Viewport;
@@ -111,7 +110,7 @@ export class SelectionManager {
 
     // Dragged or undone drawings move without the selection changing
     this._unsubscribeFromDrawingChanges = this.store.subscribe(
-      (state: ViewAtlasState) => levelObjects(state).drawings,
+      (state: ViewAtlasState) => state.objects.drawings,
       () => this.updateSelectionOverlay()
     );
 
@@ -320,7 +319,7 @@ export class SelectionManager {
   
   private getDrawingBoundsById(): Array<[string, DrawingBounds]> {
     const entries: Array<[string, DrawingBounds]> = [];
-    for (const stroke of Object.values(levelObjects(this.store.getState()).drawings)) {
+    for (const stroke of Object.values(this.store.getState().objects.drawings)) {
       const bounds = getDrawingBounds(stroke);
       if (bounds) entries.push([stroke.id, bounds]);
     }
@@ -362,7 +361,7 @@ export class SelectionManager {
 
     const tokenSprites = this.tokenRendererProvider();
     const fogSprites = this.fogSpriteProvider();
-    const drawings = levelObjects(this.store.getState()).drawings;
+    const drawings = this.store.getState().objects.drawings;
 
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
     let foundSelectedSprite = false;

@@ -4,10 +4,9 @@ import type { HeldTokens } from '../types/viewUIState';
 import type { TokenEntity } from '../types';
 import type { Point } from '../types/visionTypes';
 import { sightOnDropOn } from './sceneLightingOptions';
-import { levelObjects } from '../levels/levelObjects';
 
 interface HeldTokenSource {
-  getState(): Pick<ViewState, 'objects' | 'heldTokens' | 'levels' | 'viewedLevel'> & { setHeldTokens: (held: HeldTokens) => void };
+  getState(): Pick<ViewState, 'objects' | 'heldTokens'> & { setHeldTokens: (held: HeldTokens) => void };
 }
 
 /**
@@ -15,9 +14,7 @@ interface HeldTokenSource {
  * held before keeps the place it was taken from; a new one is noted where it stands now.
  */
 export function holdTokens(store: HeldTokenSource, tokenIds: readonly string[]): void {
-  const state = store.getState();
-  const { heldTokens, setHeldTokens } = state;
-  const objects = levelObjects(state);
+  const { heldTokens, objects, setHeldTokens } = store.getState();
   const before = Object.keys(heldTokens);
   if (before.length === tokenIds.length && tokenIds.every((id) => heldTokens[id])) return;
   const held: Record<string, Point> = {};
@@ -59,7 +56,7 @@ export class SightTokens {
   private last: Tokens | null = null;
 
   read(state: SceneTokens): Tokens {
-    const tokens = this.withHeldAtStart(levelObjects(state).tokens, heldForSight(state));
+    const tokens = this.withHeldAtStart(state.objects.tokens, heldForSight(state));
     this.last = tokens;
     return tokens;
   }

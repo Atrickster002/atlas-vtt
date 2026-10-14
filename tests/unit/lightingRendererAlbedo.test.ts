@@ -23,7 +23,6 @@ vi.mock('../../src/app/pixi/lighting/engine/LightingEngine', async () => {
       busy(): boolean { return false; }
       animate(): boolean { return false; }
       setEnabled(): void {}
-      setCoverage(): void {}
       setExplored(): void {}
       setMode(): void {}
       setView(): void {}

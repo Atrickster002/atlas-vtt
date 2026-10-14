@@ -8,7 +8,7 @@ import { mapMarkerScale } from "./utils/mapMarkerScale";
 import { isHandled } from "./utils/handledEvents";
 import type { ViewAtlasState, ViewAtlasStore } from '../storeFactory';
 import { beginHistoryTransaction, endHistoryTransaction } from '../stores/history';
-import type { ContextMenuEntry } from '../react/root/ContextMenuContext';
+import { openContextMenuGlobal } from '../react/root/ContextMenuContext';
 import { pinSize } from '../styles/designTokens';
 import { isPinLabelKind, nextPinLabel } from '../tools/pinLabels';
 import { getPinIconDefinition, resolvePinIcon, type PinIconId } from '../types/pinIcons';
@@ -18,9 +18,7 @@ import { hexLayoutOfGrid, isShownAsHex, pinDisplayPoint } from '../grid/hexLinks
 import { MAP_LAYER_Z } from './mapLayerOrder';
 import { createReadableMark } from './pinReadableMark';
 import { readablePinEntry } from './pinReadableMenu';
-import { openPinMenu, type PinnedSceneLevels } from './pinSceneLevelMenu';
 import { t } from '../i18n';
-import { levelObjects } from '../levels/levelObjects';
 
 /** True when anything other than the position changed, which means the pin's graphics must be rebuilt. */
 function differsBeyondPosition(pin: NotePin, prev: NotePin | undefined): boolean {
@@ -41,7 +39,6 @@ export class PinRenderer {
   private _notePinToolViewportListener: ((e: FederatedPointerEvent) => void) | null = null;
   private _viewportPinClickListener: ((e: FederatedPointerEvent) => void) | null = null;
   private isPlayerView: boolean;
-  private pinnedSceneLevels: PinnedSceneLevels | null = null;
   private store: ViewAtlasStore;
   private iconTextureCache: Map<PinIconId, Texture | null> = new Map();
   private themeObserver: MutationObserver | null = null;
@@ -68,7 +65,7 @@ export class PinRenderer {
     this.pinContainer.interactiveChildren = false;
     this.viewport.addChild(this.pinContainer);
     const unsubscribePins = this.store.subscribe(
-      (state: ViewAtlasState) => levelObjects(state).pins,
+      (state: ViewAtlasState) => state.objects.pins,
       this.syncPins.bind(this),
       { fireImmediately: true }
     );
@@ -211,14 +208,14 @@ export class PinRenderer {
   }
 
   private repositionPins(): void {
-    for (const pin of Object.values(levelObjects(this.store.getState()).pins)) {
+    for (const pin of Object.values(this.store.getState().objects.pins)) {
       const position = this.pinPosition(pin);
       this.pinSprites[pin.id]?.position.set(position.x, position.y);
     }
   }
 
   private redrawAllPins(): void {
-    const pins = levelObjects(this.store.getState()).pins;
+    const pins = this.store.getState().objects.pins;
     for (const pinId in pins) {
       const pin = pins[pinId];
       const pinGroup = this.pinSprites[pinId];
@@ -246,7 +243,7 @@ export class PinRenderer {
   public hitTestPins(worldX: number, worldY: number): string | null {
     if (this.arePinsHidden()) return null;
 
-    const pins = levelObjects(this.store.getState()).pins;
+    const pins = this.store.getState().objects.pins;
     const layout = hexLayoutOfGrid(this.store.getState().grid);
     const hitRadius = 20 * this.getPinScale();
 
@@ -264,7 +261,7 @@ export class PinRenderer {
 
   /** Handles a viewport-routed click on a pin (drag or context menu). */
   public handleViewportPinPointerDown(pinId: string, e: FederatedPointerEvent): void {
-    const pin = levelObjects(this.store.getState()).pins[pinId];
+    const pin = this.store.getState().objects.pins[pinId];
     if (!pin) return;
 
     if (e.button === 2) {
@@ -313,7 +310,7 @@ export class PinRenderer {
 
         if (isDragging) {
           this.store.getState().setPersistenceEnabled(true);
-          const currentPin = levelObjects(this.store.getState()).pins[pinId];
+          const currentPin = this.store.getState().objects.pins[pinId];
           if (currentPin) {
             this.store.getState().updateNotePin(pinId, { x: currentPin.x, y: currentPin.y });
           }
@@ -341,7 +338,7 @@ export class PinRenderer {
   private createPreviewGraphics(icon: string): Container {
     const previewPin: NotePin = { id: 'preview', kind: 'pin', x: 0, y: 0, icon, notePath: '' };
     if (isPinLabelKind(icon)) {
-      previewPin.label = nextPinLabel(levelObjects(this.store.getState()).pins, icon);
+      previewPin.label = nextPinLabel(this.store.getState().objects.pins, icon);
     }
     return this.createPinGraphics(icon, previewPin);
   }
@@ -398,20 +395,17 @@ export class PinRenderer {
   }
   
 
-  /** Reads the levels of the scene a pin links, for its menu's level choice; set by the view. */
-  public setPinnedSceneLevels(read: PinnedSceneLevels): void {
-    this.pinnedSceneLevels = read;
-  }
-
   private showPinContextMenu(pin: NotePin, pos: { x: number; y: number }): void {
-    const entries: ContextMenuEntry[] = [
-      { type: 'item', label: t('pinMenu.open'), icon: 'file-text', onClick: () => dispatchPinAction('open', pin) },
-      { type: 'item', label: t('pinMenu.edit'), icon: 'edit', onClick: () => dispatchPinAction('edit', pin) },
-      ...[readablePinEntry(this.store, pin)].filter((entry) => entry !== null),
-      { type: 'item', label: t('common.duplicate'), icon: 'files', onClick: () => this.store.getState().duplicateMapObjects([pin.id]) },
-      { type: 'item', label: t('common.delete'), icon: 'trash', destructive: true, onClick: () => this.store.getState().deleteMapObject('pin', pin.id) },
-    ];
-    openPinMenu(this.store, pin, entries, pos, this.pinnedSceneLevels);
+    openContextMenuGlobal(
+      [
+        { type: 'item', label: t('pinMenu.open'), icon: 'file-text', onClick: () => dispatchPinAction('open', pin) },
+        { type: 'item', label: t('pinMenu.edit'), icon: 'edit', onClick: () => dispatchPinAction('edit', pin) },
+        ...[readablePinEntry(this.store, pin)].filter((entry) => entry !== null),
+        { type: 'item', label: t('common.duplicate'), icon: 'files', onClick: () => this.store.getState().duplicateMapObjects([pin.id]) },
+        { type: 'item', label: t('common.delete'), icon: 'trash', destructive: true, onClick: () => this.store.getState().deleteMapObject('pin', pin.id) },
+      ],
+      pos,
+    );
   }
 
   private syncPins = (

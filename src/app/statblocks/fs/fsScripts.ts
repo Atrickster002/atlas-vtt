@@ -1,13 +1,14 @@
 /**
  * Fantasy Statblocks blocks Atlas cannot express: JavaScript, conditions in
  * JavaScript, buttons. They are kept whole in `script` blocks, which the
- * native renderer shows as a placeholder and never runs, each with a phrase
+ * native renderer never runs (it shows the values they read), each with a phrase
  * saying what it does. Tracks of boxes drawn by a script have a declarative
  * replacement.
  */
 
 import { jsonRecordCopy, own } from '../format/jsonValues';
 import { labelFromKey } from '../model/fieldKeys';
+import { codeFieldRefs } from '../model/scriptReads';
 import type { BlockIdSource } from '../model/templateIds';
 import type { FieldKey, ScriptBlock, TemplateField, TrackBlock } from '../model/templateTypes';
 import { FsFieldRegistry, type ImportContext } from './fsImportState';
@@ -15,7 +16,6 @@ import { FsFieldRegistry, type ImportContext } from './fsImportState';
 /** Quantities that count what is used up, as the DM screen counts them (`resources/statblockQuantities.ts`). */
 const COUNTING_UP: ReadonlySet<string> = new Set(['stress', 'strain', 'wounds']);
 const MAX_NAMED_KEYS = 3;
-const READ_KEY = /\bmonster\s*(?:\?\.|\.)\s*([A-Za-z_$][\w$]*)|\bmonster\s*\[\s*(["'])([^"'\n]{1,64})\2\s*\]/g;
 const LOOP_BOUND = /<=?\s*(?:Number\s*\(\s*)?(monster\s*(?:\?\.|\.)\s*[A-Za-z_$][\w$]*|monster\s*\[\s*(["'])[^"'\n]{1,64}\2\s*\])/g;
 
 export interface TrackReplacement {
@@ -23,16 +23,6 @@ export interface TrackReplacement {
   blocks: TrackBlock[];
   /** The number fields they show; add those the template lacks. */
   fields: TemplateField[];
-}
-
-/** The keys code reads from the creature (`monster.hp`, `monster["hit_dice"]`), in order of first use. */
-export function codeFieldRefs(code: string): FieldKey[] {
-  const keys: FieldKey[] = [];
-  for (const match of code.matchAll(READ_KEY)) {
-    const key = match[1] ?? match[3];
-    if (key && !keys.includes(key)) keys.push(key);
-  }
-  return keys;
 }
 
 /** The keys a script counts boxes up to (`for (…; i < monster.hp; …)` beside a checkbox): tracks drawn with code. */

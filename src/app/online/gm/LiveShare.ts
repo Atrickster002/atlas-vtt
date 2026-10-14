@@ -3,7 +3,6 @@ import { LIVE_INTERVAL_MS, MAX_COORDINATE, MAX_LIVE_TOKENS, type GmMessage, type
 import { sightOnDropOn } from '../../lighting/sceneLightingOptions';
 import type { PlayerTokenSource, SceneStore } from './atlasView.ts';
 import { roundPlace } from './scenePicture.ts';
-import { levelObjects } from '../../levels/levelObjects';
 
 export interface LiveSharePorts extends PacerClock {
   /** Sends a live message to all: it goes before other waiting frames, and a newer one replaces it while it waits. */
@@ -87,7 +86,7 @@ export class LiveShare {
     if (drawn !== undefined && held.length > 0) this.pacer.request();
     const places = new Map<string, Place>();
     for (const id of held) {
-      const token = levelObjects(state).tokens[id];
+      const token = state.objects.tokens[id];
       const alias = listed.alias(id);
       if (token === undefined || alias === undefined || token.isHidden === true || !shown.has(id)) continue;
       // The GM's own drag runs ahead of the store on the canvas. Its drawn place is what players' sight

@@ -129,8 +129,6 @@ export class MapService {
       );
       if (!displayed) return null;
       this.currentMapData = displayed.mapData;
-      // The level the tab was left on, else the first; the store's levels arrive with the rehydration below
-      storeState.setViewedLevel(displayed.level);
       // The tiles in view load meanwhile; the loading screen stays until they are drawn, or for a while.
       const mapImage = renderer.getMapImage();
       const imageReady = mapImage ? mapImage.whenCameraReady(MAP_IMAGE_READY_MS) : null;

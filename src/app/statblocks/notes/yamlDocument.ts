@@ -1,7 +1,7 @@
 import {
-  Parser, isAlias, isCollection, isMap, isPair, isScalar, isSeq, parseDocument,
+  isAlias, isCollection, isMap, isPair, isScalar, isSeq, noteYamlTokens, parseNoteYamlDocument,
   type CST, type Node, type Pair, type Scalar, type YAMLMap, type YAMLSeq,
-} from 'yaml';
+} from '../../services/noteYaml';
 import type { FieldValue } from '../model/templateTypes';
 import type { FieldPath } from './patchTypes';
 
@@ -37,10 +37,13 @@ export interface Entry {
   readonly end: number;
 }
 
-/** Parses frontmatter YAML; null when it has errors, duplicate or complex keys, or is no block map. */
+/**
+ * Parses frontmatter YAML; null when it is beyond what Atlas reads as YAML, has errors, duplicate
+ * or complex keys, or is no block map.
+ */
 export function readFrontmatterDoc(text: string): FrontmatterDoc | null {
-  const doc = parseDocument(text, { keepSourceTokens: true });
-  if (doc.errors.length > 0) return null;
+  const doc = parseNoteYamlDocument(text, { keepSourceTokens: true });
+  if (!doc || doc.errors.length > 0) return null;
   const contents = doc.contents;
   if (contents !== null && !(isMap(contents) && contents.srcToken?.type === 'block-map')) return null;
   if (contents !== null && !keysAreSound(contents)) return null;
@@ -152,7 +155,7 @@ function isFieldValue(value: unknown): value is FieldValue {
 }
 
 function documentEndOffset(text: string): number | null {
-  for (const token of new Parser().parse(text)) if (isDocumentEnd(token)) return token.offset;
+  for (const token of noteYamlTokens(text)) if (isDocumentEnd(token)) return token.offset;
   return null;
 }
 

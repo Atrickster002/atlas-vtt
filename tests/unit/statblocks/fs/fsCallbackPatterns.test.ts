@@ -4,7 +4,8 @@ import { parseFormula } from '../../../../src/app/statblocks/expressions/parse';
 import { parsePattern } from '../../../../src/app/statblocks/expressions/patternParse';
 import { callbackPattern, entryTextKey, modifierFormula, returnsItemUnchanged } from '../../../../src/app/statblocks/fs/fsCallbackPatterns';
 import { parseCallbackBody } from '../../../../src/app/statblocks/fs/fsCallbackSyntax';
-import { codeFieldRefs, trackKeys } from '../../../../src/app/statblocks/fs/fsScripts';
+import { trackKeys } from '../../../../src/app/statblocks/fs/fsScripts';
+import { codeFieldRefs } from '../../../../src/app/statblocks/model/scriptReads';
 import { mulberry32, pick } from '../model/treeFixtures';
 
 describe('callbackPattern', () => {

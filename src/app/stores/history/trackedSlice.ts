@@ -11,8 +11,6 @@ export type HistorySnapshot = {
   exploredEdits?: unknown;
   /** The played campaign's values of its player characters (`ViewAtlasState.partyValues`); stores without them leave it out. */
   partyValues?: unknown;
-  /** How each level's image is fitted to the scene's grid (`ViewAtlasState.levelAlignments`); scenes without them leave it out. */
-  levelAlignments?: unknown;
 };
 
 /**
@@ -26,7 +24,7 @@ export interface HistoryStep {
 
 export type TrackedBranch = keyof HistorySnapshot;
 
-export const TRACKED_BRANCHES: readonly TrackedBranch[] = ['objects', 'grid', 'background', 'widgetValues', 'exploredEdits', 'partyValues', 'levelAlignments'];
+export const TRACKED_BRANCHES: readonly TrackedBranch[] = ['objects', 'grid', 'background', 'widgetValues', 'exploredEdits', 'partyValues'];
 
 /**
  * How deep undo looks into each branch for the entities a step changed: `objects` holds
@@ -40,7 +38,6 @@ export const BRANCH_DEPTH: Readonly<Record<TrackedBranch, number>> = {
   widgetValues: 1,
   exploredEdits: 0,
   partyValues: 1,
-  levelAlignments: 1,
 };
 
 /** The tracked branches of a state, by reference. */
@@ -52,7 +49,6 @@ export function trackedSliceOf(state: HistorySnapshot): HistorySnapshot {
     widgetValues: state.widgetValues,
     exploredEdits: state.exploredEdits,
     partyValues: state.partyValues,
-    levelAlignments: state.levelAlignments,
   };
 }
 
@@ -67,7 +63,6 @@ export function sameTrackedSlice(a: HistorySnapshot, b: HistorySnapshot): boolea
     a.background === b.background &&
     a.widgetValues === b.widgetValues &&
     a.exploredEdits === b.exploredEdits &&
-    a.partyValues === b.partyValues &&
-    a.levelAlignments === b.levelAlignments
+    a.partyValues === b.partyValues
   );
 }

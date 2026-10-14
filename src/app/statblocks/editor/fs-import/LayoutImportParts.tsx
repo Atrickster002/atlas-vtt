@@ -5,18 +5,30 @@ import { statblockCount, type LayoutStatblocks } from '../../fs/fsLayoutStatbloc
 import type { FsImportReport } from '../../fs/fsLayoutTypes';
 import { plural } from '../../../utils/plural';
 import { BatchProgress, Disclosure, LeftNoteRows, NoteRow } from '../batchParts';
-import { detailsLine, fsOnlyLine, leftoversLabel, moveExplanation, movedLine, placeLabel, readyLine } from './importReportText';
+import {
+  detailSentences, detailsLine, detailsToggleLabel, fsOnlyLine, leftoversLabel, moveExplanation, movedLine, placeLabel, readyLine,
+} from './importReportText';
 import type { StatblockMoveResult } from './statblockMove';
 import type { AdoptionPhase } from './useLayoutAdoption';
 
-/** What Atlas can do now, and what of the look it shows only through Fantasy Statblocks or not in full. */
+/** What Atlas can do now, and what of the look it shows only through Fantasy Statblocks or not in full, each part folded away. */
 export function ImportSummary({ layoutName, fsOnlyParts, report }: {
   layoutName: string;
   fsOnlyParts: number;
   report: FsImportReport | null;
 }): React.JSX.Element {
   const lines = [readyLine(layoutName), fsOnlyLine(fsOnlyParts), detailsLine(report)].filter((line) => line !== null);
-  return <p className="atlas-te-dialog__text atlas-fs-import__lead">{lines.join(' ')}</p>;
+  const details = detailSentences(report);
+  return (
+    <div className="atlas-fs-import__section">
+      <p className="atlas-te-dialog__text atlas-fs-import__lead">{lines.join(' ')}</p>
+      {details.length > 0 && (
+        <Disclosure label={detailsToggleLabel(details.length)}>
+          {details.map((sentence, index) => <li key={index}>{sentence}</li>)}
+        </Disclosure>
+      )}
+    </div>
+  );
 }
 
 /** The statblocks a batch left as they were: those it could not move, with why, and those Cancel kept it from. */

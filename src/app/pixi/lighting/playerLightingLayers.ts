@@ -15,8 +15,6 @@ export type GmOverlays = {
   wallEditor: HideableLayer;
   /** The light zones' outlines and handles, shown in the lighting tool's zone mode. */
   lightZones: HideableLayer;
-  /** The openings and floors of the level shown, shown in the lighting tool's openings mode. */
-  levelSurfaces: HideableLayer;
   /** What the scene remembers, tinted, and the stroke that edits it: shown in the lighting tool's explored-memory mode. */
   exploredMemory: HideableLayer;
   doorBadges: HideableLayer;

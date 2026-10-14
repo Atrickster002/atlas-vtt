@@ -9,7 +9,7 @@ import type { EntryShape, FieldKey, FieldValue } from '../../model/templateTypes
 import { deepEqual, isFieldMap } from '../../notes/listIdentity';
 import type { NotePatch } from '../../notes/patchTypes';
 import { isEmptyValue } from '../../values/emptyValue';
-import { entryName, entryNameKey, entryText, entryTextKey, entryTextKeyOf, extraValue } from '../../values/entryValues';
+import { entryName, entryNameKey, entryText, entryTextKey, entryTextKeyOf, extraValue, listedEntryRecord } from '../../values/entryValues';
 
 export type EntryPart = 'name' | 'text';
 
@@ -62,7 +62,8 @@ function partValue(shape: EntryShape | undefined, part: EntryPartKey, text: stri
 /**
  * Sets one part of an entry: its name, its text or an extra. A record
  * changes the one key; an entry written as plain text is all text, and gets
- * a name or an extra by becoming a record. A part made blank is removed.
+ * a name or an extra by becoming a record; an entry written as a list
+ * becomes the record it reads as. A part made blank is removed.
  */
 export function entryPartPatches(list: FieldKey, index: number, item: FieldValue, shape: EntryShape | undefined, part: EntryPartKey, text: string): NotePatch[] {
   const next = partValue(shape, part, text);
@@ -72,6 +73,10 @@ export function entryPartPatches(list: FieldKey, index: number, item: FieldValue
     if (next === undefined) return base === undefined ? [] : [{ op: 'delete', path: [list, index, key], base }];
     return base !== undefined && deepEqual(base, next) ? [] : [{ op: 'set', path: [list, index, key], base, next }];
   }
+  if (Array.isArray(item)) {
+    const whole = entryWithPart(item, shape, part, text);
+    return deepEqual(listedEntryRecord(item, shape), whole) ? [] : [{ op: 'set', path: [list, index], base: item, next: whole }];
+  }
   if (next === undefined) return part === 'text' ? [removeEntryPatch(list, item)] : [];
   const whole = entryWithPart(item, shape, part, text);
   return deepEqual(item, whole) ? [] : [{ op: 'set', path: [list, index], base: item, next: whole }];
@@ -79,6 +84,7 @@ export function entryPartPatches(list: FieldKey, index: number, item: FieldValue
 
 /** The entry as it is once one of its parts reads `text`: what list operations in the same write must find. */
 export function entryWithPart(item: FieldValue, shape: EntryShape | undefined, part: EntryPartKey, text: string): FieldValue {
+  if (Array.isArray(item)) return entryWithPart(listedEntryRecord(item, shape), shape, part, text);
   const next = partValue(shape, part, text);
   const key = partKey(shape, part, item);
   if (isFieldMap(item)) {

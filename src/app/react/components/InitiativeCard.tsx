@@ -7,7 +7,6 @@ import { EyeOff, GripVertical, Skull, User, Bot } from 'lucide-react';
 import type { InitiativeEntry } from '../../types/initiativeTypes';
 import { useAtlasUI } from '../root/AtlasUIContext';
 import { useAtlasStore } from '../ViewStoreContext';
-import { resolveLevel } from '../../levels/sceneLevels';
 import { zoomToTokenWithHighlight } from '../../pixi/utils/tokenHighlight';
 import { isModHeld, isModKey } from '../../keyboard/modKey';
 import { LabelTooltip } from '../../packages/components/primitives/tooltip';
@@ -45,23 +44,21 @@ export const InitiativeCard: React.FC<InitiativeCardProps> = ({
   const { app, view } = useAtlasUI();
   const tokens = useAtlasStore((s) => s.objects?.tokens) || {};
   const tokenSettings = useAtlasStore((s) => s.tokenSettings);
-  const levels = useAtlasStore((s) => s.levels);
   const [dropPosition, setDropPosition] = useState<'above' | 'below' | null>(null);
   const cardRef = useRef<HTMLDivElement>(null);
   const isPointerInsideRef = useRef(false);
   const isModifierKeyDownRef = useRef(false);
 
-  // Instance badge: show when 2+ tokens on the token's level share its imagePath, as the map does
+  // Instance badge: show when 2+ tokens share the same imagePath
   const instanceBadge = useMemo((): number | null => {
     if (!(tokenSettings?.showInstanceBadges ?? true)) return null;
     const token = tokens[entry.tokenId];
     if (!token?.instanceNumber) return null;
-    const level = resolveLevel(levels, token.level);
     const sameImageCount = Object.values(tokens).filter(
-      (t) => t.imagePath === token.imagePath && resolveLevel(levels, t.level) === level,
+      (t) => t.imagePath === token.imagePath,
     ).length;
     return sameImageCount >= 2 ? token.instanceNumber : null;
-  }, [tokens, levels, entry.tokenId, tokenSettings?.showInstanceBadges]);
+  }, [tokens, entry.tokenId, tokenSettings?.showInstanceBadges]);
 
   // Read live from the token: the resources that defeat it (hit points), and whether one of them has
   const definitions = useMapResources();

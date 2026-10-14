@@ -1,19 +1,13 @@
 import { App, TFile, normalizePath } from 'obsidian';
 import type { MapFile } from './MapPersistence';
-import type { SceneLevel } from '../types/sceneLevelTypes';
 import { t } from '../i18n';
 import { showNotice } from '../ui/notice';
 
 /** The parts of a map that reference vault images; satisfied by a MapFile and by the live store state. */
 export interface MapAssetReferences {
     background: MapFile['background'];
-    /** The scene's levels; the first one's map is `background`. */
-    levels?: readonly Pick<SceneLevel, 'id' | 'background'>[] | undefined;
     objects: Pick<MapFile['objects'], 'tokens'>;
 }
-
-/** The `objectId` of a missing map image that is the scene's own background, the first level's; another level's is that level's id. */
-export const SCENE_BACKGROUND = 'background';
 
 export interface MissingAsset {
     id: string;
@@ -82,22 +76,10 @@ export class AssetValidationService {
         if (mapData.background && !(await this.validateAsset(mapData.background))) {
             result.valid = false;
             result.missingAssets.push({
-                id: SCENE_BACKGROUND,
+                id: 'background',
                 type: 'map',
                 path: mapData.background,
-                objectId: SCENE_BACKGROUND,
-                objectName: t('validation.mapBackground')
-            });
-        }
-
-        for (const level of mapData.levels?.slice(1) ?? []) {
-            if (!level.background || (await this.validateAsset(level.background))) continue;
-            result.valid = false;
-            result.missingAssets.push({
-                id: `${SCENE_BACKGROUND}:${level.id}`,
-                type: 'map',
-                path: level.background,
-                objectId: level.id,
+                objectId: 'background',
                 objectName: t('validation.mapBackground')
             });
         }

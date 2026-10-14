@@ -7,7 +7,6 @@ import type { SeatSource } from './seatSource.ts';
 import { sharedTokens, snapGridOf } from './scenePicture.ts';
 import { SequencedList } from './sequencedList.ts';
 import { NO_TOKEN_RULES, numberShownTokens, type TokenRules } from './tokenUI.ts';
-import { levelObjects } from '../../levels/levelObjects';
 
 /** An image as read from the vault. */
 export interface VaultImage {
@@ -195,10 +194,10 @@ export class TokenShare {
     const { mapPath } = state;
     const seats = this.ports.seats;
     const shown = source.playerRollTokens(state.mapPath);
-    const badges = numberShownTokens(this.numbers, levelObjects(state).tokens, (id) => shown.has(id), state.tokenSettings?.showInstanceBadges ?? true);
+    const badges = numberShownTokens(this.numbers, state.objects.tokens, (id) => shown.has(id), state.tokenSettings?.showInstanceBadges ?? true);
     this.numbers = badges.numbers;
     const tokens = sharedTokens({
-      tokens: levelObjects(state).tokens,
+      tokens: state.objects.tokens,
       shown,
       gridSize,
       showNames: this.ports.showNames(),

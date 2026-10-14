@@ -1,7 +1,6 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { LightPopoverHost } from '../pixi/lighting/LightPopover';
 import { LightZonePopoverHost } from '../pixi/lighting/LightZonePopover';
-import { LevelSurfacePopoverHost } from '../pixi/levelSurfaces/LevelSurfacePopover';
 import { SceneLightingPanelHost } from '../pixi/lighting/SceneLightingPanel';
 import { App } from 'obsidian';
 import { Application } from 'pixi.js';
@@ -20,8 +19,6 @@ import { DiceRollDisplay } from './components/dice/DiceRollDisplay';
 import { RandomTables } from './components/randomTables/RandomTablesPanel';
 import { MapLoadingOverlay } from './components/MapLoadingOverlay';
 import { SceneTabBar } from './components/SceneTabBar';
-import { LevelSwitcher } from './components/levels/LevelSwitcher';
-import { LevelLinkPopoverHost } from './components/levels/LevelLinkPopover';
 import { SceneSwitcher } from './components/scene-switcher/SceneSwitcher';
 import { presentTab as presentSceneTab } from '../services/PlayerWindowPresenter';
 import { usePresentedScene } from './hooks/usePresentedScene';
@@ -189,10 +186,6 @@ export const UIRoot: React.FC<UIRootProps> = ({ app, view, pixiApp }) => {
           </BottomToolbarRow>
 
           {!isPlayerView && !isMapLoading && (
-            <PanelBoundary name="the level switcher"><LevelSwitcher /><LevelLinkPopoverHost /></PanelBoundary>
-          )}
-
-          {!isPlayerView && !isMapLoading && (
             <PanelBoundary name="the scene switcher">
               <SceneSwitcher isOpen={isSceneSwitcherOpen} onOpenChange={setSceneSwitcherOpen} onSwitchTab={switchTab} onPresentTab={presentTab} />
             </PanelBoundary>
@@ -231,7 +224,7 @@ export const UIRoot: React.FC<UIRootProps> = ({ app, view, pixiApp }) => {
 
           {/* Loot Roller - floating window, DM only */}
           {!isPlayerView && <PanelBoundary name="the random tables"><RandomTables /></PanelBoundary>}
-          {!isPlayerView && lightingOn && <PanelBoundary name="the light settings"><LightPopoverHost /><LightZonePopoverHost /><LevelSurfacePopoverHost /></PanelBoundary>}
+          {!isPlayerView && lightingOn && <PanelBoundary name="the light settings"><LightPopoverHost /><LightZonePopoverHost /></PanelBoundary>}
           {!isPlayerView && lightingOn && <PanelBoundary name="the scene lighting"><SceneLightingPanelHost /></PanelBoundary>}
 
           {/* Player Character Sheet - REMOVED: Players should only edit via their character sheet file */}

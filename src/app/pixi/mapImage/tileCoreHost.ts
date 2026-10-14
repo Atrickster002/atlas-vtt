@@ -95,15 +95,6 @@ export function hostTileCore(createCore: CoreFactory, post: PostMessage): TileCo
         }
         return;
       }
-      case 'alpha-raster': {
-        try {
-          const raster = await ready.alphaRaster(request.id, request.handle, request.maxSide, request.threshold);
-          if (raster) reply({ type: 'alpha-raster', id: request.id, raster }, [raster.opaque.buffer]);
-        } catch (error) {
-          reply({ type: 'error', id: request.id, message: message(error) });
-        }
-        return;
-      }
       case 'cancel':
         ready.cancel(request.id);
         return;

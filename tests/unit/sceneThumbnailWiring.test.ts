@@ -64,7 +64,7 @@ function setup(contextLost = false) {
   const drawn = deferred();
   const whenReady = vi.fn((_rect: Rectangle, _worldPerScreenPixel: number, _timeoutMs: number) => drawn.promise);
   Object.assign(orchestrator as any, {
-    mapImage: { layer: background, worldRect: { x: 0, y: 0, width: 800, height: 600 }, whenReady, drawFor, hideVideoFor: () => () => undefined },
+    mapImage: { layer: background, worldRect: { x: 0, y: 0, width: 800, height: 600 }, whenReady, drawFor },
     pinRenderer: { getPinContainer: () => pins },
     hexLinkRenderer: { container: hexLinks },
     tokenRenderer: { getGmViewLayers: () => [{ layer: hiddenToken, visible: true, alpha: 0.5 }] },
@@ -99,9 +99,8 @@ describe('a map view\'s thumbnail render', () => {
     expect(new TextDecoder().decode(bytes!)).toBe('JPG');
     expect(rendered).toHaveLength(1);
     expect(rendered[0]!.lit).toBe(true);
-    const { x, y, width, height } = rendered[0]!.frame;
-    expect(frames).toEqual([{ x, y, resolution: rendered[0]!.resolution, width, height }]);
-    expect(frames[0]).toMatchObject({ x: 0, y: 0, resolution: 0.5 });
+    expect(frames).toEqual([{ x: rendered[0]!.frame.x, y: rendered[0]!.frame.y, resolution: rendered[0]!.resolution }]);
+    expect(frames[0]).toEqual({ x: 0, y: 0, resolution: 0.5 });
   });
 
   it('draws the map image\'s tiles at the thumbnail\'s own detail, and the canvas\' again afterwards', () => {

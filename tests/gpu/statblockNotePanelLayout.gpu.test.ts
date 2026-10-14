@@ -197,15 +197,21 @@ describe('the statblock beside its note', () => {
     expect(rect(panel).width).toBeCloseTo(DEFAULT_PANEL_WIDTH + 84, 1);
   });
 
-  it('stands above the note in a narrow view, at most half its height, and scrolls there', () => {
+  it('stands above the note in a narrow view, as its first part, in one scroll', () => {
     const { content, source, panel, scroll } = mount(640, { stacked: true });
     const box = rect(content);
     expect(rect(panel).top).toBeCloseTo(box.top, 1);
-    expect(rect(panel).width).toBeCloseTo(640, 1);
-    expect(rect(panel).height).toBeLessThanOrEqual(box.height / 2 + TOLERANCE);
+    // The content scrolls, so its scrollbar takes its room beside both.
+    expect(rect(panel).width).toBeCloseTo(content.clientWidth, 1);
+    // The whole statblock shows, with no scroll of its own: the note's content scrolls both.
+    expect(scroll.scrollHeight).toBeLessThanOrEqual(scroll.clientHeight + TOLERANCE);
+    expect(rect(panel).height).toBeGreaterThanOrEqual(3000);
     expect(Math.abs(rect(source).top - rect(panel).bottom)).toBeLessThanOrEqual(TOLERANCE);
-    expect(rect(source).bottom).toBeCloseTo(box.bottom, 1);
-    expect(rect(source).width).toBeCloseTo(640, 1);
-    expect(scroll.scrollHeight).toBeGreaterThan(scroll.clientHeight);
+    expect(rect(source).width).toBeCloseTo(content.clientWidth, 1);
+    const scroller = source.querySelector<HTMLElement>('.cm-scroller')!;
+    expect(scroller.scrollHeight).toBeLessThanOrEqual(scroller.clientHeight + TOLERANCE);
+    expect(content.scrollHeight).toBeGreaterThan(content.clientHeight);
+    // scrollHeight is whole pixels.
+    expect(Math.abs(content.scrollHeight - (rect(panel).height + rect(source).height))).toBeLessThanOrEqual(1);
   });
 });

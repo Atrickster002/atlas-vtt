@@ -17,8 +17,6 @@ import type { AssetCrudActions } from '../hooks/useAssetCrud';
 import type { TagsAndCollectionsState } from '../hooks/useTagsAndCollections';
 import type { StatblockLinkState } from '../hooks/useStatblockLink';
 import { useUvttImport } from '../hooks/useUvttImport';
-import { useFloorsChoice } from '../hooks/useFloorsChoice';
-import { UvttFloorsDialog } from './UvttFloorsDialog';
 import { tagGroupOfTab } from '../utils/assetTags';
 import { newStatblockOption } from '../../../../statblocks/editor/create/entryPoints';
 import { openTemplateEditor } from '../../../../statblocks/editor/openTemplateEditor';
@@ -39,7 +37,6 @@ export interface ModalLayerProps {
 export function ModalLayer({
   isOpen, activeTab, selectedCollection, onClose, data, sel, crud, tags, statblock,
 }: ModalLayerProps): React.JSX.Element {
-  const floors = useFloorsChoice(isOpen);
   const importMaps = useUvttImport({
     app: data.app,
     assetService: data.assetService,
@@ -51,7 +48,6 @@ export function ModalLayer({
       || crud.transfer !== null || tags.isTagManagerOpen || statblock.linkingStatblockAsset !== null,
     collectionId: selectedCollection,
     onSceneOpened: () => { crud.setIsMapCreatorOpen(false); onClose(); },
-    chooseFloors: floors.ask,
   });
 
   const closeMoveModal = (): void => {
@@ -247,11 +243,6 @@ export function ModalLayer({
             }}
           />
         )}
-      </AnimatePresence>
-
-      {/* Map files as the floors of one scene: last, so it opens over the map creator that may hold them */}
-      <AnimatePresence>
-        {isOpen && floors.request && <UvttFloorsDialog request={floors.request} onChoose={floors.answer} />}
       </AnimatePresence>
     </>
   );

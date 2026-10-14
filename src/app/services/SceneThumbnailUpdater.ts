@@ -1,5 +1,4 @@
 import { gmPictureDiffers } from '../lighting/sceneLightingOptions';
-import { firstLevelId, viewedLevelId } from '../levels/sceneLevels';
 import type { ViewAtlasState, ViewAtlasStore } from '../storeFactory';
 
 export interface SceneThumbnailPorts {
@@ -17,7 +16,7 @@ const AFTER_OPEN_MS = 1000;
 /** Walls, lights and tokens with vision or a light are `objects`; the scene's own lighting counts where the GM's picture shows it. */
 function contentChanged(state: ViewAtlasState, previous: ViewAtlasState): boolean {
   return state.background !== previous.background || state.grid !== previous.grid || state.objects !== previous.objects
-    || state.viewedLevel !== previous.viewedLevel || gmPictureDiffers(state.lighting, previous.lighting);
+    || gmPictureDiffers(state.lighting, previous.lighting);
 }
 
 /**
@@ -97,8 +96,7 @@ export class SceneThumbnailUpdater {
     this.stalePath = null;
     const state = this.store.getState();
     if (!mapPath || state.mapPath !== mapPath || state.isMapLoading || !state.mapLoaded) return;
-    // A scene's card shows its first level: the thumbnail waits while the view shows another
-    if (state.isGridAlignmentOpen || viewedLevelId(state) !== firstLevelId(state.levels)) {
+    if (state.isGridAlignmentOpen) {
       if (canWait) this.markStale(mapPath, AFTER_EDIT_MS);
       return;
     }

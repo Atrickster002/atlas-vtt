@@ -3,7 +3,7 @@ import type { App } from 'obsidian';
 import { bindHoldHotkey } from '../../keyboard/holdHotkey';
 import { DEFAULT_MAP_HOTKEYS } from '../../keyboard/mapHotkeys';
 import { SettingsService } from '../../services/SettingsService';
-import { onLeavingView } from '../viewLeaving';
+import { findAtlasLeafByViewId } from '../../utils/atlasLeafLookup';
 
 export interface LightingSceneEvents {
   eventBus: EventEmitter;
@@ -29,14 +29,20 @@ export interface LightingSceneEvents {
  */
 export function listenToLightingSceneEvents({ eventBus, obsApp, viewId, resetExplored, revealExplored, peek, stopEditing, beforeMapUnload }: LightingSceneEvents): Array<() => void> {
   const peekKey = (): string => (SettingsService.forApp(obsApp)?.getHotkeys() ?? DEFAULT_MAP_HOTKEYS).lightingPeek;
-  // Editing stops before what is pending of the scene is saved, so it is registered first.
-  const cleanups: Array<() => void> = [bindHoldHotkey(window, peekKey, viewId, peek), onLeavingView({ eventBus, obsApp, viewId }, stopEditing)];
+  const cleanups: Array<() => void> = [bindHoldHotkey(window, peekKey, viewId, peek)];
   const on = (event: string, handler: () => void): void => {
     eventBus.on(event, handler);
     cleanups.push(() => eventBus.off(event, handler));
   };
   on('lighting-reset-explored', resetExplored);
   on('lighting-reveal-explored', revealExplored);
-  on('map-unloading', beforeMapUnload);
+  on('map-unloading', () => {
+    stopEditing();
+    beforeMapUnload();
+  });
+  const leafChange = obsApp.workspace.on('active-leaf-change', (leaf) => {
+    if (leaf !== findAtlasLeafByViewId(obsApp.workspace, viewId)) stopEditing();
+  });
+  cleanups.push(() => obsApp.workspace.offref(leafChange));
   return cleanups;
 }

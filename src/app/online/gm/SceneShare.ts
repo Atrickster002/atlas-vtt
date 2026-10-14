@@ -18,12 +18,8 @@ import { MarkShare, type MarkSharePorts } from './MarkShare.ts';
 import { sceneWalls, type MapSize } from './moveCheck.ts';
 import type { SeatSource } from './seatSource.ts';
 import { PlayerMoves } from './playerMoves.ts';
-import type { StairsTaken } from './stairsTaken.ts';
 import { RulesShare, type RulesSharePorts } from './RulesShare.ts';
 import { TOKEN_POLL_MS, TokenShare, type TokenSharePorts } from './TokenShare.ts';
-import { levelObjects } from '../../levels/levelObjects';
-import { levelBackground } from '../../levels/levelEdits';
-import { viewedLevelId } from '../../levels/sceneLevels';
 
 export { imageMimeType, isLit, LIGHTING_REFUSAL, REPEAT_REQUEST_MS };
 
@@ -53,8 +49,6 @@ export interface SceneSharePorts extends TokenSharePorts, RulesSharePorts, Pick<
   rollRequest?(from: string, answer: RollRequestAnswer): RollRequest | null;
   /** The log entry that tells who found a readable pin of a map, or null while nobody has. */
   foundPin?(mapPath: string, pinId: string): string | null;
-  /** Players' tokens took stairs to a level the players are not shown, and left their picture. */
-  tookStairs?(taken: readonly StairsTaken[]): void;
 }
 
 /**
@@ -112,7 +106,7 @@ export class SceneShare {
         listedToken: (alias) => this.tokens.listedToken(alias),
         ownerOf: (tokenId) => seats?.ownerOf(tokenId),
         map: this.mapSize,
-        walls: sceneWalls(levelObjects(store.getState()).walls, this.scene?.lit === true, this.mapSize),
+        walls: sceneWalls(store.getState().objects.walls, this.scene?.lit === true, this.mapSize),
       }),
     });
     this.marks = new MarkShare({ ...ports, cursorsShown }, () => this.mapSize);
@@ -239,9 +233,7 @@ export class SceneShare {
       return;
     }
     this.refusal = null;
-    // The map of the level shown, whose objects the shares send (`levelObjects`)
-    const background = levelBackground(state, viewedLevelId(state));
-    const key = `${state.mapPath ?? ''}\n${viewedLevelId(state) ?? ''}\n${background ?? ''}\n${lit}`;
+    const key = `${state.mapPath ?? ''}\n${state.background ?? ''}\n${lit}`;
     if (key === this.key) {
       this.marks.update();
       this.tokens.update();
@@ -253,7 +245,7 @@ export class SceneShare {
     this.tokens.setScene(null);
     this.inputs.setScene(null);
     this.layers.setScene(null);
-    const built = await this.build(background);
+    const built = await this.build(state.background);
     if (this.key !== key) return;
     if (built === null) {
       this.ports.notice('Atlas Online cannot send this scene\'s map image.');

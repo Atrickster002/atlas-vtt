@@ -3,7 +3,6 @@ import type { ShownRollToken } from '../services/playerRollSource';
 import type { TokenPerception } from '../vision/tokenPerception';
 import { seenByPlayers } from './token-renderer/PlayerSightTokens';
 import { tokenDisplayName } from './token-renderer/tokenDisplayName';
-import { levelObjects } from '../levels/levelObjects';
 
 /** What of a view's store tells which scene it holds, and the tokens in it. */
 export interface RollSceneState {
@@ -29,7 +28,7 @@ export function shownRollTokens(
   tokenIds?: readonly string[],
 ): ReadonlyMap<string, ShownRollToken> {
   if (scene.mapPath !== mapPath || !scene.mapLoaded || scene.isMapLoading) return NONE;
-  const tokens = levelObjects(scene).tokens;
+  const tokens = scene.objects.tokens;
   const seen = seenByPlayers(tokens, perception());
   const shown = new Map<string, ShownRollToken>();
   for (const id of tokenIds ?? Object.keys(tokens)) {

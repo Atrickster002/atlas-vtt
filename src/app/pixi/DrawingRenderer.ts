@@ -10,7 +10,6 @@ import { splitStrokeByBrush } from './drawingEraseUtils';
 import { FogCursorPreview } from './fog/FogCursorPreview';
 import { destroyTree } from './utils/destroyTree';
 import { isHandled } from './utils/handledEvents';
-import { levelObjects } from '../levels/levelObjects';
 
 export interface DrawingSettings {
   color: string;
@@ -33,7 +32,7 @@ const ERASER_SLACK = 6;
 
 /**
  * Renders freehand ink strokes and icon stamps stored in
- * `levelObjects(state).drawings`, and handles the pen / icon / eraser tools.
+ * `state.objects.drawings`, and handles the pen / icon / eraser tools.
  * Everything lives in world space, so annotations pan and zoom with the map
  * and persist through the normal `objects` persistence path.
  */
@@ -106,12 +105,12 @@ export class DrawingRenderer {
   // ── Store wiring ────────────────────────────────────────────────────
 
   private subscribeToStore(): void {
-    let prevDrawings = levelObjects(this.store.getState())?.drawings;
+    let prevDrawings = this.store.getState().objects?.drawings;
     let prevTool = this.store.getState().activeTool;
 
     this.unsubscribe = this.store.subscribe((state) => {
-      if (levelObjects(state)?.drawings !== prevDrawings) {
-        prevDrawings = levelObjects(state)?.drawings;
+      if (state.objects?.drawings !== prevDrawings) {
+        prevDrawings = state.objects?.drawings;
         if (!this.isDrawing) this.rebuild();
       }
 
@@ -137,7 +136,7 @@ export class DrawingRenderer {
   // ── Rendering ───────────────────────────────────────────────────────
 
   private rebuild(): void {
-    this.layer.sync(levelObjects(this.store.getState())?.drawings ?? {});
+    this.layer.sync(this.store.getState().objects?.drawings ?? {});
   }
 
   // ── Input ───────────────────────────────────────────────────────────
@@ -250,7 +249,7 @@ export class DrawingRenderer {
    */
   private eraseAt(world: { x: number; y: number }): void {
     const state = this.store.getState();
-    const drawings = levelObjects(state)?.drawings ?? {};
+    const drawings = state.objects?.drawings ?? {};
     const radius = this.settings.eraserWidth / 2;
 
     for (const stroke of Object.values(drawings)) {

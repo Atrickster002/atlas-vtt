@@ -7,7 +7,6 @@ export const pluginDomHost: DomHost = {
     return doc ? doc.adoptNode(canvas) : canvas;
   },
   createDiv: (parent, cls) => parent.createDiv({ cls }),
-  createVideo: (doc) => doc.adoptNode(createEl('video')),
   ownerWindow: node => node.win,
   activeDocument: () => activeDocument,
 };

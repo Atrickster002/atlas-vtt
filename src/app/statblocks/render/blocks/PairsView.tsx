@@ -17,11 +17,12 @@ function pairName(key: string): string {
   return name.replace(FIRST_LETTER, (letter) => letter.toUpperCase());
 }
 
-/** One pair: "Dex +5", or the name alone where it has no value ("Stealth"). */
+/** One pair: "Dex +5", the name alone where it has no value ("Stealth"), or the value alone where it has no name. */
 function pairText(pair: Pair, signed: boolean): string {
   const number = signed ? numericValue(pair.value) : null;
-  const value = number === null ? valueText(pair.value) : formatSigned(number);
-  return value.trim() ? `${pairName(pair.key)} ${value}` : pairName(pair.key);
+  const value = (number === null ? valueText(pair.value) : formatSigned(number)).trim();
+  const name = pairName(pair.key);
+  return [name, value].filter((part) => part !== '').join(' ');
 }
 
 /** "**Saving Throws** Dex +5, Con +3". */

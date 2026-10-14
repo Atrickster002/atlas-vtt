@@ -59,8 +59,8 @@ describe('the dialog\'s words', () => {
     expect(readyTitle('DaggerHeart Adversary')).toBe('DaggerHeart Adversary is ready');
     expect(readyLine('DaggerHeart Adversary')).toBe('Atlas can now show statblocks the way DaggerHeart Adversary does.');
     expect(fsOnlyLine(0)).toBeNull();
-    expect(fsOnlyLine(1)).toBe('One part shows only in Fantasy Statblocks.');
-    expect(fsOnlyLine(2)).toBe('2 parts show only in Fantasy Statblocks.');
+    expect(fsOnlyLine(1)).toBe('One part shows simpler than in Fantasy Statblocks.');
+    expect(fsOnlyLine(2)).toBe('2 parts show simpler than in Fantasy Statblocks.');
     expect(detailsLine(null)).toBeNull();
     expect(detailsLine(report([], []))).toBeNull();
     expect(detailsLine(report(['a'], []))).toBe('Some details were left out.');
@@ -88,12 +88,20 @@ describe('LayoutImportDialog', () => {
     expect(screen.queryByText(/JavaScript|script|Track blocks/)).toBeNull();
     const saved = JSON.parse(vault.files.get(imported.path)!) as StatblockTemplate;
     expect(saved.layout.blocks.flatMap((block) => (block.type === 'track' ? [block.field] : []))).toEqual(['hp', 'stress']);
-    expect(screen.getAllByRole('button').map((button) => button.textContent)).toEqual(['', 'Done']);
+    expect(screen.getAllByRole('button').map((button) => button.textContent)).toEqual(['', 'Show the detail', 'Done']);
+    fireEvent.click(screen.getByRole('button', { name: 'Show the detail' }));
+    expect(screen.getAllByRole('listitem').map((item) => item.textContent)).toEqual([...imported.report!.dropped, ...imported.report!.partial]);
   });
 
-  it('names the parts only Fantasy Statblocks shows and what was left out', () => {
-    show({ frontmatter: [], fences: [] }, { ...imported, report: { ...report(['x'], []), scripts: [{ blockId: 'a', summary: 'A button', suggestion: null }] } });
-    expect(screen.getByText('Atlas can now show statblocks the way Marsh layout does. One part shows only in Fantasy Statblocks. Some details were left out.')).toBeTruthy();
+  it('counts the parts that show simpler and lists what was left out, each in its own sentence', () => {
+    const given = { ...imported, report: { ...report(['The key “layout” is reserved in Atlas, so the block that shows it was left out.'], ['Traits: the line under its heading is kept for export only.']), scripts: [{ blockId: 'a', summary: 'A button', suggestion: null }] } };
+    show({ frontmatter: [], fences: [] }, given);
+    expect(screen.getByText('Atlas can now show statblocks the way Marsh layout does. One part shows simpler than in Fantasy Statblocks. Some details were left out or look simpler.')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Show the 2 details' }));
+    expect(screen.getAllByRole('listitem').map((item) => item.textContent)).toEqual([
+      'The key “layout” is reserved in Atlas, so the block that shows it was left out.',
+      'Traits: the line under its heading is kept for export only.',
+    ]);
   });
 
   it('lists the statblocks folded away, then moves them with progress, and says what it did', async () => {

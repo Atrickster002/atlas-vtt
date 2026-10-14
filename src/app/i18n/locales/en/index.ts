@@ -35,8 +35,6 @@ import { palette } from './palette';
 import { picker } from './picker';
 import { settings } from './settings';
 import { snapshots } from './snapshots';
-import { levels } from './levels';
-import { openings } from './openings';
 import { statblock } from './statblock';
 import { switcher } from './switcher';
 import { tabs } from './tabs';
@@ -86,9 +84,6 @@ import { migration } from './migration';
 import { wall } from './wall';
 import { sceneLight } from './sceneLight';
 import { vision } from './vision';
-import { videoMap } from './videoMap';
-import { uvttFloors } from './uvttFloors';
-import { uvtt } from './uvtt';
 
 /** English, the source language: every key exists here, and other languages translate a subset of it. */
 export const en = {
@@ -129,8 +124,6 @@ export const en = {
   ...picker,
   ...settings,
   ...snapshots,
-  ...levels,
-  ...openings,
   ...statblock,
   ...switcher,
   ...tabs,
@@ -182,7 +175,4 @@ export const en = {
   ...wall,
   ...sceneLight,
   ...vision,
-  ...videoMap,
-  ...uvttFloors,
-  ...uvtt,
 } as const;

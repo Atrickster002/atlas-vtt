@@ -20,7 +20,6 @@ import { TokenResizeUI } from '../TokenResizeUI';
 import type { ConditionDefinition } from '../../types/collectionSettingsTypes';
 import { destroyTree } from '../utils/destroyTree';
 import { restingTokenUIScale } from './tokenSizing';
-import { levelObjects } from '../../levels/levelObjects';
 
 export class UIManager implements ITokenUIManager {
   private viewport: Viewport;
@@ -345,7 +344,7 @@ export class UIManager implements ITokenUIManager {
   syncUIScale(tokenId: string, tokenSize: number): void {
     const ui = this.tokenUIs[tokenId];
     if (ui) {
-      const token = levelObjects(this.store.getState())?.tokens?.[tokenId];
+      const token = this.store.getState().objects?.tokens?.[tokenId];
       if (token && token.kind === 'character') {
         ui.update(token, tokenSize);
       }
@@ -453,7 +452,7 @@ export class UIManager implements ITokenUIManager {
     // Update all token UIs when settings change
     for (const tokenId in this.tokenUIs) {
       const ui = this.tokenUIs[tokenId];
-      const token = levelObjects(this.store.getState())?.tokens?.[tokenId];
+      const token = this.store.getState().objects?.tokens?.[tokenId];
       if (ui && token && token.kind === 'character') {
         this.updateTokenUI(tokenId, token);
       }
@@ -497,7 +496,7 @@ export class UIManager implements ITokenUIManager {
     }
     const state = this.store.getState();
     for (const tokenId of Object.keys(this.tokenUIs)) {
-      const token = levelObjects(state).tokens[tokenId];
+      const token = state.objects.tokens[tokenId];
       const sprite = this.getTokenSprite(tokenId);
       if (!token || token.kind !== 'character' || !sprite) continue;
       let ui = this.playerTokenUIs[tokenId];

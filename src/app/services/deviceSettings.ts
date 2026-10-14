@@ -9,13 +9,7 @@ import { isLightingQualityLevel, type LightingQualityLevel } from '../lighting/l
 export const INPUT_MODE_STORAGE_KEY = 'atlas-vtt:input-mode';
 /** How much the lighting may ask of this device's graphics (`LightingQualityLevel`). */
 export const LIGHTING_QUALITY_STORAGE_KEY = 'atlas-vtt:lighting-quality';
-/** Whether animated maps play on this device; unset follows the system's reduced motion (`animateMapsOn`). */
-export const ANIMATE_MAPS_STORAGE_KEY = 'atlas-vtt:animate-maps';
 
-/**
- * The vault's local storage. Obsidian stores a value only when it is truthy: `false`, `0` and `''`
- * remove the key, and read back as never chosen. Store every fact as a value that is never falsy.
- */
 type DeviceStorage = Pick<App, 'loadLocalStorage' | 'saveLocalStorage'>;
 
 export const isInputMode = (value: unknown): value is NavigationInputMode => value === 'mouse' || value === 'trackpad';
@@ -55,30 +49,5 @@ export function saveLightingQuality(storage: DeviceStorage, level: LightingQuali
     storage.saveLocalStorage(LIGHTING_QUALITY_STORAGE_KEY, level);
   } catch (error) {
     console.error('[Atlas] Could not save the lighting quality of this device', error);
-  }
-}
-
-/** How the choice is stored: words, since a stored `false` would read as never chosen. */
-const ANIMATE_ON = 'on';
-const ANIMATE_OFF = 'off';
-
-/** Whether animated maps play on this device, or null when it was never chosen. */
-export function loadAnimateMaps(storage: DeviceStorage): boolean | null {
-  try {
-    const stored: unknown = storage.loadLocalStorage(ANIMATE_MAPS_STORAGE_KEY);
-    // `true`: as the first builds stored it, which could store no `false`
-    if (stored === ANIMATE_ON || stored === true) return true;
-    return stored === ANIMATE_OFF ? false : null;
-  } catch (error) {
-    console.error('[Atlas] Could not read whether this device animates maps', error);
-    return null;
-  }
-}
-
-export function saveAnimateMaps(storage: DeviceStorage, on: boolean): void {
-  try {
-    storage.saveLocalStorage(ANIMATE_MAPS_STORAGE_KEY, on ? ANIMATE_ON : ANIMATE_OFF);
-  } catch (error) {
-    console.error('[Atlas] Could not save whether this device animates maps', error);
   }
 }

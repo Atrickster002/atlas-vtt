@@ -19,7 +19,6 @@ import { createTextElementView, TEXT_BACKGROUND_LABEL, TEXT_CONTENT_LABEL, updat
 import { promptForText } from '../ui/textInputDialog';
 import { destroyTree } from './utils/destroyTree';
 import { t } from '../i18n';
-import { levelObjects } from '../levels/levelObjects';
 
 export class TextRenderer {
   private viewport: Viewport;
@@ -79,15 +78,15 @@ export class TextRenderer {
     this.subscribeToStore();
     
     // Initial sync
-    this.syncTexts(levelObjects(this.store.getState()).texts, {});
+    this.syncTexts(this.store.getState().objects.texts, {});
   }
 
   private subscribeToStore(): void {
     // Store the unsubscribe function for cleanup
     this.unsubscribeFromStore = this.store.subscribe((state, prevState) => {
       // Check if texts changed
-      if (levelObjects(state).texts !== levelObjects(prevState).texts) {
-        this.syncTexts(levelObjects(state).texts, levelObjects(prevState).texts);
+      if (state.objects.texts !== prevState.objects.texts) {
+        this.syncTexts(state.objects.texts, prevState.objects.texts);
       }
 
       // Check if selection changed
@@ -181,7 +180,7 @@ export class TextRenderer {
   private onPointerDown(e: FederatedPointerEvent, textId: string): void {
     e.stopPropagation();
 
-    const textElement = levelObjects(this.store.getState()).texts[textId];
+    const textElement = this.store.getState().objects.texts[textId];
     if (!textElement) return;
 
     if (e.button === 2) {
@@ -394,7 +393,7 @@ export class TextRenderer {
     // Update UI controls
     if (selectedIds.length === 1 && selectedIds[0]!.startsWith('text_')) {
       const textId = selectedIds[0]!;
-      const textElement = levelObjects(this.store.getState()).texts[textId];
+      const textElement = this.store.getState().objects.texts[textId];
       const container = this.textElements[textId];
       
       if (textElement && container) {
