@@ -90,4 +90,17 @@ describe('StatblockSheet: script blocks', () => {
     const { container } = renderSheet(template, { speed: 30, saves: [{ name: 'Dex', desc: '+5' }] });
     expect(lines(container, 'script03')).toEqual([['Speed', '30 ft.'], ['Saving Throws', 'Dex +5']]);
   });
+
+  it('show a value another block shows only where that block does not show for this statblock', () => {
+    const template = templateOf([...FIELDS, { key: 'mook', label: 'Mook', type: 'text' }, { key: 'wounds', label: 'Wounds', type: 'number' }], [
+      { id: 'mookline', type: 'stat', field: 'mook', look: 'run-in', pattern: 'Kill one for every {wounds} wounds', showWhen: { field: 'mook', is: 'present' } },
+      { id: 'script04', type: 'script', summary: 'JavaScript reading wounds', fs: { type: 'javascript', code: 'return monster.wounds;' } },
+    ]);
+    const grunt = renderSheet(template, { wounds: 22 });
+    expect(lines(grunt.container, 'script04')).toEqual([['Wounds', '22']]);
+    grunt.unmount();
+    const mook = renderSheet(template, { wounds: 6, mook: 'yes' });
+    expect(blockEl(mook.container, 'script04')).toBeNull();
+    expect(valueOf(mook.container, 'mookline')).toBe('Kill one for every 6 wounds');
+  });
 });

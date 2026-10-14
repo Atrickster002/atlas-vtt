@@ -1,8 +1,8 @@
 /**
  * What a `script` block reads of a statblock. Atlas never runs Fantasy Statblocks' JavaScript
  * (§6.5), so the card shows a script's part as the values it reads that no other part of the card
- * shows, each in the block the auto template gives its field: no value of a statblock is hidden
- * behind code. Pure: no React, no Obsidian.
+ * shows for that statblock, each in the block the auto template gives its field: no value of a
+ * statblock is hidden behind code. Pure: no React, no Obsidian.
  */
 
 import { isPlainRecord } from '../values/fieldValueOf';
@@ -71,27 +71,37 @@ function readBlock(template: StatblockTemplate, key: FieldKey, id: string): Temp
   return field ? blockFor(field, () => id) : { ...createBlock('stat', () => id, key), label: labelFromKey(key) };
 }
 
-const NONE: ReadonlyMap<string, readonly TemplateBlock[]> = new Map();
-const READS = new WeakMap<StatblockTemplate, ReadonlyMap<string, readonly TemplateBlock[]>>();
+/** A value a script reads, in the block it shows in, and the other blocks of the card that show it too. */
+export interface ScriptRead {
+  block: TemplateBlock;
+  /** The script shows the value only while none of these shows. */
+  shownBy: readonly TemplateBlock[];
+}
+
+const NONE: ReadonlyMap<string, readonly ScriptRead[]> = new Map();
+const READS = new WeakMap<StatblockTemplate, ReadonlyMap<string, readonly ScriptRead[]>>();
 
 /**
- * For each script block of the template, by its id, a block for every key it reads that the card
- * shows nowhere else, in the order it reads them; a key two scripts read shows with the first.
+ * For each script block of the template, by its id, a block for every key it reads, in the order
+ * it reads them, with the other blocks of the card that show that key: a statblock shows the value
+ * in the script's place only where none of those shows. A key two scripts read is the first's.
  * Their ids are the script's with the key's place (`b6scrip0~0`), so they never meet the layout's.
  */
-export function scriptReads(template: StatblockTemplate): ReadonlyMap<string, readonly TemplateBlock[]> {
+export function scriptReads(template: StatblockTemplate): ReadonlyMap<string, readonly ScriptRead[]> {
   const known = READS.get(template);
   if (known) return known;
   const blocks = flattenReadingOrder(template.layout.blocks);
   const scripts = blocks.filter((block): block is ScriptBlock => block.type === 'script');
   if (scripts.length === 0) return NONE;
   const others = [...shownHeaderParts(template).map((part) => part.block), ...blocks.filter((block) => block.type !== 'script')];
-  const taken = new Set(others.flatMap(keysShownBy));
-  const reads = new Map<string, readonly TemplateBlock[]>();
+  const showing = new Map<FieldKey, TemplateBlock[]>();
+  for (const block of others) for (const key of keysShownBy(block)) showing.set(key, [...(showing.get(key) ?? []), block]);
+  const taken = new Set<FieldKey>();
+  const reads = new Map<string, readonly ScriptRead[]>();
   for (const script of scripts) {
     const keys = scriptFieldRefs(script.fs).filter((key) => !taken.has(key) && !isReservedKey(key));
     for (const key of keys) taken.add(key);
-    reads.set(script.id, keys.map((key, index) => readBlock(template, key, `${script.id}~${index}`)));
+    reads.set(script.id, keys.map((key, index) => ({ block: readBlock(template, key, `${script.id}~${index}`), shownBy: showing.get(key) ?? [] })));
   }
   READS.set(template, reads);
   return reads;

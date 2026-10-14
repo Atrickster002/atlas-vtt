@@ -1,8 +1,8 @@
 import type { PatternContext } from '../expressions/pattern';
 import type { Lookups } from '../expressions/filters';
-import { scriptReads } from '../model/scriptReads';
+import { scriptReads, type ScriptRead } from '../model/scriptReads';
 import { withHeaderFields } from '../model/templateHeader';
-import type { FieldKey, StatblockTemplate, TemplateBlock, TemplateField } from '../model/templateTypes';
+import type { FieldKey, StatblockTemplate, TemplateField } from '../model/templateTypes';
 import { fieldLabels, readField, readerFor, type FieldRecord, type ValueReader } from '../values/fieldValues';
 import { startTableValue } from '../values/tableValues';
 import type { SheetMode, StatblockTokenContext } from './sheetTypes';
@@ -22,8 +22,8 @@ export interface SheetState {
   folded: ReadonlySet<string>;
   /** The field a tile not named yet is drawn with, named after its kind (`provisionalSheet.ts`); never stored. */
   provisional?: TemplateField | undefined;
-  /** For each script block, by id, the blocks of the fields it reads that no other part of the card shows (`scriptReads`). */
-  scriptReads: ReadonlyMap<string, readonly TemplateBlock[]>;
+  /** For each script block, by id, the values it reads, each in its block, with the blocks that show it too (`scriptReads`). */
+  scriptReads: ReadonlyMap<string, readonly ScriptRead[]>;
 }
 
 export interface SheetStateInput {

@@ -101,10 +101,12 @@ export function viewedSheet(sheet: SheetState): SheetState {
   return viewed;
 }
 
-/** The blocks a script block shows the values it reads in (`scriptReads`): those that hold a value. */
+/** The blocks a script block shows the values it reads in (`scriptReads`): those that hold a value no other block shows. */
 export function scriptBlocksShown(blockId: string, sheet: SheetState): TemplateBlock[] {
   const viewed = viewedSheet(sheet);
-  return (sheet.scriptReads.get(blockId) ?? []).filter((block) => blockDisplay(block, viewed) !== null);
+  return (sheet.scriptReads.get(blockId) ?? [])
+    .filter((read) => blockDisplay(read.block, viewed) !== null && !read.shownBy.some((other) => blockDisplay(other, viewed) !== null))
+    .map((read) => read.block);
 }
 
 function containerShows(block: ContainerBlock, sheet: SheetState): boolean {
