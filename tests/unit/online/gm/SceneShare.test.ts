@@ -19,6 +19,21 @@ describe('the shared scene', () => {
     expect(table.sent[0]?.to).toBeUndefined();
   });
 
+  it('shows the map of the level the GM shows, and goes out again on another level', async () => {
+    const UPPER = MAP.map((value) => (value + 1) % 251);
+    const levels = [
+      { id: 'ground', name: 'Ground', elevation: { bottom: 0, top: 10 }, background: 'maps/cave.webp' },
+      { id: 'upper', name: 'Upper', elevation: { bottom: 10, top: 20 }, background: 'maps/upper.webp' },
+    ];
+    const table = shareHarness(state({ levels, viewedLevel: 'upper' }), new Map([['maps/cave.webp', MAP], ['maps/upper.webp', UPPER]]));
+    table.share.start();
+    await table.set(state({ levels, viewedLevel: 'upper' }));
+    expect(scenes(table.sent).at(-1)?.map?.hash).toBe(await sha256Hex(UPPER));
+
+    await table.set(state({ levels, viewedLevel: 'ground' }));
+    expect(scenes(table.sent).at(-1)?.map?.hash).toBe(await sha256Hex(MAP));
+  });
+
   it('is held while a scene loads and goes out once it has loaded', async () => {
     const table = harness(state({ isMapLoading: true, mapLoaded: false }));
     table.share.start();

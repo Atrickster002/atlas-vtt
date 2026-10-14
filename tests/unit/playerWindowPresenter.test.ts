@@ -616,4 +616,25 @@ describe('the presented level', () => {
     await waitForRelease(atlasStore);
     expect(shownSource().canRender?.()).toBe(true);
   });
+
+  test('a restored window takes up its frozen camera only on the level it was frozen on', async () => {
+    for (const [frozenOn, kept] of [['upper', true], ['ground', false]] as const) {
+      Object.values(serviceMock).forEach((fn) => fn.mockClear());
+      const { view, atlasStore } = createFakeView();
+      const store = atlasStore as unknown as ReturnType<typeof createStore<Record<string, unknown>>>;
+      store.setState({ mapPath: 'maps/tower.md', levels, viewedLevel: 'ground', setViewedLevel: (id: string) => store.setState({ viewedLevel: id }) });
+      const tower = view.tabMetaStore.getState().addTab('maps/tower.md', 'Tower');
+      const app = deviceApp([{ view }]);
+      presentedSceneOf(app).set({ tabId: tower, filePath: 'maps/tower.md', levelId: 'upper' });
+      const camera = { centerX: 1, centerY: 2, scale: 3 };
+      const player = { getState: () => ({ tabId: tower, filePath: 'maps/tower.md', frozen: true, camera, levelId: frozenOn }), updateSession: vi.fn(), contentEl: document.createElement('div'), isClosed: false };
+
+      await restorePlayerWindow(app, player as unknown as LocalPlayerView);
+
+      expect(store.getState().viewedLevel).toBe('upper');
+      if (kept) expect(serviceMock.freezeCamera).toHaveBeenCalledWith(camera);
+      else expect(player.updateSession).toHaveBeenCalledWith({ camera: null, frozen: false });
+      if (!kept) expect(serviceMock.freezeCamera).not.toHaveBeenCalled();
+    }
+  });
 });

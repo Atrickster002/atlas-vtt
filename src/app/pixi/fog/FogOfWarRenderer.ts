@@ -16,7 +16,7 @@ import { FogCursorPreview } from './FogCursorPreview';
 import { FogOperationCanvas } from './FogOperationCanvas';
 import { calculateOperationBounds } from './fogRenderUtils';
 import { hitTestFogOp, findConnectedFogOps } from './fogHitTest';
-import { extractConnectedComponentRects } from './fogComponentDelete';
+import { extractConnectedComponentRects, fogWithErasers } from './fogComponentDelete';
 import { canInteractWithFog, resolveFogPreviewAlpha } from './fogVisibilityPolicy';
 import type { LayerVisibility } from '../playerSafeFrame';
 import type { MapRect } from '../../grid/cellNumbering';
@@ -27,8 +27,8 @@ import { openContextMenuGlobal } from '../../react/root/ContextMenuContext';
 import { STROKE_COLORS, ShapeStroke, type StrokeMode } from '../../tools/shapeStroke';
 import { drawStrokeArea } from '../utils/strokePreview';
 import { t } from '../../i18n';
-import { levelObjects } from '../../levels/levelObjects';
-import { levelMapKey } from '../../levels/sceneLevels';
+import { everyLevelObjects, levelObjects } from '../../levels/levelObjects';
+import { levelMapKey, placedOnViewedLevel } from '../../levels/sceneLevels';
 
 const DEFAULT_BOUNDS: FogBounds = { x: -2000, y: -2000, width: 4000, height: 4000 };
 const BOUNDS_PADDING = 200;
@@ -593,32 +593,8 @@ export class FogOfWarRenderer {
     }
 
     const state = this.store.getState();
-    const currentFog = levelObjects(state)?.fog ?? {};
-    const nextFog: Record<string, FogOperation> = { ...currentFog };
-    const timestampBase = Date.now();
-    let added = 0;
-
-    for (let i = 0; i < eraseRects.length; i++) {
-      const rect = eraseRects[i]!;
-      if (rect.width <= 0 || rect.height <= 0) {
-        continue;
-      }
-      const id = `fog_${timestampBase}_${Math.random().toString(36).slice(2, 9)}_${i}`;
-      nextFog[id] = {
-        id,
-        kind: 'fog',
-        timestamp: timestampBase + i,
-        type: 'rectangle',
-        isErasing: true,
-        x: rect.x,
-        y: rect.y,
-        width: rect.width,
-        height: rect.height,
-      };
-      added += 1;
-    }
-
-    if (added === 0) {
+    const nextFog = fogWithErasers(everyLevelObjects(state).fog, eraseRects, Date.now(), placedOnViewedLevel(state));
+    if (nextFog === null) {
       return false;
     }
     state.setFogOperations(nextFog);

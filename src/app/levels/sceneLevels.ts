@@ -85,6 +85,13 @@ export function placedOnViewedLevels(view: LevelView): OnLevels {
   return id ? { levels: [id] } : {};
 }
 
+/** The objects of `record` that are not on the level `view` shows: what clearing that level keeps. Nothing in a scene without levels. */
+export function elsewhereThanViewedLevel<T extends OnOneLevel & OnLevels>(record: Record<string, T>, view: LevelView): Record<string, T> {
+  const id = hasLevels(view.levels) ? viewedLevelId(view) : null;
+  if (id === null) return {};
+  return Object.fromEntries(Object.entries(record).filter(([, object]) => !onLevel(object, id, view.levels)));
+}
+
 /** What tells one level's map from another's in caches keyed by map (`FogCoverageCache`): the map's path, with the level shown where it has several. */
 export function levelMapKey(mapPath: string | null, view: LevelView): string | null {
   return mapPath !== null && hasLevels(view.levels) ? `${mapPath}#${viewedLevelId(view) ?? ''}` : mapPath;

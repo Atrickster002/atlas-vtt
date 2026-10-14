@@ -123,7 +123,7 @@ export const am = {
   'am.tab.scenes': 'Scenes',
   'am.tab.maps': 'Maps',
   'am.tab.encounters': 'Encounters',
-  'am.tab.tokens': 'Characters',
+  'am.tab.tokens': 'Tokens',
   'am.tab.party': 'Players',
   'am.card.select': 'Select {name}',
   'am.card.statblockLinked': 'Statblock linked – click to open',

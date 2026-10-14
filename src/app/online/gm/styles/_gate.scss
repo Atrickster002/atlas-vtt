@@ -82,12 +82,13 @@
   }
 
   // The cards over the control: a panel of their own, its left edge on the control's, a bar's gap
-  // above it. The earliest card is the lowest and a later one goes above it, so a knock moves no
-  // card that was there; more than the view has room for scroll, the earliest in sight.
+  // above it, or above the menu or panel open over it (`--atlas-online-above`, dockSurface.ts). The
+  // earliest card is the lowest and a later one goes above it, so a knock moves no card that was
+  // there; more than the view has room for scroll, the earliest in sight.
   .atlas-online-knocks {
     position: absolute;
     left: calc(-1 * var(--atlas-online-dock-border, #{$border-width-m}));
-    bottom: calc(100% + var(--atlas-online-dock-border, #{$border-width-m}) + #{$spacing-s});
+    bottom: calc(100% + var(--atlas-online-dock-border, #{$border-width-m}) + #{$spacing-s} + var(--atlas-online-above, 0px));
     // Over the QR card, which a narrow view lays over the control's end: a knock is never hidden.
     z-index: 2;
     display: flex;

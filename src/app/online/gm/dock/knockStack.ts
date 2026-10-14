@@ -69,11 +69,14 @@ export class KnockStack {
     this.el = root.createDiv({ cls: 'atlas-online-knocks', attr: { role: 'region', 'aria-label': 'Players asking to join', 'aria-live': 'polite' } });
     this.el.hidden = true;
     // The cards hang from the control's top edge: when it changes its size, they moved.
-    this.resizes = new ResizeObserver(() => {
-      this.fit();
-      if (!this.el.hidden) this.actions?.moved();
-    });
+    this.resizes = new ResizeObserver(() => this.reflow());
     this.resizes.observe(root);
+  }
+
+  /** The control or the surface open above it changed: the cards move along. */
+  reflow(): void {
+    this.fit();
+    if (!this.el.hidden) this.actions?.moved();
   }
 
   /** Shows a card per waiting player; none hides it. */
@@ -107,11 +110,13 @@ export class KnockStack {
     this.el.remove();
   }
 
-  /** The cards' tallest height: from a gap above the control up to a gap below the scene tabs. */
+  /** The cards' tallest height: from a gap above the control (or the surface open over it) up to a gap below the scene tabs. */
   private fit(): void {
     const row = rowOf(this.container);
     if (row === null) return;
-    const room = roomAbove(this.container, row, BAR_GAP) - this.root.offsetHeight - BAR_GAP;
+    // The open surface says how far it reaches above the control (`DockSurface`).
+    const above = parseFloat(this.root.style.getPropertyValue('--atlas-online-above')) || 0;
+    const room = roomAbove(this.container, row, BAR_GAP) - this.root.offsetHeight - above - BAR_GAP;
     this.el.style.setProperty('--atlas-online-knocks-max', `${Math.max(0, room)}px`);
   }
 }

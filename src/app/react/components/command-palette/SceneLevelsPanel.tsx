@@ -8,6 +8,7 @@ import { runInBackground } from '../../../utils/backgroundTask';
 import { addLevel, changeLevel, changeLevelBackground, deleteLevel, levelLabel, moveLevel } from '../levels/levelEditing';
 import { pickMapImage } from '../levels/MapImagePickerModal';
 import { SceneLevelRow } from './SceneLevelRow';
+import { presentLevelInsteadOf } from '../../../services/presentedLevel';
 import { t } from '../../../i18n';
 
 /**
@@ -15,7 +16,7 @@ import { t } from '../../../i18n';
  * image, rename it, set its elevation, move it, change its image or delete it.
  */
 export function SceneLevelsPanel(): React.ReactElement {
-  const { app } = useAtlasUI();
+  const { app, view } = useAtlasUI();
   const store = useViewStoreHook();
   const levels = useAtlasStore((state) => state.levels);
   const viewed = useAtlasStore((state) => viewedLevelId(state));
@@ -47,7 +48,9 @@ export function SceneLevelsPanel(): React.ReactElement {
                 onElevation={(elevation) => changeLevel(store, level.id, { elevation })}
                 onMove={(direction) => moveLevel(store, level.id, direction)}
                 onPickImage={() => pick((path) => changeLevelBackground(store, level.id, path))}
-                onDelete={() => runInBackground(deleteLevel(store, level.id), 'Deleting a level')}
+                onDelete={() => runInBackground(deleteLevel(store, level.id).then((target) => {
+                  if (target && view) presentLevelInsteadOf(view, level.id, target);
+                }), 'Deleting a level')}
               />
             );
           })}

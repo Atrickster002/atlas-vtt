@@ -44,7 +44,7 @@ import { movedPathOf, rewriteMapReferences } from './services/renamedPaths';
 import { conditionValue, removeCondition, setConditionValue } from './utils/conditionValues';
 import { HydrationTracker } from './stores/hydrationTracker';
 import { isolateListeners } from './stores/isolatedListeners';
-import { placedOnViewedLevel, placedOnViewedLevels } from './levels/sceneLevels';
+import { elsewhereThanViewedLevel, placedOnViewedLevel, placedOnViewedLevels } from './levels/sceneLevels';
 import { createSceneLevelsActions, writeExploredMask, type SceneLevelsSlice } from './stores/sceneLevelsSlice';
 import { levelsForFile, readExploredMasks, readSceneLevels } from './levels/levelFile';
 import { levelAlignmentsOf, movesWithFrame, withoutAlignments } from './levels/levelAlignment';
@@ -132,6 +132,7 @@ export interface ViewAtlasState extends ViewState {
   moveDrawings: (ids: string[], dx: number, dy: number) => void;
   updateDrawings: (ids: string[], updates: Partial<Pick<DrawingStroke, 'color' | 'icon'>>) => void;
   deleteDrawing: (id: string) => void;
+  /** Removes the drawings of the level the view shows; other floors keep theirs. */
   clearDrawings: () => void;
   setDrawings: (drawings: Record<string, DrawingStroke>) => void;
 
@@ -141,6 +142,7 @@ export interface ViewAtlasState extends ViewState {
   deleteFogOperations: (ids: string[]) => void;
   duplicateFogOperations: (ids: string[]) => void;
   setFogOperations: (fog: Record<string, FogOperation>) => void;
+  /** Removes the fog of the level the view shows; other floors keep theirs. */
   clearFog: () => void;
   /** Merges `changes` into the scene's lighting; an option given as undefined is removed. */
   setSceneLighting: (changes: SceneLightingChanges) => void;
@@ -1062,7 +1064,7 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
           }),
 
           clearDrawings: () => set((draft) => {
-            draft.objects.drawings = {};
+            draft.objects.drawings = elsewhereThanViewedLevel(draft.objects.drawings, draft);
           }),
 
           setDrawings: (drawings) => set((draft) => {
@@ -1126,7 +1128,7 @@ export function createViewAtlasStore(app: App, viewId: string, plugin?: AtlasVTT
           }),
 
           clearFog: () => set((draft) => {
-            draft.objects.fog = {};
+            draft.objects.fog = elsewhereThanViewedLevel(draft.objects.fog, draft);
           }),
 
           setSceneLighting: (changes) => set((draft) => {

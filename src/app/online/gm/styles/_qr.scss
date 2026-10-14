@@ -38,12 +38,13 @@ $qr-light: #fff;
     }
   }
 
-  // The card: a panel of its own to the control's right, a bar's gap from it, their bottom edges
-  // level. It hangs outside the menu's and the panel's flow and clear of the newcomers' cards.
+  // The card: a panel of its own to the right of the menu or panel it opened from, a bar's gap from
+  // it, their bottom edges level (`--atlas-online-wider`, dockSurface.ts). It hangs outside their
+  // flow and clear of the newcomers' cards.
   .atlas-online-qr {
     position: absolute;
-    left: calc(100% + var(--atlas-online-dock-border, #{$border-width-m}) + #{$spacing-s});
-    bottom: calc(-1 * var(--atlas-online-dock-border, #{$border-width-m}));
+    left: calc(100% + var(--atlas-online-wider, 0px) + var(--atlas-online-dock-border, #{$border-width-m}) + #{$spacing-s});
+    bottom: calc(100% + #{$spacing-l} - #{$spacing-s});
     z-index: 1;
     display: flex;
     flex-direction: column;

@@ -110,3 +110,25 @@ export function levelsWithBackground(levels: SceneLevel[] | undefined, backgroun
   if (!levels || !first || first.background === background) return levels;
   return [{ ...first, background }, ...rest];
 }
+
+/**
+ * Every map image a scene's file shows, once each: the scene's background, which is the first
+ * level's, and each level's background and foreground. Reads the file's shape as it is, so a
+ * snapshot or a scene of a newer version is read the same way.
+ */
+export function sceneImagePaths(state: { background?: unknown; levels?: unknown }): string[] {
+  const paths = new Set<string>();
+  const add = (value: unknown): void => {
+    const path = text(value);
+    if (path) paths.add(path);
+  };
+  add(state.background);
+  if (Array.isArray(state.levels)) {
+    for (const level of state.levels) {
+      if (!isRecord(level)) continue;
+      add(level.background);
+      add(level.foreground);
+    }
+  }
+  return [...paths];
+}

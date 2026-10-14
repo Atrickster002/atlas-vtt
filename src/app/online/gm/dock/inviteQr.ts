@@ -4,7 +4,7 @@ import { animatePanelIn, animatePanelOutAndRemove } from '../../../ui/panelMotio
 import { prefersReducedMotion } from '../../../utils/motion';
 import atlasIcon from '../assets/atlas-icon.png?inline';
 import { COPIED_MS } from './controls.ts';
-import { BAR_GAP, copyImage, detachedEl, roomAbove, rowOf } from './dockDom.ts';
+import { BAR_GAP, copyImage, detachedEl, roomAbove, rowOf, surfaceRise } from './dockDom.ts';
 import { qrDrawing, qrMatrix, type QrDrawing } from './qrDrawing.ts';
 import { qrImageBlob } from './qrImage.ts';
 import { showNotice } from '../../../ui/notice';
@@ -45,12 +45,12 @@ function drawCode(plate: HTMLElement, drawing: QrDrawing): void {
  * copies the code as a picture to send. Nothing else: the link is never written out, and neither the
  * code nor its picture holds the join code.
  *
- * It stands to the right of the control, their bottom edges level, outside the menu's and the panel's
- * flow and clear of the column over the control where the cards of newcomers stand (`KnockStack`). So
- * opening or closing it moves no row and no card, and a knock that comes while it is open is neither
- * hidden nor moved. Where the view is too narrow for that, the code is drawn smaller, and at last the
- * card lies over the control's end, under the newcomers' cards; a press on it closes it there, since
- * it covers its own button.
+ * It stands to the right of the open menu or panel, their bottom edges level, outside their flow and
+ * clear of the column over them where the cards of newcomers stand (`KnockStack`). So opening or
+ * closing it moves no row and no card, and a knock that comes while it is open is neither hidden nor
+ * moved. Where the view is too narrow for that, the code is drawn smaller, and at last the card lies
+ * over the surface's end, under the newcomers' cards; a press on it closes it there, since it covers
+ * its own button.
  *
  * It never takes the keyboard when it opens: focus stays on the button that opened it, and Tab goes
  * from there to the card's own button.
@@ -96,7 +96,7 @@ export class InviteQr {
 
   /**
    * Follows the table: `table` is null while there is no link or the control is closed, which closes
-   * the card. `dockWidth` is the width the open control has or grows to.
+   * the card. `dockWidth` is the open surface's width.
    */
   update(table: QrTable | null, dockWidth: number): void {
     if (table === null) this.opened = false;
@@ -122,12 +122,14 @@ export class InviteQr {
     const chrome = { width: card.offsetWidth - plate.offsetWidth, height: card.offsetHeight - plate.offsetHeight };
     const rowWidth = row?.clientWidth ?? Infinity;
     const beside = rowWidth - this.dockWidth - BAR_GAP - chrome.width;
-    const under = row === null ? Infinity : roomAbove(this.container, row, BAR_GAP) - chrome.height;
+    const border = parseFloat(this.root.win.getComputedStyle(this.root).borderLeftWidth) || 0;
+    // The card stands level with the surface's bottom edge, above the button.
+    const bottom = this.root.getBoundingClientRect().top - surfaceRise(this.root, card);
+    const under = row === null ? Infinity : roomAbove(this.container, row, BAR_GAP) - (row.getBoundingClientRect().bottom - bottom) - chrome.height;
     const wanted = Math.round(CODE_SIDE / drawing.size);
     const module = Math.max(MIN_MODULE, Math.min(wanted, Math.floor(Math.min(beside, under) / drawing.side)));
     const side = module * drawing.side;
     const over = side > beside;
-    const border = parseFloat(this.root.win.getComputedStyle(this.root).borderLeftWidth) || 0;
     card.toggleClass('is-over', over);
     card.setCssProps({
       '--atlas-online-qr-side': `${side}px`,
@@ -219,7 +221,7 @@ export class InviteQr {
     if (event.key !== 'Tab' || event.altKey || event.ctrlKey || event.metaKey) return;
     const copy = this.card?.querySelector<HTMLElement>('.atlas-online-qr__copy') ?? null;
     if (copy === null) return;
-    const stops = Array.from(this.root.querySelectorAll<HTMLElement>('button, input, textarea, [tabindex]')).filter((el) => el !== copy && el.tabIndex >= 0 && el.offsetParent !== null && el.closest('[inert], .atlas-online-layer--leaving') === null && !el.hasAttribute('disabled'));
+    const stops = Array.from(this.root.querySelectorAll<HTMLElement>('button, input, textarea, [tabindex]')).filter((el) => el !== copy && el.tabIndex >= 0 && el.offsetParent !== null && el.closest('[inert], .atlas-panel-leaving') === null && !el.hasAttribute('disabled'));
     const control = stops.findIndex((el) => el.dataset.focusKey === 'qr');
     if (control < 0) return;
     stops.splice(control + 1, 0, copy);

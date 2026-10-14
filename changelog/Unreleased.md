@@ -9,6 +9,8 @@
 - A scene keeps one grid for all its floors: align the grid on a floor above the first, and that floor's map is scaled and moved onto the grid instead, taking only its own tokens, walls and lights along. Changing the grid later keeps every fitted floor on its map
 - Move tokens to another floor from their right-click menu, and show a floor to players with the eye beside it in the switcher: players keep their picture while you look at another floor
 - Import a building's floors as one scene: drop or pick its Universal VTT files (one per floor, as Dungeon Alchemist, Dungeondraft and DungeonFog export them) together, check their order and names, and each becomes a level with its own map, walls, doors and lights. A smaller floor is placed where its file says it lies
+- Undo and redo take you to the floor they changed, and clicking a combatant in the initiative tracker or locating a token from the DM screen shows the floor it stands on. Clear fog and Clear drawings clear the floor you see
+- A scene's export, a move to another collection and renaming a map image take every floor's map along
 - Statblocks show without the Fantasy Statblocks plugin: Atlas draws them itself on token hovers, in the DM screen and in the asset manager
 - Statblock templates for 5E (2014 and 2024), Cairn, Draw Steel and Fate, and general ones for creatures, NPCs and hazards
 - A template can limit a value to a list of choices, picked from a dropdown: one, several, or several each with a number, like senses or movement
@@ -21,7 +23,8 @@
 
 ## Improved
 
-- The asset manager shows all its tabs side by side in a normal window: New folder has moved into the + menu, the refresh button is gone (Refresh stays in the right-click menu), and the search narrows before the tabs fold into a menu
+- The asset manager shows all its tabs side by side in a normal window: New folder has moved into the + menu, the sort into the row above the assets, the refresh button is gone (Refresh stays in the right-click menu), and the search narrows before the tabs fold into a menu
+- The asset manager's Characters tab is now called Tokens
 - The dashboard carries Atlas' icon and name in Atlas' own lettering, with the sword standing behind the page
 - The initiative card's edit dialog takes a modifier of your own for a combatant, which counts instead of its statblock's until you clear it
 - The Spectral Engine, which detects a map's grid, shows the grid being found: it is etched into the map along the map's own lines, sharpens as the search grows sure of it, and settles as its glow fades

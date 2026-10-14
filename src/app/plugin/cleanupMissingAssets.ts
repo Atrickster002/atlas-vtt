@@ -1,12 +1,13 @@
 import { App } from 'obsidian';
 import type { AtlasView } from '../atlas-view';
-import { AssetValidationService } from '../services/AssetValidationService';
+import { AssetValidationService, SCENE_BACKGROUND } from '../services/AssetValidationService';
+import { changeLevelBackground } from '../react/components/levels/levelEditing';
 import { runHistoryTransaction } from '../stores/history';
 import { ChoiceModal } from './ChoiceModal';
 import { formatList, t } from '../i18n';
 import { showNotice } from '../ui/notice';
 
-/** Finds tokens and backgrounds whose image is gone and offers to drop them from the map. */
+/** Finds tokens on any floor and floor maps whose image is gone and offers to drop them from the scene. */
 export async function cleanupMissingAssets(app: App, view: AtlasView): Promise<void> {
   const store = view.getStore();
   if (!store) {
@@ -17,11 +18,13 @@ export async function cleanupMissingAssets(app: App, view: AtlasView): Promise<v
   const state = store.getState();
   const validation = await new AssetValidationService({ app }).validateMapAssets({
     background: state.background,
+    levels: state.levels,
     objects: { tokens: state.objects?.tokens ?? {} },
   });
 
   const missingTokenIds = validation.missingAssets.filter((a) => a.type === 'token').map((a) => a.objectId);
-  const missingBackgrounds = validation.missingAssets.filter((a) => a.type === 'map').length;
+  const missingMaps = validation.missingAssets.filter((a) => a.type === 'map').map((a) => a.objectId);
+  const missingBackgrounds = missingMaps.length;
   const removable = missingTokenIds.length + missingBackgrounds;
 
   if (removable === 0) {
@@ -44,7 +47,10 @@ export async function cleanupMissingAssets(app: App, view: AtlasView): Promise<v
   runHistoryTransaction(store, () => {
     const actions = store.getState();
     if (missingTokenIds.length > 0) actions.deleteTokens(missingTokenIds);
-    if (missingBackgrounds > 0) actions.setBackground(null);
+    for (const level of missingMaps) {
+      if (level === SCENE_BACKGROUND) actions.setBackground(null);
+      else changeLevelBackground(store, level, null);
+    }
   });
 
   showNotice(t('cleanup.done', { count: removable }));
