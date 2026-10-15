@@ -2,18 +2,19 @@
 
 import { HEADER_PARTS } from '../model/templateHeader';
 import {
-  HEADER_PART_IDS, type HeaderPartId, type HeaderTrack, type StatblockTemplate, type TemplateHeader, type TemplateLicence,
+  HEADER_PART_IDS, PLAYER_ACCESS, type HeaderPartId, type PlayerAccess, type HeaderTrack, type StatblockTemplate, type TemplateHeader, type TemplateLicence,
   type TemplateSource,
 } from '../model/templateTypes';
 import { TRACK_COUNTS, TRACK_LOOKS } from './blockParts';
 import { DERIVED_FROM_KEYS, HEADER_KEYS, HEADER_TRACK_KEYS, IMPORTED_FROM_KEYS, SOURCE_KEYS } from './formatKeys';
 import { describeValue, isRecord } from './jsonValues';
 import { ObjectReader } from './objectReader';
-import { JSON_OBJECT, asJsonRecord, asKey, asNonNegativeInteger, asOneOf, asString, asText } from './valueReads';
+import { JSON_OBJECT, asJsonRecord, asKey, asNonNegativeInteger, asOneOf, asString, asText, choices } from './valueReads';
 
 type DerivedFrom = NonNullable<StatblockTemplate['derivedFrom']>;
 type ImportedFrom = NonNullable<StatblockTemplate['importedFrom']>;
 type Lookups = NonNullable<StatblockTemplate['lookups']>;
+type Players = NonNullable<StatblockTemplate['players']>;
 
 const LICENCE_SET: Record<TemplateLicence, true> = {
   'CC-BY-4.0': true, 'CC-BY-3.0': true, 'CC-BY-SA-4.0': true, ORC: true, 'DS-Creator': true, 'RTG-Homebrew': true,
@@ -115,4 +116,28 @@ export function readLookups(r: ObjectReader<keyof StatblockTemplate>): Partial<P
   const lookups: Lookups = Object.fromEntries(tables);
   if (dropped > 0) r.keep('lookups', raw, lookups, `holds ${dropped} tables or rows that are not text; they are ignored`);
   return { lookups };
+}
+
+const asPlayerAccess = asOneOf(PLAYER_ACCESS);
+
+/**
+ * What players may do with each field. A setting this Atlas does not know (of a newer one) reads as
+ * unset, so the field gets its kind's default, and the file's entries are then kept for writing back.
+ */
+export function readPlayers(r: ObjectReader<keyof StatblockTemplate>): Partial<Pick<StatblockTemplate, 'players'>> {
+  const raw = r.rawValue('players');
+  if (raw === undefined) return {};
+  if (!isRecord(raw)) {
+    r.keep('players', raw, undefined, `is ${describeValue(raw)}, not an object of field keys; it is ignored`);
+    return {};
+  }
+  const entries: [string, PlayerAccess][] = [];
+  for (const [key, value] of Object.entries(raw)) {
+    const access = key === '' ? undefined : asPlayerAccess(value);
+    if (access !== undefined) entries.push([key, access]);
+  }
+  const players: Players = Object.fromEntries(entries);
+  const dropped = Object.keys(raw).length - entries.length;
+  if (dropped > 0) r.keep('players', raw, players, `holds ${dropped} settings that are not ${choices(PLAYER_ACCESS)}; they are ignored`);
+  return { players };
 }

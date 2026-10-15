@@ -47,7 +47,7 @@ function keyOrder<K extends string>(order: Record<K, true>): KeyOrder<K> {
 
 export const TEMPLATE_KEYS = keyOrder<keyof StatblockTemplate>({
   format: true, version: true, id: true, description: true, suits: true, diceSetId: true, derivedFrom: true, source: true,
-  importedFrom: true, fields: true, header: true, layout: true, lookups: true, sample: true,
+  importedFrom: true, fields: true, header: true, layout: true, players: true, lookups: true, sample: true,
 });
 
 export const HEADER_KEYS = keyOrder<keyof TemplateHeader>({ hidden: true, hitPoints: true });

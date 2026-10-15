@@ -32,6 +32,11 @@ export interface StatblockTemplate {
   header?: TemplateHeader;
   /** What the template lays out below the header. */
   layout: TemplateLayout;
+  /**
+   * What a player may do with a field of their own character's statblock, by the field's key, where it is not
+   * what a field of its kind lets them do by default. Holds only those exceptions.
+   */
+  players?: Record<FieldKey, PlayerAccess>;
   /** Tables patterns read with `{cr|lookup:xp}`. */
   lookups?: Record<string, Record<string, string>>;
   /** Values the template editor previews with when no statblock is picked. Never creature content in built-ins. */
@@ -98,6 +103,11 @@ export interface HeaderTrack {
   /** The token resource whose values the track shows on a token's statblock. */
   resource?: string;
 }
+
+/** What a player may do with a field of their own character's statblock: change it, only read it, or not see it. */
+export type PlayerAccess = 'edit' | 'read' | 'hidden';
+
+export const PLAYER_ACCESS: readonly PlayerAccess[] = ['edit', 'read', 'hidden'];
 
 export interface TemplateField {
   key: FieldKey;
