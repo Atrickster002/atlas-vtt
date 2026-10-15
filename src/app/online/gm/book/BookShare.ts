@@ -19,7 +19,7 @@ import type { BookScene } from './bookScene.ts';
 import type { BookSharePorts } from './bookSharePorts.ts';
 import { checkResourceEdit } from './resourceEdit.ts';
 import { OwedBooks } from './owedBooks.ts';
-import { NO_QUESTS, RESEND, sentOf, type SentBook } from './sentBook.ts';
+import { bookUpdate, NO_QUESTS, RESEND, sentOf, type SentBook } from './sentBook.ts';
 import { StatblockShare } from './statblockShare.ts';
 import { WorldMaps, type WorldMapFile } from './worldMap.ts';
 
@@ -42,8 +42,10 @@ const UNNAMED = 'Unnamed character';
  * being played and its quests (the GM's quest notes, which no player writes) go to everyone at the
  * table, with a character or without; notes on a quest name it by its id. It is the table's, not a
  * scene's, so it hears players while no scene is shared. What a player writes is taken as
- * the protocol's parser cleaned it, only for a player with a character and within their rate; a
- * refused write is answered with the whole book (`OwedBooks`). A player changes their own character's resources
+ * the protocol's parser cleaned it, only for a player with a character and within their rate, and is
+ * not answered; a refused write is answered with the whole book (`OwedBooks`). A page that reads its
+ * book in parts (`book-parts`) gets a changed world map or quests alone, any other the whole book
+ * again. A player changes their own character's resources
  * through Atlas (`editResource`), and the sheet that follows tells them what was taken. A player
  * with a character whose note is a native statblock is sent it after their book, and again
  * whenever it changes (`StatblockShare`), and changes its values and abilities in the note. A
@@ -68,6 +70,8 @@ export class BookShare implements LootRecipientSource {
   private mapPath: string | null = null;
   /** What each connected player was last sent. */
   private readonly sent = new Map<string, SentBook>();
+  /** The players whose page reads its book in parts (`book-parts`): they get a changed world map or quests alone. */
+  private readonly parts = new Set<string>();
   /** The whole books players are owed for writes of theirs that were refused. */
   private readonly owed: OwedBooks;
   private readonly listeners = new RecipientListeners();
@@ -151,6 +155,7 @@ export class BookShare implements LootRecipientSource {
     this.assets.forget(player);
     this.sent.delete(player);
     this.statblocks.left(player);
+    this.parts.delete(player);
   }
 
   /**
@@ -160,6 +165,10 @@ export class BookShare implements LootRecipientSource {
    */
   receive(from: string, body: unknown): boolean {
     if (!isRecord(body)) return false;
+    if (body.t === 'book-parts') {
+      this.parts.add(from);
+      return true;
+    }
     if (body.t === 'asset-request') return this.assets.receive(from, body);
     if (!isPlayerBookType(body.t)) return false;
     if (!this.write(from, body)) this.owed.owe(from);
@@ -199,17 +208,21 @@ export class BookShare implements LootRecipientSource {
     });
   }
 
+  /** Sends a player what changed of their book: the whole book for another character (or to a page that reads no parts), else each changed part alone. */
   private sync(player: string): void {
     const character = this.characters.of(player);
     const drawn = this.statblocks.of(character);
     const now = sentOf(character, this.worldMap, this.quests, drawn);
     const last = this.sent.get(player);
-    if (last === undefined || last.book !== now.book || last.map !== now.map || last.quests !== now.quests) return this.sendBook(player);
+    const update = bookUpdate(last, now, this.parts.has(player));
+    if (last === undefined || update === 'whole') return this.sendBook(player);
     // A statblock not drawn yet keeps what was sent; none after a book that went without one is what the page holds.
     const statblock = drawn !== undefined && last.statblock !== now.statblock && !(last.statblock === '' && drawn.statblock === null);
-    if (last.sheet === now.sheet && !statblock) return;
+    if (update === null && !statblock) return;
     this.sent.set(player, { ...now, statblock: drawn === undefined ? last.statblock : now.statblock });
-    if (last.sheet !== now.sheet) this.ports.send({ t: 'book-sheet', character: character?.sheet ?? null }, player);
+    if (update?.map === true) this.ports.send({ t: 'book-map', worldMap: this.worldMap?.map ?? null }, player);
+    if (update?.quests === true) this.ports.send({ t: 'book-quests', quests: now.quests }, player);
+    if (update?.sheet === true) this.ports.send({ t: 'book-sheet', character: character?.sheet ?? null }, player);
     if (statblock) this.sendStatblock(player, drawn);
   }
 
