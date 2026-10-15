@@ -50,6 +50,9 @@ export interface AbilityComponent {
   readonly parts: readonly AbilityPart[];
   readonly tabs: readonly AbilityTab[];
   readonly spells?: true;
+  /** The keys an ability of the note keeps its name and text under; unset, `name` and `desc`. An ability written from the page is `{ [nameKey]: name, [textKey]: text, ...parts }`, without empty values. */
+  readonly nameKey?: string;
+  readonly textKey?: string;
 }
 
 function parsePart(value: unknown): AbilityPart | null {
@@ -89,7 +92,12 @@ export function parseComponent(value: unknown, budget: SheetBudget): AbilityComp
   const tabs = Array.isArray(value.tabs) && value.tabs.length > 0 && value.tabs.length <= MAX_ABILITY_TABS ? value.tabs.map((tab) => parseTab(tab, budget)) : null;
   if (name === null || parts === null || tabs === null || parts.some((part) => part === null) || tabs.some((tab) => tab === null)) return null;
   const spells = value.spells === true;
-  return { id: value.id, name, access: spells ? 'read' : value.access, parts: parts as AbilityPart[], tabs: tabs as AbilityTab[], ...(spells && { spells: true }) };
+  const keyOk = (key: unknown): boolean => key === undefined || isFieldKey(key);
+  if (!keyOk(value.nameKey) || !keyOk(value.textKey)) return null;
+  return {
+    id: value.id, name, access: spells ? 'read' : value.access, parts: parts as AbilityPart[], tabs: tabs as AbilityTab[], ...(spells && { spells: true }),
+    ...(isFieldKey(value.nameKey) && { nameKey: value.nameKey }), ...(isFieldKey(value.textKey) && { textKey: value.textKey }),
+  };
 }
 
 /** Lists of a statblock the player may change, by the field the note keeps them in. */

@@ -101,7 +101,8 @@ export function abilityComponent(build: SheetBuild, block: TabsBlock | EntriesBl
     return { label, list: list.field, ...(intro !== '' && { intro: build.texts.of(intro) }), entries: abilityEntries(build, list, parts) };
   }).filter((tab) => isFieldKey(tab.list) && (access === 'edit' || tab.entries.length > 0));
   if (tabs.length === 0) return null;
-  return { id: componentId(block.id), name: componentName(build, block, place), access, parts, tabs };
+  const keys = { nameKey: first?.entry?.nameKey ?? 'name', textKey: first?.entry?.textKey ?? 'desc' };
+  return { id: componentId(block.id), name: componentName(build, block, place), access, parts, tabs, ...keys };
 }
 
 /** A spell list in Fantasy Statblocks' shape, read only: per group its header line, then one tab per level line, its spells by name. */
