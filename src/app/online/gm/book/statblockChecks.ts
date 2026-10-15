@@ -1,6 +1,6 @@
 import { bookLine, MAX_BOOK_TITLE, MAX_SHEET_LIST, type BookStatblock, type SheetField, type SheetNode, type SheetRaw, type SheetValue } from '../../protocol/index.ts';
 import type { ResolvedStatblock } from '../../../statblocks/model/resolvedTypes';
-import type { StatblockTemplate } from '../../../statblocks/model/templateTypes';
+import type { FieldValue, StatblockTemplate } from '../../../statblocks/model/templateTypes';
 import type { NotePatch } from '../../../statblocks/notes/patchTypes';
 import { isDiceNotation } from '../../../statblocks/values/diceNotation';
 import type { FieldRead, KeyedField } from '../../../statblocks/values/fieldValues';
@@ -27,6 +27,11 @@ export function editableTemplate(inputs: EditInputs): StatblockTemplate | null {
   const { resolved, sent } = inputs;
   if (!resolved || !sent?.editable || resolved.source.kind !== 'atlas' || resolved.templateStatus !== 'ok') return null;
   return resolved.template;
+}
+
+/** The value a field holds once an edit is written under its key, taken from the key the note held it under. */
+export function writtenValue(key: string, read: FieldRead, value: FieldValue | undefined): WrittenValue {
+  return { key, cleared: read.key === key ? [] : [read.key], value };
 }
 
 /** A value that clears its field: its key is deleted, as the note pane does. */

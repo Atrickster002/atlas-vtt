@@ -8,7 +8,7 @@ import { keyedEntryItems } from '../../../statblocks/values/entryKeys';
 import { entryNameKey, entryTextKey, entryTextKeyOf } from '../../../statblocks/values/entryValues';
 import type { FieldRead } from '../../../statblocks/values/fieldValues';
 import { playerAccess } from './playerAccess.ts';
-import { amongOptions, clears, editableTemplate, inOptionOrder, isDice, isLine, isPlainList, type CheckedEdit, type EditInputs } from './statblockChecks.ts';
+import { amongOptions, clears, editableTemplate, inOptionOrder, isDice, isLine, isPlainList, writtenValue, type CheckedEdit, type EditInputs } from './statblockChecks.ts';
 
 /** Whether a part's value fits the part as the template shapes it. */
 function fitsPart(shape: EntryExtraShape, value: SheetRaw): boolean {
@@ -122,6 +122,6 @@ export function checkAbilityEdit(inputs: EditInputs, message: BookAbilityMessage
   if (next === null) return null;
   return {
     patches: listPatches(field.key, read, items, message, next),
-    written: [{ key: field.key, cleared: read.key === field.key ? [] : [read.key], value: next.list }],
+    written: [writtenValue(field.key, read, next.list)],
   };
 }

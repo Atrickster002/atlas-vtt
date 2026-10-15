@@ -35,10 +35,18 @@ export function displayText(display: BlockDisplay): string {
   return display.state === 'prompt' ? '' : display.text?.text ?? '';
 }
 
-const promptOf = (display: BlockDisplay): string | null => (display.state === 'prompt' ? display.prompt : null);
+/** The prompt a block shows where it is empty, else null. */
+export const promptOf = (display: BlockDisplay): string | null => (display.state === 'prompt' ? display.prompt : null);
+
+/** A block's value as one plain text, with its prompt where it is empty. */
+export function plainValue(build: SheetBuild, label: string | null, display: BlockDisplay, field: SheetField | null): SheetValue {
+  return sheetValue(build, label, displayText(display), 'plain', field, promptOf(display));
+}
+
+const plainNode = (build: SheetBuild, label: string | null, display: BlockDisplay, field: SheetField | null): SheetNode => ({ k: 'value', value: plainValue(build, label, display, field) });
 
 /** The label a block shows its value under: its own, else its field's, else its key. */
-function labelOf(build: SheetBuild, block: { label?: string | undefined; field: string }): string {
+export function labelOf(build: SheetBuild, block: { label?: string | undefined; field: string }): string {
   return block.label ?? build.shown.fields.get(block.field)?.label ?? block.field;
 }
 
@@ -51,14 +59,14 @@ function misfitText(build: SheetBuild, key: string): string | null {
 
 function wordsNode(build: SheetBuild, block: Extract<TemplateBlock, { type: 'tags' }>, display: BlockDisplay, field: SheetField | null): SheetNode {
   const label = block.look === 'comma' ? labelOf(build, block) : block.label ?? null;
-  if (display.state !== 'value') return { k: 'value', value: sheetValue(build, label, displayText(display), 'plain', field, promptOf(display)) };
+  if (display.state !== 'value') return plainNode(build, label, display, field);
   const words = listItems(build.shown.reader(block.field)).slice(0, MAX_SHEET_LIST).flatMap((item) => clippedLine(item, MAX_BOOK_TITLE) ?? []);
   return { k: 'value', value: sheetValue(build, label, words.join(', '), 'words', field, null, { words }) };
 }
 
 function pairsNode(build: SheetBuild, block: Extract<TemplateBlock, { type: 'pairs' }>, display: BlockDisplay, field: SheetField | null): SheetNode {
   const label = labelOf(build, block);
-  if (display.state !== 'value') return { k: 'value', value: sheetValue(build, label, displayText(display), 'plain', field, promptOf(display)) };
+  if (display.state !== 'value') return plainNode(build, label, display, field);
   const value = build.shown.reader(block.field);
   const found = normalisePairs(value);
   if (found.length === 0) return { k: 'value', value: sheetValue(build, label, valueText(value), 'plain', field, null) };
@@ -74,7 +82,7 @@ function pairsNode(build: SheetBuild, block: Extract<TemplateBlock, { type: 'pai
 function metricNode(build: SheetBuild, block: MetricBlock, display: BlockDisplay): SheetNode | null {
   const numbers = block.fields.filter((key) => key !== '' && playerAccess(build.template, key) !== 'hidden').slice(0, MAX_METRIC_NUMBERS);
   const heading = clippedLine(numbers.length > 1 ? block.heading : undefined, MAX_BOOK_TITLE);
-  if (display.state === 'fallback') return { k: 'metric', heading, values: [sheetValue(build, null, displayText(display), 'plain', null, null)] };
+  if (display.state === 'fallback') return { k: 'metric', heading, values: [plainValue(build, null, display, null)] };
   const values = numbers.map((key) => {
     const field = sheetFieldOf(build, key);
     const text = metricNumberText(key, build.shown).text;
@@ -109,7 +117,7 @@ function tableNode(build: SheetBuild, block: ScoresBlock, display: BlockDisplay,
 
 function trackNode(build: SheetBuild, block: TrackBlock, display: BlockDisplay, field: SheetField | null): SheetNode | null {
   const label = clippedLine(labelOf(build, block), MAX_BOOK_TITLE);
-  if (display.state !== 'value') return { k: 'value', value: sheetValue(build, label, displayText(display), 'plain', field, promptOf(display)) };
+  if (display.state !== 'value') return plainNode(build, label, display, field);
   const held = block.resource !== undefined && isResourceKey(block.resource) ? build.resources[block.resource] : undefined;
   const max = numericValue(build.shown.reader(block.field));
   if (held && held.max > 0) return track(block, label, held.current, held.max, block.resource ?? null, null);
@@ -133,9 +141,9 @@ export function leafNode(build: SheetBuild, block: TemplateBlock, display: Block
     case 'title': case 'line': {
       const key = block.type === 'title' ? block.field : block.fields[0];
       const field = key === undefined ? null : sheetFieldOf(build, key, block);
-      return { k: 'value', value: sheetValue(build, null, displayText(display), 'plain', field, promptOf(display)) };
+      return plainNode(build, null, display, field);
     }
-    case 'stat': return { k: 'value', value: sheetValue(build, labelOf(build, block), displayText(display), 'plain', sheetFieldOf(build, block.field, block), promptOf(display)) };
+    case 'stat': return plainNode(build, labelOf(build, block), display, sheetFieldOf(build, block.field, block));
     case 'tags': return wordsNode(build, block, display, sheetFieldOf(build, block.field, block));
     case 'pairs': return pairsNode(build, block, display, sheetFieldOf(build, block.field, block));
     case 'metric': return metricNode(build, block, display);

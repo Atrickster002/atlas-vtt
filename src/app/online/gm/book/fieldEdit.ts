@@ -7,7 +7,7 @@ import { picksChoice } from '../../../statblocks/values/choicePicks';
 import { textProblem, valueMisfit } from '../../../statblocks/values/valueFit';
 import { playerAccess } from './playerAccess.ts';
 import {
-  amongOptions, clears, editableTemplate, inOptionOrder, isDice, isLine, isPlainList, isScalar, sentFields, type CheckedEdit, type EditInputs,
+  amongOptions, clears, editableTemplate, inOptionOrder, isDice, isLine, isPlainList, isScalar, sentFields, writtenValue, type CheckedEdit, type EditInputs,
 } from './statblockChecks.ts';
 
 /** The types of value a page changes; any other field is never changed from a page. */
@@ -84,6 +84,6 @@ export function checkFieldEdit(inputs: EditInputs, message: BookFieldMessage): C
   if (next === null) return null;
   return {
     patches: fieldPatches(field.key, read, next.value),
-    written: [{ key: field.key, cleared: read.key === field.key ? [] : [read.key], value: next.value }],
+    written: [writtenValue(field.key, read, next.value)],
   };
 }
