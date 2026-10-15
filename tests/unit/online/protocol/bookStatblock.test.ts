@@ -38,7 +38,7 @@ const FULL: BookStatblock = sheet({
     ] },
     { k: 'tabs', heading: 'Notes', tabs: [{ label: 'One', nodes: [{ k: 'heading', text: 'Inside', minor: true }] }] },
     { k: 'metric', heading: 'Defences', values: [plain('15', { label: 'AC' }), plain('+3', { label: 'Init' })] },
-    { k: 'table', label: 'Abilities', columns: ['STR', 'DEX'], rows: [['10', '14']], worked: [['+0', null]], field: { key: 'stats', base: sheetBase([10, 14]), type: 'scores', value: [10, 14] } },
+    { k: 'table', label: 'Abilities', columns: ['STR', 'DEX'], rows: [['10', '14']], worked: [['+0', null], [null, '+5']], workedLabels: ['Mod', ''], field: { key: 'stats', base: sheetBase([10, 14]), type: 'scores', value: [10, 14] } },
     { k: 'track', label: 'Stress', look: 'boxes', counts: 'up', current: 2, max: 6, resource: null, field: { key: 'stress', base: sheetBase(2), type: 'number', value: 2 } },
     { k: 'track', label: 'Hope', look: 'gauge', counts: 'down', current: 1, max: 3, resource: 'hope', field: null },
     { k: 'divider' },
@@ -47,7 +47,7 @@ const FULL: BookStatblock = sheet({
     component({
       parts: [{ key: 'cost', label: 'Cost', type: 'choice', options: ['Action', 'Bonus action'] }, { key: 'tags', label: 'Tags', type: 'list' }, { key: 'dmg', label: 'Damage', type: 'dice' }],
       tabs: [
-        { label: 'Cantrips', list: 'cantrips', entries: [entry('Light', { text: { opening: 'A torch', whole: TEXT_REF }, parts: { cost: 'Action', tags: ['evocation'] } })] },
+        { label: 'Cantrips', list: 'cantrips', intro: { opening: 'Known by heart.', whole: TEXT_REF }, entries: [entry('Light', { text: { opening: 'A torch', whole: TEXT_REF }, parts: { cost: 'Action', tags: ['evocation'] } })] },
         { label: '1st level', list: 'spells1', entries: [entry('Healing Word', { parts: { cost: 'Bonus action', dmg: '1d4' } })] },
       ],
     }),
@@ -96,6 +96,17 @@ describe('a statblock for a player', () => {
     ];
     for (const node of broken) expect(parseBookStatblock(sheet({ blocks: [node as SheetNode] })), JSON.stringify(node)).toBeUndefined();
     expect(parseBookStatblock(sheet({ blocks: [{ k: 'metric', heading: null, values: Array.from({ length: 6 }, () => plain('1')) }] }))).toBeDefined();
+  });
+
+  it('reads a table without labels for its worked-out rows and a list without an intro, as an older GM sends them, and refuses malformed ones', () => {
+    const table: SheetNode = { k: 'table', label: null, columns: ['A'], rows: [['1']], worked: [['+0']], field: null };
+    expect(parseBookStatblock(sheet({ blocks: [table] }))).toEqual(sheet({ blocks: [table] }));
+    for (const workedLabels of [['Mod', 'Save'], [], [7], ['x'.repeat(81)]]) {
+      expect(parseBookStatblock(sheet({ blocks: [{ ...table, workedLabels } as SheetNode] })), JSON.stringify(workedLabels)).toBeUndefined();
+    }
+    for (const intro of [null, 'Known.', { opening: 'x'.repeat(MAX_SHEET_TEXT + 1) }]) {
+      expect(parseBookStatblock(sheet({ abilities: [component({ tabs: [{ label: null, list: 'a', intro, entries: [] } as never] })] })), JSON.stringify(intro)).toBeUndefined();
+    }
   });
 
   it('cleans control characters out of lines and texts', () => {

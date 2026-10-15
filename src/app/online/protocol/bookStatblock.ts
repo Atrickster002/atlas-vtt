@@ -43,7 +43,8 @@ export type SheetNode =
   | { readonly k: 'heading'; readonly text: string; readonly minor: boolean }
   | { readonly k: 'value'; readonly value: SheetValue }
   | { readonly k: 'metric'; readonly heading: string | null; readonly values: readonly SheetValue[] }
-  | { readonly k: 'table'; readonly label: string | null; readonly columns: readonly string[]; readonly rows: readonly (readonly (string | null)[])[]; readonly worked: readonly (readonly (string | null)[])[]; readonly field: SheetField | null }
+  /** `worked`: a table's worked-out rows (a modifier under each score), each labelled by `workedLabels` where the GM names them. */
+  | { readonly k: 'table'; readonly label: string | null; readonly columns: readonly string[]; readonly rows: readonly (readonly (string | null)[])[]; readonly worked: readonly (readonly (string | null)[])[]; readonly workedLabels?: readonly string[]; readonly field: SheetField | null }
   | { readonly k: 'track'; readonly label: string | null; readonly look: 'boxes' | 'gauge'; readonly counts: 'down' | 'up'; readonly current: number; readonly max: number; readonly resource: string | null; readonly field: SheetField | null }
   | { readonly k: 'divider' };
 
@@ -117,6 +118,13 @@ function parseCells(value: unknown, columns: number): (string | null)[][] | null
   return rows;
 }
 
+/** The labels of a table's worked-out rows ("Mod", "Save"), one per row, a row without one ''; null when they are not that. */
+function parseWorkedLabels(value: unknown, worked: readonly unknown[] | null): string[] | null {
+  if (worked === null || !Array.isArray(value) || value.length !== worked.length) return null;
+  const labels = value.map((line) => bookLine(line, MAX_BOOK_TITLE, true));
+  return labels.every((line) => line !== null) ? (labels) : null;
+}
+
 function parseNodes(value: unknown, depth: number, budget: SheetBudget): SheetNode[] | null {
   if (!Array.isArray(value) || depth > MAX_SHEET_DEPTH) return null;
   const nodes: SheetNode[] = [];
@@ -173,8 +181,10 @@ function parseNode(value: unknown, depth: number, budget: SheetBudget): SheetNod
       const rows = columns === null ? null : parseCells(value.rows, columns.length);
       const worked = columns === null ? null : parseCells(value.worked, columns.length);
       const field = parseSheetField(value.field);
-      if (label === undefined || columns === null || rows === null || worked === null || field === undefined) return null;
-      return spendText(budget, JSON.stringify([columns, rows, worked])) ? { k: 'table', label, columns, rows, worked, field } : null;
+      const workedLabels = value.workedLabels === undefined ? undefined : parseWorkedLabels(value.workedLabels, worked);
+      if (label === undefined || columns === null || rows === null || worked === null || field === undefined || workedLabels === null) return null;
+      if (!spendText(budget, JSON.stringify([columns, rows, worked])) || !spendText(budget, (workedLabels ?? []).join(''))) return null;
+      return { k: 'table', label, columns, rows, worked, ...(workedLabels !== undefined && { workedLabels }), field };
     }
     case 'track': {
       const label = optionalSheetLine(value.label);

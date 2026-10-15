@@ -27,10 +27,14 @@ export interface AbilityEntry {
   readonly parts: Readonly<Record<string, SheetRaw>>;
 }
 
-/** One list of a component: a tab of it (with its label) or the component's one list (label null). `list` is the field the note keeps it in. */
+/**
+ * One list of a component: a tab of it (with its label) or the component's one list (label null). `list` is the field the
+ * note keeps it in; `intro` the text the card shows above its abilities ("The dragon can take 3 legendary actions"), read only.
+ */
 export interface AbilityTab {
   readonly label: string | null;
   readonly list: string;
+  readonly intro?: SheetText;
   readonly entries: readonly AbilityEntry[];
 }
 
@@ -71,9 +75,11 @@ function parseEntry(value: unknown, budget: SheetBudget): AbilityEntry | null {
 function parseTab(value: unknown, budget: SheetBudget): AbilityTab | null {
   if (!isRecord(value) || !isFieldKey(value.list) || !Array.isArray(value.entries)) return null;
   const label = optionalSheetLine(value.label);
+  const intro = value.intro === undefined ? undefined : parseSheetText(value.intro);
+  if (intro === null || (intro !== undefined && !spendText(budget, intro))) return null;
   const entries = value.entries.map((entry) => parseEntry(entry, budget));
   if (label === undefined || entries.some((entry) => entry === null)) return null;
-  return { label, list: value.list, entries: entries as AbilityEntry[] };
+  return { label, list: value.list, ...(intro !== undefined && { intro }), entries: entries as AbilityEntry[] };
 }
 
 export function parseComponent(value: unknown, budget: SheetBudget): AbilityComponent | null {
