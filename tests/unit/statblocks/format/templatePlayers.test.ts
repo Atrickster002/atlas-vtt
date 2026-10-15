@@ -33,12 +33,15 @@ describe('what players may do with a template\'s fields', () => {
     expect(read(serializeTemplate(MARSH_CREATURE)).template.players).toBeUndefined();
   });
 
-  it('reads a setting it does not know as unset, and writes the file\'s settings back until they are edited', () => {
-    const { template, problems } = read(withPlayers({ speed: 'read', actions: 'add-own', ac: 3 }));
-    expect(template.players).toEqual({ speed: 'read' });
-    expect(problems).toEqual(['The template: "players" holds 2 settings that are not edit, read or hidden; they are ignored.']);
-    expect(templateToJson(template).players).toEqual({ speed: 'read', actions: 'add-own', ac: 3 });
+  it('keeps a setting it does not know as written, reads one that is no text as hidden, and writes the file\'s settings back until they are edited', () => {
+    const { template, problems } = read(withPlayers({ speed: 'read', actions: 'private', ac: 3 }));
+    expect(template.players).toEqual({ speed: 'read', actions: 'private', ac: 'hidden' });
+    expect(problems).toEqual(['The template: "players" holds 1 settings that are not edit, read or hidden; they read as hidden.']);
+    expect(templateToJson(template).players).toEqual({ ac: 3, actions: 'private', speed: 'read' });
     expect(templateToJson({ ...template, players: { speed: 'hidden' } }).players).toEqual({ speed: 'hidden' });
+    const known = read(withPlayers({ actions: 'private' }));
+    expect(known.problems).toEqual([]);
+    expect(serializeTemplate(read(serializeTemplate(known.template)).template)).toContain('"actions": "private"');
   });
 
   it('reads settings that are no object as none, and keeps them', () => {

@@ -42,6 +42,12 @@ describe('what a player may do with a field of their own statblock', () => {
     expect(playerAccess(set, 'secret')).toBe('hidden');
   });
 
+  it('reads a setting this Atlas does not know as hidden', () => {
+    expect(playerAccess(template({ notes: 'private' }), 'notes')).toBe('hidden');
+    expect(playerAccess(template({ spells: 'private' }), 'spells')).toBe('hidden');
+    expect(playerAccess(template({ name: 'private' }), 'name')).toBe('read');
+  });
+
   it('keeps a setting across a rename, read by the new key and the old one', () => {
     const renamed = renameFieldKey(template({ notes: 'hidden' }), 'notes', 'gm_notes');
     expect(renamed.players).toEqual({ gm_notes: 'hidden' });
@@ -53,6 +59,27 @@ describe('what a player may do with a field of their own statblock', () => {
 });
 
 describe('what a player may do with what a block shows', () => {
+  it('hides a block whose text reads a hidden field anywhere, but not for its condition', () => {
+    const set = template({ notes: 'hidden' });
+    const reading: TemplateBlock[] = [
+      { id: 'p1', type: 'stat', field: 'speed', look: 'run-in', pattern: '{speed} ({notes})' },
+      { id: 'p2', type: 'title', field: 'name', level: 2, pattern: '{name}[ {notes}]' },
+      { id: 'p3', type: 'line', fields: ['size'], pattern: '{size} {=notes * 2}' },
+      { id: 'p4', type: 'stat', field: 'speed', look: 'run-in', whenEmpty: 'fallback', fallback: '{notes}' },
+      { id: 'p5', type: 'stat', field: 'hp', look: 'run-in', rollFrom: 'notes' },
+      { id: 'p6', type: 'scores', field: 'stats', orientation: 'row', columns: [{ label: 'Mod', formula: 'value + notes' }] },
+      { id: 'p7', type: 'scores', field: 'stats', orientation: 'row', columns: [{ label: 'Save', field: 'notes' }] },
+      { id: 'p8', type: 'entries', field: 'actions', introField: 'notes' },
+      { id: 'p9', type: 'tags', field: 'languages', look: 'comma', whenEmpty: 'fallback', fallback: '{secret}' },
+      { id: 'pa', type: 'metric', fields: ['ac'], whenEmpty: 'fallback', fallback: '{notes}' },
+      { ...tabs('actions', 'bonus'), blocks: [{ id: 'tab00000', type: 'section', heading: 'A', blocks: [{ id: 'lst00000', type: 'entries', field: 'actions', introField: 'notes' }] }] },
+    ];
+    for (const block of reading) expect(blockAccess(set, block), block.id).toBe('hidden');
+    expect(blockAccess(set, { id: 'c1', type: 'stat', field: 'speed', look: 'run-in', showWhen: { field: 'notes', is: 'present' } })).toBe('edit');
+    expect(blockAccess(template(), reading[0]!)).toBe('edit');
+  });
+
+
   it('sets an Abilities component for all its lists at once, the strictest deciding', () => {
     expect(blockAccess(template(), tabs('actions', 'bonus'))).toBe('edit');
     expect(blockAccess(template({ bonus: 'read' }), tabs('actions', 'bonus'))).toBe('read');

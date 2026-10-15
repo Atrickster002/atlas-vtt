@@ -34,9 +34,10 @@ export interface StatblockTemplate {
   layout: TemplateLayout;
   /**
    * What a player may do with a field of their own character's statblock, by the field's key, where it is not
-   * what a field of its kind lets them do by default. Holds only those exceptions.
+   * what a field of its kind lets them do by default. Holds only those exceptions. A setting that is no
+   * `PlayerAccess` (one of a newer Atlas) is kept as written and counts as `hidden`.
    */
-  players?: Record<FieldKey, PlayerAccess>;
+  players?: Record<FieldKey, PlayerAccess | (string & NonNullable<unknown>)>;
   /** Tables patterns read with `{cr|lookup:xp}`. */
   lookups?: Record<string, Record<string, string>>;
   /** Values the template editor previews with when no statblock is picked. Never creature content in built-ins. */
@@ -108,6 +109,10 @@ export interface HeaderTrack {
 export type PlayerAccess = 'edit' | 'read' | 'hidden';
 
 export const PLAYER_ACCESS: readonly PlayerAccess[] = ['edit', 'read', 'hidden'];
+
+export function isPlayerAccess(value: unknown): value is PlayerAccess {
+  return PLAYER_ACCESS.some((access) => access === value);
+}
 
 export interface TemplateField {
   key: FieldKey;

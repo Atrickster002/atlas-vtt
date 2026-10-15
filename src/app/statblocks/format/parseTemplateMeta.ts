@@ -16,6 +16,8 @@ type ImportedFrom = NonNullable<StatblockTemplate['importedFrom']>;
 type Lookups = NonNullable<StatblockTemplate['lookups']>;
 type Players = NonNullable<StatblockTemplate['players']>;
 
+const HIDDEN: PlayerAccess = 'hidden';
+
 const LICENCE_SET: Record<TemplateLicence, true> = {
   'CC-BY-4.0': true, 'CC-BY-3.0': true, 'CC-BY-SA-4.0': true, ORC: true, 'DS-Creator': true, 'RTG-Homebrew': true,
   'Paizo-CUP': true,
@@ -118,11 +120,10 @@ export function readLookups(r: ObjectReader<keyof StatblockTemplate>): Partial<P
   return { lookups };
 }
 
-const asPlayerAccess = asOneOf(PLAYER_ACCESS);
-
 /**
- * What players may do with each field. A setting this Atlas does not know (of a newer one) reads as
- * unset, so the field gets its kind's default, and the file's entries are then kept for writing back.
+ * What players may do with each field. A setting is kept as written, so one of a newer Atlas
+ * survives a save and reads as hidden (`isPlayerAccess` tells the ones this Atlas knows). A value
+ * that is no text reads as hidden too, and the file's settings are then kept for writing back.
  */
 export function readPlayers(r: ObjectReader<keyof StatblockTemplate>): Partial<Pick<StatblockTemplate, 'players'>> {
   const raw = r.rawValue('players');
@@ -131,13 +132,17 @@ export function readPlayers(r: ObjectReader<keyof StatblockTemplate>): Partial<P
     r.keep('players', raw, undefined, `is ${describeValue(raw)}, not an object of field keys; it is ignored`);
     return {};
   }
-  const entries: [string, PlayerAccess][] = [];
+  const entries: [string, string][] = [];
+  let unread = 0;
   for (const [key, value] of Object.entries(raw)) {
-    const access = key === '' ? undefined : asPlayerAccess(value);
-    if (access !== undefined) entries.push([key, access]);
+    if (key === '') unread += 1;
+    else if (typeof value === 'string') entries.push([key, value]);
+    else {
+      unread += 1;
+      entries.push([key, HIDDEN]);
+    }
   }
   const players: Players = Object.fromEntries(entries);
-  const dropped = Object.keys(raw).length - entries.length;
-  if (dropped > 0) r.keep('players', raw, players, `holds ${dropped} settings that are not ${choices(PLAYER_ACCESS)}; they are ignored`);
+  if (unread > 0) r.keep('players', raw, players, `holds ${unread} settings that are not ${choices(PLAYER_ACCESS)}; they read as hidden`);
   return { players };
 }
