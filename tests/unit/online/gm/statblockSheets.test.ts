@@ -69,4 +69,23 @@ describe('the statblocks of the characters\' notes', () => {
     await settled();
     expect(held.read(PATH, SPEED)?.value).toBe('45 ft.');
   });
+  it('checks no edit against a note changed from outside until it is read again, but takes its own write coming back as no such change', async () => {
+    const { sheets: held } = sheets();
+    expect(held.checkable(PATH)).toBe(false);
+    held.drawn(PATH, [], undefined);
+    await settled();
+    expect(held.checkable(PATH)).toBe(true);
+    held.forget(PATH);
+    expect(held.checkable(PATH)).toBe(false);
+    held.drawn(PATH, [], undefined);
+    expect(held.checkable(PATH)).toBe(false);
+    await settled();
+    expect(held.checkable(PATH)).toBe(true);
+
+    held.hold(PATH, [{ key: 'speed', cleared: [], value: '40 ft.' }]);
+    held.forget(PATH);
+    expect(held.checkable(PATH)).toBe(true);
+    held.forget(null);
+    expect(held.checkable(PATH)).toBe(false);
+  });
 });

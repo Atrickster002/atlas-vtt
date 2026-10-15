@@ -72,7 +72,8 @@ export class StatblockShare {
   /** A player's edit of their own character's statblock: false when it is refused at once. */
   write(from: string, character: PlayedCharacter, message: BookFieldMessage | BookAbilityMessage): boolean {
     const path = character.statblockPath;
-    if (path === null) return false;
+    // While the note may have changed (a template restricting a field) it is read again first: nothing is checked against the old one.
+    if (path === null || !this.sheets.checkable(path)) return false;
     const sent = this.sentTo.get(from);
     // What the player was sent counts only while it is of this note (the GM may have linked another since).
     const inputs: EditInputs = { resolved: this.sheets.resolved(path), sent: sent?.path === path ? sent.drawn.statblock : null, read: (field) => this.sheets.read(path, field) };

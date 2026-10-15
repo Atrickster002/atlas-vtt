@@ -122,6 +122,48 @@ describe('a player changing their own character\'s statblock at a running table'
     online.stop();
   });
 
+  it('takes two quick edits while the note reads the first back, the cache keeping up', async () => {
+    const { online, from } = await table();
+    from(ANA, { t: 'book-field', key: 'speed', base: sheetBase('30 ft.'), value: '40 ft.' });
+    from(ANA, { t: 'book-field', key: 'speed', base: sheetBase('40 ft.'), value: '50 ft.' });
+    await advance(BOOK_POLL_MS);
+    expect(notes.writes).toHaveLength(2);
+    expect(propertiesOf(notes.text(PATH))?.speed).toBe('50 ft.');
+    online.stop();
+  });
+
+  it('refuses an edit while the note is read again after a change from outside, and checks the next against what was read', async () => {
+    const { online, socket, from } = await table();
+    const edit = (value: string): void => from(ANA, { t: 'book-field', key: 'speed', base: sheetBase('30 ft.'), value });
+    // The GM hides Speed from players; the edit that arrives before the note is read again is refused.
+    let since = delivered(socket).length;
+    notes.put(PATH, { ...TEMPLATE, players: { speed: 'hidden' } }, NOTE);
+    edit('40 ft.');
+    await advance(BOOK_POLL_MS);
+    expect(notes.writes).toEqual([]);
+    expect(kinds(delivered(socket).slice(since), ANA)[0]).toBe('book');
+    // Read: the template still hides it.
+    await advance(REFUSAL_BOOK_MS);
+    edit('40 ft.');
+    await advance(REFUSAL_BOOK_MS);
+    expect(notes.writes).toEqual([]);
+
+    // Every note may read otherwise (a template saved): refused until read, taken once the template reads as before.
+    notes.put(PATH, TEMPLATE, NOTE);
+    await advance(REFUSAL_BOOK_MS);
+    since = delivered(socket).length;
+    notes.templatesChanged();
+    edit('40 ft.');
+    await advance(BOOK_POLL_MS);
+    expect(notes.writes).toEqual([]);
+    expect(kinds(delivered(socket).slice(since), ANA)[0]).toBe('book');
+    await advance(REFUSAL_BOOK_MS);
+    edit('45 ft.');
+    await advance(BOOK_POLL_MS);
+    expect(propertiesOf(notes.text(PATH))?.speed).toBe('45 ft.');
+    online.stop();
+  });
+
   it('answers an edit that is refused with the whole book, then the statblock as the note holds it', async () => {
     const { online, socket, from } = await table();
     let since = delivered(socket).length;

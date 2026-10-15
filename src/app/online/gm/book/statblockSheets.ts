@@ -37,6 +37,9 @@ interface Entry {
   resolved: ResolvedStatblock | null | undefined;
   reading: boolean;
   stale: boolean;
+  /** How many changes from outside this GM side's own writes were heard, and how many of them a finished read has taken in. */
+  doubted: number;
+  trusted: number;
   readonly written: Map<string, Held>;
   /** The note as last read with what was written since: what is drawn and checked. */
   source: ResolvedStatblock | null | undefined;
@@ -134,9 +137,25 @@ export class StatblockSheets {
     entry.source = undefined;
   }
 
-  /** A note may read otherwise (every note for null): it is read again when next asked for. */
+  /**
+   * A note may read otherwise (every note for null): it is read again when next asked for. Until
+   * that read is done no edit is checked against it (`checkable`), unless this note alone changed
+   * while values this GM side wrote into it are not read back yet: that is taken as the write
+   * coming back, so a player's quick second edit still lands. A change of every note (a template)
+   * is never taken so.
+   */
   forget(path: string | null): void {
-    for (const [held, entry] of this.entries) if (path === null || held === path) entry.stale = true;
+    for (const [held, entry] of this.entries) {
+      if (path !== null && held !== path) continue;
+      entry.stale = true;
+      if (path === null || entry.written.size === 0) entry.doubted += 1;
+    }
+  }
+
+  /** Whether an edit of the note may be checked now: it was read, and no change from outside came since that a finished read has not taken in. */
+  checkable(path: string): boolean {
+    const entry = this.entries.get(path);
+    return entry !== undefined && entry.resolved !== undefined && entry.trusted === entry.doubted;
   }
 
   /** Notes no character names any more are dropped. */
@@ -147,7 +166,7 @@ export class StatblockSheets {
   private entry(path: string): Entry {
     let entry = this.entries.get(path);
     if (entry === undefined) {
-      entry = { resolved: undefined, reading: false, stale: false, written: new Map(), source: undefined, asked: null, drawn: undefined };
+      entry = { resolved: undefined, reading: false, stale: false, doubted: 0, trusted: 0, written: new Map(), source: undefined, asked: null, drawn: undefined };
       this.entries.set(path, entry);
     }
     this.readIfStale(path, entry);
@@ -158,6 +177,7 @@ export class StatblockSheets {
     if (entry.reading || (!entry.stale && entry.resolved !== undefined)) return;
     entry.reading = true;
     entry.stale = false;
+    const doubted = entry.doubted;
     const read = this.ports.read(path).catch((error: unknown): null => {
       console.error('[Atlas] Reading a player\'s statblock failed:', error);
       return null;
@@ -166,6 +186,7 @@ export class StatblockSheets {
       entry.reading = false;
       if (this.entries.get(path) !== entry) return;
       entry.resolved = resolved;
+      entry.trusted = doubted;
       entry.source = undefined;
       this.readBack(entry);
       this.ports.changed();
