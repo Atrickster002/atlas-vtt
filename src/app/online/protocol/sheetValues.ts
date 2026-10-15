@@ -52,6 +52,9 @@ export const isSheetKey = (value: unknown): value is string => typeof value === 
 /** A key a field is stored under: 1 to `MAX_FIELD_KEY` characters, none a control character. */
 export const isFieldKey = (value: unknown): value is string => typeof value === 'string' && value.length > 0 && value.length <= MAX_FIELD_KEY && !CONTROL.test(value);
 
+/** Keys a plain object answers through its prototype: a value naming one is refused, so no reader takes an inherited property for the value's own. */
+const OBJECT_KEYS: ReadonlySet<string> = new Set(['__proto__', 'constructor', 'prototype']);
+
 /** A stored value as the page or the GM reads it, or undefined when it is malformed or larger than a sheet holds. */
 export function parseSheetRaw(value: unknown, depth = 0): SheetRaw | undefined {
   if (value === null || typeof value === 'boolean') return value;
@@ -68,7 +71,7 @@ export function parseSheetRaw(value: unknown, depth = 0): SheetRaw | undefined {
   if (entries.length > MAX_SHEET_KEYS) return undefined;
   const parsed: Record<string, SheetRaw> = {};
   for (const [key, item] of entries) {
-    const raw = isFieldKey(key) ? parseSheetRaw(item, depth + 1) : undefined;
+    const raw = isFieldKey(key) && !OBJECT_KEYS.has(key) ? parseSheetRaw(item, depth + 1) : undefined;
     if (raw === undefined) return undefined;
     parsed[key] = raw;
   }

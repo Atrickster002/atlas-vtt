@@ -1,6 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
 import {
+  parseSheetRaw,
   fitsPlayerFrame, MAX_ABILITIES, MAX_ABILITY_COMPONENTS, MAX_ABILITY_PARTS, MAX_ABILITY_TABS, MAX_FIELD_KEY, MAX_FIELD_TEXT, MAX_SHEET_CHARS, MAX_SHEET_DEPTH,
   MAX_SHEET_KEYS, MAX_SHEET_LIST, MAX_SHEET_NODES, MAX_SHEET_OPTIONS, MAX_SHEET_TEXT, MAX_TABLE_COLUMNS, MAX_TABLE_ROWS, MAX_TOKEN_VALUE, parseBookMessage,
   parseBookStatblock, parseGmMessage, parsePlayerBookMessage, parsePlayerMessage, sheetBase, sheetItemKeys,
@@ -306,5 +307,14 @@ describe('the base of a value', () => {
   it('reads the same whatever order a map\'s keys came in', () => {
     expect(sheetBase({ a: 1, b: { c: 2, d: 3 } })).toBe(sheetBase({ b: { d: 3, c: 2 }, a: 1 }));
     expect(sheetBase([1, 2])).not.toBe(sheetBase([2, 1]));
+  });
+});
+
+describe('a stored value naming an object key', () => {
+  it('is refused, so no reader takes an inherited property for its own', () => {
+    for (const key of ['__proto__', 'constructor', 'prototype']) {
+      expect(parseSheetRaw(JSON.parse(`{"${key}": {"x": 1}, "y": 2}`))).toBeUndefined();
+    }
+    expect(parseSheetRaw({ proto: 1 })).toEqual({ proto: 1 });
   });
 });
