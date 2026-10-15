@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence } from 'framer-motion';
 import { isGridTile, kindName, selectableFor } from '../../model/templateGrid';
 import { headerPartOf, templateBlock } from '../../model/templateHeader';
@@ -13,6 +13,7 @@ import { useSurfaceMenu } from '../interaction/SurfaceMenuProvider';
 import { targetAt, useSurfaceHover } from '../interaction/useSurfaceHover';
 import { clipOf } from './blockClipboard';
 import { blockFrame } from './editorChrome';
+import { TemplateEditorContext } from './editorContext';
 import { boundFieldOf } from './inspector/blockEdits';
 import { blockMenu } from './menus/blockMenu';
 import { emptyCardMenu, newerTemplateMenu } from './menus/otherMenus';
@@ -68,15 +69,16 @@ export function TeSurfaceChrome(props: TeSurfaceChromeProps): React.JSX.Element 
   const editable = !snapshot.readOnly;
   const menu = useSurfaceMenu();
   const drag = useBlockHandleDrag(stage, editable);
-  const latest = useRef({ snapshot, state, target, onOptions });
-  latest.current = { snapshot, state, target, onOptions };
+  const playersRow = useContext(TemplateEditorContext)?.playersRow ?? false;
+  const latest = useRef({ snapshot, state, target, onOptions, playersRow });
+  latest.current = { snapshot, state, target, onOptions, playersRow };
   useSurfaceHover(stageRef, store, { items: false, enabled: true, ignore: '.atlas-te-chrome' });
 
   const copy = useCallback((text: string): void => { void stage.win.navigator.clipboard?.writeText(text); }, [stage]);
 
   /** The tile's menu acting on the selection that holds it, else on the tile alone, which it selects first (§4.1). */
   const menuOf = useCallback((blockId: string): SurfaceAction[] => {
-    const { snapshot: now, state: editor, target: keys } = latest.current;
+    const { snapshot: now, state: editor, target: keys, playersRow: withPlayers } = latest.current;
     if (now.readOnlyReason === 'newer') return newerTemplateMenu();
     const selection: BlockSelection = editor.selection.includes(blockId) ? editor.selection : [blockId];
     if (selection !== editor.selection) editor.select(selection, false);
@@ -85,7 +87,7 @@ export function TeSurfaceChrome(props: TeSurfaceChromeProps): React.JSX.Element 
       template: now.template, selection, blockId, editable: !now.readOnly, canPaste: clipOf(keys.clipOwner) !== null,
       run: (command) => runBlockCommand(acting, command),
       openInsert: (place) => editor.openInsert(place),
-      openOptions: optionsKindOf(now.template, blockId) ? () => latest.current.onOptions() : undefined,
+      openOptions: optionsKindOf(now.template, blockId, withPlayers) ? () => latest.current.onOptions() : undefined,
       parts: {
         add: () => editor.settle(addPart(keys.session, blockId), true),
         rename: (index) => editor.editLabel(blockId, index),
@@ -155,7 +157,7 @@ export function TeSurfaceChrome(props: TeSurfaceChromeProps): React.JSX.Element 
   const single = block && !part && state.selection.length === 1 ? block : undefined;
   const field = single ? boundFieldOf(snapshot.template, single) : undefined;
   const kind = single ? valueKindOf(single, field) : null;
-  const hasOptions = single ? optionsKindOf(snapshot.template, single.id) !== null : false;
+  const hasOptions = single ? optionsKindOf(snapshot.template, single.id, playersRow) !== null : false;
   const parts = single ? tilePartsOf(snapshot.template, single.id) : null;
   // Closing by a key or the toolbar gives focus back to the tile; a press elsewhere takes it where it lands.
   const closeOptions = (returnFocus: boolean): void => {

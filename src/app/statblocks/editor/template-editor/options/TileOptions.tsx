@@ -15,6 +15,7 @@ import type { ChromeStyle } from '../LabelEditor';
 import { readOnlyMessage } from '../sessionEdit';
 import { AbilitiesOptions } from './AbilitiesOptions';
 import { optionsKindOf } from './optionsKind';
+import { PlayersSetting } from './PlayersSetting';
 import { placeOptions, type OptionsPlacement, type OptionsRoom } from './optionsPlacement';
 import { TableOptions } from './TableOptions';
 import { ValueOptions } from './ValueOptions';
@@ -68,12 +69,13 @@ function focusTarget(root: HTMLElement, focusKey: string | undefined): HTMLEleme
  * A tile's Options: beside the card at the tile's height, where they show
  * whole (`optionsPlacement`), holding only what the tile's kind has: the kind
  * of value and choices of a Value, the parts and tabs of an Abilities list,
- * the columns of a Table, the values of the line under the name. Their width
+ * the columns of a Table, the values of the line under the name, and, where
+ * switched on, what players may do with the tile. Their width
  * is fixed; they scroll only where they are taller than the editor. Escape or
  * a press outside closes them; every change is one undo step as it is made.
  */
 export function TileOptions({ layer, stage, blockId, revision, focusKey, onClose }: TileOptionsProps): React.JSX.Element | null {
-  const { session, snapshot } = useTemplateEditor();
+  const { session, snapshot, playersRow = false } = useTemplateEditor();
   const ref = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLElement>(null);
@@ -83,7 +85,7 @@ export function TileOptions({ layer, stage, blockId, revision, focusKey, onClose
   const variants = useAnchoredPopoverVariants();
   const { template, readOnly } = snapshot;
   const block = findBlock(template.layout.blocks, blockId)?.block;
-  const kind = optionsKindOf(template, blockId);
+  const kind = optionsKindOf(template, blockId, playersRow);
 
   // Placed before paint, and again when its content, the editor or the card's scroll changes.
   useLayoutEffect(() => {
@@ -176,6 +178,7 @@ export function TileOptions({ layer, stage, blockId, revision, focusKey, onClose
           {kind === 'abilities' && <AbilitiesOptions {...props} />}
           {kind === 'table' && <TableOptions {...props} />}
           {kind === 'line' && block.type === 'line' && <LineFields {...props} block={block} template={template} parent={null} />}
+          {playersRow && kind !== 'line' && <PlayersSetting {...props} />}
         </section>
       </motion.div>
     </div>,

@@ -1,6 +1,7 @@
 import { abilityFieldKeys } from '../../../statblocks/model/abilityParts';
 import { fieldByKey } from '../../../statblocks/model/fieldKeys';
 import { keysShownBy } from '../../../statblocks/model/fieldOps';
+import { defaultPlayerAccess } from '../../../statblocks/model/playerSettings';
 import { displayNameKey, headerKey } from '../../../statblocks/model/templateHeader';
 import { flattenReadingOrder } from '../../../statblocks/model/treeQueries';
 import { isContainerBlock, isPlayerAccess, type FieldKey, type PlayerAccess, type StatblockTemplate, type TemplateBlock, type TemplateField } from '../../../statblocks/model/templateTypes';
@@ -53,7 +54,7 @@ export function playerAccess(template: StatblockTemplate, key: FieldKey): Player
   if (isFixedRead(template, field)) return 'read';
   const stored = storedAccess(template, field);
   if (field.type === 'spells') return stored === 'hidden' ? 'hidden' : 'read';
-  return stored ?? 'edit';
+  return stored ?? defaultPlayerAccess(field);
 }
 
 /**
