@@ -133,3 +133,40 @@ export function spendText(budget: SheetBudget, text: SheetText | string): boolea
   budget.chars += typeof text === 'string' ? text.length : text.opening.length;
   return budget.chars <= MAX_SHEET_CHARS;
 }
+
+/** A value written with its map keys in order, so equal values read the same whatever order YAML gave their keys. */
+function canonical(value: SheetRaw | undefined): string {
+  if (value === undefined) return 'u';
+  if (value === null || typeof value !== 'object') return JSON.stringify(value);
+  if (Array.isArray(value)) return `[${value.map(canonical).join(',')}]`;
+  const record = value as { readonly [key: string]: SheetRaw };
+  return `{${Object.keys(record).sort().map((key) => `${JSON.stringify(key)}:${canonical(record[key])}`).join(',')}}`;
+}
+
+/** FNV-1a over the text, in base 36. */
+function fnv(text: string): string {
+  let h = 0x811c9dc5;
+  for (let index = 0; index < text.length; index++) {
+    h ^= text.charCodeAt(index);
+    h = Math.imul(h, 0x01000193);
+  }
+  return (h >>> 0).toString(36);
+}
+
+/**
+ * One key per item of a stored list, in its order: the hash of the item's content and how many equal
+ * items came before it. The same keys the GM's Atlas gives a list's items, so a page that changed a
+ * list can name its items as the GM will.
+ */
+export function sheetItemKeys(list: readonly (SheetRaw | undefined)[]): string[] {
+  const seen = new Map<string, number>();
+  return list.map((item) => {
+    const content = fnv(canonical(item));
+    const occurrence = seen.get(content) ?? 0;
+    seen.set(content, occurrence + 1);
+    return `${content}~${occurrence}`;
+  });
+}
+
+/** The base that names a stored value (undefined: the note holds none). */
+export const sheetBase = (value: SheetRaw | undefined): string => sheetItemKeys([value])[0] ?? 'u~0';
