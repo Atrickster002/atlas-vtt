@@ -1,10 +1,14 @@
+import { isExpressionError } from '../../../statblocks/expressions/errors';
+import { parsePatternCached } from '../../../statblocks/expressions/patternParse';
 import { abilityFieldKeys } from '../../../statblocks/model/abilityParts';
 import { fieldByKey } from '../../../statblocks/model/fieldKeys';
 import { keysShownBy } from '../../../statblocks/model/fieldOps';
 import { defaultPlayerAccess } from '../../../statblocks/model/playerSettings';
 import { displayNameKey, headerKey } from '../../../statblocks/model/templateHeader';
 import { flattenReadingOrder } from '../../../statblocks/model/treeQueries';
-import { isContainerBlock, isPlayerAccess, type FieldKey, type PlayerAccess, type StatblockTemplate, type TemplateBlock, type TemplateField } from '../../../statblocks/model/templateTypes';
+import {
+  isContainerBlock, isPlayerAccess, type FieldKey, type LineBlock, type PlayerAccess, type StatBlock, type StatblockTemplate, type TemplateBlock, type TemplateField, type TitleBlock,
+} from '../../../statblocks/model/templateTypes';
 
 /** How much each setting lets a player do; the stricter of two wins where one block shows several fields. */
 const RANK: Readonly<Record<PlayerAccess, number>> = { edit: 2, read: 1, hidden: 0 };
@@ -67,12 +71,30 @@ export function readsHiddenField(template: StatblockTemplate, block: TemplateBlo
   return keysShownBy(block).some((key) => playerAccess(template, key) === 'hidden');
 }
 
+/** Whether a pattern writes one field as it holds it and nothing else (`{hp}`): no text, filter, lookup, formula or other field. */
+function writesOnly(pattern: string, key: FieldKey): boolean {
+  const ast = parsePatternCached(pattern);
+  if (isExpressionError(ast) || ast.nodes.length !== 1) return false;
+  const [node] = ast.nodes;
+  return node?.kind === 'refs' && node.filters.length === 0 && node.refs.length === 1 && node.refs[0] === key;
+}
+
+/**
+ * Whether a Title, Line or Stat shows one field's own value, which the player may then change: a
+ * Line of several fields, or a pattern that works its text out (a lookup, a formula, text around
+ * the value), shows something else, and offering the field would put its raw value in its place.
+ */
+function showsOwnValue(block: TitleBlock | LineBlock | StatBlock): boolean {
+  const key = block.type === 'line' ? (block.fields.length === 1 ? block.fields[0] : undefined) : block.field;
+  return key !== undefined && (block.pattern === undefined || writesOnly(block.pattern, key));
+}
+
 /**
  * What a player may do with what a block shows. A block whose text reads a hidden field
  * (`readsHiddenField`) is hidden whole. An Abilities component (a list, or a list split into tabs)
  * is set for all its lists at once, so the strictest of them decides; a Track bound to a token
- * resource is only read here, since the player changes it as that resource; a Line that writes
- * several values or a pattern is read as worked out. A Metric shows wherever one of its numbers
+ * resource is only read here, since the player changes it as that resource; a Title, Line or Stat
+ * that shows anything but one field's own value (`showsOwnValue`) is read as worked out. A Metric shows wherever one of its numbers
  * does, each number set on its own (and a hidden one left out), unless its fallback reads a hidden
  * field. A container is read: what it holds is decided block by block, and a Section's heading
  * field is left out where it is hidden. Values a block works out by itself (a fallback, a Table's
@@ -92,9 +114,10 @@ export function blockAccess(template: StatblockTemplate, block: TemplateBlock): 
   }
   if (readsHiddenField(template, block)) return 'hidden';
   switch (block.type) {
-    case 'line': {
-      const access = block.fields.map((key) => playerAccess(template, key)).reduce(stricter, 'edit');
-      return block.fields.length === 1 && block.pattern === undefined ? access : stricter(access, 'read');
+    case 'title': case 'line': case 'stat': {
+      const keys = block.type === 'line' ? block.fields : [block.field];
+      const access = keys.map((key) => playerAccess(template, key)).reduce(stricter, 'edit');
+      return showsOwnValue(block) ? access : stricter(access, 'read');
     }
     case 'track': return block.resource === undefined ? playerAccess(template, block.field) : stricter(playerAccess(template, block.field), 'read');
     case 'text': return block.field === undefined ? 'read' : playerAccess(template, block.field);

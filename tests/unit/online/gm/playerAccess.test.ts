@@ -76,7 +76,18 @@ describe('what a player may do with what a block shows', () => {
     ];
     for (const block of reading) expect(blockAccess(set, block), block.id).toBe('hidden');
     expect(blockAccess(set, { id: 'c1', type: 'stat', field: 'speed', look: 'run-in', showWhen: { field: 'notes', is: 'present' } })).toBe('edit');
-    expect(blockAccess(template(), reading[0]!)).toBe('edit');
+    expect(blockAccess(template(), reading[0]!)).toBe('read');
+  });
+
+  it('lets a player change a Title, Line or Stat only where it shows one field\'s own value', () => {
+    const shown = (block: TemplateBlock): string => blockAccess(template(), block);
+    expect(shown({ id: 's1', type: 'stat', field: 'speed', look: 'run-in' })).toBe('edit');
+    expect(shown({ id: 's2', type: 'stat', field: 'speed', look: 'run-in', pattern: '{speed}' })).toBe('edit');
+    expect(shown({ id: 's3', type: 'stat', field: 'speed', look: 'run-in', pattern: '{speed|lookup:xp}' })).toBe('read');
+    expect(shown({ id: 's4', type: 'stat', field: 'speed', look: 'run-in', pattern: '{speed|signed} ({=speed + 10})' })).toBe('read');
+    expect(shown({ id: 's5', type: 'stat', field: 'speed', look: 'run-in', pattern: 'Speed {speed}' })).toBe('read');
+    expect(shown({ id: 'l1', type: 'line', fields: ['size'] })).toBe('edit');
+    expect(shown({ id: 'l2', type: 'line', fields: ['size', 'speed'] })).toBe('read');
   });
 
 

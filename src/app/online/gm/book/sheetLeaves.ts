@@ -3,7 +3,7 @@ import { valuePrompt, type BlockDisplay } from '../../../statblocks/render/block
 import { MAX_TRACK_BOXES } from '../../../statblocks/render/values/trackBoxes';
 import { metricNumberText } from '../../../statblocks/render/values/blockText';
 import { shownTable } from '../../../statblocks/render/values/shownTable';
-import type { MetricBlock, ScoresBlock, TemplateBlock, TrackBlock } from '../../../statblocks/model/templateTypes';
+import type { FieldKey, MetricBlock, ScoresBlock, TemplateBlock, TrackBlock } from '../../../statblocks/model/templateTypes';
 import { listItems } from '../../../statblocks/values/listText';
 import { numericValue } from '../../../statblocks/values/numberText';
 import { normalisePairs, pairText } from '../../../statblocks/values/pairValues';
@@ -131,6 +131,11 @@ function track(block: TrackBlock, label: string | null, current: number, max: nu
   return { k: 'track', label, look, counts: block.counts, current: Math.max(0, Math.min(current, max)), max, resource, field };
 }
 
+/** What a player may change of the field a block shows: nothing where its fallback stands in for the field's value. */
+export function shownFieldOf(build: SheetBuild, key: FieldKey, block: TemplateBlock, display: BlockDisplay): SheetField | null {
+  return display.state === 'fallback' ? null : sheetFieldOf(build, key, block);
+}
+
 /**
  * One block of the layout that shows values, as the sheet draws it (`display`: as the card shows
  * it, or the prompt the note's panel shows where it is empty and the player may fill it in). Null
@@ -140,17 +145,17 @@ export function leafNode(build: SheetBuild, block: TemplateBlock, display: Block
   switch (block.type) {
     case 'title': case 'line': {
       const key = block.type === 'title' ? block.field : block.fields[0];
-      const field = key === undefined ? null : sheetFieldOf(build, key, block);
+      const field = key === undefined ? null : shownFieldOf(build, key, block, display);
       return plainNode(build, null, display, field);
     }
-    case 'stat': return plainNode(build, labelOf(build, block), display, sheetFieldOf(build, block.field, block));
-    case 'tags': return wordsNode(build, block, display, sheetFieldOf(build, block.field, block));
-    case 'pairs': return pairsNode(build, block, display, sheetFieldOf(build, block.field, block));
+    case 'stat': return plainNode(build, labelOf(build, block), display, shownFieldOf(build, block.field, block, display));
+    case 'tags': return wordsNode(build, block, display, shownFieldOf(build, block.field, block, display));
+    case 'pairs': return pairsNode(build, block, display, shownFieldOf(build, block.field, block, display));
     case 'metric': return metricNode(build, block, display);
-    case 'scores': return tableNode(build, block, display, sheetFieldOf(build, block.field, block));
-    case 'track': return trackNode(build, block, display, sheetFieldOf(build, block.field, block));
+    case 'scores': return tableNode(build, block, display, shownFieldOf(build, block.field, block, display));
+    case 'track': return trackNode(build, block, display, shownFieldOf(build, block.field, block, display));
     case 'text': {
-      const field = block.field === undefined ? null : sheetFieldOf(build, block.field, block);
+      const field = block.field === undefined ? null : shownFieldOf(build, block.field, block, display);
       const text = display.state === 'value' ? (block.field ? valueText(build.shown.reader(block.field)) : block.text ?? '') : displayText(display);
       return { k: 'value', value: sheetValue(build, block.heading?.trim() || null, text, 'markdown', field, promptOf(display)) };
     }

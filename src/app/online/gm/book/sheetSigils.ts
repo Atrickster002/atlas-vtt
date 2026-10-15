@@ -5,8 +5,8 @@ import { isContainerBlock, type FieldKey, type StatBlock, type TemplateBlock } f
 import { valueText } from '../../../statblocks/values/valueText';
 import { clippedLine } from './bookTexts.ts';
 import { blockAccess } from './playerAccess.ts';
-import { sheetFieldOf, type SheetBuild } from './sheetFields.ts';
-import { displayText, labelOf, leafNode, plainValue, promptOf, sheetValue } from './sheetLeaves.ts';
+import type { SheetBuild } from './sheetFields.ts';
+import { displayText, labelOf, leafNode, plainValue, promptOf, sheetValue, shownFieldOf } from './sheetLeaves.ts';
 import { sheetDisplay } from './sheetNodes.ts';
 
 /** What the header gives the sheet: the name it shows, the sigils beside the portrait, and its description, which leads the sheet. */
@@ -32,7 +32,7 @@ function partSigil(build: SheetBuild, part: HeaderPart): SheetValue | null {
   if (!display) return null;
   const text = part.block.type === 'track' && display.state === 'value' ? valueText(build.shown.reader(part.key)) : displayText(display);
   const resource = part.id === 'hp' ? hitPointsResource(build, part.key) : undefined;
-  return sheetValue(build, part.label, text, 'plain', sheetFieldOf(build, part.key, part.block), promptOf(display), resource ? { resource } : {});
+  return sheetValue(build, part.label, text, 'plain', shownFieldOf(build, part.key, part.block, display), promptOf(display), resource ? { resource } : {});
 }
 
 /** The first Stat of the layout that shows the armour, where its blocks around it show too. */
@@ -52,7 +52,7 @@ function armorSigil(build: SheetBuild): { sigil: SheetValue; block: string } | n
   if (!block || blockAccess(build.template, block) === 'hidden') return null;
   const display = sheetDisplay(build, block);
   if (!display) return null;
-  return { block: block.id, sigil: plainValue(build, labelOf(build, block), display, sheetFieldOf(build, block.field, block)) };
+  return { block: block.id, sigil: plainValue(build, labelOf(build, block), display, shownFieldOf(build, block.field, block, display)) };
 }
 
 /**
