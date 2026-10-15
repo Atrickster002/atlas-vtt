@@ -5,7 +5,7 @@ import {
 import { tabLabel } from '../../../statblocks/model/blockCatalogue';
 import type { EntriesBlock, EntryShape, SectionBlock, SpellsBlock, TabsBlock } from '../../../statblocks/model/templateTypes';
 import { sectionHeading } from '../../../statblocks/render/values/sectionHeading';
-import { spellEntries, spellGroups } from '../../../statblocks/render/shared/spellGroups';
+import { spellEntries, spellGroups, type SpellLine } from '../../../statblocks/render/shared/spellGroups';
 import { keyedEntryItems } from '../../../statblocks/values/entryKeys';
 import { entryName, entryText } from '../../../statblocks/values/entryValues';
 import { toFieldValue } from '../../../statblocks/values/fieldValueOf';
@@ -105,23 +105,30 @@ export function abilityComponent(build: SheetBuild, block: TabsBlock | EntriesBl
   return { id: componentId(block.id), name: componentName(build, block, place), access, parts, tabs, ...keys };
 }
 
-/** A spell list in Fantasy Statblocks' shape, read only: per group its header line, then one tab per level line, its spells by name. */
+/** One level line of a spell list as a tab, its spells by name. */
+function levelTab(list: string, line: SpellLine): AbilityTab {
+  const names = splitListText(line.spells).flatMap((spell) => clippedLine(spell, MAX_BOOK_TITLE) ?? []);
+  const keys = sheetItemKeys(names);
+  return {
+    label: clippedLine(line.level ?? '', MAX_BOOK_TITLE),
+    list,
+    entries: names.map((spell, index): AbilityEntry => ({ key: keys[index] ?? '0~0', name: spell, text: { opening: '' }, parts: {} })),
+  };
+}
+
+/**
+ * A spell list in Fantasy Statblocks' shape, read only: one tab per level line, its spells by name.
+ * A group's header line ("casts spells using Wisdom (save DC 12)") opens its first level's tab, as
+ * the card shows it above its levels; a group without levels is a tab of its header line alone.
+ */
 export function spellsComponent(build: SheetBuild, block: SpellsBlock): AbilityComponent | null {
   const name = valueText(build.shown.reader('name')) || 'The creature';
   const groups = spellGroups(spellEntries(build.shown.reader(block.field)), `${name} knows the following spells:`, (value) => valueText(toFieldValue(value)));
-  const tabs = groups.flatMap((group): AbilityTab[] => [
-    // The group's header line ("casts spells using Wisdom (save DC 12)") stands before its levels, as on the card.
-    { label: null, list: block.field, entries: [{ key: sheetItemKeys([group.header])[0] ?? '0~0', name: '', text: build.texts.of(group.header), parts: {} }] },
-    ...group.spells.map((line): AbilityTab => {
-      const names = splitListText(line.spells).flatMap((spell) => clippedLine(spell, MAX_BOOK_TITLE) ?? []);
-      const keys = sheetItemKeys(names);
-      return {
-        label: clippedLine(line.level ?? '', MAX_BOOK_TITLE),
-        list: block.field,
-        entries: names.map((spell, index): AbilityEntry => ({ key: keys[index] ?? '0~0', name: spell, text: { opening: '' }, parts: {} })),
-      };
-    }),
-  ]).filter((tab) => tab.entries.length > 0).slice(0, MAX_ABILITY_TABS);
+  const tabs = groups.flatMap((group): AbilityTab[] => {
+    const [first, ...rest] = group.spells.map((line) => levelTab(block.field, line)).filter((tab) => tab.entries.length > 0);
+    const intro = build.texts.of(group.header);
+    return first ? [{ ...first, intro }, ...rest] : [{ label: null, list: block.field, intro, entries: [] }];
+  }).slice(0, MAX_ABILITY_TABS);
   if (tabs.length === 0 || !isFieldKey(block.field)) return null;
   const label = build.shown.fields.get(block.field)?.label;
   const heading = clippedLine(block.heading?.trim() || label || 'Spells', MAX_BOOK_TITLE) ?? 'Spells';

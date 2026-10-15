@@ -108,7 +108,7 @@ describe('a player\'s own statblock', () => {
     expect(combat?.tabs[0]?.entries[0]).toEqual({ key: entryItemKeys(ACTIONS)[0], name: 'Bite', text: { opening: 'Teeth.' }, parts: { cost: 'Action' } });
     expect(features).toMatchObject({ name: 'Features', access: 'edit', tabs: [{ label: null, list: 'traits' }] });
     expect(spells).toMatchObject({ name: 'Spells', access: 'read', spells: true });
-    expect(spells?.tabs.flatMap((tab) => tab.entries.map((entry) => entry.name || entry.text.opening))).toEqual(['Ana casts with Wits:', 'bless', 'shield']);
+    expect(spells?.tabs).toMatchObject([{ label: '1st level', intro: { opening: 'Ana casts with Wits:' }, entries: [{ name: 'bless' }, { name: 'shield' }] }]);
     expect(JSON.stringify(statblock.blocks)).not.toContain('Bite');
   });
 
