@@ -45,13 +45,15 @@ interface Entry {
   drawn: DrawnStatblock | undefined;
 }
 
-const NO_STATBLOCK: DrawnStatblock = { statblock: null, texts: [] };
+/** What a player without a statblock is sent. */
+export const NO_STATBLOCK: DrawnStatblock = { statblock: null, texts: [] };
 
-/** The note's record with the values written since it was read. */
+/** The note's record with the values written into it since it was read (writes taken, not those under way). */
 function withWritten(resolved: ResolvedStatblock, written: ReadonlyMap<string, Held>): ResolvedStatblock {
-  if (written.size === 0) return resolved;
+  const taken = [...written.values()].filter((held) => held.settledAt !== null);
+  if (taken.length === 0) return resolved;
   const fields: Record<string, unknown> = { ...resolved.fields };
-  for (const { key, cleared, value } of written.values()) {
+  for (const { key, cleared, value } of taken) {
     for (const old of cleared) delete fields[old];
     if (value === undefined) delete fields[key];
     else fields[key] = value;
@@ -62,10 +64,12 @@ function withWritten(resolved: ResolvedStatblock, written: ReadonlyMap<string, H
 /**
  * The statblocks of the characters' notes, as their players are sent them: each note read through
  * Atlas's resolver once and again only when it may read otherwise (`forget`), each drawn once for
- * the resources it is drawn with, so the books' poll costs a lookup. A note is drawn and edits are
- * checked against what it holds with the values this GM side wrote and has not seen read back
- * yet, so a player's second quick edit names what the first one wrote. A written value counts
- * until the note reads it, its write was refused, or `WRITTEN_MS` after it was taken.
+ * the resources it is drawn with, so the books' poll costs a lookup. Edits are checked against
+ * what the note holds with the values this GM side is writing or wrote and has not seen read back
+ * yet, so a player's second quick edit names what the first one wrote; a value is drawn once its
+ * write was taken, so the statblock that answers an edit shows it before the note reads it back.
+ * A written value counts until the note reads it, its write was refused, or `WRITTEN_MS` after it
+ * was taken.
  */
 export class StatblockSheets {
   private readonly entries = new Map<string, Entry>();
@@ -110,7 +114,6 @@ export class StatblockSheets {
   hold(path: string, values: readonly WrittenValue[]): void {
     const entry = this.entry(path);
     for (const value of values) entry.written.set(value.key, { ...value, settledAt: null });
-    entry.source = undefined;
   }
 
   /** The write of these values was taken. */
@@ -120,6 +123,7 @@ export class StatblockSheets {
       const held = entry?.written.get(value.key);
       if (held !== undefined && held.value === value.value) held.settledAt = this.ports.now();
     }
+    if (entry !== undefined) entry.source = undefined;
   }
 
   /** A write into the note was refused: nothing written is assumed of it any more. */

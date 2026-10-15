@@ -72,6 +72,13 @@ export class StatblockNotes {
     this.tell(path);
   }
 
+  /** The note's text changes where the cache does not see it yet (a sync tool wrote it a moment ago, or its YAML has an error the cache reads past). */
+  corrupt(path: string, text: string): void {
+    const note = this.notes.get(path);
+    if (note === undefined) throw new Error(`no note ${path}`);
+    note.text = text;
+  }
+
   /** The text of a note as written. */
   text(path: string): string {
     return this.notes.get(path)?.text ?? '';
@@ -104,6 +111,7 @@ export class StatblockNotes {
     const note = this.notes.get(path);
     if (note === undefined) return { applied: [], conflicts: patches, problem: 'The note no longer exists.' };
     const result = applyFrontmatterPatches(note.text, patches);
+    if (result.text === note.text) return { applied: result.applied, conflicts: result.conflicts, problem: null };
     note.text = result.text;
     if (this.lagging) this.unread.add(path);
     else {

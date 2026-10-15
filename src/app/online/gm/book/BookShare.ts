@@ -87,7 +87,10 @@ export class BookShare implements LootRecipientSource {
     const picture = bookPicture((hash, player) => this.assetOf(hash, player));
     this.statblocks = new StatblockShare({
       read: (path) => ports.readStatblock(path), write: (path, patches) => ports.writeStatblock(path, patches), now: () => ports.now(),
-      changed: () => this.update(), answered: (player) => this.resendStatblock(player), owe: (player) => this.owe(player),
+      // What arrives once the table stopped is dropped: nothing more goes out.
+      changed: () => this.whileRunning(() => this.update()),
+      answered: (player) => this.whileRunning(() => this.resendStatblock(player)),
+      owe: (player) => this.whileRunning(() => this.owe(player)),
     });
     this.answers = new AssetAnswers({ send: (body, to) => ports.send(body, to), now: () => ports.now(), readImage: (path) => ports.readImage(path), scaleImage: ports.scaleImage }, picture);
   }
@@ -224,7 +227,7 @@ export class BookShare implements LootRecipientSource {
 
   /** The player's statblock, which their page holds until their next book. */
   private sendStatblock(player: string, drawn: DrawnStatblock): void {
-    this.statblocks.sent(player, drawn);
+    this.statblocks.sent(player, this.characters.of(player), drawn);
     this.ports.send({ t: 'book-statblock', statblock: drawn.statblock }, player);
   }
 
@@ -250,7 +253,7 @@ export class BookShare implements LootRecipientSource {
     this.ports.send({ t: 'book', book }, player);
     // The page clears its statblock with every book: one follows it where the character has one.
     if (drawn?.statblock) this.sendStatblock(player, drawn);
-    else this.statblocks.sent(player, null);
+    else this.statblocks.sent(player, character, null);
   }
 
   /** The player is owed their whole book (a write of theirs was refused): now, or once `REFUSAL_BOOK_MS` have passed since their last. */
@@ -271,7 +274,7 @@ export class BookShare implements LootRecipientSource {
     const message = parsePlayerBookMessage(body);
     if (character === null || message === null || !this.isOnline(from)) return false;
     if (message.t === 'book-resource') return this.editResource(from, character, message);
-    if (message.t === 'book-field' || message.t === 'book-ability') return false;
+    if (message.t === 'book-field' || message.t === 'book-ability') return this.statblocks.write(from, character, message);
     const quests = new Set(this.quests.map((quest) => quest.id));
     const written = applyBookMessage(this.shelf.of(character.collection, character.key), message, this.ports.clock(), quests);
     if (written === null) return false;
@@ -302,6 +305,10 @@ export class BookShare implements LootRecipientSource {
       statblockText: (asked: string) => this.statblocks.text(asked, player),
     };
     return bookAssetOf(hash, named, (asked) => this.ports.questAsset(asked));
+  }
+
+  private whileRunning(run: () => void): void {
+    if (this.stopPoll !== null) run();
   }
 
   private isOnline(player: string): boolean {
