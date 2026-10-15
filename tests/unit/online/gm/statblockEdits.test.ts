@@ -157,6 +157,20 @@ describe('a player\'s edit of a value of their own statblock', () => {
     expect(checkFieldEdit(rows.inputs, field('speed', 1, '30 ft.', [0, 0]))).toBeNull();
   });
 
+  it('checks the whole value a cell edit makes as any other value, and takes a cell only of a field a table shows', () => {
+    const note = noteOf();
+    // Several choices stored as a list: no cell edit, so nothing outside the options gets in that way.
+    expect(checkFieldEdit(note.inputs, field('langs', 'Orcish', ['Common'], [0, 0]))).toBeNull();
+    expect(checkFieldEdit(note.inputs, field('langs', 'Elvish', ['Common'], [0, 0]))).toBeNull();
+    // A Table's cells hold numbers or text alike; a cell longer than a line is refused.
+    expect(propertiesOf(written(note, checkFieldEdit(note.inputs, field('stats', 'high', [[10, 12]], [0, 0]))))?.stats).toEqual([['high', 12]]);
+    expect(checkFieldEdit(note.inputs, field('stats', 'a\nb', [[10, 12]], [0, 0]))).toBeNull();
+    // A list a Table shows as its one row takes a cell, and stays a list of plain values.
+    expect(propertiesOf(written(note, checkFieldEdit(note.inputs, field('tags', 'quiet', ['brave', 'loud'], [0, 1]))))?.tags).toEqual(['brave', 'quiet']);
+    const listed = noteOf(NOTE.replace('tags: [brave, loud]', 'tags:\n  - [brave]'));
+    expect(checkFieldEdit(listed.inputs, field('tags', 'quiet', [['brave']], [0, 0]))).toBeNull();
+  });
+
   it('refuses every edit that fails one check, each on its own', () => {
     const note = noteOf();
     const fine = field('speed', '40 ft.', '30 ft.');

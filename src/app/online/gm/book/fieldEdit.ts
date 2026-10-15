@@ -13,6 +13,9 @@ import {
 /** The types of value a page changes; any other field is never changed from a page. */
 const EDITED = new Set<TemplateField['type']>(['text', 'markdown', 'number', 'rating', 'dice', 'choice', 'list', 'scores', 'pairs']);
 
+/** The types whose stored value a Table may show as rows of cells, and so the only ones a cell edit changes. */
+const TABLED = new Set<TemplateField['type']>(['scores', 'pairs', 'list']);
+
 const isNumber = (value: SheetRaw): value is number => typeof value === 'number';
 
 /** A choice as a player picks it: one option (or their own words where it is open), several in the options' order, or picks with numbers as one line the field reads. */
@@ -52,8 +55,10 @@ function withCell(stored: FieldValue | undefined, [row, column]: readonly [numbe
 /** The value a field holds once the edit is in (undefined: its key is deleted), or null where the edit does not fit it. */
 function newValue(field: TemplateField, stored: FieldValue | undefined, message: BookFieldMessage): { readonly value: FieldValue | undefined } | null {
   if (message.cell !== undefined) {
+    if (!TABLED.has(field.type)) return null;
     const value = withCell(stored, message.cell, message.value);
-    return value === undefined ? null : { value };
+    // The whole new value is checked as any other: a cell may not make it something the field does not hold.
+    return value === undefined || !fitsField(field, value) ? null : { value };
   }
   if (clears(message.value)) return { value: undefined };
   return fitsField(field, message.value) ? { value: message.value as FieldValue } : null;
