@@ -4,7 +4,7 @@ import type { ResolvedStatblock } from '../../../statblocks/model/resolvedTypes'
 import type { NotePatch } from '../../../statblocks/notes/patchTypes';
 import type { ScaleImage } from '../assetVariants.ts';
 import type { Timers } from '../companionTimers.ts';
-import type { KnownPlayer } from '../ownership.ts';
+import type { KnownPlayer, OwnedToken } from '../ownership.ts';
 import type { VaultImage } from '../TokenShare.ts';
 import type { BookScene } from './bookScene.ts';
 import type { QuestAsset } from './questGate.ts';
@@ -24,7 +24,8 @@ export interface BookSharePorts extends Timers {
   scene(): BookScene | null;
   /** Everyone the table knows, and who of them is connected. */
   players(): readonly KnownPlayer[];
-  ownerOf(tokenId: string): string | undefined;
+  /** The owner of a token of the shared scene (`Ownership.ownerOf`). */
+  ownerOf(tokenId: string, token: OwnedToken | undefined): string | undefined;
   readImage(path: string): Promise<VaultImage | null>;
   /** The file at a vault path as it is now, or null when there is none. */
   stat(path: string): FileStat | null;
