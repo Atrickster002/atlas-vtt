@@ -158,7 +158,7 @@ describe('a player\'s own character\'s statblock at a running table', () => {
     expect(speedOf(statblocks(delivered(socket).slice(since), ANA)[0])).toBe('30 ft.');
 
     since = delivered(socket).length;
-    ownership.give([BRANNOCH], BEN);
+    ownership.give([BRANNOCH], {}, BEN);
     await advance(BOOK_POLL_MS);
     const after = delivered(socket).slice(since);
     // Ana's book is empty and comes without a statblock (the page clears it with every book); Ben's is Brannoch's.
