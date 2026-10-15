@@ -20,6 +20,7 @@ import type { LabelPart } from './labelTargets';
 import { EditorOverlays } from './EditorOverlays';
 import { insertItems } from './insertItems';
 import { optionsKindOf } from './options/optionsKind';
+import { usePlayersRow } from './options/usePlayersRow';
 import { TemplateJsonEditor } from './json/TemplateJsonEditor';
 import { nameTakenIn, type SaveRequest } from './save/saveChoice';
 import { SaveTemplateDialog } from './save/SaveTemplateDialog';
@@ -91,6 +92,7 @@ export function TemplateEditor(props: TemplateEditorProps): React.JSX.Element {
   const [options, setOptions] = useState<{ focusKey?: string | undefined } | null>(null);
   const collectionId = useEditorCollection(app, props.collectionId);
   const collectionKeys = useCollectionFieldKeys(app, collectionId);
+  const playersRow = usePlayersRow(app);
   const library = useTemplateLibrary(app ?? null);
   const room = usePanelRoom(app, rowRef, previewRef);
   // A template just made, with no tile to select, opens with the cursor in its text.
@@ -128,12 +130,12 @@ export function TemplateEditor(props: TemplateEditorProps): React.JSX.Element {
   // Only a tile that has Options opens them: a part of the header has none.
   const openOptions = (focusKey?: string): void => {
     const [only] = state.selection;
-    if (state.selection.length === 1 && only && optionsKindOf(session.getSnapshot().template, only)) setOptions({ focusKey });
+    if (state.selection.length === 1 && only && optionsKindOf(session.getSnapshot().template, only, playersRow)) setOptions({ focusKey });
   };
   const context: TemplateEditorContextValue = {
     app, session, snapshot, selection: state.selection, select: state.select,
     insert: (item) => state.insert(item),
-    editLabel, announce: state.announce, collectionId, collectionKeys, openOptions, tableTyping,
+    editLabel, announce: state.announce, collectionId, collectionKeys, openOptions, playersRow, tableTyping,
   };
   // Focus goes back to the card: the selected tile, else the first thing on it.
   const closeJson = (): void => {
