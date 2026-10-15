@@ -72,7 +72,7 @@ describe('what a player may do with what a block shows', () => {
       { id: 'p8', type: 'entries', field: 'actions', introField: 'notes' },
       { id: 'p9', type: 'tags', field: 'languages', look: 'comma', whenEmpty: 'fallback', fallback: '{secret}' },
       { id: 'pa', type: 'metric', fields: ['ac'], whenEmpty: 'fallback', fallback: '{notes}' },
-      { ...tabs('actions', 'bonus'), blocks: [{ id: 'tab00000', type: 'section', heading: 'A', blocks: [{ id: 'lst00000', type: 'entries', field: 'actions', introField: 'notes' }] }] },
+      { id: 'tabs0002', type: 'tabs', blocks: [{ id: 'tab00000', type: 'section', heading: 'A', blocks: [{ id: 'lst00000', type: 'entries', field: 'actions', introField: 'notes' }] }] },
     ];
     for (const block of reading) expect(blockAccess(set, block), block.id).toBe('hidden');
     expect(blockAccess(set, { id: 'c1', type: 'stat', field: 'speed', look: 'run-in', showWhen: { field: 'notes', is: 'present' } })).toBe('edit');

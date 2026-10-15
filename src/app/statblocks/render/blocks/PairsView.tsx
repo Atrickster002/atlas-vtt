@@ -1,29 +1,12 @@
 import React from 'react';
 import type { PairsBlock } from '../../model/templateTypes';
-import { formatSigned, numericValue } from '../../values/numberText';
-import { normalisePairs, type Pair } from '../../values/pairValues';
+import { normalisePairs, pairText } from '../../values/pairValues';
 import { valueText } from '../../values/valueText';
 import { useSheet } from '../sheetContext';
 import { LabelledLine } from '../values/LabelledLine';
 import { StandIn, ValueText } from '../values/ValueText';
 import { ValueSlot } from '../valueSlot';
 import type { BlockViewProps } from './blockViewProps';
-
-const FIRST_LETTER = /^\p{Ll}/u;
-
-/** "dex" as a statblock writes it: "Dex". */
-function pairName(key: string): string {
-  const name = key.trim();
-  return name.replace(FIRST_LETTER, (letter) => letter.toUpperCase());
-}
-
-/** One pair: "Dex +5", the name alone where it has no value ("Stealth"), or the value alone where it has no name. */
-function pairText(pair: Pair, signed: boolean): string {
-  const number = signed ? numericValue(pair.value) : null;
-  const value = (number === null ? valueText(pair.value) : formatSigned(number)).trim();
-  const name = pairName(pair.key);
-  return [name, value].filter((part) => part !== '').join(' ');
-}
 
 /** "**Saving Throws** Dex +5, Con +3". */
 export function PairsView({ block, display }: BlockViewProps<PairsBlock>): React.JSX.Element {
