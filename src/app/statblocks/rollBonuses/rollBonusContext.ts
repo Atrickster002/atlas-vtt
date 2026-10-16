@@ -2,7 +2,7 @@ import { createContext, useContext } from 'react';
 import type { ArmableValue, ArmableValues } from './armableValues';
 import type { ArmedBonuses } from './armedBonuses';
 
-/** What a card's "Adds to rolls" switches arm, given by `StatblockSheet`. */
+/** What a card's "Add to next roll" switches arm, given by `StatblockSheet`. */
 export interface RollBonusTarget {
   /** The statblock's key in the store (`statblockBonusKey`). */
   key: string;

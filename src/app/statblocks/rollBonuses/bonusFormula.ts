@@ -1,5 +1,5 @@
 /**
- * A statblock's roll with the values armed for it ("Adds to rolls"): each
+ * A statblock's roll with the values armed for it ("Add to next roll"): each
  * added after the formula as a labelled constant (`1d20+5+2[Proficiency]`),
  * which the roll keeps apart from its other constants
  * (`DiceRollResult.namedModifiers`). The formula is checked as a whole when it

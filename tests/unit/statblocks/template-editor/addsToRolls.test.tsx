@@ -43,18 +43,18 @@ function withNumbers(): StatblockTemplate {
   };
 }
 
-describe('the Adds to rolls option', () => {
+describe('the Add to next roll option', () => {
   it('is a switch in the Options of a number, a Metric and labels with values, one step each, and off removes the key', () => {
     const session = new FakeSession(withNumbers());
     const { frame } = mountEditor(session);
     for (const id of ['stat-ac1', 'metric01', 'pairs001']) {
       fireEvent.click(frame(id));
       const steps = session.steps;
-      const toggle = within(tileOptions()).getByRole('switch', { name: 'Adds to rolls' });
+      const toggle = within(tileOptions()).getByRole('switch', { name: 'Add to next roll' });
       fireEvent.click(toggle);
       expect(blockOf(session.template, id)).toMatchObject({ addsToRolls: true });
       expect(session.steps).toBe(steps + 1);
-      fireEvent.click(within(tileOptions()).getByRole('switch', { name: 'Adds to rolls' }));
+      fireEvent.click(within(tileOptions()).getByRole('switch', { name: 'Add to next roll' }));
       expect(blockOf(session.template, id)).not.toHaveProperty('addsToRolls');
       fireEvent.keyDown(tileOptions(), { key: 'Escape' });
     }
@@ -63,7 +63,7 @@ describe('the Adds to rolls option', () => {
   it('is not offered for a value that holds no number', () => {
     const { frame } = mountEditor(new FakeSession(withNumbers()));
     fireEvent.click(frame('stat-sp1'));
-    expect(within(tileOptions()).queryByRole('switch', { name: 'Adds to rolls' })).toBeNull();
+    expect(within(tileOptions()).queryByRole('switch', { name: 'Add to next roll' })).toBeNull();
   });
 
   it('is kept when a number turns into labels with values and back', () => {
@@ -75,7 +75,7 @@ describe('the Adds to rolls option', () => {
   });
 });
 
-describe('Adds to rolls in a template file', () => {
+describe('Add to next roll in a template file', () => {
   const file = (block: Record<string, unknown>): string => JSON.stringify({
     format: 'atlas-statblock-template', version: 1, id: 'adds-to-rolls-abc123',
     fields: [{ key: 'proficiency', label: 'Proficiency', type: 'number' }],

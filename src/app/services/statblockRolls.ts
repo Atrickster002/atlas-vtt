@@ -31,7 +31,7 @@ export interface DiceRollSource {
   tokenName?: string | undefined;
   tokenImagePath?: string | undefined;
   abilityName?: string | undefined;
-  /** The statblock whose armed values ("Adds to rolls") the roll takes. Unset: none, as for rolled hit points. */
+  /** The statblock whose armed values ("Add to next roll") the roll takes. Unset: none, as for rolled hit points. */
   bonuses?: StatblockBonuses | undefined;
   /** The value whose own number is rolled (`bonusId`): armed, it is not added again, and is spent with the others. */
   rolledBonus?: string | undefined;

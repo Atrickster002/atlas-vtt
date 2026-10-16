@@ -18,7 +18,7 @@ function keepKeys(event: React.KeyboardEvent): void {
 }
 
 /**
- * "Adds to rolls": a small switch after a value that arms it for the
+ * "Add to next roll": a small switch after a value that arms it for the
  * statblock's next roll, which adds it as a term of its own and switches it
  * off again. Every view of the statblock shows the same state. A card that
  * only previews its template (the template editor) draws it as it will look,

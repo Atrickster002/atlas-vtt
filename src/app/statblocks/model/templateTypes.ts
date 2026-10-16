@@ -227,7 +227,7 @@ export interface LineBlock extends BlockBase { type: 'line'; fields: FieldKey[];
  */
 export interface Rollable { rollable?: true }
 /**
- * `addsToRolls` ("Adds to rolls"), on a Value, Metric or Labels and values: each whole number it shows gets a
+ * `addsToRolls` ("Add to next roll"), on a Value, Metric or Labels and values: each whole number it shows gets a
  * switch on the card that arms it for the statblock's next roll, which adds it as a term named by its label
  * (`+2[Proficiency]`). What is armed is view state (`statblocks/rollBonuses/`), never stored.
  */

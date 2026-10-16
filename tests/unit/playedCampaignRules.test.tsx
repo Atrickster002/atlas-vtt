@@ -85,6 +85,18 @@ describe('a collection\'s rules while a campaign with a game system is played', 
     await waitFor(() => expect(screen.getByRole('heading', { name: /dungeon/ })).toBeTruthy());
     expect(screen.getByText(NOTICE)).toBeTruthy();
   });
+  it('say on Default Widgets, above the initiative rules, that the campaign\'s apply, and open them on its Initiative tab', () => {
+    const { app, play } = world();
+    play.play('saga');
+    openSettings(app);
+    fireEvent.click(tab('Default Widgets'));
+    const notice = screen.getByText(NOTICE);
+    expect(notice.compareDocumentPosition(screen.getByText('Initiative Tracker')) & Node.DOCUMENT_POSITION_PRECEDING).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Edit campaign rules' }));
+    expect(screen.getByRole('heading', { name: 'Saga: Game System' })).toBeTruthy();
+    expect(tab('Initiative').classList.contains('atlas-active')).toBe(true);
+  });
+
   it('lose the campaign\'s dialog when the campaign stops, and do not bring it back when it is played again', () => {
     const { app, play } = world();
     play.play('saga');

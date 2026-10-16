@@ -147,6 +147,8 @@ export function CollectionSettingsModal({
     await deleteSystemPreset(app, systemPresets.service, preset.id);
   };
 
+  const playedNotice = played && <PlayedCampaignNotice campaignName={played.campaign.name} onEdit={() => setCampaignOpen(true)} />;
+
   const renderOther = (tab: SettingsTab): React.ReactNode => {
     switch (tab) {
       case 'widgets':
@@ -157,6 +159,7 @@ export function CollectionSettingsModal({
             initiative={view.initiative}
             onInitiativeChange={initiativeEdit(draft, view)}
             initiativeFieldSuggestions={initiativeFields}
+            initiativeNotice={playedNotice}
           />
         );
       case 'statblocks':
@@ -210,7 +213,7 @@ export function CollectionSettingsModal({
   if (!isOpen) return null;
 
   if (app && played && campaignOpen) {
-    return <CampaignRulesDialog app={app} campaign={played.campaign} service={played.service} initialTab={activeTab} onClose={() => setCampaignOpen(false)} />;
+    return <CampaignRulesDialog app={app} campaign={played.campaign} service={played.service} initialTab={activeTab === 'widgets' ? 'initiative' : activeTab} onClose={() => setCampaignOpen(false)} />;
   }
 
   return (
@@ -235,7 +238,7 @@ export function CollectionSettingsModal({
         fieldSuggestions={resourceFieldSuggestions(roleTemplates, statblockRecords)}
         initiativeFieldSuggestions={initiativeFields}
         renderOther={renderOther}
-        rulesNotice={played && <PlayedCampaignNotice campaignName={played.campaign.name} onEdit={() => setCampaignOpen(true)} />}
+        rulesNotice={playedNotice}
       />
     </SettingsDialog>
   );

@@ -1,5 +1,5 @@
 /**
- * Which values a GM armed for a statblock's next roll ("Adds to rolls"): view
+ * Which values a GM armed for a statblock's next roll ("Add to next roll"): view
  * state of the app, never written to the note, the map, the settings or the
  * history, and gone with a reload. One list per statblock, by its key (the
  * note's path, `statblockBonusKey`), so every view of the note (the panel

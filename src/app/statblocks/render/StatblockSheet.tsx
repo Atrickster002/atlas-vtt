@@ -57,7 +57,7 @@ export interface StatblockSheetProps {
   reveal?: string | null | undefined;
   /**
    * `preview` where the card only shows what a template looks like (the template editor, a gallery): its
-   * "Adds to rolls" switches are drawn inert. Default `live`: they arm the statblock's values.
+   * "Add to next roll" switches are drawn inert. Default `live`: they arm the statblock's values.
    */
   rollBonuses?: 'live' | 'preview' | undefined;
 }

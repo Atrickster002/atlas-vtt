@@ -65,7 +65,7 @@ interface FramedSheetProps {
   folded?: ReadonlySet<string> | undefined;
   /** A block whose tabs open (the template editor's selection). */
   reveal?: string | null | undefined;
-  /** `preview` in the template editor: the card's "Adds to rolls" switches are inert. */
+  /** `preview` in the template editor: the card's "Add to next roll" switches are inert. */
   rollBonuses?: 'live' | 'preview' | undefined;
 }
 

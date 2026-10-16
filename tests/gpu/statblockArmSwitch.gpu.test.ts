@@ -59,12 +59,12 @@ const rect = (element: Element): DOMRect => element.getBoundingClientRect();
 const switches = (root: Element): HTMLElement[] => [...root.querySelectorAll<HTMLElement>('.atlas-sb-arm .atlas-toggle__switch')];
 
 /**
- * "Adds to rolls" puts a small switch after a value. It must sit in the
+ * "Add to next roll" puts a small switch after a value. It must sit in the
  * value's line without making it taller, centred on the number, and keep the
  * pill and its thumb concentric, also where the card is drawn outside Atlas'
  * own root (the hover preview, portalled to the body).
  */
-describe('the Adds to rolls switch in the real stylesheet', () => {
+describe('the Add to next roll switch in the real stylesheet', () => {
   const style = document.createElement('style');
   style.textContent = THEME + css;
 

@@ -1,7 +1,7 @@
 @use 'sass:meta';
 @use '../../../../styles/tokens' as *;
 
-// "Adds to rolls": a value and the switch that arms it for the next roll
+// "Add to next roll": a value and the switch that arms it for the next roll
 // (`ArmSwitch`, the `xs` switch). The line keeps the value's baseline, so a
 // run-in label and its value stay on one line with the switch centred beside
 // the number. The card brings the switch's styles itself: the hover preview

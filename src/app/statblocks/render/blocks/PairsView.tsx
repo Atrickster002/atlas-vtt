@@ -18,7 +18,7 @@ interface PairListProps {
   block: PairsBlock;
   pairs: readonly Pair[];
   signed: boolean;
-  /** The values that add to rolls, where the block does ("Adds to rolls"). */
+  /** The values that add to rolls, where the block does ("Add to next roll"). */
   armable: ArmableValues | undefined;
 }
 

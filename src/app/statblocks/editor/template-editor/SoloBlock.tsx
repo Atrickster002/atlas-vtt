@@ -36,7 +36,7 @@ export interface SoloBlockProps {
 export function SoloBlock({ template, id, record = NO_VALUES, app, sourcePath, className }: SoloBlockProps): React.JSX.Element | null {
   const state = useMemo(() => sheetState({ template, record, mode: 'editing' }), [template, record]);
   const sheet = useMemo((): SheetContextValue => ({ state, app, sourcePath }), [state, app, sourcePath]);
-  // Drawn as on the card, its "Adds to rolls" switches inert.
+  // Drawn as on the card, its "Add to next roll" switches inert.
   const bonuses = useMemo((): RollBonusTarget => ({ key: id, armable: armableValues(template.layout.blocks, state), store: null }), [id, template, state]);
   const block = findBlock(template.layout.blocks, id)?.block;
   if (!block) return null;

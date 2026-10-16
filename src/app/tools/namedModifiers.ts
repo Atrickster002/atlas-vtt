@@ -1,7 +1,7 @@
 /**
  * How a roll writes what it adds to its dice: the sum of its constants
  * (`+ 3`), then each labelled one as a term of its own (`+ 2 Stealth`): the
- * values a statblock armed for its next roll ("Adds to rolls"). A labelled
+ * values a statblock armed for its next roll ("Add to next roll"). A labelled
  * constant stays part of `modifiers`, so whatever reads the sum alone (an older
  * Atlas, a saved log, the players' page) still adds up.
  */
