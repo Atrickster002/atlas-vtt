@@ -1,5 +1,6 @@
 import React from 'react';
-import { diceLinkProps, splitDiceSegments } from '../../../services/statblockDiceLinks';
+import { diceLinkProps } from '../../../services/statblockDiceLinks';
+import { splitDiceSegments } from '../../../services/statblockDiceText';
 import type { StatBlock } from '../../model/templateTypes';
 import { isDiceNotation } from '../../values/diceNotation';
 import type { BlockDisplay } from '../blockDisplay';

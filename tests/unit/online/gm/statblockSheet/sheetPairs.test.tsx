@@ -30,7 +30,7 @@ describe('a pairs value and a table on a player\'s sheet', () => {
       const node = skills(sheetOf(fields));
       expect(card).toBe('Dexterity +2, Wisdom -1');
       expect(node?.value.text.opening).toBe(card);
-      expect(node?.value.pairs).toEqual([{ label: 'Dexterity', value: '+2' }, { label: 'Wisdom', value: '-1' }]);
+      expect(node?.value.pairs).toEqual([{ label: 'Dexterity', value: '+2', roll: '+2' }, { label: 'Wisdom', value: '-1', roll: '-1' }]);
     });
   }
 

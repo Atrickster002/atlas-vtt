@@ -12,14 +12,22 @@ import { valueText } from '../../../statblocks/values/valueText';
 import { clippedLine } from './bookTexts.ts';
 import { playerAccess } from './playerAccess.ts';
 import { sheetFieldOf, type SheetBuild } from './sheetFields.ts';
+import { cellRolls, rollableBlock, sheetRoll } from './sheetRolls.ts';
 
 /** The most numbers one Metric holds on a sheet. */
 const MAX_METRIC_NUMBERS = 6;
 
 type Look = SheetValue['look'];
 
-/** A value as the sheet shows it, its label and lines cut to what a page takes. */
-export function sheetValue(build: SheetBuild, label: string | null | undefined, text: string, look: Look, field: SheetField | null, prompt: string | null, extra: Partial<Pick<SheetValue, 'words' | 'pairs' | 'resource'>> = {}): SheetValue {
+/** What a value carries besides its text: its words, pairs or resource, and whether its block rolls its number as a bonus. */
+type ValueExtra = Partial<Pick<SheetValue, 'words' | 'pairs' | 'resource'>> & { readonly rollable?: boolean };
+
+/**
+ * A value as the sheet shows it, its label and lines cut to what a page takes. A plain value
+ * carries what a click on it rolls, where the card's link rolls the whole value (`sheetRoll`).
+ */
+export function sheetValue(build: SheetBuild, label: string | null | undefined, text: string, look: Look, field: SheetField | null, prompt: string | null, { rollable = false, ...extra }: ValueExtra = {}): SheetValue {
+  const roll = look === 'plain' ? sheetRoll(text, rollable) : null;
   return {
     label: clippedLine(label, MAX_BOOK_TITLE),
     look,
@@ -27,6 +35,7 @@ export function sheetValue(build: SheetBuild, label: string | null | undefined, 
     field,
     prompt: clippedLine(prompt, MAX_BOOK_TITLE),
     ...extra,
+    ...(roll !== null && { roll }),
   };
 }
 
@@ -38,12 +47,12 @@ export function displayText(display: BlockDisplay): string {
 /** The prompt a block shows where it is empty, else null. */
 export const promptOf = (display: BlockDisplay): string | null => (display.state === 'prompt' ? display.prompt : null);
 
-/** A block's value as one plain text, with its prompt where it is empty. */
-export function plainValue(build: SheetBuild, label: string | null, display: BlockDisplay, field: SheetField | null): SheetValue {
-  return sheetValue(build, label, displayText(display), 'plain', field, promptOf(display));
+/** A block's value as one plain text, with its prompt where it is empty; `rollable` where its block rolls its number as a bonus. */
+export function plainValue(build: SheetBuild, label: string | null, display: BlockDisplay, field: SheetField | null, rollable = false): SheetValue {
+  return sheetValue(build, label, displayText(display), 'plain', field, promptOf(display), { rollable });
 }
 
-const plainNode = (build: SheetBuild, label: string | null, display: BlockDisplay, field: SheetField | null): SheetNode => ({ k: 'value', value: plainValue(build, label, display, field) });
+const plainNode = (build: SheetBuild, label: string | null, display: BlockDisplay, field: SheetField | null, rollable = false): SheetNode => ({ k: 'value', value: plainValue(build, label, display, field, rollable) });
 
 /** The label a block shows its value under: its own, else its field's, else its key. */
 export function labelOf(build: SheetBuild, block: { label?: string | undefined; field: string }): string {
@@ -71,10 +80,12 @@ function pairsNode(build: SheetBuild, block: Extract<TemplateBlock, { type: 'pai
   const found = normalisePairs(value);
   if (found.length === 0) return { k: 'value', value: sheetValue(build, label, valueText(value), 'plain', field, null) };
   const signed = block.display === 'signed';
+  const rollable = rollableBlock(block);
   const pairs = found.slice(0, MAX_SHEET_LIST).flatMap((pair): SheetPair[] => {
     const name = clippedLine(pairText({ key: pair.key, value: '' }, false), MAX_BOOK_TITLE) ?? '';
     const shown = clippedLine(pairText({ key: '', value: pair.value }, signed), MAX_BOOK_TITLE) ?? '';
-    return name === '' && shown === '' ? [] : [{ label: name, value: shown }];
+    const roll = sheetRoll(shown, rollable);
+    return name === '' && shown === '' ? [] : [{ label: name, value: shown, ...(roll !== null && { roll }) }];
   });
   return { k: 'value', value: sheetValue(build, label, found.map((pair) => pairText(pair, signed)).join(', '), 'pairs', field, null, { pairs }) };
 }
@@ -88,7 +99,7 @@ function metricNode(build: SheetBuild, block: MetricBlock, display: BlockDisplay
     const text = metricNumberText(key, build.shown).text;
     const known = build.shown.fields.get(key);
     const label = known?.label ?? key;
-    return sheetValue(build, label, text, 'plain', field, text.trim() === '' && field ? valuePrompt(known, label) : null);
+    return sheetValue(build, label, text, 'plain', field, text.trim() === '' && field ? valuePrompt(known, label) : null, { rollable: rollableBlock(block) });
   });
   return values.length > 0 ? { k: 'metric', heading, values } : null;
 }
@@ -100,17 +111,27 @@ function tableNode(build: SheetBuild, block: ScoresBlock, display: BlockDisplay,
     return text === null ? null : { k: 'value', value: sheetValue(build, labelOf(build, { field: block.field }), text, 'plain', field, promptOf(display)) };
   }
   const fits = shown.grid.rows.length <= MAX_TABLE_ROWS && shown.grid.columns.length <= MAX_TABLE_COLUMNS;
-  const cells = (rows: readonly (readonly { text: string }[])[]): (string | null)[][] => rows.slice(0, MAX_TABLE_ROWS)
-    .map((row) => row.slice(0, MAX_TABLE_COLUMNS).map((cell) => clippedLine(cell.text, MAX_BOOK_TITLE)));
+  const texts = (rows: readonly (readonly { text: string }[])[]): string[][] => rows.slice(0, MAX_TABLE_ROWS)
+    .map((row) => row.slice(0, MAX_TABLE_COLUMNS).map((cell) => cell.text));
+  const cells = (rows: readonly (readonly string[])[]): (string | null)[][] => rows.map((row) => row.map((text) => clippedLine(text, MAX_BOOK_TITLE)));
+  const rowTexts = texts(shown.cells);
+  const workedTexts = texts(shown.derived.map((row) => row.cells));
+  const rows = cells(rowTexts);
+  const worked = cells(workedTexts);
+  const rollable = rollableBlock(block);
+  const rolls = cellRolls(rowTexts, rows, rollable);
+  const workedRolls = cellRolls(workedTexts, worked, rollable);
   const labels = shown.derived.slice(0, MAX_TABLE_ROWS).map((row) => clippedLine(row.label, MAX_BOOK_TITLE) ?? '');
   return {
     // The card names a Table by its columns alone.
     k: 'table',
     label: null,
     columns: shown.grid.columns.slice(0, MAX_TABLE_COLUMNS).map((column, index) => clippedLine(column.name, MAX_BOOK_TITLE) ?? `${index + 1}`),
-    rows: cells(shown.cells),
-    worked: cells(shown.derived.map((row) => row.cells)),
+    rows,
+    worked,
     ...(labels.some((label) => label !== '') && { workedLabels: labels }),
+    ...(rolls && { rolls }),
+    ...(workedRolls && { workedRolls }),
     field: fits ? field : null,
   };
 }
@@ -148,7 +169,7 @@ export function leafNode(build: SheetBuild, block: TemplateBlock, display: Block
       const field = key === undefined ? null : shownFieldOf(build, key, block, display);
       return plainNode(build, null, display, field);
     }
-    case 'stat': return plainNode(build, labelOf(build, block), display, shownFieldOf(build, block.field, block, display));
+    case 'stat': return plainNode(build, labelOf(build, block), display, shownFieldOf(build, block.field, block, display), rollableBlock(block));
     case 'tags': return wordsNode(build, block, display, shownFieldOf(build, block.field, block, display));
     case 'pairs': return pairsNode(build, block, display, shownFieldOf(build, block.field, block, display));
     case 'metric': return metricNode(build, block, display);

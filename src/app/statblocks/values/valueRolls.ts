@@ -5,7 +5,7 @@
  * shows as a bonus, `2` as `+2`, which Atlas completes with the game's dice.
  */
 
-import { splitDiceSegments, toRollFormula } from '../../services/statblockDiceLinks';
+import { splitDiceSegments, toRollFormula } from '../../services/statblockDiceText';
 
 /** A whole number as written on a card: an optional sign (minus sign and en dash included) on at most four digits. */
 const WHOLE_NUMBER = /^([+\-−–]?)(\d{1,4})$/;
