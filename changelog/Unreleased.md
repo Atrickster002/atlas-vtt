@@ -9,3 +9,4 @@
 - Online play: players keep control of their characters when you change scenes. Giving a token to a player gives them the character it was placed from, so every token of that character is theirs on every scene.
 - Online play: a player's menu in the online panel can release the token they are shown by on its own, so their other tokens stay theirs.
 - Statblocks from TTRPG Convert CLI import as tokens with their image. Atlas now reads image paths with encoded spaces, such as `/2.%20Mechanics/token.png`.
+- The grid settings set the unit of measurement where it applies, in the played campaign's game system too, and a collection's settings say when a played campaign's rules replace them.
