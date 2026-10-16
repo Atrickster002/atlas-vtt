@@ -1,5 +1,6 @@
 import { MAX_ABILITY_COMPONENTS, MAX_ABILITY_TABS, parseComponent, type AbilityComponent } from './bookAbilities.ts';
 import { isResourceKey } from './bookCharacter.ts';
+import { MAX_FORMULA } from './dice.ts';
 import { bookLine, MAX_BOOK_TITLE } from './bookText.ts';
 import { isRecord } from './shape.ts';
 import {
@@ -16,6 +17,8 @@ export const MAX_SHEET_DEPTH = 6;
 export interface SheetPair {
   readonly label: string;
   readonly value: string;
+  /** What a click on it rolls (`SheetValue.roll`). */
+  readonly roll?: string;
 }
 
 /**
@@ -33,6 +36,11 @@ export interface SheetValue {
   readonly field: SheetField | null;
   readonly prompt: string | null;
   readonly resource?: string;
+  /**
+   * What a click on the value rolls, where the template makes it rollable: a bonus (`+2`), which the
+   * GM's Atlas completes with the game's own dice, or dice (`1d8+3`). Rolled through the table's `roll`.
+   */
+  readonly roll?: string;
 }
 
 /** The blocks of the sheet beside the character, in the template's order; abilities are never among them. */
@@ -44,7 +52,7 @@ export type SheetNode =
   | { readonly k: 'value'; readonly value: SheetValue }
   | { readonly k: 'metric'; readonly heading: string | null; readonly values: readonly SheetValue[] }
   /** `worked`: a table's worked-out rows (a modifier under each score), each labelled by `workedLabels` where the GM names them. */
-  | { readonly k: 'table'; readonly label: string | null; readonly columns: readonly string[]; readonly rows: readonly (readonly (string | null)[])[]; readonly worked: readonly (readonly (string | null)[])[]; readonly workedLabels?: readonly string[]; readonly field: SheetField | null }
+  | { readonly k: 'table'; readonly label: string | null; readonly columns: readonly string[]; readonly rows: readonly (readonly (string | null)[])[]; readonly worked: readonly (readonly (string | null)[])[]; readonly workedLabels?: readonly string[]; readonly rolls?: readonly (readonly (string | null)[])[]; readonly workedRolls?: readonly (readonly (string | null)[])[]; readonly field: SheetField | null }
   | { readonly k: 'track'; readonly label: string | null; readonly look: 'boxes' | 'gauge'; readonly counts: 'down' | 'up'; readonly current: number; readonly max: number; readonly resource: string | null; readonly field: SheetField | null }
   | { readonly k: 'divider' };
 
@@ -79,11 +87,31 @@ const isCount = (value: unknown): value is number => typeof value === 'number' &
 const optionalResource = (value: unknown): string | null | undefined => (value === null || value === undefined ? null : isResourceKey(value) ? value : undefined);
 const LOOKS: readonly unknown[] = ['plain', 'markdown', 'words', 'pairs'];
 
+/** A roll a value offers: undefined for none, null when it is malformed. */
+function parseRoll(value: unknown): string | null | undefined {
+  return value === undefined ? undefined : bookLine(value, MAX_FORMULA);
+}
+
+/** The rolls of a table's cells, shaped as its cells (null for a cell that rolls nothing); undefined for none, null when malformed. */
+function parseCellRolls(value: unknown, cells: readonly (readonly unknown[])[]): (string | null)[][] | null | undefined {
+  if (value === undefined) return undefined;
+  if (!Array.isArray(value) || value.length !== cells.length) return null;
+  const rows: (string | null)[][] = [];
+  for (const [index, row] of value.entries()) {
+    if (!Array.isArray(row) || row.length !== cells[index]?.length) return null;
+    const rolls = row.map((roll) => (roll === null ? null : parseRoll(roll) ?? undefined));
+    if (rolls.some((roll) => roll === undefined)) return null;
+    rows.push(rolls as (string | null)[]);
+  }
+  return rows;
+}
+
 function parsePair(value: unknown): SheetPair | null {
   if (!isRecord(value)) return null;
   const label = bookLine(value.label, MAX_BOOK_TITLE);
   const text = bookLine(value.value, MAX_BOOK_TITLE);
-  return label === null || text === null ? null : { label, value: text };
+  const roll = parseRoll(value.roll);
+  return label === null || text === null || roll === null ? null : { label, value: text, ...(roll !== undefined && { roll }) };
 }
 
 function parseSheetValue(value: unknown, budget: SheetBudget): SheetValue | null {
@@ -95,7 +123,8 @@ function parseSheetValue(value: unknown, budget: SheetBudget): SheetValue | null
   const field = parseSheetField(value.field);
   const prompt = optionalSheetLine(value.prompt);
   const resource = value.resource === undefined ? undefined : isResourceKey(value.resource) ? value.resource : null;
-  if (label === undefined || text === null || words === null || pairs === null || field === undefined || prompt === undefined || resource === null) return null;
+  const roll = parseRoll(value.roll);
+  if (label === undefined || text === null || words === null || pairs === null || field === undefined || prompt === undefined || resource === null || roll === null) return null;
   if (pairs !== undefined && pairs.some((pair) => pair === null)) return null;
   if (!spendText(budget, text) || !spendText(budget, [label ?? '', ...(words ?? [])].join(''))) return null;
   return {
@@ -103,6 +132,7 @@ function parseSheetValue(value: unknown, budget: SheetBudget): SheetValue | null
     ...(words !== undefined && { words }),
     ...(pairs !== undefined && { pairs: pairs as SheetPair[] }),
     ...(resource !== undefined && { resource }),
+    ...(roll !== undefined && { roll }),
   };
 }
 
@@ -183,8 +213,14 @@ function parseNode(value: unknown, depth: number, budget: SheetBudget): SheetNod
       const field = parseSheetField(value.field);
       const workedLabels = value.workedLabels === undefined ? undefined : parseWorkedLabels(value.workedLabels, worked);
       if (label === undefined || columns === null || rows === null || worked === null || field === undefined || workedLabels === null) return null;
-      if (!spendText(budget, JSON.stringify([columns, rows, worked])) || !spendText(budget, (workedLabels ?? []).join(''))) return null;
-      return { k: 'table', label, columns, rows, worked, ...(workedLabels !== undefined && { workedLabels }), field };
+      const rolls = parseCellRolls(value.rolls, rows);
+      const workedRolls = parseCellRolls(value.workedRolls, worked);
+      if (rolls === null || workedRolls === null) return null;
+      if (!spendText(budget, JSON.stringify([columns, rows, worked, rolls ?? [], workedRolls ?? []])) || !spendText(budget, (workedLabels ?? []).join(''))) return null;
+      return {
+        k: 'table', label, columns, rows, worked, ...(workedLabels !== undefined && { workedLabels }),
+        ...(rolls !== undefined && { rolls }), ...(workedRolls !== undefined && { workedRolls }), field,
+      };
     }
     case 'track': {
       const label = optionalSheetLine(value.label);

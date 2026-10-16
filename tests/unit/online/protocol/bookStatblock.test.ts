@@ -318,3 +318,27 @@ describe('a stored value naming an object key', () => {
     expect(parseSheetRaw({ proto: 1 })).toEqual({ proto: 1 });
   });
 });
+
+describe('the rolls a sheet offers', () => {
+  const sheet = (blocks: unknown[]): unknown => ({ editable: true, displayName: null, sigils: {}, blocks, abilities: [] });
+  const value = (extra: Record<string, unknown>): unknown => ({ k: 'value', value: { label: 'Agility', look: 'plain', text: { opening: '2' }, field: null, prompt: null, ...extra } });
+  const table = (extra: Record<string, unknown>): unknown => ({ k: 'table', label: null, columns: ['Str', 'Dex'], rows: [['10', '14']], worked: [['+0', '+2']], field: null, ...extra });
+
+  it('carries a value\'s, a pair\'s and a table cell\'s roll', () => {
+    const parsed = parseBookStatblock(sheet([
+      value({ roll: '+2', look: 'pairs', pairs: [{ label: 'Stealth', value: '+5', roll: '+5' }] }),
+      table({ workedRolls: [['+0', '+2']], rolls: [[null, null]] }),
+    ]));
+    expect(parsed?.blocks).toMatchObject([
+      { value: { roll: '+2', pairs: [{ roll: '+5' }] } },
+      { workedRolls: [['+0', '+2']], rolls: [[null, null]] },
+    ]);
+  });
+
+  it('refuses rolls that are no line within a formula\'s length, or not shaped as the cells', () => {
+    expect(parseBookStatblock(sheet([value({ roll: 'x'.repeat(101) })]))).toBeUndefined();
+    expect(parseBookStatblock(sheet([value({ roll: 3 })]))).toBeUndefined();
+    expect(parseBookStatblock(sheet([table({ workedRolls: [['+0']] })]))).toBeUndefined();
+    expect(parseBookStatblock(sheet([table({ rolls: [['+0', '+2'], ['+1', '+1']] })]))).toBeUndefined();
+  });
+});
