@@ -1,4 +1,4 @@
-import { isPlayerBookType, isRecord, parsePlayerBookMessage, type BookQuest, type BookResourceMessage, type PlayerBook } from '../../protocol/index.ts';
+import { isPlayerBookType, isRecord, parseBookTokenMessage, parsePlayerBookMessage, type BookQuest, type BookResourceMessage, type PlayerBook } from '../../protocol/index.ts';
 import type { LootRecipient, LootRecipientSource } from '../../../loot/lootRecipients';
 import type { LootDraw } from '../../../loot/lootRoller';
 import { ArtRefs } from '../artRefs.ts';
@@ -37,16 +37,17 @@ const UNNAMED = 'Unnamed character';
 
 /**
  * The players' books: each connected player's own pages besides the table, sent to that player
- * alone and never to all. A book is its character's (`Characters`): the sheet is read from the
- * shared scene, items, notes, pins and purse are kept on the shelf, the world map of the campaign
- * being played and its quests (the GM's quest notes, which no player writes) go to everyone at the
- * table, with a character or without; notes on a quest name it by its id. It is the table's, not a
- * scene's, so it hears players while no scene is shared. What a player writes is taken as
- * the protocol's parser cleaned it, only for a player with a character and within their rate, and is
- * not answered; a refused write is answered with the whole book (`OwedBooks`). A page that reads its
- * book in parts (`book-parts`) gets a changed world map or quests alone, any other the whole book
- * again. A player changes their own character's resources
- * through Atlas (`editResource`), and the sheet that follows tells them what was taken. A player
+ * alone and never to all. A book is its character's (`Characters`: the token the player acts
+ * with, among their own): the sheet is read from the shared scene, items, notes, pins and purse
+ * are kept on the shelf, the world map of the campaign being played and its quests (the GM's
+ * quest notes, which no player writes) go to everyone at the table, with a character or without;
+ * notes on a quest name it by its id. It is the table's, not a scene's, so it hears players while
+ * no scene is shared. What a player writes is taken as the protocol's parser cleaned it, only for a
+ * player with a character and within their rate, and is not answered; a refused write is answered
+ * with the whole book (`OwedBooks`). A page that reads its book in parts (`book-parts`) gets a
+ * changed world map or quests alone, any other the whole book again. A player changes their own
+ * character's resources through Atlas (`editResource`), and the sheet that follows tells them what
+ * was taken. A player
  * with a character whose note is a native statblock is sent it after their book, and again
  * whenever it changes (`StatblockShare`), and changes its values and abilities in the note. A
  * player is served by hash what their book names (`BookAssetDesk`), and nobody another character's
@@ -160,8 +161,8 @@ export class BookShare implements LootRecipientSource {
 
   /**
    * A player's message: true when it was the book's, so nobody else reads it. That is a write into
-   * their book, and a request for an asset only their book names (their character's artwork while
-   * the scene does not show it, the world map).
+   * their book, the token their book follows, and a request for an asset only their book names
+   * (their character's artwork while the scene does not show it, the world map).
    */
   receive(from: string, body: unknown): boolean {
     if (!isRecord(body)) return false;
@@ -170,6 +171,7 @@ export class BookShare implements LootRecipientSource {
       return true;
     }
     if (body.t === 'asset-request') return this.assets.receive(from, body);
+    if (body.t === 'book-token') return this.follow(from, body);
     if (!isPlayerBookType(body.t)) return false;
     if (!this.write(from, body)) this.owed.owe(from);
     return true;
@@ -206,6 +208,14 @@ export class BookShare implements LootRecipientSource {
       sheet: (shown, token) => sheetOf(shown, token, scene.resources, (path) => this.art.get(path)),
       libraryStatblock: (placed) => this.ports.libraryStatblock(placed),
     });
+  }
+
+  /** A player chose the token they act with: their book follows it (`Characters.choose`), read at once while their writes are within their rate, else at the next poll. */
+  private follow(from: string, body: Record<string, unknown>): boolean {
+    const message = parseBookTokenMessage(body);
+    const tokenId = message !== null && this.isOnline(from) ? this.ports.scene()?.listedToken(message.scene, message.token) : undefined;
+    if (tokenId !== undefined && this.characters.choose(from, tokenId) && this.rate.take(from, this.ports.now())) this.update();
+    return true;
   }
 
   /** Sends a player what changed of their book: the whole book for another character (or to a page that reads no parts), else each changed part alone. */
