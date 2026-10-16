@@ -130,7 +130,7 @@ export function TemplateEditor(props: TemplateEditorProps): React.JSX.Element {
   // Only a tile that has Options opens them: a part of the header has none.
   const openOptions = (focusKey?: string): void => {
     const [only] = state.selection;
-    if (state.selection.length === 1 && only && optionsKindOf(session.getSnapshot().template, only, playersRow)) setOptions({ focusKey });
+    if (state.selection.length === 1 && only && optionsKindOf(session.getSnapshot().template, only)) setOptions({ focusKey });
   };
   const context: TemplateEditorContextValue = {
     app, session, snapshot, selection: state.selection, select: state.select,

@@ -47,13 +47,13 @@ function choose(container: HTMLElement, option: string): void {
 }
 
 describe('the Players row of a tile\'s Options', () => {
-  it('is not there while online play is off, and a Metric has no Options', () => {
+  it('is not there while online play is off, on a Value or a Metric', () => {
     const { frame } = mountEditor(new FakeSession(richTemplate()));
     fireEvent.click(frame('stat-ac1'));
     expect(players(tileOptions())).toBeNull();
     expect(document.body.textContent).not.toContain('Players');
     fireEvent.click(frame('metric01'));
-    expect(() => tileOptions()).toThrow('no options');
+    expect(players(tileOptions())).toBeNull();
   });
 
   it('sets what players may do with a value, the default first, in one step, storing only the exception', () => {
