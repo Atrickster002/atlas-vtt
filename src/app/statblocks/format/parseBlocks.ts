@@ -81,12 +81,14 @@ const BODY_READERS: { [T in FileBlockType]: BodyRead<T> } = {
     ...optionalOneOf(r, 'display', DISPLAYS),
     ...r.opt('rollFrom', asFieldRef, KEY),
     ...r.opt('rollable', asTrue, ON),
+    ...r.opt('addsToRolls', asTrue, ON),
   })),
   metric: (r) => {
     // A Metric holds at least one number; one without any is kept as it was read.
     const raw = r.rawValue('fields');
     const fields = Array.isArray(raw) && raw.length > 0 ? r.requiredList('fields', asFieldRef, 'field keys') : [];
-    return fields.length === 0 ? { missing: 'fields' } : { type: 'metric', ...r.opt('heading', asString, TEXT), fields, ...r.opt('rollable', asTrue, ON) };
+    if (fields.length === 0) return { missing: 'fields' };
+    return { type: 'metric', ...r.opt('heading', asString, TEXT), fields, ...r.opt('rollable', asTrue, ON), ...r.opt('addsToRolls', asTrue, ON) };
   },
   scores: (r) => withField(r, (field) => ({
     type: 'scores',
@@ -112,7 +114,12 @@ const BODY_READERS: { [T in FileBlockType]: BodyRead<T> } = {
     ...r.opt('addLabel', asString, TEXT),
   })),
   pairs: (r) => withField(r, (field) => ({
-    type: 'pairs', field, ...r.opt('label', asString, TEXT), ...optionalOneOf(r, 'display', DISPLAYS), ...r.opt('rollable', asTrue, ON),
+    type: 'pairs',
+    field,
+    ...r.opt('label', asString, TEXT),
+    ...optionalOneOf(r, 'display', DISPLAYS),
+    ...r.opt('rollable', asTrue, ON),
+    ...r.opt('addsToRolls', asTrue, ON),
   })),
   track: (r) => withField(r, (field) => ({
     type: 'track',

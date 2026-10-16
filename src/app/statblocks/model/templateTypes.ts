@@ -226,13 +226,26 @@ export interface LineBlock extends BlockBase { type: 'line'; fields: FieldKey[];
  * roll link, rolled as a bonus (`2` rolls `+2`) with the game's own dice, as a signed bonus in its text already is.
  */
 export interface Rollable { rollable?: true }
-export interface StatBlock extends BlockBase, Rollable { type: 'stat'; field: FieldKey; label?: string; look: 'run-in' | 'stacked'; pattern?: string; display?: 'plain' | 'signed'; rollFrom?: FieldKey }
+/**
+ * `addsToRolls` ("Adds to rolls"), on a Value, Metric or Labels and values: each whole number it shows gets a
+ * switch on the card that arms it for the statblock's next roll, which adds it as a term named by its label
+ * (`+2[Proficiency]`). What is armed is view state (`statblocks/rollBonuses/`), never stored.
+ */
+export interface AddsToRolls { addsToRolls?: true }
+
+/** The blocks that may add to rolls. */
+export const ADDS_TO_ROLLS_TYPES = ['stat', 'metric', 'pairs'] as const satisfies readonly BlockType[];
+
+export function mayAddToRolls(block: TemplateBlock): block is StatBlock | MetricBlock | PairsBlock {
+  return ADDS_TO_ROLLS_TYPES.some((type) => type === block.type);
+}
+export interface StatBlock extends BlockBase, Rollable, AddsToRolls { type: 'stat'; field: FieldKey; label?: string; look: 'run-in' | 'stacked'; pattern?: string; display?: 'plain' | 'signed'; rollFrom?: FieldKey }
 /**
  * A stat block's key numbers in one box: each a field of its own, its label the number's name over a large
  * value, a rule between two ("Major 8 | Severe 15"). `heading` names the group above them where it holds two or
  * more. A number not named yet is `''` until its label is committed, as a new Value's field is.
  */
-export interface MetricBlock extends BlockBase, Rollable { type: 'metric'; heading?: string; fields: FieldKey[] }
+export interface MetricBlock extends BlockBase, Rollable, AddsToRolls { type: 'metric'; heading?: string; fields: FieldKey[] }
 /**
  * A worked-out row of a Table (`columns` in the file): per column, the column's entry in a pairs field (by its
  * key), else the formula over the column's value in the table's one row (`value`), as a modifier under an ability
@@ -256,7 +269,7 @@ export interface ScoresBlock extends BlockBase, Rollable {
 export interface TagsBlock extends BlockBase { type: 'tags'; field: FieldKey; label?: string; look: 'comma' | 'chips' | 'bullets' | 'numbered' }
 export interface TextBlock extends BlockBase { type: 'text'; field?: FieldKey; text?: string; heading?: string }
 export interface EntriesBlock extends BlockBase { type: 'entries'; field: FieldKey; heading?: string; introField?: FieldKey; nameStyle?: 'run-in' | 'heading'; addLabel?: string }
-export interface PairsBlock extends BlockBase, Rollable { type: 'pairs'; field: FieldKey; label?: string; display?: 'plain' | 'signed' }
+export interface PairsBlock extends BlockBase, Rollable, AddsToRolls { type: 'pairs'; field: FieldKey; label?: string; display?: 'plain' | 'signed' }
 export interface TrackBlock extends BlockBase { type: 'track'; field: FieldKey; label?: string; resource?: string; look: 'boxes' | 'gauge'; counts: 'down' | 'up' }
 export interface ImageBlock extends BlockBase { type: 'image'; field: FieldKey; shape: 'token' | 'portrait' }
 /** `look: 'tabs'` shows each group as a tab, loose lines above the strip; unset is 'lines'. */

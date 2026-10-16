@@ -4,6 +4,10 @@ import { splitDiceSegments } from '../../../services/statblockDiceText';
 import type { StatBlock } from '../../model/templateTypes';
 import { isDiceNotation } from '../../values/diceNotation';
 import type { BlockDisplay } from '../blockDisplay';
+import { bonusId } from '../../rollBonuses/armableValues';
+import { BONUS_ID_ATTRIBUTE } from '../../rollBonuses/armedBonuses';
+import { useArmable } from '../../rollBonuses/rollBonusContext';
+import { ArmSwitch } from '../shared/ArmSwitch';
 import { BonusLink } from '../shared/BonusLink';
 import { namesHitPoints } from '../shared/hitPoints';
 import { useSheet } from '../sheetContext';
@@ -35,12 +39,22 @@ export function StatView({ block, display }: BlockViewProps<StatBlock>): React.J
   const dice = rollFromDice(block, state, display);
   const value = <DisplayText display={display} />;
   const shown = display.state === 'value' ? display.text?.text ?? '' : '';
+  const slot = (
+    <ValueSlot block={block}>
+      {dice ? <span {...diceLinkProps(dice)}>{value}</span> : <BonusLink text={shown} rollable={block.rollable}>{value}</BonusLink>}
+    </ValueSlot>
+  );
+  const id = bonusId(block.field);
+  const armable = useArmable(id, block.addsToRolls);
 
   return (
     <LabelledLine label={label} look={block.look} className="atlas-sb-stat" hitPoints={hitPoints} placeholder={state.provisional !== undefined}>
-      <ValueSlot block={block}>
-        {dice ? <span {...diceLinkProps(dice)}>{value}</span> : <BonusLink text={shown} rollable={block.rollable}>{value}</BonusLink>}
-      </ValueSlot>
+      {armable ? (
+        <span className="atlas-sb-arm-line" {...{ [BONUS_ID_ATTRIBUTE]: id }}>
+          {slot}
+          <ArmSwitch id={id} label={armable.label} />
+        </span>
+      ) : slot}
     </LabelledLine>
   );
 }

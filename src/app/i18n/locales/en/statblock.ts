@@ -1,6 +1,8 @@
 import type { Message } from '../../types';
 
 export const statblock = {
+  'statblock.addToNextRoll': 'Add {name} to the next roll',
+  'statblock.addsToRolls': 'Adds to rolls',
   'statblock.assignToken': 'Assign token',
   'statblock.assignTokenHint': 'Assign a token to this statblock',
   'statblock.changeToken': 'Change token for this statblock',

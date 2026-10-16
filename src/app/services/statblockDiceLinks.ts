@@ -24,6 +24,7 @@ import { rollStatblockDice, statblockRollingDice, type DiceRollSource, type OffM
 import { advantageSide, advantageSidesFor } from '../tools/diceAdvantage';
 import type { AdvantageSide } from '../types/diceSetTypes';
 import { t } from '../i18n';
+import { BONUS_ID_ATTRIBUTE } from '../statblocks/rollBonuses/armedBonuses';
 import { DICE_PATTERN, toRollFormula } from './statblockDiceText';
 
 const LINK_CLASS = 'atlas-dice-link';
@@ -161,7 +162,9 @@ export function attachDiceRolling(
       return;
     }
 
-    rollStatblockDice(app, formula, { ...getSource(), abilityName }, offMap?.(), side);
+    // A value that adds to rolls, rolled from its own number, is in the roll once: as the number clicked.
+    const rolledBonus = link.closest<HTMLElement>(`[${BONUS_ID_ATTRIBUTE}]`)?.getAttribute(BONUS_ID_ATTRIBUTE) ?? undefined;
+    rollStatblockDice(app, formula, { ...getSource(), abilityName, rolledBonus }, offMap?.(), side);
   };
 
   const linkOf = (event: Event): HTMLElement | null =>

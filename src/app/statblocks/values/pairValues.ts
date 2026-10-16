@@ -70,8 +70,8 @@ export function pairValue(pairs: FieldValue | undefined, slotKey: string | undef
 
 const FIRST_LETTER = /^\p{Ll}/u;
 
-/** "dex" as a statblock writes it: "Dex". */
-function pairName(key: string): string {
+/** A pair's name as a statblock writes it: "dex" reads "Dex". */
+export function pairName(key: string): string {
   return key.trim().replace(FIRST_LETTER, (letter) => letter.toUpperCase());
 }
 
