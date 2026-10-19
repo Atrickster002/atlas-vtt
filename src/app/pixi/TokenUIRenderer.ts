@@ -21,6 +21,7 @@ import { getTokenRingCenterRadius } from './token-renderer/tokenRingMetrics';
 import { ValueTransition } from './utils/ValueTransition';
 import { MOTION_SLOW_MS, prefersReducedMotion } from '../utils/motion';
 import { t } from '../i18n';
+import { addonPlayerSeesResources } from '../addons/addonHost';
 
 /**
  * Text is drawn at scale 0.333 and the viewport zooms to at most 5x, so a
@@ -322,7 +323,8 @@ export class TokenUIRenderer {
     const definitions = this.resourceDefsProvider();
     // The map's own switches hide resources from the GM; the players' view never reads them
     const hidden = forPlayers ? [] : tokenSettings?.hiddenResources ?? [];
-    const shown = visibleResources(token, definitions, viewer).filter(({ definition }) => !hidden.includes(definition.key));
+    // Add-ons may keep a token's bars out of the player view (e.g. everything but player characters)
+    const shown = forPlayers && !addonPlayerSeesResources(token) ? [] : visibleResources(token, definitions, viewer).filter(({ definition }) => !hidden.includes(definition.key));
 
     const bars = shown.filter(({ slot }) => shapeOf(slot) === 'bar');
     const wheels = shown.filter(({ slot }) => shapeOf(slot) === 'wheel');

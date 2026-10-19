@@ -4,6 +4,9 @@ import { createStore } from 'zustand/vanilla';
 import { TokenUIRenderer } from '../../src/app/pixi/TokenUIRenderer';
 import { HP, STRESS } from '../mocks/resourceFixtures';
 
+// Core behaviour: no add-ons (the player-bars add-on would hide this non-PC token's bars)
+vi.mock('../../src/app/addons/addonRegistry', () => ({ installedAddons: () => [] }));
+
 afterEach(() => vi.restoreAllMocks());
 
 it('shows players the resources their definitions allow, whatever the DM hides on the map', () => {
